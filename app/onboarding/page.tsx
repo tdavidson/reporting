@@ -358,7 +358,7 @@ function Step2({
 // ---------------------------------------------------------------------------
 
 function Step3({ fundId, onComplete }: { fundId: string; onComplete: () => void }) {
-  const [senders, setSenders] = useState<Sender[]>([{ email: '', label: 'Me' }])
+  const [senders, setSenders] = useState<Sender[]>([])
   const [newEmail, setNewEmail] = useState('')
   const [newLabel, setNewLabel] = useState('')
   const [saving, setSaving] = useState(false)
