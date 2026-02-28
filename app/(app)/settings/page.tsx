@@ -497,6 +497,50 @@ function GoogleDriveSection({
         Google Drive is connected. Attachments from processed emails will be saved automatically.
       </p>
 
+      {/* Credentials management (collapsed by default when connected) */}
+      {editingCreds ? (
+        <div className="space-y-3 mb-4">
+          <p className="text-xs font-medium">Google OAuth credentials</p>
+          <div className="space-y-2">
+            <div>
+              <Label>Client ID</Label>
+              <Input
+                value={newClientId}
+                onChange={(e) => setNewClientId(e.target.value)}
+                placeholder="123456789.apps.googleusercontent.com"
+              />
+            </div>
+            <div>
+              <Label>Client secret</Label>
+              <Input
+                type="password"
+                value={newClientSecret}
+                onChange={(e) => setNewClientSecret(e.target.value)}
+                placeholder="GOCSPX-..."
+              />
+            </div>
+            <div className="flex gap-2">
+              <Button size="sm" onClick={saveCredentials} disabled={savingCreds || !newClientId.trim() || !newClientSecret.trim()}>
+                {savingCreds ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Save credentials'}
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => setEditingCreds(false)}>
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="flex items-center gap-2 mb-4">
+          <p className="text-xs text-muted-foreground flex-1">
+            Google credentials configured.
+            {credsSaved && <span className="text-emerald-600 ml-1">Saved!</span>}
+          </p>
+          <Button size="sm" variant="outline" onClick={() => setEditingCreds(true)} className="text-xs h-7">
+            Update credentials
+          </Button>
+        </div>
+      )}
+
       {folderName && (
         <div className="flex items-center gap-2 mb-3 text-sm">
           <FolderOpen className="h-4 w-4 text-muted-foreground" />
