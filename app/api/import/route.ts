@@ -113,12 +113,14 @@ export async function POST(req: NextRequest) {
   // Parse with Claude
   const anthropic = new Anthropic({ apiKey: claudeApiKey })
 
-  const parseResponse = await anthropic.messages.create({
-    model: 'claude-sonnet-4-20250514',
-    max_tokens: 8192,
-    messages: [{
-      role: 'user',
-      content: `Parse the following spreadsheet/CSV data into structured JSON. Extract companies with their details and metrics.
+  let responseText: string
+  try {
+    const parseResponse = await anthropic.messages.create({
+      model: 'claude-sonnet-4-5-20250514',
+      max_tokens: 8192,
+      messages: [{
+        role: 'user',
+        content: `Parse the following spreadsheet/CSV data into structured JSON. Extract companies with their details and metrics.
 
 Return ONLY valid JSON in this exact format (no markdown, no explanation):
 {
@@ -159,13 +161,20 @@ Rules:
 
 Data to parse:
 ${text}`,
-    }],
-  })
+      }],
+    })
 
-  const responseText = parseResponse.content
-    .filter((b): b is Anthropic.TextBlock => b.type === 'text')
-    .map(b => b.text)
-    .join('')
+    responseText = parseResponse.content
+      .filter((b): b is Anthropic.TextBlock => b.type === 'text')
+      .map(b => b.text)
+      .join('')
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    console.error('[import] Claude API error:', message)
+    return NextResponse.json({
+      error: `Claude API call failed: ${message}`,
+    }, { status: 500 })
+  }
 
   let parsed: { companies: ParsedCompany[] }
   try {
