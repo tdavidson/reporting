@@ -13,7 +13,7 @@ const THEME_ICONS = { system: Monitor, light: Sun, dark: Moon }
 const THEME_LABELS = { system: 'System', light: 'Light', dark: 'Dark' }
 
 const NAV_ITEMS: { href: string; label: string; icon: LucideIcon; badge?: boolean }[] = [
-  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/dashboard', label: 'Portfolio', icon: LayoutDashboard },
   { href: '/review', label: 'Review', icon: ClipboardCheck, badge: true },
   { href: '/emails', label: 'Email Log', icon: Mail },
   { href: '/import', label: 'Import', icon: Upload },
@@ -63,7 +63,7 @@ export function AppSidebar({ reviewBadge, onNavigate }: AppSidebarProps) {
               }`}
             >
               <Icon className="h-4 w-4 shrink-0" />
-              <span className={`flex-1 ${collapsed ? 'md:hidden' : ''}`}>{label}</span>
+              <span className={`${collapsed ? 'md:hidden' : ''}`}>{label}</span>
               {badge && reviewBadge > 0 && (
                 collapsed ? (
                   <span className="hidden md:block absolute top-1 right-1 h-2 w-2 rounded-full bg-amber-500" />
