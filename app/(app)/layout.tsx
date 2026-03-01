@@ -1,8 +1,6 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import { AppHeader } from '@/components/app-header'
-import { AppSidebar } from '@/components/app-sidebar'
-import { AppFooter } from '@/components/app-footer'
+import { AppShell } from '@/components/app-shell'
 import { DemoSeeder } from './demo-seeder'
 
 const isDemo = process.env.DEMO_MODE === 'true'
@@ -13,18 +11,19 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   if (!user) redirect('/auth')
 
   const { count: openReviewCount } = await supabase
-    .from('inbound_emails')
+    .from('parsing_reviews')
     .select('id', { count: 'exact', head: true })
-    .eq('processing_status', 'needs_review')
+    .is('resolution', null)
 
   const { data: fund } = await supabase
     .from('funds')
-    .select('name')
+    .select('name, logo_url')
     .limit(1)
-    .single() as { data: { name: string } | null }
+    .single() as { data: { name: string; logo_url: string | null } | null }
 
   const reviewBadge = openReviewCount ?? 0
   const fundName = fund?.name ?? 'Portfolio Reporting'
+  const fundLogo = fund?.logo_url ?? null
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
@@ -35,25 +34,14 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       )}
 
       <div className="w-full max-w-screen-xl mx-auto flex flex-col flex-1">
-        <AppHeader
+        <AppShell
           fundName={fundName}
+          fundLogo={fundLogo}
           userEmail={user.email ?? ''}
           reviewBadge={reviewBadge}
-        />
-
-        <div className="flex flex-1">
-          {/* Desktop sidebar */}
-          <aside className="hidden md:flex w-56 flex-col shrink-0 pt-4">
-            <AppSidebar reviewBadge={reviewBadge} />
-          </aside>
-
-          {/* Page content */}
-          <main className="flex-1 min-w-0">
-            {children}
-          </main>
-        </div>
-
-        <AppFooter />
+        >
+          {children}
+        </AppShell>
       </div>
 
       {isDemo && <DemoSeeder />}

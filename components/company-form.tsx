@@ -25,15 +25,19 @@ export function CompanyForm({ company, initialName, onSuccess, onCancel }: Props
   const [aliases, setAliases] = useState<string[]>(company?.aliases ?? [])
   const [aliasInput, setAliasInput] = useState('')
   const [stage, setStage] = useState(company?.stage ?? '')
-  const [industry, setIndustry] = useState(company?.industry ?? '')
+  const [industries, setIndustries] = useState<string[]>(company?.industry ?? [])
+  const [industryInput, setIndustryInput] = useState('')
   const [tags, setTags] = useState<string[]>(company?.tags ?? [])
   const [tagInput, setTagInput] = useState('')
+  const [portfolioGroups, setPortfolioGroups] = useState<string[]>(company?.portfolio_group ?? [])
+  const [portfolioGroupInput, setPortfolioGroupInput] = useState('')
   const [notes, setNotes] = useState(company?.notes ?? '')
   const [overview, setOverview] = useState(company?.overview ?? '')
   const [founders, setFounders] = useState(company?.founders ?? '')
   const [whyInvested, setWhyInvested] = useState(company?.why_invested ?? '')
   const [currentUpdate, setCurrentUpdate] = useState(company?.current_update ?? '')
-  const [contactEmail, setContactEmail] = useState(company?.contact_email ?? '')
+  const [contactEmails, setContactEmails] = useState<string[]>(company?.contact_email ?? [])
+  const [contactEmailInput, setContactEmailInput] = useState('')
   const [status, setStatus] = useState(company?.status ?? 'active')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -54,6 +58,51 @@ export function CompanyForm({ company, initialName, onSuccess, onCancel }: Props
       e.preventDefault()
       addTag()
     }
+  }
+
+  function addIndustry() {
+    const trimmed = industryInput.trim()
+    if (!trimmed || industries.includes(trimmed)) return
+    setIndustries(prev => [...prev, trimmed])
+    setIndustryInput('')
+  }
+
+  function removeIndustry(val: string) {
+    setIndustries(prev => prev.filter(v => v !== val))
+  }
+
+  function handleIndustryKeyDown(e: KeyboardEvent<HTMLInputElement>) {
+    if (e.key === 'Enter') { e.preventDefault(); addIndustry() }
+  }
+
+  function addPortfolioGroup() {
+    const trimmed = portfolioGroupInput.trim()
+    if (!trimmed || portfolioGroups.includes(trimmed)) return
+    setPortfolioGroups(prev => [...prev, trimmed])
+    setPortfolioGroupInput('')
+  }
+
+  function removePortfolioGroup(val: string) {
+    setPortfolioGroups(prev => prev.filter(v => v !== val))
+  }
+
+  function handlePortfolioGroupKeyDown(e: KeyboardEvent<HTMLInputElement>) {
+    if (e.key === 'Enter') { e.preventDefault(); addPortfolioGroup() }
+  }
+
+  function addContactEmail() {
+    const trimmed = contactEmailInput.trim()
+    if (!trimmed || contactEmails.includes(trimmed)) return
+    setContactEmails(prev => [...prev, trimmed])
+    setContactEmailInput('')
+  }
+
+  function removeContactEmail(val: string) {
+    setContactEmails(prev => prev.filter(v => v !== val))
+  }
+
+  function handleContactEmailKeyDown(e: KeyboardEvent<HTMLInputElement>) {
+    if (e.key === 'Enter') { e.preventDefault(); addContactEmail() }
   }
 
   function addAlias() {
@@ -94,13 +143,14 @@ export function CompanyForm({ company, initialName, onSuccess, onCancel }: Props
           aliases: aliases.length > 0 ? aliases : null,
           tags: tags.length > 0 ? tags : [],
           stage: stage.trim() || null,
-          industry: industry.trim() || null,
+          industry: industries.length > 0 ? industries : null,
           notes: notes.trim() || null,
           overview: overview.trim() || null,
           founders: founders.trim() || null,
           why_invested: whyInvested.trim() || null,
           current_update: currentUpdate.trim() || null,
-          contact_email: contactEmail.trim() || null,
+          contact_email: contactEmails.length > 0 ? contactEmails : null,
+          portfolio_group: portfolioGroups.length > 0 ? portfolioGroups : null,
           ...(isEdit ? { status } : {}),
         }),
       })
@@ -193,25 +243,68 @@ export function CompanyForm({ company, initialName, onSuccess, onCancel }: Props
         </p>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-2">
-          <Label htmlFor="stage">Stage</Label>
-          <Input
-            id="stage"
-            placeholder="Series A"
-            value={stage}
-            onChange={e => setStage(e.target.value)}
-          />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="industry">Industry</Label>
-          <Input
-            id="industry"
-            placeholder="SaaS"
-            value={industry}
-            onChange={e => setIndustry(e.target.value)}
-          />
-        </div>
+      <div className="space-y-2">
+        <Label htmlFor="stage">Stage</Label>
+        <Input
+          id="stage"
+          placeholder="Series A"
+          value={stage}
+          onChange={e => setStage(e.target.value)}
+        />
+      </div>
+
+      <div className="space-y-2">
+        <Label>Industry</Label>
+        {industries.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mb-2">
+            {industries.map(val => (
+              <Badge key={val} variant="outline" className="gap-1 pr-1">
+                {val}
+                <button
+                  type="button"
+                  onClick={() => removeIndustry(val)}
+                  className="rounded-full hover:bg-muted-foreground/20 p-0.5"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </Badge>
+            ))}
+          </div>
+        )}
+        <Input
+          placeholder="Add industry and press Enter (e.g. SaaS)"
+          value={industryInput}
+          onChange={e => setIndustryInput(e.target.value)}
+          onKeyDown={handleIndustryKeyDown}
+          onBlur={addIndustry}
+        />
+      </div>
+
+      <div className="space-y-2">
+        <Label>Portfolio Group</Label>
+        {portfolioGroups.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mb-2">
+            {portfolioGroups.map(val => (
+              <Badge key={val} variant="outline" className="gap-1 pr-1">
+                {val}
+                <button
+                  type="button"
+                  onClick={() => removePortfolioGroup(val)}
+                  className="rounded-full hover:bg-muted-foreground/20 p-0.5"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </Badge>
+            ))}
+          </div>
+        )}
+        <Input
+          placeholder="Add group and press Enter (e.g. Fund I)"
+          value={portfolioGroupInput}
+          onChange={e => setPortfolioGroupInput(e.target.value)}
+          onKeyDown={handlePortfolioGroupKeyDown}
+          onBlur={addPortfolioGroup}
+        />
       </div>
 
       <div className="space-y-2">
@@ -225,13 +318,30 @@ export function CompanyForm({ company, initialName, onSuccess, onCancel }: Props
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="contact-email">Contact Email</Label>
+        <Label>Contact Emails</Label>
+        {contactEmails.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mb-2">
+            {contactEmails.map(val => (
+              <Badge key={val} variant="outline" className="gap-1 pr-1">
+                {val}
+                <button
+                  type="button"
+                  onClick={() => removeContactEmail(val)}
+                  className="rounded-full hover:bg-muted-foreground/20 p-0.5"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </Badge>
+            ))}
+          </div>
+        )}
         <Input
-          id="contact-email"
           type="email"
-          placeholder="founder@company.com"
-          value={contactEmail}
-          onChange={e => setContactEmail(e.target.value)}
+          placeholder="Add email and press Enter"
+          value={contactEmailInput}
+          onChange={e => setContactEmailInput(e.target.value)}
+          onKeyDown={handleContactEmailKeyDown}
+          onBlur={addContactEmail}
         />
       </div>
 

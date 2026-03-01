@@ -293,14 +293,17 @@ ${text}`,
 
     // Build field values (sanitized)
     const companyFields: Record<string, unknown> = {}
-    if (pc.industry) companyFields.industry = sanitize(pc.industry) || null
+    if (pc.industry) {
+      const ind = sanitize(pc.industry)
+      companyFields.industry = ind ? [ind] : null
+    }
     if (pc.overview) companyFields.overview = sanitize(pc.overview) || null
     if (pc.founders) companyFields.founders = sanitize(pc.founders) || null
     if (pc.why_invested) companyFields.why_invested = sanitize(pc.why_invested) || null
     if (pc.current_update) companyFields.current_update = sanitize(pc.current_update) || null
     if (pc.contact_email) {
       const email = sanitize(pc.contact_email)
-      if (isValidEmail(email)) companyFields.contact_email = email
+      if (isValidEmail(email)) companyFields.contact_email = [email]
     }
     if (pc.stage) companyFields.stage = sanitize(pc.stage) || null
     if (pc.summary) companyFields.notes = sanitize(pc.summary) || null

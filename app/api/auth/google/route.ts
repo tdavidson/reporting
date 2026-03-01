@@ -43,7 +43,7 @@ export async function GET(req: NextRequest) {
     client_id: creds.clientId,
     redirect_uri: redirectUri,
     response_type: 'code',
-    scope: 'https://www.googleapis.com/auth/drive.file',
+    scope: 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/gmail.send',
     access_type: 'offline',
     prompt: 'consent',
     state,

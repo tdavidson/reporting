@@ -372,7 +372,7 @@ export default function EmailsPage() {
                             setReviewModalEmailId(email.id)
                           }}
                         >
-                          {email.company ? `${email.company.name} · Setup` : 'Review'}
+                          {email.company ? `${email.company.name} · Setup` : 'Unknown'}
                         </button>
                       )
                     }

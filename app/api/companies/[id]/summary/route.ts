@@ -250,7 +250,7 @@ Keep it to 2-4 short paragraphs. Be direct and analytical, not promotional. Use 
 
 Company: ${company.name}
 ${company.stage ? `Stage: ${company.stage}` : ''}
-${company.industry ? `Industry: ${company.industry}` : ''}
+${company.industry?.length ? `Industry: ${company.industry.join(', ')}` : ''}
 ${company.notes ? `Fund notes: ${company.notes}` : ''}
 ${company.overview ? `Overview: ${company.overview}` : ''}
 ${company.why_invested ? `Why We Invested: ${company.why_invested}` : ''}

@@ -9,13 +9,14 @@ export async function GET() {
 
   type CompanyRow = {
     id: string; name: string; stage: string | null; status: string
-    industry: string | null; aliases: string[] | null; tags: string[]
+    industry: string[] | null; aliases: string[] | null; tags: string[]
+    portfolio_group: string[] | null; contact_email: string[] | null
     metrics: { id: string }[]; inbound_emails: { received_at: string }[]
   }
 
   const { data, error } = await supabase
     .from('companies')
-    .select('id, name, stage, status, industry, aliases, tags, metrics(id), inbound_emails(received_at)')
+    .select('id, name, stage, status, industry, aliases, tags, portfolio_group, contact_email, metrics(id), inbound_emails(received_at)')
     .order('name') as { data: CompanyRow[] | null; error: { message: string } | null }
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
@@ -33,6 +34,8 @@ export async function GET() {
       industry: c.industry,
       aliases: c.aliases,
       tags: c.tags ?? [],
+      portfolioGroup: c.portfolio_group,
+      contactEmail: c.contact_email,
       metricsCount: c.metrics?.length ?? 0,
       lastReportAt,
     }
@@ -47,7 +50,7 @@ export async function POST(req: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await req.json()
-  const { name, aliases, tags, stage, industry, notes, overview, founders, why_invested, current_update, contact_email } = body
+  const { name, aliases, tags, stage, industry, notes, overview, founders, why_invested, current_update, contact_email, portfolio_group } = body
 
   if (!name?.trim()) {
     return NextResponse.json({ error: 'Name is required' }, { status: 400 })
@@ -73,13 +76,14 @@ export async function POST(req: NextRequest) {
       aliases: aliases ?? null,
       tags: tags ?? [],
       stage: stage?.trim() || null,
-      industry: industry?.trim() || null,
+      industry: industry ?? null,
       notes: notes?.trim() || null,
       overview: overview?.trim() || null,
       founders: founders?.trim() || null,
       why_invested: why_invested?.trim() || null,
       current_update: current_update?.trim() || null,
-      contact_email: contact_email?.trim() || null,
+      contact_email: contact_email ?? null,
+      portfolio_group: portfolio_group ?? null,
       status: 'active',
     })
     .select()

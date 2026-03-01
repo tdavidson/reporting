@@ -6,7 +6,7 @@ const COMPANIES = [
   {
     name: 'NovaTech',
     stage: 'Series A',
-    industry: 'SaaS',
+    industry: ['SaaS'],
     metrics: [
       { name: 'Monthly Recurring Revenue', slug: 'mrr', unit: '$', unit_position: 'prefix' as const, value_type: 'currency' as const, cadence: 'monthly' as const, values: [
         { label: 'Jan 2025', year: 2025, month: 1, val: 120000 },
@@ -39,7 +39,7 @@ const COMPANIES = [
   {
     name: 'GreenLeaf Bio',
     stage: 'Seed',
-    industry: 'Biotech',
+    industry: ['Biotech'],
     metrics: [
       { name: 'Cash on Hand', slug: 'cash', unit: '$', unit_position: 'prefix' as const, value_type: 'currency' as const, cadence: 'quarterly' as const, values: [
         { label: 'Q1 2025', year: 2025, quarter: 1, val: 2400000 },
@@ -58,7 +58,7 @@ const COMPANIES = [
   {
     name: 'UrbanFlow',
     stage: 'Series B',
-    industry: 'Logistics',
+    industry: ['Logistics'],
     metrics: [
       { name: 'Annual Recurring Revenue', slug: 'arr', unit: '$', unit_position: 'prefix' as const, value_type: 'currency' as const, cadence: 'quarterly' as const, values: [
         { label: 'Q1 2025', year: 2025, quarter: 1, val: 4200000 },
@@ -83,7 +83,7 @@ const COMPANIES = [
   {
     name: 'Marpipe',
     stage: 'Series A',
-    industry: 'AdTech',
+    industry: ['AdTech'],
     metrics: [
       { name: 'Monthly Recurring Revenue', slug: 'mrr', unit: '$', unit_position: 'prefix' as const, value_type: 'currency' as const, cadence: 'monthly' as const, values: [
         { label: 'Oct 2025', year: 2025, month: 10, val: 310000 },

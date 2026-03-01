@@ -38,6 +38,7 @@ export type Database = {
           id: string
           name: string
           email_domain: string | null
+          logo_url: string | null
           created_by: string
           created_at: string
           updated_at: string
@@ -46,6 +47,7 @@ export type Database = {
           id?: string
           name: string
           email_domain?: string | null
+          logo_url?: string | null
           created_by: string
           created_at?: string
           updated_at?: string
@@ -54,6 +56,7 @@ export type Database = {
           id?: string
           name?: string
           email_domain?: string | null
+          logo_url?: string | null
           created_by?: string
           created_at?: string
           updated_at?: string
@@ -73,6 +76,7 @@ export type Database = {
           fund_id: string
           user_id: string
           role: string
+          display_name: string | null
           invited_by: string | null
           created_at: string
         }
@@ -81,6 +85,7 @@ export type Database = {
           fund_id: string
           user_id: string
           role?: string
+          display_name?: string | null
           invited_by?: string | null
           created_at?: string
         }
@@ -89,6 +94,7 @@ export type Database = {
           fund_id?: string
           user_id?: string
           role?: string
+          display_name?: string | null
           invited_by?: string | null
           created_at?: string
         }
@@ -130,6 +136,8 @@ export type Database = {
           google_client_secret_encrypted: string | null
           claude_model: string
           ai_summary_prompt: string | null
+          auth_subtitle: string | null
+          auth_contact: string | null
           created_at: string
           updated_at: string
         }
@@ -147,6 +155,8 @@ export type Database = {
           google_drive_folder_name?: string | null
           claude_model?: string
           ai_summary_prompt?: string | null
+          auth_subtitle?: string | null
+          auth_contact?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -164,6 +174,8 @@ export type Database = {
           google_drive_folder_name?: string | null
           claude_model?: string
           ai_summary_prompt?: string | null
+          auth_subtitle?: string | null
+          auth_contact?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -213,7 +225,7 @@ export type Database = {
           fund_id: string
           name: string
           aliases: string[] | null
-          industry: string | null
+          industry: string[] | null
           stage: string | null
           founded_year: number | null
           notes: string | null
@@ -223,7 +235,8 @@ export type Database = {
           founders: string | null
           why_invested: string | null
           current_update: string | null
-          contact_email: string | null
+          contact_email: string[] | null
+          portfolio_group: string[] | null
           created_at: string
           updated_at: string
         }
@@ -232,7 +245,7 @@ export type Database = {
           fund_id: string
           name: string
           aliases?: string[] | null
-          industry?: string | null
+          industry?: string[] | null
           stage?: string | null
           founded_year?: number | null
           notes?: string | null
@@ -242,7 +255,8 @@ export type Database = {
           founders?: string | null
           why_invested?: string | null
           current_update?: string | null
-          contact_email?: string | null
+          contact_email?: string[] | null
+          portfolio_group?: string[] | null
           created_at?: string
           updated_at?: string
         }
@@ -251,7 +265,7 @@ export type Database = {
           fund_id?: string
           name?: string
           aliases?: string[] | null
-          industry?: string | null
+          industry?: string[] | null
           stage?: string | null
           founded_year?: number | null
           notes?: string | null
@@ -261,7 +275,8 @@ export type Database = {
           founders?: string | null
           why_invested?: string | null
           current_update?: string | null
-          contact_email?: string | null
+          contact_email?: string[] | null
+          portfolio_group?: string[] | null
           created_at?: string
           updated_at?: string
         }
@@ -676,6 +691,113 @@ export type Database = {
           },
         ]
       }
+      email_requests: {
+        Row: {
+          id: string
+          fund_id: string
+          subject: string
+          body_html: string
+          recipients: Json
+          sent_by: string
+          quarter_label: string | null
+          status: string
+          sent_at: string | null
+          send_results: Json | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          fund_id: string
+          subject: string
+          body_html: string
+          recipients?: Json
+          sent_by: string
+          quarter_label?: string | null
+          status?: string
+          sent_at?: string | null
+          send_results?: Json | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          fund_id?: string
+          subject?: string
+          body_html?: string
+          recipients?: Json
+          sent_by?: string
+          quarter_label?: string | null
+          status?: string
+          sent_at?: string | null
+          send_results?: Json | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'email_requests_fund_id_fkey'
+            columns: ['fund_id']
+            referencedRelation: 'funds'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'email_requests_sent_by_fkey'
+            columns: ['sent_by']
+            referencedRelation: 'users'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      company_notes: {
+        Row: {
+          id: string
+          company_id: string
+          fund_id: string
+          user_id: string
+          content: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          company_id: string
+          fund_id: string
+          user_id: string
+          content: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          company_id?: string
+          fund_id?: string
+          user_id?: string
+          content?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'company_notes_company_id_fkey'
+            columns: ['company_id']
+            referencedRelation: 'companies'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'company_notes_fund_id_fkey'
+            columns: ['fund_id']
+            referencedRelation: 'funds'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'company_notes_user_id_fkey'
+            columns: ['user_id']
+            referencedRelation: 'users'
+            referencedColumns: ['id']
+          },
+        ]
+      }
     }
     Views: Record<string, never>
     Functions: {
@@ -713,6 +835,8 @@ export type CompanySummary = Tables<'company_summaries'>
 export type ParsingReview  = Tables<'parsing_reviews'>
 export type AllowedSignup  = Tables<'allowed_signups'>
 export type FundJoinRequest = Tables<'fund_join_requests'>
+export type EmailRequest    = Tables<'email_requests'>
+export type CompanyNote     = Tables<'company_notes'>
 
 // Enum-style string literals
 export type CompanyStatus      = 'active' | 'exited' | 'written-off'
@@ -729,3 +853,4 @@ export type IssueType          =
   | 'company_not_identified'
   | 'duplicate_period'
 export type ReviewResolution   = 'accepted' | 'rejected' | 'manually_corrected'
+export type EmailRequestStatus = 'draft' | 'sent' | 'failed'

@@ -14,7 +14,7 @@ import {
   DialogFooter,
   DialogDescription,
 } from '@/components/ui/dialog'
-import { AlertCircle, Check, Loader2, Plus, Trash2, Copy, FolderOpen, Unlink, Shield } from 'lucide-react'
+import { AlertCircle, Check, Loader2, Plus, Trash2, Copy, FolderOpen, Unlink, Shield, ImagePlus, X } from 'lucide-react'
 
 interface Sender {
   id: string
@@ -26,6 +26,7 @@ interface Sender {
 interface Settings {
   fundId: string
   fundName: string
+  fundLogo: string | null
   postmarkInboundAddress: string
   postmarkWebhookToken: string
   hasClaudeKey: boolean
@@ -39,6 +40,9 @@ interface Settings {
   hasGoogleCredentials: boolean
   googleClientId: string
   aiSummaryPrompt: string | null
+  authSubtitle: string
+  authContact: string
+  displayName: string
   isAdmin: boolean
 }
 
@@ -79,36 +83,95 @@ export default function SettingsPage() {
     <div className="p-4 md:p-8 max-w-3xl space-y-8">
       <h1 className="text-2xl font-semibold tracking-tight">Settings</h1>
 
-      <FundNameSection name={settings.fundName} onSaved={load} />
-      <ClaudeKeySection hasKey={settings.hasClaudeKey} currentModel={settings.claudeModel} onSaved={load} />
-      <AiSummaryPromptSection currentPrompt={settings.aiSummaryPrompt} onSaved={load} />
-      <PostmarkSection
-        address={settings.postmarkInboundAddress}
-        token={settings.postmarkWebhookToken}
-        onSaved={load}
-      />
-      <GoogleDriveSection
-        connected={settings.googleDriveConnected}
-        folderId={settings.googleDriveFolderId}
-        folderName={settings.googleDriveFolderName}
-        hasCredentials={settings.hasGoogleCredentials}
-        clientId={settings.googleClientId}
-        onChanged={load}
-      />
-      <SendersSection senders={settings.senders} onChanged={load} />
-      {settings.isAdmin && <WhitelistSection />}
-      <TeamSection isAdmin={settings.isAdmin} />
-      <DangerZone onDeleted={() => router.push('/auth')} />
+      <ProfileSection displayName={settings.displayName} onSaved={load} />
+      {settings.isAdmin && (
+        <>
+          <FundNameSection name={settings.fundName} logo={settings.fundLogo} onSaved={load} />
+          <AuthBrandingSection subtitle={settings.authSubtitle} contact={settings.authContact} onSaved={load} />
+          <ClaudeKeySection hasKey={settings.hasClaudeKey} currentModel={settings.claudeModel} onSaved={load} />
+          <AiSummaryPromptSection currentPrompt={settings.aiSummaryPrompt} onSaved={load} />
+          <PostmarkSection
+            address={settings.postmarkInboundAddress}
+            token={settings.postmarkWebhookToken}
+            onSaved={load}
+          />
+          <GoogleDriveSection
+            connected={settings.googleDriveConnected}
+            folderId={settings.googleDriveFolderId}
+            folderName={settings.googleDriveFolderName}
+            hasCredentials={settings.hasGoogleCredentials}
+            clientId={settings.googleClientId}
+            onChanged={load}
+          />
+          <SendersSection senders={settings.senders} onChanged={load} />
+          <WhitelistSection />
+          <TeamSection isAdmin={settings.isAdmin} />
+          <DangerZone onDeleted={() => router.push('/auth')} />
+        </>
+      )}
+      {!settings.isAdmin && (
+        <>
+          <AiSummaryPromptReadOnly prompt={settings.aiSummaryPrompt} />
+          <TeamSection isAdmin={false} />
+        </>
+      )}
     </div>
+  )
+}
+
+// ──────────────────────────── Profile ────────────────────────────
+
+function ProfileSection({ displayName, onSaved }: { displayName: string; onSaved: () => void }) {
+  const [value, setValue] = useState(displayName)
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+
+  const handleSave = async () => {
+    setSaving(true)
+    const res = await fetch('/api/settings', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ displayName: value }),
+    })
+    setSaving(false)
+    if (res.ok) {
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2000)
+      onSaved()
+    }
+  }
+
+  return (
+    <Section title="Your profile">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-end gap-3">
+        <div className="flex-1">
+          <Label>Display name</Label>
+          <Input
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            placeholder="Your name"
+          />
+          <p className="text-xs text-muted-foreground mt-1">
+            Shown on notes and activity. If empty, your email will be used.
+          </p>
+        </div>
+        <Button onClick={handleSave} disabled={saving || value === displayName} size="sm">
+          {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : saved ? <Check className="h-3.5 w-3.5" /> : 'Save'}
+        </Button>
+      </div>
+    </Section>
   )
 }
 
 // ──────────────────────────── Fund Name ────────────────────────────
 
-function FundNameSection({ name, onSaved }: { name: string; onSaved: () => void }) {
+function FundNameSection({ name, logo, onSaved }: { name: string; logo: string | null; onSaved: () => void }) {
   const [value, setValue] = useState(name)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [logoPreview, setLogoPreview] = useState<string | null>(logo)
+  const [logoSaving, setLogoSaving] = useState(false)
+  const [logoError, setLogoError] = useState<string | null>(null)
 
   const handleSave = async () => {
     setSaving(true)
@@ -125,14 +188,176 @@ function FundNameSection({ name, onSaved }: { name: string; onSaved: () => void 
     }
   }
 
+  const handleLogoFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setLogoError(null)
+
+    if (file.size > 200 * 1024) {
+      setLogoError('File must be under 200KB')
+      e.target.value = ''
+      return
+    }
+
+    const reader = new FileReader()
+    reader.onload = async () => {
+      const dataUrl = reader.result as string
+      setLogoPreview(dataUrl)
+      setLogoSaving(true)
+      const res = await fetch('/api/settings', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fundLogo: dataUrl }),
+      })
+      setLogoSaving(false)
+      if (res.ok) {
+        onSaved()
+      } else {
+        setLogoPreview(logo)
+        setLogoError('Failed to upload logo')
+      }
+    }
+    reader.readAsDataURL(file)
+    e.target.value = ''
+  }
+
+  const handleRemoveLogo = async () => {
+    setLogoSaving(true)
+    setLogoError(null)
+    const res = await fetch('/api/settings', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fundLogo: null }),
+    })
+    setLogoSaving(false)
+    if (res.ok) {
+      setLogoPreview(null)
+      onSaved()
+    }
+  }
+
   return (
-    <Section title="Fund name">
+    <Section title="Fund name & logo">
       <div className="flex flex-col sm:flex-row items-stretch sm:items-end gap-3">
         <div className="flex-1">
           <Label>Name</Label>
           <Input value={value} onChange={(e) => setValue(e.target.value)} />
         </div>
         <Button onClick={handleSave} disabled={saving || value === name} size="sm">
+          {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : saved ? <Check className="h-3.5 w-3.5" /> : 'Save'}
+        </Button>
+      </div>
+
+      <div className="mt-4 pt-4 border-t">
+        <Label>Logo</Label>
+        <p className="text-xs text-muted-foreground mb-2">
+          Upload a logo to display in the header. Max 200KB.
+        </p>
+        <div className="flex items-center gap-3">
+          {logoPreview ? (
+            <div className="relative">
+              <img
+                src={logoPreview}
+                alt="Fund logo"
+                className="h-12 w-12 rounded border object-contain bg-background"
+              />
+              <button
+                onClick={handleRemoveLogo}
+                disabled={logoSaving}
+                className="absolute -top-1.5 -right-1.5 bg-destructive text-destructive-foreground rounded-full p-0.5 hover:bg-destructive/90 disabled:opacity-50"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </div>
+          ) : (
+            <label className="flex items-center gap-2 cursor-pointer border rounded-lg px-3 py-2 text-sm text-muted-foreground hover:bg-accent transition-colors">
+              <ImagePlus className="h-4 w-4" />
+              Choose file
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleLogoFile}
+                className="hidden"
+              />
+            </label>
+          )}
+          {logoPreview && (
+            <label className="flex items-center gap-2 cursor-pointer text-xs text-muted-foreground hover:text-foreground transition-colors">
+              Replace
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleLogoFile}
+                className="hidden"
+              />
+            </label>
+          )}
+          {logoSaving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+        </div>
+        {logoError && (
+          <p className="text-xs text-destructive mt-1 flex items-center gap-1">
+            <AlertCircle className="h-3 w-3" /> {logoError}
+          </p>
+        )}
+      </div>
+    </Section>
+  )
+}
+
+// ──────────────────────────── Auth Branding ────────────────────────────
+
+function AuthBrandingSection({ subtitle, contact, onSaved }: { subtitle: string; contact: string; onSaved: () => void }) {
+  const [sub, setSub] = useState(subtitle)
+  const [con, setCon] = useState(contact)
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+
+  const handleSave = async () => {
+    setSaving(true)
+    const res = await fetch('/api/settings', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ authSubtitle: sub, authContact: con }),
+    })
+    setSaving(false)
+    if (res.ok) {
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2000)
+      onSaved()
+    }
+  }
+
+  const changed = sub !== subtitle || con !== contact
+
+  return (
+    <Section title="Sign-in page">
+      <p className="text-xs text-muted-foreground mb-3">
+        Customize the text shown on the sign-in and sign-up pages.
+      </p>
+      <div className="space-y-3">
+        <div>
+          <Label>Subtitle</Label>
+          <Input
+            value={sub}
+            onChange={(e) => setSub(e.target.value)}
+            placeholder="VC fund portfolio reporting tool"
+          />
+          <p className="text-xs text-muted-foreground mt-1">
+            Shown below the fund name. Leave empty to hide.
+          </p>
+        </div>
+        <div>
+          <Label>Contact info</Label>
+          <Input
+            value={con}
+            onChange={(e) => setCon(e.target.value)}
+            placeholder="Questions? Contact name at email@example.com"
+          />
+          <p className="text-xs text-muted-foreground mt-1">
+            Shown below the sign-in/sign-up form.
+          </p>
+        </div>
+        <Button onClick={handleSave} disabled={saving || !changed} size="sm">
           {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : saved ? <Check className="h-3.5 w-3.5" /> : 'Save'}
         </Button>
       </div>
@@ -371,6 +596,19 @@ function AiSummaryPromptSection({ currentPrompt, onSaved }: { currentPrompt: str
           </Button>
         )}
       </div>
+    </Section>
+  )
+}
+
+function AiSummaryPromptReadOnly({ prompt }: { prompt: string | null }) {
+  return (
+    <Section title="AI summary prompt">
+      <p className="text-xs text-muted-foreground mb-3">
+        The analysis instructions used for AI company summaries. Contact an admin to change this.
+      </p>
+      <pre className="whitespace-pre-wrap text-sm bg-muted rounded-md px-3 py-2 font-mono leading-relaxed">
+        {prompt || DEFAULT_AI_SUMMARY_PROMPT}
+      </pre>
     </Section>
   )
 }

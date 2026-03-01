@@ -21,6 +21,7 @@ interface Props {
   metric: Metric
   values: MetricValueRow[]
   onRefresh: () => void
+  compact?: boolean
 }
 
 interface ChartPoint {
@@ -37,7 +38,7 @@ const CONFIDENCE_COLORS: Record<string, string> = {
   low: 'hsl(var(--destructive))',
 }
 
-export function MetricChart({ metric, values, onRefresh }: Props) {
+export function MetricChart({ metric, values, onRefresh, compact }: Props) {
   const [chartType, setChartType] = useState<'line' | 'bar'>('line')
   const [activePoint, setActivePoint] = useState<{
     data: MetricValueRow
@@ -93,18 +94,24 @@ export function MetricChart({ metric, values, onRefresh }: Props) {
 
   const chartColor = 'hsl(var(--chart-1))'
 
+  const chartHeight = compact ? 180 : 250
+  const tickFontSize = compact ? 9 : 11
+  const yAxisWidth = compact ? 40 : 56
+
   const commonProps = {
     data,
-    margin: { top: 8, right: 8, bottom: 0, left: 8 },
+    margin: compact
+      ? { top: 4, right: 4, bottom: 0, left: 0 }
+      : { top: 8, right: 8, bottom: 0, left: 8 },
   }
 
   return (
     <div>
-      <div className="flex justify-end mb-2">
-        <div className="inline-flex rounded-md border text-xs">
+      <div className="flex justify-end mb-1">
+        <div className="inline-flex rounded-md border text-[10px]">
           <button
             onClick={() => setChartType('line')}
-            className={`px-2.5 py-1 rounded-l-md transition-colors ${
+            className={`px-2 py-0.5 rounded-l-md transition-colors ${
               chartType === 'line'
                 ? 'bg-secondary text-secondary-foreground'
                 : 'text-muted-foreground hover:text-foreground'
@@ -114,7 +121,7 @@ export function MetricChart({ metric, values, onRefresh }: Props) {
           </button>
           <button
             onClick={() => setChartType('bar')}
-            className={`px-2.5 py-1 rounded-r-md transition-colors ${
+            className={`px-2 py-0.5 rounded-r-md transition-colors ${
               chartType === 'bar'
                 ? 'bg-secondary text-secondary-foreground'
                 : 'text-muted-foreground hover:text-foreground'
@@ -125,24 +132,25 @@ export function MetricChart({ metric, values, onRefresh }: Props) {
         </div>
       </div>
 
-      <ResponsiveContainer width="100%" height={250}>
+      <ResponsiveContainer width="100%" height={chartHeight}>
         {chartType === 'line' ? (
           <LineChart {...commonProps}>
             <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
             <XAxis
               dataKey="label"
-              tick={{ fontSize: 11 }}
+              tick={{ fontSize: tickFontSize }}
               className="text-muted-foreground"
               tickLine={false}
               axisLine={false}
+              interval={compact ? 'preserveStartEnd' : 'equidistantPreserveStart'}
             />
             <YAxis
-              tick={{ fontSize: 11 }}
+              tick={{ fontSize: tickFontSize }}
               className="text-muted-foreground"
               tickFormatter={formatYAxis}
               tickLine={false}
               axisLine={false}
-              width={56}
+              width={yAxisWidth}
             />
             <Tooltip
               formatter={(val: any) => [formatValue(val as number), metric.name]}
@@ -190,18 +198,19 @@ export function MetricChart({ metric, values, onRefresh }: Props) {
             <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
             <XAxis
               dataKey="label"
-              tick={{ fontSize: 11 }}
+              tick={{ fontSize: tickFontSize }}
               className="text-muted-foreground"
               tickLine={false}
               axisLine={false}
+              interval={compact ? 'preserveStartEnd' : 'equidistantPreserveStart'}
             />
             <YAxis
-              tick={{ fontSize: 11 }}
+              tick={{ fontSize: tickFontSize }}
               className="text-muted-foreground"
               tickFormatter={formatYAxis}
               tickLine={false}
               axisLine={false}
-              width={56}
+              width={yAxisWidth}
             />
             <Tooltip
               formatter={(val: any) => [formatValue(val as number), metric.name]}

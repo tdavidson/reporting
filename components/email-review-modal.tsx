@@ -11,7 +11,7 @@ import {
 } from '@/components/ui/dialog'
 import { CompanyForm } from '@/components/company-form'
 import { MetricForm } from '@/components/metric-form'
-import { Check, X, Pencil, Building2, Loader2, Plus, BarChart3, RefreshCw } from 'lucide-react'
+import { Check, X, Pencil, Building2, Loader2, Plus, BarChart3, RefreshCw, Mail } from 'lucide-react'
 import type { Company } from '@/lib/types/database'
 
 // ---------------------------------------------------------------------------
@@ -37,6 +37,9 @@ interface ReviewData {
 
 interface EmailInfo {
   id: string
+  subject: string | null
+  from_address: string
+  received_at: string
   company: { id: string; name: string } | null
 }
 
@@ -138,6 +141,9 @@ export function EmailReviewModal({
 
       const info: EmailInfo = {
         id: emailData.id,
+        subject: emailData.subject ?? null,
+        from_address: emailData.from_address ?? '',
+        received_at: emailData.received_at ?? '',
         company: emailData.company ?? null,
       }
       setEmailInfo(info)
@@ -395,6 +401,24 @@ export function EmailReviewModal({
 
         {!loading && emailInfo && (
           <div className="space-y-5">
+            {/* ── Email Context ── */}
+            <section className="rounded-lg border bg-muted/30 p-4">
+              <div className="flex items-start gap-3">
+                <Mail className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+                <div className="min-w-0 space-y-1">
+                  <p className="text-sm font-medium leading-snug">
+                    {emailInfo.subject || '(no subject)'}
+                  </p>
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
+                    <span>From: {emailInfo.from_address}</span>
+                    {emailInfo.received_at && (
+                      <span>{new Date(emailInfo.received_at).toLocaleDateString()}</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </section>
+
             {/* ── Section 1: Review Items ── */}
             {items.length > 0 && (
               <section>

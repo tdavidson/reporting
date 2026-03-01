@@ -77,7 +77,7 @@ export function MetricForm({ companyId, metric, onSuccess, onCancel }: Props) {
           name: name.trim(),
           slug: slug.trim(),
           description: description.trim() || null,
-          unit: unit.trim() || null,
+          unit: unit.trim() === '#' ? null : (unit.trim() || null),
           unit_position: unitPosition,
           value_type: valueType,
           reporting_cadence: cadence,
@@ -147,10 +147,27 @@ export function MetricForm({ companyId, metric, onSuccess, onCancel }: Props) {
           <Label htmlFor="metric-unit">Unit</Label>
           <Input
             id="metric-unit"
-            placeholder="$ or % or users"
+            placeholder="$, %, #, users, etc."
             value={unit}
-            onChange={e => setUnit(e.target.value)}
+            onChange={e => {
+              const v = e.target.value
+              setUnit(v)
+              const trimmed = v.trim()
+              if (trimmed === '$') {
+                setUnitPosition('prefix')
+                setValueType('currency')
+              } else if (trimmed === '%') {
+                setUnitPosition('suffix')
+                setValueType('percentage')
+              } else if (trimmed === '#' || trimmed === '') {
+                setUnitPosition('suffix')
+                setValueType('number')
+              }
+            }}
           />
+          <p className="text-xs text-muted-foreground">
+            Use # or leave empty for plain numbers.
+          </p>
         </div>
         <div className="space-y-2">
           <Label>Unit position</Label>

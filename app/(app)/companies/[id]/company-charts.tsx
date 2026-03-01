@@ -41,6 +41,9 @@ export function CompanyCharts({ companyId, companyName, metrics }: Props) {
   const [loading, setLoading] = useState(true)
   const [addMetricOpen, setAddMetricOpen] = useState(false)
 
+  // Stabilize metrics dependency to avoid refetching on every render
+  const metricIds = metrics.map(m => m.id).join(',')
+
   const loadValues = useCallback(async () => {
     setLoading(true)
     const results: Record<string, MetricValueRow[]> = {}
@@ -54,7 +57,8 @@ export function CompanyCharts({ companyId, companyName, metrics }: Props) {
     )
     setValuesByMetric(results)
     setLoading(false)
-  }, [companyId, metrics])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [companyId, metricIds])
 
   useEffect(() => {
     loadValues()
@@ -130,13 +134,20 @@ export function CompanyCharts({ companyId, companyName, metrics }: Props) {
     )
   }
 
+  const gridClass =
+    metrics.length === 1
+      ? 'grid gap-4 grid-cols-1'
+      : metrics.length >= 3 && metrics.length % 2 !== 0
+        ? 'grid gap-4 grid-cols-1 md:grid-cols-3'
+        : 'grid gap-4 grid-cols-1 md:grid-cols-2'
+
   if (loading) {
     return (
-      <div className="space-y-6">
+      <div className={gridClass}>
         {metrics.map((m) => (
-          <div key={m.id} className="rounded-lg border p-6 animate-pulse">
-            <div className="h-5 w-48 bg-muted rounded mb-4" />
-            <div className="h-[250px] bg-muted/50 rounded" />
+          <div key={m.id} className="rounded-lg border p-4 animate-pulse">
+            <div className="h-4 w-32 bg-muted rounded mb-3" />
+            <div className="h-[180px] bg-muted/50 rounded" />
           </div>
         ))}
       </div>
@@ -146,32 +157,37 @@ export function CompanyCharts({ companyId, companyName, metrics }: Props) {
   const hasData = metrics.some((m) => (valuesByMetric[m.id]?.length ?? 0) > 0)
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-end gap-3">
-        {hasData && (
-          <button
-            onClick={exportCsv}
-            className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
-          >
-            <Download className="h-3.5 w-3.5" />
-            Export CSV
-          </button>
-        )}
-        <Button size="sm" variant="outline" onClick={() => setAddMetricOpen(true)}>
-          <Plus className="h-4 w-4 mr-1.5" />
-          Add metric
-        </Button>
+    <div className="space-y-4">
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-lg font-semibold tracking-tight">Metrics</h2>
+        <div className="flex items-center gap-3">
+          {hasData && (
+            <button
+              onClick={exportCsv}
+              className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+            >
+              <Download className="h-3.5 w-3.5" />
+              Export CSV
+            </button>
+          )}
+          <Button size="sm" variant="outline" onClick={() => setAddMetricOpen(true)}>
+            <Plus className="h-4 w-4 mr-1.5" />
+            Add metric
+          </Button>
+        </div>
       </div>
 
-      {metrics.map((m) => (
-        <MetricChartCard
-          key={m.id}
-          companyId={companyId}
-          metric={m}
-          values={valuesByMetric[m.id] ?? []}
-          onRefresh={loadValues}
-        />
-      ))}
+      <div className={gridClass}>
+        {metrics.map((m) => (
+          <MetricChartCard
+            key={m.id}
+            companyId={companyId}
+            metric={m}
+            values={valuesByMetric[m.id] ?? []}
+            onRefresh={loadValues}
+          />
+        ))}
+      </div>
 
       {addMetricDialog}
     </div>
@@ -192,26 +208,26 @@ function MetricChartCard({
   const [addOpen, setAddOpen] = useState(false)
 
   return (
-    <div className="rounded-lg border bg-card p-6">
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <h3 className="font-medium">{metric.name}</h3>
+    <div className="rounded-lg border bg-card p-4">
+      <div className="flex items-start justify-between mb-2">
+        <div className="min-w-0">
+          <h3 className="font-medium text-sm truncate">{metric.name}</h3>
           {metric.description && (
-            <p className="text-xs text-muted-foreground mt-0.5">{metric.description}</p>
+            <p className="text-[11px] text-muted-foreground mt-0.5 line-clamp-1">{metric.description}</p>
           )}
         </div>
         <button
           onClick={() => setAddOpen(true)}
-          className="text-xs text-primary hover:underline"
+          className="text-[11px] text-primary hover:underline shrink-0 ml-2"
         >
-          + Add data point
+          + Add
         </button>
       </div>
 
       {values.length === 0 ? (
-        <div className="h-[250px] flex items-center justify-center rounded border border-dashed">
-          <p className="text-sm text-muted-foreground text-center max-w-xs">
-            No data yet. Values will appear here after the first parsed report, or you can add historical data manually.
+        <div className="h-[180px] flex items-center justify-center rounded border border-dashed">
+          <p className="text-xs text-muted-foreground text-center px-3">
+            No data yet. Add data points manually or process a report.
           </p>
         </div>
       ) : (
@@ -219,6 +235,7 @@ function MetricChartCard({
           metric={metric}
           values={values}
           onRefresh={onRefresh}
+          compact
         />
       )}
 

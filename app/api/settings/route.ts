@@ -14,21 +14,22 @@ export async function GET() {
 
   const { data: membership } = await admin
     .from('fund_members')
-    .select('fund_id, role')
+    .select('fund_id, role, display_name')
     .eq('user_id', user.id)
     .maybeSingle()
 
   if (!membership) return NextResponse.json({ error: 'No fund found' }, { status: 404 })
 
   const [{ data: fund }, { data: settings }, { data: senders }] = await Promise.all([
-    admin.from('funds').select('id, name').eq('id', membership.fund_id).single(),
-    admin.from('fund_settings').select('postmark_inbound_address, postmark_webhook_token, retain_resolved_reviews, resolved_reviews_ttl_days, claude_api_key_encrypted, claude_model, ai_summary_prompt, google_refresh_token_encrypted, google_drive_folder_id, google_drive_folder_name, google_client_id, google_client_secret_encrypted').eq('fund_id', membership.fund_id).single(),
+    admin.from('funds').select('id, name, logo_url').eq('id', membership.fund_id).single(),
+    admin.from('fund_settings').select('postmark_inbound_address, postmark_webhook_token, retain_resolved_reviews, resolved_reviews_ttl_days, claude_api_key_encrypted, claude_model, ai_summary_prompt, auth_subtitle, auth_contact, google_refresh_token_encrypted, google_drive_folder_id, google_drive_folder_name, google_client_id, google_client_secret_encrypted').eq('fund_id', membership.fund_id).single(),
     admin.from('authorized_senders').select('id, email, label, created_at').eq('fund_id', membership.fund_id).order('email'),
   ])
 
   return NextResponse.json({
     fundId: fund?.id,
     fundName: fund?.name,
+    fundLogo: fund?.logo_url ?? null,
     postmarkInboundAddress: settings?.postmark_inbound_address ?? '',
     postmarkWebhookToken: settings?.postmark_webhook_token ?? '',
     hasClaudeKey: !!settings?.claude_api_key_encrypted,
@@ -42,6 +43,9 @@ export async function GET() {
     hasGoogleCredentials: !!(settings?.google_client_id && settings?.google_client_secret_encrypted) || !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET),
     googleClientId: settings?.google_client_id ?? '',
     aiSummaryPrompt: settings?.ai_summary_prompt ?? null,
+    authSubtitle: settings?.auth_subtitle ?? '',
+    authContact: settings?.auth_contact ?? '',
+    displayName: membership.display_name ?? '',
     isAdmin: membership.role === 'admin',
   })
 }
@@ -56,19 +60,47 @@ export async function PATCH(req: NextRequest) {
 
   const { data: membership } = await admin
     .from('fund_members')
-    .select('fund_id')
+    .select('fund_id, role')
     .eq('user_id', user.id)
     .maybeSingle()
 
   if (!membership) return NextResponse.json({ error: 'No fund found' }, { status: 404 })
 
   const body = await req.json()
-  const { fundName, postmarkInboundAddress, claudeApiKey, claudeModel, retainResolvedReviews, resolvedReviewsTtlDays, googleClientId, googleClientSecret, aiSummaryPrompt } = body
+  const { fundName, fundLogo, postmarkInboundAddress, claudeApiKey, claudeModel, retainResolvedReviews, resolvedReviewsTtlDays, googleClientId, googleClientSecret, aiSummaryPrompt, authSubtitle, authContact, displayName } = body
+
+  // Update display name on fund_members (any user can do this)
+  if (displayName !== undefined) {
+    await admin.from('fund_members').update({ display_name: displayName?.trim() || null }).eq('fund_id', membership.fund_id).eq('user_id', user.id)
+  }
+
+  // All other settings require admin role
+  const hasAdminFields = fundName !== undefined || fundLogo !== undefined || postmarkInboundAddress !== undefined ||
+    claudeApiKey !== undefined || claudeModel !== undefined || retainResolvedReviews !== undefined ||
+    resolvedReviewsTtlDays !== undefined || googleClientId !== undefined || googleClientSecret !== undefined ||
+    aiSummaryPrompt !== undefined || authSubtitle !== undefined || authContact !== undefined
+
+  if (hasAdminFields && membership.role !== 'admin') {
+    return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
+  }
 
   // Update fund name
   if (fundName !== undefined) {
     if (!fundName?.trim()) return NextResponse.json({ error: 'Fund name cannot be empty' }, { status: 400 })
     await admin.from('funds').update({ name: fundName.trim() }).eq('id', membership.fund_id)
+  }
+
+  // Update fund logo
+  if (fundLogo !== undefined) {
+    if (fundLogo !== null) {
+      if (typeof fundLogo !== 'string' || !fundLogo.startsWith('data:image/')) {
+        return NextResponse.json({ error: 'Logo must be a data:image/ URL' }, { status: 400 })
+      }
+      if (fundLogo.length > 200 * 1024) {
+        return NextResponse.json({ error: 'Logo must be under 200KB' }, { status: 400 })
+      }
+    }
+    await admin.from('funds').update({ logo_url: fundLogo }).eq('id', membership.fund_id)
   }
 
   // Update fund_settings
@@ -92,6 +124,14 @@ export async function PATCH(req: NextRequest) {
 
   if (aiSummaryPrompt !== undefined) {
     settingsUpdates.ai_summary_prompt = aiSummaryPrompt?.trim() || null
+  }
+
+  if (authSubtitle !== undefined) {
+    settingsUpdates.auth_subtitle = authSubtitle?.trim() || null
+  }
+
+  if (authContact !== undefined) {
+    settingsUpdates.auth_contact = authContact?.trim() || null
   }
 
   // Update Claude API key with envelope encryption
@@ -157,11 +197,15 @@ export async function DELETE(req: NextRequest) {
 
   const { data: membership } = await admin
     .from('fund_members')
-    .select('fund_id')
+    .select('fund_id, role')
     .eq('user_id', user.id)
     .maybeSingle()
 
   if (!membership) return NextResponse.json({ error: 'No fund found' }, { status: 404 })
+
+  if (membership.role !== 'admin') {
+    return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
+  }
 
   const fundId = membership.fund_id
 

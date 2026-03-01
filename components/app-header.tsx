@@ -1,23 +1,26 @@
 'use client'
 
 import { useState } from 'react'
-import { Menu, LogOut } from 'lucide-react'
+import { Menu, LogOut, Building2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent } from '@/components/ui/sheet'
 import { AppSidebar } from '@/components/app-sidebar'
+import { useSidebar } from '@/components/sidebar-context'
 
 interface AppHeaderProps {
   fundName: string
+  fundLogo?: string | null
   userEmail: string
   reviewBadge: number
 }
 
-export function AppHeader({ fundName, userEmail, reviewBadge }: AppHeaderProps) {
+export function AppHeader({ fundName, fundLogo, userEmail, reviewBadge }: AppHeaderProps) {
   const [drawerOpen, setDrawerOpen] = useState(false)
+  const { collapsed } = useSidebar()
 
   return (
-    <header className="flex items-center justify-between px-4 py-3 shrink-0">
-      {/* Left: hamburger + fund name */}
+    <header className="relative flex items-center justify-between px-4 py-3 shrink-0">
+      {/* Left: hamburger + logo + fund name */}
       <div className="flex items-center gap-3">
         <Button
           variant="ghost"
@@ -28,8 +31,28 @@ export function AppHeader({ fundName, userEmail, reviewBadge }: AppHeaderProps) 
           <Menu className="h-5 w-5" />
           <span className="sr-only">Open menu</span>
         </Button>
-        <span className="font-semibold text-xl tracking-tight truncate">{fundName}</span>
+        {fundLogo ? (
+          <img
+            src={fundLogo}
+            alt=""
+            className="h-7 w-7 rounded object-contain"
+          />
+        ) : (
+          <div className="h-7 w-7 rounded bg-muted flex items-center justify-center">
+            <Building2 className="h-4 w-4 text-muted-foreground" />
+          </div>
+        )}
+        {!collapsed && (
+          <span className="font-medium text-base text-muted-foreground tracking-tight truncate">{fundName}</span>
+        )}
       </div>
+
+      {/* Fund name aligned above page content when sidebar collapsed */}
+      {collapsed && (
+        <span className="hidden md:block absolute left-[5.5rem] top-1/2 -translate-y-1/2 text-sm font-medium text-muted-foreground/70 tracking-tight">
+          {fundName}
+        </span>
+      )}
 
       {/* Right: user + sign out */}
       <div className="flex items-center gap-3">
