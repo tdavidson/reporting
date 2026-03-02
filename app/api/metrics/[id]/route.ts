@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 
+const VALID_VALUE_TYPES = ['number', 'currency', 'percentage', 'text']
+const VALID_UNIT_POSITIONS = ['prefix', 'suffix']
+const VALID_REPORTING_CADENCES = ['quarterly', 'monthly', 'annual']
+
 async function verifyOwnership(admin: ReturnType<typeof createAdminClient>, metricId: string, userId: string) {
   const { data: metric } = await admin
     .from('metrics')
@@ -34,6 +38,16 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
   const body = await req.json()
   const { name, slug, description, unit, unit_position, value_type, reporting_cadence, display_order, is_active } = body
+
+  if (value_type !== undefined && !VALID_VALUE_TYPES.includes(value_type)) {
+    return NextResponse.json({ error: `Invalid value_type. Must be one of: ${VALID_VALUE_TYPES.join(', ')}` }, { status: 400 })
+  }
+  if (unit_position !== undefined && unit_position !== null && !VALID_UNIT_POSITIONS.includes(unit_position)) {
+    return NextResponse.json({ error: `Invalid unit_position. Must be one of: ${VALID_UNIT_POSITIONS.join(', ')}` }, { status: 400 })
+  }
+  if (reporting_cadence !== undefined && !VALID_REPORTING_CADENCES.includes(reporting_cadence)) {
+    return NextResponse.json({ error: `Invalid reporting_cadence. Must be one of: ${VALID_REPORTING_CADENCES.join(', ')}` }, { status: 400 })
+  }
 
   const updates: Record<string, unknown> = {}
   if (name !== undefined) updates.name = name

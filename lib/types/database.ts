@@ -127,6 +127,7 @@ export type Database = {
           encryption_key_encrypted: string | null
           postmark_inbound_address: string | null
           postmark_webhook_token: string | null
+          postmark_webhook_token_encrypted: string | null
           retain_resolved_reviews: boolean
           resolved_reviews_ttl_days: number | null
           google_refresh_token_encrypted: string | null
@@ -164,6 +165,7 @@ export type Database = {
           encryption_key_encrypted?: string | null
           postmark_inbound_address?: string | null
           postmark_webhook_token?: string | null
+          postmark_webhook_token_encrypted?: string | null
           retain_resolved_reviews?: boolean
           resolved_reviews_ttl_days?: number | null
           google_refresh_token_encrypted?: string | null
@@ -199,6 +201,7 @@ export type Database = {
           encryption_key_encrypted?: string | null
           postmark_inbound_address?: string | null
           postmark_webhook_token?: string | null
+          postmark_webhook_token_encrypted?: string | null
           retain_resolved_reviews?: boolean
           resolved_reviews_ttl_days?: number | null
           google_refresh_token_encrypted?: string | null

@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -17,8 +16,6 @@ export default function SignUpPage() {
   const [error, setError] = useState<string | null>(null)
   const [info, setInfo] = useState<string | null>(null)
   const [branding, setBranding] = useState<{ fundName: string; fundLogo: string }>({ fundName: '', fundLogo: '' })
-
-  const supabase = createClient()
 
   useEffect(() => {
     fetch('/api/auth/branding')
@@ -40,38 +37,20 @@ export default function SignUpPage() {
     setInfo(null)
     setLoading(true)
 
-    // Check whitelist before signup
     try {
-      const checkRes = await fetch('/api/auth/check-email', {
+      const res = await fetch('/api/auth/signup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ email, password }),
       })
-      const checkData = await checkRes.json()
-      if (!checkData.allowed) {
-        setError('This email is not authorized to create an account. Contact your fund administrator.')
-        setLoading(false)
-        return
+      const data = await res.json()
+      if (!res.ok) {
+        setError(data.error || 'Unable to create account.')
+      } else {
+        setInfo('Check your email for a confirmation link.')
       }
     } catch {
-      setError('Unable to verify email. Please try again.')
-      setLoading(false)
-      return
-    }
-
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
-      },
-    })
-    if (error) {
-      setError(error.message)
-    } else if (data.user && data.user.identities?.length === 0) {
-      setError('This email is already registered. Please sign in or use the magic link option.')
-    } else {
-      setInfo('Check your email for a confirmation link.')
+      setError('Unable to create account. Please try again.')
     }
     setLoading(false)
   }

@@ -20,11 +20,12 @@ export async function POST(req: NextRequest) {
 
   const { data: membership } = await admin
     .from('fund_members')
-    .select('fund_id')
+    .select('fund_id, role')
     .eq('user_id', user.id)
     .maybeSingle()
 
   if (!membership) return NextResponse.json({ error: 'No fund found' }, { status: 403 })
+  if (membership.role !== 'admin') return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
 
   // Get Dropbox connection
   const { data: settings } = await admin

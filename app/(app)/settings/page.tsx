@@ -1881,6 +1881,7 @@ function OutboundEmailSection({
 
         {activeProviders.has('gmail') && (
           <div className="space-y-2">
+            <Label>Gmail connection</Label>
             <p className="text-xs text-muted-foreground">
               Emails will be sent from your connected Google account. The same Google connection is used for Gmail and Google Drive.
             </p>

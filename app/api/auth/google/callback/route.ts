@@ -27,7 +27,10 @@ export async function GET(req: NextRequest) {
   try {
     const state = JSON.parse(Buffer.from(stateParam, 'base64url').toString())
     fundId = state.fund_id
-    if (state.return_to) returnTo = state.return_to
+    // Prevent open redirect — only allow relative paths
+    if (state.return_to && typeof state.return_to === 'string' && state.return_to.startsWith('/') && !state.return_to.startsWith('//')) {
+      returnTo = state.return_to
+    }
   } catch {
     return NextResponse.redirect(new URL('/settings?drive_error=invalid_state', req.url))
   }
@@ -109,5 +112,5 @@ export async function GET(req: NextRequest) {
     .eq('fund_id', fundId)
 
   const separator = returnTo.includes('?') ? '&' : '?'
-  return NextResponse.redirect(new URL(`${returnTo}${separator}drive_connected=true`, req.url))
+  return NextResponse.redirect(new URL(`${returnTo}${separator}google_connected=true`, req.url))
 }

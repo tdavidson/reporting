@@ -8,6 +8,28 @@ import {
 } from '@/lib/parsing/extractAttachmentText'
 import Anthropic from '@anthropic-ai/sdk'
 
+// Verify the company belongs to the user's fund
+async function verifyCompanyAccess(supabase: ReturnType<typeof createClient>, admin: ReturnType<typeof createAdminClient>, userId: string, companyId: string) {
+  const { data: membership } = await admin
+    .from('fund_members')
+    .select('fund_id')
+    .eq('user_id', userId)
+    .maybeSingle()
+
+  if (!membership) return { error: NextResponse.json({ error: 'No fund found' }, { status: 404 }) }
+
+  const { data: company } = await admin
+    .from('companies')
+    .select('fund_id')
+    .eq('id', companyId)
+    .maybeSingle()
+
+  if (!company) return { error: NextResponse.json({ error: 'Not found' }, { status: 404 }) }
+  if (company.fund_id !== membership.fund_id) return { error: NextResponse.json({ error: 'Forbidden' }, { status: 403 }) }
+
+  return { fundId: membership.fund_id }
+}
+
 // ---------------------------------------------------------------------------
 // GET — return the most recent stored summary (if any)
 // ---------------------------------------------------------------------------
@@ -21,6 +43,9 @@ export async function GET(
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const admin = createAdminClient()
+
+  const access = await verifyCompanyAccess(supabase, admin, user.id, params.id)
+  if ('error' in access) return access.error
 
   const { data: latest } = await admin
     .from('company_summaries')
@@ -55,6 +80,9 @@ export async function DELETE(
 
   const admin = createAdminClient()
 
+  const access = await verifyCompanyAccess(supabase, admin, user.id, params.id)
+  if ('error' in access) return access.error
+
   const { error } = await admin
     .from('company_summaries')
     .delete()
@@ -78,6 +106,10 @@ export async function POST(
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const admin = createAdminClient()
+
+  // Verify fund access before proceeding
+  const access = await verifyCompanyAccess(supabase, admin, user.id, params.id)
+  if ('error' in access) return access.error
 
   // --- Company ---
   const { data: company } = await admin

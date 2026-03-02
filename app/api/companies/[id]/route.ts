@@ -3,6 +3,8 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import type { CompanyStatus } from '@/lib/types/database'
 
+const VALID_STATUSES: CompanyStatus[] = ['active', 'exited', 'written-off']
+
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -65,7 +67,12 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   if (current_update !== undefined) updates.current_update = current_update?.trim() || null
   if (contact_email !== undefined) updates.contact_email = contact_email
   if (portfolio_group !== undefined) updates.portfolio_group = portfolio_group
-  if (status !== undefined) updates.status = status as CompanyStatus
+  if (status !== undefined) {
+    if (!VALID_STATUSES.includes(status)) {
+      return NextResponse.json({ error: `Invalid status. Must be one of: ${VALID_STATUSES.join(', ')}` }, { status: 400 })
+    }
+    updates.status = status as CompanyStatus
+  }
 
   const { data, error } = await admin
     .from('companies')

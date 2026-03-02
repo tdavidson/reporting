@@ -99,10 +99,29 @@ export async function PATCH(
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
+  const admin = createAdminClient()
+
+  // Verify user has access to this email's fund
+  const { data: membership } = await admin
+    .from('fund_members')
+    .select('fund_id')
+    .eq('user_id', user.id)
+    .maybeSingle()
+
+  if (!membership) return NextResponse.json({ error: 'No fund found' }, { status: 404 })
+
+  const { data: email } = await admin
+    .from('inbound_emails')
+    .select('fund_id')
+    .eq('id', params.id)
+    .maybeSingle()
+
+  if (!email) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  if (email.fund_id !== membership.fund_id) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+
   const body = await req.json()
   const { companyId } = body as { companyId?: string }
 
-  const admin = createAdminClient()
   const updates: Record<string, unknown> = {}
 
   if (companyId !== undefined) {

@@ -22,16 +22,35 @@ export async function GET() {
 
   const [{ data: fund }, { data: settings }, { data: senders }] = await Promise.all([
     admin.from('funds').select('id, name, logo_url').eq('id', membership.fund_id).single(),
-    admin.from('fund_settings').select('postmark_inbound_address, postmark_webhook_token, retain_resolved_reviews, resolved_reviews_ttl_days, claude_api_key_encrypted, claude_model, ai_summary_prompt, google_refresh_token_encrypted, google_drive_folder_id, google_drive_folder_name, google_client_id, google_client_secret_encrypted, outbound_email_provider, asks_email_provider, approval_email_subject, approval_email_body, system_email_from_name, system_email_from_address, resend_api_key_encrypted, postmark_server_token_encrypted, inbound_email_provider, mailgun_inbound_domain, mailgun_signing_key_encrypted, mailgun_api_key_encrypted, mailgun_sending_domain, file_storage_provider, dropbox_app_key, dropbox_app_secret_encrypted, dropbox_refresh_token_encrypted, dropbox_folder_path').eq('fund_id', membership.fund_id).single(),
+    admin.from('fund_settings').select('postmark_inbound_address, postmark_webhook_token, postmark_webhook_token_encrypted, encryption_key_encrypted, retain_resolved_reviews, resolved_reviews_ttl_days, claude_api_key_encrypted, claude_model, ai_summary_prompt, google_refresh_token_encrypted, google_drive_folder_id, google_drive_folder_name, google_client_id, google_client_secret_encrypted, outbound_email_provider, asks_email_provider, approval_email_subject, approval_email_body, system_email_from_name, system_email_from_address, resend_api_key_encrypted, postmark_server_token_encrypted, inbound_email_provider, mailgun_inbound_domain, mailgun_signing_key_encrypted, mailgun_api_key_encrypted, mailgun_sending_domain, file_storage_provider, dropbox_app_key, dropbox_app_secret_encrypted, dropbox_refresh_token_encrypted, dropbox_folder_path').eq('fund_id', membership.fund_id).single(),
     admin.from('authorized_senders').select('id, email, label, created_at').eq('fund_id', membership.fund_id).order('email'),
   ])
+
+  // Decrypt webhook token if encrypted; fall back to plaintext for legacy
+  let webhookToken = ''
+  if (membership.role === 'admin' && settings) {
+    if (settings.postmark_webhook_token_encrypted && settings.encryption_key_encrypted) {
+      try {
+        const kek = process.env.ENCRYPTION_KEY
+        if (kek) {
+          const { decrypt } = await import('@/lib/crypto')
+          const dek = decrypt(settings.encryption_key_encrypted, kek)
+          webhookToken = decrypt(settings.postmark_webhook_token_encrypted, dek)
+        }
+      } catch {
+        webhookToken = settings.postmark_webhook_token ?? ''
+      }
+    } else {
+      webhookToken = settings.postmark_webhook_token ?? ''
+    }
+  }
 
   return NextResponse.json({
     fundId: fund?.id,
     fundName: fund?.name,
     fundLogo: fund?.logo_url ?? null,
     postmarkInboundAddress: settings?.postmark_inbound_address ?? '',
-    postmarkWebhookToken: settings?.postmark_webhook_token ?? '',
+    postmarkWebhookToken: webhookToken,
     hasClaudeKey: !!settings?.claude_api_key_encrypted,
     claudeModel: settings?.claude_model ?? 'claude-sonnet-4-5',
     retainResolvedReviews: settings?.retain_resolved_reviews ?? true,

@@ -1,10 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { timingSafeEqual } from 'crypto'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { decrypt } from '@/lib/crypto'
 import {
   runPipeline,
   type PostmarkPayload,
 } from '@/lib/pipeline/processEmail'
 import { isAuthorizedSender } from '@/lib/pipeline/isAuthorizedSender'
+
+function safeTokenCompare(a: string, b: string): boolean {
+  try {
+    return a.length === b.length && timingSafeEqual(Buffer.from(a), Buffer.from(b))
+  } catch {
+    return false
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Entry point — always returns HTTP 200 to Postmark
@@ -30,7 +40,11 @@ export async function POST(req: NextRequest) {
 
 async function handleInbound(req: NextRequest) {
   const supabase = createAdminClient()
-  const token = req.nextUrl.searchParams.get('token') ?? ''
+  // Accept token from Authorization header (preferred) or query string (legacy/Postmark)
+  const authHeader = req.headers.get('authorization')
+  const token = (authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null)
+    ?? req.nextUrl.searchParams.get('token')
+    ?? ''
   const payload = (await req.json()) as PostmarkPayload
 
   const toAddress = payload.OriginalRecipient || payload.To
@@ -104,12 +118,25 @@ async function resolveFund(
 ): Promise<{ fundId: string; isGlobal: boolean } | null> {
   const { data: fundSettings } = await supabase
     .from('fund_settings')
-    .select('fund_id, postmark_webhook_token')
+    .select('fund_id, postmark_webhook_token, postmark_webhook_token_encrypted, encryption_key_encrypted')
     .eq('postmark_inbound_address', toAddress)
     .maybeSingle()
 
   if (fundSettings) {
-    if (!token || token !== fundSettings.postmark_webhook_token) {
+    // Prefer encrypted token; fall back to plaintext for legacy
+    let expectedToken = fundSettings.postmark_webhook_token ?? ''
+    if (fundSettings.postmark_webhook_token_encrypted && fundSettings.encryption_key_encrypted) {
+      try {
+        const kek = process.env.ENCRYPTION_KEY
+        if (kek) {
+          const dek = decrypt(fundSettings.encryption_key_encrypted, kek)
+          expectedToken = decrypt(fundSettings.postmark_webhook_token_encrypted, dek)
+        }
+      } catch {
+        // Fall back to plaintext
+      }
+    }
+    if (!token || !expectedToken || !safeTokenCompare(token, expectedToken)) {
       console.warn('[inbound-email] Invalid token for per-fund address')
       return null
     }
@@ -125,7 +152,7 @@ async function resolveFund(
     return null
   }
 
-  if (!token || token !== appSettings.global_inbound_token) {
+  if (!token || !appSettings.global_inbound_token || !safeTokenCompare(token, appSettings.global_inbound_token)) {
     console.warn('[inbound-email] Invalid token for global address')
     return null
   }

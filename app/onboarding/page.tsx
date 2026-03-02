@@ -100,20 +100,20 @@ function OnboardingContent() {
 
   const detectFund = useCallback(async () => {
     // Check if returning from Google Drive OAuth
-    const driveConnected = searchParams.get('drive_connected') === 'true'
+    const googleConnected = searchParams.get('google_connected') === 'true'
 
     // Check if the user has an in-progress onboarding to resume
     const statusRes = await fetch('/api/onboarding/fund')
     if (statusRes.ok) {
       const status = await statusRes.json()
-      if (status.step === 'complete' && !driveConnected) {
+      if (status.step === 'complete' && !googleConnected) {
         router.push('/dashboard')
         return
       }
       if (status.fundId) {
         setState({ fundId: status.fundId, webhookToken: status.webhookToken })
 
-        if (driveConnected) {
+        if (googleConnected) {
           // Returning from Google OAuth — go to step 4 with success
           setStep(4)
         } else if (status.step === 'complete') {
@@ -194,7 +194,7 @@ function OnboardingContent() {
         )}
         {step === 4 && (
           <Step4
-            driveConnected={searchParams.get('drive_connected') === 'true'}
+            googleConnected={searchParams.get('google_connected') === 'true'}
             onComplete={() => router.push('/dashboard')}
           />
         )}
@@ -779,10 +779,10 @@ function Step3({ fundId, onComplete }: { fundId: string; onComplete: () => void 
 // ---------------------------------------------------------------------------
 
 function Step4({
-  driveConnected,
+  googleConnected,
   onComplete,
 }: {
-  driveConnected: boolean
+  googleConnected: boolean
   onComplete: () => void
 }) {
   const [configured, setConfigured] = useState(false)
@@ -832,7 +832,7 @@ function Step4({
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-5">
-        {driveConnected ? (
+        {googleConnected ? (
           <div className="flex items-center gap-3 p-4 rounded-lg border bg-muted/50">
             <CheckCircle2 className="h-6 w-6 text-emerald-500 shrink-0" />
             <div>
@@ -909,7 +909,7 @@ function Step4({
         )}
 
         <div className="space-y-2">
-          {!driveConnected && configured && (
+          {!googleConnected && configured && (
             <Button
               className="w-full"
               variant="outline"
@@ -923,7 +923,7 @@ function Step4({
           )}
 
           <Button className="w-full" onClick={onComplete}>
-            {driveConnected ? 'Finish setup' : 'Skip for now'}
+            {googleConnected ? 'Finish setup' : 'Skip for now'}
           </Button>
         </div>
       </CardContent>

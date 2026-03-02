@@ -33,12 +33,15 @@ export async function GET(req: NextRequest) {
   const admin = createAdminClient()
   const { data: membership } = await admin
     .from('fund_members')
-    .select('fund_id')
+    .select('fund_id, role')
     .eq('user_id', user.id)
     .eq('fund_id', fundId)
     .maybeSingle()
 
   if (!membership) {
+    return NextResponse.redirect(new URL('/settings?dropbox_error=forbidden', req.url))
+  }
+  if (membership.role !== 'admin') {
     return NextResponse.redirect(new URL('/settings?dropbox_error=forbidden', req.url))
   }
 

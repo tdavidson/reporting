@@ -142,6 +142,7 @@ export async function POST(req: NextRequest) {
 
   // Generate a random webhook token for Postmark URL validation
   const webhookToken = randomBytes(32).toString('hex')
+  const webhookTokenEncrypted = encrypt(webhookToken, dek)
 
   const { error: settingsError } = await admin
     .from('fund_settings')
@@ -150,6 +151,7 @@ export async function POST(req: NextRequest) {
       claude_api_key_encrypted: claudeApiKeyEncrypted,
       encryption_key_encrypted: encryptionKeyEncrypted,
       postmark_webhook_token: webhookToken,
+      postmark_webhook_token_encrypted: webhookTokenEncrypted,
     })
 
   if (settingsError) {
