@@ -1,4 +1,4 @@
-import Anthropic from '@anthropic-ai/sdk'
+import { AnthropicProvider } from '@/lib/ai/anthropic'
 
 const DEFAULT_MODEL = 'claude-sonnet-4-5'
 
@@ -22,10 +22,10 @@ export async function identifyCompany(
   claudeApiKey: string,
   model: string = DEFAULT_MODEL
 ): Promise<IdentifyCompanyResult> {
-  const client = new Anthropic({ apiKey: claudeApiKey })
+  const provider = new AnthropicProvider(claudeApiKey)
   const prompt = buildPrompt(subject, bodyExcerpt, companies)
 
-  const raw = await callWithRetry(client, prompt, model)
+  const raw = await callWithRetry(provider, prompt, model)
   return raw
 }
 
@@ -70,16 +70,16 @@ const STRICT_SUFFIX =
 // ---------------------------------------------------------------------------
 
 async function callWithRetry(
-  client: Anthropic,
+  provider: AnthropicProvider,
   prompt: string,
   model: string
 ): Promise<IdentifyCompanyResult> {
-  const first = await call(client, prompt, model)
+  const first = await call(provider, prompt, model)
   const parsed = tryParse(first)
   if (parsed) return parsed
 
   // Retry with stricter instruction appended
-  const second = await call(client, prompt + STRICT_SUFFIX, model)
+  const second = await call(provider, prompt + STRICT_SUFFIX, model)
   const reparsed = tryParse(second)
   if (reparsed) return reparsed
 
@@ -88,17 +88,13 @@ async function callWithRetry(
   )
 }
 
-async function call(client: Anthropic, userPrompt: string, model: string): Promise<string> {
-  const message = await client.messages.create({
+async function call(provider: AnthropicProvider, userPrompt: string, model: string): Promise<string> {
+  return provider.createMessage({
     model,
-    max_tokens: 256,
+    maxTokens: 256,
     system: SYSTEM_PROMPT,
-    messages: [{ role: 'user', content: userPrompt }],
+    content: userPrompt,
   })
-
-  const block = message.content[0]
-  if (block.type !== 'text') throw new Error('identifyCompany: unexpected non-text response')
-  return block.text
 }
 
 function tryParse(raw: string): IdentifyCompanyResult | null {

@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { getClaudeApiKey, getClaudeModel } from '@/lib/pipeline/processEmail'
+import { createFundAIProviderWithOverride } from '@/lib/ai'
+import type { ContentBlock } from '@/lib/ai/types'
 import {
   extractAttachmentText,
   type PostmarkPayload,
 } from '@/lib/parsing/extractAttachmentText'
-import Anthropic from '@anthropic-ai/sdk'
 import { dbError } from '@/lib/api-error'
 import { rateLimit } from '@/lib/rate-limit'
 
@@ -100,7 +100,7 @@ export async function DELETE(
 // ---------------------------------------------------------------------------
 
 export async function POST(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: { id: string } }
 ) {
   const supabase = createClient()
@@ -110,6 +110,17 @@ export async function POST(
   // Rate limit AI summary generation: 10 per 5 minutes per user
   const limited = await rateLimit({ key: `ai-summary:${user.id}`, limit: 10, windowSeconds: 300 })
   if (limited) return limited
+
+  // Read optional provider override from body
+  let providerOverride: 'anthropic' | 'openai' | undefined
+  try {
+    const body = await req.json()
+    if (body.provider === 'anthropic' || body.provider === 'openai') {
+      providerOverride = body.provider
+    }
+  } catch {
+    // No body or invalid JSON — use default provider
+  }
 
   const admin = createAdminClient()
 
@@ -126,16 +137,18 @@ export async function POST(
 
   if (!company) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  // --- Claude API key + model + custom prompt ---
-  let claudeApiKey: string
+  // --- AI provider + model + custom prompt ---
+  let provider: Awaited<ReturnType<typeof createFundAIProviderWithOverride>>['provider']
+  let aiModel: string
   try {
-    claudeApiKey = await getClaudeApiKey(admin, company.fund_id)
+    const result = await createFundAIProviderWithOverride(admin, company.fund_id, providerOverride)
+    provider = result.provider
+    aiModel = result.model
   } catch {
     return NextResponse.json({
-      error: 'Claude API key not configured. Add one in Settings to enable AI summaries.',
+      error: 'AI API key not configured. Add one in Settings to enable AI summaries.',
     }, { status: 400 })
   }
-  const claudeModel = await getClaudeModel(admin, company.fund_id)
 
   const { data: promptSettings } = await admin
     .from('fund_settings')
@@ -215,7 +228,7 @@ export async function POST(
 
   // 2. Email body + attachment text from the most recent report
   let reportContentBlock = ''
-  const contentParts: Anthropic.ContentBlockParam[] = []
+  const contentParts: ContentBlock[] = []
 
   if (latestEmail?.raw_payload) {
     const payload = latestEmail.raw_payload as unknown as PostmarkPayload
@@ -233,27 +246,17 @@ export async function POST(
       }
     }
 
-    // PDFs — send as document blocks to Claude
+    // PDFs — send as document blocks
     for (const att of extracted.attachments) {
       if (!att.skipped && att.base64Content && att.contentType === 'application/pdf') {
-        contentParts.push({
-          type: 'document',
-          source: { type: 'base64', media_type: 'application/pdf', data: att.base64Content },
-        } as Anthropic.ContentBlockParam)
+        contentParts.push({ type: 'document', mediaType: 'application/pdf', data: att.base64Content })
       }
     }
 
-    // Images — send as image blocks to Claude
+    // Images — send as image blocks
     for (const att of extracted.attachments) {
       if (!att.skipped && att.base64Content && att.contentType.startsWith('image/')) {
-        contentParts.push({
-          type: 'image',
-          source: {
-            type: 'base64',
-            media_type: att.contentType as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp',
-            data: att.base64Content,
-          },
-        })
+        contentParts.push({ type: 'image', mediaType: att.contentType, data: att.base64Content })
       }
     }
   }
@@ -287,19 +290,9 @@ export async function POST(
           const base64 = buffer.toString('base64')
 
           if (doc.file_type === 'application/pdf') {
-            contentParts.push({
-              type: 'document',
-              source: { type: 'base64', media_type: 'application/pdf', data: base64 },
-            } as Anthropic.ContentBlockParam)
+            contentParts.push({ type: 'document', mediaType: 'application/pdf', data: base64 })
           } else if (doc.file_type.startsWith('image/')) {
-            contentParts.push({
-              type: 'image',
-              source: {
-                type: 'base64',
-                media_type: doc.file_type as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp',
-                data: base64,
-              },
-            })
+            contentParts.push({ type: 'image', mediaType: doc.file_type, data: base64 })
           }
         }
       }
@@ -387,24 +380,17 @@ ${documentsBlock ? '\nYou also have access to supplementary documents (strategy 
   // Call Claude
   // -----------------------------------------------------------------------
 
-  const client = new Anthropic({ apiKey: claudeApiKey })
-
-  const userContent: Anthropic.ContentBlockParam[] = [
+  const userContent: ContentBlock[] = [
     ...contentParts,
     { type: 'text', text: promptText },
   ]
 
   try {
-    const response = await client.messages.create({
-      model: claudeModel,
-      max_tokens: 1000,
-      messages: [{ role: 'user', content: userContent }],
+    const summaryText = await provider.createMessage({
+      model: aiModel,
+      maxTokens: 1000,
+      content: userContent,
     })
-
-    const summaryText = response.content
-      .filter((b): b is Anthropic.TextBlock => b.type === 'text')
-      .map((b) => b.text)
-      .join('')
 
     // Persist the summary
     const { error: insertError } = await admin.from('company_summaries').insert({

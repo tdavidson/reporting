@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { getClaudeApiKey, getClaudeModel } from '@/lib/pipeline/processEmail'
-import Anthropic from '@anthropic-ai/sdk'
+import { createFundAIProvider } from '@/lib/ai'
 import { rateLimit } from '@/lib/rate-limit'
 
 interface ParsedMetric {
@@ -144,26 +143,24 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Input too large. Maximum 500KB of text allowed.' }, { status: 400 })
   }
 
-  // Get Claude API key + model
-  let claudeApiKey: string
+  // Get AI provider + model
+  let provider: Awaited<ReturnType<typeof createFundAIProvider>>['provider']
+  let claudeModel: string
   try {
-    claudeApiKey = await getClaudeApiKey(admin, fundId)
+    const result = await createFundAIProvider(admin, fundId)
+    provider = result.provider
+    claudeModel = result.model
   } catch {
     return NextResponse.json({ error: 'Claude API key not configured. Add one in Settings.' }, { status: 400 })
   }
-  const claudeModel = await getClaudeModel(admin, fundId)
 
-  // Parse with Claude
-  const anthropic = new Anthropic({ apiKey: claudeApiKey })
-
+  // Parse with AI
   let responseText: string
   try {
-    const parseResponse = await anthropic.messages.create({
+    responseText = await provider.createMessage({
       model: claudeModel,
-      max_tokens: 8192,
-      messages: [{
-        role: 'user',
-        content: `Parse the following spreadsheet/CSV data into structured JSON. Extract companies with their details and metrics.
+      maxTokens: 8192,
+      content: `Parse the following spreadsheet/CSV data into structured JSON. Extract companies with their details and metrics.
 
 Return ONLY valid JSON in this exact format (no markdown, no explanation):
 {
@@ -213,13 +210,7 @@ Rules:
 
 Data to parse:
 ${text}`,
-      }],
     })
-
-    responseText = parseResponse.content
-      .filter((b): b is Anthropic.TextBlock => b.type === 'text')
-      .map(b => b.text)
-      .join('')
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
     console.error('[import] Claude API error:', message)

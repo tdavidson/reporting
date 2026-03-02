@@ -83,6 +83,15 @@ export default function EmailsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
+  // Inbound address from settings
+  const [inboundAddress, setInboundAddress] = useState('')
+
+  useEffect(() => {
+    fetch('/api/settings').then(r => r.ok ? r.json() : null).then(s => {
+      if (s?.postmarkInboundAddress) setInboundAddress(s.postmarkInboundAddress)
+    }).catch(() => {})
+  }, [])
+
   // Filters
   const [status, setStatus] = useState('')
   const [dateFrom, setDateFrom] = useState('')
@@ -128,18 +137,6 @@ export default function EmailsPage() {
     load(page)
   }, [load, page])
 
-  function applyFilters() {
-    setPage(1)
-    load(1)
-  }
-
-  function clearFilters() {
-    setStatus('')
-    setDateFrom('')
-    setDateTo('')
-    setPage(1)
-  }
-
   const totalPages = data ? Math.ceil(data.total / data.page_size) : 0
 
   async function dismissReviews(emailId: string) {
@@ -177,7 +174,7 @@ export default function EmailsPage() {
       <div className="flex flex-wrap items-end gap-3 mb-5">
         <div>
           <label className="block text-xs text-muted-foreground mb-1">Status</label>
-          <Select value={status || 'all'} onValueChange={v => setStatus(v === 'all' ? '' : v)}>
+          <Select value={status || 'all'} onValueChange={v => { setStatus(v === 'all' ? '' : v); setPage(1) }}>
             <SelectTrigger className="h-8 w-full sm:w-40 text-sm">
               <SelectValue placeholder="All statuses" />
             </SelectTrigger>
@@ -197,7 +194,7 @@ export default function EmailsPage() {
             type="date"
             className="h-8 w-full sm:w-36 text-sm"
             value={dateFrom}
-            onChange={e => setDateFrom(e.target.value)}
+            onChange={e => { setDateFrom(e.target.value); setPage(1) }}
           />
         </div>
         <div>
@@ -206,16 +203,25 @@ export default function EmailsPage() {
             type="date"
             className="h-8 w-full sm:w-36 text-sm"
             value={dateTo}
-            onChange={e => setDateTo(e.target.value)}
+            onChange={e => { setDateTo(e.target.value); setPage(1) }}
           />
         </div>
-        <Button size="sm" className="h-8" onClick={applyFilters}>
-          Apply
-        </Button>
         {(status || dateFrom || dateTo) && (
-          <Button size="sm" variant="ghost" className="h-8" onClick={clearFilters}>
+          <Button size="sm" variant="ghost" className="h-8" onClick={() => { setStatus(''); setDateFrom(''); setDateTo(''); setPage(1) }}>
             Clear
           </Button>
+        )}
+        {inboundAddress && (
+          <div className="ml-auto">
+            <label className="block text-xs text-muted-foreground mb-1">Send emails to</label>
+            <Input
+              type="text"
+              readOnly
+              value={inboundAddress}
+              className="h-8 w-full sm:w-64 text-sm bg-muted text-muted-foreground cursor-default"
+              tabIndex={-1}
+            />
+          </div>
         )}
       </div>
 

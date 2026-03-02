@@ -23,7 +23,7 @@ export async function GET() {
 
   const [{ data: fund }, { data: settings }, { data: senders }] = await Promise.all([
     admin.from('funds').select('id, name, logo_url').eq('id', membership.fund_id).single(),
-    admin.from('fund_settings').select('postmark_inbound_address, postmark_webhook_token, postmark_webhook_token_encrypted, encryption_key_encrypted, retain_resolved_reviews, resolved_reviews_ttl_days, claude_api_key_encrypted, claude_model, ai_summary_prompt, google_refresh_token_encrypted, google_drive_folder_id, google_drive_folder_name, google_client_id, google_client_secret_encrypted, outbound_email_provider, asks_email_provider, approval_email_subject, approval_email_body, system_email_from_name, system_email_from_address, resend_api_key_encrypted, postmark_server_token_encrypted, inbound_email_provider, mailgun_inbound_domain, mailgun_signing_key_encrypted, mailgun_api_key_encrypted, mailgun_sending_domain, file_storage_provider, dropbox_app_key, dropbox_app_secret_encrypted, dropbox_refresh_token_encrypted, dropbox_folder_path').eq('fund_id', membership.fund_id).single(),
+    admin.from('fund_settings').select('postmark_inbound_address, postmark_webhook_token, postmark_webhook_token_encrypted, encryption_key_encrypted, retain_resolved_reviews, resolved_reviews_ttl_days, claude_api_key_encrypted, claude_model, ai_summary_prompt, google_refresh_token_encrypted, google_drive_folder_id, google_drive_folder_name, google_client_id, google_client_secret_encrypted, outbound_email_provider, asks_email_provider, approval_email_subject, approval_email_body, system_email_from_name, system_email_from_address, resend_api_key_encrypted, postmark_server_token_encrypted, inbound_email_provider, mailgun_inbound_domain, mailgun_signing_key_encrypted, mailgun_api_key_encrypted, mailgun_sending_domain, file_storage_provider, dropbox_app_key, dropbox_app_secret_encrypted, dropbox_refresh_token_encrypted, dropbox_folder_path, openai_api_key_encrypted, openai_model, default_ai_provider').eq('fund_id', membership.fund_id).single(),
     admin.from('authorized_senders').select('id, email, label, created_at').eq('fund_id', membership.fund_id).order('email'),
   ])
 
@@ -54,6 +54,9 @@ export async function GET() {
     postmarkWebhookToken: webhookToken,
     hasClaudeKey: !!settings?.claude_api_key_encrypted,
     claudeModel: settings?.claude_model ?? 'claude-sonnet-4-5',
+    hasOpenAIKey: !!settings?.openai_api_key_encrypted,
+    openaiModel: settings?.openai_model ?? 'gpt-4o',
+    defaultAIProvider: settings?.default_ai_provider ?? 'anthropic',
     retainResolvedReviews: settings?.retain_resolved_reviews ?? true,
     resolvedReviewsTtlDays: settings?.resolved_reviews_ttl_days ?? null,
     senders: senders ?? [],
@@ -103,7 +106,7 @@ export async function PATCH(req: NextRequest) {
   if (!membership) return NextResponse.json({ error: 'No fund found' }, { status: 404 })
 
   const body = await req.json()
-  const { fundName, fundLogo, postmarkInboundAddress, claudeApiKey, claudeModel, retainResolvedReviews, resolvedReviewsTtlDays, googleClientId, googleClientSecret, aiSummaryPrompt, displayName, outboundEmailProvider, asksEmailProvider, approvalEmailSubject, approvalEmailBody, systemEmailFromName, systemEmailFromAddress, resendApiKey, postmarkServerToken, inboundEmailProvider, mailgunInboundDomain, mailgunSigningKey, mailgunApiKey, mailgunSendingDomain, fileStorageProvider, dropboxAppKey, dropboxAppSecret } = body
+  const { fundName, fundLogo, postmarkInboundAddress, claudeApiKey, claudeModel, retainResolvedReviews, resolvedReviewsTtlDays, googleClientId, googleClientSecret, aiSummaryPrompt, displayName, outboundEmailProvider, asksEmailProvider, approvalEmailSubject, approvalEmailBody, systemEmailFromName, systemEmailFromAddress, resendApiKey, postmarkServerToken, inboundEmailProvider, mailgunInboundDomain, mailgunSigningKey, mailgunApiKey, mailgunSendingDomain, fileStorageProvider, dropboxAppKey, dropboxAppSecret, openaiApiKey, openaiModel, defaultAIProvider } = body
 
   // Update display name on fund_members (any user can do this)
   if (displayName !== undefined) {
@@ -119,7 +122,8 @@ export async function PATCH(req: NextRequest) {
     systemEmailFromName !== undefined || systemEmailFromAddress !== undefined || resendApiKey !== undefined ||
     postmarkServerToken !== undefined || inboundEmailProvider !== undefined || mailgunInboundDomain !== undefined ||
     mailgunSigningKey !== undefined || mailgunApiKey !== undefined || mailgunSendingDomain !== undefined ||
-    fileStorageProvider !== undefined || dropboxAppKey !== undefined || dropboxAppSecret !== undefined
+    fileStorageProvider !== undefined || dropboxAppKey !== undefined || dropboxAppSecret !== undefined ||
+    openaiApiKey !== undefined || openaiModel !== undefined || defaultAIProvider !== undefined
 
   if (hasAdminFields && membership.role !== 'admin') {
     return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
@@ -362,6 +366,41 @@ export async function PATCH(req: NextRequest) {
       settingsUpdates.encryption_key_encrypted = encrypt(dek, kek)
     }
     settingsUpdates.dropbox_app_secret_encrypted = encrypt(dropboxAppSecret.trim(), dek)
+  }
+
+  // Update OpenAI API key with envelope encryption
+  if (openaiApiKey !== undefined && openaiApiKey.trim()) {
+    const kek = process.env.ENCRYPTION_KEY
+    if (!kek) return NextResponse.json({ error: 'Server misconfiguration: ENCRYPTION_KEY not set' }, { status: 500 })
+
+    const { data: existing } = await admin
+      .from('fund_settings')
+      .select('encryption_key_encrypted')
+      .eq('fund_id', membership.fund_id)
+      .single()
+
+    let dek: string
+    if (existing?.encryption_key_encrypted) {
+      const { decrypt } = await import('@/lib/crypto')
+      dek = decrypt(existing.encryption_key_encrypted, kek)
+    } else {
+      dek = randomBytes(32).toString('hex')
+      settingsUpdates.encryption_key_encrypted = encrypt(dek, kek)
+    }
+    settingsUpdates.openai_api_key_encrypted = encrypt(openaiApiKey.trim(), dek)
+  }
+
+  // Update OpenAI model
+  if (openaiModel !== undefined) {
+    settingsUpdates.openai_model = openaiModel.trim() || 'gpt-4o'
+  }
+
+  // Update default AI provider
+  if (defaultAIProvider !== undefined) {
+    if (defaultAIProvider !== 'anthropic' && defaultAIProvider !== 'openai') {
+      return NextResponse.json({ error: 'Invalid AI provider. Must be "anthropic" or "openai".' }, { status: 400 })
+    }
+    settingsUpdates.default_ai_provider = defaultAIProvider
   }
 
   if (Object.keys(settingsUpdates).length > 0) {

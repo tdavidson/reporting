@@ -155,6 +155,9 @@ export type Database = {
           dropbox_app_secret_encrypted: string | null
           dropbox_refresh_token_encrypted: string | null
           dropbox_folder_path: string | null
+          openai_api_key_encrypted: string | null
+          openai_model: string
+          default_ai_provider: string
           created_at: string
           updated_at: string
         }
@@ -191,6 +194,9 @@ export type Database = {
           dropbox_app_secret_encrypted?: string | null
           dropbox_refresh_token_encrypted?: string | null
           dropbox_folder_path?: string | null
+          openai_api_key_encrypted?: string | null
+          openai_model?: string
+          default_ai_provider?: string
           created_at?: string
           updated_at?: string
         }
@@ -227,6 +233,9 @@ export type Database = {
           dropbox_app_secret_encrypted?: string | null
           dropbox_refresh_token_encrypted?: string | null
           dropbox_folder_path?: string | null
+          openai_api_key_encrypted?: string | null
+          openai_model?: string
+          default_ai_provider?: string
           created_at?: string
           updated_at?: string
         }

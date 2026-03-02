@@ -54,6 +54,13 @@ export default async function CompanyDetailPage({
 
   const isAdmin = membership?.role === 'admin'
 
+  // Fetch AI provider settings for the summary component
+  const { data: fundSettings } = await supabase
+    .from('fund_settings')
+    .select('claude_api_key_encrypted, openai_api_key_encrypted, default_ai_provider')
+    .eq('fund_id', company.fund_id)
+    .maybeSingle() as { data: { claude_api_key_encrypted: string | null; openai_api_key_encrypted: string | null; default_ai_provider: string | null } | null }
+
   const { data: metrics } = await supabase
     .from('metrics')
     .select('*')
@@ -147,7 +154,13 @@ export default async function CompanyDetailPage({
       {/* Content + Notes panel side by side */}
       <div className="flex flex-col lg:flex-row gap-6 items-start">
         <div className="flex-1 min-w-0 max-w-6xl w-full">
-          <CompanySummary companyId={company.id} fundId={company.fund_id} />
+          <CompanySummary
+            companyId={company.id}
+            fundId={company.fund_id}
+            hasClaudeKey={!!fundSettings?.claude_api_key_encrypted}
+            hasOpenAIKey={!!fundSettings?.openai_api_key_encrypted}
+            defaultAIProvider={fundSettings?.default_ai_provider ?? 'anthropic'}
+          />
 
           <CompanyCharts
             companyId={company.id}

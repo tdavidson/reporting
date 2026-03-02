@@ -9,7 +9,7 @@ export async function POST(req: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   // Rate limit key testing: 5 per 5 minutes per user
-  const limited = await rateLimit({ key: `test-claude:${user.id}`, limit: 5, windowSeconds: 300 })
+  const limited = await rateLimit({ key: `test-openai:${user.id}`, limit: 5, windowSeconds: 300 })
   if (limited) return limited
 
   const { apiKey } = await req.json()
@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const provider = createProviderFromKey(apiKey)
+    const provider = createProviderFromKey(apiKey, 'openai')
     await provider.testConnection()
     return NextResponse.json({ ok: true })
   } catch (err) {

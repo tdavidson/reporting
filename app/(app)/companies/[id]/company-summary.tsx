@@ -14,18 +14,24 @@ interface SummaryData {
 interface Props {
   companyId: string
   fundId: string
+  hasClaudeKey?: boolean
+  hasOpenAIKey?: boolean
+  defaultAIProvider?: string
 }
 
 const ACCEPTED_TYPES = '.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.csv,.jpg,.jpeg,.png'
 
-export function CompanySummary({ companyId, fundId }: Props) {
+export function CompanySummary({ companyId, fundId, hasClaudeKey, hasOpenAIKey, defaultAIProvider }: Props) {
   const [data, setData] = useState<SummaryData | null>(null)
   const [loading, setLoading] = useState(true)
   const [generating, setGenerating] = useState(false)
   const [clearing, setClearing] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [selectedProvider, setSelectedProvider] = useState<string>(defaultAIProvider ?? 'anthropic')
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const showProviderToggle = hasClaudeKey && hasOpenAIKey
 
   // Load the latest stored summary
   const load = useCallback(async () => {
@@ -43,7 +49,11 @@ export function CompanySummary({ companyId, fundId }: Props) {
     setGenerating(true)
     setError(null)
     try {
-      const res = await fetch(`/api/companies/${companyId}/summary`, { method: 'POST' })
+      const res = await fetch(`/api/companies/${companyId}/summary`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(showProviderToggle ? { provider: selectedProvider } : {}),
+      })
       const result = await res.json()
       if (res.ok) {
         setData(result)
@@ -153,6 +163,17 @@ export function CompanySummary({ companyId, fundId }: Props) {
             <span className="text-xs font-medium text-muted-foreground">AI Analyst</span>
           </div>
           <div className="flex items-center gap-1">
+            {showProviderToggle && (
+              <select
+                className="h-7 rounded-md border border-input bg-transparent px-2 text-xs text-muted-foreground shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                value={selectedProvider}
+                onChange={(e) => setSelectedProvider(e.target.value)}
+                disabled={generating}
+              >
+                <option value="anthropic">Claude</option>
+                <option value="openai">OpenAI</option>
+              </select>
+            )}
             <Button
               size="sm"
               variant="outline"
@@ -212,6 +233,17 @@ export function CompanySummary({ companyId, fundId }: Props) {
           )}
         </div>
         <div className="flex items-center gap-1">
+          {showProviderToggle && (
+            <select
+              className="h-7 rounded-md border border-input bg-transparent px-2 text-xs text-muted-foreground shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              value={selectedProvider}
+              onChange={(e) => setSelectedProvider(e.target.value)}
+              disabled={generating}
+            >
+              <option value="anthropic">Claude</option>
+              <option value="openai">OpenAI</option>
+            </select>
+          )}
           <Button
             size="sm"
             variant="outline"

@@ -99,8 +99,20 @@ export default function SupportPage() {
           <p className="text-muted-foreground mb-2">
             Under the hood, the platform uses a database, authentication, file storage, inbound email
             processing, and an AI provider, with prebuilt integrations for several third-party services
-            across the stack. The platform is open source and can be downloaded and run on your own
-            servers.
+            across the stack.
+          </p>
+          <p className="text-muted-foreground mb-2">
+            The platform is open source and can be downloaded and run on your own servers from{' '}
+            <a
+              href="https://github.com/tdavidson/reporting"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-foreground underline underline-offset-4 hover:text-foreground/80"
+            >
+              GitHub
+            </a>
+            . The README provides a detailed installation guide covering database setup, environment
+            variables, encryption, email providers, AI configuration, and deployment.
           </p>
           <p className="text-muted-foreground">
             <a
@@ -341,6 +353,13 @@ export default function SupportPage() {
             show up in the Review queue. You can import multiple reports in sequence without waiting
             for each one to finish.
           </p>
+          <p className="text-muted-foreground mb-2">
+            You can also paste data that covers multiple companies at once &mdash; for example, rows copied
+            from a spreadsheet or CSV file containing metrics across your portfolio. The system will parse
+            the data, create new companies if they don&apos;t already exist, add new metrics as needed, and
+            populate values for existing companies and metrics. This makes it easy to bulk import historical
+            data or onboard an entire portfolio in one step.
+          </p>
           <p className="text-muted-foreground">
             Tip: for best results, include the company name and reporting period somewhere in the pasted
             text or attachment. The AI uses these cues to match the report to the correct company and
@@ -362,8 +381,8 @@ export default function SupportPage() {
           <p className="text-muted-foreground mb-2">
             The email composer supports a customizable subject and HTML body. You can write a standard
             template that you reuse each quarter, or tailor messages for specific companies. Emails are
-            sent through whichever outbound email provider your admin has configured (Resend, Postmark,
-            or Mailgun).
+            sent through whichever outbound email provider your admin has configured (Gmail, Resend,
+            Postmark, or Mailgun).
           </p>
           <p className="text-muted-foreground mb-2">
             Each request is logged with its recipient list, send timestamp, and delivery results. You
@@ -392,7 +411,7 @@ export default function SupportPage() {
           <p className="text-muted-foreground mb-2">
             For admins, Settings covers the full platform configuration: AI provider keys and model
             selection (Anthropic and/or OpenAI), the default AI provider for the fund, inbound email
-            setup (Postmark or Mailgun), outbound email providers (Resend, Postmark, or Mailgun),
+            setup (Postmark or Mailgun), outbound email providers (Gmail, Resend, Postmark, or Mailgun),
             file storage connections (Google Drive or Dropbox), the AI summary prompt, and email
             templates for reporting asks.
           </p>

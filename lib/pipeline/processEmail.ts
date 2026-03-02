@@ -305,6 +305,41 @@ export async function getClaudeModel(supabase: Supabase, fundId: string): Promis
   return data?.claude_model || 'claude-sonnet-4-5'
 }
 
+export async function getOpenAIApiKey(supabase: Supabase, fundId: string): Promise<string> {
+  const { data, error } = await supabase
+    .from('fund_settings')
+    .select('openai_api_key_encrypted, encryption_key_encrypted')
+    .eq('fund_id', fundId)
+    .single()
+
+  if (error || !data?.openai_api_key_encrypted || !data?.encryption_key_encrypted) {
+    throw new Error(`OpenAI API key not configured for fund ${fundId}`)
+  }
+
+  return decryptApiKey(data.openai_api_key_encrypted, data.encryption_key_encrypted)
+}
+
+export async function getOpenAIModel(supabase: Supabase, fundId: string): Promise<string> {
+  const { data } = await supabase
+    .from('fund_settings')
+    .select('openai_model')
+    .eq('fund_id', fundId)
+    .single()
+
+  return data?.openai_model || 'gpt-4o'
+}
+
+export async function getDefaultAIProvider(supabase: Supabase, fundId: string): Promise<'anthropic' | 'openai'> {
+  const { data } = await supabase
+    .from('fund_settings')
+    .select('default_ai_provider')
+    .eq('fund_id', fundId)
+    .single()
+
+  const provider = data?.default_ai_provider
+  return provider === 'openai' ? 'openai' : 'anthropic'
+}
+
 export async function getCompanies(supabase: Supabase, fundId: string): Promise<CompanyRef[]> {
   const { data } = await supabase
     .from('companies')

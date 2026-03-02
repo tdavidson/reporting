@@ -1,4 +1,5 @@
-import Anthropic from '@anthropic-ai/sdk'
+import { AnthropicProvider } from '@/lib/ai/anthropic'
+import type { ContentBlock } from '@/lib/ai/types'
 
 const DEFAULT_MODEL = 'claude-sonnet-4-5'
 
@@ -51,10 +52,10 @@ export async function extractMetrics(
   claudeApiKey: string,
   model: string = DEFAULT_MODEL
 ): Promise<ExtractMetricsResult> {
-  const client = new Anthropic({ apiKey: claudeApiKey })
+  const provider = new AnthropicProvider(claudeApiKey)
   const { system, userContent } = buildMessage(companyName, combinedText, metrics, pdfBase64s, images)
 
-  const raw = await callWithRetry(client, system, userContent, model)
+  const raw = await callWithRetry(provider, system, userContent, model)
   return raw
 }
 
@@ -82,7 +83,7 @@ function buildMessage(
   metrics: MetricDef[],
   pdfBase64s: string[],
   images: ImageInput[]
-): { system: string; userContent: Anthropic.MessageParam['content'] } {
+): { system: string; userContent: ContentBlock[] } {
   const metricList = metrics.map(m => ({
     id: m.id,
     name: m.name,
@@ -126,30 +127,16 @@ Return:
 
   // Build a mixed content array: text first, then PDFs, then images.
   // Claude reads all blocks before responding.
-  const content: Anthropic.MessageParam['content'] = [
+  const content: ContentBlock[] = [
     { type: 'text', text: textPrompt },
   ]
 
   for (const pdf of pdfBase64s) {
-    content.push({
-      type: 'document',
-      source: {
-        type: 'base64',
-        media_type: 'application/pdf',
-        data: pdf,
-      },
-    } as Anthropic.DocumentBlockParam)
+    content.push({ type: 'document', mediaType: 'application/pdf', data: pdf })
   }
 
   for (const img of images) {
-    content.push({
-      type: 'image',
-      source: {
-        type: 'base64',
-        media_type: img.mediaType as Anthropic.Base64ImageSource['media_type'],
-        data: img.data,
-      },
-    })
+    content.push({ type: 'image', mediaType: img.mediaType, data: img.data })
   }
 
   return { system: SYSTEM_PROMPT, userContent: content }
@@ -160,18 +147,18 @@ Return:
 // ---------------------------------------------------------------------------
 
 async function callWithRetry(
-  client: Anthropic,
+  provider: AnthropicProvider,
   system: string,
-  userContent: Anthropic.MessageParam['content'],
+  userContent: ContentBlock[],
   model: string
 ): Promise<ExtractMetricsResult> {
-  const first = await call(client, system, userContent, model)
+  const first = await call(provider, system, userContent, model)
   const parsed = tryParse(first)
   if (parsed) return parsed
 
   // Append strict instruction to the text block on retry
   const strictContent = appendStrictSuffix(userContent)
-  const second = await call(client, system, strictContent, model)
+  const second = await call(provider, system, strictContent, model)
   const reparsed = tryParse(second)
   if (reparsed) return reparsed
 
@@ -181,29 +168,21 @@ async function callWithRetry(
 }
 
 async function call(
-  client: Anthropic,
+  provider: AnthropicProvider,
   system: string,
-  userContent: Anthropic.MessageParam['content'],
+  userContent: ContentBlock[],
   model: string
 ): Promise<string> {
-  const message = await client.messages.create({
+  return provider.createMessage({
     model,
-    max_tokens: 2048,
+    maxTokens: 2048,
     system,
-    messages: [{ role: 'user', content: userContent }],
+    content: userContent,
   })
-
-  const block = message.content[0]
-  if (block.type !== 'text') throw new Error('extractMetrics: unexpected non-text response')
-  return block.text
 }
 
 // Appends the strict suffix to the first text block in the content array
-function appendStrictSuffix(
-  content: Anthropic.MessageParam['content']
-): Anthropic.MessageParam['content'] {
-  if (typeof content === 'string') return content + STRICT_SUFFIX
-
+function appendStrictSuffix(content: ContentBlock[]): ContentBlock[] {
   return content.map((block, i) => {
     if (i === 0 && block.type === 'text') {
       return { ...block, text: block.text + STRICT_SUFFIX }

@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { getClaudeApiKey, getClaudeModel } from '@/lib/pipeline/processEmail'
-import Anthropic from '@anthropic-ai/sdk'
+import { createFundAIProvider } from '@/lib/ai'
 
 interface MatchResult {
   filename: string
@@ -54,16 +53,18 @@ export async function POST(req: NextRequest) {
     })
   }
 
-  // Get Claude API key
-  let claudeApiKey: string
+  // Get AI provider
+  let provider: Awaited<ReturnType<typeof createFundAIProvider>>['provider']
+  let claudeModel: string
   try {
-    claudeApiKey = await getClaudeApiKey(admin, fundId)
+    const result = await createFundAIProvider(admin, fundId)
+    provider = result.provider
+    claudeModel = result.model
   } catch {
     return NextResponse.json({
       error: 'Claude API key not configured. Add one in Settings.',
     }, { status: 400 })
   }
-  const claudeModel = await getClaudeModel(admin, fundId)
 
   const companyList = companies.map(c => ({
     id: c.id,
@@ -82,20 +83,13 @@ Companies: ${JSON.stringify(companyList)}
 Return JSON only, no prose. Format:
 { "matches": [{ "filename": "...", "companyId": "..." or null, "companyName": "..." or null, "confidence": "high"|"medium"|"low"|"none" }] }`
 
-  const client = new Anthropic({ apiKey: claudeApiKey })
-
   try {
-    const response = await client.messages.create({
+    const text = await provider.createMessage({
       model: claudeModel,
-      max_tokens: 2048,
+      maxTokens: 2048,
       system: 'You are a portfolio reporting assistant. Match document filenames to portfolio companies. Return JSON only.',
-      messages: [{ role: 'user', content: prompt }],
+      content: prompt,
     })
-
-    const text = response.content
-      .filter((b): b is Anthropic.TextBlock => b.type === 'text')
-      .map(b => b.text)
-      .join('')
 
     // Parse the response
     const cleaned = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim()
