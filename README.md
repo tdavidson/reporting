@@ -4,6 +4,8 @@ A self-hosted portfolio reporting tool for venture capital funds. Portfolio comp
 
 Designed as a single-tenant deployment per fund. You control your own data, your own API keys, and your own infrastructure. There's no third-party data storage beyond what you provision yourself.
 
+**[Try the demo](https://portfolio.hemrock.com/demo)** — explore the platform with sample data in read-only mode, no signup required.
+
 ## Features
 
 **AI-powered email processing** — Forward portfolio company emails to a dedicated inbound address. AI identifies the sender, extracts configured metrics (revenue, cash, burn rate, etc.), and flags anything uncertain for human review. Supports PDFs, spreadsheets, slide decks, images, and plain text natively. Works with Anthropic Claude or OpenAI.
@@ -277,15 +279,6 @@ To set up a public read-only demo at `/demo`:
 
 This creates a demo fund with 8 sample companies, realistic metric data, AI summaries, notes, inbound emails, review items, and documents. It also creates the demo user account automatically. Visitors to `/demo` are signed in as a read-only viewer — all mutations are blocked.
 
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch: `git checkout -b feature/my-feature`
-3. Make your changes and test locally
-4. Submit a pull request with a clear description of the change
-
-Please open an issue first for large changes to discuss the approach.
-
 ## Contact
 
 Built by Taylor Davidson at [Hemrock](https://www.hemrock.com).
@@ -296,4 +289,4 @@ For bug reports and feature requests, open an issue on [GitHub](https://github.c
 
 ## License
 
-MIT
+See [LICENSE](LICENSE) for terms.
