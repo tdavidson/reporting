@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { assertWriteAccess } from '@/lib/api-helpers'
 import { dbError } from '@/lib/api-error'
 
 async function verifyOwnership(
@@ -36,6 +37,9 @@ export async function PATCH(
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const admin = createAdminClient()
+  const writeCheck = await assertWriteAccess(admin, user.id)
+  if (writeCheck instanceof NextResponse) return writeCheck
+
   const mv = await verifyOwnership(admin, params.id, user.id)
   if (!mv) return NextResponse.json({ error: 'Not found or forbidden' }, { status: 404 })
 
@@ -71,6 +75,9 @@ export async function DELETE(
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const admin = createAdminClient()
+  const writeCheck = await assertWriteAccess(admin, user.id)
+  if (writeCheck instanceof NextResponse) return writeCheck
+
   const mv = await verifyOwnership(admin, params.id, user.id)
   if (!mv) return NextResponse.json({ error: 'Not found or forbidden' }, { status: 404 })
 

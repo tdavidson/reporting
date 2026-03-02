@@ -151,6 +151,14 @@ function AuthForm() {
             </p>
           </CardContent>
         </Card>
+
+        <p className="text-center text-xs text-muted-foreground">
+          <a href="/license" target="_blank" rel="noopener noreferrer" className="hover:text-foreground underline underline-offset-4">License</a>
+          {' · '}
+          <a href="https://www.hemrock.com/terms" target="_blank" rel="noopener noreferrer" className="hover:text-foreground underline underline-offset-4">Terms</a>
+          {' · '}
+          <a href="https://www.hemrock.com/privacy" target="_blank" rel="noopener noreferrer" className="hover:text-foreground underline underline-offset-4">Privacy</a>
+        </p>
       </div>
     </div>
   )

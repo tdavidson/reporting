@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { assertWriteAccess } from '@/lib/api-helpers'
 import { encrypt } from '@/lib/crypto'
 import { randomBytes } from 'crypto'
 import { dbError } from '@/lib/api-error'
@@ -63,7 +64,7 @@ export async function GET() {
     googleDriveConnected: !!settings?.google_refresh_token_encrypted,
     googleDriveFolderId: settings?.google_drive_folder_id ?? null,
     googleDriveFolderName: settings?.google_drive_folder_name ?? null,
-    hasGoogleCredentials: !!(settings?.google_client_id && settings?.google_client_secret_encrypted) || !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET),
+    hasGoogleCredentials: !!(settings?.google_client_id && settings?.google_client_secret_encrypted),
     googleClientId: settings?.google_client_id ?? '',
     aiSummaryPrompt: settings?.ai_summary_prompt ?? null,
     outboundEmailProvider: settings?.outbound_email_provider ?? null,
@@ -96,6 +97,9 @@ export async function PATCH(req: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const admin = createAdminClient()
+
+  const writeCheck = await assertWriteAccess(admin, user.id)
+  if (writeCheck instanceof NextResponse) return writeCheck
 
   const { data: membership } = await admin
     .from('fund_members')
@@ -420,6 +424,9 @@ export async function DELETE(req: NextRequest) {
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const writeCheck = await assertWriteAccess(createAdminClient(), user.id)
+  if (writeCheck instanceof NextResponse) return writeCheck
 
   const { confirm } = await req.json()
   if (confirm !== 'DELETE ALL DATA') {

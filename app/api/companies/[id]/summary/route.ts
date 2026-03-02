@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { assertWriteAccess } from '@/lib/api-helpers'
 import { createFundAIProviderWithOverride } from '@/lib/ai'
 import type { ContentBlock } from '@/lib/ai/types'
 import {
@@ -82,6 +83,9 @@ export async function DELETE(
 
   const admin = createAdminClient()
 
+  const writeCheck = await assertWriteAccess(admin, user.id)
+  if (writeCheck instanceof NextResponse) return writeCheck
+
   const access = await verifyCompanyAccess(supabase, admin, user.id, params.id)
   if ('error' in access) return access.error
 
@@ -106,6 +110,9 @@ export async function POST(
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const writeCheck = await assertWriteAccess(createAdminClient(), user.id)
+  if (writeCheck instanceof NextResponse) return writeCheck
 
   // Rate limit AI summary generation: 10 per 5 minutes per user
   const limited = await rateLimit({ key: `ai-summary:${user.id}`, limit: 10, windowSeconds: 300 })

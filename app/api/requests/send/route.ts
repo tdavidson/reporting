@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { assertWriteAccess } from '@/lib/api-helpers'
 import { getOutboundConfig, sendOutboundEmail } from '@/lib/email'
 import { rateLimit } from '@/lib/rate-limit'
 
@@ -14,6 +15,10 @@ export async function POST(req: NextRequest) {
   if (limited) return limited
 
   const admin = createAdminClient()
+
+  const writeCheck = await assertWriteAccess(admin, user.id)
+  if (writeCheck instanceof NextResponse) return writeCheck
+
   const { data: membership } = await admin
     .from('fund_members')
     .select('fund_id, role')

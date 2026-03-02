@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { assertWriteAccess } from '@/lib/api-helpers'
 import type { ReportingCadence, ValueType } from '@/lib/types/database'
 import { dbError } from '@/lib/api-error'
 
@@ -58,6 +59,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const writeCheck = await assertWriteAccess(createAdminClient(), user.id)
+  if (writeCheck instanceof NextResponse) return writeCheck
 
   const body = await req.json()
   const { name, slug, description, unit, unit_position, value_type, reporting_cadence, display_order } = body

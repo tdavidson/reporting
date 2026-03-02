@@ -1,12 +1,12 @@
 # Portfolio Reporting
 
-A self-hosted portfolio reporting tool for venture capital funds. Portfolio companies email their quarterly updates in any format — PDF, Excel, PowerPoint, or plain text — and Claude AI automatically identifies the company, extracts the metrics you've configured, and stores everything as time-series data. You review the results, and the dashboard gives you a live view of your portfolio.
+A self-hosted portfolio reporting tool for venture capital funds. Portfolio companies email their quarterly updates in any format — PDF, Excel, PowerPoint, or plain text — and AI (Anthropic Claude or OpenAI) automatically identifies the company, extracts the metrics you've configured, and stores everything as time-series data. You review the results, and the dashboard gives you a live view of your portfolio.
 
 Designed as a single-tenant deployment per fund. You control your own data, your own API keys, and your own infrastructure. There's no third-party data storage beyond what you provision yourself.
 
 ## Features
 
-**AI-powered email processing** — Forward portfolio company emails to a dedicated inbound address. Claude identifies the sender, extracts configured metrics (revenue, cash, burn rate, etc.), and flags anything uncertain for human review. Supports PDFs, spreadsheets, slide decks, images, and plain text natively.
+**AI-powered email processing** — Forward portfolio company emails to a dedicated inbound address. AI identifies the sender, extracts configured metrics (revenue, cash, burn rate, etc.), and flags anything uncertain for human review. Supports PDFs, spreadsheets, slide decks, images, and plain text natively. Works with Anthropic Claude or OpenAI.
 
 **Portfolio dashboard** — Overview with company cards showing latest metrics, sparkline charts, cash positions, and open review counts. Filter by portfolio group and sort by name or cash.
 
@@ -16,9 +16,9 @@ Designed as a single-tenant deployment per fund. You control your own data, your
 
 **Company profiles** — Detailed pages with metric charts, contact info, and company metadata (stage, industry, portfolio group).
 
-**AI summaries** — Claude-generated analyst summaries per company, comparing the latest period to historical data and uploaded documents. Customize the AI prompt per fund.
+**AI summaries** — AI-generated analyst summaries per company, comparing the latest period to historical data and uploaded documents. Customize the AI prompt per fund. Choose Anthropic or OpenAI per generation.
 
-**Company documents** — Upload strategy decks, board materials, or other context documents per company. PDFs and images are sent natively to Claude for richer AI summaries.
+**Company documents** — Upload strategy decks, board materials, or other context documents per company. PDFs and images are sent natively to the AI for richer summaries.
 
 **Team notes** — Fund-level and company-level notes with user attribution. Notes appear on company profiles and the dashboard.
 
@@ -35,12 +35,12 @@ Designed as a single-tenant deployment per fund. You control your own data, your
 ## How It Works
 
 1. **Email ingestion** — Postmark or Mailgun receives forwarded reports and sends the payload to your webhook endpoint
-2. **Company identification** — Claude identifies which portfolio company the report belongs to, matching against configured names, aliases, and sender domains
-3. **Metric extraction** — Claude extracts the specific metrics you've configured for each company, handling PDFs, spreadsheets, slide decks, and images natively
+2. **Company identification** — AI identifies which portfolio company the report belongs to, matching against configured names, aliases, and sender domains
+3. **Metric extraction** — AI extracts the specific metrics you've configured for each company, handling PDFs, spreadsheets, slide decks, and images natively
 4. **Review queue** — Low-confidence extractions, new companies, and ambiguous periods are flagged for human review
 5. **Dashboard** — Company cards with sparklines, stat counters, and alerts for items needing attention
 6. **Charts** — Per-metric time-series charts with clickable data points showing confidence, source, and notes
-7. **AI summaries** — Each company page includes a Claude-generated performance summary drawing on metrics, report content, and uploaded documents
+7. **AI summaries** — Each company page includes an AI-generated performance summary drawing on metrics, report content, and uploaded documents
 
 ## Tech Stack
 
@@ -50,8 +50,8 @@ Designed as a single-tenant deployment per fund. You control your own data, your
 | **Styling** | Tailwind CSS, Radix UI primitives (shadcn/ui) |
 | **Charts** | Recharts |
 | **Database & Auth** | Supabase (PostgreSQL with Row Level Security) |
-| **AI** | Anthropic Claude API |
-| **File parsing** | mammoth (DOCX), xlsx (spreadsheets), jszip (PPTX), PDF and images handled natively by Claude |
+| **AI** | Anthropic Claude API and/or OpenAI API |
+| **File parsing** | mammoth (DOCX), xlsx (spreadsheets), jszip (PPTX), PDF and images handled natively by the AI provider |
 | **Icons** | Lucide React |
 
 ## What You'll Need
@@ -63,7 +63,9 @@ Before starting, you'll need to set up accounts with these services and make a f
 | Service | What it does | Free tier |
 |---------|-------------|-----------|
 | [Supabase](https://supabase.com) | Database (PostgreSQL), authentication, file storage, row-level security | Yes — 500 MB database, 1 GB storage |
-| [Anthropic](https://console.anthropic.com) | Claude AI for email processing, metric extraction, and summaries | Pay-as-you-go |
+| AI provider — at least one required | AI for email processing, metric extraction, and summaries | Pay-as-you-go |
+| ↳ [Anthropic](https://console.anthropic.com) | Claude API | Pay-as-you-go |
+| ↳ [OpenAI](https://platform.openai.com) | OpenAI API | Pay-as-you-go |
 | Hosting platform | Runs the Next.js app — choose **Netlify** or **Vercel** | Yes on both |
 | Inbound email provider | Receives portfolio company emails — choose **Postmark** or **Mailgun** | Postmark: 100 emails/mo. Mailgun: 1,000/mo |
 
@@ -129,10 +131,6 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=    # From Step 1
 SUPABASE_SERVICE_ROLE_KEY=        # From Step 1
 ENCRYPTION_KEY=                   # From Step 2
 NEXT_PUBLIC_APP_URL=              # Your deployed URL (e.g. https://reporting.yourfund.com)
-
-# Optional — only if using Google Drive or Gmail
-GOOGLE_CLIENT_ID=                 # From Google Cloud Console
-GOOGLE_CLIENT_SECRET=             # From Google Cloud Console
 ```
 
 Trigger a redeploy after adding the variables. `NEXT_PUBLIC_*` variables are baked into the build, so they require a rebuild to take effect.
@@ -163,7 +161,7 @@ Signups are restricted by an email whitelist. Before anyone can create an accoun
 After confirming your email and signing in, the app walks you through:
 
 1. **Fund name** — this appears in the app header
-2. **Claude API key** — get one from [console.anthropic.com](https://console.anthropic.com). The key is encrypted and stored in your database, not in environment variables.
+2. **AI API key** — enter at least one: an Anthropic key from [console.anthropic.com](https://console.anthropic.com) and/or an OpenAI key from [platform.openai.com](https://platform.openai.com). You can configure both and switch between them. Keys are encrypted and stored in your database, not in environment variables.
 3. **Inbound email address** — see Step 7
 
 ### Step 7: Set up inbound email
@@ -220,8 +218,7 @@ To automatically archive processed emails and attachments:
 3. Configure an **OAuth consent screen** (External is fine for personal use)
 4. Create **OAuth 2.0 credentials** (Web application type)
 5. Add `https://your-app.com/api/auth/google/callback` as an authorized redirect URI
-6. Add `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` to your hosting environment variables and redeploy
-7. In the app, go to **Settings** and connect Google
+6. In the app, go to **Settings**, enter your Google Client ID and Client Secret, and connect Google
 
 **Dropbox:**
 1. Create an app at [dropbox.com/developers](https://www.dropbox.com/developers)
@@ -269,14 +266,16 @@ Then set the tunnel URL as your inbound webhook (e.g. `https://your-tunnel.ngrok
 
 ### Demo mode
 
-To explore the app with sample data without setting up email providers:
+To set up a public read-only demo at `/demo`:
 
-```bash
-# Add to .env.local
-DEMO_MODE=true
-```
+1. Add the demo environment variables:
+   ```bash
+   DEMO_USER_EMAIL=demo@yourdomain.com
+   DEMO_USER_PASSWORD=<a-strong-random-password>
+   ```
+2. Sign in as an admin and trigger the seed: `POST /api/demo/seed`
 
-This seeds sample companies with realistic metric data on first login and disables email processing.
+This creates a demo fund with 8 sample companies, realistic metric data, AI summaries, notes, inbound emails, review items, and documents. It also creates the demo user account automatically. Visitors to `/demo` are signed in as a read-only viewer — all mutations are blocked.
 
 ## Contributing
 

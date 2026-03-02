@@ -1,9 +1,6 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { AppShell } from '@/components/app-shell'
-import { DemoSeeder } from './demo-seeder'
-
-const isDemo = process.env.DEMO_MODE === 'true'
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const supabase = createClient()
@@ -34,6 +31,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     .limit(1)
     .maybeSingle() as { data: { role: string } | null }
 
+  const isViewer = membership?.role === 'viewer'
+
   let pendingRequestCount = 0
   if (membership?.role === 'admin') {
     const { count } = await supabase
@@ -49,9 +48,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
-      {isDemo && (
-        <div className="bg-amber-500 text-white text-center text-xs py-1.5 px-4 shrink-0">
-          Running in demo mode — email parsing is disabled
+      {isViewer && (
+        <div className="bg-blue-500 text-white text-center text-xs py-1.5 px-4 shrink-0">
+          Viewing demo &mdash; read only
         </div>
       )}
 
@@ -66,8 +65,6 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           {children}
         </AppShell>
       </div>
-
-      {isDemo && <DemoSeeder />}
     </div>
   )
 }

@@ -30,16 +30,17 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
   const isAuthRoute = pathname.startsWith('/auth')
   const isApiRoute = pathname.startsWith('/api')
+  const isPublicRoute = pathname === '/license' || pathname === '/demo'
 
-  // Unauthenticated users can only access /auth and API routes
-  if (!user && !isAuthRoute && !isApiRoute) {
+  // Unauthenticated users can only access /auth, API, and public routes
+  if (!user && !isAuthRoute && !isApiRoute && !isPublicRoute) {
     const url = request.nextUrl.clone()
     url.pathname = '/auth'
     return NextResponse.redirect(url)
   }
 
   // Enforce MFA: redirect to verify page if user has enrolled TOTP but hasn't completed AAL2
-  if (user && !isAuthRoute && !isApiRoute) {
+  if (user && !isAuthRoute && !isApiRoute && !isPublicRoute) {
     const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel()
     if (aal && aal.nextLevel === 'aal2' && aal.currentLevel !== 'aal2') {
       const url = request.nextUrl.clone()

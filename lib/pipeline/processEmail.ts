@@ -500,7 +500,8 @@ async function saveToGoogleDrive(
   const refreshToken = decrypt(settings.google_refresh_token_encrypted, dek)
 
   const creds = await getGoogleCredentials(supabase, fundId)
-  const accessToken = await getGoogleAccessToken(refreshToken, creds?.clientId, creds?.clientSecret)
+  if (!creds?.clientId || !creds?.clientSecret) return
+  const accessToken = await getGoogleAccessToken(refreshToken, creds.clientId, creds.clientSecret)
   const rootFolderId = settings.google_drive_folder_id
 
   const companyFolderId = await findOrCreateGoogleFolder(accessToken, rootFolderId, companyName)

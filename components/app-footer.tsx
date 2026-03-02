@@ -1,4 +1,5 @@
-import { Github } from 'lucide-react'
+import Link from 'next/link'
+import { Github, Scale } from 'lucide-react'
 
 function HemrockIcon({ className }: { className?: string }) {
   return (
@@ -32,6 +33,29 @@ export function AppFooter() {
         >
           View on <Github className="h-3 w-3" />
           GitHub
+        </a>
+        <Link
+          href="/license"
+          className="flex items-center gap-1.5 hover:text-foreground transition-colors"
+        >
+          <Scale className="h-3 w-3" />
+          License
+        </Link>
+        <a
+          href="https://www.hemrock.com/terms"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="hover:text-foreground transition-colors"
+        >
+          Terms
+        </a>
+        <a
+          href="https://www.hemrock.com/privacy"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="hover:text-foreground transition-colors"
+        >
+          Privacy
         </a>
       </div>
     </footer>

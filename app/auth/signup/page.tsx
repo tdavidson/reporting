@@ -12,6 +12,7 @@ import { Building2 } from 'lucide-react'
 export default function SignUpPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [acceptedLicense, setAcceptedLicense] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [info, setInfo] = useState<string | null>(null)
@@ -23,6 +24,10 @@ export default function SignUpPage() {
     }
     if (!password || password.length < 8) {
       setError('Password must be at least 8 characters.')
+      return
+    }
+    if (!acceptedLicense) {
+      setError('You must accept the license agreement to create an account.')
       return
     }
     setError(null)
@@ -100,7 +105,32 @@ export default function SignUpPage() {
               />
             </div>
 
-            <Button className="w-full" onClick={signUp} disabled={loading}>
+            <div className="flex items-start gap-2">
+              <input
+                id="accept-license"
+                type="checkbox"
+                checked={acceptedLicense}
+                onChange={e => setAcceptedLicense(e.target.checked)}
+                className="mt-1 h-4 w-4 rounded border-input accent-primary"
+              />
+              <label htmlFor="accept-license" className="text-xs text-muted-foreground leading-relaxed">
+                I agree to the{' '}
+                <a href="/license" target="_blank" rel="noopener noreferrer" className="text-primary underline underline-offset-4 hover:text-primary/80">
+                  License Agreement
+                </a>
+                ,{' '}
+                <a href="https://www.hemrock.com/terms" target="_blank" rel="noopener noreferrer" className="text-primary underline underline-offset-4 hover:text-primary/80">
+                  Terms of Service
+                </a>
+                , and{' '}
+                <a href="https://www.hemrock.com/privacy" target="_blank" rel="noopener noreferrer" className="text-primary underline underline-offset-4 hover:text-primary/80">
+                  Privacy Policy
+                </a>
+                .
+              </label>
+            </div>
+
+            <Button className="w-full" onClick={signUp} disabled={loading || !acceptedLicense}>
               {loading ? 'Creating account…' : 'Create account'}
             </Button>
 

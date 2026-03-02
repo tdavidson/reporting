@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { assertWriteAccess } from '@/lib/api-helpers'
 import { dbError } from '@/lib/api-error'
 
 const VALID_VALUE_TYPES = ['number', 'currency', 'percentage', 'text']
@@ -32,6 +33,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const writeCheck = await assertWriteAccess(createAdminClient(), user.id)
+  if (writeCheck instanceof NextResponse) return writeCheck
 
   const admin = createAdminClient()
   const metric = await verifyOwnership(admin, params.id, user.id)
@@ -77,6 +81,9 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const writeCheck = await assertWriteAccess(createAdminClient(), user.id)
+  if (writeCheck instanceof NextResponse) return writeCheck
 
   const admin = createAdminClient()
   const metric = await verifyOwnership(admin, params.id, user.id)

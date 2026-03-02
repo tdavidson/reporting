@@ -6,14 +6,12 @@ interface GoogleCredentials {
 }
 
 /**
- * Get Google OAuth credentials for a fund.
- * Checks the database first, then falls back to environment variables.
+ * Get Google OAuth credentials for a fund from the database.
  */
 export async function getGoogleCredentials(
   admin: SupabaseClient,
   fundId: string
 ): Promise<GoogleCredentials | null> {
-  // Check database first
   const { data: settings } = await admin
     .from('fund_settings')
     .select('google_client_id, google_client_secret_encrypted, encryption_key_encrypted')
@@ -31,13 +29,6 @@ export async function getGoogleCredentials(
         clientSecret,
       }
     }
-  }
-
-  // Fall back to environment variables
-  const clientId = process.env.GOOGLE_CLIENT_ID
-  const clientSecret = process.env.GOOGLE_CLIENT_SECRET
-  if (clientId && clientSecret) {
-    return { clientId, clientSecret }
   }
 
   return null

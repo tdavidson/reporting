@@ -174,6 +174,25 @@ export default function SupportPage() {
 
         <div id="pricing" className="pl-4 border-l-2 border-border">
           <h3 className="text-sm font-medium mb-2">Pricing</h3>
+          <p className="text-muted-foreground mb-2">
+            You can download and deploy this platform for your own use under the terms of the{' '}
+            <a
+              href="/license"
+              className="text-foreground underline underline-offset-4 hover:text-foreground/80"
+            >
+              license
+            </a>
+            , using your own accounts for the components in the stack &mdash; database, hosting,
+            email providers, file storage, and AI. This means you control your own operational
+            details and costs, and all of those costs are controlled by you.
+          </p>
+          <p className="text-muted-foreground mb-2">
+            Most of the services used in the stack have fairly generous free pricing tiers that
+            should handle normal usage of the product, but your costs may vary depending on your
+            portfolio size and usage patterns. The platform does require use of Anthropic or OpenAI
+            API keys for AI-powered features (metric extraction, summaries, and analysis), which
+            will require paid accounts with those providers.
+          </p>
           <p className="text-muted-foreground">
             <a
               href="https://www.hemrock.com"
@@ -183,8 +202,8 @@ export default function SupportPage() {
             >
               Taylor Davidson
             </a>
-            {' '}of Hemrock is available to set up, host, and manage the platform for you, including
-            onboarding your portfolio data and providing ongoing support &mdash;{' '}
+            {' '}of Hemrock is also available to set up, host, and manage the platform for you,
+            including onboarding your portfolio data and providing ongoing support &mdash;{' '}
             <a
               href="https://www.hemrock.com"
               target="_blank"

@@ -33,7 +33,10 @@ async function getDriveAccess(userId: string) {
   const refreshToken = decrypt(settings.google_refresh_token_encrypted, dek)
 
   const creds = await getGoogleCredentials(admin, membership.fund_id)
-  const accessToken = await getAccessToken(refreshToken, creds?.clientId, creds?.clientSecret)
+  if (!creds?.clientId || !creds?.clientSecret) {
+    return { error: 'Google OAuth credentials not configured', status: 400 }
+  }
+  const accessToken = await getAccessToken(refreshToken, creds.clientId, creds.clientSecret)
 
   return { accessToken, fundId: membership.fund_id, admin }
 }

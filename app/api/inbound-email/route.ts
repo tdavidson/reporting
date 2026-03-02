@@ -22,11 +22,6 @@ function safeTokenCompare(a: string, b: string): boolean {
 // ---------------------------------------------------------------------------
 
 export async function POST(req: NextRequest) {
-  if (process.env.DEMO_MODE === 'true') {
-    console.log('[inbound-email] Skipped — demo mode is enabled')
-    return NextResponse.json({ ok: true })
-  }
-
   // Rate limit inbound webhook: 60 per minute per IP
   const limited = await rateLimit({ key: `inbound:${getClientIp(req)}`, limit: 60, windowSeconds: 60 })
   if (limited) return limited

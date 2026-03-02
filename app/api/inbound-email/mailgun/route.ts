@@ -8,11 +8,6 @@ import { decrypt } from '@/lib/crypto'
 import type { Json } from '@/lib/types/database'
 
 export async function POST(req: NextRequest) {
-  if (process.env.DEMO_MODE === 'true') {
-    console.log('[inbound-email/mailgun] Skipped — demo mode is enabled')
-    return NextResponse.json({ ok: true })
-  }
-
   try {
     await handleMailgunInbound(req)
   } catch (err) {

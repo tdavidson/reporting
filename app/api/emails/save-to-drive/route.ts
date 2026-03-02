@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { assertWriteAccess } from '@/lib/api-helpers'
 import { decrypt } from '@/lib/crypto'
 import { getAccessToken as getGoogleAccessToken, findOrCreateFolder as findOrCreateGoogleFolder, uploadFile as uploadGoogleFile } from '@/lib/google/drive'
 import { getGoogleCredentials } from '@/lib/google/credentials'
@@ -14,6 +15,9 @@ export async function POST(req: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const admin = createAdminClient()
+
+  const writeCheck = await assertWriteAccess(admin, user.id)
+  if (writeCheck instanceof NextResponse) return writeCheck
 
   const { data: membership } = await admin
     .from('fund_members')
@@ -60,7 +64,10 @@ export async function POST(req: NextRequest) {
     }
     const refreshToken = decrypt(settings.google_refresh_token_encrypted, dek)
     const creds = await getGoogleCredentials(admin, membership.fund_id)
-    const accessToken = await getGoogleAccessToken(refreshToken, creds?.clientId, creds?.clientSecret)
+    if (!creds?.clientId || !creds?.clientSecret) {
+      return NextResponse.json({ error: 'Google OAuth credentials not configured' }, { status: 400 })
+    }
+    const accessToken = await getGoogleAccessToken(refreshToken, creds.clientId, creds.clientSecret)
     const rootFolderId = settings.google_drive_folder_id
 
     uploadEmail = async (companyName, dateStr, subject, emailBody) => {
