@@ -5,6 +5,13 @@
 [[plugins]]
   package = "@netlify/plugin-nextjs"
 
+# Ensure _next/static assets are served with correct cache headers
+# and NOT routed through server functions.
+[[headers]]
+  for = "/_next/static/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
 # Prevent Netlify edge from caching auth and demo pages.
 # These depend on real-time auth state and must never be served stale.
 [[headers]]
