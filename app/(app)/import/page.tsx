@@ -44,6 +44,7 @@ interface Company {
 }
 
 const ACCEPTED_DOC_TYPES = '.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.csv,.jpg,.jpeg,.png'
+const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10 MB
 
 export default function ImportPage() {
   const [text, setText] = useState('')
@@ -132,6 +133,13 @@ export default function ImportPage() {
     setDocSuccess(null)
 
     const fileList = Array.from(files)
+    const oversized = fileList.filter(f => f.size > MAX_FILE_SIZE)
+    if (oversized.length > 0) {
+      setDocError(`${oversized.length === 1 ? `"${oversized[0].name}" exceeds` : `${oversized.length} files exceed`} the 10 MB file size limit.`)
+      if (docInputRef.current) docInputRef.current.value = ''
+      return
+    }
+
     const initialMatches: FileMatch[] = fileList.map(f => ({
       file: f,
       filename: f.name,
@@ -329,6 +337,7 @@ export default function ImportPage() {
               <Upload className="h-4 w-4 mr-2" />
               Select Files
             </Button>
+            <p className="text-xs text-muted-foreground mt-1.5">Max 10 MB per file</p>
           </div>
 
           {matching && (

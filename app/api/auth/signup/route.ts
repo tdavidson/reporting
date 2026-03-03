@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
 
   if (!allowed) {
     return NextResponse.json({
-      error: 'This email is not authorized to create an account. Contact your fund administrator.',
+      error: 'not_whitelisted',
     }, { status: 403 })
   }
 

@@ -67,9 +67,12 @@ export default function NotesPage() {
   }, [filter, markAsRead])
 
   return (
-    <div className="p-6 max-w-3xl">
+    <div className="p-4 md:py-8 md:pl-8 md:pr-4">
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-lg font-semibold">Notes</h1>
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Notes</h1>
+          <p className="text-sm text-muted-foreground mt-1">Activity and conversations across your portfolio</p>
+        </div>
         <div className="flex items-center rounded-md border text-xs">
           {(['all', 'mentions', 'general'] as FilterMode[]).map(f => (
             <button

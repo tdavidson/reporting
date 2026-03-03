@@ -37,3 +37,7 @@ next-env.d.ts
 # supabase local dev
 supabase/.branches
 supabase/.temp
+
+# local development plans
+/docs/*
+!/docs/screenshots

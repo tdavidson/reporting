@@ -20,6 +20,7 @@ interface Props {
 }
 
 const ACCEPTED_TYPES = '.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.csv,.jpg,.jpeg,.png'
+const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10 MB
 
 export function CompanySummary({ companyId, fundId, hasClaudeKey, hasOpenAIKey, defaultAIProvider }: Props) {
   const [data, setData] = useState<SummaryData | null>(null)
@@ -85,6 +86,12 @@ export function CompanySummary({ companyId, fundId, hasClaudeKey, hasOpenAIKey, 
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
+
+    if (file.size > MAX_FILE_SIZE) {
+      setError('File size must be under 10 MB.')
+      if (fileInputRef.current) fileInputRef.current.value = ''
+      return
+    }
 
     setUploading(true)
     setError(null)

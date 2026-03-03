@@ -25,6 +25,12 @@ function AuthForm() {
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [isHemrock, setIsHemrock] = useState(false)
+
+  useEffect(() => {
+    const host = window.location.hostname
+    setIsHemrock(host === 'hemrock.com' || host.endsWith('.hemrock.com') || host === 'localhost')
+  }, [])
   const router = useRouter()
   const searchParams = useSearchParams()
   const urlError = searchParams.get('error')
@@ -155,10 +161,14 @@ function AuthForm() {
 
         <p className="text-center text-xs text-muted-foreground">
           <a href="/license" target="_blank" rel="noopener noreferrer" className="hover:text-foreground underline underline-offset-4">License</a>
-          {' · '}
-          <a href="https://www.hemrock.com/terms" target="_blank" rel="noopener noreferrer" className="hover:text-foreground underline underline-offset-4">Terms</a>
-          {' · '}
-          <a href="https://www.hemrock.com/privacy" target="_blank" rel="noopener noreferrer" className="hover:text-foreground underline underline-offset-4">Privacy</a>
+          {isHemrock && (
+            <>
+              {' · '}
+              <a href="https://www.hemrock.com/terms" target="_blank" rel="noopener noreferrer" className="hover:text-foreground underline underline-offset-4">Terms</a>
+              {' · '}
+              <a href="https://www.hemrock.com/privacy" target="_blank" rel="noopener noreferrer" className="hover:text-foreground underline underline-offset-4">Privacy</a>
+            </>
+          )}
         </p>
       </div>
     </div>

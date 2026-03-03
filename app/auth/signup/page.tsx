@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -16,6 +16,12 @@ export default function SignUpPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [info, setInfo] = useState<string | null>(null)
+  const [isHemrock, setIsHemrock] = useState(false)
+
+  useEffect(() => {
+    const host = window.location.hostname
+    setIsHemrock(host === 'hemrock.com' || host.endsWith('.hemrock.com') || host === 'localhost')
+  }, [])
 
   async function signUp() {
     if (!email.trim()) {
@@ -42,7 +48,11 @@ export default function SignUpPage() {
       })
       const data = await res.json()
       if (!res.ok) {
-        setError(data.error || 'Unable to create account.')
+        if (data.error === 'not_whitelisted') {
+          setError('not_whitelisted')
+        } else {
+          setError(data.error || 'Unable to create account.')
+        }
       } else {
         setInfo('Check your email for a confirmation link.')
       }
@@ -55,6 +65,11 @@ export default function SignUpPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-muted/40 p-4">
       <div className="w-full max-w-md space-y-6">
+        {isHemrock && (
+          <div className="-mt-20 mb-2 rounded-lg border bg-card p-4 text-sm text-center">
+            <p>👋 Want to try it out first? <a href="/demo" className="text-primary underline underline-offset-4 hover:text-primary/80 font-medium">Launch the demo</a></p>
+          </div>
+        )}
         <div className="text-center">
           <div className="h-10 w-10 rounded bg-muted flex items-center justify-center mx-auto mb-2">
             <Building2 className="h-5 w-5 text-muted-foreground" />
@@ -68,9 +83,22 @@ export default function SignUpPage() {
             <CardDescription>Enter your email and a password to get started.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {error && (
+            {error && error !== 'not_whitelisted' && (
               <Alert variant="destructive">
                 <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+            {error === 'not_whitelisted' && (
+              <Alert>
+                <AlertDescription className="text-sm space-y-2">
+                  <p>This email is not authorized for the hosted platform.</p>
+                  <p>
+                    This software is available to download and install on your own servers, subject to the{' '}
+                    <a href="/license" target="_blank" rel="noopener noreferrer" className="text-primary underline underline-offset-4 hover:text-primary/80">license</a>.
+                    If you are interested in the hosted solution, contact{' '}
+                    <a href="mailto:taylor@hemrock.com" className="text-primary underline underline-offset-4 hover:text-primary/80">Taylor</a>.
+                  </p>
+                </AlertDescription>
               </Alert>
             )}
             {info && (
@@ -118,14 +146,18 @@ export default function SignUpPage() {
                 <a href="/license" target="_blank" rel="noopener noreferrer" className="text-primary underline underline-offset-4 hover:text-primary/80">
                   License Agreement
                 </a>
-                ,{' '}
-                <a href="https://www.hemrock.com/terms" target="_blank" rel="noopener noreferrer" className="text-primary underline underline-offset-4 hover:text-primary/80">
-                  Terms of Service
-                </a>
-                , and{' '}
-                <a href="https://www.hemrock.com/privacy" target="_blank" rel="noopener noreferrer" className="text-primary underline underline-offset-4 hover:text-primary/80">
-                  Privacy Policy
-                </a>
+                {isHemrock && (
+                  <>
+                    ,{' '}
+                    <a href="https://www.hemrock.com/terms" target="_blank" rel="noopener noreferrer" className="text-primary underline underline-offset-4 hover:text-primary/80">
+                      Terms of Service
+                    </a>
+                    , and{' '}
+                    <a href="https://www.hemrock.com/privacy" target="_blank" rel="noopener noreferrer" className="text-primary underline underline-offset-4 hover:text-primary/80">
+                      Privacy Policy
+                    </a>
+                  </>
+                )}
                 .
               </label>
             </div>

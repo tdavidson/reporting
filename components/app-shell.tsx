@@ -64,7 +64,7 @@ function AppShellInner({ fundName, fundLogo, userEmail, reviewBadge, settingsBad
         </aside>
 
         {/* Page content */}
-        <main className="flex-1 min-w-0 flex flex-col">
+        <main className="flex-1 pl-2 min-w-0 flex flex-col">
           <div className="flex-1">
             {children}
           </div>
