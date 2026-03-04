@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { Building2, ClipboardCheck, Mail, Upload, Send, Settings, MessageSquare, Monitor, PanelLeftClose, Sparkles, Shield } from 'lucide-react'
+import { Building2, ClipboardCheck, Mail, Upload, Send, Settings, MessageSquare, Monitor, PanelLeftClose, Sparkles, Shield, Handshake, Users } from 'lucide-react'
 import { AnalystToggleButton } from '@/components/analyst-button'
 import { AnalystPanel } from '@/components/analyst-panel'
 
@@ -21,7 +21,9 @@ export default function SupportPage() {
       <li><a href="#asks" className="hover:text-foreground underline underline-offset-4">Asks</a></li>
       <li><a href="#settings" className="hover:text-foreground underline underline-offset-4">Settings</a></li>
       <li><a href="#notes" className="hover:text-foreground underline underline-offset-4">Notes</a></li>
-      <li><a href="#analyst" className="hover:text-foreground underline underline-offset-4">AI Analyst</a></li>
+      <li><a href="#interactions" className="hover:text-foreground underline underline-offset-4">Interactions</a></li>
+      <li><a href="#usage" className="hover:text-foreground underline underline-offset-4">Usage</a></li>
+      <li><a href="#analyst" className="hover:text-foreground underline underline-offset-4">Analyst</a></li>
       <li><a href="#file-handling" className="hover:text-foreground underline underline-offset-4">File Handling &amp; Security</a></li>
       <li><a href="#sidebar" className="hover:text-foreground underline underline-offset-4">Theme &amp; Sidebar</a></li>
     </ul>
@@ -100,7 +102,7 @@ export default function SupportPage() {
           </p>
           <p className="text-muted-foreground">
             Once data starts flowing, the Portfolio dashboard gives you a real-time view of every
-            company, the Review queue catches anything that needs a human decision, and the AI Analyst
+            company, the Review queue catches anything that needs a human decision, and the Analyst
             on each company page synthesizes the data into actionable summaries. The goal is to spend
             less time on data entry and more time on the analysis and conversations that matter.
           </p>
@@ -239,7 +241,7 @@ export default function SupportPage() {
           </p>
           <p className="text-muted-foreground mb-2">
             Click any company card to open its detail page. The detail page shows historical metric
-            charts, the AI Analyst summary, uploaded documents, and a notes panel. You can track how
+            charts, the Analyst summary, uploaded documents, and a notes panel. You can track how
             metrics have trended over time, upload supplementary documents (board decks, strategy memos,
             etc.) to give the AI more context, and generate or regenerate AI summaries on demand.
           </p>
@@ -269,7 +271,7 @@ export default function SupportPage() {
             context for analysis.
           </p>
           <p className="text-muted-foreground mb-2">
-            The main content area starts with the <strong>AI Analyst</strong> card. This is where you
+            The main content area starts with the <strong>Analyst</strong> card. This is where you
             can generate an AI-powered summary of the company based on all available data &mdash; reported
             metrics, email content, uploaded documents, and any previous summaries. The AI acts as a
             senior analyst preparing a portfolio review memo: it highlights current performance, trends,
@@ -280,7 +282,7 @@ export default function SupportPage() {
             which AI to use for each generation.
           </p>
           <p className="text-muted-foreground mb-2">
-            Below the AI Analyst is the <strong>metrics section</strong>, where each metric has its own
+            Below the Analyst is the <strong>metrics section</strong>, where each metric has its own
             chart card. You can add new metrics directly from this page using the &ldquo;Add metric&rdquo;
             button, or delete a metric and all its data from its card. Each chart shows data points over
             time, color-coded by confidence level (green for high, amber for medium, red for low) with
@@ -293,7 +295,7 @@ export default function SupportPage() {
           <p className="text-muted-foreground mb-2">
             Further down the page, a <strong>documents section</strong> lists all files associated with
             the company &mdash; both files you&apos;ve uploaded and attachments from processed emails.
-            These documents are available to the AI Analyst when generating summaries. Individual file
+            These documents are available to the Analyst when generating summaries. Individual file
             uploads are limited to 10 MB. Finally, if the company has additional details like founders,
             contact emails, an overview, investment thesis, or a current business update, those appear
             at the bottom. A <strong>notes panel</strong> on
@@ -579,13 +581,76 @@ export default function SupportPage() {
           </p>
         </div>
 
+        <div id="interactions">
+          <h2 className="text-base font-medium mb-2 flex items-center gap-2">
+            <Handshake className="h-4 w-4 text-muted-foreground" />
+            Interactions
+          </h2>
+          <p className="text-muted-foreground mb-2">
+            Interactions gives GPs a searchable log of all conversations and introductions with portfolio
+            companies. When a GP BCCs the fund&apos;s inbound email address on a conversation, the system
+            automatically detects that the sender is a fund member, classifies the email as a CRM interaction
+            (not a metrics report), and uses AI to extract a summary and identify any introductions.
+          </p>
+          <p className="text-muted-foreground mb-2">
+            The classification is automatic: emails from fund members are routed to the interaction pipeline,
+            while emails from authorized senders (portfolio companies) continue through the existing metrics
+            extraction pipeline. No manual tagging is required.
+          </p>
+          <p className="text-muted-foreground mb-2">
+            For each interaction, the AI generates a short summary, detects whether the email contains an
+            introduction between parties, and extracts the names and context of anyone being introduced.
+            Interactions are linked to portfolio companies when possible, so you can see all conversations
+            related to a specific company.
+          </p>
+          <p className="text-muted-foreground mb-2">
+            The Interactions page shows all logged interactions across the fund, with filter tabs
+            for <strong>All</strong> and <strong>Intros</strong>. Each entry shows the date, linked company,
+            subject line, AI summary, and an intro badge when introductions were detected. Click the intro
+            details to expand and see the names, emails, and context of introduced contacts.
+          </p>
+          <p className="text-muted-foreground mb-2">
+            On each company&apos;s detail page, a <strong>Recent Interactions</strong> section shows the
+            latest interactions for that company, with intro entries highlighted in a distinct style. A
+            &ldquo;View all&rdquo; link takes you to the full interactions list filtered to that company.
+          </p>
+          <p className="text-muted-foreground">
+            The fund&apos;s inbound email address is displayed at the top of the Interactions page for
+            easy reference and can be copied with one click. Simply BCC this address on any email conversation
+            you want to log.
+          </p>
+        </div>
+
+        <div id="usage">
+          <h2 className="text-base font-medium mb-2 flex items-center gap-2">
+            <Users className="h-4 w-4 text-muted-foreground" />
+            Usage
+          </h2>
+          <p className="text-muted-foreground mb-2">
+            Usage is an <strong>admin-only</strong> page that shows how your fund is consuming AI tokens
+            and how team members are using the platform.
+          </p>
+          <p className="text-muted-foreground mb-2">
+            The top section displays <strong>AI token usage</strong> broken down by provider (Anthropic
+            and/or OpenAI), with month-to-date totals for input tokens, output tokens, and estimated cost.
+            A daily breakdown table shows usage by model, so you can see exactly where tokens are being
+            spent &mdash; email processing, metric extraction, company identification, summaries, or
+            analyst conversations.
+          </p>
+          <p className="text-muted-foreground">
+            The bottom section shows <strong>team activity</strong>: a summary of actions per team member
+            (logins, company updates, imports, notes, reviews resolved) and a recent activity feed with
+            timestamps. This gives admins visibility into how the platform is being used across the team.
+          </p>
+        </div>
+
         <div id="analyst">
           <h2 className="text-base font-medium mb-2 flex items-center gap-2">
             <Sparkles className="h-4 w-4 text-muted-foreground" />
-            AI Analyst
+            Analyst
           </h2>
           <p className="text-muted-foreground mb-2">
-            The AI Analyst is an interactive chat interface available on every page. It acts as a senior
+            The Analyst is an interactive chat interface available on every page. Powered by AI, it acts as a senior
             venture capital analyst with full access to your portfolio data, answering questions, surfacing
             insights, and helping you prepare for board meetings and investment committee discussions.
           </p>
