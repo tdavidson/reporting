@@ -6,6 +6,8 @@ import {
   runPipeline,
   type PostmarkPayload,
 } from '@/lib/pipeline/processEmail'
+import { runCRMPipeline } from '@/lib/pipeline/processCRMEmail'
+import { checkFundMember } from '@/lib/pipeline/checkFundMember'
 import { isAuthorizedSender } from '@/lib/pipeline/isAuthorizedSender'
 import { rateLimit, getClientIp } from '@/lib/rate-limit'
 import { scanFile } from '@/lib/security/scan-file'
@@ -58,6 +60,56 @@ async function handleInbound(req: NextRequest) {
     return
   }
   const { fundId, isGlobal } = fundInfo
+
+  // Step 1b: Check if sender is a fund member → route to CRM pipeline
+  const fundMember = await checkFundMember(supabase, fundId, fromAddress)
+
+  if (fundMember) {
+    const strippedPayload = { ...payload }
+    if (payload.Attachments && payload.Attachments.length > 0) {
+      strippedPayload.Attachments = payload.Attachments.map(att => ({
+        Name: att.Name,
+        ContentType: att.ContentType,
+        ContentLength: att.ContentLength,
+      }))
+    }
+
+    const { data: emailRow, error: insertError } = await supabase
+      .from('inbound_emails')
+      .insert({
+        fund_id: fundId,
+        from_address: fromAddress,
+        subject: payload.Subject ?? null,
+        raw_payload: strippedPayload as unknown as import('@/lib/types/database').Json,
+        processing_status: 'pending',
+        attachments_count: payload.Attachments?.length ?? 0,
+        email_type: 'crm',
+      })
+      .select('id')
+      .single()
+
+    if (insertError || !emailRow) {
+      console.error('[inbound-email] Failed to insert CRM email record:', insertError)
+      return
+    }
+
+    try {
+      await supabase
+        .from('inbound_emails')
+        .update({ processing_status: 'processing' })
+        .eq('id', emailRow.id)
+
+      await runCRMPipeline(supabase, emailRow.id, fundId, fundMember.user_id, payload)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      console.error(`[inbound-email] CRM pipeline error for email ${emailRow.id}:`, err)
+      await supabase
+        .from('inbound_emails')
+        .update({ processing_status: 'failed', processing_error: message })
+        .eq('id', emailRow.id)
+    }
+    return
+  }
 
   // Step 2: Check authorized senders
   if (!isGlobal) {

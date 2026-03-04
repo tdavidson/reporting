@@ -12,7 +12,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { AlertCircle, RefreshCw, ChevronLeft, ChevronRight, Loader2, Trash2 } from 'lucide-react'
+import { AlertCircle, RefreshCw, ChevronLeft, ChevronRight, Loader2, Trash2, Copy, Check } from 'lucide-react'
 import { AnalystToggleButton } from '@/components/analyst-button'
 import { AnalystPanel } from '@/components/analyst-panel'
 import { EmailReviewModal } from '@/components/email-review-modal'
@@ -87,6 +87,7 @@ export default function EmailsPage() {
 
   // Inbound address from settings
   const [inboundAddress, setInboundAddress] = useState('')
+  const [copied, setCopied] = useState(false)
 
   useEffect(() => {
     fetch('/api/settings').then(r => r.ok ? r.json() : null).then(s => {
@@ -219,15 +220,28 @@ export default function EmailsPage() {
           </Button>
         )}
         {inboundAddress && (
-          <div className="ml-auto">
-            <label className="block text-xs text-muted-foreground mb-1">Send emails to</label>
-            <Input
-              type="text"
-              readOnly
-              value={inboundAddress}
-              className="h-8 w-full sm:w-64 text-sm bg-muted text-muted-foreground cursor-default"
-              tabIndex={-1}
-            />
+          <div className="ml-auto flex items-end gap-1.5">
+            <div>
+              <label className="block text-xs text-muted-foreground mb-1">Send emails to</label>
+              <Input
+                type="text"
+                readOnly
+                value={inboundAddress}
+                className="h-8 w-full sm:w-64 text-sm bg-muted text-muted-foreground cursor-default"
+                tabIndex={-1}
+              />
+            </div>
+            <button
+              onClick={() => {
+                navigator.clipboard.writeText(inboundAddress)
+                setCopied(true)
+                setTimeout(() => setCopied(false), 2000)
+              }}
+              className="h-8 px-2 text-muted-foreground hover:text-foreground transition-colors"
+              title="Copy to clipboard"
+            >
+              {copied ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
+            </button>
           </div>
         )}
       </div>

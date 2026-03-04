@@ -375,6 +375,7 @@ export type Database = {
           claude_response: Json | null
           metrics_extracted: number
           attachments_count: number
+          email_type: string
           created_at: string
         }
         Insert: {
@@ -390,6 +391,7 @@ export type Database = {
           claude_response?: Json | null
           metrics_extracted?: number
           attachments_count?: number
+          email_type?: string
           created_at?: string
         }
         Update: {
@@ -405,6 +407,7 @@ export type Database = {
           claude_response?: Json | null
           metrics_extracted?: number
           attachments_count?: number
+          email_type?: string
           created_at?: string
         }
         Relationships: [
@@ -1093,6 +1096,70 @@ export type Database = {
           },
         ]
       }
+      interactions: {
+        Row: {
+          id: string
+          fund_id: string
+          company_id: string | null
+          email_id: string | null
+          user_id: string
+          type: string
+          subject: string | null
+          summary: string | null
+          intro_contacts: Json
+          body_preview: string | null
+          interaction_date: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          fund_id: string
+          company_id?: string | null
+          email_id?: string | null
+          user_id: string
+          type?: string
+          subject?: string | null
+          summary?: string | null
+          intro_contacts?: Json
+          body_preview?: string | null
+          interaction_date?: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          fund_id?: string
+          company_id?: string | null
+          email_id?: string | null
+          user_id?: string
+          type?: string
+          subject?: string | null
+          summary?: string | null
+          intro_contacts?: Json
+          body_preview?: string | null
+          interaction_date?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'interactions_fund_id_fkey'
+            columns: ['fund_id']
+            referencedRelation: 'funds'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'interactions_company_id_fkey'
+            columns: ['company_id']
+            referencedRelation: 'companies'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'interactions_email_id_fkey'
+            columns: ['email_id']
+            referencedRelation: 'inbound_emails'
+            referencedColumns: ['id']
+          },
+        ]
+      }
       analyst_conversations: {
         Row: {
           id: string
@@ -1156,6 +1223,10 @@ export type Database = {
         Args: { p_user_id: string }
         Returns: number
       }
+      is_fund_member_by_email: {
+        Args: { p_fund_id: string; p_email: string }
+        Returns: { user_id: string; member_role: string }[]
+      }
     }
     Enums: Record<string, never>
     CompositeTypes: Record<string, never>
@@ -1193,6 +1264,7 @@ export type NoteRead             = Tables<'note_reads'>
 export type NoteNotificationPreference = Tables<'note_notification_preferences'>
 export type NoteCompanySubscription    = Tables<'note_company_subscriptions'>
 export type AnalystConversation        = Tables<'analyst_conversations'>
+export type Interaction                = Tables<'interactions'>
 
 // Enum-style string literals
 export type CompanyStatus      = 'active' | 'exited' | 'written-off'

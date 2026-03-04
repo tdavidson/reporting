@@ -3,6 +3,8 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { verifyMailgunWebhook } from '@/lib/mailgun/verify'
 import { normalizeMailgunPayload, toPostmarkPayload } from '@/lib/pipeline/normalizePayload'
 import { runPipeline } from '@/lib/pipeline/processEmail'
+import { runCRMPipeline } from '@/lib/pipeline/processCRMEmail'
+import { checkFundMember } from '@/lib/pipeline/checkFundMember'
 import { isAuthorizedSender } from '@/lib/pipeline/isAuthorizedSender'
 import { decrypt } from '@/lib/crypto'
 import { scanFile } from '@/lib/security/scan-file'
@@ -95,6 +97,59 @@ async function handleMailgunInbound(req: NextRequest) {
         return
       }
     }
+  }
+
+  // Check if sender is a fund member → route to CRM pipeline
+  const fundMember = await checkFundMember(supabase, fundId, fromAddress)
+
+  if (fundMember) {
+    const normalized = normalizeMailgunPayload(fields, attachments)
+    const payload = toPostmarkPayload(normalized)
+
+    const strippedPayload = { ...payload }
+    if (payload.Attachments && payload.Attachments.length > 0) {
+      strippedPayload.Attachments = payload.Attachments.map(att => ({
+        Name: att.Name,
+        ContentType: att.ContentType,
+        ContentLength: att.ContentLength,
+      }))
+    }
+
+    const { data: emailRow, error: insertError } = await supabase
+      .from('inbound_emails')
+      .insert({
+        fund_id: fundId,
+        from_address: fromAddress,
+        subject: fields.subject ?? null,
+        raw_payload: strippedPayload as unknown as Json,
+        processing_status: 'pending',
+        attachments_count: attachments.length,
+        email_type: 'crm',
+      })
+      .select('id')
+      .single()
+
+    if (insertError || !emailRow) {
+      console.error('[inbound-email/mailgun] Failed to insert CRM email record:', insertError)
+      return
+    }
+
+    try {
+      await supabase
+        .from('inbound_emails')
+        .update({ processing_status: 'processing' })
+        .eq('id', emailRow.id)
+
+      await runCRMPipeline(supabase, emailRow.id, fundId, fundMember.user_id, payload)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      console.error(`[inbound-email/mailgun] CRM pipeline error for email ${emailRow.id}:`, err)
+      await supabase
+        .from('inbound_emails')
+        .update({ processing_status: 'failed', processing_error: message })
+        .eq('id', emailRow.id)
+    }
+    return
   }
 
   // Check authorized senders
