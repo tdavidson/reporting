@@ -7,6 +7,9 @@ import { scanFileAsync } from '@/lib/security/scan-file'
 import { dbError } from '@/lib/api-error'
 import { logActivity } from '@/lib/activity'
 
+// Large files need more time for download + security scan + text extraction
+export const maxDuration = 60
+
 // ---------------------------------------------------------------------------
 // GET — List all documents for a company
 // ---------------------------------------------------------------------------
@@ -132,6 +135,36 @@ export async function POST(
     // Delete the unsafe file from storage
     await admin.storage.from('company-documents').remove([storagePath])
     return NextResponse.json({ error: `File rejected: ${scanResult.reason}` }, { status: 400 })
+  }
+
+  // For textOnly PDFs/images, skip the expensive base64 conversion since they
+  // don't produce extractedText. They stay in storage for native viewing.
+  const ext = filename.split('.').pop()?.toLowerCase() ?? ''
+  const isPdfOrImage =
+    fileType === 'application/pdf' || ext === 'pdf' ||
+    fileType.startsWith('image/') || ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext)
+
+  if (textOnly && isPdfOrImage) {
+    const { error: insertError } = await admin
+      .from('company_documents' as any)
+      .insert({
+        company_id: params.id,
+        fund_id: company.fund_id,
+        filename,
+        file_type: fileType,
+        file_size: fileSize ?? buffer.length,
+        storage_path: storagePath,
+        extracted_text: null,
+        has_native_content: true,
+        uploaded_by: user.id,
+      })
+
+    if (insertError) {
+      return NextResponse.json({ error: insertError.message }, { status: 500 })
+    }
+
+    logActivity(admin, company.fund_id, user.id, 'company.document_upload', { companyId: params.id })
+    return NextResponse.json({ success: true, textOnly: false })
   }
 
   const result = await extractFromBuffer(buffer, filename, fileType)

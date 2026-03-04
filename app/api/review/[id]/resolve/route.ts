@@ -173,6 +173,21 @@ export async function POST(
     await admin.from('parsing_reviews').delete().eq('id', params.id)
   }
 
+  // Check if all review items for this email are now resolved — if so, promote email to 'success'
+  const { count: unresolvedCount } = await admin
+    .from('parsing_reviews')
+    .select('id', { count: 'exact', head: true })
+    .eq('email_id', review.email_id)
+    .is('resolution', null)
+
+  if (unresolvedCount === 0) {
+    await admin
+      .from('inbound_emails')
+      .update({ processing_status: 'success' })
+      .eq('id', review.email_id)
+      .eq('processing_status', 'needs_review')
+  }
+
   logActivity(admin, review.fund_id, user.id, 'review.resolve', { reviewId: params.id, resolution })
 
   return NextResponse.json({ ok: true })

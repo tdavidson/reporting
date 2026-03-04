@@ -67,6 +67,9 @@ interface Settings {
   hasMailgunSigningKey: boolean
   hasMailgunApiKey: boolean
   mailgunSendingDomain: string
+  analyticsFathomSiteId: string | null
+  analyticsGaMeasurementId: string | null
+  analyticsCustomHeadScript: string | null
   currency: string
   displayName: string
   isAdmin: boolean
@@ -199,6 +202,13 @@ export default function SettingsPage() {
             dropboxAppKey={settings.dropboxAppKey}
             dropboxFolderPath={settings.dropboxFolderPath}
             onChanged={load}
+          />
+          <GroupHeader label="Analytics" />
+          <AnalyticsSection
+            fathomSiteId={settings.analyticsFathomSiteId}
+            gaMeasurementId={settings.analyticsGaMeasurementId}
+            customHeadScript={settings.analyticsCustomHeadScript}
+            onSaved={load}
           />
           <GroupHeader label="Access Control" />
           <InfoSection
@@ -2743,6 +2753,94 @@ function DangerZone({ onDeleted }: { onDeleted: () => void }) {
         </DialogContent>
       </Dialog>
     </div>
+  )
+}
+
+// ──────────────────────────── Analytics ────────────────────────────
+
+function AnalyticsSection({
+  fathomSiteId,
+  gaMeasurementId,
+  customHeadScript,
+  onSaved,
+}: {
+  fathomSiteId: string | null
+  gaMeasurementId: string | null
+  customHeadScript: string | null
+  onSaved: () => void
+}) {
+  const [fathom, setFathom] = useState(fathomSiteId ?? '')
+  const [ga, setGa] = useState(gaMeasurementId ?? '')
+  const [custom, setCustom] = useState(customHeadScript ?? '')
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+
+  const hasChanges =
+    fathom !== (fathomSiteId ?? '') ||
+    ga !== (gaMeasurementId ?? '') ||
+    custom !== (customHeadScript ?? '')
+
+  const handleSave = async () => {
+    setSaving(true)
+    const res = await fetch('/api/settings', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        analyticsFathomSiteId: fathom,
+        analyticsGaMeasurementId: ga,
+        analyticsCustomHeadScript: custom,
+      }),
+    })
+    setSaving(false)
+    if (res.ok) {
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2000)
+      onSaved()
+    }
+  }
+
+  return (
+    <Section title="Analytics tracking">
+      <p className="text-xs text-muted-foreground mb-4">
+        Add analytics scripts to your app. These are rendered on authenticated pages only.
+      </p>
+      <div className="space-y-4">
+        <div>
+          <Label>Fathom Site ID</Label>
+          <Input
+            value={fathom}
+            onChange={(e) => setFathom(e.target.value)}
+            placeholder="ABCDEFGH"
+            className="max-w-xs font-mono mt-1"
+          />
+        </div>
+        <div>
+          <Label>Google Analytics Measurement ID</Label>
+          <Input
+            value={ga}
+            onChange={(e) => setGa(e.target.value)}
+            placeholder="G-XXXXXXXXXX"
+            className="max-w-xs font-mono mt-1"
+          />
+        </div>
+        <div>
+          <Label>Custom head script</Label>
+          <p className="text-xs text-muted-foreground mt-1 mb-1.5">
+            Raw JavaScript injected via a {'<script>'} tag. Do not include {'<script>'} tags.
+          </p>
+          <Textarea
+            value={custom}
+            onChange={(e) => setCustom(e.target.value)}
+            rows={6}
+            className="font-mono"
+            placeholder="// Your custom analytics script"
+          />
+        </div>
+        <Button onClick={handleSave} disabled={saving || !hasChanges} size="sm">
+          {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : saved ? <Check className="h-3.5 w-3.5" /> : 'Save'}
+        </Button>
+      </div>
+    </Section>
   )
 }
 

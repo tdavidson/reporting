@@ -158,6 +158,9 @@ export type Database = {
           openai_api_key_encrypted: string | null
           openai_model: string
           default_ai_provider: string
+          analytics_fathom_site_id: string | null
+          analytics_ga_measurement_id: string | null
+          analytics_custom_head_script: string | null
           currency: string
           created_at: string
           updated_at: string
@@ -198,6 +201,9 @@ export type Database = {
           openai_api_key_encrypted?: string | null
           openai_model?: string
           default_ai_provider?: string
+          analytics_fathom_site_id?: string | null
+          analytics_ga_measurement_id?: string | null
+          analytics_custom_head_script?: string | null
           currency?: string
           created_at?: string
           updated_at?: string
@@ -238,6 +244,9 @@ export type Database = {
           openai_api_key_encrypted?: string | null
           openai_model?: string
           default_ai_provider?: string
+          analytics_fathom_site_id?: string | null
+          analytics_ga_measurement_id?: string | null
+          analytics_custom_head_script?: string | null
           currency?: string
           created_at?: string
           updated_at?: string

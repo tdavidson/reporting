@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -120,7 +121,7 @@ export function ReviewItems({
           : prev
       )
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Error resolving item')
+      toast.error(err instanceof Error ? err.message : 'Error resolving item')
     } finally {
       setResolving(prev => ({ ...prev, [item.id]: false }))
       setEditingId(null)

@@ -96,7 +96,7 @@ export default function SignUpPage() {
                     This software is available to download and install on your own servers, subject to the{' '}
                     <a href="/license" target="_blank" rel="noopener noreferrer" className="text-primary underline underline-offset-4 hover:text-primary/80">license</a>.
                     If you are interested in the hosted solution, contact{' '}
-                    <a href="mailto:taylor@hemrock.com" className="text-primary underline underline-offset-4 hover:text-primary/80">Taylor</a>.
+                    <a href="https://www.hemrock.com/contact" target="_blank" rel="noopener noreferrer" className="text-primary underline underline-offset-4 hover:text-primary/80">Taylor</a>.
                   </p>
                 </AlertDescription>
               </Alert>

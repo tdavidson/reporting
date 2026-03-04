@@ -52,7 +52,11 @@ export function AppSidebar({ reviewBadge, settingsBadge, notesBadge, isAdmin, on
   return (
     <div className="flex flex-col flex-1">
       <nav className={`flex-1 p-2 space-y-0.5 ${collapsed ? 'md:px-1' : ''}`}>
-        {NAV_ITEMS.filter(item => !item.adminOnly || isAdmin).map(({ href, label, icon: Icon, badgeKey, adminOnly }) => {
+        {NAV_ITEMS.filter(item => {
+          if (item.adminOnly && !isAdmin) return false
+          if (item.badgeKey === 'review' && reviewBadge === 0) return false
+          return true
+        }).map(({ href, label, icon: Icon, badgeKey, adminOnly }) => {
           const isActive = pathname === href || pathname.startsWith(href + '/')
           const badgeCount = badgeKey === 'review' ? reviewBadge
             : badgeKey === 'settings' ? (settingsBadge ?? 0)

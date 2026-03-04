@@ -3,6 +3,8 @@ import Script from 'next/script'
 import { Analytics } from '@vercel/analytics/next'
 import { SpeedInsights } from '@vercel/speed-insights/next'
 import { ThemeProvider } from '@/components/theme-provider'
+import { Toaster } from '@/components/toaster'
+import { ConfirmProvider } from '@/components/confirm-dialog'
 import './globals.css'
 
 export const metadata: Metadata = {
@@ -27,7 +29,10 @@ export default function RootLayout({
           enableSystem
           storageKey="portfolio-theme"
         >
-          {children}
+          <ConfirmProvider>
+            {children}
+          </ConfirmProvider>
+          <Toaster />
         </ThemeProvider>
         <Analytics />
         <SpeedInsights />

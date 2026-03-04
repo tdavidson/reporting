@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation'
+import Script from 'next/script'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { AppShell } from '@/components/app-shell'
@@ -48,11 +49,14 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const admin = createAdminClient()
   const { data: unreadNotesCount } = await admin.rpc('count_unread_notes', { p_user_id: user.id }) as { data: number | null }
   const { data: fundSettings } = fund?.id
-    ? await admin.from('fund_settings').select('currency, claude_api_key_encrypted, openai_api_key_encrypted, default_ai_provider').eq('fund_id', fund.id).maybeSingle() as { data: { currency?: string; claude_api_key_encrypted?: string | null; openai_api_key_encrypted?: string | null; default_ai_provider?: string | null } | null }
+    ? await admin.from('fund_settings').select('currency, claude_api_key_encrypted, openai_api_key_encrypted, default_ai_provider, analytics_fathom_site_id, analytics_ga_measurement_id, analytics_custom_head_script').eq('fund_id', fund.id).maybeSingle() as { data: { currency?: string; claude_api_key_encrypted?: string | null; openai_api_key_encrypted?: string | null; default_ai_provider?: string | null; analytics_fathom_site_id?: string | null; analytics_ga_measurement_id?: string | null; analytics_custom_head_script?: string | null } | null }
     : { data: null }
   const fundCurrency = fundSettings?.currency ?? 'USD'
   const hasAIKey = !!(fundSettings?.claude_api_key_encrypted || fundSettings?.openai_api_key_encrypted)
   const defaultAIProvider = fundSettings?.default_ai_provider ?? 'anthropic'
+  const fathomSiteId = fundSettings?.analytics_fathom_site_id ?? null
+  const gaMeasurementId = fundSettings?.analytics_ga_measurement_id ?? null
+  const customHeadScript = fundSettings?.analytics_custom_head_script ?? null
 
   const reviewBadge = (openReviewCount ?? 0) + (needsReviewEmailCount ?? 0)
   const notesBadge = unreadNotesCount ?? 0
@@ -87,6 +91,19 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           {children}
         </AppShell>
       </div>
+
+      {fathomSiteId && (
+        <Script src="https://cdn.usefathom.com/script.js" data-site={fathomSiteId} strategy="afterInteractive" defer />
+      )}
+      {gaMeasurementId && (
+        <>
+          <Script src={`https://www.googletagmanager.com/gtag/js?id=${gaMeasurementId}`} strategy="afterInteractive" />
+          <Script id="ga-config" strategy="afterInteractive">{`window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','${gaMeasurementId}');`}</Script>
+        </>
+      )}
+      {customHeadScript && (
+        <Script id="custom-analytics" strategy="afterInteractive" dangerouslySetInnerHTML={{ __html: customHeadScript }} />
+      )}
     </div>
   )
 }

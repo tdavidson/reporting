@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -317,7 +318,7 @@ export function EmailReviewModal({
       // Load metrics for the assigned company
       await loadMetrics(company.id)
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Error assigning company')
+      toast.error(err instanceof Error ? err.message : 'Error assigning company')
     } finally {
       setAssigningCompany(false)
     }
@@ -343,7 +344,7 @@ export function EmailReviewModal({
         onOpenChange(false)
       }, 2500)
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Error reprocessing email')
+      toast.error(err instanceof Error ? err.message : 'Error reprocessing email')
     } finally {
       setReprocessing(false)
     }
@@ -372,7 +373,7 @@ export function EmailReviewModal({
       }
       setUploadedFiles(prev => [...prev, file.name])
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Error uploading file')
+      toast.error(err instanceof Error ? err.message : 'Error uploading file')
     } finally {
       setUploading(false)
     }
@@ -408,7 +409,7 @@ export function EmailReviewModal({
           : prev
       )
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Error resolving item')
+      toast.error(err instanceof Error ? err.message : 'Error resolving item')
     } finally {
       setResolving(prev => ({ ...prev, [item.id]: false }))
       setEditingId(null)

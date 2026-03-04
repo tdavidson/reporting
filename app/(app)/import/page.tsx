@@ -241,11 +241,22 @@ export default function ImportPage() {
         })
 
         if (!res.ok) {
-          const data = await res.json()
-          throw new Error(data.error ?? 'Registration failed')
+          let errorMsg = 'Registration failed'
+          try {
+            const data = await res.json()
+            errorMsg = data.error ?? errorMsg
+          } catch {
+            errorMsg = `Server error (${res.status}). The file may be too large to process.`
+          }
+          throw new Error(errorMsg)
         }
 
-        const result = await res.json()
+        let result: { textOnly?: boolean } = {}
+        try {
+          result = await res.json()
+        } catch {
+          // Non-JSON response — treat as success since status was ok
+        }
 
         setDocFiles(prev => prev.map(f =>
           f.filename === fileMatch.filename

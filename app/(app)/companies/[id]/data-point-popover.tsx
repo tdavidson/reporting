@@ -5,6 +5,7 @@ import Link from 'next/link'
 import type { Metric } from '@/lib/types/database'
 import type { MetricValueRow } from './company-charts'
 import { Pencil, Trash2, X } from 'lucide-react'
+import { useConfirm } from '@/components/confirm-dialog'
 
 interface Props {
   dataPoint: MetricValueRow
@@ -30,6 +31,7 @@ export function DataPointPopover({
   formatValue,
 }: Props) {
   const ref = useRef<HTMLDivElement>(null)
+  const confirm = useConfirm()
   const [editing, setEditing] = useState(false)
   const [editValue, setEditValue] = useState(
     dataPoint.value_number?.toString() ?? dataPoint.value_text ?? ''
@@ -76,7 +78,13 @@ export function DataPointPopover({
   }
 
   const handleDelete = async () => {
-    if (!confirm('Delete this data point?')) return
+    const ok = await confirm({
+      title: 'Delete data point',
+      description: 'Delete this data point? This cannot be undone.',
+      confirmLabel: 'Delete',
+      variant: 'destructive',
+    })
+    if (!ok) return
     setDeleting(true)
     const res = await fetch(`/api/metric-values/${dataPoint.id}`, {
       method: 'DELETE',
