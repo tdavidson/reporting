@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { logActivity } from '@/lib/activity'
 
-export async function POST() {
+export async function POST(req: Request) {
   const supabase = createClient()
 
   const { data: { user } } = await supabase.auth.getUser()
@@ -20,7 +20,8 @@ export async function POST() {
   }
 
   await supabase.auth.signOut()
-  return NextResponse.redirect(
-    new URL('/auth', process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000')
-  )
+
+  // Use request origin so redirect stays on the same URL (preview, production, etc.)
+  const origin = new URL(req.url).origin
+  return NextResponse.redirect(new URL('/auth', origin))
 }
