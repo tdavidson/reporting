@@ -7,6 +7,7 @@ import type { InboundEmail } from '@/lib/types/database'
 export const metadata: Metadata = { title: 'Email' }
 import { ChevronLeft } from 'lucide-react'
 import { ReprocessButton } from './reprocess-button'
+import { ApproveButton } from './approve-button'
 import { UploadDocumentButton } from './upload-document-button'
 import { SaveToDriveButton } from './save-to-drive-button'
 import { CollapsibleJson } from './collapsible-json'
@@ -275,6 +276,22 @@ export default async function EmailDetailPage({ params }: { params: { id: string
 
       {/* Actions */}
       <section className="pt-2 border-t space-y-4">
+        {(email.processing_status === 'needs_review' || email.processing_status === 'processing' || email.processing_status === 'failed') && (
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
+            <div>
+              <p className="text-sm font-medium">
+                {email.processing_status === 'needs_review' ? 'Approve email' : 'Mark as complete'}
+              </p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {email.processing_status === 'needs_review'
+                  ? 'Accept all outstanding reviews and mark this email as successfully processed.'
+                  : 'Override the current status and mark this email as successfully processed.'}
+              </p>
+            </div>
+            <ApproveButton emailId={email.id} />
+          </div>
+        )}
+
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
           <div>
             <p className="text-sm font-medium">Upload document</p>

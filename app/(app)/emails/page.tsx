@@ -308,9 +308,20 @@ export default function EmailsPage() {
                         </button>
                       )
                     }
-                    return email.company
-                      ? <span>{email.company.name}</span>
-                      : <span className="text-muted-foreground italic">Unknown</span>
+                    if (!email.company) {
+                      return (
+                        <button
+                          className="text-muted-foreground hover:text-foreground italic text-sm underline underline-offset-2"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setReviewModalEmailId(email.id)
+                          }}
+                        >
+                          Unknown
+                        </button>
+                      )
+                    }
+                    return <span>{email.company.name}</span>
                   })()}
                 </td>
                 <td className="px-4 py-3">

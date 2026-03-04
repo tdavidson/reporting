@@ -56,48 +56,61 @@ export async function runPipeline(
   const claudeApiKey = await getClaudeApiKey(supabase, fundId)
   const claudeModel = await getClaudeModel(supabase, fundId)
 
-  // Step 5: Identify the company
-  const companies = await getCompanies(supabase, fundId)
-
-  const identification = await identifyCompany(
-    payload.Subject ?? '',
-    extracted.emailBody,
-    companies,
-    claudeApiKey,
-    claudeModel,
-    { admin: supabase, fundId }
-  )
-
-  if (identification.new_company_name) {
-    await createReview(supabase, {
-      fund_id: fundId,
-      email_id: emailId,
-      issue_type: 'new_company_detected',
-      extracted_value: identification.new_company_name,
-      context_snippet: identification.reasoning,
-    })
-    await finalizeEmail(supabase, emailId, { status: 'needs_review' })
-    return
-  }
-
-  if (!identification.company_id) {
-    await createReview(supabase, {
-      fund_id: fundId,
-      email_id: emailId,
-      issue_type: 'company_not_identified',
-      context_snippet: identification.reasoning,
-    })
-    await finalizeEmail(supabase, emailId, { status: 'needs_review' })
-    return
-  }
-
-  const companyId = identification.company_id
-  const companyName = companies.find(c => c.id === companyId)?.name ?? ''
-
-  await supabase
+  // Step 5: Identify the company (skip if already assigned, e.g. from manual assignment)
+  const { data: existingEmail } = await supabase
     .from('inbound_emails')
-    .update({ company_id: companyId })
+    .select('company_id')
     .eq('id', emailId)
+    .single()
+
+  const companies = await getCompanies(supabase, fundId)
+  let companyId: string | null = (existingEmail as any)?.company_id ?? null
+  let companyName = ''
+
+  if (companyId) {
+    // Company already assigned — skip identification
+    companyName = companies.find(c => c.id === companyId)?.name ?? ''
+  } else {
+    const identification = await identifyCompany(
+      payload.Subject ?? '',
+      extracted.emailBody,
+      companies,
+      claudeApiKey,
+      claudeModel,
+      { admin: supabase, fundId }
+    )
+
+    if (identification.new_company_name) {
+      await createReview(supabase, {
+        fund_id: fundId,
+        email_id: emailId,
+        issue_type: 'new_company_detected',
+        extracted_value: identification.new_company_name,
+        context_snippet: identification.reasoning,
+      })
+      await finalizeEmail(supabase, emailId, { status: 'needs_review' })
+      return
+    }
+
+    if (!identification.company_id) {
+      await createReview(supabase, {
+        fund_id: fundId,
+        email_id: emailId,
+        issue_type: 'company_not_identified',
+        context_snippet: identification.reasoning,
+      })
+      await finalizeEmail(supabase, emailId, { status: 'needs_review' })
+      return
+    }
+
+    companyId = identification.company_id
+    companyName = companies.find(c => c.id === companyId)?.name ?? ''
+
+    await supabase
+      .from('inbound_emails')
+      .update({ company_id: companyId })
+      .eq('id', emailId)
+  }
 
   // Step 6: Extract metrics
   const metrics = await getMetrics(supabase, companyId)

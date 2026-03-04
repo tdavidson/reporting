@@ -31,6 +31,7 @@ export class AnthropicProvider implements AIProvider {
         inputTokens: response.usage.input_tokens,
         outputTokens: response.usage.output_tokens,
       },
+      truncated: response.stop_reason === 'max_tokens',
     }
   }
 
@@ -58,6 +59,7 @@ export class AnthropicProvider implements AIProvider {
         inputTokens: response.usage.input_tokens,
         outputTokens: response.usage.output_tokens,
       },
+      truncated: response.stop_reason === 'max_tokens',
     }
   }
 

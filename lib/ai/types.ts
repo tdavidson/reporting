@@ -22,6 +22,7 @@ export interface TokenUsage {
 export interface AIResult {
   text: string
   usage: TokenUsage
+  truncated: boolean
 }
 
 export interface ChatMessage {

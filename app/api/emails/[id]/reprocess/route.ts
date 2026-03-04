@@ -55,7 +55,7 @@ export async function POST(
   await admin.from('parsing_reviews').delete().eq('email_id', emailId)
   await admin.from('metric_values').delete().eq('source_email_id', emailId)
 
-  // Reset the email record
+  // Reset the email record (preserve company_id so manual assignment isn't lost)
   await admin
     .from('inbound_emails')
     .update({
@@ -63,7 +63,6 @@ export async function POST(
       processing_error: null,
       claude_response: null,
       metrics_extracted: 0,
-      company_id: null,
     })
     .eq('id', emailId)
 

@@ -182,9 +182,9 @@ async function call(
   model: string,
   logParams?: ExtractMetricsLogParams
 ): Promise<string> {
-  const { text, usage } = await provider.createMessage({
+  const { text, usage, truncated } = await provider.createMessage({
     model,
-    maxTokens: 2048,
+    maxTokens: 16384,
     system,
     content: userContent,
   })
@@ -197,6 +197,12 @@ async function call(
       feature: 'extract_metrics',
       usage,
     })
+  }
+
+  if (truncated) {
+    throw new Error(
+      `extractMetrics: AI response was truncated (${usage.outputTokens} output tokens). The file may be too large or have too many metrics.`
+    )
   }
 
   return text

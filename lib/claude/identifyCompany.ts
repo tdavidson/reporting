@@ -99,7 +99,7 @@ async function callWithRetry(
 async function call(provider: AnthropicProvider, userPrompt: string, model: string, logParams?: IdentifyCompanyLogParams): Promise<string> {
   const { text, usage } = await provider.createMessage({
     model,
-    maxTokens: 256,
+    maxTokens: 512,
     system: SYSTEM_PROMPT,
     content: userPrompt,
   })

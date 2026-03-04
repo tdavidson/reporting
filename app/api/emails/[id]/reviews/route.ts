@@ -69,11 +69,12 @@ export async function POST(
   const body = await req.json()
   const { action } = body as { action: string }
 
-  if (action !== 'dismiss_all') {
+  if (action !== 'dismiss_all' && action !== 'approve_all') {
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 })
   }
 
   const admin = createAdminClient()
+  const resolution = action === 'approve_all' ? 'accepted' as const : 'rejected' as const
 
   // Get all unresolved reviews for this email
   const { data: reviews, error } = await supabase
@@ -83,33 +84,50 @@ export async function POST(
     .is('resolution', null)
 
   if (error) return dbError(error, 'emails-id-reviews')
-  if (!reviews || reviews.length === 0) {
-    return NextResponse.json({ ok: true, dismissed: 0 })
+
+  // Get the email's fund_id for settings check
+  const { data: emailData } = await admin
+    .from('inbound_emails')
+    .select('fund_id')
+    .eq('id', params.id)
+    .single()
+
+  const fundId = (reviews?.[0] as unknown as { fund_id: string })?.fund_id
+    ?? (emailData as unknown as { fund_id: string })?.fund_id
+
+  if (reviews && reviews.length > 0) {
+    const reviewIds = reviews.map(r => (r as unknown as { id: string }).id)
+
+    // Mark all with the appropriate resolution
+    await admin
+      .from('parsing_reviews')
+      .update({
+        resolution,
+        resolved_at: new Date().toISOString(),
+      })
+      .in('id', reviewIds)
+
+    // Check retain setting
+    if (fundId) {
+      const { data: settingsData } = await admin
+        .from('fund_settings')
+        .select('retain_resolved_reviews')
+        .eq('fund_id', fundId)
+        .maybeSingle()
+
+      const settings = settingsData as unknown as { retain_resolved_reviews: boolean } | null
+      if (settings && !settings.retain_resolved_reviews) {
+        await admin.from('parsing_reviews').delete().in('id', reviewIds)
+      }
+    }
   }
 
-  const fundId = (reviews[0] as unknown as { fund_id: string }).fund_id
-  const reviewIds = reviews.map(r => (r as unknown as { id: string }).id)
-
-  // Mark all as rejected
+  // Promote email status to success
   await admin
-    .from('parsing_reviews')
-    .update({
-      resolution: 'rejected' as const,
-      resolved_at: new Date().toISOString(),
-    })
-    .in('id', reviewIds)
+    .from('inbound_emails')
+    .update({ processing_status: 'success' })
+    .eq('id', params.id)
+    .in('processing_status', ['needs_review', 'processing', 'failed'])
 
-  // Check retain setting
-  const { data: settingsData } = await admin
-    .from('fund_settings')
-    .select('retain_resolved_reviews')
-    .eq('fund_id', fundId)
-    .maybeSingle()
-
-  const settings = settingsData as unknown as { retain_resolved_reviews: boolean } | null
-  if (settings && !settings.retain_resolved_reviews) {
-    await admin.from('parsing_reviews').delete().in('id', reviewIds)
-  }
-
-  return NextResponse.json({ ok: true, dismissed: reviewIds.length })
+  return NextResponse.json({ ok: true, resolved: reviews?.length ?? 0 })
 }
