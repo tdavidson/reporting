@@ -10,6 +10,7 @@ interface MetricData {
   unit: string | null
   unitPosition: string
   valueType: string
+  currency: string | null
   values: Record<string, number | string | null>
 }
 
@@ -29,14 +30,16 @@ interface Props {
   grouped: [string, string[]][] | null
 }
 
-function formatValue(v: number | string | null, metric: MetricData, fundCurrencySymbol?: string): string {
+function formatValue(v: number | string | null, metric: MetricData, fundCurrency?: string): string {
   if (v === null || v === undefined) return '—'
   if (typeof v === 'string') return v
   let str: string
   if (Math.abs(v) >= 1_000_000) str = `${(v / 1_000_000).toFixed(1)}M`
   else if (Math.abs(v) >= 1_000) str = `${(v / 1_000).toFixed(0)}K`
   else str = v.toLocaleString()
-  const effectiveUnit = metric.unit ?? (metric.valueType === 'currency' && fundCurrencySymbol ? fundCurrencySymbol : null)
+  const metricCurrency = metric.currency ?? fundCurrency
+  const currencySymbol = metricCurrency ? getCurrencySymbol(metricCurrency) : null
+  const effectiveUnit = metric.unit ?? (metric.valueType === 'currency' && currencySymbol ? currencySymbol : null)
   const effectivePos = metric.unit ? metric.unitPosition : 'prefix'
   if (effectiveUnit && effectivePos === 'prefix') return `${effectiveUnit}${str}`
   if (metric.valueType === 'percentage') return `${str}%`
@@ -46,7 +49,6 @@ function formatValue(v: number | string | null, metric: MetricData, fundCurrency
 
 export function DashboardTable({ companyIds, grouped }: Props) {
   const fundCurrency = useCurrency()
-  const currencySymbol = getCurrencySymbol(fundCurrency)
   const [data, setData] = useState<CompanyData[] | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -154,7 +156,7 @@ export function DashboardTable({ companyIds, grouped }: Props) {
               >
                 {metric ? (
                   <span className={metric.values[q] != null ? '' : 'text-muted-foreground/40'}>
-                    {formatValue(metric.values[q] ?? null, metric, currencySymbol)}
+                    {formatValue(metric.values[q] ?? null, metric, fundCurrency)}
                   </span>
                 ) : (
                   <span className="text-muted-foreground/40">—</span>

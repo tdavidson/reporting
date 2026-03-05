@@ -19,7 +19,7 @@ interface Company {
   lastReportAt: string | null
   openReviews: number
   metricsCount: number
-  sparkMetrics: { id: string; name: string; unit: string | null; unit_position: string; value_type: string; display_order: number; is_active: boolean }[]
+  sparkMetrics: { id: string; name: string; unit: string | null; unit_position: string; value_type: string; currency: string | null; display_order: number; is_active: boolean }[]
   latestCash: number | null
 }
 

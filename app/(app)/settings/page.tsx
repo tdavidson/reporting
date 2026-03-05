@@ -71,6 +71,7 @@ interface Settings {
   analyticsFathomSiteId: string | null
   analyticsGaMeasurementId: string | null
   analyticsCustomHeadScript: string | null
+  disableUserTracking: boolean
   currency: string
   displayName: string
   isAdmin: boolean
@@ -211,6 +212,10 @@ export default function SettingsPage() {
           <AnalyticsSection
             fathomSiteId={settings.analyticsFathomSiteId}
             gaMeasurementId={settings.analyticsGaMeasurementId}
+            onSaved={load}
+          />
+          <UsageTrackingSection
+            disableUserTracking={settings.disableUserTracking}
             onSaved={load}
           />
           <GroupHeader label="Access Control" />
@@ -2569,12 +2574,12 @@ function AuthEmailTemplatesSection() {
 
           <div className="text-xs text-muted-foreground space-y-2">
             <p className="font-medium text-foreground">If self-hosting with Supabase CLI:</p>
-            <p>Templates are applied automatically from <code className="text-[11px] bg-muted px-1 rounded font-mono">supabase/templates/</code> via <code className="text-[11px] bg-muted px-1 rounded font-mono">config.toml</code> — no action needed.</p>
+            <p>Templates are applied automatically from <code className="text-[11px] bg-muted px-1 rounded font-mono">templates/</code> via <code className="text-[11px] bg-muted px-1 rounded font-mono">config.toml</code> — no action needed.</p>
 
             <p className="font-medium text-foreground pt-2">If using hosted Supabase (dashboard):</p>
             <ol className="list-decimal list-inside space-y-1">
               <li>Go to your Supabase project dashboard → <strong>Authentication</strong> → <strong>Email Templates</strong></li>
-              <li>For each template type, copy the HTML from the corresponding file in <code className="text-[11px] bg-muted px-1 rounded font-mono">supabase/templates/</code></li>
+              <li>For each template type, copy the HTML from the corresponding file in <code className="text-[11px] bg-muted px-1 rounded font-mono">templates/</code></li>
               <li>Update the subject line to match</li>
             </ol>
 
@@ -2970,6 +2975,50 @@ function AnalyticsSection({
         <Button onClick={handleSave} disabled={saving || !hasChanges} size="sm">
           {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : saved ? <Check className="h-3.5 w-3.5" /> : 'Save'}
         </Button>
+      </div>
+    </Section>
+  )
+}
+
+// ──────────────────────────── Usage Tracking ────────────────────────────
+
+function UsageTrackingSection({
+  disableUserTracking,
+  onSaved,
+}: {
+  disableUserTracking: boolean
+  onSaved: () => void
+}) {
+  const [disabled, setDisabled] = useState(disableUserTracking)
+  const [saving, setSaving] = useState(false)
+
+  const handleToggle = async (checked: boolean) => {
+    setDisabled(checked)
+    setSaving(true)
+    const res = await fetch('/api/settings', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ disableUserTracking: checked }),
+    })
+    setSaving(false)
+    if (res.ok) onSaved()
+  }
+
+  return (
+    <Section title="Usage tracking">
+      <p className="text-xs text-muted-foreground mb-4">
+        AI token usage is always tracked to help you monitor costs. User activity tracking (logins, actions, and the activity feed on the Usage page) can be turned off if you prefer not to log individual user actions.
+      </p>
+      <div className="flex items-center gap-3">
+        <Switch
+          checked={disabled}
+          onCheckedChange={handleToggle}
+          disabled={saving}
+        />
+        <Label className="text-sm font-normal">
+          Disable user activity tracking
+        </Label>
+        {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
       </div>
     </Section>
   )

@@ -10,6 +10,7 @@ interface SparkMetric {
   unit: string | null
   unit_position: string
   value_type: string
+  currency: string | null
 }
 
 interface Props {
@@ -68,7 +69,8 @@ export function DashboardSparklines({ companyId, metrics }: Props) {
         if (!values || values.length < 2) return null
 
         const lastVal = values[values.length - 1]?.value_number
-        const effectiveUnit = m.unit ?? (m.value_type === 'currency' ? getCurrencySymbol(fundCurrency) : null)
+        const metricCurrency = m.currency ?? fundCurrency
+        const effectiveUnit = m.unit ?? (m.value_type === 'currency' ? getCurrencySymbol(metricCurrency) : null)
         const effectivePos = m.unit ? m.unit_position : 'prefix'
         const formatVal = (v: number | null) => {
           if (v === null) return '—'

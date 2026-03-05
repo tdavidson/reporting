@@ -27,7 +27,7 @@ export default async function DashboardPage() {
   type CompanyRow = {
     id: string; name: string; stage: string | null; status: string
     tags: string[]; industry: string[] | null; portfolio_group: string[] | null
-    metrics: { id: string; name: string; unit: string | null; unit_position: string; value_type: string; display_order: number; is_active: boolean }[]
+    metrics: { id: string; name: string; unit: string | null; unit_position: string; value_type: string; currency: string | null; display_order: number; is_active: boolean }[]
     inbound_emails: { received_at: string }[]
     parsing_reviews: { id: string; resolution: string | null }[]
   }
@@ -36,7 +36,7 @@ export default async function DashboardPage() {
     .from('companies')
     .select(`
       id, name, stage, status, tags, industry, portfolio_group,
-      metrics(id, name, unit, unit_position, value_type, display_order, is_active),
+      metrics(id, name, unit, unit_position, value_type, currency, display_order, is_active),
       inbound_emails(received_at),
       parsing_reviews(id, resolution)
     `)

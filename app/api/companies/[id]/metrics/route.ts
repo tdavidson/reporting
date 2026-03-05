@@ -64,7 +64,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   if (writeCheck instanceof NextResponse) return writeCheck
 
   const body = await req.json()
-  const { name, slug, description, unit, unit_position, value_type, reporting_cadence, display_order } = body
+  const { name, slug, description, unit, unit_position, value_type, reporting_cadence, display_order, currency } = body
 
   if (!name?.trim()) return NextResponse.json({ error: 'Name is required' }, { status: 400 })
   if (!slug?.trim()) return NextResponse.json({ error: 'Slug is required' }, { status: 400 })
@@ -113,6 +113,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       value_type: (value_type ?? 'number') as ValueType,
       reporting_cadence: (reporting_cadence ?? 'monthly') as ReportingCadence,
       display_order: display_order ?? 0,
+      currency: currency?.trim() || null,
       is_active: true,
     })
     .select()

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Download, Loader2, Plus, Trash2 } from 'lucide-react'
+import { Download, Loader2, Pencil, Plus, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { MetricForm } from '@/components/metric-form'
@@ -213,6 +213,7 @@ function MetricChartCard({
 }) {
   const router = useRouter()
   const [addOpen, setAddOpen] = useState(false)
+  const [editOpen, setEditOpen] = useState(false)
   const [confirmStep, setConfirmStep] = useState<0 | 1 | 2>(0)
 
   const handleDelete = async () => {
@@ -244,6 +245,12 @@ function MetricChartCard({
             className="text-[11px] text-primary hover:underline"
           >
             + Add
+          </button>
+          <button
+            onClick={() => setEditOpen(true)}
+            className="text-muted-foreground/50 hover:text-foreground transition-colors"
+          >
+            <Pencil className="h-3.5 w-3.5" />
           </button>
           <button
             onClick={() => setConfirmStep(1)}
@@ -302,6 +309,23 @@ function MetricChartCard({
         metric={metric}
         onSuccess={() => { onRefresh(); router.refresh() }}
       />
+
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Edit Metric</DialogTitle>
+          </DialogHeader>
+          <MetricForm
+            companyId={companyId}
+            metric={metric}
+            onSuccess={() => {
+              setEditOpen(false)
+              router.refresh()
+            }}
+            onCancel={() => setEditOpen(false)}
+          />
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

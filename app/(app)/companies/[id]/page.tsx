@@ -35,8 +35,9 @@ function formatHighlightValue(value: number, metric: Metric, fundCurrency: strin
     formatted = value.toLocaleString('en-US', { maximumFractionDigits: 2 })
   }
 
-  // Use explicit metric unit if set, otherwise fall back to fund currency for currency-type metrics
-  const unit = metric.unit ?? (metric.value_type === 'currency' ? getCurrencySymbol(fundCurrency) : null)
+  // Use explicit metric unit if set, otherwise fall back to metric/fund currency for currency-type metrics
+  const metricCurrency = metric.currency ?? fundCurrency
+  const unit = metric.unit ?? (metric.value_type === 'currency' ? getCurrencySymbol(metricCurrency) : null)
   const unitPosition = metric.unit ? metric.unit_position : 'prefix'
 
   if (!unit) return formatted

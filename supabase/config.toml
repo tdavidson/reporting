@@ -222,39 +222,45 @@ otp_expiry = 3600
 # admin_email = "admin@email.com"
 # sender_name = "Admin"
 
-[auth.email.template.confirmation]
-subject = "Confirm your email address"
-content_path = "./supabase/templates/confirmation.html"
-
-[auth.email.template.invite]
-subject = "You've been invited"
-content_path = "./supabase/templates/invite.html"
-
-[auth.email.template.magic_link]
-subject = "Your sign-in link"
-content_path = "./supabase/templates/magic_link.html"
-
-[auth.email.template.recovery]
-subject = "Reset your password"
-content_path = "./supabase/templates/recovery.html"
-
-[auth.email.template.email_change]
-subject = "Confirm your new email address"
-content_path = "./supabase/templates/email_change.html"
-
-[auth.email.template.reauthentication]
-subject = "Your verification code"
-content_path = "./supabase/templates/reauthentication.html"
-
-[auth.email.notification.password_changed]
-enabled = true
-subject = "Your password was changed"
-content_path = "./supabase/templates/password_changed.html"
-
-[auth.email.notification.email_changed]
-enabled = true
-subject = "Your email address was changed"
-content_path = "./supabase/templates/email_changed.html"
+# Email templates are in supabase/templates/. For local dev (supabase start),
+# uncomment the lines below. For hosted Supabase, copy the HTML into your
+# project dashboard under Authentication > Email Templates.
+# Note: supabase db push validates these paths even though it doesn't use them,
+# and path resolution is inconsistent across CLI commands (see github.com/supabase/cli/issues/2963).
+#
+# [auth.email.template.confirmation]
+# subject = "Confirm your email address"
+# content_path = "./supabase/templates/confirmation.html"
+#
+# [auth.email.template.invite]
+# subject = "You've been invited"
+# content_path = "./supabase/templates/invite.html"
+#
+# [auth.email.template.magic_link]
+# subject = "Your sign-in link"
+# content_path = "./supabase/templates/magic_link.html"
+#
+# [auth.email.template.recovery]
+# subject = "Reset your password"
+# content_path = "./supabase/templates/recovery.html"
+#
+# [auth.email.template.email_change]
+# subject = "Confirm your new email address"
+# content_path = "./supabase/templates/email_change.html"
+#
+# [auth.email.template.reauthentication]
+# subject = "Your verification code"
+# content_path = "./supabase/templates/reauthentication.html"
+#
+# [auth.email.notification.password_changed]
+# enabled = true
+# subject = "Your password was changed"
+# content_path = "./supabase/templates/password_changed.html"
+#
+# [auth.email.notification.email_changed]
+# enabled = true
+# subject = "Your email address was changed"
+# content_path = "./supabase/templates/email_changed.html"
 
 [auth.sms]
 # Allow/disallow new user signups via SMS to your project.

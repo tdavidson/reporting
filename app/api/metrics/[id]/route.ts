@@ -42,7 +42,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   if (!metric) return NextResponse.json({ error: 'Not found or forbidden' }, { status: 404 })
 
   const body = await req.json()
-  const { name, slug, description, unit, unit_position, value_type, reporting_cadence, display_order, is_active } = body
+  const { name, slug, description, unit, unit_position, value_type, reporting_cadence, display_order, is_active, currency } = body
 
   if (value_type !== undefined && !VALID_VALUE_TYPES.includes(value_type)) {
     return NextResponse.json({ error: `Invalid value_type. Must be one of: ${VALID_VALUE_TYPES.join(', ')}` }, { status: 400 })
@@ -64,6 +64,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   if (reporting_cadence !== undefined) updates.reporting_cadence = reporting_cadence
   if (display_order !== undefined) updates.display_order = display_order
   if (is_active !== undefined) updates.is_active = is_active
+  if (currency !== undefined) updates.currency = currency?.trim() || null
 
   const { data, error } = await admin
     .from('metrics')

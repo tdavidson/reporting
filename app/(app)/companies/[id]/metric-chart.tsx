@@ -54,8 +54,9 @@ export function MetricChart({ metric, values, onRefresh, compact }: Props) {
     raw: v,
   }))
 
-  // Resolve effective unit: explicit metric unit, or fund currency symbol for currency-type metrics
-  const effectiveUnit = metric.unit ?? (metric.value_type === 'currency' ? getCurrencySymbol(fundCurrency) : null)
+  // Resolve effective unit: explicit metric unit, or metric/fund currency symbol for currency-type metrics
+  const metricCurrency = metric.currency ?? fundCurrency
+  const effectiveUnit = metric.unit ?? (metric.value_type === 'currency' ? getCurrencySymbol(metricCurrency) : null)
   const effectiveUnitPosition = metric.unit ? metric.unit_position : 'prefix'
 
   const formatValue = useCallback(

@@ -21,6 +21,7 @@ interface MetricWithValues {
   reporting_cadence: 'quarterly' | 'monthly' | 'annual'
   display_order: number
   is_active: boolean
+  currency: string | null
 }
 
 interface Props {
@@ -36,6 +37,28 @@ function toSlug(name: string) {
 
 const CURRENCY_SYMBOLS = new Set(['$', '€', '£', '¥', '₹', '₪', '₩', 'R$', 'C$', 'A$', 'S$', 'NZ$', 'HK$'])
 
+const CURRENCIES = [
+  { code: 'USD', label: 'USD ($)' },
+  { code: 'EUR', label: 'EUR (€)' },
+  { code: 'GBP', label: 'GBP (£)' },
+  { code: 'CHF', label: 'CHF' },
+  { code: 'CAD', label: 'CAD (C$)' },
+  { code: 'AUD', label: 'AUD (A$)' },
+  { code: 'JPY', label: 'JPY (¥)' },
+  { code: 'CNY', label: 'CNY (¥)' },
+  { code: 'INR', label: 'INR (₹)' },
+  { code: 'SGD', label: 'SGD (S$)' },
+  { code: 'HKD', label: 'HKD (HK$)' },
+  { code: 'SEK', label: 'SEK (kr)' },
+  { code: 'NOK', label: 'NOK (kr)' },
+  { code: 'DKK', label: 'DKK (kr)' },
+  { code: 'NZD', label: 'NZD (NZ$)' },
+  { code: 'BRL', label: 'BRL (R$)' },
+  { code: 'ZAR', label: 'ZAR (R)' },
+  { code: 'ILS', label: 'ILS (₪)' },
+  { code: 'KRW', label: 'KRW (₩)' },
+]
+
 export function MetricForm({ companyId, metric, onSuccess, onCancel }: Props) {
   const isEdit = !!metric
   const fundCurrency = useCurrency()
@@ -48,6 +71,7 @@ export function MetricForm({ companyId, metric, onSuccess, onCancel }: Props) {
   const [unit, setUnit] = useState(metric?.unit ?? '')
   const [unitPosition, setUnitPosition] = useState<'prefix' | 'suffix'>(metric?.unit_position ?? 'suffix')
   const [valueType, setValueType] = useState(metric?.value_type ?? 'number')
+  const [currency, setCurrency] = useState(metric?.currency ?? '')
   const [displayOrder, setDisplayOrder] = useState(String(metric?.display_order ?? 0))
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -84,6 +108,7 @@ export function MetricForm({ companyId, metric, onSuccess, onCancel }: Props) {
           unit: unit.trim() === '#' ? null : (unit.trim() || null),
           unit_position: unitPosition,
           value_type: valueType,
+          currency: currency || null,
           display_order: parseInt(displayOrder) || 0,
         }),
       })
@@ -203,19 +228,39 @@ export function MetricForm({ companyId, metric, onSuccess, onCancel }: Props) {
         </div>
       </div>
 
-      <div className="space-y-2">
-        <Label>Value type</Label>
-        <Select value={valueType} onValueChange={(v) => setValueType(v as typeof valueType)}>
-          <SelectTrigger className="max-w-xs">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="number">Number</SelectItem>
-            <SelectItem value="currency">Currency</SelectItem>
-            <SelectItem value="percentage">Percentage</SelectItem>
-            <SelectItem value="text">Text</SelectItem>
-          </SelectContent>
-        </Select>
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-2">
+          <Label>Value type</Label>
+          <Select value={valueType} onValueChange={(v) => setValueType(v as typeof valueType)}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="number">Number</SelectItem>
+              <SelectItem value="currency">Currency</SelectItem>
+              <SelectItem value="percentage">Percentage</SelectItem>
+              <SelectItem value="text">Text</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        {valueType === 'currency' && (
+          <div className="space-y-2">
+            <Label>Currency</Label>
+            <Select value={currency || fundCurrency} onValueChange={setCurrency}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {CURRENCIES.map(c => (
+                  <SelectItem key={c.code} value={c.code}>{c.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              Leave as fund default ({fundCurrency}) or override per metric.
+            </p>
+          </div>
+        )}
       </div>
 
       <div className="space-y-2">

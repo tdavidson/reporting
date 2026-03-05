@@ -164,6 +164,7 @@ export type Database = {
           analytics_fathom_site_id: string | null
           analytics_ga_measurement_id: string | null
           analytics_custom_head_script: string | null
+          disable_user_tracking: boolean
           currency: string
           created_at: string
           updated_at: string
@@ -207,6 +208,7 @@ export type Database = {
           analytics_fathom_site_id?: string | null
           analytics_ga_measurement_id?: string | null
           analytics_custom_head_script?: string | null
+          disable_user_tracking?: boolean
           currency?: string
           created_at?: string
           updated_at?: string
@@ -250,6 +252,7 @@ export type Database = {
           analytics_fathom_site_id?: string | null
           analytics_ga_measurement_id?: string | null
           analytics_custom_head_script?: string | null
+          disable_user_tracking?: boolean
           currency?: string
           created_at?: string
           updated_at?: string
@@ -442,6 +445,7 @@ export type Database = {
           reporting_cadence: 'quarterly' | 'monthly' | 'annual'
           display_order: number
           is_active: boolean
+          currency: string | null
           created_at: string
         }
         Insert: {
@@ -457,6 +461,7 @@ export type Database = {
           reporting_cadence?: 'quarterly' | 'monthly' | 'annual'
           display_order?: number
           is_active?: boolean
+          currency?: string | null
           created_at?: string
         }
         Update: {
@@ -472,6 +477,7 @@ export type Database = {
           reporting_cadence?: 'quarterly' | 'monthly' | 'annual'
           display_order?: number
           is_active?: boolean
+          currency?: string | null
           created_at?: string
         }
         Relationships: [

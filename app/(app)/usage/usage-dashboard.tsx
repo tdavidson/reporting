@@ -222,6 +222,17 @@ export function UsageDashboard() {
         )}
       </div>
 
+      {/* User activity disabled notice */}
+      {!activity && (
+        <div className="rounded-lg border bg-muted/30 p-5">
+          <p className="text-sm text-muted-foreground">
+            Per-user activity tracking is turned off. AI token usage above is always recorded regardless of this setting.
+            User activity logs (logins, actions, and the activity feed) can be enabled in{' '}
+            <a href="/settings" className="underline underline-offset-4 hover:text-foreground">Settings</a>.
+          </p>
+        </div>
+      )}
+
       {/* User Activity Summary */}
       {activity && activity.userSummary.length > 0 && (
         <div>

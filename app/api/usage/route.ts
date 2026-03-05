@@ -126,6 +126,26 @@ export async function GET() {
 
   const totalEstimatedCost = Object.values(mtdByProvider).reduce((sum, p) => sum + p.estimated_cost, 0)
 
+  // Check if user tracking is disabled
+  const { data: fundSettings } = await admin
+    .from('fund_settings')
+    .select('disable_user_tracking')
+    .eq('fund_id', fundId)
+    .maybeSingle()
+
+  const trackingDisabled = fundSettings?.disable_user_tracking ?? false
+
+  if (trackingDisabled) {
+    return NextResponse.json({
+      daily,
+      mtd: {
+        ...mtdByProvider,
+        total_estimated_cost: totalEstimatedCost,
+      },
+      activity: null,
+    })
+  }
+
   // Fetch user activity logs for current month
   interface ActivityLog {
     user_id: string

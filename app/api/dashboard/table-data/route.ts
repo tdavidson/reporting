@@ -23,7 +23,7 @@ export async function GET() {
     .from('companies')
     .select(`
       id, name, stage, industry, portfolio_group, tags,
-      metrics(id, name, unit, unit_position, value_type, display_order, is_active)
+      metrics(id, name, unit, unit_position, value_type, currency, display_order, is_active)
     `)
     .eq('fund_id', fundId)
     .eq('status', 'active')
@@ -38,7 +38,7 @@ export async function GET() {
     industry: string[] | null
     portfolio_group: string[] | null
     tags: string[]
-    metrics: { id: string; name: string; unit: string | null; unit_position: string; value_type: string; display_order: number; is_active: boolean }[]
+    metrics: { id: string; name: string; unit: string | null; unit_position: string; value_type: string; currency: string | null; display_order: number; is_active: boolean }[]
   }[]
 
   // Collect all active metric IDs
@@ -168,6 +168,7 @@ export async function GET() {
           unit: m.unit,
           unitPosition: m.unit_position,
           valueType: m.value_type,
+          currency: m.currency,
           values,
         }
       }),
