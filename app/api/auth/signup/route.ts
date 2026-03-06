@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
   const { data: allowed } = await admin
     .from('allowed_signups')
     .select('id')
-    .or(`email_pattern.eq.${normalizedEmail},email_pattern.eq.*@${domain}`)
+    .in('email_pattern', [normalizedEmail, `*@${domain}`])
     .limit(1)
     .maybeSingle()
 
