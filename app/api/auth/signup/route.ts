@@ -63,16 +63,17 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Unable to create account. Please try again.' }, { status: 500 })
   }
 
-  // Send confirmation email via Supabase's auth email system (uses configured SMTP)
+  // Send signup confirmation email via Supabase's auth email system (uses configured SMTP)
   if (data.user) {
-    const { error: inviteError } = await admin.auth.admin.inviteUserByEmail(normalizedEmail, {
-      redirectTo: `${origin}/auth/callback`,
-      data: {
-        accepted_license_at: new Date().toISOString(),
+    const { error: resendError } = await admin.auth.resend({
+      type: 'signup',
+      email: normalizedEmail,
+      options: {
+        emailRedirectTo: `${origin}/auth/callback`,
       },
     })
-    if (inviteError) {
-      console.error('[signup] Failed to send confirmation email:', inviteError.message)
+    if (resendError) {
+      console.error('[signup] Failed to send confirmation email:', resendError.message)
     }
   }
 
