@@ -289,7 +289,7 @@ export function CompanyInvestments({ companyId, companyStatus, portfolioGroups, 
               <span className="font-medium">{fmtMoic(summary.moic)}</span>
             </span>
           )}
-          {summary.grossIrr != null && (
+          {summary.grossIrr != null && Math.abs(summary.grossIrr) >= 0.0005 && (
             <span>
               <span className="text-muted-foreground">IRR:</span>{' '}
               <span className="font-medium">{(summary.grossIrr * 100).toFixed(1)}%</span>
@@ -301,15 +301,17 @@ export function CompanyInvestments({ companyId, companyStatus, portfolioGroups, 
               <span className="font-medium">{fmt(summary.totalRealized)}</span>
             </span>
           )}
-          <span className="flex items-center gap-1">
-            <span className="text-muted-foreground">as of</span>
-            <input
-              type="date"
-              value={asOfDate}
-              onChange={e => setAsOfDate(e.target.value)}
-              className="text-xs border rounded px-1.5 py-0.5 bg-background"
-            />
-          </span>
+          {summary.grossIrr != null && Math.abs(summary.grossIrr) >= 0.0005 && (
+            <span className="flex items-center gap-1">
+              <span className="text-muted-foreground">as of</span>
+              <input
+                type="date"
+                value={asOfDate}
+                onChange={e => setAsOfDate(e.target.value)}
+                className="text-xs border rounded px-1.5 py-0.5 bg-background"
+              />
+            </span>
+          )}
         </div>
       )}
 
