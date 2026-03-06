@@ -28,14 +28,14 @@ interface Props {
   allGroups: string[]
 }
 
-type SortMode = 'alpha' | 'cash'
+type SortMode = 'alpha' | 'cash' | null
 
 export function DashboardCompanies({ companies, allGroups }: Props) {
   const [view, setView] = useState<'cards' | 'table'>('cards')
   const [statusFilter, setStatusFilter] = useState<string>('active')
   const [selectedGroups, setSelectedGroups] = useState<Set<string>>(new Set())
-  const [groupSortAsc, setGroupSortAsc] = useState(false)
-  const [sortMode, setSortMode] = useState<SortMode>('alpha')
+  const [sortMode, setSortMode] = useState<SortMode | null>(null)
+  const [alphaSortAsc, setAlphaSortAsc] = useState(true)
   const [cashSortAsc, setCashSortAsc] = useState(false)
 
   function toggleGroup(group: string) {
@@ -68,11 +68,16 @@ export function DashboardCompanies({ companies, allGroups }: Props) {
         return cashSortAsc ? aCash - bCash : bCash - aCash
       })
     }
+    if (sortMode === 'alpha') {
+      return [...list].sort((a, b) =>
+        alphaSortAsc ? a.name.localeCompare(b.name) : b.name.localeCompare(a.name)
+      )
+    }
     return list
   }
 
   const grouped = useMemo(() => {
-    if (!hasGroups) return null
+    if (!hasGroups || sortMode !== null) return null
 
     const groups = new Map<string, Company[]>()
     for (const c of filtered) {
@@ -89,24 +94,18 @@ export function DashboardCompanies({ companies, allGroups }: Props) {
     }
 
     const tailGroups = ['spv', 'other']
-    const sorted = Array.from(groups.entries()).sort(([a], [b]) => {
+    return Array.from(groups.entries()).sort(([a], [b]) => {
       const aIdx = tailGroups.indexOf(a.toLowerCase())
       const bIdx = tailGroups.indexOf(b.toLowerCase())
       if (aIdx !== -1 && bIdx !== -1) return aIdx - bIdx
       if (aIdx !== -1) return 1
       if (bIdx !== -1) return -1
-      return groupSortAsc ? a.localeCompare(b) : b.localeCompare(a)
+      return a.localeCompare(b)
     })
-
-    if (sortMode === 'cash') {
-      return sorted.map(([name, list]) => [name, sortCompanies(list)] as [string, Company[]])
-    }
-
-    return sorted
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filtered, hasGroups, selectedGroups, groupSortAsc, sortMode, cashSortAsc])
+  }, [filtered, hasGroups, selectedGroups, sortMode])
 
-  const sortedFiltered = useMemo(() => sortCompanies(filtered), [filtered, sortMode, cashSortAsc])
+  const sortedFiltered = useMemo(() => sortCompanies(filtered), [filtered, sortMode, alphaSortAsc, cashSortAsc])
 
   return (
     <div>
@@ -145,26 +144,24 @@ export function DashboardCompanies({ companies, allGroups }: Props) {
             </button>
           )}
           <div className="ml-auto flex items-center gap-1">
-            {hasGroups && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="text-xs gap-1.5 text-muted-foreground hover:text-foreground"
-                onClick={() => {
-                  if (sortMode === 'alpha') {
-                    setGroupSortAsc(prev => !prev)
-                  } else {
-                    setSortMode('alpha')
-                  }
-                }}
-              >
-                {groupSortAsc ? (
-                  <><ArrowDownAZ className="h-3.5 w-3.5" /> A &rarr; Z</>
-                ) : (
-                  <><ArrowUpZA className="h-3.5 w-3.5" /> Z &rarr; A</>
-                )}
-              </Button>
-            )}
+            <Button
+              variant={sortMode === 'alpha' ? 'secondary' : 'ghost'}
+              size="sm"
+              className="text-muted-foreground hover:text-foreground"
+              onClick={() => {
+                if (sortMode === 'alpha') {
+                  setAlphaSortAsc(prev => !prev)
+                } else {
+                  setSortMode('alpha')
+                }
+              }}
+            >
+              {alphaSortAsc ? (
+                <ArrowDownAZ className="h-3.5 w-3.5" />
+              ) : (
+                <ArrowUpZA className="h-3.5 w-3.5" />
+              )}
+            </Button>
             <Button
               variant={sortMode === 'cash' ? 'secondary' : 'ghost'}
               size="sm"
