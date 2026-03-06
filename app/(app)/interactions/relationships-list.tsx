@@ -26,7 +26,7 @@ interface Interaction {
   company_name: string | null
 }
 
-type FilterMode = 'all' | 'intros'
+type FilterMode = 'conversations' | 'intros' | 'all'
 
 function formatRelativeTime(dateStr: string) {
   const date = new Date(dateStr)
@@ -44,19 +44,21 @@ function formatRelativeTime(dateStr: string) {
 }
 
 export function RelationshipsList({ interactions, inboundAddress }: { interactions: Interaction[]; inboundAddress?: string }) {
-  const [filter, setFilter] = useState<FilterMode>('all')
+  const [filter, setFilter] = useState<FilterMode>('conversations')
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
 
   const filtered = filter === 'intros'
     ? interactions.filter(i => i.type === 'intro')
+    : filter === 'conversations'
+    ? interactions.filter(i => i.type !== 'reporting')
     : interactions
 
   return (
     <div>
       {/* Filter tabs + inbound address */}
       <div className="flex items-center gap-2 mb-4 flex-wrap">
-        {(['all', 'intros'] as const).map(f => (
+        {(['conversations', 'intros', 'all'] as const).map(f => (
           <button
             key={f}
             onClick={() => setFilter(f)}
@@ -66,7 +68,7 @@ export function RelationshipsList({ interactions, inboundAddress }: { interactio
                 : 'text-muted-foreground hover:text-foreground hover:bg-accent'
             }`}
           >
-            {f === 'all' ? 'All' : 'Intros'}
+            {f === 'conversations' ? 'Conversations' : f === 'intros' ? 'Intros' : 'All'}
           </button>
         ))}
         {inboundAddress && (

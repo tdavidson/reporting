@@ -1435,7 +1435,7 @@ export type LpLetterStatus = 'generating' | 'draft' | 'final'
 
 // Enum-style string literals
 export type CompanyStatus      = 'active' | 'exited' | 'written-off'
-export type ProcessingStatus   = 'pending' | 'processing' | 'success' | 'failed' | 'needs_review'
+export type ProcessingStatus   = 'pending' | 'processing' | 'success' | 'failed' | 'needs_review' | 'not_processed'
 export type Confidence         = 'high' | 'medium' | 'low'
 export type ValueType          = 'number' | 'currency' | 'percentage' | 'text'
 export type UnitPosition       = 'prefix' | 'suffix'

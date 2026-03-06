@@ -32,7 +32,7 @@ export async function runCRMPipeline(
     .maybeSingle()
   const fv = fSettings?.feature_visibility as Record<string, string> | null
   if (fv?.interactions === 'off') {
-    await finalizeEmail(supabase, emailId, { status: 'success', metricsExtracted: 0 })
+    await finalizeEmail(supabase, emailId, { status: 'not_processed', metricsExtracted: 0 })
     return
   }
 
@@ -85,7 +85,10 @@ export async function runCRMPipeline(
   )
 
   // Step 5: Insert interaction record
-  const interactionType = interaction.is_intro ? 'intro' : 'email'
+  const REPORTING_TOPICS = new Set(['reporting', 'financials', 'metrics', 'quarterly report', 'monthly report', 'performance', 'kpis', 'revenue update'])
+  const topics = interaction.topics ?? []
+  const isReporting = topics.length > 0 && topics.every(t => REPORTING_TOPICS.has(t.toLowerCase()))
+  const interactionType = interaction.is_intro ? 'intro' : isReporting ? 'reporting' : 'email'
 
   await supabase.from('interactions').insert({
     fund_id: fundId,
@@ -96,13 +99,14 @@ export async function runCRMPipeline(
     subject: payload.Subject ?? null,
     summary: interaction.summary,
     intro_contacts: interaction.intro_contacts as unknown as Json,
+    topics,
     body_preview: bodyText.slice(0, 500),
     interaction_date: new Date().toISOString(),
   })
 
   // Step 6: Extract metrics if the company has defined metrics
   let metricsExtracted = 0
-  let status: ProcessingStatus = 'success'
+  let status: ProcessingStatus = 'not_processed'
 
   if (companyId) {
     const metrics = await getMetrics(supabase, companyId)
@@ -225,6 +229,7 @@ export async function runCRMPipeline(
         }
 
         if (reviewCount > 0) status = 'needs_review'
+        else if (metricsExtracted > 0) status = 'success'
       } catch (err) {
         console.error('[crm-pipeline] Metrics extraction failed (non-blocking):', err)
       }

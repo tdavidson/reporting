@@ -117,7 +117,7 @@ export async function runPipeline(
   const metrics = await getMetrics(supabase, companyId)
 
   if (metrics.length === 0) {
-    await finalizeEmail(supabase, emailId, { status: 'success', metricsExtracted: 0 })
+    await finalizeEmail(supabase, emailId, { status: 'not_processed', metricsExtracted: 0 })
     return
   }
 
@@ -160,7 +160,7 @@ export async function runPipeline(
   )
 
   // Step 8: Finalize
-  const status: ProcessingStatus = reviewCount > 0 ? 'needs_review' : 'success'
+  const status: ProcessingStatus = reviewCount > 0 ? 'needs_review' : writtenCount > 0 ? 'success' : 'not_processed'
   await finalizeEmail(supabase, emailId, { status, metricsExtracted: writtenCount })
 
   // Step 9: Save to file storage (non-blocking)

@@ -47,6 +47,7 @@ const STATUS_VARIANTS: Record<string, { label: string; className: string }> = {
   pending: { label: 'Pending', className: 'bg-slate-100 text-slate-700 border-slate-200' },
   processing: { label: 'Processing', className: 'bg-blue-100 text-blue-800 border-blue-200' },
   success: { label: 'Success', className: 'bg-green-100 text-green-800 border-green-200' },
+  not_processed: { label: 'Not processed', className: 'bg-gray-100 text-gray-600 border-gray-200' },
   failed: { label: 'Failed', className: 'bg-red-100 text-red-800 border-red-200' },
   needs_review: {
     label: 'Review',
@@ -193,6 +194,7 @@ export default function EmailsPage() {
               <SelectItem value="failed">Failed</SelectItem>
               <SelectItem value="processing">Processing</SelectItem>
               <SelectItem value="pending">Pending</SelectItem>
+              <SelectItem value="not_processed">Not processed</SelectItem>
             </SelectContent>
           </Select>
         </div>

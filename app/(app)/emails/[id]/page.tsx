@@ -49,6 +49,7 @@ const STATUS_VARIANTS: Record<string, { label: string; className: string }> = {
   pending: { label: 'Pending', className: 'bg-slate-100 text-slate-700 border-slate-200' },
   processing: { label: 'Processing', className: 'bg-blue-100 text-blue-800 border-blue-200' },
   success: { label: 'Success', className: 'bg-green-100 text-green-800 border-green-200' },
+  not_processed: { label: 'Not processed', className: 'bg-gray-100 text-gray-600 border-gray-200' },
   failed: { label: 'Failed', className: 'bg-red-100 text-red-800 border-red-200' },
   needs_review: {
     label: 'Review',
@@ -276,7 +277,7 @@ export default async function EmailDetailPage({ params }: { params: { id: string
 
       {/* Actions */}
       <section className="pt-2 border-t space-y-4">
-        {(email.processing_status === 'needs_review' || email.processing_status === 'processing' || email.processing_status === 'failed') && (
+        {(email.processing_status === 'needs_review' || email.processing_status === 'processing' || email.processing_status === 'failed' || email.processing_status === 'not_processed') && (
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
             <div>
               <p className="text-sm font-medium">
