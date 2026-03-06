@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Building2 } from 'lucide-react'
+import { createClient } from '@/lib/supabase/client'
 
 export default function SignUpPage() {
   const [email, setEmail] = useState('')
@@ -41,6 +42,7 @@ export default function SignUpPage() {
     setLoading(true)
 
     try {
+      // Step 1: Server-side whitelist check
       const res = await fetch('/api/auth/signup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -52,6 +54,29 @@ export default function SignUpPage() {
           setError('not_whitelisted')
         } else {
           setError(data.error || 'Unable to create account.')
+        }
+        setLoading(false)
+        return
+      }
+
+      // Step 2: Create user via browser client (PKCE flow — confirmation link will work)
+      const supabase = createClient()
+      const { error: signUpError } = await supabase.auth.signUp({
+        email: email.trim().toLowerCase(),
+        password,
+        options: {
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
+          data: {
+            accepted_license_at: new Date().toISOString(),
+          },
+        },
+      })
+
+      if (signUpError) {
+        if (signUpError.message?.includes('already') || signUpError.message?.includes('registered')) {
+          setError('Unable to create account. The email may already be registered.')
+        } else {
+          setError(signUpError.message || 'Unable to create account.')
         }
       } else {
         setInfo('Check your email for a confirmation link.')
@@ -89,7 +114,7 @@ export default function SignUpPage() {
               </Alert>
             )}
             {error === 'not_whitelisted' && (
-              <Alert>
+              <Alert className="border-amber-500/50 bg-amber-50 dark:bg-amber-950/30 text-amber-900 dark:text-amber-200">
                 <AlertDescription className="text-sm space-y-2">
                   <p>This email is not authorized for the hosted platform.</p>
                   <p>
@@ -102,7 +127,7 @@ export default function SignUpPage() {
               </Alert>
             )}
             {info && (
-              <Alert>
+              <Alert className="border-green-500/50 bg-green-50 dark:bg-green-950/30 text-green-900 dark:text-green-200">
                 <AlertDescription>{info}</AlertDescription>
               </Alert>
             )}

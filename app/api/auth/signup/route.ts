@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { dbError } from '@/lib/api-error'
 import { rateLimit, getClientIp } from '@/lib/rate-limit'
 
 export async function POST(req: NextRequest) {
@@ -41,41 +40,6 @@ export async function POST(req: NextRequest) {
     }, { status: 403 })
   }
 
-  // Create user via Supabase admin API
-  const origin = req.headers.get('origin') || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
-
-  const { data, error } = await admin.auth.admin.createUser({
-    email: normalizedEmail,
-    password,
-    email_confirm: false,
-    user_metadata: {
-      accepted_license_at: new Date().toISOString(),
-    },
-  })
-
-  if (error) {
-    // Don't reveal whether the email exists — use a generic message
-    if (error.message?.includes('already been registered') || error.message?.includes('already exists')) {
-      return NextResponse.json({
-        error: 'Unable to create account. The email may already be registered.',
-      }, { status: 400 })
-    }
-    return NextResponse.json({ error: 'Unable to create account. Please try again.' }, { status: 500 })
-  }
-
-  // Send signup confirmation email via Supabase's auth email system (uses configured SMTP)
-  if (data.user) {
-    const { error: resendError } = await admin.auth.resend({
-      type: 'signup',
-      email: normalizedEmail,
-      options: {
-        emailRedirectTo: `${origin}/auth/callback`,
-      },
-    })
-    if (resendError) {
-      console.error('[signup] Failed to send confirmation email:', resendError.message)
-    }
-  }
-
+  // Whitelist passed — tell the client to proceed with signUp
   return NextResponse.json({ ok: true })
 }
