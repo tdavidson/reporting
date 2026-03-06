@@ -261,6 +261,16 @@ otp_expiry = 3600
 # enabled = true
 # subject = "Your email address was changed"
 # content_path = "./supabase/templates/email_changed.html"
+#
+# [auth.email.notification.mfa_factor_enrolled]
+# enabled = true
+# subject = "Multi-factor authentication added"
+# content_path = "./supabase/templates/mfa_factor_enrolled.html"
+#
+# [auth.email.notification.mfa_factor_unenrolled]
+# enabled = true
+# subject = "Multi-factor authentication removed"
+# content_path = "./supabase/templates/mfa_factor_unenrolled.html"
 
 [auth.sms]
 # Allow/disallow new user signups via SMS to your project.

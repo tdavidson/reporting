@@ -2993,6 +2993,8 @@ const AUTH_EMAIL_TEMPLATES = [
   { name: 'Reauthentication', file: 'reauthentication.html', desc: 'OTP code for re-verification' },
   { name: 'Password changed', file: 'password_changed.html', desc: 'Security notification' },
   { name: 'Email changed', file: 'email_changed.html', desc: 'Security notification' },
+  { name: 'MFA added', file: 'mfa_factor_enrolled.html', desc: 'Security notification' },
+  { name: 'MFA removed', file: 'mfa_factor_unenrolled.html', desc: 'Security notification' },
 ]
 
 function AuthEmailTemplatesSection() {
