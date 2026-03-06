@@ -3027,6 +3027,16 @@ function AuthEmailTemplatesSection() {
             <p>
               To send real emails, configure an SMTP provider in your Supabase dashboard under <strong>Project Settings → Auth → SMTP Settings</strong>, or in <code className="text-[11px] bg-muted px-1 rounded font-mono">config.toml</code> under <code className="text-[11px] bg-muted px-1 rounded font-mono">[auth.email.smtp]</code>.
             </p>
+
+            <p className="font-medium text-foreground pt-2">Auth hook (signup whitelist):</p>
+            <p>
+              A <code className="text-[11px] bg-muted px-1 rounded font-mono">before-user-created</code> auth hook enforces the signup whitelist at the database level, preventing direct signups that bypass the API.
+            </p>
+            <ol className="list-decimal list-inside space-y-1">
+              <li>Run the migration in <code className="text-[11px] bg-muted px-1 rounded font-mono">migrations/20260306120000_before_user_created_hook.sql</code></li>
+              <li>Go to <strong>Authentication → Hooks</strong> in your Supabase dashboard</li>
+              <li>Enable <strong>Before User Created</strong>, select <strong>Postgres Function</strong>, and choose <code className="text-[11px] bg-muted px-1 rounded font-mono">hook_before_user_created</code></li>
+            </ol>
           </div>
 
           <div className="border rounded-md overflow-hidden mt-2">
@@ -3190,6 +3200,7 @@ function TeamSection({ isAdmin }: { isAdmin: boolean }) {
   const [pendingRequests, setPendingRequests] = useState<JoinRequest[]>([])
   const [loading, setLoading] = useState(true)
   const [processingId, setProcessingId] = useState<string | null>(null)
+  const [confirmRemoveId, setConfirmRemoveId] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     const res = await fetch('/api/settings/members')
@@ -3214,6 +3225,14 @@ function TeamSection({ isAdmin }: { isAdmin: boolean }) {
     if (res.ok) load()
   }
 
+  const handleRemove = async (memberId: string) => {
+    setProcessingId(memberId)
+    const res = await fetch(`/api/settings/members/${memberId}`, { method: 'DELETE' })
+    setProcessingId(null)
+    setConfirmRemoveId(null)
+    if (res.ok) load()
+  }
+
   return (
     <Section title="Team">
       {loading ? (
@@ -3227,14 +3246,48 @@ function TeamSection({ isAdmin }: { isAdmin: boolean }) {
             {members.map(m => (
               <div key={m.id} className="flex items-center justify-between px-3 py-2">
                 <span className="text-sm">{m.email}</span>
-                {m.role === 'admin' ? (
-                  <span className="inline-flex items-center gap-1 text-[10px] font-medium bg-primary/10 text-primary rounded-full px-2 py-0.5">
-                    <Shield className="h-2.5 w-2.5" />
-                    Admin
-                  </span>
-                ) : (
-                  <span className="text-xs text-muted-foreground">Member</span>
-                )}
+                <div className="flex items-center gap-2">
+                  {m.role === 'admin' ? (
+                    <span className="inline-flex items-center gap-1 text-[10px] font-medium bg-primary/10 text-primary rounded-full px-2 py-0.5">
+                      <Shield className="h-2.5 w-2.5" />
+                      Admin
+                    </span>
+                  ) : (
+                    <>
+                      <span className="text-xs text-muted-foreground">Member</span>
+                      {isAdmin && confirmRemoveId === m.id ? (
+                        <div className="flex items-center gap-1">
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            onClick={() => handleRemove(m.id)}
+                            disabled={processingId === m.id}
+                            className="h-6 text-[11px] px-2"
+                          >
+                            {processingId === m.id ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Confirm'}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => setConfirmRemoveId(null)}
+                            className="h-6 text-[11px] px-2"
+                          >
+                            Cancel
+                          </Button>
+                        </div>
+                      ) : isAdmin ? (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => setConfirmRemoveId(m.id)}
+                          className="h-6 text-[11px] px-2 text-muted-foreground hover:text-destructive"
+                        >
+                          Remove
+                        </Button>
+                      ) : null}
+                    </>
+                  )}
+                </div>
               </div>
             ))}
           </div>

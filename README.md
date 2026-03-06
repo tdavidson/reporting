@@ -263,6 +263,7 @@ Now that you have your deployed URL, go back to the Supabase dashboard:
    - Set **Site URL** to your deployed URL (e.g. `https://reporting.yourfund.com` or your Netlify or Vercel deployment URLs)
    - Add `https://reporting.yourfund.com/**` to **Redirect URLs** (the `/**` wildcard is important)
 2. **Authentication > Email Templates** (optional): Supabase sends auth emails (confirmations, password resets, magic links) using a built-in email service. For production, configure a custom SMTP provider in **Project Settings > Auth > SMTP Settings** so emails come from your domain instead of Supabase's default.
+3. **Authentication > Hooks**: Enable the **Before User Created** hook to enforce the signup whitelist at the database level. Select **Postgres Function** and choose `hook_before_user_created`. This prevents direct signups that bypass the API whitelist check.
 
 ### Step 6: Allow your first user to sign up
 
