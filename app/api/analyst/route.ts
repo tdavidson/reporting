@@ -83,7 +83,7 @@ export async function POST(req: NextRequest) {
     if (!ctx) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
     systemPrompt = ctx.systemPrompt
-    systemPrompt += `\n\nYou are the AI Analyst for this portfolio company. Answer questions using the data provided below. Reference specific numbers and dates. Do not perform new calculations — only reference pre-computed data. You can also draft or refine company summaries when asked.\n\nKeep responses concise and analytical. Use plain text (no markdown formatting).`
+    systemPrompt += `\n\nYou are the Analyst for this portfolio company. Answer questions using the data provided below. Reference specific numbers and dates. Do not perform new calculations — only reference pre-computed data. You can also draft or refine company summaries when asked.\n\nKeep responses concise and analytical. Use plain text (no markdown formatting).`
 
     if (ctx.metricsBlock) systemPrompt += `\n\n=== QUANTITATIVE DATA ===\n${ctx.metricsBlock}`
     if (ctx.reportContentBlock) systemPrompt += `\n\n=== LATEST REPORT CONTENT ===\n${ctx.reportContentBlock}`

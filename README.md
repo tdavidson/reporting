@@ -23,7 +23,7 @@ The fastest way to get data flowing is to forward reporting emails to the inboun
 
 Not everything arrives by email. When someone sends you a link to a Google Sheet, Docsend deck, or any other hosted file, download it and upload it through the Import page. The same goes for PDFs, Excel workbooks, Word docs, PowerPoint decks, CSVs, and images — anything you can download, you can import. The AI pipeline processes uploads identically to inbound emails.
 
-Once data starts flowing, the Portfolio dashboard gives you a real-time view of every company, the Review queue catches anything that needs a human decision, and the AI Analyst — available on every page — lets you ask questions about company performance, portfolio trends, and investment data through a persistent chat interface that remembers past conversations.
+Once data starts flowing, the Portfolio dashboard gives you a real-time view of every company, the Review queue catches anything that needs a human decision, and the Analyst — available on every page — lets you ask questions about company performance, portfolio trends, and investment data through a persistent chat interface that remembers past conversations.
 
 ## Portfolio
 
@@ -41,7 +41,7 @@ The **Analyst** card generates a summary based on all available data — reporte
 
 Below the Analyst is the **metrics section**, where each metric has its own chart card. Charts show data points over time, color-coded by confidence level. Click any data point to view details and edit or delete values. You can also add data points manually using the "Add" button on each card. An export button lets you download all metric data as a CSV.
 
-A **documents section** lists all files associated with the company — both uploads and email attachments. These documents are available to the AI Analyst when generating summaries. Individual file uploads are limited to 20 MB.
+A **documents section** lists all files associated with the company — both uploads and email attachments. These documents are available to the Analyst when generating summaries. Individual file uploads are limited to 20 MB.
 
 The **Investments section** tracks the fund's transaction history with the company — investment rounds, proceeds from exits or distributions, and unrealized gain changes. It displays summary metrics (total invested, FMV, MOIC, total realized) along with a detailed transaction table.
 
@@ -111,7 +111,7 @@ Notes are available on each company's detail page, on the Portfolio dashboard, a
 
 Notes support **@mentions** — type @ while writing to see a dropdown of team members. You can also **follow companies** to get notified about notes on companies you care about. Notification preferences (all notes, @mentions only, or none) are managed in Settings.
 
-Team notes are also fed into the AI Analyst as context, so the Analyst is aware of your team's discussions when answering questions.
+Team notes are also fed into the Analyst as context, so the Analyst is aware of your team's discussions when answering questions.
 
 ![Notes](docs/screenshots/notes.png)
 
@@ -144,7 +144,7 @@ The platform supports four AI providers. Configure at least one in Settings, the
 | **Google Gemini** | `gemini-2.0-flash` | API key from [aistudio.google.com](https://aistudio.google.com) | Fast and cost-effective, free tier available |
 | **Ollama** | `llama3.2` | None (runs locally) | Self-hosted models, no data leaves your machine |
 
-Each provider has a model selector in Settings — after saving your API key (or endpoint URL for Ollama), you can fetch the available models and choose which one to use. The **AI Analyst** panel also has a model dropdown that shows models from all configured providers, with an "Auto" option that uses the fund's default.
+Each provider has a model selector in Settings — after saving your API key (or endpoint URL for Ollama), you can fetch the available models and choose which one to use. The **Analyst** panel also has a model dropdown that shows models from all configured providers, with an "Auto" option that uses the fund's default.
 
 Ollama connects via its OpenAI-compatible API (default endpoint: `http://localhost:11434/v1`). No API key is needed — just enter the endpoint URL and select a model. Ollama usage is tracked but shows zero cost since it runs locally.
 

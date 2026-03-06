@@ -199,7 +199,7 @@ export function CompanyDocuments({ companyId, storageProvider, googleDriveFolder
 
       {expanded && documents.length === 0 && (
         <p className="text-xs text-muted-foreground px-3 py-2">
-          No documents yet. Upload files from the AI Analyst above, or documents will appear here from email attachments.
+          No documents yet. Upload files from the Analyst above, or documents will appear here from email attachments.
         </p>
       )}
     </div>
