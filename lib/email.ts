@@ -206,9 +206,34 @@ export async function getOutboundConfig(
  * Fails silently — never throws.
  */
 export const DEFAULT_APPROVAL_SUBJECT = "You've been approved to join {{fundName}}"
-export const DEFAULT_APPROVAL_BODY = `<h2>Congrats!</h2>
-<p>You've been approved to join <strong>{{fundName}}</strong>.</p>
-<p><a href="{{siteUrl}}/auth">Sign in to get started</a></p>`
+export const DEFAULT_APPROVAL_BODY = `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background-color:#f9fafb;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f9fafb;padding:40px 20px;">
+    <tr><td align="center">
+      <table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background-color:#ffffff;border-radius:8px;border:1px solid #e5e7eb;overflow:hidden;">
+        <tr><td style="padding:32px 32px 0 32px;">
+          <p style="margin:0;font-size:13px;color:#6b7280;">{{siteUrl}}</p>
+        </td></tr>
+        <tr><td style="padding:24px 32px 32px 32px;">
+          <h1 style="margin:0 0 16px 0;font-size:22px;font-weight:600;color:#111827;">You've been approved</h1>
+          <p style="margin:0 0 24px 0;font-size:14px;line-height:1.6;color:#374151;">You've been approved to join <strong>{{fundName}}</strong>. Click below to sign in and get started.</p>
+          <table cellpadding="0" cellspacing="0" style="margin:0 0 24px 0;"><tr><td style="background-color:#111827;border-radius:6px;padding:12px 24px;">
+            <a href="{{siteUrl}}/auth" style="color:#ffffff;font-size:14px;font-weight:500;text-decoration:none;display:inline-block;">Sign in</a>
+          </td></tr></table>
+          <p style="margin:0 0 8px 0;font-size:12px;color:#6b7280;">Or copy this link into your browser:</p>
+          <p style="margin:0 0 24px 0;font-size:12px;color:#6b7280;word-break:break-all;">{{siteUrl}}/auth</p>
+          <p style="margin:0;font-size:12px;color:#9ca3af;">If you weren't expecting this email, you can safely ignore it.</p>
+        </td></tr>
+        <tr><td style="padding:20px 32px;border-top:1px solid #f3f4f6;">
+          <p style="margin:0;font-size:11px;color:#9ca3af;">Sent by your reporting platform &middot; {{siteUrl}}</p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`
 
 export async function sendApprovalEmail(
   admin: SupabaseClient,
