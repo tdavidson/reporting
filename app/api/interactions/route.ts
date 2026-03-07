@@ -16,19 +16,19 @@ export async function GET(req: NextRequest) {
 
   if (!membership) return NextResponse.json({ error: 'No fund found' }, { status: 403 })
 
-  const type = req.nextUrl.searchParams.get('type')
+  const tag = req.nextUrl.searchParams.get('tag')
   const companyId = req.nextUrl.searchParams.get('company_id')
   const limit = Math.min(parseInt(req.nextUrl.searchParams.get('limit') || '50', 10), 200)
 
   let query = admin
     .from('interactions')
-    .select('id, fund_id, company_id, email_id, user_id, type, subject, summary, intro_contacts, body_preview, interaction_date, created_at')
+    .select('id, fund_id, company_id, email_id, user_id, tags, subject, summary, intro_contacts, body_preview, interaction_date, created_at')
     .eq('fund_id', membership.fund_id)
     .order('interaction_date', { ascending: false })
     .limit(limit)
 
-  if (type) {
-    query = query.eq('type', type)
+  if (tag) {
+    query = query.contains('tags', [tag])
   }
   if (companyId) {
     query = query.eq('company_id', companyId)

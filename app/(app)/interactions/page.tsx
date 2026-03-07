@@ -22,7 +22,7 @@ export default async function InteractionsPage() {
 
   const { data: interactions } = await admin
     .from('interactions')
-    .select('id, fund_id, company_id, email_id, user_id, type, subject, summary, intro_contacts, body_preview, interaction_date, created_at')
+    .select('id, fund_id, company_id, email_id, user_id, tags, subject, summary, intro_contacts, body_preview, interaction_date, created_at')
     .eq('fund_id', membership.fund_id)
     .order('interaction_date', { ascending: false })
     .limit(100)

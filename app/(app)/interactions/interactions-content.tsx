@@ -15,7 +15,7 @@ interface Interaction {
   company_id: string | null
   email_id: string | null
   user_id: string
-  type: string
+  tags: string[]
   subject: string | null
   summary: string | null
   intro_contacts: any

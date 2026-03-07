@@ -15,6 +15,7 @@ import { getAccessToken as getGoogleAccessToken, findOrCreateFolder as findOrCre
 import { getGoogleCredentials } from '@/lib/google/credentials'
 import { getDropboxCredentials } from '@/lib/dropbox/credentials'
 import { getAccessToken as getDropboxAccessToken, findOrCreateFolder as findOrCreateDropboxFolder, uploadFile as uploadDropboxFile } from '@/lib/dropbox/files'
+import { extractInteraction } from '@/lib/claude/extractInteraction'
 import type { Json, IssueType, ProcessingStatus } from '@/lib/types/database'
 
 type Supabase = ReturnType<typeof createAdminClient>
@@ -48,7 +49,8 @@ export async function runPipeline(
   supabase: Supabase,
   emailId: string,
   fundId: string,
-  payload: PostmarkPayload
+  payload: PostmarkPayload,
+  fundMember?: { userId: string } | null
 ): Promise<void> {
   // Step 4: Extract text from email body and attachments
   const extracted = await extractAttachmentText(payload)
@@ -66,6 +68,8 @@ export async function runPipeline(
   const companies = await getCompanies(supabase, fundId)
   let companyId: string | null = (existingEmail as any)?.company_id ?? null
   let companyName = ''
+
+  let companyIdentified = true
 
   if (companyId) {
     // Company already assigned — skip identification
@@ -89,35 +93,51 @@ export async function runPipeline(
         extracted_value: identification.new_company_name,
         context_snippet: identification.reasoning,
       })
-      await finalizeEmail(supabase, emailId, { status: 'needs_review' })
-      return
-    }
-
-    if (!identification.company_id) {
+      companyIdentified = false
+    } else if (!identification.company_id) {
       await createReview(supabase, {
         fund_id: fundId,
         email_id: emailId,
         issue_type: 'company_not_identified',
         context_snippet: identification.reasoning,
       })
-      await finalizeEmail(supabase, emailId, { status: 'needs_review' })
-      return
+      companyIdentified = false
+    } else {
+      companyId = identification.company_id
+      companyName = companies.find(c => c.id === companyId)?.name ?? ''
+
+      await supabase
+        .from('inbound_emails')
+        .update({ company_id: companyId })
+        .eq('id', emailId)
     }
+  }
 
-    companyId = identification.company_id
-    companyName = companies.find(c => c.id === companyId)?.name ?? ''
-
-    await supabase
-      .from('inbound_emails')
-      .update({ company_id: companyId })
-      .eq('id', emailId)
+  // If company wasn't identified, finalize early but still try interaction extraction for fund members
+  if (!companyIdentified) {
+    await finalizeEmail(supabase, emailId, { status: 'needs_review' })
+    if (fundMember) {
+      try {
+        await maybeExtractInteraction(supabase, fundId, emailId, companyId, fundMember.userId, payload, extracted.emailBody, provider, providerType, model)
+      } catch (err) {
+        console.error('[pipeline] Interaction extraction failed (non-blocking):', err)
+      }
+    }
+    return
   }
 
   // Step 6: Extract metrics
-  const metrics = await getMetrics(supabase, companyId)
+  const metrics = await getMetrics(supabase, companyId!)
 
   if (metrics.length === 0) {
     await finalizeEmail(supabase, emailId, { status: 'not_processed', metricsExtracted: 0 })
+    if (fundMember) {
+      try {
+        await maybeExtractInteraction(supabase, fundId, emailId, companyId, fundMember.userId, payload, extracted.emailBody, provider, providerType, model)
+      } catch (err) {
+        console.error('[pipeline] Interaction extraction failed (non-blocking):', err)
+      }
+    }
     return
   }
 
@@ -154,7 +174,7 @@ export async function runPipeline(
     supabase,
     emailId,
     fundId,
-    companyId,
+    companyId!,
     metricsResult,
     metrics
   )
@@ -169,13 +189,22 @@ export async function runPipeline(
   } catch (err) {
     console.error('[pipeline] File storage save failed (non-blocking):', err)
   }
+
+  // Step 10: Extract interaction (fund member emails only)
+  if (fundMember) {
+    try {
+      await maybeExtractInteraction(supabase, fundId, emailId, companyId, fundMember.userId, payload, extracted.emailBody, provider, providerType, model)
+    } catch (err) {
+      console.error('[pipeline] Interaction extraction failed (non-blocking):', err)
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------
 // Result writer (Step 7)
 // ---------------------------------------------------------------------------
 
-async function writeResults(
+export async function writeResults(
   supabase: Supabase,
   emailId: string,
   fundId: string,
@@ -507,6 +536,59 @@ function isPdf(contentType: string): boolean {
 
 function isImage(contentType: string): boolean {
   return contentType.startsWith('image/')
+}
+
+// ---------------------------------------------------------------------------
+// Interaction extraction (Step 10 — fund member emails only)
+// ---------------------------------------------------------------------------
+
+async function maybeExtractInteraction(
+  supabase: Supabase,
+  fundId: string,
+  emailId: string,
+  companyId: string | null,
+  userId: string,
+  payload: PostmarkPayload,
+  bodyText: string,
+  provider: import('@/lib/ai/types').AIProvider,
+  providerType: string,
+  model: string
+): Promise<void> {
+  // Check feature visibility
+  const { data: fSettings } = await supabase
+    .from('fund_settings')
+    .select('feature_visibility')
+    .eq('fund_id', fundId)
+    .maybeSingle()
+  const fv = fSettings?.feature_visibility as Record<string, string> | null
+  if (fv?.interactions === 'off') return
+
+  const senderName = payload.FromFull?.Name || payload.From || ''
+  const interaction = await extractInteraction(
+    payload.Subject ?? '',
+    bodyText,
+    senderName,
+    provider,
+    providerType,
+    model,
+    { admin: supabase, fundId }
+  )
+
+  // Skip interaction creation for reporting emails — metrics already handled above
+  if (interaction.is_reporting) return
+
+  await supabase.from('interactions').insert({
+    fund_id: fundId,
+    company_id: companyId,
+    email_id: emailId,
+    user_id: userId,
+    tags: interaction.tags,
+    subject: payload.Subject ?? null,
+    summary: interaction.summary,
+    intro_contacts: interaction.intro_contacts as unknown as Json,
+    body_preview: bodyText.slice(0, 500),
+    interaction_date: new Date().toISOString(),
+  })
 }
 
 // ---------------------------------------------------------------------------

@@ -1,15 +1,19 @@
 import type { AIProvider } from '@/lib/ai/types'
 import { logAIUsage } from '@/lib/ai/usage'
 
+export const INTERACTION_TAGS = ['intro', 'hiring', 'strategy', 'fundraising', 'product', 'partnership', 'legal', 'operations'] as const
+export type InteractionTag = typeof INTERACTION_TAGS[number]
+
 export interface InteractionExtraction {
   summary: string
   is_intro: boolean
+  is_reporting: boolean
+  tags: string[]
   intro_contacts: Array<{
     name: string
     email?: string
     context: string
   }>
-  topics: string[]
 }
 
 export interface ExtractInteractionLogParams {
@@ -44,8 +48,9 @@ Email body (first 1000 characters): ${bodyText.slice(0, 1000)}
 Return a JSON object with:
 - "summary": 1-3 sentence summary of this email
 - "is_intro": true if this email introduces two or more parties to each other
-- "intro_contacts": array of people being introduced, each with "name", optional "email", and "context" (role/company/reason)
-- "topics": array of key topics discussed (e.g. "fundraising", "hiring", "product", "partnership")`
+- "is_reporting": true if this email is primarily a portfolio company report, metrics update, financial report, or KPI summary — i.e. reporting data rather than a conversation
+- "tags": pick ALL applicable tags from this list: ["intro", "hiring", "strategy", "fundraising", "product", "partnership", "legal", "operations"]. If it's an intro email, include "intro". Can be empty if none apply.
+- "intro_contacts": array of people being introduced, each with "name", optional "email", and "context" (role/company/reason)`
 }
 
 const SYSTEM_PROMPT =
@@ -115,11 +120,15 @@ function tryParse(raw: string): InteractionExtraction | null {
     const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim()
     const parsed = JSON.parse(cleaned)
     if (typeof parsed.summary !== 'string') return null
+    const tags = Array.isArray(parsed.tags)
+      ? parsed.tags.filter((t: unknown): t is string => typeof t === 'string' && INTERACTION_TAGS.includes(t as InteractionTag))
+      : []
     return {
       summary: parsed.summary,
       is_intro: !!parsed.is_intro,
+      is_reporting: !!parsed.is_reporting,
+      tags,
       intro_contacts: Array.isArray(parsed.intro_contacts) ? parsed.intro_contacts : [],
-      topics: Array.isArray(parsed.topics) ? parsed.topics : [],
     }
   } catch {
     return null

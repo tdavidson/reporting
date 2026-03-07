@@ -12,7 +12,7 @@ interface IntroContact {
 
 interface Interaction {
   id: string
-  type: string
+  tags: string[]
   subject: string | null
   summary: string | null
   intro_contacts: IntroContact[] | null
@@ -82,19 +82,19 @@ export function CompanyInteractions({ companyId, adminOnly }: { companyId: strin
             <div
               key={interaction.id}
               className={`border rounded-md p-2.5 text-sm ${
-                interaction.type === 'intro'
+                interaction.tags?.includes('intro')
                   ? 'border-amber-200 dark:border-amber-800/50 bg-amber-50/50 dark:bg-amber-900/10'
                   : ''
               }`}
             >
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                {interaction.type === 'intro' ? (
+                {interaction.tags?.includes('intro') ? (
                   <Users className="h-3 w-3 text-amber-600 dark:text-amber-400" />
                 ) : (
                   <Mail className="h-3 w-3" />
                 )}
                 <span>{formatRelativeTime(interaction.interaction_date)}</span>
-                {interaction.type === 'intro' && (
+                {interaction.tags?.includes('intro') && (
                   <span className="text-amber-600 dark:text-amber-400 font-medium">Intro</span>
                 )}
               </div>

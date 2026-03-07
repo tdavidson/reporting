@@ -1130,7 +1130,7 @@ export type Database = {
           company_id: string | null
           email_id: string | null
           user_id: string
-          type: string
+          tags: string[]
           subject: string | null
           summary: string | null
           intro_contacts: Json
@@ -1144,7 +1144,7 @@ export type Database = {
           company_id?: string | null
           email_id?: string | null
           user_id: string
-          type?: string
+          tags?: string[]
           subject?: string | null
           summary?: string | null
           intro_contacts?: Json
@@ -1158,7 +1158,7 @@ export type Database = {
           company_id?: string | null
           email_id?: string | null
           user_id?: string
-          type?: string
+          tags?: string[]
           subject?: string | null
           summary?: string | null
           intro_contacts?: Json
@@ -1435,7 +1435,7 @@ export type LpLetterStatus = 'generating' | 'draft' | 'final'
 
 // Enum-style string literals
 export type CompanyStatus      = 'active' | 'exited' | 'written-off'
-export type ProcessingStatus   = 'pending' | 'processing' | 'success' | 'failed' | 'needs_review' | 'not_processed' | 'not_processed'
+export type ProcessingStatus   = 'pending' | 'processing' | 'success' | 'failed' | 'needs_review' | 'not_processed'
 export type Confidence         = 'high' | 'medium' | 'low'
 export type ValueType          = 'number' | 'currency' | 'percentage' | 'text'
 export type UnitPosition       = 'prefix' | 'suffix'

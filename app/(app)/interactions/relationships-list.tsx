@@ -4,6 +4,19 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { Building2, ChevronDown, ChevronRight, Copy, Check, Mail, Users } from 'lucide-react'
 
+const KNOWN_TAGS = ['intro', 'hiring', 'strategy', 'fundraising', 'product', 'partnership', 'legal', 'operations'] as const
+
+const TAG_COLORS: Record<string, string> = {
+  intro: 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400',
+  hiring: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400',
+  strategy: 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400',
+  fundraising: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400',
+  product: 'bg-cyan-100 dark:bg-cyan-900/30 text-cyan-700 dark:text-cyan-400',
+  partnership: 'bg-pink-100 dark:bg-pink-900/30 text-pink-700 dark:text-pink-400',
+  legal: 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400',
+  operations: 'bg-gray-100 dark:bg-gray-800/50 text-gray-700 dark:text-gray-400',
+}
+
 interface IntroContact {
   name: string
   email?: string
@@ -16,7 +29,7 @@ interface Interaction {
   company_id: string | null
   email_id: string | null
   user_id: string
-  type: string
+  tags: string[]
   subject: string | null
   summary: string | null
   intro_contacts: IntroContact[] | null
@@ -25,8 +38,6 @@ interface Interaction {
   created_at: string
   company_name: string | null
 }
-
-type FilterMode = 'conversations' | 'intros' | 'all'
 
 function formatRelativeTime(dateStr: string) {
   const date = new Date(dateStr)
@@ -44,33 +55,53 @@ function formatRelativeTime(dateStr: string) {
 }
 
 export function RelationshipsList({ interactions, inboundAddress }: { interactions: Interaction[]; inboundAddress?: string }) {
-  const [filter, setFilter] = useState<FilterMode>('conversations')
+  const [selectedTags, setSelectedTags] = useState<Set<string>>(new Set())
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
 
-  const filtered = filter === 'intros'
-    ? interactions.filter(i => i.type === 'intro')
-    : filter === 'conversations'
-    ? interactions.filter(i => i.type !== 'reporting')
-    : interactions
+  // Only show tag filters for tags that exist in the data
+  const usedTags = KNOWN_TAGS.filter(tag =>
+    interactions.some(i => i.tags?.includes(tag))
+  )
+
+  const toggleTag = (tag: string) => {
+    setSelectedTags(prev => {
+      const next = new Set(prev)
+      if (next.has(tag)) next.delete(tag)
+      else next.add(tag)
+      return next
+    })
+  }
+
+  const filtered = selectedTags.size === 0
+    ? interactions
+    : interactions.filter(i => i.tags?.some(t => selectedTags.has(t)))
 
   return (
     <div>
-      {/* Filter tabs + inbound address */}
+      {/* Tag filters + inbound address */}
       <div className="flex items-center gap-2 mb-4 flex-wrap">
-        {(['conversations', 'intros', 'all'] as const).map(f => (
+        {usedTags.map(tag => (
           <button
-            key={f}
-            onClick={() => setFilter(f)}
-            className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
-              filter === f
-                ? 'bg-foreground text-background font-medium'
+            key={tag}
+            onClick={() => toggleTag(tag)}
+            className={`px-2.5 py-1 text-xs rounded-full transition-colors capitalize ${
+              selectedTags.has(tag)
+                ? TAG_COLORS[tag] + ' font-medium ring-1 ring-current/20'
                 : 'text-muted-foreground hover:text-foreground hover:bg-accent'
             }`}
           >
-            {f === 'conversations' ? 'Conversations' : f === 'intros' ? 'Intros' : 'All'}
+            {tag}
           </button>
         ))}
+        {selectedTags.size > 0 && (
+          <button
+            onClick={() => setSelectedTags(new Set())}
+            className="px-2.5 py-1 text-xs text-muted-foreground hover:text-foreground"
+          >
+            Clear
+          </button>
+        )}
         {inboundAddress && (
           <div className="ml-auto flex items-center gap-1.5 text-xs text-muted-foreground">
             <span>BCC:</span>
@@ -105,6 +136,7 @@ export function RelationshipsList({ interactions, inboundAddress }: { interactio
             const introContacts = interaction.intro_contacts ?? []
             const isExpanded = expandedId === interaction.id
             const hasIntros = introContacts.length > 0
+            const tags = interaction.tags ?? []
 
             return (
               <div
@@ -126,12 +158,20 @@ export function RelationshipsList({ interactions, inboundAddress }: { interactio
                           {interaction.company_name}
                         </Link>
                       )}
-                      {interaction.type === 'intro' && (
+                      {tags.includes('intro') && (
                         <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 text-[10px] font-medium">
                           <Users className="h-2.5 w-2.5" />
                           {introContacts.length} intro{introContacts.length !== 1 ? 's' : ''}
                         </span>
                       )}
+                      {tags.filter(t => t !== 'intro').map(tag => (
+                        <span
+                          key={tag}
+                          className={`px-1.5 py-0.5 rounded-full text-[10px] font-medium capitalize ${TAG_COLORS[tag] ?? 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'}`}
+                        >
+                          {tag}
+                        </span>
+                      ))}
                     </div>
 
                     {interaction.subject && (

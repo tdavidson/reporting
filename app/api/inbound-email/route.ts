@@ -6,7 +6,6 @@ import {
   runPipeline,
   type PostmarkPayload,
 } from '@/lib/pipeline/processEmail'
-import { runCRMPipeline } from '@/lib/pipeline/processCRMEmail'
 import { checkFundMember } from '@/lib/pipeline/checkFundMember'
 import { isAuthorizedSender } from '@/lib/pipeline/isAuthorizedSender'
 import { rateLimit, getClientIp } from '@/lib/rate-limit'
@@ -61,58 +60,11 @@ async function handleInbound(req: NextRequest) {
   }
   const { fundId, isGlobal } = fundInfo
 
-  // Step 1b: Check if sender is a fund member → route to CRM pipeline
+  // Step 1b: Check if sender is a fund member (determines interaction extraction, bypasses authorized_senders)
   const fundMember = await checkFundMember(supabase, fundId, fromAddress)
 
-  if (fundMember) {
-    const strippedPayload = { ...payload }
-    if (payload.Attachments && payload.Attachments.length > 0) {
-      strippedPayload.Attachments = payload.Attachments.map(att => ({
-        Name: att.Name,
-        ContentType: att.ContentType,
-        ContentLength: att.ContentLength,
-      }))
-    }
-
-    const { data: emailRow, error: insertError } = await supabase
-      .from('inbound_emails')
-      .insert({
-        fund_id: fundId,
-        from_address: fromAddress,
-        subject: payload.Subject ?? null,
-        raw_payload: strippedPayload as unknown as import('@/lib/types/database').Json,
-        processing_status: 'pending',
-        attachments_count: payload.Attachments?.length ?? 0,
-        email_type: 'crm',
-      })
-      .select('id')
-      .single()
-
-    if (insertError || !emailRow) {
-      console.error('[inbound-email] Failed to insert CRM email record:', insertError)
-      return
-    }
-
-    try {
-      await supabase
-        .from('inbound_emails')
-        .update({ processing_status: 'processing' })
-        .eq('id', emailRow.id)
-
-      await runCRMPipeline(supabase, emailRow.id, fundId, fundMember.user_id, payload)
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err)
-      console.error(`[inbound-email] CRM pipeline error for email ${emailRow.id}:`, err)
-      await supabase
-        .from('inbound_emails')
-        .update({ processing_status: 'failed', processing_error: message })
-        .eq('id', emailRow.id)
-    }
-    return
-  }
-
-  // Step 2: Check authorized senders
-  if (!isGlobal) {
+  // Step 2: Check authorized senders (fund members bypass this check)
+  if (!fundMember && !isGlobal) {
     const authorized = await isAuthorizedSender(supabase, fundId, fromAddress)
     if (!authorized) {
       console.warn(`[inbound-email] Unauthorized sender ${fromAddress} for fund ${fundId}`)
@@ -195,7 +147,7 @@ async function handleInbound(req: NextRequest) {
       .update({ processing_status: 'processing' })
       .eq('id', emailId)
 
-    await runPipeline(supabase, emailId, fundId, payload)
+    await runPipeline(supabase, emailId, fundId, payload, fundMember ? { userId: fundMember.user_id } : null)
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
     console.error(`[inbound-email] Pipeline error for email ${emailId}:`, err)
