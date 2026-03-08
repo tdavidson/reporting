@@ -8,6 +8,7 @@ import { MentionTextarea, type MentionMember, type MentionTextareaRef } from '@/
 import { useAnalystContext } from '@/components/analyst-context'
 import { useFeatureVisibility } from '@/components/feature-visibility-context'
 import Link from 'next/link'
+import { MobileDrawerPanel } from '@/components/mobile-drawer-panel'
 
 interface Note {
   id: string
@@ -92,8 +93,12 @@ export function PortfolioNotesButton() {
 
 export function PortfolioNotesPanel() {
   const ctx = useContext(PortfolioNotesContext)
-  if (!ctx || !ctx.open) return null
-  return <NotesPanel toggle={ctx.toggle} />
+  if (!ctx) return null
+  return (
+    <MobileDrawerPanel open={ctx.open} onOpenChange={(open) => { if (!open) ctx.toggle() }}>
+      <NotesPanel toggle={ctx.toggle} />
+    </MobileDrawerPanel>
+  )
 }
 
 function formatRelativeTime(dateStr: string) {
@@ -240,8 +245,8 @@ function NotesPanel({ toggle }: { toggle: () => void }) {
   }
 
   return (
-    <div className="w-full lg:w-[340px] shrink-0 lg:sticky top-4">
-    <div className="max-h-[80vh] lg:max-h-[calc(100vh-6rem)] rounded-lg border bg-card flex flex-col">
+    <div className="flex flex-col h-full">
+    <div className="max-h-[80vh] lg:max-h-[calc(100vh-6rem)] rounded-lg border bg-card flex flex-col flex-1">
       <div className="px-4 py-3 flex items-center justify-between">
         <h2 className="text-sm font-medium text-muted-foreground">Team Notes</h2>
         <button onClick={toggle}>
@@ -358,7 +363,7 @@ function NotesPanel({ toggle }: { toggle: () => void }) {
         </div>
       </div>
     </div>
-    <p className="text-[10px] text-muted-foreground/60 text-center mt-3 px-4">
+    <p className="text-[10px] text-muted-foreground/60 text-center mt-3 px-4 shrink-0">
       All chat history is saved by {fundName}.
     </p>
     </div>

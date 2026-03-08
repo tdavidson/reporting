@@ -6,6 +6,7 @@ import ReactMarkdown from 'react-markdown'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useAnalystContext } from '@/components/analyst-context'
+import { MobileDrawerPanel } from '@/components/mobile-drawer-panel'
 
 export function AnalystPanel() {
   const {
@@ -47,8 +48,6 @@ export function AnalystPanel() {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight
     }
   }, [messages, loading])
-
-  if (!open) return null
 
   async function handleSend() {
     if (!input.trim() || loading) return
@@ -127,8 +126,9 @@ export function AnalystPanel() {
   const modelKey = selectedModel ? `${selectedModel.provider}:${selectedModel.id}` : 'auto'
 
   return (
-    <div className="w-full lg:w-[340px] shrink-0 lg:sticky top-4">
-    <div className="max-h-[80vh] lg:max-h-[calc(100vh-6rem)] rounded-lg border bg-card flex flex-col">
+    <MobileDrawerPanel open={open} onOpenChange={(isOpen) => { if (!isOpen) close() }}>
+    <div className="flex flex-col h-full">
+    <div className="max-h-[80vh] lg:max-h-[calc(100vh-6rem)] rounded-lg border bg-card flex flex-col flex-1">
         {/* Header */}
         <div className="px-4 py-3 flex items-center gap-2">
           <h2 className="text-sm font-medium text-muted-foreground flex items-center gap-1.5 shrink-0">
@@ -306,9 +306,10 @@ export function AnalystPanel() {
           </>
         )}
       </div>
-      <p className="text-[10px] text-muted-foreground/60 text-center mt-3 px-4">
+      <p className="text-[10px] text-muted-foreground/60 text-center mt-3 px-4 shrink-0">
         Conversations are stored to provide context and improve AI performance.
       </p>
     </div>
+    </MobileDrawerPanel>
   )
 }

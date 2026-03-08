@@ -389,6 +389,45 @@ const INVESTMENTS: InvestmentDef[] = [
   { companyName: 'Lattis', transaction_type: 'investment', round_name: 'Pre-Seed', transaction_date: '2024-08-15', investment_cost: 250000, shares_acquired: 250000, share_price: 1.00, notes: 'Angel round' },
 ]
 
+type FundCashFlowDef = {
+  portfolio_group: string
+  flow_date: string
+  flow_type: 'commitment' | 'called_capital' | 'distribution'
+  amount: number
+  notes?: string
+}
+
+const FUND_CASH_FLOWS: FundCashFlowDef[] = [
+  // ---------------------------------------------------------------------------
+  // Fund I — $12M commitment, deployed $8.15M across 4 companies
+  //   RouteWise:  Seed $400K (Mar 2022) + Series A $1M (Jul 2023) + Series B $2M (Nov 2024)
+  //   NovaTech:   Seed $500K (Jun 2023) + Series A $1.5M (Sep 2024)
+  //   GreenLeaf:  Seed $750K (Jan 2024)
+  //   AdVantage:  Series A $2M (Jun 2024)
+  // ---------------------------------------------------------------------------
+  { portfolio_group: 'Fund I', flow_date: '2022-01-15', flow_type: 'commitment', amount: 12000000, notes: 'Fund I final close — $12M committed' },
+  { portfolio_group: 'Fund I', flow_date: '2022-03-15', flow_type: 'called_capital', amount: 500000, notes: 'Capital call #1 — RouteWise Seed ($400K) + mgmt fee reserve' },
+  { portfolio_group: 'Fund I', flow_date: '2023-06-10', flow_type: 'called_capital', amount: 1800000, notes: 'Capital call #2 — NovaTech Seed ($500K), RouteWise Series A ($1M), fees' },
+  { portfolio_group: 'Fund I', flow_date: '2024-01-05', flow_type: 'called_capital', amount: 1000000, notes: 'Capital call #3 — GreenLeaf Bio Seed ($750K) + reserves' },
+  { portfolio_group: 'Fund I', flow_date: '2024-06-01', flow_type: 'called_capital', amount: 2500000, notes: 'Capital call #4 — AdVantage Series A ($2M) + reserves' },
+  { portfolio_group: 'Fund I', flow_date: '2024-09-01', flow_type: 'called_capital', amount: 2000000, notes: 'Capital call #5 — NovaTech Series A follow-on ($1.5M) + reserves' },
+  { portfolio_group: 'Fund I', flow_date: '2024-11-01', flow_type: 'called_capital', amount: 2500000, notes: 'Capital call #6 — RouteWise Series B ($2M) + reserves' },
+
+  // ---------------------------------------------------------------------------
+  // Fund II — $10M commitment, deployed $6.7M across 4 companies
+  //   Benchline:  Seed $300K (Jan 2022) + Series A $1.2M (Apr 2023) + Series B $2.5M (Aug 2024)
+  //   TapFin:     Seed $350K (Sep 2023) + Series A $1.5M (Dec 2024)
+  //   Verdant:    Seed $600K (Apr 2024)
+  //   Lattis:     Pre-Seed $250K (Aug 2024)
+  // ---------------------------------------------------------------------------
+  { portfolio_group: 'Fund II', flow_date: '2021-11-01', flow_type: 'commitment', amount: 10000000, notes: 'Fund II final close — $10M committed' },
+  { portfolio_group: 'Fund II', flow_date: '2022-01-10', flow_type: 'called_capital', amount: 500000, notes: 'Capital call #1 — Benchline Seed ($300K) + mgmt fee reserve' },
+  { portfolio_group: 'Fund II', flow_date: '2023-04-01', flow_type: 'called_capital', amount: 1800000, notes: 'Capital call #2 — Benchline Series A ($1.2M), TapFin Seed ($350K), fees' },
+  { portfolio_group: 'Fund II', flow_date: '2024-04-15', flow_type: 'called_capital', amount: 1200000, notes: 'Capital call #3 — Verdant Seed ($600K) + reserves' },
+  { portfolio_group: 'Fund II', flow_date: '2024-08-01', flow_type: 'called_capital', amount: 3200000, notes: 'Capital call #4 — Benchline Series B ($2.5M), Lattis Pre-Seed ($250K), reserves' },
+  { portfolio_group: 'Fund II', flow_date: '2024-12-01', flow_type: 'called_capital', amount: 1800000, notes: 'Capital call #5 — TapFin Series A ($1.5M) + reserves' },
+]
+
 type InteractionDef = {
   companyName: string | null
   type: 'email' | 'intro'
@@ -847,6 +886,20 @@ export async function seedDemoData(adminUserId: string): Promise<boolean> {
       current_share_price: inv.current_share_price ?? null,
       cost_basis_exited: inv.cost_basis_exited ?? null,
       proceeds_received: inv.proceeds_received ?? null,
+    })
+  }
+
+  // -------------------------------------------------------------------------
+  // Fund Cash Flows
+  // -------------------------------------------------------------------------
+  for (const cf of FUND_CASH_FLOWS) {
+    await admin.from('fund_cash_flows' as any).insert({
+      fund_id: fundId,
+      portfolio_group: cf.portfolio_group,
+      flow_date: cf.flow_date,
+      flow_type: cf.flow_type,
+      amount: cf.amount,
+      notes: cf.notes ?? null,
     })
   }
 

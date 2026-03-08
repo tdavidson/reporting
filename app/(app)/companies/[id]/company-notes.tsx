@@ -8,6 +8,7 @@ import { MentionTextarea, type MentionMember, type MentionTextareaRef } from '@/
 import { usePanelContext } from './company-panel-context'
 import { useAnalystContext } from '@/components/analyst-context'
 import { useFeatureVisibility } from '@/components/feature-visibility-context'
+import { MobileDrawerPanel } from '@/components/mobile-drawer-panel'
 
 interface Note {
   id: string
@@ -66,8 +67,11 @@ export function ChatButton() {
 
 export function CompanyNotesPanel() {
   const ctx = usePanelContext()
-  if (!ctx.notesOpen) return null
-  return <NotesPanel />
+  return (
+    <MobileDrawerPanel open={ctx.notesOpen} onOpenChange={(open) => { if (!open) ctx.closeNotes() }}>
+      <NotesPanel />
+    </MobileDrawerPanel>
+  )
 }
 
 function NotesPanel() {
@@ -183,8 +187,8 @@ function NotesPanel() {
   }
 
   return (
-    <div className="w-full lg:w-[340px] shrink-0 lg:sticky top-4">
-    <div className="max-h-[80vh] lg:max-h-[calc(100vh-6rem)] rounded-lg border bg-card flex flex-col">
+    <div className="flex flex-col h-full">
+    <div className="max-h-[80vh] lg:max-h-[calc(100vh-6rem)] rounded-lg border bg-card flex flex-col flex-1">
       <div className="px-4 py-3 flex items-center justify-between">
         <h2 className="text-sm font-medium text-muted-foreground">Notes</h2>
         <button onClick={closeNotes}>

@@ -1,3 +1,5 @@
+import { withBotId } from 'botid/next/config'
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   async headers() {
@@ -34,4 +36,4 @@ const nextConfig = {
     ]
   },
 }
-export default nextConfig
+export default withBotId(nextConfig)

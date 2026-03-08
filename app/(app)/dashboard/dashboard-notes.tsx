@@ -8,6 +8,7 @@ import { MentionTextarea, type MentionMember, type MentionTextareaRef } from '@/
 import { useAnalystContext } from '@/components/analyst-context'
 import { useFeatureVisibility } from '@/components/feature-visibility-context'
 import Link from 'next/link'
+import { MobileDrawerPanel } from '@/components/mobile-drawer-panel'
 
 interface Note {
   id: string
@@ -129,8 +130,12 @@ export function DashboardChatButton() {
 
 export function DashboardNotesPanel() {
   const ctx = useContext(DashboardNotesContext)
-  if (!ctx || !ctx.open) return null
-  return <NotesPanel ctx={ctx} />
+  if (!ctx) return null
+  return (
+    <MobileDrawerPanel open={ctx.open} onOpenChange={(open) => { if (!open) ctx.toggle() }}>
+      <NotesPanel ctx={ctx} />
+    </MobileDrawerPanel>
+  )
 }
 
 function NotesPanel({ ctx }: { ctx: NotesContextValue }) {
@@ -239,8 +244,8 @@ function NotesPanel({ ctx }: { ctx: NotesContextValue }) {
   }
 
   return (
-    <div className="w-full lg:w-[340px] shrink-0 lg:sticky top-4">
-    <div className="max-h-[80vh] lg:max-h-[calc(100vh-6rem)] rounded-lg border bg-card flex flex-col">
+    <div className="flex flex-col h-full">
+    <div className="max-h-[80vh] lg:max-h-[calc(100vh-6rem)] rounded-lg border bg-card flex flex-col flex-1">
       <div className="px-4 py-3 flex items-center justify-between">
         <h2 className="text-sm font-medium text-muted-foreground">Team Notes</h2>
         <button onClick={toggle}>
