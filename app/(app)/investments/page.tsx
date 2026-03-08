@@ -228,7 +228,7 @@ export default function InvestmentsPage() {
 
   // Fund cash flows for computed LP metrics
   const [fundCashFlows, setFundCashFlows] = useState<FundCashFlow[]>([])
-  const [groupConfigs, setGroupConfigs] = useState<Record<string, { cashOnHand: number; carryRate: number; gpCommitPct: number }>>({})
+  const [groupConfigs, setGroupConfigs] = useState<Record<string, { cashOnHand: number; carryRate: number; gpCommitPct: number; vintage: number | null }>>({})
 
   useEffect(() => {
     async function load() {
@@ -243,12 +243,13 @@ export default function InvestmentsPage() {
         if (cfRes.ok) setFundCashFlows(await cfRes.json())
         if (gcRes.ok) {
           const configs = await gcRes.json()
-          const map: Record<string, { cashOnHand: number; carryRate: number; gpCommitPct: number }> = {}
+          const map: Record<string, { cashOnHand: number; carryRate: number; gpCommitPct: number; vintage: number | null }> = {}
           for (const c of configs) {
             map[c.portfolio_group] = {
               cashOnHand: Number(c.cash_on_hand) || 0,
               carryRate: c.carry_rate != null ? Number(c.carry_rate) : 0.20,
               gpCommitPct: Number(c.gp_commit_pct) || 0,
+              vintage: c.vintage != null ? Number(c.vintage) : null,
             }
           }
           setGroupConfigs(map)
@@ -552,6 +553,7 @@ export default function InvestmentsPage() {
                       Group<GroupSortIcon col="group" />
                     </button>
                   </th>
+                  <th className="text-center px-3 py-2 font-medium">Vintage</th>
                   {numericColumns.map(col => (
                     <th key={col.sortKey} className="text-right px-3 py-2 font-medium">
                       <button onClick={() => handleGroupSort(col.sortKey as GroupSortKey)} className="hover:text-foreground">
@@ -571,6 +573,7 @@ export default function InvestmentsPage() {
                   return (
                     <tr key={g.group} className="border-b last:border-b-0 hover:bg-muted/30">
                       <td className="px-3 py-2 font-medium sticky left-0 bg-background z-10">{g.group || '(none)'}</td>
+                      <td className="px-3 py-2 text-center text-xs text-muted-foreground">{groupConfigs[g.group]?.vintage ?? '-'}</td>
                       {numericColumns.map(col => (
                         <td key={col.sortKey} className="px-3 py-2 text-right font-mono">{fmtVal(col.getValue(g), col.format)}</td>
                       ))}
@@ -586,6 +589,7 @@ export default function InvestmentsPage() {
               <tfoot>
                 <tr className="border-t bg-muted font-medium">
                   <td className="px-3 py-2 sticky left-0 bg-muted z-10">Total</td>
+                  <td className="px-3 py-2" />
                   {numericColumns.map(col => {
                     if (col.format === 'irr') return <td key={col.sortKey} className="px-3 py-2 text-right font-mono">{fmtIrr(data.portfolioIRR)}</td>
                     if (col.sortKey === 'moic') return <td key={col.sortKey} className="px-3 py-2 text-right font-mono">{fmtMoic(groupTotals.moic)}</td>

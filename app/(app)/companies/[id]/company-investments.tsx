@@ -85,6 +85,7 @@ export function CompanyInvestments({ companyId, companyStatus, portfolioGroups, 
 
   const [transactions, setTransactions] = useState<InvestmentTransaction[]>([])
   const [summary, setSummary] = useState<CompanyInvestmentSummary | null>(null)
+  const [groupSummaries, setGroupSummaries] = useState<Record<string, CompanyInvestmentSummary> | null>(null)
   const [loading, setLoading] = useState(true)
   const [expanded, setExpanded] = useState(true)
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -104,6 +105,7 @@ export function CompanyInvestments({ companyId, companyStatus, portfolioGroups, 
         const data = await res.json()
         setTransactions(data.transactions)
         setSummary(data.summary)
+        setGroupSummaries(data.groupSummaries ?? null)
       }
     } finally {
       setLoading(false)
@@ -274,264 +276,68 @@ export function CompanyInvestments({ companyId, companyStatus, portfolioGroups, 
         </Button>
       </div>
 
-      {expanded && summary && summary.totalInvested > 0 && (
-        <div className="flex items-center gap-4 mb-3 text-sm flex-wrap">
-          <span>
-            <span className="text-muted-foreground">Invested:</span>{' '}
-            <span className="font-medium">{fmt(summary.totalInvested)}</span>
-          </span>
-          {summary.totalRealized > 0 ? (
-            <>
-              <span>
-                <span className="text-muted-foreground">Realized:</span>{' '}
-                <span className="font-medium">{fmt(summary.totalRealized)}</span>
-              </span>
-              {summary.unrealizedValue > 0 && (
-                <span>
-                  <span className="text-muted-foreground">Unrealized:</span>{' '}
-                  <span className="font-medium">{fmt(summary.unrealizedValue)}</span>
-                </span>
-              )}
-            </>
-          ) : (
-            <span>
-              <span className="text-muted-foreground">FMV:</span>{' '}
-              <span className="font-medium">{fmt(summary.fmv)}</span>
-            </span>
-          )}
-          {summary.moic != null && (
-            <span>
-              <span className="text-muted-foreground">Gross MOIC:</span>{' '}
-              <span className="font-medium">{fmtMoic(summary.moic)}</span>
-            </span>
-          )}
-          {summary.grossIrr != null && Math.abs(summary.grossIrr) >= 0.0005 && (
-            <span>
-              <span className="text-muted-foreground">Gross IRR:</span>{' '}
-              <span className="font-medium">{(summary.grossIrr * 100).toFixed(1)}%</span>
-            </span>
-          )}
-          {summary.rounds.reduce((sum, r) => sum + r.totalEscrow, 0) > 0 && (
-            <span>
-              <span className="text-muted-foreground">Escrow:</span>{' '}
-              <span className="font-medium">{fmt(summary.rounds.reduce((sum, r) => sum + r.totalEscrow, 0))}</span>
-            </span>
-          )}
-          {summary.grossIrr != null && Math.abs(summary.grossIrr) >= 0.0005 && summary.unrealizedValue > 0 && (
-            <span className="flex items-center gap-1">
-              <span className="text-muted-foreground">as of</span>
-              <input
-                type="date"
-                value={asOfDate}
-                onChange={e => setAsOfDate(e.target.value)}
-                className="text-xs border rounded px-1.5 py-0.5 bg-background"
-              />
-            </span>
-          )}
-        </div>
+      {expanded && summary && summary.totalInvested > 0 && !groupSummaries && (
+        <SummaryLine summary={summary} fmt={fmt} fmtMoic={fmtMoic} asOfDate={asOfDate} setAsOfDate={setAsOfDate} />
       )}
 
-      {expanded && transactions.length > 0 && (() => {
-        const hasPostmoney = transactions.some(t => t.postmoney_valuation != null)
-        return (
-        <div className="border rounded-lg overflow-hidden">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b bg-muted/50">
-                {portfolioGroups.length > 0 && (
-                  <th className="text-left px-3 py-2 font-medium">Group</th>
-                )}
-                <th className="text-left px-3 py-2 font-medium">Type</th>
-                <th className="text-left px-3 py-2 font-medium">Round</th>
-                <th className="text-left px-3 py-2 font-medium">Date</th>
-                {companyStatus === 'exited' ? (
-                  <>
-                    <th className="text-right px-3 py-2 font-medium">Cost</th>
-                    <th className="text-right px-3 py-2 font-medium">Proceeds</th>
-                  </>
-                ) : (
-                  <>
-                    <th className="text-right px-3 py-2 font-medium">Invested</th>
-                    {hasPostmoney && <th className="text-right px-3 py-2 font-medium">Postmoney</th>}
-                    <th className="text-right px-3 py-2 font-medium">Shares</th>
-                    <th className="text-right px-3 py-2 font-medium">Price</th>
-                    <th className="text-right px-3 py-2 font-medium">FMV</th>
-                  </>
-                )}
-                <th className="w-16" />
-              </tr>
-            </thead>
-            <tbody>
-              {transactions.map(txn => {
-                const round = summary?.rounds.find(r => r.roundName === txn.round_name)
-                return (
-                  <tr key={txn.id} className="border-b last:border-b-0">
-                    {portfolioGroups.length > 0 && (
-                      <td className="px-3 py-2 text-xs">{txn.portfolio_group ?? '-'}</td>
-                    )}
-                    <td className="px-3 py-2">
-                      <span className="text-xs text-muted-foreground">
-                        {TYPE_LABELS[txn.transaction_type as TransactionType] ?? txn.transaction_type}
-                      </span>
-                    </td>
-                    <td className="px-3 py-2">{txn.round_name ?? '-'}</td>
-                    <td className="px-3 py-2 text-muted-foreground">
-                      {txn.transaction_date
-                        ? new Date(txn.transaction_date + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
-                        : '-'}
-                    </td>
-                    {companyStatus === 'exited' ? (
-                      <>
-                        <td className="px-3 py-2 text-right font-mono">
-                          {txn.transaction_type === 'investment' ? fmt(txn.investment_cost) : '-'}
-                        </td>
-                        <td className="px-3 py-2 text-right font-mono">
-                          {txn.transaction_type === 'proceeds' ? fmt(txn.proceeds_received) : '-'}
-                        </td>
-                      </>
-                    ) : (
-                      <>
-                        <td className="px-3 py-2 text-right font-mono">
-                          {txn.transaction_type === 'investment' ? fmt(txn.investment_cost) : '-'}
-                        </td>
-                        {hasPostmoney && (
-                          <td className="px-3 py-2 text-right font-mono">
-                            {(txn.transaction_type === 'investment' || txn.transaction_type === 'round_info')
-                              ? fmt(txn.postmoney_valuation)
-                              : '-'}
-                          </td>
-                        )}
-                        <td className="px-3 py-2 text-right font-mono">
-                          {txn.transaction_type === 'investment' ? fmtNum(txn.shares_acquired) : '-'}
-                        </td>
-                        <td className="px-3 py-2 text-right font-mono">
-                          {txn.transaction_type === 'investment'
-                            ? fmtPrice(txn.share_price)
-                            : txn.transaction_type === 'unrealized_gain_change'
-                            ? fmtPrice(txn.current_share_price)
-                            : txn.transaction_type === 'round_info'
-                            ? fmtPrice(txn.share_price)
-                            : '-'}
-                        </td>
-                        <td className="px-3 py-2 text-right font-mono">
-                          {txn.transaction_type === 'investment' && round
-                            ? (() => {
-                                const isPricedEquity = (txn.shares_acquired ?? 0) > 0 && ((txn.share_price != null && txn.share_price > 0) || (txn.investment_cost ?? 0) > 0)
-                                if (isPricedEquity) {
-                                  return fmt((txn.shares_acquired ?? 0) * (round.currentSharePrice ?? txn.share_price ?? 0))
-                                }
-                                // Convertible / warrant: show proportional share of round value
-                                return fmt(
-                                  round.investmentCost > 0
-                                    ? (txn.investment_cost ?? 0) / round.investmentCost * round.currentValue
-                                    : txn.investment_cost ?? 0
-                                )
-                              })()
-                            : txn.transaction_type === 'unrealized_gain_change'
-                            ? fmt(txn.unrealized_value_change)
-                            : '-'}
-                        </td>
-                      </>
-                    )}
-                    <td className="px-3 py-2">
-                      <div className="flex items-center gap-1 justify-end">
-                        <Button
-                          size="sm" variant="ghost"
-                          onClick={() => openEdit(txn)}
-                          className="h-7 px-1.5 text-muted-foreground hover:text-foreground"
-                        >
-                          <Pencil className="h-3 w-3" />
-                        </Button>
-                        <Button
-                          size="sm" variant="ghost"
-                          onClick={() => handleDelete(txn.id)}
-                          disabled={deletingId === txn.id}
-                          className="h-7 px-1.5 text-muted-foreground hover:text-destructive"
-                        >
-                          {deletingId === txn.id ? (
-                            <Loader2 className="h-3 w-3 animate-spin" />
-                          ) : (
-                            <Trash2 className="h-3 w-3" />
-                          )}
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
-        )
-      })()}
+      {expanded && groupSummaries && (
+        Object.entries(groupSummaries).sort(([a], [b]) => a.localeCompare(b)).map(([group, gs]) => {
+          const companyWideTxns = transactions.filter(t =>
+            !t.portfolio_group && (t.transaction_type === 'round_info' || t.transaction_type === 'unrealized_gain_change')
+          )
+          const groupTxns = [...transactions.filter(t => t.portfolio_group === group), ...companyWideTxns]
+          return (
+            <div key={group} className="mb-5">
+              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">{group}</h3>
+              <SummaryLine summary={gs} fmt={fmt} fmtMoic={fmtMoic} asOfDate={asOfDate} setAsOfDate={setAsOfDate} />
+              <TransactionTable
+                transactions={groupTxns}
+                summary={gs}
+                companyStatus={companyStatus}
+                showGroup={false}
+                fmt={fmt}
+                fmtPrice={fmtPrice}
+                openEdit={openEdit}
+                handleDelete={handleDelete}
+                deletingId={deletingId}
+              />
+              {companyStatus === 'exited' && gs.rounds.length > 0 && (
+                <RoundSummaryTable
+                  summary={gs}
+                  transactions={groupTxns}
+                  showGroup={false}
+                  fmt={fmt}
+                  fmtMoic={fmtMoic}
+                />
+              )}
+            </div>
+          )
+        })
+      )}
 
-      {expanded && companyStatus === 'exited' && summary && summary.rounds.length > 0 && (() => {
-        const rounds = summary.rounds
-        const totInvested = rounds.reduce((s, r) => s + r.investmentCost, 0)
-        const totRealized = rounds.reduce((s, r) => s + r.totalRealized, 0)
-        const totEscrow = rounds.reduce((s, r) => s + r.totalEscrow, 0)
-        const totMoic = totInvested > 0 ? (totRealized + totEscrow) / totInvested : null
-        // Find portfolio group per round from investment transactions
-        const roundGroupMap = new Map<string, string>()
-        for (const txn of transactions) {
-          if (txn.transaction_type === 'investment' && txn.round_name && txn.portfolio_group) {
-            roundGroupMap.set(txn.round_name, txn.portfolio_group)
-          }
-        }
-        const hasGroups = portfolioGroups.length > 0
-        return (
-          <div className="border rounded-lg overflow-hidden mt-3">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b bg-muted/50">
-                  {hasGroups && <th className="text-left px-3 py-2 font-medium">Group</th>}
-                  <th className="text-left px-3 py-2 font-medium">Round</th>
-                  <th className="text-right px-3 py-2 font-medium">Invested</th>
-                  <th className="text-right px-3 py-2 font-medium">Proceeds</th>
-                  <th className="text-right px-3 py-2 font-medium">Escrow</th>
-                  <th className="text-right px-3 py-2 font-medium">Gross MOIC</th>
-                  <th className="text-right px-3 py-2 font-medium">Gross IRR</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rounds.map(r => {
-                  const roundMoic = r.investmentCost > 0 ? (r.totalRealized + r.totalEscrow) / r.investmentCost : null
-                  return (
-                    <tr key={r.roundName} className="border-b last:border-b-0">
-                      {hasGroups && <td className="px-3 py-2 text-xs">{roundGroupMap.get(r.roundName) ?? '-'}</td>}
-                      <td className="px-3 py-2">{r.roundName}</td>
-                      <td className="px-3 py-2 text-right font-mono">{fmt(r.investmentCost)}</td>
-                      <td className="px-3 py-2 text-right font-mono">{fmt(r.totalRealized)}</td>
-                      <td className="px-3 py-2 text-right font-mono">{r.totalEscrow > 0 ? fmt(r.totalEscrow) : '-'}</td>
-                      <td className="px-3 py-2 text-right font-mono">{fmtMoic(roundMoic)}</td>
-                      <td className="px-3 py-2 text-right font-mono">
-                        {r.grossIrr != null && Math.abs(r.grossIrr) >= 0.0005
-                          ? `${(r.grossIrr * 100).toFixed(1)}%`
-                          : '-'}
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-              <tfoot>
-                <tr className="bg-muted/30 font-medium">
-                  {hasGroups && <td className="px-3 py-2" />}
-                  <td className="px-3 py-2">Total</td>
-                  <td className="px-3 py-2 text-right font-mono">{fmt(totInvested)}</td>
-                  <td className="px-3 py-2 text-right font-mono">{fmt(totRealized)}</td>
-                  <td className="px-3 py-2 text-right font-mono">{totEscrow > 0 ? fmt(totEscrow) : '-'}</td>
-                  <td className="px-3 py-2 text-right font-mono">{fmtMoic(totMoic)}</td>
-                  <td className="px-3 py-2 text-right font-mono">
-                    {summary.grossIrr != null && Math.abs(summary.grossIrr) >= 0.0005
-                      ? `${(summary.grossIrr * 100).toFixed(1)}%`
-                      : '-'}
-                  </td>
-                </tr>
-              </tfoot>
-            </table>
-          </div>
-        )
-      })()}
+      {expanded && !groupSummaries && transactions.length > 0 && (
+        <TransactionTable
+          transactions={transactions}
+          summary={summary}
+          companyStatus={companyStatus}
+          showGroup={portfolioGroups.length > 0}
+          fmt={fmt}
+          fmtPrice={fmtPrice}
+          openEdit={openEdit}
+          handleDelete={handleDelete}
+          deletingId={deletingId}
+        />
+      )}
+
+      {expanded && !groupSummaries && companyStatus === 'exited' && summary && summary.rounds.length > 0 && (
+        <RoundSummaryTable
+          summary={summary}
+          transactions={transactions}
+          showGroup={portfolioGroups.length > 0}
+          fmt={fmt}
+          fmtMoic={fmtMoic}
+        />
+      )}
 
       {expanded && transactions.length === 0 && (
         <p className="text-xs text-muted-foreground px-3 py-2">
@@ -938,6 +744,310 @@ export function CompanyInvestments({ companyId, companyStatus, portfolioGroups, 
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Extracted sub-components for per-group rendering
+// ---------------------------------------------------------------------------
+
+function SummaryLine({
+  summary,
+  fmt,
+  fmtMoic: fmtMoicFn,
+  asOfDate,
+  setAsOfDate,
+}: {
+  summary: CompanyInvestmentSummary
+  fmt: (v: number | null | undefined) => string
+  fmtMoic: (v: number | null | undefined) => string
+  asOfDate: string
+  setAsOfDate: (v: string) => void
+}) {
+  if (summary.totalInvested <= 0) return null
+  return (
+    <div className="flex items-center gap-4 mb-3 text-sm flex-wrap">
+      <span>
+        <span className="text-muted-foreground">Invested:</span>{' '}
+        <span className="font-medium">{fmt(summary.totalInvested)}</span>
+      </span>
+      {summary.totalRealized > 0 ? (
+        <>
+          <span>
+            <span className="text-muted-foreground">Realized:</span>{' '}
+            <span className="font-medium">{fmt(summary.totalRealized)}</span>
+          </span>
+          {summary.unrealizedValue > 0 && (
+            <span>
+              <span className="text-muted-foreground">Unrealized:</span>{' '}
+              <span className="font-medium">{fmt(summary.unrealizedValue)}</span>
+            </span>
+          )}
+        </>
+      ) : (
+        <span>
+          <span className="text-muted-foreground">FMV:</span>{' '}
+          <span className="font-medium">{fmt(summary.fmv)}</span>
+        </span>
+      )}
+      {summary.moic != null && (
+        <span>
+          <span className="text-muted-foreground">Gross MOIC:</span>{' '}
+          <span className="font-medium">{fmtMoicFn(summary.moic)}</span>
+        </span>
+      )}
+      {summary.grossIrr != null && Math.abs(summary.grossIrr) >= 0.0005 && (
+        <span>
+          <span className="text-muted-foreground">Gross IRR:</span>{' '}
+          <span className="font-medium">{(summary.grossIrr * 100).toFixed(1)}%</span>
+        </span>
+      )}
+      {summary.rounds.reduce((sum, r) => sum + r.totalEscrow, 0) > 0 && (
+        <span>
+          <span className="text-muted-foreground">Escrow:</span>{' '}
+          <span className="font-medium">{fmt(summary.rounds.reduce((sum, r) => sum + r.totalEscrow, 0))}</span>
+        </span>
+      )}
+      {summary.grossIrr != null && Math.abs(summary.grossIrr) >= 0.0005 && summary.unrealizedValue > 0 && (
+        <span className="flex items-center gap-1">
+          <span className="text-muted-foreground">as of</span>
+          <input
+            type="date"
+            value={asOfDate}
+            onChange={e => setAsOfDate(e.target.value)}
+            className="text-xs border rounded px-1.5 py-0.5 bg-background"
+          />
+        </span>
+      )}
+    </div>
+  )
+}
+
+function TransactionTable({
+  transactions,
+  summary,
+  companyStatus,
+  showGroup,
+  fmt,
+  fmtPrice,
+  openEdit,
+  handleDelete,
+  deletingId,
+}: {
+  transactions: InvestmentTransaction[]
+  summary: CompanyInvestmentSummary | null
+  companyStatus: CompanyStatus
+  showGroup: boolean
+  fmt: (v: number | null | undefined) => string
+  fmtPrice: (v: number | null | undefined) => string
+  openEdit: (txn: InvestmentTransaction) => void
+  handleDelete: (id: string) => void
+  deletingId: string | null
+}) {
+  if (transactions.length === 0) return null
+  const hasPostmoney = transactions.some(t => t.postmoney_valuation != null)
+  return (
+    <div className="border rounded-lg overflow-hidden">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b bg-muted/50">
+            {showGroup && <th className="text-left px-3 py-2 font-medium">Group</th>}
+            <th className="text-left px-3 py-2 font-medium">Type</th>
+            <th className="text-left px-3 py-2 font-medium">Round</th>
+            <th className="text-left px-3 py-2 font-medium">Date</th>
+            {companyStatus === 'exited' ? (
+              <>
+                <th className="text-right px-3 py-2 font-medium">Cost</th>
+                <th className="text-right px-3 py-2 font-medium">Proceeds</th>
+              </>
+            ) : (
+              <>
+                <th className="text-right px-3 py-2 font-medium">Invested</th>
+                {hasPostmoney && <th className="text-right px-3 py-2 font-medium">Postmoney</th>}
+                <th className="text-right px-3 py-2 font-medium">Shares</th>
+                <th className="text-right px-3 py-2 font-medium">Price</th>
+                <th className="text-right px-3 py-2 font-medium">FMV</th>
+              </>
+            )}
+            <th className="w-16" />
+          </tr>
+        </thead>
+        <tbody>
+          {transactions.map(txn => {
+            const round = summary?.rounds.find(r => r.roundName === txn.round_name)
+            return (
+              <tr key={txn.id} className="border-b last:border-b-0">
+                {showGroup && <td className="px-3 py-2 text-xs">{txn.portfolio_group ?? '-'}</td>}
+                <td className="px-3 py-2">
+                  <span className="text-xs text-muted-foreground">
+                    {TYPE_LABELS[txn.transaction_type as TransactionType] ?? txn.transaction_type}
+                  </span>
+                </td>
+                <td className="px-3 py-2">{txn.round_name ?? '-'}</td>
+                <td className="px-3 py-2 text-muted-foreground">
+                  {txn.transaction_date
+                    ? new Date(txn.transaction_date + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+                    : '-'}
+                </td>
+                {companyStatus === 'exited' ? (
+                  <>
+                    <td className="px-3 py-2 text-right font-mono">
+                      {txn.transaction_type === 'investment' ? fmt(txn.investment_cost) : '-'}
+                    </td>
+                    <td className="px-3 py-2 text-right font-mono">
+                      {txn.transaction_type === 'proceeds' ? fmt(txn.proceeds_received) : '-'}
+                    </td>
+                  </>
+                ) : (
+                  <>
+                    <td className="px-3 py-2 text-right font-mono">
+                      {txn.transaction_type === 'investment' ? fmt(txn.investment_cost) : '-'}
+                    </td>
+                    {hasPostmoney && (
+                      <td className="px-3 py-2 text-right font-mono">
+                        {(txn.transaction_type === 'investment' || txn.transaction_type === 'round_info')
+                          ? fmt(txn.postmoney_valuation)
+                          : '-'}
+                      </td>
+                    )}
+                    <td className="px-3 py-2 text-right font-mono">
+                      {txn.transaction_type === 'investment' ? fmtNum(txn.shares_acquired) : '-'}
+                    </td>
+                    <td className="px-3 py-2 text-right font-mono">
+                      {txn.transaction_type === 'investment'
+                        ? fmtPrice(txn.share_price)
+                        : txn.transaction_type === 'unrealized_gain_change'
+                        ? fmtPrice(txn.current_share_price)
+                        : txn.transaction_type === 'round_info'
+                        ? fmtPrice(txn.share_price)
+                        : '-'}
+                    </td>
+                    <td className="px-3 py-2 text-right font-mono">
+                      {txn.transaction_type === 'investment' && round
+                        ? (() => {
+                            const isPricedEquity = (txn.shares_acquired ?? 0) > 0 && ((txn.share_price != null && txn.share_price > 0) || (txn.investment_cost ?? 0) > 0)
+                            if (isPricedEquity) {
+                              return fmt((txn.shares_acquired ?? 0) * (round.currentSharePrice ?? txn.share_price ?? 0))
+                            }
+                            return fmt(
+                              round.investmentCost > 0
+                                ? (txn.investment_cost ?? 0) / round.investmentCost * round.currentValue
+                                : txn.investment_cost ?? 0
+                            )
+                          })()
+                        : txn.transaction_type === 'unrealized_gain_change'
+                        ? fmt(txn.unrealized_value_change)
+                        : '-'}
+                    </td>
+                  </>
+                )}
+                <td className="px-3 py-2">
+                  <div className="flex items-center gap-1 justify-end">
+                    <Button
+                      size="sm" variant="ghost"
+                      onClick={() => openEdit(txn)}
+                      className="h-7 px-1.5 text-muted-foreground hover:text-foreground"
+                    >
+                      <Pencil className="h-3 w-3" />
+                    </Button>
+                    <Button
+                      size="sm" variant="ghost"
+                      onClick={() => handleDelete(txn.id)}
+                      disabled={deletingId === txn.id}
+                      className="h-7 px-1.5 text-muted-foreground hover:text-destructive"
+                    >
+                      {deletingId === txn.id ? (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : (
+                        <Trash2 className="h-3 w-3" />
+                      )}
+                    </Button>
+                  </div>
+                </td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+function RoundSummaryTable({
+  summary,
+  transactions,
+  showGroup,
+  fmt,
+  fmtMoic: fmtMoicFn,
+}: {
+  summary: CompanyInvestmentSummary
+  transactions: InvestmentTransaction[]
+  showGroup: boolean
+  fmt: (v: number | null | undefined) => string
+  fmtMoic: (v: number | null | undefined) => string
+}) {
+  const rounds = summary.rounds
+  const totInvested = rounds.reduce((s, r) => s + r.investmentCost, 0)
+  const totRealized = rounds.reduce((s, r) => s + r.totalRealized, 0)
+  const totEscrow = rounds.reduce((s, r) => s + r.totalEscrow, 0)
+  const totMoic = totInvested > 0 ? (totRealized + totEscrow) / totInvested : null
+  const roundGroupMap = new Map<string, string>()
+  for (const txn of transactions) {
+    if (txn.transaction_type === 'investment' && txn.round_name && txn.portfolio_group) {
+      roundGroupMap.set(txn.round_name, txn.portfolio_group)
+    }
+  }
+  return (
+    <div className="border rounded-lg overflow-hidden mt-3">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b bg-muted/50">
+            {showGroup && <th className="text-left px-3 py-2 font-medium">Group</th>}
+            <th className="text-left px-3 py-2 font-medium">Round</th>
+            <th className="text-right px-3 py-2 font-medium">Invested</th>
+            <th className="text-right px-3 py-2 font-medium">Proceeds</th>
+            <th className="text-right px-3 py-2 font-medium">Escrow</th>
+            <th className="text-right px-3 py-2 font-medium">Gross MOIC</th>
+            <th className="text-right px-3 py-2 font-medium">Gross IRR</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rounds.map(r => {
+            const roundMoic = r.investmentCost > 0 ? (r.totalRealized + r.totalEscrow) / r.investmentCost : null
+            return (
+              <tr key={r.roundName} className="border-b last:border-b-0">
+                {showGroup && <td className="px-3 py-2 text-xs">{roundGroupMap.get(r.roundName) ?? '-'}</td>}
+                <td className="px-3 py-2">{r.roundName}</td>
+                <td className="px-3 py-2 text-right font-mono">{fmt(r.investmentCost)}</td>
+                <td className="px-3 py-2 text-right font-mono">{fmt(r.totalRealized)}</td>
+                <td className="px-3 py-2 text-right font-mono">{r.totalEscrow > 0 ? fmt(r.totalEscrow) : '-'}</td>
+                <td className="px-3 py-2 text-right font-mono">{fmtMoicFn(roundMoic)}</td>
+                <td className="px-3 py-2 text-right font-mono">
+                  {r.grossIrr != null && Math.abs(r.grossIrr) >= 0.0005
+                    ? `${(r.grossIrr * 100).toFixed(1)}%`
+                    : '-'}
+                </td>
+              </tr>
+            )
+          })}
+        </tbody>
+        <tfoot>
+          <tr className="bg-muted/30 font-medium">
+            {showGroup && <td className="px-3 py-2" />}
+            <td className="px-3 py-2">Total</td>
+            <td className="px-3 py-2 text-right font-mono">{fmt(totInvested)}</td>
+            <td className="px-3 py-2 text-right font-mono">{fmt(totRealized)}</td>
+            <td className="px-3 py-2 text-right font-mono">{totEscrow > 0 ? fmt(totEscrow) : '-'}</td>
+            <td className="px-3 py-2 text-right font-mono">{fmtMoicFn(totMoic)}</td>
+            <td className="px-3 py-2 text-right font-mono">
+              {summary.grossIrr != null && Math.abs(summary.grossIrr) >= 0.0005
+                ? `${(summary.grossIrr * 100).toFixed(1)}%`
+                : '-'}
+            </td>
+          </tr>
+        </tfoot>
+      </table>
     </div>
   )
 }

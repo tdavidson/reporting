@@ -18,6 +18,8 @@ interface Note {
   companyId: string | null
   companyName: string | null
   mentionedUserIds: string[]
+  mentionedCompanyIds?: string[]
+  mentionedGroups?: string[]
   isRead: boolean
   createdAt: string
   edited: boolean
@@ -41,7 +43,7 @@ export function PortfolioNotesProvider({ children }: { children: ReactNode }) {
   const [unreadCount, setUnreadCount] = useState(0)
 
   useEffect(() => {
-    fetch('/api/dashboard/notes')
+    fetch('/api/dashboard/notes?filter=general')
       .then(r => r.json())
       .then(data => {
         if (Array.isArray(data)) {
@@ -109,8 +111,6 @@ function formatRelativeTime(dateStr: string) {
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
 
-type FilterMode = 'all' | 'general'
-
 function NotesPanel({ toggle }: { toggle: () => void }) {
   const { fundName } = useAnalystContext()
   const [notes, setNotes] = useState<Note[]>([])
@@ -119,10 +119,9 @@ function NotesPanel({ toggle }: { toggle: () => void }) {
   const [posting, setPosting] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editContent, setEditContent] = useState('')
-  const [filter, setFilter] = useState<FilterMode>('all')
-  const [selectedCompanyId, setSelectedCompanyId] = useState<string>('')
   const [members, setMembers] = useState<MentionMember[]>([])
   const [companies, setCompanies] = useState<CompanyOption[]>([])
+  const [groups, setGroups] = useState<string[]>([])
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [isAdmin, setIsAdmin] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -135,7 +134,18 @@ function NotesPanel({ toggle }: { toggle: () => void }) {
 
     fetch('/api/companies').then(r => r.json()).then(data => {
       if (Array.isArray(data)) {
-        setCompanies(data.map((c: { id: string; name: string }) => ({ id: c.id, name: c.name })))
+        setCompanies(data.map((c: any) => ({ id: c.id, name: c.name })))
+        // Extract distinct portfolio groups
+        const allGroups = new Set<string>()
+        for (const c of data) {
+          const pg = c.portfolio_group ?? c.portfolioGroup
+          if (Array.isArray(pg)) {
+            for (const g of pg) if (g) allGroups.add(g)
+          } else if (pg) {
+            allGroups.add(pg)
+          }
+        }
+        setGroups(Array.from(allGroups).sort())
       }
     }).catch(() => {})
 
@@ -158,10 +168,7 @@ function NotesPanel({ toggle }: { toggle: () => void }) {
 
   useEffect(() => {
     setLoading(true)
-    const url = filter === 'general'
-      ? '/api/dashboard/notes?filter=general'
-      : '/api/dashboard/notes'
-    fetch(url)
+    fetch('/api/dashboard/notes?filter=general')
       .then(r => r.json())
       .then(data => {
         if (Array.isArray(data)) {
@@ -170,7 +177,7 @@ function NotesPanel({ toggle }: { toggle: () => void }) {
         }
       })
       .finally(() => setLoading(false))
-  }, [filter, markAsRead])
+  }, [markAsRead])
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -186,22 +193,18 @@ function NotesPanel({ toggle }: { toggle: () => void }) {
     if (!content.trim() || posting) return
     setPosting(true)
     try {
-      const body: { content: string; companyId?: string } = { content: content.trim() }
-      if (selectedCompanyId) body.companyId = selectedCompanyId
       const res = await fetch('/api/dashboard/notes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+        body: JSON.stringify({ content: content.trim() }),
       })
       if (res.ok) {
         const note = await res.json()
-        if (filter === 'general' && note.companyId) {
-          // Note was created but won't appear in current filter
-        } else {
+        // Only add to visible list if it's a general note (no company_id)
+        if (!note.companyId) {
           setNotes(prev => [...prev, note])
         }
         setContent('')
-        setSelectedCompanyId('')
         setTimeout(() => inputRef.current?.focus(), 50)
       }
     } finally {
@@ -240,27 +243,7 @@ function NotesPanel({ toggle }: { toggle: () => void }) {
     <div className="w-full lg:w-[340px] shrink-0 lg:sticky top-4">
     <div className="max-h-[80vh] lg:max-h-[calc(100vh-6rem)] rounded-lg border bg-card flex flex-col">
       <div className="px-4 py-3 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <h2 className="text-sm font-medium text-muted-foreground">Team Notes</h2>
-          <div className="flex items-center rounded-md border text-[11px]">
-            <button
-              onClick={() => setFilter('all')}
-              className={`px-2 py-0.5 rounded-l-md transition-colors ${
-                filter === 'all' ? 'bg-foreground text-background' : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              All
-            </button>
-            <button
-              onClick={() => setFilter('general')}
-              className={`px-2 py-0.5 rounded-r-md transition-colors ${
-                filter === 'general' ? 'bg-foreground text-background' : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              General
-            </button>
-          </div>
-        </div>
+        <h2 className="text-sm font-medium text-muted-foreground">Team Notes</h2>
         <button onClick={toggle}>
           <X className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground" />
         </button>
@@ -345,30 +328,22 @@ function NotesPanel({ toggle }: { toggle: () => void }) {
         ))}
       </div>
 
-      <div className="px-4 py-3 space-y-2">
-        <select
-          value={selectedCompanyId}
-          onChange={e => setSelectedCompanyId(e.target.value)}
-          className="w-full text-xs rounded-md border bg-transparent px-2 py-1.5 text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-        >
-          <option value="">General (no company)</option>
-          {companies.map(c => (
-            <option key={c.id} value={c.id}>{c.name}</option>
-          ))}
-        </select>
+      <div className="px-4 py-3">
         <div className="flex gap-2">
           <MentionTextarea
             ref={inputRef}
             value={content}
             onChange={setContent}
             members={members}
+            companies={companies}
+            groups={groups}
             onKeyDown={e => {
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault()
                 handlePost()
               }
             }}
-            placeholder="Write a note... (@ to mention)"
+            placeholder="Write a note... (@ to tag people, companies, or groups)"
             rows={2}
             className="w-full resize-none rounded-md border bg-transparent px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
           />

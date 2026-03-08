@@ -34,9 +34,10 @@ interface GroupConfig {
   cashOnHand: number
   carryRate: number   // decimal, e.g. 0.20 = 20%
   gpCommitPct: number // decimal, e.g. 0.02 = 2%
+  vintage: number | null
 }
 
-const DEFAULT_CONFIG: GroupConfig = { cashOnHand: 0, carryRate: 0.20, gpCommitPct: 0 }
+const DEFAULT_CONFIG: GroupConfig = { cashOnHand: 0, carryRate: 0.20, gpCommitPct: 0, vintage: null }
 
 interface FundMetrics {
   committed: number
@@ -149,7 +150,7 @@ export default function FundsPage() {
 
   // Group settings modal state
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const [settingsDrafts, setSettingsDrafts] = useState<Record<string, { carryRate: string; gpCommitPct: string }>>({})
+  const [settingsDrafts, setSettingsDrafts] = useState<Record<string, { carryRate: string; gpCommitPct: string; vintage: string }>>({})
   const [savingSettings, setSavingSettings] = useState(false)
 
   useEffect(() => {
@@ -179,6 +180,7 @@ export default function FundsPage() {
               cashOnHand: Number(c.cash_on_hand) || 0,
               carryRate: c.carry_rate != null ? Number(c.carry_rate) : 0.20,
               gpCommitPct: Number(c.gp_commit_pct) || 0,
+              vintage: c.vintage != null ? Number(c.vintage) : null,
             }
           }
           setGroupConfigs(map)
@@ -319,12 +321,13 @@ export default function FundsPage() {
   }
 
   function openSettings() {
-    const drafts: Record<string, { carryRate: string; gpCommitPct: string }> = {}
+    const drafts: Record<string, { carryRate: string; gpCommitPct: string; vintage: string }> = {}
     for (const group of groups) {
       const config = groupConfigs[group] ?? DEFAULT_CONFIG
       drafts[group] = {
         carryRate: String(config.carryRate * 100),
         gpCommitPct: String(config.gpCommitPct * 100),
+        vintage: config.vintage != null ? String(config.vintage) : '',
       }
     }
     setSettingsDrafts(drafts)
@@ -344,6 +347,7 @@ export default function FundsPage() {
             portfolioGroup: group,
             carryRate: parseFloat(draft.carryRate || '20') / 100,
             gpCommitPct: parseFloat(draft.gpCommitPct || '0') / 100,
+            vintage: draft.vintage || null,
           }),
         })
         if (res.ok) {
@@ -354,6 +358,7 @@ export default function FundsPage() {
               ...(prev[group] ?? DEFAULT_CONFIG),
               carryRate: data.carry_rate != null ? Number(data.carry_rate) : 0.20,
               gpCommitPct: Number(data.gp_commit_pct) || 0,
+              vintage: data.vintage != null ? Number(data.vintage) : null,
             },
           }))
         }
@@ -444,6 +449,9 @@ export default function FundsPage() {
 
           return (
             <TabsContent key={group} value={group}>
+              {groupConfigs[group]?.vintage && (
+                <p className="text-xs text-muted-foreground mb-3">Vintage {groupConfigs[group].vintage}</p>
+              )}
               {/* Summary cards */}
               <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3 mb-6">
                 {[
@@ -657,7 +665,20 @@ export default function FundsPage() {
             {groups.map(group => (
               <div key={group} className="space-y-3">
                 <h3 className="text-sm font-semibold">{group}</h3>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <label className="text-xs text-muted-foreground mb-1 block">Vintage</label>
+                    <input
+                      type="number"
+                      step="1"
+                      min="1900"
+                      max="2100"
+                      value={settingsDrafts[group]?.vintage ?? ''}
+                      onChange={e => setSettingsDrafts(prev => ({ ...prev, [group]: { ...prev[group], vintage: e.target.value } }))}
+                      placeholder="2024"
+                      className="border rounded px-2 py-1.5 text-sm w-full font-mono"
+                    />
+                  </div>
                   <div>
                     <label className="text-xs text-muted-foreground mb-1 block">Carry Rate (%)</label>
                     <input

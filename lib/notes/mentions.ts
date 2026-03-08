@@ -1,36 +1,83 @@
 /**
  * Parse @mentions in note content and return matched user IDs.
- *
- * Builds a map of lowercase display names → user IDs, sorts longest-first
- * for greedy matching, and returns deduplicated user IDs.
+ * Falls back to email prefix when display_name is missing.
  */
 export function parseMentions(
   content: string,
-  members: Array<{ user_id: string; display_name: string | null }>
+  members: Array<{ user_id: string; display_name: string | null; email?: string }>
 ): string[] {
-  // Build name → userId map (only members with display names)
-  const nameToId = new Map<string, string>()
-  for (const m of members) {
-    if (m.display_name?.trim()) {
-      nameToId.set(m.display_name.trim().toLowerCase(), m.user_id)
-    }
-  }
+  return matchTaggedNames(
+    content,
+    members
+      .map(m => {
+        const name = m.display_name?.trim() || m.email?.split('@')[0]
+        return name ? { id: m.user_id, name } : null
+      })
+      .filter((m): m is { id: string; name: string } => m !== null)
+  )
+}
 
-  if (nameToId.size === 0) return []
+/**
+ * Parse @company mentions in note content and return matched company IDs.
+ */
+export function parseCompanyMentions(
+  content: string,
+  companies: Array<{ id: string; name: string }>
+): string[] {
+  return matchTaggedNames(
+    content,
+    companies.map(c => ({ id: c.id, name: c.name }))
+  )
+}
 
-  // Sort names longest-first so "John Smith" matches before "John"
-  const names = Array.from(nameToId.keys()).sort((a, b) => b.length - a.length)
+/**
+ * Parse @group mentions in note content and return matched group names.
+ */
+export function parseGroupMentions(
+  content: string,
+  groups: string[]
+): string[] {
+  if (groups.length === 0) return []
 
-  // Escape special regex chars in names
-  const escaped = names.map(n => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
-  const pattern = new RegExp(`@(${escaped.join('|')})`, 'gi')
+  const sorted = [...groups].sort((a, b) => b.length - a.length)
+  const escaped = sorted.map(n => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+  const pattern = new RegExp(`@(${escaped.join('|')})(?=[\\s,;!?]|$)`, 'gi')
 
   const matched = new Set<string>()
   let match: RegExpExecArray | null
   while ((match = pattern.exec(content)) !== null) {
-    const name = match[1].toLowerCase()
-    const userId = nameToId.get(name)
-    if (userId) matched.add(userId)
+    const lower = match[1].toLowerCase()
+    const original = groups.find(g => g.toLowerCase() === lower)
+    if (original) matched.add(original)
+  }
+
+  return Array.from(matched)
+}
+
+/**
+ * Match @Name patterns against a list of known names.
+ * Builds a regex from the names (longest-first) and returns matched IDs.
+ */
+function matchTaggedNames(
+  content: string,
+  entries: Array<{ id: string; name: string }>
+): string[] {
+  if (entries.length === 0) return []
+
+  const nameToId = new Map<string, string>()
+  for (const e of entries) {
+    nameToId.set(e.name.toLowerCase(), e.id)
+  }
+
+  const names = Array.from(nameToId.keys()).sort((a, b) => b.length - a.length)
+  const escaped = names.map(n => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+  const pattern = new RegExp(`@(${escaped.join('|')})(?=[\\s,;!?]|$)`, 'gi')
+
+  const matched = new Set<string>()
+  let match: RegExpExecArray | null
+  while ((match = pattern.exec(content)) !== null) {
+    const id = nameToId.get(match[1].toLowerCase())
+    if (id) matched.add(id)
   }
 
   return Array.from(matched)

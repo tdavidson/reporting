@@ -1,13 +1,15 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
-import { Building2, Lock } from 'lucide-react'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { Building2, Lock, Send, Pencil, X, Check, Reply } from 'lucide-react'
 import Link from 'next/link'
 import { NoteContent } from '@/components/note-content'
 import { AnalystToggleButton } from '@/components/analyst-button'
 import { AnalystPanel } from '@/components/analyst-panel'
-import { PortfolioNotesProvider, PortfolioNotesButton, PortfolioNotesPanel } from '@/components/portfolio-notes'
+import { PortfolioNotesProvider } from '@/components/portfolio-notes'
 import { useFeatureVisibility } from '@/components/feature-visibility-context'
+import { MentionTextarea, type MentionMember, type MentionTextareaRef } from '@/components/mention-textarea'
+import { Button } from '@/components/ui/button'
 
 interface Note {
   id: string
@@ -18,9 +20,16 @@ interface Note {
   companyId: string | null
   companyName: string | null
   mentionedUserIds: string[]
+  mentionedCompanyIds?: string[]
+  mentionedGroups?: string[]
   isRead: boolean
   createdAt: string
   edited: boolean
+}
+
+interface CompanyOption {
+  id: string
+  name: string
 }
 
 type FilterMode = 'all' | 'general' | 'mentions'
@@ -46,6 +55,51 @@ export default function NotesPage() {
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<FilterMode>('all')
 
+  // Compose / edit state
+  const [members, setMembers] = useState<MentionMember[]>([])
+  const [companies, setCompanies] = useState<CompanyOption[]>([])
+  const [groups, setGroups] = useState<string[]>([])
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+  const [isAdmin, setIsAdmin] = useState(false)
+
+  // Inline reply
+  const [replyingTo, setReplyingTo] = useState<string | null>(null)
+  const [replyContent, setReplyContent] = useState('')
+  const [posting, setPosting] = useState(false)
+  const replyRef = useRef<MentionTextareaRef | null>(null)
+
+  // Edit
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editContent, setEditContent] = useState('')
+
+  // Load members, companies, groups, and current user
+  useEffect(() => {
+    fetch('/api/notes/members').then(r => r.json()).then(data => {
+      if (Array.isArray(data)) setMembers(data)
+    }).catch(() => {})
+
+    fetch('/api/companies').then(r => r.json()).then(data => {
+      if (Array.isArray(data)) {
+        setCompanies(data.map((c: any) => ({ id: c.id, name: c.name })))
+        const allGroups = new Set<string>()
+        for (const c of data) {
+          const pg = c.portfolio_group ?? c.portfolioGroup
+          if (Array.isArray(pg)) {
+            for (const g of pg) if (g) allGroups.add(g)
+          } else if (pg) {
+            allGroups.add(pg)
+          }
+        }
+        setGroups(Array.from(allGroups).sort())
+      }
+    }).catch(() => {})
+
+    fetch('/api/settings').then(r => r.json()).then(data => {
+      if (data.userId) setCurrentUserId(data.userId)
+      if (data.isAdmin) setIsAdmin(true)
+    }).catch(() => {})
+  }, [])
+
   const markAsRead = useCallback((notesList: Note[]) => {
     const unreadIds = notesList.filter(n => !n.isRead).map(n => n.id)
     if (unreadIds.length === 0) return
@@ -70,6 +124,80 @@ export default function NotesPage() {
       })
       .finally(() => setLoading(false))
   }, [filter, markAsRead])
+
+  // Focus reply textarea when opening
+  useEffect(() => {
+    if (replyingTo) {
+      setTimeout(() => replyRef.current?.focus(), 50)
+    }
+  }, [replyingTo])
+
+  function openReply(noteId: string) {
+    if (replyingTo === noteId) {
+      setReplyingTo(null)
+      setReplyContent('')
+    } else {
+      setReplyingTo(noteId)
+      setReplyContent('')
+    }
+  }
+
+  async function handleReply(parentNote: Note) {
+    if (!replyContent.trim() || posting) return
+    setPosting(true)
+    try {
+      const body: any = { content: replyContent.trim() }
+      if (parentNote.companyId) body.companyId = parentNote.companyId
+      const res = await fetch('/api/dashboard/notes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      if (res.ok) {
+        const newNote = await res.json()
+        // Insert right after the parent note
+        setNotes(prev => {
+          const idx = prev.findIndex(n => n.id === parentNote.id)
+          if (idx === -1) return [...prev, newNote]
+          const copy = [...prev]
+          copy.splice(idx + 1, 0, newNote)
+          return copy
+        })
+        setReplyingTo(null)
+        setReplyContent('')
+      }
+    } finally {
+      setPosting(false)
+    }
+  }
+
+  function startEditing(note: Note) {
+    setEditingId(note.id)
+    setEditContent(note.content)
+    setReplyingTo(null)
+  }
+
+  async function handleEdit(noteId: string) {
+    if (!editContent.trim()) return
+    const res = await fetch(`/api/dashboard/notes/${noteId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content: editContent.trim() }),
+    })
+    if (res.ok) {
+      const updated = await res.json()
+      setNotes(prev => prev.map(n => n.id === noteId ? { ...n, content: updated.content, edited: updated.edited } : n))
+      setEditingId(null)
+      setEditContent('')
+    }
+  }
+
+  async function handleDelete(noteId: string) {
+    const res = await fetch(`/api/dashboard/notes/${noteId}`, { method: 'DELETE' })
+    if (res.ok) {
+      setNotes(prev => prev.filter(n => n.id !== noteId))
+    }
+  }
 
   return (
     <PortfolioNotesProvider>
@@ -97,7 +225,6 @@ export default function NotesPage() {
             </button>
           ))}
           </div>
-          <PortfolioNotesButton />
           <AnalystToggleButton />
         </div>
       </div>
@@ -114,10 +241,11 @@ export default function NotesPage() {
         {notes.map(note => (
           <div
             key={note.id}
-            className={`rounded-lg border p-4 transition-colors ${
+            className={`group rounded-lg border p-4 transition-colors ${
               !note.isRead ? 'bg-blue-50/50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800/40' : 'bg-card'
             }`}
           >
+            {/* Header row */}
             <div className="flex items-center gap-2 mb-1">
               {!note.isRead && (
                 <span className="h-2 w-2 rounded-full bg-blue-500 shrink-0" />
@@ -131,22 +259,115 @@ export default function NotesPage() {
               {note.edited && (
                 <span className="text-[10px] text-muted-foreground italic">edited</span>
               )}
+              {/* Page context label */}
+              {note.companyName ? (
+                <Link
+                  href={`/companies/${note.companyId}`}
+                  className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground"
+                                 >
+                  <Building2 className="h-3 w-3" />
+                  {note.companyName}
+                </Link>
+              ) : (
+                <span className="text-[11px] text-muted-foreground">General</span>
+              )}
+              {/* Edit / Delete actions */}
+              <div className="md:opacity-0 md:group-hover:opacity-100 transition-opacity ml-auto flex items-center gap-1">
+                {currentUserId && note.userId === currentUserId && (
+                  <button onClick={e => { startEditing(note) }}>
+                    <Pencil className="h-3 w-3 text-muted-foreground hover:text-foreground" />
+                  </button>
+                )}
+                {currentUserId && (note.userId === currentUserId || isAdmin) && (
+                  <button onClick={e => { handleDelete(note.id) }}>
+                    <X className="h-3 w-3 text-muted-foreground hover:text-foreground" />
+                  </button>
+                )}
+              </div>
             </div>
-            {note.companyName && (
-              <Link
-                href={`/companies/${note.companyId}`}
-                className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground mb-1"
-              >
-                <Building2 className="h-3 w-3" />
-                {note.companyName}
-              </Link>
+
+            {/* Note body: edit mode or content */}
+            {editingId === note.id ? (
+              <div className="flex gap-1.5" onClick={e => e.stopPropagation()}>
+                <textarea
+                  value={editContent}
+                  onChange={e => setEditContent(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault()
+                      handleEdit(note.id)
+                    }
+                    if (e.key === 'Escape') {
+                      setEditingId(null)
+                      setEditContent('')
+                    }
+                  }}
+                  rows={2}
+                  className="flex-1 resize-none rounded-md border bg-transparent px-2 py-1 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  autoFocus
+                />
+                <div className="flex flex-col gap-1 self-end">
+                  <button onClick={e => { handleEdit(note.id) }}>
+                    <Check className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground" />
+                  </button>
+                  <button onClick={e => { setEditingId(null); setEditContent('') }}>
+                    <X className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground" />
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <NoteContent content={note.content} />
             )}
-            <NoteContent content={note.content} />
+
+            {/* Reply button */}
+            {editingId !== note.id && replyingTo !== note.id && (
+              <button
+                onClick={() => openReply(note.id)}
+                className="mt-1.5 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <Reply className="h-3 w-3" />
+                Reply
+              </button>
+            )}
+
+            {/* Inline reply */}
+            {replyingTo === note.id && editingId !== note.id && (
+              <div className="mt-3 flex gap-2" onClick={e => e.stopPropagation()}>
+                <MentionTextarea
+                  ref={replyRef}
+                  value={replyContent}
+                  onChange={setReplyContent}
+                  members={members}
+                  companies={companies}
+                  groups={groups}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault()
+                      handleReply(note)
+                    }
+                    if (e.key === 'Escape') {
+                      setReplyingTo(null)
+                      setReplyContent('')
+                    }
+                  }}
+                  placeholder="Write a reply... (@ to tag)"
+                  rows={2}
+                  className="w-full resize-none rounded-md border bg-transparent px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                />
+                <Button
+                  size="icon"
+                  onClick={() => handleReply(note)}
+                  disabled={!replyContent.trim() || posting}
+                  className="h-auto self-end px-2 py-2"
+                >
+                  <Send className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            )}
           </div>
         ))}
       </div>
     </div>
-    <PortfolioNotesPanel />
     <AnalystPanel />
     </div>
     </div>

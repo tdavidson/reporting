@@ -6,8 +6,9 @@ interface Props {
   content: string
 }
 
-// Match @Name patterns — alphanumeric, spaces, hyphens, apostrophes
-const MENTION_RE = /@([\w][\w\s\-']{0,40}[\w])/g
+// Match @mentions: @ not inside an email (no word char or dot before it),
+// followed by a word token, optionally more capitalized-word tokens for multi-word names
+const MENTION_RE = /(?<![\w.])@([\w.]+(?:\s[A-Z][\w.]*)*)/g
 
 /**
  * Renders note content with highlighted @mentions and preserved whitespace.
@@ -18,7 +19,6 @@ export function NoteContent({ content }: Props) {
     let lastIndex = 0
     let match: RegExpExecArray | null
 
-    // Reset regex state
     MENTION_RE.lastIndex = 0
 
     while ((match = MENTION_RE.exec(content)) !== null) {

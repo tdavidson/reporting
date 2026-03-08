@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { MessageSquare, Send, Pencil, X, Check, Lock } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { NoteContent } from '@/components/note-content'
-import { MentionTextarea, type MentionMember } from '@/components/mention-textarea'
+import { MentionTextarea, type MentionMember, type MentionTextareaRef } from '@/components/mention-textarea'
 import { usePanelContext } from './company-panel-context'
 import { useAnalystContext } from '@/components/analyst-context'
 import { useFeatureVisibility } from '@/components/feature-visibility-context'
@@ -80,11 +80,18 @@ function NotesPanel() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editContent, setEditContent] = useState('')
   const [members, setMembers] = useState<MentionMember[]>([])
+  const [companies, setCompanies] = useState<Array<{ id: string; name: string }>>([])
   const scrollRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     fetch('/api/notes/members').then(r => r.json()).then(data => {
       if (Array.isArray(data)) setMembers(data)
+    }).catch(() => {})
+
+    fetch('/api/companies').then(r => r.json()).then(data => {
+      if (Array.isArray(data)) {
+        setCompanies(data.map((c: any) => ({ id: c.id, name: c.name })))
+      }
     }).catch(() => {})
   }, [])
 
@@ -262,13 +269,14 @@ function NotesPanel() {
             value={content}
             onChange={setContent}
             members={members}
+            companies={companies}
             onKeyDown={e => {
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault()
                 handlePost()
               }
             }}
-            placeholder="Write a note... (@ to mention)"
+            placeholder="Write a note... (@ to tag people or companies)"
             rows={2}
             className="w-full resize-none rounded-md border bg-transparent px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
           />

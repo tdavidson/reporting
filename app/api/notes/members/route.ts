@@ -21,10 +21,17 @@ export async function GET() {
     .select('user_id, display_name')
     .eq('fund_id', membership.fund_id) as { data: { user_id: string; display_name: string | null }[] | null }
 
-  // Only return members with display names (required for @mentions)
-  const result = (members ?? [])
-    .filter(m => m.display_name && m.user_id !== user.id)
-    .map(m => ({ userId: m.user_id, displayName: m.display_name! }))
+  const result = []
+  for (const m of (members ?? []).filter(m => m.user_id !== user.id)) {
+    let name = m.display_name?.trim()
+    if (!name) {
+      const { data: { user: memberUser } } = await admin.auth.admin.getUserById(m.user_id)
+      name = memberUser?.email?.split('@')[0]
+    }
+    if (name) {
+      result.push({ userId: m.user_id, displayName: name })
+    }
+  }
 
   return NextResponse.json(result)
 }

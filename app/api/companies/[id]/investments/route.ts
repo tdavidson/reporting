@@ -257,7 +257,26 @@ export async function GET(
   const asOfDate = asOf ? new Date(asOf) : new Date()
   const summary = computeSummary(txns, company.status as CompanyStatus, asOfDate)
 
-  return NextResponse.json({ transactions: txns, summary, portfolioGroups: company.portfolio_group ?? [] })
+  // Compute per-group summaries when there are multiple groups
+  const portfolioGroups: string[] = company.portfolio_group ?? []
+  const groupsInTxns = new Set(txns.map(t => t.portfolio_group ?? '').filter(Boolean))
+  const hasMultipleGroups = groupsInTxns.size > 1
+
+  let groupSummaries: Record<string, CompanyInvestmentSummary> | undefined
+  if (hasMultipleGroups) {
+    groupSummaries = {}
+    // round_info and unrealized_gain_change without a portfolio_group are company-wide;
+    // include them in every group so share prices propagate correctly
+    const companyWideTxns = txns.filter(t =>
+      !t.portfolio_group && (t.transaction_type === 'round_info' || t.transaction_type === 'unrealized_gain_change')
+    )
+    for (const group of Array.from(groupsInTxns)) {
+      const groupTxns = [...txns.filter(t => t.portfolio_group === group), ...companyWideTxns]
+      groupSummaries[group] = computeSummary(groupTxns, company.status as CompanyStatus, asOfDate)
+    }
+  }
+
+  return NextResponse.json({ transactions: txns, summary, portfolioGroups, groupSummaries })
 }
 
 // ---------------------------------------------------------------------------

@@ -54,7 +54,7 @@ export async function PUT(req: NextRequest) {
   if (!membership) return NextResponse.json({ error: 'No fund found' }, { status: 403 })
 
   const body = await req.json()
-  const { portfolioGroup, cashOnHand, carryRate, gpCommitPct } = body
+  const { portfolioGroup, cashOnHand, carryRate, gpCommitPct, vintage } = body
 
   if (!portfolioGroup) {
     return NextResponse.json({ error: 'portfolioGroup is required' }, { status: 400 })
@@ -76,6 +76,9 @@ export async function PUT(req: NextRequest) {
   if (gpCommitPct !== undefined) {
     const v = parseFloat(gpCommitPct ?? 0)
     row.gp_commit_pct = isNaN(v) ? 0 : v
+  }
+  if (vintage !== undefined) {
+    row.vintage = vintage ? parseInt(vintage, 10) : null
   }
 
   const { data, error } = await admin

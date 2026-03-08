@@ -1,10 +1,17 @@
 'use client'
 
 import { useState, useRef, useEffect, useCallback, forwardRef, useImperativeHandle } from 'react'
+import { User, Building2, FolderOpen } from 'lucide-react'
 
 export interface MentionMember {
   userId: string
   displayName: string
+}
+
+export interface TaggableItem {
+  id: string
+  displayName: string
+  type: 'person' | 'company' | 'group'
 }
 
 interface MentionTextareaProps {
@@ -12,6 +19,8 @@ interface MentionTextareaProps {
   onChange: (value: string) => void
   onKeyDown?: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void
   members: MentionMember[]
+  companies?: Array<{ id: string; name: string }>
+  groups?: string[]
   placeholder?: string
   rows?: number
   className?: string
@@ -23,8 +32,32 @@ export interface MentionTextareaRef {
   element: HTMLTextAreaElement | null
 }
 
+function buildTaggables(
+  members: MentionMember[],
+  companies?: Array<{ id: string; name: string }>,
+  groups?: string[]
+): TaggableItem[] {
+  const items: TaggableItem[] = []
+  for (const m of members) {
+    items.push({ id: m.userId, displayName: m.displayName, type: 'person' })
+  }
+  for (const c of companies ?? []) {
+    items.push({ id: c.id, displayName: c.name, type: 'company' })
+  }
+  for (const g of groups ?? []) {
+    items.push({ id: g, displayName: g, type: 'group' })
+  }
+  return items
+}
+
+const typeIcon = {
+  person: User,
+  company: Building2,
+  group: FolderOpen,
+}
+
 export const MentionTextarea = forwardRef<MentionTextareaRef, MentionTextareaProps>(
-  function MentionTextarea({ value, onChange, onKeyDown, members, placeholder, rows = 2, className, autoFocus }, ref) {
+  function MentionTextarea({ value, onChange, onKeyDown, members, companies, groups, placeholder, rows = 2, className, autoFocus }, ref) {
     const textareaRef = useRef<HTMLTextAreaElement>(null)
     const dropdownRef = useRef<HTMLDivElement>(null)
     const [showDropdown, setShowDropdown] = useState(false)
@@ -37,22 +70,24 @@ export const MentionTextarea = forwardRef<MentionTextareaRef, MentionTextareaPro
       element: textareaRef.current,
     }))
 
-    const filtered = members.filter(m =>
-      m.displayName.toLowerCase().includes(query.toLowerCase())
+    const taggables = buildTaggables(members, companies, groups)
+
+    const filtered = taggables.filter(t =>
+      t.displayName.toLowerCase().includes(query.toLowerCase())
     )
 
-    const insertMention = useCallback((member: MentionMember) => {
+    const insertMention = useCallback((item: TaggableItem) => {
       if (mentionStart === null) return
       const before = value.slice(0, mentionStart)
       const after = value.slice(textareaRef.current?.selectionStart ?? value.length)
-      const newValue = `${before}@${member.displayName} ${after}`
+      const newValue = `${before}@${item.displayName} ${after}`
       onChange(newValue)
       setShowDropdown(false)
       setMentionStart(null)
       setQuery('')
       // Focus and set cursor after the inserted mention
       setTimeout(() => {
-        const cursor = before.length + member.displayName.length + 2 // +2 for @ and space
+        const cursor = before.length + item.displayName.length + 2 // +2 for @ and space
         textareaRef.current?.focus()
         textareaRef.current?.setSelectionRange(cursor, cursor)
       }, 0)
@@ -150,25 +185,29 @@ export const MentionTextarea = forwardRef<MentionTextareaRef, MentionTextareaPro
         {showDropdown && filtered.length > 0 && (
           <div
             ref={dropdownRef}
-            className="absolute bottom-full left-0 right-0 mb-1 max-h-36 overflow-y-auto rounded-md border bg-popover shadow-md z-50"
+            className="absolute bottom-full left-0 right-0 mb-1 max-h-48 overflow-y-auto rounded-md border bg-popover shadow-md z-50"
           >
-            {filtered.map((member, i) => (
-              <button
-                key={member.userId}
-                data-mention-item
-                type="button"
-                className={`w-full text-left px-3 py-1.5 text-sm transition-colors ${
-                  i === selectedIndex ? 'bg-accent text-foreground' : 'text-muted-foreground hover:bg-accent/50'
-                }`}
-                onMouseDown={(e) => {
-                  e.preventDefault()
-                  insertMention(member)
-                }}
-                onMouseEnter={() => setSelectedIndex(i)}
-              >
-                {member.displayName}
-              </button>
-            ))}
+            {filtered.map((item, i) => {
+              const Icon = typeIcon[item.type]
+              return (
+                <button
+                  key={`${item.type}-${item.id}`}
+                  data-mention-item
+                  type="button"
+                  className={`w-full text-left px-3 py-1.5 text-sm transition-colors flex items-center gap-2 ${
+                    i === selectedIndex ? 'bg-accent text-foreground' : 'text-muted-foreground hover:bg-accent/50'
+                  }`}
+                  onMouseDown={(e) => {
+                    e.preventDefault()
+                    insertMention(item)
+                  }}
+                  onMouseEnter={() => setSelectedIndex(i)}
+                >
+                  <Icon className="h-3 w-3 shrink-0 opacity-50" />
+                  <span>{item.displayName}</span>
+                </button>
+              )
+            })}
           </div>
         )}
       </div>

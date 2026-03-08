@@ -5,7 +5,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { assertWriteAccess } from '@/lib/api-helpers'
 import { dbError } from '@/lib/api-error'
 import { logActivity } from '@/lib/activity'
-import { parseMentions } from '@/lib/notes/mentions'
+import { parseMentions, parseCompanyMentions, parseGroupMentions } from '@/lib/notes/mentions'
 
 export async function GET(req: NextRequest) {
   const supabase = createClient()
@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
 
   let query = admin
     .from('company_notes')
-    .select('id, content, user_id, company_id, mentioned_user_ids, created_at, updated_at')
+    .select('id, content, user_id, company_id, mentioned_user_ids, mentioned_company_ids, mentioned_groups, created_at, updated_at')
     .eq('fund_id', membership.fund_id)
     .order('created_at', { ascending: true })
 
@@ -63,14 +63,16 @@ export async function GET(req: NextRequest) {
     nameMap[m.user_id] = m.display_name
   }
 
-  // Batch-load company names for tagged notes
-  const companyIds = Array.from(new Set((notes ?? []).map(n => n.company_id).filter(Boolean))) as string[]
+  // Batch-load company names for tagged notes (both direct and @mentioned)
+  const allMentionedCompanyIds = Array.from(new Set(
+    (notes ?? []).flatMap(n => [...(n.company_id ? [n.company_id] : []), ...((n as any).mentioned_company_ids ?? [])])
+  )) as string[]
   const companyNameMap: Record<string, string> = {}
-  if (companyIds.length > 0) {
+  if (allMentionedCompanyIds.length > 0) {
     const { data: companies } = await admin
       .from('companies')
       .select('id, name')
-      .in('id', companyIds) as { data: { id: string; name: string }[] | null }
+      .in('id', allMentionedCompanyIds) as { data: { id: string; name: string }[] | null }
     for (const c of companies ?? []) {
       companyNameMap[c.id] = c.name
     }
@@ -93,6 +95,8 @@ export async function GET(req: NextRequest) {
       companyId: note.company_id,
       companyName: note.company_id ? companyNameMap[note.company_id] ?? null : null,
       mentionedUserIds: note.mentioned_user_ids ?? [],
+      mentionedCompanyIds: (note as any).mentioned_company_ids ?? [],
+      mentionedGroups: (note as any).mentioned_groups ?? [],
       isRead: note.user_id === user.id || readSet.has(note.id),
       createdAt: note.created_at,
       edited: note.updated_at !== note.created_at,
@@ -140,13 +144,37 @@ export async function POST(req: NextRequest) {
     companyName = company.name
   }
 
-  // Parse @mentions
+  // Parse @mentions for people
   const { data: members } = await admin
     .from('fund_members')
     .select('user_id, display_name')
     .eq('fund_id', membership.fund_id) as { data: { user_id: string; display_name: string | null }[] | null }
 
-  const mentionedUserIds = parseMentions(content.trim(), members ?? [])
+  // Resolve emails for members without display names
+  const membersWithFallback = await Promise.all(
+    (members ?? []).map(async (m) => {
+      if (m.display_name?.trim()) return m
+      const { data: { user: u } } = await admin.auth.admin.getUserById(m.user_id)
+      return { ...m, email: u?.email }
+    })
+  )
+
+  const mentionedUserIds = parseMentions(content.trim(), membersWithFallback)
+
+  // Parse @mentions for companies
+  const { data: allCompanies } = await admin
+    .from('companies')
+    .select('id, name')
+    .eq('fund_id', membership.fund_id) as { data: { id: string; name: string }[] | null }
+
+  const mentionedCompanyIds = parseCompanyMentions(content.trim(), allCompanies ?? [])
+
+  // Parse @mentions for portfolio groups
+  const distinctGroups = Array.from(new Set(
+    (allCompanies ?? [])
+      .flatMap((c: any) => Array.isArray(c.portfolio_group) ? c.portfolio_group : c.portfolio_group ? [c.portfolio_group] : [])
+  ))
+  const mentionedGroups = parseGroupMentions(content.trim(), distinctGroups)
 
   const { data: note, error } = await admin
     .from('company_notes')
@@ -156,6 +184,8 @@ export async function POST(req: NextRequest) {
       user_id: user.id,
       content: content.trim(),
       mentioned_user_ids: mentionedUserIds,
+      mentioned_company_ids: mentionedCompanyIds,
+      mentioned_groups: mentionedGroups,
     } as any)
     .select('id, content, user_id, company_id, created_at')
     .single() as { data: { id: string; content: string; user_id: string; company_id: string | null; created_at: string } | null; error: { message: string } | null }
@@ -186,6 +216,8 @@ export async function POST(req: NextRequest) {
     companyId: note.company_id,
     companyName,
     mentionedUserIds,
+    mentionedCompanyIds,
+    mentionedGroups,
     isRead: true,
     createdAt: note.created_at,
     edited: false,

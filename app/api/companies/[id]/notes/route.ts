@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { assertWriteAccess } from '@/lib/api-helpers'
 import { dbError } from '@/lib/api-error'
-import { parseMentions } from '@/lib/notes/mentions'
+import { parseMentions, parseCompanyMentions, parseGroupMentions } from '@/lib/notes/mentions'
 
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
   const supabase = createClient()
@@ -21,13 +21,32 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
 
   if (!company) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  const { data: notes, error } = await supabase
+  // Fetch notes directly on this company OR mentioning it via @tag
+  const { data: directNotes, error: directError } = await supabase
     .from('company_notes')
-    .select('id, content, user_id, mentioned_user_ids, created_at, updated_at')
+    .select('id, content, user_id, company_id, mentioned_user_ids, created_at, updated_at')
     .eq('company_id', params.id)
-    .order('created_at', { ascending: true }) as { data: { id: string; content: string; user_id: string; mentioned_user_ids: string[] | null; created_at: string; updated_at: string }[] | null; error: { message: string } | null }
+    .order('created_at', { ascending: true }) as { data: { id: string; content: string; user_id: string; company_id: string | null; mentioned_user_ids: string[] | null; created_at: string; updated_at: string }[] | null; error: { message: string } | null }
 
-  if (error) return dbError(error, 'companies-id-notes')
+  if (directError) return dbError(directError, 'companies-id-notes')
+
+  const { data: taggedNotes } = await admin
+    .from('company_notes')
+    .select('id, content, user_id, company_id, mentioned_user_ids, created_at, updated_at')
+    .eq('fund_id', company.fund_id)
+    .contains('mentioned_company_ids' as any, [params.id])
+    .order('created_at', { ascending: true }) as { data: { id: string; content: string; user_id: string; company_id: string | null; mentioned_user_ids: string[] | null; created_at: string; updated_at: string }[] | null }
+
+  // Merge and deduplicate
+  const seenIds = new Set<string>()
+  const notes: typeof directNotes = []
+  for (const n of [...(directNotes ?? []), ...(taggedNotes ?? [])]) {
+    if (!seenIds.has(n.id)) {
+      seenIds.add(n.id)
+      notes.push(n)
+    }
+  }
+  notes.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
 
   // Batch-load read status for current user
   const noteIds = (notes ?? []).map(n => n.id)
@@ -100,13 +119,30 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
   if (!company) return NextResponse.json({ error: 'Company not found' }, { status: 404 })
 
-  // Parse @mentions
+  // Parse @mentions for people
   const { data: members } = await admin
     .from('fund_members')
     .select('user_id, display_name')
     .eq('fund_id', company.fund_id) as { data: { user_id: string; display_name: string | null }[] | null }
 
-  const mentionedUserIds = parseMentions(content.trim(), members ?? [])
+  // Resolve emails for members without display names
+  const membersWithFallback = await Promise.all(
+    (members ?? []).map(async (m) => {
+      if (m.display_name?.trim()) return m
+      const { data: { user: u } } = await admin.auth.admin.getUserById(m.user_id)
+      return { ...m, email: u?.email }
+    })
+  )
+
+  const mentionedUserIds = parseMentions(content.trim(), membersWithFallback)
+
+  // Parse @mentions for companies
+  const { data: allCompanies } = await admin
+    .from('companies')
+    .select('id, name')
+    .eq('fund_id', company.fund_id) as { data: { id: string; name: string }[] | null }
+
+  const mentionedCompanyIds = parseCompanyMentions(content.trim(), allCompanies ?? [])
 
   const { data: note, error } = await supabase
     .from('company_notes')
@@ -116,6 +152,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       user_id: user.id,
       content: content.trim(),
       mentioned_user_ids: mentionedUserIds,
+      mentioned_company_ids: mentionedCompanyIds,
     } as any)
     .select('id, content, user_id, created_at')
     .single() as { data: { id: string; content: string; user_id: string; created_at: string } | null; error: { message: string } | null }
