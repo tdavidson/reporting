@@ -26,7 +26,7 @@ export function xirr(flows: CashFlow[]): number | null {
 
   // Try multiple starting guesses — a single guess can fail to converge
   // for very high or very low IRRs
-  const guesses = [0.1, 0.5, -0.3, 1.0, 5.0, 10.0, 0.01]
+  const guesses = [0.1, 0.5, -0.3, 1.0, 5.0, 10.0, 50.0, 100.0, 0.01]
   const totalAbsFlow = flows.reduce((s, f) => s + Math.abs(f.amount), 0)
 
   for (const guess of guesses) {
@@ -43,7 +43,7 @@ export function xirr(flows: CashFlow[]): number | null {
         break
       }
       rate = next
-      if (rate < -0.999 || rate > 1000) break
+      if (rate < -0.999 || rate > 1e6) break
     }
     if (converged || Math.abs(npv(rate)) < Math.max(1, totalAbsFlow * 1e-6)) {
       return rate
