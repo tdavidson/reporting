@@ -87,7 +87,7 @@ export function DashboardSparklines({ companyId, metrics }: Props) {
         return (
           <div key={m.id} className="flex items-center gap-2">
             <span className="text-[10px] text-muted-foreground w-16 truncate">{m.name}</span>
-            <div className="flex-1 h-6">
+            <div className="flex-1 h-6 min-w-0">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={values}>
                   <Line

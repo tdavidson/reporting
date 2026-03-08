@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { createBrowserClient } from '@supabase/ssr'
 import Image from 'next/image'
 import { Button } from '@/components/ui/button'
-import { ChevronLeft, ChevronRight, Github, Play } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Github, LogIn, Play } from 'lucide-react'
 
 const screenshots = [
   { src: '/screenshots/dashboard.png', label: 'Portfolio Dashboard' },
@@ -51,7 +51,11 @@ export default function LandingPage() {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <div className="mx-auto max-w-5xl px-4 py-16 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-5xl px-4 py-16 sm:px-6 lg:px-8 relative">
+        <a href="/auth" className="absolute top-4 right-4 text-sm text-muted-foreground hover:text-foreground sm:right-6 lg:right-8 inline-flex items-center gap-1.5">
+          <LogIn className="h-4 w-4" />
+          Sign in
+        </a>
         {/* Header */}
         <div className="flex flex-col items-center text-center mb-12 max-w-3xl mx-auto">
           <img

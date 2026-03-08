@@ -341,6 +341,7 @@ type InvestmentDef = {
   transaction_type: 'investment' | 'proceeds' | 'unrealized_gain_change'
   round_name?: string
   transaction_date: string
+  portfolio_group?: string
   notes?: string
   investment_cost?: number
   shares_acquired?: number
@@ -352,41 +353,41 @@ type InvestmentDef = {
 }
 
 const INVESTMENTS: InvestmentDef[] = [
-  // NovaTech — Seed + Series A
-  { companyName: 'NovaTech', transaction_type: 'investment', round_name: 'Seed', transaction_date: '2023-06-15', investment_cost: 500000, shares_acquired: 500000, share_price: 1.00, notes: 'Led seed round' },
-  { companyName: 'NovaTech', transaction_type: 'investment', round_name: 'Series A', transaction_date: '2024-09-01', investment_cost: 1500000, shares_acquired: 750000, share_price: 2.00, notes: 'Pro-rata follow-on' },
-  { companyName: 'NovaTech', transaction_type: 'unrealized_gain_change', transaction_date: '2025-12-31', unrealized_value_change: 2500000, current_share_price: 3.60, notes: 'Q4 2025 mark based on Series A+ term sheet' },
+  // NovaTech — Seed + Series A (Fund I)
+  { companyName: 'NovaTech', transaction_type: 'investment', round_name: 'Seed', transaction_date: '2023-06-15', portfolio_group: 'Fund I', investment_cost: 500000, shares_acquired: 500000, share_price: 1.00, notes: 'Led seed round' },
+  { companyName: 'NovaTech', transaction_type: 'investment', round_name: 'Series A', transaction_date: '2024-09-01', portfolio_group: 'Fund I', investment_cost: 1500000, shares_acquired: 750000, share_price: 2.00, notes: 'Pro-rata follow-on' },
+  { companyName: 'NovaTech', transaction_type: 'unrealized_gain_change', transaction_date: '2025-12-31', portfolio_group: 'Fund I', unrealized_value_change: 2500000, current_share_price: 3.60, notes: 'Q4 2025 mark based on Series A+ term sheet' },
 
-  // GreenLeaf Bio — Seed
-  { companyName: 'GreenLeaf Bio', transaction_type: 'investment', round_name: 'Seed', transaction_date: '2024-01-10', investment_cost: 750000, shares_acquired: 750000, share_price: 1.00, notes: 'Co-led seed with BioFund Partners' },
-  { companyName: 'GreenLeaf Bio', transaction_type: 'unrealized_gain_change', transaction_date: '2025-12-31', unrealized_value_change: 250000, current_share_price: 1.33, notes: 'Modest mark-up based on grant milestones' },
+  // GreenLeaf Bio — Seed (Fund I)
+  { companyName: 'GreenLeaf Bio', transaction_type: 'investment', round_name: 'Seed', transaction_date: '2024-01-10', portfolio_group: 'Fund I', investment_cost: 750000, shares_acquired: 750000, share_price: 1.00, notes: 'Co-led seed with BioFund Partners' },
+  { companyName: 'GreenLeaf Bio', transaction_type: 'unrealized_gain_change', transaction_date: '2025-12-31', portfolio_group: 'Fund I', unrealized_value_change: 250000, current_share_price: 1.33, notes: 'Modest mark-up based on grant milestones' },
 
-  // RouteWise — Seed + Series A + Series B
-  { companyName: 'RouteWise', transaction_type: 'investment', round_name: 'Seed', transaction_date: '2022-03-20', investment_cost: 400000, shares_acquired: 400000, share_price: 1.00 },
-  { companyName: 'RouteWise', transaction_type: 'investment', round_name: 'Series A', transaction_date: '2023-07-15', investment_cost: 1000000, shares_acquired: 333333, share_price: 3.00, notes: 'Full pro-rata' },
-  { companyName: 'RouteWise', transaction_type: 'investment', round_name: 'Series B', transaction_date: '2024-11-01', investment_cost: 2000000, shares_acquired: 285714, share_price: 7.00, notes: 'Led Series B' },
-  { companyName: 'RouteWise', transaction_type: 'unrealized_gain_change', transaction_date: '2025-12-31', unrealized_value_change: 6800000, current_share_price: 12.50, notes: 'Q4 2025 409A valuation' },
+  // RouteWise — Seed + Series A + Series B (Fund I)
+  { companyName: 'RouteWise', transaction_type: 'investment', round_name: 'Seed', transaction_date: '2022-03-20', portfolio_group: 'Fund I', investment_cost: 400000, shares_acquired: 400000, share_price: 1.00 },
+  { companyName: 'RouteWise', transaction_type: 'investment', round_name: 'Series A', transaction_date: '2023-07-15', portfolio_group: 'Fund I', investment_cost: 1000000, shares_acquired: 333333, share_price: 3.00, notes: 'Full pro-rata' },
+  { companyName: 'RouteWise', transaction_type: 'investment', round_name: 'Series B', transaction_date: '2024-11-01', portfolio_group: 'Fund I', investment_cost: 2000000, shares_acquired: 285714, share_price: 7.00, notes: 'Led Series B' },
+  { companyName: 'RouteWise', transaction_type: 'unrealized_gain_change', transaction_date: '2025-12-31', portfolio_group: 'Fund I', unrealized_value_change: 6800000, current_share_price: 12.50, notes: 'Q4 2025 409A valuation' },
 
-  // AdVantage — Series A
-  { companyName: 'AdVantage', transaction_type: 'investment', round_name: 'Series A', transaction_date: '2024-06-01', investment_cost: 2000000, shares_acquired: 800000, share_price: 2.50, notes: 'Co-invested with Growth Capital' },
-  { companyName: 'AdVantage', transaction_type: 'unrealized_gain_change', transaction_date: '2025-12-31', unrealized_value_change: 1200000, current_share_price: 4.00, notes: 'Based on latest revenue multiple' },
+  // AdVantage — Series A (Fund I)
+  { companyName: 'AdVantage', transaction_type: 'investment', round_name: 'Series A', transaction_date: '2024-06-01', portfolio_group: 'Fund I', investment_cost: 2000000, shares_acquired: 800000, share_price: 2.50, notes: 'Co-invested with Growth Capital' },
+  { companyName: 'AdVantage', transaction_type: 'unrealized_gain_change', transaction_date: '2025-12-31', portfolio_group: 'Fund I', unrealized_value_change: 1200000, current_share_price: 4.00, notes: 'Based on latest revenue multiple' },
 
-  // Verdant — Seed
-  { companyName: 'Verdant', transaction_type: 'investment', round_name: 'Seed', transaction_date: '2024-04-15', investment_cost: 600000, shares_acquired: 600000, share_price: 1.00, notes: 'Led seed round' },
+  // Verdant — Seed (Fund II)
+  { companyName: 'Verdant', transaction_type: 'investment', round_name: 'Seed', transaction_date: '2024-04-15', portfolio_group: 'Fund II', investment_cost: 600000, shares_acquired: 600000, share_price: 1.00, notes: 'Led seed round' },
 
-  // TapFin — Seed + Series A
-  { companyName: 'TapFin', transaction_type: 'investment', round_name: 'Seed', transaction_date: '2023-09-01', investment_cost: 350000, shares_acquired: 350000, share_price: 1.00 },
-  { companyName: 'TapFin', transaction_type: 'investment', round_name: 'Series A', transaction_date: '2024-12-01', investment_cost: 1500000, shares_acquired: 500000, share_price: 3.00, notes: 'Co-led with Fintech Africa' },
-  { companyName: 'TapFin', transaction_type: 'unrealized_gain_change', transaction_date: '2025-12-31', unrealized_value_change: 2100000, current_share_price: 5.65, notes: 'Mark based on GMV growth trajectory' },
+  // TapFin — Seed + Series A (Fund II)
+  { companyName: 'TapFin', transaction_type: 'investment', round_name: 'Seed', transaction_date: '2023-09-01', portfolio_group: 'Fund II', investment_cost: 350000, shares_acquired: 350000, share_price: 1.00 },
+  { companyName: 'TapFin', transaction_type: 'investment', round_name: 'Series A', transaction_date: '2024-12-01', portfolio_group: 'Fund II', investment_cost: 1500000, shares_acquired: 500000, share_price: 3.00, notes: 'Co-led with Fintech Africa' },
+  { companyName: 'TapFin', transaction_type: 'unrealized_gain_change', transaction_date: '2025-12-31', portfolio_group: 'Fund II', unrealized_value_change: 2100000, current_share_price: 5.65, notes: 'Mark based on GMV growth trajectory' },
 
-  // Benchline — Seed + Series A + Series B
-  { companyName: 'Benchline', transaction_type: 'investment', round_name: 'Seed', transaction_date: '2022-01-15', investment_cost: 300000, shares_acquired: 300000, share_price: 1.00 },
-  { companyName: 'Benchline', transaction_type: 'investment', round_name: 'Series A', transaction_date: '2023-04-01', investment_cost: 1200000, shares_acquired: 300000, share_price: 4.00, notes: 'Full pro-rata' },
-  { companyName: 'Benchline', transaction_type: 'investment', round_name: 'Series B', transaction_date: '2024-08-01', investment_cost: 2500000, shares_acquired: 250000, share_price: 10.00, notes: 'Led Series B at $85M pre' },
-  { companyName: 'Benchline', transaction_type: 'unrealized_gain_change', transaction_date: '2025-12-31', unrealized_value_change: 9500000, current_share_price: 18.82, notes: 'Q4 2025 mark based on $10M ARR milestone' },
+  // Benchline — Seed + Series A + Series B (Fund II)
+  { companyName: 'Benchline', transaction_type: 'investment', round_name: 'Seed', transaction_date: '2022-01-15', portfolio_group: 'Fund II', investment_cost: 300000, shares_acquired: 300000, share_price: 1.00 },
+  { companyName: 'Benchline', transaction_type: 'investment', round_name: 'Series A', transaction_date: '2023-04-01', portfolio_group: 'Fund II', investment_cost: 1200000, shares_acquired: 300000, share_price: 4.00, notes: 'Full pro-rata' },
+  { companyName: 'Benchline', transaction_type: 'investment', round_name: 'Series B', transaction_date: '2024-08-01', portfolio_group: 'Fund II', investment_cost: 2500000, shares_acquired: 250000, share_price: 10.00, notes: 'Led Series B at $85M pre' },
+  { companyName: 'Benchline', transaction_type: 'unrealized_gain_change', transaction_date: '2025-12-31', portfolio_group: 'Fund II', unrealized_value_change: 9500000, current_share_price: 18.82, notes: 'Q4 2025 mark based on $10M ARR milestone' },
 
-  // Lattis — Pre-Seed
-  { companyName: 'Lattis', transaction_type: 'investment', round_name: 'Pre-Seed', transaction_date: '2024-08-15', investment_cost: 250000, shares_acquired: 250000, share_price: 1.00, notes: 'Angel round' },
+  // Lattis — Pre-Seed (Fund II)
+  { companyName: 'Lattis', transaction_type: 'investment', round_name: 'Pre-Seed', transaction_date: '2024-08-15', portfolio_group: 'Fund II', investment_cost: 250000, shares_acquired: 250000, share_price: 1.00, notes: 'Angel round' },
 ]
 
 type FundCashFlowDef = {
@@ -605,10 +606,27 @@ export async function seedDemoData(adminUserId: string): Promise<boolean> {
         current_share_price: inv.current_share_price ?? null,
         cost_basis_exited: inv.cost_basis_exited ?? null,
         proceeds_received: inv.proceeds_received ?? null,
+        portfolio_group: inv.portfolio_group ?? null,
       })
     }
 
-    console.log('[demo] Backfilled investment transactions')
+    // Fix feature_visibility — ensure all features visible to everyone
+    await admin
+      .from('fund_settings')
+      .update({
+        feature_visibility: {
+          investments: 'everyone',
+          funds: 'everyone',
+          notes: 'everyone',
+          lp_letters: 'everyone',
+          imports: 'everyone',
+          asks: 'everyone',
+          interactions: 'everyone',
+        },
+      })
+      .eq('fund_id', existingFund.id)
+
+    console.log('[demo] Backfilled investment transactions and fixed feature visibility')
     return true
   }
 
@@ -670,10 +688,19 @@ export async function seedDemoData(adminUserId: string): Promise<boolean> {
     role: 'viewer',
   }, { onConflict: 'fund_id,user_id' })
 
-  // Create fund_settings
+  // Create fund_settings — all features visible to everyone (including demo viewer)
   await admin.from('fund_settings').insert({
     fund_id: fundId,
     postmark_webhook_token: 'demo-token',
+    feature_visibility: {
+      investments: 'everyone',
+      funds: 'everyone',
+      notes: 'everyone',
+      lp_letters: 'everyone',
+      imports: 'everyone',
+      asks: 'everyone',
+      interactions: 'everyone',
+    },
   })
 
   // -------------------------------------------------------------------------
@@ -920,6 +947,58 @@ export async function seedDemoData(adminUserId: string): Promise<boolean> {
       body_preview: intDef.body_preview,
       intro_contacts: intDef.intro_contacts ?? [],
       interaction_date: interactionDate,
+    })
+  }
+
+  // -------------------------------------------------------------------------
+  // LP Letter Template + Letter
+  // -------------------------------------------------------------------------
+  const { data: template } = await admin.from('lp_letter_templates').insert({
+    fund_id: fundId,
+    name: 'Default',
+    is_default: true,
+    source_type: 'default',
+    style_guide: 'Professional, concise quarterly update format. Lead with key metrics and highlights, then address challenges and outlook. Use data-driven language and avoid jargon.',
+  }).select('id').single()
+
+  if (template) {
+    // Fund I Q4 2025 letter
+    const fundICompanies = ['NovaTech', 'GreenLeaf Bio', 'RouteWise', 'AdVantage']
+    const fundINarratives = [
+      { name: 'NovaTech', narrative: 'NovaTech closed Q4 2025 with MRR reaching $225K, up 18% quarter-over-quarter and 88% year-over-year. Net revenue retention remains strong at 125%, driven by the launch of their AI-powered churn prediction module in October. The team expanded to 42 FTEs with key hires in enterprise sales. Cash position stands at $3.2M with a 14-month runway. The company is in early conversations for a Series A+ round at a $45M pre-money valuation. Key risk: concentration in mid-market SaaS segment.' },
+      { name: 'GreenLeaf Bio', narrative: 'GreenLeaf Bio made significant progress on their EPA regulatory submission, which is now on track for Q2 2026 approval. The team secured a $500K non-dilutive grant from the National Science Foundation. Revenue remains pre-commercial at $15K/month from pilot partnerships. Headcount grew to 12 with two PhD-level scientists joining the R&D team. Cash position of $580K provides approximately 8 months of runway. The company is exploring a bridge round to extend runway through EPA approval.' },
+      { name: 'RouteWise', narrative: 'RouteWise delivered another strong quarter with ARR crossing $8.5M, up 22% QoQ. The logistics optimization platform processed 2.1M routes in Q4, a 3x increase from Q4 2024. Gross margins improved to 78% as infrastructure costs scaled sub-linearly. The Series B funding ($15M at $85M pre) closed in November, extending runway to 24+ months. The team is expanding into European markets with a London office opening in Q1 2026. Notable new clients include two Fortune 500 retailers.' },
+      { name: 'AdVantage', narrative: 'AdVantage grew revenue to $180K MRR in Q4, up 12% from Q3. The ad-tech platform now serves 340 enterprise customers across retail and e-commerce verticals. Customer acquisition cost decreased 25% following the launch of self-serve onboarding. The team of 28 is focused on building programmatic TV capabilities for 2026. Cash position of $2.8M with 16 months runway. Exploring strategic partnerships with two major DSPs for distribution.' },
+    ]
+
+    const narratives = fundICompanies.map((name, i) => ({
+      company_id: companyIdMap[name] ?? '',
+      company_name: name,
+      narrative: fundINarratives[i]?.narrative ?? '',
+      updated_by: null,
+      updated_at: new Date().toISOString(),
+    })).filter(n => n.company_id)
+
+    const portfolioSummary = [
+      { company_id: companyIdMap['NovaTech'] ?? '', company_name: 'NovaTech', status: 'active', stage: 'Series A', total_invested: 2000000, fmv: 4500000, moic: 2.25 },
+      { company_id: companyIdMap['GreenLeaf Bio'] ?? '', company_name: 'GreenLeaf Bio', status: 'active', stage: 'Seed', total_invested: 750000, fmv: 1000000, moic: 1.33 },
+      { company_id: companyIdMap['RouteWise'] ?? '', company_name: 'RouteWise', status: 'active', stage: 'Series B', total_invested: 3400000, fmv: 12737500, moic: 3.75 },
+      { company_id: companyIdMap['AdVantage'] ?? '', company_name: 'AdVantage', status: 'active', stage: 'Series A', total_invested: 2000000, fmv: 3200000, moic: 1.6 },
+    ].filter(p => p.company_id)
+
+    await admin.from('lp_letters').insert({
+      fund_id: fundId,
+      template_id: template.id,
+      period_year: 2025,
+      period_quarter: 4,
+      is_year_end: true,
+      period_label: 'Q4 2025 / Year End 2025',
+      portfolio_group: 'Fund I',
+      company_narratives: narratives,
+      portfolio_summary: portfolioSummary,
+      full_draft: `# Hemrock Ventures — Fund I\n## Q4 2025 / Year End 2025 Portfolio Update\n\nDear Limited Partners,\n\nWe are pleased to share our Q4 2025 portfolio update for Fund I. The portfolio continues to perform well, with aggregate gross MOIC of 2.63x across four active companies. Total invested capital stands at $8.15M with a current portfolio FMV of $21.4M.\n\n### Portfolio Highlights\n\n- **RouteWise** remains our standout performer at 3.75x MOIC following a strong Series B close\n- **NovaTech** crossed $225K MRR with 88% YoY growth\n- **AdVantage** reduced CAC by 25% through self-serve onboarding\n- **GreenLeaf Bio** secured NSF grant and is on track for EPA approval in Q2 2026\n\n---\n\n${fundINarratives.map(n => `### ${n.name}\n\n${n.narrative}`).join('\n\n---\n\n')}\n\n---\n\nWe appreciate your continued partnership and look forward to discussing these results in our upcoming annual meeting.\n\nBest regards,\nHemrock Ventures`,
+      status: 'draft',
+      created_by: demoUserId,
     })
   }
 
