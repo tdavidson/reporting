@@ -23,7 +23,7 @@ const features: { icon: LucideIcon; title: string; text: string; href: string; s
 
 export default function HomePage() {
   return (
-    <div className="p-4 md:p-8">
+    <div className="p-4 pt-6 md:p-8">
       <h1 className="text-4xl md:text-7xl font-semibold tracking-tight mb-2 max-w-3xl">
         Track your portfolio. Forward updates.<br className="hidden md:block" /> Analyst does the rest.
       </h1>

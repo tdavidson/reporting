@@ -46,7 +46,7 @@ export default function ContactPage() {
   }
 
   return (
-    <div className="p-4 md:p-8">
+    <div className="p-4 pt-6 md:p-8">
       <h1 className="text-2xl font-semibold tracking-tight mb-6 flex items-center gap-3">
         <MessageCircle className="h-6 w-6 text-muted-foreground" />
         Contact

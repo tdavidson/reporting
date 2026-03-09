@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button'
 
 export default function PricingPage() {
   return (
-    <div className="p-4 md:p-8">
+    <div className="p-4 pt-6 md:p-8">
       <h1 className="text-2xl font-semibold tracking-tight mb-6 flex items-center gap-3">
         <Award className="h-6 w-6 text-muted-foreground" />
         Pricing

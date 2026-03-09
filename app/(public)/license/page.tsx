@@ -18,7 +18,7 @@ export default function LicensePage() {
   )
 
   return (
-    <div className="p-4 md:p-8">
+    <div className="p-4 pt-6 md:p-8">
       <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-3">
         <Scale className="h-6 w-6 text-muted-foreground" />
         License
