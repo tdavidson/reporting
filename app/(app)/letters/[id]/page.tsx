@@ -261,7 +261,7 @@ export default function LetterEditorPage() {
   return (
     <div className="p-4 md:py-8 md:pl-8 md:pr-4 w-full">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col gap-3 mb-6">
         <div className="flex items-center gap-3">
           <Link href="/letters" className="text-muted-foreground hover:text-foreground">
             <ArrowLeft className="h-4 w-4" />
@@ -273,7 +273,7 @@ export default function LetterEditorPage() {
             <p className="text-sm text-muted-foreground mt-0.5">{letter.portfolio_group}</p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button size="sm" variant="outline" onClick={copyToClipboard}>
             {copied ? <Check className="h-3.5 w-3.5 mr-1.5" /> : <Copy className="h-3.5 w-3.5 mr-1.5" />}
             {copied ? 'Copied' : 'Copy'}

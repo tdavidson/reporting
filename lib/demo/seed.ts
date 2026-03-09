@@ -431,7 +431,7 @@ const FUND_CASH_FLOWS: FundCashFlowDef[] = [
 
 type InteractionDef = {
   companyName: string | null
-  type: 'email' | 'intro'
+  tags: string[]
   subject: string
   summary: string
   body_preview: string
@@ -442,7 +442,7 @@ type InteractionDef = {
 const INTERACTIONS: InteractionDef[] = [
   {
     companyName: 'NovaTech',
-    type: 'email',
+    tags: [],
     subject: 'Re: Q4 board prep',
     summary: 'Sarah shared draft board deck and asked for feedback on the ARR bridge slide. Discussed hiring plan for Q1 and whether to bring on a VP Sales now or wait until Series A+ closes.',
     body_preview: 'Hi Taylor, attaching the draft board deck for Q4. Would love your feedback on the ARR bridge — we debated internally whether to show net new vs. expansion separately...',
@@ -450,7 +450,7 @@ const INTERACTIONS: InteractionDef[] = [
   },
   {
     companyName: 'NovaTech',
-    type: 'intro',
+    tags: ['intro'],
     subject: 'Intro: Sarah Chen <> David Park (VP Sales, Datadog)',
     summary: 'Introduction between Sarah Chen (NovaTech CEO) and David Park (VP Sales at Datadog) to discuss enterprise sales motion and playbook for scaling from $3M to $10M ARR.',
     body_preview: 'Sarah, David — connecting you two as discussed. David has scaled Datadog\'s mid-market sales team from 5 to 50 reps and has great perspective on the $3-10M ARR journey...',
@@ -461,7 +461,7 @@ const INTERACTIONS: InteractionDef[] = [
   },
   {
     companyName: 'RouteWise',
-    type: 'email',
+    tags: [],
     subject: 'Series C timing discussion',
     summary: 'James wants to start Series C conversations in Q3 2026. Discussed target raise ($30-40M), potential leads (a]6z, Coatue), and whether to hire a CFO before the process.',
     body_preview: 'Taylor, wanted to get your thoughts on timing for the C. We are tracking toward $8M ARR by mid-year and think that puts us in a strong position...',
@@ -469,7 +469,7 @@ const INTERACTIONS: InteractionDef[] = [
   },
   {
     companyName: 'RouteWise',
-    type: 'intro',
+    tags: ['intro'],
     subject: 'Intro: James Okafor <> Maria Santos (COO, Flexport)',
     summary: 'Introduction between James Okafor (RouteWise CEO) and Maria Santos (COO at Flexport) to explore potential partnership for last-mile delivery optimization.',
     body_preview: 'James, Maria — making this intro as promised. Maria\'s team at Flexport is looking at last-mile optimization partners and I think there could be a strong fit...',
@@ -480,7 +480,7 @@ const INTERACTIONS: InteractionDef[] = [
   },
   {
     companyName: 'Benchline',
-    type: 'email',
+    tags: [],
     subject: 'Re: Customer expansion update',
     summary: 'Emily shared that three large enterprise prospects are in late-stage trials. Discussed pricing strategy for annual contracts above $200K and whether to offer multi-year discounts.',
     body_preview: 'Quick update — we have Stripe, Notion, and Figma all in week 3 of their trials. Usage metrics look strong across all three. Wanted to discuss pricing...',
@@ -488,7 +488,7 @@ const INTERACTIONS: InteractionDef[] = [
   },
   {
     companyName: 'TapFin',
-    type: 'email',
+    tags: [],
     subject: 'FX hedging strategy',
     summary: 'Kemi flagged Naira volatility impacting USD-reported metrics. Discussed hedging options and whether to open a USD treasury account for operational reserves.',
     body_preview: 'Taylor, the Naira moved 8% against USD this month which is creating noise in our reported numbers. We want to discuss opening a USD account...',
@@ -496,7 +496,7 @@ const INTERACTIONS: InteractionDef[] = [
   },
   {
     companyName: 'TapFin',
-    type: 'intro',
+    tags: ['intro'],
     subject: 'Intro: Kemi Adeyemi <> Rachel Kim (Stripe Atlas)',
     summary: 'Connected Kemi with Rachel Kim from Stripe Atlas to discuss cross-border payment infrastructure and potential integration for TapFin\'s merchant onboarding flow.',
     body_preview: 'Kemi, Rachel — making this intro. Rachel runs partnerships at Stripe Atlas and I think there is a natural fit with TapFin\'s merchant onboarding...',
@@ -507,7 +507,7 @@ const INTERACTIONS: InteractionDef[] = [
   },
   {
     companyName: 'Verdant',
-    type: 'email',
+    tags: [],
     subject: 'Grant application update',
     summary: 'Anna confirmed DOE grant application submitted. $500K grant decision expected Q2. Also discussed adding a sales hire to target CSRD-affected European companies.',
     body_preview: 'Hi Taylor, good news — we submitted the DOE SBIR Phase II application on Friday. The review committee decisions should come out by end of Q2...',
@@ -515,7 +515,7 @@ const INTERACTIONS: InteractionDef[] = [
   },
   {
     companyName: 'Lattis',
-    type: 'intro',
+    tags: ['intro'],
     subject: 'Intro: Elena Vasquez <> Chris Nguyen (CTO, Scale AI)',
     summary: 'Introduction between Elena Vasquez (Lattis founder) and Chris Nguyen (CTO at Scale AI) to discuss potential design partnership on multimodal embeddings for enterprise RAG use cases.',
     body_preview: 'Elena, Chris — connecting you two. Chris\'s team at Scale is working on multimodal data pipelines and I think Lattis\'s embedding framework could be a great fit...',
@@ -526,7 +526,7 @@ const INTERACTIONS: InteractionDef[] = [
   },
   {
     companyName: null,
-    type: 'email',
+    tags: [],
     subject: 'LP meeting follow-up — portfolio allocation discussion',
     summary: 'Follow-up from LP advisory meeting covering Fund II deployment pace, reserve strategy, and initial Fund III timeline. LPs want to see more detail on Fund I realized returns at next meeting.',
     body_preview: 'Thanks for the productive discussion yesterday. Summarizing key takeaways: Fund II is 65% deployed with strong early signals...',
@@ -534,7 +534,7 @@ const INTERACTIONS: InteractionDef[] = [
   },
   {
     companyName: 'GreenLeaf Bio',
-    type: 'email',
+    tags: [],
     subject: 'FDA pre-submission feedback',
     summary: 'Priya shared positive feedback from FDA pre-submission meeting. Regulatory pathway looks clearer than expected. Team targeting Q2 2026 for clearance filing.',
     body_preview: 'Great news from the FDA meeting. The reviewer was positive about our data package and confirmed that 510(k) is the right pathway...',
@@ -542,7 +542,7 @@ const INTERACTIONS: InteractionDef[] = [
   },
   {
     companyName: 'AdVantage',
-    type: 'intro',
+    tags: ['intro'],
     subject: 'Intro: Jamie Lin <> Sam Patel (Head of Growth, HubSpot)',
     summary: 'Connected Jamie with Sam Patel at HubSpot to discuss potential integration partnership and co-marketing for ad creative optimization in the SMB segment.',
     body_preview: 'Jamie, Sam — connecting you two as discussed at dinner last week. Sam\'s team is looking for creative optimization partners for HubSpot\'s ad tools...',
@@ -626,7 +626,30 @@ export async function seedDemoData(adminUserId: string): Promise<boolean> {
       })
       .eq('fund_id', existingFund.id)
 
-    console.log('[demo] Backfilled investment transactions and fixed feature visibility')
+    // Clear and re-seed interactions
+    await admin
+      .from('interactions')
+      .delete()
+      .eq('fund_id', existingFund.id)
+
+    for (const intDef of INTERACTIONS) {
+      const companyId = intDef.companyName ? companyIdMap[intDef.companyName] ?? null : null
+      const interactionDate = new Date(Date.now() - intDef.days_ago * 86400000).toISOString()
+
+      await admin.from('interactions').insert({
+        fund_id: existingFund.id,
+        company_id: companyId,
+        user_id: adminUserId,
+        tags: intDef.tags,
+        subject: intDef.subject,
+        summary: intDef.summary,
+        body_preview: intDef.body_preview,
+        intro_contacts: intDef.intro_contacts ?? [],
+        interaction_date: interactionDate,
+      })
+    }
+
+    console.log('[demo] Backfilled investment transactions, interactions, and fixed feature visibility')
     return true
   }
 
@@ -941,7 +964,7 @@ export async function seedDemoData(adminUserId: string): Promise<boolean> {
       fund_id: fundId,
       company_id: companyId,
       user_id: demoUserId,
-      type: intDef.type,
+      tags: intDef.tags,
       subject: intDef.subject,
       summary: intDef.summary,
       body_preview: intDef.body_preview,

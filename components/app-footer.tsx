@@ -46,24 +46,20 @@ export function AppFooter() {
           </Link>
         </li>
         <li>
-          <a
-            href="https://www.hemrock.com/terms"
-            target="_blank"
-            rel="noopener noreferrer"
+          <Link
+            href="/terms"
             className="hover:text-foreground transition-colors"
           >
             Terms
-          </a>
+          </Link>
         </li>
         <li>
-          <a
-            href="https://www.hemrock.com/privacy"
-            target="_blank"
-            rel="noopener noreferrer"
+          <Link
+            href="/privacy"
             className="hover:text-foreground transition-colors"
           >
             Privacy
-          </a>
+          </Link>
         </li>
       </ul>
     </footer>

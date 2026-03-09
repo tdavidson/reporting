@@ -1,3 +1,5 @@
+import { Scale } from 'lucide-react'
+
 export default function LicensePage() {
   const tocLinks = (
     <ul className="space-y-1 text-muted-foreground">
@@ -16,23 +18,21 @@ export default function LicensePage() {
   )
 
   return (
-    <div className="min-h-screen bg-background p-4 md:p-8 max-w-screen-xl mx-auto flex flex-col items-center">
-      <div className="mb-6 max-w-3xl w-full">
-        <h1 className="text-2xl font-semibold tracking-tight">License</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Version 1.1 &mdash; Copyright &copy; 2026 Unstructured Ventures, LLC. All rights reserved.
-        </p>
-      </div>
+    <div className="p-4 md:p-8">
+      <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-3">
+        <Scale className="h-6 w-6 text-muted-foreground" />
+        License
+      </h1>
 
-      <div className="flex gap-16 max-w-3xl w-full">
+      {/* Table of contents — inline on mobile only */}
+      <nav className="xl:hidden mt-6 text-sm">
+        <h2 className="text-base font-medium mb-2">On this page</h2>
+        {tocLinks}
+      </nav>
+
+      <div className="flex gap-16 mt-6 xl:mt-6">
         {/* Main content */}
-        <div className="flex-1 min-w-0 max-w-3xl space-y-8 text-sm leading-relaxed">
-          {/* Table of contents — inline on mobile only */}
-          <nav className="xl:hidden">
-            <h2 className="text-base font-medium mb-2">On this page</h2>
-            {tocLinks}
-          </nav>
-
+        <div className="flex-1 min-w-0 max-w-3xl text-sm leading-relaxed space-y-8">
           {/* Summary */}
           <div id="summary">
             <h2 className="text-base font-medium mb-2">Summary</h2>
@@ -302,6 +302,10 @@ export default function LicensePage() {
               .
             </p>
           </div>
+
+          <p className="text-xs text-muted-foreground">
+            Version 1.1 &mdash; Copyright &copy; 2026 Unstructured Ventures, LLC. All rights reserved.
+          </p>
         </div>
 
         {/* TOC sidebar — desktop only */}
