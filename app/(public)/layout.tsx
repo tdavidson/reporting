@@ -19,6 +19,7 @@ import { Sheet, SheetContent } from '@/components/ui/sheet'
 import { SidebarProvider, useSidebar } from '@/components/sidebar-context'
 import { useTheme } from 'next-themes'
 import { AppFooter } from '@/components/app-footer'
+import { APP_VERSION } from '@/lib/version'
 
 const THEME_CYCLE = ['system', 'light', 'dark'] as const
 const THEME_ICONS = { system: Monitor, light: Sun, dark: Moon }
@@ -236,9 +237,12 @@ function PublicShell({ children }: { children: React.ReactNode }) {
             />
           </a>
           {!collapsed && (
-            <a href="https://www.hemrock.com" target="_blank" rel="noopener noreferrer" className="font-medium text-sm text-muted-foreground tracking-tight truncate hover:text-foreground transition-colors">
-              Hemrock
-            </a>
+            <>
+              <a href="https://www.hemrock.com" target="_blank" rel="noopener noreferrer" className="font-medium text-sm text-muted-foreground tracking-tight truncate hover:text-foreground transition-colors">
+                Hemrock
+              </a>
+              <span className="hidden md:inline-block text-[10px] font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400 px-1.5 py-0.5 rounded">v{APP_VERSION}</span>
+            </>
           )}
         </div>
 

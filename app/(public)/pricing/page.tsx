@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { Award, Github } from 'lucide-react'
+import { Award, Github, Heart } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 export default function PricingPage() {
@@ -98,6 +98,19 @@ export default function PricingPage() {
               contact him for details and pricing
             </Link>.
           </p>
+        </div>
+
+        {/* Sponsor */}
+        <div className="max-w-3xl rounded-lg border bg-muted/50 p-5 flex flex-col sm:flex-row sm:items-center gap-3">
+          <p className="text-base text-muted-foreground flex-1">
+            If you find this project useful, consider sponsoring its development.
+          </p>
+          <Button variant="outline" size="sm" asChild className="shrink-0 gap-2">
+            <a href="https://github.com/sponsors/tdavidson" target="_blank" rel="noopener noreferrer">
+              <Heart className="h-4 w-4 text-pink-500" />
+              Sponsor on GitHub
+            </a>
+          </Button>
         </div>
       </div>
     </div>

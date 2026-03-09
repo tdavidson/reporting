@@ -4,6 +4,14 @@ import { Button } from '@/components/ui/button'
 import { Github, Play, Mail, Upload, BarChart3, Brain, Handshake, FileText, ChevronRight, Lightbulb } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 
+function XIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" className={className}>
+      <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+    </svg>
+  )
+}
+
 const features: { icon: LucideIcon; title: string; text: string; href: string; screenshot: string }[] = [
   { icon: Mail, title: 'Automated report ingestion', text: 'Forward investor updates in any format and AI identifies the company, extracts metrics, and flags anything that needs review.', href: '/inbound-explainer', screenshot: '/screenshots/inbound-cropped.png' },
   { icon: Brain, title: 'AI-powered analysis', text: 'Generate company summaries, chat with an AI analyst about your portfolio, and draft LP letters — all grounded in your actual data.', href: '/dashboard-explainer', screenshot: '/screenshots/company-cropped.png' },
@@ -214,16 +222,35 @@ export default function HomePage() {
       {/* About */}
       <section className="mb-8">
         <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-          <div className="sm:col-span-3 rounded-lg border bg-muted/50 p-5 flex items-start gap-4">
-            <img
-              src="https://www.hemrock.com/_next/image?url=%2Fassets%2Ftdavidson.jpg&w=256&q=75"
-              alt="Taylor Davidson"
-              width={128}
-              height={128}
-              className="rounded-lg shrink-0"
-            />
-            <div>
-              <p className="text-base text-muted-foreground">
+          <div className="sm:col-span-3 rounded-lg border bg-muted/50 p-5">
+            <div className="flex items-start gap-4">
+              <img
+                src="https://www.hemrock.com/_next/image?url=%2Fassets%2Ftdavidson.jpg&w=256&q=75"
+                alt="Taylor Davidson"
+                width={128}
+                height={128}
+                className="rounded-lg shrink-0"
+              />
+              {/* Mobile: name + icon links, vertically centered */}
+              <div className="flex sm:hidden flex-col justify-center h-[128px]">
+                <p className="font-medium text-base mb-2">Taylor Davidson</p>
+                <ul className="text-sm text-muted-foreground space-y-1">
+                  <li>
+                    <a href="https://github.com/tdavidson" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 hover:text-foreground transition-colors">
+                      <Github className="h-4 w-4 shrink-0" />
+                      <span>github.com/tdavidson</span>
+                    </a>
+                  </li>
+                  <li>
+                    <a href="https://x.com/tdavidson" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 hover:text-foreground transition-colors">
+                      <XIcon className="h-4 w-4 shrink-0" />
+                      <span>x.com/tdavidson</span>
+                    </a>
+                  </li>
+                </ul>
+              </div>
+              {/* Desktop: full paragraph */}
+              <p className="hidden sm:block text-base text-muted-foreground">
                 <strong className="text-foreground">Taylor Davidson</strong> helps entrepreneurs and investors create and use financial
                 models for business decisions through his template financial models and
                 strategic advisory services at{' '}
@@ -241,6 +268,24 @@ export default function HomePage() {
                 .
               </p>
             </div>
+            {/* Mobile: paragraph below */}
+            <p className="sm:hidden text-base text-muted-foreground mt-3">
+              Helps entrepreneurs and investors create and use financial
+              models for business decisions through his template financial models and
+              strategic advisory services at{' '}
+              <a href="https://www.hemrock.com" className="underline hover:text-foreground">
+                Hemrock
+              </a>{' '}
+              (formerly Foresight). Fractional Chief Financial Officer for{' '}
+              <a href="https://laconiacapitalgroup.com" className="underline hover:text-foreground">
+                Laconia Capital Group
+              </a>
+              . Learn more and contact at{' '}
+              <a href="https://www.hemrock.com/about" className="underline hover:text-foreground">
+                About
+              </a>
+              .
+            </p>
           </div>
           <a
             href="https://foresight.is/fractional-cfo/"

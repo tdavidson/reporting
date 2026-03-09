@@ -63,7 +63,6 @@ export default function ContactPage() {
               className="rounded-lg shrink-0"
             />
             <div>
-              <h2 className="text-base font-medium mb-1">Taylor Davidson</h2>
               <p className="text-muted-foreground">
                 For questions about the platform, setup, licensing, managed hosting, or anything else,
                 reach out to Taylor Davidson at{' '}
