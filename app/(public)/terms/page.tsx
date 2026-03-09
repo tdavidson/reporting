@@ -249,15 +249,22 @@ export default function TermsPage() {
 
           {/* Contact */}
           <div className="rounded-lg border bg-card p-5">
+            <p className="text-muted-foreground mb-3">
+              Questions about these Terms? Contact us:
+            </p>
             <p className="text-muted-foreground">
-              Questions about these Terms? Contact{' '}
               <a
                 href="mailto:hello@hemrock.com"
                 className="text-foreground underline underline-offset-4 hover:text-foreground/80"
               >
                 hello@hemrock.com
               </a>
-              .
+            </p>
+            <p className="text-muted-foreground mt-3">
+              Unstructured Ventures, LLC<br />
+              Attn: Taylor Davidson<br />
+              6360 Broad St., #5226<br />
+              Pittsburgh, PA 15206
             </p>
           </div>
 
