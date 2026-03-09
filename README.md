@@ -380,6 +380,18 @@ You can send your colleagues at your fund an email directing them to the signup 
 
 > By default the app assumes all colleagues use the same email domain. If this is not the case, contact Taylor and we can change this restriction.
 
+### Verify your setup
+
+A built-in setup checklist page helps you confirm your deployment is correctly configured. To enable it, add this environment variable:
+
+```bash
+ENABLE_SETUP_PAGE=true
+```
+
+Then visit `/setup` (no login required). The page checks infrastructure (env vars, database connectivity, core tables), authentication (at least one user), fund configuration, AI provider keys, email setup, file storage, and authorized senders. Each check shows a green, red, or gray icon indicating whether it passed, failed (required), or is missing (optional). Help links point you to the relevant settings or docs.
+
+Once everything looks good, set `ENABLE_SETUP_PAGE=false` or remove the variable entirely to disable the page. When disabled, `/setup` behaves like any other protected route and redirects to `/auth`.
+
 ### Optional: Outbound email
 
 To send quarterly reporting requests or system notifications, configure an outbound email provider in **Settings > Outbound Email**:

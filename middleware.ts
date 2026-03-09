@@ -39,8 +39,10 @@ export async function middleware(request: NextRequest) {
   const isMarketingRoute = pathname === '/' || pathname === '/license' || pathname === '/demo' || pathname === '/contact' || pathname === '/terms' || pathname === '/privacy' || pathname === '/pricing' || pathname.endsWith('-explainer')
   const isPublicRoute = marketingEnabled && isMarketingRoute
 
-  // Unauthenticated users can only access /auth, API, and public routes
-  if (!user && !isAuthRoute && !isApiRoute && !isPublicRoute) {
+  const isSetupRoute = pathname === '/setup' && process.env.ENABLE_SETUP_PAGE === 'true'
+
+  // Unauthenticated users can only access /auth, API, public, and setup routes
+  if (!user && !isAuthRoute && !isApiRoute && !isPublicRoute && !isSetupRoute) {
     const url = request.nextUrl.clone()
     url.pathname = '/auth'
     return NextResponse.redirect(url)
