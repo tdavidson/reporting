@@ -16,8 +16,8 @@ const features: { icon: LucideIcon; title: string; text: string; href: string; s
 export default function HomePage() {
   return (
     <div className="p-4 md:p-8">
-      <h1 className="text-5xl md:text-7xl font-semibold tracking-tight mb-2 max-w-3xl">
-        Track your portfolio. Forward updates. AI does the rest.
+      <h1 className="text-4xl md:text-7xl font-semibold tracking-tight mb-2 max-w-3xl">
+        Track your portfolio. Forward updates.<br className="hidden md:block xl:hidden" /> AI does the rest.
       </h1>
       <p className="text-xl text-muted-foreground mb-8 max-w-2xl">
         Source-available portfolio reporting for venture capital firms, accelerators, and angel investors.
