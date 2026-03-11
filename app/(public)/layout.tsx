@@ -99,6 +99,21 @@ function PublicSidebar({ onNavigate }: { onNavigate?: () => void }) {
   return (
     <div className="flex flex-col flex-1">
       <nav className={`flex-1 p-2 space-y-0.5 ${collapsed ? 'md:px-1' : ''}`}>
+        {/* Demo link — shown only on mobile (sidebar drawer) */}
+        <a
+          href="https://portfolio.hemrock.com/demo"
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={onNavigate}
+          title={collapsed ? 'Try the Demo' : undefined}
+          className={`md:hidden flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors text-muted-foreground hover:text-foreground hover:bg-accent ${
+            collapsed ? 'md:justify-center md:px-0' : ''
+          }`}
+        >
+          <Play className="h-5 w-5 shrink-0" />
+          <span>Try the Demo</span>
+        </a>
+
         {TOP_ITEMS.map(({ href, label, icon }) => (
           <NavLink
             key={href}
@@ -248,10 +263,10 @@ function PublicShell({ children }: { children: React.ReactNode }) {
         </div>
 
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" asChild className="text-muted-foreground gap-2">
+          <Button variant="outline" size="sm" asChild className="text-muted-foreground gap-2 hidden sm:inline-flex">
             <a href="https://portfolio.hemrock.com/demo" target="_blank" rel="noopener noreferrer">
               <Play className="h-4 w-4" />
-              <span className="hidden sm:inline">Try the Demo</span>
+              Try the Demo
             </a>
           </Button>
           <Button variant="outline" size="sm" asChild className="text-muted-foreground gap-2">

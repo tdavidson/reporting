@@ -609,6 +609,7 @@ const FEATURE_META: Record<FeatureKey, { label: string; description: string; hre
   imports: { label: 'Imports', description: 'Bulk import companies and metrics from CSV files', href: '/support#import' },
   asks: { label: 'Asks', description: 'Track and send portfolio company requests to your network', href: '/support#asks' },
   lps: { label: 'LPs', description: 'Investor-level report cards with consolidated performance across fund vehicles', href: '/support#lps' },
+  lp_associates: { label: 'GP Entities', description: 'Entity ownership mappings and pro-rata associates calculations for LP reporting', href: '/support#lps' },
 }
 
 const VISIBILITY_OPTIONS: { value: FeatureVisibility; label: string; description: string }[] = [

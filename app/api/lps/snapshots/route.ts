@@ -79,7 +79,7 @@ export async function PUT(req: NextRequest) {
   if (writeCheck.role !== 'admin') return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
 
   const body = await req.json()
-  const { id, name, asOfDate, description, footerNote } = body
+  const { id, name, asOfDate, description, footerNote, associatesCalcEnabled } = body
 
   if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 })
   if (asOfDate && !/^\d{4}-\d{2}-\d{2}$/.test(asOfDate)) {
@@ -102,6 +102,10 @@ export async function PUT(req: NextRequest) {
     if (typeof footerNote !== 'string') return NextResponse.json({ error: 'footerNote must be a string' }, { status: 400 })
     if (footerNote.length > 2000) return NextResponse.json({ error: 'footerNote too long (max 2000 chars)' }, { status: 400 })
     updates.footer_note = footerNote
+  }
+  if (associatesCalcEnabled !== undefined) {
+    if (typeof associatesCalcEnabled !== 'boolean') return NextResponse.json({ error: 'associatesCalcEnabled must be a boolean' }, { status: 400 })
+    updates.associates_calc_enabled = associatesCalcEnabled
   }
 
   const { data, error } = await admin

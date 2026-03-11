@@ -2,12 +2,14 @@
 
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
-import { Loader2, Upload, Download, ChevronDown, ChevronRight, Trash2, Users, X, Check, Pencil, FileText, Settings } from 'lucide-react'
+import { Loader2, Upload, Download, ChevronDown, ChevronRight, Trash2, Users, X, Check, Pencil, FileText, Settings, Search, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 import { useCurrency, formatCurrency } from '@/components/currency-context'
 import { PortfolioGroupFilter } from '@/components/lp-portfolio-group-filter'
+import { AnalystToggleButton } from '@/components/analyst-button'
+import { AnalystPanel } from '@/components/analyst-panel'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -20,6 +22,7 @@ interface Snapshot {
   created_at: string
   description: string | null
   footer_note: string | null
+  associates_calc_enabled: boolean | null
 }
 
 interface LpInvestor {
@@ -43,6 +46,11 @@ interface LpInvestment {
   rvpi: number | null
   tvpi: number | null
   irr: number | null
+  input_commitment: number | null
+  input_paid_in_capital: number | null
+  input_distributions: number | null
+  input_nav: number | null
+  input_total_value: number | null
   lp_entities: {
     id: string
     entity_name: string
@@ -181,6 +189,13 @@ export default function SnapshotDetailPage() {
   // Report settings modal
   const [reportSettingsOpen, setReportSettingsOpen] = useState(false)
 
+  // Search
+  const [searchQuery, setSearchQuery] = useState('')
+
+  // Sort
+  const [sortColumn, setSortColumn] = useState<string | null>(null)
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
+
   // ----- Load data -----
   async function loadDetail() {
     setLoadingDetail(true)
@@ -216,10 +231,29 @@ export default function SnapshotDetailPage() {
     loadOverrides()
   }, [snapshotId])
 
+  // When associates calc is disabled, swap to input (original imported) values for display
+  const useInputValues = snapshot?.associates_calc_enabled === false
+
+  const effectiveInvestments = useMemo(() => {
+    if (!useInputValues) return investments
+    return investments.map(inv => {
+      // Only swap if input values exist (meaning the calc has run on this row before)
+      if (inv.input_commitment == null && inv.input_nav == null && inv.input_paid_in_capital == null) return inv
+      return {
+        ...inv,
+        commitment: inv.input_commitment ?? inv.commitment,
+        paid_in_capital: inv.input_paid_in_capital ?? inv.paid_in_capital,
+        distributions: inv.input_distributions ?? inv.distributions,
+        nav: inv.input_nav ?? inv.nav,
+        total_value: inv.input_total_value ?? inv.total_value,
+      }
+    })
+  }, [investments, useInputValues])
+
   // ----- Build investor rows (with parent-child grouping) -----
   const investorTree = useMemo(() => {
     const investmentsByInvestor = new Map<string, { name: string; investments: LpInvestment[] }>()
-    for (const inv of investments) {
+    for (const inv of effectiveInvestments) {
       const investorId = inv.lp_entities?.lp_investors?.id
       const investorName = inv.lp_entities?.lp_investors?.name
       if (!investorId || !investorName) continue
@@ -300,16 +334,16 @@ export default function SnapshotDetailPage() {
     }
 
     return rows.sort((a, b) => a.investorName.localeCompare(b.investorName))
-  }, [investments, investors])
+  }, [effectiveInvestments, investors])
 
   // All unique portfolio groups for filter
   const allGroups = useMemo(() => {
     const groups = new Set<string>()
-    for (const inv of investments) {
+    for (const inv of effectiveInvestments) {
       if (inv.portfolio_group) groups.add(inv.portfolio_group)
     }
     return Array.from(groups).sort()
-  }, [investments])
+  }, [effectiveInvestments])
 
   // Filtered investor tree
   const filteredInvestorTree = useMemo(() => {
@@ -325,6 +359,65 @@ export default function SnapshotDetailPage() {
     }
     return investorTree.map(n => filterNode(n)).filter(Boolean) as InvestorNode[]
   }, [investorTree, excludedGroups])
+
+  // Search + sort the filtered tree (top-level only)
+  const searchedAndSortedTree = useMemo(() => {
+    let result = filteredInvestorTree
+
+    // Search filter: match investor name or entity names
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim()
+      result = result.filter(node => {
+        if (node.investorName.toLowerCase().includes(q)) return true
+        return node.investments.some(inv =>
+          inv.lp_entities?.entity_name?.toLowerCase().includes(q)
+        )
+      })
+    }
+
+    // Sort (top-level only)
+    if (sortColumn) {
+      const dir = sortDirection === 'asc' ? 1 : -1
+      result = [...result].sort((a, b) => {
+        let av: any, bv: any
+        switch (sortColumn) {
+          case 'investor': av = a.investorName.toLowerCase(); bv = b.investorName.toLowerCase(); break
+          case 'commitment': av = a.commitment; bv = b.commitment; break
+          case 'paidInCapital': av = a.paidInCapital; bv = b.paidInCapital; break
+          case 'distributions': av = a.distributions; bv = b.distributions; break
+          case 'unrealizedValue': av = a.unrealizedValue; bv = b.unrealizedValue; break
+          case 'totalValue': av = a.totalValue; bv = b.totalValue; break
+          case 'pctFunded': av = a.pctFunded ?? -Infinity; bv = b.pctFunded ?? -Infinity; break
+          case 'dpi': av = a.dpi ?? -Infinity; bv = b.dpi ?? -Infinity; break
+          case 'rvpi': av = a.rvpi ?? -Infinity; bv = b.rvpi ?? -Infinity; break
+          case 'tvpi': av = a.tvpi ?? -Infinity; bv = b.tvpi ?? -Infinity; break
+          case 'irr': av = a.irr ?? -Infinity; bv = b.irr ?? -Infinity; break
+          default: return 0
+        }
+        if (av < bv) return -1 * dir
+        if (av > bv) return 1 * dir
+        return 0
+      })
+    }
+
+    return result
+  }, [filteredInvestorTree, searchQuery, sortColumn, sortDirection])
+
+  function handleSort(col: string) {
+    if (sortColumn === col) {
+      if (sortDirection === 'asc') setSortDirection('desc')
+      else { setSortColumn(null); setSortDirection('asc') }
+    } else {
+      setSortColumn(col)
+      setSortDirection(col === 'investor' ? 'asc' : 'desc')
+    }
+  }
+
+  function SortIcon({ col }: { col: string }) {
+    if (sortColumn !== col) return <ArrowUpDown className="h-3 w-3 ml-1 opacity-0 group-hover/th:opacity-50 inline" />
+    if (sortDirection === 'asc') return <ArrowUp className="h-3 w-3 ml-1 inline" />
+    return <ArrowDown className="h-3 w-3 ml-1 inline" />
+  }
 
   // Associates entity names (normalized) — these are GP vehicles whose value is
   // already reflected in individual investors' pro-rata shares, so we exclude
@@ -343,7 +436,7 @@ export default function SnapshotDetailPage() {
     const norm = (s: string) => s.replace(/,/g, '').toLowerCase().trim()
     let commitment = 0, paidInCapital = 0, distributions = 0, unrealizedValue = 0
     let investorCount = 0
-    for (const r of filteredInvestorTree) {
+    for (const r of searchedAndSortedTree) {
       if (assocEntityNames.has(norm(r.investorName))) continue
       commitment += r.commitment
       paidInCapital += r.paidInCapital
@@ -360,7 +453,7 @@ export default function SnapshotDetailPage() {
       tvpi: paidInCapital > 0 ? totalValue / paidInCapital : null,
       investorCount,
     }
-  }, [filteredInvestorTree, assocEntityNames])
+  }, [searchedAndSortedTree, assocEntityNames])
 
   const groupTargets = useMemo(() => {
     return investors.sort((a, b) => a.name.localeCompare(b.name))
@@ -611,12 +704,34 @@ export default function SnapshotDetailPage() {
 
   return (
     <div className="p-4 md:py-8 md:pl-8 md:pr-4 w-full">
-      {/* Header */}
-      <div className="flex flex-wrap items-center gap-4 mb-6">
+      {/* Header row 1: title + analyst */}
+      <div className="flex items-center justify-between mb-4">
         <h1 className="text-2xl font-semibold tracking-tight">
           {snapshot?.name ?? 'Loading...'}
         </h1>
-        <span className="flex-1" />
+        <AnalystToggleButton />
+      </div>
+
+      {/* Header row 2: search, filters, actions */}
+      <div className="flex flex-wrap items-center gap-2 mb-6">
+        <div className="relative">
+          <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            placeholder="Search investors..."
+            className="w-40 md:w-56 border border-input rounded pl-7 pr-2 py-1.5 text-sm bg-transparent text-foreground placeholder:text-muted-foreground"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          )}
+        </div>
         {allGroups.length > 1 && (
           <PortfolioGroupFilter
             allGroups={allGroups}
@@ -631,6 +746,7 @@ export default function SnapshotDetailPage() {
             )}
           />
         )}
+        <span className="flex-1" />
         <Button variant="outline" size="sm" onClick={() => { setImportOpen(!importOpen); setImportResult(null) }}>
           <Upload className="h-4 w-4 mr-1" />
           Import
@@ -651,6 +767,9 @@ export default function SnapshotDetailPage() {
         </Button>
       </div>
 
+      <div className="flex flex-col lg:flex-row gap-6 items-start">
+      <div className="flex-1 min-w-0 w-full">
+
       {/* Import Section */}
       {importOpen && (
         <div className="mb-6 border rounded-lg p-4">
@@ -669,8 +788,10 @@ export default function SnapshotDetailPage() {
               {importing ? 'Importing...' : 'Import'}
             </Button>
             {importResult && (
-              <span className="text-sm text-muted-foreground">
-                {importResult.created} created, {importResult.updated} updated
+              <span className={`text-sm ${importResult.created === 0 && importResult.updated === 0 ? 'text-red-600' : 'text-muted-foreground'}`}>
+                {importResult.created === 0 && importResult.updated === 0
+                  ? 'No investors imported'
+                  : `${importResult.created} created, ${importResult.updated} updated`}
                 {importResult.errors.length > 0 && ` (${importResult.errors.length} errors)`}
               </span>
             )}
@@ -732,24 +853,24 @@ export default function SnapshotDetailPage() {
             <table className="w-full text-sm whitespace-nowrap">
               <thead>
                 <tr className="border-b bg-muted">
-                  <th className="text-left px-3 py-2 font-medium sticky left-0 bg-muted z-10 min-w-[180px]">Investor</th>
-                  <th className="text-right px-3 py-2 font-medium">Commitment</th>
-                  <th className="text-right px-3 py-2 font-medium">Paid-in Capital</th>
-                  <th className="text-right px-3 py-2 font-medium">Distributions</th>
-                  <th className="text-right px-3 py-2 font-medium">Net Asset Balance</th>
-                  <th className="text-right px-3 py-2 font-medium">Total Value</th>
-                  <th className="text-right px-3 py-2 font-medium">% Funded</th>
-                  <th className="text-right px-3 py-2 font-medium">DPI</th>
-                  <th className="text-right px-3 py-2 font-medium">RVPI</th>
-                  <th className="text-right px-3 py-2 font-medium">TVPI</th>
-                  <th className="text-right px-3 py-2 font-medium">IRR</th>
+                  <th className="text-left px-3 py-2 font-medium sticky left-0 bg-muted z-10 min-w-[180px] cursor-pointer select-none group/th" onClick={() => handleSort('investor')}>Investor<SortIcon col="investor" /></th>
+                  <th className="text-right px-3 py-2 font-medium cursor-pointer select-none group/th" onClick={() => handleSort('commitment')}>Commitment<SortIcon col="commitment" /></th>
+                  <th className="text-right px-3 py-2 font-medium cursor-pointer select-none group/th" onClick={() => handleSort('paidInCapital')}>Paid-in Capital<SortIcon col="paidInCapital" /></th>
+                  <th className="text-right px-3 py-2 font-medium cursor-pointer select-none group/th" onClick={() => handleSort('distributions')}>Distributions<SortIcon col="distributions" /></th>
+                  <th className="text-right px-3 py-2 font-medium cursor-pointer select-none group/th" onClick={() => handleSort('unrealizedValue')}>Net Asset Balance<SortIcon col="unrealizedValue" /></th>
+                  <th className="text-right px-3 py-2 font-medium cursor-pointer select-none group/th" onClick={() => handleSort('totalValue')}>Total Value<SortIcon col="totalValue" /></th>
+                  <th className="text-right px-3 py-2 font-medium cursor-pointer select-none group/th" onClick={() => handleSort('pctFunded')}>% Funded<SortIcon col="pctFunded" /></th>
+                  <th className="text-right px-3 py-2 font-medium cursor-pointer select-none group/th" onClick={() => handleSort('dpi')}>DPI<SortIcon col="dpi" /></th>
+                  <th className="text-right px-3 py-2 font-medium cursor-pointer select-none group/th" onClick={() => handleSort('rvpi')}>RVPI<SortIcon col="rvpi" /></th>
+                  <th className="text-right px-3 py-2 font-medium cursor-pointer select-none group/th" onClick={() => handleSort('tvpi')}>TVPI<SortIcon col="tvpi" /></th>
+                  <th className="text-right px-3 py-2 font-medium cursor-pointer select-none group/th" onClick={() => handleSort('irr')}>IRR<SortIcon col="irr" /></th>
                   <th className="text-right px-3 py-2 font-medium text-muted-foreground/60 text-xs">Imp. RVPI</th>
                   <th className="text-right px-3 py-2 font-medium text-muted-foreground/60 text-xs">Imp. TVPI</th>
                   <th className="px-3 py-2 w-8"></th>
                 </tr>
               </thead>
               <tbody>
-                {filteredInvestorTree.map(node => (
+                {searchedAndSortedTree.map(node => (
                   <InvestorTreeRows
                     key={node.investorId}
                     node={node}
@@ -796,6 +917,10 @@ export default function SnapshotDetailPage() {
           </div>
         </>
       )}
+
+      </div>
+      <AnalystPanel />
+      </div>
 
       {/* Grouping Dialog */}
       <Dialog open={!!groupingInvestorId} onOpenChange={open => { if (!open) setGroupingInvestorId(null) }}>
@@ -870,6 +995,33 @@ export default function SnapshotDetailPage() {
             <DialogDescription>Configure header, footer, and other report options for this snapshot.</DialogDescription>
           </DialogHeader>
           <div className="flex-1 overflow-y-auto space-y-4 min-h-0">
+            <div className="flex items-center justify-between">
+              <div>
+                <label className="text-sm font-medium">Show Associates Calculations</label>
+                <p className="text-xs text-muted-foreground">When on, displays pro-rata calculated values. When off, displays the original imported values.</p>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={snapshot?.associates_calc_enabled !== false}
+                onClick={() => {
+                  const newVal = !(snapshot?.associates_calc_enabled !== false)
+                  setSnapshot(prev => prev ? { ...prev, associates_calc_enabled: newVal } : prev)
+                  fetch('/api/lps/snapshots', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: snapshotId, associatesCalcEnabled: newVal }),
+                  })
+                }}
+                className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${
+                  snapshot?.associates_calc_enabled !== false ? 'bg-foreground' : 'bg-muted-foreground/30'
+                }`}
+              >
+                <span className={`pointer-events-none inline-block h-4 w-4 rounded-full bg-background shadow-sm transition-transform ${
+                  snapshot?.associates_calc_enabled !== false ? 'translate-x-4' : 'translate-x-0'
+                }`} />
+              </button>
+            </div>
             <div>
               <div className="flex items-center gap-2 mb-1">
                 <label className="text-sm font-medium">Header</label>

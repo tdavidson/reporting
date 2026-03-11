@@ -1,7 +1,9 @@
 import Image from 'next/image'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
-import { Github, Play, Mail, Upload, BarChart3, Brain, Handshake, FileText, ChevronRight, Lightbulb, Database, TableProperties, Shield, Users } from 'lucide-react'
+import { Github, Play, Mail, Upload, BarChart3, Brain, Handshake, FileText, ChevronRight, Lightbulb, Database, TableProperties, ShieldUser, Users, Calendar, Send } from 'lucide-react'
+import { CalendlyButton } from '@/components/calendly-button'
+import { SubscriptionInquiryButton } from '@/components/subscription-inquiry-modal'
 import type { LucideIcon } from 'lucide-react'
 
 function XIcon({ className }: { className?: string }) {
@@ -25,7 +27,7 @@ export default function HomePage() {
   return (
     <div className="p-4 pt-6 md:p-8">
       <h1 className="text-4xl md:text-7xl font-semibold tracking-tight mb-2 max-w-3xl">
-        Track your portfolio.<br /> Forward updates.<br /> Analyst does the rest.
+        Run your fund with Analyst
       </h1>
       <p className="text-xl text-muted-foreground mb-8 max-w-2xl">
         Source-available portfolio reporting for venture capital firms, accelerators, and angel investors.
@@ -38,7 +40,7 @@ export default function HomePage() {
           <Link
             key={title}
             href={href}
-            className="group rounded-lg border overflow-hidden transition-colors hover:bg-accent/50"
+            className="group rounded-lg border overflow-hidden transition-colors hover:bg-accent/50 flex flex-col"
           >
             <div className="p-4 flex gap-3">
               <Icon className="h-5 w-5 text-muted-foreground shrink-0 mt-0.5" />
@@ -47,14 +49,14 @@ export default function HomePage() {
                 <p className="text-sm text-muted-foreground">{text}</p>
               </div>
             </div>
-            <div className="relative h-[312px] bg-muted overflow-hidden border-t">
+            <div className="relative h-[312px] overflow-hidden border-t mt-auto">
               <Image
                 src={screenshot}
                 alt={title}
                 fill
+                sizes="(max-width: 768px) 100vw, 50vw"
                 className="object-cover object-left-top"
               />
-              <div className="absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-muted/60 to-transparent" />
             </div>
           </Link>
         ))}
@@ -75,7 +77,7 @@ export default function HomePage() {
             <p className="text-sm text-muted-foreground">Bring your fund data to your own AI, and use it to ask anything about your portfolio and fund. Ask about benchmarks, trends, industry data, research, and more.</p>
           </div>
           <div className="rounded-lg border p-5">
-            <Shield className="h-5 w-5 text-muted-foreground mb-3" />
+            <ShieldUser className="h-5 w-5 text-muted-foreground mb-3" />
             <h3 className="text-sm font-medium mb-1">Professionalize internal operations</h3>
             <p className="text-sm text-muted-foreground">Institutional-quality reporting infrastructure without the cost of enterprise software. Run it yourself, on your own terms.</p>
           </div>
@@ -137,9 +139,10 @@ export default function HomePage() {
               <li>Setup and onboarding included</li>
               <li>Ongoing support available</li>
             </ul>
-            <Button variant="outline" size="sm" asChild className="w-full">
-              <Link href="/contact">Contact Taylor</Link>
-            </Button>
+            <CalendlyButton url="https://calendly.com/foresighthq/15min" className="w-full">
+              <Calendar className="h-4 w-4 mr-1.5" />
+              Book a Demo
+            </CalendlyButton>
           </div>
           <div className="rounded-lg border p-6 flex flex-col">
             <h3 className="font-semibold mb-1">Commercial</h3>
@@ -151,9 +154,23 @@ export default function HomePage() {
               <li>Use across multiple clients</li>
             </ul>
             <Button variant="outline" size="sm" asChild className="w-full">
-              <Link href="/contact">Contact Taylor</Link>
+              <Link href="/contact"><Mail className="h-3.5 w-3.5 mr-1.5" />Contact Taylor</Link>
             </Button>
           </div>
+        </div>
+        <div className="rounded-lg border bg-muted/50 p-6 flex flex-col sm:flex-row sm:items-center gap-4 mt-4">
+          <div className="flex-1">
+            <h3 className="font-semibold mb-1">Subscription</h3>
+            <p className="text-2xl font-bold mb-1">Hosted</p>
+            <p className="text-sm text-muted-foreground">
+              Monthly subscription. Login at{' '}
+              <a href="https://portfolio.hemrock.com" target="_blank" rel="noopener noreferrer" className="underline hover:text-foreground">portfolio.hemrock.com</a>
+              , set up your fund, and run on our servers. Onboarding assistance available.
+            </p>
+          </div>
+          <SubscriptionInquiryButton className="shrink-0">
+            <Send className="h-3.5 w-3.5 mr-1.5" />Request Access
+          </SubscriptionInquiryButton>
         </div>
       </section>
 

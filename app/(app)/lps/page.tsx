@@ -227,11 +227,13 @@ export default function LPsPage() {
         </div>
       )}
 
-      {/* Entity Ownership Detail (fund-level, optional) */}
+      {/* Entity Ownership Detail (fund-level, optional) — gated by lp_associates feature visibility */}
+      {(fv.lp_associates === 'everyone' || fv.lp_associates === 'admin') && (
       <details className="mt-8 group">
         <summary className="flex cursor-pointer items-center gap-2 mb-3 [&::-webkit-details-marker]:hidden">
           <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0 transition-transform group-open:rotate-90" />
           <h3 className="text-base font-medium">Optional: Entity Ownership Detail</h3>
+          {fv.lp_associates === 'admin' && <Lock className="h-3.5 w-3.5 text-amber-500" />}
         </summary>
         <p className="text-xs text-muted-foreground mb-3 pl-6">
           Map investor entities to their ownership in GP-managed entities (e.g. associates or co-invest vehicles). GP entity investments are excluded from totals to avoid double-counting.
@@ -372,6 +374,7 @@ export default function LPsPage() {
         </div>
         </div>
       </details>
+      )}
 
       {/* Create Snapshot Dialog */}
       <Dialog open={createOpen} onOpenChange={open => { if (!open) setCreateOpen(false) }}>

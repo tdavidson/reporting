@@ -219,9 +219,17 @@ export async function POST(req: NextRequest) {
         }
 
         if (existing) {
+          // Preserve original imported values in input_* columns for auditing
+          const inputSnapshot: Record<string, any> = {}
+          if (existing.input_commitment == null) inputSnapshot.input_commitment = Number(existing.commitment) || null
+          if (existing.input_paid_in_capital == null) inputSnapshot.input_paid_in_capital = Number(existing.paid_in_capital) || null
+          if (existing.input_distributions == null) inputSnapshot.input_distributions = Number(existing.distributions) || null
+          if (existing.input_nav == null) inputSnapshot.input_nav = Number(existing.nav) || null
+          if (existing.input_total_value == null) inputSnapshot.input_total_value = Number(existing.total_value) || null
+
           const { error } = await admin
             .from('lp_investments' as any)
-            .update(metricData)
+            .update({ ...metricData, ...inputSnapshot })
             .eq('id', existing.id)
             .eq('fund_id', fundId)
 
@@ -231,7 +239,7 @@ export async function POST(req: NextRequest) {
             updated++
           }
         } else {
-          // Create new investment row
+          // Create new investment row — no input values since this is a new calc-generated row
           const { error } = await admin
             .from('lp_investments' as any)
             .insert({

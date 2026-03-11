@@ -1,6 +1,8 @@
 import Link from 'next/link'
-import { Tag, Github, Heart } from 'lucide-react'
+import { Tag, Github, Heart, Calendar, Mail, Send } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { CalendlyButton } from '@/components/calendly-button'
+import { SubscriptionInquiryButton } from '@/components/subscription-inquiry-modal'
 
 export default function PricingPage() {
   return (
@@ -46,9 +48,10 @@ export default function PricingPage() {
               <li>Setup and onboarding included</li>
               <li>Ongoing support available</li>
             </ul>
-            <Button variant="outline" size="sm" asChild className="w-full">
-              <Link href="/contact">Contact Taylor</Link>
-            </Button>
+            <CalendlyButton url="https://calendly.com/foresighthq/15min" className="w-full">
+              <Calendar className="h-4 w-4 mr-1.5" />
+              Book a Demo
+            </CalendlyButton>
           </div>
           <div className="rounded-lg border p-6 flex flex-col">
             <h3 className="font-semibold mb-1">Commercial</h3>
@@ -60,9 +63,23 @@ export default function PricingPage() {
               <li>Use across multiple clients</li>
             </ul>
             <Button variant="outline" size="sm" asChild className="w-full">
-              <Link href="/contact">Contact Taylor</Link>
+              <Link href="/contact"><Mail className="h-3.5 w-3.5 mr-1.5" />Contact Taylor</Link>
             </Button>
           </div>
+        </div>
+        <div className="rounded-lg border bg-muted/50 p-6 flex flex-col sm:flex-row sm:items-center gap-4 mt-4">
+          <div className="flex-1">
+            <h3 className="font-semibold mb-1">Subscription</h3>
+            <p className="text-2xl font-bold mb-1">Hosted</p>
+            <p className="text-sm text-muted-foreground">
+              Monthly subscription. Login at{' '}
+              <a href="https://portfolio.hemrock.com" target="_blank" rel="noopener noreferrer" className="underline hover:text-foreground">portfolio.hemrock.com</a>
+              , set up your fund, and run on our servers. Onboarding assistance available.
+            </p>
+          </div>
+          <SubscriptionInquiryButton className="shrink-0">
+            <Send className="h-3.5 w-3.5 mr-1.5" />Request Access
+          </SubscriptionInquiryButton>
         </div>
 
         {/* Cost details */}

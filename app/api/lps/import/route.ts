@@ -224,14 +224,21 @@ ${rawData}`,
     }
   }
 
-  // Filter out rows where all financial fields are empty (transfer artifacts)
-  parsed.investments = parsed.investments.filter(r =>
-    (r.commitment && r.commitment !== 0) ||
-    (r.nav && r.nav !== 0) ||
-    (r.paid_in_capital && r.paid_in_capital !== 0) ||
-    (r.total_value && r.total_value !== 0) ||
-    (r.distributions && r.distributions !== 0)
-  )
+  // Filter out rows where all financial fields are empty AND investor name looks like a header/artifact
+  // Keep rows with a valid investor name even if all values are zero (e.g. GP carry recipients)
+  parsed.investments = parsed.investments.filter(r => {
+    const hasAnyValue =
+      (r.commitment != null && r.commitment !== 0) ||
+      (r.nav != null && r.nav !== 0) ||
+      (r.paid_in_capital != null && r.paid_in_capital !== 0) ||
+      (r.total_value != null && r.total_value !== 0) ||
+      (r.distributions != null && r.distributions !== 0)
+    if (hasAnyValue) return true
+    // Keep zero-value rows if they have explicit zero commitment (intentional)
+    if (r.commitment === 0 || r.paid_in_capital === 0) return true
+    // Filter out rows with no values at all (likely parse artifacts)
+    return false
+  })
 
   // Fetch existing investors and entities for this fund
   const { data: existingInvestors } = await admin

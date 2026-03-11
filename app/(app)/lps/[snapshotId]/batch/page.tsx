@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { Loader2, ArrowLeft, Download, CheckSquare, Square } from 'lucide-react'
+import { Loader2, ArrowLeft, Download, CheckSquare, Square, Search, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useCurrency, formatCurrency, formatCurrencyFull } from '@/components/currency-context'
 import { PortfolioGroupFilter } from '@/components/lp-portfolio-group-filter'
@@ -119,6 +119,7 @@ export default function BatchPDFPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [generating, setGenerating] = useState(false)
   const [excludedGroups, setExcludedGroups] = useState<Set<string>>(new Set())
+  const [searchQuery, setSearchQuery] = useState('')
 
   useEffect(() => {
     async function load() {
@@ -161,6 +162,13 @@ export default function BatchPDFPage() {
     }
     return Array.from(map.values()).sort((a, b) => a.investorName.localeCompare(b.investorName))
   }, [allInvestments])
+
+  // Search-filtered investors
+  const filteredInvestors = useMemo(() => {
+    if (!searchQuery.trim()) return investors
+    const q = searchQuery.toLowerCase().trim()
+    return investors.filter(inv => inv.investorName.toLowerCase().includes(q))
+  }, [investors, searchQuery])
 
   // All unique portfolio groups for filter
   const allGroups = useMemo(() => {
@@ -269,6 +277,23 @@ export default function BatchPDFPage() {
           </Button>
         </div>
 
+        {/* Search */}
+        <div className="relative max-w-xl mb-3">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            placeholder="Search investors..."
+            className="w-full pl-8 pr-8 py-1.5 text-sm border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-ring"
+          />
+          {searchQuery && (
+            <button onClick={() => setSearchQuery('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
+
         <div className="border rounded-lg max-w-xl">
           <div
             className="flex items-center gap-3 px-4 py-2 border-b bg-muted cursor-pointer hover:bg-muted/80"
@@ -281,7 +306,7 @@ export default function BatchPDFPage() {
             <span className="text-sm font-medium">Select All ({investors.length} investors)</span>
           </div>
           <div className="max-h-[60vh] overflow-y-auto">
-            {investors.map(inv => (
+            {filteredInvestors.map(inv => (
               <div
                 key={inv.investorId}
                 className="flex items-center gap-3 px-4 py-2 border-b last:border-b-0 cursor-pointer hover:bg-muted/30"
