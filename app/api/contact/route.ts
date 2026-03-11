@@ -1,13 +1,15 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
+import { rateLimit, getClientIp } from '@/lib/rate-limit'
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const MIN_SUBMIT_MS = 2000 // reject submissions faster than 2s
-const RATE_WINDOW_MS = 60_000
-const RATE_LIMIT = 3
-const ipTimestamps = new Map<string, number[]>()
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
+    // Rate limit by IP (DB-backed, works across serverless instances)
+    const limited = await rateLimit({ key: `contact:${getClientIp(request)}`, limit: 3, windowSeconds: 60 })
+    if (limited) return limited
+
     const { name, email, message, website, t } = await request.json()
 
     // Honeypot — bots fill this hidden field
@@ -35,16 +37,6 @@ export async function POST(request: Request) {
     if (!EMAIL_RE.test(email)) {
       return NextResponse.json({ error: 'Please enter a valid email address' }, { status: 400 })
     }
-
-    // Rate limit by IP
-    const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
-    const now = Date.now()
-    const timestamps = (ipTimestamps.get(ip) || []).filter((ts) => now - ts < RATE_WINDOW_MS)
-    if (timestamps.length >= RATE_LIMIT) {
-      return NextResponse.json({ error: 'Too many requests. Please try again later.' }, { status: 429 })
-    }
-    timestamps.push(now)
-    ipTimestamps.set(ip, timestamps)
 
     const apiKey = process.env.RESEND_API_KEY
     if (!apiKey) {

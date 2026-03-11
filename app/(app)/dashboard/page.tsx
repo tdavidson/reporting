@@ -31,7 +31,6 @@ export default async function DashboardPage() {
     id: string; name: string; stage: string | null; status: string
     tags: string[]; industry: string[] | null; portfolio_group: string[] | null
     metrics: { id: string; name: string; unit: string | null; unit_position: string; value_type: string; currency: string | null; display_order: number; is_active: boolean }[]
-    inbound_emails: { received_at: string }[]
     parsing_reviews: { id: string; resolution: string | null }[]
   }
 
@@ -40,7 +39,6 @@ export default async function DashboardPage() {
     .select(`
       id, name, stage, status, tags, industry, portfolio_group,
       metrics(id, name, unit, unit_position, value_type, currency, display_order, is_active),
-      inbound_emails(received_at),
       parsing_reviews(id, resolution)
     `)
     .order('name') as { data: CompanyRow[] | null }
@@ -74,15 +72,35 @@ export default async function DashboardPage() {
     }
   }
 
+  // Batch fetch latest metric period per company
+  const { data: latestPeriodRows } = await supabase
+    .from('metric_values')
+    .select('company_id, period_year, period_quarter, period_month')
+    .in('company_id', (companiesRaw ?? []).map(c => c.id))
+    .order('period_year', { ascending: false })
+    .order('period_quarter', { ascending: false, nullsFirst: false })
+    .order('period_month', { ascending: false, nullsFirst: false }) as { data: { company_id: string; period_year: number; period_quarter: number | null; period_month: number | null }[] | null }
+
+  const lastMetricPeriod = new Map<string, string>()
+  for (const row of latestPeriodRows ?? []) {
+    if (lastMetricPeriod.has(row.company_id)) continue
+    if (row.period_month) {
+      // Use last day of the month
+      const lastDay = new Date(row.period_year, row.period_month, 0)
+      lastMetricPeriod.set(row.company_id, lastDay.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }))
+    } else if (row.period_quarter) {
+      const qLabels = ['Q1', 'Q2', 'Q3', 'Q4']
+      lastMetricPeriod.set(row.company_id, `${qLabels[row.period_quarter - 1]} ${row.period_year}`)
+    } else {
+      lastMetricPeriod.set(row.company_id, `${row.period_year}`)
+    }
+  }
+
   const companies = (companiesRaw ?? []).map((c) => {
-    const emails = c.inbound_emails ?? []
-    const lastReportAt = emails.length > 0
-      ? emails.reduce((max, e) => (e.received_at > max ? e.received_at : max), emails[0].received_at)
-      : null
+    const lastReportAt = lastMetricPeriod.get(c.id) ?? null
     const activeMetrics = (c.metrics ?? [])
       .filter((m) => m.is_active)
       .sort((a, b) => a.display_order - b.display_order)
-      .slice(0, 2)
     const openReviews = (c.parsing_reviews ?? []).filter((r) => r.resolution === null).length
 
     const cashMetricId = cashMetricMap.get(c.id)
@@ -98,52 +116,64 @@ export default async function DashboardPage() {
       portfolioGroup: c.portfolio_group,
       lastReportAt,
       openReviews,
-      metricsCount: (c.metrics ?? []).filter((m) => m.is_active).length,
-      sparkMetrics: activeMetrics,
+      activeMetrics: activeMetrics.map(m => ({ id: m.id, name: m.name, unit: m.unit, unit_position: m.unit_position, value_type: m.value_type, currency: m.currency })),
       latestCash,
     }
   })
 
-  // Fetch MOIC & IRR for exited / written-off companies
+  // Fetch investment transactions for ALL companies (first investment date + summaries for exited)
+  const allCompanyIds = companies.map(c => c.id)
+  const admin = createAdminClient()
+  const { data: allTxns } = await admin
+    .from('investment_transactions' as any)
+    .select('*')
+    .in('company_id', allCompanyIds)
+    .order('transaction_date', { ascending: true }) as { data: InvestmentTransaction[] | null }
+
+  // Group transactions by company
+  const txnsByCompany = new Map<string, InvestmentTransaction[]>()
+  for (const txn of allTxns ?? []) {
+    if (!txnsByCompany.has(txn.company_id)) txnsByCompany.set(txn.company_id, [])
+    txnsByCompany.get(txn.company_id)!.push(txn)
+  }
+
+  // Compute first investment date per company
+  const firstInvestmentDates = new Map<string, string>()
+  for (const companyId of Array.from(txnsByCompany.keys())) {
+    const txns = txnsByCompany.get(companyId)!
+    const investmentTxns = txns.filter((t: InvestmentTransaction) => t.transaction_type === 'investment' && t.transaction_date)
+    if (investmentTxns.length > 0) {
+      firstInvestmentDates.set(companyId, investmentTxns[0].transaction_date!)
+    }
+  }
+
+  // Compute summaries for exited/written-off companies
   const exitedIds = companies
     .filter(c => c.status === 'exited' || c.status === 'written-off')
     .map(c => c.id)
 
-  const investmentSummaries = new Map<string, { moic: number | null; grossIrr: number | null; totalInvested: number }>()
+  const investmentSummaries = new Map<string, { moic: number | null; grossIrr: number | null; totalInvested: number; totalRealized: number; unrealizedValue: number }>()
 
-  if (exitedIds.length > 0) {
-    const admin = createAdminClient()
-    const { data: allTxns } = await admin
-      .from('investment_transactions' as any)
-      .select('*')
-      .in('company_id', exitedIds)
-      .order('transaction_date', { ascending: true }) as { data: InvestmentTransaction[] | null }
-
-    // Group transactions by company
-    const txnsByCompany = new Map<string, InvestmentTransaction[]>()
-    for (const txn of allTxns ?? []) {
-      if (!txnsByCompany.has(txn.company_id)) txnsByCompany.set(txn.company_id, [])
-      txnsByCompany.get(txn.company_id)!.push(txn)
-    }
-
-    for (const id of exitedIds) {
-      const txns = txnsByCompany.get(id) ?? []
-      const status = companies.find(c => c.id === id)!.status as CompanyStatus
-      if (txns.length > 0) {
-        const summary = computeSummary(txns, status)
-        investmentSummaries.set(id, { moic: summary.moic, grossIrr: summary.grossIrr, totalInvested: summary.totalInvested })
-      } else {
-        investmentSummaries.set(id, { moic: null, grossIrr: null, totalInvested: 0 })
-      }
+  for (const id of exitedIds) {
+    const txns = txnsByCompany.get(id) ?? []
+    const status = companies.find(c => c.id === id)!.status as CompanyStatus
+    if (txns.length > 0) {
+      const summary = computeSummary(txns, status)
+      investmentSummaries.set(id, { moic: summary.moic, grossIrr: summary.grossIrr, totalInvested: summary.totalInvested, totalRealized: summary.totalRealized, unrealizedValue: summary.unrealizedValue })
+    } else {
+      investmentSummaries.set(id, { moic: null, grossIrr: null, totalInvested: 0, totalRealized: 0, unrealizedValue: 0 })
     }
   }
 
-  // Attach MOIC & IRR to company objects
+  // Attach investment data to company objects
   const companiesWithInvestments = companies.map(c => ({
     ...c,
+    firstInvestmentDate: firstInvestmentDates.get(c.id) ?? null,
     moic: investmentSummaries.get(c.id)?.moic ?? null,
     grossIrr: investmentSummaries.get(c.id)?.grossIrr ?? null,
     totalInvested: investmentSummaries.get(c.id)?.totalInvested ?? null,
+    totalRealized: investmentSummaries.get(c.id)?.totalRealized ?? null,
+    unrealizedValue: investmentSummaries.get(c.id)?.unrealizedValue ?? null,
   }))
 
   const allGroups = Array.from(new Set(companiesWithInvestments.flatMap(c => c.portfolioGroup ?? []))).sort()

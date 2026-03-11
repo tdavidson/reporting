@@ -19,7 +19,9 @@ export default function DemoPage() {
       }
 
       // Fetch demo credentials from server
-      const res = await fetch('/api/demo/credentials')
+      const res = await fetch('/api/demo/credentials', {
+        headers: { 'x-deployment-key': process.env.NEXT_PUBLIC_DEMO_KEY ?? '' },
+      })
       if (!res.ok) {
         setError('Demo is not available.')
         return

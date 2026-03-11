@@ -8,6 +8,7 @@ import { aggregatePortfolioData } from '@/lib/lp-letters/aggregate'
 import { buildPortfolioTableHtml, generateAllNarratives, assembleFullDraft } from '@/lib/lp-letters/generate'
 import { DEFAULT_STYLE_GUIDE } from '@/lib/lp-letters/default-template'
 import { logActivity } from '@/lib/activity'
+import { rateLimit } from '@/lib/rate-limit'
 
 export async function POST(_req: NextRequest, { params }: { params: { id: string } }) {
   const supabase = createClient()
@@ -18,6 +19,9 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
   const writeCheck = await assertWriteAccess(admin, user.id)
   if (writeCheck instanceof NextResponse) return writeCheck
   const { fundId } = writeCheck
+
+  const limited = await rateLimit({ key: `lp-letter-gen:${user.id}`, limit: 5, windowSeconds: 300 })
+  if (limited) return limited
 
   // Get the letter
   const { data: letter } = await admin
@@ -126,6 +130,6 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
       .eq('id', params.id)
 
     console.error('[lp-letters] Generation failed:', err)
-    return NextResponse.json({ error: errorMessage }, { status: 500 })
+    return NextResponse.json({ error: 'Letter generation failed. Please try again.' }, { status: 500 })
   }
 }

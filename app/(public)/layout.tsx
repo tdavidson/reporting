@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { createBrowserClient } from '@supabase/ssr'
 import Link from 'next/link'
-import { Menu, Github, LogIn, Play, Home, Building2, Mail, Upload, BarChart3, Briefcase, Send, StickyNote, Handshake, FileText, Settings, LifeBuoy, Scale, MessageCircle, PanelLeftClose, PanelLeftOpen, Monitor, Sun, Moon, ChevronRight, Package, Award } from 'lucide-react'
+import { Menu, Github, LogIn, Play, Home, Building2, Mail, Upload, BarChart3, Briefcase, Send, StickyNote, Handshake, FileText, Settings, LifeBuoy, Scale, MessageCircle, PanelLeftClose, PanelLeftOpen, Monitor, Sun, Moon, ChevronRight, Package, Tag } from 'lucide-react'
 
 function XIcon({ className }: { className?: string }) {
   return (
@@ -38,13 +38,13 @@ const PRODUCT_ITEMS: { href: string; label: string; icon: LucideIcon }[] = [
   { href: '/asks-explainer', label: 'Asks', icon: Send },
   { href: '/notes-explainer', label: 'Notes', icon: StickyNote },
   { href: '/interactions-explainer', label: 'Interactions', icon: Handshake },
-  { href: '/letters-explainer', label: 'LP Letters', icon: FileText },
+  { href: '/letters-explainer', label: 'Letters', icon: FileText },
   { href: '/settings-explainer', label: 'Settings', icon: Settings },
   { href: '/support-explainer', label: 'Support', icon: LifeBuoy },
 ]
 
 const BOTTOM_ITEMS: { href: string; label: string; icon: LucideIcon }[] = [
-  { href: '/pricing', label: 'Pricing', icon: Award },
+  { href: '/pricing', label: 'Pricing', icon: Tag },
   { href: '/contact', label: 'Contact', icon: MessageCircle },
   { href: '/license', label: 'License', icon: Scale },
 ]

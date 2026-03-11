@@ -1,12 +1,21 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react'
 import Link from 'next/link'
-import { ArrowDownAZ, ArrowUpZA, ArrowDown, ArrowUp, LayoutGrid, Table2, Banknote, Coins } from 'lucide-react'
+import { ArrowDownAZ, ArrowUpZA, ArrowDown, ArrowUp, LayoutGrid, Table2, Banknote, Coins, CalendarDays } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { DashboardSparklines } from './dashboard-sparklines'
 import { DashboardTable } from './dashboard-table'
+import { useCurrency, getCurrencySymbol } from '@/components/currency-context'
+
+interface ActiveMetric {
+  id: string
+  name: string
+  unit: string | null
+  unit_position: string
+  value_type: string
+  currency: string | null
+}
 
 interface Company {
   id: string
@@ -18,12 +27,14 @@ interface Company {
   portfolioGroup: string[] | null
   lastReportAt: string | null
   openReviews: number
-  metricsCount: number
-  sparkMetrics: { id: string; name: string; unit: string | null; unit_position: string; value_type: string; currency: string | null; display_order: number; is_active: boolean }[]
+  activeMetrics: ActiveMetric[]
   latestCash: number | null
+  firstInvestmentDate: string | null
   moic: number | null
   grossIrr: number | null
   totalInvested: number | null
+  totalRealized: number | null
+  unrealizedValue: number | null
 }
 
 interface Props {
@@ -31,15 +42,41 @@ interface Props {
   allGroups: string[]
 }
 
-type SortMode = 'alpha' | 'cash' | null
+type SortMode = 'alpha' | 'cash' | 'investDate' | null
+
+function formatMetricValue(v: number | null, metric: ActiveMetric, fundCurrency: string): string {
+  if (v === null) return '\u2014'
+  const metricCurrency = metric.currency ?? fundCurrency
+  const effectiveUnit = metric.unit ?? (metric.value_type === 'currency' ? getCurrencySymbol(metricCurrency) : null)
+  const effectivePos = metric.unit ? metric.unit_position : 'prefix'
+  let str: string
+  if (Math.abs(v) >= 1_000_000) str = `${(v / 1_000_000).toFixed(1)}M`
+  else if (Math.abs(v) >= 1_000) str = `${(v / 1_000).toFixed(0)}K`
+  else str = v.toLocaleString()
+  if (effectiveUnit && effectivePos === 'prefix') return `${effectiveUnit}${str}`
+  if (metric.value_type === 'percentage') return `${str}%`
+  if (effectiveUnit && effectivePos === 'suffix') return `${str} ${effectiveUnit}`
+  return str
+}
+
+function formatCurrency(v: number): string {
+  const neg = v < 0
+  const abs = Math.abs(v)
+  let str: string
+  if (abs >= 1_000_000) str = `$${(abs / 1_000_000).toFixed(1)}M`
+  else if (abs >= 1_000) str = `$${(abs / 1_000).toFixed(0)}K`
+  else str = `$${abs.toLocaleString()}`
+  return neg ? `-${str}` : str
+}
 
 export function DashboardCompanies({ companies, allGroups }: Props) {
   const [view, setView] = useState<'cards' | 'table'>('cards')
   const [statusFilter, setStatusFilter] = useState<string>('active')
-  const [selectedGroups, setSelectedGroups] = useState<Set<string>>(new Set())
-  const [sortMode, setSortMode] = useState<SortMode | null>(null)
+  const [selectedGroups, setSelectedGroups] = useState<Set<string>>(new Set(allGroups.includes('Fund III') ? ['Fund III'] : []))
+  const [sortMode, setSortMode] = useState<SortMode>('investDate')
   const [alphaSortAsc, setAlphaSortAsc] = useState(true)
   const [cashSortAsc, setCashSortAsc] = useState(false)
+  const [investDateSortAsc, setInvestDateSortAsc] = useState(false) // newest first by default
 
   function toggleGroup(group: string) {
     setSelectedGroups(prev => {
@@ -61,8 +98,6 @@ export function DashboardCompanies({ companies, allGroups }: Props) {
     return result
   }, [companies, statusFilter, selectedGroups])
 
-  const hasGroups = filtered.some(c => c.portfolioGroup && c.portfolioGroup.length > 0)
-
   function sortCompanies(list: Company[]) {
     if (sortMode === 'cash') {
       return [...list].sort((a, b) => {
@@ -76,42 +111,21 @@ export function DashboardCompanies({ companies, allGroups }: Props) {
         alphaSortAsc ? a.name.localeCompare(b.name) : b.name.localeCompare(a.name)
       )
     }
+    if (sortMode === 'investDate') {
+      return [...list].sort((a, b) => {
+        const aDate = a.firstInvestmentDate
+        const bDate = b.firstInvestmentDate
+        if (!aDate && !bDate) return 0
+        if (!aDate) return 1
+        if (!bDate) return -1
+        return investDateSortAsc ? aDate.localeCompare(bDate) : bDate.localeCompare(aDate)
+      })
+    }
     return list
   }
 
-  const grouped = useMemo(() => {
-    if (!hasGroups || sortMode !== null) return null
-
-    const groups = new Map<string, Company[]>()
-    for (const c of filtered) {
-      let keys = c.portfolioGroup && c.portfolioGroup.length > 0 ? c.portfolioGroup : ['Other']
-      // When a filter is active, only show the company under the selected group(s)
-      if (selectedGroups.size > 0) {
-        const matched = keys.filter(k => selectedGroups.has(k))
-        if (matched.length > 0) keys = matched
-      }
-      for (const key of keys) {
-        if (!groups.has(key)) groups.set(key, [])
-        groups.get(key)!.push(c)
-      }
-    }
-
-    const tailGroups = ['spv', 'other']
-    return Array.from(groups.entries())
-      .sort(([a], [b]) => {
-        const aIdx = tailGroups.indexOf(a.toLowerCase())
-        const bIdx = tailGroups.indexOf(b.toLowerCase())
-        if (aIdx !== -1 && bIdx !== -1) return aIdx - bIdx
-        if (aIdx !== -1) return 1
-        if (bIdx !== -1) return -1
-        // Descending so "Fund III" comes before "Fund II" before "Fund I"
-        return b.localeCompare(a)
-      })
-      .map(([name, list]) => [name, [...list].sort((a, b) => a.name.localeCompare(b.name))] as [string, Company[]])
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filtered, hasGroups, selectedGroups, sortMode])
-
-  const sortedFiltered = useMemo(() => sortCompanies(filtered), [filtered, sortMode, alphaSortAsc, cashSortAsc])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const sortedFiltered = useMemo(() => sortCompanies(filtered), [filtered, sortMode, alphaSortAsc, cashSortAsc, investDateSortAsc])
 
   return (
     <div>
@@ -186,6 +200,25 @@ export function DashboardCompanies({ companies, allGroups }: Props) {
                 <><Banknote className="h-3.5 w-3.5" /><ArrowDown className="h-3 w-3" /></>
               )}
             </Button>
+            <Button
+              variant={sortMode === 'investDate' ? 'secondary' : 'ghost'}
+              size="sm"
+              className="text-xs gap-1.5 text-muted-foreground hover:text-foreground"
+              onClick={() => {
+                if (sortMode === 'investDate') {
+                  setInvestDateSortAsc(prev => !prev)
+                } else {
+                  setSortMode('investDate')
+                }
+              }}
+            >
+              <CalendarDays className="h-3.5 w-3.5" />
+              {investDateSortAsc ? (
+                <ArrowUp className="h-3 w-3" />
+              ) : (
+                <ArrowDown className="h-3 w-3" />
+              )}
+            </Button>
             <Button variant={view === 'cards' ? 'secondary' : 'ghost'} size="sm" className="text-muted-foreground hover:text-foreground" onClick={() => setView('cards')}>
               <LayoutGrid className="h-3.5 w-3.5" />
             </Button>
@@ -202,18 +235,9 @@ export function DashboardCompanies({ companies, allGroups }: Props) {
         </div>
       ) : view === 'table' ? (
         <DashboardTable
-          companyIds={grouped ? grouped.flatMap(([, cs]) => cs.map(c => c.id)) : sortedFiltered.map(c => c.id)}
-          grouped={grouped ? grouped.map(([name, cs]) => [name, cs.map(c => c.id)] as [string, string[]]) : null}
+          companyIds={sortedFiltered.map(c => c.id)}
+          grouped={null}
         />
-      ) : grouped ? (
-        <div className="space-y-6">
-          {grouped.map(([groupName, groupCompanies]) => (
-            <div key={groupName}>
-              <h2 className="text-sm font-medium text-muted-foreground mb-3">{groupName}</h2>
-              <CompanyGrid companies={groupCompanies} />
-            </div>
-          ))}
-        </div>
       ) : (
         <CompanyGrid companies={sortedFiltered} />
       )}
@@ -222,77 +246,173 @@ export function DashboardCompanies({ companies, allGroups }: Props) {
 }
 
 function CompanyGrid({ companies }: { companies: Company[] }) {
+  const fundCurrency = useCurrency()
+  // Cache of fetched metric values: { [metricId]: number | null }
+  const [metricValues, setMetricValues] = useState<Record<string, number | null>>({})
+  const [loadingMetrics, setLoadingMetrics] = useState<Set<string>>(new Set())
+  const fetchedRef = useRef<Set<string>>(new Set())
+
+  // Get display metrics for a company: cash first, then first non-cash
+  const getSelectedMetrics = useCallback((c: Company): [ActiveMetric | null, ActiveMetric | null] => {
+    const cashMetric = c.activeMetrics.find(m => m.name.toLowerCase() === 'cash' || /\bcash\b/i.test(m.name)) ?? null
+    if (cashMetric) {
+      const nonCashMetric = c.activeMetrics.find(m => m !== cashMetric) ?? null
+      return [cashMetric, nonCashMetric]
+    }
+    // No cash metric — show first two by display order
+    return [c.activeMetrics[0] ?? null, c.activeMetrics[1] ?? null]
+  }, [])
+
+  // Fetch metric values for visible cards
+  useEffect(() => {
+    const metricsToFetch: { companyId: string; metricId: string }[] = []
+    for (const c of companies) {
+      if (c.status === 'exited' || c.status === 'written-off') continue
+      const [m1, m2] = getSelectedMetrics(c)
+      for (const m of [m1, m2]) {
+        if (m && !fetchedRef.current.has(m.id)) {
+          metricsToFetch.push({ companyId: c.id, metricId: m.id })
+          fetchedRef.current.add(m.id)
+        }
+      }
+    }
+
+    if (metricsToFetch.length === 0) return
+
+    setLoadingMetrics(prev => {
+      const next = new Set(prev)
+      metricsToFetch.forEach(({ metricId }) => next.add(metricId))
+      return next
+    })
+
+    for (const { companyId, metricId } of metricsToFetch) {
+      fetch(`/api/companies/${companyId}/metrics/${metricId}/values`)
+        .then(res => res.ok ? res.json() : [])
+        .then((values: { value_number: number | null }[]) => {
+          const lastVal = values.length > 0 ? values[values.length - 1].value_number : null
+          setMetricValues(prev => ({ ...prev, [metricId]: lastVal }))
+          setLoadingMetrics(prev => {
+            const next = new Set(prev)
+            next.delete(metricId)
+            return next
+          })
+        })
+        .catch(() => {
+          setLoadingMetrics(prev => {
+            const next = new Set(prev)
+            next.delete(metricId)
+            return next
+          })
+        })
+    }
+  }, [companies, getSelectedMetrics])
+
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-      {companies.map((c) => (
-        <Link
-          key={c.id}
-          href={`/companies/${c.id}`}
-          className="rounded-lg border bg-card p-4 hover:bg-accent/50 transition-colors"
-        >
-          <div className="flex items-center justify-between mb-1">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="font-medium text-sm">{c.name}</span>
-              {c.stage && (
-                <Badge variant="outline" className="text-[10px] py-0">
-                  {c.stage}
-                </Badge>
-              )}
-              {(c.industry ?? []).map((ind) => (
-                <Badge key={ind} variant="outline" className="text-[10px] py-0">
-                  {ind}
-                </Badge>
-              ))}
-              {c.tags.map((tag) => (
-                <Badge key={tag} variant="outline" className="text-[10px] py-0">
-                  {tag}
-                </Badge>
-              ))}
-            </div>
-            {c.openReviews > 0 && (
-              <span className="rounded-full bg-amber-500 text-white text-[10px] font-semibold leading-none px-1.5 py-0.5 min-w-[18px] text-center">
-                {c.openReviews}
-              </span>
-            )}
-          </div>
+      {companies.map((c) => {
+        const isExited = c.status === 'exited' || c.status === 'written-off'
 
-          {c.status === 'written-off' ? (
-            <div className="flex items-center gap-4 text-xs text-muted-foreground mt-1">
-              {c.lastReportAt && (
-                <span>Last report {new Date(c.lastReportAt).toLocaleDateString()}</span>
-              )}
-              <span>Written Off</span>
-              {c.totalInvested != null && c.totalInvested > 0 && (
-                <span>${c.totalInvested.toLocaleString()}</span>
-              )}
-            </div>
-          ) : c.status === 'exited' ? (
-            <div className="flex items-center gap-4 text-xs text-muted-foreground mt-1">
-              {c.lastReportAt && (
-                <span>Last report {new Date(c.lastReportAt).toLocaleDateString()}</span>
-              )}
-              <span>MOIC: {c.moic != null ? `${c.moic.toFixed(2)}x` : '—'}</span>
-              <span>IRR: {c.grossIrr != null ? `${(c.grossIrr * 100).toFixed(1)}%` : '—'}</span>
-            </div>
-          ) : (
-            <>
-              <div className="flex items-center gap-3 text-xs text-muted-foreground mb-3">
-                {c.lastReportAt && (
-                  <span>Last report {new Date(c.lastReportAt).toLocaleDateString()}</span>
+        return (
+          <Link
+            key={c.id}
+            href={`/companies/${c.id}`}
+            className="rounded-lg border bg-card p-4 hover:bg-accent/50 transition-colors"
+          >
+              <div className="flex items-center justify-between mb-1">
+                <span className="font-medium text-sm">{c.name}</span>
+                {c.openReviews > 0 && (
+                  <span className="rounded-full bg-amber-500 text-white text-[10px] font-semibold leading-none px-1.5 py-0.5 min-w-[18px] text-center">
+                    {c.openReviews}
+                  </span>
                 )}
-                <span>{c.metricsCount} metric{c.metricsCount !== 1 ? 's' : ''}</span>
               </div>
-
-              {c.sparkMetrics.length > 0 && (
-                <DashboardSparklines
-                  companyId={c.id}
-                  metrics={c.sparkMetrics}
+              {isExited ? (
+                <ExitedMetricDisplay company={c} />
+              ) : c.activeMetrics.length === 0 ? (
+                <div className="grid grid-cols-2 gap-3 mt-3">
+                  <div className="min-w-0">
+                    <div className="text-[10px] text-muted-foreground truncate mb-0.5">No metrics</div>
+                    <div className="text-xl font-semibold">New</div>
+                  </div>
+                </div>
+              ) : (
+                <ActiveMetricDisplay
+                  company={c}
+                  metrics={getSelectedMetrics(c)}
+                  metricValues={metricValues}
+                  loadingMetrics={loadingMetrics}
+                  fundCurrency={fundCurrency}
                 />
               )}
-            </>
-          )}
-        </Link>
-      ))}
+              {c.lastReportAt ? (
+                <div className="text-[10px] text-muted-foreground mt-2">
+                  Last reported: {c.lastReportAt}
+                </div>
+              ) : c.firstInvestmentDate ? (
+                <div className="text-[10px] text-muted-foreground mt-2">
+                  Invested: {new Date(c.firstInvestmentDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                </div>
+              ) : null}
+          </Link>
+        )
+      })}
     </div>
   )
 }
+
+function ActiveMetricDisplay({ company, metrics, metricValues, loadingMetrics, fundCurrency }: {
+  company: Company
+  metrics: [ActiveMetric | null, ActiveMetric | null]
+  metricValues: Record<string, number | null>
+  loadingMetrics: Set<string>
+  fundCurrency: string
+}) {
+  const [m1, m2] = metrics
+
+  return (
+    <div className="grid grid-cols-2 gap-3 mt-3">
+      {[m1, m2].map((metric, i) => {
+        if (!metric) return <div key={i} />
+        const isLoading = loadingMetrics.has(metric.id)
+        const value = metricValues[metric.id] ?? null
+        return (
+          <div key={metric.id} className="min-w-0">
+            <div className="text-[10px] text-muted-foreground truncate mb-0.5">{metric.name}</div>
+            <div className="text-xl font-semibold tabular-nums truncate">
+              {isLoading ? (
+                <span className="text-muted-foreground text-sm">...</span>
+              ) : (
+                formatMetricValue(value, metric, fundCurrency)
+              )}
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function ExitedMetricDisplay({ company }: { company: Company }) {
+  const { totalInvested, totalRealized, unrealizedValue, moic } = company
+  const netGain = totalInvested != null && totalRealized != null && unrealizedValue != null
+    ? (totalRealized + unrealizedValue) - totalInvested
+    : null
+
+  return (
+    <div className="grid grid-cols-2 gap-3 mt-3">
+      <div className="min-w-0">
+        <div className="text-[10px] text-muted-foreground truncate mb-0.5">Net Gain</div>
+        <div className={`text-xl font-semibold tabular-nums truncate ${netGain != null && netGain < 0 ? 'text-red-500' : ''}`}>
+          {netGain != null ? formatCurrency(netGain) : '\u2014'}
+        </div>
+      </div>
+      <div className="min-w-0">
+        <div className="text-[10px] text-muted-foreground truncate mb-0.5">Gross MOIC</div>
+        <div className="text-xl font-semibold tabular-nums truncate">
+          {moic != null ? `${moic.toFixed(2)}x` : '\u2014'}
+        </div>
+      </div>
+    </div>
+  )
+}
+

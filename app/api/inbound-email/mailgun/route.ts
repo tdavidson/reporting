@@ -102,7 +102,8 @@ async function handleMailgunInbound(req: NextRequest) {
       }
     }
   } else {
-    console.warn('[inbound-email/mailgun] Signature verification skipped — no signing key configured')
+    console.warn('[inbound-email/mailgun] Rejecting — no signing key configured for this fund')
+    return
   }
 
   // Check if sender is a fund member (determines interaction extraction, bypasses authorized_senders)

@@ -143,8 +143,8 @@ export default async function EmailDetailPage({ params }: { params: { id: string
     payload?.Attachments as Array<{ Name: string; ContentType: string; ContentLength: number }>
   ) ?? []
 
-  const sv = STATUS_VARIANTS[email.processing_status] ?? {
-    label: email.processing_status,
+  const sv = STATUS_VARIANTS[email.processing_status ?? ''] ?? {
+    label: email.processing_status ?? 'unknown',
     className: '',
   }
 
@@ -175,7 +175,7 @@ export default async function EmailDetailPage({ params }: { params: { id: string
           <p>
             From <span className="font-medium text-foreground">{email.from_address}</span>
           </p>
-          <p>{fmt(email.received_at)}</p>
+          <p>{fmt(email.received_at ?? '')}</p>
           {company && (
             <p>
               Company: <span className="font-medium text-foreground">{company.name}</span>

@@ -20,11 +20,31 @@ export async function POST(req: NextRequest) {
 
   const admin = createAdminClient()
 
+  // Get user's fund
+  const { data: membership } = await admin
+    .from('fund_members')
+    .select('fund_id')
+    .eq('user_id', user.id)
+    .maybeSingle()
+
+  if (!membership) return NextResponse.json({ error: 'No fund found' }, { status: 403 })
+
+  // Validate note IDs belong to the user's fund
+  const { data: validNotes } = await admin
+    .from('notes' as any)
+    .select('id')
+    .in('id', ids)
+    .eq('fund_id', membership.fund_id) as { data: { id: string }[] | null }
+
+  const validIds = new Set((validNotes ?? []).map(n => n.id))
+
   // Upsert read receipts — ignore conflicts (already read)
-  const rows = ids.map(noteId => ({
-    user_id: user.id,
-    note_id: noteId,
-  }))
+  const rows = ids
+    .filter(id => validIds.has(id))
+    .map(noteId => ({
+      user_id: user.id,
+      note_id: noteId,
+    }))
 
   await admin
     .from('note_reads' as any)

@@ -79,16 +79,26 @@ export async function PATCH(req: NextRequest) {
       .delete()
       .eq('user_id', user.id)
 
-    // Insert new ones
+    // Insert new ones — validate all company IDs belong to this fund
     if (subscribedCompanyIds.length > 0) {
-      const rows = subscribedCompanyIds.map((companyId: string) => ({
-        user_id: user.id,
-        company_id: companyId,
-        fund_id: membership.fund_id,
-      }))
-      await admin
-        .from('note_company_subscriptions' as any)
-        .insert(rows)
+      const { data: validCompanies } = await admin
+        .from('companies')
+        .select('id')
+        .in('id', subscribedCompanyIds)
+        .eq('fund_id', membership.fund_id)
+      const validIds = new Set((validCompanies ?? []).map((c: { id: string }) => c.id))
+      const safeIds = subscribedCompanyIds.filter((id: string) => validIds.has(id))
+
+      if (safeIds.length > 0) {
+        const rows = safeIds.map((companyId: string) => ({
+          user_id: user.id,
+          company_id: companyId,
+          fund_id: membership.fund_id,
+        }))
+        await admin
+          .from('note_company_subscriptions' as any)
+          .insert(rows)
+      }
     }
   }
 

@@ -151,7 +151,7 @@ export default function NewLetterPage() {
         </Link>
         <div>
           <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2">
-            {fv.lp_letters === 'admin' && <Lock className="h-4 w-4 text-amber-500" />}New LP Letter
+            {fv.lp_letters === 'admin' && <Lock className="h-4 w-4 text-amber-500" />}New Letter
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
             Step {step} of 2 — {step === 1 ? 'Select period' : 'Review & generate'}

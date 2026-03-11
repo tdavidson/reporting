@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { Building2, ClipboardCheck, Mail, Upload, Send, Settings, MessageSquare, Monitor, PanelLeftClose, Sparkles, Shield, Handshake, Users, ArrowDownCircle, DollarSign, FileText, Briefcase } from 'lucide-react'
+import { Building2, ClipboardCheck, Mail, Upload, Send, Settings, MessageSquare, Monitor, PanelLeftClose, Sparkles, Shield, Handshake, Users, ArrowDownCircle, DollarSign, FileText, Briefcase, Crown } from 'lucide-react'
 import { AnalystToggleButton } from '@/components/analyst-button'
 import { AnalystPanel } from '@/components/analyst-panel'
 
@@ -24,7 +24,10 @@ export default function SupportPage() {
       <li><a href="#interactions" className="hover:text-foreground underline underline-offset-4">Interactions</a></li>
       <li><a href="#investments" className="hover:text-foreground underline underline-offset-4">Investments</a></li>
       <li><a href="#funds" className="hover:text-foreground underline underline-offset-4">Funds</a></li>
-      <li><a href="#lp-letters" className="hover:text-foreground underline underline-offset-4">LP Letters</a></li>
+      <li><a href="#letters" className="hover:text-foreground underline underline-offset-4">Letters</a></li>
+      <li><a href="#lps" className="hover:text-foreground underline underline-offset-4">LPs</a></li>
+      <li className="pl-4"><a href="#lp-snapshots" className="hover:text-foreground underline underline-offset-4">Snapshots</a></li>
+      <li className="pl-4"><a href="#lp-gp-entity-ownership" className="hover:text-foreground underline underline-offset-4">GP Entity Ownership</a></li>
       <li><a href="#usage" className="hover:text-foreground underline underline-offset-4">Usage</a></li>
       <li><a href="#analyst" className="hover:text-foreground underline underline-offset-4">Analyst</a></li>
       <li><a href="#file-handling" className="hover:text-foreground underline underline-offset-4">File Handling &amp; Security</a></li>
@@ -687,13 +690,13 @@ export default function SupportPage() {
           </p>
         </div>
 
-        <div id="lp-letters">
+        <div id="letters">
           <h2 className="text-base font-medium mb-2 flex items-center gap-2">
             <FileText className="h-4 w-4 text-muted-foreground" />
-            LP Letters
+            Letters
           </h2>
           <p className="text-muted-foreground mb-2">
-            LP Letters helps you generate quarterly update letters for your limited partners.
+            Letters helps you generate quarterly update letters for your limited partners.
             Using AI and your portfolio data &mdash; reported metrics, company summaries, investment
             performance, and team notes &mdash; the system drafts professional LP communications
             scoped to a specific portfolio group and reporting period.
@@ -707,7 +710,7 @@ export default function SupportPage() {
           <p className="text-muted-foreground mb-2">
             <strong>Templates</strong> &mdash; upload a previous LP letter (.docx or .pdf) and AI analyzes
             it to match your writing style, tone, and structure. Or use the built-in default template.
-            Templates are reusable across letters and managed from the Templates dialog on the LP Letters page.
+            Templates are reusable across letters and managed from the Templates dialog on the Letters page.
           </p>
           <p className="text-muted-foreground mb-2">
             <strong>Generation</strong> &mdash; the AI generates a narrative for each company in the portfolio
@@ -726,6 +729,76 @@ export default function SupportPage() {
             <strong>Export</strong> &mdash; export the finished letter as a .docx file for final formatting
             and distribution. If Google Drive is connected, you can export directly to Drive.
           </p>
+        </div>
+
+        <div id="lps">
+          <h2 className="text-base font-medium mb-2 flex items-center gap-2">
+            <Crown className="h-4 w-4 text-muted-foreground" />
+            LPs
+          </h2>
+          <p className="text-muted-foreground mb-2">
+            LPs helps you track and report on your limited partner positions across snapshots. Import LP data
+            from spreadsheets, view aggregated metrics per investor, generate individual investor reports as PDFs,
+            and export the full dataset to Excel.
+          </p>
+          <p className="text-muted-foreground mb-2">
+            The LPs index page lists all snapshots and provides fund-level configuration for GP Entity Ownership mappings.
+            Click a snapshot to view the detail page with investor data, summary cards, and the full investor table.
+          </p>
+
+          <div id="lp-snapshots">
+            <h3 className="text-sm font-medium mb-1 mt-4">Snapshots</h3>
+            <p className="text-muted-foreground mb-2">
+              Each snapshot represents LP positions at a point in time &mdash; typically a quarter-end.
+              Create a new snapshot, then import data by pasting spreadsheet content. AI automatically
+              matches columns to fields like investor name, entity, commitment, paid-in capital,
+              distributions, NAV, DPI, RVPI, TVPI, and IRR.
+            </p>
+            <p className="text-muted-foreground mb-2">
+              <strong>Investor table</strong> &mdash; the snapshot detail page shows all investors with
+              aggregated metrics. Expand an investor to see individual entity and portfolio group line items.
+              All values are inline-editable: click a row to edit metrics, or click an investor name to rename.
+              Investors can be grouped under a parent for consolidated reporting.
+            </p>
+            <p className="text-muted-foreground mb-2">
+              <strong>Portfolio group filter</strong> &mdash; when a snapshot has multiple portfolio groups,
+              a filter appears in the header to include or exclude specific groups from the view and totals.
+            </p>
+            <p className="text-muted-foreground mb-2">
+              <strong>Report settings</strong> &mdash; configure a header and footer for the snapshot&apos;s
+              PDF reports via the Settings button. These appear on individual investor PDFs and batch exports.
+            </p>
+            <p className="text-muted-foreground mb-2">
+              <strong>Investor PDFs</strong> &mdash; click the document icon on any investor row to view their
+              individual report, or use &ldquo;Batch PDFs&rdquo; to generate all investor reports at once.
+              PDFs include the header, a metrics summary table, and the footer.
+            </p>
+            <p className="text-muted-foreground mb-2">
+              <strong>Excel export</strong> &mdash; export the full snapshot dataset to an Excel file with
+              all investors, entities, portfolio groups, and metrics.
+            </p>
+          </div>
+
+          <div id="lp-gp-entity-ownership">
+            <h3 className="text-sm font-medium mb-1 mt-4">GP Entity Ownership</h3>
+            <p className="text-muted-foreground mb-2">
+              This optional section on the LPs index page lets you map investor entities to GP-managed entities
+              (such as an associates or co-invest vehicle) and define ownership percentages. This is useful when
+              individual investors own pro-rata shares of a GP entity that itself holds positions in the fund&apos;s
+              portfolio groups.
+            </p>
+            <p className="text-muted-foreground mb-2">
+              For each mapping, specify the <strong>investor entity</strong> name, the <strong>associates entity</strong> name,
+              and optionally an <strong>ownership percentage</strong> (if left blank, ownership is computed automatically
+              from the investor&apos;s commitment relative to the total). You can also set a <strong>carried interest
+              percentage</strong> to reduce the investor&apos;s pro-rata share by the GP&apos;s carry on gains.
+            </p>
+            <p className="text-muted-foreground">
+              After configuring mappings, use the <strong>Recalculate</strong> button on any snapshot detail page
+              to compute and upsert the pro-rata investment metrics for each mapped investor. This persists across
+              snapshots &mdash; configure once, then recalculate on each new snapshot.
+            </p>
+          </div>
         </div>
 
         <div id="usage">

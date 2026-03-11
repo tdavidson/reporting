@@ -44,7 +44,7 @@ export async function GET() {
   let pendingRequests: Array<{
     id: string
     email: string
-    createdAt: string
+    createdAt: string | null
   }> = []
 
   if (isAdmin) {

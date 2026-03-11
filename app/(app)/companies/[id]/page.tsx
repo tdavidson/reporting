@@ -11,7 +11,7 @@ export async function generateMetadata({ params }: { params: { id: string } }): 
 }
 import { Badge } from '@/components/ui/badge'
 import { getCurrencySymbol } from '@/components/currency-context'
-import type { Company, Metric } from '@/lib/types/database'
+import type { Company, Metric, CompanyStatus } from '@/lib/types/database'
 import { CompanyCharts } from './company-charts'
 import { CompanySummary } from './company-summary'
 import { CompanyEditButton } from './company-edit-button'
@@ -197,7 +197,7 @@ export default async function CompanyDetailPage({
           )}
 
           {isFeatureVisible(featureVisibility, 'investments', isAdmin) && (
-            <CompanyInvestments companyId={company.id} companyStatus={company.status} portfolioGroups={company.portfolio_group ?? []} adminOnly={featureVisibility.investments === 'admin'} />
+            <CompanyInvestments companyId={company.id} companyStatus={company.status as CompanyStatus} portfolioGroups={company.portfolio_group ?? []} adminOnly={featureVisibility.investments === 'admin'} />
           )}
 
           <CompanyDocuments

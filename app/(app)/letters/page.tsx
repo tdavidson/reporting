@@ -109,7 +109,7 @@ export default function LettersPage() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2">
-            {fv.lp_letters === 'admin' && <Lock className="h-4 w-4 text-amber-500" />}LP Letters
+            {fv.lp_letters === 'admin' && <Lock className="h-4 w-4 text-amber-500" />}Letters
           </h1>
           <p className="text-sm text-muted-foreground mt-1">Quarterly LP letter drafts</p>
         </div>

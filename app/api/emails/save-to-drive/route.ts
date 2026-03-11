@@ -158,7 +158,7 @@ export async function POST(req: NextRequest) {
       const companyInfo = email.company_id ? companiesMap[email.company_id] : null
       const companyName = companyInfo?.name ?? (email.company_id ? 'Unknown Company' : 'Unidentified')
 
-      const dateStr = new Date(email.received_at).toISOString().slice(0, 10)
+      const dateStr = new Date(email.received_at ?? new Date().toISOString()).toISOString().slice(0, 10)
       const subject = (((payload as Record<string, unknown>).Subject as string) ?? '')
         .replace(/[^a-zA-Z0-9 _-]/g, '')
         .slice(0, 60) || 'Report'

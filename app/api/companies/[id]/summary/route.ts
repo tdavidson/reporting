@@ -349,7 +349,7 @@ ${documentsBlock ? '\nYou also have access to supplementary documents (strategy 
     const message = err instanceof Error ? err.message : String(err)
     console.error('[company-summary] Claude error:', message, err)
     return NextResponse.json({
-      error: `Summary generation failed: ${message}`,
+      error: 'Summary generation failed. Check your API key in Settings.',
     }, { status: 500 })
   }
 }

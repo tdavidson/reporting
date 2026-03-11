@@ -128,12 +128,15 @@ export async function POST(
     }
   }
 
-  // Promote email status to success
-  await admin
-    .from('inbound_emails')
-    .update({ processing_status: 'success' })
-    .eq('id', params.id)
-    .in('processing_status', ['needs_review', 'processing', 'failed'])
+  // Promote email status to success (scoped to fund)
+  if (fundId) {
+    await admin
+      .from('inbound_emails')
+      .update({ processing_status: 'success' })
+      .eq('id', params.id)
+      .eq('fund_id', fundId)
+      .in('processing_status', ['needs_review', 'processing', 'failed'])
+  }
 
   revalidateTag('review-badge')
 

@@ -233,7 +233,7 @@ ${text}`,
     const message = err instanceof Error ? err.message : String(err)
     console.error('[import] Claude API error:', message)
     return NextResponse.json({
-      error: `Claude API call failed: ${message}`,
+      error: 'AI API call failed. Check your API key in Settings.',
     }, { status: 500 })
   }
 
@@ -245,8 +245,7 @@ ${text}`,
     parsed = JSON.parse(jsonMatch[0])
   } catch {
     return NextResponse.json({
-      error: 'Failed to parse Claude response as JSON',
-      raw: responseText,
+      error: 'Failed to parse AI response as JSON. Try importing fewer rows at a time.',
     }, { status: 500 })
   }
 

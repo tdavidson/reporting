@@ -261,7 +261,7 @@ export async function POST(req: NextRequest) {
     const message = err instanceof Error ? err.message : String(err)
     console.error('[analyst] AI error:', message, err)
     return NextResponse.json({
-      error: `Analyst request failed: ${message}`,
+      error: 'Analyst request failed. Check your API key in Settings.',
     }, { status: 500 })
   }
 }

@@ -118,6 +118,6 @@ Return JSON only, no prose. Format:
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
     console.error('[import/documents] Claude matching error:', message)
-    return NextResponse.json({ error: `Matching failed: ${message}` }, { status: 500 })
+    return NextResponse.json({ error: 'Matching failed. Check your API key in Settings.' }, { status: 500 })
   }
 }

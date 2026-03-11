@@ -8,6 +8,7 @@ import { aggregatePortfolioData } from '@/lib/lp-letters/aggregate'
 import { generateCompanyNarrative } from '@/lib/lp-letters/generate'
 import { DEFAULT_STYLE_GUIDE } from '@/lib/lp-letters/default-template'
 import type { CompanyNarrative } from '@/lib/types/database'
+import { rateLimit } from '@/lib/rate-limit'
 
 export async function POST(_req: NextRequest, { params }: { params: { id: string; companyId: string } }) {
   const supabase = createClient()
@@ -18,6 +19,9 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
   const writeCheck = await assertWriteAccess(admin, user.id)
   if (writeCheck instanceof NextResponse) return writeCheck
   const { fundId } = writeCheck
+
+  const limited = await rateLimit({ key: `lp-letter-regen:${user.id}`, limit: 10, windowSeconds: 300 })
+  if (limited) return limited
 
   // Get the letter
   const { data: letter } = await admin

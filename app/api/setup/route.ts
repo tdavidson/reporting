@@ -1,9 +1,20 @@
 import { NextResponse } from 'next/server'
+import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 
 export async function GET() {
   if (process.env.ENABLE_SETUP_PAGE !== 'true') {
     return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  }
+
+  // Require authentication — setup info should not be publicly accessible
+  try {
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  } catch {
+    // If Supabase is not yet configured, allow unauthenticated access for initial setup only
+    // This is safe because the only info returned without a DB is boolean env var checks
   }
 
   const supabaseUrl = !!process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -61,7 +72,7 @@ export async function GET() {
     if (dbConnected) {
       const tableChecks = await Promise.all(
         expectedTables.map(async (table) => {
-          const { error } = await supabase.from(table).select('id').limit(1)
+          const { error } = await supabase.from(table as any).select('id').limit(1)
           return !error
         })
       )

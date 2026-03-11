@@ -29,6 +29,11 @@ export async function POST(
     return NextResponse.json({ error: 'Missing filename, contentType, or storagePath' }, { status: 400 })
   }
 
+  // Validate storagePath to prevent path traversal
+  if (storagePath.includes('..') || !storagePath.startsWith(`${params.id}/`)) {
+    return NextResponse.json({ error: 'Invalid storage path' }, { status: 400 })
+  }
+
   // Fetch the email to get current raw_payload
   const { data: emailData, error } = await supabase
     .from('inbound_emails')

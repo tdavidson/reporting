@@ -16,11 +16,11 @@ interface MetricWithValues {
   slug: string
   description: string | null
   unit: string | null
-  unit_position: 'prefix' | 'suffix'
-  value_type: 'number' | 'currency' | 'percentage' | 'text'
-  reporting_cadence: 'quarterly' | 'monthly' | 'annual'
-  display_order: number
-  is_active: boolean
+  unit_position: 'prefix' | 'suffix' | string | null
+  value_type: 'number' | 'currency' | 'percentage' | 'text' | string | null
+  reporting_cadence: 'quarterly' | 'monthly' | 'annual' | string | null
+  display_order: number | null
+  is_active: boolean | null
   currency: string | null
 }
 
@@ -69,7 +69,7 @@ export function MetricForm({ companyId, metric, onSuccess, onCancel }: Props) {
   const [slugManual, setSlugManual] = useState(isEdit)
   const [description, setDescription] = useState(metric?.description ?? '')
   const [unit, setUnit] = useState(metric?.unit ?? '')
-  const [unitPosition, setUnitPosition] = useState<'prefix' | 'suffix'>(metric?.unit_position ?? 'suffix')
+  const [unitPosition, setUnitPosition] = useState<'prefix' | 'suffix'>((metric?.unit_position as 'prefix' | 'suffix') ?? 'suffix')
   const [valueType, setValueType] = useState(metric?.value_type ?? 'number')
   const [currency, setCurrency] = useState(metric?.currency ?? '')
   const [displayOrder, setDisplayOrder] = useState(String(metric?.display_order ?? 0))

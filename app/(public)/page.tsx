@@ -1,7 +1,7 @@
 import Image from 'next/image'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
-import { Github, Play, Mail, Upload, BarChart3, Brain, Handshake, FileText, ChevronRight, Lightbulb } from 'lucide-react'
+import { Github, Play, Mail, Upload, BarChart3, Brain, Handshake, FileText, ChevronRight, Lightbulb, Database, TableProperties, Shield, Users } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 
 function XIcon({ className }: { className?: string }) {
@@ -47,19 +47,45 @@ export default function HomePage() {
                 <p className="text-sm text-muted-foreground">{text}</p>
               </div>
             </div>
-            <div className="relative h-[312px] bg-muted overflow-hidden border-t p-2">
+            <div className="relative h-[312px] bg-muted overflow-hidden border-t">
               <Image
                 src={screenshot}
                 alt={title}
-                width={1200}
-                height={900}
-                className="min-w-full min-h-full object-cover object-left-top rounded-sm"
+                fill
+                className="object-cover object-left-top"
               />
               <div className="absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-muted/60 to-transparent" />
             </div>
           </Link>
         ))}
       </div>
+
+      {/* Why use this */}
+      <section className="mb-12">
+        <h2 className="text-2xl font-semibold tracking-tight mb-6">Why should you use this?</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="rounded-lg border p-5">
+            <Database className="h-5 w-5 text-muted-foreground mb-3" />
+            <h3 className="text-sm font-medium mb-1">Data consistency and availability</h3>
+            <p className="text-sm text-muted-foreground">One source of truth for your team. Reduce your reliance on a maze of spreadsheets. Everyone works from the same portfolio data, metrics, and reports from a central location.</p>
+          </div>
+          <div className="rounded-lg border p-5">
+            <Brain className="h-5 w-5 text-muted-foreground mb-3" />
+            <h3 className="text-sm font-medium mb-1">Built to work with AI</h3>
+            <p className="text-sm text-muted-foreground">Bring your fund data to your own AI, and use it to ask anything about your portfolio and fund. Ask about benchmarks, trends, industry data, research, and more.</p>
+          </div>
+          <div className="rounded-lg border p-5">
+            <Shield className="h-5 w-5 text-muted-foreground mb-3" />
+            <h3 className="text-sm font-medium mb-1">Professionalize internal operations</h3>
+            <p className="text-sm text-muted-foreground">Institutional-quality reporting infrastructure without the cost of enterprise software. Run it yourself, on your own terms.</p>
+          </div>
+          <div className="rounded-lg border p-5">
+            <Users className="h-5 w-5 text-muted-foreground mb-3" />
+            <h3 className="text-sm font-medium mb-1">Built for how funds work</h3>
+            <p className="text-sm text-muted-foreground">Designed by a fund CFO for key workflows, including investor updates, LP reporting, and portfolio monitoring. Works alongside your fund admin and operations team.</p>
+          </div>
+        </div>
+      </section>
 
       {/* Pricing & License */}
       <section className="mb-8">
