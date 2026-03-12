@@ -133,6 +133,8 @@ export type Database = {
       app_settings: {
         Row: {
           created_at: string | null
+          github_stars: number | null
+          github_stars_checked_at: string | null
           global_inbound_address: string | null
           global_inbound_token: string | null
           id: string
@@ -141,6 +143,8 @@ export type Database = {
         }
         Insert: {
           created_at?: string | null
+          github_stars?: number | null
+          github_stars_checked_at?: string | null
           global_inbound_address?: string | null
           global_inbound_token?: string | null
           id?: string
@@ -149,6 +153,8 @@ export type Database = {
         }
         Update: {
           created_at?: string | null
+          github_stars?: number | null
+          github_stars_checked_at?: string | null
           global_inbound_address?: string | null
           global_inbound_token?: string | null
           id?: string
@@ -325,6 +331,127 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      compliance_deadlines: {
+        Row: {
+          id: string
+          fund_id: string
+          compliance_item_id: string
+          title: string
+          due_date: string
+          status: string
+          notes: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          fund_id: string
+          compliance_item_id: string
+          title: string
+          due_date: string
+          status?: string
+          notes?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          fund_id?: string
+          compliance_item_id?: string
+          title?: string
+          due_date?: string
+          status?: string
+          notes?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "compliance_deadlines_fund_id_fkey"
+            columns: ["fund_id"]
+            isOneToOne: false
+            referencedRelation: "funds"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      compliance_fund_settings: {
+        Row: {
+          id: string
+          fund_id: string
+          compliance_item_id: string
+          applies: string
+          dismissed: boolean
+          dismissed_reason: string | null
+          dismissed_by: string | null
+          dismissed_at: string | null
+          notes: string | null
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          fund_id: string
+          compliance_item_id: string
+          applies?: string
+          dismissed?: boolean
+          dismissed_reason?: string | null
+          dismissed_by?: string | null
+          dismissed_at?: string | null
+          notes?: string | null
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          fund_id?: string
+          compliance_item_id?: string
+          applies?: string
+          dismissed?: boolean
+          dismissed_reason?: string | null
+          dismissed_by?: string | null
+          dismissed_at?: string | null
+          notes?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "compliance_fund_settings_fund_id_fkey"
+            columns: ["fund_id"]
+            isOneToOne: false
+            referencedRelation: "funds"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      compliance_items: {
+        Row: {
+          id: string
+          category: string
+          title: string
+          description: string | null
+          frequency: string | null
+          sort_order: number
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          category: string
+          title: string
+          description?: string | null
+          frequency?: string | null
+          sort_order?: number
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          category?: string
+          title?: string
+          description?: string | null
+          frequency?: string | null
+          sort_order?: number
+          created_at?: string
+        }
+        Relationships: []
       }
       company_notes: {
         Row: {
@@ -514,6 +641,71 @@ export type Database = {
             foreignKeyName: "fund_cash_flows_fund_id_fkey"
             columns: ["fund_id"]
             isOneToOne: false
+            referencedRelation: "funds"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      fund_compliance_profile: {
+        Row: {
+          id: string
+          fund_id: string
+          registration_status: string | null
+          aum_range: string | null
+          fund_structure: string | null
+          fundraising_status: string | null
+          reg_d_exemption: string | null
+          investor_state_count: string | null
+          california_nexus: string[] | null
+          public_equity: string | null
+          cftc_activity: string | null
+          access_person_count: string | null
+          has_foreign_entities: string | null
+          completed_at: string | null
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          id?: string
+          fund_id: string
+          registration_status?: string | null
+          aum_range?: string | null
+          fund_structure?: string | null
+          fundraising_status?: string | null
+          reg_d_exemption?: string | null
+          investor_state_count?: string | null
+          california_nexus?: string[] | null
+          public_equity?: string | null
+          cftc_activity?: string | null
+          access_person_count?: string | null
+          has_foreign_entities?: string | null
+          completed_at?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          id?: string
+          fund_id?: string
+          registration_status?: string | null
+          aum_range?: string | null
+          fund_structure?: string | null
+          fundraising_status?: string | null
+          reg_d_exemption?: string | null
+          investor_state_count?: string | null
+          california_nexus?: string[] | null
+          public_equity?: string | null
+          cftc_activity?: string | null
+          access_person_count?: string | null
+          has_foreign_entities?: string | null
+          completed_at?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fund_compliance_profile_fund_id_fkey"
+            columns: ["fund_id"]
+            isOneToOne: true
             referencedRelation: "funds"
             referencedColumns: ["id"]
           },

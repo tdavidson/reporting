@@ -186,7 +186,7 @@ export async function POST(req: NextRequest) {
     // Sanitize filename for Content-Disposition header (prevent header injection)
     const safeZipName = (snapshotName || 'LP Reports').replace(/[^a-zA-Z0-9 _-]/g, '').trim() || 'LP Reports'
 
-    return new NextResponse(zipBuffer, {
+    return new NextResponse(new Uint8Array(zipBuffer), {
       headers: {
         'Content-Type': 'application/zip',
         'Content-Disposition': `attachment; filename="${safeZipName} - Individual PDFs.zip"`,
