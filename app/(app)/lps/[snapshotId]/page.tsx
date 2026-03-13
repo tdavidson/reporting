@@ -1123,7 +1123,7 @@ function InvestorTreeRows({
         onClick={() => !isEditingName && hasContent && onToggle(node.investorId)}
       >
         <td className="px-3 py-2 sticky left-0 bg-background z-10">
-          <div className="flex items-center gap-1 max-w-[250px]">
+          <div className="flex items-center gap-1 max-w-[180px] md:max-w-[275px]">
             {hasContent
               ? (isExpanded ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" /> : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />)
               : <span className="w-3.5" />
@@ -1154,25 +1154,28 @@ function InvestorTreeRows({
                 <div className="opacity-0 group-hover/row:opacity-100 inline-flex items-center gap-1 ml-1.5 shrink-0">
                   <button
                     onClick={e => { e.stopPropagation(); onStartEditInvestorName(node.investorId, node.investorName) }}
-                    className="inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[10px] text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                    className="inline-flex items-center justify-center rounded border p-1 text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                    title="Edit"
                   >
-                    <Pencil className="h-2.5 w-2.5" />Edit
+                    <Pencil className="h-2.5 w-2.5" />
                   </button>
                   {hasContent && (
                     <a
                       href={`/lps/${snapshotId}/${node.investorId}`}
                       onClick={e => e.stopPropagation()}
-                      className="inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[10px] text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                      className="inline-flex items-center justify-center rounded border p-1 text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                      title="Report"
                     >
-                      <FileText className="h-2.5 w-2.5" />Report
+                      <FileText className="h-2.5 w-2.5" />
                     </a>
                   )}
                   {!isGroup && (
                     <button
                       onClick={e => { e.stopPropagation(); onOpenGroupDialog(node.investorId, node.investorName) }}
-                      className="inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[10px] text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                      className="inline-flex items-center justify-center rounded border p-1 text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                      title="Group"
                     >
-                      <Users className="h-2.5 w-2.5" />Group
+                      <Users className="h-2.5 w-2.5" />
                     </button>
                   )}
                 </div>
@@ -1215,7 +1218,7 @@ function InvestorTreeRows({
               onClick={() => !childEditingName && onToggle(child.investorId)}
             >
               <td className="py-1.5 sticky left-0 bg-background z-10" style={{ paddingLeft: 26 }}>
-                <div className="flex items-center gap-1 max-w-[220px]">
+                <div className="flex items-center gap-1 max-w-[160px] md:max-w-[250px]">
                   {childExpanded ? <ChevronDown className="h-3 w-3 text-muted-foreground shrink-0" /> : <ChevronRight className="h-3 w-3 text-muted-foreground shrink-0" />}
                   {!isSynthetic && childEditingName ? (
                     <input
@@ -1241,22 +1244,25 @@ function InvestorTreeRows({
                         <div className="opacity-0 group-hover/child:opacity-100 inline-flex items-center gap-1 ml-1.5 shrink-0">
                           <button
                             onClick={e => { e.stopPropagation(); onStartEditInvestorName(child.investorId, child.investorName) }}
-                            className="inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[10px] text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                            className="inline-flex items-center justify-center rounded border p-1 text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                            title="Edit"
                           >
-                            <Pencil className="h-2.5 w-2.5" />Edit
+                            <Pencil className="h-2.5 w-2.5" />
                           </button>
                           <a
                             href={`/lps/${snapshotId}/${child.investorId}`}
                             onClick={e => e.stopPropagation()}
-                            className="inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[10px] text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                            className="inline-flex items-center justify-center rounded border p-1 text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                            title="Report"
                           >
-                            <FileText className="h-2.5 w-2.5" />Report
+                            <FileText className="h-2.5 w-2.5" />
                           </a>
                           <button
                             onClick={e => { e.stopPropagation(); onUngroupInvestor(child.investorId) }}
-                            className="inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[10px] text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                            className="inline-flex items-center justify-center rounded border p-1 text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                            title="Ungroup"
                           >
-                            <X className="h-2.5 w-2.5" />Ungroup
+                            <X className="h-2.5 w-2.5" />
                           </button>
                         </div>
                       )}
