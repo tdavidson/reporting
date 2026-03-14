@@ -56,7 +56,7 @@ export default function ContactPage() {
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div className="sm:col-span-2 flex items-start gap-4 pt-3">
             <img
-              src="https://www.hemrock.com/_next/image?url=%2Fassets%2Ftdavidson.jpg&w=128&q=75"
+              src="/tdavidson.jpg"
               alt="Taylor Davidson"
               width={80}
               height={80}

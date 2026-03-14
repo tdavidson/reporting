@@ -250,7 +250,7 @@ export default function HomePage() {
           <div className="sm:col-span-3 rounded-lg border bg-muted/50 p-5">
             <div className="flex items-start gap-4">
               <img
-                src="https://www.hemrock.com/_next/image?url=%2Fassets%2Ftdavidson.jpg&w=256&q=75"
+                src="/tdavidson.jpg"
                 alt="Taylor Davidson"
                 width={128}
                 height={128}
