@@ -285,7 +285,7 @@ function PublicShell({ children }: { children: React.ReactNode }) {
               <Github className="h-4 w-4" />
               {starCount != null && starCount >= 10 && (
                 <span className="inline-flex items-center gap-0.5 text-xs text-muted-foreground">
-                  <Star className="h-3 w-3" />
+                  <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
                   {starCount}
                 </span>
               )}
