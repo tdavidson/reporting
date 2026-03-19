@@ -2,11 +2,13 @@
 
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react'
 import Link from 'next/link'
-import { ArrowDownAZ, ArrowUpZA, ArrowDown, ArrowUp, LayoutGrid, Table2, CalendarDays } from 'lucide-react'
+import { ArrowDownAZ, ArrowUpZA, ArrowDown, ArrowUp, LayoutGrid, Table2, CalendarDays, Plus } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { DashboardTable } from './dashboard-table'
 import { useCurrency, getCurrencySymbol } from '@/components/currency-context'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import { CompanyForm } from '@/components/company-form'
 
 interface ActiveMetric {
   id: string
@@ -124,6 +126,7 @@ export function DashboardCompanies({ companies, allGroups }: Props) {
             <option value="written-off">Written Off</option>
             </select>
           </div>
+           <AddCompanyButton />
           <div className="ml-auto flex items-center gap-1">
             <Button
               variant={sortMode === 'alpha' ? 'secondary' : 'ghost'}
@@ -173,8 +176,9 @@ export function DashboardCompanies({ companies, allGroups }: Props) {
       )}
 
       {filtered.length === 0 ? (
-        <div className="rounded-lg border border-dashed p-12 text-center">
+        <div className="rounded-lg border border-dashed p-12 text-center space-y-4">
           <p className="text-muted-foreground">No companies match the selected filters.</p>
+          <AddCompanyButton />
         </div>
       ) : view === 'table' ? (
         <DashboardTable
@@ -358,4 +362,26 @@ function ExitedMetricDisplay({ company }: { company: Company }) {
     </div>
   )
 }
-
+function AddCompanyButton() {
+  const [open, setOpen] = useState(false)
+  const router = useRouter()
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button size="sm" className="gap-1.5">
+          <Plus className="h-3.5 w-3.5" />
+          Add Company
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Add Company</DialogTitle>
+        </DialogHeader>
+        <CompanyForm
+          onSuccess={() => { setOpen(false); router.refresh() }}
+          onCancel={() => setOpen(false)}
+        />
+      </DialogContent>
+    </Dialog>
+  )
+}
