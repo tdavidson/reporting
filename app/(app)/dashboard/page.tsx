@@ -26,10 +26,10 @@ export default async function DashboardPage() {
 
   const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString()
 
-  // Fetch companies with their first 2 metrics and review counts
   type CompanyRow = {
     id: string; name: string; stage: string | null; status: string
     tags: string[]; industry: string[] | null; portfolio_group: string[] | null
+    logo_url: string | null
     metrics: { id: string; name: string; unit: string | null; unit_position: string; value_type: string; currency: string | null; display_order: number; is_active: boolean }[]
     parsing_reviews: { id: string; resolution: string | null }[]
   }
@@ -37,13 +37,12 @@ export default async function DashboardPage() {
   const { data: companiesRaw } = await supabase
     .from('companies')
     .select(`
-      id, name, stage, status, tags, industry, portfolio_group,
+      id, name, stage, status, tags, industry, portfolio_group, logo_url,
       metrics(id, name, unit, unit_position, value_type, currency, display_order, is_active),
       parsing_reviews(id, resolution)
     `)
     .order('name') as { data: CompanyRow[] | null }
 
-  // Find cash metric IDs for each company
   const cashMetricMap = new Map<string, string>()
   for (const c of companiesRaw ?? []) {
     const cashMetric = (c.metrics ?? []).find(m =>
@@ -52,7 +51,6 @@ export default async function DashboardPage() {
     if (cashMetric) cashMetricMap.set(c.id, cashMetric.id)
   }
 
-  // Batch fetch latest cash values
   const cashMetricIds = Array.from(cashMetricMap.values())
   const cashValues = new Map<string, number>()
   if (cashMetricIds.length > 0) {
@@ -64,7 +62,6 @@ export default async function DashboardPage() {
       .order('period_year', { ascending: false })
       .order('created_at', { ascending: false }) as { data: { metric_id: string; value_number: number }[] | null }
 
-    // Keep only the first (latest) value per metric
     for (const row of cashRows ?? []) {
       if (!cashValues.has(row.metric_id)) {
         cashValues.set(row.metric_id, row.value_number)
@@ -72,7 +69,6 @@ export default async function DashboardPage() {
     }
   }
 
-  // Batch fetch latest metric period per company
   const { data: latestPeriodRows } = await supabase
     .from('metric_values')
     .select('company_id, period_year, period_quarter, period_month')
@@ -85,7 +81,6 @@ export default async function DashboardPage() {
   for (const row of latestPeriodRows ?? []) {
     if (lastMetricPeriod.has(row.company_id)) continue
     if (row.period_month) {
-      // Use last day of the month
       const lastDay = new Date(row.period_year, row.period_month, 0)
       lastMetricPeriod.set(row.company_id, lastDay.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }))
     } else if (row.period_quarter) {
@@ -102,7 +97,6 @@ export default async function DashboardPage() {
       .filter((m) => m.is_active)
       .sort((a, b) => a.display_order - b.display_order)
     const openReviews = (c.parsing_reviews ?? []).filter((r) => r.resolution === null).length
-
     const cashMetricId = cashMetricMap.get(c.id)
     const latestCash = cashMetricId ? cashValues.get(cashMetricId) ?? null : null
 
@@ -114,6 +108,7 @@ export default async function DashboardPage() {
       tags: c.tags ?? [],
       industry: c.industry,
       portfolioGroup: c.portfolio_group,
+      logoUrl: c.logo_url ?? null,
       lastReportAt,
       openReviews,
       activeMetrics: activeMetrics.map(m => ({ id: m.id, name: m.name, unit: m.unit, unit_position: m.unit_position, value_type: m.value_type, currency: m.currency })),
@@ -121,7 +116,6 @@ export default async function DashboardPage() {
     }
   })
 
-  // Fetch investment transactions for ALL companies (first investment date + summaries for exited)
   const allCompanyIds = companies.map(c => c.id)
   const admin = createAdminClient()
   const { data: allTxns } = await admin
@@ -130,14 +124,12 @@ export default async function DashboardPage() {
     .in('company_id', allCompanyIds)
     .order('transaction_date', { ascending: true }) as { data: InvestmentTransaction[] | null }
 
-  // Group transactions by company
   const txnsByCompany = new Map<string, InvestmentTransaction[]>()
   for (const txn of allTxns ?? []) {
     if (!txnsByCompany.has(txn.company_id)) txnsByCompany.set(txn.company_id, [])
     txnsByCompany.get(txn.company_id)!.push(txn)
   }
 
-  // Compute first investment date per company
   const firstInvestmentDates = new Map<string, string>()
   for (const companyId of Array.from(txnsByCompany.keys())) {
     const txns = txnsByCompany.get(companyId)!
@@ -147,7 +139,6 @@ export default async function DashboardPage() {
     }
   }
 
-  // Compute summaries for exited/written-off companies
   const exitedIds = companies
     .filter(c => c.status === 'exited' || c.status === 'written-off')
     .map(c => c.id)
@@ -165,7 +156,6 @@ export default async function DashboardPage() {
     }
   }
 
-  // Attach investment data to company objects
   const companiesWithInvestments = companies.map(c => ({
     ...c,
     firstInvestmentDate: firstInvestmentDates.get(c.id) ?? null,
@@ -180,26 +170,26 @@ export default async function DashboardPage() {
 
   return (
     <DashboardNotesLayout userId={user.id} isAdmin={isAdmin} companies={companiesWithInvestments.map(c => ({ id: c.id, name: c.name }))}>
-    <div className="p-4 md:py-8 md:pl-8 md:pr-4">
-      <div className="mb-6 space-y-1">
-        <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-semibold tracking-tight">Portfolio</h1>
-          <div className="flex items-center gap-2">
-            <DashboardChatButton />
-            <AnalystToggleButton />
+      <div className="p-4 md:py-8 md:pl-8 md:pr-4">
+        <div className="mb-6 space-y-1">
+          <div className="flex items-center justify-between">
+            <h1 className="text-2xl font-semibold tracking-tight">Portfolio</h1>
+            <div className="flex items-center gap-2">
+              <DashboardChatButton />
+              <AnalystToggleButton />
+            </div>
           </div>
+          <p className="text-sm text-muted-foreground">Track performance and activity across your portfolio companies</p>
         </div>
-        <p className="text-sm text-muted-foreground">Track performance and activity across your portfolio companies</p>
-      </div>
 
-      <div className="flex flex-col lg:flex-row gap-6 items-start">
-        <div className="flex-1 min-w-0 max-w-7xl w-full">
-          <DashboardCompanies companies={companiesWithInvestments} allGroups={allGroups} />
+        <div className="flex flex-col lg:flex-row gap-6 items-start">
+          <div className="flex-1 min-w-0 max-w-7xl w-full">
+            <DashboardCompanies companies={companiesWithInvestments} allGroups={allGroups} />
+          </div>
+          <DashboardNotesPanel />
+          <AnalystPanel />
         </div>
-        <DashboardNotesPanel />
-        <AnalystPanel />
       </div>
-    </div>
     </DashboardNotesLayout>
   )
 }
