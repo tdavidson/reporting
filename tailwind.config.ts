@@ -1,5 +1,4 @@
 import type { Config } from 'tailwindcss'
-
 const config: Config = {
     darkMode: ['class'],
     content: [
@@ -9,6 +8,9 @@ const config: Config = {
   ],
   theme: {
   	extend: {
+  		fontFamily: {
+  			mono: ['var(--font-jetbrains-mono)', 'monospace'],
+  		},
   		borderRadius: {
   			lg: 'var(--radius)',
   			md: 'calc(var(--radius) - 2px)',
@@ -60,5 +62,4 @@ const config: Config = {
   },
   plugins: [require("tailwindcss-animate")],
 }
-
 export default config
