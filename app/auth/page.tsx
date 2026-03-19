@@ -95,7 +95,7 @@ function AuthForm() {
           alt="Parallax Ventures"
           width={650}
           height={650}
-          style={{ marginLeft: '-19px' }}
+          style={{ marginLeft: '-120px' }}
         />
       </div>
 
