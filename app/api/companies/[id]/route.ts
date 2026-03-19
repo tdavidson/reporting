@@ -76,6 +76,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   if (google_drive_folder_id !== undefined) updates.google_drive_folder_id = google_drive_folder_id || null
   if (google_drive_folder_name !== undefined) updates.google_drive_folder_name = google_drive_folder_name || null
   if (dropbox_folder_path !== undefined) updates.dropbox_folder_path = dropbox_folder_path || null
+  if (body.logo_url !== undefined) updates.logo_url = body.logo_url || null
   if (status !== undefined) {
     if (!VALID_STATUSES.includes(status)) {
       return NextResponse.json({ error: `Invalid status. Must be one of: ${VALID_STATUSES.join(', ')}` }, { status: 400 })
