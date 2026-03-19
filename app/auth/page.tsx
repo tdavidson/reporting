@@ -87,14 +87,15 @@ function AuthForm() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4" style={{ backgroundColor: '#102430' }}>
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-start pt-16 p-4" style={{ backgroundColor: '#102430' }}>
       <div className="w-full max-w-md space-y-6">
-        <div className="text-center">
+        <div className="text-center mb-8">
           <Image
             src="/PARALLAX_VENTURES_BRAND_MARK-1.svg"
             alt="Parallax Ventures"
-            width={320}
-            height={320}
+            width={520}
+            height={520}
             className="mx-auto mb-6"
           />
         </div>
