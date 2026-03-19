@@ -151,18 +151,33 @@ export default function BatchPDFPage() {
     load()
   }, [snapshotId])
 
-  // Group investments by investor
+  // Group investments by investor (merging children into parent groups)
   const investors = useMemo(() => {
-    const map = new Map<string, InvestorData>()
+    // First pass: collect all investor info and group by direct investor
+    const investorInfo = new Map<string, { name: string; parentId: string | null }>()
+    const rawMap = new Map<string, InvestorData>()
     for (const inv of allInvestments) {
       const id = inv.lp_entities?.lp_investors?.id
       const name = inv.lp_entities?.lp_investors?.name
+      const parentId = inv.lp_entities?.lp_investors?.parent_id ?? null
       if (!id || !name) continue
-      const entry = map.get(id) ?? { investorId: id, investorName: name, investments: [] }
+      investorInfo.set(id, { name, parentId })
+      const entry = rawMap.get(id) ?? { investorId: id, investorName: name, investments: [] }
       entry.investments.push(inv)
-      map.set(id, entry)
+      rawMap.set(id, entry)
     }
-    return Array.from(map.values()).sort((a, b) => a.investorName.localeCompare(b.investorName))
+    // Second pass: merge children into parent groups
+    const merged = new Map<string, InvestorData>()
+    for (const [id, data] of rawMap) {
+      const info = investorInfo.get(id)
+      const parentId = info?.parentId
+      const groupId = parentId ?? id
+      const groupName = parentId ? (investorInfo.get(parentId)?.name ?? data.investorName) : data.investorName
+      const entry = merged.get(groupId) ?? { investorId: groupId, investorName: groupName, investments: [] }
+      entry.investments.push(...data.investments)
+      merged.set(groupId, entry)
+    }
+    return Array.from(merged.values()).sort((a, b) => a.investorName.localeCompare(b.investorName))
   }, [allInvestments])
 
   // Search-filtered investors

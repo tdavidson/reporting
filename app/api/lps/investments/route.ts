@@ -26,7 +26,7 @@ export async function GET(req: NextRequest) {
   const admin = createAdminClient()
   let query = admin
     .from('lp_investments' as any)
-    .select('*, lp_entities!inner(id, entity_name, investor_id, lp_investors!inner(id, name))')
+    .select('*, lp_entities!inner(id, entity_name, investor_id, lp_investors!inner(id, name, parent_id))')
     .eq('fund_id', membership.fund_id)
 
   const snapshotId = req.nextUrl.searchParams.get('snapshotId')

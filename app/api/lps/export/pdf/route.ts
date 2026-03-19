@@ -378,8 +378,7 @@ export async function POST(req: NextRequest) {
       .maybeSingle() as Promise<{ data: any; error: any }>,
     admin.from('lp_investors')
       .select('id, name, parent_id')
-      .eq('fund_id', fundId)
-      .in('id', investorIds),
+      .eq('fund_id', fundId),
     admin.from('lp_investments')
       .select('id, entity_id, portfolio_group, commitment, total_value, nav, called_capital, paid_in_capital, distributions, irr, lp_entities(id, entity_name, investor_id, lp_investors(id, name))')
       .eq('snapshot_id', snapshotId),
@@ -441,7 +440,9 @@ export async function POST(req: NextRequest) {
   const investorHtmlMap = new Map<string, { html: string; safeName: string }>()
 
   for (const investorId of investorIds) {
-    const investorName = verifiedInvestors.find(i => i.id === investorId)?.name ?? 'Investor'
+    const investor = verifiedInvestors.find(i => i.id === investorId)
+    const parent = investor?.parent_id ? verifiedInvestors.find(i => i.id === investor.parent_id) : null
+    const investorName = parent?.name ?? investor?.name ?? 'Investor'
     const relatedIds = childrenOf.get(investorId) ?? new Set([investorId])
 
     // Collect all investments for this investor group

@@ -77,6 +77,7 @@ export default function InvestorReportPage() {
   const [fundLogo, setFundLogo] = useState<string | null>(null)
   const [fundAddress, setFundAddress] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const [resolvedName, setResolvedName] = useState<string | null>(null)
   const [excludedGroups, setExcludedGroups] = useState<Set<string>>(() => {
     const exclude = searchParams.get('exclude')
     return exclude ? new Set(exclude.split(',').map(s => decodeURIComponent(s.trim())).filter(Boolean)) : new Set()
@@ -111,6 +112,10 @@ export default function InvestorReportPage() {
           }
 
           setInvestments(allInvestments.filter(inv => childIds.has(inv.lp_entities?.lp_investors?.id)))
+
+          // Use the parent investor's name (the one matching the URL param)
+          const self = allInvestors.find(inv => inv.id === investorId)
+          if (self) setResolvedName(self.name)
         }
 
         if (settingsRes.ok) {
@@ -127,8 +132,8 @@ export default function InvestorReportPage() {
     load()
   }, [snapshotId, investorId])
 
-  // Investor name (from first investment)
-  const investorName = investments[0]?.lp_entities?.lp_investors?.name ?? 'Investor'
+  // Investor name — prefer the resolved parent name from the investors list
+  const investorName = resolvedName ?? investments[0]?.lp_entities?.lp_investors?.name ?? 'Investor'
 
   // Compute rows — calculate DPI/RVPI/TVPI from raw data
   const rows = useMemo(() => {
