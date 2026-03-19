@@ -3,6 +3,7 @@
 import { Suspense, useState, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
+import Image from 'next/image'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -10,7 +11,6 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Separator } from '@/components/ui/separator'
-import { Building2 } from 'lucide-react'
 
 export default function AuthPage() {
   return (
@@ -31,6 +31,7 @@ function AuthForm() {
     const host = window.location.hostname
     setIsHemrock(host === 'hemrock.com' || host.endsWith('.hemrock.com') || host === 'localhost')
   }, [])
+
   const router = useRouter()
   const searchParams = useSearchParams()
   const urlError = searchParams.get('error')
@@ -38,7 +39,6 @@ function AuthForm() {
 
   const supabase = createClient()
 
-  // Handle code param (e.g. password reset link landing on /auth instead of /auth/callback)
   useEffect(() => {
     const code = searchParams.get('code')
     if (!code) return
@@ -49,15 +49,12 @@ function AuthForm() {
         setError('Invalid or expired link. Please try again.')
         return
       }
-      // Check if this is a recovery session — redirect to set new password
       const { data: { session } } = await supabase.auth.getSession()
       let destination = session?.user?.recovery_sent_at ? '/auth/reset-password' : '/'
-      // If user has no fund, send to onboarding
       if (destination === '/') {
         const { data: fund } = await supabase.from('funds').select('id').limit(1).maybeSingle()
         if (!fund) destination = '/onboarding?confirmed=true'
       }
-      // If MFA is enrolled, verify first then continue to destination
       const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel()
       if (aal && aal.nextLevel === 'aal2' && aal.currentLevel !== 'aal2') {
         router.replace(`/auth/mfa-verify?next=${encodeURIComponent(destination)}`)
@@ -76,10 +73,8 @@ function AuthForm() {
       setError(error.message)
     } else {
       fetch('/api/auth/activity', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ method: 'password' }) }).catch(() => {})
-      // Check if user has a fund — if not, go to onboarding
       const { data: fund } = await supabase.from('funds').select('id').limit(1).maybeSingle()
       const destination = fund ? '/' : '/onboarding'
-      // Check if user has MFA enrolled and needs to verify
       const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel()
       if (aal && aal.nextLevel === 'aal2' && aal.currentLevel !== 'aal2') {
         router.push(`/auth/mfa-verify?next=${encodeURIComponent(destination)}`)
@@ -92,13 +87,16 @@ function AuthForm() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-muted/40 p-4">
+    <div className="min-h-screen flex items-center justify-center p-4" style={{ backgroundColor: '#102430' }}>
       <div className="w-full max-w-md space-y-6">
         <div className="text-center">
-          <div className="h-10 w-10 rounded bg-muted flex items-center justify-center mx-auto mb-2">
-            <Building2 className="h-5 w-5 text-muted-foreground" />
-          </div>
-          <h1 className="text-lg font-semibold tracking-tight">Portfolio Reporting</h1>
+          <Image
+            src="/PARALLAX_VENTURES_BRAND_MARK-1.svg"
+            alt="Parallax Ventures"
+            width={120}
+            height={120}
+            className="mx-auto mb-4"
+          />
         </div>
 
         <Card>
