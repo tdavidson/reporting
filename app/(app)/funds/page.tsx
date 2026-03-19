@@ -6,6 +6,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useCurrency, formatCurrency, formatCurrencyFull } from '@/components/currency-context'
 import { xirr, type CashFlow } from '@/lib/xirr'
 import { useFeatureVisibility } from '@/components/feature-visibility-context'
@@ -28,16 +29,26 @@ interface FundCashFlow {
 interface GroupSummaryFromInvestments {
   group: string
   unrealizedValue: number
+  totalInvested: number
 }
 
 interface GroupConfig {
   cashOnHand: number
-  carryRate: number   // decimal, e.g. 0.20 = 20%
-  gpCommitPct: number // decimal, e.g. 0.02 = 2%
+  carryRate: number
+  gpCommitPct: number
   vintage: number | null
+  managementFeeRate: number
+  performanceFeeRate: number
 }
 
-const DEFAULT_CONFIG: GroupConfig = { cashOnHand: 0, carryRate: 0.20, gpCommitPct: 0, vintage: null }
+const DEFAULT_CONFIG: GroupConfig = {
+  cashOnHand: 0,
+  carryRate: 0.20,
+  gpCommitPct: 0,
+  vintage: null,
+  managementFeeRate: 0,
+  performanceFeeRate: 0,
+}
 
 interface FundMetrics {
   committed: number
@@ -53,7 +64,14 @@ interface FundMetrics {
   dpi: number | null
   rvpi: number | null
   netIrr: number | null
+  grossMoic: number | null
+  netMoic: number | null
+  grossIrr: number | null
+  netTvpi: number | null
+  totalManagementFees: number
 }
+
+type DisplayUnit = 'full' | 'millions' | 'thousands'
 
 const FLOW_TYPE_LABELS: Record<string, string> = {
   commitment: 'Commitment',
@@ -61,12 +79,24 @@ const FLOW_TYPE_LABELS: Record<string, string> = {
   distribution: 'Distribution',
 }
 
+function computeTotalManagementFees(
+  committed: number,
+  managementFeeRate: number,
+  vintage: number | null
+): number {
+  if (!managementFeeRate || !vintage || committed <= 0) return 0
+  const currentYear = new Date().getFullYear()
+  const years = Math.max(0, currentYear - vintage)
+  return committed * managementFeeRate * years
+}
+
 function computeFundMetrics(
   cashFlows: FundCashFlow[],
   grossResidual: number,
+  totalInvested: number,
   config: GroupConfig
 ): FundMetrics {
-  const { cashOnHand, carryRate, gpCommitPct } = config
+  const { cashOnHand, carryRate, gpCommitPct, vintage, managementFeeRate, performanceFeeRate } = config
   let committed = 0
   let called = 0
   let distributions = 0
@@ -80,21 +110,30 @@ function computeFundMetrics(
   const uncalled = committed - called
   const grossAssets = grossResidual + cashOnHand
 
-  // GP commit portion of called capital is not subject to carry
   const gpCapital = called * gpCommitPct
   const lpCapital = called - gpCapital
   const lpDistributions = distributions * (1 - gpCommitPct)
-  // Carry applies only to LP profit: gross assets minus LP remaining capital
   const lpRemainingCapital = lpCapital - lpDistributions
   const estimatedCarry = Math.max(0, carryRate * (grossAssets * (1 - gpCommitPct) - lpRemainingCapital))
   const netResidual = grossAssets - estimatedCarry
   const totalValue = distributions + netResidual
 
-  const tvpi = called > 0 ? totalValue / called : null
+  const totalManagementFees = computeTotalManagementFees(committed, managementFeeRate, vintage)
+
+  // Net TVPI = (Distributions + Net Residual) / Called Capital
+  const netTvpi = called > 0 ? totalValue / called : null
+  const tvpi = netTvpi
   const dpi = called > 0 ? distributions / called : null
   const rvpi = called > 0 ? netResidual / called : null
 
-  // Net IRR: called capital as negative, distributions as positive, net residual as terminal
+  // Gross MOIC = (Distributions + Gross Residual) / Capital Invested (what companies actually received)
+  const grossMoic = totalInvested > 0 ? (distributions + grossResidual) / totalInvested : null
+
+  // Net MOIC = (Distributions + Net Residual - Management Fees) / Capital Invested
+  const netMoicNumerator = distributions + netResidual - totalManagementFees
+  const netMoic = totalInvested > 0 ? netMoicNumerator / totalInvested : null
+
+  // Net IRR using called capital
   const xirrFlows: CashFlow[] = []
   for (const cf of cashFlows) {
     if (cf.flow_type === 'called_capital') {
@@ -109,7 +148,28 @@ function computeFundMetrics(
   }
   const netIrr = xirrFlows.length >= 2 ? xirr(xirrFlows) : null
 
-  return { committed, called, uncalled, distributions, cashOnHand, grossResidual, estimatedCarry, netResidual, totalValue, tvpi, dpi, rvpi, netIrr }
+  // Gross IRR using capital invested (totalInvested) instead of called capital
+  const grossXirrFlows: CashFlow[] = []
+  if (totalInvested > 0 && cashFlows.length > 0) {
+    const firstDate = new Date(cashFlows[0].flow_date)
+    grossXirrFlows.push({ date: firstDate, amount: -totalInvested })
+    for (const cf of cashFlows) {
+      if (cf.flow_type === 'distribution') {
+        grossXirrFlows.push({ date: new Date(cf.flow_date), amount: cf.amount })
+      }
+    }
+    if (grossResidual > 0) {
+      grossXirrFlows.push({ date: new Date(), amount: grossResidual })
+    }
+  }
+  const grossIrr = grossXirrFlows.length >= 2 ? xirr(grossXirrFlows) : null
+
+  return {
+    committed, called, uncalled, distributions, cashOnHand,
+    grossResidual, estimatedCarry, netResidual, totalValue,
+    tvpi, dpi, rvpi, netIrr, grossMoic, netMoic, grossIrr, netTvpi,
+    totalManagementFees,
+  }
 }
 
 function fmtMoic(val: number | null): string {
@@ -123,40 +183,46 @@ function fmtIrr(val: number | null): string {
   return `${(Object.is(pct, -0) ? 0 : pct).toFixed(1)}%`
 }
 
+function formatWithUnit(val: number, unit: DisplayUnit, currency: string): string {
+  const symbol = currency === 'BRL' ? 'R$' : currency === 'EUR' ? '€' : currency === 'GBP' ? '£' : '$'
+  if (unit === 'millions') return `${symbol}${(val / 1_000_000).toFixed(1)}M`
+  if (unit === 'thousands') return `${symbol}${(val / 1_000).toFixed(0)}K`
+  return formatCurrencyFull(val, currency)
+}
+
 export default function FundsPage() {
   const fv = useFeatureVisibility()
   const currency = useCurrency()
-  const fmt = (val: number) => formatCurrency(val, currency)
-  const fmtFull = (val: number) => formatCurrencyFull(val, currency)
 
   const [cashFlows, setCashFlows] = useState<FundCashFlow[]>([])
   const [investmentGroups, setInvestmentGroups] = useState<GroupSummaryFromInvestments[]>([])
   const [groupConfigs, setGroupConfigs] = useState<Record<string, GroupConfig>>({})
   const [loading, setLoading] = useState(true)
+  const [displayUnit, setDisplayUnit] = useState<DisplayUnit>('full')
 
-  // Inline edit state
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editDraft, setEditDraft] = useState({ flowDate: '', flowType: '', amount: '', notes: '', portfolioGroup: '' })
-
-  // Add new row state
   const [addingGroup, setAddingGroup] = useState<string | null>(null)
   const [addDraft, setAddDraft] = useState({ flowDate: '', flowType: 'commitment', amount: '', notes: '', portfolioGroup: '' })
   const [saving, setSaving] = useState(false)
 
-  // Cash on hand edit state
   const [editingCashGroup, setEditingCashGroup] = useState<string | null>(null)
   const [cashOnHandDraft, setCashOnHandDraft] = useState<Record<string, string>>({})
   const [savingCash, setSavingCash] = useState(false)
 
-  // Import state
   const [importOpen, setImportOpen] = useState(false)
   const [importData, setImportData] = useState('')
   const [importing, setImporting] = useState(false)
   const [importResult, setImportResult] = useState<{ created: number; errors: string[] } | null>(null)
 
-  // Group settings modal state
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const [settingsDrafts, setSettingsDrafts] = useState<Record<string, { carryRate: string; gpCommitPct: string; vintage: string }>>({})
+  const [settingsDrafts, setSettingsDrafts] = useState<Record<string, {
+    carryRate: string
+    gpCommitPct: string
+    vintage: string
+    managementFeeRate: string
+    performanceFeeRate: string
+  }>>({})
   const [savingSettings, setSavingSettings] = useState(false)
 
   useEffect(() => {
@@ -175,6 +241,7 @@ export default function FundsPage() {
             (invData.groups ?? []).map((g: any) => ({
               group: g.group,
               unrealizedValue: g.unrealizedValue ?? 0,
+              totalInvested: g.totalInvested ?? 0,
             }))
           )
         }
@@ -187,6 +254,8 @@ export default function FundsPage() {
               carryRate: c.carry_rate != null ? Number(c.carry_rate) : 0.20,
               gpCommitPct: Number(c.gp_commit_pct) || 0,
               vintage: c.vintage != null ? Number(c.vintage) : null,
+              managementFeeRate: c.management_fee_rate != null ? Number(c.management_fee_rate) : 0,
+              performanceFeeRate: c.performance_fee_rate != null ? Number(c.performance_fee_rate) : 0,
             }
           }
           setGroupConfigs(map)
@@ -198,35 +267,38 @@ export default function FundsPage() {
     load()
   }, [])
 
-  // Get unique portfolio groups from cash flows
   const groups = useMemo(() => {
     const set = new Set<string>()
     for (const cf of cashFlows) set.add(cf.portfolio_group)
-    // Also include groups from investments that might not have cash flows yet
     for (const g of investmentGroups) if (g.group) set.add(g.group)
     return Array.from(set).sort()
   }, [cashFlows, investmentGroups])
 
-  // Gross residual per group from investments data
   const grossResidualByGroup = useMemo(() => {
     const map = new Map<string, number>()
-    for (const g of investmentGroups) {
-      map.set(g.group, g.unrealizedValue)
-    }
+    for (const g of investmentGroups) map.set(g.group, g.unrealizedValue)
     return map
   }, [investmentGroups])
 
-  // Metrics per group
+  const totalInvestedByGroup = useMemo(() => {
+    const map = new Map<string, number>()
+    for (const g of investmentGroups) map.set(g.group, g.totalInvested)
+    return map
+  }, [investmentGroups])
+
   const metricsByGroup = useMemo(() => {
     const map = new Map<string, FundMetrics>()
     for (const group of groups) {
       const groupFlows = cashFlows.filter(cf => cf.portfolio_group === group)
       const grossResidual = grossResidualByGroup.get(group) ?? 0
+      const totalInvested = totalInvestedByGroup.get(group) ?? 0
       const config = groupConfigs[group] ?? DEFAULT_CONFIG
-      map.set(group, computeFundMetrics(groupFlows, grossResidual, config))
+      map.set(group, computeFundMetrics(groupFlows, grossResidual, totalInvested, config))
     }
     return map
-  }, [groups, cashFlows, grossResidualByGroup, groupConfigs])
+  }, [groups, cashFlows, grossResidualByGroup, totalInvestedByGroup, groupConfigs])
+
+  const fmt = (val: number) => formatWithUnit(val, displayUnit, currency)
 
   const startEdit = useCallback((cf: FundCashFlow) => {
     setEditingId(cf.id)
@@ -267,9 +339,7 @@ export default function FundsPage() {
 
   async function handleDelete(id: string) {
     const res = await fetch(`/api/portfolio/fund-cash-flows?id=${id}`, { method: 'DELETE' })
-    if (res.ok) {
-      setCashFlows(prev => prev.filter(cf => cf.id !== id))
-    }
+    if (res.ok) setCashFlows(prev => prev.filter(cf => cf.id !== id))
   }
 
   async function handleAdd(group: string) {
@@ -313,10 +383,7 @@ export default function FundsPage() {
         const data = await res.json()
         setGroupConfigs(prev => ({
           ...prev,
-          [group]: {
-            ...(prev[group] ?? DEFAULT_CONFIG),
-            cashOnHand: Number(data.cash_on_hand) || 0,
-          },
+          [group]: { ...(prev[group] ?? DEFAULT_CONFIG), cashOnHand: Number(data.cash_on_hand) || 0 },
         }))
         setCashOnHandDraft(prev => { const next = { ...prev }; delete next[group]; return next })
         setEditingCashGroup(null)
@@ -340,7 +407,6 @@ export default function FundsPage() {
       if (res.ok) {
         setImportResult(result)
         setImportData('')
-        // Reload cash flows
         const cfRes = await fetch('/api/portfolio/fund-cash-flows')
         if (cfRes.ok) setCashFlows(await cfRes.json())
       } else {
@@ -352,13 +418,15 @@ export default function FundsPage() {
   }
 
   function openSettings() {
-    const drafts: Record<string, { carryRate: string; gpCommitPct: string; vintage: string }> = {}
+    const drafts: Record<string, any> = {}
     for (const group of groups) {
       const config = groupConfigs[group] ?? DEFAULT_CONFIG
       drafts[group] = {
         carryRate: String(config.carryRate * 100),
         gpCommitPct: String(config.gpCommitPct * 100),
         vintage: config.vintage != null ? String(config.vintage) : '',
+        managementFeeRate: String(config.managementFeeRate * 100),
+        performanceFeeRate: String(config.performanceFeeRate * 100),
       }
     }
     setSettingsDrafts(drafts)
@@ -379,6 +447,8 @@ export default function FundsPage() {
             carryRate: parseFloat(draft.carryRate || '20') / 100,
             gpCommitPct: parseFloat(draft.gpCommitPct || '0') / 100,
             vintage: draft.vintage || null,
+            managementFeeRate: parseFloat(draft.managementFeeRate || '0') / 100,
+            performanceFeeRate: parseFloat(draft.performanceFeeRate || '0') / 100,
           }),
         })
         if (res.ok) {
@@ -390,6 +460,8 @@ export default function FundsPage() {
               carryRate: data.carry_rate != null ? Number(data.carry_rate) : 0.20,
               gpCommitPct: Number(data.gp_commit_pct) || 0,
               vintage: data.vintage != null ? Number(data.vintage) : null,
+              managementFeeRate: data.management_fee_rate != null ? Number(data.management_fee_rate) : 0,
+              performanceFeeRate: data.performance_fee_rate != null ? Number(data.performance_fee_rate) : 0,
             },
           }))
         }
@@ -404,12 +476,10 @@ export default function FundsPage() {
     return (
       <div className="p-4 md:py-8 md:pl-8 md:pr-4 w-full">
         <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2 mb-6">
-          {fv.funds === 'admin' && <Lock className="h-4 w-4 text-amber-500" />}
-                    Funds
+          {fv.funds === 'admin' && <Lock className="h-4 w-4 text-amber-500" />}Funds
         </h1>
         <div className="flex items-center gap-2 text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin" />
-          Loading...
+          <Loader2 className="h-4 w-4 animate-spin" />Loading...
         </div>
       </div>
     )
@@ -419,8 +489,7 @@ export default function FundsPage() {
     return (
       <div className="p-4 md:py-8 md:pl-8 md:pr-4 w-full">
         <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2 mb-6">
-          {fv.funds === 'admin' && <Lock className="h-4 w-4 text-amber-500" />}
-                    Funds
+          {fv.funds === 'admin' && <Lock className="h-4 w-4 text-amber-500" />}Funds
         </h1>
         <p className="text-sm text-muted-foreground">
           No fund cash flows yet. Add cash flows from the Import page or from individual group tabs.
@@ -435,10 +504,22 @@ export default function FundsPage() {
       <div className="mb-6 space-y-1">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2">
-            {fv.funds === 'admin' && <Lock className="h-4 w-4 text-amber-500" />}
-            Funds
+            {fv.funds === 'admin' && <Lock className="h-4 w-4 text-amber-500" />}Funds
           </h1>
-          <span className="flex items-center gap-2"><PortfolioNotesButton /><AnalystToggleButton /></span>
+          <span className="flex items-center gap-2">
+            <Select value={displayUnit} onValueChange={v => setDisplayUnit(v as DisplayUnit)}>
+              <SelectTrigger className="w-28 h-8 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="full">Full</SelectItem>
+                <SelectItem value="millions">Millions (M)</SelectItem>
+                <SelectItem value="thousands">Thousands (K)</SelectItem>
+              </SelectContent>
+            </Select>
+            <PortfolioNotesButton />
+            <AnalystToggleButton />
+          </span>
         </div>
         <p className="text-sm text-muted-foreground">Fund-level cash flows, NAV, and performance metrics</p>
       </div>
@@ -467,7 +548,6 @@ export default function FundsPage() {
             .filter(cf => cf.portfolio_group === group)
             .sort((a, b) => a.flow_date.localeCompare(b.flow_date))
 
-          // Compute cumulative values for each row
           let cumulCommitted = 0
           let cumulCalled = 0
           let cumulDistributed = 0
@@ -488,65 +568,73 @@ export default function FundsPage() {
               {groupConfigs[group]?.vintage && (
                 <p className="text-xs text-muted-foreground mb-3">Vintage {groupConfigs[group].vintage}</p>
               )}
+
               {/* Summary cards */}
-              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3 mb-6">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+                {/* Row 1: Capital */}
                 {[
-                  { label: 'Committed', value: fmtFull(metrics.committed) },
-                  { label: 'Called (PIC)', value: fmtFull(metrics.called) },
-                  { label: 'Uncalled', value: fmtFull(metrics.uncalled) },
-                  { label: 'Distributions', value: fmtFull(metrics.distributions) },
-                  { label: 'Net Assets', value: null, isInput: true },
-                  { label: 'Gross Residual', value: fmtFull(metrics.grossResidual + metrics.cashOnHand) },
-                  { label: 'Net Residual', value: fmtFull(metrics.netResidual) },
-                  { label: 'Total Value', value: fmtFull(metrics.totalValue) },
-                  { label: 'TVPI', value: fmtMoic(metrics.tvpi) },
-                  { label: 'DPI', value: fmtMoic(metrics.dpi) },
-                  { label: 'RVPI', value: fmtMoic(metrics.rvpi) },
-                  { label: 'Net IRR', value: fmtIrr(metrics.netIrr) },
+                  { label: 'Committed', value: fmt(metrics.committed) },
+                  { label: 'Called (PIC)', value: fmt(metrics.called) },
+                  { label: 'Uncalled', value: fmt(metrics.uncalled) },
+                  { label: 'Distributions', value: fmt(metrics.distributions) },
                 ].map(card => (
                   <Card key={card.label}>
                     <CardContent className="pt-3 pb-2 px-3">
-                      {'isInput' in card && card.isInput ? (
-                        <>
-                          <div className="flex items-center justify-between mb-0.5">
-                            <p className="text-[11px] text-muted-foreground">{card.label}</p>
-                            {editingCashGroup !== group ? (
-                              <button
-                                onClick={() => {
-                                  setEditingCashGroup(group)
-                                  setCashOnHandDraft(prev => ({ ...prev, [group]: String(groupConfigs[group]?.cashOnHand ?? 0) }))
-                                }}
-                                className="text-muted-foreground hover:text-foreground"
-                                title="Edit"
-                              >
-                                <Pencil className="h-3 w-3" />
-                              </button>
-                            ) : (
-                              savingCash ? <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" /> : null
-                            )}
-                          </div>
-                          {editingCashGroup === group ? (
-                            <input
-                              type="number"
-                              step="0.01"
-                              autoFocus
-                              value={cashOnHandDraft[group] ?? ''}
-                              onChange={e => setCashOnHandDraft(prev => ({ ...prev, [group]: e.target.value }))}
-                              onBlur={() => handleSaveCashOnHand(group)}
-                              onKeyDown={e => { if (e.key === 'Enter') handleSaveCashOnHand(group); if (e.key === 'Escape') setEditingCashGroup(null) }}
-                              placeholder="0"
-                              className="border rounded px-1.5 py-0.5 text-lg font-semibold w-full font-mono bg-transparent"
-                            />
-                          ) : (
-                            <p className="text-lg font-semibold">{fmtFull(groupConfigs[group]?.cashOnHand ?? 0)}</p>
-                          )}
-                        </>
-                      ) : (
-                        <>
-                          <p className="text-[11px] text-muted-foreground mb-0.5">{card.label}</p>
-                          <p className="text-lg font-semibold">{card.value}</p>
-                        </>
-                      )}
+                      <p className="text-[11px] text-muted-foreground mb-0.5">{card.label}</p>
+                      <p className="text-lg font-semibold">{card.value}</p>
+                    </CardContent>
+                  </Card>
+                ))}
+
+                {/* Portfolio NAV (editable) */}
+                <Card>
+                  <CardContent className="pt-3 pb-2 px-3">
+                    <div className="flex items-center justify-between mb-0.5">
+                      <p className="text-[11px] text-muted-foreground">Portfolio NAV</p>
+                      {editingCashGroup !== group ? (
+                        <button
+                          onClick={() => {
+                            setEditingCashGroup(group)
+                            setCashOnHandDraft(prev => ({ ...prev, [group]: String(groupConfigs[group]?.cashOnHand ?? 0) }))
+                          }}
+                          className="text-muted-foreground hover:text-foreground"
+                        >
+                          <Pencil className="h-3 w-3" />
+                        </button>
+                      ) : savingCash ? <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" /> : null}
+                    </div>
+                    {editingCashGroup === group ? (
+                      <input
+                        type="number"
+                        step="0.01"
+                        autoFocus
+                        value={cashOnHandDraft[group] ?? ''}
+                        onChange={e => setCashOnHandDraft(prev => ({ ...prev, [group]: e.target.value }))}
+                        onBlur={() => handleSaveCashOnHand(group)}
+                        onKeyDown={e => { if (e.key === 'Enter') handleSaveCashOnHand(group); if (e.key === 'Escape') setEditingCashGroup(null) }}
+                        placeholder="0"
+                        className="border rounded px-1.5 py-0.5 text-lg font-semibold w-full font-mono bg-transparent"
+                      />
+                    ) : (
+                      <p className="text-lg font-semibold">{fmt(groupConfigs[group]?.cashOnHand ?? 0)}</p>
+                    )}
+                  </CardContent>
+                </Card>
+
+                {/* Row 2: Performance */}
+                {[
+                  { label: 'Net TVPI', value: fmtMoic(metrics.netTvpi) },
+                  { label: 'DPI', value: fmtMoic(metrics.dpi) },
+                  { label: 'RVPI', value: fmtMoic(metrics.rvpi) },
+                  { label: 'Net IRR', value: fmtIrr(metrics.netIrr) },
+                  { label: 'Gross MOIC', value: fmtMoic(metrics.grossMoic) },
+                  { label: 'Net MOIC', value: fmtMoic(metrics.netMoic) },
+                  { label: 'Gross IRR', value: fmtIrr(metrics.grossIrr) },
+                ].map(card => (
+                  <Card key={card.label}>
+                    <CardContent className="pt-3 pb-2 px-3">
+                      <p className="text-[11px] text-muted-foreground mb-0.5">{card.label}</p>
+                      <p className="text-lg font-semibold">{card.value}</p>
                     </CardContent>
                   </Card>
                 ))}
@@ -620,11 +708,11 @@ export default function FundsPage() {
                             </span>
                           </td>
                           <td className="px-3 py-2 text-xs text-muted-foreground">{cf.portfolio_group}</td>
-                          <td className="px-3 py-2 text-right font-mono">{fmtFull(cf.amount)}</td>
-                          <td className="px-3 py-2 text-right font-mono">{fmtFull(cumul.committed)}</td>
-                          <td className="px-3 py-2 text-right font-mono">{fmtFull(cumul.called)}</td>
-                          <td className="px-3 py-2 text-right font-mono">{fmtFull(cumul.uncalled)}</td>
-                          <td className="px-3 py-2 text-right font-mono">{fmtFull(cumul.distributed)}</td>
+                          <td className="px-3 py-2 text-right font-mono">{fmt(cf.amount)}</td>
+                          <td className="px-3 py-2 text-right font-mono">{fmt(cumul.committed)}</td>
+                          <td className="px-3 py-2 text-right font-mono">{fmt(cumul.called)}</td>
+                          <td className="px-3 py-2 text-right font-mono">{fmt(cumul.uncalled)}</td>
+                          <td className="px-3 py-2 text-right font-mono">{fmt(cumul.distributed)}</td>
                           <td className="px-3 py-2">
                             <div className="flex items-center gap-1">
                               <button onClick={() => startEdit(cf)} className="text-muted-foreground hover:text-foreground" title="Edit">
@@ -639,7 +727,6 @@ export default function FundsPage() {
                       )
                     })}
 
-                    {/* Add row */}
                     {addingGroup === group && (
                       <tr className="border-b last:border-b-0 bg-green-50/50 dark:bg-green-950/20">
                         <td className="px-3 py-1.5">
@@ -677,39 +764,26 @@ export default function FundsPage() {
 
               {addingGroup !== group && (
                 <div className="flex items-center gap-2 mt-3">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="text-muted-foreground"
-                    onClick={() => { setAddingGroup(group); setAddDraft({ flowDate: '', flowType: 'commitment', amount: '', notes: '', portfolioGroup: group }) }}
-                  >
-                    <Plus className="h-4 w-4 mr-1" />
-                    Add Cash Flow
+                  <Button variant="outline" size="sm" className="text-muted-foreground" onClick={() => { setAddingGroup(group); setAddDraft({ flowDate: '', flowType: 'commitment', amount: '', notes: '', portfolioGroup: group }) }}>
+                    <Plus className="h-4 w-4 mr-1" />Add Cash Flow
                   </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="text-muted-foreground"
-                    onClick={() => { setImportOpen(!importOpen); setImportResult(null) }}
-                  >
-                    <Upload className="h-4 w-4 mr-1" />
-                    Import
+                  <Button variant="outline" size="sm" className="text-muted-foreground" onClick={() => { setImportOpen(!importOpen); setImportResult(null) }}>
+                    <Upload className="h-4 w-4 mr-1" />Import
                   </Button>
                 </div>
               )}
 
-              {/* Import Section */}
               {importOpen && (
                 <div className="mt-4 border rounded-lg p-4">
                   <p className="text-sm text-muted-foreground mb-2">
-                    Paste fund cash flow data from a spreadsheet. Columns will be matched automatically (date, type, amount, fund/group, notes).
+                    Paste fund cash flow data from a spreadsheet.
                   </p>
                   <textarea
                     value={importData}
                     onChange={e => setImportData(e.target.value)}
                     rows={6}
                     className="w-full border border-input rounded p-2 text-sm font-mono bg-transparent text-foreground mb-2"
-                    placeholder="Paste any fund cash flow data here — dates, types (commitment / called capital / distribution), amounts, fund names"
+                    placeholder="Paste any fund cash flow data here"
                   />
                   <div className="flex items-center gap-2">
                     <Button size="sm" onClick={handleImport} disabled={importing || !importData.trim()}>
@@ -738,13 +812,13 @@ export default function FundsPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Fund Settings</DialogTitle>
-            <DialogDescription>Configure carried interest and GP commitment per portfolio group.</DialogDescription>
+            <DialogDescription>Configure fees and settings per portfolio group.</DialogDescription>
           </DialogHeader>
-          <div className="space-y-5 py-2">
+          <div className="space-y-6 py-2 max-h-[60vh] overflow-y-auto">
             {groups.map(group => (
               <div key={group} className="space-y-3">
-                <h3 className="text-sm font-semibold">{group}</h3>
-                <div className="grid grid-cols-3 gap-3">
+                <h3 className="text-sm font-semibold border-b pb-1">{group}</h3>
+                <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="text-xs text-muted-foreground mb-1 block">Vintage</label>
                     <input
@@ -780,10 +854,32 @@ export default function FundsPage() {
                       className="border rounded px-2 py-1.5 text-sm w-full font-mono"
                     />
                   </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground mb-1 block">Management Fee (% p.a.)</label>
+                    <input
+                      type="number"
+                      step="0.1"
+                      value={settingsDrafts[group]?.managementFeeRate ?? '0'}
+                      onChange={e => setSettingsDrafts(prev => ({ ...prev, [group]: { ...prev[group], managementFeeRate: e.target.value } }))}
+                      placeholder="2"
+                      className="border rounded px-2 py-1.5 text-sm w-full font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground mb-1 block">Performance Fee (%)</label>
+                    <input
+                      type="number"
+                      step="0.1"
+                      value={settingsDrafts[group]?.performanceFeeRate ?? '0'}
+                      onChange={e => setSettingsDrafts(prev => ({ ...prev, [group]: { ...prev[group], performanceFeeRate: e.target.value } }))}
+                      placeholder="20"
+                      className="border rounded px-2 py-1.5 text-sm w-full font-mono"
+                    />
+                  </div>
                 </div>
               </div>
             ))}
-            <p className="text-xs text-muted-foreground">GP commit is the percentage of called capital funded by the GP, which is not subject to carried interest.</p>
+            <p className="text-xs text-muted-foreground">Management fee is calculated annually on committed capital from vintage year. Performance fee is applied on top of carry for Net MOIC calculation.</p>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setSettingsOpen(false)}>Cancel</Button>
