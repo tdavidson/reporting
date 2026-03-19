@@ -93,8 +93,9 @@ function AuthForm() {
         <Image
           src="/PARALLAX_VENTURES_BRAND_MARK-1.svg"
           alt="Parallax Ventures"
-          width={800}
-          height={800}
+          width={650}
+          height={650}
+          style={{ marginLeft: '-60px' }}
         />
       </div>
 
