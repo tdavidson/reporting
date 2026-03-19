@@ -168,7 +168,7 @@ export default function BatchPDFPage() {
     }
     // Second pass: merge children into parent groups
     const merged = new Map<string, InvestorData>()
-    for (const [id, data] of rawMap) {
+    Array.from(rawMap.entries()).forEach(([id, data]) => {
       const info = investorInfo.get(id)
       const parentId = info?.parentId
       const groupId = parentId ?? id
@@ -176,7 +176,7 @@ export default function BatchPDFPage() {
       const entry = merged.get(groupId) ?? { investorId: groupId, investorName: groupName, investments: [] }
       entry.investments.push(...data.investments)
       merged.set(groupId, entry)
-    }
+    })
     return Array.from(merged.values()).sort((a, b) => a.investorName.localeCompare(b.investorName))
   }, [allInvestments])
 
