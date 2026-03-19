@@ -10,7 +10,7 @@ import { useCurrency, getCurrencySymbol } from '@/components/currency-context'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { CompanyForm } from '@/components/company-form'
 import { useRouter } from 'next/navigation'
-
+ 
 interface ActiveMetric {
   id: string
   name: string
