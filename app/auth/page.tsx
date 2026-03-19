@@ -93,9 +93,9 @@ function AuthForm() {
           <Image
             src="/PARALLAX_VENTURES_BRAND_MARK-1.svg"
             alt="Parallax Ventures"
-            width={120}
-            height={120}
-            className="mx-auto mb-4"
+            width={320}
+            height={320}
+            className="mx-auto mb-6"
           />
         </div>
 
