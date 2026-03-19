@@ -87,104 +87,110 @@ function AuthForm() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-start pt-12 p-4" style={{ backgroundColor: '#102430' }}>
-      <div className="w-full max-w-md space-y-6">
-        <div className="text-center mb-8">
-          <Image
-            src="/PARALLAX_VENTURES_BRAND_MARK-1.svg"
-            alt="Parallax Ventures"
-            width={320}
-            height={320}
-            className="mx-auto mb-6"
-          />
-        </div>
-
-        <Card>
-          <CardHeader className="pb-4">
-            <CardTitle className="text-lg">Sign in with your account</CardTitle>
-            <CardDescription>Sign in with password or magic link.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {emailConfirmed && (
-              <Alert className="border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950">
-                <AlertDescription className="text-green-800 dark:text-green-200">
-                  Your email has been confirmed. Please sign in to continue.
-                </AlertDescription>
-              </Alert>
-            )}
-            {(error || urlError) && (
-              <Alert variant="destructive">
-                <AlertDescription>{error || urlError}</AlertDescription>
-              </Alert>
-            )}
-
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="you@example.com"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && signIn()}
-                autoComplete="email"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="password">Password</Label>
-                <Link href="/auth/forgot-password" className="text-xs text-muted-foreground underline underline-offset-4 hover:text-primary">
-                  Forgot password?
-                </Link>
-              </div>
-              <Input
-                id="password"
-                type="password"
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && signIn()}
-                autoComplete="current-password"
-              />
-            </div>
-
-            <Button className="w-full" onClick={signIn} disabled={loading}>
-              {loading ? 'Signing in…' : 'Sign in'}
-            </Button>
-
-            <div className="flex items-center gap-3 pt-1 pb-3">
-              <Separator className="flex-1" />
-              <span className="text-xs text-muted-foreground">or</span>
-              <Separator className="flex-1" />
-            </div>
-
-            <Link href="/auth/magic-link">
-              <Button variant="outline" className="w-full">
-                Sign in with magic link
-              </Button>
-            </Link>
-
-            <p className="text-center text-sm text-muted-foreground">
-              Don&apos;t have an account?{' '}
-              <Link href="/auth/signup" className="text-primary underline underline-offset-4 hover:text-primary/80">
-                Create an account
-              </Link>
-            </p>
-          </CardContent>
-        </Card>
-
-        <p className="text-center text-xs text-muted-foreground">
-          <a href="/license" target="_blank" rel="noopener noreferrer" className="hover:text-foreground underline underline-offset-4">License</a>
-          {isHemrock && (
-            <>
-              {' · '}
-              <a href="https://www.hemrock.com/terms" target="_blank" rel="noopener noreferrer" className="hover:text-foreground underline underline-offset-4">Terms</a>
-              {' · '}
-              <a href="https://www.hemrock.com/privacy" target="_blank" rel="noopener noreferrer" className="hover:text-foreground underline underline-offset-4">Privacy</a>
-            </>
-          )}
-        </p>
+    <div className="min-h-screen flex flex-col p-4" style={{ backgroundColor: '#102430' }}>
+      {/* Logo area — fills space above card */}
+      <div className="flex-1 flex items-center justify-center">
+        <Image
+          src="/PARALLAX_VENTURES_BRAND_MARK-1.svg"
+          alt="Parallax Ventures"
+          width={800}
+          height={800}
+        />
       </div>
+
+      {/* Card — centered horizontally, sits in middle */}
+      <div className="flex items-center justify-center">
+        <div className="w-full max-w-md space-y-4">
+          <Card>
+            <CardHeader className="pb-4">
+              <CardTitle className="text-lg">Sign in with your account</CardTitle>
+              <CardDescription>Sign in with password or magic link.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {emailConfirmed && (
+                <Alert className="border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950">
+                  <AlertDescription className="text-green-800 dark:text-green-200">
+                    Your email has been confirmed. Please sign in to continue.
+                  </AlertDescription>
+                </Alert>
+              )}
+              {(error || urlError) && (
+                <Alert variant="destructive">
+                  <AlertDescription>{error || urlError}</AlertDescription>
+                </Alert>
+              )}
+
+              <div className="space-y-2">
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="you@example.com"
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && signIn()}
+                  autoComplete="email"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="password">Password</Label>
+                  <Link href="/auth/forgot-password" className="text-xs text-muted-foreground underline underline-offset-4 hover:text-primary">
+                    Forgot password?
+                  </Link>
+                </div>
+                <Input
+                  id="password"
+                  type="password"
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && signIn()}
+                  autoComplete="current-password"
+                />
+              </div>
+
+              <Button className="w-full" onClick={signIn} disabled={loading}>
+                {loading ? 'Signing in…' : 'Sign in'}
+              </Button>
+
+              <div className="flex items-center gap-3 pt-1 pb-3">
+                <Separator className="flex-1" />
+                <span className="text-xs text-muted-foreground">or</span>
+                <Separator className="flex-1" />
+              </div>
+
+              <Link href="/auth/magic-link">
+                <Button variant="outline" className="w-full">
+                  Sign in with magic link
+                </Button>
+              </Link>
+
+              <p className="text-center text-sm text-muted-foreground">
+                Don&apos;t have an account?{' '}
+                <Link href="/auth/signup" className="text-primary underline underline-offset-4 hover:text-primary/80">
+                  Create an account
+                </Link>
+              </p>
+            </CardContent>
+          </Card>
+
+          <p className="text-center text-xs text-muted-foreground">
+            <a href="/license" target="_blank" rel="noopener noreferrer" className="hover:text-foreground underline underline-offset-4">License</a>
+            {isHemrock && (
+              <>
+                {' · '}
+                <a href="https://www.hemrock.com/terms" target="_blank" rel="noopener noreferrer" className="hover:text-foreground underline underline-offset-4">Terms</a>
+                {' · '}
+                <a href="https://www.hemrock.com/privacy" target="_blank" rel="noopener noreferrer" className="hover:text-foreground underline underline-offset-4">Privacy</a>
+              </>
+            )}
+          </p>
+        </div>
+      </div>
+
+      {/* Bottom spacing — mirrors top */}
+      <div className="flex-1" />
     </div>
   )
 }
