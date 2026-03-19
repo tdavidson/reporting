@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react'
 import Link from 'next/link'
-import { ArrowDownAZ, ArrowUpZA, ArrowDown, ArrowUp, LayoutGrid, Table2, CalendarDays, Plus } from 'lucide-react'
+import { ArrowDownAZ, ArrowUpZA, ArrowDown, ArrowUp, LayoutGrid, Table2, CalendarDays, Plus, Upload } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { DashboardTable } from './dashboard-table'
@@ -10,6 +10,7 @@ import { useCurrency, getCurrencySymbol } from '@/components/currency-context'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { CompanyForm } from '@/components/company-form'
 import { useRouter } from 'next/navigation'
+import Image from 'next/image'
 
 interface ActiveMetric {
   id: string
@@ -38,6 +39,7 @@ interface Company {
   totalInvested: number | null
   totalRealized: number | null
   unrealizedValue: number | null
+  logoUrl: string | null
 }
 
 interface Props {
@@ -72,12 +74,70 @@ function formatCurrency(v: number): string {
   return neg ? `-${str}` : str
 }
 
+function statusBadge(status: string) {
+  if (status === 'exited') return <Badge variant="secondary" className="text-[10px] px-1.5 py-0 bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300">Exited</Badge>
+  if (status === 'written-off') return <Badge variant="secondary" className="text-[10px] px-1.5 py-0 bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300">Written Off</Badge>
+  return <Badge variant="secondary" className="text-[10px] px-1.5 py-0 bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300">Active</Badge>
+}
+
+function CompanyAvatar({ company, onLogoUpdate }: { company: Company; onLogoUpdate: (id: string, url: string) => void }) {
+  const [uploading, setUploading] = useState(false)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const initials = company.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
+
+  async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploading(true)
+    const formData = new FormData()
+    formData.append('file', file)
+    try {
+      const res = await fetch(`/api/companies/${company.id}/logo`, {
+        method: 'POST',
+        body: formData,
+      })
+      const data = await res.json()
+      if (res.ok) onLogoUpdate(company.id, data.logo_url)
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  return (
+    <div className="relative group w-10 h-10 flex-shrink-0">
+      <div
+        className="w-10 h-10 rounded-md overflow-hidden bg-muted flex items-center justify-center cursor-pointer"
+        onClick={e => { e.preventDefault(); inputRef.current?.click() }}
+      >
+        {company.logoUrl ? (
+          <Image src={company.logoUrl} alt={company.name} width={40} height={40} className="object-cover w-full h-full" />
+        ) : (
+          <span className="text-xs font-semibold text-muted-foreground">{initials}</span>
+        )}
+        <div className="absolute inset-0 bg-black/40 rounded-md opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+          {uploading ? (
+            <span className="text-white text-[10px]">...</span>
+          ) : (
+            <Upload className="h-3.5 w-3.5 text-white" />
+          )}
+        </div>
+      </div>
+      <input ref={inputRef} type="file" accept="image/*" className="hidden" onChange={handleUpload} />
+    </div>
+  )
+}
+
 export function DashboardCompanies({ companies, allGroups }: Props) {
   const [view, setView] = useState<'cards' | 'table'>('cards')
   const [statusFilter, setStatusFilter] = useState<string>('active')
   const [sortMode, setSortMode] = useState<SortMode>('investDate')
   const [alphaSortAsc, setAlphaSortAsc] = useState(true)
   const [investDateSortAsc, setInvestDateSortAsc] = useState(false)
+  const [logoMap, setLogoMap] = useState<Record<string, string>>({})
+
+  function handleLogoUpdate(id: string, url: string) {
+    setLogoMap(prev => ({ ...prev, [id]: url }))
+  }
 
   const filtered = useMemo(() => {
     let result = companies
@@ -188,13 +248,13 @@ export function DashboardCompanies({ companies, allGroups }: Props) {
           grouped={null}
         />
       ) : (
-        <CompanyGrid companies={sortedFiltered} />
+        <CompanyGrid companies={sortedFiltered} logoMap={logoMap} onLogoUpdate={handleLogoUpdate} />
       )}
     </div>
   )
 }
 
-function CompanyGrid({ companies }: { companies: Company[] }) {
+function CompanyGrid({ companies, logoMap, onLogoUpdate }: { companies: Company[]; logoMap: Record<string, string>; onLogoUpdate: (id: string, url: string) => void }) {
   const fundCurrency = useCurrency()
   const [metricValues, setMetricValues] = useState<Record<string, number | null>>({})
   const [loadingMetrics, setLoadingMetrics] = useState<Set<string>>(new Set())
@@ -256,49 +316,62 @@ function CompanyGrid({ companies }: { companies: Company[] }) {
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
       {companies.map((c) => {
         const isExited = c.status === 'exited' || c.status === 'written-off'
+        const logoUrl = logoMap[c.id] ?? c.logoUrl
 
         return (
-          <Link
-            key={c.id}
-            href={`/companies/${c.id}`}
-            className="rounded-lg border bg-card p-4 hover:bg-accent/50 transition-colors"
-          >
-            <div className="flex items-center justify-between mb-1">
-              <span className="font-medium text-sm">{c.name}</span>
-              {c.openReviews > 0 && (
-                <span className="rounded-full bg-amber-500 text-white text-[10px] font-semibold leading-none px-1.5 py-0.5 min-w-[18px] text-center">
-                  {c.openReviews}
-                </span>
-              )}
-            </div>
-            {isExited ? (
-              <ExitedMetricDisplay company={c} />
-            ) : c.activeMetrics.length === 0 ? (
-              <div className="grid grid-cols-2 gap-3 mt-3">
-                <div className="min-w-0">
-                  <div className="text-[10px] text-muted-foreground truncate mb-0.5">No metrics</div>
-                  <div className="text-xl font-semibold">New</div>
+          <div key={c.id} className="rounded-lg border bg-card p-4 hover:bg-accent/50 transition-colors">
+            <div className="flex items-start gap-3 mb-1">
+              <CompanyAvatar
+                company={{ ...c, logoUrl }}
+                onLogoUpdate={onLogoUpdate}
+              />
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between gap-2">
+                  <Link href={`/companies/${c.id}`} className="font-medium text-sm hover:underline truncate">
+                    {c.name}
+                  </Link>
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    {statusBadge(c.status)}
+                    {c.openReviews > 0 && (
+                      <span className="rounded-full bg-amber-500 text-white text-[10px] font-semibold leading-none px-1.5 py-0.5 min-w-[18px] text-center">
+                        {c.openReviews}
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
-            ) : (
-              <ActiveMetricDisplay
-                company={c}
-                metrics={getSelectedMetrics(c)}
-                metricValues={metricValues}
-                loadingMetrics={loadingMetrics}
-                fundCurrency={fundCurrency}
-              />
-            )}
-            {c.lastReportAt ? (
-              <div className="text-[10px] text-muted-foreground mt-2">
-                Last reported: {c.lastReportAt}
-              </div>
-            ) : c.firstInvestmentDate ? (
-              <div className="text-[10px] text-muted-foreground mt-2">
-                Invested: {new Date(c.firstInvestmentDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-              </div>
-            ) : null}
-          </Link>
+            </div>
+
+            <Link href={`/companies/${c.id}`} className="block">
+              {isExited ? (
+                <ExitedMetricDisplay company={c} />
+              ) : c.activeMetrics.length === 0 ? (
+                <div className="grid grid-cols-2 gap-3 mt-3">
+                  <div className="min-w-0">
+                    <div className="text-[10px] text-muted-foreground truncate mb-0.5">No metrics</div>
+                    <div className="text-xl font-semibold">New</div>
+                  </div>
+                </div>
+              ) : (
+                <ActiveMetricDisplay
+                  company={c}
+                  metrics={getSelectedMetrics(c)}
+                  metricValues={metricValues}
+                  loadingMetrics={loadingMetrics}
+                  fundCurrency={fundCurrency}
+                />
+              )}
+              {c.lastReportAt ? (
+                <div className="text-[10px] text-muted-foreground mt-2">
+                  Last reported: {c.lastReportAt}
+                </div>
+              ) : c.firstInvestmentDate ? (
+                <div className="text-[10px] text-muted-foreground mt-2">
+                  Invested: {new Date(c.firstInvestmentDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                </div>
+              ) : null}
+            </Link>
+          </div>
         )
       })}
     </div>
@@ -384,4 +457,3 @@ function AddCompanyButton() {
     </Dialog>
   )
 }
-
