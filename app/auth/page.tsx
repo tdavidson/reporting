@@ -92,7 +92,7 @@ function AuthForm() {
       <div className="w-full max-w-md space-y-6">
         <div className="text-center mb-8">
           <Image
-            src="/PARALLAX_VENTURES_BRAND_MARK-1.svg"
+            src="PARALLAX_VENTURES_BRAND_MARK-1.svg"
             alt="Parallax Ventures"
             width={520}
             height={520}
