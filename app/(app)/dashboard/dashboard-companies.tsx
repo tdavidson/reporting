@@ -2,11 +2,14 @@
 
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react'
 import Link from 'next/link'
-import { ArrowDownAZ, ArrowUpZA, ArrowDown, ArrowUp, LayoutGrid, Table2, CalendarDays } from 'lucide-react'
+import { ArrowDownAZ, ArrowUpZA, ArrowDown, ArrowUp, LayoutGrid, Table2, CalendarDays, Plus } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { DashboardTable } from './dashboard-table'
 import { useCurrency, getCurrencySymbol } from '@/components/currency-context'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import { CompanyForm } from '@/components/company-form'
+import { useRouter } from 'next/navigation'
 
 interface ActiveMetric {
   id: string
@@ -124,6 +127,7 @@ export function DashboardCompanies({ companies, allGroups }: Props) {
             <option value="written-off">Written Off</option>
             </select>
           </div>
+          <AddCompanyButton />
           <div className="ml-auto flex items-center gap-1">
             <Button
               variant={sortMode === 'alpha' ? 'secondary' : 'ghost'}
@@ -173,8 +177,9 @@ export function DashboardCompanies({ companies, allGroups }: Props) {
       )}
 
       {filtered.length === 0 ? (
-        <div className="rounded-lg border border-dashed p-12 text-center">
+        <div className="rounded-lg border border-dashed p-12 text-center space-y-4">
           <p className="text-muted-foreground">No companies match the selected filters.</p>
+          <AddCompanyButton />
         </div>
       ) : view === 'table' ? (
         <DashboardTable
@@ -190,23 +195,19 @@ export function DashboardCompanies({ companies, allGroups }: Props) {
 
 function CompanyGrid({ companies }: { companies: Company[] }) {
   const fundCurrency = useCurrency()
-  // Cache of fetched metric values: { [metricId]: number | null }
   const [metricValues, setMetricValues] = useState<Record<string, number | null>>({})
   const [loadingMetrics, setLoadingMetrics] = useState<Set<string>>(new Set())
   const fetchedRef = useRef<Set<string>>(new Set())
 
-  // Get display metrics for a company: cash first, then first non-cash
   const getSelectedMetrics = useCallback((c: Company): [ActiveMetric | null, ActiveMetric | null] => {
     const cashMetric = c.activeMetrics.find(m => m.name.toLowerCase() === 'cash' || /\bcash\b/i.test(m.name)) ?? null
     if (cashMetric) {
       const nonCashMetric = c.activeMetrics.find(m => m !== cashMetric) ?? null
       return [cashMetric, nonCashMetric]
     }
-    // No cash metric — show first two by display order
     return [c.activeMetrics[0] ?? null, c.activeMetrics[1] ?? null]
   }, [])
 
-  // Fetch metric values for visible cards
   useEffect(() => {
     const metricsToFetch: { companyId: string; metricId: string }[] = []
     for (const c of companies) {
@@ -356,6 +357,30 @@ function ExitedMetricDisplay({ company }: { company: Company }) {
         </div>
       </div>
     </div>
+  )
+}
+
+function AddCompanyButton() {
+  const [open, setOpen] = useState(false)
+  const router = useRouter()
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button size="sm" className="gap-1.5">
+          <Plus className="h-3.5 w-3.5" />
+          Add Company
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Add Company</DialogTitle>
+        </DialogHeader>
+        <CompanyForm
+          onSuccess={() => { setOpen(false); router.refresh() }}
+          onCancel={() => setOpen(false)}
+        />
+      </DialogContent>
+    </Dialog>
   )
 }
 
