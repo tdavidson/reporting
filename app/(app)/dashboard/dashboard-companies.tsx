@@ -10,7 +10,7 @@ import { useCurrency, getCurrencySymbol } from '@/components/currency-context'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { CompanyForm } from '@/components/company-form'
 import { useRouter } from 'next/navigation'
- 
+
 interface ActiveMetric {
   id: string
   name: string
@@ -77,7 +77,7 @@ export function DashboardCompanies({ companies, allGroups }: Props) {
   const [statusFilter, setStatusFilter] = useState<string>('active')
   const [sortMode, setSortMode] = useState<SortMode>('investDate')
   const [alphaSortAsc, setAlphaSortAsc] = useState(true)
-  const [investDateSortAsc, setInvestDateSortAsc] = useState(false) // newest first by default
+  const [investDateSortAsc, setInvestDateSortAsc] = useState(false)
 
   const filtered = useMemo(() => {
     let result = companies
@@ -121,14 +121,15 @@ export function DashboardCompanies({ companies, allGroups }: Props) {
               onChange={e => setStatusFilter(e.target.value)}
               className="text-xs px-2 py-1 rounded-md border border-border bg-background"
             >
-            <option value="">All Statuses</option>
-            <option value="active">Active</option>
-            <option value="exited">Exited</option>
-            <option value="written-off">Written Off</option>
+              <option value="">All Statuses</option>
+              <option value="active">Active</option>
+              <option value="exited">Exited</option>
+              <option value="written-off">Written Off</option>
             </select>
           </div>
-          <AddCompanyButton />
-          <div className="ml-auto flex items-center gap-1">
+          <div className="ml-auto flex items-center gap-2">
+            <AddCompanyButton />
+            <div className="w-px h-4 bg-border" />
             <Button
               variant={sortMode === 'alpha' ? 'secondary' : 'ghost'}
               size="sm"
@@ -262,41 +263,41 @@ function CompanyGrid({ companies }: { companies: Company[] }) {
             href={`/companies/${c.id}`}
             className="rounded-lg border bg-card p-4 hover:bg-accent/50 transition-colors"
           >
-              <div className="flex items-center justify-between mb-1">
-                <span className="font-medium text-sm">{c.name}</span>
-                {c.openReviews > 0 && (
-                  <span className="rounded-full bg-amber-500 text-white text-[10px] font-semibold leading-none px-1.5 py-0.5 min-w-[18px] text-center">
-                    {c.openReviews}
-                  </span>
-                )}
-              </div>
-              {isExited ? (
-                <ExitedMetricDisplay company={c} />
-              ) : c.activeMetrics.length === 0 ? (
-                <div className="grid grid-cols-2 gap-3 mt-3">
-                  <div className="min-w-0">
-                    <div className="text-[10px] text-muted-foreground truncate mb-0.5">No metrics</div>
-                    <div className="text-xl font-semibold">New</div>
-                  </div>
-                </div>
-              ) : (
-                <ActiveMetricDisplay
-                  company={c}
-                  metrics={getSelectedMetrics(c)}
-                  metricValues={metricValues}
-                  loadingMetrics={loadingMetrics}
-                  fundCurrency={fundCurrency}
-                />
+            <div className="flex items-center justify-between mb-1">
+              <span className="font-medium text-sm">{c.name}</span>
+              {c.openReviews > 0 && (
+                <span className="rounded-full bg-amber-500 text-white text-[10px] font-semibold leading-none px-1.5 py-0.5 min-w-[18px] text-center">
+                  {c.openReviews}
+                </span>
               )}
-              {c.lastReportAt ? (
-                <div className="text-[10px] text-muted-foreground mt-2">
-                  Last reported: {c.lastReportAt}
+            </div>
+            {isExited ? (
+              <ExitedMetricDisplay company={c} />
+            ) : c.activeMetrics.length === 0 ? (
+              <div className="grid grid-cols-2 gap-3 mt-3">
+                <div className="min-w-0">
+                  <div className="text-[10px] text-muted-foreground truncate mb-0.5">No metrics</div>
+                  <div className="text-xl font-semibold">New</div>
                 </div>
-              ) : c.firstInvestmentDate ? (
-                <div className="text-[10px] text-muted-foreground mt-2">
-                  Invested: {new Date(c.firstInvestmentDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                </div>
-              ) : null}
+              </div>
+            ) : (
+              <ActiveMetricDisplay
+                company={c}
+                metrics={getSelectedMetrics(c)}
+                metricValues={metricValues}
+                loadingMetrics={loadingMetrics}
+                fundCurrency={fundCurrency}
+              />
+            )}
+            {c.lastReportAt ? (
+              <div className="text-[10px] text-muted-foreground mt-2">
+                Last reported: {c.lastReportAt}
+              </div>
+            ) : c.firstInvestmentDate ? (
+              <div className="text-[10px] text-muted-foreground mt-2">
+                Invested: {new Date(c.firstInvestmentDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+              </div>
+            ) : null}
           </Link>
         )
       })}
