@@ -5,11 +5,12 @@ import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Loader2, CheckCircle2, AlertCircle, Upload, FileText, Lock } from 'lucide-react'
+import { Loader2, CheckCircle2, AlertCircle, Upload, FileText, Lock, FileSpreadsheet } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { AnalystToggleButton } from '@/components/analyst-button'
 import { AnalystPanel } from '@/components/analyst-panel'
 import { useFeatureVisibility } from '@/components/feature-visibility-context'
+import * as XLSX from 'xlsx'
 
 interface ImportResult {
   companiesCreated: number
@@ -53,8 +54,10 @@ interface Company {
 }
 
 const ACCEPTED_DOC_TYPES = '.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.csv,.jpg,.jpeg,.png'
-const MAX_FILE_SIZE = 20 * 1024 * 1024 // 20 MB
-const TEXT_ONLY_THRESHOLD = 10 * 1024 * 1024 // 10 MB — files above this get text-only extraction
+const MAX_FILE_SIZE = 20 * 1024 * 1024
+const TEXT_ONLY_THRESHOLD = 10 * 1024 * 1024
+
+type ExcelImportType = 'metrics' | 'investments' | 'cashflows'
 
 export default function ImportPage() {
   const fv = useFeatureVisibility()
@@ -62,6 +65,14 @@ export default function ImportPage() {
   const [importing, setImporting] = useState(false)
   const [result, setResult] = useState<ImportResult | null>(null)
   const [error, setError] = useState<string | null>(null)
+
+  // Excel import state
+  const [excelFile, setExcelFile] = useState<File | null>(null)
+  const [excelType, setExcelType] = useState<ExcelImportType>('metrics')
+  const [excelImporting, setExcelImporting] = useState(false)
+  const [excelResult, setExcelResult] = useState<ImportResult | InvestmentImportResult | CashFlowImportResult | null>(null)
+  const [excelError, setExcelError] = useState<string | null>(null)
+  const excelInputRef = useRef<HTMLInputElement>(null)
 
   // Document upload state
   const [docFiles, setDocFiles] = useState<FileMatch[]>([])
@@ -85,7 +96,6 @@ export default function ImportPage() {
   const [cashFlowResult, setCashFlowResult] = useState<CashFlowImportResult | null>(null)
   const [cashFlowError, setCashFlowError] = useState<string | null>(null)
 
-  // Load companies for the dropdown and get fund_id
   useEffect(() => {
     async function loadCompanies() {
       try {
@@ -114,6 +124,44 @@ export default function ImportPage() {
     loadCompanies()
     loadFundId()
   }, [])
+
+  async function handleExcelImport() {
+    if (!excelFile) return
+    setExcelImporting(true)
+    setExcelResult(null)
+    setExcelError(null)
+
+    try {
+      const buffer = await excelFile.arrayBuffer()
+      const workbook = XLSX.read(buffer, { type: 'array' })
+      const sheet = workbook.Sheets[workbook.SheetNames[0]]
+      const csv = XLSX.utils.sheet_to_csv(sheet)
+
+      const endpoint =
+        excelType === 'investments' ? '/api/import/investments' :
+        excelType === 'cashflows' ? '/api/import/fund-cash-flows' :
+        '/api/import'
+
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: csv }),
+      })
+
+      const data = await res.json()
+      if (!res.ok) {
+        setExcelError(data.error ?? 'Import failed')
+        return
+      }
+
+      setExcelResult(data)
+      setExcelFile(null)
+    } catch (err) {
+      setExcelError(err instanceof Error ? err.message : 'Something went wrong')
+    } finally {
+      setExcelImporting(false)
+    }
+  }
 
   async function handleImport() {
     if (!text.trim()) return
@@ -161,7 +209,6 @@ export default function ImportPage() {
     }))
     setDocFiles(initialMatches)
 
-    // Auto-match using Claude
     setMatching(true)
     try {
       const res = await fetch('/api/import/documents', {
@@ -195,7 +242,6 @@ export default function ImportPage() {
       setMatching(false)
     }
 
-    // Reset input
     if (docInputRef.current) docInputRef.current.value = ''
   }
 
@@ -232,7 +278,6 @@ export default function ImportPage() {
         const isOversized = fileMatch.file.size > TEXT_ONLY_THRESHOLD
         const storagePath = `${fundId}/${fileMatch.companyId}/${crypto.randomUUID()}-${fileMatch.filename}`
 
-        // Upload to Storage
         const { error: uploadError } = await supabase
           .storage
           .from('company-documents')
@@ -240,7 +285,6 @@ export default function ImportPage() {
 
         if (uploadError) throw new Error(uploadError.message)
 
-        // Register via API
         const res = await fetch(`/api/companies/${fileMatch.companyId}/documents`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -267,9 +311,7 @@ export default function ImportPage() {
         let result: { textOnly?: boolean } = {}
         try {
           result = await res.json()
-        } catch {
-          // Non-JSON response — treat as success since status was ok
-        }
+        } catch { /* ignore */ }
 
         setDocFiles(prev => prev.map(f =>
           f.filename === fileMatch.filename
@@ -373,8 +415,76 @@ export default function ImportPage() {
 
       <div className="flex flex-col lg:flex-row gap-6 items-start">
       <div className="flex-1 min-w-0 max-w-3xl w-full">
-      {/* Document Upload Section */}
+
+      {/* Excel Import Section */}
       <div>
+        <h2 className="text-xl font-semibold tracking-tight mb-2">Import Excel</h2>
+        <p className="text-sm text-muted-foreground mb-6">
+          Upload an Excel file and select the data type. The AI will parse and import the data automatically.
+        </p>
+
+        {excelError && (
+          <Alert variant="destructive" className="mb-4">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>{excelError}</AlertDescription>
+          </Alert>
+        )}
+
+        {excelResult && (
+          <Alert className="mb-4">
+            <CheckCircle2 className="h-4 w-4" />
+            <AlertDescription>
+              <p className="font-medium">Import complete</p>
+              <pre className="text-xs mt-1 whitespace-pre-wrap">{JSON.stringify(excelResult, null, 2)}</pre>
+            </AlertDescription>
+          </Alert>
+        )}
+
+        <div className="space-y-4">
+          <div className="flex items-center gap-3 flex-wrap">
+            <Select value={excelType} onValueChange={v => setExcelType(v as ExcelImportType)}>
+              <SelectTrigger className="w-52">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="metrics">Company Metrics</SelectItem>
+                <SelectItem value="investments">Investment Data</SelectItem>
+                <SelectItem value="cashflows">Fund Cash Flows</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <input
+              ref={excelInputRef}
+              type="file"
+              accept=".xlsx,.xls"
+              className="hidden"
+              onChange={e => setExcelFile(e.target.files?.[0] ?? null)}
+            />
+            <Button
+              variant="outline"
+              onClick={() => excelInputRef.current?.click()}
+              disabled={excelImporting}
+            >
+              <FileSpreadsheet className="h-4 w-4 mr-2" />
+              {excelFile ? excelFile.name : 'Select Excel File'}
+            </Button>
+
+            {excelFile && (
+              <Button
+                onClick={handleExcelImport}
+                disabled={excelImporting}
+              >
+                {excelImporting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                {excelImporting ? 'Importing...' : 'Import'}
+              </Button>
+            )}
+          </div>
+          <p className="text-xs text-muted-foreground">Supports .xlsx and .xls files. The first sheet will be used.</p>
+        </div>
+      </div>
+
+      {/* Document Upload Section */}
+      <div className="mt-12 pt-8 border-t">
         <h2 className="text-xl font-semibold tracking-tight mb-2">Document Upload</h2>
         <p className="text-sm text-muted-foreground mb-6">
           Upload documents (strategy decks, board materials, reports) and auto-match them to portfolio companies. These provide additional context for the AI analyst.
@@ -474,7 +584,7 @@ export default function ImportPage() {
                             <CheckCircle2 className="h-3.5 w-3.5 text-green-600" />
                           )}
                           {f.status === 'done' && f.textOnly && (
-                            <span className="text-xs text-amber-600" title="File exceeded 10 MB — only extracted text was stored (no native PDF/image)">Text only</span>
+                            <span className="text-xs text-amber-600" title="File exceeded 10 MB — only extracted text was stored">Text only</span>
                           )}
                           {f.status === 'error' && (
                             <span className="text-xs text-destructive" title={f.error}>Failed</span>
