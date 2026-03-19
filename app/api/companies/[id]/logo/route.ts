@@ -29,7 +29,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     .getPublicUrl(path)
 
   const admin = createAdminClient()
-  await admin.from('companies').update({ logo_url: publicUrl }).eq('id', params.id)
+  await (admin.from('companies') as any).update({ logo_url: publicUrl }).eq('id', params.id)
 
   return NextResponse.json({ logo_url: publicUrl })
 }
