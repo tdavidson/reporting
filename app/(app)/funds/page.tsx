@@ -527,20 +527,40 @@ export default function FundsPage() {
       <div className="flex flex-col lg:flex-row gap-6 items-start">
       <div className="flex-1 min-w-0 w-full">
       <Tabs defaultValue={groups[0]} className="w-full">
-        <div className="flex items-center gap-2 mb-4">
-          <TabsList>
-            {groups.map(g => (
-              <TabsTrigger key={g} value={g}>{g || '(none)'}</TabsTrigger>
-            ))}
-          </TabsList>
-          <button
-            onClick={openSettings}
-            className="text-muted-foreground hover:text-foreground p-1.5 rounded-md hover:bg-accent transition-colors"
-            title="Edit Fund Settings"
-          >
-            <Pencil className="h-4 w-4" />
-          </button>
-        </div>
+       <div className="flex items-center gap-2 mb-4">
+  <div
+    className="overflow-x-auto cursor-grab active:cursor-grabbing select-none"
+    style={{ scrollbarWidth: 'none' }}
+    onMouseDown={e => {
+      const el = e.currentTarget
+      let startX = e.pageX - el.offsetLeft
+      let scrollLeft = el.scrollLeft
+      const onMove = (ev: MouseEvent) => {
+        const x = ev.pageX - el.offsetLeft
+        el.scrollLeft = scrollLeft - (x - startX)
+      }
+      const onUp = () => {
+        window.removeEventListener('mousemove', onMove)
+        window.removeEventListener('mouseup', onUp)
+      }
+      window.addEventListener('mousemove', onMove)
+      window.addEventListener('mouseup', onUp)
+    }}
+  >
+    <TabsList className="flex-nowrap whitespace-nowrap">
+      {groups.map(g => (
+        <TabsTrigger key={g} value={g}>{g || '(none)'}</TabsTrigger>
+      ))}
+    </TabsList>
+  </div>
+  <button
+    onClick={openSettings}
+    className="text-muted-foreground hover:text-foreground p-1.5 rounded-md hover:bg-accent transition-colors flex-shrink-0"
+    title="Edit Fund Settings"
+  >
+    <Pencil className="h-4 w-4" />
+  </button>
+</div>
 
         {groups.map(group => {
           const metrics = metricsByGroup.get(group)!
