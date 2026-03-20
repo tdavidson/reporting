@@ -274,6 +274,9 @@ export default function FundsPage() {
     managementFeeRate: string
   }>>({})
   const [savingSettings, setSavingSettings] = useState(false)
+  const [deletingGroup, setDeletingGroup] = useState<string | null>(null)
+  const [deleteConfirmName, setDeleteConfirmName] = useState('')
+  const [deletingGroupSaving, setDeletingGroupSaving] = useState(false)
 
   useEffect(() => {
     async function load() {
@@ -531,7 +534,20 @@ export default function FundsPage() {
     setSettingsDrafts(drafts)
     setSettingsOpen(true)
   }
-
+async function handleDeleteGroup(group: string) {
+  setDeletingGroupSaving(true)
+  try {
+    const res = await fetch(`/api/portfolio/fund-cash-flows?portfolioGroup=${encodeURIComponent(group)}`, { method: 'DELETE' })
+    if (res.ok) {
+      setCashFlows(prev => prev.filter(cf => cf.portfolio_group !== group))
+      setDeletingGroup(null)
+      setDeleteConfirmName('')
+      setSettingsOpen(false)
+    }
+  } finally {
+    setDeletingGroupSaving(false)
+  }
+}
   async function handleSaveSettings() {
     setSavingSettings(true)
     try {
@@ -972,7 +988,16 @@ export default function FundsPage() {
           <div className="space-y-6 py-2 max-h-[60vh] overflow-y-auto">
             {groups.map(group => (
               <div key={group} className="space-y-3">
-                <h3 className="text-sm font-semibold border-b pb-1">{group}</h3>
+                <div className="flex items-center justify-between border-b pb-1">
+  <h3 className="text-sm font-semibold">{group}</h3>
+  <button
+    onClick={() => { setDeletingGroup(group); setDeleteConfirmName('') }}
+    className="text-muted-foreground hover:text-red-600"
+    title="Delete fund"
+  >
+    <Trash2 className="h-3.5 w-3.5" />
+  </button>
+</div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="text-xs text-muted-foreground mb-1 block">Vintage</label>
@@ -1004,6 +1029,34 @@ export default function FundsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <Dialog open={!!deletingGroup} onOpenChange={open => { if (!open) { setDeletingGroup(null); setDeleteConfirmName('') } }}>
+  <DialogContent>
+    <DialogHeader>
+      <DialogTitle>Delete Fund</DialogTitle>
+      <DialogDescription>
+        This will permanently delete all cash flows for <strong>{deletingGroup}</strong>. Type the fund name to confirm.
+      </DialogDescription>
+    </DialogHeader>
+    <input
+      type="text"
+      value={deleteConfirmName}
+      onChange={e => setDeleteConfirmName(e.target.value)}
+      placeholder={deletingGroup ?? ''}
+      className="border rounded px-2 py-1.5 text-sm w-full"
+    />
+    <DialogFooter>
+      <Button variant="outline" onClick={() => { setDeletingGroup(null); setDeleteConfirmName('') }}>Cancel</Button>
+      <Button
+        variant="destructive"
+        disabled={deleteConfirmName !== deletingGroup || deletingGroupSaving}
+        onClick={() => deletingGroup && handleDeleteGroup(deletingGroup)}
+      >
+        {deletingGroupSaving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+        Delete
+      </Button>
+    </DialogFooter>
+  </DialogContent>
+</Dialog>
     </div>
     </PortfolioNotesProvider>
   )
