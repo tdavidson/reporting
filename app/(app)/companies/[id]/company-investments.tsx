@@ -596,41 +596,42 @@ export function CompanyInvestments({ companyId, companyStatus, portfolioGroups, 
               </div>
             )}
 
-            {txnType === 'unrealized_gain_change' && (
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <Label>Unrealized Value Change ({symbol.trim()})</Label>
-                  <Input
-                    className="mt-1"
-                    type="number"
-                    step="any"
-                    value={form.unrealized_value_change}
-                    onChange={e => setForm(f => ({ ...f, unrealized_value_change: e.target.value }))}
-                  />
-                </div>
-                <div>
-                  <Label>Current Share Price ({symbol.trim()})</Label>
-                  <Input
-                    className="mt-1"
-                    type="number"
-                    step="any"
-                    value={form.current_share_price}
-                    onChange={e => setForm(f => ({ ...f, current_share_price: e.target.value }))}
-                  />
-                </div>
-                <div className="col-span-2">
-                  <Label>Latest Post-Money Valuation ({symbol.trim()})</Label>
-                  <Input
-                    className="mt-1"
-                    type="number"
-                    step="any"
-                    value={form.latest_postmoney_valuation}
-                    onChange={e => setForm(f => ({ ...f, latest_postmoney_valuation: e.target.value }))}
-                    placeholder="Latest post-money valuation"
-                  />
-                </div>
-              </div>
-            )}
+           {txnType === 'unrealized_gain_change' && (
+  <div className="grid grid-cols-2 gap-3">
+    <div>
+      <Label>Accrued Interest / Value Adjustment ({symbol.trim()})</Label>
+      <Input
+        className="mt-1"
+        type="number"
+        step="any"
+        value={form.unrealized_value_change}
+        onChange={e => setForm(f => ({ ...f, unrealized_value_change: e.target.value }))}
+      />
+    </div>
+    <div>
+      <Label>Fully Diluted Ownership (%)</Label>
+      <Input
+        className="mt-1"
+        type="number"
+        step="any"
+        value={form.ownership_pct}
+        onChange={e => setForm(f => ({ ...f, ownership_pct: e.target.value }))}
+        placeholder="e.g. 5.5"
+      />
+    </div>
+    <div className="col-span-2">
+      <Label>Post-Money Valuation ({symbol.trim()})</Label>
+      <Input
+        className="mt-1"
+        type="number"
+        step="any"
+        value={form.latest_postmoney_valuation}
+        onChange={e => setForm(f => ({ ...f, latest_postmoney_valuation: e.target.value }))}
+        placeholder="Post-money valuation of the round"
+      />
+    </div>
+  </div>
+)}
 
             {/* Multi-currency section */}
             {!showOrigCurrency ? (
