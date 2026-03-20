@@ -38,7 +38,7 @@ interface GroupConfig {
   gpCommitPct: number
   vintage: number | null
   managementFeeRate: number
-  performanceFeeRate: number
+ 
 }
 
 const DEFAULT_CONFIG: GroupConfig = {
@@ -47,7 +47,6 @@ const DEFAULT_CONFIG: GroupConfig = {
   gpCommitPct: 0,
   vintage: null,
   managementFeeRate: 0,
-  performanceFeeRate: 0,
 }
 
 interface FundMetrics {
@@ -273,7 +272,6 @@ export default function FundsPage() {
     gpCommitPct: string
     vintage: string
     managementFeeRate: string
-    performanceFeeRate: string
   }>>({})
   const [savingSettings, setSavingSettings] = useState(false)
 
@@ -307,7 +305,7 @@ export default function FundsPage() {
               gpCommitPct: Number(c.gp_commit_pct) || 0,
               vintage: c.vintage != null ? Number(c.vintage) : null,
               managementFeeRate: c.management_fee_rate != null ? Number(c.management_fee_rate) : 0,
-              performanceFeeRate: c.performance_fee_rate != null ? Number(c.performance_fee_rate) : 0,
+              
             }
           }
           setGroupConfigs(map)
@@ -527,7 +525,7 @@ export default function FundsPage() {
         gpCommitPct: String(config.gpCommitPct * 100),
         vintage: config.vintage != null ? String(config.vintage) : '',
         managementFeeRate: String(config.managementFeeRate * 100),
-        performanceFeeRate: String(config.performanceFeeRate * 100),
+        
       }
     }
     setSettingsDrafts(drafts)
@@ -549,7 +547,7 @@ export default function FundsPage() {
             gpCommitPct: parseFloat(draft.gpCommitPct || '0') / 100,
             vintage: draft.vintage || null,
             managementFeeRate: parseFloat(draft.managementFeeRate || '0') / 100,
-            performanceFeeRate: parseFloat(draft.performanceFeeRate || '0') / 100,
+            
           }),
         })
         if (res.ok) {
@@ -562,7 +560,7 @@ export default function FundsPage() {
               gpCommitPct: Number(data.gp_commit_pct) || 0,
               vintage: data.vintage != null ? Number(data.vintage) : null,
               managementFeeRate: data.management_fee_rate != null ? Number(data.management_fee_rate) : 0,
-              performanceFeeRate: data.performance_fee_rate != null ? Number(data.performance_fee_rate) : 0,
+              
             },
           }))
         }
@@ -991,10 +989,6 @@ export default function FundsPage() {
                   <div>
                     <label className="text-xs text-muted-foreground mb-1 block">Management Fee (% p.a.)</label>
                     <input type="number" step="0.1" value={settingsDrafts[group]?.managementFeeRate ?? '0'} onChange={e => setSettingsDrafts(prev => ({ ...prev, [group]: { ...prev[group], managementFeeRate: e.target.value } }))} placeholder="2" className="border rounded px-2 py-1.5 text-sm w-full font-mono" />
-                  </div>
-                  <div>
-                    <label className="text-xs text-muted-foreground mb-1 block">Performance Fee (%)</label>
-                    <input type="number" step="0.1" value={settingsDrafts[group]?.performanceFeeRate ?? '0'} onChange={e => setSettingsDrafts(prev => ({ ...prev, [group]: { ...prev[group], performanceFeeRate: e.target.value } }))} placeholder="20" className="border rounded px-2 py-1.5 text-sm w-full font-mono" />
                   </div>
                 </div>
               </div>
