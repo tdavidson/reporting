@@ -25,10 +25,6 @@ function sanitize(val: string): string {
     .slice(0, 10_000)
 }
 
-// ---------------------------------------------------------------------------
-// POST — bulk import fund cash flows via AI parsing
-// ---------------------------------------------------------------------------
-
 export async function POST(req: NextRequest) {
   try {
   const supabase = createClient()
@@ -53,7 +49,8 @@ export async function POST(req: NextRequest) {
 
   const fundId = membership.fund_id
   const body = await req.json()
-  const { text } = body
+  const { text, mode } = body
+  const isUpsert = mode === 'upsert'
 
   if (typeof text !== 'string' || !text.trim()) {
     return NextResponse.json({ error: 'No text provided' }, { status: 400 })
@@ -63,14 +60,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Input too large. Maximum 500KB of text allowed.' }, { status: 400 })
   }
 
-  // Get existing funds for context
   const { data: funds } = await admin
     .from('funds')
     .select('id, name')
     .eq('id', fundId)
     .single()
 
-  // Get existing portfolio groups for context
   let existingGroups: string[] = []
   try {
     const { data: existingFlows } = await admin
@@ -80,7 +75,6 @@ export async function POST(req: NextRequest) {
     existingGroups = Array.from(new Set((existingFlows ?? []).map((f: any) => f.portfolio_group))).filter(Boolean) as string[]
   } catch { /* table may not exist yet */ }
 
-  // Get AI provider
   let provider: Awaited<ReturnType<typeof createFundAIProvider>>['provider']
   let claudeModel: string
   let aiProviderType: string
@@ -168,6 +162,7 @@ ${text}`,
 
   const results = {
     created: 0,
+    skipped: 0,
     errors: [] as string[],
   }
 
@@ -194,6 +189,23 @@ ${text}`,
     if (isNaN(amount) || amount <= 0) {
       results.errors.push(`${rowLabel}: invalid amount`)
       continue
+    }
+
+    if (isUpsert) {
+      const { data: existing } = await admin
+        .from('fund_cash_flows' as any)
+        .select('id')
+        .eq('fund_id', fundId)
+        .eq('portfolio_group', sanitize(cf.portfolio_group))
+        .eq('flow_date', cf.flow_date)
+        .eq('flow_type', cf.flow_type)
+        .eq('amount', amount)
+        .maybeSingle()
+
+      if (existing) {
+        results.skipped++
+        continue
+      }
     }
 
     const { error: insertError } = await admin
