@@ -42,7 +42,6 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
   const admin = createAdminClient()
 
-  // Verify the user has access to this company's fund
   const { data: company } = await admin
     .from('companies')
     .select('fund_id')
@@ -97,3 +96,23 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
   return NextResponse.json(data)
 }
+
+export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
+  const supabase = createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const admin = createAdminClient()
+
+  const writeCheck = await assertWriteAccess(admin, user.id)
+  if (writeCheck instanceof NextResponse) return writeCheck
+
+  const { data: company } = await admin
+    .from('companies')
+    .select('fund_id')
+    .eq('id', params.id)
+    .maybeSingle()
+
+  if (!company) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+  cons
