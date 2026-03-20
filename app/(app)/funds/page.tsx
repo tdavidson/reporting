@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Loader2, Plus, Trash2, Save, X, Pencil, Briefcase, Lock, Upload } from 'lucide-react'
+import { Loader2, Plus, Trash2, Save, X, Pencil, Briefcase, Lock, Upload, GripVertical } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
@@ -38,7 +38,6 @@ interface GroupConfig {
   gpCommitPct: number
   vintage: number | null
   managementFeeRate: number
- 
 }
 
 const DEFAULT_CONFIG: GroupConfig = {
@@ -277,6 +276,9 @@ export default function FundsPage() {
   const [deletingGroup, setDeletingGroup] = useState<string | null>(null)
   const [deleteConfirmName, setDeleteConfirmName] = useState('')
   const [deletingGroupSaving, setDeletingGroupSaving] = useState(false)
+  const [groupOrder, setGroupOrder] = useState<string[]>([])
+  const [draggedGroup, setDraggedGroup] = useState<string | null>(null)
+  const [dragOverGroup, setDragOverGroup] = useState<string | null>(null)
 
   useEffect(() => {
     async function load() {
@@ -308,7 +310,6 @@ export default function FundsPage() {
               gpCommitPct: Number(c.gp_commit_pct) || 0,
               vintage: c.vintage != null ? Number(c.vintage) : null,
               managementFeeRate: c.management_fee_rate != null ? Number(c.management_fee_rate) : 0,
-              
             }
           }
           setGroupConfigs(map)
@@ -324,8 +325,19 @@ export default function FundsPage() {
     const set = new Set<string>()
     for (const cf of cashFlows) set.add(cf.portfolio_group)
     for (const g of investmentGroups) if (g.group) set.add(g.group)
-    return Array.from(set).sort()
+    const sorted = Array.from(set).sort()
+    setGroupOrder(prev => {
+      if (prev.length === 0) return sorted
+      const newGroups = sorted.filter(g => !prev.includes(g))
+      return [...prev.filter(g => sorted.includes(g)), ...newGroups]
+    })
+    return sorted
   }, [cashFlows, investmentGroups])
+
+  const orderedGroups = useMemo(() => {
+    if (groupOrder.length === 0) return groups
+    return [...groupOrder].filter(g => groups.includes(g))
+  }, [groups, groupOrder])
 
   const grossResidualByGroup = useMemo(() => {
     const map = new Map<string, number>()
@@ -388,19 +400,20 @@ export default function FundsPage() {
   }, [cashFlows, groups, grossResidualByGroup, totalInvestedByGroup, groupConfigs, metricsByGroup])
 
   const fmt = (val: number) => formatWithUnit(val, displayUnit, currency)
+
   const masterCumulatives = useMemo(() => {
-  let cumulCalled = 0
-  let cumulDistributed = 0
-  const map: Record<string, { called: number; distributed: number }> = {}
-  ;[...cashFlows]
-    .sort((a, b) => a.flow_date.localeCompare(b.flow_date))
-    .forEach(cf => {
-      if (cf.flow_type === 'called_capital') cumulCalled += cf.amount
-      if (cf.flow_type === 'distribution') cumulDistributed += cf.amount
-      map[cf.id] = { called: cumulCalled, distributed: cumulDistributed }
-    })
-  return map
-}, [cashFlows])
+    let cumulCalled = 0
+    let cumulDistributed = 0
+    const map: Record<string, { called: number; distributed: number }> = {}
+    ;[...cashFlows]
+      .sort((a, b) => a.flow_date.localeCompare(b.flow_date))
+      .forEach(cf => {
+        if (cf.flow_type === 'called_capital') cumulCalled += cf.amount
+        if (cf.flow_type === 'distribution') cumulDistributed += cf.amount
+        map[cf.id] = { called: cumulCalled, distributed: cumulDistributed }
+      })
+    return map
+  }, [cashFlows])
 
   const startEdit = useCallback((cf: FundCashFlow) => {
     setEditingId(cf.id)
@@ -528,31 +541,32 @@ export default function FundsPage() {
         gpCommitPct: String(config.gpCommitPct * 100),
         vintage: config.vintage != null ? String(config.vintage) : '',
         managementFeeRate: String(config.managementFeeRate * 100),
-        
       }
     }
     setSettingsDrafts(drafts)
     setSettingsOpen(true)
   }
-async function handleDeleteGroup(group: string) {
-  setDeletingGroupSaving(true)
-  try {
-    const res = await fetch(`/api/portfolio/fund-cash-flows?portfolioGroup=${encodeURIComponent(group)}`, { method: 'DELETE' })
-    if (res.ok) {
-      setCashFlows(prev => prev.filter(cf => cf.portfolio_group !== group))
-      setGroupConfigs(prev => {
-        const next = { ...prev }
-        delete next[group]
-        return next
-      })
-      setDeletingGroup(null)
-      setDeleteConfirmName('')
-      setSettingsOpen(false)
+
+  async function handleDeleteGroup(group: string) {
+    setDeletingGroupSaving(true)
+    try {
+      const res = await fetch(`/api/portfolio/fund-cash-flows?portfolioGroup=${encodeURIComponent(group)}`, { method: 'DELETE' })
+      if (res.ok) {
+        setCashFlows(prev => prev.filter(cf => cf.portfolio_group !== group))
+        setGroupConfigs(prev => {
+          const next = { ...prev }
+          delete next[group]
+          return next
+        })
+        setDeletingGroup(null)
+        setDeleteConfirmName('')
+        setSettingsOpen(false)
+      }
+    } finally {
+      setDeletingGroupSaving(false)
     }
-  } finally {
-    setDeletingGroupSaving(false)
   }
-}
+
   async function handleSaveSettings() {
     setSavingSettings(true)
     try {
@@ -568,7 +582,6 @@ async function handleDeleteGroup(group: string) {
             gpCommitPct: parseFloat(draft.gpCommitPct || '0') / 100,
             vintage: draft.vintage || null,
             managementFeeRate: parseFloat(draft.managementFeeRate || '0') / 100,
-            
           }),
         })
         if (res.ok) {
@@ -581,7 +594,6 @@ async function handleDeleteGroup(group: string) {
               gpCommitPct: Number(data.gp_commit_pct) || 0,
               vintage: data.vintage != null ? Number(data.vintage) : null,
               managementFeeRate: data.management_fee_rate != null ? Number(data.management_fee_rate) : 0,
-              
             },
           }))
         }
@@ -592,75 +604,103 @@ async function handleDeleteGroup(group: string) {
     }
   }
 
+  function handleDragStart(group: string) {
+    setDraggedGroup(group)
+  }
+
+  function handleDragOver(e: React.DragEvent, group: string) {
+    e.preventDefault()
+    setDragOverGroup(group)
+  }
+
+  function handleDrop(targetGroup: string) {
+    if (!draggedGroup || draggedGroup === targetGroup) {
+      setDraggedGroup(null)
+      setDragOverGroup(null)
+      return
+    }
+    setGroupOrder(prev => {
+      const order = prev.length > 0 ? prev : groups
+      const from = order.indexOf(draggedGroup)
+      const to = order.indexOf(targetGroup)
+      const next = [...order]
+      next.splice(from, 1)
+      next.splice(to, 0, draggedGroup)
+      return next
+    })
+    setDraggedGroup(null)
+    setDragOverGroup(null)
+  }
+
   function MetricCards({ metrics, group }: { metrics: FundMetrics; group?: string }) {
-  return (
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-      {[
-        { label: 'Called', value: fmt(metrics.called) },
-        { label: 'Uncalled', value: fmt(metrics.uncalled) },
-        { label: 'Distributions', value: fmt(metrics.distributions) },
-      ].map(card => (
-        <Card key={card.label}>
+    return (
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+        {[
+          { label: 'Called', value: fmt(metrics.called) },
+          { label: 'Uncalled', value: fmt(metrics.uncalled) },
+          { label: 'Distributions', value: fmt(metrics.distributions) },
+        ].map(card => (
+          <Card key={card.label}>
+            <CardContent className="pt-3 pb-2 px-3">
+              <p className="text-[11px] text-muted-foreground mb-0.5">{card.label}</p>
+              <p className="text-lg font-semibold">{card.value}</p>
+            </CardContent>
+          </Card>
+        ))}
+
+        <Card>
           <CardContent className="pt-3 pb-2 px-3">
-            <p className="text-[11px] text-muted-foreground mb-0.5">{card.label}</p>
-            <p className="text-lg font-semibold">{card.value}</p>
+            <div className="flex items-center justify-between mb-0.5">
+              <p className="text-[11px] text-muted-foreground">Portfolio NAV</p>
+              {group && editingCashGroup !== group ? (
+                <button
+                  onClick={() => {
+                    setEditingCashGroup(group)
+                    setCashOnHandDraft(prev => ({ ...prev, [group]: String(groupConfigs[group]?.cashOnHand ?? 0) }))
+                  }}
+                  className="text-muted-foreground hover:text-foreground"
+                >
+                  <Pencil className="h-3 w-3" />
+                </button>
+              ) : group && savingCash ? <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" /> : null}
+            </div>
+            {group && editingCashGroup === group ? (
+              <input
+                type="number"
+                step="0.01"
+                autoFocus
+                value={cashOnHandDraft[group] ?? ''}
+                onChange={e => setCashOnHandDraft(prev => ({ ...prev, [group]: e.target.value }))}
+                onBlur={() => handleSaveCashOnHand(group)}
+                onKeyDown={e => { if (e.key === 'Enter') handleSaveCashOnHand(group); if (e.key === 'Escape') setEditingCashGroup(null) }}
+                placeholder="0"
+                className="border rounded px-1.5 py-0.5 text-lg font-semibold w-full font-mono bg-transparent"
+              />
+            ) : (
+              <p className="text-lg font-semibold">{fmt(metrics.grossResidual)}</p>
+            )}
           </CardContent>
         </Card>
-      ))}
 
-      <Card>
-        <CardContent className="pt-3 pb-2 px-3">
-          <div className="flex items-center justify-between mb-0.5">
-            <p className="text-[11px] text-muted-foreground">Portfolio NAV</p>
-            {group && editingCashGroup !== group ? (
-              <button
-                onClick={() => {
-                  setEditingCashGroup(group)
-                  setCashOnHandDraft(prev => ({ ...prev, [group]: String(groupConfigs[group]?.cashOnHand ?? 0) }))
-                }}
-                className="text-muted-foreground hover:text-foreground"
-              >
-                <Pencil className="h-3 w-3" />
-              </button>
-            ) : group && savingCash ? <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" /> : null}
-          </div>
-          {group && editingCashGroup === group ? (
-            <input
-              type="number"
-              step="0.01"
-              autoFocus
-              value={cashOnHandDraft[group] ?? ''}
-              onChange={e => setCashOnHandDraft(prev => ({ ...prev, [group]: e.target.value }))}
-              onBlur={() => handleSaveCashOnHand(group)}
-              onKeyDown={e => { if (e.key === 'Enter') handleSaveCashOnHand(group); if (e.key === 'Escape') setEditingCashGroup(null) }}
-              placeholder="0"
-              className="border rounded px-1.5 py-0.5 text-lg font-semibold w-full font-mono bg-transparent"
-            />
-          ) : (
-            <p className="text-lg font-semibold">{fmt(metrics.grossResidual)}</p>
-          )}
-        </CardContent>
-      </Card>
-
-      {[
-        { label: 'Net TVPI', value: fmtMoic(metrics.netTvpi) },
-        { label: 'DPI', value: fmtMoic(metrics.dpi) },
-        { label: 'RVPI', value: fmtMoic(metrics.rvpi) },
-        { label: 'Gross MOIC', value: fmtMoic(metrics.grossMoic) },
-        { label: 'Net MOIC', value: fmtMoic(metrics.netMoic) },
-        { label: 'Gross IRR', value: fmtIrr(metrics.grossIrr) },
-        { label: 'Net IRR', value: fmtIrr(metrics.netIrr) },
-      ].map(card => (
-        <Card key={card.label}>
-          <CardContent className="pt-3 pb-2 px-3">
-            <p className="text-[11px] text-muted-foreground mb-0.5">{card.label}</p>
-            <p className="text-lg font-semibold">{card.value}</p>
-          </CardContent>
-        </Card>
-      ))}
-    </div>
-  )
-}
+        {[
+          { label: 'Net TVPI', value: fmtMoic(metrics.netTvpi) },
+          { label: 'DPI', value: fmtMoic(metrics.dpi) },
+          { label: 'RVPI', value: fmtMoic(metrics.rvpi) },
+          { label: 'Gross MOIC', value: fmtMoic(metrics.grossMoic) },
+          { label: 'Net MOIC', value: fmtMoic(metrics.netMoic) },
+          { label: 'Gross IRR', value: fmtIrr(metrics.grossIrr) },
+          { label: 'Net IRR', value: fmtIrr(metrics.netIrr) },
+        ].map(card => (
+          <Card key={card.label}>
+            <CardContent className="pt-3 pb-2 px-3">
+              <p className="text-[11px] text-muted-foreground mb-0.5">{card.label}</p>
+              <p className="text-lg font-semibold">{card.value}</p>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    )
+  }
 
   if (loading) {
     return (
@@ -739,7 +779,7 @@ async function handleDeleteGroup(group: string) {
           >
             <TabsList className="flex-nowrap whitespace-nowrap">
               <TabsTrigger value={MASTER_FUND_KEY}>Master Fund</TabsTrigger>
-              {groups.map(g => (
+              {orderedGroups.map(g => (
                 <TabsTrigger key={g} value={g}>{g || '(none)'}</TabsTrigger>
               ))}
             </TabsList>
@@ -768,7 +808,7 @@ async function handleDeleteGroup(group: string) {
                   <th className="text-right px-3 py-2 font-medium">Amount</th>
                   <th className="text-right px-3 py-2 font-medium">Capital Called</th>
                   <th className="text-right px-3 py-2 font-medium">Capital Distributed</th>
-              </tr>
+                </tr>
               </thead>
               <tbody>
                 {[...cashFlows]
@@ -786,9 +826,9 @@ async function handleDeleteGroup(group: string) {
                         </span>
                       </td>
                       <td className="px-3 py-2 text-xs text-muted-foreground">{cf.portfolio_group}</td>
-                        <td className="px-3 py-2 text-right font-mono">{fmt(cf.amount)}</td>
-                        <td className="px-3 py-2 text-right font-mono">{fmt(masterCumulatives[cf.id]?.called ?? 0)}</td>
-                        <td className="px-3 py-2 text-right font-mono">{fmt(masterCumulatives[cf.id]?.distributed ?? 0)}</td>
+                      <td className="px-3 py-2 text-right font-mono">{fmt(cf.amount)}</td>
+                      <td className="px-3 py-2 text-right font-mono">{fmt(masterCumulatives[cf.id]?.called ?? 0)}</td>
+                      <td className="px-3 py-2 text-right font-mono">{fmt(masterCumulatives[cf.id]?.distributed ?? 0)}</td>
                     </tr>
                   ))}
               </tbody>
@@ -797,7 +837,7 @@ async function handleDeleteGroup(group: string) {
         </TabsContent>
 
         {/* Individual Group Tabs */}
-        {groups.map(group => {
+        {orderedGroups.map(group => {
           const metrics = metricsByGroup.get(group)!
           const groupFlows = cashFlows
             .filter(cf => cf.portfolio_group === group)
@@ -808,10 +848,7 @@ async function handleDeleteGroup(group: string) {
           const rowCumulatives = groupFlows.map(cf => {
             if (cf.flow_type === 'called_capital') cumulCalled += cf.amount
             if (cf.flow_type === 'distribution') cumulDistributed += cf.amount
-            return {
-              called: cumulCalled,
-              distributed: cumulDistributed,
-            }
+            return { called: cumulCalled, distributed: cumulDistributed }
           })
 
           return (
@@ -988,21 +1025,38 @@ async function handleDeleteGroup(group: string) {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Fund Settings</DialogTitle>
-            <DialogDescription>Configure fees and settings per portfolio group.</DialogDescription>
+            <DialogDescription>Configure fees and settings per portfolio group. Drag to reorder.</DialogDescription>
           </DialogHeader>
           <div className="space-y-6 py-2 max-h-[60vh] overflow-y-auto">
-            {groups.map(group => (
-              <div key={group} className="space-y-3">
+            {orderedGroups.map(group => (
+              <div
+                key={group}
+                draggable
+                onDragStart={() => handleDragStart(group)}
+                onDragOver={e => handleDragOver(e, group)}
+                onDrop={() => handleDrop(group)}
+                onDragEnd={() => { setDraggedGroup(null); setDragOverGroup(null) }}
+                className={`space-y-3 rounded-lg transition-all ${
+                  dragOverGroup === group && draggedGroup !== group
+                    ? 'border-2 border-blue-400 p-2'
+                    : draggedGroup === group
+                    ? 'opacity-40'
+                    : ''
+                }`}
+              >
                 <div className="flex items-center justify-between border-b pb-1">
-  <h3 className="text-sm font-semibold">{group}</h3>
-  <button
-    onClick={() => { setDeletingGroup(group); setDeleteConfirmName('') }}
-    className="text-muted-foreground hover:text-red-600"
-    title="Delete fund"
-  >
-    <Trash2 className="h-3.5 w-3.5" />
-  </button>
-</div>
+                  <div className="flex items-center gap-2">
+                    <GripVertical className="h-4 w-4 text-muted-foreground cursor-grab" />
+                    <h3 className="text-sm font-semibold">{group}</h3>
+                  </div>
+                  <button
+                    onClick={() => { setDeletingGroup(group); setDeleteConfirmName('') }}
+                    className="text-muted-foreground hover:text-red-600"
+                    title="Delete fund"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="text-xs text-muted-foreground mb-1 block">Vintage</label>
@@ -1023,7 +1077,7 @@ async function handleDeleteGroup(group: string) {
                 </div>
               </div>
             ))}
-            <p className="text-xs text-muted-foreground">Management fee is calculated annually on committed capital from vintage year. Performance fee is applied on top of carry for Net MOIC calculation.</p>
+            <p className="text-xs text-muted-foreground">Management fee is calculated annually on committed capital from vintage year.</p>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setSettingsOpen(false)}>Cancel</Button>
@@ -1034,34 +1088,35 @@ async function handleDeleteGroup(group: string) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
       <Dialog open={!!deletingGroup} onOpenChange={open => { if (!open) { setDeletingGroup(null); setDeleteConfirmName('') } }}>
-  <DialogContent>
-    <DialogHeader>
-      <DialogTitle>Delete Fund</DialogTitle>
-      <DialogDescription>
-        This will permanently delete all cash flows for <strong>{deletingGroup}</strong>. Type the fund name to confirm.
-      </DialogDescription>
-    </DialogHeader>
-    <input
-      type="text"
-      value={deleteConfirmName}
-      onChange={e => setDeleteConfirmName(e.target.value)}
-      placeholder={deletingGroup ?? ''}
-      className="border rounded px-2 py-1.5 text-sm w-full"
-    />
-    <DialogFooter>
-      <Button variant="outline" onClick={() => { setDeletingGroup(null); setDeleteConfirmName('') }}>Cancel</Button>
-      <Button
-        variant="destructive"
-        disabled={deleteConfirmName !== deletingGroup || deletingGroupSaving}
-        onClick={() => deletingGroup && handleDeleteGroup(deletingGroup)}
-      >
-        {deletingGroupSaving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-        Delete
-      </Button>
-    </DialogFooter>
-  </DialogContent>
-</Dialog>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Fund</DialogTitle>
+            <DialogDescription>
+              This will permanently delete all cash flows for <strong>{deletingGroup}</strong>. Type the fund name to confirm.
+            </DialogDescription>
+          </DialogHeader>
+          <input
+            type="text"
+            value={deleteConfirmName}
+            onChange={e => setDeleteConfirmName(e.target.value)}
+            placeholder={deletingGroup ?? ''}
+            className="border rounded px-2 py-1.5 text-sm w-full"
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setDeletingGroup(null); setDeleteConfirmName('') }}>Cancel</Button>
+            <Button
+              variant="destructive"
+              disabled={deleteConfirmName !== deletingGroup || deletingGroupSaving}
+              onClick={() => deletingGroup && handleDeleteGroup(deletingGroup)}
+            >
+              {deletingGroupSaving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
     </PortfolioNotesProvider>
   )
