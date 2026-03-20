@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Pencil, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import {
   Dialog,
   DialogContent,
@@ -18,10 +19,12 @@ import type { Company } from '@/lib/types/database'
 export function CompanyEditButton({ company }: { company: Company }) {
   const [open, setOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
+  const [deleteConfirm, setDeleteConfirm] = useState('')
   const [deleting, setDeleting] = useState(false)
   const router = useRouter()
 
   async function handleDelete() {
+    if (deleteConfirm !== company.name) return
     setDeleting(true)
     try {
       const res = await fetch(`/api/companies/${company.id}`, { method: 'DELETE' })
@@ -60,7 +63,7 @@ export function CompanyEditButton({ company }: { company: Company }) {
       </Dialog>
 
       {/* Delete button */}
-      <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+      <Dialog open={deleteOpen} onOpenChange={v => { setDeleteOpen(v); if (!v) setDeleteConfirm('') }}>
         <DialogTrigger asChild>
           <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-red-600">
             <Trash2 className="h-3.5 w-3.5" />
@@ -70,14 +73,29 @@ export function CompanyEditButton({ company }: { company: Company }) {
           <DialogHeader>
             <DialogTitle>Delete Company</DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete <strong>{company.name}</strong>? This will permanently remove all metrics, documents, and data associated with this company. This action cannot be undone.
+              This will permanently remove <strong>{company.name}</strong> and all its data. This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
+          <div className="space-y-2 py-2">
+            <p className="text-sm text-muted-foreground">
+              Type <strong>{company.name}</strong> to confirm:
+            </p>
+            <Input
+              placeholder={company.name}
+              value={deleteConfirm}
+              onChange={e => setDeleteConfirm(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleDelete()}
+            />
+          </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteOpen(false)} disabled={deleting}>
+            <Button variant="outline" onClick={() => { setDeleteOpen(false); setDeleteConfirm('') }} disabled={deleting}>
               Cancel
             </Button>
-            <Button variant="destructive" onClick={handleDelete} disabled={deleting}>
+            <Button
+              variant="destructive"
+              onClick={handleDelete}
+              disabled={deleting || deleteConfirm !== company.name}
+            >
               {deleting ? 'Deleting...' : 'Delete Company'}
             </Button>
           </DialogFooter>
