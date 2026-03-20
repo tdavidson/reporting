@@ -72,6 +72,7 @@ export default function ImportPage() {
   const [excelImporting, setExcelImporting] = useState(false)
   const [excelResult, setExcelResult] = useState<ImportResult | InvestmentImportResult | CashFlowImportResult | null>(null)
   const [excelError, setExcelError] = useState<string | null>(null)
+  const [excelMode, setExcelMode] = useState<'add' | 'upsert'>('add')
   const excelInputRef = useRef<HTMLInputElement>(null)
 
   // Document upload state
