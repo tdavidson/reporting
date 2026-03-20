@@ -29,14 +29,21 @@ async function getDriveAccess(userId: string) {
   const kek = process.env.ENCRYPTION_KEY
   if (!kek) return { error: 'Server misconfiguration', status: 500 }
 
-  const dek = decrypt(settings.encryption_key_encrypted, kek)
-  const refreshToken = decrypt(settings.google_refresh_token_encrypted, dek)
+  let accessToken: string
+  try {
+    const dek = decrypt(settings.encryption_key_encrypted, kek)
+    const refreshToken = decrypt(settings.google_refresh_token_encrypted, dek)
 
-  const creds = await getGoogleCredentials(admin, membership.fund_id)
-  if (!creds?.clientId || !creds?.clientSecret) {
-    return { error: 'Google OAuth credentials not configured', status: 400 }
+    const creds = await getGoogleCredentials(admin, membership.fund_id)
+    if (!creds?.clientId || !creds?.clientSecret) {
+      return { error: 'Google OAuth credentials not configured', status: 400 }
+    }
+    accessToken = await getAccessToken(refreshToken, creds.clientId, creds.clientSecret)
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'Unknown error'
+    console.error('[drive/folders] Failed to get Drive access:', msg)
+    return { error: `Google Drive connection failed: ${msg}`, status: 500 }
   }
-  const accessToken = await getAccessToken(refreshToken, creds.clientId, creds.clientSecret)
 
   return { accessToken, fundId: membership.fund_id, admin }
 }

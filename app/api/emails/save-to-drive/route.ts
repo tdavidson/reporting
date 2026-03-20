@@ -58,54 +58,66 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Encryption not configured' }, { status: 500 })
   }
 
-  const dek = decrypt(settings.encryption_key_encrypted, kek)
+  let dek: string
+  try {
+    dek = decrypt(settings.encryption_key_encrypted, kek)
+  } catch (err) {
+    console.error('[save-to-drive] Failed to decrypt encryption key:', err)
+    return NextResponse.json({ error: 'Failed to decrypt credentials' }, { status: 500 })
+  }
 
   // Set up provider-specific upload functions
   let uploadEmail: (companyName: string, dateStr: string, subject: string, emailBody: string, companyInfo: { google_drive_folder_id: string | null; dropbox_folder_path: string | null } | null) => Promise<void>
   let uploadAttachment: (companyName: string, name: string, content: Buffer, companyInfo: { google_drive_folder_id: string | null; dropbox_folder_path: string | null } | null) => Promise<void>
 
-  if (provider === 'google_drive') {
-    if (!settings.google_refresh_token_encrypted || !settings.google_drive_folder_id) {
-      return NextResponse.json({ error: 'Google Drive not connected or no folder selected' }, { status: 400 })
-    }
-    const refreshToken = decrypt(settings.google_refresh_token_encrypted, dek)
-    const creds = await getGoogleCredentials(admin, membership.fund_id)
-    if (!creds?.clientId || !creds?.clientSecret) {
-      return NextResponse.json({ error: 'Google OAuth credentials not configured' }, { status: 400 })
-    }
-    const accessToken = await getGoogleAccessToken(refreshToken, creds.clientId, creds.clientSecret)
-    const rootFolderId = settings.google_drive_folder_id
+  try {
+    if (provider === 'google_drive') {
+      if (!settings.google_refresh_token_encrypted || !settings.google_drive_folder_id) {
+        return NextResponse.json({ error: 'Google Drive not connected or no folder selected' }, { status: 400 })
+      }
+      const refreshToken = decrypt(settings.google_refresh_token_encrypted, dek)
+      const creds = await getGoogleCredentials(admin, membership.fund_id)
+      if (!creds?.clientId || !creds?.clientSecret) {
+        return NextResponse.json({ error: 'Google OAuth credentials not configured' }, { status: 400 })
+      }
+      const accessToken = await getGoogleAccessToken(refreshToken, creds.clientId, creds.clientSecret)
+      const rootFolderId = settings.google_drive_folder_id
 
-    uploadEmail = async (companyName, dateStr, subject, emailBody, companyInfo) => {
-      const folderId = companyInfo?.google_drive_folder_id || await findOrCreateGoogleFolder(accessToken, rootFolderId, companyName)
-      await uploadGoogleFile(accessToken, folderId, `${dateStr}_${subject}.txt`, emailBody, 'text/plain')
-    }
-    uploadAttachment = async (companyName, name, content, companyInfo) => {
-      const folderId = companyInfo?.google_drive_folder_id || await findOrCreateGoogleFolder(accessToken, rootFolderId, companyName)
-      await uploadGoogleFile(accessToken, folderId, name, content, 'application/octet-stream')
-    }
-  } else if (provider === 'dropbox') {
-    if (!settings.dropbox_refresh_token_encrypted || !settings.dropbox_folder_path) {
-      return NextResponse.json({ error: 'Dropbox not connected or no folder selected' }, { status: 400 })
-    }
-    const refreshToken = decrypt(settings.dropbox_refresh_token_encrypted, dek)
-    const creds = await getDropboxCredentials(admin, membership.fund_id)
-    if (!creds) return NextResponse.json({ error: 'Dropbox credentials not found' }, { status: 400 })
-    const accessToken = await getDropboxAccessToken(refreshToken, creds.appKey, creds.appSecret)
-    const rootPath = settings.dropbox_folder_path
+      uploadEmail = async (companyName, dateStr, subject, emailBody, companyInfo) => {
+        const folderId = companyInfo?.google_drive_folder_id || await findOrCreateGoogleFolder(accessToken, rootFolderId, companyName)
+        await uploadGoogleFile(accessToken, folderId, `${dateStr}_${subject}.txt`, emailBody, 'text/plain')
+      }
+      uploadAttachment = async (companyName, name, content, companyInfo) => {
+        const folderId = companyInfo?.google_drive_folder_id || await findOrCreateGoogleFolder(accessToken, rootFolderId, companyName)
+        await uploadGoogleFile(accessToken, folderId, name, content, 'application/octet-stream')
+      }
+    } else if (provider === 'dropbox') {
+      if (!settings.dropbox_refresh_token_encrypted || !settings.dropbox_folder_path) {
+        return NextResponse.json({ error: 'Dropbox not connected or no folder selected' }, { status: 400 })
+      }
+      const refreshToken = decrypt(settings.dropbox_refresh_token_encrypted, dek)
+      const creds = await getDropboxCredentials(admin, membership.fund_id)
+      if (!creds) return NextResponse.json({ error: 'Dropbox credentials not found' }, { status: 400 })
+      const accessToken = await getDropboxAccessToken(refreshToken, creds.appKey, creds.appSecret)
+      const rootPath = settings.dropbox_folder_path
 
-    uploadEmail = async (companyName, dateStr, subject, emailBody, companyInfo) => {
-      const companyPath = companyInfo?.dropbox_folder_path || `${rootPath}/${companyName}`
-      await findOrCreateDropboxFolder(accessToken, companyPath)
-      await uploadDropboxFile(accessToken, companyPath, `${dateStr}_${subject}.txt`, emailBody)
+      uploadEmail = async (companyName, dateStr, subject, emailBody, companyInfo) => {
+        const companyPath = companyInfo?.dropbox_folder_path || `${rootPath}/${companyName}`
+        await findOrCreateDropboxFolder(accessToken, companyPath)
+        await uploadDropboxFile(accessToken, companyPath, `${dateStr}_${subject}.txt`, emailBody)
+      }
+      uploadAttachment = async (companyName, name, content, companyInfo) => {
+        const companyPath = companyInfo?.dropbox_folder_path || `${rootPath}/${companyName}`
+        await findOrCreateDropboxFolder(accessToken, companyPath)
+        await uploadDropboxFile(accessToken, companyPath, name, content)
+      }
+    } else {
+      return NextResponse.json({ error: `Unknown storage provider: ${provider}` }, { status: 400 })
     }
-    uploadAttachment = async (companyName, name, content, companyInfo) => {
-      const companyPath = companyInfo?.dropbox_folder_path || `${rootPath}/${companyName}`
-      await findOrCreateDropboxFolder(accessToken, companyPath)
-      await uploadDropboxFile(accessToken, companyPath, name, content)
-    }
-  } else {
-    return NextResponse.json({ error: `Unknown storage provider: ${provider}` }, { status: 400 })
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'Unknown error'
+    console.error('[save-to-drive] Provider setup failed:', msg)
+    return NextResponse.json({ error: `Storage connection failed: ${msg}` }, { status: 500 })
   }
 
   // Fetch the emails with their company info
