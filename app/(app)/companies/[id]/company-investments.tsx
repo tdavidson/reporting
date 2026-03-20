@@ -650,22 +650,18 @@ export function CompanyInvestments({ companyId, companyStatus, portfolioGroups, 
                 </div>
                 {form.original_currency && (
                   <div className="grid grid-cols-2 gap-3">
-                    {txnType === 'investment' && (
-                      <>
-                        <div>
-                          <Label>Investment Cost ({getCurrencySymbol(form.original_currency).trim()})</Label>
-                          <Input className="mt-1" type="number" step="any" value={form.original_investment_cost} onChange={e => setForm(f => ({ ...f, original_investment_cost: e.target.value }))} />
-                        </div>
-                        <div>
-                          <Label>Share Price ({getCurrencySymbol(form.original_currency).trim()})</Label>
-                          <Input className="mt-1" type="number" step="any" value={form.original_share_price} onChange={e => setForm(f => ({ ...f, original_share_price: e.target.value }))} />
-                        </div>
-                        <div className="col-span-2">
-                          <Label>Post-Money Valuation ({getCurrencySymbol(form.original_currency).trim()})</Label>
-                          <Input className="mt-1" type="number" step="any" value={form.original_postmoney_valuation} onChange={e => setForm(f => ({ ...f, original_postmoney_valuation: e.target.value }))} />
-                        </div>
-                      </>
-                    )}
+{txnType === 'investment' && (
+  <>
+    <div>
+      <Label>Investment Cost ({getCurrencySymbol(form.original_currency).trim()})</Label>
+      <Input className="mt-1" type="number" step="any" value={form.original_investment_cost} onChange={e => setForm(f => ({ ...f, original_investment_cost: e.target.value }))} />
+    </div>
+    <div className="col-span-2">
+      <Label>Post-Money Valuation ({getCurrencySymbol(form.original_currency).trim()})</Label>
+      <Input className="mt-1" type="number" step="any" value={form.original_postmoney_valuation} onChange={e => setForm(f => ({ ...f, original_postmoney_valuation: e.target.value }))} />
+    </div>
+  </>
+)}
                     {txnType === 'proceeds' && (
                       <>
                         <div>
