@@ -21,7 +21,7 @@ Forward investor updates in any format â€” PDF, Excel, PowerPoint, plain text â€
 
 > Detailed feature descriptions at [FEATURES](./FEATURES.md)
 
-## Why should you use this
+## Why you should use this
 
 - **Data consistency and availability** - One source of truth for your team. Reduce your reliance on a maze of spreadsheets. Everyone works from the same portfolio data, metrics, and reports from a central location.
 - **Built to work with AI** - Bring your fund data to your own AI, and use it to ask anything about your portfolio and fund. Ask about benchmarks, trends, industry data, research, and more.
