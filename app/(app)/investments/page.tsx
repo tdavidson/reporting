@@ -190,7 +190,6 @@ function getGroupDerivedValue(row: GroupSummary, key: GroupSortKey): number {
   switch (key) {
     case 'currentCost': return currentCost(row)
     case 'proceedsReceived': return row.proceedsReceived
-    case 'proceedsEscrow': return row.proceedsEscrow
     case 'unrealizedValue': return row.unrealizedValue
     case 'totalValue': return totalValue(row)
     case 'realizedGL': return realizedGL(row)
