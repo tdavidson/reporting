@@ -417,7 +417,7 @@ export default function InvestmentsPage() {
   // Shared numeric column definitions (used by both group summary and company table)
   const numericColumns: { label: string; sortKey: string; getValue: (row: { totalInvested: number; totalRealized: number; unrealizedValue: number; totalCostBasisExited: number; proceedsReceived: number; proceedsEscrow: number; moic?: number | null; irr?: number | null }) => number | null; format: 'currency' | 'moic' | 'irr' }[] = [
     { label: 'Invested', sortKey: 'totalInvested', getValue: r => r.totalInvested, format: 'currency' },
-    { label: 'Current Cost', sortKey: 'currentCost', getValue: r => currentCost(r), format: 'currency' },
+    { label: 'NAV', sortKey: 'currentCost', getValue: r => currentCost(r), format: 'currency' },
     { label: 'Proceeds', sortKey: 'proceedsReceived', getValue: r => r.proceedsReceived, format: 'currency' },
     { label: 'Escrow', sortKey: 'proceedsEscrow', getValue: r => r.proceedsEscrow, format: 'currency' },
     { label: 'Unrealized', sortKey: 'unrealizedValue', getValue: r => r.unrealizedValue, format: 'currency' },
