@@ -764,7 +764,7 @@ function SummaryLine({
         </>
       ) : (
         <span>
-          <span className="text-muted-foreground">FMV:</span>{' '}
+          <span className="text-muted-foreground">NAV:</span>{' '}
           <span className="font-medium">{fmt(summary.fmv)}</span>
         </span>
       )}
@@ -842,9 +842,9 @@ function TransactionTable({
               <>
                 <th className="text-right px-3 py-2 font-medium">Invested</th>
                 {hasPostmoney && <th className="text-right px-3 py-2 font-medium">Postmoney</th>}
-                <th className="text-right px-3 py-2 font-medium">Shares</th>
-                <th className="text-right px-3 py-2 font-medium">Price</th>
-                <th className="text-right px-3 py-2 font-medium">FMV</th>
+<th className="text-right px-3 py-2 font-medium">Ownership</th>
+<th className="text-right px-3 py-2 font-medium">Post-Money</th>
+<th className="text-right px-3 py-2 font-medium">NAV</th>
               </>
             )}
             <th className="w-16" />
@@ -888,18 +888,18 @@ function TransactionTable({
                           : '-'}
                       </td>
                     )}
-                    <td className="px-3 py-2 text-right font-mono">
-                      {txn.transaction_type === 'investment' ? fmtNum(txn.shares_acquired) : '-'}
-                    </td>
-                    <td className="px-3 py-2 text-right font-mono">
-                      {txn.transaction_type === 'investment'
-                        ? fmtPrice(txn.share_price)
-                        : txn.transaction_type === 'unrealized_gain_change'
-                        ? fmtPrice(txn.current_share_price)
-                        : txn.transaction_type === 'round_info'
-                        ? fmtPrice(txn.share_price)
-                        : '-'}
-                    </td>
+<td className="px-3 py-2 text-right font-mono">
+  {txn.ownership_pct != null ? `${txn.ownership_pct}%` : '-'}
+</td>
+<td className="px-3 py-2 text-right font-mono">
+  {txn.transaction_type === 'investment'
+    ? fmt(txn.postmoney_valuation)
+    : txn.transaction_type === 'unrealized_gain_change'
+    ? fmt(txn.latest_postmoney_valuation)
+    : txn.transaction_type === 'round_info'
+    ? fmt(txn.postmoney_valuation)
+    : '-'}
+</td>
                     <td className="px-3 py-2 text-right font-mono">
                       {txn.transaction_type === 'investment' && round
                         ? (() => {
