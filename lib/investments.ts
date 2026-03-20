@@ -18,7 +18,13 @@ export function computeSummary(
   let latestSharePrice: number | null = null
   let latestSharePriceDate: string | null = null
 
-  const roundMap = new Map<string, InvestmentRoundSummary>()
+  const roundMap = new Map<string, InvestmentRoundSummary & {
+    ownershipPct: number | null
+    postMoneyValuation: number | null
+    latestOwnershipPct: number | null
+    latestPostMoneyValuation: number | null
+    latestValuationDate: string | null
+  }>()
   const roundCashFlows = new Map<string, CashFlow[]>()
   const cashFlows: CashFlow[] = []
 
@@ -59,10 +65,14 @@ export function computeSummary(
           totalEscrow: 0,
           proceedsDate: null,
           grossIrr: null,
+          ownershipPct: txn.ownership_pct ?? null,
+          postMoneyValuation: txn.postmoney_valuation ?? null,
+          latestOwnershipPct: null,
+          latestPostMoneyValuation: null,
+          latestValuationDate: null,
         })
       }
-      // Also track share price for latest determination
-      // Only use positive share prices (skip $0 from SAFEs, warrants, etc.)
+
       if (txn.share_price != null && txn.share_price > 0 && txn.transaction_date) {
         if (!latestSharePriceDate || txn.transaction_date > latestSharePriceDate) {
           latestSharePrice = txn.share_price
@@ -84,7 +94,7 @@ export function computeSummary(
           roundCashFlows.get(txn.round_name)!.push({ ...cf })
         }
       }
-      // Attribute cost basis exited and proceeds to the round if specified
+
       if (txn.round_name) {
         const round = roundMap.get(txn.round_name)
         if (round) {
@@ -107,10 +117,18 @@ export function computeSummary(
           latestSharePriceDate = txn.transaction_date
         }
       }
-      // Attribute unrealized value change to the round if specified
-      if (txn.round_name && txn.unrealized_value_change != null) {
+      if (txn.round_name) {
         const round = roundMap.get(txn.round_name)
-        if (round) round.unrealizedValueChange += txn.unrealized_value_change
+        if (round) {
+          if (txn.unrealized_value_change != null) round.unrealizedValueChange += txn.unrealized_value_change
+          if (txn.transaction_date) {
+            if (!round.latestValuationDate || txn.transaction_date >= round.latestValuationDate) {
+              if (txn.ownership_pct != null) round.latestOwnershipPct = txn.ownership_pct
+              if (txn.latest_postmoney_valuation != null) round.latestPostMoneyValuation = txn.latest_postmoney_valuation
+              round.latestValuationDate = txn.transaction_date
+            }
+          }
+        }
       }
     }
 
@@ -124,48 +142,29 @@ export function computeSummary(
     }
   }
 
-// Extract latest ownership_pct and post_money from unrealized_gain_change transactions
-  let latestOwnershipPct: number | null = null
-  let latestPostMoney: number | null = null
-  let latestValuationDate: string | null = null
-
-  for (const txn of transactions) {
-    if (txn.transaction_type === 'unrealized_gain_change') {
-      if (txn.transaction_date && (!latestValuationDate || txn.transaction_date >= latestValuationDate)) {
-        if (txn.ownership_pct != null) latestOwnershipPct = txn.ownership_pct
-        if (txn.latest_postmoney_valuation != null) latestPostMoney = txn.latest_postmoney_valuation
-        latestValuationDate = txn.transaction_date
-      }
+  // Compute per-round NAV using ownership × post-money per round
+  const rounds = Array.from(roundMap.values())
+  for (const round of rounds) {
+    round.currentSharePrice = null
+    const ownershipPct = round.latestOwnershipPct ?? round.ownershipPct ?? null
+    const postMoney = round.latestPostMoneyValuation ?? round.postMoneyValuation ?? null
+    if (ownershipPct != null && postMoney != null) {
+      round.currentValue = (ownershipPct / 100) * postMoney
+    } else {
+      const remainingBasis = round.investmentCost - round.costBasisExited
+      round.currentValue = remainingBasis <= 0 ? 0 : Math.max(0, remainingBasis + round.unrealizedValueChange)
     }
   }
 
-  // Compute per-round FMV and sum for company unrealized value
-  const rounds = Array.from(roundMap.values())
+  // NAV = most recent round's value
   let unrealizedValue = 0
-
-  if (latestOwnershipPct != null && latestPostMoney != null) {
-    // Use fully diluted ownership × post-money valuation
-    unrealizedValue = (latestOwnershipPct / 100) * latestPostMoney
-    for (const round of rounds) {
-      round.currentSharePrice = null
-      round.currentValue = unrealizedValue / rounds.length
-    }
-  } else {
-    for (const round of rounds) {
-      const effectiveSharePrice = latestSharePrice ?? round.sharePrice ?? null
-      round.currentSharePrice = effectiveSharePrice
-      const isPricedEquity = round.sharesAcquired > 0 && ((round.sharePrice != null && round.sharePrice > 0) || round.investmentCost > 0)
-      const remainingBasis = round.investmentCost - round.costBasisExited
-      if (remainingBasis <= 0) {
-        round.currentValue = 0
-      } else if (isPricedEquity) {
-        const fraction = round.investmentCost > 0 ? remainingBasis / round.investmentCost : 0
-        round.currentValue = effectiveSharePrice != null ? round.sharesAcquired * fraction * effectiveSharePrice : 0
-      } else {
-        round.currentValue = Math.max(0, remainingBasis + round.unrealizedValueChange)
-      }
-      unrealizedValue += round.currentValue
-    }
+  if (rounds.length > 0) {
+    const sortedRounds = [...rounds].sort((a, b) => {
+      const aDate = a.latestValuationDate ?? a.date ?? ''
+      const bDate = b.latestValuationDate ?? b.date ?? ''
+      return bDate.localeCompare(aDate)
+    })
+    unrealizedValue = sortedRounds[0].currentValue
   }
 
   // Compute per-round IRR
@@ -175,11 +174,8 @@ export function computeSummary(
     const hasProceeds = rcf.some(cf => cf.amount > 0)
 
     if (hasInvestment && hasProceeds) {
-      // Full cash flow data available
       round.grossIrr = xirr(rcf)
     } else if (hasInvestment && !hasProceeds) {
-      // Investment cash flows exist but proceeds aren't attributed to this round yet.
-      // Fall back to round-level totals if we have proceeds date + amounts.
       const totalRoundProceeds = round.totalRealized + round.totalEscrow
       if (totalRoundProceeds > 0 && round.proceedsDate) {
         round.grossIrr = xirr([...rcf, { date: new Date(round.proceedsDate), amount: totalRoundProceeds }])
@@ -200,7 +196,6 @@ export function computeSummary(
 
   const moic = totalInvested > 0 ? (totalRealized + unrealizedValue) / totalInvested : null
 
-  // Compute gross IRR
   let grossIrr: number | null = null
   if (cashFlows.length > 0) {
     const terminalValue = companyStatus === 'written-off' ? 0 : unrealizedValue
