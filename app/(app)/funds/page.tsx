@@ -576,18 +576,18 @@ export default function FundsPage() {
   function MetricCards({ metrics, group }: { metrics: FundMetrics; group?: string }) {
     return (
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-        {[
-          { label: 'Called', value: fmt(metrics.called) },
-          { label: 'Uncalled', value: fmt(metrics.uncalled) },
-          { label: 'Distributions', value: fmt(metrics.distributions) },
-        ].map(card => (
-          <Card key={card.label}>
-            <CardContent className="pt-3 pb-2 px-3">
-              <p className="text-[11px] text-muted-foreground mb-0.5">{card.label}</p>
-              <p className="text-lg font-semibold">{card.value}</p>
-            </CardContent>
-          </Card>
-        ))}
+{[
+  { label: 'Called', value: fmt(metrics.called) },
+  { label: 'Uncalled', value: fmt(metrics.uncalled) },
+  { label: 'Distributions', value: fmt(metrics.distributions) },
+].map(card => (
+  <Card key={card.label}>
+    <CardContent className="pt-3 pb-2 px-3">
+      <p className="text-[11px] text-muted-foreground mb-0.5">{card.label}</p>
+      <p className="text-lg font-semibold">{card.value}</p>
+    </CardContent>
+  </Card>
+))}
 
         <Card>
           <CardContent className="pt-3 pb-2 px-3">
