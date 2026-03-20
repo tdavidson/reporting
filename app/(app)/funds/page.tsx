@@ -577,7 +577,6 @@ export default function FundsPage() {
     return (
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
         {[
-          { label: 'Committed', value: fmt(metrics.committed) },
           { label: 'Called', value: fmt(metrics.called) },
           { label: 'Uncalled', value: fmt(metrics.uncalled) },
           { label: 'Distributions', value: fmt(metrics.distributions) },
@@ -625,13 +624,14 @@ export default function FundsPage() {
         </Card>
 
         {[
-          { label: 'Net TVPI', value: fmtMoic(metrics.netTvpi) },
-          { label: 'DPI', value: fmtMoic(metrics.dpi) },
-          { label: 'RVPI', value: fmtMoic(metrics.rvpi) },
-          { label: 'Net IRR', value: fmtIrr(metrics.netIrr) },
-          { label: 'Gross MOIC', value: fmtMoic(metrics.grossMoic) },
-          { label: 'Net MOIC', value: fmtMoic(metrics.netMoic) },
-          { label: 'Gross IRR', value: fmtIrr(metrics.grossIrr) },
+  { label: 'Net TVPI', value: fmtMoic(metrics.netTvpi) },
+  { label: 'DPI', value: fmtMoic(metrics.dpi) },
+  { label: 'RVPI', value: fmtMoic(metrics.rvpi) },
+  { label: 'Gross MOIC', value: fmtMoic(metrics.grossMoic) },
+  { label: 'Net MOIC', value: fmtMoic(metrics.netMoic) },
+  { label: 'Gross IRR', value: fmtIrr(metrics.grossIrr) },
+  { label: 'Net IRR', value: fmtIrr(metrics.netIrr) },
+].map(card => (
         ].map(card => (
           <Card key={card.label}>
             <CardContent className="pt-3 pb-2 px-3">
