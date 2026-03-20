@@ -540,7 +540,7 @@ export default function InvestmentsPage() {
                 {/* Total row first with blue highlight */}
                 {sortedGroups.length > 1 && (
                   <tr className="border-b bg-blue-50/60 dark:bg-blue-950/20 font-medium">
-                    <td className="px-3 py-2 sticky left-0 bg-blue-50 dark:bg-blue-950 z-10">Total</td>
+                    <td className="px-3 py-2 sticky left-0 bg-blue-50 dark:bg-blue-950 z-10">Master Fund</td>
                     <td className="px-3 py-2" />
                     {numericColumns.map(col => {
                       if (col.format === 'irr') return <td key={col.sortKey} className="px-3 py-2 text-right font-mono">{fmtIrr(data.portfolioIRR)}</td>
