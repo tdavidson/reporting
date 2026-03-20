@@ -1,3 +1,6 @@
+Aqui está o arquivo completo:
+
+```tsx
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -97,20 +100,16 @@ function computeFundMetrics(
   config: GroupConfig
 ): FundMetrics {
   const { cashOnHand, carryRate, gpCommitPct, vintage, managementFeeRate } = config
-  let committed = 0
   let called = 0
   let distributions = 0
 
-for (const cf of cashFlows) {
+  for (const cf of cashFlows) {
     if (cf.flow_type === 'called_capital') called += cf.amount
     if (cf.flow_type === 'distribution') distributions += cf.amount
   }
-  committed = called
 
+  const committed = called
   const uncalled = 0
-  }
-
-  const uncalled = committed - called
   const grossAssets = grossResidual + cashOnHand
 
   const gpCapital = called * gpCommitPct
@@ -168,20 +167,16 @@ function computeMasterFundMetrics(
   avgCarryRate: number,
   avgGpCommitPct: number,
 ): FundMetrics {
-  let committed = 0
   let called = 0
   let distributions = 0
 
-for (const cf of allCashFlows) {
+  for (const cf of allCashFlows) {
     if (cf.flow_type === 'called_capital') called += cf.amount
     if (cf.flow_type === 'distribution') distributions += cf.amount
   }
-  committed = called
 
+  const committed = called
   const uncalled = 0
-  }
-
-  const uncalled = committed - called
   const grossAssets = totalGrossResidual + totalCashOnHand
 
   const gpCapital = called * avgGpCommitPct
@@ -201,7 +196,6 @@ for (const cf of allCashFlows) {
   const netMoicNumerator = distributions + netResidual - totalManagementFees
   const netMoic = totalInvested > 0 ? netMoicNumerator / totalInvested : null
 
-  // Net IRR — recalculate from all cash flows with real dates
   const xirrFlows: CashFlow[] = []
   for (const cf of allCashFlows) {
     if (cf.flow_type === 'called_capital') xirrFlows.push({ date: new Date(cf.flow_date), amount: -cf.amount })
@@ -210,7 +204,6 @@ for (const cf of allCashFlows) {
   if (netResidual > 0) xirrFlows.push({ date: new Date(), amount: netResidual })
   const netIrr = xirrFlows.length >= 2 ? xirr(xirrFlows) : null
 
-  // Gross IRR — using real investment dates and totalInvested
   const grossXirrFlows: CashFlow[] = []
   if (totalInvested > 0 && allCashFlows.length > 0) {
     const sorted = [...allCashFlows].sort((a, b) => a.flow_date.localeCompare(b.flow_date))
@@ -360,13 +353,11 @@ export default function FundsPage() {
     return map
   }, [groups, cashFlows, grossResidualByGroup, totalInvestedByGroup, groupConfigs])
 
-  // Master Fund metrics — computed from ALL cash flows with real dates
   const masterMetrics = useMemo(() => {
     const totalGrossResidual = Array.from(grossResidualByGroup.values()).reduce((a, b) => a + b, 0)
     const totalInvested = Array.from(totalInvestedByGroup.values()).reduce((a, b) => a + b, 0)
     const totalCashOnHand = groups.reduce((a, g) => a + (groupConfigs[g]?.cashOnHand ?? 0), 0)
 
-    // Weighted average carry rate and GP commit pct
     let totalCalled = 0
     let weightedCarry = 0
     let weightedGpCommit = 0
@@ -382,7 +373,6 @@ export default function FundsPage() {
     const avgCarryRate = totalCalled > 0 ? weightedCarry / totalCalled : 0.20
     const avgGpCommitPct = totalCalled > 0 ? weightedGpCommit / totalCalled : 0
 
-    // Sum management fees across all groups
     const totalManagementFees = groups.reduce((sum, g) => {
       const m = metricsByGroup.get(g)
       return sum + (m?.totalManagementFees ?? 0)
@@ -590,7 +580,6 @@ export default function FundsPage() {
           </Card>
         ))}
 
-        {/* Portfolio NAV — editable only for individual groups */}
         <Card>
           <CardContent className="pt-3 pb-2 px-3">
             <div className="flex items-center justify-between mb-0.5">
@@ -741,7 +730,6 @@ export default function FundsPage() {
           <p className="text-xs text-muted-foreground mb-3">Consolidated view across all vehicles</p>
           <MetricCards metrics={masterMetrics} />
 
-          {/* Consolidated cash flows table */}
           <div className="border rounded-lg overflow-x-auto">
             <table className="w-full text-sm whitespace-nowrap">
               <thead>
@@ -783,17 +771,13 @@ export default function FundsPage() {
             .filter(cf => cf.portfolio_group === group)
             .sort((a, b) => a.flow_date.localeCompare(b.flow_date))
 
-          let cumulCommitted = 0
           let cumulCalled = 0
           let cumulDistributed = 0
           const rowCumulatives = groupFlows.map(cf => {
-            if (cf.flow_type === 'commitment') cumulCommitted += cf.amount
             if (cf.flow_type === 'called_capital') cumulCalled += cf.amount
             if (cf.flow_type === 'distribution') cumulDistributed += cf.amount
             return {
-              committed: cumulCommitted,
               called: cumulCalled,
-              uncalled: cumulCommitted - cumulCalled,
               distributed: cumulDistributed,
             }
           })
@@ -1017,3 +1001,4 @@ export default function FundsPage() {
     </PortfolioNotesProvider>
   )
 }
+```
