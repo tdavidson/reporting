@@ -101,10 +101,13 @@ function computeFundMetrics(
   let called = 0
   let distributions = 0
 
-  for (const cf of cashFlows) {
-    if (cf.flow_type === 'commitment') committed += cf.amount
+for (const cf of cashFlows) {
     if (cf.flow_type === 'called_capital') called += cf.amount
     if (cf.flow_type === 'distribution') distributions += cf.amount
+  }
+  committed = called
+
+  const uncalled = 0
   }
 
   const uncalled = committed - called
@@ -169,10 +172,13 @@ function computeMasterFundMetrics(
   let called = 0
   let distributions = 0
 
-  for (const cf of allCashFlows) {
-    if (cf.flow_type === 'commitment') committed += cf.amount
+for (const cf of allCashFlows) {
     if (cf.flow_type === 'called_capital') called += cf.amount
     if (cf.flow_type === 'distribution') distributions += cf.amount
+  }
+  committed = called
+
+  const uncalled = 0
   }
 
   const uncalled = committed - called
