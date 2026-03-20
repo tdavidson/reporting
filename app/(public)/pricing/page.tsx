@@ -113,7 +113,7 @@ export default function PricingPage() {
               Taylor Davidson
             </a>
             {' '}of Hemrock is also available to set up, host, and manage the platform for you,
-            including onboarding your portfolio data and providing ongoing support &mdash;{' '}
+            including onboarding your portfolio data and providing ongoing support, {' '}
             <Link
               href="/contact"
               className="text-foreground underline underline-offset-4 hover:text-foreground/80"

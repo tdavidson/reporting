@@ -1,6 +1,6 @@
 # Documentation and Deployment
 
-- Overview of the project is at [README](./README.md).
+- Project overview at [README](./README.md)
 - Detailed feature descriptions at [FEATURES](./FEATURES.md)
 - Technical deployment details at [DOCS](./DOCS.md)
 
@@ -50,8 +50,8 @@ Next setup your database.
 1. Create a new project at [supabase.com](https://supabase.com)
 2. Go to **Project Settings > API** and copy these three values (you'll need them in Step 4):
    - Project URL (`NEXT_PUBLIC_SUPABASE_URL`)
-   - Anon public key (`NEXT_PUBLIC_SUPABASE_ANON_KEY`)
-   - Service role key (`SUPABASE_SERVICE_ROLE_KEY`) — keep this secret
+   - Anon public key (`NEXT_PUBLIC_SUPABASE_ANON_KEY`) or publishable key
+   - Service role key (`SUPABASE_SERVICE_ROLE_KEY`) or secret key — keep this secret
 3. Run the SQL migrations to create the database schema. Either:
    - Use the Supabase CLI: `supabase db push`
    - Or paste each file in `supabase/migrations/` into the SQL Editor in the Supabase dashboard, in filename order
@@ -69,11 +69,11 @@ All secrets (API keys, OAuth tokens) are encrypted at rest using AES-256-GCM. Ge
 openssl rand -hex 32
 ```
 
-Save this value — it's your `ENCRYPTION_KEY`. If you lose it, all encrypted credentials in the database become unrecoverable.
+Save this value in your .env.local — it's your `ENCRYPTION_KEY`. If you lose it, all encrypted credentials in the database become unrecoverable.
 
 ### Step 4: Deploy the app
 
-Next is to deploy the app to your chosen hosting provider. Prebuilt the options are Netlify and Vervel, but you are not tied to those providers, feel free to deploy to your desired host.
+Next is to deploy the app to your chosen hosting provider. Netlify and Vercel are prebuilt, but you are not tied to those providers, feel free to deploy to your desired host.
 
 **Option A: Netlify**
 
