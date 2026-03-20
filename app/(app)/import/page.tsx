@@ -765,7 +765,7 @@ body: JSON.stringify({ text: cashFlowText, mode: cashFlowMode }),
             <AlertDescription>
               <div className="space-y-1">
                 <p className="font-medium">Import complete</p>
-                <p className="text-sm">{cashFlowResult.created} cash flow{cashFlowResult.created !== 1 ? 's' : ''} created</p>
+                <p className="text-sm">{cashFlowResult.created} cash flow{cashFlowResult.created !== 1 ? 's' : ''} created{(cashFlowResult as any).skipped > 0 ? `, ${(cashFlowResult as any).skipped} skipped (duplicates)` : ''}</p>
                 {cashFlowResult.errors.length > 0 && (
                   <div className="mt-2">
                     <p className="text-sm font-medium text-destructive">Issues:</p>
