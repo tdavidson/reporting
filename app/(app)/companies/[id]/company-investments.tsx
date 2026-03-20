@@ -579,7 +579,7 @@ export function CompanyInvestments({ companyId, companyStatus, portfolioGroups, 
            {txnType === 'unrealized_gain_change' && (
   <div className="grid grid-cols-2 gap-3">
     <div>
-      <Label>Accrued Interest / Value Adjustment ({symbol.trim()})</Label>
+      <Label>Accrued Interest ({symbol.trim()})</Label>
       <Input
         className="mt-1"
         type="number"
