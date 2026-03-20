@@ -825,8 +825,8 @@ function TransactionTable({
   if (transactions.length === 0) return null
   const hasPostmoney = transactions.some(t => t.postmoney_valuation != null)
   return (
-    <div className="border rounded-lg overflow-hidden">
-      <table className="w-full text-sm">
+<div className="border rounded-lg overflow-x-auto">
+  <table className="w-full text-sm whitespace-nowrap">
         <thead>
           <tr className="border-b bg-muted/50">
             {showGroup && <th className="text-left px-3 py-2 font-medium">Group</th>}
