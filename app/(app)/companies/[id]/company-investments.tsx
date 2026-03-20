@@ -841,7 +841,6 @@ function TransactionTable({
             ) : (
               <>
                 <th className="text-right px-3 py-2 font-medium">Invested</th>
-                {hasPostmoney && <th className="text-right px-3 py-2 font-medium">Postmoney</th>}
 <th className="text-right px-3 py-2 font-medium">Ownership</th>
 <th className="text-right px-3 py-2 font-medium">Post-Money</th>
 <th className="text-right px-3 py-2 font-medium">NAV</th>
@@ -881,13 +880,7 @@ function TransactionTable({
                     <td className="px-3 py-2 text-right font-mono">
                       {txn.transaction_type === 'investment' ? fmt(txn.investment_cost) : '-'}
                     </td>
-                    {hasPostmoney && (
-                      <td className="px-3 py-2 text-right font-mono">
-                        {(txn.transaction_type === 'investment' || txn.transaction_type === 'round_info')
-                          ? fmt(txn.postmoney_valuation)
-                          : '-'}
-                      </td>
-                    )}
+
 <td className="px-3 py-2 text-right font-mono">
   {txn.ownership_pct != null ? `${txn.ownership_pct}%` : '-'}
 </td>
