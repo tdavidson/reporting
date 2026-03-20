@@ -168,16 +168,29 @@ export async function DELETE(req: NextRequest) {
 
   if (!membership) return NextResponse.json({ error: 'No fund found' }, { status: 403 })
 
-  const id = req.nextUrl.searchParams.get('id')
-  if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 })
+const id = req.nextUrl.searchParams.get('id')
+const portfolioGroup = req.nextUrl.searchParams.get('portfolioGroup')
 
+if (!id && !portfolioGroup) return NextResponse.json({ error: 'id or portfolioGroup is required' }, { status: 400 })
+
+if (portfolioGroup) {
   const { error } = await admin
     .from('fund_cash_flows' as any)
     .delete()
-    .eq('id', id)
+    .eq('portfolio_group', portfolioGroup)
     .eq('fund_id', membership.fund_id)
 
-  if (error) return dbError(error, 'fund-cash-flows-delete')
-
+  if (error) return dbError(error, 'fund-cash-flows-delete-group')
   return NextResponse.json({ ok: true })
+}
+
+const { error } = await admin
+  .from('fund_cash_flows' as any)
+  .delete()
+  .eq('id', id!)
+  .eq('fund_id', membership.fund_id)
+
+if (error) return dbError(error, 'fund-cash-flows-delete')
+
+return NextResponse.json({ ok: true })
 }
