@@ -124,28 +124,48 @@ export function computeSummary(
     }
   }
 
+// Extract latest ownership_pct and post_money from unrealized_gain_change transactions
+  let latestOwnershipPct: number | null = null
+  let latestPostMoney: number | null = null
+  let latestValuationDate: string | null = null
+
+  for (const txn of transactions) {
+    if (txn.transaction_type === 'unrealized_gain_change') {
+      if (txn.transaction_date && (!latestValuationDate || txn.transaction_date >= latestValuationDate)) {
+        if (txn.ownership_pct != null) latestOwnershipPct = txn.ownership_pct
+        if (txn.latest_postmoney_valuation != null) latestPostMoney = txn.latest_postmoney_valuation
+        latestValuationDate = txn.transaction_date
+      }
+    }
+  }
+
   // Compute per-round FMV and sum for company unrealized value
   const rounds = Array.from(roundMap.values())
   let unrealizedValue = 0
-  for (const round of rounds) {
-    // Use the latest share price from unrealized_gain_change / round_info transactions.
-    // If none exists, fall back to the round's own share price from the investment.
-    const effectiveSharePrice = latestSharePrice ?? round.sharePrice ?? null
-    round.currentSharePrice = effectiveSharePrice
-    const isPricedEquity = round.sharesAcquired > 0 && ((round.sharePrice != null && round.sharePrice > 0) || round.investmentCost > 0)
-    // If all cost basis has been exited, there's no remaining unrealized position
-    const remainingBasis = round.investmentCost - round.costBasisExited
-    if (remainingBasis <= 0) {
-      round.currentValue = 0
-    } else if (isPricedEquity) {
-      // Equity round: prorate shares by remaining basis fraction
-      const fraction = round.investmentCost > 0 ? remainingBasis / round.investmentCost : 0
-      round.currentValue = effectiveSharePrice != null ? round.sharesAcquired * fraction * effectiveSharePrice : 0
-    } else {
-      // Convertible / warrant / no shares: remaining basis + unrealized changes
-      round.currentValue = Math.max(0, remainingBasis + round.unrealizedValueChange)
+
+  if (latestOwnershipPct != null && latestPostMoney != null) {
+    // Use fully diluted ownership × post-money valuation
+    unrealizedValue = (latestOwnershipPct / 100) * latestPostMoney
+    for (const round of rounds) {
+      round.currentSharePrice = null
+      round.currentValue = unrealizedValue / rounds.length
     }
-    unrealizedValue += round.currentValue
+  } else {
+    for (const round of rounds) {
+      const effectiveSharePrice = latestSharePrice ?? round.sharePrice ?? null
+      round.currentSharePrice = effectiveSharePrice
+      const isPricedEquity = round.sharesAcquired > 0 && ((round.sharePrice != null && round.sharePrice > 0) || round.investmentCost > 0)
+      const remainingBasis = round.investmentCost - round.costBasisExited
+      if (remainingBasis <= 0) {
+        round.currentValue = 0
+      } else if (isPricedEquity) {
+        const fraction = round.investmentCost > 0 ? remainingBasis / round.investmentCost : 0
+        round.currentValue = effectiveSharePrice != null ? round.sharesAcquired * fraction * effectiveSharePrice : 0
+      } else {
+        round.currentValue = Math.max(0, remainingBasis + round.unrealizedValueChange)
+      }
+      unrealizedValue += round.currentValue
+    }
   }
 
   // Compute per-round IRR
