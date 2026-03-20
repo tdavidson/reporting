@@ -114,14 +114,11 @@ interface PortfolioData {
   groups: GroupSummary[]
 }
 
-type SortKey = 'companyName' | 'status' | 'portfolioGroup' | 'totalInvested' | 'currentCost' | 'proceedsReceived' | 'unrealizedValue' | 'totalValue' | 'realizedGL' | 'unrealizedGL' | 'totalGL' | 'moic' | 'irr' | 'pctUnrealized' | 'pctTotalValue'
+type SortKey = 'companyName' | 'status' | 'portfolioGroup' | 'totalInvested' | 'proceedsReceived' | 'unrealizedValue' | 'totalValue' | 'realizedGL' | 'unrealizedGL' | 'totalGL' | 'moic' | 'irr' | 'pctUnrealized' | 'pctTotalValue'
 type SortDir = 'asc' | 'desc'
 
-type GroupSortKey = 'group' | 'vintage' | 'totalInvested' | 'currentCost' | 'proceedsReceived' | 'unrealizedValue' | 'totalValue' | 'realizedGL' | 'unrealizedGL' | 'totalGL' | 'moic' | 'irr'
+type GroupSortKey = 'group' | 'vintage' | 'totalInvested' | 'proceedsReceived' | 'unrealizedValue' | 'totalValue' | 'realizedGL' | 'unrealizedGL' | 'totalGL' | 'moic' | 'irr'
 
-function currentCost(row: { totalInvested: number; totalCostBasisExited: number }) {
-  return row.totalInvested - row.totalCostBasisExited
-}
 function totalValue(row: { totalRealized: number; unrealizedValue: number }) {
   return row.totalRealized + row.unrealizedValue
 }
@@ -129,7 +126,7 @@ function realizedGL(row: { totalRealized: number; totalCostBasisExited: number }
   return row.totalRealized - row.totalCostBasisExited
 }
 function unrealizedGL(row: { totalInvested: number; totalCostBasisExited: number; unrealizedValue: number }) {
-  return row.unrealizedValue - currentCost(row)
+  return row.unrealizedValue - (row.totalInvested - row.totalCostBasisExited)
 }
 function totalGL(row: { totalInvested: number; totalRealized: number; unrealizedValue: number }) {
   return totalValue(row) - row.totalInvested
@@ -157,7 +154,6 @@ const TEXT_SORT_KEYS: SortKey[] = ['companyName', 'status', 'portfolioGroup']
 
 function getDerivedValue(row: CompanySummary, key: SortKey, helpers?: { pctUnrealized: (c: CompanySummary) => number | null; pctTotalValue: (c: CompanySummary) => number | null }): number {
   switch (key) {
-    case 'currentCost': return currentCost(row)
     case 'proceedsReceived': return row.proceedsReceived
     case 'unrealizedValue': return row.unrealizedValue
     case 'totalValue': return totalValue(row)
@@ -175,7 +171,6 @@ function getDerivedValue(row: CompanySummary, key: SortKey, helpers?: { pctUnrea
 
 function getGroupDerivedValue(row: GroupSummary, key: GroupSortKey): number {
   switch (key) {
-    case 'currentCost': return currentCost(row)
     case 'proceedsReceived': return row.proceedsReceived
     case 'unrealizedValue': return row.unrealizedValue
     case 'totalValue': return totalValue(row)
@@ -378,7 +373,6 @@ export default function InvestmentsPage() {
 
   const numericColumns: { label: string; sortKey: string; getValue: (row: { totalInvested: number; totalRealized: number; unrealizedValue: number; totalCostBasisExited: number; proceedsReceived: number; moic?: number | null; irr?: number | null }) => number | null; format: 'currency' | 'moic' | 'irr' }[] = [
     { label: 'Invested', sortKey: 'totalInvested', getValue: r => r.totalInvested, format: 'currency' },
-    { label: 'NAV', sortKey: 'currentCost', getValue: r => currentCost(r), format: 'currency' },
     { label: 'Proceeds', sortKey: 'proceedsReceived', getValue: r => r.proceedsReceived, format: 'currency' },
     { label: 'Unrealized', sortKey: 'unrealizedValue', getValue: r => r.unrealizedValue, format: 'currency' },
     { label: 'Total Value', sortKey: 'totalValue', getValue: r => totalValue(r), format: 'currency' },
@@ -537,7 +531,6 @@ export default function InvestmentsPage() {
                 </tr>
               </thead>
               <tbody>
-                {/* Total row first with blue highlight */}
                 {sortedGroups.length > 1 && (
                   <tr className="border-b bg-blue-50/60 dark:bg-blue-950/20 font-medium">
                     <td className="px-3 py-2 sticky left-0 bg-blue-50 dark:bg-blue-950 z-10">Master Fund</td>
@@ -629,7 +622,6 @@ export default function InvestmentsPage() {
             </tr>
           </thead>
           <tbody>
-            {/* Total row first with blue highlight */}
             <tr className="border-b bg-blue-50/60 dark:bg-blue-950/20 font-medium">
               <td className="px-3 py-2 sticky left-0 bg-blue-50 dark:bg-blue-950 z-10">Total ({filtered.length})</td>
               <td className="px-3 py-2" />
