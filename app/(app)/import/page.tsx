@@ -34,6 +34,7 @@ interface InvestmentImportResult {
 
 interface CashFlowImportResult {
   created: number
+  skipped?: number
   errors: string[]
 }
 
@@ -90,6 +91,7 @@ export default function ImportPage() {
   const [investmentImporting, setInvestmentImporting] = useState(false)
   const [investmentResult, setInvestmentResult] = useState<InvestmentImportResult | null>(null)
   const [investmentError, setInvestmentError] = useState<string | null>(null)
+  const [investmentMode, setInvestmentMode] = useState<'add' | 'upsert'>('add')
 
   // Fund cash flow import state
   const [cashFlowText, setCashFlowText] = useState('')
@@ -147,7 +149,7 @@ export default function ImportPage() {
       const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-body: JSON.stringify({ text: csv, mode: excelMode }),
+        body: JSON.stringify({ text: csv, mode: excelMode }),
       })
 
       const data = await res.json()
@@ -349,7 +351,7 @@ body: JSON.stringify({ text: csv, mode: excelMode }),
       const res = await fetch('/api/import/investments', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: investmentText }),
+        body: JSON.stringify({ text: investmentText, mode: investmentMode }),
       })
 
       const data = await res.json()
@@ -376,7 +378,7 @@ body: JSON.stringify({ text: csv, mode: excelMode }),
       const res = await fetch('/api/import/fund-cash-flows', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-body: JSON.stringify({ text: cashFlowText, mode: cashFlowMode }),
+        body: JSON.stringify({ text: cashFlowText, mode: cashFlowMode }),
       })
 
       let data: any
@@ -472,25 +474,22 @@ body: JSON.stringify({ text: cashFlowText, mode: cashFlowMode }),
             </Button>
 
             {excelFile && (
-  <div className="flex items-center gap-2">
-    <Select value={excelMode} onValueChange={v => setExcelMode(v as 'add' | 'upsert')}>
-      <SelectTrigger className="w-32 h-9">
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent>
-        <SelectItem value="add">Add</SelectItem>
-        <SelectItem value="upsert">Upsert</SelectItem>
-      </SelectContent>
-    </Select>
-    <Button
-      onClick={handleExcelImport}
-      disabled={excelImporting}
-    >
-      {excelImporting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-      {excelImporting ? 'Importing...' : 'Import'}
-    </Button>
-  </div>
-)}
+              <div className="flex items-center gap-2">
+                <Select value={excelMode} onValueChange={v => setExcelMode(v as 'add' | 'upsert')}>
+                  <SelectTrigger className="w-32 h-9">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="add">Add</SelectItem>
+                    <SelectItem value="upsert">Upsert</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Button onClick={handleExcelImport} disabled={excelImporting}>
+                  {excelImporting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                  {excelImporting ? 'Importing...' : 'Import'}
+                </Button>
+              </div>
+            )}
           </div>
           <p className="text-xs text-muted-foreground">Supports .xlsx and .xls files. The first sheet will be used.</p>
         </div>
@@ -749,10 +748,21 @@ body: JSON.stringify({ text: cashFlowText, mode: cashFlowMode }),
             <p className="text-xs text-muted-foreground">
               Supports CSV, tab-separated, or free-form text. New companies will be created automatically.
             </p>
-            <Button onClick={handleInvestmentImport} disabled={investmentImporting || !investmentText.trim()}>
-              {investmentImporting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              {investmentImporting ? 'Importing...' : 'Import Investments'}
-            </Button>
+            <div className="flex items-center gap-2">
+              <Select value={investmentMode} onValueChange={v => setInvestmentMode(v as 'add' | 'upsert')}>
+                <SelectTrigger className="w-32 h-9">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="add">Add</SelectItem>
+                  <SelectItem value="upsert">Upsert</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button onClick={handleInvestmentImport} disabled={investmentImporting || !investmentText.trim()}>
+                {investmentImporting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                {investmentImporting ? 'Importing...' : 'Import Investments'}
+              </Button>
+            </div>
           </div>
         </div>
       </div>
@@ -777,7 +787,10 @@ body: JSON.stringify({ text: cashFlowText, mode: cashFlowMode }),
             <AlertDescription>
               <div className="space-y-1">
                 <p className="font-medium">Import complete</p>
-                <p className="text-sm">{cashFlowResult.created} cash flow{cashFlowResult.created !== 1 ? 's' : ''} created{(cashFlowResult as any).skipped > 0 ? `, ${(cashFlowResult as any).skipped} skipped (duplicates)` : ''}</p>
+                <p className="text-sm">
+                  {cashFlowResult.created} cash flow{cashFlowResult.created !== 1 ? 's' : ''} created
+                  {cashFlowResult.skipped != null && cashFlowResult.skipped > 0 ? `, ${cashFlowResult.skipped} skipped (duplicates)` : ''}
+                </p>
                 {cashFlowResult.errors.length > 0 && (
                   <div className="mt-2">
                     <p className="text-sm font-medium text-destructive">Issues:</p>
@@ -804,21 +817,21 @@ body: JSON.stringify({ text: cashFlowText, mode: cashFlowMode }),
             <p className="text-xs text-muted-foreground">
               Supports CSV, tab-separated, or free-form text. AI parses dates, amounts, and flow types automatically.
             </p>
-<div className="flex items-center gap-2">
-  <Select value={cashFlowMode} onValueChange={v => setCashFlowMode(v as 'add' | 'upsert')}>
-    <SelectTrigger className="w-32 h-9">
-      <SelectValue />
-    </SelectTrigger>
-    <SelectContent>
-      <SelectItem value="add">Add</SelectItem>
-      <SelectItem value="upsert">Upsert</SelectItem>
-    </SelectContent>
-  </Select>
-  <Button onClick={handleCashFlowImport} disabled={cashFlowImporting || !cashFlowText.trim()}>
-    {cashFlowImporting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-    {cashFlowImporting ? 'Importing...' : 'Import Cash Flows'}
-  </Button>
-</div>
+            <div className="flex items-center gap-2">
+              <Select value={cashFlowMode} onValueChange={v => setCashFlowMode(v as 'add' | 'upsert')}>
+                <SelectTrigger className="w-32 h-9">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="add">Add</SelectItem>
+                  <SelectItem value="upsert">Upsert</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button onClick={handleCashFlowImport} disabled={cashFlowImporting || !cashFlowText.trim()}>
+                {cashFlowImporting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                {cashFlowImporting ? 'Importing...' : 'Import Cash Flows'}
+              </Button>
+            </div>
           </div>
         </div>
       </div>
