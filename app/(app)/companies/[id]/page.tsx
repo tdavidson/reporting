@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { ArrowLeft } from 'lucide-react'
 
 export async function generateMetadata({ params }: { params: { id: string } }): Promise<Metadata> {
@@ -37,7 +38,6 @@ function formatHighlightValue(value: number, metric: Metric, fundCurrency: strin
     formatted = value.toLocaleString('en-US', { maximumFractionDigits: 2 })
   }
 
-  // Use explicit metric unit if set, otherwise fall back to metric/fund currency for currency-type metrics
   const metricCurrency = metric.currency ?? fundCurrency
   const unit = metric.unit ?? (metric.value_type === 'currency' ? getCurrencySymbol(metricCurrency) : null)
   const unitPosition = metric.unit ? metric.unit_position : 'prefix'
@@ -54,6 +54,7 @@ export default async function CompanyDetailPage({
   params: { id: string }
 }) {
   const supabase = createClient()
+  const admin = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/auth')
 
@@ -74,6 +75,18 @@ export default async function CompanyDetailPage({
 
   const isAdmin = membership?.role === 'admin'
 
+  // Fetch all portfolio groups from fund_cash_flows for this fund
+  const { data: allGroupsData } = await admin
+    .from('fund_cash_flows' as any)
+    .select('portfolio_group')
+    .eq('fund_id', company.fund_id)
+    .not('portfolio_group', 'is', null) as { data: { portfolio_group: string }[] | null }
+
+  const allPortfolioGroups = Array.from(new Set([
+    ...(company.portfolio_group ?? []),
+    ...(allGroupsData ?? []).map((r: { portfolio_group: string }) => r.portfolio_group).filter(Boolean),
+  ])).sort()
+
   // Fetch AI provider settings for the summary component
   const { data: fundSettings } = await supabase
     .from('fund_settings')
@@ -91,7 +104,6 @@ export default async function CompanyDetailPage({
     .eq('is_active', true)
     .order('display_order') as { data: Metric[] | null }
 
-  // Find highlight metrics (MRR and Cash)
   const mrrMetric = metrics?.find(m =>
     m.slug === 'mrr' || /\bmrr\b/i.test(m.name) || /monthly recurring revenue/i.test(m.name)
   )
@@ -197,7 +209,12 @@ export default async function CompanyDetailPage({
           )}
 
           {isFeatureVisible(featureVisibility, 'investments', isAdmin) && (
-            <CompanyInvestments companyId={company.id} companyStatus={company.status as CompanyStatus} portfolioGroups={company.portfolio_group ?? []} adminOnly={featureVisibility.investments === 'admin'} />
+            <CompanyInvestments
+              companyId={company.id}
+              companyStatus={company.status as CompanyStatus}
+              portfolioGroups={allPortfolioGroups}
+              adminOnly={featureVisibility.investments === 'admin'}
+            />
           )}
 
           <CompanyDocuments
