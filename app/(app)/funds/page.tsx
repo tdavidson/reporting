@@ -808,8 +808,8 @@ export default function FundsPage() {
                       <th className="text-left px-3 py-2 font-medium">Type</th>
                       <th className="text-left px-3 py-2 font-medium">Group</th>
                       <th className="text-right px-3 py-2 font-medium">Amount</th>
-                      <th className="text-right px-3 py-2 font-medium">Cumul. Called</th>
-                      <th className="text-right px-3 py-2 font-medium">Cumul. Distributed</th>
+                      <th className="text-right px-3 py-2 font-medium">Capital Called</th>
+                      <th className="text-right px-3 py-2 font-medium">Capital Distributed</th>
                       <th className="px-3 py-2 w-20 font-medium">Actions</th>
                     </tr>
                   </thead>
