@@ -230,12 +230,18 @@ export default function InvestmentsPage() {
     return Array.from(groups).sort()
   }, [data])
 
-  const availableCompanies = useMemo(() => {
-    if (!data) return []
-    return [...data.companies]
-      .sort((a, b) => a.companyName.localeCompare(b.companyName))
-      .map(c => ({ id: c.companyId, name: c.companyName }))
-  }, [data])
+const availableCompanies = useMemo(() => {
+  if (!data) return []
+  const seen = new Set<string>()
+  return [...data.companies]
+    .sort((a, b) => a.companyName.localeCompare(b.companyName))
+    .filter(c => {
+      if (seen.has(c.companyName)) return false
+      seen.add(c.companyName)
+      return true
+    })
+    .map(c => ({ id: c.companyId, name: c.companyName }))
+}, [data])
 
   const fundMetricsByGroup = useMemo(() => {
     if (!data) return new Map<string, FundGroupMetrics>()
@@ -366,7 +372,6 @@ export default function InvestmentsPage() {
     { label: 'Proceeds', sortKey: 'proceedsReceived', getValue: r => r.proceedsReceived, format: 'currency' },
     { label: 'Current NAV', sortKey: 'unrealizedValue', getValue: r => r.unrealizedValue, format: 'currency' },
     { label: 'Total Value', sortKey: 'totalValue', getValue: r => totalValue(r), format: 'currency' },
-    { label: '% Total Value', sortKey: 'pctTotalValue', getValue: r => pctOfGroupTotalValue(r), format: 'moic' },
     { label: 'Gross MOIC', sortKey: 'moic', getValue: r => r.moic ?? null, format: 'moic' },
     { label: 'Gross IRR', sortKey: 'irr', getValue: r => r.irr ?? null, format: 'irr' },
   ]
@@ -504,7 +509,7 @@ export default function InvestmentsPage() {
               </thead>
               <tbody>
                 {sortedGroups.length > 1 && (
-                  <tr className="border-b bg-blue-50/60 dark:bg-blue-950/20 font-medium">
+                  <tr className="border-b bg-blue-50 dark:bg-blue-950 font-medium">
                     <td className="px-3 py-2 sticky left-0 bg-blue-50 dark:bg-blue-950 z-10">Master Fund</td>
                     {groupNumericColumns.map(col => {
                       if (col.format === 'irr') return <td key={col.sortKey} className="px-3 py-2 text-right font-mono">{fmtIrr(data.portfolioIRR)}</td>
@@ -602,12 +607,11 @@ export default function InvestmentsPage() {
             </tr>
           </thead>
           <tbody>
-            <tr className="border-b bg-blue-50/60 dark:bg-blue-950/20 font-medium">
+            <tr className="border-b bg-blue-50 dark:bg-blue-950 font-medium">
               <td className="px-3 py-2 sticky left-0 bg-blue-50 dark:bg-blue-950 z-10">Total ({filtered.length})</td>
               <td className="px-3 py-2" />
               <td className="px-3 py-2" />
               {companyNumericColumns.map(col => {
-                if (col.sortKey === 'pctTotalValue') return <td key={col.sortKey} className="px-3 py-2" />
                 if (col.format === 'irr') return <td key={col.sortKey} className="px-3 py-2 text-right font-mono">{fmtIrr(data.portfolioIRR)}</td>
                 if (col.sortKey === 'moic') return <td key={col.sortKey} className="px-3 py-2 text-right font-mono">{fmtMoic(totals.moic)}</td>
                 return <td key={col.sortKey} className="px-3 py-2 text-right font-mono">{fmtVal(col.getValue(totals as unknown as CompanySummary), col.format)}</td>
@@ -630,12 +634,9 @@ export default function InvestmentsPage() {
                 <td className="px-3 py-2 text-xs">
                   {c.portfolioGroup.length > 0 ? c.portfolioGroup.join(', ') : '-'}
                 </td>
-                {companyNumericColumns.map(col => {
-                  if (col.sortKey === 'pctTotalValue') {
-                    return <td key={col.sortKey} className="px-3 py-2 text-right font-mono">{pctTV != null ? `${(pctTV * 100).toFixed(1)}%` : '-'}</td>
-                  }
-                  return <td key={col.sortKey} className="px-3 py-2 text-right font-mono">{fmtVal(col.getValue(c), col.format)}</td>
-                })}
+                {companyNumericColumns.map(col => (
+                  <td key={col.sortKey} className="px-3 py-2 text-right font-mono">{fmtVal(col.getValue(c), col.format)}</td>
+                  ))}
               </tr>
               )
             })}
