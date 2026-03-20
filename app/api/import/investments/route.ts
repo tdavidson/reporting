@@ -51,10 +51,6 @@ function sanitize(val: string): string {
     .slice(0, 10_000)
 }
 
-// ---------------------------------------------------------------------------
-// POST — bulk import investment transactions via AI parsing
-// ---------------------------------------------------------------------------
-
 export async function POST(req: NextRequest) {
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -78,7 +74,8 @@ export async function POST(req: NextRequest) {
 
   const fundId = membership.fund_id
   const body = await req.json()
-  const { text } = body
+  const { text, mode } = body
+  const isUpsert = mode === 'upsert'
 
   if (typeof text !== 'string' || !text.trim()) {
     return NextResponse.json({ error: 'No text provided' }, { status: 400 })
@@ -88,7 +85,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Input too large. Maximum 500KB of text allowed.' }, { status: 400 })
   }
 
-  // Get AI provider
   let provider: Awaited<ReturnType<typeof createFundAIProvider>>['provider']
   let claudeModel: string
   let aiProviderType: string
@@ -222,7 +218,6 @@ ${text}`,
     return NextResponse.json({ error: 'Too many transactions in parsed result (max 5000)' }, { status: 400 })
   }
 
-  // Get existing companies for matching
   const { data: existingCompanies } = await admin
     .from('companies')
     .select('id, name')
@@ -238,6 +233,7 @@ ${text}`,
     unrealizedCreated: 0,
     companiesMatched: 0,
     companiesCreated: 0,
+    skipped: 0,
     errors: [] as string[],
   }
 
@@ -257,7 +253,6 @@ ${text}`,
 
     let companyId = companyByName.get(companyName.toLowerCase())
     if (!companyId) {
-      // Auto-create the company
       const status = (['active', 'exited', 'written-off'] as const).includes(pt.company_status as any)
         ? pt.company_status!
         : 'active'
@@ -291,6 +286,26 @@ ${text}`,
     if (!txnType || !VALID_TYPES.has(txnType)) {
       results.errors.push(`Invalid transaction type "${txnType}" for "${companyName}"`)
       continue
+    }
+
+    if (isUpsert) {
+      const query = admin
+        .from('investment_transactions' as any)
+        .select('id')
+        .eq('company_id', companyId)
+        .eq('fund_id', fundId)
+        .eq('transaction_type', txnType)
+
+      if (pt.transaction_date) query.eq('transaction_date', pt.transaction_date)
+      if (pt.round_name) query.eq('round_name', sanitize(pt.round_name))
+      if (pt.investment_cost != null) query.eq('investment_cost', pt.investment_cost)
+      if (pt.proceeds_received != null) query.eq('proceeds_received', pt.proceeds_received)
+
+      const { data: existing } = await query.maybeSingle()
+      if (existing) {
+        results.skipped++
+        continue
+      }
     }
 
     const { error: insertError } = await admin
