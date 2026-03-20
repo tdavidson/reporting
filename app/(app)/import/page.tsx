@@ -147,7 +147,7 @@ export default function ImportPage() {
       const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: csv }),
+body: JSON.stringify({ text: csv, mode: excelMode }),
       })
 
       const data = await res.json()
@@ -472,14 +472,25 @@ body: JSON.stringify({ text: cashFlowText, mode: cashFlowMode }),
             </Button>
 
             {excelFile && (
-              <Button
-                onClick={handleExcelImport}
-                disabled={excelImporting}
-              >
-                {excelImporting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                {excelImporting ? 'Importing...' : 'Import'}
-              </Button>
-            )}
+  <div className="flex items-center gap-2">
+    <Select value={excelMode} onValueChange={v => setExcelMode(v as 'add' | 'upsert')}>
+      <SelectTrigger className="w-32 h-9">
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value="add">Add</SelectItem>
+        <SelectItem value="upsert">Upsert</SelectItem>
+      </SelectContent>
+    </Select>
+    <Button
+      onClick={handleExcelImport}
+      disabled={excelImporting}
+    >
+      {excelImporting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+      {excelImporting ? 'Importing...' : 'Import'}
+    </Button>
+  </div>
+)}
           </div>
           <p className="text-xs text-muted-foreground">Supports .xlsx and .xls files. The first sheet will be used.</p>
         </div>
