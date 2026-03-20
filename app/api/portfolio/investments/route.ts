@@ -215,20 +215,34 @@ export async function GET(req: NextRequest) {
         }
       }
 
-      // Sum per-round FMV using the company-wide share price
-      let unrealizedValue = 0
-      for (const round of Array.from(roundMap.values())) {
-        const isPricedEquity = round.sharesAcquired > 0 && (round.investmentCost > 0)
-        const remainingBasis = round.investmentCost - round.costBasisExited
-        if (remainingBasis <= 0) {
-          // All cost basis exited — no unrealized value
-        } else if (isPricedEquity) {
-          const fraction = round.investmentCost > 0 ? remainingBasis / round.investmentCost : 0
-          unrealizedValue += latestSharePrice != null ? round.sharesAcquired * fraction * latestSharePrice : 0
-        } else {
-          unrealizedValue += remainingBasis + round.unrealizedValueChange
-        }
-      }
+// Extract latest ownership_pct and post_money from unrealized_gain_change transactions
+let latestOwnershipPct: number | null = null
+let latestPostMoney: number | null = null
+let latestValuationDate: string | null = null
+
+for (const txn of gTxns) {
+  if (txn.transaction_type === 'unrealized_gain_change') {
+    if (txn.transaction_date && (!latestValuationDate || txn.transaction_date >= latestValuationDate)) {
+      if (txn.ownership_pct != null) latestOwnershipPct = txn.ownership_pct
+      if (txn.latest_postmoney_valuation != null) latestPostMoney = txn.latest_postmoney_valuation
+      latestValuationDate = txn.transaction_date
+    }
+  }
+}
+
+// Sum per-round FMV
+let unrealizedValue = 0
+for (const round of Array.from(roundMap.values())) {
+  const remainingBasis = round.investmentCost - round.costBasisExited
+  if (remainingBasis <= 0) {
+    // All cost basis exited — no unrealized value
+  } else if (latestOwnershipPct != null && latestPostMoney != null) {
+    // Use fully diluted ownership × post-money valuation
+    unrealizedValue += (latestOwnershipPct / 100) * latestPostMoney
+  } else {
+    unrealizedValue += remainingBasis + round.unrealizedValueChange
+  }
+}
       let fmv: number
       if (company.status === 'exited') {
         fmv = totalRealized
