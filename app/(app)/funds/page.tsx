@@ -540,6 +540,11 @@ async function handleDeleteGroup(group: string) {
     const res = await fetch(`/api/portfolio/fund-cash-flows?portfolioGroup=${encodeURIComponent(group)}`, { method: 'DELETE' })
     if (res.ok) {
       setCashFlows(prev => prev.filter(cf => cf.portfolio_group !== group))
+      setGroupConfigs(prev => {
+        const next = { ...prev }
+        delete next[group]
+        return next
+      })
       setDeletingGroup(null)
       setDeleteConfirmName('')
       setSettingsOpen(false)
