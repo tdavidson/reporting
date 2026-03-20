@@ -419,7 +419,6 @@ export default function InvestmentsPage() {
     { label: 'Invested', sortKey: 'totalInvested', getValue: r => r.totalInvested, format: 'currency' },
     { label: 'Current Cost', sortKey: 'currentCost', getValue: r => currentCost(r), format: 'currency' },
     { label: 'Proceeds', sortKey: 'proceedsReceived', getValue: r => r.proceedsReceived, format: 'currency' },
-    { label: 'Escrow', sortKey: 'proceedsEscrow', getValue: r => r.proceedsEscrow, format: 'currency' },
     { label: 'Unrealized', sortKey: 'unrealizedValue', getValue: r => r.unrealizedValue, format: 'currency' },
     { label: 'Total Value', sortKey: 'totalValue', getValue: r => totalValue(r), format: 'currency' },
     { label: 'Realized G/L', sortKey: 'realizedGL', getValue: r => realizedGL(r), format: 'currency' },
