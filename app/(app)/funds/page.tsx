@@ -808,9 +808,7 @@ export default function FundsPage() {
                       <th className="text-left px-3 py-2 font-medium">Type</th>
                       <th className="text-left px-3 py-2 font-medium">Group</th>
                       <th className="text-right px-3 py-2 font-medium">Amount</th>
-                      <th className="text-right px-3 py-2 font-medium">Cumul. Committed</th>
                       <th className="text-right px-3 py-2 font-medium">Cumul. Called</th>
-                      <th className="text-right px-3 py-2 font-medium">Cumul. Uncalled</th>
                       <th className="text-right px-3 py-2 font-medium">Cumul. Distributed</th>
                       <th className="px-3 py-2 w-20 font-medium">Actions</th>
                     </tr>
@@ -868,9 +866,7 @@ export default function FundsPage() {
                           </td>
                           <td className="px-3 py-2 text-xs text-muted-foreground">{cf.portfolio_group}</td>
                           <td className="px-3 py-2 text-right font-mono">{fmt(cf.amount)}</td>
-                          <td className="px-3 py-2 text-right font-mono">{fmt(cumul.committed)}</td>
                           <td className="px-3 py-2 text-right font-mono">{fmt(cumul.called)}</td>
-                          <td className="px-3 py-2 text-right font-mono">{fmt(cumul.uncalled)}</td>
                           <td className="px-3 py-2 text-right font-mono">{fmt(cumul.distributed)}</td>
                           <td className="px-3 py-2">
                             <div className="flex items-center gap-1">
