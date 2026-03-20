@@ -637,7 +637,7 @@ async function handleDeleteGroup(group: string) {
               className="border rounded px-1.5 py-0.5 text-lg font-semibold w-full font-mono bg-transparent"
             />
           ) : (
-            <p className="text-lg font-semibold">{fmt(metrics.cashOnHand)}</p>
+            <p className="text-lg font-semibold">{fmt(metrics.grossResidual)}</p>
           )}
         </CardContent>
       </Card>
