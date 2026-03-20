@@ -387,6 +387,19 @@ export default function FundsPage() {
   }, [cashFlows, groups, grossResidualByGroup, totalInvestedByGroup, groupConfigs, metricsByGroup])
 
   const fmt = (val: number) => formatWithUnit(val, displayUnit, currency)
+  const masterCumulatives = useMemo(() => {
+  let cumulCalled = 0
+  let cumulDistributed = 0
+  const map: Record<string, { called: number; distributed: number }> = {}
+  ;[...cashFlows]
+    .sort((a, b) => a.flow_date.localeCompare(b.flow_date))
+    .forEach(cf => {
+      if (cf.flow_type === 'called_capital') cumulCalled += cf.amount
+      if (cf.flow_type === 'distribution') cumulDistributed += cf.amount
+      map[cf.id] = { called: cumulCalled, distributed: cumulDistributed }
+    })
+  return map
+}, [cashFlows])
 
   const startEdit = useCallback((cf: FundCashFlow) => {
     setEditingId(cf.id)
@@ -565,7 +578,7 @@ export default function FundsPage() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
         {[
           { label: 'Committed', value: fmt(metrics.committed) },
-          { label: 'Called (PIC)', value: fmt(metrics.called) },
+          { label: 'Called', value: fmt(metrics.called) },
           { label: 'Uncalled', value: fmt(metrics.uncalled) },
           { label: 'Distributions', value: fmt(metrics.distributions) },
         ].map(card => (
@@ -735,7 +748,9 @@ export default function FundsPage() {
                   <th className="text-left px-3 py-2 font-medium">Type</th>
                   <th className="text-left px-3 py-2 font-medium">Group</th>
                   <th className="text-right px-3 py-2 font-medium">Amount</th>
-                </tr>
+                  <th className="text-right px-3 py-2 font-medium">Capital Called</th>
+                  <th className="text-right px-3 py-2 font-medium">Capital Distributed</th>
+              </tr>
               </thead>
               <tbody>
                 {[...cashFlows]
@@ -753,7 +768,9 @@ export default function FundsPage() {
                         </span>
                       </td>
                       <td className="px-3 py-2 text-xs text-muted-foreground">{cf.portfolio_group}</td>
-                      <td className="px-3 py-2 text-right font-mono">{fmt(cf.amount)}</td>
+                        <td className="px-3 py-2 text-right font-mono">{fmt(cf.amount)}</td>
+                        <td className="px-3 py-2 text-right font-mono">{fmt(masterCumulatives[cf.id]?.called ?? 0)}</td>
+                        <td className="px-3 py-2 text-right font-mono">{fmt(masterCumulatives[cf.id]?.distributed ?? 0)}</td>
                     </tr>
                   ))}
               </tbody>
