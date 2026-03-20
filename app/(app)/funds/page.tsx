@@ -587,7 +587,7 @@ export default function FundsPage() {
       <p className="text-lg font-semibold">{card.value}</p>
     </CardContent>
   </Card>
-))}
+})}
 
         <Card>
           <CardContent className="pt-3 pb-2 px-3">
