@@ -5,7 +5,7 @@ import { SpeedInsights } from '@vercel/speed-insights/next'
 import { ThemeProvider } from '@/components/theme-provider'
 import { Toaster } from '@/components/toaster'
 import { ConfirmProvider } from '@/components/confirm-dialog'
-import { Bricolage_Grotesque, JetBrains_Mono } from 'next/font/google'
+import { Bricolage_Grotesque, Courier_Prime } from 'next/font/google'
 import './globals.css'
 
 const bricolage = Bricolage_Grotesque({
@@ -13,9 +13,10 @@ const bricolage = Bricolage_Grotesque({
   variable: '--font-bricolage',
 })
 
-const jetbrainsMono = JetBrains_Mono({
+const courierPrime = Courier_Prime({
   subsets: ['latin'],
-  variable: '--font-jetbrains-mono',
+  weight: ['400', '700'],
+  variable: '--font-courier-prime',
 })
 
 const ogImageUrl = `${process.env.NEXT_PUBLIC_SITE_URL || 'https://portfolio.hemrock.com'}/api/og?title=Portfolio+Reporting`
@@ -48,7 +49,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={`${bricolage.className} ${jetbrainsMono.variable}`}>
+     <body className={`${bricolage.className} ${courierPrime.variable}`}>
         <ThemeProvider
           attribute="class"
           defaultTheme="system"
