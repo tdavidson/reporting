@@ -24,7 +24,6 @@ interface CompanySummary {
   moic: number | null
   irr: number | null
   proceedsReceived: number
-  proceedsEscrow: number
   totalCostBasisExited: number
 }
 
@@ -32,7 +31,6 @@ interface GroupSummary {
   group: string
   totalInvested: number
   proceedsReceived: number
-  proceedsEscrow: number
   totalRealized: number
   unrealizedValue: number
   totalCostBasisExited: number
