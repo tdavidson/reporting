@@ -352,7 +352,6 @@ export default function InvestmentsPage() {
       : <ChevronDown className="inline h-3 w-3 ml-0.5" />
   }
 
-  // Group table columns: Group, Invested, Proceeds, Current NAV, Total Value, TVPI, DPI, RVPI, Gross MOIC, Gross IRR, Net IRR
   const groupNumericColumns: { label: string; sortKey: GroupSortKey; getValue: (row: GroupSummary) => number | null; format: 'currency' | 'moic' | 'irr' }[] = [
     { label: 'Invested', sortKey: 'totalInvested', getValue: r => r.totalInvested, format: 'currency' },
     { label: 'Proceeds', sortKey: 'proceedsReceived', getValue: r => r.proceedsReceived, format: 'currency' },
@@ -362,7 +361,6 @@ export default function InvestmentsPage() {
     { label: 'Gross IRR', sortKey: 'irr', getValue: r => r.irr ?? null, format: 'irr' },
   ]
 
-  // Company table columns: Invested, Proceeds, Current NAV, Total Value, Gross MOIC, Gross IRR
   const companyNumericColumns: { label: string; sortKey: SortKey; getValue: (row: CompanySummary) => number | null; format: 'currency' | 'moic' | 'irr' }[] = [
     { label: 'Invested', sortKey: 'totalInvested', getValue: r => r.totalInvested, format: 'currency' },
     { label: 'Proceeds', sortKey: 'proceedsReceived', getValue: r => r.proceedsReceived, format: 'currency' },
@@ -374,18 +372,10 @@ export default function InvestmentsPage() {
   ]
 
   function fmtVal(val: number | null, format: 'currency' | 'moic' | 'irr'): string {
-    if (val == null) return '-'
+    if (val == null || val === 0) return '-'
     if (format === 'moic') return fmtMoic(val)
     if (format === 'irr') return fmtIrr(val)
     return fmtFull(val)
-  }
-
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  function pctOfGroupTotalValue(c: CompanySummary): number | null {
-    const groupName = c.portfolioGroup[0] ?? ''
-    const gt = groupTotalsMap.get(groupName)
-    if (!gt || gt.totalVal === 0) return null
-    return totalValue(c) / gt.totalVal
   }
 
   const heading = (
@@ -487,7 +477,6 @@ export default function InvestmentsPage() {
         </Card>
       </div>
 
-      {/* Portfolio Groups table */}
       {sortedGroups.length > 0 && groupTotals && (
         <div className="mb-8">
           <h2 className="text-sm font-medium text-muted-foreground mb-2">Portfolio Groups</h2>
@@ -549,7 +538,6 @@ export default function InvestmentsPage() {
         </div>
       )}
 
-      {/* Filter bar */}
       <div className="flex items-center gap-4 mb-4 flex-wrap">
         <select
           value={statusFilter}
@@ -585,7 +573,6 @@ export default function InvestmentsPage() {
         </select>
       </div>
 
-      {/* Company table */}
       <div className="border rounded-lg overflow-x-auto">
         <table className="w-full text-sm whitespace-nowrap">
           <thead>
