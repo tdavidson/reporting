@@ -96,7 +96,7 @@ function computeFundMetrics(
   totalInvested: number,
   config: GroupConfig
 ): FundMetrics {
-  const { cashOnHand, carryRate, gpCommitPct, vintage, managementFeeRate, performanceFeeRate } = config
+  const { cashOnHand, carryRate, gpCommitPct, vintage, managementFeeRate } = config
   let committed = 0
   let called = 0
   let distributions = 0
@@ -120,53 +120,107 @@ function computeFundMetrics(
 
   const totalManagementFees = computeTotalManagementFees(committed, managementFeeRate, vintage)
 
-  // Net TVPI = (Distributions + Net Residual) / Called Capital
   const netTvpi = called > 0 ? totalValue / called : null
   const tvpi = netTvpi
   const dpi = called > 0 ? distributions / called : null
   const rvpi = called > 0 ? netResidual / called : null
 
-  // Gross MOIC = (Distributions + Gross Residual) / Capital Invested (what companies actually received)
   const grossMoic = totalInvested > 0 ? (distributions + grossResidual) / totalInvested : null
-
-  // Net MOIC = (Distributions + Net Residual - Management Fees) / Capital Invested
   const netMoicNumerator = distributions + netResidual - totalManagementFees
   const netMoic = totalInvested > 0 ? netMoicNumerator / totalInvested : null
 
-  // Net IRR using called capital
   const xirrFlows: CashFlow[] = []
   for (const cf of cashFlows) {
-    if (cf.flow_type === 'called_capital') {
-      xirrFlows.push({ date: new Date(cf.flow_date), amount: -cf.amount })
-    }
-    if (cf.flow_type === 'distribution') {
-      xirrFlows.push({ date: new Date(cf.flow_date), amount: cf.amount })
-    }
+    if (cf.flow_type === 'called_capital') xirrFlows.push({ date: new Date(cf.flow_date), amount: -cf.amount })
+    if (cf.flow_type === 'distribution') xirrFlows.push({ date: new Date(cf.flow_date), amount: cf.amount })
   }
-  if (netResidual > 0) {
-    xirrFlows.push({ date: new Date(), amount: netResidual })
-  }
+  if (netResidual > 0) xirrFlows.push({ date: new Date(), amount: netResidual })
   const netIrr = xirrFlows.length >= 2 ? xirr(xirrFlows) : null
 
-  // Gross IRR using capital invested (totalInvested) instead of called capital
   const grossXirrFlows: CashFlow[] = []
   if (totalInvested > 0 && cashFlows.length > 0) {
     const firstDate = new Date(cashFlows[0].flow_date)
     grossXirrFlows.push({ date: firstDate, amount: -totalInvested })
     for (const cf of cashFlows) {
-      if (cf.flow_type === 'distribution') {
-        grossXirrFlows.push({ date: new Date(cf.flow_date), amount: cf.amount })
-      }
+      if (cf.flow_type === 'distribution') grossXirrFlows.push({ date: new Date(cf.flow_date), amount: cf.amount })
     }
-    if (grossResidual > 0) {
-      grossXirrFlows.push({ date: new Date(), amount: grossResidual })
-    }
+    if (grossResidual > 0) grossXirrFlows.push({ date: new Date(), amount: grossResidual })
   }
   const grossIrr = grossXirrFlows.length >= 2 ? xirr(grossXirrFlows) : null
 
   return {
     committed, called, uncalled, distributions, cashOnHand,
     grossResidual, estimatedCarry, netResidual, totalValue,
+    tvpi, dpi, rvpi, netIrr, grossMoic, netMoic, grossIrr, netTvpi,
+    totalManagementFees,
+  }
+}
+
+function computeMasterFundMetrics(
+  allCashFlows: FundCashFlow[],
+  totalGrossResidual: number,
+  totalInvested: number,
+  totalCashOnHand: number,
+  totalManagementFees: number,
+  avgCarryRate: number,
+  avgGpCommitPct: number,
+): FundMetrics {
+  let committed = 0
+  let called = 0
+  let distributions = 0
+
+  for (const cf of allCashFlows) {
+    if (cf.flow_type === 'commitment') committed += cf.amount
+    if (cf.flow_type === 'called_capital') called += cf.amount
+    if (cf.flow_type === 'distribution') distributions += cf.amount
+  }
+
+  const uncalled = committed - called
+  const grossAssets = totalGrossResidual + totalCashOnHand
+
+  const gpCapital = called * avgGpCommitPct
+  const lpCapital = called - gpCapital
+  const lpDistributions = distributions * (1 - avgGpCommitPct)
+  const lpRemainingCapital = lpCapital - lpDistributions
+  const estimatedCarry = Math.max(0, avgCarryRate * (grossAssets * (1 - avgGpCommitPct) - lpRemainingCapital))
+  const netResidual = grossAssets - estimatedCarry
+  const totalValue = distributions + netResidual
+
+  const netTvpi = called > 0 ? totalValue / called : null
+  const tvpi = netTvpi
+  const dpi = called > 0 ? distributions / called : null
+  const rvpi = called > 0 ? netResidual / called : null
+
+  const grossMoic = totalInvested > 0 ? (distributions + totalGrossResidual) / totalInvested : null
+  const netMoicNumerator = distributions + netResidual - totalManagementFees
+  const netMoic = totalInvested > 0 ? netMoicNumerator / totalInvested : null
+
+  // Net IRR — recalculate from all cash flows with real dates
+  const xirrFlows: CashFlow[] = []
+  for (const cf of allCashFlows) {
+    if (cf.flow_type === 'called_capital') xirrFlows.push({ date: new Date(cf.flow_date), amount: -cf.amount })
+    if (cf.flow_type === 'distribution') xirrFlows.push({ date: new Date(cf.flow_date), amount: cf.amount })
+  }
+  if (netResidual > 0) xirrFlows.push({ date: new Date(), amount: netResidual })
+  const netIrr = xirrFlows.length >= 2 ? xirr(xirrFlows) : null
+
+  // Gross IRR — using real investment dates and totalInvested
+  const grossXirrFlows: CashFlow[] = []
+  if (totalInvested > 0 && allCashFlows.length > 0) {
+    const sorted = [...allCashFlows].sort((a, b) => a.flow_date.localeCompare(b.flow_date))
+    grossXirrFlows.push({ date: new Date(sorted[0].flow_date), amount: -totalInvested })
+    for (const cf of allCashFlows) {
+      if (cf.flow_type === 'distribution') grossXirrFlows.push({ date: new Date(cf.flow_date), amount: cf.amount })
+    }
+    if (totalGrossResidual > 0) grossXirrFlows.push({ date: new Date(), amount: totalGrossResidual })
+  }
+  const grossIrr = grossXirrFlows.length >= 2 ? xirr(grossXirrFlows) : null
+
+  return {
+    committed, called, uncalled, distributions,
+    cashOnHand: totalCashOnHand,
+    grossResidual: totalGrossResidual,
+    estimatedCarry, netResidual, totalValue,
     tvpi, dpi, rvpi, netIrr, grossMoic, netMoic, grossIrr, netTvpi,
     totalManagementFees,
   }
@@ -189,6 +243,8 @@ function formatWithUnit(val: number, unit: DisplayUnit, currency: string): strin
   if (unit === 'thousands') return `${symbol}${(val / 1_000).toFixed(0)}K`
   return formatCurrencyFull(val, currency)
 }
+
+const MASTER_FUND_KEY = '__master__'
 
 export default function FundsPage() {
   const fv = useFeatureVisibility()
@@ -297,6 +353,45 @@ export default function FundsPage() {
     }
     return map
   }, [groups, cashFlows, grossResidualByGroup, totalInvestedByGroup, groupConfigs])
+
+  // Master Fund metrics — computed from ALL cash flows with real dates
+  const masterMetrics = useMemo(() => {
+    const totalGrossResidual = Array.from(grossResidualByGroup.values()).reduce((a, b) => a + b, 0)
+    const totalInvested = Array.from(totalInvestedByGroup.values()).reduce((a, b) => a + b, 0)
+    const totalCashOnHand = groups.reduce((a, g) => a + (groupConfigs[g]?.cashOnHand ?? 0), 0)
+
+    // Weighted average carry rate and GP commit pct
+    let totalCalled = 0
+    let weightedCarry = 0
+    let weightedGpCommit = 0
+    for (const group of groups) {
+      const m = metricsByGroup.get(group)
+      const config = groupConfigs[group] ?? DEFAULT_CONFIG
+      if (m) {
+        totalCalled += m.called
+        weightedCarry += config.carryRate * m.called
+        weightedGpCommit += config.gpCommitPct * m.called
+      }
+    }
+    const avgCarryRate = totalCalled > 0 ? weightedCarry / totalCalled : 0.20
+    const avgGpCommitPct = totalCalled > 0 ? weightedGpCommit / totalCalled : 0
+
+    // Sum management fees across all groups
+    const totalManagementFees = groups.reduce((sum, g) => {
+      const m = metricsByGroup.get(g)
+      return sum + (m?.totalManagementFees ?? 0)
+    }, 0)
+
+    return computeMasterFundMetrics(
+      cashFlows,
+      totalGrossResidual,
+      totalInvested,
+      totalCashOnHand,
+      totalManagementFees,
+      avgCarryRate,
+      avgGpCommitPct,
+    )
+  }, [cashFlows, groups, grossResidualByGroup, totalInvestedByGroup, groupConfigs, metricsByGroup])
 
   const fmt = (val: number) => formatWithUnit(val, displayUnit, currency)
 
@@ -472,6 +567,78 @@ export default function FundsPage() {
     }
   }
 
+  function MetricCards({ metrics, group }: { metrics: FundMetrics; group?: string }) {
+    return (
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+        {[
+          { label: 'Committed', value: fmt(metrics.committed) },
+          { label: 'Called (PIC)', value: fmt(metrics.called) },
+          { label: 'Uncalled', value: fmt(metrics.uncalled) },
+          { label: 'Distributions', value: fmt(metrics.distributions) },
+        ].map(card => (
+          <Card key={card.label}>
+            <CardContent className="pt-3 pb-2 px-3">
+              <p className="text-[11px] text-muted-foreground mb-0.5">{card.label}</p>
+              <p className="text-lg font-semibold">{card.value}</p>
+            </CardContent>
+          </Card>
+        ))}
+
+        {/* Portfolio NAV — editable only for individual groups */}
+        <Card>
+          <CardContent className="pt-3 pb-2 px-3">
+            <div className="flex items-center justify-between mb-0.5">
+              <p className="text-[11px] text-muted-foreground">Portfolio NAV</p>
+              {group && editingCashGroup !== group ? (
+                <button
+                  onClick={() => {
+                    setEditingCashGroup(group)
+                    setCashOnHandDraft(prev => ({ ...prev, [group]: String(groupConfigs[group]?.cashOnHand ?? 0) }))
+                  }}
+                  className="text-muted-foreground hover:text-foreground"
+                >
+                  <Pencil className="h-3 w-3" />
+                </button>
+              ) : group && savingCash ? <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" /> : null}
+            </div>
+            {group && editingCashGroup === group ? (
+              <input
+                type="number"
+                step="0.01"
+                autoFocus
+                value={cashOnHandDraft[group] ?? ''}
+                onChange={e => setCashOnHandDraft(prev => ({ ...prev, [group]: e.target.value }))}
+                onBlur={() => handleSaveCashOnHand(group)}
+                onKeyDown={e => { if (e.key === 'Enter') handleSaveCashOnHand(group); if (e.key === 'Escape') setEditingCashGroup(null) }}
+                placeholder="0"
+                className="border rounded px-1.5 py-0.5 text-lg font-semibold w-full font-mono bg-transparent"
+              />
+            ) : (
+              <p className="text-lg font-semibold">{fmt(metrics.cashOnHand)}</p>
+            )}
+          </CardContent>
+        </Card>
+
+        {[
+          { label: 'Net TVPI', value: fmtMoic(metrics.netTvpi) },
+          { label: 'DPI', value: fmtMoic(metrics.dpi) },
+          { label: 'RVPI', value: fmtMoic(metrics.rvpi) },
+          { label: 'Net IRR', value: fmtIrr(metrics.netIrr) },
+          { label: 'Gross MOIC', value: fmtMoic(metrics.grossMoic) },
+          { label: 'Net MOIC', value: fmtMoic(metrics.netMoic) },
+          { label: 'Gross IRR', value: fmtIrr(metrics.grossIrr) },
+        ].map(card => (
+          <Card key={card.label}>
+            <CardContent className="pt-3 pb-2 px-3">
+              <p className="text-[11px] text-muted-foreground mb-0.5">{card.label}</p>
+              <p className="text-lg font-semibold">{card.value}</p>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    )
+  }
+
   if (loading) {
     return (
       <div className="p-4 md:py-8 md:pl-8 md:pr-4 w-full">
@@ -526,42 +693,84 @@ export default function FundsPage() {
 
       <div className="flex flex-col lg:flex-row gap-6 items-start">
       <div className="flex-1 min-w-0 w-full">
-      <Tabs defaultValue={groups[0]} className="w-full">
-       <div className="flex items-center gap-2 mb-4">
-  <div
-    className="overflow-x-auto cursor-grab active:cursor-grabbing select-none"
-    style={{ scrollbarWidth: 'none' }}
-    onMouseDown={e => {
-      const el = e.currentTarget
-      let startX = e.pageX - el.offsetLeft
-      let scrollLeft = el.scrollLeft
-      const onMove = (ev: MouseEvent) => {
-        const x = ev.pageX - el.offsetLeft
-        el.scrollLeft = scrollLeft - (x - startX)
-      }
-      const onUp = () => {
-        window.removeEventListener('mousemove', onMove)
-        window.removeEventListener('mouseup', onUp)
-      }
-      window.addEventListener('mousemove', onMove)
-      window.addEventListener('mouseup', onUp)
-    }}
-  >
-    <TabsList className="flex-nowrap whitespace-nowrap">
-      {groups.map(g => (
-        <TabsTrigger key={g} value={g}>{g || '(none)'}</TabsTrigger>
-      ))}
-    </TabsList>
-  </div>
-  <button
-    onClick={openSettings}
-    className="text-muted-foreground hover:text-foreground p-1.5 rounded-md hover:bg-accent transition-colors flex-shrink-0"
-    title="Edit Fund Settings"
-  >
-    <Pencil className="h-4 w-4" />
-  </button>
-</div>
+      <Tabs defaultValue={MASTER_FUND_KEY} className="w-full">
+        <div className="flex items-center gap-2 mb-4">
+          <div
+            className="overflow-x-auto cursor-grab active:cursor-grabbing select-none"
+            style={{ scrollbarWidth: 'none' }}
+            onMouseDown={e => {
+              const el = e.currentTarget
+              let startX = e.pageX - el.offsetLeft
+              let scrollLeft = el.scrollLeft
+              const onMove = (ev: MouseEvent) => {
+                const x = ev.pageX - el.offsetLeft
+                el.scrollLeft = scrollLeft - (x - startX)
+              }
+              const onUp = () => {
+                window.removeEventListener('mousemove', onMove)
+                window.removeEventListener('mouseup', onUp)
+              }
+              window.addEventListener('mousemove', onMove)
+              window.addEventListener('mouseup', onUp)
+            }}
+          >
+            <TabsList className="flex-nowrap whitespace-nowrap">
+              <TabsTrigger value={MASTER_FUND_KEY}>Master Fund</TabsTrigger>
+              {groups.map(g => (
+                <TabsTrigger key={g} value={g}>{g || '(none)'}</TabsTrigger>
+              ))}
+            </TabsList>
+          </div>
+          <button
+            onClick={openSettings}
+            className="text-muted-foreground hover:text-foreground p-1.5 rounded-md hover:bg-accent transition-colors flex-shrink-0"
+            title="Edit Fund Settings"
+          >
+            <Pencil className="h-4 w-4" />
+          </button>
+        </div>
 
+        {/* Master Fund Tab */}
+        <TabsContent value={MASTER_FUND_KEY}>
+          <p className="text-xs text-muted-foreground mb-3">Consolidated view across all vehicles</p>
+          <MetricCards metrics={masterMetrics} />
+
+          {/* Consolidated cash flows table */}
+          <div className="border rounded-lg overflow-x-auto">
+            <table className="w-full text-sm whitespace-nowrap">
+              <thead>
+                <tr className="border-b bg-muted/50">
+                  <th className="text-left px-3 py-2 font-medium">Date</th>
+                  <th className="text-left px-3 py-2 font-medium">Type</th>
+                  <th className="text-left px-3 py-2 font-medium">Group</th>
+                  <th className="text-right px-3 py-2 font-medium">Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[...cashFlows]
+                  .sort((a, b) => a.flow_date.localeCompare(b.flow_date))
+                  .map(cf => (
+                    <tr key={cf.id} className="border-b last:border-b-0 hover:bg-muted/30">
+                      <td className="px-3 py-2">{cf.flow_date}</td>
+                      <td className="px-3 py-2">
+                        <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${
+                          cf.flow_type === 'commitment' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400' :
+                          cf.flow_type === 'called_capital' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' :
+                          'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                        }`}>
+                          {FLOW_TYPE_LABELS[cf.flow_type]}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2 text-xs text-muted-foreground">{cf.portfolio_group}</td>
+                      <td className="px-3 py-2 text-right font-mono">{fmt(cf.amount)}</td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
+        </TabsContent>
+
+        {/* Individual Group Tabs */}
         {groups.map(group => {
           const metrics = metricsByGroup.get(group)!
           const groupFlows = cashFlows
@@ -589,78 +798,8 @@ export default function FundsPage() {
                 <p className="text-xs text-muted-foreground mb-3">Vintage {groupConfigs[group].vintage}</p>
               )}
 
-              {/* Summary cards */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-                {/* Row 1: Capital */}
-                {[
-                  { label: 'Committed', value: fmt(metrics.committed) },
-                  { label: 'Called (PIC)', value: fmt(metrics.called) },
-                  { label: 'Uncalled', value: fmt(metrics.uncalled) },
-                  { label: 'Distributions', value: fmt(metrics.distributions) },
-                ].map(card => (
-                  <Card key={card.label}>
-                    <CardContent className="pt-3 pb-2 px-3">
-                      <p className="text-[11px] text-muted-foreground mb-0.5">{card.label}</p>
-                      <p className="text-lg font-semibold">{card.value}</p>
-                    </CardContent>
-                  </Card>
-                ))}
+              <MetricCards metrics={metrics} group={group} />
 
-                {/* Portfolio NAV (editable) */}
-                <Card>
-                  <CardContent className="pt-3 pb-2 px-3">
-                    <div className="flex items-center justify-between mb-0.5">
-                      <p className="text-[11px] text-muted-foreground">Portfolio NAV</p>
-                      {editingCashGroup !== group ? (
-                        <button
-                          onClick={() => {
-                            setEditingCashGroup(group)
-                            setCashOnHandDraft(prev => ({ ...prev, [group]: String(groupConfigs[group]?.cashOnHand ?? 0) }))
-                          }}
-                          className="text-muted-foreground hover:text-foreground"
-                        >
-                          <Pencil className="h-3 w-3" />
-                        </button>
-                      ) : savingCash ? <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" /> : null}
-                    </div>
-                    {editingCashGroup === group ? (
-                      <input
-                        type="number"
-                        step="0.01"
-                        autoFocus
-                        value={cashOnHandDraft[group] ?? ''}
-                        onChange={e => setCashOnHandDraft(prev => ({ ...prev, [group]: e.target.value }))}
-                        onBlur={() => handleSaveCashOnHand(group)}
-                        onKeyDown={e => { if (e.key === 'Enter') handleSaveCashOnHand(group); if (e.key === 'Escape') setEditingCashGroup(null) }}
-                        placeholder="0"
-                        className="border rounded px-1.5 py-0.5 text-lg font-semibold w-full font-mono bg-transparent"
-                      />
-                    ) : (
-                      <p className="text-lg font-semibold">{fmt(groupConfigs[group]?.cashOnHand ?? 0)}</p>
-                    )}
-                  </CardContent>
-                </Card>
-
-                {/* Row 2: Performance */}
-                {[
-                  { label: 'Net TVPI', value: fmtMoic(metrics.netTvpi) },
-                  { label: 'DPI', value: fmtMoic(metrics.dpi) },
-                  { label: 'RVPI', value: fmtMoic(metrics.rvpi) },
-                  { label: 'Net IRR', value: fmtIrr(metrics.netIrr) },
-                  { label: 'Gross MOIC', value: fmtMoic(metrics.grossMoic) },
-                  { label: 'Net MOIC', value: fmtMoic(metrics.netMoic) },
-                  { label: 'Gross IRR', value: fmtIrr(metrics.grossIrr) },
-                ].map(card => (
-                  <Card key={card.label}>
-                    <CardContent className="pt-3 pb-2 px-3">
-                      <p className="text-[11px] text-muted-foreground mb-0.5">{card.label}</p>
-                      <p className="text-lg font-semibold">{card.value}</p>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-
-              {/* Cash flows table */}
               <div className="border rounded-lg overflow-x-auto">
                 <table className="w-full text-sm whitespace-nowrap">
                   <thead>
@@ -827,7 +966,6 @@ export default function FundsPage() {
       <AnalystPanel />
       </div>
 
-      {/* Group Settings Dialog */}
       <Dialog open={settingsOpen} onOpenChange={open => { if (!open) setSettingsOpen(false) }}>
         <DialogContent>
           <DialogHeader>
@@ -841,60 +979,23 @@ export default function FundsPage() {
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="text-xs text-muted-foreground mb-1 block">Vintage</label>
-                    <input
-                      type="number"
-                      step="1"
-                      min="1900"
-                      max="2100"
-                      value={settingsDrafts[group]?.vintage ?? ''}
-                      onChange={e => setSettingsDrafts(prev => ({ ...prev, [group]: { ...prev[group], vintage: e.target.value } }))}
-                      placeholder="2024"
-                      className="border rounded px-2 py-1.5 text-sm w-full font-mono"
-                    />
+                    <input type="number" step="1" min="1900" max="2100" value={settingsDrafts[group]?.vintage ?? ''} onChange={e => setSettingsDrafts(prev => ({ ...prev, [group]: { ...prev[group], vintage: e.target.value } }))} placeholder="2024" className="border rounded px-2 py-1.5 text-sm w-full font-mono" />
                   </div>
                   <div>
                     <label className="text-xs text-muted-foreground mb-1 block">Carry Rate (%)</label>
-                    <input
-                      type="number"
-                      step="0.1"
-                      value={settingsDrafts[group]?.carryRate ?? '20'}
-                      onChange={e => setSettingsDrafts(prev => ({ ...prev, [group]: { ...prev[group], carryRate: e.target.value } }))}
-                      placeholder="20"
-                      className="border rounded px-2 py-1.5 text-sm w-full font-mono"
-                    />
+                    <input type="number" step="0.1" value={settingsDrafts[group]?.carryRate ?? '20'} onChange={e => setSettingsDrafts(prev => ({ ...prev, [group]: { ...prev[group], carryRate: e.target.value } }))} placeholder="20" className="border rounded px-2 py-1.5 text-sm w-full font-mono" />
                   </div>
                   <div>
                     <label className="text-xs text-muted-foreground mb-1 block">GP Commit (%)</label>
-                    <input
-                      type="number"
-                      step="0.1"
-                      value={settingsDrafts[group]?.gpCommitPct ?? '0'}
-                      onChange={e => setSettingsDrafts(prev => ({ ...prev, [group]: { ...prev[group], gpCommitPct: e.target.value } }))}
-                      placeholder="0"
-                      className="border rounded px-2 py-1.5 text-sm w-full font-mono"
-                    />
+                    <input type="number" step="0.1" value={settingsDrafts[group]?.gpCommitPct ?? '0'} onChange={e => setSettingsDrafts(prev => ({ ...prev, [group]: { ...prev[group], gpCommitPct: e.target.value } }))} placeholder="0" className="border rounded px-2 py-1.5 text-sm w-full font-mono" />
                   </div>
                   <div>
                     <label className="text-xs text-muted-foreground mb-1 block">Management Fee (% p.a.)</label>
-                    <input
-                      type="number"
-                      step="0.1"
-                      value={settingsDrafts[group]?.managementFeeRate ?? '0'}
-                      onChange={e => setSettingsDrafts(prev => ({ ...prev, [group]: { ...prev[group], managementFeeRate: e.target.value } }))}
-                      placeholder="2"
-                      className="border rounded px-2 py-1.5 text-sm w-full font-mono"
-                    />
+                    <input type="number" step="0.1" value={settingsDrafts[group]?.managementFeeRate ?? '0'} onChange={e => setSettingsDrafts(prev => ({ ...prev, [group]: { ...prev[group], managementFeeRate: e.target.value } }))} placeholder="2" className="border rounded px-2 py-1.5 text-sm w-full font-mono" />
                   </div>
                   <div>
                     <label className="text-xs text-muted-foreground mb-1 block">Performance Fee (%)</label>
-                    <input
-                      type="number"
-                      step="0.1"
-                      value={settingsDrafts[group]?.performanceFeeRate ?? '0'}
-                      onChange={e => setSettingsDrafts(prev => ({ ...prev, [group]: { ...prev[group], performanceFeeRate: e.target.value } }))}
-                      placeholder="20"
-                      className="border rounded px-2 py-1.5 text-sm w-full font-mono"
-                    />
+                    <input type="number" step="0.1" value={settingsDrafts[group]?.performanceFeeRate ?? '0'} onChange={e => setSettingsDrafts(prev => ({ ...prev, [group]: { ...prev[group], performanceFeeRate: e.target.value } }))} placeholder="20" className="border rounded px-2 py-1.5 text-sm w-full font-mono" />
                   </div>
                 </div>
               </div>
