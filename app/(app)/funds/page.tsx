@@ -574,75 +574,74 @@ export default function FundsPage() {
   }
 
   function MetricCards({ metrics, group }: { metrics: FundMetrics; group?: string }) {
-    return (
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-{[
-  { label: 'Called', value: fmt(metrics.called) },
-  { label: 'Uncalled', value: fmt(metrics.uncalled) },
-  { label: 'Distributions', value: fmt(metrics.distributions) },
-].map(card => (
-  <Card key={card.label}>
-    <CardContent className="pt-3 pb-2 px-3">
-      <p className="text-[11px] text-muted-foreground mb-0.5">{card.label}</p>
-      <p className="text-lg font-semibold">{card.value}</p>
-    </CardContent>
-  </Card>
-})}
-
-        <Card>
+  return (
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+      {[
+        { label: 'Called', value: fmt(metrics.called) },
+        { label: 'Uncalled', value: fmt(metrics.uncalled) },
+        { label: 'Distributions', value: fmt(metrics.distributions) },
+      ].map(card => (
+        <Card key={card.label}>
           <CardContent className="pt-3 pb-2 px-3">
-            <div className="flex items-center justify-between mb-0.5">
-              <p className="text-[11px] text-muted-foreground">Portfolio NAV</p>
-              {group && editingCashGroup !== group ? (
-                <button
-                  onClick={() => {
-                    setEditingCashGroup(group)
-                    setCashOnHandDraft(prev => ({ ...prev, [group]: String(groupConfigs[group]?.cashOnHand ?? 0) }))
-                  }}
-                  className="text-muted-foreground hover:text-foreground"
-                >
-                  <Pencil className="h-3 w-3" />
-                </button>
-              ) : group && savingCash ? <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" /> : null}
-            </div>
-            {group && editingCashGroup === group ? (
-              <input
-                type="number"
-                step="0.01"
-                autoFocus
-                value={cashOnHandDraft[group] ?? ''}
-                onChange={e => setCashOnHandDraft(prev => ({ ...prev, [group]: e.target.value }))}
-                onBlur={() => handleSaveCashOnHand(group)}
-                onKeyDown={e => { if (e.key === 'Enter') handleSaveCashOnHand(group); if (e.key === 'Escape') setEditingCashGroup(null) }}
-                placeholder="0"
-                className="border rounded px-1.5 py-0.5 text-lg font-semibold w-full font-mono bg-transparent"
-              />
-            ) : (
-              <p className="text-lg font-semibold">{fmt(metrics.cashOnHand)}</p>
-            )}
+            <p className="text-[11px] text-muted-foreground mb-0.5">{card.label}</p>
+            <p className="text-lg font-semibold">{card.value}</p>
           </CardContent>
         </Card>
+      ))}
 
-        {[
-  { label: 'Net TVPI', value: fmtMoic(metrics.netTvpi) },
-  { label: 'DPI', value: fmtMoic(metrics.dpi) },
-  { label: 'RVPI', value: fmtMoic(metrics.rvpi) },
-  { label: 'Gross MOIC', value: fmtMoic(metrics.grossMoic) },
-  { label: 'Net MOIC', value: fmtMoic(metrics.netMoic) },
-  { label: 'Gross IRR', value: fmtIrr(metrics.grossIrr) },
-  { label: 'Net IRR', value: fmtIrr(metrics.netIrr) },
-].map(card => (
-        ].map(card => (
-          <Card key={card.label}>
-            <CardContent className="pt-3 pb-2 px-3">
-              <p className="text-[11px] text-muted-foreground mb-0.5">{card.label}</p>
-              <p className="text-lg font-semibold">{card.value}</p>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-    )
-  }
+      <Card>
+        <CardContent className="pt-3 pb-2 px-3">
+          <div className="flex items-center justify-between mb-0.5">
+            <p className="text-[11px] text-muted-foreground">Portfolio NAV</p>
+            {group && editingCashGroup !== group ? (
+              <button
+                onClick={() => {
+                  setEditingCashGroup(group)
+                  setCashOnHandDraft(prev => ({ ...prev, [group]: String(groupConfigs[group]?.cashOnHand ?? 0) }))
+                }}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                <Pencil className="h-3 w-3" />
+              </button>
+            ) : group && savingCash ? <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" /> : null}
+          </div>
+          {group && editingCashGroup === group ? (
+            <input
+              type="number"
+              step="0.01"
+              autoFocus
+              value={cashOnHandDraft[group] ?? ''}
+              onChange={e => setCashOnHandDraft(prev => ({ ...prev, [group]: e.target.value }))}
+              onBlur={() => handleSaveCashOnHand(group)}
+              onKeyDown={e => { if (e.key === 'Enter') handleSaveCashOnHand(group); if (e.key === 'Escape') setEditingCashGroup(null) }}
+              placeholder="0"
+              className="border rounded px-1.5 py-0.5 text-lg font-semibold w-full font-mono bg-transparent"
+            />
+          ) : (
+            <p className="text-lg font-semibold">{fmt(metrics.cashOnHand)}</p>
+          )}
+        </CardContent>
+      </Card>
+
+      {[
+        { label: 'Net TVPI', value: fmtMoic(metrics.netTvpi) },
+        { label: 'DPI', value: fmtMoic(metrics.dpi) },
+        { label: 'RVPI', value: fmtMoic(metrics.rvpi) },
+        { label: 'Gross MOIC', value: fmtMoic(metrics.grossMoic) },
+        { label: 'Net MOIC', value: fmtMoic(metrics.netMoic) },
+        { label: 'Gross IRR', value: fmtIrr(metrics.grossIrr) },
+        { label: 'Net IRR', value: fmtIrr(metrics.netIrr) },
+      ].map(card => (
+        <Card key={card.label}>
+          <CardContent className="pt-3 pb-2 px-3">
+            <p className="text-[11px] text-muted-foreground mb-0.5">{card.label}</p>
+            <p className="text-lg font-semibold">{card.value}</p>
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+  )
+}
 
   if (loading) {
     return (
