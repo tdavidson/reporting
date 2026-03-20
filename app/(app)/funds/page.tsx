@@ -1,6 +1,3 @@
-Aqui está o arquivo completo:
-
-```tsx
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
