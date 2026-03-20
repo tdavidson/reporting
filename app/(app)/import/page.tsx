@@ -95,6 +95,7 @@ export default function ImportPage() {
   const [cashFlowImporting, setCashFlowImporting] = useState(false)
   const [cashFlowResult, setCashFlowResult] = useState<CashFlowImportResult | null>(null)
   const [cashFlowError, setCashFlowError] = useState<string | null>(null)
+  const [cashFlowMode, setCashFlowMode] = useState<'add' | 'upsert'>('add')
 
   useEffect(() => {
     async function loadCompanies() {
@@ -374,7 +375,7 @@ export default function ImportPage() {
       const res = await fetch('/api/import/fund-cash-flows', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: cashFlowText }),
+body: JSON.stringify({ text: cashFlowText, mode: cashFlowMode }),
       })
 
       let data: any
@@ -791,10 +792,21 @@ export default function ImportPage() {
             <p className="text-xs text-muted-foreground">
               Supports CSV, tab-separated, or free-form text. AI parses dates, amounts, and flow types automatically.
             </p>
-            <Button onClick={handleCashFlowImport} disabled={cashFlowImporting || !cashFlowText.trim()}>
-              {cashFlowImporting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              {cashFlowImporting ? 'Importing...' : 'Import Cash Flows'}
-            </Button>
+<div className="flex items-center gap-2">
+  <Select value={cashFlowMode} onValueChange={v => setCashFlowMode(v as 'add' | 'upsert')}>
+    <SelectTrigger className="w-32 h-9">
+      <SelectValue />
+    </SelectTrigger>
+    <SelectContent>
+      <SelectItem value="add">Add</SelectItem>
+      <SelectItem value="upsert">Upsert</SelectItem>
+    </SelectContent>
+  </Select>
+  <Button onClick={handleCashFlowImport} disabled={cashFlowImporting || !cashFlowText.trim()}>
+    {cashFlowImporting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+    {cashFlowImporting ? 'Importing...' : 'Import Cash Flows'}
+  </Button>
+</div>
           </div>
         </div>
       </div>
