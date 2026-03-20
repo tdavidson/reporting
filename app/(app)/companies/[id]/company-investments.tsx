@@ -426,72 +426,52 @@ export function CompanyInvestments({ companyId, companyStatus, portfolioGroups, 
               </div>
             )}
 
-            {txnType === 'investment' && (
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <Label>Investment Cost ({symbol.trim()})</Label>
-                  <Input
-                    className="mt-1"
-                    type="number"
-                    step="any"
-                    value={form.investment_cost}
-                    onChange={e => setForm(f => ({ ...f, investment_cost: e.target.value }))}
-                  />
-                </div>
-                <div>
-                  <Label>Interest Converted ({symbol.trim()})</Label>
-                  <Input
-                    className="mt-1"
-                    type="number"
-                    step="any"
-                    value={form.interest_converted}
-                    onChange={e => setForm(f => ({ ...f, interest_converted: e.target.value }))}
-                  />
-                </div>
-                <div>
-                  <Label>Shares Acquired</Label>
-                  <Input
-                    className="mt-1"
-                    type="number"
-                    step="any"
-                    value={form.shares_acquired}
-                    onChange={e => setForm(f => ({ ...f, shares_acquired: e.target.value }))}
-                  />
-                </div>
-                <div>
-                  <Label>Share Price ({symbol.trim()})</Label>
-                  <Input
-                    className="mt-1"
-                    type="number"
-                    step="any"
-                    value={form.share_price}
-                    onChange={e => setForm(f => ({ ...f, share_price: e.target.value }))}
-                  />
-                </div>
-                <div>
-                  <Label>Post-Money Valuation ({symbol.trim()})</Label>
-                  <Input
-                    className="mt-1"
-                    type="number"
-                    step="any"
-                    value={form.postmoney_valuation}
-                    onChange={e => setForm(f => ({ ...f, postmoney_valuation: e.target.value }))}
-                    placeholder="Post-money valuation of the round"
-                  />
-                </div>
-                <div>
-                  <Label>Ownership %</Label>
-                  <Input
-                    className="mt-1"
-                    type="number"
-                    step="any"
-                    value={form.ownership_pct}
-                    onChange={e => setForm(f => ({ ...f, ownership_pct: e.target.value }))}
-                    placeholder="e.g. 15.5"
-                  />
-                </div>
-              </div>
-            )}
+          {txnType === 'investment' && (
+  <div className="grid grid-cols-2 gap-3">
+    <div>
+      <Label>Investment Cost ({symbol.trim()})</Label>
+      <Input
+        className="mt-1"
+        type="number"
+        step="any"
+        value={form.investment_cost}
+        onChange={e => setForm(f => ({ ...f, investment_cost: e.target.value }))}
+      />
+    </div>
+    <div>
+      <Label>Interest Converted ({symbol.trim()})</Label>
+      <Input
+        className="mt-1"
+        type="number"
+        step="any"
+        value={form.interest_converted}
+        onChange={e => setForm(f => ({ ...f, interest_converted: e.target.value }))}
+      />
+    </div>
+    <div>
+      <Label>Post-Money Valuation ({symbol.trim()})</Label>
+      <Input
+        className="mt-1"
+        type="number"
+        step="any"
+        value={form.postmoney_valuation}
+        onChange={e => setForm(f => ({ ...f, postmoney_valuation: e.target.value }))}
+        placeholder="Post-money valuation of the round"
+      />
+    </div>
+    <div>
+      <Label>Fully Diluted Ownership (%)</Label>
+      <Input
+        className="mt-1"
+        type="number"
+        step="any"
+        value={form.ownership_pct}
+        onChange={e => setForm(f => ({ ...f, ownership_pct: e.target.value }))}
+        placeholder="e.g. 15.5"
+      />
+    </div>
+  </div>
+)}
 
             {txnType === 'proceeds' && (
               <div className="grid grid-cols-2 gap-3">
