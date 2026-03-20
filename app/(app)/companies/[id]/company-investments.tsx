@@ -893,23 +893,21 @@ function TransactionTable({
     ? fmt(txn.postmoney_valuation)
     : '-'}
 </td>
-                    <td className="px-3 py-2 text-right font-mono">
-                      {txn.transaction_type === 'investment' && round
-                        ? (() => {
-                            const isPricedEquity = (txn.shares_acquired ?? 0) > 0 && ((txn.share_price != null && txn.share_price > 0) || (txn.investment_cost ?? 0) > 0)
-                            if (isPricedEquity) {
-                              return fmt((txn.shares_acquired ?? 0) * (round.currentSharePrice ?? txn.share_price ?? 0))
-                            }
-                            return fmt(
-                              round.investmentCost > 0
-                                ? (txn.investment_cost ?? 0) / round.investmentCost * round.currentValue
-                                : txn.investment_cost ?? 0
-                            )
-                          })()
-                        : txn.transaction_type === 'unrealized_gain_change'
-                        ? fmt(txn.unrealized_value_change)
-                        : '-'}
-                    </td>
+<td className="px-3 py-2 text-right font-mono">
+  {(() => {
+    const ownership = txn.ownership_pct ?? null
+    const postMoney = txn.transaction_type === 'unrealized_gain_change'
+      ? (txn.latest_postmoney_valuation ?? null)
+      : (txn.postmoney_valuation ?? null)
+    if (ownership != null && postMoney != null) {
+      return fmt((ownership / 100) * postMoney)
+    }
+    if (txn.transaction_type === 'unrealized_gain_change' && txn.unrealized_value_change != null) {
+      return fmt(txn.unrealized_value_change)
+    }
+    return '-'
+  })()}
+</td>
                   </>
                 )}
                 <td className="px-3 py-2">
