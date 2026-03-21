@@ -323,13 +323,15 @@ const [error, setError] = useState<string | null>(null)
           const companyWideTxns = transactions.filter(t =>
             !t.portfolio_group && (t.transaction_type === 'round_info' || t.transaction_type === 'unrealized_gain_change')
           )
-          const groupTxns = [...transactions.filter(t => t.portfolio_group === group), ...companyWideTxns]
+const groupTxns = [...transactions.filter(t => t.portfolio_group === group), ...companyWideTxns]
+          const filteredGroupTxns = groupTxns.filter(t => activeTypes.has(t.transaction_type as TransactionType))
+          
           return (
             <div key={group} className="mb-5">
               <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">{group}</h3>
               <SummaryLine summary={gs} transactions={groupTxns} fmt={fmt} fmtMoic={fmtMoic} asOfDate={asOfDate} setAsOfDate={setAsOfDate} />
               <TransactionTable
-                transactions={groupTxns}
+                transactions={filteredGroupTxns}
                 summary={gs}
                 companyStatus={companyStatus}
                 showGroup={false}
