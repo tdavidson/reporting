@@ -314,8 +314,8 @@ const [error, setError] = useState<string | null>(null)
         </div>
       )}
 
-      {expanded && summary && summary.totalInvested > 0 && !groupSummaries && (
-        <SummaryLine summary={summary} fmt={fmt} fmtMoic={fmtMoic} asOfDate={asOfDate} setAsOfDate={setAsOfDate} />
+{expanded && summary && summary.totalInvested > 0 && !groupSummaries && (
+        <SummaryLine summary={summary} transactions={transactions} fmt={fmt} fmtMoic={fmtMoic} asOfDate={asOfDate} setAsOfDate={setAsOfDate} />
       )}
 
       {expanded && groupSummaries && (
@@ -323,13 +323,11 @@ const [error, setError] = useState<string | null>(null)
           const companyWideTxns = transactions.filter(t =>
             !t.portfolio_group && (t.transaction_type === 'round_info' || t.transaction_type === 'unrealized_gain_change')
           )
-const groupTxns = [...transactions.filter(t => t.portfolio_group === group), ...companyWideTxns]
-            .filter(t => activeTypes.has(t.transaction_type as TransactionType))
-            
+          const groupTxns = [...transactions.filter(t => t.portfolio_group === group), ...companyWideTxns]
           return (
             <div key={group} className="mb-5">
               <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">{group}</h3>
-              <SummaryLine summary={gs} fmt={fmt} fmtMoic={fmtMoic} asOfDate={asOfDate} setAsOfDate={setAsOfDate} />
+              <SummaryLine summary={gs} transactions={groupTxns} fmt={fmt} fmtMoic={fmtMoic} asOfDate={asOfDate} setAsOfDate={setAsOfDate} />
               <TransactionTable
                 transactions={groupTxns}
                 summary={gs}
@@ -757,18 +755,53 @@ const groupTxns = [...transactions.filter(t => t.portfolio_group === group), ...
 
 function SummaryLine({
   summary,
+  transactions,
   fmt,
   fmtMoic: fmtMoicFn,
   asOfDate,
   setAsOfDate,
 }: {
   summary: CompanyInvestmentSummary
+  transactions: InvestmentTransaction[]
   fmt: (v: number | null | undefined) => string
   fmtMoic: (v: number | null | undefined) => string
   asOfDate: string
   setAsOfDate: (v: string) => void
 }) {
   if (summary.totalInvested <= 0) return null
+
+  // 1. Recalcula o NAV dinamicamente achando a % e o Post-Money cronologicamente mais recentes
+  const sorted = [...transactions].sort((a, b) => (a.transaction_date || '').localeCompare(b.transaction_date || ''))
+  
+  let currentOwnership: number | null = null
+  let currentValuation: number | null = null
+  let explicitNav: number | null = null
+
+  for (const t of sorted) {
+    if (t.ownership_pct != null) currentOwnership = t.ownership_pct
+    
+    const val = t.transaction_type === 'unrealized_gain_change' ? t.latest_postmoney_valuation : t.postmoney_valuation
+    if (val != null) currentValuation = val
+
+    if (t.transaction_type === 'unrealized_gain_change' && t.unrealized_value_change != null) {
+      explicitNav = t.unrealized_value_change
+    } else if (t.transaction_type !== 'proceeds') {
+      explicitNav = null // Reseta se não for uma marcação de NAV direto
+    }
+  }
+
+  let calculatedNav = 0
+  if (explicitNav != null) {
+    calculatedNav = explicitNav
+  } else if (currentOwnership != null && currentValuation != null) {
+    calculatedNav = (currentOwnership / 100) * currentValuation
+  } else {
+    calculatedNav = summary.unrealizedValue > 0 ? summary.unrealizedValue : summary.fmv
+  }
+
+  // 2. Recalcula o MOIC baseado no novo NAV
+  const displayMoic = summary.totalInvested > 0 ? (summary.totalRealized + calculatedNav) / summary.totalInvested : null
+
   return (
     <div className="flex items-center gap-4 mb-3 text-sm flex-wrap">
       <span>
@@ -781,23 +814,23 @@ function SummaryLine({
             <span className="text-muted-foreground">Realized:</span>{' '}
             <span className="font-medium">{fmt(summary.totalRealized)}</span>
           </span>
-          {summary.unrealizedValue > 0 && (
+          {calculatedNav > 0 && (
             <span>
               <span className="text-muted-foreground">Unrealized:</span>{' '}
-              <span className="font-medium">{fmt(summary.unrealizedValue)}</span>
+              <span className="font-medium">{fmt(calculatedNav)}</span>
             </span>
           )}
         </>
       ) : (
         <span>
           <span className="text-muted-foreground">NAV:</span>{' '}
-          <span className="font-medium">{fmt(summary.fmv)}</span>
+          <span className="font-medium">{fmt(calculatedNav)}</span>
         </span>
       )}
-      {summary.moic != null && (
+      {displayMoic != null && (
         <span>
           <span className="text-muted-foreground">Gross MOIC:</span>{' '}
-          <span className="font-medium">{fmtMoicFn(summary.moic)}</span>
+          <span className="font-medium">{fmtMoicFn(displayMoic)}</span>
         </span>
       )}
       {summary.grossIrr != null && Math.abs(summary.grossIrr) >= 0.0005 && (
@@ -812,7 +845,7 @@ function SummaryLine({
           <span className="font-medium">{fmt(summary.rounds.reduce((sum, r) => sum + r.totalEscrow, 0))}</span>
         </span>
       )}
-      {summary.grossIrr != null && Math.abs(summary.grossIrr) >= 0.0005 && summary.unrealizedValue > 0 && (
+      {summary.grossIrr != null && Math.abs(summary.grossIrr) >= 0.0005 && calculatedNav > 0 && (
         <span className="flex items-center gap-1">
           <span className="text-muted-foreground">as of</span>
           <input
