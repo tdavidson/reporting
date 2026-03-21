@@ -375,28 +375,14 @@ export function CompanyInvestments({ companyId, companyStatus, portfolioGroups, 
             )}
 
             <div className="grid grid-cols-2 gap-3">
-              <div>
+<div>
                 <Label>Round Name</Label>
-                {txnType === 'investment' ? (
-                  <Input
-                    className="mt-1"
-                    value={form.round_name}
-                    onChange={e => setForm(f => ({ ...f, round_name: e.target.value }))}
-                    placeholder="e.g. Series A"
-                  />
-                ) : (
-                  <Select
-                    value={form.round_name || undefined}
-                    onValueChange={v => setForm(f => ({ ...f, round_name: v }))}
-                  >
-                    <SelectTrigger className="mt-1"><SelectValue placeholder="Select round" /></SelectTrigger>
-                    <SelectContent>
-                      {Array.from(new Set(transactions.filter(t => t.transaction_type === 'investment' && t.round_name).map(t => t.round_name!))).map(name => (
-                        <SelectItem key={name} value={name}>{name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
+                <Input
+                  className="mt-1"
+                  value={form.round_name}
+                  onChange={e => setForm(f => ({ ...f, round_name: e.target.value }))}
+                  placeholder="e.g. Series A, Secondary, etc."
+                />
               </div>
               <div>
                 <Label>Date</Label>
