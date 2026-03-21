@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { DashboardTable } from './dashboard-table'
 import { useCurrency, getCurrencySymbol } from '@/components/currency-context'
+import { useDisplayUnit } from '@/components/display-unit-context'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { CompanyForm } from '@/components/company-form'
 import { useRouter } from 'next/navigation'
@@ -62,16 +63,6 @@ function formatMetricValue(v: number | null, metric: ActiveMetric, fundCurrency:
   if (metric.value_type === 'percentage') return `${str}%`
   if (effectiveUnit && effectivePos === 'suffix') return `${str} ${effectiveUnit}`
   return str
-}
-
-function formatCurrency(v: number): string {
-  const neg = v < 0
-  const abs = Math.abs(v)
-  let str: string
-  if (abs >= 1_000_000) str = `$${(abs / 1_000_000).toFixed(1)}M`
-  else if (abs >= 1_000) str = `$${(abs / 1_000).toFixed(0)}K`
-  else str = `$${abs.toLocaleString()}`
-  return neg ? `-${str}` : str
 }
 
 function statusBadge(status: string) {
@@ -171,7 +162,6 @@ export function DashboardCompanies({ companies, allGroups }: Props) {
 
   return (
     <div>
-      {/* Filter bar */}
       {filtered.length > 0 && (
         <div className="flex items-center gap-2 flex-wrap mb-4">
           <div>
@@ -411,6 +401,22 @@ function ActiveMetricDisplay({ company, metrics, metricValues, loadingMetrics, f
 }
 
 function ExitedMetricDisplay({ company }: { company: Company }) {
+  const currency = useCurrency()
+  const { displayUnit } = useDisplayUnit()
+  const symbol = currency === 'BRL' ? 'R$' : currency === 'EUR' ? '€' : currency === 'GBP' ? '£' : '$'
+
+  function fmtTable(v: number): string {
+    if (displayUnit === 'millions') return `${symbol}${(v / 1_000_000).toFixed(1)}M`
+    if (displayUnit === 'thousands') return `${symbol}${(v / 1_000).toLocaleString('en-US', { maximumFractionDigits: 0 })}K`
+    const neg = v < 0
+    const abs = Math.abs(v)
+    let str: string
+    if (abs >= 1_000_000) str = `${symbol}${(abs / 1_000_000).toFixed(1)}M`
+    else if (abs >= 1_000) str = `${symbol}${(abs / 1_000).toFixed(0)}K`
+    else str = `${symbol}${abs.toLocaleString()}`
+    return neg ? `-${str}` : str
+  }
+
   const { totalInvested, totalRealized, unrealizedValue, moic } = company
   const netGain = totalInvested != null && totalRealized != null && unrealizedValue != null
     ? (totalRealized + unrealizedValue) - totalInvested
@@ -421,7 +427,7 @@ function ExitedMetricDisplay({ company }: { company: Company }) {
       <div className="min-w-0">
         <div className="text-[10px] text-muted-foreground truncate mb-0.5">Net Gain</div>
         <div className={`text-xl font-semibold tabular-nums truncate ${netGain != null && netGain < 0 ? 'text-red-500' : ''}`}>
-          {netGain != null ? formatCurrency(netGain) : '\u2014'}
+          {netGain != null ? fmtTable(netGain) : '\u2014'}
         </div>
       </div>
       <div className="min-w-0">
