@@ -935,8 +935,8 @@ function TransactionTable({
                         ? fmt(txn.proceeds_received) 
                         : '-'}
                     </td>
-                    <td className="px-3 py-2 text-right font-mono">
-                      {txn.ownership_pct != null ? `${txn.ownership_pct}%` : '-'}
+                   <td className="px-3 py-2 text-right font-mono">
+                      {txn.ownership_pct != null ? `${txn.ownership_pct.toFixed(2)}%` : '-'}
                     </td>
                     <td className="px-3 py-2 text-right font-mono">
                       {txn.transaction_type === 'investment'
