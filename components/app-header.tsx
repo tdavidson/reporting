@@ -1,11 +1,11 @@
 'use client'
 import { useState } from 'react'
-import { Menu, LogOut, Building2, ChevronDown } from 'lucide-react'
+import { Menu, LogOut, Building2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent } from '@/components/ui/sheet'
 import { AppSidebar } from '@/components/app-sidebar'
 import { useSidebar } from '@/components/sidebar-context'
-import { useDisplayUnit } from '@/components/display-unit-context'
+import { DisplayPanelButton, DisplayPanel } from '@/components/display-panel'
 import type { FeatureVisibilityMap } from '@/lib/types/features'
 
 interface AppHeaderProps {
@@ -21,15 +21,11 @@ interface AppHeaderProps {
 
 export function AppHeader({ fundName, fundLogo, userEmail, reviewBadge, settingsBadge, notesBadge, isAdmin, featureVisibility }: AppHeaderProps) {
   const [drawerOpen, setDrawerOpen] = useState(false)
-  const [unitOpen, setUnitOpen] = useState(false)
   const { collapsed } = useSidebar()
-  const { displayUnit, setDisplayUnit } = useDisplayUnit()
-
-  const unitLabels = { full: 'Full', millions: 'Millions', thousands: 'Thousands' }
 
   return (
     <header className="relative flex items-center justify-between px-4 py-3 shrink-0">
-      {/* Left: hamburger + logo + fund name */}
+      {/* Left */}
       <div className="flex items-center gap-3">
         <Button
           variant="ghost"
@@ -58,32 +54,9 @@ export function AppHeader({ fundName, fundLogo, userEmail, reviewBadge, settings
         </span>
       )}
 
-      {/* Right: unit selector + user + sign out */}
+      {/* Right */}
       <div className="flex items-center gap-3">
-        {/* Display unit dropdown */}
-        <div className="relative">
-          <button
-            onClick={() => setUnitOpen(v => !v)}
-            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground border rounded px-2 py-1.5 hover:bg-accent transition-colors"
-          >
-            {unitLabels[displayUnit]}
-            <ChevronDown className="h-3 w-3" />
-          </button>
-          {unitOpen && (
-            <div className="absolute right-0 top-full mt-1 bg-background border rounded-md shadow-md z-50 min-w-[120px]">
-              {(['full', 'millions', 'thousands'] as const).map(unit => (
-                <button
-                  key={unit}
-                  onClick={() => { setDisplayUnit(unit); setUnitOpen(false) }}
-                  className={`w-full text-left px-3 py-2 text-xs hover:bg-accent transition-colors ${displayUnit === unit ? 'font-medium text-foreground' : 'text-muted-foreground'}`}
-                >
-                  {unitLabels[unit]}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-
+        <DisplayPanelButton />
         <span className="text-xs text-muted-foreground truncate hidden sm:block max-w-[200px]">
           {userEmail}
         </span>
@@ -94,6 +67,8 @@ export function AppHeader({ fundName, fundLogo, userEmail, reviewBadge, settings
           </Button>
         </form>
       </div>
+
+      <DisplayPanel />
 
       {/* Mobile drawer */}
       <Sheet open={drawerOpen} onOpenChange={setDrawerOpen}>
