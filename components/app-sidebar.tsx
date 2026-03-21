@@ -2,17 +2,12 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Building2, ClipboardCheck, Mail, Upload, Send, Settings, LifeBuoy, PanelLeftClose, PanelLeftOpen, Monitor, Sun, Moon, BarChart3, TrendingUp, StickyNote, Lock, Users, Handshake, ArrowDownCircle, FileText, Briefcase, Crown, ShieldCheck } from 'lucide-react'
+import { Building2, ClipboardCheck, Mail, Upload, Send, Settings, LifeBuoy, PanelLeftClose, PanelLeftOpen, BarChart3, TrendingUp, StickyNote, Lock, Users, Handshake, ArrowDownCircle, FileText, Briefcase, Crown, ShieldCheck } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useState, useEffect } from 'react'
-import { useTheme } from 'next-themes'
 import { useSidebar } from '@/components/sidebar-context'
 import { isFeatureVisible } from '@/lib/types/features'
 import type { FeatureKey, FeatureVisibilityMap } from '@/lib/types/features'
-
-const THEME_CYCLE = ['system', 'light', 'dark'] as const
-const THEME_ICONS = { system: Monitor, light: Sun, dark: Moon }
-const THEME_LABELS = { system: 'System', light: 'Light', dark: 'Dark' }
 
 const NAV_ITEMS: { href: string; label: string; icon: LucideIcon; badgeKey?: 'review' | 'settings' | 'notes'; adminOnly?: boolean; featureKey?: FeatureKey; beta?: boolean }[] = [
   { href: '/dashboard', label: 'Portfolio', icon: Building2 },
@@ -45,18 +40,8 @@ interface AppSidebarProps {
 export function AppSidebar({ reviewBadge, settingsBadge, notesBadge, isAdmin, updateAvailable, featureVisibility, onNavigate }: AppSidebarProps) {
   const pathname = usePathname()
   const { collapsed, toggle } = useSidebar()
-  const { theme, setTheme } = useTheme()
   const [mounted, setMounted] = useState(false)
   useEffect(() => setMounted(true), [])
-
-  const currentTheme = (THEME_CYCLE.includes(theme as typeof THEME_CYCLE[number]) ? theme : 'system') as typeof THEME_CYCLE[number]
-  const ThemeIcon = mounted ? THEME_ICONS[currentTheme] : Monitor
-  const themeLabel = mounted ? THEME_LABELS[currentTheme] : 'System'
-
-  function cycleTheme() {
-    const idx = THEME_CYCLE.indexOf(currentTheme)
-    setTheme(THEME_CYCLE[(idx + 1) % THEME_CYCLE.length])
-  }
 
   return (
     <div className="flex flex-col flex-1">
@@ -154,20 +139,6 @@ export function AppSidebar({ reviewBadge, settingsBadge, notesBadge, isAdmin, up
             </Link>
           )
         })()}
-
-        {/* Theme toggle */}
-        <button
-          onClick={cycleTheme}
-          title={collapsed ? themeLabel : undefined}
-          className={`flex w-full items-center gap-3 px-3 py-2 rounded-md text-xs transition-colors text-muted-foreground/60 hover:text-muted-foreground hover:bg-accent ${
-            collapsed ? 'md:justify-center md:px-0' : ''
-          }`}
-        >
-          <ThemeIcon className="h-5 w-5 shrink-0" />
-          <span className={`flex-1 text-left ${collapsed ? 'md:hidden' : ''}`}>
-            {themeLabel}
-          </span>
-        </button>
 
         {/* Hide Sidebar toggle — only shown on desktop */}
         <button
