@@ -137,6 +137,7 @@ export type Database = {
           github_stars_checked_at: string | null
           global_inbound_address: string | null
           global_inbound_token: string | null
+          global_inbound_token_encrypted: string | null
           id: string
           installation_id: string
           updated_at: string | null
@@ -147,6 +148,7 @@ export type Database = {
           github_stars_checked_at?: string | null
           global_inbound_address?: string | null
           global_inbound_token?: string | null
+          global_inbound_token_encrypted?: string | null
           id?: string
           installation_id?: string
           updated_at?: string | null
@@ -157,6 +159,7 @@ export type Database = {
           github_stars_checked_at?: string | null
           global_inbound_address?: string | null
           global_inbound_token?: string | null
+          global_inbound_token_encrypted?: string | null
           id?: string
           installation_id?: string
           updated_at?: string | null
