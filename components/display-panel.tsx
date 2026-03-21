@@ -11,9 +11,9 @@ export function DisplayPanelButton() {
   return (
     <button
       onClick={toggle}
-      className="inline-flex items-center gap-1.5 rounded-md border border-input bg-background px-3 py-1.5 text-sm font-medium text-muted-foreground shadow-sm hover:bg-accent hover:text-foreground transition-colors"
+      className="inline-flex items-center gap-1.5 rounded-md border border-input bg-background px-2.5 py-1 text-xs font-medium text-muted-foreground shadow-sm hover:bg-accent hover:text-foreground transition-colors"
     >
-      <SlidersHorizontal className="h-4 w-4" />
+      <SlidersHorizontal className="h-3.5 w-3.5" />
       Display
     </button>
   )
