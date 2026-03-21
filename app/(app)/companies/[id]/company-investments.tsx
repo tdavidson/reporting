@@ -842,7 +842,12 @@ function TransactionTable({
               <tr key={txn.id} className="border-b last:border-b-0">
                 {showGroup && <td className="px-3 py-2 text-xs">{txn.portfolio_group ?? '-'}</td>}
                 <td className="px-3 py-2">
-                  <span className="text-xs text-muted-foreground">
+                  <span className={`text-[11px] font-medium px-2 py-1 rounded-md ${
+                    txn.transaction_type === 'investment' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300' :
+                    txn.transaction_type === 'proceeds' ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300' :
+                    txn.transaction_type === 'round_info' ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300' :
+                    'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300'
+                  }`}>
                     {TYPE_LABELS[txn.transaction_type as TransactionType] ?? txn.transaction_type}
                   </span>
                 </td>
