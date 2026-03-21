@@ -12,6 +12,7 @@ import { AnalystToggleButton } from '@/components/analyst-button'
 import { AnalystPanel } from '@/components/analyst-panel'
 import { PortfolioNotesProvider, PortfolioNotesButton, PortfolioNotesPanel } from '@/components/portfolio-notes'
 import { useFeatureVisibility } from '@/components/feature-visibility-context'
+import { DisplayPanelButton } from '@/components/display-panel'
 
 interface CompanySummary {
   companyId: string
@@ -396,7 +397,7 @@ function fmtVal(val: number | null, format: 'currency' | 'moic' | 'irr'): string
     <div className="mb-6 space-y-1">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2">{fv.investments === 'admin' && <Lock className="h-4 w-4 text-amber-500" />}Investments</h1>
-        <div className="flex items-center gap-2"><PortfolioNotesButton /><AnalystToggleButton /></div>
+      <div className="flex items-center gap-2"><DisplayPanelButton /><PortfolioNotesButton /><AnalystToggleButton /></div>
       </div>
       <p className="text-sm text-muted-foreground">Portfolio-level investment positions and returns</p>
       <div className="flex items-center gap-2 pt-2">
