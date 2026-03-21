@@ -175,12 +175,13 @@ const currency = useCurrency()
 const { displayUnit } = useDisplayUnit()
 const symbol = currency === 'BRL' ? 'R$' : currency === 'EUR' ? '€' : currency === 'GBP' ? '£' : '$'
 const fmtFull = (val: number) => formatCurrencyFull(val, currency)
+const fmtCard = (val: number) => `${symbol}${(val / 1_000_000).toFixed(1)}M`
 const fmtTable = (val: number) => {
   if (displayUnit === 'millions') return `${symbol}${(val / 1_000_000).toFixed(1)}M`
   if (displayUnit === 'thousands') return `${symbol}${(val / 1_000).toLocaleString('en-US', { maximumFractionDigits: 0 })}K`
   return formatCurrencyFull(val, currency)
 }
-const fmt = fmtFull
+const fmt = fmtCard
 
   const [data, setData] = useState<PortfolioData | null>(null)
   const [loading, setLoading] = useState(true)
