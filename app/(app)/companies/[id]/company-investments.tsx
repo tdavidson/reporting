@@ -864,7 +864,6 @@ function SummaryLine({
             className="text-xs bg-white/5 border border-white/20 text-white rounded px-2 py-1 focus:ring-1 focus:ring-white/30 outline-none [&::-webkit-calendar-picker-indicator]:invert cursor-pointer w-full"
           />
         </div>
-
       </div>
     </div>
   )
