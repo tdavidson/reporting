@@ -4,7 +4,8 @@ import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { Loader2, ChevronUp, ChevronDown, Lock } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
-import { useCurrency, formatCurrency, formatCurrencyFull } from '@/components/currency-context'
+import { useCurrency, formatCurrencyFull } from '@/components/currency-context'
+import { useDisplayUnit } from '@/components/display-unit-context'
 import type { CompanyStatus } from '@/lib/types/database'
 import { xirr, type CashFlow } from '@/lib/xirr'
 import { AnalystToggleButton } from '@/components/analyst-button'
@@ -170,9 +171,15 @@ function getGroupDerivedValue(row: GroupSummary, key: GroupSortKey): number {
 
 export default function InvestmentsPage() {
   const fv = useFeatureVisibility()
-  const currency = useCurrency()
-  const fmt = (val: number) => formatCurrency(val, currency)
-  const fmtFull = (val: number) => formatCurrencyFull(val, currency)
+const currency = useCurrency()
+const { displayUnit } = useDisplayUnit()
+const symbol = currency === 'BRL' ? 'R$' : currency === 'EUR' ? '€' : currency === 'GBP' ? '£' : '$'
+const fmtFull = (val: number) => {
+  if (displayUnit === 'millions') return `${symbol}${(val / 1_000_000).toFixed(1)}M`
+  if (displayUnit === 'thousands') return `${symbol}${(val / 1_000).toLocaleString('en-US', { maximumFractionDigits: 0 })}K`
+  return formatCurrencyFull(val, currency)
+}
+const fmt = fmtFull
 
   const [data, setData] = useState<PortfolioData | null>(null)
   const [loading, setLoading] = useState(true)
