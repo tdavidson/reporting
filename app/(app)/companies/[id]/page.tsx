@@ -16,6 +16,7 @@ import type { Company, Metric, CompanyStatus } from '@/lib/types/database'
 import { CompanyCharts } from './company-charts'
 import { CompanySummary } from './company-summary'
 import { CompanyEditButton } from './company-edit-button'
+import { CompanySelector } from './company-selector'
 import { CompanyPanelProvider } from './company-panel-context'
 import { ChatButton, CompanyNotesPanel } from './company-notes'
 import { AnalystButton } from './company-analyst'
@@ -75,7 +76,6 @@ export default async function CompanyDetailPage({
 
   const isAdmin = membership?.role === 'admin'
 
-  // Fetch all portfolio groups from fund_cash_flows for this fund
   const { data: allGroupsData } = await admin
     .from('fund_cash_flows' as any)
     .select('portfolio_group')
@@ -87,7 +87,6 @@ export default async function CompanyDetailPage({
     ...(allGroupsData ?? []).map((r: { portfolio_group: string }) => r.portfolio_group).filter(Boolean),
   ])).sort()
 
-  // Fetch AI provider settings for the summary component
   const { data: fundSettings } = await supabase
     .from('fund_settings')
     .select('claude_api_key_encrypted, openai_api_key_encrypted, default_ai_provider, currency, file_storage_provider, google_drive_folder_id, dropbox_folder_path, feature_visibility')
@@ -152,7 +151,7 @@ export default async function CompanyDetailPage({
         </Link>
 
         <div className="flex items-center gap-3 flex-wrap">
-          <h1 className="text-2xl font-semibold tracking-tight">{company.name}</h1>
+          <CompanySelector currentId={company.id} currentName={company.name} />
           <CompanyEditButton company={company} />
           {(company.portfolio_group ?? []).map((pg) => (
             <Badge key={pg} variant="outline">{pg}</Badge>
