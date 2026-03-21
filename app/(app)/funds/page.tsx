@@ -638,9 +638,9 @@ const fmtCard = (val: number) => {
     return (
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
         {[
-          { label: 'Called', value: fmt(metrics.called) },
-          { label: 'Uncalled', value: fmt(metrics.uncalled) },
-          { label: 'Distributions', value: fmt(metrics.distributions) },
+{ label: 'Called', value: fmtCard(metrics.called) },
+{ label: 'Uncalled', value: fmtCard(metrics.uncalled) },
+{ label: 'Distributions', value: fmtCard(metrics.distributions) },
         ].map(card => (
           <Card key={card.label}>
             <CardContent className="pt-3 pb-2 px-3">
@@ -679,7 +679,7 @@ const fmtCard = (val: number) => {
                 className="border rounded px-1.5 py-0.5 text-lg font-semibold w-full font-mono bg-transparent"
               />
             ) : (
-              <p className="text-lg font-semibold">{fmt(metrics.grossResidual)}</p>
+              <p className="text-lg font-semibold">{fmtCard(metrics.grossResidual)}</p>
             )}
           </CardContent>
         </Card>
