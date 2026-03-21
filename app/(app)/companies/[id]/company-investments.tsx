@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
-import { DollarSign, Plus, Trash2, Pencil, Loader2, ChevronDown, ChevronRight, Lock } from 'lucide-react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
+import { DollarSign, Plus, Trash2, Pencil, Loader2, ChevronDown, ChevronRight, Lock, ArrowUp, ArrowDown, ChevronsUpDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -808,39 +808,100 @@ function TransactionTable({
   handleDelete: (id: string) => void
   deletingId: string | null
 }) {
+  const [sortKey, setSortKey] = useState<string>('transaction_date')
+  const [sortDesc, setSortDesc] = useState<boolean>(true)
+
+  const handleSort = (key: string) => {
+    if (sortKey === key) {
+      setSortDesc(!sortDesc)
+    } else {
+      setSortKey(key)
+      setSortDesc(true)
+    }
+  }
+
+  const sortedTransactions = useMemo(() => {
+    return [...transactions].sort((a, b) => {
+      let valA: any = a[sortKey as keyof typeof a]
+      let valB: any = b[sortKey as keyof typeof b]
+
+      // Valores customizados para ordenação
+      if (sortKey === 'amount') {
+        valA = a.transaction_type === 'investment' ? a.investment_cost : (a.transaction_type === 'proceeds' ? a.proceeds_received : 0)
+        valB = b.transaction_type === 'investment' ? b.investment_cost : (b.transaction_type === 'proceeds' ? b.proceeds_received : 0)
+      } else if (sortKey === 'postmoney') {
+        valA = a.transaction_type === 'unrealized_gain_change' ? a.latest_postmoney_valuation : a.postmoney_valuation
+        valB = b.transaction_type === 'unrealized_gain_change' ? b.latest_postmoney_valuation : b.postmoney_valuation
+      } else if (sortKey === 'nav') {
+        const getNav = (txn: any) => {
+          const ownership = txn.ownership_pct ?? null
+          const postMoney = txn.transaction_type === 'unrealized_gain_change' ? (txn.latest_postmoney_valuation ?? null) : (txn.postmoney_valuation ?? null)
+          if (ownership != null && postMoney != null) return (ownership / 100) * postMoney
+          if (txn.transaction_type === 'unrealized_gain_change' && txn.unrealized_value_change != null) return txn.unrealized_value_change
+          return 0
+        }
+        valA = getNav(a)
+        valB = getNav(b)
+      }
+
+      // Tratamento de null
+      if (valA == null) valA = ''
+      if (valB == null) valB = ''
+
+      if (valA < valB) return sortDesc ? 1 : -1
+      if (valA > valB) return sortDesc ? -1 : 1
+      return 0
+    })
+  }, [transactions, sortKey, sortDesc])
+
   if (transactions.length === 0) return null
-  const hasPostmoney = transactions.some(t => t.postmoney_valuation != null)
+
+  const SortIcon = ({ columnKey }: { columnKey: string }) => {
+    if (sortKey !== columnKey) return <ChevronsUpDown className="ml-1 h-3 w-3 inline text-muted-foreground/30" />
+    return sortDesc ? <ArrowDown className="ml-1 h-3 w-3 inline" /> : <ArrowUp className="ml-1 h-3 w-3 inline" />
+  }
+
+  const thClass = "px-3 py-2 font-medium cursor-pointer hover:bg-muted/80 select-none transition-colors"
+
   return (
-<div className="border rounded-lg overflow-x-auto">
-  <table className="w-full text-sm whitespace-nowrap">
+    <div className="border rounded-lg overflow-x-auto">
+      <table className="w-full text-sm whitespace-nowrap">
         <thead>
           <tr className="border-b bg-muted/50">
-            {showGroup && <th className="text-left px-3 py-2 font-medium">Group</th>}
-            <th className="text-left px-3 py-2 font-medium">Type</th>
-            <th className="text-left px-3 py-2 font-medium">Round</th>
-            <th className="text-left px-3 py-2 font-medium">Date</th>
+            {showGroup && <th className={`text-left ${thClass}`} onClick={() => handleSort('portfolio_group')}>Group <SortIcon columnKey="portfolio_group" /></th>}
+            <th className={`text-left ${thClass}`} onClick={() => handleSort('transaction_date')}>Date <SortIcon columnKey="transaction_date" /></th>
+            <th className={`text-left ${thClass}`} onClick={() => handleSort('transaction_type')}>Type <SortIcon columnKey="transaction_type" /></th>
+            <th className={`text-left ${thClass}`} onClick={() => handleSort('round_name')}>Round <SortIcon columnKey="round_name" /></th>
             {companyStatus === 'exited' ? (
               <>
-                <th className="text-right px-3 py-2 font-medium">Cost</th>
-                <th className="text-right px-3 py-2 font-medium">Proceeds</th>
+                <th className={`text-right ${thClass}`} onClick={() => handleSort('investment_cost')}>Cost <SortIcon columnKey="investment_cost" /></th>
+                <th className={`text-right ${thClass}`} onClick={() => handleSort('proceeds_received')}>Proceeds <SortIcon columnKey="proceeds_received" /></th>
               </>
             ) : (
               <>
-                <th className="text-right px-3 py-2 font-medium">Amount</th>
-<th className="text-right px-3 py-2 font-medium">Ownership</th>
-<th className="text-right px-3 py-2 font-medium">Post-Money</th>
-<th className="text-right px-3 py-2 font-medium">NAV</th>
+                <th className={`text-right ${thClass}`} onClick={() => handleSort('amount')}>Amount <SortIcon columnKey="amount" /></th>
+                <th className={`text-right ${thClass}`} onClick={() => handleSort('ownership_pct')}>Ownership <SortIcon columnKey="ownership_pct" /></th>
+                <th className={`text-right ${thClass}`} onClick={() => handleSort('postmoney')}>Post-Money <SortIcon columnKey="postmoney" /></th>
+                <th className={`text-right ${thClass}`} onClick={() => handleSort('nav')}>NAV <SortIcon columnKey="nav" /></th>
               </>
             )}
             <th className="w-16" />
           </tr>
         </thead>
         <tbody>
-          {transactions.map(txn => {
-            const round = summary?.rounds.find(r => r.roundName === txn.round_name)
+          {sortedTransactions.map(txn => {
             return (
-              <tr key={txn.id} className="border-b last:border-b-0">
+              <tr key={txn.id} className="border-b last:border-b-0 hover:bg-muted/30">
                 {showGroup && <td className="px-3 py-2 text-xs">{txn.portfolio_group ?? '-'}</td>}
+                
+                {/* 1. Date (Movido para primeira coluna) */}
+                <td className="px-3 py-2 text-muted-foreground">
+                  {txn.transaction_date
+                    ? new Date(txn.transaction_date + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+                    : '-'}
+                </td>
+
+                {/* 2. Type */}
                 <td className="px-3 py-2">
                   <span className={`text-[11px] font-medium px-2 py-1 rounded-md ${
                     txn.transaction_type === 'investment' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300' :
@@ -851,12 +912,11 @@ function TransactionTable({
                     {TYPE_LABELS[txn.transaction_type as TransactionType] ?? txn.transaction_type}
                   </span>
                 </td>
+
+                {/* 3. Round */}
                 <td className="px-3 py-2">{txn.round_name ?? '-'}</td>
-                <td className="px-3 py-2 text-muted-foreground">
-                  {txn.transaction_date
-                    ? new Date(txn.transaction_date + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
-                    : '-'}
-                </td>
+
+                {/* Demais colunas Numéricas */}
                 {companyStatus === 'exited' ? (
                   <>
                     <td className="px-3 py-2 text-right font-mono">
@@ -866,7 +926,7 @@ function TransactionTable({
                       {txn.transaction_type === 'proceeds' ? fmt(txn.proceeds_received) : '-'}
                     </td>
                   </>
-) : (
+                ) : (
                   <>
                     <td className="px-3 py-2 text-right font-mono">
                       {txn.transaction_type === 'investment' 
@@ -875,36 +935,37 @@ function TransactionTable({
                         ? fmt(txn.proceeds_received) 
                         : '-'}
                     </td>
-
-<td className="px-3 py-2 text-right font-mono">
-  {txn.ownership_pct != null ? `${txn.ownership_pct}%` : '-'}
-</td>
-<td className="px-3 py-2 text-right font-mono">
-  {txn.transaction_type === 'investment'
-    ? fmt(txn.postmoney_valuation)
-    : txn.transaction_type === 'unrealized_gain_change'
-    ? fmt(txn.latest_postmoney_valuation)
-    : txn.transaction_type === 'round_info'
-    ? fmt(txn.postmoney_valuation)
-    : '-'}
-</td>
-<td className="px-3 py-2 text-right font-mono">
-  {(() => {
-    const ownership = txn.ownership_pct ?? null
-    const postMoney = txn.transaction_type === 'unrealized_gain_change'
-      ? (txn.latest_postmoney_valuation ?? null)
-      : (txn.postmoney_valuation ?? null)
-    if (ownership != null && postMoney != null) {
-      return fmt((ownership / 100) * postMoney)
-    }
-    if (txn.transaction_type === 'unrealized_gain_change' && txn.unrealized_value_change != null) {
-      return fmt(txn.unrealized_value_change)
-    }
-    return '-'
-  })()}
-</td>
+                    <td className="px-3 py-2 text-right font-mono">
+                      {txn.ownership_pct != null ? `${txn.ownership_pct}%` : '-'}
+                    </td>
+                    <td className="px-3 py-2 text-right font-mono">
+                      {txn.transaction_type === 'investment'
+                        ? fmt(txn.postmoney_valuation)
+                        : txn.transaction_type === 'unrealized_gain_change'
+                        ? fmt(txn.latest_postmoney_valuation)
+                        : txn.transaction_type === 'round_info'
+                        ? fmt(txn.postmoney_valuation)
+                        : '-'}
+                    </td>
+                    <td className="px-3 py-2 text-right font-mono">
+                      {(() => {
+                        const ownership = txn.ownership_pct ?? null
+                        const postMoney = txn.transaction_type === 'unrealized_gain_change'
+                          ? (txn.latest_postmoney_valuation ?? null)
+                          : (txn.postmoney_valuation ?? null)
+                        if (ownership != null && postMoney != null) {
+                          return fmt((ownership / 100) * postMoney)
+                        }
+                        if (txn.transaction_type === 'unrealized_gain_change' && txn.unrealized_value_change != null) {
+                          return fmt(txn.unrealized_value_change)
+                        }
+                        return '-'
+                      })()}
+                    </td>
                   </>
                 )}
+                
+                {/* Actions (Edit/Delete) */}
                 <td className="px-3 py-2">
                   <div className="flex items-center gap-1 justify-end">
                     <Button
@@ -936,7 +997,6 @@ function TransactionTable({
     </div>
   )
 }
-
 function RoundSummaryTable({
   summary,
   transactions,
