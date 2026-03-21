@@ -10,10 +10,8 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from '@/components/ui/dialog'
 import { useCurrency, formatCurrencyFull, formatCurrencyPrice, getCurrencySymbol } from '@/components/currency-context'
-import type { InvestmentTransaction, CompanyStatus } from '@/lib/types/database'
-import type { CompanyInvestmentSummary } from '@/lib/types/investments'
-import { useCurrency, formatCurrencyFull } from '@/components/currency-context'
 import { useDisplayUnit } from '@/components/display-unit-context'
+import type { InvestmentTransaction, CompanyStatus } from '@/lib/types/database'
 
 interface Props {
   companyId: string
@@ -95,7 +93,7 @@ const currency = useCurrency()
 
   const fmtPrice = (val: number | null | undefined) => {
     if (val == null || val === 0) return '-'
-    return formatCurrencyFull(val, currency)
+    return formatCurrencyPrice(val, currency)
   }
 
   const [transactions, setTransactions] = useState<InvestmentTransaction[]>([])
