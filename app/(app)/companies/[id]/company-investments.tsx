@@ -12,6 +12,7 @@ import {
 import { useCurrency, formatCurrencyFull, formatCurrencyPrice, getCurrencySymbol } from '@/components/currency-context'
 import { useDisplayUnit } from '@/components/display-unit-context'
 import type { InvestmentTransaction, CompanyStatus } from '@/lib/types/database'
+import type { CompanyInvestmentSummary } from '@/lib/types/investments'
 
 interface Props {
   companyId: string
@@ -82,6 +83,7 @@ const EMPTY_FORM: Record<string, string> = {
 export function CompanyInvestments({ companyId, companyStatus, portfolioGroups, adminOnly }: Props) {
 const currency = useCurrency()
   const { displayUnit } = useDisplayUnit()
+  
   const symbol = currency === 'BRL' ? 'R$' : currency === 'EUR' ? '€' : currency === 'GBP' ? '£' : '$'
 
   const fmt = (val: number | null | undefined) => {
