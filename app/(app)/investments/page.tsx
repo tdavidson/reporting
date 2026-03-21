@@ -520,7 +520,7 @@ function fmtVal(val: number | null, format: 'currency' | 'moic' | 'irr'): string
               <tbody>
                 {sortedGroups.length > 1 && (
                   <tr className="border-b bg-blue-50 dark:bg-blue-950 font-medium">
-                    <td className="px-3 py-2 sticky left-0 bg-blue-50 dark:bg-blue-950 z-10">Master Fund</td>
+                    <td className="px-3 py-2 sticky left-0 bg-blue-50 dark:bg-blue-950 z-10">Prlx Fund I</td>
                     {groupNumericColumns.map(col => {
                       if (col.format === 'irr') return <td key={col.sortKey} className="px-3 py-2 text-right font-mono">{fmtIrr(data.portfolioIRR)}</td>
                       if (col.sortKey === 'moic') return <td key={col.sortKey} className="px-3 py-2 text-right font-mono">{fmtMoic(groupTotals.moic)}</td>
