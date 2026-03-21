@@ -399,10 +399,10 @@ export default function FundsPage() {
   }, [cashFlows, groups, grossResidualByGroup, totalInvestedByGroup, groupConfigs, metricsByGroup])
 
   const fmt = (val: number) => formatWithUnit(val, displayUnit, currency)
-  const fmtCard = (val: number) => {
-    const symbol = currency === 'BRL' ? 'R$' : currency === 'EUR' ? '€' : currency === 'GBP' ? '£' : '$'
-    return `${symbol}${(val / 1_000_000).toFixed(1)}M`
-  }
+const fmtCard = (val: number) => {
+  const symbol = currency === 'BRL' ? 'R$' : currency === 'EUR' ? '€' : currency === 'GBP' ? '£' : '$'
+  return `${symbol}${(val / 1_000_000).toFixed(1)}M`
+}
 
   const masterCumulatives = useMemo(() => {
     let cumulCalled = 0
@@ -639,9 +639,9 @@ export default function FundsPage() {
     return (
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
         {[
-          { label: 'Called', value: fmtCard(metrics.called) },
-          { label: 'Uncalled', value: fmtCard(metrics.uncalled) },
-          { label: 'Distributions', value: fmtCard(metrics.distributions) },
+{ label: 'Called', value: fmtCard(metrics.called) },
+{ label: 'Uncalled', value: fmtCard(metrics.uncalled) },
+{ label: 'Distributions', value: fmtCard(metrics.distributions) },
         ].map(card => (
           <Card key={card.label}>
             <CardContent className="pt-3 pb-2 px-3">
@@ -733,403 +733,385 @@ export default function FundsPage() {
 
   return (
     <PortfolioNotesProvider pageContext="funds">
-      <div className="p-4 md:py-8 md:pl-8 md:pr-4 w-full">
-        <div className="mb-6 space-y-1">
-          <div className="flex items-center justify-between">
-            <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2">
-              {fv.funds === 'admin' && <Lock className="h-4 w-4 text-amber-500" />}Funds
-            </h1>
-            <span className="flex items-center gap-2">
-              <DisplayPanelButton />
-              <PortfolioNotesButton />
-              <AnalystToggleButton />
-            </span>
+    <div className="p-4 md:py-8 md:pl-8 md:pr-4 w-full">
+      <div className="mb-6 space-y-1">
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2">
+            {fv.funds === 'admin' && <Lock className="h-4 w-4 text-amber-500" />}Funds
+          </h1>
+          <span className="flex items-center gap-2">
+            <DisplayPanelButton />
+            <PortfolioNotesButton />
+            <AnalystToggleButton />
+          </span>
+        </div>
+        <p className="text-sm text-muted-foreground">Fund-level cash flows, NAV, and performance metrics</p>
+      </div>
+
+      <div className="flex flex-col lg:flex-row gap-6 items-start">
+      <div className="flex-1 min-w-0 w-full">
+      <Tabs defaultValue={MASTER_FUND_KEY} className="w-full">
+        <div className="flex items-center gap-2 mb-4">
+          <div
+            className="overflow-x-auto cursor-grab active:cursor-grabbing select-none"
+            style={{ scrollbarWidth: 'none' }}
+            onMouseDown={e => {
+              const el = e.currentTarget
+              let startX = e.pageX - el.offsetLeft
+              let scrollLeft = el.scrollLeft
+              const onMove = (ev: MouseEvent) => {
+                const x = ev.pageX - el.offsetLeft
+                el.scrollLeft = scrollLeft - (x - startX)
+              }
+              const onUp = () => {
+                window.removeEventListener('mousemove', onMove)
+                window.removeEventListener('mouseup', onUp)
+              }
+              window.addEventListener('mousemove', onMove)
+              window.addEventListener('mouseup', onUp)
+            }}
+          >
+            <TabsList className="flex-nowrap whitespace-nowrap">
+              <TabsTrigger value={MASTER_FUND_KEY}>Prlx Fund I</TabsTrigger>
+              {orderedGroups.map(g => (
+                <TabsTrigger key={g} value={g}>{g || '(none)'}</TabsTrigger>
+              ))}
+            </TabsList>
           </div>
-          <p className="text-sm text-muted-foreground">Fund-level cash flows, NAV, and performance metrics</p>
+          <button
+            onClick={openSettings}
+            className="text-muted-foreground hover:text-foreground p-1.5 rounded-md hover:bg-accent transition-colors flex-shrink-0"
+            title="Edit Fund Settings"
+          >
+            <Pencil className="h-4 w-4" />
+          </button>
         </div>
 
-        <div className="flex flex-col lg:flex-row gap-6 items-start">
-          <div className="flex-1 min-w-0 w-full">
-            <Tabs defaultValue={MASTER_FUND_KEY} className="w-full">
-              <div className="flex items-center gap-2 mb-4">
-                <div
-                  className="overflow-x-auto cursor-grab active:cursor-grabbing select-none"
-                  style={{ scrollbarWidth: 'none' }}
-                  onMouseDown={e => {
-                    const el = e.currentTarget
-                    let startX = e.pageX - el.offsetLeft
-                    let scrollLeft = el.scrollLeft
-                    const onMove = (ev: MouseEvent) => {
-                      const x = ev.pageX - el.offsetLeft
-                      el.scrollLeft = scrollLeft - (x - startX)
-                    }
-                    const onUp = () => {
-                      window.removeEventListener('mousemove', onMove)
-                      window.removeEventListener('mouseup', onUp)
-                    }
-                    window.addEventListener('mousemove', onMove)
-                    window.addEventListener('mouseup', onUp)
-                  }}
-                >
-<TabsList className="bg-muted/50 border border-slate-200 p-1 h-9 w-full justify-start flex-nowrap overflow-x-auto no-scrollbar gap-1">
-  {/* Master Fund */}
-  <TabsTrigger
-    value={MASTER_FUND_KEY}
-    className="px-4 py-1.5 text-xs font-medium transition-all rounded-md 
-      text-slate-600
-      data-[state=active]:bg-[#0F2332] data-[state=active]:text-white data-[state=active]:shadow-sm"
-  >
-    Master Fund
-  </TabsTrigger>
+        {/* Master Fund Tab */}
+        <TabsContent value={MASTER_FUND_KEY}>
+          <p className="text-xs text-muted-foreground mb-3">Consolidated view across all vehicles</p>
+          <MetricCards metrics={masterMetrics} />
 
-  {/* Loop dos Grupos */}
-  {orderedGroups.map(group => (
-    <TabsTrigger
-      key={group}
-      value={group}
-      className="px-4 py-1.5 text-xs font-medium transition-all rounded-md 
-        text-slate-600
-        data-[state=active]:bg-[#0F2332] data-[state=active]:text-white data-[state=active]:shadow-sm"
-    >
-      {group}
-    </TabsTrigger>
-  ))}
-</TabsList>
-                </div>
-                <button
-                  onClick={openSettings}
-                  className="text-muted-foreground hover:text-foreground p-1.5 rounded-md hover:bg-accent transition-colors flex-shrink-0"
-                  title="Edit Fund Settings"
-                >
-                  <Pencil className="h-4 w-4" />
-                </button>
+          <div className="border rounded-lg overflow-x-auto">
+            <table className="w-full text-sm whitespace-nowrap">
+              <thead>
+                <tr className="border-b bg-muted/50">
+                  <th className="text-left px-3 py-2 font-medium">Date</th>
+                  <th className="text-left px-3 py-2 font-medium">Type</th>
+                  <th className="text-left px-3 py-2 font-medium">Group</th>
+                  <th className="text-right px-3 py-2 font-medium">Amount</th>
+                  <th className="text-right px-3 py-2 font-medium">Capital Called</th>
+                  <th className="text-right px-3 py-2 font-medium">Capital Distributed</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[...cashFlows]
+                  .sort((a, b) => a.flow_date.localeCompare(b.flow_date))
+                  .map(cf => (
+                    <tr key={cf.id} className="border-b last:border-b-0 hover:bg-muted/30">
+                      <td className="px-3 py-2">{cf.flow_date}</td>
+                      <td className="px-3 py-2">
+                        <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${
+                          cf.flow_type === 'commitment' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400' :
+                          cf.flow_type === 'called_capital' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' :
+                          'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                        }`}>
+                          {FLOW_TYPE_LABELS[cf.flow_type]}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2 text-xs text-muted-foreground">{cf.portfolio_group}</td>
+                      <td className="px-3 py-2 text-right font-mono">{fmt(cf.amount)}</td>
+                      <td className="px-3 py-2 text-right font-mono">{fmt(masterCumulatives[cf.id]?.called ?? 0)}</td>
+                      <td className="px-3 py-2 text-right font-mono">{fmt(masterCumulatives[cf.id]?.distributed ?? 0)}</td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
+        </TabsContent>
+
+        {/* Individual Group Tabs */}
+        {orderedGroups.map(group => {
+          const metrics = metricsByGroup.get(group)!
+          const groupFlows = cashFlows
+            .filter(cf => cf.portfolio_group === group)
+            .sort((a, b) => a.flow_date.localeCompare(b.flow_date))
+
+          let cumulCalled = 0
+          let cumulDistributed = 0
+          const rowCumulatives = groupFlows.map(cf => {
+            if (cf.flow_type === 'called_capital') cumulCalled += cf.amount
+            if (cf.flow_type === 'distribution') cumulDistributed += cf.amount
+            return { called: cumulCalled, distributed: cumulDistributed }
+          })
+
+          return (
+            <TabsContent key={group} value={group}>
+              {groupConfigs[group]?.vintage && (
+                <p className="text-xs text-muted-foreground mb-3">Vintage {groupConfigs[group].vintage}</p>
+              )}
+
+              <MetricCards metrics={metrics} group={group} />
+
+              <div className="border rounded-lg overflow-x-auto">
+                <table className="w-full text-sm whitespace-nowrap">
+                  <thead>
+                    <tr className="border-b bg-muted/50">
+                      <th className="text-left px-3 py-2 font-medium">Date</th>
+                      <th className="text-left px-3 py-2 font-medium">Type</th>
+                      <th className="text-left px-3 py-2 font-medium">Group</th>
+                      <th className="text-right px-3 py-2 font-medium">Amount</th>
+                      <th className="text-right px-3 py-2 font-medium">Capital Called</th>
+                      <th className="text-right px-3 py-2 font-medium">Capital Distributed</th>
+                      <th className="px-3 py-2 w-20 font-medium">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {groupFlows.map((cf, idx) => {
+                      const cumul = rowCumulatives[idx]
+                      const isEditing = editingId === cf.id
+
+                      if (isEditing) {
+                        return (
+                          <tr key={cf.id} className="border-b last:border-b-0 bg-blue-50/50 dark:bg-blue-950/20">
+                            <td className="px-3 py-1.5">
+                              <input type="date" value={editDraft.flowDate} onChange={e => setEditDraft(d => ({ ...d, flowDate: e.target.value }))} className="border rounded px-1.5 py-0.5 text-sm w-32" />
+                            </td>
+                            <td className="px-3 py-1.5">
+                              <select value={editDraft.flowType} onChange={e => setEditDraft(d => ({ ...d, flowType: e.target.value }))} className="border rounded px-1.5 py-0.5 text-sm">
+                                <option value="commitment">Commitment</option>
+                                <option value="called_capital">Called Capital</option>
+                                <option value="distribution">Distribution</option>
+                              </select>
+                            </td>
+                            <td className="px-3 py-1.5">
+                              <input type="text" value={editDraft.portfolioGroup} onChange={e => setEditDraft(d => ({ ...d, portfolioGroup: e.target.value }))} className="border rounded px-1.5 py-0.5 text-sm w-28" />
+                            </td>
+                            <td className="px-3 py-1.5">
+                              <input type="number" step="0.01" value={editDraft.amount} onChange={e => setEditDraft(d => ({ ...d, amount: e.target.value }))} className="border rounded px-1.5 py-0.5 text-sm text-right w-28" />
+                            </td>
+                            <td className="px-3 py-1.5">
+                              <div className="flex items-center gap-2">
+                                <Button variant="outline" size="sm" className="text-muted-foreground h-7 px-2 text-xs" onClick={handleSaveEdit} disabled={saving}>
+                                  <Save className="h-3.5 w-3.5 mr-1" />Save
+                                </Button>
+                                <Button variant="outline" size="sm" className="text-muted-foreground h-7 px-2 text-xs" onClick={() => setEditingId(null)}>
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </Button>
+                              </div>
+                            </td>
+                            <td colSpan={4} />
+                          </tr>
+                        )
+                      }
+
+                      return (
+                        <tr key={cf.id} className="border-b last:border-b-0 hover:bg-muted/30">
+                          <td className="px-3 py-2">{cf.flow_date}</td>
+                          <td className="px-3 py-2">
+                            <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${
+                              cf.flow_type === 'commitment' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400' :
+                              cf.flow_type === 'called_capital' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' :
+                              'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                            }`}>
+                              {FLOW_TYPE_LABELS[cf.flow_type]}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2 text-xs text-muted-foreground">{cf.portfolio_group}</td>
+                          <td className="px-3 py-2 text-right font-mono">{fmt(cf.amount)}</td>
+                          <td className="px-3 py-2 text-right font-mono">{fmt(cumul.called)}</td>
+                          <td className="px-3 py-2 text-right font-mono">{fmt(cumul.distributed)}</td>
+                          <td className="px-3 py-2">
+                            <div className="flex items-center gap-1">
+                              <button onClick={() => startEdit(cf)} className="text-muted-foreground hover:text-foreground" title="Edit">
+                                <Pencil className="h-3.5 w-3.5" />
+                              </button>
+                              <button onClick={() => handleDelete(cf.id)} className="text-muted-foreground hover:text-red-600" title="Delete">
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })}
+
+                    {addingGroup === group && (
+                      <tr className="border-b last:border-b-0 bg-green-50/50 dark:bg-green-950/20">
+                        <td className="px-3 py-1.5">
+                          <input type="date" value={addDraft.flowDate} onChange={e => setAddDraft(d => ({ ...d, flowDate: e.target.value }))} className="border rounded px-1.5 py-0.5 text-sm w-32" />
+                        </td>
+                        <td className="px-3 py-1.5">
+                          <select value={addDraft.flowType} onChange={e => setAddDraft(d => ({ ...d, flowType: e.target.value }))} className="border rounded px-1.5 py-0.5 text-sm">
+                            <option value="commitment">Commitment</option>
+                            <option value="called_capital">Called Capital</option>
+                            <option value="distribution">Distribution</option>
+                          </select>
+                        </td>
+                        <td className="px-3 py-1.5">
+                          <input type="text" value={addDraft.portfolioGroup} onChange={e => setAddDraft(d => ({ ...d, portfolioGroup: e.target.value }))} className="border rounded px-1.5 py-0.5 text-sm w-28" />
+                        </td>
+                        <td className="px-3 py-1.5">
+                          <input type="number" step="0.01" value={addDraft.amount} onChange={e => setAddDraft(d => ({ ...d, amount: e.target.value }))} className="border rounded px-1.5 py-0.5 text-sm text-right w-28" placeholder="0.00" />
+                        </td>
+                        <td className="px-3 py-1.5">
+                          <div className="flex items-center gap-2">
+                            <Button variant="outline" size="sm" className="text-muted-foreground h-7 px-2 text-xs" onClick={() => handleAdd(addDraft.portfolioGroup || group)} disabled={saving || !addDraft.flowDate || !addDraft.amount}>
+                              <Save className="h-3.5 w-3.5 mr-1" />Save
+                            </Button>
+                            <Button variant="outline" size="sm" className="text-muted-foreground h-7 px-2 text-xs" onClick={() => { setAddingGroup(null); setAddDraft({ flowDate: '', flowType: 'commitment', amount: '', notes: '', portfolioGroup: '' }) }}>
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        </td>
+                        <td colSpan={4} />
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
               </div>
 
-              {/* Master Fund Tab */}
-              <TabsContent value={MASTER_FUND_KEY}>
-                <p className="text-xs text-muted-foreground mb-3">Consolidated view across all vehicles</p>
-                <MetricCards metrics={masterMetrics} />
-
-                <div className="border rounded-lg overflow-x-auto">
-                  <table className="w-full text-sm whitespace-nowrap">
-                    <thead>
-                      <tr className="border-b bg-muted/50">
-                        <th className="text-left px-3 py-2 font-medium">Date</th>
-                        <th className="text-left px-3 py-2 font-medium">Type</th>
-                        <th className="text-left px-3 py-2 font-medium">Group</th>
-                        <th className="text-right px-3 py-2 font-medium">Amount</th>
-                        <th className="text-right px-3 py-2 font-medium">Capital Called</th>
-                        <th className="text-right px-3 py-2 font-medium">Capital Distributed</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {[...cashFlows]
-                        .sort((a, b) => a.flow_date.localeCompare(b.flow_date))
-                        .map(cf => (
-                          <tr key={cf.id} className="border-b last:border-b-0 hover:bg-muted/30">
-                            <td className="px-3 py-2">{cf.flow_date}</td>
-                            <td className="px-3 py-2">
-                              <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${
-                                cf.flow_type === 'commitment' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400' :
-                                cf.flow_type === 'called_capital' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' :
-                                'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                              }`}>
-                                {FLOW_TYPE_LABELS[cf.flow_type]}
-                              </span>
-                            </td>
-                            <td className="px-3 py-2 text-xs text-muted-foreground">{cf.portfolio_group}</td>
-                            <td className="px-3 py-2 text-right font-mono">{fmt(cf.amount)}</td>
-                            <td className="px-3 py-2 text-right font-mono">{fmt(masterCumulatives[cf.id]?.called ?? 0)}</td>
-                            <td className="px-3 py-2 text-right font-mono">{fmt(masterCumulatives[cf.id]?.distributed ?? 0)}</td>
-                          </tr>
-                        ))}
-                    </tbody>
-                  </table>
+              {addingGroup !== group && (
+                <div className="flex items-center gap-2 mt-3">
+                  <Button variant="outline" size="sm" className="text-muted-foreground" onClick={() => { setAddingGroup(group); setAddDraft({ flowDate: '', flowType: 'commitment', amount: '', notes: '', portfolioGroup: group }) }}>
+                    <Plus className="h-4 w-4 mr-1" />Add Cash Flow
+                  </Button>
+                  <Button variant="outline" size="sm" className="text-muted-foreground" onClick={() => { setImportOpen(!importOpen); setImportResult(null) }}>
+                    <Upload className="h-4 w-4 mr-1" />Import
+                  </Button>
                 </div>
-              </TabsContent>
+              )}
 
-              {/* Individual Group Tabs */}
-              {orderedGroups.map(group => {
-                const metrics = metricsByGroup.get(group)!
-                const groupFlows = cashFlows
-                  .filter(cf => cf.portfolio_group === group)
-                  .sort((a, b) => a.flow_date.localeCompare(b.flow_date))
-
-                let cumulCalled = 0
-                let cumulDistributed = 0
-                const rowCumulatives = groupFlows.map(cf => {
-                  if (cf.flow_type === 'called_capital') cumulCalled += cf.amount
-                  if (cf.flow_type === 'distribution') cumulDistributed += cf.amount
-                  return { called: cumulCalled, distributed: cumulDistributed }
-                })
-
-                return (
-                  <TabsContent key={group} value={group}>
-                    {groupConfigs[group]?.vintage && (
-                      <p className="text-xs text-muted-foreground mb-3">Vintage {groupConfigs[group].vintage}</p>
+              {importOpen && (
+                <div className="mt-4 border rounded-lg p-4">
+                  <p className="text-sm text-muted-foreground mb-2">
+                    Paste fund cash flow data from a spreadsheet.
+                  </p>
+                  <textarea
+                    value={importData}
+                    onChange={e => setImportData(e.target.value)}
+                    rows={6}
+                    className="w-full border border-input rounded p-2 text-sm font-mono bg-transparent text-foreground mb-2"
+                    placeholder="Paste any fund cash flow data here"
+                  />
+                  <div className="flex items-center gap-2">
+                    <Button size="sm" onClick={handleImport} disabled={importing || !importData.trim()}>
+                      {importing ? 'Importing...' : 'Import'}
+                    </Button>
+                    {importResult && (
+                      <span className={`text-sm ${importResult.created === 0 && importResult.errors.length > 0 ? 'text-red-600' : 'text-muted-foreground'}`}>
+                        {importResult.created > 0 && `${importResult.created} cash flow${importResult.created !== 1 ? 's' : ''} imported.`}
+                        {importResult.errors.length > 0 && ` ${importResult.errors.length} error${importResult.errors.length !== 1 ? 's' : ''}: ${importResult.errors[0]}`}
+                      </span>
                     )}
-
-                    <MetricCards metrics={metrics} group={group} />
-
-                    <div className="border rounded-lg overflow-x-auto">
-                      <table className="w-full text-sm whitespace-nowrap">
-                        <thead>
-                          <tr className="border-b bg-muted/50">
-                            <th className="text-left px-3 py-2 font-medium">Date</th>
-                            <th className="text-left px-3 py-2 font-medium">Type</th>
-                            <th className="text-left px-3 py-2 font-medium">Group</th>
-                            <th className="text-right px-3 py-2 font-medium">Amount</th>
-                            <th className="text-right px-3 py-2 font-medium">Capital Called</th>
-                            <th className="text-right px-3 py-2 font-medium">Capital Distributed</th>
-                            <th className="px-3 py-2 w-20 font-medium">Actions</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {groupFlows.map((cf, idx) => {
-                            const cumul = rowCumulatives[idx]
-                            const isEditing = editingId === cf.id
-
-                            if (isEditing) {
-                              return (
-                                <tr key={cf.id} className="border-b last:border-b-0 bg-blue-50/50 dark:bg-blue-950/20">
-                                  <td className="px-3 py-1.5">
-                                    <input type="date" value={editDraft.flowDate} onChange={e => setEditDraft(d => ({ ...d, flowDate: e.target.value }))} className="border rounded px-1.5 py-0.5 text-sm w-32" />
-                                  </td>
-                                  <td className="px-3 py-1.5">
-                                    <select value={editDraft.flowType} onChange={e => setEditDraft(d => ({ ...d, flowType: e.target.value }))} className="border rounded px-1.5 py-0.5 text-sm">
-                                      <option value="commitment">Commitment</option>
-                                      <option value="called_capital">Called Capital</option>
-                                      <option value="distribution">Distribution</option>
-                                    </select>
-                                  </td>
-                                  <td className="px-3 py-1.5">
-                                    <input type="text" value={editDraft.portfolioGroup} onChange={e => setEditDraft(d => ({ ...d, portfolioGroup: e.target.value }))} className="border rounded px-1.5 py-0.5 text-sm w-28" />
-                                  </td>
-                                  <td className="px-3 py-1.5">
-                                    <input type="number" step="0.01" value={editDraft.amount} onChange={e => setEditDraft(d => ({ ...d, amount: e.target.value }))} className="border rounded px-1.5 py-0.5 text-sm text-right w-28" />
-                                  </td>
-                                  <td className="px-3 py-1.5">
-                                    <div className="flex items-center gap-2">
-                                      <Button variant="outline" size="sm" className="text-muted-foreground h-7 px-2 text-xs" onClick={handleSaveEdit} disabled={saving}>
-                                        <Save className="h-3.5 w-3.5 mr-1" />Save
-                                      </Button>
-                                      <Button variant="outline" size="sm" className="text-muted-foreground h-7 px-2 text-xs" onClick={() => setEditingId(null)}>
-                                        <X className="h-3.5 w-3.5" />
-                                      </Button>
-                                    </div>
-                                  </td>
-                                  <td colSpan={2} />
-                                </tr>
-                              )
-                            }
-
-                            return (
-                              <tr key={cf.id} className="border-b last:border-b-0 hover:bg-muted/30">
-                                <td className="px-3 py-2">{cf.flow_date}</td>
-                                <td className="px-3 py-2">
-                                  <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${
-                                    cf.flow_type === 'commitment' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400' :
-                                    cf.flow_type === 'called_capital' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' :
-                                    'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                                  }`}>
-                                    {FLOW_TYPE_LABELS[cf.flow_type]}
-                                  </span>
-                                </td>
-                                <td className="px-3 py-2 text-xs text-muted-foreground">{cf.portfolio_group}</td>
-                                <td className="px-3 py-2 text-right font-mono">{fmt(cf.amount)}</td>
-                                <td className="px-3 py-2 text-right font-mono">{fmt(cumul.called)}</td>
-                                <td className="px-3 py-2 text-right font-mono">{fmt(cumul.distributed)}</td>
-                                <td className="px-3 py-2">
-                                  <div className="flex items-center gap-1">
-                                    <button onClick={() => startEdit(cf)} className="text-muted-foreground hover:text-foreground" title="Edit">
-                                      <Pencil className="h-3.5 w-3.5" />
-                                    </button>
-                                    <button onClick={() => handleDelete(cf.id)} className="text-muted-foreground hover:text-red-600" title="Delete">
-                                      <Trash2 className="h-3.5 w-3.5" />
-                                    </button>
-                                  </div>
-                                </td>
-                              </tr>
-                            )
-                          })}
-
-                          {addingGroup === group && (
-                            <tr className="border-b last:border-b-0 bg-green-50/50 dark:bg-green-950/20">
-                              <td className="px-3 py-1.5">
-                                <input type="date" value={addDraft.flowDate} onChange={e => setAddDraft(d => ({ ...d, flowDate: e.target.value }))} className="border rounded px-1.5 py-0.5 text-sm w-32" />
-                              </td>
-                              <td className="px-3 py-1.5">
-                                <select value={addDraft.flowType} onChange={e => setAddDraft(d => ({ ...d, flowType: e.target.value }))} className="border rounded px-1.5 py-0.5 text-sm">
-                                  <option value="commitment">Commitment</option>
-                                  <option value="called_capital">Called Capital</option>
-                                  <option value="distribution">Distribution</option>
-                                </select>
-                              </td>
-                              <td className="px-3 py-1.5">
-                                <input type="text" value={addDraft.portfolioGroup} onChange={e => setAddDraft(d => ({ ...d, portfolioGroup: e.target.value }))} className="border rounded px-1.5 py-0.5 text-sm w-28" />
-                              </td>
-                              <td className="px-3 py-1.5">
-                                <input type="number" step="0.01" value={addDraft.amount} onChange={e => setAddDraft(d => ({ ...d, amount: e.target.value }))} className="border rounded px-1.5 py-0.5 text-sm text-right w-28" placeholder="0.00" />
-                              </td>
-                              <td className="px-3 py-1.5">
-                                <div className="flex items-center gap-2">
-                                  <Button variant="outline" size="sm" className="text-muted-foreground h-7 px-2 text-xs" onClick={() => handleAdd(addDraft.portfolioGroup || group)} disabled={saving || !addDraft.flowDate || !addDraft.amount}>
-                                    <Save className="h-3.5 w-3.5 mr-1" />Save
-                                  </Button>
-                                  <Button variant="outline" size="sm" className="text-muted-foreground h-7 px-2 text-xs" onClick={() => { setAddingGroup(null); setAddDraft({ flowDate: '', flowType: 'commitment', amount: '', notes: '', portfolioGroup: '' }) }}>
-                                    <X className="h-3.5 w-3.5" />
-                                  </Button>
-                                </div>
-                              </td>
-                              <td colSpan={2} />
-                            </tr>
-                          )}
-                        </tbody>
-                      </table>
-                    </div>
-
-                    {addingGroup !== group && (
-                      <div className="flex items-center gap-2 mt-3">
-                        <Button variant="outline" size="sm" className="text-muted-foreground" onClick={() => { setAddingGroup(group); setAddDraft({ flowDate: '', flowType: 'commitment', amount: '', notes: '', portfolioGroup: group }) }}>
-                          <Plus className="h-4 w-4 mr-1" />Add Cash Flow
-                        </Button>
-                        <Button variant="outline" size="sm" className="text-muted-foreground" onClick={() => { setImportOpen(!importOpen); setImportResult(null) }}>
-                          <Upload className="h-4 w-4 mr-1" />Import
-                        </Button>
-                      </div>
-                    )}
-
-                    {importOpen && (
-                      <div className="mt-4 border rounded-lg p-4">
-                        <p className="text-sm text-muted-foreground mb-2">
-                          Paste fund cash flow data from a spreadsheet.
-                        </p>
-                        <textarea
-                          value={importData}
-                          onChange={e => setImportData(e.target.value)}
-                          rows={6}
-                          className="w-full border border-input rounded p-2 text-sm font-mono bg-transparent text-foreground mb-2"
-                          placeholder="Paste any fund cash flow data here"
-                        />
-                        <div className="flex items-center gap-2">
-                          <Button size="sm" onClick={handleImport} disabled={importing || !importData.trim()}>
-                            {importing ? 'Importing...' : 'Import'}
-                          </Button>
-                          {importResult && (
-                            <span className={`text-sm ${importResult.created === 0 && importResult.errors.length > 0 ? 'text-red-600' : 'text-muted-foreground'}`}>
-                              {importResult.created > 0 && `${importResult.created} cash flow${importResult.created !== 1 ? 's' : ''} imported.`}
-                              {importResult.errors.length > 0 && ` ${importResult.errors.length} error${importResult.errors.length !== 1 ? 's' : ''}: ${importResult.errors[0]}`}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                  </TabsContent>
-                )
-              })}
-            </Tabs>
-          </div>
-          <PortfolioNotesPanel />
-          <AnalystPanel />
-        </div>
-
-        <Dialog open={settingsOpen} onOpenChange={open => { if (!open) setSettingsOpen(false) }}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Fund Settings</DialogTitle>
-              <DialogDescription>Configure fees and settings per portfolio group. Drag to reorder.</DialogDescription>
-            </DialogHeader>
-            <div className="space-y-6 py-2 max-h-[60vh] overflow-y-auto">
-              {orderedGroups.map(group => (
-                <div
-                  key={group}
-                  draggable
-                  onDragStart={() => handleDragStart(group)}
-                  onDragOver={e => handleDragOver(e, group)}
-                  onDrop={() => handleDrop(group)}
-                  onDragEnd={() => { setDraggedGroup(null); setDragOverGroup(null) }}
-                  className={`space-y-3 rounded-lg transition-all ${
-                    dragOverGroup === group && draggedGroup !== group
-                      ? 'border-2 border-blue-400 p-2'
-                      : draggedGroup === group
-                      ? 'opacity-40'
-                      : ''
-                  }`}
-                >
-                  <div className="flex items-center justify-between border-b pb-1">
-                    <div className="flex items-center gap-2">
-                      <GripVertical className="h-4 w-4 text-muted-foreground cursor-grab" />
-                      <h3 className="text-sm font-semibold">{group}</h3>
-                    </div>
-                    <button
-                      onClick={() => { setDeletingGroup(group); setDeleteConfirmName('') }}
-                      className="text-muted-foreground hover:text-red-600"
-                      title="Delete fund"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="text-xs text-muted-foreground mb-1 block">Vintage</label>
-                      <input type="number" step="1" min="1900" max="2100" value={settingsDrafts[group]?.vintage ?? ''} onChange={e => setSettingsDrafts(prev => ({ ...prev, [group]: { ...prev[group], vintage: e.target.value } }))} placeholder="2024" className="border rounded px-2 py-1.5 text-sm w-full font-mono" />
-                    </div>
-                    <div>
-                      <label className="text-xs text-muted-foreground mb-1 block">Carry Rate (%)</label>
-                      <input type="number" step="0.1" value={settingsDrafts[group]?.carryRate ?? '20'} onChange={e => setSettingsDrafts(prev => ({ ...prev, [group]: { ...prev[group], carryRate: e.target.value } }))} placeholder="20" className="border rounded px-2 py-1.5 text-sm w-full font-mono" />
-                    </div>
-                    <div>
-                      <label className="text-xs text-muted-foreground mb-1 block">GP Commit (%)</label>
-                      <input type="number" step="0.1" value={settingsDrafts[group]?.gpCommitPct ?? '0'} onChange={e => setSettingsDrafts(prev => ({ ...prev, [group]: { ...prev[group], gpCommitPct: e.target.value } }))} placeholder="0" className="border rounded px-2 py-1.5 text-sm w-full font-mono" />
-                    </div>
-                    <div>
-                      <label className="text-xs text-muted-foreground mb-1 block">Management Fee (% p.a.)</label>
-                      <input type="number" step="0.1" value={settingsDrafts[group]?.managementFeeRate ?? '0'} onChange={e => setSettingsDrafts(prev => ({ ...prev, [group]: { ...prev[group], managementFeeRate: e.target.value } }))} placeholder="2" className="border rounded px-2 py-1.5 text-sm w-full font-mono" />
-                    </div>
                   </div>
                 </div>
-              ))}
-              <p className="text-xs text-muted-foreground">Management fee is calculated annually on committed capital from vintage year.</p>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setSettingsOpen(false)}>Cancel</Button>
-              <Button onClick={handleSaveSettings} disabled={savingSettings}>
-                {savingSettings && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                Save
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-
-        <Dialog open={!!deletingGroup} onOpenChange={open => { if (!open) { setDeletingGroup(null); setDeleteConfirmName('') } }}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Delete Fund</DialogTitle>
-              <DialogDescription>
-                This will permanently delete all cash flows for <strong>{deletingGroup}</strong>. Type the fund name to confirm.
-              </DialogDescription>
-            </DialogHeader>
-            <input
-              type="text"
-              value={deleteConfirmName}
-              onChange={e => setDeleteConfirmName(e.target.value)}
-              placeholder={deletingGroup ?? ''}
-              className="border rounded px-2 py-1.5 text-sm w-full"
-            />
-            <DialogFooter>
-              <Button variant="outline" onClick={() => { setDeletingGroup(null); setDeleteConfirmName('') }}>Cancel</Button>
-              <Button
-                variant="destructive"
-                disabled={deleteConfirmName !== deletingGroup || deletingGroupSaving}
-                onClick={() => deletingGroup && handleDeleteGroup(deletingGroup)}
-              >
-                {deletingGroupSaving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                Delete
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+              )}
+            </TabsContent>
+          )
+        })}
+      </Tabs>
       </div>
+      <PortfolioNotesPanel />
+      <AnalystPanel />
+      </div>
+
+      <Dialog open={settingsOpen} onOpenChange={open => { if (!open) setSettingsOpen(false) }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Fund Settings</DialogTitle>
+            <DialogDescription>Configure fees and settings per portfolio group. Drag to reorder.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-6 py-2 max-h-[60vh] overflow-y-auto">
+            {orderedGroups.map(group => (
+              <div
+                key={group}
+                draggable
+                onDragStart={() => handleDragStart(group)}
+                onDragOver={e => handleDragOver(e, group)}
+                onDrop={() => handleDrop(group)}
+                onDragEnd={() => { setDraggedGroup(null); setDragOverGroup(null) }}
+                className={`space-y-3 rounded-lg transition-all ${
+                  dragOverGroup === group && draggedGroup !== group
+                    ? 'border-2 border-blue-400 p-2'
+                    : draggedGroup === group
+                    ? 'opacity-40'
+                    : ''
+                }`}
+              >
+                <div className="flex items-center justify-between border-b pb-1">
+                  <div className="flex items-center gap-2">
+                    <GripVertical className="h-4 w-4 text-muted-foreground cursor-grab" />
+                    <h3 className="text-sm font-semibold">{group}</h3>
+                  </div>
+                  <button
+                    onClick={() => { setDeletingGroup(group); setDeleteConfirmName('') }}
+                    className="text-muted-foreground hover:text-red-600"
+                    title="Delete fund"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs text-muted-foreground mb-1 block">Vintage</label>
+                    <input type="number" step="1" min="1900" max="2100" value={settingsDrafts[group]?.vintage ?? ''} onChange={e => setSettingsDrafts(prev => ({ ...prev, [group]: { ...prev[group], vintage: e.target.value } }))} placeholder="2024" className="border rounded px-2 py-1.5 text-sm w-full font-mono" />
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground mb-1 block">Carry Rate (%)</label>
+                    <input type="number" step="0.1" value={settingsDrafts[group]?.carryRate ?? '20'} onChange={e => setSettingsDrafts(prev => ({ ...prev, [group]: { ...prev[group], carryRate: e.target.value } }))} placeholder="20" className="border rounded px-2 py-1.5 text-sm w-full font-mono" />
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground mb-1 block">GP Commit (%)</label>
+                    <input type="number" step="0.1" value={settingsDrafts[group]?.gpCommitPct ?? '0'} onChange={e => setSettingsDrafts(prev => ({ ...prev, [group]: { ...prev[group], gpCommitPct: e.target.value } }))} placeholder="0" className="border rounded px-2 py-1.5 text-sm w-full font-mono" />
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground mb-1 block">Management Fee (% p.a.)</label>
+                    <input type="number" step="0.1" value={settingsDrafts[group]?.managementFeeRate ?? '0'} onChange={e => setSettingsDrafts(prev => ({ ...prev, [group]: { ...prev[group], managementFeeRate: e.target.value } }))} placeholder="2" className="border rounded px-2 py-1.5 text-sm w-full font-mono" />
+                  </div>
+                </div>
+              </div>
+            ))}
+            <p className="text-xs text-muted-foreground">Management fee is calculated annually on committed capital from vintage year.</p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSettingsOpen(false)}>Cancel</Button>
+            <Button onClick={handleSaveSettings} disabled={savingSettings}>
+              {savingSettings && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!deletingGroup} onOpenChange={open => { if (!open) { setDeletingGroup(null); setDeleteConfirmName('') } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Fund</DialogTitle>
+            <DialogDescription>
+              This will permanently delete all cash flows for <strong>{deletingGroup}</strong>. Type the fund name to confirm.
+            </DialogDescription>
+          </DialogHeader>
+          <input
+            type="text"
+            value={deleteConfirmName}
+            onChange={e => setDeleteConfirmName(e.target.value)}
+            placeholder={deletingGroup ?? ''}
+            className="border rounded px-2 py-1.5 text-sm w-full"
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setDeletingGroup(null); setDeleteConfirmName('') }}>Cancel</Button>
+            <Button
+              variant="destructive"
+              disabled={deleteConfirmName !== deletingGroup || deletingGroupSaving}
+              onClick={() => deletingGroup && handleDeleteGroup(deletingGroup)}
+            >
+              {deletingGroupSaving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
     </PortfolioNotesProvider>
   )
 }
