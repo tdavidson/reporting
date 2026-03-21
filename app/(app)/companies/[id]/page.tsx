@@ -4,6 +4,9 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { ArrowLeft } from 'lucide-react'
+import { AnalystPanel } from '@/components/analyst-panel'
+import { DisplayPanelButton } from '@/components/display-panel' // Adicione esta linha
+import { CompanyDocuments } from './company-documents'
 
 export async function generateMetadata({ params }: { params: { id: string } }): Promise<Metadata> {
   const supabase = createClient()
@@ -162,8 +165,9 @@ export default async function CompanyDetailPage({
           {(company.industry ?? []).map((ind) => (
             <Badge key={ind} variant="outline">{ind}</Badge>
           ))}
-          {isFeatureVisible(featureVisibility, 'notes', isAdmin) && <ChatButton />}
-          <AnalystButton companyId={company.id} pushRight={!isFeatureVisible(featureVisibility, 'notes', isAdmin)} />
+<DisplayPanelButton />
+{isFeatureVisible(featureVisibility, 'notes', isAdmin) && <ChatButton />}
+<AnalystButton companyId={company.id} pushRight={false} />
         </div>
 
         {(latestMrr || latestCash) && (
