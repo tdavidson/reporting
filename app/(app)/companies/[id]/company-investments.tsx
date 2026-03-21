@@ -837,7 +837,7 @@ function SummaryLine({
         {/* 3. NAV */}
         <div>
           <div className="text-[10px] text-white/50 uppercase tracking-widest font-bold mb-1">NAV</div>
-          <div className="font-mono text-base font-semibold">{fmt(calculatedNav)}</div>
+          <div className="font-mono text-base ">{fmt(calculatedNav)}</div>
         </div>
 
         {/* 4. GROSS MOIC */}
