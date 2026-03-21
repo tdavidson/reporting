@@ -12,6 +12,8 @@ import {
 import { useCurrency, formatCurrencyFull, formatCurrencyPrice, getCurrencySymbol } from '@/components/currency-context'
 import type { InvestmentTransaction, CompanyStatus } from '@/lib/types/database'
 import type { CompanyInvestmentSummary } from '@/lib/types/investments'
+import { useCurrency, formatCurrencyFull } from '@/components/currency-context'
+import { useDisplayUnit } from '@/components/display-unit-context'
 
 interface Props {
   companyId: string
@@ -80,10 +82,21 @@ const EMPTY_FORM: Record<string, string> = {
 }
 
 export function CompanyInvestments({ companyId, companyStatus, portfolioGroups, adminOnly }: Props) {
-  const currency = useCurrency()
-  const symbol = getCurrencySymbol(currency)
-  const fmt = (val: number | null | undefined) => val == null ? '-' : formatCurrencyFull(val, currency)
-  const fmtPrice = (val: number | null | undefined) => val == null ? '-' : formatCurrencyPrice(val, currency)
+const currency = useCurrency()
+  const { displayUnit } = useDisplayUnit()
+  const symbol = currency === 'BRL' ? 'R$' : currency === 'EUR' ? '€' : currency === 'GBP' ? '£' : '$'
+
+  const fmt = (val: number | null | undefined) => {
+    if (val == null || val === 0) return '-'
+    if (displayUnit === 'millions') return `${symbol}${(val / 1_000_000).toFixed(1)}M`
+    if (displayUnit === 'thousands') return `${symbol}${(val / 1_000).toLocaleString('en-US', { maximumFractionDigits: 0 })}K`
+    return formatCurrencyFull(val, currency)
+  }
+
+  const fmtPrice = (val: number | null | undefined) => {
+    if (val == null || val === 0) return '-'
+    return formatCurrencyFull(val, currency)
+  }
 
   const [transactions, setTransactions] = useState<InvestmentTransaction[]>([])
   const [summary, setSummary] = useState<CompanyInvestmentSummary | null>(null)
