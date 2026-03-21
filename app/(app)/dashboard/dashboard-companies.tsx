@@ -446,8 +446,8 @@ function AddCompanyButton() {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button size="sm" className="gap-1.5">
-          <Plus className="h-3.5 w-3.5" />
+<Button size="sm" className="gap-1.5 bg-[#0F2332] hover:bg-[#0F2332]/90 text-white">         
+  <Plus className="h-3.5 w-3.5" />
           Add Company
         </Button>
       </DialogTrigger>
