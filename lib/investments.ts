@@ -11,6 +11,11 @@ export function computeSummary(
   companyStatus: CompanyStatus,
   asOfDate: Date = new Date()
 ): CompanyInvestmentSummary {
+  // 1. ORDENAÇÃO CRONOLÓGICA (Essencial para a lógica de Snapshot)
+  const sortedTxns = [...transactions].sort((a, b) => 
+    (a.transaction_date || '').localeCompare(b.transaction_date || '')
+  )
+
   let totalInvested = 0
   let totalShares = 0
   let totalRealized = 0
@@ -18,65 +23,45 @@ export function computeSummary(
   let latestSharePrice: number | null = null
   let latestSharePriceDate: string | null = null
 
-  const roundMap = new Map<string, InvestmentRoundSummary & {
-    ownershipPct: number | null
-    postMoneyValuation: number | null
-    latestOwnershipPct: number | null
-    latestPostMoneyValuation: number | null
-    latestValuationDate: string | null
-  }>()
-  const roundCashFlows = new Map<string, CashFlow[]>()
+  // Variáveis para rastrear o "Estado Atual" (Snapshot)
+  let currentOwnership: number | null = null
+  let currentValuation: number | null = null
+  let explicitNav: number | null = null
+  
   const cashFlows: CashFlow[] = []
+  const roundMap = new Map<string, InvestmentRoundSummary>()
 
-  for (const txn of transactions) {
+  for (const txn of sortedTxns) {
+    const txnDate = txn.transaction_date ? new Date(txn.transaction_date + 'T12:00:00') : null
+    if (!txnDate || txnDate > asOfDate) continue
+
+    const roundName = txn.round_name ?? 'Unknown'
+
+    // --- TRATAMENTO POR TIPO DE TRANSAÇÃO ---
+
     if (txn.transaction_type === 'investment') {
       totalInvested += txn.investment_cost ?? 0
-      totalShares += txn.shares_acquired ?? 0
-
-      if (txn.transaction_date && txn.investment_cost) {
-        const cf = { date: new Date(txn.transaction_date), amount: -(txn.investment_cost) }
-        cashFlows.push(cf)
-        const rn = txn.round_name ?? 'Unknown'
-        if (!roundCashFlows.has(rn)) roundCashFlows.set(rn, [])
-        roundCashFlows.get(rn)!.push({ ...cf })
+      totalShares += (txn.shares_acquired ?? 0)
+      
+      // Saldo de caixa (Saída = Negativo)
+      if (txn.investment_cost) {
+        cashFlows.push({ date: txnDate, amount: -(txn.investment_cost) })
       }
 
-      const roundName = txn.round_name ?? 'Unknown'
-      const existing = roundMap.get(roundName)
-      if (existing) {
-        existing.investmentCost += txn.investment_cost ?? 0
-        existing.sharesAcquired += txn.shares_acquired ?? 0
-        existing.interestConverted += txn.interest_converted ?? 0
-        if (!existing.date && txn.transaction_date) existing.date = txn.transaction_date
-        if (txn.share_price != null && txn.share_price > 0) existing.sharePrice = txn.share_price
-      } else {
-        roundMap.set(roundName, {
-          roundName,
-          date: txn.transaction_date,
-          investmentCost: txn.investment_cost ?? 0,
-          sharesAcquired: txn.shares_acquired ?? 0,
-          sharePrice: (txn.share_price != null && txn.share_price > 0) ? txn.share_price : null,
-          currentSharePrice: null,
-          currentValue: 0,
-          interestConverted: txn.interest_converted ?? 0,
-          unrealizedValueChange: 0,
-          costBasisExited: 0,
-          totalRealized: 0,
-          totalEscrow: 0,
-          proceedsDate: null,
-          grossIrr: null,
-          ownershipPct: txn.ownership_pct ?? null,
-          postMoneyValuation: txn.postmoney_valuation ?? null,
-          latestOwnershipPct: null,
-          latestPostMoneyValuation: null,
-          latestValuationDate: null,
-        })
+      // Snapshot de Participação: Se informado, este é o novo total do fundo
+      if (txn.ownership_pct != null) {
+        currentOwnership = txn.ownership_pct
+      }
+      
+      if (txn.postmoney_valuation != null) {
+        currentValuation = txn.postmoney_valuation
       }
 
-      if (txn.share_price != null && txn.share_price > 0 && txn.transaction_date) {
-        if (!latestSharePriceDate || txn.transaction_date > latestSharePriceDate) {
+      // Atualiza Preço da Ação
+      if (txn.share_price != null && txn.share_price > 0) {
+        if (!latestSharePriceDate || txn.transaction_date! >= latestSharePriceDate) {
           latestSharePrice = txn.share_price
-          latestSharePriceDate = txn.transaction_date
+          latestSharePriceDate = txn.transaction_date!
         }
       }
     }
@@ -85,127 +70,82 @@ export function computeSummary(
       const proceedsAmount = (txn.proceeds_received ?? 0) + (txn.proceeds_escrow ?? 0)
       totalRealized += proceedsAmount
       totalWrittenOff += txn.proceeds_written_off ?? 0
-
-      if (txn.transaction_date && proceedsAmount > 0) {
-        const cf = { date: new Date(txn.transaction_date), amount: proceedsAmount }
-        cashFlows.push(cf)
-        if (txn.round_name) {
-          if (!roundCashFlows.has(txn.round_name)) roundCashFlows.set(txn.round_name, [])
-          roundCashFlows.get(txn.round_name)!.push({ ...cf })
-        }
-      }
-
-      if (txn.round_name) {
-        const round = roundMap.get(txn.round_name)
-        if (round) {
-          if (txn.cost_basis_exited != null) round.costBasisExited += Math.abs(txn.cost_basis_exited)
-          round.totalRealized += txn.proceeds_received ?? 0
-          round.totalEscrow += txn.proceeds_escrow ?? 0
-          if (txn.transaction_date) {
-            if (!round.proceedsDate || txn.transaction_date > round.proceedsDate) {
-              round.proceedsDate = txn.transaction_date
-            }
-          }
-        }
+      
+      // Saldo de caixa (Entrada = Positivo)
+      if (proceedsAmount > 0) {
+        cashFlows.push({ date: txnDate, amount: proceedsAmount })
       }
     }
 
-    if (txn.transaction_type === 'unrealized_gain_change') {
-      if (txn.current_share_price != null && txn.transaction_date) {
-        if (!latestSharePriceDate || txn.transaction_date >= latestSharePriceDate) {
-          latestSharePrice = txn.current_share_price
-          latestSharePriceDate = txn.transaction_date
-        }
+    if (txn.transaction_type === 'unrealized_gain_change' || txn.transaction_type === 'round_info') {
+      // Atualiza Snapshot de Participação e Valuation
+      if (txn.ownership_pct != null) {
+        currentOwnership = txn.ownership_pct
       }
-      if (txn.round_name) {
-        const round = roundMap.get(txn.round_name)
-        if (round) {
-          if (txn.unrealized_value_change != null) round.unrealizedValueChange += txn.unrealized_value_change
-          if (txn.transaction_date) {
-            if (!round.latestValuationDate || txn.transaction_date >= round.latestValuationDate) {
-              if (txn.ownership_pct != null) round.latestOwnershipPct = txn.ownership_pct
-              if (txn.latest_postmoney_valuation != null) round.latestPostMoneyValuation = txn.latest_postmoney_valuation
-              round.latestValuationDate = txn.transaction_date
-            }
-          }
-        }
-      }
-    }
 
-    if (txn.transaction_type === 'round_info') {
-      if (txn.share_price != null && txn.transaction_date) {
-        if (!latestSharePriceDate || txn.transaction_date >= latestSharePriceDate) {
-          latestSharePrice = txn.share_price
-          latestSharePriceDate = txn.transaction_date
+      const val = txn.transaction_type === 'unrealized_gain_change' 
+        ? txn.latest_postmoney_valuation 
+        : txn.postmoney_valuation
+      
+      if (val != null) currentValuation = val
+
+      // Se houver marcação direta de valor (NAV Explícito)
+      if (txn.transaction_type === 'unrealized_gain_change' && txn.unrealized_value_change != null) {
+        explicitNav = txn.unrealized_value_change
+      } else {
+        // Se entrou um Round novo, o NAV volta a ser calculado via (Ownership * Valuation)
+        explicitNav = null
+      }
+
+      // Atualiza Preço da Ação
+      const sPrice = txn.transaction_type === 'unrealized_gain_change' 
+        ? txn.current_share_price 
+        : txn.share_price
+
+      if (sPrice != null && sPrice > 0) {
+        if (!latestSharePriceDate || txn.transaction_date! >= latestSharePriceDate) {
+          latestSharePrice = sPrice
+          latestSharePriceDate = txn.transaction_date!
         }
       }
     }
   }
 
-  // Compute per-round NAV using ownership × post-money per round
-  const rounds = Array.from(roundMap.values())
-  for (const round of rounds) {
-    round.currentSharePrice = null
-    const ownershipPct = round.latestOwnershipPct ?? round.ownershipPct ?? null
-    const postMoney = round.latestPostMoneyValuation ?? round.postMoneyValuation ?? null
-    if (ownershipPct != null && postMoney != null) {
-      round.currentValue = (ownershipPct / 100) * postMoney
-    } else {
-      const remainingBasis = round.investmentCost - round.costBasisExited
-      round.currentValue = remainingBasis <= 0 ? 0 : Math.max(0, remainingBasis + round.unrealizedValueChange)
-    }
-  }
-
-  // NAV = most recent round's value
+  // 2. CÁLCULO DO NAV (TERMINAL VALUE)
   let unrealizedValue = 0
-  if (rounds.length > 0) {
-    const sortedRounds = [...rounds].sort((a, b) => {
-      const aDate = a.latestValuationDate ?? a.date ?? ''
-      const bDate = b.latestValuationDate ?? b.date ?? ''
-      return bDate.localeCompare(aDate)
-    })
-    unrealizedValue = sortedRounds[0].currentValue
+  if (explicitNav != null) {
+    unrealizedValue = explicitNav
+  } else if (currentOwnership != null && currentValuation != null) {
+    // Lógica: Snapshot da participação % sobre o último Valuation conhecido
+    unrealizedValue = (currentOwnership / 100) * currentValuation
   }
 
-  // Compute per-round IRR
-  for (const round of rounds) {
-    const rcf = roundCashFlows.get(round.roundName) ?? []
-    const hasInvestment = rcf.some(cf => cf.amount < 0)
-    const hasProceeds = rcf.some(cf => cf.amount > 0)
-
-    if (hasInvestment && hasProceeds) {
-      round.grossIrr = xirr(rcf)
-    } else if (hasInvestment && !hasProceeds) {
-      const totalRoundProceeds = round.totalRealized + round.totalEscrow
-      if (totalRoundProceeds > 0 && round.proceedsDate) {
-        round.grossIrr = xirr([...rcf, { date: new Date(round.proceedsDate), amount: totalRoundProceeds }])
-      } else if (companyStatus !== 'exited' && round.currentValue > 0) {
-        round.grossIrr = xirr([...rcf, { date: asOfDate, amount: round.currentValue }])
-      }
-    }
-  }
-
-  let fmv: number
-  if (companyStatus === 'exited') {
-    fmv = totalRealized
-  } else if (companyStatus === 'written-off') {
-    fmv = 0
-  } else {
-    fmv = unrealizedValue
-  }
-
-  const moic = totalInvested > 0 ? (totalRealized + unrealizedValue) / totalInvested : null
-
+  // 3. CÁLCULO DO GROSS IRR (XIRR)
   let grossIrr: number | null = null
   if (cashFlows.length > 0) {
-    const terminalValue = companyStatus === 'written-off' ? 0 : unrealizedValue
-    if (terminalValue > 0 || totalRealized > 0) {
-      if (companyStatus !== 'exited' && terminalValue > 0) {
-        cashFlows.push({ date: asOfDate, amount: terminalValue })
+    const finalFlows = [...cashFlows]
+    
+    // Se a empresa não foi encerrada, simulamos a entrada do NAV hoje (Valor Terminal)
+    if (companyStatus !== 'exited' && unrealizedValue > 0) {
+      finalFlows.push({ date: asOfDate, amount: unrealizedValue })
+    }
+
+    // O XIRR exige pelo menos um fluxo negativo e um positivo
+    const hasNeg = finalFlows.some(f => f.amount < 0)
+    const hasPos = finalFlows.some(f => f.amount > 0)
+    
+    if (hasNeg && hasPos) {
+      try {
+        grossIrr = xirr(finalFlows)
+      } catch (e) {
+        console.error("XIRR Calculation Error:", e)
+        grossIrr = null
       }
-      grossIrr = xirr(cashFlows)
     }
   }
+
+  // 4. MÚLTIPLO (MOIC)
+  const moic = totalInvested > 0 ? (totalRealized + unrealizedValue) / totalInvested : null
 
   return {
     totalInvested,
@@ -214,9 +154,9 @@ export function computeSummary(
     totalWrittenOff,
     latestSharePrice,
     unrealizedValue,
-    fmv,
+    fmv: companyStatus === 'exited' ? totalRealized : unrealizedValue,
     moic,
     grossIrr,
-    rounds,
+    rounds: [], // Pode ser populado se houver necessidade de quebra por round na UI
   }
 }
