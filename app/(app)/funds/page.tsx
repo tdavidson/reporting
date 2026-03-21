@@ -771,10 +771,18 @@ const fmtCard = (val: number) => {
               window.addEventListener('mouseup', onUp)
             }}
           >
-            <TabsList className="flex-nowrap whitespace-nowrap">
-              <TabsTrigger value={MASTER_FUND_KEY}>Prlx Fund I</TabsTrigger>
-              {orderedGroups.map(g => (
-                <TabsTrigger key={g} value={g}>{g || '(none)'}</TabsTrigger>
+<TabsList className="bg-white border border-slate-200 p-1 h-auto flex-wrap justify-start gap-1">        
+<TabsTrigger
+  value={fund.id}
+  className="px-4 py-2 text-xs font-semibold transition-all rounded-md
+    text-[#0F2332] opacity-60 
+    hover:opacity-100
+    data-[state=active]:bg-[#0F2332] 
+    data-[state=active]:text-white 
+    data-[state=active]:shadow-sm"
+>
+  {fund.name}
+</TabsTrigger>
               ))}
             </TabsList>
           </div>
