@@ -785,7 +785,7 @@ function SummaryLine({
 }) {
   if (summary.totalInvested <= 0) return null
 
-  // 1. Recalcula o NAV dinamicamente achando a % e o Post-Money cronologicamente mais recentes
+  // --- MANTENDO SUA LÓGICA DE CÁLCULO ORIGINAL ---
   const sorted = [...transactions].sort((a, b) => (a.transaction_date || '').localeCompare(b.transaction_date || ''))
   
   let currentOwnership: number | null = null
@@ -801,7 +801,7 @@ function SummaryLine({
     if (t.transaction_type === 'unrealized_gain_change' && t.unrealized_value_change != null) {
       explicitNav = t.unrealized_value_change
     } else if (t.transaction_type !== 'proceeds') {
-      explicitNav = null // Reseta se não for uma marcação de NAV direto
+      explicitNav = null 
     }
   }
 
@@ -814,54 +814,58 @@ function SummaryLine({
     calculatedNav = summary.unrealizedValue > 0 ? summary.unrealizedValue : summary.fmv
   }
 
-  // 2. Recalcula o MOIC baseado no novo NAV
   const displayMoic = summary.totalInvested > 0 ? (summary.totalRealized + calculatedNav) / summary.totalInvested : null
+  // --- FIM DA LÓGICA ORIGINAL ---
 
-return (
-    <div className="bg-[#0F2332] text-white rounded-md px-5 py-3 mb-4 flex flex-wrap items-center justify-between gap-4 shadow-sm border border-[#0F2332]">
-      
-      {/* 1. INVESTED (Sempre fixo) */}
-      <div className="min-w-[100px]">
-        <div className="text-[10px] text-white/60 uppercase tracking-wider font-semibold mb-0.5">Invested</div>
-        <div className="font-mono text-sm">{fmt(summary.totalInvested)}</div>
-      </div>
+  return (
+    <div className="bg-[#0F2332] text-white rounded-md px-6 py-4 mb-4 shadow-sm border border-[#0F2332]">
+      {/* Grid de 6 colunas para distribuir tudo de ponta a ponta */}
+      <div className="grid grid-cols-2 md:grid-cols-6 gap-6 items-center">
+        
+        {/* 1. INVESTED */}
+        <div>
+          <div className="text-[10px] text-white/50 uppercase tracking-widest font-bold mb-1">Invested</div>
+          <div className="font-mono text-base">{fmt(summary.totalInvested)}</div>
+        </div>
 
-      {/* 2. REALIZED (Agora fixo, mesmo que zero) */}
-      <div className="min-w-[100px]">
-        <div className="text-[10px] text-white/60 uppercase tracking-wider font-semibold mb-0.5">Realized</div>
-        <div className="font-mono text-sm">{fmt(summary.totalRealized || 0)}</div>
-      </div>
+        {/* 2. REALIZED (Agora fixo conforme solicitado) */}
+        <div>
+          <div className="text-[10px] text-white/50 uppercase tracking-widest font-bold mb-1">Realized</div>
+          <div className="font-mono text-base">{fmt(summary.totalRealized || 0)}</div>
+        </div>
 
-      {/* 3. NAV (Sempre fixo) */}
-      <div className="min-w-[100px]">
-        <div className="text-[10px] text-white/60 uppercase tracking-wider font-semibold mb-0.5">NAV</div>
-        <div className="font-mono text-sm font-medium">{fmt(calculatedNav)}</div>
-      </div>
+        {/* 3. NAV */}
+        <div>
+          <div className="text-[10px] text-white/50 uppercase tracking-widest font-bold mb-1">NAV</div>
+          <div className="font-mono text-base font-semibold">{fmt(calculatedNav)}</div>
+        </div>
 
-      {/* 4. GROSS MOIC (Agora fixo) */}
-      <div className="min-w-[80px]">
-        <div className="text-[10px] text-white/60 uppercase tracking-wider font-semibold mb-0.5">Gross MOIC</div>
-        <div className="font-mono text-sm">{fmtMoicFn(displayMoic || 0)}</div>
-      </div>
+        {/* 4. GROSS MOIC */}
+        <div>
+          <div className="text-[10px] text-white/50 uppercase tracking-widest font-bold mb-1">Gross MOIC</div>
+          <div className="font-mono text-base">{fmtMoicFn(displayMoic || 0)}</div>
+        </div>
 
-      {/* 5. GROSS IRR (Agora fixo) */}
-      <div className="min-w-[80px]">
-        <div className="text-[10px] text-white/60 uppercase tracking-wider font-semibold mb-0.5">Gross IRR</div>
-        <div className="font-mono text-sm">{summary.grossIrr != null ? `${(summary.grossIrr * 100).toFixed(1)}%` : '0.0%'}</div>
-      </div>
+        {/* 5. GROSS IRR */}
+        <div>
+          <div className="text-[10px] text-white/50 uppercase tracking-widest font-bold mb-1">Gross IRR</div>
+          <div className="font-mono text-base">
+            {summary.grossIrr != null ? `${(summary.grossIrr * 100).toFixed(1)}%` : '0.0%'}
+          </div>
+        </div>
 
-      {/* SEPARADOR E DATA (Mantive a lógica de aparecer apenas se houver valuation) */}
-      {calculatedNav > 0 && (
-        <div className="pl-4 border-l border-white/20 ml-auto">
-          <div className="text-[10px] text-white/60 uppercase tracking-wider font-semibold mb-1">As of</div>
+        {/* 6. AS OF (Data - Preenchendo a última coluna para não sobrar espaço) */}
+        <div className="md:border-l md:border-white/10 md:pl-6">
+          <div className="text-[10px] text-white/50 uppercase tracking-widest font-bold mb-1">As of</div>
           <input
             type="date"
             value={asOfDate}
             onChange={e => setAsOfDate(e.target.value)}
-            className="text-xs bg-white/10 border border-white/20 text-white rounded px-2 py-0.5 focus:ring-1 focus:ring-white/50 outline-none [&::-webkit-calendar-picker-indicator]:invert cursor-pointer"
+            className="text-xs bg-white/5 border border-white/20 text-white rounded px-2 py-1 focus:ring-1 focus:ring-white/30 outline-none [&::-webkit-calendar-picker-indicator]:invert cursor-pointer w-full"
           />
         </div>
-      )}
+
+      </div>
     </div>
   )
 }
