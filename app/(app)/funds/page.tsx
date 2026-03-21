@@ -13,6 +13,7 @@ import { useFeatureVisibility } from '@/components/feature-visibility-context'
 import { AnalystToggleButton } from '@/components/analyst-button'
 import { AnalystPanel } from '@/components/analyst-panel'
 import { PortfolioNotesProvider, PortfolioNotesButton, PortfolioNotesPanel } from '@/components/portfolio-notes'
+import { useDisplayUnit } from '@/components/display-unit-context'
 
 interface FundCashFlow {
   id: string
@@ -68,8 +69,6 @@ interface FundMetrics {
   netTvpi: number | null
   totalManagementFees: number
 }
-
-type DisplayUnit = 'full' | 'millions' | 'thousands'
 
 const FLOW_TYPE_LABELS: Record<string, string> = {
   commitment: 'Commitment',
@@ -248,8 +247,7 @@ export default function FundsPage() {
   const [investmentGroups, setInvestmentGroups] = useState<GroupSummaryFromInvestments[]>([])
   const [groupConfigs, setGroupConfigs] = useState<Record<string, GroupConfig>>({})
   const [loading, setLoading] = useState(true)
-  const [displayUnit, setDisplayUnit] = useState<DisplayUnit>('full')
-
+  const { displayUnit, setDisplayUnit } = useDisplayUnit()
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editDraft, setEditDraft] = useState({ flowDate: '', flowType: '', amount: '', notes: '', portfolioGroup: '' })
   const [addingGroup, setAddingGroup] = useState<string | null>(null)
@@ -737,16 +735,6 @@ export default function FundsPage() {
             {fv.funds === 'admin' && <Lock className="h-4 w-4 text-amber-500" />}Funds
           </h1>
           <span className="flex items-center gap-2">
-            <Select value={displayUnit} onValueChange={v => setDisplayUnit(v as DisplayUnit)}>
-              <SelectTrigger className="w-28 h-8 text-xs">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="full">Full</SelectItem>
-                <SelectItem value="millions">Millions (M)</SelectItem>
-                <SelectItem value="thousands">Thousands (K)</SelectItem>
-              </SelectContent>
-            </Select>
             <PortfolioNotesButton />
             <AnalystToggleButton />
           </span>
