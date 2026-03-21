@@ -804,64 +804,61 @@ function SummaryLine({
   // 2. Recalcula o MOIC baseado no novo NAV
   const displayMoic = summary.totalInvested > 0 ? (summary.totalRealized + calculatedNav) / summary.totalInvested : null
 
-  return (
-    <div className="flex items-center gap-4 mb-3 text-sm flex-wrap">
-      <span>
-        <span className="text-muted-foreground">Invested:</span>{' '}
-        <span className="font-medium">{fmt(summary.totalInvested)}</span>
-      </span>
-      {summary.totalRealized > 0 ? (
-        <>
-          <span>
-            <span className="text-muted-foreground">Realized:</span>{' '}
-            <span className="font-medium">{fmt(summary.totalRealized)}</span>
-          </span>
-          {calculatedNav > 0 && (
-            <span>
-              <span className="text-muted-foreground">Unrealized:</span>{' '}
-              <span className="font-medium">{fmt(calculatedNav)}</span>
-            </span>
-          )}
-        </>
-      ) : (
-        <span>
-          <span className="text-muted-foreground">NAV:</span>{' '}
-          <span className="font-medium">{fmt(calculatedNav)}</span>
-        </span>
+ return (
+    <div className="bg-[#0F2332] text-white rounded-md px-5 py-3 mb-4 flex flex-wrap items-center justify-between gap-4 shadow-sm border border-[#0F2332]">
+      
+      <div>
+        <div className="text-[10px] text-white/60 uppercase tracking-wider font-semibold mb-0.5">Invested</div>
+        <div className="font-mono text-sm">{fmt(summary.totalInvested)}</div>
+      </div>
+
+      {summary.totalRealized > 0 && (
+        <div>
+          <div className="text-[10px] text-white/60 uppercase tracking-wider font-semibold mb-0.5">Realized</div>
+          <div className="font-mono text-sm">{fmt(summary.totalRealized)}</div>
+        </div>
       )}
+
+      <div>
+        <div className="text-[10px] text-white/60 uppercase tracking-wider font-semibold mb-0.5">NAV</div>
+        <div className="font-mono text-sm font-medium">{fmt(calculatedNav)}</div>
+      </div>
+
       {displayMoic != null && (
-        <span>
-          <span className="text-muted-foreground">Gross MOIC:</span>{' '}
-          <span className="font-medium">{fmtMoicFn(displayMoic)}</span>
-        </span>
+        <div>
+          <div className="text-[10px] text-white/60 uppercase tracking-wider font-semibold mb-0.5">Gross MOIC</div>
+          <div className="font-mono text-sm">{fmtMoicFn(displayMoic)}</div>
+        </div>
       )}
+
       {summary.grossIrr != null && Math.abs(summary.grossIrr) >= 0.0005 && (
-        <span>
-          <span className="text-muted-foreground">Gross IRR:</span>{' '}
-          <span className="font-medium">{(summary.grossIrr * 100).toFixed(1)}%</span>
-        </span>
+        <div>
+          <div className="text-[10px] text-white/60 uppercase tracking-wider font-semibold mb-0.5">Gross IRR</div>
+          <div className="font-mono text-sm">{(summary.grossIrr * 100).toFixed(1)}%</div>
+        </div>
       )}
+
       {summary.rounds.reduce((sum, r) => sum + r.totalEscrow, 0) > 0 && (
-        <span>
-          <span className="text-muted-foreground">Escrow:</span>{' '}
-          <span className="font-medium">{fmt(summary.rounds.reduce((sum, r) => sum + r.totalEscrow, 0))}</span>
-        </span>
+        <div>
+          <div className="text-[10px] text-white/60 uppercase tracking-wider font-semibold mb-0.5">Escrow</div>
+          <div className="font-mono text-sm">{fmt(summary.rounds.reduce((sum, r) => sum + r.totalEscrow, 0))}</div>
+        </div>
       )}
+
       {summary.grossIrr != null && Math.abs(summary.grossIrr) >= 0.0005 && calculatedNav > 0 && (
-        <span className="flex items-center gap-1">
-          <span className="text-muted-foreground">as of</span>
+        <div className="pl-4 border-l border-white/20 ml-2">
+          <div className="text-[10px] text-white/60 uppercase tracking-wider font-semibold mb-1">As of</div>
           <input
             type="date"
             value={asOfDate}
             onChange={e => setAsOfDate(e.target.value)}
-            className="text-xs border rounded px-1.5 py-0.5 bg-background"
+            className="text-xs bg-white/10 border border-white/20 text-white rounded px-2 py-0.5 focus:ring-1 focus:ring-white/50 outline-none [&::-webkit-calendar-picker-indicator]:invert cursor-pointer"
           />
-        </span>
+        </div>
       )}
     </div>
   )
 }
-
 function TransactionTable({
   transactions,
   summary,
