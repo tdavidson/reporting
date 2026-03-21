@@ -24,7 +24,7 @@ function memoryRateLimit(key: string, limit: number, windowMs: number): boolean 
   // Periodic cleanup of stale keys
   if (now - lastMemoryCleanup > MEMORY_CLEANUP_INTERVAL) {
     lastMemoryCleanup = now
-    for (const [k, timestamps] of memoryBuckets) {
+    for (const [k, timestamps] of Array.from(memoryBuckets.entries())) {
       const filtered = timestamps.filter(t => now - t < windowMs)
       if (filtered.length === 0) memoryBuckets.delete(k)
       else memoryBuckets.set(k, filtered)
