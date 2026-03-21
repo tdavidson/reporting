@@ -864,6 +864,7 @@ return (
       )}
     </div>
   )
+}
 function TransactionTable({
   transactions,
   summary,
