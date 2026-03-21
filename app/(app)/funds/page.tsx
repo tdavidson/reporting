@@ -771,23 +771,30 @@ export default function FundsPage() {
                     window.addEventListener('mouseup', onUp)
                   }}
                 >
-                  <TabsList className="bg-white border border-slate-200 p-1 h-auto flex-wrap justify-start gap-1">
-                    <TabsTrigger
-                      value={MASTER_FUND_KEY}
-                      className="px-4 py-2 text-xs font-semibold transition-all rounded-md text-[#0F2332] opacity-60 hover:opacity-100 data-[state=active]:bg-[#0F2332] data-[state=active]:text-white data-[state=active]:shadow-sm"
-                    >
-                      Master Fund
-                    </TabsTrigger>
-                    {orderedGroups.map(group => (
-                      <TabsTrigger
-                        key={group}
-                        value={group}
-                        className="px-4 py-2 text-xs font-semibold transition-all rounded-md text-[#0F2332] opacity-60 hover:opacity-100 data-[state=active]:bg-[#0F2332] data-[state=active]:text-white data-[state=active]:shadow-sm"
-                      >
-                        {group}
-                      </TabsTrigger>
-                    ))}
-                  </TabsList>
+<TabsList className="bg-muted/50 border border-slate-200 p-1 h-9 w-full justify-start flex-nowrap overflow-x-auto no-scrollbar gap-1">
+  {/* Master Fund */}
+  <TabsTrigger
+    value={MASTER_FUND_KEY}
+    className="px-4 py-1.5 text-xs font-medium transition-all rounded-md 
+      text-slate-600
+      data-[state=active]:bg-[#0F2332] data-[state=active]:text-white data-[state=active]:shadow-sm"
+  >
+    Master Fund
+  </TabsTrigger>
+
+  {/* Loop dos Grupos */}
+  {orderedGroups.map(group => (
+    <TabsTrigger
+      key={group}
+      value={group}
+      className="px-4 py-1.5 text-xs font-medium transition-all rounded-md 
+        text-slate-600
+        data-[state=active]:bg-[#0F2332] data-[state=active]:text-white data-[state=active]:shadow-sm"
+    >
+      {group}
+    </TabsTrigger>
+  ))}
+</TabsList>
                 </div>
                 <button
                   onClick={openSettings}
