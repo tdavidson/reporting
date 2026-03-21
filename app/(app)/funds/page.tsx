@@ -14,6 +14,7 @@ import { AnalystToggleButton } from '@/components/analyst-button'
 import { AnalystPanel } from '@/components/analyst-panel'
 import { PortfolioNotesProvider, PortfolioNotesButton, PortfolioNotesPanel } from '@/components/portfolio-notes'
 import { useDisplayUnit, type DisplayUnit } from '@/components/display-unit-context'
+import { DisplayPanelButton } from '@/components/display-panel'
 
 interface FundCashFlow {
   id: string
@@ -739,6 +740,7 @@ const fmtCard = (val: number) => {
             {fv.funds === 'admin' && <Lock className="h-4 w-4 text-amber-500" />}Funds
           </h1>
           <span className="flex items-center gap-2">
+            <DisplayPanelButton />
             <PortfolioNotesButton />
             <AnalystToggleButton />
           </span>
