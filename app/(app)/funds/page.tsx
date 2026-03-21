@@ -13,7 +13,7 @@ import { useFeatureVisibility } from '@/components/feature-visibility-context'
 import { AnalystToggleButton } from '@/components/analyst-button'
 import { AnalystPanel } from '@/components/analyst-panel'
 import { PortfolioNotesProvider, PortfolioNotesButton, PortfolioNotesPanel } from '@/components/portfolio-notes'
-import { useDisplayUnit } from '@/components/display-unit-context'
+import { useDisplayUnit, type DisplayUnit } from '@/components/display-unit-context'
 
 interface FundCashFlow {
   id: string
