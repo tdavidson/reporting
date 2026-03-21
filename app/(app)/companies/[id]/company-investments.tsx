@@ -817,49 +817,42 @@ function SummaryLine({
   // 2. Recalcula o MOIC baseado no novo NAV
   const displayMoic = summary.totalInvested > 0 ? (summary.totalRealized + calculatedNav) / summary.totalInvested : null
 
- return (
+return (
     <div className="bg-[#0F2332] text-white rounded-md px-5 py-3 mb-4 flex flex-wrap items-center justify-between gap-4 shadow-sm border border-[#0F2332]">
       
-      <div>
+      {/* 1. INVESTED (Sempre fixo) */}
+      <div className="min-w-[100px]">
         <div className="text-[10px] text-white/60 uppercase tracking-wider font-semibold mb-0.5">Invested</div>
         <div className="font-mono text-sm">{fmt(summary.totalInvested)}</div>
       </div>
 
-      {summary.totalRealized > 0 && (
-        <div>
-          <div className="text-[10px] text-white/60 uppercase tracking-wider font-semibold mb-0.5">Realized</div>
-          <div className="font-mono text-sm">{fmt(summary.totalRealized)}</div>
-        </div>
-      )}
+      {/* 2. REALIZED (Agora fixo, mesmo que zero) */}
+      <div className="min-w-[100px]">
+        <div className="text-[10px] text-white/60 uppercase tracking-wider font-semibold mb-0.5">Realized</div>
+        <div className="font-mono text-sm">{fmt(summary.totalRealized || 0)}</div>
+      </div>
 
-      <div>
+      {/* 3. NAV (Sempre fixo) */}
+      <div className="min-w-[100px]">
         <div className="text-[10px] text-white/60 uppercase tracking-wider font-semibold mb-0.5">NAV</div>
         <div className="font-mono text-sm font-medium">{fmt(calculatedNav)}</div>
       </div>
 
-      {displayMoic != null && (
-        <div>
-          <div className="text-[10px] text-white/60 uppercase tracking-wider font-semibold mb-0.5">Gross MOIC</div>
-          <div className="font-mono text-sm">{fmtMoicFn(displayMoic)}</div>
-        </div>
-      )}
+      {/* 4. GROSS MOIC (Agora fixo) */}
+      <div className="min-w-[80px]">
+        <div className="text-[10px] text-white/60 uppercase tracking-wider font-semibold mb-0.5">Gross MOIC</div>
+        <div className="font-mono text-sm">{fmtMoicFn(displayMoic || 0)}</div>
+      </div>
 
-      {summary.grossIrr != null && Math.abs(summary.grossIrr) >= 0.0005 && (
-        <div>
-          <div className="text-[10px] text-white/60 uppercase tracking-wider font-semibold mb-0.5">Gross IRR</div>
-          <div className="font-mono text-sm">{(summary.grossIrr * 100).toFixed(1)}%</div>
-        </div>
-      )}
+      {/* 5. GROSS IRR (Agora fixo) */}
+      <div className="min-w-[80px]">
+        <div className="text-[10px] text-white/60 uppercase tracking-wider font-semibold mb-0.5">Gross IRR</div>
+        <div className="font-mono text-sm">{summary.grossIrr != null ? `${(summary.grossIrr * 100).toFixed(1)}%` : '0.0%'}</div>
+      </div>
 
-      {summary.rounds.reduce((sum, r) => sum + r.totalEscrow, 0) > 0 && (
-        <div>
-          <div className="text-[10px] text-white/60 uppercase tracking-wider font-semibold mb-0.5">Escrow</div>
-          <div className="font-mono text-sm">{fmt(summary.rounds.reduce((sum, r) => sum + r.totalEscrow, 0))}</div>
-        </div>
-      )}
-
-      {summary.grossIrr != null && Math.abs(summary.grossIrr) >= 0.0005 && calculatedNav > 0 && (
-        <div className="pl-4 border-l border-white/20 ml-2">
+      {/* SEPARADOR E DATA (Mantive a lógica de aparecer apenas se houver valuation) */}
+      {calculatedNav > 0 && (
+        <div className="pl-4 border-l border-white/20 ml-auto">
           <div className="text-[10px] text-white/60 uppercase tracking-wider font-semibold mb-1">As of</div>
           <input
             type="date"
@@ -871,7 +864,6 @@ function SummaryLine({
       )}
     </div>
   )
-}
 function TransactionTable({
   transactions,
   summary,
