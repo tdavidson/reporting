@@ -29,6 +29,8 @@ const TYPE_LABELS: Record<TransactionType, string> = {
   round_info: 'Round',
 }
 
+const ALL_TYPES: TransactionType[] = ['investment', 'proceeds', 'round_info', 'unrealized_gain_change']
+
 function fmtNum(val: number | null | undefined): string {
   if (val == null) return '-'
   return val.toLocaleString('en-US', { maximumFractionDigits: 2 })
@@ -93,9 +95,21 @@ export function CompanyInvestments({ companyId, companyStatus, portfolioGroups, 
   const [form, setForm] = useState(EMPTY_FORM)
   const [saving, setSaving] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
+const [error, setError] = useState<string | null>(null)
   const [showOrigCurrency, setShowOrigCurrency] = useState(false)
   const [asOfDate, setAsOfDate] = useState(() => new Date().toISOString().slice(0, 10))
+  
+  // Controle do Filtro Multi-seleção
+  const [activeTypes, setActiveTypes] = useState<Set<TransactionType>>(new Set(ALL_TYPES))
+
+  const toggleType = (type: TransactionType) => {
+    setActiveTypes(prev => {
+      const next = new Set(prev)
+      if (next.has(type)) next.delete(type)
+      else next.add(type)
+      return next
+    })
+  }
 
   const load = useCallback(async () => {
     try {
@@ -270,11 +284,35 @@ export function CompanyInvestments({ companyId, companyStatus, portfolioGroups, 
             <span className="text-xs bg-muted rounded-full px-1.5 py-0.5">{transactions.length}</span>
           )}
         </button>
-        <Button size="sm" variant="outline" onClick={openAdd} className="h-7 px-2 text-xs">
+<Button size="sm" variant="outline" onClick={openAdd} className="h-7 px-2 text-xs">
           <Plus className="h-3.5 w-3.5 mr-1" />
           Add
         </Button>
       </div>
+
+      {expanded && transactions.length > 0 && (
+        <div className="flex items-center gap-2 mb-4 mt-1">
+          <span className="text-xs font-medium text-muted-foreground mr-1">Filter Type:</span>
+          {ALL_TYPES.map(type => {
+            const isActive = activeTypes.has(type)
+            const colorClass = isActive 
+              ? type === 'investment' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300 ring-1 ring-blue-700/20' :
+                type === 'proceeds' ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300 ring-1 ring-green-700/20' :
+                type === 'round_info' ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300 ring-1 ring-yellow-700/20' :
+                'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300 ring-1 ring-gray-700/20'
+              : 'bg-transparent text-muted-foreground hover:bg-muted border border-dashed border-muted-foreground/30 opacity-70'
+            return (
+              <button
+                key={type}
+                onClick={() => toggleType(type)}
+                className={`text-[11px] font-medium px-2 py-1 rounded-md transition-all ${colorClass}`}
+              >
+                {TYPE_LABELS[type]}
+              </button>
+            )
+          })}
+        </div>
+      )}
 
       {expanded && summary && summary.totalInvested > 0 && !groupSummaries && (
         <SummaryLine summary={summary} fmt={fmt} fmtMoic={fmtMoic} asOfDate={asOfDate} setAsOfDate={setAsOfDate} />
@@ -285,7 +323,9 @@ export function CompanyInvestments({ companyId, companyStatus, portfolioGroups, 
           const companyWideTxns = transactions.filter(t =>
             !t.portfolio_group && (t.transaction_type === 'round_info' || t.transaction_type === 'unrealized_gain_change')
           )
-          const groupTxns = [...transactions.filter(t => t.portfolio_group === group), ...companyWideTxns]
+const groupTxns = [...transactions.filter(t => t.portfolio_group === group), ...companyWideTxns]
+            .filter(t => activeTypes.has(t.transaction_type as TransactionType))
+            
           return (
             <div key={group} className="mb-5">
               <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">{group}</h3>
@@ -315,9 +355,9 @@ export function CompanyInvestments({ companyId, companyStatus, portfolioGroups, 
         })
       )}
 
-      {expanded && !groupSummaries && transactions.length > 0 && (
+{expanded && !groupSummaries && transactions.length > 0 && (
         <TransactionTable
-          transactions={transactions}
+          transactions={transactions.filter(t => activeTypes.has(t.transaction_type as TransactionType))}
           summary={summary}
           companyStatus={companyStatus}
           showGroup={portfolioGroups.length > 0}
