@@ -3,16 +3,14 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { ArrowLeft } from 'lucide-react'
-import { AnalystPanel } from '@/components/analyst-panel'
-import { DisplayPanelButton } from '@/components/display-panel' // Adicione esta linha
-import { CompanyDocuments } from './company-documents'
+import { ArrowLeft, Lock } from 'lucide-react'
 
 export async function generateMetadata({ params }: { params: { id: string } }): Promise<Metadata> {
   const supabase = createClient()
   const { data } = await supabase.from('companies').select('name').eq('id', params.id).maybeSingle() as { data: { name: string } | null }
   return { title: data?.name ?? 'Company' }
 }
+
 import { Badge } from '@/components/ui/badge'
 import { getCurrencySymbol } from '@/components/currency-context'
 import type { Company, Metric, CompanyStatus } from '@/lib/types/database'
@@ -27,6 +25,7 @@ import { AnalystPanel } from '@/components/analyst-panel'
 import { CompanyDocuments } from './company-documents'
 import { CompanyInvestments } from './company-investments'
 import { CompanyInteractions } from './company-interactions'
+import { DisplayPanelButton } from '@/components/display-panel'
 import { isFeatureVisible, DEFAULT_FEATURE_VISIBILITY } from '@/lib/types/features'
 import type { FeatureVisibilityMap } from '@/lib/types/features'
 
@@ -142,147 +141,152 @@ export default async function CompanyDetailPage({
 
   return (
     <CompanyPanelProvider companyId={company.id} userId={user.id} isAdmin={isAdmin}>
-    <div className="p-4 md:p-8">
-      {/* Header */}
-      <div className="mb-6 max-w-6xl">
-        <Link
-          href="/dashboard"
-          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground mb-4"
-        >
-          <ArrowLeft className="h-3.5 w-3.5" />
-          Portfolio
-        </Link>
+      <div className="p-4 md:p-8">
+        {/* Header */}
+        <div className="mb-6 max-w-6xl">
+          <Link
+            href="/dashboard"
+            className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground mb-4"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" />
+            Portfolio
+          </Link>
 
-        <div className="flex items-center gap-3 flex-wrap">
-          <CompanySelector currentId={company.id} currentName={company.name} />
-          <CompanyEditButton company={company} />
-          {(company.portfolio_group ?? []).map((pg) => (
-            <Badge key={pg} variant="outline">{pg}</Badge>
-          ))}
-          {company.stage && (
-            <Badge variant="outline">{company.stage}</Badge>
-          )}
-          {(company.industry ?? []).map((ind) => (
-            <Badge key={ind} variant="outline">{ind}</Badge>
-          ))}
-<DisplayPanelButton />
-{isFeatureVisible(featureVisibility, 'notes', isAdmin) && <ChatButton />}
-<AnalystButton companyId={company.id} pushRight={false} />
-        </div>
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div className="flex items-center gap-3 flex-wrap">
+              <CompanySelector currentId={company.id} currentName={company.name} />
+              <CompanyEditButton company={company} />
+              {(company.portfolio_group ?? []).map((pg) => (
+                <Badge key={pg} variant="outline">{pg}</Badge>
+              ))}
+              {company.stage && (
+                <Badge variant="outline">{company.stage}</Badge>
+              )}
+              {(company.industry ?? []).map((ind) => (
+                <Badge key={ind} variant="outline">{ind}</Badge>
+              ))}
+            </div>
 
-        {(latestMrr || latestCash) && (
-          <div className="flex items-center gap-4 mt-1.5">
-            {latestMrr && (
-              <span className="text-sm">
-                <span className="text-muted-foreground">MRR:</span>{' '}
-                <span className="font-medium">{formatHighlightValue(latestMrr.value, latestMrr.metric, fundCurrency)}</span>
-                <span className="text-xs text-muted-foreground ml-1">({latestMrr.period})</span>
-              </span>
-            )}
-            {latestCash && (
-              <span className="text-sm">
-                <span className="text-muted-foreground">Cash:</span>{' '}
-                <span className="font-medium">{formatHighlightValue(latestCash.value, latestCash.metric, fundCurrency)}</span>
-                <span className="text-xs text-muted-foreground ml-1">({latestCash.period})</span>
-              </span>
-            )}
+            <div className="flex items-center gap-2">
+              <DisplayPanelButton />
+              {isFeatureVisible(featureVisibility, 'notes', isAdmin) && <ChatButton />}
+              <AnalystButton companyId={company.id} pushRight={false} />
+            </div>
           </div>
-        )}
-      </div>
 
-      {/* Content + Notes panel side by side */}
-      <div className="flex flex-col lg:flex-row gap-6 items-start">
-        <div className="flex-1 min-w-0 max-w-6xl w-full [&>*:first-child]:mt-0">
-          {company.status !== 'exited' && company.status !== 'written-off' && (
-            <>
-              <CompanySummary
-                companyId={company.id}
-                fundId={company.fund_id}
-                hasClaudeKey={!!fundSettings?.claude_api_key_encrypted}
-                hasOpenAIKey={!!fundSettings?.openai_api_key_encrypted}
-                defaultAIProvider={fundSettings?.default_ai_provider ?? 'anthropic'}
-              />
-
-              <CompanyCharts
-                companyId={company.id}
-                companyName={company.name}
-                metrics={metrics ?? []}
-              />
-            </>
-          )}
-
-          {isFeatureVisible(featureVisibility, 'investments', isAdmin) && (
-            <CompanyInvestments
-              companyId={company.id}
-              companyStatus={company.status as CompanyStatus}
-              portfolioGroups={allPortfolioGroups}
-              adminOnly={featureVisibility.investments === 'admin'}
-            />
-          )}
-
-          <CompanyDocuments
-            companyId={company.id}
-            storageProvider={fundSettings?.file_storage_provider ?? null}
-            googleDriveFolderId={fundSettings?.google_drive_folder_id ?? null}
-            dropboxFolderPath={fundSettings?.dropbox_folder_path ?? null}
-          />
-
-          {isFeatureVisible(featureVisibility, 'interactions', isAdmin) && (
-            <CompanyInteractions companyId={company.id} adminOnly={featureVisibility.interactions === 'admin'} />
-          )}
-
-          {(company.founders || (company.contact_email && company.contact_email.length > 0) || company.overview || company.why_invested || company.current_update) && (
-            <div className="mt-6 space-y-3">
-              {company.founders && (
-                <div>
-                  <h3 className="text-sm font-medium text-muted-foreground mb-1">Founders</h3>
-                  <p className="text-sm">{company.founders}</p>
-                </div>
+          {(latestMrr || latestCash) && (
+            <div className="flex items-center gap-4 mt-1.5">
+              {latestMrr && (
+                <span className="text-sm">
+                  <span className="text-muted-foreground">MRR:</span>{' '}
+                  <span className="font-medium">{formatHighlightValue(latestMrr.value, latestMrr.metric, fundCurrency)}</span>
+                  <span className="text-xs text-muted-foreground ml-1">({latestMrr.period})</span>
+                </span>
               )}
-
-              {company.contact_email && company.contact_email.length > 0 && (
-                <div>
-                  <h3 className="text-sm font-medium text-muted-foreground mb-1">Contact{company.contact_email.length > 1 ? 's' : ''}</h3>
-                  <div className="flex flex-wrap gap-x-4 gap-y-1">
-                    {company.contact_email.map((email) => (
-                      <p key={email} className="text-sm">
-                        <a href={`mailto:${email}`} className="hover:underline">
-                          {email}
-                        </a>
-                      </p>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {company.overview && (
-                <div>
-                  <h3 className="text-sm font-medium text-muted-foreground mb-1">Overview</h3>
-                  <p className="text-sm">{company.overview}</p>
-                </div>
-              )}
-
-              {company.why_invested && (
-                <div>
-                  <h3 className="text-sm font-medium text-muted-foreground mb-1">Why We Invested</h3>
-                  <p className="text-sm">{company.why_invested}</p>
-                </div>
-              )}
-
-              {company.current_update && (
-                <div>
-                  <h3 className="text-sm font-medium text-muted-foreground mb-1">Current Business Update</h3>
-                  <p className="text-sm">{company.current_update}</p>
-                </div>
+              {latestCash && (
+                <span className="text-sm">
+                  <span className="text-muted-foreground">Cash:</span>{' '}
+                  <span className="font-medium">{formatHighlightValue(latestCash.value, latestCash.metric, fundCurrency)}</span>
+                  <span className="text-xs text-muted-foreground ml-1">({latestCash.period})</span>
+                </span>
               )}
             </div>
           )}
         </div>
 
-        {isFeatureVisible(featureVisibility, 'notes', isAdmin) && <CompanyNotesPanel />}
-        <AnalystPanel />
+        {/* Content + Notes panel side by side */}
+        <div className="flex flex-col lg:flex-row gap-6 items-start">
+          <div className="flex-1 min-w-0 max-w-6xl w-full [&>*:first-child]:mt-0">
+            {company.status !== 'exited' && company.status !== 'written-off' && (
+              <>
+                <CompanySummary
+                  companyId={company.id}
+                  fundId={company.fund_id}
+                  hasClaudeKey={!!fundSettings?.claude_api_key_encrypted}
+                  hasOpenAIKey={!!fundSettings?.openai_api_key_encrypted}
+                  defaultAIProvider={fundSettings?.default_ai_provider ?? 'anthropic'}
+                />
+
+                <CompanyCharts
+                  companyId={company.id}
+                  companyName={company.name}
+                  metrics={metrics ?? []}
+                />
+              </>
+            )}
+
+            {isFeatureVisible(featureVisibility, 'investments', isAdmin) && (
+              <CompanyInvestments
+                companyId={company.id}
+                companyStatus={company.status as CompanyStatus}
+                portfolioGroups={allPortfolioGroups}
+                adminOnly={featureVisibility.investments === 'admin'}
+              />
+            )}
+
+            <CompanyDocuments
+              companyId={company.id}
+              storageProvider={fundSettings?.file_storage_provider ?? null}
+              googleDriveFolderId={fundSettings?.google_drive_folder_id ?? null}
+              dropboxFolderPath={fundSettings?.dropbox_folder_path ?? null}
+            />
+
+            {isFeatureVisible(featureVisibility, 'interactions', isAdmin) && (
+              <CompanyInteractions companyId={company.id} adminOnly={featureVisibility.interactions === 'admin'} />
+            )}
+
+            {(company.founders || (company.contact_email && company.contact_email.length > 0) || company.overview || company.why_invested || company.current_update) && (
+              <div className="mt-6 space-y-3">
+                {company.founders && (
+                  <div>
+                    <h3 className="text-sm font-medium text-muted-foreground mb-1">Founders</h3>
+                    <p className="text-sm">{company.founders}</p>
+                  </div>
+                )}
+
+                {company.contact_email && company.contact_email.length > 0 && (
+                  <div>
+                    <h3 className="text-sm font-medium text-muted-foreground mb-1">Contact{company.contact_email.length > 1 ? 's' : ''}</h3>
+                    <div className="flex flex-wrap gap-x-4 gap-y-1">
+                      {company.contact_email.map((email) => (
+                        <p key={email} className="text-sm">
+                          <a href={`mailto:${email}`} className="hover:underline">
+                            {email}
+                          </a>
+                        </p>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {company.overview && (
+                  <div>
+                    <h3 className="text-sm font-medium text-muted-foreground mb-1">Overview</h3>
+                    <p className="text-sm">{company.overview}</p>
+                  </div>
+                )}
+
+                {company.why_invested && (
+                  <div>
+                    <h3 className="text-sm font-medium text-muted-foreground mb-1">Why We Invested</h3>
+                    <p className="text-sm">{company.why_invested}</p>
+                  </div>
+                )}
+
+                {company.current_update && (
+                  <div>
+                    <h3 className="text-sm font-medium text-muted-foreground mb-1">Current Business Update</h3>
+                    <p className="text-sm">{company.current_update}</p>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {isFeatureVisible(featureVisibility, 'notes', isAdmin) && <CompanyNotesPanel />}
+          <AnalystPanel />
+        </div>
       </div>
-    </div>
     </CompanyPanelProvider>
   )
 }
