@@ -28,8 +28,8 @@ export function DisplayPanel() {
 
   const units = [
     { value: 'full', label: 'Full' },
-    { value: 'millions', label: 'Millions (M)' },
     { value: 'thousands', label: 'Thousands (K)' },
+    { value: 'millions', label: 'Millions (M)' },
   ] as const
 
   const themes = [
