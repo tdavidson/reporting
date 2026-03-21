@@ -88,8 +88,9 @@ export async function POST(req: NextRequest) {
         await uploadGoogleFile(accessToken, folderId, `${dateStr}_${subject}.txt`, emailBody, 'text/plain')
       }
       uploadAttachment = async (companyName, name, content, companyInfo) => {
+        const safeName = name.replace(/[\/\\:*?"<>|]/g, '_').replace(/\.\./g, '_')
         const folderId = companyInfo?.google_drive_folder_id || await findOrCreateGoogleFolder(accessToken, rootFolderId, companyName)
-        await uploadGoogleFile(accessToken, folderId, name, content, 'application/octet-stream')
+        await uploadGoogleFile(accessToken, folderId, safeName, content, 'application/octet-stream')
       }
     } else if (provider === 'dropbox') {
       if (!settings.dropbox_refresh_token_encrypted || !settings.dropbox_folder_path) {
@@ -107,9 +108,10 @@ export async function POST(req: NextRequest) {
         await uploadDropboxFile(accessToken, companyPath, `${dateStr}_${subject}.txt`, emailBody)
       }
       uploadAttachment = async (companyName, name, content, companyInfo) => {
+        const safeName = name.replace(/[\/\\:*?"<>|]/g, '_').replace(/\.\./g, '_')
         const companyPath = companyInfo?.dropbox_folder_path || `${rootPath}/${companyName}`
         await findOrCreateDropboxFolder(accessToken, companyPath)
-        await uploadDropboxFile(accessToken, companyPath, name, content)
+        await uploadDropboxFile(accessToken, companyPath, safeName, content)
       }
     } else {
       return NextResponse.json({ error: `Unknown storage provider: ${provider}` }, { status: 400 })
@@ -117,7 +119,7 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Unknown error'
     console.error('[save-to-drive] Provider setup failed:', msg)
-    return NextResponse.json({ error: `Storage connection failed: ${msg}` }, { status: 500 })
+    return NextResponse.json({ error: 'Storage connection failed. Check your credentials in Settings.' }, { status: 500 })
   }
 
   // Fetch the emails with their company info

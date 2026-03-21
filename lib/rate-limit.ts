@@ -10,9 +10,50 @@ interface RateLimitConfig {
   windowSeconds: number
 }
 
+// ---------------------------------------------------------------------------
+// In-memory fallback rate limiter (used when DB is unavailable)
+// ---------------------------------------------------------------------------
+
+const memoryBuckets = new Map<string, number[]>()
+const MEMORY_CLEANUP_INTERVAL = 60_000
+let lastMemoryCleanup = Date.now()
+
+function memoryRateLimit(key: string, limit: number, windowMs: number): boolean {
+  const now = Date.now()
+
+  // Periodic cleanup of stale keys
+  if (now - lastMemoryCleanup > MEMORY_CLEANUP_INTERVAL) {
+    lastMemoryCleanup = now
+    for (const [k, timestamps] of memoryBuckets) {
+      const filtered = timestamps.filter(t => now - t < windowMs)
+      if (filtered.length === 0) memoryBuckets.delete(k)
+      else memoryBuckets.set(k, filtered)
+    }
+  }
+
+  const timestamps = (memoryBuckets.get(key) ?? []).filter(t => now - t < windowMs)
+
+  if (timestamps.length >= limit) {
+    memoryBuckets.set(key, timestamps)
+    return false // Blocked
+  }
+
+  timestamps.push(now)
+  memoryBuckets.set(key, timestamps)
+  return true // Allowed
+}
+
+// ---------------------------------------------------------------------------
+// Main rate limiter — atomic DB operation with in-memory fallback
+// ---------------------------------------------------------------------------
+
 /**
  * Sliding-window rate limiter backed by Supabase.
- * Uses the rate_limit_entries table to track request counts.
+ * Uses an atomic RPC call to check-and-increment in a single DB round-trip,
+ * preventing TOCTOU race conditions.
+ *
+ * Falls back to an in-memory rate limiter if the DB is unavailable (fail-closed
+ * rather than fail-open).
  *
  * Returns null if the request is allowed, or a 429 NextResponse if rate limited.
  */
@@ -21,23 +62,20 @@ export async function rateLimit(config: RateLimitConfig): Promise<NextResponse |
 
   try {
     const admin = createAdminClient()
-    const now = new Date()
-    const windowStart = new Date(now.getTime() - windowSeconds * 1000)
 
-    // Clean old entries and count recent ones in a single query
-    await admin
-      .from('rate_limit_entries' as any)
-      .delete()
-      .eq('key', key)
-      .lt('created_at', windowStart.toISOString())
+    // Atomic check-and-increment: deletes expired entries, counts remaining,
+    // inserts new entry, and returns the count — all in one DB call.
+    const { data, error } = await admin.rpc('rate_limit_check' as any, {
+      p_key: key,
+      p_limit: limit,
+      p_window_seconds: windowSeconds,
+    })
 
-    const { count } = await admin
-      .from('rate_limit_entries' as any)
-      .select('id', { count: 'exact', head: true })
-      .eq('key', key)
-      .gte('created_at', windowStart.toISOString())
+    if (error) throw error
 
-    if ((count ?? 0) >= limit) {
+    // RPC returns the count AFTER inserting. If count > limit, we're over.
+    const count = typeof data === 'number' ? data : (data as any)?.count ?? 0
+    if (count > limit) {
       return NextResponse.json(
         { error: 'Too many requests. Please try again later.' },
         {
@@ -49,26 +87,43 @@ export async function rateLimit(config: RateLimitConfig): Promise<NextResponse |
       )
     }
 
-    // Record this request
-    await admin
-      .from('rate_limit_entries' as any)
-      .insert({ key, created_at: now.toISOString() })
-
     return null // Allowed
   } catch (err) {
-    // If rate limiting fails (e.g., table doesn't exist yet), allow the request
-    console.error('[rate-limit] Error:', err)
-    return null
+    // DB unavailable — fall back to in-memory rate limiting (fail-closed)
+    console.error('[rate-limit] DB error, using in-memory fallback:', err)
+
+    const allowed = memoryRateLimit(key, limit, windowSeconds * 1000)
+    if (!allowed) {
+      return NextResponse.json(
+        { error: 'Too many requests. Please try again later.' },
+        {
+          status: 429,
+          headers: {
+            'Retry-After': String(windowSeconds),
+          },
+        }
+      )
+    }
+
+    return null // Allowed by in-memory fallback
   }
 }
 
-/** Extract client IP from request headers. Prefer platform-specific headers that cannot be spoofed. */
+/**
+ * Extract client IP from request headers.
+ * Only trusts platform-injected headers that cannot be spoofed by the caller.
+ * When no trusted header is found, falls back to 'unknown' — all such requests
+ * share a single rate-limit bucket with a tighter effective limit.
+ */
 export function getClientIp(req: Request): string {
   const headers = req.headers
   return (
-    headers.get('x-real-ip') ||                          // Vercel (cannot be spoofed)
-    headers.get('x-nf-client-connection-ip') ||          // Netlify (cannot be spoofed)
-    headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+    // Vercel injects x-real-ip from the TCP connection (cannot be spoofed)
+    headers.get('x-real-ip') ||
+    // Netlify injects x-nf-client-connection-ip (cannot be spoofed)
+    headers.get('x-nf-client-connection-ip') ||
+    // Fallback — shared bucket. Rate limit configs should use tighter limits
+    // for the 'unknown' bucket to prevent abuse on non-Vercel/Netlify deployments.
     'unknown'
   )
 }

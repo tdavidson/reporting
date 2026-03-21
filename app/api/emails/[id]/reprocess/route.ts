@@ -75,8 +75,9 @@ export async function POST(
   // Re-run pipeline asynchronously — return immediately
   runPipeline(admin, emailId, fundId, hydratedPayload).catch(
     async err => {
-      const message = err instanceof Error ? err.message : String(err)
+      const raw = err instanceof Error ? err.message : String(err)
       console.error(`[reprocess] Pipeline error for email ${emailId}:`, err)
+      const message = describePipelineError(raw)
       await admin
         .from('inbound_emails')
         .update({ processing_status: 'failed', processing_error: message })
@@ -87,4 +88,21 @@ export async function POST(
   revalidateTag('review-badge')
 
   return NextResponse.json({ ok: true, message: 'Reprocessing started' })
+}
+
+function describePipelineError(raw: string): string {
+  if (raw.includes('API key not configured')) {
+    const provider = raw.includes('OpenAI') ? 'OpenAI' : raw.includes('Gemini') ? 'Gemini' : 'AI'
+    return `${provider} API key not configured. Add it in Settings to process emails.`
+  }
+  if (raw.includes('Failed to refresh Google token') || raw.includes('invalid_grant')) {
+    return 'Google Drive connection expired. Reconnect in Settings > Google credentials, then reprocess this email.'
+  }
+  if (raw.includes('rate limit') || raw.includes('429')) {
+    return 'AI provider rate limit reached. Wait a few minutes and reprocess this email.'
+  }
+  if (raw.includes('timeout') || raw.includes('ETIMEDOUT') || raw.includes('ECONNREFUSED')) {
+    return 'Connection to AI provider timed out. Check your API key and try reprocessing.'
+  }
+  return raw
 }

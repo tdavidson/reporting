@@ -2102,6 +2102,9 @@ function GoogleConnectionUI({
             <Button size="sm" variant="outline" onClick={() => setEditingCreds(true)} className="text-xs h-7">
               Update credentials
             </Button>
+            <Button size="sm" variant="outline" onClick={() => { window.location.href = '/api/auth/google' }} className="text-xs h-7">
+              Reconnect
+            </Button>
             <Button size="sm" variant="outline" onClick={removeCredentials} disabled={removingCreds} className="text-xs h-7 text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30">
               {removingCreds ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Remove'}
             </Button>

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { getDemoCredentials } from './actions'
 
 export default function DemoPage() {
   const [error, setError] = useState<string | null>(null)
@@ -18,19 +19,18 @@ export default function DemoPage() {
         return
       }
 
-      // Fetch demo credentials from server
-      const res = await fetch('/api/demo/credentials', {
-        headers: { 'x-deployment-key': process.env.NEXT_PUBLIC_DEMO_KEY ?? '' },
-      })
-      if (!res.ok) {
-        setError('Demo is not available.')
+      // Fetch demo credentials via server action (no secrets in client bundle)
+      const result = await getDemoCredentials()
+      if (!result.ok) {
+        setError(result.error)
         return
       }
-      const { email, password } = await res.json()
 
-      const { error } = await supabase.auth.signInWithPassword({ email, password })
+      const { error } = await supabase.auth.signInWithPassword({
+        email: result.email,
+        password: result.password,
+      })
       if (error) {
-        // Log the actual error for debugging (remove in production)
         console.error('[demo] signInWithPassword failed:', error.message, error.status)
         setError(`Unable to load demo. (${error.message})`)
         return

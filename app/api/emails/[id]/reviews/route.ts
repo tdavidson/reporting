@@ -82,6 +82,18 @@ export async function POST(
 
   const resolution = action === 'approve_all' ? 'accepted' as const : 'rejected' as const
 
+  // Verify the email belongs to the caller's fund
+  const { fundId: userFundId } = writeCheck
+  const { data: emailCheck } = await admin
+    .from('inbound_emails')
+    .select('fund_id')
+    .eq('id', params.id)
+    .maybeSingle()
+
+  if (!emailCheck || emailCheck.fund_id !== userFundId) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  }
+
   // Get all unresolved reviews for this email
   const { data: reviews, error } = await supabase
     .from('parsing_reviews')
@@ -91,9 +103,7 @@ export async function POST(
 
   if (error) return dbError(error, 'emails-id-reviews')
 
-  // Get fund_id — prefer from RLS-filtered reviews, fall back to email with fund membership check
-  const { fundId: userFundId } = writeCheck
-  const fundId = (reviews?.[0] as unknown as { fund_id: string })?.fund_id ?? userFundId
+  const fundId = userFundId
 
   if (reviews && reviews.length > 0) {
     const reviewIds = reviews.map(r => (r as unknown as { id: string }).id)
@@ -126,10 +136,10 @@ export async function POST(
   if (fundId) {
     await admin
       .from('inbound_emails')
-      .update({ processing_status: 'success' })
+      .update({ processing_status: 'success', processing_error: null })
       .eq('id', params.id)
       .eq('fund_id', fundId)
-      .in('processing_status', ['needs_review', 'processing', 'failed'])
+      .in('processing_status', ['needs_review', 'processing', 'failed', 'not_processed'])
   }
 
   revalidateTag('review-badge')

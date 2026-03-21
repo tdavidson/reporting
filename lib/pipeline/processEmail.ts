@@ -53,6 +53,8 @@ export async function runPipeline(
   payload: PostmarkPayload,
   fundMember?: { userId: string } | null
 ): Promise<void> {
+  const warnings: string[] = []
+
   // Step 4: Extract text from email body and attachments
   const extracted = await extractAttachmentText(payload)
 
@@ -131,13 +133,18 @@ export async function runPipeline(
   const metrics = await getMetrics(supabase, companyId!)
 
   if (metrics.length === 0) {
-    await finalizeEmail(supabase, emailId, { status: 'not_processed', metricsExtracted: 0 })
     // Still save to file storage even when no metrics are defined
     try {
-      await saveToFileStorage(supabase, fundId, companyName, payload)
+      await Promise.race([
+        saveToFileStorage(supabase, fundId, companyName, payload),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('File storage save timed out after 15s')), 15_000)),
+      ])
     } catch (err) {
-      console.error('[pipeline] File storage save failed (non-blocking):', err)
+      const msg = err instanceof Error ? err.message : 'Unknown error'
+      console.error('[pipeline] File storage save failed (non-blocking):', msg)
+      warnings.push(describeStorageError(msg))
     }
+    await finalizeEmail(supabase, emailId, { status: 'not_processed', metricsExtracted: 0, warnings })
     if (fundMember) {
       try {
         await maybeExtractInteraction(supabase, fundId, emailId, companyId, fundMember.userId, payload, extracted.emailBody, provider, providerType, model)
@@ -186,19 +193,20 @@ export async function runPipeline(
     metrics
   )
 
-  // Step 8: Finalize
-  const status: ProcessingStatus = reviewCount > 0 ? 'needs_review' : writtenCount > 0 ? 'success' : 'not_processed'
-  await finalizeEmail(supabase, emailId, { status, metricsExtracted: writtenCount })
-
-  // Step 9: Save to file storage (non-blocking, with timeout)
+  // Step 8-9: Save to file storage then finalize
   try {
     await Promise.race([
       saveToFileStorage(supabase, fundId, companyName, payload),
       new Promise((_, reject) => setTimeout(() => reject(new Error('File storage save timed out after 15s')), 15_000)),
     ])
   } catch (err) {
-    console.error('[pipeline] File storage save failed (non-blocking):', err)
+    const msg = err instanceof Error ? err.message : 'Unknown error'
+    console.error('[pipeline] File storage save failed (non-blocking):', msg)
+    warnings.push(describeStorageError(msg))
   }
+
+  const status: ProcessingStatus = reviewCount > 0 ? 'needs_review' : writtenCount > 0 ? 'success' : 'not_processed'
+  await finalizeEmail(supabase, emailId, { status, metricsExtracted: writtenCount, warnings })
 
   // Step 10: Extract interaction (fund member emails only)
   if (fundMember) {
@@ -502,14 +510,16 @@ export async function createReview(
 export async function finalizeEmail(
   supabase: Supabase,
   emailId: string,
-  opts: { status: ProcessingStatus; metricsExtracted?: number }
+  opts: { status: ProcessingStatus; metricsExtracted?: number; warnings?: string[] }
 ) {
+  const update: Record<string, unknown> = {
+    processing_status: opts.status,
+    processing_error: opts.warnings?.length ? opts.warnings.join('; ') : null,
+    metrics_extracted: opts.metricsExtracted ?? 0,
+  }
   await supabase
     .from('inbound_emails')
-    .update({
-      processing_status: opts.status,
-      metrics_extracted: opts.metricsExtracted ?? 0,
-    })
+    .update(update)
     .eq('id', emailId)
 }
 
@@ -537,6 +547,19 @@ export function buildCombinedText(extracted: ExtractionResult, payload?: Postmar
     }
   }
   return parts.join('\n\n')
+}
+
+function describeStorageError(msg: string): string {
+  if (msg.includes('Failed to refresh Google token') || msg.includes('invalid_grant')) {
+    return 'File storage skipped: Google Drive connection expired. Reconnect in Settings > Google credentials.'
+  }
+  if (msg.includes('timed out')) {
+    return 'File storage skipped: connection timed out. Check your storage provider in Settings.'
+  }
+  if (msg.includes('Dropbox')) {
+    return 'File storage skipped: Dropbox connection failed. Reconnect in Settings.'
+  }
+  return `File storage skipped: ${msg}`
 }
 
 export function parseValue(
@@ -676,8 +699,9 @@ async function saveToGoogleDrive(
   if (payload.Attachments?.length) {
     for (const att of payload.Attachments) {
       if (!att.Content) continue
+      const safeName = att.Name.replace(/[\/\\:*?"<>|]/g, '_').replace(/\.\./g, '_')
       const content = Buffer.from(att.Content, 'base64')
-      await uploadGoogleFile(accessToken, companyFolderId, att.Name, content, att.ContentType)
+      await uploadGoogleFile(accessToken, companyFolderId, safeName, content, att.ContentType)
     }
   }
 }
@@ -724,8 +748,9 @@ async function saveToDropbox(
   if (payload.Attachments?.length) {
     for (const att of payload.Attachments) {
       if (!att.Content) continue
+      const safeName = att.Name.replace(/[\/\\:*?"<>|]/g, '_').replace(/\.\./g, '_')
       const content = Buffer.from(att.Content, 'base64')
-      await uploadDropboxFile(accessToken, companyPath, att.Name, content)
+      await uploadDropboxFile(accessToken, companyPath, safeName, content)
     }
   }
 }

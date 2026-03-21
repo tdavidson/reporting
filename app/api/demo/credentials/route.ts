@@ -14,9 +14,9 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 })
   }
 
-  // Validate request token against deployment key or public demo key
+  // Validate request token against deployment key or server-only demo key
   const incoming = req.headers.get('x-deployment-key') ?? ''
-  const demoKey = process.env.NEXT_PUBLIC_DEMO_KEY ?? ''
+  const demoKey = process.env.DEMO_KEY ?? ''
   const validKeys = [deployKey, ...(demoKey ? [demoKey] : [])]
   const isValid = validKeys.some(key =>
     incoming && incoming.length === key.length && timingSafeEqual(Buffer.from(incoming), Buffer.from(key))

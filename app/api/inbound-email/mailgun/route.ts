@@ -8,6 +8,7 @@ import { isAuthorizedSender } from '@/lib/pipeline/isAuthorizedSender'
 import { decrypt } from '@/lib/crypto'
 import { scanFileAsync } from '@/lib/security/scan-file'
 import { rateLimit, getClientIp } from '@/lib/rate-limit'
+import { emailFingerprint } from '@/lib/pipeline/emailFingerprint'
 import type { Json } from '@/lib/types/database'
 
 export async function POST(req: NextRequest) {
@@ -88,18 +89,20 @@ async function handleMailgunInbound(req: NextRequest) {
   // Verify webhook signature
   if (fundSettings.mailgun_signing_key_encrypted && fundSettings.encryption_key_encrypted) {
     const kek = process.env.ENCRYPTION_KEY
-    if (kek) {
-      const dek = decrypt(fundSettings.encryption_key_encrypted, kek)
-      const signingKey = decrypt(fundSettings.mailgun_signing_key_encrypted, dek)
+    if (!kek) {
+      console.error('[inbound-email/mailgun] ENCRYPTION_KEY not set — rejecting request')
+      return
+    }
+    const dek = decrypt(fundSettings.encryption_key_encrypted, kek)
+    const signingKey = decrypt(fundSettings.mailgun_signing_key_encrypted, dek)
 
-      const timestamp = fields.timestamp || ''
-      const token = fields.token || ''
-      const signature = fields.signature || ''
+    const timestamp = fields.timestamp || ''
+    const token = fields.token || ''
+    const signature = fields.signature || ''
 
-      if (!verifyMailgunWebhook(signingKey, timestamp, token, signature)) {
-        console.warn('[inbound-email/mailgun] Invalid webhook signature')
-        return
-      }
+    if (!verifyMailgunWebhook(signingKey, timestamp, token, signature)) {
+      console.warn('[inbound-email/mailgun] Invalid webhook signature')
+      return
     }
   } else {
     console.warn('[inbound-email/mailgun] Rejecting — no signing key configured for this fund')
@@ -122,6 +125,26 @@ async function handleMailgunInbound(req: NextRequest) {
   const normalized = normalizeMailgunPayload(fields, attachments)
   const payload = toPostmarkPayload(normalized)
 
+  // Check for duplicate emails (same sender + subject + date)
+  const fingerprint = emailFingerprint(
+    fromAddress,
+    fields.subject ?? null,
+    fields.Date ?? fields.date ?? null,
+    fields['Message-Id'] ?? fields['message-id'] ?? null
+  )
+
+  const { data: existingEmail } = await supabase
+    .from('inbound_emails')
+    .select('id')
+    .eq('fund_id', fundId)
+    .eq('email_fingerprint', fingerprint)
+    .maybeSingle()
+
+  if (existingEmail) {
+    console.log(`[inbound-email/mailgun] Duplicate email detected (fingerprint=${fingerprint}), skipping`)
+    return
+  }
+
   // Build a storage-friendly payload (strip Content from attachments)
   const strippedPayload = { ...payload }
   if (payload.Attachments && payload.Attachments.length > 0) {
@@ -142,6 +165,7 @@ async function handleMailgunInbound(req: NextRequest) {
       raw_payload: strippedPayload as unknown as Json,
       processing_status: 'pending',
       attachments_count: attachments.length,
+      email_fingerprint: fingerprint,
     })
     .select('id')
     .single()
@@ -166,7 +190,8 @@ async function handleMailgunInbound(req: NextRequest) {
         continue
       }
 
-      const safeName = att.Name.replace(/[\/\\]/g, '_').replace(/\.\./g, '_')
+      const attIdx = payload.Attachments!.indexOf(att)
+      const safeName = `${attIdx}_${att.Name.replace(/[\/\\:*?"<>|]/g, '_').replace(/\.\./g, '_')}`
       const storagePath = `${emailId}/${safeName}`
       const { error: uploadError } = await supabase.storage
         .from('email-attachments')
@@ -207,13 +232,31 @@ async function handleMailgunInbound(req: NextRequest) {
     // Pass original in-memory payload (with Content) to avoid extra Storage download
     await runPipeline(supabase, emailId, fundId, payload, fundMember ? { userId: fundMember.user_id } : null)
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err)
+    const raw = err instanceof Error ? err.message : String(err)
     console.error(`[inbound-email/mailgun] Pipeline error for email ${emailId}:`, err)
+    const message = describePipelineError(raw)
     await supabase
       .from('inbound_emails')
       .update({ processing_status: 'failed', processing_error: message })
       .eq('id', emailId)
   }
+}
+
+function describePipelineError(raw: string): string {
+  if (raw.includes('API key not configured')) {
+    const provider = raw.includes('OpenAI') ? 'OpenAI' : raw.includes('Gemini') ? 'Gemini' : 'AI'
+    return `${provider} API key not configured. Add it in Settings to process emails.`
+  }
+  if (raw.includes('Failed to refresh Google token') || raw.includes('invalid_grant')) {
+    return 'Google Drive connection expired. Reconnect in Settings > Google credentials, then reprocess this email.'
+  }
+  if (raw.includes('rate limit') || raw.includes('429')) {
+    return 'AI provider rate limit reached. Wait a few minutes and reprocess this email.'
+  }
+  if (raw.includes('timeout') || raw.includes('ETIMEDOUT') || raw.includes('ECONNREFUSED')) {
+    return 'Connection to AI provider timed out. Check your API key and try reprocessing.'
+  }
+  return raw
 }
 
 function extractEmail(from: string): string {

@@ -20,14 +20,23 @@ export async function GET(req: NextRequest) {
   } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  // Unstick emails that have been "processing" for too long (serverless timeout)
-  const staleCutoff = new Date(Date.now() - STALE_PROCESSING_MINUTES * 60 * 1000).toISOString()
+  // Scope stale-email cleanup to the user's fund
   const admin = createAdminClient()
-  await admin
-    .from('inbound_emails')
-    .update({ processing_status: 'failed', processing_error: 'Processing timed out' })
-    .eq('processing_status', 'processing')
-    .lt('received_at', staleCutoff)
+  const { data: membership } = await admin
+    .from('fund_members')
+    .select('fund_id')
+    .eq('user_id', user.id)
+    .maybeSingle()
+
+  if (membership) {
+    const staleCutoff = new Date(Date.now() - STALE_PROCESSING_MINUTES * 60 * 1000).toISOString()
+    await admin
+      .from('inbound_emails')
+      .update({ processing_status: 'failed', processing_error: 'Processing timed out. This can happen if the AI provider is slow or file storage is unreachable. Try reprocessing.' })
+      .eq('processing_status', 'processing')
+      .eq('fund_id', membership.fund_id)
+      .lt('received_at', staleCutoff)
+  }
 
   const sp = req.nextUrl.searchParams
   const status = sp.get('status')

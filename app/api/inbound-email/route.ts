@@ -10,6 +10,7 @@ import { checkFundMember } from '@/lib/pipeline/checkFundMember'
 import { isAuthorizedSender } from '@/lib/pipeline/isAuthorizedSender'
 import { rateLimit, getClientIp } from '@/lib/rate-limit'
 import { scanFileAsync } from '@/lib/security/scan-file'
+import { emailFingerprint } from '@/lib/pipeline/emailFingerprint'
 
 function safeTokenCompare(a: string, b: string): boolean {
   try {
@@ -72,7 +73,27 @@ async function handleInbound(req: NextRequest) {
     }
   }
 
-  // Step 3: Build a storage-friendly payload (strip Content from attachments)
+  // Step 3: Check for duplicate emails (same sender + subject + date)
+  const fingerprint = emailFingerprint(
+    payload.FromFull?.Email || payload.From,
+    payload.Subject ?? null,
+    payload.Date ?? null,
+    (payload as Record<string, unknown>).MessageID as string | undefined
+  )
+
+  const { data: existingEmail } = await supabase
+    .from('inbound_emails')
+    .select('id')
+    .eq('fund_id', fundId)
+    .eq('email_fingerprint', fingerprint)
+    .maybeSingle()
+
+  if (existingEmail) {
+    console.log(`[inbound-email] Duplicate email detected (fingerprint=${fingerprint}), skipping`)
+    return
+  }
+
+  // Step 4: Build a storage-friendly payload (strip Content from attachments)
   const strippedPayload = { ...payload }
   if (payload.Attachments && payload.Attachments.length > 0) {
     strippedPayload.Attachments = payload.Attachments.map(att => ({
@@ -91,6 +112,7 @@ async function handleInbound(req: NextRequest) {
       raw_payload: strippedPayload as unknown as import('@/lib/types/database').Json,
       processing_status: 'pending',
       attachments_count: payload.Attachments?.length ?? 0,
+      email_fingerprint: fingerprint,
     })
     .select('id')
     .single()
@@ -105,7 +127,8 @@ async function handleInbound(req: NextRequest) {
   // Step 3b: Upload attachments to Storage and update payload with StoragePaths
   if (payload.Attachments && payload.Attachments.length > 0) {
     const updatedAttachments = []
-    for (const att of payload.Attachments) {
+    for (let attIdx = 0; attIdx < payload.Attachments.length; attIdx++) {
+      const att = payload.Attachments[attIdx]
       const buffer = Buffer.from(att.Content!, 'base64')
 
       // Scan attachment before uploading
@@ -115,7 +138,7 @@ async function handleInbound(req: NextRequest) {
         continue
       }
 
-      const safeName = att.Name.replace(/[\/\\]/g, '_').replace(/\.\./g, '_')
+      const safeName = `${attIdx}_${att.Name.replace(/[\/\\:*?"<>|]/g, '_').replace(/\.\./g, '_')}`
       const storagePath = `${emailId}/${safeName}`
       const { error: uploadError } = await supabase.storage
         .from('email-attachments')
@@ -157,13 +180,31 @@ async function handleInbound(req: NextRequest) {
 
     await runPipeline(supabase, emailId, fundId, payload, fundMember ? { userId: fundMember.user_id } : null)
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err)
+    const raw = err instanceof Error ? err.message : String(err)
     console.error(`[inbound-email] Pipeline error for email ${emailId}:`, err)
+    const message = describePipelineError(raw)
     await supabase
       .from('inbound_emails')
       .update({ processing_status: 'failed', processing_error: message })
       .eq('id', emailId)
   }
+}
+
+function describePipelineError(raw: string): string {
+  if (raw.includes('API key not configured')) {
+    const provider = raw.includes('OpenAI') ? 'OpenAI' : raw.includes('Gemini') ? 'Gemini' : 'AI'
+    return `${provider} API key not configured. Add it in Settings to process emails.`
+  }
+  if (raw.includes('Failed to refresh Google token') || raw.includes('invalid_grant')) {
+    return 'Google Drive connection expired. Reconnect in Settings > Google credentials, then reprocess this email.'
+  }
+  if (raw.includes('rate limit') || raw.includes('429')) {
+    return 'AI provider rate limit reached. Wait a few minutes and reprocess this email.'
+  }
+  if (raw.includes('timeout') || raw.includes('ETIMEDOUT') || raw.includes('ECONNREFUSED')) {
+    return 'Connection to AI provider timed out. Check your API key and try reprocessing.'
+  }
+  return raw
 }
 
 // ---------------------------------------------------------------------------
@@ -205,14 +246,27 @@ async function resolveFund(
 
   const { data: appSettings } = await supabase
     .from('app_settings')
-    .select('global_inbound_address, global_inbound_token')
+    .select('global_inbound_address, global_inbound_token, global_inbound_token_encrypted')
     .maybeSingle()
 
   if (!appSettings?.global_inbound_address || toAddress !== appSettings.global_inbound_address) {
     return null
   }
 
-  if (!token || !appSettings.global_inbound_token || !safeTokenCompare(token, appSettings.global_inbound_token)) {
+  // Prefer encrypted token; fall back to plaintext for legacy
+  let expectedGlobalToken = appSettings.global_inbound_token ?? ''
+  if (appSettings.global_inbound_token_encrypted) {
+    try {
+      const kek = process.env.ENCRYPTION_KEY
+      if (kek) {
+        expectedGlobalToken = decrypt(appSettings.global_inbound_token_encrypted, kek)
+      }
+    } catch {
+      // Fall back to plaintext
+    }
+  }
+
+  if (!token || !expectedGlobalToken || !safeTokenCompare(token, expectedGlobalToken)) {
     console.warn('[inbound-email] Invalid token for global address')
     return null
   }

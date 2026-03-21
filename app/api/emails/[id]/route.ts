@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { assertWriteAccess } from '@/lib/api-helpers'
-import type { InboundEmail, Metric, MetricValue, ParsingReview } from '@/lib/types/database'
+import type { InboundEmail, Metric, MetricValue, ParsingReview, Json } from '@/lib/types/database'
 import { dbError } from '@/lib/api-error'
 
 type MetricValueRow = Pick<
@@ -34,6 +34,18 @@ export async function GET(
   if (!emailData) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   const email = emailData as unknown as InboundEmail
+
+  // Verify the user belongs to the same fund as the email
+  const admin = createAdminClient()
+  const { data: membership } = await admin
+    .from('fund_members')
+    .select('fund_id')
+    .eq('user_id', user.id)
+    .maybeSingle()
+
+  if (!membership || email.fund_id !== membership.fund_id) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  }
 
   // Parallel fetches
   const [companyResult, mvResult, reviewResult] = await Promise.all([
@@ -68,6 +80,20 @@ export async function GET(
     )
   )
 
+  // Strip attachment Content (base64) and HtmlBody (unsanitized HTML from
+  // external senders — stored XSS risk) from raw_payload before returning.
+  let sanitizedPayload = email.raw_payload
+  if (sanitizedPayload && typeof sanitizedPayload === 'object') {
+    const { HtmlBody, ...safeFields } = sanitizedPayload as Record<string, unknown>
+    const p = safeFields
+    if (Array.isArray(p.Attachments)) {
+      p.Attachments = (p.Attachments as Array<Record<string, unknown>>).map(
+        ({ Content, ...rest }) => rest
+      )
+    }
+    sanitizedPayload = p as unknown as Json
+  }
+
   return NextResponse.json({
     id: email.id,
     from_address: email.from_address,
@@ -78,7 +104,7 @@ export async function GET(
     claude_response: email.claude_response,
     metrics_extracted: email.metrics_extracted,
     attachments_count: email.attachments_count,
-    raw_payload: email.raw_payload,
+    raw_payload: sanitizedPayload,
     company,
     metric_values: metricValues.map(mv => ({
       id: mv.id,
@@ -125,12 +151,35 @@ export async function PATCH(
   if (email.fund_id !== membership.fund_id) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const body = await req.json()
-  const { companyId } = body as { companyId?: string }
+  const { companyId, processing_status } = body as { companyId?: string; processing_status?: string }
+
+  const VALID_STATUSES = ['success', 'needs_review', 'failed', 'not_processed']
 
   const updates: Record<string, unknown> = {}
 
   if (companyId !== undefined) {
+    if (companyId) {
+      // Verify the company belongs to the same fund
+      const { data: company } = await admin
+        .from('companies')
+        .select('id')
+        .eq('id', companyId)
+        .eq('fund_id', membership.fund_id)
+        .maybeSingle()
+      if (!company) {
+        return NextResponse.json({ error: 'Invalid company' }, { status: 400 })
+      }
+    }
     updates.company_id = companyId || null
+  }
+
+  if (processing_status !== undefined) {
+    if (!VALID_STATUSES.includes(processing_status)) {
+      return NextResponse.json({ error: `Invalid status. Must be one of: ${VALID_STATUSES.join(', ')}` }, { status: 400 })
+    }
+    updates.processing_status = processing_status
+    // Clear error when manually changing status
+    updates.processing_error = null
   }
 
   if (Object.keys(updates).length === 0) {

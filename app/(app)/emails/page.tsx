@@ -48,7 +48,7 @@ const STATUS_VARIANTS: Record<string, { label: string; className: string }> = {
   pending: { label: 'Pending', className: 'bg-slate-100 text-slate-700 border-slate-200' },
   processing: { label: 'Processing', className: 'bg-blue-100 text-blue-800 border-blue-200' },
   success: { label: 'Success', className: 'bg-green-100 text-green-800 border-green-200' },
-  not_processed: { label: 'Not processed', className: 'bg-gray-100 text-gray-600 border-gray-200' },
+  not_processed: { label: 'Skipped', className: 'bg-gray-100 text-gray-600 border-gray-200' },
   failed: { label: 'Failed', className: 'bg-red-100 text-red-800 border-red-200' },
   needs_review: {
     label: 'Review',
@@ -109,10 +109,19 @@ export default function EmailsPage() {
     }).catch(() => {})
   }, [])
 
+  // Companies for filter
+  const [companies, setCompanies] = useState<{ id: string; name: string }[]>([])
+  useEffect(() => {
+    fetch('/api/companies').then(r => r.ok ? r.json() : []).then(data => {
+      const list = (Array.isArray(data) ? data : data?.items ?? data?.companies ?? []) as { id: string; name: string }[]
+      setCompanies(list.sort((a, b) => a.name.localeCompare(b.name)))
+    }).catch(() => {})
+  }, [])
+
   // Filters
   const [status, setStatus] = useState('')
-  const [dateFrom, setDateFrom] = useState('')
-  const [dateTo, setDateTo] = useState('')
+  const [companyFilter, setCompanyFilter] = useState('')
+  const [dateRange, setDateRange] = useState('')
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(50)
 
@@ -133,8 +142,24 @@ export default function EmailsPage() {
 
       const params = new URLSearchParams({ page: String(p), page_size: String(pageSize) })
       if (status) params.set('status', status)
-      if (dateFrom) params.set('date_from', dateFrom)
-      if (dateTo) params.set('date_to', dateTo)
+      if (companyFilter) params.set('company_id', companyFilter)
+      if (dateRange) {
+        const now = new Date()
+        if (dateRange === 'this_year') {
+          params.set('date_from', `${now.getFullYear()}-01-01`)
+        } else if (dateRange === 'last_year') {
+          params.set('date_from', `${now.getFullYear() - 1}-01-01`)
+          params.set('date_to', `${now.getFullYear() - 1}-12-31`)
+        } else {
+          const from = new Date(now)
+          if (dateRange === '7d') from.setDate(now.getDate() - 7)
+          else if (dateRange === '30d') from.setDate(now.getDate() - 30)
+          else if (dateRange === '90d') from.setDate(now.getDate() - 90)
+          else if (dateRange === '6m') from.setMonth(now.getMonth() - 6)
+          else if (dateRange === '12m') from.setFullYear(now.getFullYear() - 1)
+          params.set('date_from', from.toISOString().slice(0, 10))
+        }
+      }
 
       try {
         const res = await fetch(`/api/emails?${params}`, { signal: controller.signal })
@@ -148,7 +173,7 @@ export default function EmailsPage() {
         setLoading(false)
       }
     },
-    [status, dateFrom, dateTo, page, pageSize]
+    [status, companyFilter, dateRange, page, pageSize]
   )
 
   useEffect(() => {
@@ -180,7 +205,7 @@ export default function EmailsPage() {
           <h1 className="text-2xl font-semibold tracking-tight">Inbound</h1>
           <div className="flex items-center gap-2">
             <div className="lg:hidden">
-              <FiltersSheet activeCount={[status, dateFrom, dateTo].filter(Boolean).length}>
+              <FiltersSheet activeCount={[status, companyFilter, dateRange].filter(Boolean).length}>
                 <div>
                   <label className="block text-xs text-muted-foreground mb-1">Status</label>
                   <Select value={status || 'all'} onValueChange={v => { setStatus(v === 'all' ? '' : v); setPage(1) }}>
@@ -194,30 +219,44 @@ export default function EmailsPage() {
                       <SelectItem value="failed">Failed</SelectItem>
                       <SelectItem value="processing">Processing</SelectItem>
                       <SelectItem value="pending">Pending</SelectItem>
-                      <SelectItem value="not_processed">Not processed</SelectItem>
+                      <SelectItem value="not_processed">Skipped</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
                 <div>
-                  <label className="block text-xs text-muted-foreground mb-1">From date</label>
-                  <Input
-                    type="date"
-                    className="h-8 w-full text-sm"
-                    value={dateFrom}
-                    onChange={e => { setDateFrom(e.target.value); setPage(1) }}
-                  />
+                  <label className="block text-xs text-muted-foreground mb-1">Company</label>
+                  <Select value={companyFilter || 'all'} onValueChange={v => { setCompanyFilter(v === 'all' ? '' : v); setPage(1) }}>
+                    <SelectTrigger className="h-8 w-full text-sm">
+                      <SelectValue placeholder="All companies" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All companies</SelectItem>
+                      {companies.map(c => (
+                        <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div>
-                  <label className="block text-xs text-muted-foreground mb-1">To date</label>
-                  <Input
-                    type="date"
-                    className="h-8 w-full text-sm"
-                    value={dateTo}
-                    onChange={e => { setDateTo(e.target.value); setPage(1) }}
-                  />
+                  <label className="block text-xs text-muted-foreground mb-1">Date range</label>
+                  <Select value={dateRange || 'all'} onValueChange={v => { setDateRange(v === 'all' ? '' : v); setPage(1) }}>
+                    <SelectTrigger className="h-8 w-full text-sm">
+                      <SelectValue placeholder="All time" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All time</SelectItem>
+                      <SelectItem value="7d">Last 7 days</SelectItem>
+                      <SelectItem value="30d">Last 30 days</SelectItem>
+                      <SelectItem value="90d">Last 90 days</SelectItem>
+                      <SelectItem value="6m">Last 6 months</SelectItem>
+                      <SelectItem value="12m">Last 12 months</SelectItem>
+              <SelectItem value="this_year">This year</SelectItem>
+              <SelectItem value="last_year">Last year</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
-                {(status || dateFrom || dateTo) && (
-                  <Button size="sm" variant="ghost" className="h-8" onClick={() => { setStatus(''); setDateFrom(''); setDateTo(''); setPage(1) }}>
+                {(status || companyFilter || dateRange) && (
+                  <Button size="sm" variant="ghost" className="h-8" onClick={() => { setStatus(''); setCompanyFilter(''); setDateRange(''); setPage(1) }}>
                     Clear filters
                   </Button>
                 )}
@@ -250,30 +289,44 @@ export default function EmailsPage() {
               <SelectItem value="failed">Failed</SelectItem>
               <SelectItem value="processing">Processing</SelectItem>
               <SelectItem value="pending">Pending</SelectItem>
-              <SelectItem value="not_processed">Not processed</SelectItem>
+              <SelectItem value="not_processed">Skipped</SelectItem>
             </SelectContent>
           </Select>
         </div>
         <div>
-          <label className="block text-xs text-muted-foreground mb-1">From date</label>
-          <Input
-            type="date"
-            className="h-8 w-36 text-sm"
-            value={dateFrom}
-            onChange={e => { setDateFrom(e.target.value); setPage(1) }}
-          />
+          <label className="block text-xs text-muted-foreground mb-1">Company</label>
+          <Select value={companyFilter || 'all'} onValueChange={v => { setCompanyFilter(v === 'all' ? '' : v); setPage(1) }}>
+            <SelectTrigger className="h-8 w-48 text-sm">
+              <SelectValue placeholder="All companies" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All companies</SelectItem>
+              {companies.map(c => (
+                <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
         <div>
-          <label className="block text-xs text-muted-foreground mb-1">To date</label>
-          <Input
-            type="date"
-            className="h-8 w-36 text-sm"
-            value={dateTo}
-            onChange={e => { setDateTo(e.target.value); setPage(1) }}
-          />
+          <label className="block text-xs text-muted-foreground mb-1">Date range</label>
+          <Select value={dateRange || 'all'} onValueChange={v => { setDateRange(v === 'all' ? '' : v); setPage(1) }}>
+            <SelectTrigger className="h-8 w-36 text-sm">
+              <SelectValue placeholder="All time" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All time</SelectItem>
+              <SelectItem value="7d">Last 7 days</SelectItem>
+              <SelectItem value="30d">Last 30 days</SelectItem>
+              <SelectItem value="90d">Last 90 days</SelectItem>
+              <SelectItem value="6m">Last 6 months</SelectItem>
+              <SelectItem value="12m">Last 12 months</SelectItem>
+              <SelectItem value="this_year">This year</SelectItem>
+              <SelectItem value="last_year">Last year</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
-        {(status || dateFrom || dateTo) && (
-          <Button size="sm" variant="ghost" className="h-8" onClick={() => { setStatus(''); setDateFrom(''); setDateTo(''); setPage(1) }}>
+        {(status || companyFilter || dateRange) && (
+          <Button size="sm" variant="ghost" className="h-8" onClick={() => { setStatus(''); setCompanyFilter(''); setDateRange(''); setPage(1) }}>
             Clear
           </Button>
         )}
@@ -466,6 +519,7 @@ export default function EmailsPage() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="10">10</SelectItem>
                   <SelectItem value="25">25</SelectItem>
                   <SelectItem value="50">50</SelectItem>
                   <SelectItem value="100">100</SelectItem>

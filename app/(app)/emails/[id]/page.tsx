@@ -7,7 +7,7 @@ import type { InboundEmail } from '@/lib/types/database'
 export const metadata: Metadata = { title: 'Email' }
 import { ChevronLeft } from 'lucide-react'
 import { ReprocessButton } from './reprocess-button'
-import { ApproveButton } from './approve-button'
+import { ChangeStatusButton } from './change-status-button'
 import { UploadDocumentButton } from './upload-document-button'
 import { SaveToDriveButton } from './save-to-drive-button'
 import { CollapsibleJson } from './collapsible-json'
@@ -49,7 +49,7 @@ const STATUS_VARIANTS: Record<string, { label: string; className: string }> = {
   pending: { label: 'Pending', className: 'bg-slate-100 text-slate-700 border-slate-200' },
   processing: { label: 'Processing', className: 'bg-blue-100 text-blue-800 border-blue-200' },
   success: { label: 'Success', className: 'bg-green-100 text-green-800 border-green-200' },
-  not_processed: { label: 'Not processed', className: 'bg-gray-100 text-gray-600 border-gray-200' },
+  not_processed: { label: 'Skipped', className: 'bg-gray-100 text-gray-600 border-gray-200' },
   failed: { label: 'Failed', className: 'bg-red-100 text-red-800 border-red-200' },
   needs_review: {
     label: 'Review',
@@ -184,13 +184,16 @@ export default async function EmailDetailPage({ params }: { params: { id: string
         </div>
       </div>
 
-      {/* Error message */}
-      {email.processing_error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
-          <p className="font-medium mb-1">Processing error</p>
-          <p className="font-mono text-xs break-all">{email.processing_error}</p>
-        </div>
-      )}
+      {/* Error / warning message */}
+      {email.processing_error && (() => {
+        const isWarning = email.processing_status === 'success' || email.processing_status === 'needs_review' || email.processing_status === 'not_processed'
+        return (
+          <div className={`rounded-lg border p-4 text-sm ${isWarning ? 'border-amber-200 bg-amber-50 text-amber-800' : 'border-red-200 bg-red-50 text-red-800'}`}>
+            <p className="font-medium mb-1">{isWarning ? 'Warning' : 'Processing error'}</p>
+            <p className="text-xs break-all">{email.processing_error}</p>
+          </div>
+        )
+      })()}
 
       {/* Metrics written */}
       {metricValues.length > 0 && (
@@ -277,21 +280,15 @@ export default async function EmailDetailPage({ params }: { params: { id: string
 
       {/* Actions */}
       <section className="pt-2 border-t space-y-4">
-        {(email.processing_status === 'needs_review' || email.processing_status === 'processing' || email.processing_status === 'failed' || email.processing_status === 'not_processed') && (
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
-            <div>
-              <p className="text-sm font-medium">
-                {email.processing_status === 'needs_review' ? 'Approve email' : 'Mark as complete'}
-              </p>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                {email.processing_status === 'needs_review'
-                  ? 'Accept all outstanding reviews and mark this email as successfully processed.'
-                  : 'Override the current status and mark this email as successfully processed.'}
-              </p>
-            </div>
-            <ApproveButton emailId={email.id} />
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
+          <div>
+            <p className="text-sm font-medium">Change status</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Manually update the processing status of this email.
+            </p>
           </div>
-        )}
+          <ChangeStatusButton emailId={email.id} currentStatus={email.processing_status ?? 'pending'} />
+        </div>
 
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
           <div>
