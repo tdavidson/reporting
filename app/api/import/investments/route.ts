@@ -7,6 +7,8 @@ import { logAIUsage } from '@/lib/ai/usage'
 import { logActivity } from '@/lib/activity'
 import { rateLimit } from '@/lib/rate-limit'
 
+export const maxDuration = 300;
+
 interface ParsedTransaction {
   company_name: string
   company_status?: 'active' | 'exited' | 'written-off'
@@ -154,24 +156,19 @@ Return ONLY valid JSON in this exact format (no markdown, no explanation):
 }
 
 Rules:
-- transaction_type must be one of: "investment", "proceeds", "unrealized_gain_change", "round_info"
-- company_status must be one of: "active", "exited", "written-off". Infer from context: if there are proceeds/exit transactions, use "exited"; if marked as written off or loss, use "written-off"; otherwise default to "active"
-- Dates should be in YYYY-MM-DD format
-- All monetary values should be plain numbers (no currency symbols)
-- For investment rows: include investment_cost, shares_acquired, share_price, and optionally interest_converted, postmoney_valuation, ownership_pct (numeric, fully diluted percentage without the % sign)
-- For proceeds rows: include proceeds_received, and optionally cost_basis_exited, proceeds_escrow, proceeds_written_off, proceeds_per_share, exit_valuation
-- For unrealized_gain_change rows: include current_share_price, and optionally unrealized_value_change, latest_postmoney_valuation
-- For round_info rows: record a funding round the fund did NOT participate in. Include share_price, and optionally postmoney_valuation. This captures round details for reference and updates the latest share price
-- If amounts are in a different currency than fund currency, include original_currency (ISO 4217 code like "EUR", "GBP") and the original_* versions of relevant monetary fields
-- Use the company name exactly as it appears in the data
-- If the data has column headers like "Cost", "Amount Invested", "Investment Amount" those map to investment_cost
-- If the data has column headers like "Ownership", "% Owned", "Equity %", map it to ownership_pct
-- "Shares", "# Shares" maps to shares_acquired
-- "Price/Share", "Share Price" maps to share_price
-- "Proceeds", "Exit Proceeds", "Amount Received" maps to proceeds_received
-- If the data describes valuations or current fair market value, create unrealized_gain_change entries
-- If the data includes a portfolio group, fund name, or vehicle (e.g. "Fund I", "SPV 1"), set portfolio_group to that string value
-- If you can't determine the transaction type, default to "investment"
+- transaction_type must be one of: "investment", "proceeds", "unrealized_gain_change", "round_info".
+- company_status must be one of: "active", "exited", "written-off". Infer from context.
+
+CRITICAL MAPPING RULES (DO NOT IGNORE):
+1. OWNERSHIP: If the source data has an "Ownership", "% Owned", or "Equity %" column, you MUST extract it and map it to "ownership_pct" (as a pure number, e.g., 2.9325). You MUST do this for EVERY row where a value exists, regardless of the transaction type (investment, round_info, etc.). DO NOT drop this value.
+2. POST-MONEY VALUATION: If the source data has a "Post-Money Valuation" or "Valuation" column, you MUST extract it. Map it to "postmoney_valuation" (for investment or round_info) or "latest_postmoney_valuation" (for unrealized_gain_change). DO NOT drop this value on investment rows.
+3. BLANK TRANSACTION TYPES: If the source data has a row where the transaction type is BLANK or empty, but it contains an updated Ownership % and/or Post-Money Valuation, treat it as a "round_info" transaction type. You MUST include the "ownership_pct" and "postmoney_valuation" for this row.
+4. ROUND NAMES: If the source data does NOT explicitly have a "Round" or "Round Name" column, DO NOT invent one. Do not use generic words like "Round". Just omit the "round_name" field entirely.
+5. DATES: Format as YYYY-MM-DD.
+6. NUMBERS: All monetary values and percentages must be plain numbers (no currency symbols, no commas for thousands, no % signs).
+7. COLUMNS: "AMOUNT" or "Cost" maps to "investment_cost". "Proceeds" maps to "proceeds_received". "Group" maps to "portfolio_group".
+
+- CRITICAL: You must return the COMPLETE JSON object. Do not truncate the response. Ensure the JSON is properly closed.
 
 Schedule of Investments (SOI) handling:
 - SOIs are point-in-time snapshots from fund administrators showing each position's cost basis and current fair value
