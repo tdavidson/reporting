@@ -174,7 +174,8 @@ export default function InvestmentsPage() {
 const currency = useCurrency()
 const { displayUnit } = useDisplayUnit()
 const symbol = currency === 'BRL' ? 'R$' : currency === 'EUR' ? '€' : currency === 'GBP' ? '£' : '$'
-const fmtFull = (val: number) => {
+const fmtFull = (val: number) => formatCurrencyFull(val, currency)
+const fmtTable = (val: number) => {
   if (displayUnit === 'millions') return `${symbol}${(val / 1_000_000).toFixed(1)}M`
   if (displayUnit === 'thousands') return `${symbol}${(val / 1_000).toLocaleString('en-US', { maximumFractionDigits: 0 })}K`
   return formatCurrencyFull(val, currency)
@@ -383,12 +384,12 @@ const availableCompanies = useMemo(() => {
     { label: 'Gross IRR', sortKey: 'irr', getValue: r => r.irr ?? null, format: 'irr' },
   ]
 
-  function fmtVal(val: number | null, format: 'currency' | 'moic' | 'irr'): string {
-    if (val == null || val === 0) return '-'
-    if (format === 'moic') return fmtMoic(val)
-    if (format === 'irr') return fmtIrr(val)
-    return fmtFull(val)
-  }
+function fmtVal(val: number | null, format: 'currency' | 'moic' | 'irr'): string {
+  if (val == null || val === 0) return '-'
+  if (format === 'moic') return fmtMoic(val)
+  if (format === 'irr') return fmtIrr(val)
+  return fmtTable(val)
+}
 
   const heading = (
     <div className="mb-6 space-y-1">
