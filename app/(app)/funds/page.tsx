@@ -398,6 +398,10 @@ export default function FundsPage() {
   }, [cashFlows, groups, grossResidualByGroup, totalInvestedByGroup, groupConfigs, metricsByGroup])
 
   const fmt = (val: number) => formatWithUnit(val, displayUnit, currency)
+const fmtCard = (val: number) => {
+  const symbol = currency === 'BRL' ? 'R$' : currency === 'EUR' ? '€' : currency === 'GBP' ? '£' : '$'
+  return `${symbol}${(val / 1_000_000).toFixed(1)}M`
+}
 
   const masterCumulatives = useMemo(() => {
     let cumulCalled = 0
