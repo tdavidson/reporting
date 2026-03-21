@@ -7,6 +7,7 @@ import { AppSidebar } from '@/components/app-sidebar'
 import { AppFooter } from '@/components/app-footer'
 import { FeatureVisibilityProvider } from '@/components/feature-visibility-context'
 import { DisplayUnitProvider } from '@/components/display-unit-context'
+import { DisplayPanelProvider } from '@/components/display-panel-context'
 import { DEFAULT_FEATURE_VISIBILITY } from '@/lib/types/features'
 import type { FeatureVisibilityMap } from '@/lib/types/features'
 
@@ -32,6 +33,7 @@ export function AppShell({ fundName, fundLogo, userEmail, reviewBadge, settingsB
     <FeatureVisibilityProvider value={featureVisibility ?? DEFAULT_FEATURE_VISIBILITY}>
     <CurrencyProvider currency={currency ?? 'USD'}>
     <DisplayUnitProvider>
+    <DisplayPanelProvider>
       <SidebarProvider>
         <AnalystProvider hasAIKey={hasAIKey ?? false} configuredProviders={configuredProviders ?? []} defaultAIProvider={defaultAIProvider ?? 'anthropic'} fundName={fundName}>
           <AppShellInner
@@ -49,6 +51,7 @@ export function AppShell({ fundName, fundLogo, userEmail, reviewBadge, settingsB
           </AppShellInner>
         </AnalystProvider>
       </SidebarProvider>
+    </DisplayPanelProvider>
     </DisplayUnitProvider>
     </CurrencyProvider>
     </FeatureVisibilityProvider>
