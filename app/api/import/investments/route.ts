@@ -18,6 +18,7 @@ interface ParsedTransaction {
   interest_converted?: number
   shares_acquired?: number
   share_price?: number
+  ownership_pct?: number
   cost_basis_exited?: number
   proceeds_received?: number
   proceeds_escrow?: number
@@ -116,7 +117,8 @@ Return ONLY valid JSON in this exact format (no markdown, no explanation):
       "investment_cost": 500000,
       "interest_converted": 0,
       "shares_acquired": 50000,
-      "share_price": 10.00
+      "share_price": 10.00,
+      "ownership_pct": 15.5
     },
     {
       "company_name": "Company Name",
@@ -156,13 +158,14 @@ Rules:
 - company_status must be one of: "active", "exited", "written-off". Infer from context: if there are proceeds/exit transactions, use "exited"; if marked as written off or loss, use "written-off"; otherwise default to "active"
 - Dates should be in YYYY-MM-DD format
 - All monetary values should be plain numbers (no currency symbols)
-- For investment rows: include investment_cost, shares_acquired, share_price, and optionally interest_converted, postmoney_valuation
+- For investment rows: include investment_cost, shares_acquired, share_price, and optionally interest_converted, postmoney_valuation, ownership_pct (numeric, fully diluted percentage without the % sign)
 - For proceeds rows: include proceeds_received, and optionally cost_basis_exited, proceeds_escrow, proceeds_written_off, proceeds_per_share, exit_valuation
 - For unrealized_gain_change rows: include current_share_price, and optionally unrealized_value_change, latest_postmoney_valuation
 - For round_info rows: record a funding round the fund did NOT participate in. Include share_price, and optionally postmoney_valuation. This captures round details for reference and updates the latest share price
 - If amounts are in a different currency than fund currency, include original_currency (ISO 4217 code like "EUR", "GBP") and the original_* versions of relevant monetary fields
 - Use the company name exactly as it appears in the data
 - If the data has column headers like "Cost", "Amount Invested", "Investment Amount" those map to investment_cost
+- If the data has column headers like "Ownership", "% Owned", "Equity %", map it to ownership_pct
 - "Shares", "# Shares" maps to shares_acquired
 - "Price/Share", "Share Price" maps to share_price
 - "Proceeds", "Exit Proceeds", "Amount Received" maps to proceeds_received
@@ -321,6 +324,7 @@ ${text}`,
         interest_converted: pt.interest_converted ?? 0,
         shares_acquired: pt.shares_acquired ?? null,
         share_price: pt.share_price ?? null,
+        ownership_pct: pt.ownership_pct ?? null,
         cost_basis_exited: pt.cost_basis_exited ?? null,
         proceeds_received: pt.proceeds_received ?? null,
         proceeds_escrow: pt.proceeds_escrow ?? 0,
