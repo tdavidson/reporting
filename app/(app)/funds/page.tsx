@@ -772,7 +772,7 @@ const fmtCard = (val: number) => {
             }}
           >
             <TabsList className="flex-nowrap whitespace-nowrap">
-              <TabsTrigger value={MASTER_FUND_KEY}>Master Fund</TabsTrigger>
+              <TabsTrigger value={MASTER_FUND_KEY}>Prlx Fund I</TabsTrigger>
               {orderedGroups.map(g => (
                 <TabsTrigger key={g} value={g}>{g || '(none)'}</TabsTrigger>
               ))}
