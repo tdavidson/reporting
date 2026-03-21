@@ -1,5 +1,4 @@
 'use client'
-
 import { SidebarProvider, useSidebar } from '@/components/sidebar-context'
 import { CurrencyProvider } from '@/components/currency-context'
 import { AnalystProvider } from '@/components/analyst-context'
@@ -7,6 +6,7 @@ import { AppHeader } from '@/components/app-header'
 import { AppSidebar } from '@/components/app-sidebar'
 import { AppFooter } from '@/components/app-footer'
 import { FeatureVisibilityProvider } from '@/components/feature-visibility-context'
+import { DisplayUnitProvider } from '@/components/display-unit-context'
 import { DEFAULT_FEATURE_VISIBILITY } from '@/lib/types/features'
 import type { FeatureVisibilityMap } from '@/lib/types/features'
 
@@ -31,6 +31,7 @@ export function AppShell({ fundName, fundLogo, userEmail, reviewBadge, settingsB
   return (
     <FeatureVisibilityProvider value={featureVisibility ?? DEFAULT_FEATURE_VISIBILITY}>
     <CurrencyProvider currency={currency ?? 'USD'}>
+    <DisplayUnitProvider>
       <SidebarProvider>
         <AnalystProvider hasAIKey={hasAIKey ?? false} configuredProviders={configuredProviders ?? []} defaultAIProvider={defaultAIProvider ?? 'anthropic'} fundName={fundName}>
           <AppShellInner
@@ -48,6 +49,7 @@ export function AppShell({ fundName, fundLogo, userEmail, reviewBadge, settingsB
           </AppShellInner>
         </AnalystProvider>
       </SidebarProvider>
+    </DisplayUnitProvider>
     </CurrencyProvider>
     </FeatureVisibilityProvider>
   )
@@ -55,7 +57,6 @@ export function AppShell({ fundName, fundLogo, userEmail, reviewBadge, settingsB
 
 function AppShellInner({ fundName, fundLogo, userEmail, reviewBadge, settingsBadge, notesBadge, isAdmin, updateAvailable, featureVisibility, children }: AppShellProps) {
   const { collapsed } = useSidebar()
-
   return (
     <>
       <AppHeader
@@ -68,9 +69,7 @@ function AppShellInner({ fundName, fundLogo, userEmail, reviewBadge, settingsBad
         isAdmin={isAdmin}
         featureVisibility={featureVisibility}
       />
-
       <div className="flex flex-1">
-        {/* Desktop sidebar — always rendered, width varies */}
         <aside
           className={`hidden md:flex flex-col shrink-0 pt-6 transition-all duration-200 ${
             collapsed ? 'w-16' : 'w-56'
@@ -78,8 +77,6 @@ function AppShellInner({ fundName, fundLogo, userEmail, reviewBadge, settingsBad
         >
           <AppSidebar reviewBadge={reviewBadge} settingsBadge={settingsBadge} notesBadge={notesBadge} isAdmin={isAdmin} updateAvailable={updateAvailable} featureVisibility={featureVisibility} />
         </aside>
-
-        {/* Page content */}
         <main className="flex-1 min-w-0 flex flex-col">
           <div className="flex-1">
             {children}
