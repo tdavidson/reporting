@@ -234,7 +234,7 @@ function fmtIrr(val: number | null): string {
 function formatWithUnit(val: number, unit: DisplayUnit, currency: string): string {
   const symbol = currency === 'BRL' ? 'R$' : currency === 'EUR' ? '€' : currency === 'GBP' ? '£' : '$'
   if (unit === 'millions') return `${symbol}${(val / 1_000_000).toFixed(1)}M`
-  if (unit === 'thousands') return `${symbol}${(val / 1_000).toFixed(0)}K`
+  if (unit === 'thousands') return `${symbol}${(val / 1_000).toLocaleString('en-US', { maximumFractionDigits: 0 })}K`
   return formatCurrencyFull(val, currency)
 }
 
