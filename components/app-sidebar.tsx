@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { Building2, ClipboardCheck, Mail, Upload, Send, Settings, LifeBuoy, PanelLeftClose, PanelLeftOpen, BarChart3, TrendingUp, StickyNote, Lock, Users, Handshake, ArrowDownCircle, FileText, Briefcase, Crown, ShieldCheck } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useSidebar } from '@/components/sidebar-context'
 import { isFeatureVisible } from '@/lib/types/features'
 import type { FeatureKey, FeatureVisibilityMap } from '@/lib/types/features'
@@ -40,8 +40,7 @@ interface AppSidebarProps {
 export function AppSidebar({ reviewBadge, settingsBadge, notesBadge, isAdmin, updateAvailable, featureVisibility, onNavigate }: AppSidebarProps) {
   const pathname = usePathname()
   const { collapsed, toggle } = useSidebar()
-  const [mounted, setMounted] = useState(false)
-  useEffect(() => setMounted(true), [])
+
 
   return (
     <div className="flex flex-col flex-1">
