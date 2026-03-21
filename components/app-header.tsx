@@ -54,12 +54,11 @@ export function AppHeader({ fundName, fundLogo, userEmail, reviewBadge, settings
         </span>
       )}
 
-      {/* Right */}
-      <div className="flex items-center gap-3">
-        <DisplayPanelButton />
-        <span className="text-xs text-muted-foreground truncate hidden sm:block max-w-[200px]">
-          {userEmail}
-        </span>
+{/* Right */}
+<div className="flex items-center gap-3">
+  <span className="text-xs text-muted-foreground truncate hidden sm:block max-w-[200px]">
+    {userEmail}
+  </span>
         <form action="/api/auth/logout" method="POST">
           <Button type="submit" variant="outline" size="sm" className="text-muted-foreground gap-2">
             <LogOut className="h-4 w-4" />
