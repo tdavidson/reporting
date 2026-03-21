@@ -840,7 +840,7 @@ function TransactionTable({
               </>
             ) : (
               <>
-                <th className="text-right px-3 py-2 font-medium">Invested</th>
+                <th className="text-right px-3 py-2 font-medium">Amount</th>
 <th className="text-right px-3 py-2 font-medium">Ownership</th>
 <th className="text-right px-3 py-2 font-medium">Post-Money</th>
 <th className="text-right px-3 py-2 font-medium">NAV</th>
@@ -875,10 +875,14 @@ function TransactionTable({
                       {txn.transaction_type === 'proceeds' ? fmt(txn.proceeds_received) : '-'}
                     </td>
                   </>
-                ) : (
+) : (
                   <>
                     <td className="px-3 py-2 text-right font-mono">
-                      {txn.transaction_type === 'investment' ? fmt(txn.investment_cost) : '-'}
+                      {txn.transaction_type === 'investment' 
+                        ? fmt(txn.investment_cost) 
+                        : txn.transaction_type === 'proceeds' 
+                        ? fmt(txn.proceeds_received) 
+                        : '-'}
                     </td>
 
 <td className="px-3 py-2 text-right font-mono">
