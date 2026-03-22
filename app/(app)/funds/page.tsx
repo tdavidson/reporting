@@ -240,7 +240,7 @@ function computeMasterFundMetrics(
   const grossIrr = grossXirrFlows.length >= 2 ? xirr(grossXirrFlows) : null
 
   return {
-    committed, called, uncalled, distributions,
+    committed, called, totalInvested, distributions,
     cashOnHand: totalCashOnHand,
     grossResidual: totalGrossResidual,
     estimatedCarry, netResidual, totalValue,
