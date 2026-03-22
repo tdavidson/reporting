@@ -67,6 +67,7 @@ interface FundMetrics {
   grossMoic: number | null
   netMoic: number | null
   grossIrr: number | null
+  grossTvpi: number | null
   netTvpi: number | null
   totalManagementFees: number
 }
@@ -179,6 +180,7 @@ function computeFundMetrics(
     netMoic,
     grossIrr,
     netTvpi, // Repetido para compatibilidade de interface
+    grossTvpi,
     totalManagementFees,
   }
 }
@@ -239,14 +241,16 @@ function computeMasterFundMetrics(
     if (totalGrossResidual > 0) grossXirrFlows.push({ date: new Date(), amount: totalGrossResidual })
   }
   const grossIrr = grossXirrFlows.length >= 2 ? xirr(grossXirrFlows) : null
+  const grossTvpi = called > 0 ? (distributions + totalGrossResidual) / called : null
 
   return {
     committed, called, totalInvested, distributions,
     cashOnHand: totalCashOnHand,
     grossResidual: totalGrossResidual,
     estimatedCarry, netResidual, totalValue,
-    tvpi, dpi, rvpi, netIrr, grossMoic, netMoic, grossIrr, netTvpi,
+    tvpi, dpi, rvpi, netIrr, grossMoic, netMoic, grossIrr, netTvpi, grossTvpi,
     totalManagementFees,
+  }
   }
 }
 
@@ -716,6 +720,7 @@ const fmtCard = (val: number) => {
         </Card>
 
         {[
+          { label: 'Gross TVPI', value: fmtMoic(metrics.grossTvpi) },
           { label: 'Net TVPI', value: fmtMoic(metrics.netTvpi) },
           { label: 'DPI', value: fmtMoic(metrics.dpi) },
           { label: 'RVPI', value: fmtMoic(metrics.rvpi) },
