@@ -373,7 +373,6 @@ const availableCompanies = useMemo(() => {
     { label: 'Proceeds', sortKey: 'proceedsReceived', getValue: r => r.proceedsReceived, format: 'currency' },
     { label: 'Current NAV', sortKey: 'unrealizedValue', getValue: r => r.unrealizedValue, format: 'currency' },
     { label: 'Total Value', sortKey: 'totalValue', getValue: r => totalValue(r), format: 'currency' },
-    { label: 'Gross MOIC', sortKey: 'moic', getValue: r => r.moic ?? null, format: 'moic' },
     { label: 'Gross IRR', sortKey: 'irr', getValue: r => r.irr ?? null, format: 'irr' },
   ]
 
@@ -511,10 +510,11 @@ function fmtVal(val: number | null, format: 'currency' | 'moic' | 'irr'): string
                       </button>
                     </th>
                   ))}
+                  <th className="text-right px-3 py-2 font-medium">Net IRR</th>
+                  <th className="text-right px-3 py-2 font-medium">Gross MOIC</th>
                   <th className="text-right px-3 py-2 font-medium">TVPI</th>
                   <th className="text-right px-3 py-2 font-medium">DPI</th>
                   <th className="text-right px-3 py-2 font-medium">RVPI</th>
-                  <th className="text-right px-3 py-2 font-medium">Net IRR</th>
                 </tr>
               </thead>
               <tbody>
