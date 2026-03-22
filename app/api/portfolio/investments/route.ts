@@ -215,15 +215,15 @@ export async function GET(req: NextRequest) {
         }
       }
 
-// Pega o NAV mais atual (pela data) que já está gravado na transação
+// Pega o NAV mais atual (pela data) chamando a propriedade correta do banco
       let unrealizedValue = 0
       for (const txn of gTxns) {
-        if (txn.nav != null) {
-          unrealizedValue = txn.nav
+        if (txn.unrealized_value != null) {
+          unrealizedValue = txn.unrealized_value
         }
       }
 
-      // Define o FMV baseado no NAV capturado ou no status da empresa
+      // Define o FMV baseado no valor capturado ou no status da empresa
       let fmv: number
       if (company.status === 'exited') {
         fmv = totalRealized
