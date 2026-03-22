@@ -230,20 +230,10 @@ for (const txn of gTxns) {
   }
 }
 
-// Sum per-round FMV
+// Regra Estrita: Apenas Valuation × Participation %
 let unrealizedValue = 0
 if (latestOwnershipPct != null && latestPostMoney != null) {
-  // Use fully diluted ownership × post-money valuation (company-level, not per-round)
   unrealizedValue = (latestOwnershipPct / 100) * latestPostMoney
-} else {
-  for (const round of Array.from(roundMap.values())) {
-    const remainingBasis = round.investmentCost - round.costBasisExited
-    if (remainingBasis <= 0) {
-      // All cost basis exited — no unrealized value
-    } else {
-      unrealizedValue += remainingBasis + round.unrealizedValueChange
-    }
-  }
 }
       let fmv: number
       if (company.status === 'exited') {
