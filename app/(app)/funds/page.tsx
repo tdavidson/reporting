@@ -90,54 +90,69 @@ function computeTotalManagementFees(
 
 function computeFundMetrics(
   cashFlows: FundCashFlow[],
-  grossResidual: number,
-  totalInvested: number,
+  grossResidual: number, // NAV atual das empresas (Fair Market Value)
+  totalInvested: number, // Capital que efetivamente entrou nas empresas (Cost Basis)
   config: GroupConfig
 ): FundMetrics {
   const { cashOnHand, carryRate, gpCommitPct, vintage, managementFeeRate } = config
+  
   let called = 0
   let distributions = 0
+  let committed = 0
 
+  // 1. Segregação Real dos Fluxos
   for (const cf of cashFlows) {
     if (cf.flow_type === 'called_capital') called += cf.amount
     if (cf.flow_type === 'distribution') distributions += cf.amount
+    if (cf.flow_type === 'commitment') committed += cf.amount
   }
 
-  const committed = called
-  const uncalled = 0
-  const grossAssets = grossResidual + cashOnHand
+  // Ajuste de segurança: Se não lançou commitment, assume que é ao menos o que foi chamado
+  const finalCommitted = committed > 0 ? committed : called
+  const uncalled = Math.max(0, finalCommitted - called)
 
-  const gpCapital = called * gpCommitPct
-  const lpCapital = called - gpCapital
+  // 2. Cálculo de Patrimônio e Carry
+  const grossAssets = grossResidual + cashOnHand
+  const lpCalled = called * (1 - gpCommitPct)
   const lpDistributions = distributions * (1 - gpCommitPct)
-  const lpRemainingCapital = lpCapital - lpDistributions
-  const estimatedCarry = Math.max(0, carryRate * (grossAssets * (1 - gpCommitPct) - lpRemainingCapital))
+  
+  // O Carry deve incidir sobre o lucro do LP após recuperar o capital chamado (Hurdle 0 aqui)
+  const lpRemainingBasis = Math.max(0, lpCalled - lpDistributions)
+  const estimatedCarry = Math.max(0, carryRate * (grossAssets * (1 - gpCommitPct) - lpRemainingBasis))
+  
   const netResidual = grossAssets - estimatedCarry
   const totalValue = distributions + netResidual
 
-  const totalManagementFees = computeTotalManagementFees(committed, managementFeeRate, vintage)
+  // Taxa de gestão sobre o COMPROMETIDO (Padrão de mercado no período de investimento)
+  const totalManagementFees = computeTotalManagementFees(finalCommitted, managementFeeRate, vintage)
 
+  // 3. MÉTRICAS NET (Base: CALLED - O quanto o investidor desembolsou)
+  // O denominador aqui é o "cheque do investidor"
   const netTvpi = called > 0 ? totalValue / called : null
-  const tvpi = netTvpi
   const dpi = called > 0 ? distributions / called : null
   const rvpi = called > 0 ? netResidual / called : null
+  const netMoic = netTvpi // Em fundos, Net MOIC e TVPI são matematicamente o mesmo
 
+  // 4. MÉTRICAS GROSS (Base: INVESTED - O quanto foi para o "game")
+  // O denominador aqui é o custo dos ativos
   const grossMoic = totalInvested > 0 ? (distributions + grossResidual) / totalInvested : null
-  const netMoicNumerator = distributions + netResidual - totalManagementFees
-  const netMoic = totalInvested > 0 ? netMoicNumerator / totalInvested : null
 
-  const xirrFlows: CashFlow[] = []
+  // 5. XIRR NET (O retorno do cotista)
+  const netXirrFlows: CashFlow[] = []
   for (const cf of cashFlows) {
-    if (cf.flow_type === 'called_capital') xirrFlows.push({ date: new Date(cf.flow_date), amount: -cf.amount })
-    if (cf.flow_type === 'distribution') xirrFlows.push({ date: new Date(cf.flow_date), amount: cf.amount })
+    if (cf.flow_type === 'called_capital') netXirrFlows.push({ date: new Date(cf.flow_date), amount: -cf.amount })
+    if (cf.flow_type === 'distribution') netXirrFlows.push({ date: new Date(cf.flow_date), amount: cf.amount })
   }
-  if (netResidual > 0) xirrFlows.push({ date: new Date(), amount: netResidual })
-  const netIrr = xirrFlows.length >= 2 ? xirr(xirrFlows) : null
+  if (netResidual > 0) netXirrFlows.push({ date: new Date(), amount: netResidual })
+  const netIrr = netXirrFlows.length >= 2 ? xirr(netXirrFlows) : null
 
+  // 6. XIRR GROSS (O retorno da tese)
+  // Nota: Para ser perfeito, precisaríamos das datas REAIS de cada investimento. 
+  // Como temos apenas o totalInvested, usamos o primeiro chamado como proxy.
   const grossXirrFlows: CashFlow[] = []
   if (totalInvested > 0 && cashFlows.length > 0) {
-    const firstDate = new Date(cashFlows[0].flow_date)
-    grossXirrFlows.push({ date: firstDate, amount: -totalInvested })
+    const sortedFlows = [...cashFlows].sort((a,b) => a.flow_date.localeCompare(b.flow_date))
+    grossXirrFlows.push({ date: new Date(sortedFlows[0].flow_date), amount: -totalInvested })
     for (const cf of cashFlows) {
       if (cf.flow_type === 'distribution') grossXirrFlows.push({ date: new Date(cf.flow_date), amount: cf.amount })
     }
@@ -146,9 +161,23 @@ function computeFundMetrics(
   const grossIrr = grossXirrFlows.length >= 2 ? xirr(grossXirrFlows) : null
 
   return {
-    committed, called, uncalled, distributions, cashOnHand,
-    grossResidual, estimatedCarry, netResidual, totalValue,
-    tvpi, dpi, rvpi, netIrr, grossMoic, netMoic, grossIrr, netTvpi,
+    committed: finalCommitted,
+    called,
+    uncalled,
+    distributions,
+    cashOnHand,
+    grossResidual,
+    estimatedCarry,
+    netResidual,
+    totalValue,
+    tvpi: netTvpi,
+    dpi,
+    rvpi,
+    netIrr,
+    grossMoic,
+    netMoic,
+    grossIrr,
+    netTvpi, // Repetido para compatibilidade de interface
     totalManagementFees,
   }
 }
