@@ -215,23 +215,28 @@ export async function GET(req: NextRequest) {
         }
       }
 
-// Pega o NAV mais recente de qualquer transação que tenha nav preenchido
+// Pega o NAV mais recente: ownership_pct × postmoney_valuation do registro mais recente
 let latestNavDate: string | null = null
-let latestNav: number | null = null
+let latestNavValue: number | null = null
 
 for (const txn of gTxns) {
-  if (txn.nav != null && txn.transaction_date) {
+  if (txn.ownership_pct != null && txn.postmoney_valuation != null && txn.transaction_date) {
     if (!latestNavDate || txn.transaction_date >= latestNavDate) {
       latestNavDate = txn.transaction_date
-      latestNav = txn.nav
+      latestNavValue = txn.ownership_pct * txn.postmoney_valuation
+    }
+  }
+  if (txn.transaction_type === 'round_info' && txn.ownership_pct != null && txn.latest_postmoney_valuation != null && txn.transaction_date) {
+    if (!latestNavDate || txn.transaction_date >= latestNavDate) {
+      latestNavDate = txn.transaction_date
+      latestNavValue = txn.ownership_pct * txn.latest_postmoney_valuation
     }
   }
 }
 
-// Se existe NAV registrado, usa ele. Senão, fallback para cálculo por rounds
 let unrealizedValue = 0
-if (latestNav != null) {
-  unrealizedValue = latestNav
+if (latestNavValue != null) {
+  unrealizedValue = latestNavValue
 } else {
   for (const [, round] of Array.from(roundMap.entries())) {
     unrealizedValue += round.investmentCost + round.unrealizedValueChange - round.costBasisExited
