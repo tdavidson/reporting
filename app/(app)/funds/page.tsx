@@ -53,7 +53,7 @@ const DEFAULT_CONFIG: GroupConfig = {
 interface FundMetrics {
   committed: number
   called: number
-  uncalled: number
+  totalInvested: number
   distributions: number
   cashOnHand: number
   grossResidual: number
@@ -163,7 +163,7 @@ function computeFundMetrics(
   return {
     committed: finalCommitted,
     called,
-    uncalled,
+    totalInvested,
     distributions,
     cashOnHand,
     grossResidual,
@@ -669,7 +669,7 @@ const fmtCard = (val: number) => {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
         {[
 { label: 'Called', value: fmtCard(metrics.called) },
-{ label: 'Uncalled', value: fmtCard(metrics.uncalled) },
+{ label: 'Invested', value: fmtCard(metrics.totalInvested) },
 { label: 'Distributions', value: fmtCard(metrics.distributions) },
         ].map(card => (
           <Card key={card.label}>
