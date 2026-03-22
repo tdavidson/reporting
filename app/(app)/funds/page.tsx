@@ -131,11 +131,11 @@ function computeFundMetrics(
   const netTvpi = called > 0 ? totalValue / called : null
   const dpi = called > 0 ? distributions / called : null
   const rvpi = called > 0 ? netResidual / called : null
-  const netMoic = netTvpi // Em fundos, Net MOIC e TVPI são matematicamente o mesmo
-
+    
   // 4. MÉTRICAS GROSS (Base: INVESTED - O quanto foi para o "game")
   // O denominador aqui é o custo dos ativos
   const grossMoic = totalInvested > 0 ? (distributions + grossResidual) / totalInvested : null
+  const netMoic = invested > 0 ? totalValue / invested : null
 
   // 5. XIRR NET (O retorno do cotista)
   const netXirrFlows: CashFlow[] = []
