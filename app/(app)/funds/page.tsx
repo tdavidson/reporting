@@ -251,7 +251,6 @@ function computeMasterFundMetrics(
     tvpi, dpi, rvpi, netIrr, grossMoic, netMoic, grossIrr, netTvpi, grossTvpi,
     totalManagementFees,
   }
-  }
 }
 
 function fmtMoic(val: number | null): string {
