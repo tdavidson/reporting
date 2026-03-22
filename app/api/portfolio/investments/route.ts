@@ -215,34 +215,47 @@ export async function GET(req: NextRequest) {
         }
       }
 
-// Pega o NAV mais recente: ownership_pct × postmoney_valuation do registro mais recente
-let latestNavDate: string | null = null
-let latestNavValue: number | null = null
+      const sortedGTxns = [...gTxns].sort((a, b) =>
+        (a.transaction_date ?? '').localeCompare(b.transaction_date ?? '')
+      )
 
-for (const txn of gTxns) {
-  if (txn.ownership_pct != null && txn.postmoney_valuation != null && txn.transaction_date) {
-    if (!latestNavDate || txn.transaction_date >= latestNavDate) {
-      latestNavDate = txn.transaction_date
-      latestNavValue = txn.ownership_pct * txn.postmoney_valuation
-    }
-  }
-  if (txn.transaction_type === 'round_info' && txn.ownership_pct != null && txn.latest_postmoney_valuation != null && txn.transaction_date) {
-    if (!latestNavDate || txn.transaction_date >= latestNavDate) {
-      latestNavDate = txn.transaction_date
-      latestNavValue = txn.ownership_pct * txn.latest_postmoney_valuation
-    }
-  }
-}
+      let currentOwnership: number | null = null
+      let currentValuation: number | null = null
+      let explicitNav: number | null = null
 
-let unrealizedValue = 0
-if (latestNavValue != null) {
-  unrealizedValue = latestNavValue
-} else {
-  for (const [, round] of Array.from(roundMap.entries())) {
-    unrealizedValue += round.investmentCost + round.unrealizedValueChange - round.costBasisExited
-  }
-  unrealizedValue = Math.max(0, unrealizedValue)
-}
+      for (const txn of sortedGTxns) {
+        if (!txn.transaction_date) continue
+
+        if (txn.transaction_type === 'investment') {
+          if (txn.ownership_pct != null) currentOwnership = txn.ownership_pct
+          if (txn.postmoney_valuation != null) currentValuation = txn.postmoney_valuation
+        }
+
+        if (txn.transaction_type === 'unrealized_gain_change' || txn.transaction_type === 'round_info') {
+          if (txn.ownership_pct != null) currentOwnership = txn.ownership_pct
+          const val = txn.transaction_type === 'unrealized_gain_change'
+            ? txn.latest_postmoney_valuation
+            : txn.postmoney_valuation
+          if (val != null) currentValuation = val
+          if (txn.transaction_type === 'unrealized_gain_change' && txn.unrealized_value_change != null) {
+            explicitNav = txn.unrealized_value_change
+          } else {
+            explicitNav = null
+          }
+        }
+      }
+
+      let unrealizedValue = 0
+      if (explicitNav != null) {
+        unrealizedValue = explicitNav
+      } else if (currentOwnership != null && currentValuation != null) {
+        unrealizedValue = (currentOwnership / 100) * currentValuation
+      } else {
+        for (const [, round] of Array.from(roundMap.entries())) {
+          unrealizedValue += round.investmentCost + round.unrealizedValueChange - round.costBasisExited
+        }
+        unrealizedValue = Math.max(0, unrealizedValue)
+      }
 
       // Define o FMV baseado no valor capturado ou no status da empresa
       let fmv: number
