@@ -309,7 +309,12 @@ export default function FundsPage() {
   const [deletingGroup, setDeletingGroup] = useState<string | null>(null)
   const [deleteConfirmName, setDeleteConfirmName] = useState('')
   const [deletingGroupSaving, setDeletingGroupSaving] = useState(false)
-  const [groupOrder, setGroupOrder] = useState<string[]>([])
+  const [groupOrder, setGroupOrder] = useState<string[]>(() => {
+  try {
+    const saved = localStorage.getItem('fund-group-order')
+    return saved ? JSON.parse(saved) : []
+  } catch { return [] }
+})
   const [draggedGroup, setDraggedGroup] = useState<string | null>(null)
   const [dragOverGroup, setDragOverGroup] = useState<string | null>(null)
 
@@ -663,6 +668,7 @@ const fmtCard = (val: number) => {
       const next = [...order]
       next.splice(from, 1)
       next.splice(to, 0, draggedGroup)
+      localStorage.setItem('fund-group-order', JSON.stringify(next))
       return next
     })
     setDraggedGroup(null)
