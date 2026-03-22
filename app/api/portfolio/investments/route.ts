@@ -125,18 +125,15 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // Second pass: group investment and proceeds transactions by portfolio_group
+    // Second pass: group ALL relevant transaction types by portfolio_group
     const groupTxns = new Map<string, InvestmentTransaction[]>()
     for (const txn of txns) {
-      if (txn.transaction_type === 'investment' || txn.transaction_type === 'proceeds') {
-        const group = txn.portfolio_group ?? companyDefaultGroup
-        const list = groupTxns.get(group) ?? []
-        list.push(txn)
-        groupTxns.set(group, list)
-      }
-      // Also bucket unrealized_gain_change with round attribution to the correct group
-      if (txn.transaction_type === 'unrealized_gain_change' && txn.round_name) {
-        // These get processed per-group below via roundMap
+      if (
+        txn.transaction_type === 'investment' ||
+        txn.transaction_type === 'proceeds' ||
+        txn.transaction_type === 'unrealized_gain_change' ||
+        txn.transaction_type === 'round_info'
+      ) {
         const group = txn.portfolio_group ?? companyDefaultGroup
         const list = groupTxns.get(group) ?? []
         list.push(txn)
@@ -246,7 +243,9 @@ export async function GET(req: NextRequest) {
       }
 
       let unrealizedValue = 0
-      if (explicitNav != null) {
+      if (company.status === 'written-off') {
+        unrealizedValue = 0
+      } else if (explicitNav != null) {
         unrealizedValue = explicitNav
       } else if (currentOwnership != null && currentValuation != null) {
         unrealizedValue = (currentOwnership / 100) * currentValuation
