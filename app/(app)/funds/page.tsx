@@ -134,8 +134,9 @@ function computeFundMetrics(
     
   // 4. MÉTRICAS GROSS (Base: INVESTED - O quanto foi para o "game")
   // O denominador aqui é o custo dos ativos
-  const grossMoic = totalInvested > 0 ? (distributions + grossResidual) / totalInvested : null
-  const netMoic = invested > 0 ? totalValue / invested : null
+  const totalInvestedCalculation = called - totalManagementFees
+  const grossMoic = totalInvestedCalculation > 0 ? (distributions + grossResidual) / totalInvestedCalculation : null
+  const netMoic = totalInvestedCalculation > 0 ? totalValue / totalInvestedCalculation : null
 
   // 5. XIRR NET (O retorno do cotista)
   const netXirrFlows: CashFlow[] = []
