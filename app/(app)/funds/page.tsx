@@ -365,9 +365,17 @@ export default function FundsPage() {
     for (const g of investmentGroups) if (g.group) set.add(g.group)
     const sorted = Array.from(set).sort()
     setGroupOrder(prev => {
-      if (prev.length === 0) return sorted
-      const newGroups = sorted.filter(g => !prev.includes(g))
-      return [...prev.filter(g => sorted.includes(g)), ...newGroups]
+      try {
+        const saved = localStorage.getItem('fund-group-order')
+        const savedOrder: string[] = saved ? JSON.parse(saved) : []
+        const base = savedOrder.length > 0 ? savedOrder : prev.length > 0 ? prev : sorted
+        const newGroups = sorted.filter(g => !base.includes(g))
+        return [...base.filter(g => sorted.includes(g)), ...newGroups]
+      } catch {
+        if (prev.length === 0) return sorted
+        const newGroups = sorted.filter(g => !prev.includes(g))
+        return [...prev.filter(g => sorted.includes(g)), ...newGroups]
+      }
     })
     return sorted
   }, [cashFlows, investmentGroups])
