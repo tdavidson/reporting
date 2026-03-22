@@ -138,6 +138,7 @@ function computeFundMetrics(
   const totalInvestedCalculation = called - totalManagementFees
   const grossMoic = totalInvestedCalculation > 0 ? (distributions + grossResidual) / totalInvestedCalculation : null
   const netMoic = totalInvestedCalculation > 0 ? totalValue / totalInvestedCalculation : null
+  const grossTvpi = called > 0 ? (distributions + grossResidual) / called : null
 
   // 5. XIRR NET (O retorno do cotista)
   const netXirrFlows: CashFlow[] = []
