@@ -215,26 +215,15 @@ export async function GET(req: NextRequest) {
         }
       }
 
-// Extract latest ownership_pct and post_money from unrealized_gain_change transactions
-let latestOwnershipPct: number | null = null
-let latestPostMoney: number | null = null
-let latestValuationDate: string | null = null
+// Pega o NAV mais atual (pela data) que já está gravado na transação
+      let unrealizedValue = 0
+      for (const txn of gTxns) {
+        if (txn.nav != null) {
+          unrealizedValue = txn.nav
+        }
+      }
 
-for (const txn of gTxns) {
-  if (txn.transaction_type === 'unrealized_gain_change') {
-    if (txn.transaction_date && (!latestValuationDate || txn.transaction_date >= latestValuationDate)) {
-      if (txn.ownership_pct != null) latestOwnershipPct = txn.ownership_pct
-      if (txn.latest_postmoney_valuation != null) latestPostMoney = txn.latest_postmoney_valuation
-      latestValuationDate = txn.transaction_date
-    }
-  }
-}
-
-// Regra Estrita: Apenas Valuation × Participation %
-let unrealizedValue = 0
-if (latestOwnershipPct != null && latestPostMoney != null) {
-  unrealizedValue = (latestOwnershipPct / 100) * latestPostMoney
-}
+      // Define o FMV baseado no NAV capturado ou no status da empresa
       let fmv: number
       if (company.status === 'exited') {
         fmv = totalRealized
