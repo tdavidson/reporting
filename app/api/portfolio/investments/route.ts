@@ -215,12 +215,29 @@ export async function GET(req: NextRequest) {
         }
       }
 
-// Pega o NAV mais atual (pela data) chamando a propriedade correta do banco
-let unrealizedValue = 0
-for (const [, round] of Array.from(roundMap.entries())) {
-  unrealizedValue += round.investmentCost + round.unrealizedValueChange - round.costBasisExited
+// Pega o NAV mais recente de qualquer transação que tenha nav preenchido
+let latestNavDate: string | null = null
+let latestNav: number | null = null
+
+for (const txn of gTxns) {
+  if (txn.nav != null && txn.transaction_date) {
+    if (!latestNavDate || txn.transaction_date >= latestNavDate) {
+      latestNavDate = txn.transaction_date
+      latestNav = txn.nav
+    }
+  }
 }
-unrealizedValue = Math.max(0, unrealizedValue)
+
+// Se existe NAV registrado, usa ele. Senão, fallback para cálculo por rounds
+let unrealizedValue = 0
+if (latestNav != null) {
+  unrealizedValue = latestNav
+} else {
+  for (const [, round] of Array.from(roundMap.entries())) {
+    unrealizedValue += round.investmentCost + round.unrealizedValueChange - round.costBasisExited
+  }
+  unrealizedValue = Math.max(0, unrealizedValue)
+}
 
       // Define o FMV baseado no valor capturado ou no status da empresa
       let fmv: number
