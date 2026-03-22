@@ -216,12 +216,11 @@ export async function GET(req: NextRequest) {
       }
 
 // Pega o NAV mais atual (pela data) chamando a propriedade correta do banco
-      let unrealizedValue = 0
-      for (const txn of gTxns) {
-        if (txn.unrealized_value != null) {
-          unrealizedValue = txn.unrealized_value
-        }
-      }
+let unrealizedValue = 0
+for (const [, round] of Array.from(roundMap.entries())) {
+  unrealizedValue += round.investmentCost + round.unrealizedValueChange - round.costBasisExited
+}
+unrealizedValue = Math.max(0, unrealizedValue)
 
       // Define o FMV baseado no valor capturado ou no status da empresa
       let fmv: number
