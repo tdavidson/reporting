@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { HardDrive, Check, AlertCircle, Loader2 } from 'lucide-react'
 
-type AttachmentAction = 'drive' | 'keep' | 'delete'
+type AttachmentAction = 'keep' | 'delete'
 
 interface Attachment {
   Name: string
@@ -15,10 +15,10 @@ interface Attachment {
 interface Props {
   emailId: string
   attachments: Attachment[]
-  hasFileStorage: boolean
 }
 
-export function AttachmentManager({ emailId, attachments, hasFileStorage }: Props) {
+export function AttachmentManager({ emailId, attachments }: Props) {
+
   const [actions, setActions] = useState<Record<string, AttachmentAction>>(
     Object.fromEntries(attachments.map(a => [a.Name, 'delete']))
   )
@@ -54,8 +54,7 @@ export function AttachmentManager({ emailId, attachments, hasFileStorage }: Prop
     }
   }
 
-  const ACTION_OPTIONS: { value: AttachmentAction; label: string }[] = [
-    ...(hasFileStorage ? [{ value: 'drive' as AttachmentAction, label: 'Save to storage' }] : []),
+const ACTION_OPTIONS: { value: AttachmentAction; label: string }[] = [
     { value: 'keep', label: 'Keep in app' },
     { value: 'delete', label: 'Delete' },
   ]
@@ -86,9 +85,7 @@ export function AttachmentManager({ emailId, attachments, hasFileStorage }: Prop
                     actions[att.Name] === opt.value
                       ? opt.value === 'delete'
                         ? 'bg-destructive/10 border-destructive/30 text-destructive font-medium'
-                        : opt.value === 'drive'
-                          ? 'bg-blue-50 border-blue-300 text-blue-700 font-medium'
-                          : 'bg-muted border-border text-foreground font-medium'
+                        : 'bg-muted border-border text-foreground font-medium'
                       : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'
                   }`}
                 >
