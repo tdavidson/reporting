@@ -1,4 +1,4 @@
-import { createAdminClient } from '@/lib/supabase/admin'
+import { createAdminClient } from '@/lib/supabase/admin' 
 import {
   extractAttachmentText,
   type ExtractionResult,
