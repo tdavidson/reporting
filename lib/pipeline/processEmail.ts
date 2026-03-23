@@ -449,7 +449,7 @@ async function getExistingPeriodLabels(
     .in('metric_id', metricIds)
 
   if (!data) return []
-  return [...new Set(data.map(r => r.period_label))]
+return Array.from(new Set(data.map(r => r.period_label)))
 }
 
 async function checkDuplicatePeriod(
