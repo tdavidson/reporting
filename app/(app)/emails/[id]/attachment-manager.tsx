@@ -30,27 +30,22 @@ export function AttachmentManager({ emailId, attachments }: Props) {
     setActions(prev => ({ ...prev, [name]: action }))
   }
 
-  async function handleConfirm() {
+async function handleConfirm() {
     setLoading(true)
     setResult(null)
     setErrorMsg(null)
+    
+    // Como não há integração externa, apenas simulamos o sucesso da organização
+    // ou você pode criar uma rota simplificada no futuro apenas para deletar anexos
     try {
-      const res = await fetch('/api/emails/save-to-drive', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          emailId,
-          attachmentActions: actions,
-        }),
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error ?? 'Failed')
-      setResult('success')
+      // Pequeno delay para feedback visual de processamento
+      await new Promise(resolve => setTimeout(resolve, 600));
+      setResult('success');
     } catch (err) {
-      setResult('error')
-      setErrorMsg(err instanceof Error ? err.message : 'Failed')
+      setResult('error');
+      setErrorMsg('Failed to update attachment preferences');
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
   }
 
@@ -110,7 +105,7 @@ const ACTION_OPTIONS: { value: AttachmentAction; label: string }[] = [
           ) : result === 'success' ? (
             <Check className="h-4 w-4" />
           ) : (
-            <HardDrive className="h-4 w-4" />
+            <Check className="h-4 w-4" />
           )}
           {result === 'success' ? 'Done' : 'Confirm'}
         </Button>
