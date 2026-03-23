@@ -329,9 +329,11 @@ export default function FundsPage() {
     vintage: string
     managementFeeRate: string
   }>>({})
-  const [savingSettings, setSavingSettings] = useState(false)
   const [deletingGroup, setDeletingGroup] = useState<string | null>(null)
   const [deleteConfirmName, setDeleteConfirmName] = useState('')
+  const [deletingGroupSaving, setDeletingGroupSaving] = useState(false)
+  const [portfolioIRR, setPortfolioIRR] = useState<number | null>(null)
+  const [portfolioMOIC, setPortfolioMOIC] = useState<number | null>(null)
   const [deletingGroupSaving, setDeletingGroupSaving] = useState(false)
   const [groupOrder, setGroupOrder] = useState<string[]>(() => {
   try {
@@ -354,6 +356,8 @@ export default function FundsPage() {
         if (cfRes.ok) setCashFlows(await cfRes.json())
         if (invRes.ok) {
           const invData = await invRes.json()
+          setPortfolioIRR(invData.portfolioIRR ?? null)
+          setPortfolioMOIC(invData.portfolioMOIC ?? null)
           setInvestmentGroups(
             (invData.groups ?? []).map((g: any) => ({
               group: g.group,
@@ -433,41 +437,69 @@ export default function FundsPage() {
     return map
   }, [groups, cashFlows, grossResidualByGroup, totalInvestedByGroup, groupConfigs])
 
-  const masterMetrics = useMemo(() => {
-    const totalGrossResidual = Array.from(grossResidualByGroup.values()).reduce((a, b) => a + b, 0)
-    const totalInvested = Array.from(totalInvestedByGroup.values()).reduce((a, b) => a + b, 0)
-    const totalCashOnHand = groups.reduce((a, g) => a + (groupConfigs[g]?.cashOnHand ?? 0), 0)
+const masterMetrics = useMemo(() => {
+    let called = 0
+    let distributions = 0
+    let netResidual = 0
+    let committed = 0
+    let grossResidual = 0
+    let totalInvested = 0
+    let cashOnHand = 0
+    let estimatedCarry = 0
+    let totalManagementFees = 0
 
-    let totalCalled = 0
-    let weightedCarry = 0
-    let weightedGpCommit = 0
+    const netXirrFlows: CashFlow[] = []
+
     for (const group of groups) {
       const m = metricsByGroup.get(group)
-      const config = groupConfigs[group] ?? DEFAULT_CONFIG
-      if (m) {
-        totalCalled += m.called
-        weightedCarry += config.carryRate * m.called
-        weightedGpCommit += config.gpCommitPct * m.called
+      if (!m) continue
+      
+      called += m.called
+      distributions += m.distributions
+      netResidual += m.netResidual
+      committed += m.committed
+      grossResidual += m.grossResidual
+      totalInvested += m.totalInvested
+      cashOnHand += m.cashOnHand
+      estimatedCarry += m.estimatedCarry
+      totalManagementFees += m.totalManagementFees
+
+      const groupFlows = cashFlows.filter(cf => cf.portfolio_group === group)
+      for (const cf of groupFlows) {
+        if (cf.flow_type === 'called_capital') {
+          netXirrFlows.push({ date: new Date(cf.flow_date), amount: -cf.amount })
+        }
+        if (cf.flow_type === 'distribution') {
+          netXirrFlows.push({ date: new Date(cf.flow_date), amount: cf.amount })
+        }
       }
     }
-    const avgCarryRate = totalCalled > 0 ? weightedCarry / totalCalled : 0.20
-    const avgGpCommitPct = totalCalled > 0 ? weightedGpCommit / totalCalled : 0
 
-    const totalManagementFees = groups.reduce((sum, g) => {
-      const m = metricsByGroup.get(g)
-      return sum + (m?.totalManagementFees ?? 0)
-    }, 0)
+    if (netResidual > 0) netXirrFlows.push({ date: new Date(), amount: netResidual })
+    
+    let netIrr = null
+    if (netXirrFlows.length >= 2) {
+      try { netIrr = xirr(netXirrFlows) } catch (e) { console.error(e) }
+    }
+    const totalValue = distributions + netResidual
+    
+    const tvpi = called > 0 ? totalValue / called : null
+    const dpi = called > 0 ? distributions / called : null
+    const rvpi = called > 0 ? netResidual / called : null
 
-    return computeMasterFundMetrics(
-      cashFlows,
-      totalGrossResidual,
-      totalInvested,
-      totalCashOnHand,
+    const grossTvpi = called > 0 ? (distributions + grossResidual) / called : null
+
+    return {
+      committed, called, totalInvested, distributions,
+      cashOnHand, grossResidual, estimatedCarry, netResidual, totalValue,
+      tvpi, dpi, rvpi, netIrr, 
+      grossMoic: portfolioMOIC, 
+      netMoic: tvpi, 
+      grossIrr: portfolioIRR, 
+      netTvpi: tvpi, grossTvpi,
       totalManagementFees,
-      avgCarryRate,
-      avgGpCommitPct,
-    )
-  }, [cashFlows, groups, grossResidualByGroup, totalInvestedByGroup, groupConfigs, metricsByGroup])
+    }
+  }, [cashFlows, groups, metricsByGroup, portfolioIRR, portfolioMOIC])
 
   const fmt = (val: number) => formatWithUnit(val, displayUnit, currency)
 const fmtCard = (val: number) => {
