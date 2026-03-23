@@ -33,8 +33,9 @@ export async function POST(req: NextRequest) {
 
   if (!membership) return NextResponse.json({ error: 'No fund found' }, { status: 403 })
 
-  const body = await req.json()
-  const emailIds: string[] = body.emailIds ?? (body.emailId ? [body.emailId] : [])
+const body = await req.json()
+const emailIds: string[] = body.emailIds ?? (body.emailId ? [body.emailId] : [])
+const attachmentActions: Record<string, 'drive' | 'keep' | 'delete'> = body.attachmentActions ?? {}
 
   if (emailIds.length === 0) {
     return NextResponse.json({ error: 'No email IDs provided' }, { status: 400 })
@@ -174,23 +175,39 @@ export async function POST(req: NextRequest) {
 
       let attachmentsSaved = 0
       let attachmentErrors = 0
-      for (const att of attachments) {
-        if (!att.Content) {
-          console.warn(`[save-to-drive] Attachment "${att.Name}" has no Content, skipping`)
-          continue
-        }
-        try {
-          const content = Buffer.from(att.Content, 'base64')
-          console.log(`[save-to-drive] Uploading attachment "${att.Name}" (${content.length} bytes)`)
-          await uploadAttachment(companyName, att.Name, content, companyInfo)
-          attachmentsSaved++
-        } catch (attErr) {
-          attachmentErrors++
-          const msg = attErr instanceof Error ? attErr.message : 'Unknown error'
-          console.error(`[save-to-drive] Attachment "${att.Name}" failed:`, msg)
-          errors.push(`Attachment "${att.Name}": ${msg}`)
-        }
+for (const att of attachments) {
+  const action = attachmentActions[att.Name] ?? 'keep'
+
+  if (action === 'delete') {
+    const storagePath = (att as any).StoragePath
+    if (storagePath) {
+      const { error: delError } = await admin.storage
+        .from('email-attachments')
+        .remove([storagePath])
+      if (delError) {
+        console.warn(`[save-to-drive] Failed to delete "${att.Name}":`, delError.message)
       }
+    }
+    continue
+  }
+
+  if (action === 'keep') continue
+
+  // action === 'drive'
+  if (!att.Content) {
+    console.warn(`[save-to-drive] Attachment "${att.Name}" has no Content, skipping`)
+    continue
+  }
+  try {
+    const content = Buffer.from(att.Content, 'base64')
+    await uploadAttachment(companyName, att.Name, content, companyInfo)
+    attachmentsSaved++
+  } catch (attErr) {
+    attachmentErrors++
+    const msg = attErr instanceof Error ? attErr.message : 'Unknown error'
+    errors.push(`Attachment "${att.Name}": ${msg}`)
+  }
+}
 
       saved++
       if (attachmentErrors > 0) {
