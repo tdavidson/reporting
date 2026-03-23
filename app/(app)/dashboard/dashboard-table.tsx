@@ -34,8 +34,8 @@ function formatValue(v: number | string | null, metric: MetricData, fundCurrency
   if (v === null || v === undefined) return '—'
   if (typeof v === 'string') return v
   let str: string
-  if (Math.abs(v) >= 1_000_000) str = `${(v / 1_000_000)..toLocaleString(1)}M`
-  else if (Math.abs(v) >= 1_000) str = `${(v / 1_000)..toLocaleString(0)}K`
+  if (Math.abs(v) >= 1_000_000) str = `${(v / 1_000_000).toLocaleString(1)}M`
+  else if (Math.abs(v) >= 1_000) str = `${(v / 1_000).toLocaleString(1)}K`
   else str = v.toLocaleString()
   const metricCurrency = metric.currency ?? fundCurrency
   const currencySymbol = metricCurrency ? getCurrencySymbol(metricCurrency) : null
