@@ -367,4 +367,353 @@ export async function getOpenAIModel(supabase: Supabase, fundId: string): Promis
   return data?.openai_model || 'gpt-4o'
 }
 
-export async function getDef
+export async function getDefaultAIProvider(supabase: Supabase, fundId: string): Promise<'anthropic' | 'openai' | 'gemini' | 'ollama'> {
+  const { data } = await supabase
+    .from('fund_settings')
+    .select('default_ai_provider')
+    .eq('fund_id', fundId)
+    .single()
+
+  const provider = data?.default_ai_provider
+  if (provider === 'openai' || provider === 'gemini' || provider === 'ollama') return provider
+  return 'anthropic'
+}
+
+export async function getGeminiApiKey(supabase: Supabase, fundId: string): Promise<string> {
+  const { data, error } = await supabase
+    .from('fund_settings')
+    .select('gemini_api_key_encrypted, encryption_key_encrypted')
+    .eq('fund_id', fundId)
+    .single()
+
+  if (error || !data?.gemini_api_key_encrypted || !data?.encryption_key_encrypted) {
+    throw new Error(`Gemini API key not configured for fund ${fundId}`)
+  }
+
+  return decryptApiKey(data.gemini_api_key_encrypted, data.encryption_key_encrypted)
+}
+
+export async function getGeminiModel(supabase: Supabase, fundId: string): Promise<string> {
+  const { data } = await supabase
+    .from('fund_settings')
+    .select('gemini_model')
+    .eq('fund_id', fundId)
+    .single()
+
+  return data?.gemini_model || 'gemini-2.0-flash'
+}
+
+export async function getOllamaConfig(supabase: Supabase, fundId: string): Promise<{ baseUrl: string; model: string }> {
+  const { data } = await supabase
+    .from('fund_settings')
+    .select('ollama_base_url, ollama_model')
+    .eq('fund_id', fundId)
+    .single()
+
+  return {
+    baseUrl: data?.ollama_base_url || 'http://localhost:11434/v1',
+    model: data?.ollama_model || 'llama3.2',
+  }
+}
+
+export async function getCompanies(supabase: Supabase, fundId: string): Promise<CompanyRef[]> {
+  const { data } = await supabase
+    .from('companies')
+    .select('id, name, aliases')
+    .eq('fund_id', fundId)
+    .eq('status', 'active')
+
+  return data ?? []
+}
+
+export async function getMetrics(supabase: Supabase, companyId: string): Promise<MetricDef[]> {
+  const { data } = await supabase
+    .from('metrics')
+    .select('id, name, slug, description, unit, value_type')
+    .eq('company_id', companyId)
+    .eq('is_active', true)
+    .order('display_order')
+
+  return (data ?? []) as MetricDef[]
+}
+
+async function getExistingPeriodLabels(
+  supabase: Supabase,
+  metricIds: string[]
+): Promise<string[]> {
+  if (metricIds.length === 0) return []
+
+  const { data } = await supabase
+    .from('metric_values')
+    .select('period_label')
+    .in('metric_id', metricIds)
+
+  if (!data) return []
+  return [...new Set(data.map(r => r.period_label))]
+}
+
+async function checkDuplicatePeriod(
+  supabase: Supabase,
+  metricId: string,
+  period: { year: number; quarter: number | null; month: number | null }
+): Promise<boolean> {
+  let query = supabase
+    .from('metric_values')
+    .select('id')
+    .eq('metric_id', metricId)
+    .eq('period_year', period.year)
+
+  if (period.quarter !== null && period.quarter !== undefined) {
+    query = query.eq('period_quarter', period.quarter)
+  } else {
+    query = query.is('period_quarter', null)
+  }
+
+  if (period.month !== null && period.month !== undefined) {
+    query = query.eq('period_month', period.month)
+  } else {
+    query = query.is('period_month', null)
+  }
+
+  const { data } = await query.maybeSingle()
+  return !!data
+}
+
+export async function createReview(
+  supabase: Supabase,
+  review: {
+    fund_id: string
+    email_id: string
+    metric_id?: string
+    company_id?: string
+    issue_type: IssueType
+    extracted_value?: string
+    context_snippet?: string
+  }
+) {
+  const { error } = await supabase.from('parsing_reviews').insert(review)
+  if (error) console.error('[pipeline] Failed to create review:', error)
+}
+
+export async function finalizeEmail(
+  supabase: Supabase,
+  emailId: string,
+  opts: { status: ProcessingStatus; metricsExtracted?: number }
+) {
+  await supabase
+    .from('inbound_emails')
+    .update({
+      processing_status: opts.status,
+      metrics_extracted: opts.metricsExtracted ?? 0,
+    })
+    .eq('id', emailId)
+}
+
+// ---------------------------------------------------------------------------
+// Text helpers
+// ---------------------------------------------------------------------------
+
+export function buildCombinedText(extracted: ExtractionResult, payload?: PostmarkPayload): string {
+  const parts: string[] = []
+
+  if (payload) {
+    const metaParts: string[] = []
+    if (payload.Subject) metaParts.push(`Subject: ${payload.Subject}`)
+    if (payload.FromFull?.Name) metaParts.push(`From: ${payload.FromFull.Name} <${payload.FromFull.Email}>`)
+    else if (payload.From) metaParts.push(`From: ${payload.From}`)
+    if (payload.Date) metaParts.push(`Date: ${payload.Date}`)
+    if (metaParts.length) parts.push(`[EMAIL METADATA]\n${metaParts.join('\n')}`)
+  }
+
+  parts.push(`[EMAIL BODY]\n${extracted.emailBody}`)
+  for (const att of extracted.attachments) {
+    if (!att.skipped && att.extractedText) {
+      parts.push(`[ATTACHMENT: ${att.filename}]\n${att.extractedText}`)
+    }
+  }
+  return parts.join('\n\n')
+}
+
+export function parseValue(
+  value: number | string,
+  valueType: string
+): { value_number?: number; value_text?: string } {
+  if (valueType === 'text') return { value_text: String(value) }
+  const num =
+    typeof value === 'number'
+      ? value
+      : parseFloat(String(value).replace(/[^0-9.-]/g, ''))
+  if (isNaN(num)) return { value_text: String(value) }
+  return { value_number: num }
+}
+
+function isPdf(contentType: string): boolean {
+  return contentType === 'application/pdf'
+}
+
+function isImage(contentType: string): boolean {
+  return contentType.startsWith('image/')
+}
+
+// ---------------------------------------------------------------------------
+// Interaction extraction
+// ---------------------------------------------------------------------------
+
+async function maybeExtractInteraction(
+  supabase: Supabase,
+  fundId: string,
+  emailId: string,
+  companyId: string | null,
+  userId: string,
+  payload: PostmarkPayload,
+  bodyText: string,
+  provider: import('@/lib/ai/types').AIProvider,
+  providerType: string,
+  model: string
+): Promise<void> {
+  const { data: fSettings } = await supabase
+    .from('fund_settings')
+    .select('feature_visibility')
+    .eq('fund_id', fundId)
+    .maybeSingle()
+  const fv = fSettings?.feature_visibility as Record<string, string> | null
+  if (fv?.interactions === 'off') return
+
+  const senderName = payload.FromFull?.Name || payload.From || ''
+  const interaction = await extractInteraction(
+    payload.Subject ?? '',
+    bodyText,
+    senderName,
+    provider,
+    providerType,
+    model,
+    { admin: supabase, fundId }
+  )
+
+  if (interaction.is_reporting) return
+
+  await supabase.from('interactions').insert({
+    fund_id: fundId,
+    company_id: companyId,
+    email_id: emailId,
+    user_id: userId,
+    tags: interaction.tags,
+    subject: payload.Subject ?? null,
+    summary: interaction.summary,
+    intro_contacts: interaction.intro_contacts as unknown as Json,
+    body_preview: bodyText.slice(0, 500),
+    interaction_date: new Date().toISOString(),
+  })
+}
+
+// ---------------------------------------------------------------------------
+// File storage
+// ---------------------------------------------------------------------------
+
+async function saveToFileStorage(
+  supabase: Supabase,
+  fundId: string,
+  companyName: string,
+  payload: PostmarkPayload
+): Promise<void> {
+  const { data: settings } = await supabase
+    .from('fund_settings')
+    .select('file_storage_provider, google_refresh_token_encrypted, encryption_key_encrypted, google_drive_folder_id, dropbox_refresh_token_encrypted, dropbox_folder_path')
+    .eq('fund_id', fundId)
+    .single()
+
+  if (!settings?.file_storage_provider) return
+
+  if (settings.file_storage_provider === 'google_drive') {
+    await saveToGoogleDrive(supabase, fundId, companyName, payload, settings)
+  } else if (settings.file_storage_provider === 'dropbox') {
+    await saveToDropbox(supabase, fundId, companyName, payload, settings)
+  }
+}
+
+async function saveToGoogleDrive(
+  supabase: Supabase,
+  fundId: string,
+  companyName: string,
+  payload: PostmarkPayload,
+  settings: { google_refresh_token_encrypted: string | null; encryption_key_encrypted: string | null; google_drive_folder_id: string | null }
+): Promise<void> {
+  if (
+    !settings.google_refresh_token_encrypted ||
+    !settings.encryption_key_encrypted ||
+    !settings.google_drive_folder_id
+  ) return
+
+  const kek = process.env.ENCRYPTION_KEY
+  if (!kek) return
+
+  const dek = decrypt(settings.encryption_key_encrypted, kek)
+  const refreshToken = decrypt(settings.google_refresh_token_encrypted, dek)
+
+  const creds = await getGoogleCredentials(supabase, fundId)
+  if (!creds?.clientId || !creds?.clientSecret) return
+  const accessToken = await getGoogleAccessToken(refreshToken, creds.clientId, creds.clientSecret)
+  const rootFolderId = settings.google_drive_folder_id
+
+  const companyFolderId = await findOrCreateGoogleFolder(accessToken, rootFolderId, companyName)
+
+  const dateStr = new Date().toISOString().slice(0, 10)
+  const subject = payload.Subject?.replace(/[^a-zA-Z0-9 _-]/g, '').slice(0, 60) || 'Report'
+  const emailFilename = `${dateStr}_${subject}.txt`
+
+  const emailBody = payload.TextBody || payload.HtmlBody || '(no body)'
+  await uploadGoogleFile(accessToken, companyFolderId, emailFilename, emailBody, 'text/plain')
+
+  if (payload.Attachments?.length) {
+    for (const att of payload.Attachments) {
+      if (!att.Content) continue
+      const content = Buffer.from(att.Content, 'base64')
+      await uploadGoogleFile(accessToken, companyFolderId, att.Name, content, att.ContentType)
+    }
+  }
+}
+
+async function saveToDropbox(
+  supabase: Supabase,
+  fundId: string,
+  companyName: string,
+  payload: PostmarkPayload,
+  settings: { dropbox_refresh_token_encrypted: string | null; encryption_key_encrypted: string | null; dropbox_folder_path: string | null }
+): Promise<void> {
+  if (
+    !settings.dropbox_refresh_token_encrypted ||
+    !settings.encryption_key_encrypted ||
+    !settings.dropbox_folder_path
+  ) return
+
+  const kek = process.env.ENCRYPTION_KEY
+  if (!kek) return
+
+  const dek = decrypt(settings.encryption_key_encrypted, kek)
+  const refreshToken = decrypt(settings.dropbox_refresh_token_encrypted, dek)
+
+  const creds = await getDropboxCredentials(supabase, fundId)
+  if (!creds) return
+
+  const accessToken = await getDropboxAccessToken(refreshToken, creds.appKey, creds.appSecret)
+  const rootPath = settings.dropbox_folder_path
+
+  const safeCompanyName = companyName.replace(/[\/\\:*?"<>|.]/g, '_').replace(/^_+/, '').slice(0, 100) || 'Unknown'
+  const companyPath = `${rootPath}/${safeCompanyName}`
+  await findOrCreateDropboxFolder(accessToken, companyPath)
+
+  const dateStr = new Date().toISOString().slice(0, 10)
+  const subject = payload.Subject?.replace(/[^a-zA-Z0-9 _-]/g, '').slice(0, 60) || 'Report'
+  const emailFilename = `${dateStr}_${subject}.txt`
+
+  const emailBody = payload.TextBody || payload.HtmlBody || '(no body)'
+  await uploadDropboxFile(accessToken, companyPath, emailFilename, emailBody)
+
+  if (payload.Attachments?.length) {
+    for (const att of payload.Attachments) {
+      if (!att.Content) continue
+      const content = Buffer.from(att.Content, 'base64')
+      await uploadDropboxFile(accessToken, companyPath, att.Name, content)
+    }
+  }
+}
