@@ -79,6 +79,7 @@ export function computeSummary(
         latestSharePriceDate = txn.transaction_date!
       }
     }
+  } 
 
   // 2. CÁLCULO DO NAV (TERMINAL VALUE)
   let unrealizedValue = 0
