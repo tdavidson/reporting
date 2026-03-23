@@ -20,10 +20,6 @@ import type { Json, IssueType, ProcessingStatus } from '@/lib/types/database'
 
 type Supabase = ReturnType<typeof createAdminClient>
 
-// ---------------------------------------------------------------------------
-// Postmark inbound payload shape (fields we use)
-// ---------------------------------------------------------------------------
-
 export interface PostmarkPayload {
   From: string
   FromFull?: { Email: string; Name: string }
@@ -43,7 +39,7 @@ export interface PostmarkPayload {
 }
 
 // ---------------------------------------------------------------------------
-// Main pipeline — runs steps 4-8 for a given email record
+// Main pipeline
 // ---------------------------------------------------------------------------
 
 export async function runPipeline(
@@ -53,13 +49,9 @@ export async function runPipeline(
   payload: PostmarkPayload,
   fundMember?: { userId: string } | null
 ): Promise<void> {
-  // Step 4: Extract text from email body and attachments
   const extracted = await extractAttachmentText(payload)
-
-  // Fetch the fund's AI provider based on default_ai_provider setting
   const { provider, model, providerType } = await createFundAIProvider(supabase, fundId)
 
-  // Step 5: Identify the company (skip if already assigned, e.g. from manual assignment)
   const { data: existingEmail } = await supabase
     .from('inbound_emails')
     .select('company_id')
@@ -69,11 +61,9 @@ export async function runPipeline(
   const companies = await getCompanies(supabase, fundId)
   let companyId: string | null = (existingEmail as any)?.company_id ?? null
   let companyName = ''
-
   let companyIdentified = true
 
   if (companyId) {
-    // Company already assigned — skip identification
     companyName = companies.find(c => c.id === companyId)?.name ?? ''
   } else {
     const identification = await identifyCompany(
@@ -114,7 +104,6 @@ export async function runPipeline(
     }
   }
 
-  // If company wasn't identified, finalize early but still try interaction extraction for fund members
   if (!companyIdentified) {
     await finalizeEmail(supabase, emailId, { status: 'needs_review' })
     if (fundMember) {
@@ -127,12 +116,10 @@ export async function runPipeline(
     return
   }
 
-  // Step 6: Extract metrics
   const metrics = await getMetrics(supabase, companyId!)
 
   if (metrics.length === 0) {
     await finalizeEmail(supabase, emailId, { status: 'not_processed', metricsExtracted: 0 })
-    // Still save to file storage even when no metrics are defined
     try {
       await saveToFileStorage(supabase, fundId, companyName, payload)
     } catch (err) {
@@ -158,6 +145,9 @@ export async function runPipeline(
     .filter(a => !a.skipped && a.base64Content && isImage(a.contentType))
     .map(a => ({ data: a.base64Content!, mediaType: a.contentType }))
 
+  // Buscar períodos já existentes antes de chamar a AI
+  const existingPeriodLabels = await getExistingPeriodLabels(supabase, metrics.map(m => m.id))
+
   const metricsResult = await extractMetrics(
     companyName,
     combinedText,
@@ -167,16 +157,15 @@ export async function runPipeline(
     provider,
     providerType,
     model,
+    existingPeriodLabels,
     { admin: supabase, fundId }
   )
 
-  // Store the raw Claude response
   await supabase
     .from('inbound_emails')
     .update({ claude_response: metricsResult as unknown as Json })
     .eq('id', emailId)
 
-  // Step 7: Write results
   const { reviewCount, writtenCount } = await writeResults(
     supabase,
     emailId,
@@ -186,18 +175,15 @@ export async function runPipeline(
     metrics
   )
 
-  // Step 8: Finalize
   const status: ProcessingStatus = reviewCount > 0 ? 'needs_review' : writtenCount > 0 ? 'success' : 'not_processed'
   await finalizeEmail(supabase, emailId, { status, metricsExtracted: writtenCount })
 
-  // Step 9: Save to file storage (non-blocking)
   try {
     await saveToFileStorage(supabase, fundId, companyName, payload)
   } catch (err) {
     console.error('[pipeline] File storage save failed (non-blocking):', err)
   }
 
-  // Step 10: Extract interaction (fund member emails only)
   if (fundMember) {
     try {
       await maybeExtractInteraction(supabase, fundId, emailId, companyId, fundMember.userId, payload, extracted.emailBody, provider, providerType, model)
@@ -208,7 +194,7 @@ export async function runPipeline(
 }
 
 // ---------------------------------------------------------------------------
-// Result writer (Step 7)
+// Result writer
 // ---------------------------------------------------------------------------
 
 export async function writeResults(
@@ -222,22 +208,97 @@ export async function writeResults(
   let reviewCount = 0
   let writtenCount = 0
 
-  const { reporting_period, metrics, unextracted_metrics } = result
+  for (const periodData of result.periods) {
+    const { reporting_period, metrics, unextracted_metrics } = periodData
 
-  // If the period itself is low-confidence, flag everything and write nothing
-  if (reporting_period.confidence === 'low') {
+    if (reporting_period.confidence === 'low') {
+      for (const m of metrics) {
+        await createReview(supabase, {
+          fund_id: fundId,
+          email_id: emailId,
+          metric_id: m.metric_id,
+          company_id: companyId,
+          issue_type: 'ambiguous_period',
+          extracted_value: String(m.value),
+          context_snippet: `Period label: "${reporting_period.label}" (low confidence)`,
+        })
+        reviewCount++
+      }
+      for (const m of unextracted_metrics) {
+        await createReview(supabase, {
+          fund_id: fundId,
+          email_id: emailId,
+          metric_id: m.metric_id,
+          company_id: companyId,
+          issue_type: 'metric_not_found',
+          context_snippet: m.reason,
+        })
+        reviewCount++
+      }
+      continue
+    }
+
     for (const m of metrics) {
-      await createReview(supabase, {
-        fund_id: fundId,
-        email_id: emailId,
+      const def = metricDefs.find(d => d.id === m.metric_id)
+      if (!def) continue
+
+      const isDuplicate = await checkDuplicatePeriod(supabase, m.metric_id, reporting_period)
+      if (isDuplicate) {
+        await createReview(supabase, {
+          fund_id: fundId,
+          email_id: emailId,
+          metric_id: m.metric_id,
+          company_id: companyId,
+          issue_type: 'duplicate_period',
+          extracted_value: String(m.value),
+          context_snippet: `Period: ${reporting_period.label}`,
+        })
+        reviewCount++
+        continue
+      }
+
+      const valueFields = parseValue(m.value, def.value_type)
+
+      const { error } = await supabase.from('metric_values').insert({
         metric_id: m.metric_id,
         company_id: companyId,
-        issue_type: 'ambiguous_period',
-        extracted_value: String(m.value),
-        context_snippet: `Period label: "${reporting_period.label}" (low confidence)`,
+        fund_id: fundId,
+        period_label: reporting_period.label,
+        period_year: reporting_period.year,
+        period_quarter: reporting_period.quarter ?? null,
+        period_month: reporting_period.month ?? null,
+        confidence: m.confidence,
+        source_email_id: emailId,
+        notes: m.notes,
+        is_manually_entered: false,
+        ...valueFields,
       })
-      reviewCount++
+
+      if (error) {
+        if (error.code === '23505') {
+          console.log(`[pipeline] Skipped duplicate metric_value for ${m.metric_id} period ${reporting_period.label}`)
+          continue
+        }
+        console.error(`[pipeline] Failed to insert metric_value for ${m.metric_id}:`, error)
+        continue
+      }
+
+      writtenCount++
+
+      if (m.confidence === 'low') {
+        await createReview(supabase, {
+          fund_id: fundId,
+          email_id: emailId,
+          metric_id: m.metric_id,
+          company_id: companyId,
+          issue_type: 'low_confidence',
+          extracted_value: String(m.value),
+          context_snippet: m.notes,
+        })
+        reviewCount++
+      }
     }
+
     for (const m of unextracted_metrics) {
       await createReview(supabase, {
         fund_id: fundId,
@@ -249,83 +310,6 @@ export async function writeResults(
       })
       reviewCount++
     }
-    return { reviewCount, writtenCount }
-  }
-
-  // Write extracted metrics
-  for (const m of metrics) {
-    const def = metricDefs.find(d => d.id === m.metric_id)
-    if (!def) continue
-
-    const isDuplicate = await checkDuplicatePeriod(supabase, m.metric_id, reporting_period)
-    if (isDuplicate) {
-      await createReview(supabase, {
-        fund_id: fundId,
-        email_id: emailId,
-        metric_id: m.metric_id,
-        company_id: companyId,
-        issue_type: 'duplicate_period',
-        extracted_value: String(m.value),
-        context_snippet: `Period: ${reporting_period.label}`,
-      })
-      reviewCount++
-      continue
-    }
-
-    const valueFields = parseValue(m.value, def.value_type)
-
-    const { error } = await supabase.from('metric_values').insert({
-      metric_id: m.metric_id,
-      company_id: companyId,
-      fund_id: fundId,
-      period_label: reporting_period.label,
-      period_year: reporting_period.year,
-      period_quarter: reporting_period.quarter ?? null,
-      period_month: reporting_period.month ?? null,
-      confidence: m.confidence,
-      source_email_id: emailId,
-      notes: m.notes,
-      is_manually_entered: false,
-      ...valueFields,
-    })
-
-    if (error) {
-      // Unique constraint violation = duplicate period, skip silently
-      if (error.code === '23505') {
-        console.log(`[pipeline] Skipped duplicate metric_value for ${m.metric_id} period ${reporting_period.label}`)
-        continue
-      }
-      console.error(`[pipeline] Failed to insert metric_value for ${m.metric_id}:`, error)
-      continue
-    }
-
-    writtenCount++
-
-    if (m.confidence === 'low') {
-      await createReview(supabase, {
-        fund_id: fundId,
-        email_id: emailId,
-        metric_id: m.metric_id,
-        company_id: companyId,
-        issue_type: 'low_confidence',
-        extracted_value: String(m.value),
-        context_snippet: m.notes,
-      })
-      reviewCount++
-    }
-  }
-
-  // Flag unextracted metrics
-  for (const m of unextracted_metrics) {
-    await createReview(supabase, {
-      fund_id: fundId,
-      email_id: emailId,
-      metric_id: m.metric_id,
-      company_id: companyId,
-      issue_type: 'metric_not_found',
-      context_snippet: m.reason,
-    })
-    reviewCount++
   }
 
   return { reviewCount, writtenCount }
@@ -383,346 +367,4 @@ export async function getOpenAIModel(supabase: Supabase, fundId: string): Promis
   return data?.openai_model || 'gpt-4o'
 }
 
-export async function getDefaultAIProvider(supabase: Supabase, fundId: string): Promise<'anthropic' | 'openai' | 'gemini' | 'ollama'> {
-  const { data } = await supabase
-    .from('fund_settings')
-    .select('default_ai_provider')
-    .eq('fund_id', fundId)
-    .single()
-
-  const provider = data?.default_ai_provider
-  if (provider === 'openai' || provider === 'gemini' || provider === 'ollama') return provider
-  return 'anthropic'
-}
-
-export async function getGeminiApiKey(supabase: Supabase, fundId: string): Promise<string> {
-  const { data, error } = await supabase
-    .from('fund_settings')
-    .select('gemini_api_key_encrypted, encryption_key_encrypted')
-    .eq('fund_id', fundId)
-    .single()
-
-  if (error || !data?.gemini_api_key_encrypted || !data?.encryption_key_encrypted) {
-    throw new Error(`Gemini API key not configured for fund ${fundId}`)
-  }
-
-  return decryptApiKey(data.gemini_api_key_encrypted, data.encryption_key_encrypted)
-}
-
-export async function getGeminiModel(supabase: Supabase, fundId: string): Promise<string> {
-  const { data } = await supabase
-    .from('fund_settings')
-    .select('gemini_model')
-    .eq('fund_id', fundId)
-    .single()
-
-  return data?.gemini_model || 'gemini-2.0-flash'
-}
-
-export async function getOllamaConfig(supabase: Supabase, fundId: string): Promise<{ baseUrl: string; model: string }> {
-  const { data } = await supabase
-    .from('fund_settings')
-    .select('ollama_base_url, ollama_model')
-    .eq('fund_id', fundId)
-    .single()
-
-  return {
-    baseUrl: data?.ollama_base_url || 'http://localhost:11434/v1',
-    model: data?.ollama_model || 'llama3.2',
-  }
-}
-
-export async function getCompanies(supabase: Supabase, fundId: string): Promise<CompanyRef[]> {
-  const { data } = await supabase
-    .from('companies')
-    .select('id, name, aliases')
-    .eq('fund_id', fundId)
-    .eq('status', 'active')
-
-  return data ?? []
-}
-
-export async function getMetrics(supabase: Supabase, companyId: string): Promise<MetricDef[]> {
-  const { data } = await supabase
-    .from('metrics')
-    .select('id, name, slug, description, unit, value_type')
-    .eq('company_id', companyId)
-    .eq('is_active', true)
-    .order('display_order')
-
-  return (data ?? []) as MetricDef[]
-}
-
-async function checkDuplicatePeriod(
-  supabase: Supabase,
-  metricId: string,
-  period: ExtractMetricsResult['reporting_period']
-): Promise<boolean> {
-  let query = supabase
-    .from('metric_values')
-    .select('id')
-    .eq('metric_id', metricId)
-    .eq('period_year', period.year)
-
-  if (period.quarter !== null && period.quarter !== undefined) {
-    query = query.eq('period_quarter', period.quarter)
-  } else {
-    query = query.is('period_quarter', null)
-  }
-
-  if (period.month !== null && period.month !== undefined) {
-    query = query.eq('period_month', period.month)
-  } else {
-    query = query.is('period_month', null)
-  }
-
-  const { data } = await query.maybeSingle()
-  return !!data
-}
-
-export async function createReview(
-  supabase: Supabase,
-  review: {
-    fund_id: string
-    email_id: string
-    metric_id?: string
-    company_id?: string
-    issue_type: IssueType
-    extracted_value?: string
-    context_snippet?: string
-  }
-) {
-  const { error } = await supabase.from('parsing_reviews').insert(review)
-  if (error) console.error('[pipeline] Failed to create review:', error)
-}
-
-export async function finalizeEmail(
-  supabase: Supabase,
-  emailId: string,
-  opts: { status: ProcessingStatus; metricsExtracted?: number }
-) {
-  await supabase
-    .from('inbound_emails')
-    .update({
-      processing_status: opts.status,
-      metrics_extracted: opts.metricsExtracted ?? 0,
-    })
-    .eq('id', emailId)
-}
-
-// ---------------------------------------------------------------------------
-// Text helpers
-// ---------------------------------------------------------------------------
-
-export function buildCombinedText(extracted: ExtractionResult, payload?: PostmarkPayload): string {
-  const parts: string[] = []
-
-  // Include email metadata so the AI has subject/sender/date context
-  if (payload) {
-    const metaParts: string[] = []
-    if (payload.Subject) metaParts.push(`Subject: ${payload.Subject}`)
-    if (payload.FromFull?.Name) metaParts.push(`From: ${payload.FromFull.Name} <${payload.FromFull.Email}>`)
-    else if (payload.From) metaParts.push(`From: ${payload.From}`)
-    if (payload.Date) metaParts.push(`Date: ${payload.Date}`)
-    if (metaParts.length) parts.push(`[EMAIL METADATA]\n${metaParts.join('\n')}`)
-  }
-
-  parts.push(`[EMAIL BODY]\n${extracted.emailBody}`)
-  for (const att of extracted.attachments) {
-    if (!att.skipped && att.extractedText) {
-      parts.push(`[ATTACHMENT: ${att.filename}]\n${att.extractedText}`)
-    }
-  }
-  return parts.join('\n\n')
-}
-
-export function parseValue(
-  value: number | string,
-  valueType: string
-): { value_number?: number; value_text?: string } {
-  if (valueType === 'text') return { value_text: String(value) }
-  const num =
-    typeof value === 'number'
-      ? value
-      : parseFloat(String(value).replace(/[^0-9.-]/g, ''))
-  if (isNaN(num)) return { value_text: String(value) }
-  return { value_number: num }
-}
-
-function isPdf(contentType: string): boolean {
-  return contentType === 'application/pdf'
-}
-
-function isImage(contentType: string): boolean {
-  return contentType.startsWith('image/')
-}
-
-// ---------------------------------------------------------------------------
-// Interaction extraction (Step 10 — fund member emails only)
-// ---------------------------------------------------------------------------
-
-async function maybeExtractInteraction(
-  supabase: Supabase,
-  fundId: string,
-  emailId: string,
-  companyId: string | null,
-  userId: string,
-  payload: PostmarkPayload,
-  bodyText: string,
-  provider: import('@/lib/ai/types').AIProvider,
-  providerType: string,
-  model: string
-): Promise<void> {
-  // Check feature visibility
-  const { data: fSettings } = await supabase
-    .from('fund_settings')
-    .select('feature_visibility')
-    .eq('fund_id', fundId)
-    .maybeSingle()
-  const fv = fSettings?.feature_visibility as Record<string, string> | null
-  if (fv?.interactions === 'off') return
-
-  const senderName = payload.FromFull?.Name || payload.From || ''
-  const interaction = await extractInteraction(
-    payload.Subject ?? '',
-    bodyText,
-    senderName,
-    provider,
-    providerType,
-    model,
-    { admin: supabase, fundId }
-  )
-
-  // Skip interaction creation for reporting emails — metrics already handled above
-  if (interaction.is_reporting) return
-
-  await supabase.from('interactions').insert({
-    fund_id: fundId,
-    company_id: companyId,
-    email_id: emailId,
-    user_id: userId,
-    tags: interaction.tags,
-    subject: payload.Subject ?? null,
-    summary: interaction.summary,
-    intro_contacts: interaction.intro_contacts as unknown as Json,
-    body_preview: bodyText.slice(0, 500),
-    interaction_date: new Date().toISOString(),
-  })
-}
-
-// ---------------------------------------------------------------------------
-// File storage integration (Step 9)
-// ---------------------------------------------------------------------------
-
-async function saveToFileStorage(
-  supabase: Supabase,
-  fundId: string,
-  companyName: string,
-  payload: PostmarkPayload
-): Promise<void> {
-  const { data: settings } = await supabase
-    .from('fund_settings')
-    .select('file_storage_provider, google_refresh_token_encrypted, encryption_key_encrypted, google_drive_folder_id, dropbox_refresh_token_encrypted, dropbox_folder_path')
-    .eq('fund_id', fundId)
-    .single()
-
-  if (!settings?.file_storage_provider) return
-
-  if (settings.file_storage_provider === 'google_drive') {
-    await saveToGoogleDrive(supabase, fundId, companyName, payload, settings)
-  } else if (settings.file_storage_provider === 'dropbox') {
-    await saveToDropbox(supabase, fundId, companyName, payload, settings)
-  }
-}
-
-async function saveToGoogleDrive(
-  supabase: Supabase,
-  fundId: string,
-  companyName: string,
-  payload: PostmarkPayload,
-  settings: { google_refresh_token_encrypted: string | null; encryption_key_encrypted: string | null; google_drive_folder_id: string | null }
-): Promise<void> {
-  if (
-    !settings.google_refresh_token_encrypted ||
-    !settings.encryption_key_encrypted ||
-    !settings.google_drive_folder_id
-  ) {
-    return
-  }
-
-  const kek = process.env.ENCRYPTION_KEY
-  if (!kek) return
-
-  const dek = decrypt(settings.encryption_key_encrypted, kek)
-  const refreshToken = decrypt(settings.google_refresh_token_encrypted, dek)
-
-  const creds = await getGoogleCredentials(supabase, fundId)
-  if (!creds?.clientId || !creds?.clientSecret) return
-  const accessToken = await getGoogleAccessToken(refreshToken, creds.clientId, creds.clientSecret)
-  const rootFolderId = settings.google_drive_folder_id
-
-  const companyFolderId = await findOrCreateGoogleFolder(accessToken, rootFolderId, companyName)
-
-  const dateStr = new Date().toISOString().slice(0, 10)
-  const subject = payload.Subject?.replace(/[^a-zA-Z0-9 _-]/g, '').slice(0, 60) || 'Report'
-  const emailFilename = `${dateStr}_${subject}.txt`
-
-  const emailBody = payload.TextBody || payload.HtmlBody || '(no body)'
-  await uploadGoogleFile(accessToken, companyFolderId, emailFilename, emailBody, 'text/plain')
-
-  if (payload.Attachments?.length) {
-    for (const att of payload.Attachments) {
-      if (!att.Content) continue
-      const content = Buffer.from(att.Content, 'base64')
-      await uploadGoogleFile(accessToken, companyFolderId, att.Name, content, att.ContentType)
-    }
-  }
-}
-
-async function saveToDropbox(
-  supabase: Supabase,
-  fundId: string,
-  companyName: string,
-  payload: PostmarkPayload,
-  settings: { dropbox_refresh_token_encrypted: string | null; encryption_key_encrypted: string | null; dropbox_folder_path: string | null }
-): Promise<void> {
-  if (
-    !settings.dropbox_refresh_token_encrypted ||
-    !settings.encryption_key_encrypted ||
-    !settings.dropbox_folder_path
-  ) {
-    return
-  }
-
-  const kek = process.env.ENCRYPTION_KEY
-  if (!kek) return
-
-  const dek = decrypt(settings.encryption_key_encrypted, kek)
-  const refreshToken = decrypt(settings.dropbox_refresh_token_encrypted, dek)
-
-  const creds = await getDropboxCredentials(supabase, fundId)
-  if (!creds) return
-
-  const accessToken = await getDropboxAccessToken(refreshToken, creds.appKey, creds.appSecret)
-  const rootPath = settings.dropbox_folder_path
-
-  // Create company subfolder (sanitize name to prevent path traversal)
-  const safeCompanyName = companyName.replace(/[\/\\:*?"<>|.]/g, '_').replace(/^_+/, '').slice(0, 100) || 'Unknown'
-  const companyPath = `${rootPath}/${safeCompanyName}`
-  await findOrCreateDropboxFolder(accessToken, companyPath)
-
-  const dateStr = new Date().toISOString().slice(0, 10)
-  const subject = payload.Subject?.replace(/[^a-zA-Z0-9 _-]/g, '').slice(0, 60) || 'Report'
-  const emailFilename = `${dateStr}_${subject}.txt`
-
-  const emailBody = payload.TextBody || payload.HtmlBody || '(no body)'
-  await uploadDropboxFile(accessToken, companyPath, emailFilename, emailBody)
-
-  if (payload.Attachments?.length) {
-    for (const att of payload.Attachments) {
-      if (!att.Content) continue
-      const content = Buffer.from(att.Content, 'base64')
-      await uploadDropboxFile(accessToken, companyPath, att.Name, content)
-    }
-  }
-}
+export async function getDef
