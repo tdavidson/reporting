@@ -37,7 +37,12 @@ export function formatCurrency(value: number, currency: string): string {
 
 /** Full-precision currency format: $1,234,567 */
 export function formatCurrencyFull(value: number, currency: string): string {
-  return noNegZero(value).toLocaleString('en-US', { style: 'currency', currency, maximumFractionDigits: 0 })
+  return noNegZero(value).toLocaleString('en-US', { 
+    style: 'currency', 
+    currency, 
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1 
+  })
 }
 
 /** Full-precision currency with decimals: $12.50 */
