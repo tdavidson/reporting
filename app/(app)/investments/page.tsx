@@ -368,11 +368,12 @@ const availableCompanies = useMemo(() => {
       : <ChevronDown className="inline h-3 w-3 ml-0.5" />
   }
 
-  const groupNumericColumns: { label: string; sortKey: GroupSortKey; getValue: (row: GroupSummary) => number | null; format: 'currency' | 'moic' | 'irr' }[] = [
+const groupNumericColumns: { label: string; sortKey: GroupSortKey; getValue: (row: GroupSummary) => number | null; format: 'currency' | 'moic' | 'irr' }[] = [
     { label: 'Invested', sortKey: 'totalInvested', getValue: r => r.totalInvested, format: 'currency' },
     { label: 'Proceeds', sortKey: 'proceedsReceived', getValue: r => r.proceedsReceived, format: 'currency' },
     { label: 'Current NAV', sortKey: 'unrealizedValue', getValue: r => r.unrealizedValue, format: 'currency' },
     { label: 'Total Value', sortKey: 'totalValue', getValue: r => totalValue(r), format: 'currency' },
+    { label: 'Gross MOIC', sortKey: 'moic', getValue: r => r.moic ?? null, format: 'moic' },
     { label: 'Gross IRR', sortKey: 'irr', getValue: r => r.irr ?? null, format: 'irr' },
   ]
 
@@ -511,13 +512,12 @@ function fmtVal(val: number | null, format: 'currency' | 'moic' | 'irr'): string
                     </th>
                   ))}
                   <th className="text-right px-3 py-2 font-medium">Net IRR</th>
-                  <th className="text-right px-3 py-2 font-medium">Gross MOIC</th>
                   <th className="text-right px-3 py-2 font-medium">TVPI</th>
                   <th className="text-right px-3 py-2 font-medium">DPI</th>
                   <th className="text-right px-3 py-2 font-medium">RVPI</th>
                 </tr>
               </thead>
-              <tbody>
+<tbody>
                 {sortedGroups.length > 1 && (
                   <tr className="border-b bg-blue-50 dark:bg-blue-950 font-medium">
                     <td className="px-3 py-2 sticky left-0 bg-blue-50 dark:bg-blue-950 z-10">Prlx Fund I</td>
@@ -540,10 +540,10 @@ function fmtVal(val: number | null, format: 'currency' | 'moic' | 'irr'): string
                       {groupNumericColumns.map(col => (
                         <td key={col.sortKey} className="px-3 py-2 text-right font-mono">{fmtVal(col.getValue(g), col.format)}</td>
                       ))}
+                      <td className="px-3 py-2 text-right font-mono">{fmtIrr(fm?.netIrr ?? null)}</td>
                       <td className="px-3 py-2 text-right font-mono">{fmtMoic(fm?.tvpi ?? null)}</td>
                       <td className="px-3 py-2 text-right font-mono">{fmtMoic(fm?.dpi ?? null)}</td>
                       <td className="px-3 py-2 text-right font-mono">{fmtMoic(fm?.rvpi ?? null)}</td>
-                      <td className="px-3 py-2 text-right font-mono">{fmtIrr(fm?.netIrr ?? null)}</td>
                     </tr>
                   )
                 })}
