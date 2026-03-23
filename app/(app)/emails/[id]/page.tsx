@@ -3,13 +3,13 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import type { InboundEmail } from '@/lib/types/database'
+import { AttachmentManager } from './attachment-manager'
 
 export const metadata: Metadata = { title: 'Email' }
 import { ChevronLeft } from 'lucide-react'
 import { ReprocessButton } from './reprocess-button'
 import { ApproveButton } from './approve-button'
 import { UploadDocumentButton } from './upload-document-button'
-import { SaveToDriveButton } from './save-to-drive-button'
 import { CollapsibleJson } from './collapsible-json'
 import { ReviewItems } from './review-items'
 
@@ -238,25 +238,13 @@ export default async function EmailDetailPage({ params }: { params: { id: string
       <ReviewItems emailId={params.id} hasReviews={reviews.length > 0} />
 
       {/* Attachments */}
-      {attachments.length > 0 && (
-        <section>
-          <h2 className="text-sm font-semibold mb-2">Attachments ({attachments.length})</h2>
-          <div className="space-y-1.5">
-            {attachments.map((att, i) => (
-              <div
-                key={i}
-                className="flex items-center gap-3 text-sm rounded-md border px-3 py-2"
-              >
-                <span className="font-medium">{att.Name}</span>
-                <span className="text-muted-foreground text-xs">{att.ContentType}</span>
-                <span className="ml-auto text-muted-foreground text-xs tabular-nums">
-                  {Math.round(att.ContentLength / 1024)} KB
-                </span>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
+{attachments.length > 0 && (
+  <AttachmentManager
+    emailId={params.id}
+    attachments={attachments}
+    hasFileStorage={hasFileStorage}
+  />
+)}
 
       {/* Email body */}
       {textBody && (
@@ -302,18 +290,6 @@ export default async function EmailDetailPage({ params }: { params: { id: string
           </div>
           <UploadDocumentButton emailId={email.id} />
         </div>
-
-        {hasFileStorage && (
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
-            <div>
-              <p className="text-sm font-medium">Save to file storage</p>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                Saves the email body and attachments to your connected file storage provider.
-              </p>
-            </div>
-            <SaveToDriveButton emailId={email.id} />
-          </div>
-        )}
 
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
           <div>
