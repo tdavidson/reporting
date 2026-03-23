@@ -26,13 +26,15 @@ function noNegZero(v: number): number {
 export function formatCurrency(value: number, currency: string): string {
   const v = noNegZero(value)
   const symbol = getCurrencySymbol(currency)
-  if (Math.abs(v) >= 1_000_000) {
-    return `${symbol}${(v / 1_000_000).toLocaleString('en-US', { minimumFractionDigits: 1 })}M`
-  }
-  if (Math.abs(v) >= 1_000) {
-    return `${symbol}${(v / 1_000).toLocaleString('en-US', { minimumFractionDigits: 1 })}K`
-  }
-  return v.toLocaleString('en-US', { style: 'currency', currency, maximumFractionDigits: 0 })
+if (Math.abs(v) >= 1_000_000) {
+  // .toLocaleString('en-US') coloca a vírgula. minimumFractionDigits: 1 coloca a porra do .0
+  const formatted = (v / 1_000_000).toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
+  return `${symbol}${formatted}M`
+}
+
+if (Math.abs(v) >= 1_000) {
+  const formatted = (v / 1_000).toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
+  return `${symbol}${formatted}K`
 }
 
 /** Full-precision currency format: $1,234,567 */
