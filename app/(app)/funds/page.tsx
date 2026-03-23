@@ -743,14 +743,15 @@ const fmtCard = (val: number) => {
         </Card>
 
         {[
-          { label: 'Gross TVPI', value: fmtMoic(metrics.grossTvpi) },
-          { label: 'Net TVPI', value: fmtMoic(metrics.netTvpi) },
-          { label: 'DPI', value: fmtMoic(metrics.dpi) },
-          { label: 'RVPI', value: fmtMoic(metrics.rvpi) },
-          { label: 'Gross MOIC', value: fmtMoic(metrics.grossMoic) },
-          { label: 'Net MOIC', value: fmtMoic(metrics.netMoic) },
-          { label: 'Gross IRR', value: fmtIrr(metrics.grossIrr) },
-          { label: 'Net IRR', value: fmtIrr(metrics.netIrr) },
+        { label: 'Gross IRR', value: fmtIrr(metrics.grossIrr) },
+        { label: 'Gross MOIC', value: fmtMoic(metrics.grossMoic) },
+        { label: 'Gross TVPI', value: fmtMoic(metrics.grossTvpi) },
+        { label: 'DPI', value: fmtMoic(metrics.dpi) },
+        { label: 'Net IRR', value: fmtIrr(metrics.netIrr) },       
+        { label: 'Net MOIC', value: fmtMoic(metrics.netMoic) },
+        { label: 'Net TVPI', value: fmtMoic(metrics.netTvpi) },
+        { label: 'RVPI', value: fmtMoic(metrics.rvpi) },
+        
         ].map(card => (
           <Card key={card.label}>
             <CardContent className="pt-3 pb-2 px-3">
