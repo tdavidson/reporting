@@ -329,7 +329,9 @@ export default function FundsPage() {
     vintage: string
     managementFeeRate: string
   }>>({})
-const [deletingGroup, setDeletingGroup] = useState<string | null>(null)
+}>>({})
+  const [savingSettings, setSavingSettings] = useState(false)
+  const [deletingGroup, setDeletingGroup] = useState<string | null>(null)
   const [deleteConfirmName, setDeleteConfirmName] = useState('')
   const [deletingGroupSaving, setDeletingGroupSaving] = useState(false)
   const [portfolioIRR, setPortfolioIRR] = useState<number | null>(null)
