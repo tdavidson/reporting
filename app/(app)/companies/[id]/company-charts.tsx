@@ -125,7 +125,8 @@ export function CompanyCharts({ companyId, companyName, metrics }: Props) {
           <p className="text-muted-foreground">
             No metrics configured yet. Add metrics to this company to start tracking data.
           </p>
-          <Button size="sm" onClick={() => setAddMetricOpen(true)}>
+          <Button size="sm" onClick={() => setAddMetricOpen(true)}  className="bg-[#0F2332] hover:bg-[#0F2332]/90 text-white border-none"
+>
             <Plus className="h-4 w-4 mr-1.5" />
             Add metric
           </Button>
