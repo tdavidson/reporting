@@ -1009,13 +1009,15 @@ function TransactionTable({
                   </>
                 ) : (
                   <>
-                    <td className="px-3 py-2 text-right font-mono">
-                      {txn.transaction_type === 'investment' 
-                        ? fmt(txn.investment_cost) 
-                        : txn.transaction_type === 'proceeds' 
-                        ? fmt(txn.proceeds_received) 
-                        : '-'}
-                    </td>
+<td className="px-3 py-2 text-right font-mono">
+  {txn.transaction_type === 'investment' || txn.transaction_type === 'round_info'
+    ? fmt(txn.postmoney_valuation)
+    : txn.transaction_type === 'unrealized_gain_change'
+    ? fmt(txn.latest_postmoney_valuation)
+    : txn.transaction_type === 'proceeds'
+    ? fmt(txn.exit_valuation)
+    : '-'}
+</td>
                    <td className="px-3 py-2 text-right font-mono">
                       {txn.ownership_pct != null ? `${txn.ownership_pct.toFixed(2)}%` : '-'}
                     </td>
