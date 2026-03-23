@@ -262,6 +262,67 @@ const availableCompanies = useMemo(() => {
     return computeFundMetricsByGroup(fundCashFlows, grossResidualByGroup, groupConfigs)
   }, [fundCashFlows, data, groupConfigs])
 
+const overallFundMetrics = useMemo(() => {
+    let called = 0
+    let distributions = 0
+    let netResidual = 0
+    const xirrFlows: CashFlow[] = []
+
+    const byGroup = new Map<string, FundCashFlow[]>()
+    for (const cf of fundCashFlows) {
+      const list = byGroup.get(cf.portfolio_group) ?? []
+      list.push(cf)
+      byGroup.set(cf.portfolio_group, list)
+    }
+
+    const grossResidualByGroup = new Map<string, number>()
+    for (const g of data?.groups ?? []) {
+      grossResidualByGroup.set(g.group, g.unrealizedValue)
+    }
+
+    for (const [group, flows] of Array.from(byGroup.entries())) {
+      let gCalled = 0
+      let gDistributions = 0
+      for (const cf of flows) {
+        if (cf.flow_type === 'called_capital') {
+          gCalled += cf.amount
+          xirrFlows.push({ date: new Date(cf.flow_date), amount: -cf.amount })
+        }
+        if (cf.flow_type === 'distribution') {
+          gDistributions += cf.amount
+          xirrFlows.push({ date: new Date(cf.flow_date), amount: cf.amount })
+        }
+      }
+
+      const grossResidual = grossResidualByGroup.get(group) ?? 0
+      const config = groupConfigs[group] ?? { cashOnHand: 0, carryRate: 0.20, gpCommitPct: 0 }
+      const grossAssets = grossResidual + config.cashOnHand
+
+      const gpCapital = gCalled * config.gpCommitPct
+      const lpCapital = gCalled - gpCapital
+      const lpDistributions = gDistributions * (1 - config.gpCommitPct)
+      const lpRemainingCapital = lpCapital - lpDistributions
+      const estimatedCarry = Math.max(0, config.carryRate * (grossAssets * (1 - config.gpCommitPct) - lpRemainingCapital))
+      const gNetResidual = grossAssets - estimatedCarry
+
+      called += gCalled
+      distributions += gDistributions
+      netResidual += gNetResidual
+    }
+
+    if (netResidual > 0) xirrFlows.push({ date: new Date(), amount: netResidual })
+
+    const tvpi = called > 0 ? (distributions + netResidual) / called : null
+    const dpi = called > 0 ? distributions / called : null
+    const rvpi = called > 0 ? netResidual / called : null
+    let netIrr = null
+    if (xirrFlows.length >= 2) {
+      try { netIrr = xirr(xirrFlows) } catch (e) { console.error(e) }
+    }
+
+    return { tvpi, dpi, rvpi, netIrr }
+  }, [fundCashFlows, data, groupConfigs])
+  
   const groupTotalsMap = useMemo(() => {
     const map = new Map<string, { totalVal: number }>()
     if (!data) return map
