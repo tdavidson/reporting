@@ -810,9 +810,9 @@ const fmtCard = (val: number) => {
       <div className="flex-1 min-w-0 w-full">
       <Tabs defaultValue={MASTER_FUND_KEY} className="w-full">
         <div className="flex items-center gap-2 mb-4">
-          <div
-            className="overflow-x-auto cursor-grab active:cursor-grabbing select-none"
-            style={{ scrollbarWidth: 'none' }}
+<div
+  className="overflow-x-auto cursor-grab active:cursor-grabbing select-none flex-1 min-w-0"
+  style={{ scrollbarWidth: 'none' }}
             onMouseDown={e => {
               const el = e.currentTarget
               let startX = e.pageX - el.offsetLeft
@@ -829,7 +829,7 @@ const fmtCard = (val: number) => {
               window.addEventListener('mouseup', onUp)
             }}
           >
-<TabsList className="flex-nowrap whitespace-nowrap">
+<TabsList className="flex-nowrap whitespace-nowrap w-full">
   <TabsTrigger 
     value={MASTER_FUND_KEY}
     className="data-[state=active]:bg-[#0F2332] data-[state=active]:text-white"
