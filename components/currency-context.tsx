@@ -27,10 +27,10 @@ export function formatCurrency(value: number, currency: string): string {
   const v = noNegZero(value)
   const symbol = getCurrencySymbol(currency)
   if (Math.abs(v) >= 1_000_000) {
-    return `${symbol}${(v / 1_000_000).toFixed(1)}M`
+    return `${symbol}${(v / 1_000_000).toLocaleString('en-US', { minimumFractionDigits: 1 })}M`
   }
   if (Math.abs(v) >= 1_000) {
-    return `${symbol}${(v / 1_000).toFixed(0)}K`
+    return `${symbol}${(v / 1_000).toLocaleString('en-US', { minimumFractionDigits: 1 })}K`
   }
   return v.toLocaleString('en-US', { style: 'currency', currency, maximumFractionDigits: 0 })
 }
