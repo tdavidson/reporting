@@ -124,19 +124,11 @@ export default async function EmailDetailPage({ params }: { params: { id: string
     ? await supabase.from('metrics').select('id, name, unit, unit_position').in('id', metricIds)
     : { data: [] }
 
-  const metricsById = Object.fromEntries(
+const metricsById = Object.fromEntries(
     ((metricsData ?? []) as MetricDef[]).map(m => [m.id, m])
   )
 
   // Parse raw payload for body and attachments
-  // Check if file storage is configured
-  const { data: settingsData } = await supabase
-    .from('fund_settings')
-    .select('file_storage_provider')
-    .eq('fund_id', email.fund_id)
-    .maybeSingle() as { data: { file_storage_provider: string | null } | null }
-  const hasFileStorage = !!settingsData?.file_storage_provider
-
   const payload = email.raw_payload as Record<string, unknown> | null
   const textBody: string = (payload?.TextBody as string) ?? ''
   const attachments = (
@@ -237,14 +229,13 @@ export default async function EmailDetailPage({ params }: { params: { id: string
       {/* Review items */}
       <ReviewItems emailId={params.id} hasReviews={reviews.length > 0} />
 
-      {/* Attachments */}
-{attachments.length > 0 && (
-  <AttachmentManager
-    emailId={params.id}
-    attachments={attachments}
-    hasFileStorage={hasFileStorage}
-  />
-)}
+{/* Attachments */}
+      {attachments.length > 0 && (
+        <AttachmentManager
+          emailId={params.id}
+          attachments={attachments}
+        />
+      )}
 
       {/* Email body */}
       {textBody && (
