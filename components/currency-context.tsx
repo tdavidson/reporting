@@ -14,30 +14,30 @@ export function useCurrency() {
   return useContext(CurrencyContext)
 }
 
-/** Normalize -0 to 0 */
 function noNegZero(v: number): number {
   if (Object.is(v, -0)) return 0
   if (v < 0 && v > -0.5) return 0
   return v
 }
 
-/** Abbreviated currency format: R$2,100.0M, €500.0K */
+/** FORMATAÇÃO DOS CARDS (Ex: R$2,100.0M) */
 export function formatCurrency(value: number, currency: string): string {
   const v = noNegZero(value)
   const symbol = getCurrencySymbol(currency)
   
   if (Math.abs(v) >= 1_000_000) {
-    const formatted = (v / 1_000_000).toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
-    return `${symbol}${formatted}M`
+    const num = (v / 1_000_000).toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
+    return `${symbol}${num}M`
   }
+  
   if (Math.abs(v) >= 1_000) {
-    const formatted = (v / 1_000).toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
-    return `${symbol}${formatted}K`
+    const num = (v / 1_000).toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
+    return `${symbol}${num}K`
   }
+  
   return v.toLocaleString('en-US', { style: 'currency', currency, minimumFractionDigits: 1, maximumFractionDigits: 1 })
 }
 
-/** Full-precision currency format: $1,234,567.0 */
 export function formatCurrencyFull(value: number, currency: string): string {
   return noNegZero(value).toLocaleString('en-US', { 
     style: 'currency', 
@@ -47,7 +47,6 @@ export function formatCurrencyFull(value: number, currency: string): string {
   })
 }
 
-/** Full-precision currency with decimals: $12.50 */
 export function formatCurrencyPrice(value: number, currency: string): string {
   return noNegZero(value).toLocaleString('en-US', { 
     style: 'currency', 
