@@ -323,13 +323,12 @@ export default function FundsPage() {
   const [importResult, setImportResult] = useState<{ created: number; errors: string[] } | null>(null)
 
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const [settingsDrafts, setSettingsDrafts] = useState<Record<string, {
+const [settingsDrafts, setSettingsDrafts] = useState<Record<string, {
     carryRate: string
     gpCommitPct: string
     vintage: string
     managementFeeRate: string
   }>>({})
-}>>({})
   const [savingSettings, setSavingSettings] = useState(false)
   const [deletingGroup, setDeletingGroup] = useState<string | null>(null)
   const [deleteConfirmName, setDeleteConfirmName] = useState('')
@@ -337,11 +336,11 @@ export default function FundsPage() {
   const [portfolioIRR, setPortfolioIRR] = useState<number | null>(null)
   const [portfolioMOIC, setPortfolioMOIC] = useState<number | null>(null)
   const [groupOrder, setGroupOrder] = useState<string[]>(() => {
-  try {
-    const saved = localStorage.getItem('fund-group-order')
-    return saved ? JSON.parse(saved) : []
-  } catch { return [] }
-})
+    try {
+      const saved = localStorage.getItem('fund-group-order')
+      return saved ? JSON.parse(saved) : []
+    } catch { return [] }
+  })
   const [draggedGroup, setDraggedGroup] = useState<string | null>(null)
   const [dragOverGroup, setDragOverGroup] = useState<string | null>(null)
 
