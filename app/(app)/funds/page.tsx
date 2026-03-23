@@ -809,28 +809,27 @@ const fmtCard = (val: number) => {
       <div className="flex flex-col lg:flex-row gap-6 items-start">
       <div className="flex-1 min-w-0 w-full">
       <Tabs defaultValue={MASTER_FUND_KEY} className="w-full">
-<div className="flex items-center gap-2 mb-4">
-  <div className="relative flex-1 min-w-0">
-    <div
-      className="overflow-x-auto cursor-grab active:cursor-grabbing select-none"
-      style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
-      onMouseDown={e => {
-        const el = e.currentTarget
-        let startX = e.pageX - el.offsetLeft
-        let scrollLeft = el.scrollLeft
-        const onMove = (ev: MouseEvent) => {
-          const x = ev.pageX - el.offsetLeft
-          el.scrollLeft = scrollLeft - (x - startX)
-        }
-        const onUp = () => {
-          window.removeEventListener('mousemove', onMove)
-          window.removeEventListener('mouseup', onUp)
-        }
-        window.addEventListener('mousemove', onMove)
-        window.addEventListener('mouseup', onUp)
-      }}
-    >
-      <TabsList className="flex-nowrap whitespace-nowrap">
+        <div className="flex items-center gap-2 mb-4">
+          <div
+            className="overflow-x-auto cursor-grab active:cursor-grabbing select-none"
+            style={{ scrollbarWidth: 'none' }}
+            onMouseDown={e => {
+              const el = e.currentTarget
+              let startX = e.pageX - el.offsetLeft
+              let scrollLeft = el.scrollLeft
+              const onMove = (ev: MouseEvent) => {
+                const x = ev.pageX - el.offsetLeft
+                el.scrollLeft = scrollLeft - (x - startX)
+              }
+              const onUp = () => {
+                window.removeEventListener('mousemove', onMove)
+                window.removeEventListener('mouseup', onUp)
+              }
+              window.addEventListener('mousemove', onMove)
+              window.addEventListener('mouseup', onUp)
+            }}
+          >
+<TabsList className="flex-nowrap whitespace-nowrap">
   <TabsTrigger 
     value={MASTER_FUND_KEY}
     className="data-[state=active]:bg-[#0F2332] data-[state=active]:text-white"
