@@ -587,10 +587,10 @@ function fmtVal(val: number | null, format: 'currency' | 'moic' | 'irr'): string
                       if (col.sortKey === 'moic') return <td key={col.sortKey} className="px-3 py-2 text-right font-mono">{fmtMoic(groupTotals.moic)}</td>
                       return <td key={col.sortKey} className="px-3 py-2 text-right font-mono">{fmtVal(col.getValue(groupTotals as unknown as GroupSummary), col.format)}</td>
                     })}
-                    <td className="px-3 py-2" />
-                    <td className="px-3 py-2" />
-                    <td className="px-3 py-2" />
-                    <td className="px-3 py-2" />
+                    <td className="px-3 py-2 text-right font-mono">{fmtIrr(overallFundMetrics.netIrr)}</td>
+                    <td className="px-3 py-2 text-right font-mono">{fmtMoic(overallFundMetrics.tvpi)}</td>
+                    <td className="px-3 py-2 text-right font-mono">{fmtMoic(overallFundMetrics.dpi)}</td>
+                    <td className="px-3 py-2 text-right font-mono">{fmtMoic(overallFundMetrics.rvpi)}</td>
                   </tr>
                 )}
                 {sortedGroups.map(g => {
