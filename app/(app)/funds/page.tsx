@@ -145,29 +145,35 @@ const estimatedCarry = Math.max(0, carryRate * (grossAssets - lpBasis))
   const netMoic = totalInvestedCalculation > 0 ? totalValue / totalInvestedCalculation : null
   const grossTvpi = called > 0 ? (distributions + grossResidual) / called : null
 
-  // 5. XIRR NET (O retorno do cotista)
-const today = new Date()
-const todayNorm = new Date(today.getFullYear(), today.getMonth(), today.getDate())
-const netXirrFlows: CashFlow[] = []
-for (const cf of cashFlows) {
-  if (cf.flow_type === 'called_capital') netXirrFlows.push({ date: parseLocalDate(cf.flow_date), amount: -cf.amount })
-  if (cf.flow_type === 'distribution') netXirrFlows.push({ date: parseLocalDate(cf.flow_date), amount: cf.amount })
-}
-if (netResidual > 0) netXirrFlows.push({ date: todayNorm, amount: netResidual })
+  // 5. XIRR NET (Fluxo real do bolso do investidor) ---
+  const netXirrFlows: CashFlow[] = []
+  for (const cf of cashFlows) {
+    if (cf.flow_type === 'called_capital') {
+      netXirrFlows.push({ date: new Date(cf.flow_date), amount: -cf.amount })
+    }
+    if (cf.flow_type === 'distribution') {
+      netXirrFlows.push({ date: new Date(cf.flow_date), amount: cf.amount })
+    }
+  }
+  if (netResidual > 0) netXirrFlows.push({ date: new Date(), amount: netResidual })
   const netIrr = netXirrFlows.length >= 2 ? xirr(netXirrFlows) : null
 
-  // 6. XIRR GROSS (O retorno da tese)
-  // Nota: Para ser perfeito, precisaríamos das datas REAIS de cada investimento. 
-  // Como temos apenas o totalInvested, usamos o primeiro chamado como proxy.
+  // 6. XIRR GROSS (Fluxo da tese de investimento) ---
   const grossXirrFlows: CashFlow[] = []
-  if (totalInvested > 0 && cashFlows.length > 0) {
-    const sortedFlows = [...cashFlows].sort((a,b) => a.flow_date.localeCompare(b.flow_date))
-    grossXirrFlows.push({ date: new Date(sortedFlows[0].flow_date), amount: -totalInvested })
-    for (const cf of cashFlows) {
-      if (cf.flow_type === 'distribution') grossXirrFlows.push({ date: new Date(cf.flow_date), amount: cf.amount })
+  // Proporção do capital que efetivamente virou investimento (ex: 0.92)
+  const invRatio = called > 0 ? (totalInvested / called) : 1
+
+  for (const cf of cashFlows) {
+    if (cf.flow_type === 'called_capital') {
+      // Removemos a "fricção" das taxas de cada aporte para ver o retorno puro do ativo
+      grossXirrFlows.push({ date: new Date(cf.flow_date), amount: -(cf.amount * invRatio) })
     }
-    if (grossResidual > 0) grossXirrFlows.push({ date: new Date(), amount: grossResidual })
+    if (cf.flow_type === 'distribution') {
+      grossXirrFlows.push({ date: new Date(cf.flow_date), amount: cf.amount })
+    }
   }
+  // No Gross, usamos o Residual ANTES do Carry
+  if (grossResidual > 0) grossXirrFlows.push({ date: new Date(), amount: grossResidual })
   const grossIrr = grossXirrFlows.length >= 2 ? xirr(grossXirrFlows) : null
 
   return {
