@@ -83,8 +83,9 @@ export async function POST(
       .eq('id', review.email_id)
       .single()
 
-    const claudeResponse = (emailData as unknown as { claude_response: ExtractMetricsResult | null })?.claude_response
-    const period = claudeResponse?.reporting_period
+const legacyResponse = claudeResponse as unknown as { reporting_period?: ExtractMetricsResult['periods'][0]['reporting_period'] }
+const period = legacyResponse?.reporting_period
+  ?? claudeResponse?.periods?.[0]?.reporting_period
 
     if (period) {
       const { data: metricData } = await admin
