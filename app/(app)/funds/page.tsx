@@ -247,14 +247,23 @@ for (const cf of allCashFlows) {
 if (netResidual > 0) xirrFlows.push({ date: todayNorm2, amount: netResidual })
   const netIrr = xirrFlows.length >= 2 ? xirr(xirrFlows) : null
 
-  const grossXirrFlows: CashFlow[] = []
-  if (totalInvested > 0 && allCashFlows.length > 0) {
-    const sorted = [...allCashFlows].sort((a, b) => a.flow_date.localeCompare(b.flow_date))
-    grossXirrFlows.push({ date: new Date(sorted[0].flow_date), amount: -totalInvested })
-    for (const cf of allCashFlows) {
-      if (cf.flow_type === 'distribution') grossXirrFlows.push({ date: new Date(cf.flow_date), amount: cf.amount })
+const grossXirrFlows: CashFlow[] = []
+  // Ratio para distribuir o 'totalInvested' proporcionalmente aos chamados de capital
+  const invRatio = called > 0 ? (totalInvested / called) : 1
+
+  for (const cf of allCashFlows) {
+    const date = parseLocalDate(cf.flow_date)
+    if (cf.flow_type === 'called_capital') {
+      // Considera apenas a parte que foi para o ativo em cada data
+      grossXirrFlows.push({ date, amount: -(cf.amount * invRatio) })
     }
-    if (totalGrossResidual > 0) grossXirrFlows.push({ date: new Date(), amount: totalGrossResidual })
+    if (cf.flow_type === 'distribution') {
+      grossXirrFlows.push({ date, amount: cf.amount })
+    }
+  }
+  // Terminal Value (Valor de hoje sem desconto de Carry)
+  if (totalGrossResidual > 0) {
+    grossXirrFlows.push({ date: todayNorm2, amount: totalGrossResidual })
   }
   const grossIrr = grossXirrFlows.length >= 2 ? xirr(grossXirrFlows) : null
   const grossTvpi = called > 0 ? (distributions + totalGrossResidual) / called : null
