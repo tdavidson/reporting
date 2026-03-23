@@ -220,25 +220,23 @@ export async function GET(req: NextRequest) {
       let currentValuation: number | null = null
       let explicitNav: number | null = null
 
-      for (const txn of sortedGTxns) {
+for (const txn of sortedGTxns) {
         if (!txn.transaction_date) continue
 
-        if (txn.transaction_type === 'investment') {
-          if (txn.ownership_pct != null) currentOwnership = txn.ownership_pct
-          if (txn.postmoney_valuation != null) currentValuation = txn.postmoney_valuation
-        }
+        if (txn.ownership_pct != null) currentOwnership = txn.ownership_pct
 
-        if (txn.transaction_type === 'unrealized_gain_change' || txn.transaction_type === 'round_info') {
-          if (txn.ownership_pct != null) currentOwnership = txn.ownership_pct
-          const val = txn.transaction_type === 'unrealized_gain_change'
-            ? txn.latest_postmoney_valuation
-            : txn.postmoney_valuation
-          if (val != null) currentValuation = val
-          if (txn.transaction_type === 'unrealized_gain_change' && txn.unrealized_value_change != null) {
-            explicitNav = txn.unrealized_value_change
-          } else {
-            explicitNav = null
-          }
+        let val = txn.postmoney_valuation
+        if (txn.transaction_type === 'unrealized_gain_change') val = txn.latest_postmoney_valuation
+        if (txn.transaction_type === 'proceeds' && txn.exit_valuation != null) val = txn.exit_valuation
+        
+        if (val != null) currentValuation = val
+
+        if (txn.transaction_type === 'unrealized_gain_change' && txn.unrealized_value_change != null) {
+          explicitNav = txn.unrealized_value_change
+        } else if (txn.transaction_type === 'proceeds') {
+          explicitNav = txn.unrealized_value_change ?? explicitNav
+        } else {
+          explicitNav = null
         }
       }
 
