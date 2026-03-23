@@ -56,8 +56,8 @@ function formatMetricValue(v: number | null, metric: ActiveMetric, fundCurrency:
   const effectiveUnit = metric.unit ?? (metric.value_type === 'currency' ? getCurrencySymbol(metricCurrency) : null)
   const effectivePos = metric.unit ? metric.unit_position : 'prefix'
   let str: string
-  if (Math.abs(v) >= 1_000_000) str = `${(v / 1_000_000).toFixed(1)}M`
-  else if (Math.abs(v) >= 1_000) str = `${(v / 1_000).toFixed(0)}K`
+if (Math.abs(v) >= 1_000_000) str = (v / 1_000_000).toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + 'M'
+else if (Math.abs(v) >= 1_000) str = (v / 1_000).toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + 'K'
   else str = v.toLocaleString()
   if (effectiveUnit && effectivePos === 'prefix') return `${effectiveUnit}${str}`
   if (metric.value_type === 'percentage') return `${str}%`
@@ -405,17 +405,22 @@ function ExitedMetricDisplay({ company }: { company: Company }) {
   const { displayUnit } = useDisplayUnit()
   const symbol = currency === 'BRL' ? 'R$' : currency === 'EUR' ? '€' : currency === 'GBP' ? '£' : '$'
 
-  function fmtTable(v: number): string {
-    if (displayUnit === 'millions') return `${symbol}${(v / 1_000_000).toFixed(1)}M`
-    if (displayUnit === 'thousands') return `${symbol}${(v / 1_000).toLocaleString('en-US', { maximumFractionDigits: 0 })}K`
-    const neg = v < 0
-    const abs = Math.abs(v)
-    let str: string
-    if (abs >= 1_000_000) str = `${symbol}${(abs / 1_000_000).toFixed(1)}M`
-    else if (abs >= 1_000) str = `${symbol}${(abs / 1_000).toFixed(0)}K`
-    else str = `${symbol}${abs.toLocaleString()}`
-    return neg ? `-${str}` : str
-  }
+function fmtTable(v: number): string {
+  const options = { minimumFractionDigits: 1, maximumFractionDigits: 1 };
+  
+  if (displayUnit === 'millions') return `${symbol}${(v / 1_000_000).toLocaleString('en-US', options)}M`
+  if (displayUnit === 'thousands') return `${symbol}${(v / 1_000).toLocaleString('en-US', options)}K`
+  
+  const neg = v < 0
+  const abs = Math.abs(v)
+  let str: string
+  
+  if (abs >= 1_000_000) str = `${symbol}${(abs / 1_000_000).toLocaleString('en-US', options)}M`
+  else if (abs >= 1_000) str = `${symbol}${(abs / 1_000).toLocaleString('en-US', options)}K`
+  else str = `${symbol}${abs.toLocaleString('en-US', options)}`
+  
+  return neg ? `-${str}` : str
+}
 
   const { totalInvested, totalRealized, unrealizedValue, moic } = company
   const netGain = totalInvested != null && totalRealized != null && unrealizedValue != null
