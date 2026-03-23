@@ -907,10 +907,15 @@ function TransactionTable({
       let valB: any = b[sortKey as keyof typeof b]
 
       // Valores customizados para ordenação
-      if (sortKey === 'amount') {
-        valA = a.transaction_type === 'investment' ? a.investment_cost : (a.transaction_type === 'proceeds' ? a.proceeds_received : 0)
-        valB = b.transaction_type === 'investment' ? b.investment_cost : (b.transaction_type === 'proceeds' ? b.proceeds_received : 0)
-      } else if (sortKey === 'postmoney') {
+if (sortKey === 'amount') {
+        const getAmount = (txn: any) => {
+          if (txn.transaction_type === 'investment') return txn.investment_cost ?? 0
+          if (txn.transaction_type === 'proceeds') return txn.proceeds_received ?? 0
+          if (txn.transaction_type === 'unrealized_gain_change') return txn.unrealized_value_change ?? 0
+          return 0
+        }
+        valA = getAmount(a)
+        valB = getAmount(b)
         valA = a.transaction_type === 'unrealized_gain_change' ? a.latest_postmoney_valuation : a.postmoney_valuation
         valB = b.transaction_type === 'unrealized_gain_change' ? b.latest_postmoney_valuation : b.postmoney_valuation
       } else if (sortKey === 'nav') {
@@ -1010,14 +1015,14 @@ function TransactionTable({
                 ) : (
                   <>
 <td className="px-3 py-2 text-right font-mono">
-  {txn.transaction_type === 'investment'
-    ? fmt(txn.postmoney_valuation)
-    : txn.transaction_type === 'unrealized_gain_change'
-    ? fmt(txn.latest_postmoney_valuation)
-    : txn.transaction_type === 'round_info'
-    ? fmt(txn.postmoney_valuation)
-    : '-'}
-</td>
+                      {txn.transaction_type === 'investment'
+                        ? fmt(txn.investment_cost)
+                        : txn.transaction_type === 'proceeds'
+                        ? fmt(txn.proceeds_received)
+                        : txn.transaction_type === 'unrealized_gain_change'
+                        ? fmt(txn.unrealized_value_change)
+                        : '-'}
+                    </td>
                    <td className="px-3 py-2 text-right font-mono">
                       {txn.ownership_pct != null ? `${txn.ownership_pct.toFixed(2)}%` : '-'}
                     </td>
