@@ -34,9 +34,9 @@ function formatValue(v: number | string | null, metric: MetricData, fundCurrency
   if (v === null || v === undefined) return '—'
   if (typeof v === 'string') return v
   let str: string
-  if (Math.abs(v) >= 1_000_000) str = `${(v / 1_000_000).toLocaleString(1)}M`
-  else if (Math.abs(v) >= 1_000) str = `${(v / 1_000).toLocaleString(1)}K`
-  else str = v.toLocaleString()
+if (Math.abs(v) >= 1_000_000) str = (v / 1_000_000).toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + 'M'
+  else if (Math.abs(v) >= 1_000) str = (v / 1_000).toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + 'K'
+  else str = v.toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
   const metricCurrency = metric.currency ?? fundCurrency
   const currencySymbol = metricCurrency ? getCurrencySymbol(metricCurrency) : null
   const effectiveUnit = metric.unit ?? (metric.valueType === 'currency' && currencySymbol ? currencySymbol : null)
