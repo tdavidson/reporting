@@ -89,6 +89,11 @@ function computeTotalManagementFees(
   return committed * managementFeeRate * years
 }
 
+function parseLocalDate(dateStr: string): Date {
+  const [y, m, d] = dateStr.split('-').map(Number)
+  return new Date(y, m - 1, d)
+}
+
 function computeFundMetrics(
   cashFlows: FundCashFlow[],
   grossResidual: number, // NAV atual das empresas (Fair Market Value)
@@ -118,8 +123,8 @@ function computeFundMetrics(
   const lpDistributions = distributions * (1 - gpCommitPct)
   
   // O Carry deve incidir sobre o lucro do LP após recuperar o capital chamado (Hurdle 0 aqui)
-  const lpRemainingBasis = Math.max(0, lpCalled - lpDistributions)
-  const estimatedCarry = Math.max(0, carryRate * (grossAssets * (1 - gpCommitPct) - lpRemainingBasis))
+const lpBasis = Math.max(0, called - distributions)
+const estimatedCarry = Math.max(0, carryRate * (grossAssets - lpBasis))
   
   const netResidual = grossAssets - estimatedCarry
   const totalValue = distributions + netResidual
@@ -141,12 +146,14 @@ function computeFundMetrics(
   const grossTvpi = called > 0 ? (distributions + grossResidual) / called : null
 
   // 5. XIRR NET (O retorno do cotista)
-  const netXirrFlows: CashFlow[] = []
-  for (const cf of cashFlows) {
-    if (cf.flow_type === 'called_capital') netXirrFlows.push({ date: new Date(cf.flow_date), amount: -cf.amount })
-    if (cf.flow_type === 'distribution') netXirrFlows.push({ date: new Date(cf.flow_date), amount: cf.amount })
-  }
-  if (netResidual > 0) netXirrFlows.push({ date: new Date(), amount: netResidual })
+const today = new Date()
+const todayNorm = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+const netXirrFlows: CashFlow[] = []
+for (const cf of cashFlows) {
+  if (cf.flow_type === 'called_capital') netXirrFlows.push({ date: parseLocalDate(cf.flow_date), amount: -cf.amount })
+  if (cf.flow_type === 'distribution') netXirrFlows.push({ date: parseLocalDate(cf.flow_date), amount: cf.amount })
+}
+if (netResidual > 0) netXirrFlows.push({ date: todayNorm, amount: netResidual })
   const netIrr = netXirrFlows.length >= 2 ? xirr(netXirrFlows) : null
 
   // 6. XIRR GROSS (O retorno da tese)
@@ -224,12 +231,14 @@ function computeMasterFundMetrics(
   const netMoicNumerator = distributions + netResidual - totalManagementFees
   const netMoic = totalInvested > 0 ? netMoicNumerator / totalInvested : null
 
-  const xirrFlows: CashFlow[] = []
-  for (const cf of allCashFlows) {
-    if (cf.flow_type === 'called_capital') xirrFlows.push({ date: new Date(cf.flow_date), amount: -cf.amount })
-    if (cf.flow_type === 'distribution') xirrFlows.push({ date: new Date(cf.flow_date), amount: cf.amount })
-  }
-  if (netResidual > 0) xirrFlows.push({ date: new Date(), amount: netResidual })
+const today2 = new Date()
+const todayNorm2 = new Date(today2.getFullYear(), today2.getMonth(), today2.getDate())
+const xirrFlows: CashFlow[] = []
+for (const cf of allCashFlows) {
+  if (cf.flow_type === 'called_capital') xirrFlows.push({ date: parseLocalDate(cf.flow_date), amount: -cf.amount })
+  if (cf.flow_type === 'distribution') xirrFlows.push({ date: parseLocalDate(cf.flow_date), amount: cf.amount })
+}
+if (netResidual > 0) xirrFlows.push({ date: todayNorm2, amount: netResidual })
   const netIrr = xirrFlows.length >= 2 ? xirr(xirrFlows) : null
 
   const grossXirrFlows: CashFlow[] = []
