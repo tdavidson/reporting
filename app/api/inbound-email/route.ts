@@ -10,6 +10,7 @@ import { checkFundMember } from '@/lib/pipeline/checkFundMember'
 import { isAuthorizedSender } from '@/lib/pipeline/isAuthorizedSender'
 import { rateLimit, getClientIp } from '@/lib/rate-limit'
 import { scanFileAsync } from '@/lib/security/scan-file'
+export const maxDuration = 300
 
 function safeTokenCompare(a: string, b: string): boolean {
   try {
