@@ -1,8 +1,8 @@
 'use client'
 
 import { createContext, useContext } from 'react'
-export { getCurrencySymbol } from '@/lib/currency'
 import { getCurrencySymbol } from '@/lib/currency'
+export { getCurrencySymbol } from '@/lib/currency'
 
 const CurrencyContext = createContext<string>('USD')
 
@@ -17,38 +17,42 @@ export function useCurrency() {
 /** Normalize -0 to 0 */
 function noNegZero(v: number): number {
   if (Object.is(v, -0)) return 0
-  // Treat tiny negatives that round to $0 as zero
   if (v < 0 && v > -0.5) return 0
   return v
 }
 
-/** Abbreviated currency format: $1.2M, €500K, ¥1,000 */
+/** Abbreviated currency format: R$2,100.0M, €500.0K */
 export function formatCurrency(value: number, currency: string): string {
   const v = noNegZero(value)
   const symbol = getCurrencySymbol(currency)
-if (Math.abs(v) >= 1_000_000) {
-  // .toLocaleString('en-US') coloca a vírgula. minimumFractionDigits: 1 coloca a porra do .0
-  const formatted = (v / 1_000_000).toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
-  return `${symbol}${formatted}M`
+  
+  if (Math.abs(v) >= 1_000_000) {
+    const formatted = (v / 1_000_000).toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
+    return `${symbol}${formatted}M`
+  }
+  if (Math.abs(v) >= 1_000) {
+    const formatted = (v / 1_000).toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
+    return `${symbol}${formatted}K`
+  }
+  return v.toLocaleString('en-US', { style: 'currency', currency, minimumFractionDigits: 1, maximumFractionDigits: 1 })
 }
 
-if (Math.abs(v) >= 1_000) {
-  const formatted = (v / 1_000).toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
-  return `${symbol}${formatted}K`
-}
-
-/** Full-precision currency format: $1,234,567 */
+/** Full-precision currency format: $1,234,567.0 */
 export function formatCurrencyFull(value: number, currency: string): string {
   return noNegZero(value).toLocaleString('en-US', { 
     style: 'currency', 
     currency, 
-    minimumFractionDigits: 1,
+    minimumFractionDigits: 1, 
     maximumFractionDigits: 1 
   })
 }
 
 /** Full-precision currency with decimals: $12.50 */
 export function formatCurrencyPrice(value: number, currency: string): string {
-  return noNegZero(value).toLocaleString('en-US', { style: 'currency', currency, maximumFractionDigits: 2 })
+  return noNegZero(value).toLocaleString('en-US', { 
+    style: 'currency', 
+    currency, 
+    minimumFractionDigits: 2, 
+    maximumFractionDigits: 2 
+  })
 }
-
