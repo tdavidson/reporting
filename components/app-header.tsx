@@ -24,7 +24,8 @@ export function AppHeader({ fundName, fundLogo, userEmail, reviewBadge, settings
   const { collapsed } = useSidebar()
 
   return (
-    <header className="relative flex items-center justify-between px-4 py-3 shrink-0">
+<header className="sticky top-0 z-40 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 shrink-0">
+      <div className="flex h-14 items-center justify-between px-4">
       {/* Left */}
       <div className="flex items-center gap-3">
         <Button
