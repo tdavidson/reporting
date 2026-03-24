@@ -71,11 +71,11 @@ function AppShellInner({ fundName, fundLogo, userEmail, reviewBadge, settingsBad
         isAdmin={isAdmin}
         featureVisibility={featureVisibility}
       />
-      <div className="flex flex-1">
-        <aside
-          className={`hidden md:flex flex-col shrink-0 pt-6 transition-all duration-200 border-r border-border/60 ${
-            collapsed ? 'w-16' : 'w-56'
-          }`}
+<div className="flex flex-1 min-h-0">
+  <aside
+    className={`hidden md:flex flex-col shrink-0 pt-6 transition-all duration-200 border-r border-border/60 sticky top-0 h-screen overflow-y-auto ${
+      collapsed ? 'w-16' : 'w-56'
+    }`}
         >
           <AppSidebar reviewBadge={reviewBadge} settingsBadge={settingsBadge} notesBadge={notesBadge} isAdmin={isAdmin} updateAvailable={updateAvailable} featureVisibility={featureVisibility} />
         </aside>
