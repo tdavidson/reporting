@@ -10,21 +10,21 @@ import { isFeatureVisible } from '@/lib/types/features'
 import type { FeatureKey, FeatureVisibilityMap } from '@/lib/types/features'
 
 const NAV_ITEMS: { href: string; label: string; icon: LucideIcon; badgeKey?: 'review' | 'settings' | 'notes'; adminOnly?: boolean; featureKey?: FeatureKey; beta?: boolean }[] = [
-  { href: '/dashboard', label: 'Dashboard | Prlx Terminal', icon: Building2 },
-  { href: '/review', label: 'Review | Prlx Terminal', icon: ClipboardCheck, badgeKey: 'review' },
-  { href: '/emails', label: 'Inbound | Prlx Terminal', icon: Mail },
+  { href: '/dashboard', label: 'Dashboard', icon: Building2 },
+  { href: '/review', label: 'Review', icon: ClipboardCheck, badgeKey: 'review' },
+  { href: '/emails', label: 'E-mail', icon: Mail },
   { href: '/import', label: 'Import | Prlx Terminal', icon: Upload, featureKey: 'imports' },
-  { href: '/investments', label: 'Investments | Prlx Terminal', icon: BarChart3, featureKey: 'investments' },
-  { href: '/funds', label: 'Funds | Prlx Terminal', icon: Briefcase, featureKey: 'funds' },
-  { href: '/requests', label: 'Asks | Prlx Terminal', icon: Send, featureKey: 'asks' },
-  { href: '/notes', label: 'Notes | Prlx Terminal', icon: StickyNote, badgeKey: 'notes', featureKey: 'notes' },
-  { href: '/interactions', label: 'Interactions | Prlx Terminal', icon: Handshake, featureKey: 'interactions' },
-  { href: '/letters', label: 'Letters | Prlx Terminal', icon: FileText, featureKey: 'lp_letters' },
-  { href: '/lps', label: 'LPs | Prlx Terminal', icon: Crown, featureKey: 'lps' },
-  { href: '/compliance', label: 'Compliance | Prlx Terminal', icon: ShieldCheck, featureKey: 'compliance', beta: true },
-  { href: '/usage', label: 'Usage | Prlx Terminal', icon: Users, adminOnly: true },
-  { href: '/settings', label: 'Settings | Prlx Terminal', icon: Settings, badgeKey: 'settings' },
-  { href: '/support', label: 'Support | Prlx Terminal', icon: LifeBuoy },
+  { href: '/investments', label: 'Investments', icon: BarChart3, featureKey: 'investments' },
+  { href: '/funds', label: 'Vehicles', icon: Briefcase, featureKey: 'funds' },
+  { href: '/requests', label: 'Asks', icon: Send, featureKey: 'asks' },
+  { href: '/notes', label: 'Notes', icon: StickyNote, badgeKey: 'notes', featureKey: 'notes' },
+  { href: '/interactions', label: 'Interactions', icon: Handshake, featureKey: 'interactions' },
+  { href: '/letters', label: 'Letters', icon: FileText, featureKey: 'lp_letters' },
+  { href: '/lps', label: 'LPs', icon: Crown, featureKey: 'lps' },
+  { href: '/compliance', label: 'Compliance', icon: ShieldCheck, featureKey: 'compliance', beta: true },
+  { href: '/usage', label: 'Usage', icon: Users, adminOnly: true },
+  { href: '/settings', label: 'Settings', icon: Settings, badgeKey: 'settings' },
+  { href: '/support', label: 'Support', icon: LifeBuoy },
 ]
 
 interface AppSidebarProps {
