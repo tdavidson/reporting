@@ -24,48 +24,49 @@ export function AppHeader({ fundName, fundLogo, userEmail, reviewBadge, settings
   const { collapsed } = useSidebar()
 
   return (
-<header className="sticky top-0 z-40 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 shrink-0">
+    <header className="sticky top-0 z-40 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 shrink-0">
       <div className="flex h-14 items-center justify-between px-4">
-      {/* Left */}
-      <div className="flex items-center gap-3">
-        <Button
-          variant="ghost"
-          size="sm"
-          className="md:hidden p-1.5"
-          onClick={() => setDrawerOpen(true)}
-        >
-          <Menu className="h-5 w-5" />
-          <span className="sr-only">Open menu</span>
-        </Button>
-        {fundLogo ? (
-          <img src={fundLogo} alt="" className="h-7 w-7 rounded object-contain" />
-        ) : (
-          <div className="h-7 w-7 rounded bg-muted flex items-center justify-center">
-            <Building2 className="h-4 w-4 text-muted-foreground" />
-          </div>
-        )}
-        {!collapsed && (
-          <span className="font-medium text-sm text-muted-foreground tracking-tight truncate">{fundName}</span>
-        )}
-      </div>
-
-      {collapsed && (
-        <span className="hidden md:block absolute left-24 top-1/2 -translate-y-1/2 text-sm font-medium text-muted-foreground/70 tracking-tight">
-          {fundName}
-        </span>
-      )}
-
-{/* Right */}
-<div className="flex items-center gap-3">
-  <span className="text-xs text-muted-foreground truncate hidden sm:block max-w-[200px]">
-    {userEmail}
-  </span>
-        <form action="/api/auth/logout" method="POST">
-          <Button type="submit" variant="outline" size="sm" className="text-muted-foreground gap-2">
-            <LogOut className="h-4 w-4" />
-            <span className="hidden sm:inline">Sign out</span>
+        {/* Left */}
+        <div className="flex items-center gap-3">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="md:hidden p-1.5"
+            onClick={() => setDrawerOpen(true)}
+          >
+            <Menu className="h-5 w-5" />
+            <span className="sr-only">Open menu</span>
           </Button>
-        </form>
+          {fundLogo ? (
+            <img src={fundLogo} alt="" className="h-7 w-7 rounded object-contain" />
+          ) : (
+            <div className="h-7 w-7 rounded bg-muted flex items-center justify-center">
+              <Building2 className="h-4 w-4 text-muted-foreground" />
+            </div>
+          )}
+          {!collapsed && (
+            <span className="font-medium text-sm text-muted-foreground tracking-tight truncate">{fundName}</span>
+          )}
+        </div>
+
+        {collapsed && (
+          <span className="hidden md:block absolute left-24 top-1/2 -translate-y-1/2 text-sm font-medium text-muted-foreground/70 tracking-tight">
+            {fundName}
+          </span>
+        )}
+
+        {/* Right */}
+        <div className="flex items-center gap-3">
+          <span className="text-xs text-muted-foreground truncate hidden sm:block max-w-[200px]">
+            {userEmail}
+          </span>
+          <form action="/api/auth/logout" method="POST">
+            <Button type="submit" variant="outline" size="sm" className="text-muted-foreground gap-2">
+              <LogOut className="h-4 w-4" />
+              <span className="hidden sm:inline">Sign out</span>
+            </Button>
+          </form>
+        </div>
       </div>
 
       <DisplayPanel />
