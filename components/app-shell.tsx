@@ -74,7 +74,7 @@ function AppShellInner({ fundName, fundLogo, userEmail, reviewBadge, settingsBad
       />
       <div className="flex flex-1">
         <aside
-          className={`hidden md:flex flex-col shrink-0 pt-6 transition-all duration-200 border-r border-border/40 ${     
+          className={`hidden md:flex flex-col shrink-0 pt-6 transition-all duration-200 border-r border-border/20 ${     
           collapsed ? 'w-16' : 'w-56'
           }`}
         >
