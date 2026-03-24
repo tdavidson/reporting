@@ -18,7 +18,7 @@ import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent } from '@/components/ui/sheet'
 import { SidebarProvider, useSidebar } from '@/components/sidebar-context'
 import { useTheme } from 'next-themes'
-import { AppFooter } from '@/components/app-footer'
+// import { AppFooter } from '@/components/app-footer'
 import { APP_VERSION } from '@/lib/version'
 
 const THEME_CYCLE = ['system', 'light', 'dark'] as const
