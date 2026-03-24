@@ -23,7 +23,7 @@ const ogImageUrl = `${process.env.NEXT_PUBLIC_SITE_URL || 'https://portfolio.hem
 
 export const metadata: Metadata = {
   title: {
-    template: '%s | Powered by Prlx',
+    template: '%s | Parallax Terminal',
     default: 'Portfolio Reporting | Parallax',
   },
   description: 'Source-available portfolio reporting for venture capital firms, accelerators, and angel investors.',
