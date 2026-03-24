@@ -80,11 +80,9 @@ function AppShellInner({ fundName, fundLogo, userEmail, reviewBadge, settingsBad
         >
           <AppSidebar reviewBadge={reviewBadge} settingsBadge={settingsBadge} notesBadge={notesBadge} isAdmin={isAdmin} updateAvailable={updateAvailable} featureVisibility={featureVisibility} />
         </aside>
-        <main className="flex-1 min-w-0 flex flex-col">
-          <div className="flex-1 w-full max-w-5xl mx-auto px-4 md:px-8">
-            {children}
-          </div>
-        </main>
+<main className="flex-1 min-w-0 flex flex-col overflow-hidden">
+  {children}
+</main>
       </div>
     </>
   )
