@@ -23,20 +23,20 @@ const ogImageUrl = `${process.env.NEXT_PUBLIC_SITE_URL || 'https://portfolio.hem
 
 export const metadata: Metadata = {
   title: {
-    template: '%s | Powered by Hemrock',
-    default: 'Portfolio Reporting | Powered by Hemrock',
+    template: '%s | Powered by Prlx',
+    default: 'Portfolio Reporting | Parallax',
   },
   description: 'Source-available portfolio reporting for venture capital firms, accelerators, and angel investors.',
   openGraph: {
-    title: 'Portfolio Reporting | Analyst by Hemrock',
+    title: 'Portfolio Reporting',
     description: 'Source-available portfolio reporting for venture capital firms, accelerators, and angel investors.',
     images: [{ url: ogImageUrl, width: 1200, height: 630 }],
     type: 'website',
-    siteName: 'Analyst by Hemrock',
+    siteName: 'Analyst by PRLX',
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Portfolio Reporting | Analyst by Hemrock',
+    title: 'Portfolio Reporting',
     description: 'Source-available portfolio reporting for venture capital firms, accelerators, and angel investors.',
     images: [ogImageUrl],
   },
