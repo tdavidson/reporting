@@ -15,7 +15,7 @@ const NAV_ITEMS: { href: string; label: string; icon: LucideIcon; badgeKey?: 're
   { href: '/emails', label: 'E-mail', icon: Mail },
   { href: '/import', label: 'Import', icon: Upload, featureKey: 'imports' },
   { href: '/investments', label: 'Investments', icon: BarChart3, featureKey: 'investments' },
-  { href: '/funds', label: 'Vehicles', icon: Wallet, featureKey: 'funds' },
+  { href: '/funds', label: 'Vehicles', icon: Briefcase, featureKey: 'funds' },
   { href: '/requests', label: 'Asks', icon: Send, featureKey: 'asks' },
   { href: '/notes', label: 'Notes', icon: StickyNote, badgeKey: 'notes', featureKey: 'notes' },
   { href: '/interactions', label: 'Interactions', icon: Handshake, featureKey: 'interactions' },
