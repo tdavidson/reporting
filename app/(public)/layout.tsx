@@ -321,7 +321,7 @@ function PublicShell({ children }: { children: React.ReactNode }) {
             {children}
           </div>
           <div className="max-w-3xl">
-            <AppFooter />
+            {/* <AppFooter /> */}
           </div>
         </main>
       </div>
