@@ -9,7 +9,7 @@ import { MetricForm } from '@/components/metric-form'
 import type { Metric } from '@/lib/types/database'
 import { MetricChart } from './metric-chart'
 import { AddDataPointDialog } from './add-data-point-dialog'
-
+ 
 interface MetricValueRow {
   id: string
   metric_id: string
