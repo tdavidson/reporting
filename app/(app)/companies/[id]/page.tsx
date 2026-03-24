@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { ArrowLeft, Lock } from 'lucide-react'
+import { MetricsManager } from './metrics-manager'
 
 export async function generateMetadata({ params }: { params: { id: string } }): Promise<Metadata> {
   const supabase = createClient()
@@ -102,7 +103,6 @@ export default async function CompanyDetailPage({
     .from('metrics')
     .select('*')
     .eq('company_id', params.id)
-    .eq('is_active', true)
     .order('display_order') as { data: Metric[] | null }
 
   const mrrMetric = metrics?.find(m =>
@@ -207,11 +207,23 @@ export default async function CompanyDetailPage({
                   defaultAIProvider={fundSettings?.default_ai_provider ?? 'anthropic'}
                 />
 
-                <CompanyCharts
-                  companyId={company.id}
-                  companyName={company.name}
-                  metrics={metrics ?? []}
-                />
+{isAdmin && (
+  <MetricsManager
+    companyId={company.id}
+    initialMetrics={(metrics ?? []).map(m => ({
+      id: m.id,
+      name: m.name,
+      is_active: m.is_active,
+      display_order: m.display_order,
+    }))}
+  />
+)}
+
+<CompanyCharts
+  companyId={company.id}
+  companyName={company.name}
+  metrics={(metrics ?? []).filter(m => m.is_active)}
+/>
               </>
             )}
 
