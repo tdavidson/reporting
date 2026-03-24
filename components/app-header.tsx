@@ -42,22 +42,14 @@ export function AppHeader({ fundName, fundLogo, userEmail, reviewBadge, settings
             <img src={fundLogo} alt="" className="h-10 w-10 rounded object-contain" />
           ) : (
             <div className="h-10 w-10 rounded bg-muted flex items-center justify-center">
-              <Building2 className="h-6 w-6 text-muted-foreground" />
+              <Building2 className="h-6 w-6 text-primary" />
             </div>
           )}
 
-          {!collapsed && (
-            <span className="font-bold text-lg text-muted-foreground tracking-tight truncate">
-              {fundName}
-            </span>
-          )}
-        </div>
-
-        {collapsed && (
-          <span className="hidden md:block absolute left-24 top-1/2 -translate-y-1/2 text-sm font-medium text-muted-foreground/70 tracking-tight">
+          <span className="font-bold text-lg text-primary tracking-tight truncate">
             {fundName}
           </span>
-        )}
+        </div>
 
         {/* Right */}
         <div className="flex items-center gap-3">
