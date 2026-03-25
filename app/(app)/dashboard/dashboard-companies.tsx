@@ -13,7 +13,7 @@ import { CompanyForm } from '@/components/company-form'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 
-interface ActiveMetric {
+interface ActiveMetric { 
   id: string
   name: string
   unit: string | null
