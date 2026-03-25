@@ -207,17 +207,22 @@ export default async function CompanyDetailPage({
                   defaultAIProvider={fundSettings?.default_ai_provider ?? 'anthropic'}
                 />
 
-{isAdmin && (
-  <MetricsManager
-    companyId={company.id}
-    initialMetrics={(metrics ?? []).map(m => ({
-      id: m.id,
-      name: m.name,
-is_active: m.is_active ?? false,
-display_order: m.display_order ?? 0,
-    }))}
-  />
-)}
+<div className="flex items-center gap-2">
+  <DisplayPanelButton />
+  {isFeatureVisible(featureVisibility, 'notes', isAdmin) && <ChatButton />}
+  <AnalystButton companyId={company.id} pushRight={false} />
+  {isAdmin && (
+    <MetricsManager
+      companyId={company.id}
+      initialMetrics={(metrics ?? []).map(m => ({
+        id: m.id,
+        name: m.name,
+        is_active: m.is_active ?? false,
+        display_order: m.display_order ?? 0,
+      }))}
+    />
+  )}
+</div>
 
 <CompanyCharts
   companyId={company.id}
