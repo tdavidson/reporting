@@ -1,7 +1,12 @@
 'use client'
 
 import { useState } from 'react'
-import { ArrowUp, ArrowDown, Eye, EyeOff } from 'lucide-react'
+import { ArrowUp, ArrowDown, Eye, EyeOff, SlidersHorizontal } from 'lucide-react'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover'
 
 interface Metric {
   id: string
@@ -58,62 +63,72 @@ export function MetricsManager({ companyId, initialMetrics }: Props) {
   const activeMetrics = metrics.filter(m => m.is_active)
 
   return (
-    <div className="rounded-lg border bg-card p-4 mb-6">
-      <h3 className="text-xs font-medium text-muted-foreground mb-3 uppercase tracking-wider">
-        Portfolio Card Metrics
-      </h3>
-      <div className="space-y-1">
-        {metrics.map((metric, i) => {
-          const activeIndex = activeMetrics.indexOf(metric)
-          const isCardMetric = metric.is_active && activeIndex < 2
-          return (
-            <div
-              key={metric.id}
-              className={`flex items-center gap-2 px-2 py-1.5 rounded-md transition-colors ${
-                metric.is_active ? '' : 'opacity-40'
-              }`}
-            >
-              <span className="flex-1 text-sm truncate">{metric.name}</span>
-              {isCardMetric && (
-                <span className="text-[10px] text-primary font-medium bg-primary/10 px-1.5 py-0.5 rounded shrink-0">
-                  Card
-                </span>
-              )}
-              <div className="flex items-center gap-0.5 shrink-0">
-                <button
-                  onClick={() => move(i, -1)}
-                  disabled={i === 0 || saving === metric.id}
-                  className="p-1 rounded hover:bg-muted disabled:opacity-20 text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  <ArrowUp className="h-3 w-3" />
-                </button>
-                <button
-                  onClick={() => move(i, 1)}
-                  disabled={i === metrics.length - 1 || saving === metric.id}
-                  className="p-1 rounded hover:bg-muted disabled:opacity-20 text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  <ArrowDown className="h-3 w-3" />
-                </button>
-                <button
-                  onClick={() => toggleActive(metric.id)}
-                  disabled={saving === metric.id}
-                  className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
-                  title={metric.is_active ? 'Deactivate' : 'Activate'}
-                >
-                  {metric.is_active ? (
-                    <Eye className="h-3.5 w-3.5" />
-                  ) : (
-                    <EyeOff className="h-3.5 w-3.5" />
-                  )}
-                </button>
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+          title="Configure portfolio card metrics"
+        >
+          <SlidersHorizontal className="h-3.5 w-3.5" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-72 p-3">
+        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">
+          Portfolio Card Metrics
+        </p>
+        <div className="space-y-1">
+          {metrics.map((metric, i) => {
+            const activeIndex = activeMetrics.indexOf(metric)
+            const isCardMetric = metric.is_active && activeIndex < 2
+            return (
+              <div
+                key={metric.id}
+                className={`flex items-center gap-2 px-2 py-1.5 rounded-md transition-colors ${
+                  metric.is_active ? '' : 'opacity-40'
+                }`}
+              >
+                <span className="flex-1 text-sm truncate">{metric.name}</span>
+                {isCardMetric && (
+                  <span className="text-[10px] text-primary font-medium bg-primary/10 px-1.5 py-0.5 rounded shrink-0">
+                    Card
+                  </span>
+                )}
+                <div className="flex items-center gap-0.5 shrink-0">
+                  <button
+                    onClick={() => move(i, -1)}
+                    disabled={i === 0 || saving === metric.id}
+                    className="p-1 rounded hover:bg-muted disabled:opacity-20 text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    <ArrowUp className="h-3 w-3" />
+                  </button>
+                  <button
+                    onClick={() => move(i, 1)}
+                    disabled={i === metrics.length - 1 || saving === metric.id}
+                    className="p-1 rounded hover:bg-muted disabled:opacity-20 text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    <ArrowDown className="h-3 w-3" />
+                  </button>
+                  <button
+                    onClick={() => toggleActive(metric.id)}
+                    disabled={saving === metric.id}
+                    className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                    title={metric.is_active ? 'Deactivate' : 'Activate'}
+                  >
+                    {metric.is_active ? (
+                      <Eye className="h-3.5 w-3.5" />
+                    ) : (
+                      <EyeOff className="h-3.5 w-3.5" />
+                    )}
+                  </button>
+                </div>
               </div>
-            </div>
-          )
-        })}
-      </div>
-      <p className="text-[10px] text-muted-foreground mt-3">
-        The first 2 active metrics appear on the portfolio card.
-      </p>
-    </div>
+            )
+          })}
+        </div>
+        <p className="text-[10px] text-muted-foreground mt-3">
+          The first 2 active metrics appear on the portfolio card.
+        </p>
+      </PopoverContent>
+    </Popover>
   )
 }
