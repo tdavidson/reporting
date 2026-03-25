@@ -213,8 +213,8 @@ export default async function CompanyDetailPage({
     initialMetrics={(metrics ?? []).map(m => ({
       id: m.id,
       name: m.name,
-      is_active: m.is_active,
-      display_order: m.display_order,
+is_active: m.is_active ?? false,
+display_order: m.display_order ?? 0,
     }))}
   />
 )}
