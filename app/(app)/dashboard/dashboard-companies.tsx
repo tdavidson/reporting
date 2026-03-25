@@ -252,7 +252,7 @@ function CompanyGrid({ companies, logoMap, onLogoUpdate }: { companies: Company[
 
 const getSelectedMetrics = useCallback((c: Company): [ActiveMetric | null, ActiveMetric | null] => {
   const valuation = c.activeMetrics.find(m =>
-    /valuation|post.?money/i.test(m.name) || /valuation|post_money/i.test(m.slug ?? '')
+    /valuation post money|post money valuation|post-money valuation|valuation/i.test(m.name)
   ) ?? null
 
   const revenue = c.activeMetrics.find(m =>
