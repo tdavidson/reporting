@@ -250,7 +250,6 @@ function CompanyGrid({ companies, logoMap, onLogoUpdate }: { companies: Company[
   const [loadingMetrics, setLoadingMetrics] = useState<Set<string>>(new Set())
   const fetchedRef = useRef<Set<string>>(new Set())
 
-  const getSelectedMetrics = useCallback((c: Company): [ActiveMetric | null, ActiveMetric | null] => {
 const getSelectedMetrics = useCallback((c: Company): [ActiveMetric | null, ActiveMetric | null] => {
   const valuation = c.activeMetrics.find(m =>
     /valuation|post.?money/i.test(m.name) || /valuation|post_money/i.test(m.slug ?? '')
