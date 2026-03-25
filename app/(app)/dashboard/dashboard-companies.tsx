@@ -261,7 +261,7 @@ const getSelectedMetrics = useCallback((c: Company): [ActiveMetric | null, Activ
 
   return [valuation, revenue]
 }, [])
-  }, [])
+
 
   useEffect(() => {
     const metricsToFetch: { companyId: string; metricId: string }[] = []
