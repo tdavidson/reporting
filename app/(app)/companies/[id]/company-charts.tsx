@@ -9,6 +9,7 @@ import { MetricForm } from '@/components/metric-form'
 import type { Metric } from '@/lib/types/database'
 import { MetricChart } from './metric-chart'
 import { AddDataPointDialog } from './add-data-point-dialog'
+import { MetricsManager } from './metrics-manager'
  
 interface MetricValueRow {
   id: string
@@ -33,16 +34,17 @@ interface Props {
   companyId: string
   companyName: string
   metrics: Metric[]
+  isAdmin?: boolean
+  allMetrics?: { id: string; name: string; is_active: boolean; display_order: number }[]
 }
 
-export function CompanyCharts({ companyId, companyName, metrics }: Props) {
+export function CompanyCharts({ companyId, companyName, metrics, isAdmin, allMetrics }: Props) {
   const router = useRouter()
   const [valuesByMetric, setValuesByMetric] = useState<Record<string, MetricValueRow[]>>({})
   const [loading, setLoading] = useState(true)
   const [addMetricOpen, setAddMetricOpen] = useState(false)
   const [deletedIds, setDeletedIds] = useState<Set<string>>(new Set())
 
-  // Stabilize metrics dependency to avoid refetching on every render
   const metricIds = metrics.map(m => m.id).join(',')
 
   const loadValues = useCallback(async () => {
@@ -125,8 +127,7 @@ export function CompanyCharts({ companyId, companyName, metrics }: Props) {
           <p className="text-muted-foreground">
             No metrics configured yet. Add metrics to this company to start tracking data.
           </p>
-          <Button size="sm" onClick={() => setAddMetricOpen(true)}  className="bg-[#0F2332] hover:bg-[#0F2332]/90 text-white border-none"
->
+          <Button size="sm" onClick={() => setAddMetricOpen(true)} className="bg-[#0F2332] hover:bg-[#0F2332]/90 text-white border-none">
             <Plus className="h-4 w-4 mr-1.5" />
             Add metric
           </Button>
@@ -173,6 +174,9 @@ export function CompanyCharts({ companyId, companyName, metrics }: Props) {
               <Download className="h-3.5 w-3.5" />
               Export CSV
             </button>
+          )}
+          {isAdmin && allMetrics && allMetrics.length > 0 && (
+            <MetricsManager companyId={companyId} initialMetrics={allMetrics} />
           )}
           <Button size="sm" variant="outline" onClick={() => setAddMetricOpen(true)} className="text-muted-foreground">
             <Plus className="h-4 w-4 mr-1.5" />
