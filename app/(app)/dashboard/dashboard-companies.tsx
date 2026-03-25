@@ -251,12 +251,17 @@ function CompanyGrid({ companies, logoMap, onLogoUpdate }: { companies: Company[
   const fetchedRef = useRef<Set<string>>(new Set())
 
   const getSelectedMetrics = useCallback((c: Company): [ActiveMetric | null, ActiveMetric | null] => {
-    const cashMetric = c.activeMetrics.find(m => m.name.toLowerCase() === 'cash' || /\bcash\b/i.test(m.name)) ?? null
-    if (cashMetric) {
-      const nonCashMetric = c.activeMetrics.find(m => m !== cashMetric) ?? null
-      return [cashMetric, nonCashMetric]
-    }
-    return [c.activeMetrics[0] ?? null, c.activeMetrics[1] ?? null]
+const getSelectedMetrics = useCallback((c: Company): [ActiveMetric | null, ActiveMetric | null] => {
+  const valuation = c.activeMetrics.find(m =>
+    /valuation|post.?money/i.test(m.name) || /valuation|post_money/i.test(m.slug ?? '')
+  ) ?? null
+
+  const revenue = c.activeMetrics.find(m =>
+    /net revenue|gross revenue|revenue|mrr|arr/i.test(m.name)
+  ) ?? null
+
+  return [valuation, revenue]
+}, [])
   }, [])
 
   useEffect(() => {
