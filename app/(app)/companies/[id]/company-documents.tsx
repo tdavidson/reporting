@@ -44,6 +44,21 @@ function FileIcon({ fileType, source }: { fileType: string; source: string }) {
   return <File className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
 }
 
+function SourceTag({ source }: { source: 'upload' | 'email' }) {
+  if (source === 'email') {
+    return (
+      <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400 shrink-0">
+        email
+      </span>
+    )
+  }
+  return (
+    <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground shrink-0">
+      upload
+    </span>
+  )
+}
+
 export function CompanyDocuments({ companyId, storageProvider, googleDriveFolderId, dropboxFolderPath }: Props) {
   const [documents, setDocuments] = useState<Document[]>([])
   const [loading, setLoading] = useState(true)
@@ -158,6 +173,7 @@ export function CompanyDocuments({ companyId, storageProvider, googleDriveFolder
                   <FileIcon fileType={doc.file_type} source={doc.source} />
                 )}
                 <span className="truncate">{doc.filename}</span>
+                <SourceTag source={doc.source} />
                 <span className="text-xs text-muted-foreground shrink-0">
                   {formatFileSize(doc.file_size)}
                 </span>
@@ -168,21 +184,19 @@ export function CompanyDocuments({ companyId, storageProvider, googleDriveFolder
                 </span>
                 <ExternalLink className="h-3 w-3 text-muted-foreground shrink-0" />
               </button>
-              {doc.source === 'upload' && (
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => handleDelete(doc.id)}
-                  disabled={deletingId === doc.id}
-                  className="h-7 px-2 text-muted-foreground hover:text-destructive shrink-0"
-                >
-                  {deletingId === doc.id ? (
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  ) : (
-                    <Trash2 className="h-3.5 w-3.5" />
-                  )}
-                </Button>
-              )}
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => handleDelete(doc.id)}
+                disabled={deletingId === doc.id}
+                className="h-7 px-2 text-muted-foreground hover:text-destructive shrink-0"
+              >
+                {deletingId === doc.id ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Trash2 className="h-3.5 w-3.5" />
+                )}
+              </Button>
             </div>
           ))}
         </div>
