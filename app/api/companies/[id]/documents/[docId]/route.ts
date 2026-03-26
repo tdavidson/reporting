@@ -11,8 +11,6 @@ function parseEmailDocId(docId: string): { emailId: string; attachmentIndex: num
   return { emailId: match[1], attachmentIndex: parseInt(match[2], 10) }
 }
 
-// NOTE: company_id can be null on inbound_emails (e.g. needs_review status)
-// so we only filter by emailId and verify access via fund_id membership.
 async function resolveEmailAttachment(
   admin: ReturnType<typeof createAdminClient>,
   emailId: string,
@@ -36,7 +34,7 @@ async function resolveEmailAttachment(
   const att = attachments[attachmentIndex]
   if (!att) return null
 
-  return { email, att }
+  return { email, att, attachments }
 }
 
 // ---------------------------------------------------------------------------
@@ -121,7 +119,7 @@ export async function GET(
 }
 
 // ---------------------------------------------------------------------------
-// DELETE — Remove upload (DB + storage) or email attachment (inbound_emails record)
+// DELETE
 // ---------------------------------------------------------------------------
 
 export async function DELETE(
@@ -142,7 +140,7 @@ export async function DELETE(
     const resolved = await resolveEmailAttachment(admin, emailParsed.emailId, emailParsed.attachmentIndex)
     if (!resolved) return NextResponse.json({ error: 'Document not found' }, { status: 404 })
 
-    const { email, att } = resolved
+    const { email, att, attachments } = resolved
 
     const { data: membership } = await supabase
       .from('fund_members')
@@ -153,13 +151,21 @@ export async function DELETE(
 
     if (!membership) return NextResponse.json({ error: 'Not a fund member' }, { status: 403 })
 
+    // Remove file from storage
     if (att.StoragePath) {
       await admin.storage.from('email-attachments').remove([att.StoragePath])
     }
 
+    // Remove attachment from the array in raw_payload (don't delete the email row — FK constraints)
+    const updatedAttachments = attachments.filter((_, i) => i !== emailParsed.attachmentIndex)
+    const updatedPayload = { ...email.raw_payload, Attachments: updatedAttachments }
+
     const { error } = await admin
       .from('inbound_emails')
-      .delete()
+      .update({
+        raw_payload: updatedPayload,
+        attachments_count: updatedAttachments.length,
+      })
       .eq('id', emailParsed.emailId)
 
     if (error) return dbError(error, 'companies-id-documents-docId-email')
