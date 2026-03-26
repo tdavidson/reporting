@@ -1,12 +1,22 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Newspaper, ExternalLink, RefreshCw, Filter } from 'lucide-react'
+import { Newspaper, ExternalLink, RefreshCw, Filter, Settings2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import Link from 'next/link'
 import type { NewsArticle } from '@/app/api/news/route'
 
 interface Company { id: string; name: string }
+
+const NEWS_SOURCES_KEY = 'prlx:newsSources'
+
+function getSavedSources(): string[] {
+  try {
+    const raw = localStorage.getItem(NEWS_SOURCES_KEY)
+    return raw ? JSON.parse(raw) : []
+  } catch { return [] }
+}
 
 function timeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime()
@@ -18,22 +28,43 @@ function timeAgo(dateStr: string): string {
   return `${days}d ago`
 }
 
+const DATE_OPTIONS = [
+  { value: 'all', label: 'All time' },
+  { value: '24h', label: '24h' },
+  { value: '7d', label: '7 days' },
+  { value: '30d', label: '30 days' },
+]
+
 export default function NewsPage() {
   const [articles, setArticles] = useState<NewsArticle[]>([])
   const [companies, setCompanies] = useState<Company[]>([])
+  const [countriesAvailable, setCountriesAvailable] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [selectedCompany, setSelectedCompany] = useState<string>('')
+  const [dateRange, setDateRange] = useState<string>('all')
+  const [country, setCountry] = useState<string>('all')
   const [error, setError] = useState<string | null>(null)
+  const [sources, setSources] = useState<string[]>([])
+
+  useEffect(() => {
+    setSources(getSavedSources())
+  }, [])
 
   async function load(bust = false) {
     try {
-      const url = bust ? `/api/news?bust=${Date.now()}` : '/api/news'
-      const res = await fetch(url)
+      const currentSources = getSavedSources()
+      const params = new URLSearchParams()
+      if (bust) params.set('bust', String(Date.now()))
+      if (currentSources.length > 0) params.set('sources', currentSources.join(','))
+      if (dateRange !== 'all') params.set('dateRange', dateRange)
+      if (country !== 'all') params.set('country', country)
+      const res = await fetch(`/api/news?${params}`)
       if (!res.ok) throw new Error('Failed to load news')
       const data = await res.json()
       setArticles(data.articles ?? [])
       setCompanies(data.companies ?? [])
+      setCountriesAvailable(data.countriesInResults ?? [])
       setError(null)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Something went wrong')
@@ -42,11 +73,20 @@ export default function NewsPage() {
 
   useEffect(() => {
     load().finally(() => setLoading(false))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // Re-fetch when filters change (except on first mount)
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => {
+    if (!mounted) { setMounted(true); return }
+    setLoading(true)
+    load().finally(() => setLoading(false))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dateRange, country])
 
   async function handleRefresh() {
     setRefreshing(true)
-    // clear server-side cache by busting the key
     await load(true)
     setRefreshing(false)
   }
@@ -63,20 +103,88 @@ export default function NewsPage() {
             <Newspaper className="h-5 w-5" />
             News
           </h1>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleRefresh}
-            disabled={refreshing || loading}
-            className="gap-1.5"
-          >
-            <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? 'animate-spin' : ''}`} />
-            Refresh
-          </Button>
+          <div className="flex items-center gap-2">
+            {sources.length > 0 && (
+              <span className="text-xs text-muted-foreground">
+                {sources.length} portal{sources.length !== 1 ? 's' : ''} configured
+              </span>
+            )}
+            <Link href="/settings#news-sources">
+              <Button variant="outline" size="sm" className="gap-1.5">
+                <Settings2 className="h-3.5 w-3.5" />
+                Portals
+              </Button>
+            </Link>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleRefresh}
+              disabled={refreshing || loading}
+              className="gap-1.5"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? 'animate-spin' : ''}`} />
+              Refresh
+            </Button>
+          </div>
         </div>
         <p className="text-sm text-muted-foreground mt-1">
           Latest news about your portfolio companies · cached for 1h
         </p>
+      </div>
+
+      {/* Filters row */}
+      <div className="flex flex-wrap items-center gap-3 mb-5">
+        {/* Date filter */}
+        <div className="flex items-center gap-1.5">
+          <span className="text-xs text-muted-foreground">Period:</span>
+          <div className="flex gap-1">
+            {DATE_OPTIONS.map(opt => (
+              <button
+                key={opt.value}
+                onClick={() => setDateRange(opt.value)}
+                className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
+                  dateRange === opt.value
+                    ? 'bg-foreground text-background border-foreground'
+                    : 'border-border text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Country filter */}
+        {countriesAvailable.length > 1 && (
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-muted-foreground">Country:</span>
+            <div className="flex gap-1 flex-wrap">
+              <button
+                onClick={() => setCountry('all')}
+                className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
+                  country === 'all'
+                    ? 'bg-foreground text-background border-foreground'
+                    : 'border-border text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                All
+              </button>
+              {countriesAvailable.map(c => (
+                <button
+                  key={c}
+                  onClick={() => setCountry(country === c ? 'all' : c)}
+                  className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
+                    country === c
+                      ? 'bg-foreground text-background border-foreground'
+                      : 'border-border text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  {c}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Company filter */}
@@ -131,8 +239,8 @@ export default function NewsPage() {
       {!loading && !error && filtered.length === 0 && (
         <div className="rounded-lg border border-dashed p-12 text-center">
           <Newspaper className="h-8 w-8 text-muted-foreground mx-auto mb-3" />
-          <p className="text-muted-foreground text-sm">No news found for the selected companies.</p>
-          <p className="text-xs text-muted-foreground mt-1">Try refreshing or selecting a different company.</p>
+          <p className="text-muted-foreground text-sm">No news found for the selected filters.</p>
+          <p className="text-xs text-muted-foreground mt-1">Try adjusting the period or country filter, or refreshing.</p>
         </div>
       )}
 
