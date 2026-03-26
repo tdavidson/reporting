@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import OpenAI from 'openai'
 
 const cache = new Map<string, { data: NewsArticle[]; expiresAt: number }>()
 const CACHE_TTL_MS = 60 * 60 * 1000
+const AI_CACHE = new Map<string, { articles: NewsArticle[]; expiresAt: number }>()
 
 export interface NewsArticle {
   title: string
@@ -36,10 +38,7 @@ function getDateCutoff(dateRange: string): number | null {
   if (dateRange === '7d') return Date.now() - 7 * 86400000
   if (dateRange === '30d') return Date.now() - 30 * 86400000
   if (dateRange === 'ytd') return new Date(now.getFullYear(), 0, 1).getTime()
-  if (dateRange === 'lastyear') {
-    const y = now.getFullYear() - 1
-    return new Date(y, 0, 1).getTime()
-  }
+  if (dateRange === 'lastyear') return new Date(now.getFullYear() - 1, 0, 1).getTime()
   return null
 }
 
@@ -51,12 +50,21 @@ function getDateCeiling(dateRange: string): number | null {
   return null
 }
 
+function normalizeUrl(url: string): string {
+  try {
+    const u = new URL(url)
+    return (u.hostname + u.pathname).replace(/\/+$/, '').toLowerCase()
+  } catch {
+    return url.toLowerCase().trim()
+  }
+}
+
 async function fetchCompanyNews(
   companyId: string,
   companyName: string,
   sources: string[]
 ): Promise<NewsArticle[]> {
-  const cacheKey = `news:${companyId}:${sources.sort().join(',')}`
+  const cacheKey = `news:${companyId}:${[...sources].sort().join(',')}`
   const cached = cache.get(cacheKey)
   if (cached && cached.expiresAt > Date.now()) return cached.data
 
@@ -98,6 +106,80 @@ async function fetchCompanyNews(
   }
 }
 
+type AIResult = { index: number; companyId: string | null }
+
+async function aiEnrichAndFilter(
+  articles: NewsArticle[],
+  companies: { id: string; name: string }[]
+): Promise<NewsArticle[]> {
+  if (articles.length === 0) return []
+
+  const aiCacheKey = articles.map(a => a.link).sort().join('|')
+  const aiCached = AI_CACHE.get(aiCacheKey)
+  if (aiCached && aiCached.expiresAt > Date.now()) return aiCached.articles
+
+  try {
+    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+
+    const companyList = companies.map(c => `${c.id}:${c.name}`).join('\n')
+    const articleList = articles
+      .map((a, i) => `[${i}] ${a.title}`)
+      .join('\n')
+
+    const prompt = `You are a financial news classifier for a VC fund.
+
+Companies in the portfolio:
+${companyList}
+
+News articles (index: title):
+${articleList}
+
+For each article, identify which portfolio company is the PRIMARY subject of the news.
+Rules:
+- Only assign a company if the article is CLEARLY about that specific company.
+- If the article mentions a company only tangentially or as context, return null.
+- If the article is about a competitor, market trend, or unrelated topic, return null.
+- Do NOT guess. When in doubt, return null.
+
+Respond ONLY with a JSON array. Example:
+[{"index":0,"companyId":"uuid-here"},{"index":1,"companyId":null}]`
+
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0,
+      response_format: { type: 'json_object' },
+    })
+
+    const raw = response.choices[0]?.message?.content ?? '{}'
+    // model may return {"results": [...]} or just [...]
+    let results: AIResult[] = []
+    try {
+      const parsed = JSON.parse(raw)
+      results = Array.isArray(parsed) ? parsed : (parsed.results ?? parsed.articles ?? Object.values(parsed)[0] ?? [])
+    } catch { /* fallback: keep all */ }
+
+    const companyMap = new Map(companies.map(c => [c.id, c.name]))
+
+    const enriched = articles
+      .map((article, i) => {
+        const match = results.find((r: AIResult) => r.index === i)
+        if (!match) return article // no AI result → keep as-is
+        if (match.companyId === null) return null // AI says not relevant → discard
+        const name = companyMap.get(match.companyId)
+        if (!name) return null
+        return { ...article, companyId: match.companyId, companyName: name }
+      })
+      .filter((a): a is NewsArticle => a !== null)
+
+    AI_CACHE.set(aiCacheKey, { articles: enriched, expiresAt: Date.now() + CACHE_TTL_MS })
+    return enriched
+  } catch (e) {
+    console.error('[news] AI enrichment failed, skipping:', e)
+    return articles
+  }
+}
+
 export async function GET(req: NextRequest) {
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -128,9 +210,20 @@ export async function GET(req: NextRequest) {
     !companiesParam || companiesParam.split(',').includes(c.id)
   )
 
+  // 1. Fetch raw articles per company
   const results = await Promise.all(list.map(c => fetchCompanyNews(c.id, c.name, sources)))
   let articles = results.flat()
 
+  // 2. Deduplicate by normalized URL
+  const seen = new Set<string>()
+  articles = articles.filter(a => {
+    const key = normalizeUrl(a.link)
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+
+  // 3. Date filter
   if (dateRange && dateRange !== 'all') {
     const cutoff = getDateCutoff(dateRange)
     const ceiling = getDateCeiling(dateRange)
@@ -142,10 +235,15 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  // 4. Country filter
   if (countryFilter && countryFilter !== 'all') {
     articles = articles.filter(a => domainToCountry(a.sourceDomain) === countryFilter)
   }
 
+  // 5. AI enrichment + relevance filter
+  articles = await aiEnrichAndFilter(articles, list)
+
+  // 6. Sort
   articles = articles.sort((a, b) =>
     new Date(b.pubDate).getTime() - new Date(a.pubDate).getTime()
   )
