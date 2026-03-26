@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import { FileText, Trash2, Loader2, ChevronDown, ChevronRight, FileSpreadsheet, FileImage, File, Mail, ExternalLink } from 'lucide-react'
+import { FileText, Trash2, Loader2, ChevronDown, ChevronRight, FileSpreadsheet, FileImage, File, Mail, ExternalLink, Upload } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 interface Document {
@@ -29,33 +29,103 @@ function formatFileSize(bytes: number): string {
 }
 
 function FileIcon({ fileType, source }: { fileType: string; source: string }) {
-  if (source === 'email') {
-    return <Mail className="h-3.5 w-3.5 text-blue-500 shrink-0" />
-  }
-  if (fileType === 'application/pdf' || fileType.endsWith('.pdf')) {
-    return <FileText className="h-3.5 w-3.5 text-red-500 shrink-0" />
-  }
-  if (fileType.startsWith('image/')) {
-    return <FileImage className="h-3.5 w-3.5 text-blue-500 shrink-0" />
-  }
-  if (fileType.includes('spreadsheet') || fileType.includes('excel') || fileType.includes('csv')) {
-    return <FileSpreadsheet className="h-3.5 w-3.5 text-green-600 shrink-0" />
-  }
+  if (source === 'email') return <Mail className="h-3.5 w-3.5 text-blue-500 shrink-0" />
+  if (fileType === 'application/pdf' || fileType.endsWith('.pdf')) return <FileText className="h-3.5 w-3.5 text-red-500 shrink-0" />
+  if (fileType.startsWith('image/')) return <FileImage className="h-3.5 w-3.5 text-blue-500 shrink-0" />
+  if (fileType.includes('spreadsheet') || fileType.includes('excel') || fileType.includes('csv')) return <FileSpreadsheet className="h-3.5 w-3.5 text-green-600 shrink-0" />
   return <File className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
 }
 
-function SourceTag({ source }: { source: 'upload' | 'email' }) {
-  if (source === 'email') {
-    return (
-      <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400 shrink-0">
-        email
-      </span>
-    )
-  }
+function DocRow({
+  doc,
+  onOpen,
+  onDelete,
+  openingId,
+  deletingId,
+}: {
+  doc: Document
+  onOpen: (id: string) => void
+  onDelete: (id: string) => void
+  openingId: string | null
+  deletingId: string | null
+}) {
   return (
-    <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground shrink-0">
-      upload
-    </span>
+    <div className="flex items-center justify-between gap-3 px-3 py-2 rounded-md border bg-card text-sm">
+      <button
+        onClick={() => onOpen(doc.id)}
+        disabled={openingId === doc.id}
+        className="flex items-center gap-2 min-w-0 flex-1 text-left hover:text-foreground text-foreground/80 transition-colors"
+      >
+        {openingId === doc.id ? (
+          <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" />
+        ) : (
+          <FileIcon fileType={doc.file_type} source={doc.source} />
+        )}
+        <span className="truncate">{doc.filename}</span>
+        <span className="text-xs text-muted-foreground shrink-0">{formatFileSize(doc.file_size)}</span>
+        <span className="text-xs text-muted-foreground shrink-0">
+          {new Date(doc.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+        </span>
+        <ExternalLink className="h-3 w-3 text-muted-foreground shrink-0" />
+      </button>
+      <Button
+        size="sm"
+        variant="ghost"
+        onClick={() => onDelete(doc.id)}
+        disabled={deletingId === doc.id}
+        className="h-7 px-2 text-muted-foreground hover:text-destructive shrink-0"
+      >
+        {deletingId === doc.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+      </Button>
+    </div>
+  )
+}
+
+function DocGroup({
+  label,
+  icon,
+  docs,
+  onOpen,
+  onDelete,
+  openingId,
+  deletingId,
+}: {
+  label: string
+  icon: React.ReactNode
+  docs: Document[]
+  onOpen: (id: string) => void
+  onDelete: (id: string) => void
+  openingId: string | null
+  deletingId: string | null
+}) {
+  const [open, setOpen] = useState(true)
+  if (docs.length === 0) return null
+  return (
+    <div className="mt-2">
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground mb-1 pl-1"
+      >
+        {open ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+        {icon}
+        <span className="font-medium">{label}</span>
+        <span className="bg-muted rounded-full px-1.5 py-0.5">{docs.length}</span>
+      </button>
+      {open && (
+        <div className="space-y-1 pl-3">
+          {docs.map(doc => (
+            <DocRow
+              key={doc.id}
+              doc={doc}
+              onOpen={onOpen}
+              onDelete={onDelete}
+              openingId={openingId}
+              deletingId={deletingId}
+            />
+          ))}
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -104,9 +174,7 @@ export function CompanyDocuments({ companyId, storageProvider, googleDriveFolder
     setDeletingId(docId)
     setError(null)
     try {
-      const res = await fetch(`/api/companies/${companyId}/documents/${docId}`, {
-        method: 'DELETE',
-      })
+      const res = await fetch(`/api/companies/${companyId}/documents/${docId}`, { method: 'DELETE' })
       if (res.ok) {
         setDocuments(prev => prev.filter(d => d.id !== docId))
       } else {
@@ -119,6 +187,9 @@ export function CompanyDocuments({ companyId, storageProvider, googleDriveFolder
       setDeletingId(null)
     }
   }
+
+  const uploadDocs = documents.filter(d => d.source === 'upload')
+  const emailDocs = documents.filter(d => d.source === 'email')
 
   if (loading) {
     return (
@@ -151,55 +222,29 @@ export function CompanyDocuments({ companyId, storageProvider, googleDriveFolder
         </button>
       </div>
 
-      {error && (
-        <p className="text-sm text-destructive mb-2">{error}</p>
-      )}
+      {error && <p className="text-sm text-destructive mb-2">{error}</p>}
 
       {expanded && documents.length > 0 && (
-        <div className="space-y-1">
-          {documents.map(doc => (
-            <div
-              key={doc.id}
-              className="flex items-center justify-between gap-3 px-3 py-2 rounded-md border bg-card text-sm"
-            >
-              <button
-                onClick={() => handleOpen(doc.id)}
-                disabled={openingId === doc.id}
-                className="flex items-center gap-2 min-w-0 flex-1 text-left hover:text-foreground text-foreground/80 transition-colors"
-              >
-                {openingId === doc.id ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" />
-                ) : (
-                  <FileIcon fileType={doc.file_type} source={doc.source} />
-                )}
-                <span className="truncate">{doc.filename}</span>
-                <SourceTag source={doc.source} />
-                <span className="text-xs text-muted-foreground shrink-0">
-                  {formatFileSize(doc.file_size)}
-                </span>
-                <span className="text-xs text-muted-foreground shrink-0">
-                  {new Date(doc.created_at).toLocaleDateString(undefined, {
-                    month: 'short', day: 'numeric',
-                  })}
-                </span>
-                <ExternalLink className="h-3 w-3 text-muted-foreground shrink-0" />
-              </button>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => handleDelete(doc.id)}
-                disabled={deletingId === doc.id}
-                className="h-7 px-2 text-muted-foreground hover:text-destructive shrink-0"
-              >
-                {deletingId === doc.id ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <Trash2 className="h-3.5 w-3.5" />
-                )}
-              </Button>
-            </div>
-          ))}
-        </div>
+        <>
+          <DocGroup
+            label="Email"
+            icon={<Mail className="h-3 w-3" />}
+            docs={emailDocs}
+            onOpen={handleOpen}
+            onDelete={handleDelete}
+            openingId={openingId}
+            deletingId={deletingId}
+          />
+          <DocGroup
+            label="Upload"
+            icon={<Upload className="h-3 w-3" />}
+            docs={uploadDocs}
+            onOpen={handleOpen}
+            onDelete={handleDelete}
+            openingId={openingId}
+            deletingId={deletingId}
+          />
+        </>
       )}
 
       {expanded && documents.length > 0 && (
@@ -208,26 +253,12 @@ export function CompanyDocuments({ companyId, storageProvider, googleDriveFolder
           {storageProvider === 'google_drive' && googleDriveFolderId ? (
             <>
               Raw documents can be found in{' '}
-              <a
-                href={`https://drive.google.com/drive/folders/${googleDriveFolderId}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="underline underline-offset-4 hover:text-foreground"
-              >
-                Google Drive
-              </a>.
+              <a href={`https://drive.google.com/drive/folders/${googleDriveFolderId}`} target="_blank" rel="noopener noreferrer" className="underline underline-offset-4 hover:text-foreground">Google Drive</a>.
             </>
           ) : storageProvider === 'dropbox' && dropboxFolderPath ? (
             <>
               Raw documents can be found in{' '}
-              <a
-                href={`https://www.dropbox.com/home${dropboxFolderPath}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="underline underline-offset-4 hover:text-foreground"
-              >
-                Dropbox
-              </a>.
+              <a href={`https://www.dropbox.com/home${dropboxFolderPath}`} target="_blank" rel="noopener noreferrer" className="underline underline-offset-4 hover:text-foreground">Dropbox</a>.
             </>
           ) : (
             <>

@@ -4,10 +4,6 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { assertWriteAccess } from '@/lib/api-helpers'
 import { dbError } from '@/lib/api-error'
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
 // Email doc ids are virtual: "email-{emailId}-{attachmentIndex}"
 function parseEmailDocId(docId: string): { emailId: string; attachmentIndex: number } | null {
   const match = docId.match(/^email-(.+)-(\d+)$/)
@@ -15,7 +11,12 @@ function parseEmailDocId(docId: string): { emailId: string; attachmentIndex: num
   return { emailId: match[1], attachmentIndex: parseInt(match[2], 10) }
 }
 
-async function resolveEmailAttachment(admin: ReturnType<typeof createAdminClient>, emailId: string, attachmentIndex: number, companyId: string) {
+async function resolveEmailAttachment(
+  admin: ReturnType<typeof createAdminClient>,
+  emailId: string,
+  attachmentIndex: number,
+  companyId: string
+) {
   const { data: email } = await admin
     .from('inbound_emails')
     .select('id, fund_id, raw_payload')
@@ -25,7 +26,13 @@ async function resolveEmailAttachment(admin: ReturnType<typeof createAdminClient
 
   if (!email) return null
 
-  const attachments = (email.raw_payload?.Attachments ?? []) as Array<{ Name: string; ContentType: string; Content: string }>
+  const attachments = (email.raw_payload?.Attachments ?? []) as Array<{
+    Name: string
+    ContentType: string
+    ContentLength: number
+    StoragePath?: string
+    Content?: string
+  }>
   const att = attachments[attachmentIndex]
   if (!att) return null
 
@@ -33,7 +40,7 @@ async function resolveEmailAttachment(admin: ReturnType<typeof createAdminClient
 }
 
 // ---------------------------------------------------------------------------
-// GET — Generate a signed URL (upload) or base64 data URL (email attachment)
+// GET — Signed URL for upload docs; signed URL from email-attachments for email docs
 // ---------------------------------------------------------------------------
 
 export async function GET(
@@ -46,7 +53,6 @@ export async function GET(
 
   const admin = createAdminClient()
 
-  // --- Email attachment (virtual id) ---
   const emailParsed = parseEmailDocId(params.docId)
   if (emailParsed) {
     const resolved = await resolveEmailAttachment(admin, emailParsed.emailId, emailParsed.attachmentIndex, params.id)
@@ -63,9 +69,25 @@ export async function GET(
 
     if (!membership) return NextResponse.json({ error: 'Not a fund member' }, { status: 403 })
 
-    // Return a data URL from the base64 content stored in the email payload
-    const dataUrl = `data:${att.ContentType};base64,${att.Content}`
-    return NextResponse.json({ url: dataUrl, filename: att.Name, fileType: att.ContentType })
+    // Prefer StoragePath (uploaded to email-attachments bucket)
+    if (att.StoragePath) {
+      const { data: signed, error } = await admin.storage
+        .from('email-attachments')
+        .createSignedUrl(att.StoragePath, 60 * 60)
+
+      if (error || !signed?.signedUrl)
+        return NextResponse.json({ error: 'Could not generate download URL' }, { status: 500 })
+
+      return NextResponse.json({ url: signed.signedUrl, filename: att.Name, fileType: att.ContentType })
+    }
+
+    // Fallback: base64 Content still in payload (upload failure path)
+    if (att.Content) {
+      const dataUrl = `data:${att.ContentType};base64,${att.Content}`
+      return NextResponse.json({ url: dataUrl, filename: att.Name, fileType: att.ContentType })
+    }
+
+    return NextResponse.json({ error: 'Attachment file not available' }, { status: 410 })
   }
 
   // --- Uploaded document ---
@@ -87,9 +109,8 @@ export async function GET(
 
   if (!membership) return NextResponse.json({ error: 'Not a fund member' }, { status: 403 })
 
-  if (!doc.storage_path) {
+  if (!doc.storage_path)
     return NextResponse.json({ error: 'File not available (text-only extraction)' }, { status: 410 })
-  }
 
   const { data: signed, error } = await admin.storage
     .from('company-documents')
@@ -102,7 +123,7 @@ export async function GET(
 }
 
 // ---------------------------------------------------------------------------
-// DELETE — Remove a document (upload from DB+storage, email from inbound_emails)
+// DELETE — Remove upload (DB + storage) or email attachment (inbound_emails record)
 // ---------------------------------------------------------------------------
 
 export async function DELETE(
@@ -118,13 +139,12 @@ export async function DELETE(
   const writeCheck = await assertWriteAccess(admin, user.id)
   if (writeCheck instanceof NextResponse) return writeCheck
 
-  // --- Email attachment: delete the whole inbound_email record ---
   const emailParsed = parseEmailDocId(params.docId)
   if (emailParsed) {
     const resolved = await resolveEmailAttachment(admin, emailParsed.emailId, emailParsed.attachmentIndex, params.id)
     if (!resolved) return NextResponse.json({ error: 'Document not found' }, { status: 404 })
 
-    const { email } = resolved
+    const { email, att } = resolved
 
     const { data: membership } = await supabase
       .from('fund_members')
@@ -134,6 +154,11 @@ export async function DELETE(
       .maybeSingle() as { data: { role: string } | null }
 
     if (!membership) return NextResponse.json({ error: 'Not a fund member' }, { status: 403 })
+
+    // Remove from storage if StoragePath exists
+    if (att.StoragePath) {
+      await admin.storage.from('email-attachments').remove([att.StoragePath])
+    }
 
     const { error } = await admin
       .from('inbound_emails')
