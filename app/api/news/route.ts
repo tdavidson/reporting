@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 
-// Simple in-memory cache: { key -> { data, expiresAt } }
 const cache = new Map<string, { data: NewsArticle[]; expiresAt: number }>()
-const CACHE_TTL_MS = 60 * 60 * 1000 // 1 hour
+const CACHE_TTL_MS = 60 * 60 * 1000
 
 export interface NewsArticle {
   title: string
@@ -29,12 +28,12 @@ async function fetchCompanyNews(companyId: string, companyName: string): Promise
     if (!res.ok) return []
 
     const xml = await res.text()
-    const items = [...xml.matchAll(/<item>([\/\S\s]*?)<\/item>/g)]
+    const items = Array.from(xml.matchAll(/<item>([\s\S]*?)<\/item>/g))
 
     const articles: NewsArticle[] = items.slice(0, 5).map(match => {
       const block = match[1]
       const title = block.match(/<title>(.*?)<\/title>/)?.[1]?.replace(/<[^>]+>/g, '').trim() ?? ''
-      const link = block.match(/<link\s*\/?>([^<]+)/)?.[1]?.trim()
+      const link = block.match(/<link\s*\/?>(.*?)(?:<\/link>|$)/)?.[1]?.trim()
         ?? block.match(/<link>(.*?)<\/link>/)?.[1]?.trim() ?? ''
       const pubDate = block.match(/<pubDate>(.*?)<\/pubDate>/)?.[1]?.trim() ?? ''
       const source = block.match(/<source[^>]*>(.*?)<\/source>/)?.[1]?.trim() ?? 'Google News'
@@ -60,7 +59,6 @@ export async function GET(req: NextRequest) {
     .maybeSingle() as { data: { fund_id: string } | null }
   if (!membership) return NextResponse.json({ error: 'No fund' }, { status: 403 })
 
-  // Optional filter: ?companies=id1,id2
   const companiesParam = req.nextUrl.searchParams.get('companies')
 
   const { data: companies } = await supabase
@@ -74,7 +72,6 @@ export async function GET(req: NextRequest) {
     !companiesParam || companiesParam.split(',').includes(c.id)
   )
 
-  // Fetch all in parallel
   const results = await Promise.all(list.map(c => fetchCompanyNews(c.id, c.name)))
   const articles = results.flat().sort((a, b) =>
     new Date(b.pubDate).getTime() - new Date(a.pubDate).getTime()
