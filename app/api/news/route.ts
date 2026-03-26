@@ -314,7 +314,7 @@ async function aiEnrichAndFilter(
   const preFiltered = deterministicPreFilter(articles, companies)
   if (preFiltered.length === 0) return []
 
-  const aiCacheKey = preFiltered.map(a => a.link).sort().join('|')
+const aiCacheKey = 'v2:' + preFiltered.map(a => a.link).sort().join('|')
   const aiCached = AI_CACHE.get(aiCacheKey)
   if (aiCached && aiCached.expiresAt > Date.now()) return aiCached.articles
 
