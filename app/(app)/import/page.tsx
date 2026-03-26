@@ -60,6 +60,14 @@ const TEXT_ONLY_THRESHOLD = 10 * 1024 * 1024
 
 type ExcelImportType = 'metrics' | 'investments' | 'cashflows'
 
+function sanitizeFilename(name: string): string {
+  // Normalize accents (e.g. ã → a), then remove any char that isn't alphanumeric, dash, underscore or dot
+  return name
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9._-]/g, '_')
+}
+
 export default function ImportPage() {
   const fv = useFeatureVisibility()
   const [text, setText] = useState('')
@@ -286,7 +294,6 @@ export default function ImportPage() {
     setDocError(null)
     setDocSuccess(null)
 
-    // Ensure fundId is resolved before uploading
     const resolvedFundId = await resolveFundId()
     if (!resolvedFundId) {
       setDocError('Could not resolve your fund. Please refresh the page and try again.')
@@ -308,7 +315,8 @@ export default function ImportPage() {
           throw new Error('File exceeds 20 MB limit')
         }
         const isOversized = fileMatch.file.size > TEXT_ONLY_THRESHOLD
-        const storagePath = `${resolvedFundId}/${fileMatch.companyId}/${crypto.randomUUID()}-${fileMatch.filename}`
+        const safeFilename = sanitizeFilename(fileMatch.filename)
+        const storagePath = `${resolvedFundId}/${fileMatch.companyId}/${crypto.randomUUID()}-${safeFilename}`
 
         const { error: uploadError } = await supabase
           .storage
@@ -329,7 +337,6 @@ export default function ImportPage() {
           }),
         })
 
-        // Read body once
         let responseData: { error?: string; textOnly?: boolean } = {}
         try {
           responseData = await res.json()
