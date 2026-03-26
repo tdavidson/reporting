@@ -186,15 +186,13 @@ const fmt = fmtCard
 
   const [data, setData] = useState<PortfolioData | null>(null)
   const [loading, setLoading] = useState(true)
-  const [asOfDate, setAsOfDate] = useState(() => {
-  if (typeof window !== 'undefined') {
-    return localStorage.getItem('asOfDate') ?? new Date().toISOString().split('T')[0]
-  }
-  return new Date().toISOString().split('T')[0]
-})
-  useEffect(() => {
+const [asOfDate, setAsOfDate] = useState(new Date().toISOString().split('T')[0])
+const [hydrated, setHydrated] = useState(false)
+
+useEffect(() => {
   const saved = localStorage.getItem('asOfDate')
   if (saved) setAsOfDate(saved)
+  setHydrated(true)
 }, [])
 
   const [sortKey, setSortKey] = useState<SortKey>('totalValue')
@@ -238,7 +236,7 @@ const fmt = fmtCard
       }
     }
     load()
-  }, [asOfDate])
+}, [asOfDate, hydrated])
 
   const availableGroups = useMemo(() => {
     if (!data) return []
