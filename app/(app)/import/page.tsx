@@ -258,6 +258,26 @@ export default function ImportPage() {
     ))
   }
 
+  async function resolveFundId(): Promise<string | null> {
+    if (fundId) return fundId
+    try {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return null
+      const { data } = await supabase
+        .from('fund_members')
+        .select('fund_id')
+        .eq('user_id', user.id)
+        .limit(1)
+        .maybeSingle() as { data: { fund_id: string } | null }
+      if (data?.fund_id) {
+        setFundId(data.fund_id)
+        return data.fund_id
+      }
+    } catch { /* ignore */ }
+    return null
+  }
+
   async function handleUploadAll() {
     const filesToUpload = docFiles.filter(f => f.companyId && f.status !== 'done')
     if (filesToUpload.length === 0) return
@@ -265,6 +285,14 @@ export default function ImportPage() {
     setUploadingAll(true)
     setDocError(null)
     setDocSuccess(null)
+
+    // Ensure fundId is resolved before uploading
+    const resolvedFundId = await resolveFundId()
+    if (!resolvedFundId) {
+      setDocError('Could not resolve your fund. Please refresh the page and try again.')
+      setUploadingAll(false)
+      return
+    }
 
     const supabase = createClient()
     let successCount = 0
@@ -277,10 +305,10 @@ export default function ImportPage() {
 
       try {
         if (fileMatch.file.size > MAX_FILE_SIZE) {
-          throw new Error('File exceeds 50 MB limit')
+          throw new Error('File exceeds 20 MB limit')
         }
         const isOversized = fileMatch.file.size > TEXT_ONLY_THRESHOLD
-        const storagePath = `${fundId}/${fileMatch.companyId}/${crypto.randomUUID()}-${fileMatch.filename}`
+        const storagePath = `${resolvedFundId}/${fileMatch.companyId}/${crypto.randomUUID()}-${fileMatch.filename}`
 
         const { error: uploadError } = await supabase
           .storage
@@ -301,25 +329,19 @@ export default function ImportPage() {
           }),
         })
 
-        if (!res.ok) {
-          let errorMsg = 'Registration failed'
-          try {
-            const data = await res.json()
-            errorMsg = data.error ?? errorMsg
-          } catch {
-            errorMsg = `Server error (${res.status}). The file may be too large to process.`
-          }
-          throw new Error(errorMsg)
-        }
-
-        let result: { textOnly?: boolean } = {}
+        // Read body once
+        let responseData: { error?: string; textOnly?: boolean } = {}
         try {
-          result = await res.json()
-        } catch { /* ignore */ }
+          responseData = await res.json()
+        } catch { /* non-JSON response */ }
+
+        if (!res.ok) {
+          throw new Error(responseData.error ?? `Server error (${res.status}). The file may be too large to process.`)
+        }
 
         setDocFiles(prev => prev.map(f =>
           f.filename === fileMatch.filename
-            ? { ...f, status: 'done', textOnly: isOversized && result.textOnly }
+            ? { ...f, status: 'done', textOnly: isOversized && !!responseData.textOnly }
             : f
         ))
         successCount++
