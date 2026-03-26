@@ -109,27 +109,25 @@ async function fetchCompanyNews(
   if (cached && cached.expiresAt > Date.now()) return cached.data
 
   try {
+    // Query 1: company name in quotes — exact match, optionally limited to specific portals
     let q1 = `"${companyName}"`
     if (allSources.length > 0) q1 += ` (${allSources.map(s => `site:${s}`).join(' OR ')})`
 
-    const q2 = `${companyName} startup OR funding OR rodada OR investimento OR lançamento OR aquisição`
-
-    const [res1, res2] = await Promise.allSettled([
-      fetch(`https://news.google.com/rss/search?q=${encodeURIComponent(q1)}&hl=pt-BR&gl=BR&ceid=BR:pt`, {
+    // REMOVED: broad sector query (q2) — was the main source of false positives.
+    // Only fetch the precise quoted-name query.
+    const res1 = await fetch(
+      `https://news.google.com/rss/search?q=${encodeURIComponent(q1)}&hl=pt-BR&gl=BR&ceid=BR:pt`,
+      {
         headers: { 'User-Agent': 'Mozilla/5.0 (compatible; NewsReader/1.0)' },
         signal: AbortSignal.timeout(6000),
-      }),
-      fetch(`https://news.google.com/rss/search?q=${encodeURIComponent(q2)}&hl=pt-BR&gl=BR&ceid=BR:pt`, {
-        headers: { 'User-Agent': 'Mozilla/5.0 (compatible; NewsReader/1.0)' },
-        signal: AbortSignal.timeout(6000),
-      }),
-    ])
+      }
+    )
 
     const articles: RawArticle[] = []
     const seen = new Set<string>()
-    for (const r of [res1, res2]) {
-      if (r.status !== 'fulfilled' || !r.value.ok) continue
-      const xml = await r.value.text()
+
+    if (res1.ok) {
+      const xml = await res1.text()
       for (const a of parseRSSItems(xml, companyId, companyName)) {
         const key = normalizeUrl(a.link)
         if (!seen.has(key)) { seen.add(key); articles.push(a) }
@@ -155,6 +153,43 @@ type ReviewResult = {
   reason?: string
 }
 
+/**
+ * Deterministic pre-filter: runs before the AI to discard obvious mismatches cheaply.
+ * Keeps an article if the company name (or a significant token from it) appears in the title,
+ * or if the source domain matches the company's own website.
+ */
+function deterministicPreFilter(
+  articles: RawArticle[],
+  companies: { id: string; name: string; website: string | null }[]
+): RawArticle[] {
+  const companyMap = new Map(companies.map(c => ({
+    id: c.id,
+    name: c.name,
+    domain: extractDomain(c.website),
+    // Build a set of meaningful tokens (≥4 chars) from the company name
+    tokens: c.name.toLowerCase().split(/\s+/).filter(t => t.length >= 4),
+  })).map(c => [c.id, c]))
+
+  return articles.filter(article => {
+    const titleLower = article.title.toLowerCase()
+    const co = companyMap.get(article.companyId)
+    if (!co) return false
+
+    // Strong signal: source domain matches company website
+    if (co.domain && article.sourceDomain.includes(co.domain)) return true
+
+    // Strong signal: full company name in title
+    if (titleLower.includes(co.name.toLowerCase())) return true
+
+    // Moderate signal: at least one meaningful name token in title
+    // (handles cases like "NovaTech" → "novatech" appearing as part of a longer word)
+    if (co.tokens.some(token => titleLower.includes(token))) return true
+
+    // No match found — drop this article before sending to AI
+    return false
+  })
+}
+
 // Pass 1 — classify articles: assign companyId + relevance
 async function classifyArticles(
   anthropic: Anthropic,
@@ -170,35 +205,36 @@ async function classifyArticles(
     `[${i}] "${a.title}" · source: ${a.sourceDomain} · date: ${formatPubDate(a.pubDate)}`
   ).join('\n')
 
-  const prompt = `You are a financial news classifier for a VC fund portfolio.
+  const prompt = `You are a strict financial news classifier for a VC fund portfolio.
 
 Portfolio companies (id | name | website domain):
 ${companyList}
 
-News articles fetched from Google News for these companies (index · title · source · date):
+News articles to classify (index · title · source · date):
 ${articleList}
 
-IMPORTANT CONTEXT: These articles were already pre-filtered by Google News using the company name as a search query. Most articles WILL be relevant. Your job is to confirm the match and classify.
-
-For each article return:
-- companyId: UUID of the matching portfolio company. Use company name in title, known aliases, OR source domain matching company website as signals. Assign the most likely match.
+For each article, determine:
+- companyId: UUID of the matching portfolio company, or null.
 - relevance:
-  - "featured"  — company is the PRIMARY subject (funding, product launch, acquisition, IPO, exec change, legal issue, partnership announcement, etc.)
-  - "mentioned" — company is clearly named or referenced but not the main subject
-  - null        — article has absolutely no connection to any portfolio company (pure sector/macro news)
+  - "featured"  — the company is the PRIMARY subject of the article (funding round, product launch, acquisition, IPO, executive change, legal issue, partnership announcement, layoffs, etc.)
+  - "mentioned" — the company name is explicitly present in the title but it is NOT the main subject
+  - null        — the company name does NOT appear in the title AND the source domain does NOT match the company website
 
-Rules:
-- If the source domain matches a company’s website domain, that is a strong positive signal.
-- Articles in Portuguese (PT-BR) are valid.
-- Only return null when you are confident the article has zero connection to any portfolio company.
-- Default to assigning the company whose name was used to fetch this article.
+Classification rules (apply in order):
+1. If the source domain matches a company's website domain → always assign that company.
+2. If the company name (or a clear abbreviation/acronym) appears in the title → assign and classify relevance.
+3. If neither condition is met → companyId: null, relevance: null. Do NOT guess.
+4. Do NOT assign a company based on industry, sector, or topic similarity alone.
+5. Do NOT assign a company just because the article is about the VC/startup ecosystem.
+
+Be conservative. It is better to discard a borderline article than to show an irrelevant one.
 
 Respond ONLY with a JSON array, no explanation:
 [{"index":0,"companyId":"uuid","relevance":"featured"},{"index":1,"companyId":null,"relevance":null}]`
 
   const msg = await anthropic.messages.create({
     model: 'claude-haiku-4-5',
-    max_tokens: 1024,
+    max_tokens: 2048,
     messages: [{ role: 'user', content: prompt }],
   })
   const raw = msg.content[0]?.type === 'text' ? msg.content[0].text : '[]'
@@ -206,7 +242,7 @@ Respond ONLY with a JSON array, no explanation:
   try { return match ? JSON.parse(match[0]) : [] } catch { return [] }
 }
 
-// Pass 2 — review: remove obvious false positives only
+// Pass 2 — review: remove false positives with a stricter lens
 async function reviewArticles(
   anthropic: Anthropic,
   candidates: NewsArticle[],
@@ -223,29 +259,32 @@ async function reviewArticles(
     return `[${i}] company: "${co?.name}"${co?.domain ? ` (${co.domain})` : ''} | title: "${a.title}" | source: ${a.sourceDomain} | tag: ${a.relevance}`
   }).join('\n')
 
-  const prompt = `You are a quality reviewer for a VC fund news feed. Articles below were classified as relevant to specific portfolio companies.
+  const prompt = `You are a quality reviewer for a VC fund news feed. Each article below has been assigned to a portfolio company.
 
-Your ONLY job is to remove obvious false positives — articles that have clearly zero connection to the assigned company.
+Your job is to remove false positives — articles that are NOT genuinely about the assigned company.
 
 Articles:
 ${articleList}
 
-For each article:
-- keep: true by default. Only set false if the article is OBVIOUSLY about a completely different company or topic.
-- reason: brief note only when keep is false.
+For each article, set keep: true or keep: false using these strict criteria:
 
-Guidelines:
-- If the company name or a close variant appears anywhere in the title → always keep: true.
-- If the source domain is the company’s own website → always keep: true.
-- If there is reasonable doubt → keep: true (benefit of the doubt).
-- Only mark keep: false for clear-cut mismatches (e.g. article about "Apple" assigned to a Brazilian fintech).
+keep: true ONLY if at least one of:
+  - The company name (or a clear variant/acronym) appears in the article title.
+  - The source domain is the company's own website.
+
+keep: false if:
+  - The title does not mention the company at all (it may be about a competitor, market trend, or a different company with a similar name).
+  - The article is clearly about a different company that shares a common word with the portfolio company name.
+  - The article is generic sector/market news with no direct company reference.
+
+When in doubt → keep: false. We prefer fewer, higher-quality results.
 
 Respond ONLY with a JSON array:
-[{"index":0,"keep":true},{"index":1,"keep":false,"reason":"Article is about Apple, not the portfolio company"}]`
+[{"index":0,"keep":true},{"index":1,"keep":false,"reason":"Title does not mention the company"}]`
 
   const msg = await anthropic.messages.create({
     model: 'claude-haiku-4-5',
-    max_tokens: 1024,
+    max_tokens: 2048,
     messages: [{ role: 'user', content: prompt }],
   })
   const raw = msg.content[0]?.type === 'text' ? msg.content[0].text : '[]'
@@ -265,7 +304,12 @@ async function aiEnrichAndFilter(
 ): Promise<NewsArticle[]> {
   if (articles.length === 0) return []
 
-  const aiCacheKey = articles.map(a => a.link).sort().join('|')
+  // --- Deterministic pre-filter (free, runs before AI) ---
+  const preFiltered = deterministicPreFilter(articles, companies)
+
+  if (preFiltered.length === 0) return []
+
+  const aiCacheKey = preFiltered.map(a => a.link).sort().join('|')
   const aiCached = AI_CACHE.get(aiCacheKey)
   if (aiCached && aiCached.expiresAt > Date.now()) return aiCached.articles
 
@@ -274,8 +318,8 @@ async function aiEnrichAndFilter(
     const companyMap = new Map(companies.map(c => [c.id, c.name]))
 
     // Pass 1: classify
-    const classified = await classifyArticles(anthropic, articles, companies)
-    const pass1: NewsArticle[] = articles
+    const classified = await classifyArticles(anthropic, preFiltered, companies)
+    const pass1: NewsArticle[] = preFiltered
       .map((article, i) => {
         const r = classified.find(x => x.index === i)
         if (!r || r.companyId === null || r.relevance === null) return null
@@ -285,15 +329,20 @@ async function aiEnrichAndFilter(
       })
       .filter((a): a is NewsArticle => a !== null)
 
-    // Pass 2: reject obvious false positives
+    // Pass 2: reject false positives
     const pass2 = await reviewArticles(anthropic, pass1, companies)
 
     AI_CACHE.set(aiCacheKey, { articles: pass2, expiresAt: Date.now() + CACHE_TTL_MS })
     return pass2
   } catch (e) {
     console.error('[news] AI pipeline failed:', e)
-    // Fallback: return all articles as mentioned to avoid empty state
-    return articles.map(a => ({ ...a, relevance: 'mentioned' as NewsRelevance }))
+    // Fallback: only return articles where company name is in the title
+    return preFiltered
+      .filter(a => {
+        const co = companies.find(c => c.id === a.companyId)
+        return co && a.title.toLowerCase().includes(co.name.toLowerCase())
+      })
+      .map(a => ({ ...a, relevance: 'mentioned' as NewsRelevance }))
   }
 }
 
@@ -317,7 +366,8 @@ export async function GET(req: NextRequest) {
 
   if (bust) { cache.clear(); AI_CACHE.clear() }
 
-  const sources = sourcesParam ? sourcesParam.split(',').map(s => s.trim()).filter(Boolean) : []
+  const sources = sourcesParam ?
+    sourcesParam.split(',').map(s => s.trim()).filter(Boolean) : []
 
   const { data: companies } = await supabase
     .from('companies')
