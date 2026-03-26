@@ -192,6 +192,10 @@ const fmt = fmtCard
   }
   return new Date().toISOString().split('T')[0]
 })
+  useEffect(() => {
+  const saved = localStorage.getItem('asOfDate')
+  if (saved) setAsOfDate(saved)
+}, [])
 
   const [sortKey, setSortKey] = useState<SortKey>('totalValue')
   const [sortDir, setSortDir] = useState<SortDir>('desc')
