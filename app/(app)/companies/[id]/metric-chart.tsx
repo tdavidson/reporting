@@ -182,7 +182,7 @@ export function MetricChart({ metric, values, onRefresh, compact }: Props) {
                 const isManual = point.raw.is_manually_entered
                 return (
                   <g key={index} className="cursor-pointer" onClick={(e: React.MouseEvent) => handleClick(point, e)}>
-                    <circle cx={cx} cy={cy} r={4} fill={isManual ? 'hsl(var(--background))' : color} stroke={color} strokeWidth={1} strokeDasharray="none" />
+                    <circle cx={cx} cy={cy} r={3} fill={isManual ? 'hsl(var(--background))' : color} stroke={color} strokeWidth={1} strokeDasharray="none" />
                   </g>
                 )
               }}
@@ -194,7 +194,7 @@ export function MetricChart({ metric, values, onRefresh, compact }: Props) {
                 const isManual = point.raw.is_manually_entered
                 return (
                   <g key={index} className="cursor-pointer" onClick={(e: React.MouseEvent) => handleClick(point, e)}>
-                    <circle cx={cx} cy={cy} r={6} fill={isManual ? 'hsl(var(--background))' : color} stroke={color} strokeWidth={1} strokeDasharray="none" />
+                    <circle cx={cx} cy={cy} r={4} fill={isManual ? 'hsl(var(--background))' : color} stroke={color} strokeWidth={1} strokeDasharray="none" />
                   </g>
                 )
               }}
@@ -244,7 +244,7 @@ export function MetricChart({ metric, values, onRefresh, compact }: Props) {
                   fillOpacity={entry.raw.is_manually_entered ? 0.5 : 0.8}
                   strokeDasharray="none"
                   stroke={CONFIDENCE_COLORS[entry.raw.confidence] ?? chartColor}
-                  strokeWidth={0.5}
+                  strokeWidth={1}
                 />
               ))}
             </Bar>
