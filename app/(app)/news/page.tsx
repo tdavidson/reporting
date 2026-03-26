@@ -30,7 +30,7 @@ const DATE_OPTIONS = [
   { value: 'lastyear', label: 'Last year' },
 ]
 
-const CATEGORY_CONFIG: Record<NewsCategory, { label: string; className: string }> = {
+const CATEGORY_CONFIG: Record<string, { label: string; className: string }> = {
   rodada:      { label: 'Rodada',      className: 'bg-emerald-500/15 text-emerald-600 border-emerald-500/30' },
   ipo:         { label: 'IPO',         className: 'bg-violet-500/15 text-violet-600 border-violet-500/30' },
   aquisicao:   { label: 'M&A',         className: 'bg-orange-500/15 text-orange-600 border-orange-500/30' },
@@ -41,20 +41,23 @@ const CATEGORY_CONFIG: Record<NewsCategory, { label: string; className: string }
   premio:      { label: 'Prêmio',      className: 'bg-amber-500/15 text-amber-600 border-amber-500/30' },
   crise:       { label: 'Crise',       className: 'bg-red-500/15 text-red-600 border-red-500/30' },
   outro:       { label: 'Outro',       className: 'bg-muted text-muted-foreground border-border' },
+  // legacy compat
+  featured:    { label: 'Destaque',    className: 'bg-emerald-500/15 text-emerald-600 border-emerald-500/30' },
+  mentioned:   { label: 'Mencionada', className: 'bg-blue-500/15 text-blue-600 border-blue-500/30' },
 }
 
+type AnyArticle = Omit<NewsArticle, 'category'> & { category?: NewsCategory; relevance?: string }
 interface Company { id: string; name: string }
 
-function getSavedSources(): string[] {
-  try {
-    const raw = localStorage.getItem(NEWS_SOURCES_KEY)
-    return raw ? JSON.parse(raw) : []
-  } catch { return [] }
+function getTag(article: AnyArticle) {
+  const key = article.category ?? (article as any).relevance ?? 'outro'
+  return CATEGORY_CONFIG[key] ?? CATEGORY_CONFIG.outro
 }
 
-function setSavedSources(sources: string[]) {
-  localStorage.setItem(NEWS_SOURCES_KEY, JSON.stringify(sources))
+function getSavedSources(): string[] {
+  try { return JSON.parse(localStorage.getItem(NEWS_SOURCES_KEY) ?? '[]') } catch { return [] }
 }
+function setSavedSources(s: string[]) { localStorage.setItem(NEWS_SOURCES_KEY, JSON.stringify(s)) }
 
 function timeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime()
@@ -111,18 +114,38 @@ function CompaniesModal({ companies, selected, onSave, onClose }: {
   onSave: (ids: string[]) => void
   onClose: () => void
 }) {
-  const [local, setLocal] = useState<string[]>(selected)
+  // empty selected = all → pre-check all in modal
+  const allIds = companies.map(c => c.id)
+  const [local, setLocal] = useState<string[]>(selected.length === 0 ? allIds : selected)
+  const allChecked = local.length === companies.length
+
   const toggle = (id: string) =>
     setLocal(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
-  const handleSave = () => { onSave(local); onClose() }
+  const toggleAll = () => setLocal(allChecked ? [] : allIds)
+
+  // if all selected, save as [] (= no filter = show all)
+  const handleSave = () => {
+    onSave(local.length === companies.length ? [] : local)
+    onClose()
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
       <div className="bg-background border rounded-xl shadow-xl w-full max-w-sm mx-4 p-5" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center justify-between mb-3">
           <h2 className="text-sm font-semibold">Filter by Company</h2>
           <button onClick={onClose} className="text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
         </div>
+
+        {/* Select all row */}
+        <button onClick={toggleAll}
+          className={`w-full flex items-center gap-2 text-left px-3 py-2 rounded-lg border text-xs mb-2 transition-colors font-medium ${allChecked ? 'border-foreground/40 bg-accent' : 'border-border text-muted-foreground hover:bg-accent/40'}`}>
+          <span className={`h-3.5 w-3.5 rounded border flex items-center justify-center shrink-0 ${allChecked ? 'bg-foreground border-foreground' : 'border-muted-foreground'}`}>
+            {allChecked && <Check className="h-2.5 w-2.5 text-background" />}
+          </span>
+          Todas as empresas
+        </button>
+
         <div className="space-y-1 max-h-64 overflow-y-auto">
           {companies.map(c => {
             const active = local.includes(c.id)
@@ -137,12 +160,10 @@ function CompaniesModal({ companies, selected, onSave, onClose }: {
             )
           })}
         </div>
-        <div className="flex items-center justify-between mt-4 pt-3 border-t">
-          <button onClick={() => setLocal([])} className="text-xs text-muted-foreground hover:text-foreground">Clear all</button>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={onClose}>Cancel</Button>
-            <Button size="sm" onClick={handleSave}>Save</Button>
-          </div>
+
+        <div className="flex justify-end gap-2 mt-4 pt-3 border-t">
+          <Button variant="outline" size="sm" onClick={onClose}>Cancel</Button>
+          <Button size="sm" onClick={handleSave}>Save</Button>
         </div>
       </div>
     </div>
@@ -150,11 +171,12 @@ function CompaniesModal({ companies, selected, onSave, onClose }: {
 }
 
 export default function NewsPage() {
-  const [articles, setArticles] = useState<NewsArticle[]>([])
+  const [articles, setArticles] = useState<AnyArticle[]>([])
   const [companies, setCompanies] = useState<Company[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [dateRange, setDateRange] = useState<string>('all')
+  // [] = all companies (no filter applied)
   const [selectedCompanies, setSelectedCompanies] = useState<string[]>([])
   const [error, setError] = useState<string | null>(null)
   const [sources, setSources] = useState<string[]>([])
@@ -204,9 +226,13 @@ export default function NewsPage() {
     load().finally(() => setLoading(false))
   }
 
+  // [] = show all; otherwise filter to selected
   const filtered = selectedCompanies.length > 0
     ? articles.filter(a => selectedCompanies.includes(a.companyId))
     : articles
+
+  // button shows "active" only when a real subset is selected
+  const filterActive = selectedCompanies.length > 0 && selectedCompanies.length < companies.length
 
   return (
     <div className="p-4 md:p-8">
@@ -243,31 +269,30 @@ export default function NewsPage() {
         <p className="text-sm text-muted-foreground mt-1">Latest news about your portfolio companies · cached for 1h</p>
       </div>
 
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-1.5">
+      <div className="flex items-center justify-between mb-6 gap-3 flex-wrap">
+        <div className="flex items-center gap-1.5 flex-wrap">
           <span className="text-xs text-muted-foreground">Period:</span>
-          <div className="flex gap-1 flex-wrap">
-            {DATE_OPTIONS.map(opt => (
-              <button key={opt.value} onClick={() => setDateRange(opt.value)}
-                className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
-                  dateRange === opt.value
-                    ? 'bg-foreground text-background border-foreground'
-                    : 'border-border text-muted-foreground hover:text-foreground'
-                }`}>
-                {opt.label}
-              </button>
-            ))}
-          </div>
+          {DATE_OPTIONS.map(opt => (
+            <button key={opt.value} onClick={() => setDateRange(opt.value)}
+              className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
+                dateRange === opt.value
+                  ? 'bg-foreground text-background border-foreground'
+                  : 'border-border text-muted-foreground hover:text-foreground'
+              }`}>
+              {opt.label}
+            </button>
+          ))}
         </div>
+
         {companies.length > 0 && (
           <button onClick={() => setShowCompanies(true)}
             className={`flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border transition-colors ${
-              selectedCompanies.length > 0
+              filterActive
                 ? 'bg-foreground text-background border-foreground'
                 : 'border-border text-muted-foreground hover:text-foreground'
             }`}>
             <Building2 className="h-3 w-3" />
-            {selectedCompanies.length > 0 ? `${selectedCompanies.length} co.` : 'Companies'}
+            {filterActive ? `${selectedCompanies.length} empresas` : 'All companies'}
           </button>
         )}
       </div>
@@ -301,7 +326,7 @@ export default function NewsPage() {
       {!loading && !error && filtered.length > 0 && (
         <div className="space-y-2">
           {filtered.map((article, i) => {
-            const cat = CATEGORY_CONFIG[article.category] ?? CATEGORY_CONFIG.outro
+            const tag = getTag(article)
             return (
               <a key={i} href={article.link} target="_blank" rel="noopener noreferrer"
                 className="flex items-start gap-3 rounded-lg border bg-card p-4 hover:bg-accent/50 transition-colors group">
@@ -309,7 +334,7 @@ export default function NewsPage() {
                   <p className="text-sm font-medium leading-snug group-hover:underline">{article.title}</p>
                   <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                     <Badge variant="outline" className="text-[10px] px-1.5 py-0">{article.companyName}</Badge>
-                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full border font-medium ${cat.className}`}>{cat.label}</span>
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full border font-medium ${tag.className}`}>{tag.label}</span>
                     <span className="text-[11px] text-muted-foreground">{article.source}</span>
                     <span className="text-[11px] text-muted-foreground">{article.pubDate ? timeAgo(article.pubDate) : ''}</span>
                   </div>
