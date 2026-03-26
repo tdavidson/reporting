@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { Newspaper, ExternalLink, RefreshCw, Settings2, X, Check, Building2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import type { NewsArticle, NewsRelevance } from '@/app/api/news/route'
+import type { NewsArticle, NewsCategory } from '@/app/api/news/route'
 
 const NEWS_SOURCES_KEY = 'prlx:newsSources'
 
@@ -30,9 +30,17 @@ const DATE_OPTIONS = [
   { value: 'lastyear', label: 'Last year' },
 ]
 
-const RELEVANCE_CONFIG: Record<NewsRelevance, { label: string; className: string }> = {
-  featured:  { label: 'Destaque',   className: 'bg-emerald-500/15 text-emerald-600 border-emerald-500/30' },
-  mentioned: { label: 'Mencionada', className: 'bg-blue-500/15 text-blue-600 border-blue-500/30' },
+const CATEGORY_CONFIG: Record<NewsCategory, { label: string; className: string }> = {
+  rodada:      { label: 'Rodada',      className: 'bg-emerald-500/15 text-emerald-600 border-emerald-500/30' },
+  ipo:         { label: 'IPO',         className: 'bg-violet-500/15 text-violet-600 border-violet-500/30' },
+  aquisicao:   { label: 'M&A',         className: 'bg-orange-500/15 text-orange-600 border-orange-500/30' },
+  parceria:    { label: 'Parceria',    className: 'bg-blue-500/15 text-blue-600 border-blue-500/30' },
+  contratacao: { label: 'Contratação', className: 'bg-yellow-500/15 text-yellow-700 border-yellow-500/30' },
+  produto:     { label: 'Produto',     className: 'bg-cyan-500/15 text-cyan-600 border-cyan-500/30' },
+  expansao:    { label: 'Expansão',    className: 'bg-indigo-500/15 text-indigo-600 border-indigo-500/30' },
+  premio:      { label: 'Prêmio',      className: 'bg-amber-500/15 text-amber-600 border-amber-500/30' },
+  crise:       { label: 'Crise',       className: 'bg-red-500/15 text-red-600 border-red-500/30' },
+  outro:       { label: 'Outro',       className: 'bg-muted text-muted-foreground border-border' },
 }
 
 interface Company { id: string; name: string }
@@ -105,23 +113,22 @@ function CompaniesModal({ companies, selected, onSave, onClose }: {
 }) {
   const [local, setLocal] = useState<string[]>(selected)
   const toggle = (id: string) =>
-    setLocal(prev => prev.includes(id) ? prev.filter(s => s !== id) : [...prev, id])
+    setLocal(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
   const handleSave = () => { onSave(local); onClose() }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
-      <div className="bg-background border rounded-xl shadow-xl w-full max-w-md mx-4 p-5" onClick={e => e.stopPropagation()}>
+      <div className="bg-background border rounded-xl shadow-xl w-full max-w-sm mx-4 p-5" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-sm font-semibold">Filter by Company</h2>
           <button onClick={onClose} className="text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
         </div>
-        <p className="text-xs text-muted-foreground mb-4">Select one or more companies. Leave all unchecked to show all.</p>
-        <div className="grid grid-cols-2 gap-1.5 max-h-72 overflow-y-auto pr-1">
+        <div className="space-y-1 max-h-64 overflow-y-auto">
           {companies.map(c => {
             const active = local.includes(c.id)
             return (
               <button key={c.id} onClick={() => toggle(c.id)}
-                className={`flex items-center gap-2 text-left px-3 py-2 rounded-lg border text-xs transition-colors ${active ? 'border-foreground/40 bg-accent font-medium' : 'border-border text-muted-foreground hover:bg-accent/40'}`}>
+                className={`w-full flex items-center gap-2 text-left px-3 py-2 rounded-lg border text-xs transition-colors ${active ? 'border-foreground/40 bg-accent font-medium' : 'border-border text-muted-foreground hover:bg-accent/40'}`}>
                 <span className={`h-3.5 w-3.5 rounded border flex items-center justify-center shrink-0 ${active ? 'bg-foreground border-foreground' : 'border-muted-foreground'}`}>
                   {active && <Check className="h-2.5 w-2.5 text-background" />}
                 </span>
@@ -294,7 +301,7 @@ export default function NewsPage() {
       {!loading && !error && filtered.length > 0 && (
         <div className="space-y-2">
           {filtered.map((article, i) => {
-            const rel = RELEVANCE_CONFIG[article.relevance]
+            const cat = CATEGORY_CONFIG[article.category] ?? CATEGORY_CONFIG.outro
             return (
               <a key={i} href={article.link} target="_blank" rel="noopener noreferrer"
                 className="flex items-start gap-3 rounded-lg border bg-card p-4 hover:bg-accent/50 transition-colors group">
@@ -302,7 +309,7 @@ export default function NewsPage() {
                   <p className="text-sm font-medium leading-snug group-hover:underline">{article.title}</p>
                   <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                     <Badge variant="outline" className="text-[10px] px-1.5 py-0">{article.companyName}</Badge>
-                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full border font-medium ${rel.className}`}>{rel.label}</span>
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full border font-medium ${cat.className}`}>{cat.label}</span>
                     <span className="text-[11px] text-muted-foreground">{article.source}</span>
                     <span className="text-[11px] text-muted-foreground">{article.pubDate ? timeAgo(article.pubDate) : ''}</span>
                   </div>
