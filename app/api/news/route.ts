@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import Anthropic from '@anthropic-ai/sdk'
 
-const cache = new Map<string, { data: NewsArticle[]; expiresAt: number }>()
+const cache = new Map<string, { data: RawArticle[]; expiresAt: number }>()
 const CACHE_TTL_MS = 60 * 60 * 1000
 const AI_CACHE = new Map<string, { articles: NewsArticle[]; expiresAt: number }>()
 
@@ -18,6 +18,8 @@ export interface NewsArticle {
   companyName: string
   relevance: NewsRelevance
 }
+
+type RawArticle = Omit<NewsArticle, 'relevance'>
 
 const TLD_TO_COUNTRY: Record<string, string> = {
   'com': 'US', 'us': 'US', 'co.uk': 'UK', 'uk': 'UK',
@@ -72,53 +74,88 @@ function extractDomain(website: string | null): string | null {
   }
 }
 
+function formatPubDate(dateStr: string): string {
+  try {
+    return new Date(dateStr).toISOString().split('T')[0]
+  } catch {
+    return dateStr
+  }
+}
+
+async function fetchRSS(query: string): Promise<RawArticle[]> {
+  const url = `https://news.google.com/rss/search?q=${encodeURIComponent(query)}&hl=pt-BR&gl=BR&ceid=BR:pt`
+  const res = await fetch(url, {
+    headers: { 'User-Agent': 'Mozilla/5.0 (compatible; NewsReader/1.0)' },
+    signal: AbortSignal.timeout(6000),
+  })
+  if (!res.ok) return []
+  return res.text().then(xml => parseRSSItems(xml, '', ''))
+}
+
+function parseRSSItems(xml: string, companyId: string, companyName: string): RawArticle[] {
+  const items = Array.from(xml.matchAll(/<item>([\s\S]*?)<\/item>/g))
+  return items.slice(0, 15).map(match => {
+    const block = match[1]
+    const title = block.match(/<title>(.*?)<\/title>/)?.[1]?.replace(/<[^>]+>/g, '').trim() ?? ''
+    const link = block.match(/<link\s*\/?>(.*?)(?:<\/link>|$)/)?.[1]?.trim()
+      ?? block.match(/<link>(.*?)<\/link>/)?.[1]?.trim() ?? ''
+    const pubDate = block.match(/<pubDate>(.*?)<\/pubDate>/)?.[1]?.trim() ?? ''
+    const source = block.match(/<source[^>]*>(.*?)<\/source>/)?.[1]?.trim() ?? 'Google News'
+    const sourceUrl = block.match(/<source[^>]*url="([^"]*)"/)?.[1] ?? ''
+    let sourceDomain = ''
+    try { sourceDomain = new URL(sourceUrl).hostname.replace(/^www\./, '') } catch { sourceDomain = source.toLowerCase() }
+    return { title, link, pubDate, source, sourceDomain, companyId, companyName }
+  }).filter(a => a.title && a.link)
+}
+
 async function fetchCompanyNews(
   companyId: string,
   companyName: string,
   sources: string[],
   websiteDomain: string | null
-): Promise<Omit<NewsArticle, 'relevance'>[]> {
-  // Merge website domain into sources automatically
+): Promise<RawArticle[]> {
   const allSources = websiteDomain
     ? Array.from(new Set([...sources, websiteDomain]))
     : sources
 
   const cacheKey = `news:${companyId}:${[...allSources].sort().join(',')}`
   const cached = cache.get(cacheKey)
-  if (cached && cached.expiresAt > Date.now()) return cached.data as Omit<NewsArticle, 'relevance'>[]
+  if (cached && cached.expiresAt > Date.now()) return cached.data
 
   try {
-    let queryStr = `"${companyName}"`
+    // Query 1: exact name match (with optional site filters)
+    let q1 = `"${companyName}"`
     if (allSources.length > 0) {
-      const siteFilters = allSources.map(s => `site:${s}`).join(' OR ')
-      queryStr += ` (${siteFilters})`
+      q1 += ` (${allSources.map(s => `site:${s}`).join(' OR ')})`
     }
 
-    const query = encodeURIComponent(queryStr)
-    const url = `https://news.google.com/rss/search?q=${query}&hl=en-US&gl=US&ceid=US:en`
-    const res = await fetch(url, {
-      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; NewsReader/1.0)' },
-      signal: AbortSignal.timeout(5000),
-    })
-    if (!res.ok) return []
+    // Query 2: broader — name without quotes to catch partial matches & PT-BR content
+    const q2 = `${companyName} startup OR funding OR rodada OR investimento OR lançamento`
 
-    const xml = await res.text()
-    const items = Array.from(xml.matchAll(/<item>([\s\S]*?)<\/item>/g))
+    const [res1, res2] = await Promise.allSettled([
+      fetch(`https://news.google.com/rss/search?q=${encodeURIComponent(q1)}&hl=pt-BR&gl=BR&ceid=BR:pt`, {
+        headers: { 'User-Agent': 'Mozilla/5.0 (compatible; NewsReader/1.0)' },
+        signal: AbortSignal.timeout(6000),
+      }),
+      fetch(`https://news.google.com/rss/search?q=${encodeURIComponent(q2)}&hl=pt-BR&gl=BR&ceid=BR:pt`, {
+        headers: { 'User-Agent': 'Mozilla/5.0 (compatible; NewsReader/1.0)' },
+        signal: AbortSignal.timeout(6000),
+      }),
+    ])
 
-    const articles = items.slice(0, 10).map(match => {
-      const block = match[1]
-      const title = block.match(/<title>(.*?)<\/title>/)?.[1]?.replace(/<[^>]+>/g, '').trim() ?? ''
-      const link = block.match(/<link\s*\/?>(.*?)(?:<\/link>|$)/)?.[1]?.trim()
-        ?? block.match(/<link>(.*?)<\/link>/)?.[1]?.trim() ?? ''
-      const pubDate = block.match(/<pubDate>(.*?)<\/pubDate>/)?.[1]?.trim() ?? ''
-      const source = block.match(/<source[^>]*>(.*?)<\/source>/)?.[1]?.trim() ?? 'Google News'
-      const sourceUrl = block.match(/<source[^>]*url="([^"]*)"/)?.[1] ?? ''
-      let sourceDomain = ''
-      try { sourceDomain = new URL(sourceUrl).hostname.replace(/^www\./, '') } catch { sourceDomain = source.toLowerCase() }
-      return { title, link, pubDate, source, sourceDomain, companyId, companyName }
-    }).filter(a => a.title && a.link)
+    const articles: RawArticle[] = []
+    const seen = new Set<string>()
 
-    cache.set(cacheKey, { data: articles as NewsArticle[], expiresAt: Date.now() + CACHE_TTL_MS })
+    for (const r of [res1, res2]) {
+      if (r.status !== 'fulfilled' || !r.value.ok) continue
+      const xml = await r.value.text()
+      for (const a of parseRSSItems(xml, companyId, companyName)) {
+        const key = normalizeUrl(a.link)
+        if (!seen.has(key)) { seen.add(key); articles.push(a) }
+      }
+    }
+
+    cache.set(cacheKey, { data: articles, expiresAt: Date.now() + CACHE_TTL_MS })
     return articles
   } catch {
     return []
@@ -132,7 +169,7 @@ type AIResult = {
 }
 
 async function aiEnrichAndFilter(
-  articles: Omit<NewsArticle, 'relevance'>[],
+  articles: RawArticle[],
   companies: { id: string; name: string; website: string | null }[]
 ): Promise<NewsArticle[]> {
   if (articles.length === 0) return []
@@ -146,35 +183,39 @@ async function aiEnrichAndFilter(
 
     const companyList = companies.map(c => {
       const domain = extractDomain(c.website)
-      return `${c.id}: ${c.name}${domain ? ` (website: ${domain})` : ''}`
+      return `- id: ${c.id} | name: ${c.name}${domain ? ` | website: ${domain}` : ''}`
     }).join('\n')
 
-    const articleList = articles.map((a, i) => `[${i}] ${a.title}`).join('\n')
+    // Pass title + source domain + date for richer classification
+    const articleList = articles.map((a, i) =>
+      `[${i}] "${a.title}" · ${a.sourceDomain} · ${formatPubDate(a.pubDate)}`
+    ).join('\n')
 
-    const prompt = `You are a financial news classifier for a VC fund.
+    const prompt = `You are a financial news classifier for a VC fund. Your job is to tag news articles with the correct portfolio company and relevance level.
 
-Portfolio companies (id: name, website domain when available):
+Portfolio companies:
 ${companyList}
 
-News articles (index: title):
+News articles (index · title · source domain · date):
 ${articleList}
 
-For each article return:
-- companyId: the UUID of the portfolio company that is the subject of the article, or null if not relevant
-- relevance: one of:
-  - "featured"  — company is the PRIMARY subject (headline news, funding round, product launch, executive change, etc.)
-  - "mentioned" — company is clearly cited but not the main subject
-  - "related"   — article is about the company's sector/market but doesn't name it directly
-  - null        — article is completely unrelated; discard it
+For each article, determine:
+1. companyId — UUID of the portfolio company this article is primarily about. Use the company name, website domain, and context clues (funding, product, executive names) to decide. Return null if the article is not about any portfolio company.
+2. relevance:
+   - "featured"  — company IS the main subject (funding round, product launch, executive change, acquisition, IPO, etc.)
+   - "mentioned" — company is clearly named but is not the main subject
+   - "related"   — article is about the company's market/sector but does not name it directly
+   - null        — unrelated; discard
 
-Rules:
-- Use the website domain as a strong signal to disambiguate companies with similar names.
-- Only assign a companyId if the article is about a portfolio company.
-- When companyId is null, set relevance to null too.
-- Do NOT guess. When in doubt, return null for both.
+Important rules:
+- Articles in Portuguese (PT-BR) are valid — do not discard based on language.
+- Use the source domain to help disambiguate (e.g. a company's own blog domain = high confidence).
+- A recent date combined with a relevant title is a strong signal.
+- When companyId is null, relevance must also be null.
+- Do NOT guess. If genuinely ambiguous, return null for both.
 
-Respond ONLY with a JSON array, no explanation:
-[{"index":0,"companyId":"uuid","relevance":"featured"},{"index":1,"companyId":null,"relevance":null}]`
+Respond ONLY with a JSON array, no explanation or markdown:
+[{"index":0,"companyId":"uuid-here","relevance":"featured"},{"index":1,"companyId":null,"relevance":null}]`
 
     const message = await anthropic.messages.create({
       model: 'claude-haiku-4-5',
@@ -223,6 +264,13 @@ export async function GET(req: NextRequest) {
   const sourcesParam = req.nextUrl.searchParams.get('sources')
   const dateRange = req.nextUrl.searchParams.get('dateRange')
   const countryFilter = req.nextUrl.searchParams.get('country')
+  const bust = req.nextUrl.searchParams.get('bust')
+
+  // Clear in-memory caches on forced refresh
+  if (bust) {
+    cache.clear()
+    AI_CACHE.clear()
+  }
 
   const sources = sourcesParam ? sourcesParam.split(',').map(s => s.trim()).filter(Boolean) : []
 
