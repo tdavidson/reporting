@@ -186,14 +186,14 @@ const fmt = fmtCard
 
   const [data, setData] = useState<PortfolioData | null>(null)
   const [loading, setLoading] = useState(true)
-const [asOfDate, setAsOfDate] = useState(new Date().toISOString().split('T')[0])
-const [hydrated, setHydrated] = useState(false)
+  const [asOfDate, setAsOfDate] = useState(new Date().toISOString().split('T')[0])
+  const [hydrated, setHydrated] = useState(false)
 
-useEffect(() => {
-  const saved = localStorage.getItem('asOfDate')
-  if (saved) setAsOfDate(saved)
-  setHydrated(true)
-}, [])
+  useEffect(() => {
+    const saved = localStorage.getItem('asOfDate')
+    if (saved) setAsOfDate(saved)
+    setHydrated(true)
+  }, [])
 
   const [sortKey, setSortKey] = useState<SortKey>('totalValue')
   const [sortDir, setSortDir] = useState<SortDir>('desc')
@@ -208,6 +208,7 @@ useEffect(() => {
   const [groupConfigs, setGroupConfigs] = useState<Record<string, { cashOnHand: number; carryRate: number; gpCommitPct: number; vintage: number | null }>>({})
 
   useEffect(() => {
+    if (!hydrated) return
     async function load() {
       setLoading(true)
       try {
@@ -236,7 +237,7 @@ useEffect(() => {
       }
     }
     load()
-}, [asOfDate, hydrated])
+  }, [asOfDate, hydrated])
 
   const availableGroups = useMemo(() => {
     if (!data) return []
@@ -474,9 +475,9 @@ function fmtVal(val: number | null, format: 'currency' | 'moic' | 'irr'): string
           type="date"
           value={asOfDate}
           onChange={e => {
-  setAsOfDate(e.target.value)
-  localStorage.setItem('asOfDate', e.target.value)
-}}
+            setAsOfDate(e.target.value)
+            localStorage.setItem('asOfDate', e.target.value)
+          }}
           className="border rounded px-2 py-1 text-sm"
         />
       </div>
