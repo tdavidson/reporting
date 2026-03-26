@@ -1,15 +1,35 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Newspaper, ExternalLink, RefreshCw, Filter, Settings2 } from 'lucide-react'
+import { Newspaper, ExternalLink, RefreshCw, Settings2, X, Check } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import Link from 'next/link'
 import type { NewsArticle } from '@/app/api/news/route'
 
-interface Company { id: string; name: string }
-
 const NEWS_SOURCES_KEY = 'prlx:newsSources'
+
+const PRESET_PORTALS = [
+  { label: 'TechCrunch', url: 'techcrunch.com' },
+  { label: 'The Verge', url: 'theverge.com' },
+  { label: 'Wired', url: 'wired.com' },
+  { label: 'Bloomberg', url: 'bloomberg.com' },
+  { label: 'Reuters', url: 'reuters.com' },
+  { label: 'Financial Times', url: 'ft.com' },
+  { label: 'Forbes', url: 'forbes.com' },
+  { label: 'Business Insider', url: 'businessinsider.com' },
+  { label: 'Fast Company', url: 'fastcompany.com' },
+  { label: 'Inc.', url: 'inc.com' },
+  { label: 'VentureBeat', url: 'venturebeat.com' },
+  { label: 'Crunchbase News', url: 'news.crunchbase.com' },
+  { label: 'Wall Street Journal', url: 'wsj.com' },
+  { label: 'New York Times', url: 'nytimes.com' },
+  { label: 'Axios', url: 'axios.com' },
+  { label: 'The Information', url: 'theinformation.com' },
+  { label: 'Sifted', url: 'sifted.eu' },
+  { label: 'Valor Econômico', url: 'valor.globo.com' },
+  { label: 'Folha de S.Paulo', url: 'folha.uol.com.br' },
+  { label: 'Exame', url: 'exame.com' },
+]
 
 function getSavedSources(): string[] {
   try {
@@ -18,14 +38,17 @@ function getSavedSources(): string[] {
   } catch { return [] }
 }
 
+function setSavedSources(sources: string[]) {
+  localStorage.setItem(NEWS_SOURCES_KEY, JSON.stringify(sources))
+}
+
 function timeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime()
   const mins = Math.floor(diff / 60000)
   if (mins < 60) return `${mins}m ago`
   const hrs = Math.floor(mins / 60)
   if (hrs < 24) return `${hrs}h ago`
-  const days = Math.floor(hrs / 24)
-  return `${days}d ago`
+  return `${Math.floor(hrs / 24)}d ago`
 }
 
 const DATE_OPTIONS = [
@@ -35,17 +58,83 @@ const DATE_OPTIONS = [
   { value: '30d', label: '30 days' },
 ]
 
+function PortalsModal({ onClose }: { onClose: () => void }) {
+  const [selected, setSelected] = useState<string[]>(getSavedSources)
+
+  const toggle = (url: string) => {
+    setSelected(prev =>
+      prev.includes(url) ? prev.filter(s => s !== url) : [...prev, url]
+    )
+  }
+
+  const handleSave = () => {
+    setSavedSources(selected)
+    onClose()
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
+      <div
+        className="bg-background border rounded-xl shadow-xl w-full max-w-md mx-4 p-5"
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-sm font-semibold">News Portals</h2>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <p className="text-xs text-muted-foreground mb-4">
+          Select the portals to filter news results. Leave all unchecked to search across all sources.
+        </p>
+        <div className="grid grid-cols-2 gap-1.5 max-h-72 overflow-y-auto pr-1">
+          {PRESET_PORTALS.map(p => {
+            const active = selected.includes(p.url)
+            return (
+              <button
+                key={p.url}
+                onClick={() => toggle(p.url)}
+                className={`flex items-center gap-2 text-left px-3 py-2 rounded-lg border text-xs transition-colors ${
+                  active
+                    ? 'border-foreground/40 bg-accent font-medium'
+                    : 'border-border text-muted-foreground hover:bg-accent/40'
+                }`}
+              >
+                <span className={`h-3.5 w-3.5 rounded border flex items-center justify-center shrink-0 ${
+                  active ? 'bg-foreground border-foreground' : 'border-muted-foreground'
+                }`}>
+                  {active && <Check className="h-2.5 w-2.5 text-background" />}
+                </span>
+                {p.label}
+              </button>
+            )
+          })}
+        </div>
+        <div className="flex items-center justify-between mt-4 pt-3 border-t">
+          <button
+            onClick={() => setSelected([])}
+            className="text-xs text-muted-foreground hover:text-foreground"
+          >
+            Clear all
+          </button>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={onClose}>Cancel</Button>
+            <Button size="sm" onClick={handleSave}>Save</Button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function NewsPage() {
   const [articles, setArticles] = useState<NewsArticle[]>([])
-  const [companies, setCompanies] = useState<Company[]>([])
-  const [countriesAvailable, setCountriesAvailable] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
-  const [selectedCompany, setSelectedCompany] = useState<string>('')
   const [dateRange, setDateRange] = useState<string>('all')
-  const [country, setCountry] = useState<string>('all')
   const [error, setError] = useState<string | null>(null)
   const [sources, setSources] = useState<string[]>([])
+  const [showPortals, setShowPortals] = useState(false)
 
   useEffect(() => {
     setSources(getSavedSources())
@@ -54,17 +143,15 @@ export default function NewsPage() {
   async function load(bust = false) {
     try {
       const currentSources = getSavedSources()
+      setSources(currentSources)
       const params = new URLSearchParams()
       if (bust) params.set('bust', String(Date.now()))
       if (currentSources.length > 0) params.set('sources', currentSources.join(','))
       if (dateRange !== 'all') params.set('dateRange', dateRange)
-      if (country !== 'all') params.set('country', country)
       const res = await fetch(`/api/news?${params}`)
       if (!res.ok) throw new Error('Failed to load news')
       const data = await res.json()
       setArticles(data.articles ?? [])
-      setCompanies(data.companies ?? [])
-      setCountriesAvailable(data.countriesInResults ?? [])
       setError(null)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Something went wrong')
@@ -76,14 +163,13 @@ export default function NewsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Re-fetch when filters change (except on first mount)
   const [mounted, setMounted] = useState(false)
   useEffect(() => {
     if (!mounted) { setMounted(true); return }
     setLoading(true)
     load().finally(() => setLoading(false))
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dateRange, country])
+  }, [dateRange])
 
   async function handleRefresh() {
     setRefreshing(true)
@@ -91,12 +177,17 @@ export default function NewsPage() {
     setRefreshing(false)
   }
 
-  const filtered = selectedCompany
-    ? articles.filter(a => a.companyId === selectedCompany)
-    : articles
+  const handlePortalsClose = () => {
+    setShowPortals(false)
+    // reload with potentially updated sources
+    setLoading(true)
+    load().finally(() => setLoading(false))
+  }
 
   return (
     <div className="p-4 md:p-8">
+      {showPortals && <PortalsModal onClose={handlePortalsClose} />}
+
       <div className="mb-6">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2">
@@ -106,15 +197,13 @@ export default function NewsPage() {
           <div className="flex items-center gap-2">
             {sources.length > 0 && (
               <span className="text-xs text-muted-foreground">
-                {sources.length} portal{sources.length !== 1 ? 's' : ''} configured
+                {sources.length} portal{sources.length !== 1 ? 's' : ''}
               </span>
             )}
-            <Link href="/settings#news-sources">
-              <Button variant="outline" size="sm" className="gap-1.5">
-                <Settings2 className="h-3.5 w-3.5" />
-                Portals
-              </Button>
-            </Link>
+            <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setShowPortals(true)}>
+              <Settings2 className="h-3.5 w-3.5" />
+              Portals
+            </Button>
             <Button
               variant="outline"
               size="sm"
@@ -132,92 +221,26 @@ export default function NewsPage() {
         </p>
       </div>
 
-      {/* Filters row */}
-      <div className="flex flex-wrap items-center gap-3 mb-5">
-        {/* Date filter */}
-        <div className="flex items-center gap-1.5">
-          <span className="text-xs text-muted-foreground">Period:</span>
-          <div className="flex gap-1">
-            {DATE_OPTIONS.map(opt => (
-              <button
-                key={opt.value}
-                onClick={() => setDateRange(opt.value)}
-                className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
-                  dateRange === opt.value
-                    ? 'bg-foreground text-background border-foreground'
-                    : 'border-border text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Country filter */}
-        {countriesAvailable.length > 1 && (
-          <div className="flex items-center gap-1.5">
-            <span className="text-xs text-muted-foreground">Country:</span>
-            <div className="flex gap-1 flex-wrap">
-              <button
-                onClick={() => setCountry('all')}
-                className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
-                  country === 'all'
-                    ? 'bg-foreground text-background border-foreground'
-                    : 'border-border text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                All
-              </button>
-              {countriesAvailable.map(c => (
-                <button
-                  key={c}
-                  onClick={() => setCountry(country === c ? 'all' : c)}
-                  className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
-                    country === c
-                      ? 'bg-foreground text-background border-foreground'
-                      : 'border-border text-muted-foreground hover:text-foreground'
-                  }`}
-                >
-                  {c}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Company filter */}
-      {companies.length > 0 && (
-        <div className="flex items-center gap-2 flex-wrap mb-6">
-          <Filter className="h-3.5 w-3.5 text-muted-foreground" />
-          <button
-            onClick={() => setSelectedCompany('')}
-            className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
-              !selectedCompany
-                ? 'bg-foreground text-background border-foreground'
-                : 'border-border text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            All
-          </button>
-          {companies.map(c => (
+      {/* Date filter */}
+      <div className="flex items-center gap-1.5 mb-6">
+        <span className="text-xs text-muted-foreground">Period:</span>
+        <div className="flex gap-1">
+          {DATE_OPTIONS.map(opt => (
             <button
-              key={c.id}
-              onClick={() => setSelectedCompany(selectedCompany === c.id ? '' : c.id)}
+              key={opt.value}
+              onClick={() => setDateRange(opt.value)}
               className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
-                selectedCompany === c.id
+                dateRange === opt.value
                   ? 'bg-foreground text-background border-foreground'
                   : 'border-border text-muted-foreground hover:text-foreground'
               }`}
             >
-              {c.name}
+              {opt.label}
             </button>
           ))}
         </div>
-      )}
+      </div>
 
-      {/* States */}
       {loading && (
         <div className="space-y-3">
           {[...Array(6)].map((_, i) => (
@@ -236,17 +259,17 @@ export default function NewsPage() {
         </div>
       )}
 
-      {!loading && !error && filtered.length === 0 && (
+      {!loading && !error && articles.length === 0 && (
         <div className="rounded-lg border border-dashed p-12 text-center">
           <Newspaper className="h-8 w-8 text-muted-foreground mx-auto mb-3" />
-          <p className="text-muted-foreground text-sm">No news found for the selected filters.</p>
-          <p className="text-xs text-muted-foreground mt-1">Try adjusting the period or country filter, or refreshing.</p>
+          <p className="text-muted-foreground text-sm">No news found.</p>
+          <p className="text-xs text-muted-foreground mt-1">Try adjusting the period filter or refreshing.</p>
         </div>
       )}
 
-      {!loading && !error && filtered.length > 0 && (
+      {!loading && !error && articles.length > 0 && (
         <div className="space-y-2">
-          {filtered.map((article, i) => (
+          {articles.map((article, i) => (
             <a
               key={i}
               href={article.link}
