@@ -11,17 +11,17 @@ function parseEmailDocId(docId: string): { emailId: string; attachmentIndex: num
   return { emailId: match[1], attachmentIndex: parseInt(match[2], 10) }
 }
 
+// NOTE: company_id can be null on inbound_emails (e.g. needs_review status)
+// so we only filter by emailId and verify access via fund_id membership.
 async function resolveEmailAttachment(
   admin: ReturnType<typeof createAdminClient>,
   emailId: string,
-  attachmentIndex: number,
-  companyId: string
+  attachmentIndex: number
 ) {
   const { data: email } = await admin
     .from('inbound_emails')
     .select('id, fund_id, raw_payload')
     .eq('id', emailId)
-    .eq('company_id', companyId)
     .maybeSingle() as { data: { id: string; fund_id: string; raw_payload: any } | null }
 
   if (!email) return null
@@ -55,7 +55,7 @@ export async function GET(
 
   const emailParsed = parseEmailDocId(params.docId)
   if (emailParsed) {
-    const resolved = await resolveEmailAttachment(admin, emailParsed.emailId, emailParsed.attachmentIndex, params.id)
+    const resolved = await resolveEmailAttachment(admin, emailParsed.emailId, emailParsed.attachmentIndex)
     if (!resolved) return NextResponse.json({ error: 'Document not found' }, { status: 404 })
 
     const { email, att } = resolved
@@ -69,7 +69,6 @@ export async function GET(
 
     if (!membership) return NextResponse.json({ error: 'Not a fund member' }, { status: 403 })
 
-    // Prefer StoragePath (uploaded to email-attachments bucket)
     if (att.StoragePath) {
       const { data: signed, error } = await admin.storage
         .from('email-attachments')
@@ -81,7 +80,6 @@ export async function GET(
       return NextResponse.json({ url: signed.signedUrl, filename: att.Name, fileType: att.ContentType })
     }
 
-    // Fallback: base64 Content still in payload (upload failure path)
     if (att.Content) {
       const dataUrl = `data:${att.ContentType};base64,${att.Content}`
       return NextResponse.json({ url: dataUrl, filename: att.Name, fileType: att.ContentType })
@@ -141,7 +139,7 @@ export async function DELETE(
 
   const emailParsed = parseEmailDocId(params.docId)
   if (emailParsed) {
-    const resolved = await resolveEmailAttachment(admin, emailParsed.emailId, emailParsed.attachmentIndex, params.id)
+    const resolved = await resolveEmailAttachment(admin, emailParsed.emailId, emailParsed.attachmentIndex)
     if (!resolved) return NextResponse.json({ error: 'Document not found' }, { status: 404 })
 
     const { email, att } = resolved
@@ -155,7 +153,6 @@ export async function DELETE(
 
     if (!membership) return NextResponse.json({ error: 'Not a fund member' }, { status: 403 })
 
-    // Remove from storage if StoragePath exists
     if (att.StoragePath) {
       await admin.storage.from('email-attachments').remove([att.StoragePath])
     }
