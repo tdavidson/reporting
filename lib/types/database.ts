@@ -217,6 +217,7 @@ export type Database = {
           status: string | null
           tags: string[] | null
           updated_at: string | null
+          website: string | null
           why_invested: string | null
         }
         Insert: {
@@ -240,6 +241,7 @@ export type Database = {
           status?: string | null
           tags?: string[] | null
           updated_at?: string | null
+          website?: string | null
           why_invested?: string | null
         }
         Update: {
@@ -263,6 +265,7 @@ export type Database = {
           status?: string | null
           tags?: string[] | null
           updated_at?: string | null
+          website?: string | null
           why_invested?: string | null
         }
         Relationships: [
