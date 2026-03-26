@@ -14,19 +14,6 @@ export interface NewsArticle {
   companyName: string
 }
 
-function extractDomain(source: string): string {
-  try {
-    return source.toLowerCase()
-  } catch {
-    return source.toLowerCase()
-  }
-}
-
-function getTLD(domain: string): string {
-  const parts = domain.split('.')
-  return parts[parts.length - 1] ?? ''
-}
-
 const TLD_TO_COUNTRY: Record<string, string> = {
   'com': 'US',
   'us': 'US',
@@ -152,7 +139,7 @@ export async function GET(req: NextRequest) {
     new Date(b.pubDate).getTime() - new Date(a.pubDate).getTime()
   )
 
-  const countriesInResults = [...new Set(articles.map(a => domainToCountry(a.sourceDomain)))].sort()
+  const countriesInResults = Array.from(new Set(articles.map(a => domainToCountry(a.sourceDomain)))).sort()
 
   return NextResponse.json({ articles, companies: list, countriesInResults })
 }
