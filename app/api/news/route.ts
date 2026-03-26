@@ -6,7 +6,17 @@ const cache = new Map<string, { data: RawArticle[]; expiresAt: number }>()
 const CACHE_TTL_MS = 60 * 60 * 1000
 const AI_CACHE = new Map<string, { articles: NewsArticle[]; expiresAt: number }>()
 
-export type NewsRelevance = 'featured' | 'mentioned'
+export type NewsCategory =
+  | 'rodada'
+  | 'aquisicao'
+  | 'parceria'
+  | 'contratacao'
+  | 'produto'
+  | 'expansao'
+  | 'premio'
+  | 'crise'
+  | 'ipo'
+  | 'outro'
 
 export interface NewsArticle {
   title: string
@@ -16,10 +26,10 @@ export interface NewsArticle {
   sourceDomain: string
   companyId: string
   companyName: string
-  relevance: NewsRelevance
+  category: NewsCategory
 }
 
-type RawArticle = Omit<NewsArticle, 'relevance'>
+type RawArticle = Omit<NewsArticle, 'category'>
 
 const TLD_TO_COUNTRY: Record<string, string> = {
   'com': 'US', 'us': 'US', 'co.uk': 'UK', 'uk': 'UK',
@@ -78,11 +88,21 @@ function formatPubDate(dateStr: string): string {
   try { return new Date(dateStr).toISOString().split('T')[0] } catch { return dateStr }
 }
 
+/**
+ * Strip the " - Source Name" suffix that Google News appends to article titles.
+ * e.g. "NovaTech levanta R$50M - Pipeline Valor" → "NovaTech levanta R$50M"
+ */
+function cleanTitle(title: string): string {
+  // Google News format: "Title - Source Name" — remove last " - ..." segment
+  return title.replace(/\s+[-–—]\s+[^-–—]+$/, '').trim()
+}
+
 function parseRSSItems(xml: string, companyId: string, companyName: string): RawArticle[] {
   const items = Array.from(xml.matchAll(/<item>([\s\S]*?)<\/item>/g))
   return items.slice(0, 15).map(match => {
     const block = match[1]
-    const title = block.match(/<title>(.*?)<\/title>/)?.[1]?.replace(/<[^>]+>/g, '').trim() ?? ''
+    const rawTitle = block.match(/<title>(.*?)<\/title>/)?.[1]?.replace(/<[^>]+>/g, '').trim() ?? ''
+    const title = cleanTitle(rawTitle)
     const link = block.match(/<link\s*\/?>(.*?)(?:<\/link>|$)/)?.[1]?.trim()
       ?? block.match(/<link>(.*?)<\/link>/)?.[1]?.trim() ?? ''
     const pubDate = block.match(/<pubDate>(.*?)<\/pubDate>/)?.[1]?.trim() ?? ''
@@ -109,12 +129,9 @@ async function fetchCompanyNews(
   if (cached && cached.expiresAt > Date.now()) return cached.data
 
   try {
-    // Query 1: company name in quotes — exact match, optionally limited to specific portals
     let q1 = `"${companyName}"`
     if (allSources.length > 0) q1 += ` (${allSources.map(s => `site:${s}`).join(' OR ')})`
 
-    // REMOVED: broad sector query (q2) — was the main source of false positives.
-    // Only fetch the precise quoted-name query.
     const res1 = await fetch(
       `https://news.google.com/rss/search?q=${encodeURIComponent(q1)}&hl=pt-BR&gl=BR&ceid=BR:pt`,
       {
@@ -144,7 +161,7 @@ async function fetchCompanyNews(
 type ClassifyResult = {
   index: number
   companyId: string | null
-  relevance: NewsRelevance | null
+  category: NewsCategory | null
 }
 
 type ReviewResult = {
@@ -154,9 +171,9 @@ type ReviewResult = {
 }
 
 /**
- * Deterministic pre-filter: runs before the AI to discard obvious mismatches cheaply.
- * Keeps an article if the company name (or a significant token from it) appears in the title,
- * or if the source domain matches the company's own website.
+ * Deterministic pre-filter before calling the AI.
+ * Keeps only articles where the company name (or a meaningful token) appears in the title,
+ * or the source domain matches the company website.
  */
 function deterministicPreFilter(
   articles: RawArticle[],
@@ -166,7 +183,6 @@ function deterministicPreFilter(
     id: c.id,
     name: c.name,
     domain: extractDomain(c.website),
-    // Build a set of meaningful tokens (≥4 chars) from the company name
     tokens: c.name.toLowerCase().split(/\s+/).filter(t => t.length >= 4),
   })).map(c => [c.id, c]))
 
@@ -174,23 +190,14 @@ function deterministicPreFilter(
     const titleLower = article.title.toLowerCase()
     const co = companyMap.get(article.companyId)
     if (!co) return false
-
-    // Strong signal: source domain matches company website
     if (co.domain && article.sourceDomain.includes(co.domain)) return true
-
-    // Strong signal: full company name in title
     if (titleLower.includes(co.name.toLowerCase())) return true
-
-    // Moderate signal: at least one meaningful name token in title
-    // (handles cases like "NovaTech" → "novatech" appearing as part of a longer word)
     if (co.tokens.some(token => titleLower.includes(token))) return true
-
-    // No match found — drop this article before sending to AI
     return false
   })
 }
 
-// Pass 1 — classify articles: assign companyId + relevance
+// Pass 1 — classify articles: assign companyId + category
 async function classifyArticles(
   anthropic: Anthropic,
   articles: RawArticle[],
@@ -215,22 +222,30 @@ ${articleList}
 
 For each article, determine:
 - companyId: UUID of the matching portfolio company, or null.
-- relevance:
-  - "featured"  — the company is the PRIMARY subject of the article (funding round, product launch, acquisition, IPO, executive change, legal issue, partnership announcement, layoffs, etc.)
-  - "mentioned" — the company name is explicitly present in the title but it is NOT the main subject
-  - null        — the company name does NOT appear in the title AND the source domain does NOT match the company website
+- category: one of the values below, or null if companyId is null.
+
+Category values (pick the most specific one based on the article title):
+  "rodada"      — funding round, investment, capital raise, Series A/B/C, seed, bridge
+  "aquisicao"   — M&A, acquisition, merger, takeover, buyout
+  "parceria"    — partnership, integration, collaboration, joint venture, agreement
+  "contratacao" — executive hire, new CXO/VP, layoffs, headcount change, team expansion
+  "produto"     — product launch, new feature, platform update, beta release
+  "expansao"    — geographic expansion, new market, international growth, new office
+  "premio"      — award, ranking, recognition, certification
+  "crise"       — scandal, lawsuit, regulatory issue, fraud, controversy, bankruptcy
+  "ipo"         — IPO, public offering, listing, going public
+  "outro"       — clearly relevant to the company but doesn't fit above categories
 
 Classification rules (apply in order):
-1. If the source domain matches a company's website domain → always assign that company.
-2. If the company name (or a clear abbreviation/acronym) appears in the title → assign and classify relevance.
-3. If neither condition is met → companyId: null, relevance: null. Do NOT guess.
-4. Do NOT assign a company based on industry, sector, or topic similarity alone.
-5. Do NOT assign a company just because the article is about the VC/startup ecosystem.
+1. If the source domain matches a company's website domain → assign that company.
+2. If the company name (or a clear abbreviation/acronym) appears in the title → assign and classify.
+3. If neither condition is met → companyId: null, category: null. Do NOT guess.
+4. Do NOT assign based on industry similarity alone.
 
-Be conservative. It is better to discard a borderline article than to show an irrelevant one.
+Be conservative. When in doubt → null.
 
 Respond ONLY with a JSON array, no explanation:
-[{"index":0,"companyId":"uuid","relevance":"featured"},{"index":1,"companyId":null,"relevance":null}]`
+[{"index":0,"companyId":"uuid","category":"rodada"},{"index":1,"companyId":null,"category":null}]`
 
   const msg = await anthropic.messages.create({
     model: 'claude-haiku-4-5',
@@ -242,7 +257,7 @@ Respond ONLY with a JSON array, no explanation:
   try { return match ? JSON.parse(match[0]) : [] } catch { return [] }
 }
 
-// Pass 2 — review: remove false positives with a stricter lens
+// Pass 2 — review: remove false positives with a strict lens
 async function reviewArticles(
   anthropic: Anthropic,
   candidates: NewsArticle[],
@@ -256,28 +271,20 @@ async function reviewArticles(
 
   const articleList = candidates.map((a, i) => {
     const co = companyById.get(a.companyId)
-    return `[${i}] company: "${co?.name}"${co?.domain ? ` (${co.domain})` : ''} | title: "${a.title}" | source: ${a.sourceDomain} | tag: ${a.relevance}`
+    return `[${i}] company: "${co?.name}"${co?.domain ? ` (${co.domain})` : ''} | title: "${a.title}" | source: ${a.sourceDomain} | category: ${a.category}`
   }).join('\n')
 
-  const prompt = `You are a quality reviewer for a VC fund news feed. Each article below has been assigned to a portfolio company.
+  const prompt = `You are a quality reviewer for a VC fund news feed. Each article has been assigned to a portfolio company.
 
-Your job is to remove false positives — articles that are NOT genuinely about the assigned company.
+Remove false positives — articles that are NOT genuinely about the assigned company.
 
 Articles:
 ${articleList}
 
-For each article, set keep: true or keep: false using these strict criteria:
-
-keep: true ONLY if at least one of:
-  - The company name (or a clear variant/acronym) appears in the article title.
-  - The source domain is the company's own website.
-
-keep: false if:
-  - The title does not mention the company at all (it may be about a competitor, market trend, or a different company with a similar name).
-  - The article is clearly about a different company that shares a common word with the portfolio company name.
-  - The article is generic sector/market news with no direct company reference.
-
-When in doubt → keep: false. We prefer fewer, higher-quality results.
+Rules:
+- keep: true if the company name (or clear variant) appears in the title, OR the source domain is the company's own website.
+- keep: false if the title does not mention the company, or the article is clearly about a different entity.
+- When in doubt → keep: false. Fewer, better results is the goal.
 
 Respond ONLY with a JSON array:
 [{"index":0,"keep":true},{"index":1,"keep":false,"reason":"Title does not mention the company"}]`
@@ -290,7 +297,7 @@ Respond ONLY with a JSON array:
   const raw = msg.content[0]?.type === 'text' ? msg.content[0].text : '[]'
   const match = raw.match(/\[.*\]/s)
   let results: ReviewResult[] = []
-  try { results = match ? JSON.parse(match[0]) : [] } catch { /* on parse fail keep all */ }
+  try { results = match ? JSON.parse(match[0]) : [] } catch { }
 
   return candidates.filter((_, i) => {
     const r = results.find(x => x.index === i)
@@ -304,9 +311,7 @@ async function aiEnrichAndFilter(
 ): Promise<NewsArticle[]> {
   if (articles.length === 0) return []
 
-  // --- Deterministic pre-filter (free, runs before AI) ---
   const preFiltered = deterministicPreFilter(articles, companies)
-
   if (preFiltered.length === 0) return []
 
   const aiCacheKey = preFiltered.map(a => a.link).sort().join('|')
@@ -317,32 +322,31 @@ async function aiEnrichAndFilter(
     const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
     const companyMap = new Map(companies.map(c => [c.id, c.name]))
 
-    // Pass 1: classify
+    // Pass 1: classify with category
     const classified = await classifyArticles(anthropic, preFiltered, companies)
     const pass1: NewsArticle[] = preFiltered
       .map((article, i) => {
         const r = classified.find(x => x.index === i)
-        if (!r || r.companyId === null || r.relevance === null) return null
+        if (!r || r.companyId === null || r.category === null) return null
         const name = companyMap.get(r.companyId)
         if (!name) return null
-        return { ...article, companyId: r.companyId, companyName: name, relevance: r.relevance }
+        return { ...article, companyId: r.companyId, companyName: name, category: r.category }
       })
       .filter((a): a is NewsArticle => a !== null)
 
-    // Pass 2: reject false positives
+    // Pass 2: remove false positives
     const pass2 = await reviewArticles(anthropic, pass1, companies)
 
     AI_CACHE.set(aiCacheKey, { articles: pass2, expiresAt: Date.now() + CACHE_TTL_MS })
     return pass2
   } catch (e) {
     console.error('[news] AI pipeline failed:', e)
-    // Fallback: only return articles where company name is in the title
     return preFiltered
       .filter(a => {
         const co = companies.find(c => c.id === a.companyId)
         return co && a.title.toLowerCase().includes(co.name.toLowerCase())
       })
-      .map(a => ({ ...a, relevance: 'mentioned' as NewsRelevance }))
+      .map(a => ({ ...a, category: 'outro' as NewsCategory }))
   }
 }
 
@@ -366,8 +370,8 @@ export async function GET(req: NextRequest) {
 
   if (bust) { cache.clear(); AI_CACHE.clear() }
 
-  const sources = sourcesParam ?
-    sourcesParam.split(',').map(s => s.trim()).filter(Boolean) : []
+  const sources = sourcesParam
+    ? sourcesParam.split(',').map(s => s.trim()).filter(Boolean) : []
 
   const { data: companies } = await supabase
     .from('companies')
@@ -410,10 +414,14 @@ export async function GET(req: NextRequest) {
 
   const enriched = await aiEnrichAndFilter(articles, list)
 
-  const relevanceOrder: Record<NewsRelevance, number> = { featured: 0, mentioned: 1 }
+  // Sort: category priority (rodada/aquisicao/ipo first), then by date
+  const CATEGORY_ORDER: Record<NewsCategory, number> = {
+    rodada: 0, ipo: 1, aquisicao: 2, parceria: 3, contratacao: 4,
+    produto: 5, expansao: 6, premio: 7, crise: 8, outro: 9,
+  }
   const sorted = enriched.sort((a, b) => {
-    const rDiff = relevanceOrder[a.relevance] - relevanceOrder[b.relevance]
-    if (rDiff !== 0) return rDiff
+    const cDiff = CATEGORY_ORDER[a.category] - CATEGORY_ORDER[b.category]
+    if (cDiff !== 0) return cDiff
     return new Date(b.pubDate).getTime() - new Date(a.pubDate).getTime()
   })
 
