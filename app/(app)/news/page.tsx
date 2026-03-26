@@ -33,7 +33,6 @@ const DATE_OPTIONS = [
 const RELEVANCE_CONFIG: Record<NewsRelevance, { label: string; className: string }> = {
   featured:  { label: 'Destaque',   className: 'bg-emerald-500/15 text-emerald-600 border-emerald-500/30' },
   mentioned: { label: 'Mencionada', className: 'bg-blue-500/15 text-blue-600 border-blue-500/30' },
-  related:   { label: 'Relacionada',className: 'bg-orange-500/15 text-orange-600 border-orange-500/30' },
 }
 
 interface Company { id: string; name: string }
@@ -295,7 +294,7 @@ export default function NewsPage() {
       {!loading && !error && filtered.length > 0 && (
         <div className="space-y-2">
           {filtered.map((article, i) => {
-            const rel = RELEVANCE_CONFIG[article.relevance] ?? RELEVANCE_CONFIG.mentioned
+            const rel = RELEVANCE_CONFIG[article.relevance]
             return (
               <a key={i} href={article.link} target="_blank" rel="noopener noreferrer"
                 className="flex items-start gap-3 rounded-lg border bg-card p-4 hover:bg-accent/50 transition-colors group">
