@@ -24,12 +24,13 @@ export async function GET() {
     id: string; name: string; stage: string | null; status: string
     industry: string[] | null; aliases: string[] | null; tags: string[]
     portfolio_group: string[] | null; contact_email: string[] | null
+    website: string | null
     metrics: { id: string }[]; inbound_emails: { received_at: string }[]
   }
 
   const { data, error } = await admin
     .from('companies')
-    .select('id, name, stage, status, industry, aliases, tags, portfolio_group, contact_email, metrics(id), inbound_emails(received_at)')
+    .select('id, name, stage, status, industry, aliases, tags, portfolio_group, contact_email, website, metrics(id), inbound_emails(received_at)')
     .eq('fund_id', membership.fund_id)
     .order('name') as { data: CompanyRow[] | null; error: { message: string } | null }
 
@@ -50,6 +51,7 @@ export async function GET() {
       tags: c.tags ?? [],
       portfolioGroup: c.portfolio_group,
       contactEmail: c.contact_email,
+      website: c.website,
       metricsCount: c.metrics?.length ?? 0,
       lastReportAt,
     }
@@ -68,7 +70,7 @@ export async function POST(req: NextRequest) {
   if (writeCheck instanceof NextResponse) return writeCheck
 
   const body = await req.json()
-  const { name, aliases, tags, stage, industry, notes, overview, founders, why_invested, current_update, contact_email, portfolio_group } = body
+  const { name, aliases, tags, stage, website, industry, notes, overview, founders, why_invested, current_update, contact_email, portfolio_group } = body
 
   if (!name?.trim()) {
     return NextResponse.json({ error: 'Name is required' }, { status: 400 })
@@ -92,6 +94,7 @@ export async function POST(req: NextRequest) {
       aliases: aliases ?? null,
       tags: tags ?? [],
       stage: stage?.trim() || null,
+      website: website?.trim() || null,
       industry: industry ?? null,
       notes: notes?.trim() || null,
       overview: overview?.trim() || null,

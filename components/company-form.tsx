@@ -25,6 +25,7 @@ export function CompanyForm({ company, initialName, onSuccess, onCancel }: Props
   const [aliases, setAliases] = useState<string[]>(company?.aliases ?? [])
   const [aliasInput, setAliasInput] = useState('')
   const [stage, setStage] = useState(company?.stage ?? '')
+  const [website, setWebsite] = useState(company?.website ?? '')
   const [industries, setIndustries] = useState<string[]>(company?.industry ?? [])
   const [industryInput, setIndustryInput] = useState('')
   const [tags, setTags] = useState<string[]>(company?.tags ?? [])
@@ -143,6 +144,7 @@ export function CompanyForm({ company, initialName, onSuccess, onCancel }: Props
           aliases: aliases.length > 0 ? aliases : null,
           tags: tags.length > 0 ? tags : [],
           stage: stage.trim() || null,
+          website: website.trim() || null,
           industry: industries.length > 0 ? industries : null,
           notes: notes.trim() || null,
           overview: overview.trim() || null,
@@ -251,6 +253,19 @@ export function CompanyForm({ company, initialName, onSuccess, onCancel }: Props
           value={stage}
           onChange={e => setStage(e.target.value)}
         />
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="website">Website</Label>
+        <Input
+          id="website"
+          placeholder="https://acme.com"
+          value={website}
+          onChange={e => setWebsite(e.target.value)}
+        />
+        <p className="text-xs text-muted-foreground">
+          Used by AI to add context when generating summaries and classifying news.
+        </p>
       </div>
 
       <div className="space-y-2">

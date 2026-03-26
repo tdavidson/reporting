@@ -34,7 +34,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   if (writeCheck instanceof NextResponse) return writeCheck
 
   const body = await req.json()
-  const { name, aliases, tags, stage, industry, notes, status, overview, founders, why_invested, current_update, contact_email, portfolio_group, google_drive_folder_id, google_drive_folder_name, dropbox_folder_path } = body
+  const { name, aliases, tags, stage, website, industry, notes, status, overview, founders, why_invested, current_update, contact_email, portfolio_group, google_drive_folder_id, google_drive_folder_name, dropbox_folder_path } = body
 
   if (name !== undefined && !name?.trim()) {
     return NextResponse.json({ error: 'Name cannot be empty' }, { status: 400 })
@@ -64,6 +64,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   if (aliases !== undefined) updates.aliases = aliases
   if (tags !== undefined) updates.tags = tags
   if (stage !== undefined) updates.stage = stage?.trim() || null
+  if (website !== undefined) updates.website = website?.trim() || null
   if (industry !== undefined) updates.industry = industry
   if (notes !== undefined) updates.notes = notes?.trim() || null
   if (overview !== undefined) updates.overview = overview?.trim() || null
