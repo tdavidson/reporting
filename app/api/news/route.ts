@@ -6,7 +6,7 @@ const cache = new Map<string, { data: RawArticle[]; expiresAt: number }>()
 const CACHE_TTL_MS = 60 * 60 * 1000
 const AI_CACHE = new Map<string, { articles: NewsArticle[]; expiresAt: number }>()
 
-export type NewsRelevance = 'featured' | 'mentioned' | 'related'
+export type NewsRelevance = 'featured' | 'mentioned'
 
 export interface NewsArticle {
   title: string
@@ -75,21 +75,7 @@ function extractDomain(website: string | null): string | null {
 }
 
 function formatPubDate(dateStr: string): string {
-  try {
-    return new Date(dateStr).toISOString().split('T')[0]
-  } catch {
-    return dateStr
-  }
-}
-
-async function fetchRSS(query: string): Promise<RawArticle[]> {
-  const url = `https://news.google.com/rss/search?q=${encodeURIComponent(query)}&hl=pt-BR&gl=BR&ceid=BR:pt`
-  const res = await fetch(url, {
-    headers: { 'User-Agent': 'Mozilla/5.0 (compatible; NewsReader/1.0)' },
-    signal: AbortSignal.timeout(6000),
-  })
-  if (!res.ok) return []
-  return res.text().then(xml => parseRSSItems(xml, '', ''))
+  try { return new Date(dateStr).toISOString().split('T')[0] } catch { return dateStr }
 }
 
 function parseRSSItems(xml: string, companyId: string, companyName: string): RawArticle[] {
@@ -123,14 +109,10 @@ async function fetchCompanyNews(
   if (cached && cached.expiresAt > Date.now()) return cached.data
 
   try {
-    // Query 1: exact name match (with optional site filters)
     let q1 = `"${companyName}"`
-    if (allSources.length > 0) {
-      q1 += ` (${allSources.map(s => `site:${s}`).join(' OR ')})`
-    }
+    if (allSources.length > 0) q1 += ` (${allSources.map(s => `site:${s}`).join(' OR ')})`
 
-    // Query 2: broader — name without quotes to catch partial matches & PT-BR content
-    const q2 = `${companyName} startup OR funding OR rodada OR investimento OR lançamento`
+    const q2 = `${companyName} startup OR funding OR rodada OR investimento OR lançamento OR aquisição`
 
     const [res1, res2] = await Promise.allSettled([
       fetch(`https://news.google.com/rss/search?q=${encodeURIComponent(q1)}&hl=pt-BR&gl=BR&ceid=BR:pt`, {
@@ -145,7 +127,6 @@ async function fetchCompanyNews(
 
     const articles: RawArticle[] = []
     const seen = new Set<string>()
-
     for (const r of [res1, res2]) {
       if (r.status !== 'fulfilled' || !r.value.ok) continue
       const xml = await r.value.text()
@@ -162,10 +143,120 @@ async function fetchCompanyNews(
   }
 }
 
-type AIResult = {
+type ClassifyResult = {
   index: number
   companyId: string | null
   relevance: NewsRelevance | null
+}
+
+type ReviewResult = {
+  index: number
+  keep: boolean
+  reason?: string
+}
+
+// Pass 1 — classify: assign companyId + relevance, discard unrelated
+async function classifyArticles(
+  anthropic: Anthropic,
+  articles: RawArticle[],
+  companies: { id: string; name: string; website: string | null }[]
+): Promise<ClassifyResult[]> {
+  const companyList = companies.map(c => {
+    const domain = extractDomain(c.website)
+    return `- id: ${c.id} | name: ${c.name}${domain ? ` | website: ${domain}` : ''}`
+  }).join('\n')
+
+  const articleList = articles.map((a, i) =>
+    `[${i}] "${a.title}" · ${a.sourceDomain} · ${formatPubDate(a.pubDate)}`
+  ).join('\n')
+
+  const prompt = `You are a financial news classifier for a VC fund.
+
+Portfolio companies:
+${companyList}
+
+News articles (index · title · source · date):
+${articleList}
+
+For each article return:
+- companyId: UUID of the portfolio company DIRECTLY MENTIONED OR NAMED in the article. Must appear by name (or clear alias/ticker) in the title. Return null otherwise.
+- relevance:
+  - "featured"  — company is the PRIMARY subject (funding round, product launch, acquisition, IPO, executive change, legal issue, etc.)
+  - "mentioned" — company name appears clearly but it is not the main subject
+  - null        — company is NOT directly named → discard
+
+Strict rules:
+- ONLY assign a companyId if the company name (or a known alias) appears in the article title or can be clearly inferred from the source domain.
+- Sector/market news with no direct company mention → companyId: null, relevance: null.
+- When companyId is null, relevance must be null.
+- PT-BR titles are valid — do not discard by language.
+- When in doubt → null.
+
+Respond ONLY with a JSON array:
+[{"index":0,"companyId":"uuid","relevance":"featured"},{"index":1,"companyId":null,"relevance":null}]`
+
+  const msg = await anthropic.messages.create({
+    model: 'claude-haiku-4-5',
+    max_tokens: 1024,
+    messages: [{ role: 'user', content: prompt }],
+  })
+  const raw = msg.content[0]?.type === 'text' ? msg.content[0].text : '[]'
+  const match = raw.match(/\[.*\]/s)
+  try { return match ? JSON.parse(match[0]) : [] } catch { return [] }
+}
+
+// Pass 2 — review: double-check each classified article, reject false positives
+async function reviewArticles(
+  anthropic: Anthropic,
+  candidates: NewsArticle[],
+  companies: { id: string; name: string; website: string | null }[]
+): Promise<NewsArticle[]> {
+  if (candidates.length === 0) return []
+
+  const companyById = new Map(companies.map(c => ({
+    ...c, domain: extractDomain(c.website)
+  })).map(c => [c.id, c]))
+
+  const articleList = candidates.map((a, i) => {
+    const co = companyById.get(a.companyId)
+    return `[${i}] company: "${co?.name}"${co?.domain ? ` (${co.domain})` : ''} | title: "${a.title}" | source: ${a.sourceDomain} | relevance: ${a.relevance}`
+  }).join('\n')
+
+  const prompt = `You are a strict editorial reviewer for a VC fund news feed.
+
+Below are news articles that were classified as relevant to specific portfolio companies.
+Your job is to reject any false positives — articles where the company is NOT actually mentioned or the classification is wrong.
+
+Articles to review:
+${articleList}
+
+For each article return:
+- keep: true if the article genuinely names or clearly refers to the company, false if it is a false positive
+- reason: one short sentence only if keep is false
+
+Rules:
+- Be strict. If the company name does not appear in the title and the source is not the company's own domain, mark keep: false.
+- A generic sector article is NOT about a specific company → keep: false.
+- "featured" articles must be clearly the PRIMARY story about that company.
+- "mentioned" articles must explicitly name the company.
+
+Respond ONLY with a JSON array:
+[{"index":0,"keep":true},{"index":1,"keep":false,"reason":"Title about sector trend, no company name"}]`
+
+  const msg = await anthropic.messages.create({
+    model: 'claude-haiku-4-5',
+    max_tokens: 1024,
+    messages: [{ role: 'user', content: prompt }],
+  })
+  const raw = msg.content[0]?.type === 'text' ? msg.content[0].text : '[]'
+  const match = raw.match(/\[.*\]/s)
+  let results: ReviewResult[] = []
+  try { results = match ? JSON.parse(match[0]) : [] } catch { /* keep all on parse fail */ }
+
+  return candidates.filter((_, i) => {
+    const r = results.find(x => x.index === i)
+    return !r || r.keep !== false
+  })
 }
 
 async function aiEnrichAndFilter(
@@ -180,71 +271,28 @@ async function aiEnrichAndFilter(
 
   try {
     const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
-
-    const companyList = companies.map(c => {
-      const domain = extractDomain(c.website)
-      return `- id: ${c.id} | name: ${c.name}${domain ? ` | website: ${domain}` : ''}`
-    }).join('\n')
-
-    // Pass title + source domain + date for richer classification
-    const articleList = articles.map((a, i) =>
-      `[${i}] "${a.title}" · ${a.sourceDomain} · ${formatPubDate(a.pubDate)}`
-    ).join('\n')
-
-    const prompt = `You are a financial news classifier for a VC fund. Your job is to tag news articles with the correct portfolio company and relevance level.
-
-Portfolio companies:
-${companyList}
-
-News articles (index · title · source domain · date):
-${articleList}
-
-For each article, determine:
-1. companyId — UUID of the portfolio company this article is primarily about. Use the company name, website domain, and context clues (funding, product, executive names) to decide. Return null if the article is not about any portfolio company.
-2. relevance:
-   - "featured"  — company IS the main subject (funding round, product launch, executive change, acquisition, IPO, etc.)
-   - "mentioned" — company is clearly named but is not the main subject
-   - "related"   — article is about the company's market/sector but does not name it directly
-   - null        — unrelated; discard
-
-Important rules:
-- Articles in Portuguese (PT-BR) are valid — do not discard based on language.
-- Use the source domain to help disambiguate (e.g. a company's own blog domain = high confidence).
-- A recent date combined with a relevant title is a strong signal.
-- When companyId is null, relevance must also be null.
-- Do NOT guess. If genuinely ambiguous, return null for both.
-
-Respond ONLY with a JSON array, no explanation or markdown:
-[{"index":0,"companyId":"uuid-here","relevance":"featured"},{"index":1,"companyId":null,"relevance":null}]`
-
-    const message = await anthropic.messages.create({
-      model: 'claude-haiku-4-5',
-      max_tokens: 1024,
-      messages: [{ role: 'user', content: prompt }],
-    })
-
-    const raw = message.content[0]?.type === 'text' ? message.content[0].text : '[]'
-    const jsonMatch = raw.match(/\[.*\]/s)
-    let results: AIResult[] = []
-    try { results = jsonMatch ? JSON.parse(jsonMatch[0]) : [] } catch { /* fallback */ }
-
     const companyMap = new Map(companies.map(c => [c.id, c.name]))
 
-    const enriched = articles
+    // Pass 1: classify
+    const classified = await classifyArticles(anthropic, articles, companies)
+    const pass1: NewsArticle[] = articles
       .map((article, i) => {
-        const match = results.find((r: AIResult) => r.index === i)
-        if (!match || match.companyId === null || match.relevance === null) return null
-        const name = companyMap.get(match.companyId)
+        const r = classified.find(x => x.index === i)
+        if (!r || r.companyId === null || r.relevance === null) return null
+        const name = companyMap.get(r.companyId)
         if (!name) return null
-        return { ...article, companyId: match.companyId, companyName: name, relevance: match.relevance }
+        return { ...article, companyId: r.companyId, companyName: name, relevance: r.relevance }
       })
       .filter((a): a is NewsArticle => a !== null)
 
-    AI_CACHE.set(aiCacheKey, { articles: enriched, expiresAt: Date.now() + CACHE_TTL_MS })
-    return enriched
+    // Pass 2: review — reject false positives
+    const pass2 = await reviewArticles(anthropic, pass1, companies)
+
+    AI_CACHE.set(aiCacheKey, { articles: pass2, expiresAt: Date.now() + CACHE_TTL_MS })
+    return pass2
   } catch (e) {
-    console.error('[news] Claude enrichment failed, skipping:', e)
-    return articles.map(a => ({ ...a, relevance: 'mentioned' as NewsRelevance }))
+    console.error('[news] AI pipeline failed:', e)
+    return []
   }
 }
 
@@ -266,11 +314,7 @@ export async function GET(req: NextRequest) {
   const countryFilter = req.nextUrl.searchParams.get('country')
   const bust = req.nextUrl.searchParams.get('bust')
 
-  // Clear in-memory caches on forced refresh
-  if (bust) {
-    cache.clear()
-    AI_CACHE.clear()
-  }
+  if (bust) { cache.clear(); AI_CACHE.clear() }
 
   const sources = sourcesParam ? sourcesParam.split(',').map(s => s.trim()).filter(Boolean) : []
 
@@ -290,7 +334,6 @@ export async function GET(req: NextRequest) {
   )
   let articles = results.flat()
 
-  // Deduplicate by normalized URL
   const seen = new Set<string>()
   articles = articles.filter(a => {
     const key = normalizeUrl(a.link)
@@ -299,7 +342,6 @@ export async function GET(req: NextRequest) {
     return true
   })
 
-  // Date filter
   if (dateRange && dateRange !== 'all') {
     const cutoff = getDateCutoff(dateRange)
     const ceiling = getDateCeiling(dateRange)
@@ -311,16 +353,13 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  // Country filter
   if (countryFilter && countryFilter !== 'all') {
     articles = articles.filter(a => domainToCountry(a.sourceDomain) === countryFilter)
   }
 
-  // Claude enrichment: fix attribution + relevance tag
   const enriched = await aiEnrichAndFilter(articles, list)
 
-  // Sort: featured first, then by date
-  const relevanceOrder: Record<NewsRelevance, number> = { featured: 0, mentioned: 1, related: 2 }
+  const relevanceOrder: Record<NewsRelevance, number> = { featured: 0, mentioned: 1 }
   const sorted = enriched.sort((a, b) => {
     const rDiff = relevanceOrder[a.relevance] - relevanceOrder[b.relevance]
     if (rDiff !== 0) return rDiff
