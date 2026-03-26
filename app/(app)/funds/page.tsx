@@ -104,7 +104,6 @@ function computeFundMetrics(
 ): FundMetrics {
   const { cashOnHand, carryRate, gpCommitPct, vintage, managementFeeRate } = config
 
-  // Filter flows by asOfDate
   const filteredFlows = asOfDate
     ? cashFlows.filter(cf => cf.flow_date <= asOfDate)
     : cashFlows
@@ -750,12 +749,12 @@ export default function FundsPage() {
   if (loading || !asOfDate) {
     return (
       <PortfolioNotesProvider pageContext="funds">
-      <div className="p-4 md:py-8 md:pl-8 md:pr-4 w-full">
-        {heading}
-        <div className="flex items-center gap-2 text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin" />Loading...
+        <div className="p-4 md:py-8 md:pl-8 md:pr-4 w-full">
+          {heading}
+          <div className="flex items-center gap-2 text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" />Loading...
+          </div>
         </div>
-      </div>
       </PortfolioNotesProvider>
     )
   }
@@ -763,11 +762,12 @@ export default function FundsPage() {
   if (groups.length === 0) {
     return (
       <PortfolioNotesProvider pageContext="funds">
-      <div className="p-4 md:py-8 md:pl-8 md:pr-4 w-full">
-        {heading}
-        <p className="text-sm text-muted-foreground">
-          No fund cash flows yet. Add cash flows from the Import page or from individual group tabs.
-        </p>
+        <div className="p-4 md:py-8 md:pl-8 md:pr-4 w-full">
+          {heading}
+          <p className="text-sm text-muted-foreground">
+            No fund cash flows yet. Add cash flows from the Import page or from individual group tabs.
+          </p>
+        </div>
       </PortfolioNotesProvider>
     )
   }
