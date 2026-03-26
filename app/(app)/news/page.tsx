@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { Newspaper, ExternalLink, RefreshCw, Settings2, X, Check, Building2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import type { NewsArticle } from '@/app/api/news/route'
+import type { NewsArticle, NewsRelevance } from '@/app/api/news/route'
 
 const NEWS_SOURCES_KEY = 'prlx:newsSources'
 
@@ -29,6 +29,12 @@ const DATE_OPTIONS = [
   { value: 'ytd', label: 'YTD' },
   { value: 'lastyear', label: 'Last year' },
 ]
+
+const RELEVANCE_CONFIG: Record<NewsRelevance, { label: string; className: string }> = {
+  featured:  { label: 'Destaque',   className: 'bg-emerald-500/15 text-emerald-600 border-emerald-500/30' },
+  mentioned: { label: 'Mencionada', className: 'bg-blue-500/15 text-blue-600 border-blue-500/30' },
+  related:   { label: 'Relacionada',className: 'bg-orange-500/15 text-orange-600 border-orange-500/30' },
+}
 
 interface Company { id: string; name: string }
 
@@ -231,7 +237,6 @@ export default function NewsPage() {
         <p className="text-sm text-muted-foreground mt-1">Latest news about your portfolio companies · cached for 1h</p>
       </div>
 
-      {/* Filters row: Period left, Companies right */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-1.5">
           <span className="text-xs text-muted-foreground">Period:</span>
@@ -248,16 +253,13 @@ export default function NewsPage() {
             ))}
           </div>
         </div>
-
         {companies.length > 0 && (
-          <button
-            onClick={() => setShowCompanies(true)}
+          <button onClick={() => setShowCompanies(true)}
             className={`flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border transition-colors ${
               selectedCompanies.length > 0
                 ? 'bg-foreground text-background border-foreground'
                 : 'border-border text-muted-foreground hover:text-foreground'
-            }`}
-          >
+            }`}>
             <Building2 className="h-3 w-3" />
             {selectedCompanies.length > 0 ? `${selectedCompanies.length} co.` : 'Companies'}
           </button>
@@ -292,20 +294,24 @@ export default function NewsPage() {
 
       {!loading && !error && filtered.length > 0 && (
         <div className="space-y-2">
-          {filtered.map((article, i) => (
-            <a key={i} href={article.link} target="_blank" rel="noopener noreferrer"
-              className="flex items-start gap-3 rounded-lg border bg-card p-4 hover:bg-accent/50 transition-colors group">
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium leading-snug group-hover:underline">{article.title}</p>
-                <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                  <Badge variant="outline" className="text-[10px] px-1.5 py-0">{article.companyName}</Badge>
-                  <span className="text-[11px] text-muted-foreground">{article.source}</span>
-                  <span className="text-[11px] text-muted-foreground">{article.pubDate ? timeAgo(article.pubDate) : ''}</span>
+          {filtered.map((article, i) => {
+            const rel = RELEVANCE_CONFIG[article.relevance] ?? RELEVANCE_CONFIG.mentioned
+            return (
+              <a key={i} href={article.link} target="_blank" rel="noopener noreferrer"
+                className="flex items-start gap-3 rounded-lg border bg-card p-4 hover:bg-accent/50 transition-colors group">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium leading-snug group-hover:underline">{article.title}</p>
+                  <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                    <Badge variant="outline" className="text-[10px] px-1.5 py-0">{article.companyName}</Badge>
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full border font-medium ${rel.className}`}>{rel.label}</span>
+                    <span className="text-[11px] text-muted-foreground">{article.source}</span>
+                    <span className="text-[11px] text-muted-foreground">{article.pubDate ? timeAgo(article.pubDate) : ''}</span>
+                  </div>
                 </div>
-              </div>
-              <ExternalLink className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity" />
-            </a>
-          ))}
+                <ExternalLink className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity" />
+              </a>
+            )
+          })}
         </div>
       )}
     </div>

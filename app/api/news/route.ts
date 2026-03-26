@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import OpenAI from 'openai'
+import Anthropic from '@anthropic-ai/sdk'
 
 const cache = new Map<string, { data: NewsArticle[]; expiresAt: number }>()
 const CACHE_TTL_MS = 60 * 60 * 1000
 const AI_CACHE = new Map<string, { articles: NewsArticle[]; expiresAt: number }>()
+
+export type NewsRelevance = 'featured' | 'mentioned' | 'related'
 
 export interface NewsArticle {
   title: string
@@ -14,6 +16,7 @@ export interface NewsArticle {
   sourceDomain: string
   companyId: string
   companyName: string
+  relevance: NewsRelevance
 }
 
 const TLD_TO_COUNTRY: Record<string, string> = {
@@ -63,10 +66,10 @@ async function fetchCompanyNews(
   companyId: string,
   companyName: string,
   sources: string[]
-): Promise<NewsArticle[]> {
+): Promise<Omit<NewsArticle, 'relevance'>[]> {
   const cacheKey = `news:${companyId}:${[...sources].sort().join(',')}`
   const cached = cache.get(cacheKey)
-  if (cached && cached.expiresAt > Date.now()) return cached.data
+  if (cached && cached.expiresAt > Date.now()) return cached.data as Omit<NewsArticle, 'relevance'>[]
 
   try {
     let queryStr = `"${companyName}"`
@@ -86,7 +89,7 @@ async function fetchCompanyNews(
     const xml = await res.text()
     const items = Array.from(xml.matchAll(/<item>([\s\S]*?)<\/item>/g))
 
-    const articles: NewsArticle[] = items.slice(0, 10).map(match => {
+    const articles = items.slice(0, 10).map(match => {
       const block = match[1]
       const title = block.match(/<title>(.*?)<\/title>/)?.[1]?.replace(/<[^>]+>/g, '').trim() ?? ''
       const link = block.match(/<link\s*\/?>(.*?)(?:<\/link>|$)/)?.[1]?.trim()
@@ -99,17 +102,21 @@ async function fetchCompanyNews(
       return { title, link, pubDate, source, sourceDomain, companyId, companyName }
     }).filter(a => a.title && a.link)
 
-    cache.set(cacheKey, { data: articles, expiresAt: Date.now() + CACHE_TTL_MS })
+    cache.set(cacheKey, { data: articles as NewsArticle[], expiresAt: Date.now() + CACHE_TTL_MS })
     return articles
   } catch {
     return []
   }
 }
 
-type AIResult = { index: number; companyId: string | null }
+type AIResult = {
+  index: number
+  companyId: string | null
+  relevance: NewsRelevance | null
+}
 
 async function aiEnrichAndFilter(
-  articles: NewsArticle[],
+  articles: Omit<NewsArticle, 'relevance'>[],
   companies: { id: string; name: string }[]
 ): Promise<NewsArticle[]> {
   if (articles.length === 0) return []
@@ -119,64 +126,63 @@ async function aiEnrichAndFilter(
   if (aiCached && aiCached.expiresAt > Date.now()) return aiCached.articles
 
   try {
-    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+    const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
     const companyList = companies.map(c => `${c.id}:${c.name}`).join('\n')
-    const articleList = articles
-      .map((a, i) => `[${i}] ${a.title}`)
-      .join('\n')
+    const articleList = articles.map((a, i) => `[${i}] ${a.title}`).join('\n')
 
     const prompt = `You are a financial news classifier for a VC fund.
 
-Companies in the portfolio:
+Portfolio companies:
 ${companyList}
 
 News articles (index: title):
 ${articleList}
 
-For each article, identify which portfolio company is the PRIMARY subject of the news.
+For each article return:
+- companyId: the UUID of the portfolio company that is the subject of the article, or null if not relevant
+- relevance: one of:
+  - "featured"  — company is the PRIMARY subject (headline news, funding round, product launch, executive change, etc.)
+  - "mentioned" — company is clearly cited but not the main subject
+  - "related"   — article is about the company's sector/market but doesn't name it directly
+  - null        — article is completely unrelated; discard it
+
 Rules:
-- Only assign a company if the article is CLEARLY about that specific company.
-- If the article mentions a company only tangentially or as context, return null.
-- If the article is about a competitor, market trend, or unrelated topic, return null.
-- Do NOT guess. When in doubt, return null.
+- Only assign a companyId if the article is about a portfolio company.
+- When companyId is null, set relevance to null too.
+- Do NOT guess. When in doubt, return null for both.
 
-Respond ONLY with a JSON array. Example:
-[{"index":0,"companyId":"uuid-here"},{"index":1,"companyId":null}]`
+Respond ONLY with a JSON array, no explanation:
+[{"index":0,"companyId":"uuid","relevance":"featured"},{"index":1,"companyId":null,"relevance":null}]`
 
-    const response = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
+    const message = await anthropic.messages.create({
+      model: 'claude-haiku-4-5',
+      max_tokens: 1024,
       messages: [{ role: 'user', content: prompt }],
-      temperature: 0,
-      response_format: { type: 'json_object' },
     })
 
-    const raw = response.choices[0]?.message?.content ?? '{}'
-    // model may return {"results": [...]} or just [...]
+    const raw = message.content[0]?.type === 'text' ? message.content[0].text : '[]'
+    const jsonMatch = raw.match(/\[.*\]/s)
     let results: AIResult[] = []
-    try {
-      const parsed = JSON.parse(raw)
-      results = Array.isArray(parsed) ? parsed : (parsed.results ?? parsed.articles ?? Object.values(parsed)[0] ?? [])
-    } catch { /* fallback: keep all */ }
+    try { results = jsonMatch ? JSON.parse(jsonMatch[0]) : [] } catch { /* fallback */ }
 
     const companyMap = new Map(companies.map(c => [c.id, c.name]))
 
     const enriched = articles
       .map((article, i) => {
         const match = results.find((r: AIResult) => r.index === i)
-        if (!match) return article // no AI result → keep as-is
-        if (match.companyId === null) return null // AI says not relevant → discard
+        if (!match || match.companyId === null || match.relevance === null) return null
         const name = companyMap.get(match.companyId)
         if (!name) return null
-        return { ...article, companyId: match.companyId, companyName: name }
+        return { ...article, companyId: match.companyId, companyName: name, relevance: match.relevance }
       })
       .filter((a): a is NewsArticle => a !== null)
 
     AI_CACHE.set(aiCacheKey, { articles: enriched, expiresAt: Date.now() + CACHE_TTL_MS })
     return enriched
   } catch (e) {
-    console.error('[news] AI enrichment failed, skipping:', e)
-    return articles
+    console.error('[news] Claude enrichment failed, skipping:', e)
+    return articles.map(a => ({ ...a, relevance: 'mentioned' as NewsRelevance }))
   }
 }
 
@@ -210,11 +216,10 @@ export async function GET(req: NextRequest) {
     !companiesParam || companiesParam.split(',').includes(c.id)
   )
 
-  // 1. Fetch raw articles per company
   const results = await Promise.all(list.map(c => fetchCompanyNews(c.id, c.name, sources)))
   let articles = results.flat()
 
-  // 2. Deduplicate by normalized URL
+  // Deduplicate by normalized URL
   const seen = new Set<string>()
   articles = articles.filter(a => {
     const key = normalizeUrl(a.link)
@@ -223,7 +228,7 @@ export async function GET(req: NextRequest) {
     return true
   })
 
-  // 3. Date filter
+  // Date filter
   if (dateRange && dateRange !== 'all') {
     const cutoff = getDateCutoff(dateRange)
     const ceiling = getDateCeiling(dateRange)
@@ -235,20 +240,23 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  // 4. Country filter
+  // Country filter
   if (countryFilter && countryFilter !== 'all') {
     articles = articles.filter(a => domainToCountry(a.sourceDomain) === countryFilter)
   }
 
-  // 5. AI enrichment + relevance filter
-  articles = await aiEnrichAndFilter(articles, list)
+  // Claude enrichment: fix attribution + relevance tag
+  const enriched = await aiEnrichAndFilter(articles, list)
 
-  // 6. Sort
-  articles = articles.sort((a, b) =>
-    new Date(b.pubDate).getTime() - new Date(a.pubDate).getTime()
-  )
+  // Sort: featured first, then by date
+  const relevanceOrder: Record<NewsRelevance, number> = { featured: 0, mentioned: 1, related: 2 }
+  const sorted = enriched.sort((a, b) => {
+    const rDiff = relevanceOrder[a.relevance] - relevanceOrder[b.relevance]
+    if (rDiff !== 0) return rDiff
+    return new Date(b.pubDate).getTime() - new Date(a.pubDate).getTime()
+  })
 
-  const countriesInResults = Array.from(new Set(articles.map(a => domainToCountry(a.sourceDomain)))).sort()
+  const countriesInResults = Array.from(new Set(sorted.map(a => domainToCountry(a.sourceDomain)))).sort()
 
-  return NextResponse.json({ articles, companies: list, countriesInResults })
+  return NextResponse.json({ articles: sorted, companies: list, countriesInResults })
 }
