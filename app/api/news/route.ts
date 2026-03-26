@@ -62,19 +62,35 @@ function normalizeUrl(url: string): string {
   }
 }
 
+function extractDomain(website: string | null): string | null {
+  if (!website) return null
+  try {
+    const url = website.startsWith('http') ? website : `https://${website}`
+    return new URL(url).hostname.replace(/^www\./, '')
+  } catch {
+    return null
+  }
+}
+
 async function fetchCompanyNews(
   companyId: string,
   companyName: string,
-  sources: string[]
+  sources: string[],
+  websiteDomain: string | null
 ): Promise<Omit<NewsArticle, 'relevance'>[]> {
-  const cacheKey = `news:${companyId}:${[...sources].sort().join(',')}`
+  // Merge website domain into sources automatically
+  const allSources = websiteDomain
+    ? Array.from(new Set([...sources, websiteDomain]))
+    : sources
+
+  const cacheKey = `news:${companyId}:${[...allSources].sort().join(',')}`
   const cached = cache.get(cacheKey)
   if (cached && cached.expiresAt > Date.now()) return cached.data as Omit<NewsArticle, 'relevance'>[]
 
   try {
     let queryStr = `"${companyName}"`
-    if (sources.length > 0) {
-      const siteFilters = sources.map(s => `site:${s}`).join(' OR ')
+    if (allSources.length > 0) {
+      const siteFilters = allSources.map(s => `site:${s}`).join(' OR ')
       queryStr += ` (${siteFilters})`
     }
 
@@ -117,7 +133,7 @@ type AIResult = {
 
 async function aiEnrichAndFilter(
   articles: Omit<NewsArticle, 'relevance'>[],
-  companies: { id: string; name: string }[]
+  companies: { id: string; name: string; website: string | null }[]
 ): Promise<NewsArticle[]> {
   if (articles.length === 0) return []
 
@@ -128,12 +144,16 @@ async function aiEnrichAndFilter(
   try {
     const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
-    const companyList = companies.map(c => `${c.id}:${c.name}`).join('\n')
+    const companyList = companies.map(c => {
+      const domain = extractDomain(c.website)
+      return `${c.id}: ${c.name}${domain ? ` (website: ${domain})` : ''}`
+    }).join('\n')
+
     const articleList = articles.map((a, i) => `[${i}] ${a.title}`).join('\n')
 
     const prompt = `You are a financial news classifier for a VC fund.
 
-Portfolio companies:
+Portfolio companies (id: name, website domain when available):
 ${companyList}
 
 News articles (index: title):
@@ -148,6 +168,7 @@ For each article return:
   - null        — article is completely unrelated; discard it
 
 Rules:
+- Use the website domain as a strong signal to disambiguate companies with similar names.
 - Only assign a companyId if the article is about a portfolio company.
 - When companyId is null, set relevance to null too.
 - Do NOT guess. When in doubt, return null for both.
@@ -207,16 +228,18 @@ export async function GET(req: NextRequest) {
 
   const { data: companies } = await supabase
     .from('companies')
-    .select('id, name')
+    .select('id, name, website')
     .eq('fund_id', membership.fund_id)
     .eq('status', 'active')
-    .order('name') as { data: { id: string; name: string }[] | null }
+    .order('name') as { data: { id: string; name: string; website: string | null }[] | null }
 
   const list = (companies ?? []).filter(c =>
     !companiesParam || companiesParam.split(',').includes(c.id)
   )
 
-  const results = await Promise.all(list.map(c => fetchCompanyNews(c.id, c.name, sources)))
+  const results = await Promise.all(
+    list.map(c => fetchCompanyNews(c.id, c.name, sources, extractDomain(c.website)))
+  )
   let articles = results.flat()
 
   // Deduplicate by normalized URL
