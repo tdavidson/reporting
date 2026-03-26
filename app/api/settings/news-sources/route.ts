@@ -19,7 +19,8 @@ export async function GET() {
   const { data: membership } = await getFundId(admin, user.id)
   if (!membership) return NextResponse.json({ error: 'No fund found' }, { status: 404 })
 
-  const { data: sources } = await admin
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: sources } = await (admin as any)
     .from('news_sources')
     .select('id, name, url, enabled, created_at')
     .eq('fund_id', membership.fund_id)
@@ -45,7 +46,8 @@ export async function POST(req: NextRequest) {
   let normalized = url.trim()
   if (!/^https?:\/\//i.test(normalized)) normalized = 'https://' + normalized
 
-  const { data, error } = await admin
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (admin as any)
     .from('news_sources')
     .insert({ fund_id: membership.fund_id, name: name.trim(), url: normalized })
     .select('id, name, url, enabled, created_at')

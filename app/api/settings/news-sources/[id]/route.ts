@@ -28,7 +28,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     updates.url = url
   }
 
-  const { error } = await admin
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (admin as any)
     .from('news_sources')
     .update(updates)
     .eq('id', params.id)
@@ -52,7 +53,8 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
   if (!membership) return NextResponse.json({ error: 'No fund found' }, { status: 404 })
   if (membership.role !== 'admin') return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
 
-  const { error } = await admin
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (admin as any)
     .from('news_sources')
     .delete()
     .eq('id', params.id)
