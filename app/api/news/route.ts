@@ -428,3 +428,4 @@ export async function GET(req: NextRequest) {
   const countriesInResults = Array.from(new Set(sorted.map(a => domainToCountry(a.sourceDomain)))).sort()
 
   return NextResponse.json({ articles: sorted, companies: list, countriesInResults })
+}
