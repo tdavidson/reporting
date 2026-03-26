@@ -81,11 +81,12 @@ const FLOW_TYPE_LABELS: Record<string, string> = {
 function computeTotalManagementFees(
   committed: number,
   managementFeeRate: number,
-  vintage: number | null
+  vintage: number | null,
+  asOfDate: string
 ): number {
   if (!managementFeeRate || !vintage || committed <= 0) return 0
-  const currentYear = new Date().getFullYear()
-  const years = Math.max(0, currentYear - vintage)
+  const asOfYear = asOfDate ? new Date(asOfDate + 'T00:00:00').getFullYear() : new Date().getFullYear()
+  const years = Math.max(0, asOfYear - vintage)
   return committed * managementFeeRate * years
 }
 
@@ -96,84 +97,63 @@ function parseLocalDate(dateStr: string): Date {
 
 function computeFundMetrics(
   cashFlows: FundCashFlow[],
-  grossResidual: number, // NAV atual das empresas (Fair Market Value)
-  totalInvested: number, // Capital que efetivamente entrou nas empresas (Cost Basis)
-  config: GroupConfig
+  grossResidual: number,
+  totalInvested: number,
+  config: GroupConfig,
+  asOfDate: string
 ): FundMetrics {
   const { cashOnHand, carryRate, gpCommitPct, vintage, managementFeeRate } = config
-  
+
+  // Filter flows by asOfDate
+  const filteredFlows = asOfDate
+    ? cashFlows.filter(cf => cf.flow_date <= asOfDate)
+    : cashFlows
+
   let called = 0
   let distributions = 0
   let committed = 0
 
-  // 1. Segregação Real dos Fluxos
-  for (const cf of cashFlows) {
+  for (const cf of filteredFlows) {
     if (cf.flow_type === 'called_capital') called += cf.amount
     if (cf.flow_type === 'distribution') distributions += cf.amount
     if (cf.flow_type === 'commitment') committed += cf.amount
   }
 
-  // Ajuste de segurança: Se não lançou commitment, assume que é ao menos o que foi chamado
   const finalCommitted = committed > 0 ? committed : called
-  const uncalled = Math.max(0, finalCommitted - called)
-
-  // 2. Cálculo de Patrimônio e Carry
   const grossAssets = grossResidual + cashOnHand
-  const lpCalled = called * (1 - gpCommitPct)
-  const lpDistributions = distributions * (1 - gpCommitPct)
-  
-  // O Carry deve incidir sobre o lucro do LP após recuperar o capital chamado (Hurdle 0 aqui)
-const lpBasis = Math.max(0, called - distributions)
-const estimatedCarry = Math.max(0, carryRate * (grossAssets - lpBasis))
-  
+  const lpBasis = Math.max(0, called - distributions)
+  const estimatedCarry = Math.max(0, carryRate * (grossAssets - lpBasis))
   const netResidual = grossAssets - estimatedCarry
   const totalValue = distributions + netResidual
 
-  // Taxa de gestão sobre o COMPROMETIDO (Padrão de mercado no período de investimento)
-  const totalManagementFees = computeTotalManagementFees(finalCommitted, managementFeeRate, vintage)
+  const totalManagementFees = computeTotalManagementFees(finalCommitted, managementFeeRate, vintage, asOfDate)
 
-  // 3. MÉTRICAS NET (Base: CALLED - O quanto o investidor desembolsou)
-  // O denominador aqui é o "cheque do investidor"
   const netTvpi = called > 0 ? totalValue / called : null
   const dpi = called > 0 ? distributions / called : null
   const rvpi = called > 0 ? netResidual / called : null
-    
-  // 4. MÉTRICAS GROSS (Base: INVESTED - O quanto foi para o "game")
-  // O denominador aqui é o custo dos ativos
+
   const totalInvestedCalculation = called - totalManagementFees
   const grossMoic = totalInvestedCalculation > 0 ? (distributions + grossResidual) / totalInvestedCalculation : null
   const netMoic = totalInvestedCalculation > 0 ? totalValue / totalInvestedCalculation : null
   const grossTvpi = called > 0 ? (distributions + grossResidual) / called : null
 
-  // 5. XIRR NET (Fluxo real do bolso do investidor) ---
+  const asOfDateObj = asOfDate ? parseLocalDate(asOfDate) : new Date()
+
   const netXirrFlows: CashFlow[] = []
-  for (const cf of cashFlows) {
-    if (cf.flow_type === 'called_capital') {
-      netXirrFlows.push({ date: new Date(cf.flow_date), amount: -cf.amount })
-    }
-    if (cf.flow_type === 'distribution') {
-      netXirrFlows.push({ date: new Date(cf.flow_date), amount: cf.amount })
-    }
+  for (const cf of filteredFlows) {
+    if (cf.flow_type === 'called_capital') netXirrFlows.push({ date: parseLocalDate(cf.flow_date), amount: -cf.amount })
+    if (cf.flow_type === 'distribution') netXirrFlows.push({ date: parseLocalDate(cf.flow_date), amount: cf.amount })
   }
-  if (netResidual > 0) netXirrFlows.push({ date: new Date(), amount: netResidual })
+  if (netResidual > 0) netXirrFlows.push({ date: asOfDateObj, amount: netResidual })
   const netIrr = netXirrFlows.length >= 2 ? xirr(netXirrFlows) : null
 
-  // 6. XIRR GROSS (Fluxo da tese de investimento) ---
-  const grossXirrFlows: CashFlow[] = []
-  // Proporção do capital que efetivamente virou investimento (ex: 0.92)
   const invRatio = called > 0 ? (totalInvested / called) : 1
-
-  for (const cf of cashFlows) {
-    if (cf.flow_type === 'called_capital') {
-      // Removemos a "fricção" das taxas de cada aporte para ver o retorno puro do ativo
-      grossXirrFlows.push({ date: new Date(cf.flow_date), amount: -(cf.amount * invRatio) })
-    }
-    if (cf.flow_type === 'distribution') {
-      grossXirrFlows.push({ date: new Date(cf.flow_date), amount: cf.amount })
-    }
+  const grossXirrFlows: CashFlow[] = []
+  for (const cf of filteredFlows) {
+    if (cf.flow_type === 'called_capital') grossXirrFlows.push({ date: parseLocalDate(cf.flow_date), amount: -(cf.amount * invRatio) })
+    if (cf.flow_type === 'distribution') grossXirrFlows.push({ date: parseLocalDate(cf.flow_date), amount: cf.amount })
   }
-  // No Gross, usamos o Residual ANTES do Carry
-  if (grossResidual > 0) grossXirrFlows.push({ date: new Date(), amount: grossResidual })
+  if (grossResidual > 0) grossXirrFlows.push({ date: asOfDateObj, amount: grossResidual })
   const grossIrr = grossXirrFlows.length >= 2 ? xirr(grossXirrFlows) : null
 
   return {
@@ -193,87 +173,8 @@ const estimatedCarry = Math.max(0, carryRate * (grossAssets - lpBasis))
     grossMoic,
     netMoic,
     grossIrr,
-    netTvpi, // Repetido para compatibilidade de interface
+    netTvpi,
     grossTvpi,
-    totalManagementFees,
-  }
-}
-
-function computeMasterFundMetrics(
-  allCashFlows: FundCashFlow[],
-  totalGrossResidual: number,
-  totalInvested: number,
-  totalCashOnHand: number,
-  totalManagementFees: number,
-  avgCarryRate: number,
-  avgGpCommitPct: number,
-): FundMetrics {
-  let called = 0
-  let distributions = 0
-
-  for (const cf of allCashFlows) {
-    if (cf.flow_type === 'called_capital') called += cf.amount
-    if (cf.flow_type === 'distribution') distributions += cf.amount
-  }
-
-  const committed = called
-  const uncalled = 0
-  const grossAssets = totalGrossResidual + totalCashOnHand
-
-  const gpCapital = called * avgGpCommitPct
-  const lpCapital = called - gpCapital
-  const lpDistributions = distributions * (1 - avgGpCommitPct)
-  const lpRemainingCapital = lpCapital - lpDistributions
-  const estimatedCarry = Math.max(0, avgCarryRate * (grossAssets * (1 - avgGpCommitPct) - lpRemainingCapital))
-  const netResidual = grossAssets - estimatedCarry
-  const totalValue = distributions + netResidual
-
-  const netTvpi = called > 0 ? totalValue / called : null
-  const tvpi = netTvpi
-  const dpi = called > 0 ? distributions / called : null
-  const rvpi = called > 0 ? netResidual / called : null
-
-  const grossMoic = totalInvested > 0 ? (distributions + totalGrossResidual) / totalInvested : null
-  const netMoicNumerator = distributions + netResidual - totalManagementFees
-  const netMoic = totalInvested > 0 ? netMoicNumerator / totalInvested : null
-
-const today2 = new Date()
-const todayNorm2 = new Date(today2.getFullYear(), today2.getMonth(), today2.getDate())
-const xirrFlows: CashFlow[] = []
-for (const cf of allCashFlows) {
-  if (cf.flow_type === 'called_capital') xirrFlows.push({ date: parseLocalDate(cf.flow_date), amount: -cf.amount })
-  if (cf.flow_type === 'distribution') xirrFlows.push({ date: parseLocalDate(cf.flow_date), amount: cf.amount })
-}
-if (netResidual > 0) xirrFlows.push({ date: todayNorm2, amount: netResidual })
-  const netIrr = xirrFlows.length >= 2 ? xirr(xirrFlows) : null
-
-const grossXirrFlows: CashFlow[] = []
-  // Ratio para distribuir o 'totalInvested' proporcionalmente aos chamados de capital
-  const invRatio = called > 0 ? (totalInvested / called) : 1
-
-  for (const cf of allCashFlows) {
-    const date = parseLocalDate(cf.flow_date)
-    if (cf.flow_type === 'called_capital') {
-      // Considera apenas a parte que foi para o ativo em cada data
-      grossXirrFlows.push({ date, amount: -(cf.amount * invRatio) })
-    }
-    if (cf.flow_type === 'distribution') {
-      grossXirrFlows.push({ date, amount: cf.amount })
-    }
-  }
-  // Terminal Value (Valor de hoje sem desconto de Carry)
-  if (totalGrossResidual > 0) {
-    grossXirrFlows.push({ date: todayNorm2, amount: totalGrossResidual })
-  }
-  const grossIrr = grossXirrFlows.length >= 2 ? xirr(grossXirrFlows) : null
-  const grossTvpi = called > 0 ? (distributions + totalGrossResidual) / called : null
-
-  return {
-    committed, called, totalInvested, distributions,
-    cashOnHand: totalCashOnHand,
-    grossResidual: totalGrossResidual,
-    estimatedCarry, netResidual, totalValue,
-    tvpi, dpi, rvpi, netIrr, grossMoic, netMoic, grossIrr, netTvpi, grossTvpi,
     totalManagementFees,
   }
 }
@@ -305,7 +206,8 @@ export default function FundsPage() {
   const [cashFlows, setCashFlows] = useState<FundCashFlow[]>([])
   const [investmentGroups, setInvestmentGroups] = useState<GroupSummaryFromInvestments[]>([])
   const [groupConfigs, setGroupConfigs] = useState<Record<string, GroupConfig>>({})
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(false)
+  const [asOfDate, setAsOfDate] = useState('')
   const { displayUnit, setDisplayUnit } = useDisplayUnit()
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editDraft, setEditDraft] = useState({ flowDate: '', flowType: '', amount: '', notes: '', portfolioGroup: '' })
@@ -323,7 +225,7 @@ export default function FundsPage() {
   const [importResult, setImportResult] = useState<{ created: number; errors: string[] } | null>(null)
 
   const [settingsOpen, setSettingsOpen] = useState(false)
-const [settingsDrafts, setSettingsDrafts] = useState<Record<string, {
+  const [settingsDrafts, setSettingsDrafts] = useState<Record<string, {
     carryRate: string
     gpCommitPct: string
     vintage: string
@@ -344,13 +246,21 @@ const [settingsDrafts, setSettingsDrafts] = useState<Record<string, {
   const [draggedGroup, setDraggedGroup] = useState<string | null>(null)
   const [dragOverGroup, setDragOverGroup] = useState<string | null>(null)
 
+  // Hydrate asOfDate from localStorage (same key as Investments)
   useEffect(() => {
+    const saved = localStorage.getItem('asOfDate') ?? new Date().toISOString().split('T')[0]
+    setAsOfDate(saved)
+  }, [])
+
+  // Load data only after asOfDate is hydrated
+  useEffect(() => {
+    if (!asOfDate) return
     async function load() {
       setLoading(true)
       try {
         const [cfRes, invRes, gcRes] = await Promise.all([
           fetch('/api/portfolio/fund-cash-flows'),
-          fetch('/api/portfolio/investments'),
+          fetch(`/api/portfolio/investments?asOf=${asOfDate}`),
           fetch('/api/portfolio/fund-group-config'),
         ])
         if (cfRes.ok) setCashFlows(await cfRes.json())
@@ -385,7 +295,7 @@ const [settingsDrafts, setSettingsDrafts] = useState<Record<string, {
       }
     }
     load()
-  }, [])
+  }, [asOfDate])
 
   const groups = useMemo(() => {
     const set = new Set<string>()
@@ -432,12 +342,12 @@ const [settingsDrafts, setSettingsDrafts] = useState<Record<string, {
       const grossResidual = grossResidualByGroup.get(group) ?? 0
       const totalInvested = totalInvestedByGroup.get(group) ?? 0
       const config = groupConfigs[group] ?? DEFAULT_CONFIG
-      map.set(group, computeFundMetrics(groupFlows, grossResidual, totalInvested, config))
+      map.set(group, computeFundMetrics(groupFlows, grossResidual, totalInvested, config, asOfDate))
     }
     return map
-  }, [groups, cashFlows, grossResidualByGroup, totalInvestedByGroup, groupConfigs])
+  }, [groups, cashFlows, grossResidualByGroup, totalInvestedByGroup, groupConfigs, asOfDate])
 
-const masterMetrics = useMemo(() => {
+  const masterMetrics = useMemo(() => {
     let called = 0
     let distributions = 0
     let netResidual = 0
@@ -448,12 +358,13 @@ const masterMetrics = useMemo(() => {
     let estimatedCarry = 0
     let totalManagementFees = 0
 
+    const asOfDateObj = asOfDate ? parseLocalDate(asOfDate) : new Date()
     const netXirrFlows: CashFlow[] = []
 
     for (const group of groups) {
       const m = metricsByGroup.get(group)
       if (!m) continue
-      
+
       called += m.called
       distributions += m.distributions
       netResidual += m.netResidual
@@ -464,48 +375,46 @@ const masterMetrics = useMemo(() => {
       estimatedCarry += m.estimatedCarry
       totalManagementFees += m.totalManagementFees
 
-      const groupFlows = cashFlows.filter(cf => cf.portfolio_group === group)
+      const groupFlows = cashFlows.filter(cf =>
+        cf.portfolio_group === group &&
+        (!asOfDate || cf.flow_date <= asOfDate)
+      )
       for (const cf of groupFlows) {
-        if (cf.flow_type === 'called_capital') {
-          netXirrFlows.push({ date: new Date(cf.flow_date), amount: -cf.amount })
-        }
-        if (cf.flow_type === 'distribution') {
-          netXirrFlows.push({ date: new Date(cf.flow_date), amount: cf.amount })
-        }
+        if (cf.flow_type === 'called_capital') netXirrFlows.push({ date: parseLocalDate(cf.flow_date), amount: -cf.amount })
+        if (cf.flow_type === 'distribution') netXirrFlows.push({ date: parseLocalDate(cf.flow_date), amount: cf.amount })
       }
     }
 
-    if (netResidual > 0) netXirrFlows.push({ date: new Date(), amount: netResidual })
-    
+    if (netResidual > 0) netXirrFlows.push({ date: asOfDateObj, amount: netResidual })
+
     let netIrr = null
     if (netXirrFlows.length >= 2) {
       try { netIrr = xirr(netXirrFlows) } catch (e) { console.error(e) }
     }
     const totalValue = distributions + netResidual
-    
+
     const tvpi = called > 0 ? totalValue / called : null
     const dpi = called > 0 ? distributions / called : null
     const rvpi = called > 0 ? netResidual / called : null
-
     const grossTvpi = called > 0 ? (distributions + grossResidual) / called : null
 
     return {
       committed, called, totalInvested, distributions,
       cashOnHand, grossResidual, estimatedCarry, netResidual, totalValue,
-      tvpi, dpi, rvpi, netIrr, 
-      grossMoic: portfolioMOIC, 
-      netMoic: tvpi, 
-      grossIrr: portfolioIRR, 
+      tvpi, dpi, rvpi, netIrr,
+      grossMoic: portfolioMOIC,
+      netMoic: tvpi,
+      grossIrr: portfolioIRR,
       netTvpi: tvpi, grossTvpi,
       totalManagementFees,
     }
-  }, [cashFlows, groups, metricsByGroup, portfolioIRR, portfolioMOIC])
+  }, [cashFlows, groups, metricsByGroup, portfolioIRR, portfolioMOIC, asOfDate])
 
   const fmt = (val: number) => formatWithUnit(val, displayUnit, currency)
-const fmtCard = (val: number) => {
-  const symbol = currency === 'BRL' ? 'R$' : currency === 'EUR' ? '€' : currency === 'GBP' ? '£' : '$'
-  return `${symbol}${(val / 1_000_000).toFixed(1)}M`
-}
+  const fmtCard = (val: number) => {
+    const symbol = currency === 'BRL' ? 'R$' : currency === 'EUR' ? '€' : currency === 'GBP' ? '£' : '$'
+    return `${symbol}${(val / 1_000_000).toFixed(1)}M`
+  }
 
   const masterCumulatives = useMemo(() => {
     let cumulCalled = 0
@@ -743,9 +652,9 @@ const fmtCard = (val: number) => {
     return (
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
         {[
-{ label: 'Called', value: fmtCard(metrics.called) },
-{ label: 'Invested', value: fmtCard(metrics.totalInvested) },
-{ label: 'Distributions', value: fmtCard(metrics.distributions) },
+          { label: 'Called', value: fmtCard(metrics.called) },
+          { label: 'Invested', value: fmtCard(metrics.totalInvested) },
+          { label: 'Distributions', value: fmtCard(metrics.distributions) },
         ].map(card => (
           <Card key={card.label}>
             <CardContent className="pt-3 pb-2 px-3">
@@ -790,15 +699,14 @@ const fmtCard = (val: number) => {
         </Card>
 
         {[
-        { label: 'Gross IRR', value: fmtIrr(metrics.grossIrr) },
-        { label: 'Gross MOIC', value: fmtMoic(metrics.grossMoic) },
-        { label: 'Gross TVPI', value: fmtMoic(metrics.grossTvpi) },
-        { label: 'DPI', value: fmtMoic(metrics.dpi) },
-        { label: 'Net IRR', value: fmtIrr(metrics.netIrr) },       
-        { label: 'Net MOIC', value: fmtMoic(metrics.netMoic) },
-        { label: 'Net TVPI', value: fmtMoic(metrics.netTvpi) },
-        { label: 'RVPI', value: fmtMoic(metrics.rvpi) },
-        
+          { label: 'Gross IRR', value: fmtIrr(metrics.grossIrr) },
+          { label: 'Gross MOIC', value: fmtMoic(metrics.grossMoic) },
+          { label: 'Gross TVPI', value: fmtMoic(metrics.grossTvpi) },
+          { label: 'DPI', value: fmtMoic(metrics.dpi) },
+          { label: 'Net IRR', value: fmtIrr(metrics.netIrr) },
+          { label: 'Net MOIC', value: fmtMoic(metrics.netMoic) },
+          { label: 'Net TVPI', value: fmtMoic(metrics.netTvpi) },
+          { label: 'RVPI', value: fmtMoic(metrics.rvpi) },
         ].map(card => (
           <Card key={card.label}>
             <CardContent className="pt-3 pb-2 px-3">
@@ -811,48 +719,63 @@ const fmtCard = (val: number) => {
     )
   }
 
-  if (loading) {
-    return (
-      <div className="p-4 md:py-8 md:pl-8 md:pr-4 w-full">
-        <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2 mb-6">
+  const heading = (
+    <div className="mb-6 space-y-1">
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2">
           {fv.funds === 'admin' && <Lock className="h-4 w-4 text-amber-500" />}Funds
         </h1>
+        <span className="flex items-center gap-2">
+          <DisplayPanelButton />
+          <PortfolioNotesButton />
+          <AnalystToggleButton />
+        </span>
+      </div>
+      <p className="text-sm text-muted-foreground">Fund-level cash flows, NAV, and performance metrics</p>
+      <div className="flex items-center gap-2 pt-2">
+        <span className="text-sm text-muted-foreground">As of</span>
+        <input
+          type="date"
+          value={asOfDate}
+          onChange={e => {
+            setAsOfDate(e.target.value)
+            localStorage.setItem('asOfDate', e.target.value)
+          }}
+          className="border rounded px-2 py-1 text-sm"
+        />
+      </div>
+    </div>
+  )
+
+  if (loading || !asOfDate) {
+    return (
+      <PortfolioNotesProvider pageContext="funds">
+      <div className="p-4 md:py-8 md:pl-8 md:pr-4 w-full">
+        {heading}
         <div className="flex items-center gap-2 text-muted-foreground">
           <Loader2 className="h-4 w-4 animate-spin" />Loading...
         </div>
       </div>
+      </PortfolioNotesProvider>
     )
   }
 
   if (groups.length === 0) {
     return (
+      <PortfolioNotesProvider pageContext="funds">
       <div className="p-4 md:py-8 md:pl-8 md:pr-4 w-full">
-        <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2 mb-6">
-          {fv.funds === 'admin' && <Lock className="h-4 w-4 text-amber-500" />}Funds
-        </h1>
+        {heading}
         <p className="text-sm text-muted-foreground">
           No fund cash flows yet. Add cash flows from the Import page or from individual group tabs.
         </p>
-      </div>
+      </PortfolioNotesProvider>
     )
   }
 
   return (
     <PortfolioNotesProvider pageContext="funds">
     <div className="p-4 md:py-8 md:pl-8 md:pr-4 w-full">
-      <div className="mb-6 space-y-1">
-        <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2">
-            {fv.funds === 'admin' && <Lock className="h-4 w-4 text-amber-500" />}Funds
-          </h1>
-          <span className="flex items-center gap-2">
-            <DisplayPanelButton />
-            <PortfolioNotesButton />
-            <AnalystToggleButton />
-          </span>
-        </div>
-        <p className="text-sm text-muted-foreground">Fund-level cash flows, NAV, and performance metrics</p>
-      </div>
+      {heading}
 
       <div className="flex flex-col lg:flex-row gap-6 items-start">
       <div className="flex-1 min-w-0 w-full">
@@ -877,23 +800,23 @@ const fmtCard = (val: number) => {
               window.addEventListener('mouseup', onUp)
             }}
           >
-<TabsList className="flex-nowrap whitespace-nowrap">
-  <TabsTrigger 
-    value={MASTER_FUND_KEY}
-    className="data-[state=active]:bg-[#0F2332] data-[state=active]:text-white"
-  >
-    Prlx Fund I
-  </TabsTrigger>
-  {orderedGroups.map(g => (
-    <TabsTrigger 
-      key={g} 
-      value={g}
-      className="data-[state=active]:bg-[#0F2332] data-[state=active]:text-white"
-    >
-      {g || '(none)'}
-    </TabsTrigger>
-  ))}
-</TabsList>
+            <TabsList className="flex-nowrap whitespace-nowrap">
+              <TabsTrigger
+                value={MASTER_FUND_KEY}
+                className="data-[state=active]:bg-[#0F2332] data-[state=active]:text-white"
+              >
+                Prlx Fund I
+              </TabsTrigger>
+              {orderedGroups.map(g => (
+                <TabsTrigger
+                  key={g}
+                  value={g}
+                  className="data-[state=active]:bg-[#0F2332] data-[state=active]:text-white"
+                >
+                  {g || '(none)'}
+                </TabsTrigger>
+              ))}
+            </TabsList>
           </div>
           <button
             onClick={openSettings}
@@ -923,6 +846,7 @@ const fmtCard = (val: number) => {
               </thead>
               <tbody>
                 {[...cashFlows]
+                  .filter(cf => !asOfDate || cf.flow_date <= asOfDate)
                   .sort((a, b) => a.flow_date.localeCompare(b.flow_date))
                   .map(cf => (
                     <tr key={cf.id} className="border-b last:border-b-0 hover:bg-muted/30">
@@ -951,7 +875,7 @@ const fmtCard = (val: number) => {
         {orderedGroups.map(group => {
           const metrics = metricsByGroup.get(group)!
           const groupFlows = cashFlows
-            .filter(cf => cf.portfolio_group === group)
+            .filter(cf => cf.portfolio_group === group && (!asOfDate || cf.flow_date <= asOfDate))
             .sort((a, b) => a.flow_date.localeCompare(b.flow_date))
 
           let cumulCalled = 0
