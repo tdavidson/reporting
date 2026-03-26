@@ -186,7 +186,12 @@ const fmt = fmtCard
 
   const [data, setData] = useState<PortfolioData | null>(null)
   const [loading, setLoading] = useState(true)
-  const [asOfDate, setAsOfDate] = useState(() => new Date().toISOString().split('T')[0])
+  const [asOfDate, setAsOfDate] = useState(() => {
+  if (typeof window !== 'undefined') {
+    return localStorage.getItem('asOfDate') ?? new Date().toISOString().split('T')[0]
+  }
+  return new Date().toISOString().split('T')[0]
+})
 
   const [sortKey, setSortKey] = useState<SortKey>('totalValue')
   const [sortDir, setSortDir] = useState<SortDir>('desc')
@@ -466,7 +471,10 @@ function fmtVal(val: number | null, format: 'currency' | 'moic' | 'irr'): string
         <input
           type="date"
           value={asOfDate}
-          onChange={e => setAsOfDate(e.target.value)}
+          onChange={e => {
+  setAsOfDate(e.target.value)
+  localStorage.setItem('asOfDate', e.target.value)
+}}
           className="border rounded px-2 py-1 text-sm"
         />
       </div>
