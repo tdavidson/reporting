@@ -15,26 +15,11 @@ export interface NewsArticle {
 }
 
 const TLD_TO_COUNTRY: Record<string, string> = {
-  'com': 'US',
-  'us': 'US',
-  'co.uk': 'UK',
-  'uk': 'UK',
-  'com.br': 'BR',
-  'br': 'BR',
-  'de': 'DE',
-  'fr': 'FR',
-  'es': 'ES',
-  'it': 'IT',
-  'ca': 'CA',
-  'au': 'AU',
-  'co.au': 'AU',
-  'in': 'IN',
-  'co.in': 'IN',
-  'jp': 'JP',
-  'cn': 'CN',
-  'sg': 'SG',
-  'io': 'TECH',
-  'ai': 'TECH',
+  'com': 'US', 'us': 'US', 'co.uk': 'UK', 'uk': 'UK',
+  'com.br': 'BR', 'br': 'BR', 'de': 'DE', 'fr': 'FR',
+  'es': 'ES', 'it': 'IT', 'ca': 'CA', 'au': 'AU',
+  'co.au': 'AU', 'in': 'IN', 'co.in': 'IN', 'jp': 'JP',
+  'cn': 'CN', 'sg': 'SG', 'io': 'TECH', 'ai': 'TECH',
 }
 
 function domainToCountry(domain: string): string {
@@ -43,6 +28,27 @@ function domainToCountry(domain: string): string {
     if (d.endsWith('.' + suffix) || d === suffix) return country
   }
   return 'US'
+}
+
+function getDateCutoff(dateRange: string): number | null {
+  const now = new Date()
+  if (dateRange === '24h') return Date.now() - 86400000
+  if (dateRange === '7d') return Date.now() - 7 * 86400000
+  if (dateRange === '30d') return Date.now() - 30 * 86400000
+  if (dateRange === 'ytd') return new Date(now.getFullYear(), 0, 1).getTime()
+  if (dateRange === 'lastyear') {
+    const y = now.getFullYear() - 1
+    return new Date(y, 0, 1).getTime()
+  }
+  return null
+}
+
+function getDateCeiling(dateRange: string): number | null {
+  if (dateRange === 'lastyear') {
+    const y = new Date().getFullYear() - 1
+    return new Date(y, 11, 31, 23, 59, 59, 999).getTime()
+  }
+  return null
 }
 
 async function fetchCompanyNews(
@@ -126,9 +132,14 @@ export async function GET(req: NextRequest) {
   let articles = results.flat()
 
   if (dateRange && dateRange !== 'all') {
-    const msMap: Record<string, number> = { '24h': 86400000, '7d': 7 * 86400000, '30d': 30 * 86400000 }
-    const cutoff = Date.now() - (msMap[dateRange] ?? 0)
-    articles = articles.filter(a => new Date(a.pubDate).getTime() >= cutoff)
+    const cutoff = getDateCutoff(dateRange)
+    const ceiling = getDateCeiling(dateRange)
+    if (cutoff !== null) {
+      articles = articles.filter(a => {
+        const t = new Date(a.pubDate).getTime()
+        return t >= cutoff && (ceiling === null || t <= ceiling)
+      })
+    }
   }
 
   if (countryFilter && countryFilter !== 'all') {
