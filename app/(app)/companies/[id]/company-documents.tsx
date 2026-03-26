@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import { FileText, Trash2, Loader2, ChevronDown, ChevronRight, FileSpreadsheet, FileImage, File, Mail } from 'lucide-react'
+import { FileText, Trash2, Loader2, ChevronDown, ChevronRight, FileSpreadsheet, FileImage, File, Mail, ExternalLink } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 interface Document {
@@ -48,6 +48,7 @@ export function CompanyDocuments({ companyId, storageProvider, googleDriveFolder
   const [documents, setDocuments] = useState<Document[]>([])
   const [loading, setLoading] = useState(true)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [openingId, setOpeningId] = useState<string | null>(null)
   const [expanded, setExpanded] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -65,15 +66,32 @@ export function CompanyDocuments({ companyId, storageProvider, googleDriveFolder
 
   useEffect(() => { load() }, [load])
 
+  async function handleOpen(docId: string) {
+    setOpeningId(docId)
+    setError(null)
+    try {
+      const res = await fetch(`/api/companies/${companyId}/documents/${docId}`)
+      if (res.ok) {
+        const { url } = await res.json()
+        window.open(url, '_blank', 'noopener,noreferrer')
+      } else {
+        const data = await res.json()
+        setError(data.error ?? 'Failed to open document')
+      }
+    } catch {
+      setError('Failed to open document')
+    } finally {
+      setOpeningId(null)
+    }
+  }
+
   async function handleDelete(docId: string) {
     setDeletingId(docId)
     setError(null)
-
     try {
       const res = await fetch(`/api/companies/${companyId}/documents/${docId}`, {
         method: 'DELETE',
       })
-
       if (res.ok) {
         setDocuments(prev => prev.filter(d => d.id !== docId))
       } else {
@@ -129,8 +147,16 @@ export function CompanyDocuments({ companyId, storageProvider, googleDriveFolder
               key={doc.id}
               className="flex items-center justify-between gap-3 px-3 py-2 rounded-md border bg-card text-sm"
             >
-              <div className="flex items-center gap-2 min-w-0">
-                <FileIcon fileType={doc.file_type} source={doc.source} />
+              <button
+                onClick={() => handleOpen(doc.id)}
+                disabled={openingId === doc.id}
+                className="flex items-center gap-2 min-w-0 flex-1 text-left hover:text-foreground text-foreground/80 transition-colors"
+              >
+                {openingId === doc.id ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" />
+                ) : (
+                  <FileIcon fileType={doc.file_type} source={doc.source} />
+                )}
                 <span className="truncate">{doc.filename}</span>
                 <span className="text-xs text-muted-foreground shrink-0">
                   {formatFileSize(doc.file_size)}
@@ -140,7 +166,8 @@ export function CompanyDocuments({ companyId, storageProvider, googleDriveFolder
                     month: 'short', day: 'numeric',
                   })}
                 </span>
-              </div>
+                <ExternalLink className="h-3 w-3 text-muted-foreground shrink-0" />
+              </button>
               {doc.source === 'upload' && (
                 <Button
                   size="sm"
