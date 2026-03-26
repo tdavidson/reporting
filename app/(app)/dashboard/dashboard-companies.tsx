@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useEffect, useCallback, useRef } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { ArrowDownAZ, ArrowUpZA, ArrowDown, ArrowUp, LayoutGrid, Table2, CalendarDays, Plus, Upload } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
@@ -250,18 +250,11 @@ function CompanyGrid({ companies, logoMap, onLogoUpdate }: { companies: Company[
   const [loadingMetrics, setLoadingMetrics] = useState<Set<string>>(new Set())
   const fetchedRef = useRef<Set<string>>(new Set())
 
-const getSelectedMetrics = useCallback((c: Company): [ActiveMetric | null, ActiveMetric | null] => {
-  const valuation = c.activeMetrics.find(m =>
-    /valuation post money|post money valuation|post-money valuation|valuation/i.test(m.name)
-  ) ?? null
-
-  const revenue = c.activeMetrics.find(m =>
-    /net revenue|gross revenue|revenue|mrr|arr/i.test(m.name)
-  ) ?? null
-
-  return [valuation, revenue]
-}, [])
-
+  // activeMetrics already arrives filtered by is_active=true and sorted by display_order
+  // just take the first 2
+  function getSelectedMetrics(c: Company): [ActiveMetric | null, ActiveMetric | null] {
+    return [c.activeMetrics[0] ?? null, c.activeMetrics[1] ?? null]
+  }
 
   useEffect(() => {
     const metricsToFetch: { companyId: string; metricId: string }[] = []
@@ -304,7 +297,7 @@ const getSelectedMetrics = useCallback((c: Company): [ActiveMetric | null, Activ
           })
         })
     }
-  }, [companies, getSelectedMetrics])
+  }, [companies])
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
