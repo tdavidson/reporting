@@ -242,7 +242,7 @@ export function MetricChart({ metric, values, onRefresh, compact }: Props) {
                   key={i}
                   fill={CONFIDENCE_COLORS[entry.raw.confidence] ?? chartColor}
                   fillOpacity={entry.raw.is_manually_entered ? 0.5 : 0.8}
-                  strokeDasharray={entry.raw.is_manually_entered ? '4 2' : 'none'}
+                  strokeDasharray={entry.raw.is_manually_entered ? '2 2' : 'none'}
                   stroke={entry.raw.is_manually_entered ? (CONFIDENCE_COLORS[entry.raw.confidence] ?? chartColor) : 'none'}
                   strokeWidth={entry.raw.is_manually_entered ? 2 : 0}
                 />
