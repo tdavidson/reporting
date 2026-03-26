@@ -252,8 +252,8 @@ Respond ONLY with a JSON array, no explanation:
     max_tokens: 2048,
     messages: [{ role: 'user', content: prompt }],
   })
-  const raw = msg.content[0]?.type === 'text' ? msg.content[0].text : '[]'
-  const match = raw.match(/\[.*\]/s)
+  console.log('[classify] raw AI response:', raw.slice(0, 1000))
+  const match = raw.match(/\[[\s\S]*\]/)
   try { return match ? JSON.parse(match[0]) : [] } catch { return [] }
 }
 
@@ -368,7 +368,7 @@ export async function GET(req: NextRequest) {
   const countryFilter = req.nextUrl.searchParams.get('country')
   const bust = req.nextUrl.searchParams.get('bust')
 
-  if (bust) { cache.clear(); AI_CACHE.clear() }
+  cache.clear(); AI_CACHE.clear()
 
   const sources = sourcesParam
     ? sourcesParam.split(',').map(s => s.trim()).filter(Boolean) : []
