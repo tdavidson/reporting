@@ -155,7 +155,7 @@ type ReviewResult = {
   reason?: string
 }
 
-// Pass 1 — classify: assign companyId + relevance, discard unrelated
+// Pass 1 — classify articles: assign companyId + relevance
 async function classifyArticles(
   anthropic: Anthropic,
   articles: RawArticle[],
@@ -167,32 +167,33 @@ async function classifyArticles(
   }).join('\n')
 
   const articleList = articles.map((a, i) =>
-    `[${i}] "${a.title}" · ${a.sourceDomain} · ${formatPubDate(a.pubDate)}`
+    `[${i}] "${a.title}" · source: ${a.sourceDomain} · date: ${formatPubDate(a.pubDate)}`
   ).join('\n')
 
-  const prompt = `You are a financial news classifier for a VC fund.
+  const prompt = `You are a financial news classifier for a VC fund portfolio.
 
-Portfolio companies:
+Portfolio companies (id | name | website domain):
 ${companyList}
 
-News articles (index · title · source · date):
+News articles fetched from Google News for these companies (index · title · source · date):
 ${articleList}
 
+IMPORTANT CONTEXT: These articles were already pre-filtered by Google News using the company name as a search query. Most articles WILL be relevant. Your job is to confirm the match and classify.
+
 For each article return:
-- companyId: UUID of the portfolio company DIRECTLY MENTIONED OR NAMED in the article. Must appear by name (or clear alias/ticker) in the title. Return null otherwise.
+- companyId: UUID of the matching portfolio company. Use company name in title, known aliases, OR source domain matching company website as signals. Assign the most likely match.
 - relevance:
-  - "featured"  — company is the PRIMARY subject (funding round, product launch, acquisition, IPO, executive change, legal issue, etc.)
-  - "mentioned" — company name appears clearly but it is not the main subject
-  - null        — company is NOT directly named → discard
+  - "featured"  — company is the PRIMARY subject (funding, product launch, acquisition, IPO, exec change, legal issue, partnership announcement, etc.)
+  - "mentioned" — company is clearly named or referenced but not the main subject
+  - null        — article has absolutely no connection to any portfolio company (pure sector/macro news)
 
-Strict rules:
-- ONLY assign a companyId if the company name (or a known alias) appears in the article title or can be clearly inferred from the source domain.
-- Sector/market news with no direct company mention → companyId: null, relevance: null.
-- When companyId is null, relevance must be null.
-- PT-BR titles are valid — do not discard by language.
-- When in doubt → null.
+Rules:
+- If the source domain matches a company’s website domain, that is a strong positive signal.
+- Articles in Portuguese (PT-BR) are valid.
+- Only return null when you are confident the article has zero connection to any portfolio company.
+- Default to assigning the company whose name was used to fetch this article.
 
-Respond ONLY with a JSON array:
+Respond ONLY with a JSON array, no explanation:
 [{"index":0,"companyId":"uuid","relevance":"featured"},{"index":1,"companyId":null,"relevance":null}]`
 
   const msg = await anthropic.messages.create({
@@ -205,7 +206,7 @@ Respond ONLY with a JSON array:
   try { return match ? JSON.parse(match[0]) : [] } catch { return [] }
 }
 
-// Pass 2 — review: double-check each classified article, reject false positives
+// Pass 2 — review: remove obvious false positives only
 async function reviewArticles(
   anthropic: Anthropic,
   candidates: NewsArticle[],
@@ -213,35 +214,34 @@ async function reviewArticles(
 ): Promise<NewsArticle[]> {
   if (candidates.length === 0) return []
 
-  const companyById = new Map(companies.map(c => ({
-    ...c, domain: extractDomain(c.website)
-  })).map(c => [c.id, c]))
+  const companyById = new Map(
+    companies.map(c => [c.id, { ...c, domain: extractDomain(c.website) }])
+  )
 
   const articleList = candidates.map((a, i) => {
     const co = companyById.get(a.companyId)
-    return `[${i}] company: "${co?.name}"${co?.domain ? ` (${co.domain})` : ''} | title: "${a.title}" | source: ${a.sourceDomain} | relevance: ${a.relevance}`
+    return `[${i}] company: "${co?.name}"${co?.domain ? ` (${co.domain})` : ''} | title: "${a.title}" | source: ${a.sourceDomain} | tag: ${a.relevance}`
   }).join('\n')
 
-  const prompt = `You are a strict editorial reviewer for a VC fund news feed.
+  const prompt = `You are a quality reviewer for a VC fund news feed. Articles below were classified as relevant to specific portfolio companies.
 
-Below are news articles that were classified as relevant to specific portfolio companies.
-Your job is to reject any false positives — articles where the company is NOT actually mentioned or the classification is wrong.
+Your ONLY job is to remove obvious false positives — articles that have clearly zero connection to the assigned company.
 
-Articles to review:
+Articles:
 ${articleList}
 
-For each article return:
-- keep: true if the article genuinely names or clearly refers to the company, false if it is a false positive
-- reason: one short sentence only if keep is false
+For each article:
+- keep: true by default. Only set false if the article is OBVIOUSLY about a completely different company or topic.
+- reason: brief note only when keep is false.
 
-Rules:
-- Be strict. If the company name does not appear in the title and the source is not the company's own domain, mark keep: false.
-- A generic sector article is NOT about a specific company → keep: false.
-- "featured" articles must be clearly the PRIMARY story about that company.
-- "mentioned" articles must explicitly name the company.
+Guidelines:
+- If the company name or a close variant appears anywhere in the title → always keep: true.
+- If the source domain is the company’s own website → always keep: true.
+- If there is reasonable doubt → keep: true (benefit of the doubt).
+- Only mark keep: false for clear-cut mismatches (e.g. article about "Apple" assigned to a Brazilian fintech).
 
 Respond ONLY with a JSON array:
-[{"index":0,"keep":true},{"index":1,"keep":false,"reason":"Title about sector trend, no company name"}]`
+[{"index":0,"keep":true},{"index":1,"keep":false,"reason":"Article is about Apple, not the portfolio company"}]`
 
   const msg = await anthropic.messages.create({
     model: 'claude-haiku-4-5',
@@ -251,7 +251,7 @@ Respond ONLY with a JSON array:
   const raw = msg.content[0]?.type === 'text' ? msg.content[0].text : '[]'
   const match = raw.match(/\[.*\]/s)
   let results: ReviewResult[] = []
-  try { results = match ? JSON.parse(match[0]) : [] } catch { /* keep all on parse fail */ }
+  try { results = match ? JSON.parse(match[0]) : [] } catch { /* on parse fail keep all */ }
 
   return candidates.filter((_, i) => {
     const r = results.find(x => x.index === i)
@@ -285,14 +285,15 @@ async function aiEnrichAndFilter(
       })
       .filter((a): a is NewsArticle => a !== null)
 
-    // Pass 2: review — reject false positives
+    // Pass 2: reject obvious false positives
     const pass2 = await reviewArticles(anthropic, pass1, companies)
 
     AI_CACHE.set(aiCacheKey, { articles: pass2, expiresAt: Date.now() + CACHE_TTL_MS })
     return pass2
   } catch (e) {
     console.error('[news] AI pipeline failed:', e)
-    return []
+    // Fallback: return all articles as mentioned to avoid empty state
+    return articles.map(a => ({ ...a, relevance: 'mentioned' as NewsRelevance }))
   }
 }
 
