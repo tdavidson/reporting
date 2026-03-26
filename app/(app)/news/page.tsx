@@ -222,12 +222,7 @@ export default function NewsPage() {
               <Settings2 className="h-3.5 w-3.5" />
               Portals
             </Button>
-            <Button
-              variant="outline" size="sm"
-              onClick={handleRefresh}
-              disabled={refreshing || loading}
-              className="gap-1.5"
-            >
+            <Button variant="outline" size="sm" onClick={handleRefresh} disabled={refreshing || loading} className="gap-1.5">
               <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? 'animate-spin' : ''}`} />
               Refresh
             </Button>
@@ -236,8 +231,8 @@ export default function NewsPage() {
         <p className="text-sm text-muted-foreground mt-1">Latest news about your portfolio companies · cached for 1h</p>
       </div>
 
-      <div className="flex flex-wrap items-center gap-3 mb-6">
-        {/* Period */}
+      {/* Filters row: Period left, Companies right */}
+      <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-1.5">
           <span className="text-xs text-muted-foreground">Period:</span>
           <div className="flex gap-1 flex-wrap">
@@ -254,7 +249,6 @@ export default function NewsPage() {
           </div>
         </div>
 
-        {/* Companies */}
         {companies.length > 0 && (
           <button
             onClick={() => setShowCompanies(true)}
