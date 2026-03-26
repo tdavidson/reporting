@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { HardDrive, Check, AlertCircle, Loader2 } from 'lucide-react'
+import { Check, AlertCircle, Loader2 } from 'lucide-react'
 
 type AttachmentAction = 'keep' | 'delete'
 
@@ -17,10 +17,14 @@ interface Props {
   attachments: Attachment[]
 }
 
-export function AttachmentManager({ emailId, attachments }: Props) {
+const ACTION_OPTIONS: { value: AttachmentAction; label: string }[] = [
+  { value: 'keep', label: 'Keep in app' },
+  { value: 'delete', label: 'Delete' },
+]
 
+export function AttachmentManager({ emailId, attachments }: Props) {
   const [actions, setActions] = useState<Record<string, AttachmentAction>>(
-    Object.fromEntries(attachments.map(a => [a.Name, 'delete']))
+    Object.fromEntries(attachments.map(a => [a.Name, 'keep']))
   )
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<'success' | 'error' | null>(null)
@@ -30,29 +34,41 @@ export function AttachmentManager({ emailId, attachments }: Props) {
     setActions(prev => ({ ...prev, [name]: action }))
   }
 
-async function handleConfirm() {
+  async function handleConfirm() {
+    const deleteNames = Object.entries(actions)
+      .filter(([, action]) => action === 'delete')
+      .map(([name]) => name)
+
+    if (deleteNames.length === 0) {
+      setResult('success')
+      return
+    }
+
     setLoading(true)
     setResult(null)
     setErrorMsg(null)
-    
-    // Como não há integração externa, apenas simulamos o sucesso da organização
-    // ou você pode criar uma rota simplificada no futuro apenas para deletar anexos
+
     try {
-      // Pequeno delay para feedback visual de processamento
-      await new Promise(resolve => setTimeout(resolve, 600));
-      setResult('success');
-    } catch (err) {
-      setResult('error');
-      setErrorMsg('Failed to update attachment preferences');
+      const res = await fetch(`/api/emails/${emailId}/attachments`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ deleteNames }),
+      })
+
+      if (res.ok) {
+        setResult('success')
+      } else {
+        const data = await res.json()
+        setResult('error')
+        setErrorMsg(data.error ?? 'Failed to delete attachments')
+      }
+    } catch {
+      setResult('error')
+      setErrorMsg('Network error')
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
   }
-
-const ACTION_OPTIONS: { value: AttachmentAction; label: string }[] = [
-    { value: 'keep', label: 'Keep in app' },
-    { value: 'delete', label: 'Delete' },
-  ]
 
   return (
     <section>
@@ -102,8 +118,6 @@ const ACTION_OPTIONS: { value: AttachmentAction; label: string }[] = [
         >
           {loading ? (
             <Loader2 className="h-4 w-4 animate-spin" />
-          ) : result === 'success' ? (
-            <Check className="h-4 w-4" />
           ) : (
             <Check className="h-4 w-4" />
           )}
