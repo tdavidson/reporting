@@ -9,26 +9,16 @@ import type { NewsArticle } from '@/app/api/news/route'
 const NEWS_SOURCES_KEY = 'prlx:newsSources'
 
 const PRESET_PORTALS = [
-  { label: 'TechCrunch', url: 'techcrunch.com' },
-  { label: 'The Verge', url: 'theverge.com' },
-  { label: 'Wired', url: 'wired.com' },
-  { label: 'Bloomberg', url: 'bloomberg.com' },
-  { label: 'Reuters', url: 'reuters.com' },
-  { label: 'Financial Times', url: 'ft.com' },
-  { label: 'Forbes', url: 'forbes.com' },
-  { label: 'Business Insider', url: 'businessinsider.com' },
-  { label: 'Fast Company', url: 'fastcompany.com' },
-  { label: 'Inc.', url: 'inc.com' },
-  { label: 'VentureBeat', url: 'venturebeat.com' },
+  { label: 'Pipeline Valor', url: 'pipelinevalor.globo.com' },
+  { label: 'Brazil Journal', url: 'braziljournal.com' },
+  { label: 'NeoFeed', url: 'neofeed.com.br' },
+  { label: 'Finsiders Brasil', url: 'finsidersbrasil.com.br' },
+  { label: 'Valor Economico', url: 'valor.globo.com' },
+  { label: 'LATAM List', url: 'latamlist.com' },
   { label: 'Crunchbase News', url: 'news.crunchbase.com' },
-  { label: 'Wall Street Journal', url: 'wsj.com' },
-  { label: 'New York Times', url: 'nytimes.com' },
-  { label: 'Axios', url: 'axios.com' },
-  { label: 'The Information', url: 'theinformation.com' },
-  { label: 'Sifted', url: 'sifted.eu' },
-  { label: 'Valor Econômico', url: 'valor.globo.com' },
-  { label: 'Folha de S.Paulo', url: 'folha.uol.com.br' },
-  { label: 'Exame', url: 'exame.com' },
+  { label: 'Startups.com.br', url: 'startups.com.br' },
+  { label: 'Startupi', url: 'startupi.com.br' },
+  { label: 'LATAM Fintech', url: 'latamfintech.co' },
 ]
 
 function getSavedSources(): string[] {
@@ -87,7 +77,7 @@ function PortalsModal({ onClose }: { onClose: () => void }) {
         <p className="text-xs text-muted-foreground mb-4">
           Select the portals to filter news results. Leave all unchecked to search across all sources.
         </p>
-        <div className="grid grid-cols-2 gap-1.5 max-h-72 overflow-y-auto pr-1">
+        <div className="grid grid-cols-2 gap-1.5">
           {PRESET_PORTALS.map(p => {
             const active = selected.includes(p.url)
             return (
@@ -179,7 +169,6 @@ export default function NewsPage() {
 
   const handlePortalsClose = () => {
     setShowPortals(false)
-    // reload with potentially updated sources
     setLoading(true)
     load().finally(() => setLoading(false))
   }
@@ -221,7 +210,6 @@ export default function NewsPage() {
         </p>
       </div>
 
-      {/* Date filter */}
       <div className="flex items-center gap-1.5 mb-6">
         <span className="text-xs text-muted-foreground">Period:</span>
         <div className="flex gap-1">
