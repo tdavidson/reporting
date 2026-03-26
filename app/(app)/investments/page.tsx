@@ -172,27 +172,25 @@ function getGroupDerivedValue(row: GroupSummary, key: GroupSortKey): number {
 
 export default function InvestmentsPage() {
   const fv = useFeatureVisibility()
-const currency = useCurrency()
-const { displayUnit } = useDisplayUnit()
-const symbol = currency === 'BRL' ? 'R$' : currency === 'EUR' ? '€' : currency === 'GBP' ? '£' : '$'
-const fmtFull = (val: number) => formatCurrencyFull(val, currency)
-const fmtCard = (val: number) => `${symbol}${(val / 1_000_000).toFixed(1)}M`
-const fmtTable = (val: number) => {
-  if (displayUnit === 'millions') return `${symbol}${(val / 1_000_000).toFixed(1)}M`
-  if (displayUnit === 'thousands') return `${symbol}${(val / 1_000).toLocaleString('en-US', { maximumFractionDigits: 0 })}K`
-  return formatCurrencyFull(val, currency)
-}
-const fmt = fmtCard
+  const currency = useCurrency()
+  const { displayUnit } = useDisplayUnit()
+  const symbol = currency === 'BRL' ? 'R$' : currency === 'EUR' ? '€' : currency === 'GBP' ? '£' : '$'
+  const fmtFull = (val: number) => formatCurrencyFull(val, currency)
+  const fmtCard = (val: number) => `${symbol}${(val / 1_000_000).toFixed(1)}M`
+  const fmtTable = (val: number) => {
+    if (displayUnit === 'millions') return `${symbol}${(val / 1_000_000).toFixed(1)}M`
+    if (displayUnit === 'thousands') return `${symbol}${(val / 1_000).toLocaleString('en-US', { maximumFractionDigits: 0 })}K`
+    return formatCurrencyFull(val, currency)
+  }
+  const fmt = fmtCard
 
   const [data, setData] = useState<PortfolioData | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [asOfDate, setAsOfDate] = useState(new Date().toISOString().split('T')[0])
-  const [hydrated, setHydrated] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [asOfDate, setAsOfDate] = useState('')
 
   useEffect(() => {
-    const saved = localStorage.getItem('asOfDate')
-    if (saved) setAsOfDate(saved)
-    setHydrated(true)
+    const saved = localStorage.getItem('asOfDate') ?? new Date().toISOString().split('T')[0]
+    setAsOfDate(saved)
   }, [])
 
   const [sortKey, setSortKey] = useState<SortKey>('totalValue')
@@ -208,7 +206,7 @@ const fmt = fmtCard
   const [groupConfigs, setGroupConfigs] = useState<Record<string, { cashOnHand: number; carryRate: number; gpCommitPct: number; vintage: number | null }>>({})
 
   useEffect(() => {
-    if (!hydrated) return
+    if (!asOfDate) return
     async function load() {
       setLoading(true)
       try {
@@ -237,7 +235,7 @@ const fmt = fmtCard
       }
     }
     load()
-  }, [asOfDate, hydrated])
+  }, [asOfDate])
 
   const availableGroups = useMemo(() => {
     if (!data) return []
@@ -248,18 +246,18 @@ const fmt = fmtCard
     return Array.from(groups).sort()
   }, [data])
 
-const availableCompanies = useMemo(() => {
-  if (!data) return []
-  const seen = new Set<string>()
-  return [...data.companies]
-    .sort((a, b) => a.companyName.localeCompare(b.companyName))
-    .filter(c => {
-      if (seen.has(c.companyName)) return false
-      seen.add(c.companyName)
-      return true
-    })
-    .map(c => ({ id: c.companyId, name: c.companyName }))
-}, [data])
+  const availableCompanies = useMemo(() => {
+    if (!data) return []
+    const seen = new Set<string>()
+    return [...data.companies]
+      .sort((a, b) => a.companyName.localeCompare(b.companyName))
+      .filter(c => {
+        if (seen.has(c.companyName)) return false
+        seen.add(c.companyName)
+        return true
+      })
+      .map(c => ({ id: c.companyId, name: c.companyName }))
+  }, [data])
 
   const fundMetricsByGroup = useMemo(() => {
     if (!data) return new Map<string, FundGroupMetrics>()
@@ -270,7 +268,7 @@ const availableCompanies = useMemo(() => {
     return computeFundMetricsByGroup(fundCashFlows, grossResidualByGroup, groupConfigs)
   }, [fundCashFlows, data, groupConfigs])
 
-const overallFundMetrics = useMemo(() => {
+  const overallFundMetrics = useMemo(() => {
     let called = 0
     let distributions = 0
     let netResidual = 0
@@ -330,7 +328,7 @@ const overallFundMetrics = useMemo(() => {
 
     return { tvpi, dpi, rvpi, netIrr }
   }, [fundCashFlows, data, groupConfigs])
-  
+
   const groupTotalsMap = useMemo(() => {
     const map = new Map<string, { totalVal: number }>()
     if (!data) return map
@@ -437,7 +435,7 @@ const overallFundMetrics = useMemo(() => {
       : <ChevronDown className="inline h-3 w-3 ml-0.5" />
   }
 
-const groupNumericColumns: { label: string; sortKey: GroupSortKey; getValue: (row: GroupSummary) => number | null; format: 'currency' | 'moic' | 'irr' }[] = [
+  const groupNumericColumns: { label: string; sortKey: GroupSortKey; getValue: (row: GroupSummary) => number | null; format: 'currency' | 'moic' | 'irr' }[] = [
     { label: 'Invested', sortKey: 'totalInvested', getValue: r => r.totalInvested, format: 'currency' },
     { label: 'Proceeds', sortKey: 'proceedsReceived', getValue: r => r.proceedsReceived, format: 'currency' },
     { label: 'Current NAV', sortKey: 'unrealizedValue', getValue: r => r.unrealizedValue, format: 'currency' },
@@ -455,18 +453,18 @@ const groupNumericColumns: { label: string; sortKey: GroupSortKey; getValue: (ro
     { label: 'Gross IRR', sortKey: 'irr', getValue: r => r.irr ?? null, format: 'irr' },
   ]
 
-function fmtVal(val: number | null, format: 'currency' | 'moic' | 'irr'): string {
-  if (val == null || val === 0) return '-'
-  if (format === 'moic') return fmtMoic(val)
-  if (format === 'irr') return fmtIrr(val)
-  return fmtTable(val)
-}
+  function fmtVal(val: number | null, format: 'currency' | 'moic' | 'irr'): string {
+    if (val == null || val === 0) return '-'
+    if (format === 'moic') return fmtMoic(val)
+    if (format === 'irr') return fmtIrr(val)
+    return fmtTable(val)
+  }
 
   const heading = (
     <div className="mb-6 space-y-1">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2">{fv.investments === 'admin' && <Lock className="h-4 w-4 text-amber-500" />}Investments</h1>
-      <div className="flex items-center gap-2"><DisplayPanelButton /><PortfolioNotesButton /><AnalystToggleButton /></div>
+        <div className="flex items-center gap-2"><DisplayPanelButton /><PortfolioNotesButton /><AnalystToggleButton /></div>
       </div>
       <p className="text-sm text-muted-foreground">Portfolio-level investment positions and returns</p>
       <div className="flex items-center gap-2 pt-2">
@@ -484,7 +482,7 @@ function fmtVal(val: number | null, format: 'currency' | 'moic' | 'irr'): string
     </div>
   )
 
-  if (loading) {
+  if (loading || !asOfDate) {
     return (
       <PortfolioNotesProvider pageContext="investments">
       <div className="p-4 md:py-8 md:pl-8 md:pr-4 w-full">
@@ -589,7 +587,7 @@ function fmtVal(val: number | null, format: 'currency' | 'moic' | 'irr'): string
                   <th className="text-right px-3 py-2 font-medium">RVPI</th>
                 </tr>
               </thead>
-<tbody>
+              <tbody>
                 {sortedGroups.length > 1 && (
                   <tr className="border-b bg-blue-50 dark:bg-blue-950 font-medium">
                     <td className="px-3 py-2 sticky left-0 bg-blue-50 dark:bg-blue-950 z-10">Prlx Fund I</td>
@@ -718,7 +716,7 @@ function fmtVal(val: number | null, format: 'currency' | 'moic' | 'irr'): string
                 </td>
                 {companyNumericColumns.map(col => (
                   <td key={col.sortKey} className="px-3 py-2 text-right font-mono">{fmtVal(col.getValue(c), col.format)}</td>
-                  ))}
+                ))}
               </tr>
               )
             })}
