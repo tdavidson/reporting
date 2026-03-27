@@ -99,7 +99,7 @@ export function MetricChart({ metric, values, onRefresh, compact }: Props) {
     })
   }
 
-  const chartColor = 'hsl(var(--chart-1))'
+  const chartColor = 'hsl(var(--chart-4))'
 
   const chartHeight = compact ? 180 : 250
   const tickFontSize = compact ? 9 : 11
@@ -178,7 +178,9 @@ export function MetricChart({ metric, values, onRefresh, compact }: Props) {
                 const { cx, cy, index } = props
                 const point = data[index]
                 if (!point) return <circle key={index} cx={cx} cy={cy} r={0} />
-                const color = CONFIDENCE_COLORS[point.raw.confidence] ?? chartColor
+                const color = point.raw.is_manually_entered
+                    ? 'hsl(var(--chart-1))'
+                    : (CONFIDENCE_COLORS[point.raw.confidence] ?? chartColor)
                 const isManual = point.raw.is_manually_entered
                 return (
                   <g key={index} className="cursor-pointer" onClick={(e: React.MouseEvent) => handleClick(point, e)}>
@@ -190,7 +192,9 @@ export function MetricChart({ metric, values, onRefresh, compact }: Props) {
                 const { cx, cy, index } = props
                 const point = data[index]
                 if (!point) return <circle key={index} cx={cx} cy={cy} r={0} />
-                const color = CONFIDENCE_COLORS[point.raw.confidence] ?? chartColor
+                const color = point.raw.is_manually_entered
+                    ? 'hsl(var(--chart-1))'
+                    : (CONFIDENCE_COLORS[point.raw.confidence] ?? chartColor)
                 const isManual = point.raw.is_manually_entered
                 return (
                   <g key={index} className="cursor-pointer" onClick={(e: React.MouseEvent) => handleClick(point, e)}>
@@ -240,10 +244,10 @@ export function MetricChart({ metric, values, onRefresh, compact }: Props) {
               {data.map((entry, i) => (
                 <Cell
                   key={i}
-                  fill={CONFIDENCE_COLORS[entry.raw.confidence] ?? chartColor}
+                  fill={entry.raw.is_manually_entered ? 'hsl(var(--chart-1))' : (CONFIDENCE_COLORS[entry.raw.confidence] ?? chartColor)}
                   fillOpacity={entry.raw.is_manually_entered ? 0.5 : 0.5}
                   strokeDasharray="none"
-                  stroke={CONFIDENCE_COLORS[entry.raw.confidence] ?? chartColor}
+                  stroke={entry.raw.is_manually_entered ? 'hsl(var(--chart-1))' : (CONFIDENCE_COLORS[entry.raw.confidence] ?? chartColor)}
                   strokeWidth={1}
                 />
               ))}
