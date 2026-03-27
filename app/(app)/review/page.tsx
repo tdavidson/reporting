@@ -29,7 +29,6 @@ interface NeedsReviewEmail {
   company: { id: string; name: string } | null
 }
 
-interface ReviewData {
 type FeedItem =
   | { type: 'email'; id: string; date: string; subject: string | null; from: string; metricsExtracted: number; company: { id: string; name: string } | null }
   | { type: 'interaction'; id: string; date: string; subject: string | null; summary: string | null; tags: string[]; company: { id: string; name: string } | null }
