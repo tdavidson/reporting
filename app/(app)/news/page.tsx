@@ -385,7 +385,7 @@ export default function NewsPage() {
               News
             </h1>
             <p className="text-sm text-muted-foreground mt-1">
-              Latest news about your portfolio companies · cached for 1 h
+              Latest news about your portfolio companies · cached for 1h
             </p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
