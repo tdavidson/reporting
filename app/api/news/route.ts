@@ -364,8 +364,8 @@ async function aiEnrichAndFilter(
       newlyClassified = await reviewArticles(anthropic, pass1, companies)
 
       if (newlyClassified.length > 0) {
-        await supabase.from('news_articles').upsert(
-          newlyClassified.map(a => ({
+  await (supabase as any).from('news_articles').upsert(
+  newlyClassified.map(a => ({
             fund_id: fundId,
             company_id: a.companyId,
             company_name: a.companyName,
