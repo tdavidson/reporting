@@ -49,7 +49,6 @@ export function AppSidebar({ reviewBadge, settingsBadge, notesBadge, isAdmin, up
         {NAV_ITEMS.filter(item => {
           if (item.adminOnly && !isAdmin) return false
           if (item.featureKey && !isFeatureVisible(featureVisibility, item.featureKey, !!isAdmin)) return false
-          if (item.badgeKey === 'review' && reviewBadge === 0) return false
           return true
         }).map(({ href, label, icon: Icon, badgeKey, adminOnly, featureKey, beta }) => {
           const isActive = pathname === href || pathname.startsWith(href + '/')
