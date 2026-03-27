@@ -182,6 +182,7 @@ export default function NewsPage() {
   const [sources, setSources] = useState<string[]>([])
   const [showPortals, setShowPortals] = useState(false)
   const [showCompanies, setShowCompanies] = useState(false)
+  const [fromDate, setFromDate] = useState<string>('')
 
   useEffect(() => { setSources(getSavedSources()) }, [])
 
@@ -192,7 +193,7 @@ export default function NewsPage() {
       const params = new URLSearchParams()
       if (bust) params.set('bust', String(Date.now()))
       if (currentSources.length > 0) params.set('sources', currentSources.join(','))
-      if (dateRange !== 'all') params.set('dateRange', dateRange)
+      if (fromDate) params.set('fromDate', fromDate)
       const res = await fetch(`/api/news?${params}`)
       if (!res.ok) throw new Error('Failed to load news')
       const data = await res.json()
@@ -212,7 +213,7 @@ export default function NewsPage() {
     setLoading(true)
     load().finally(() => setLoading(false))
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dateRange])
+}, [dateRange, fromDate])
 
   async function handleRefresh() {
     setRefreshing(true)
@@ -283,7 +284,25 @@ export default function NewsPage() {
             </button>
           ))}
         </div>
+<div className="flex items-center gap-1.5">
+  <span className="text-xs text-muted-foreground">A partir de:</span>
+  <input
+    type="date"
+    value={fromDate}
+    onChange={e => setFromDate(e.target.value)}
+    className="text-xs px-2 py-1 rounded-md border bg-transparent text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+  />
+  {fromDate && (
+    <button
+      onClick={() => setFromDate('')}
+      className="text-xs text-muted-foreground hover:text-foreground"
+    >
+      <X className="h-3 w-3" />
+    </button>
+  )}
+</div>
 
+        
         {companies.length > 0 && (
           <button onClick={() => setShowCompanies(true)}
             className={`flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border transition-colors ${
