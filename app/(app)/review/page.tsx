@@ -30,10 +30,16 @@ interface NeedsReviewEmail {
 }
 
 interface ReviewData {
+type FeedItem =
+  | { type: 'email'; id: string; date: string; subject: string | null; from: string; metricsExtracted: number; company: { id: string; name: string } | null }
+  | { type: 'interaction'; id: string; date: string; subject: string | null; summary: string | null; tags: string[]; company: { id: string; name: string } | null }
+
+interface ReviewData {
   total: number
   counts: Record<string, number>
   items: ReviewItem[]
   needsReviewEmails: NeedsReviewEmail[]
+  feed: FeedItem[]
 }
 
 const ISSUE_LABELS: Record<string, string> = {
@@ -61,6 +67,7 @@ export default function ReviewPage() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editValue, setEditValue] = useState('')
   const [reviewModalEmailId, setReviewModalEmailId] = useState<string | null>(null)
+  const [limit, setLimit] = useState(20)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -315,6 +322,50 @@ export default function ReviewPage() {
           }
         }}
       />
+        {!loading && (data?.feed ?? []).length > 0 && (
+  <div className="mt-8">
+    <div className="flex items-center justify-between mb-3">
+      <h2 className="text-sm font-medium text-muted-foreground">Activity feed</h2>
+      <div className="flex items-center gap-1 text-xs border rounded-md overflow-hidden">
+        {[20, 50, 100].map(n => (
+          <button
+            key={n}
+            onClick={() => setLimit(n)}
+            className={`px-2.5 py-1 transition-colors ${limit === n ? 'bg-foreground text-background' : 'text-muted-foreground hover:text-foreground'}`}
+          >
+            {n}
+          </button>
+        ))}
+      </div>
+    </div>
+    <div className="space-y-2">
+      {data!.feed.slice(0, limit).map(item => (
+        <div key={item.id} className="rounded-lg border bg-card p-3 flex items-start gap-3">
+          <div className={`mt-0.5 h-2 w-2 rounded-full shrink-0 ${item.type === 'email' ? 'bg-emerald-500' : 'bg-blue-500'}`} />
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-xs font-medium">
+                {item.type === 'email' ? 'Email processado' : 'Interaction criada'}
+              </span>
+              {item.company && (
+                <Link href={`/companies/${item.company.id}`} className="text-xs text-muted-foreground hover:underline">
+                  {item.company.name}
+                </Link>
+              )}
+              {item.type === 'email' && item.metricsExtracted > 0 && (
+                <span className="text-xs text-muted-foreground">{item.metricsExtracted} métrica{item.metricsExtracted !== 1 ? 's' : ''}</span>
+              )}
+              <span className="text-xs text-muted-foreground ml-auto">{new Date(item.date).toLocaleDateString('pt-BR')}</span>
+            </div>
+            {item.subject && (
+              <p className="text-sm text-muted-foreground truncate mt-0.5">{item.subject}</p>
+            )}
+          </div>
+        </div>
+      ))}
+    </div>
+  </div>
+)}
     </div>
     <AnalystPanel />
     </div>
