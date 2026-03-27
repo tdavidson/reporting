@@ -306,51 +306,6 @@ Respond ONLY with a JSON array:
   })
 }
 
-async function aiEnrichAndFilter(
-  articles: RawArticle[],
-  companies: { id: string; name: string; website: string | null }[]
-): Promise<NewsArticle[]> {
-  if (articles.length === 0) return []
-
-  const preFiltered = deterministicPreFilter(articles, companies)
-  if (preFiltered.length === 0) return []
-
-const aiCacheKey = 'v2:' + preFiltered.map(a => a.link).sort().join('|')
-  const aiCached = AI_CACHE.get(aiCacheKey)
-  if (aiCached && aiCached.expiresAt > Date.now()) return aiCached.articles
-
-  try {
-    const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
-    const companyMap = new Map(companies.map(c => [c.id, c.name]))
-
-    // Pass 1: classify with category
-    const classified = await classifyArticles(anthropic, preFiltered, companies)
-    const pass1: NewsArticle[] = preFiltered
-      .map((article, i) => {
-        const r = classified.find(x => x.index === i)
-        if (!r || r.companyId === null || r.category === null) return null
-        const name = companyMap.get(r.companyId)
-        if (!name) return null
-        return { ...article, companyId: r.companyId, companyName: name, category: r.category }
-      })
-      .filter((a): a is NewsArticle => a !== null)
-
-    // Pass 2: remove false positives
-    const pass2 = await reviewArticles(anthropic, pass1, companies)
-
-    AI_CACHE.set(aiCacheKey, { articles: pass2, expiresAt: Date.now() + CACHE_TTL_MS })
-    return pass2
-  } catch (e) {
-    console.error('[news] AI pipeline failed:', e)
-    return preFiltered
-      .filter(a => {
-        const co = companies.find(c => c.id === a.companyId)
-        return co && a.title.toLowerCase().includes(co.name.toLowerCase())
-      })
-      .map(a => ({ ...a, category: 'outro' as NewsCategory }))
-  }
-}
-
 export async function GET(req: NextRequest) {
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -365,11 +320,11 @@ export async function GET(req: NextRequest) {
 
   const companiesParam = req.nextUrl.searchParams.get('companies')
   const sourcesParam = req.nextUrl.searchParams.get('sources')
-  const dateRange = req.nextUrl.searchParams.get('dateRange')
   const countryFilter = req.nextUrl.searchParams.get('country')
   const bust = req.nextUrl.searchParams.get('bust')
+  const fromDate = req.nextUrl.searchParams.get('fromDate') // new param
 
-  cache.clear(); AI_CACHE.clear()
+  if (bust) { cache.clear() }
 
   const sources = sourcesParam
     ? sourcesParam.split(',').map(s => s.trim()).filter(Boolean) : []
@@ -385,11 +340,13 @@ export async function GET(req: NextRequest) {
     !companiesParam || companiesParam.split(',').includes(c.id)
   )
 
+  // Fetch fresh RSS articles
   const results = await Promise.all(
     list.map(c => fetchCompanyNews(c.id, c.name, sources, extractDomain(c.website)))
   )
   let articles = results.flat()
 
+  // Deduplicate
   const seen = new Set<string>()
   articles = articles.filter(a => {
     const key = normalizeUrl(a.link)
@@ -398,35 +355,114 @@ export async function GET(req: NextRequest) {
     return true
   })
 
-  if (dateRange && dateRange !== 'all') {
-    const cutoff = getDateCutoff(dateRange)
-    const ceiling = getDateCeiling(dateRange)
-    if (cutoff !== null) {
-      articles = articles.filter(a => {
-        const t = new Date(a.pubDate).getTime()
-        return t >= cutoff && (ceiling === null || t <= ceiling)
-      })
-    }
-  }
-
   if (countryFilter && countryFilter !== 'all') {
     articles = articles.filter(a => domainToCountry(a.sourceDomain) === countryFilter)
   }
 
-  const enriched = await aiEnrichAndFilter(articles, list)
+  // Classify only new articles, return cached for existing
+  const enriched = await aiEnrichAndFilter(articles, list, membership.fund_id, supabase)
 
-  // Sort: category priority (rodada/aquisicao/ipo first), then by date
+  // Apply fromDate filter (hides articles, doesn't delete)
+  let filtered = enriched
+  if (fromDate) {
+    const cutoff = new Date(fromDate).getTime()
+    filtered = enriched.filter(a => new Date(a.pubDate).getTime() >= cutoff)
+  }
+
   const CATEGORY_ORDER: Record<NewsCategory, number> = {
     rodada: 0, ipo: 1, aquisicao: 2, parceria: 3, contratacao: 4,
     produto: 5, expansao: 6, premio: 7, crise: 8, outro: 9,
   }
-  const sorted = enriched.sort((a, b) => {
+
+  const sorted = filtered.sort((a, b) => {
     const cDiff = CATEGORY_ORDER[a.category] - CATEGORY_ORDER[b.category]
     if (cDiff !== 0) return cDiff
     return new Date(b.pubDate).getTime() - new Date(a.pubDate).getTime()
   })
 
-  const countriesInResults = Array.from(new Set(sorted.map(a => domainToCountry(a.sourceDomain)))).sort()
+  const countriesInResults = Array.from(
+    new Set(sorted.map(a => domainToCountry(a.sourceDomain)))
+  ).sort()
+
+  return NextResponse.json({ articles: sorted, companies: list, countriesInResults })
+}
+export async function GET(req: NextRequest) {
+  const supabase = createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const { data: membership } = await supabase
+    .from('fund_members')
+    .select('fund_id')
+    .eq('user_id', user.id)
+    .maybeSingle() as { data: { fund_id: string } | null }
+  if (!membership) return NextResponse.json({ error: 'No fund' }, { status: 403 })
+
+  const companiesParam = req.nextUrl.searchParams.get('companies')
+  const sourcesParam = req.nextUrl.searchParams.get('sources')
+  const countryFilter = req.nextUrl.searchParams.get('country')
+  const bust = req.nextUrl.searchParams.get('bust')
+  const fromDate = req.nextUrl.searchParams.get('fromDate') // new param
+
+  if (bust) { cache.clear() }
+
+  const sources = sourcesParam
+    ? sourcesParam.split(',').map(s => s.trim()).filter(Boolean) : []
+
+  const { data: companies } = await supabase
+    .from('companies')
+    .select('id, name, website')
+    .eq('fund_id', membership.fund_id)
+    .eq('status', 'active')
+    .order('name') as { data: { id: string; name: string; website: string | null }[] | null }
+
+  const list = (companies ?? []).filter(c =>
+    !companiesParam || companiesParam.split(',').includes(c.id)
+  )
+
+  // Fetch fresh RSS articles
+  const results = await Promise.all(
+    list.map(c => fetchCompanyNews(c.id, c.name, sources, extractDomain(c.website)))
+  )
+  let articles = results.flat()
+
+  // Deduplicate
+  const seen = new Set<string>()
+  articles = articles.filter(a => {
+    const key = normalizeUrl(a.link)
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+
+  if (countryFilter && countryFilter !== 'all') {
+    articles = articles.filter(a => domainToCountry(a.sourceDomain) === countryFilter)
+  }
+
+  // Classify only new articles, return cached for existing
+  const enriched = await aiEnrichAndFilter(articles, list, membership.fund_id, supabase)
+
+  // Apply fromDate filter (hides articles, doesn't delete)
+  let filtered = enriched
+  if (fromDate) {
+    const cutoff = new Date(fromDate).getTime()
+    filtered = enriched.filter(a => new Date(a.pubDate).getTime() >= cutoff)
+  }
+
+  const CATEGORY_ORDER: Record<NewsCategory, number> = {
+    rodada: 0, ipo: 1, aquisicao: 2, parceria: 3, contratacao: 4,
+    produto: 5, expansao: 6, premio: 7, crise: 8, outro: 9,
+  }
+
+  const sorted = filtered.sort((a, b) => {
+    const cDiff = CATEGORY_ORDER[a.category] - CATEGORY_ORDER[b.category]
+    if (cDiff !== 0) return cDiff
+    return new Date(b.pubDate).getTime() - new Date(a.pubDate).getTime()
+  })
+
+  const countriesInResults = Array.from(
+    new Set(sorted.map(a => domainToCountry(a.sourceDomain)))
+  ).sort()
 
   return NextResponse.json({ articles: sorted, companies: list, countriesInResults })
 }
