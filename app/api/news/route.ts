@@ -306,6 +306,94 @@ Respond ONLY with a JSON array:
   })
 }
 
+async function aiEnrichAndFilter(
+  articles: RawArticle[],
+  companies: { id: string; name: string; website: string | null }[],
+  fundId: string,
+  supabase: ReturnType<typeof createClient>
+): Promise<NewsArticle[]> {
+  if (articles.length === 0) return []
+
+  const preFiltered = deterministicPreFilter(articles, companies)
+  if (preFiltered.length === 0) return []
+
+  // Check which articles are already saved in DB
+  const links = preFiltered.map(a => a.link)
+  const { data: existing } = await supabase
+    .from('news_articles')
+    .select('link, title, pub_date, source, source_domain, company_id, company_name, category')
+    .eq('fund_id', fundId)
+    .in('link', links)
+
+  const existingByLink = new Map((existing ?? []).map((a: any) => [a.link, a]))
+
+  const cached: NewsArticle[] = []
+  const toClassify: RawArticle[] = []
+
+  for (const article of preFiltered) {
+    const saved = existingByLink.get(article.link)
+    if (saved) {
+      cached.push({
+        ...article,
+        category: saved.category as NewsCategory,
+        companyId: saved.company_id ?? article.companyId,
+        companyName: saved.company_name ?? article.companyName,
+      })
+    } else {
+      toClassify.push(article)
+    }
+  }
+
+  let newlyClassified: NewsArticle[] = []
+  if (toClassify.length > 0) {
+    try {
+      const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+      const companyMap = new Map(companies.map(c => [c.id, c.name]))
+
+      const classified = await classifyArticles(anthropic, toClassify, companies)
+      const pass1: NewsArticle[] = toClassify
+        .map((article, i) => {
+          const r = classified.find(x => x.index === i)
+          if (!r || r.companyId === null || r.category === null) return null
+          const name = companyMap.get(r.companyId)
+          if (!name) return null
+          return { ...article, companyId: r.companyId, companyName: name, category: r.category }
+        })
+        .filter((a): a is NewsArticle => a !== null)
+
+      newlyClassified = await reviewArticles(anthropic, pass1, companies)
+
+      if (newlyClassified.length > 0) {
+        await supabase.from('news_articles').upsert(
+          newlyClassified.map(a => ({
+            fund_id: fundId,
+            company_id: a.companyId,
+            company_name: a.companyName,
+            title: a.title,
+            link: a.link,
+            pub_date: a.pubDate ? new Date(a.pubDate).toISOString() : new Date().toISOString(),
+            source: a.source,
+            source_domain: a.sourceDomain,
+            category: a.category,
+          })),
+          { onConflict: 'fund_id,link', ignoreDuplicates: true }
+        )
+      }
+    } catch (e) {
+      console.error('[news] AI pipeline failed:', e)
+      newlyClassified = toClassify
+        .filter(a => {
+          const co = companies.find(c => c.id === a.companyId)
+          return co && a.title.toLowerCase().includes(co.name.toLowerCase())
+        })
+        .map(a => ({ ...a, category: 'outro' as NewsCategory }))
+    }
+  }
+
+  return [...cached, ...newlyClassified]
+}
+
+
 export async function GET(req: NextRequest) {
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
