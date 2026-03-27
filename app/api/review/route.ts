@@ -79,5 +79,52 @@ export async function GET() {
     company: e.company_id ? { id: e.company_id, name: companiesById[e.company_id] ?? 'Unknown' } : null,
   }))
 
-  return NextResponse.json({ total: items.length, counts, items, needsReviewEmails })
+// Adicionar antes do return final:
+const { data: activityEmails } = await supabase
+  .from('inbound_emails')
+  .select('id, from_address, subject, received_at, processing_status, metrics_extracted, company_id')
+  .eq('processing_status', 'success')
+  .order('received_at', { ascending: false })
+  .limit(100)
+
+const activityCompanyIds = Array.from(new Set(
+  (activityEmails ?? []).map((e: any) => e.company_id).filter(Boolean)
+)) as string[]
+let activityCompaniesById: Record<string, string> = {}
+if (activityCompanyIds.length > 0) {
+  const { data: ac } = await supabase
+    .from('companies').select('id, name').in('id', activityCompanyIds)
+  activityCompaniesById = Object.fromEntries(
+    (ac ?? []).map((c: any) => [c.id, c.name])
+  )
+}
+
+const { data: activityInteractions } = await supabase
+  .from('interactions')
+  .select('id, subject, summary, interaction_date, company_id, tags')
+  .order('interaction_date', { ascending: false })
+  .limit(100)
+
+const feed = [
+  ...(activityEmails ?? []).map((e: any) => ({
+    type: 'email' as const,
+    id: e.id,
+    date: e.received_at,
+    subject: e.subject,
+    from: e.from_address,
+    metricsExtracted: e.metrics_extracted ?? 0,
+    company: e.company_id ? { id: e.company_id, name: activityCompaniesById[e.company_id] ?? 'Unknown' } : null,
+  })),
+  ...(activityInteractions ?? []).map((i: any) => ({
+    type: 'interaction' as const,
+    id: i.id,
+    date: i.interaction_date,
+    subject: i.subject,
+    summary: i.summary,
+    tags: i.tags ?? [],
+    company: i.company_id ? { id: i.company_id, name: activityCompaniesById[i.company_id] ?? 'Unknown' } : null,
+  })),
+].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+
+return NextResponse.json({ total: items.length, counts, items, needsReviewEmails, feed })
 }
