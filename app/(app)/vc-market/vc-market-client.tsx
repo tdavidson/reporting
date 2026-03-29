@@ -52,7 +52,6 @@ const PIE_COLORS = [
 const COLOR_ROUNDS  = '#0F2332'
 const COLOR_CAPITAL = '#22c55e'
 
-// Bar style helpers: fill at 40% opacity, stroke at 100% same color
 function barProps(color: string) {
   return {
     fill: color,
@@ -69,17 +68,9 @@ function formatUSD(n: number): string {
   return `$${n.toLocaleString()}`
 }
 
-function getWeekDeals(deals: VCDeal[]): VCDeal[] {
-  const now = new Date()
-  const startOfWeek = new Date(now)
-  startOfWeek.setDate(now.getDate() - now.getDay())
-  startOfWeek.setHours(0, 0, 0, 0)
-  return deals
-    .filter(d => {
-      if (!d.deal_date) return false
-      const dt = new Date(d.deal_date)
-      return dt >= startOfWeek
-    })
+// Returns the 5 most recent deals by deal_date (ignores week boundary)
+function getLatestDeals(deals: VCDeal[]): VCDeal[] {
+  return [...deals]
     .sort((a, b) => (b.deal_date ?? '').localeCompare(a.deal_date ?? ''))
     .slice(0, 5)
 }
@@ -378,7 +369,7 @@ export function VCMarketClient({ isAdmin }: Props) {
   }
 
   const kpis             = computeKPIs(deals)
-  const weekDeals        = getWeekDeals(deals)
+  const latestDeals      = getLatestDeals(deals)
   const roundsByMonth    = buildRoundsByMonth(deals)
   const capitalByMonth   = buildCapitalByMonth(deals)
   const capitalBySegment = buildCapitalBySegment(deals)
@@ -506,16 +497,16 @@ export function VCMarketClient({ isAdmin }: Props) {
         <KPICard label="Active Countries" value={kpis.activeCountries.toLocaleString()}                     icon={Globe}      color="bg-amber-500/10 text-amber-500" />
       </div>
 
-      {/* Deals This Week */}
-      {!loading && weekDeals.length > 0 && (
+      {/* Latest 5 Deals */}
+      {!loading && latestDeals.length > 0 && (
         <div className="bg-card border rounded-xl overflow-hidden">
           <div className="px-4 py-3 border-b flex items-center gap-2">
             <Zap className="h-4 w-4 text-amber-500" />
-            <h3 className="text-sm font-medium">Deals This Week</h3>
-            <span className="ml-auto text-xs text-muted-foreground">{weekDeals.length} deal{weekDeals.length !== 1 ? 's' : ''}</span>
+            <h3 className="text-sm font-medium">Latest Deals</h3>
+            <span className="ml-auto text-xs text-muted-foreground">last 5</span>
           </div>
           <div className="divide-y">
-            {weekDeals.map(deal => (
+            {latestDeals.map(deal => (
               <div key={deal.id} className="px-4 py-3 flex items-center gap-4 hover:bg-muted/30 transition-colors">
                 <div className="flex-1 min-w-0">
                   <p className="font-medium text-sm truncate">{deal.company_name}</p>
@@ -550,11 +541,10 @@ export function VCMarketClient({ isAdmin }: Props) {
         </div>
       )}
 
-      {/* Charts — order: Rounds/Month, Capital/Month, Rounds/Vertical, Capital/Vertical, Deals/Country, Capital/Country */}
+      {/* Charts */}
       {!loading && deals.length > 0 && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
 
-          {/* 1. Rounds by Month */}
           <div className="bg-card border rounded-xl p-4">
             <h3 className="text-sm font-medium mb-4">Rounds by Month</h3>
             {roundsByMonth.length > 0 ? (
@@ -570,7 +560,6 @@ export function VCMarketClient({ isAdmin }: Props) {
             ) : emptyChart('No dated deals in period')}
           </div>
 
-          {/* 2. Capital by Month */}
           <div className="bg-card border rounded-xl p-4">
             <h3 className="text-sm font-medium mb-4">Capital by Month (USD)</h3>
             {capitalByMonth.length > 0 ? (
@@ -586,7 +575,6 @@ export function VCMarketClient({ isAdmin }: Props) {
             ) : emptyChart('No capital data in period')}
           </div>
 
-          {/* 3. Rounds by Vertical */}
           <div className="bg-card border rounded-xl p-4">
             <h3 className="text-sm font-medium mb-4">Rounds by Vertical</h3>
             {roundsByVertical.length > 0 ? (
@@ -602,7 +590,6 @@ export function VCMarketClient({ isAdmin }: Props) {
             ) : emptyChart('No vertical data available')}
           </div>
 
-          {/* 4. Capital by Vertical */}
           <div className="bg-card border rounded-xl p-4">
             <h3 className="text-sm font-medium mb-4">Capital by Vertical (USD)</h3>
             {capitalBySegment.length > 0 ? (
@@ -618,7 +605,6 @@ export function VCMarketClient({ isAdmin }: Props) {
             ) : emptyChart('No capital data available')}
           </div>
 
-          {/* 5. Deals by Country */}
           <div className="bg-card border rounded-xl p-4">
             <h3 className="text-sm font-medium mb-4">Deals by Country</h3>
             {dealsByCountry.length > 0 ? (
@@ -639,7 +625,6 @@ export function VCMarketClient({ isAdmin }: Props) {
             ) : emptyChart('No country data available')}
           </div>
 
-          {/* 6. Capital by Country */}
           <div className="bg-card border rounded-xl p-4">
             <h3 className="text-sm font-medium mb-4">Capital by Country (USD)</h3>
             {capitalByCountry.length > 0 ? (
