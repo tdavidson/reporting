@@ -42,11 +42,13 @@ const STAGE_COLORS: Record<string, string> = {
   'Seed':     '#8b5cf6',
   'Series A': '#3b82f6',
   'Series B': '#0ea5e9',
-  'Series C': '#14b8a6',
-  'Series D': '#22c55e',
+  'Series C': '#84cc16',
+  'Series D': '#84cc16',
   'Series E': '#84cc16',
-  'Growth':   '#f59e0b',
+  'Growth':   '#84cc16',
   'Bridge':   '#f97316',
+  'IPO':      '#f97316',
+  'M&A':      '#f97316',
 }
 
 const PIE_COLORS = [
