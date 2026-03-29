@@ -11,7 +11,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { scrapeVCDeals } from '@/lib/vc-market/scraper'
+import { scrapeVCDeals } from '@/lib/vc-market/scrapers'
 import type { ScrapeResult } from '@/lib/vc-market/types'
  
 export async function POST(req: NextRequest) {
