@@ -597,7 +597,7 @@ export function VCMarketClient({ isAdmin }: Props) {
                   <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
                   <Tooltip
                     contentStyle={{ fontSize: 12 }}
-                    formatter={(v: number) => [v, 'Rounds']}
+                    formatter={(v: number | undefined) => [v ?? 0, 'Rounds']}
                   />
                   <Bar dataKey="rounds" fill="#6366f1" radius={[3, 3, 0, 0]} />
                 </BarChart>
@@ -628,7 +628,7 @@ export function VCMarketClient({ isAdmin }: Props) {
                   <YAxis dataKey="segment" type="category" tick={{ fontSize: 11 }} width={60} />
                   <Tooltip
                     contentStyle={{ fontSize: 12 }}
-                    formatter={(v: number) => [formatUSD(v), 'Capital']}
+                    formatter={(v: number | undefined) => [v != null ? formatUSD(v) : '—', 'Capital']}
                   />
                   <Bar dataKey="amount" fill="#3b82f6" radius={[0, 3, 3, 0]} />
                 </BarChart>
@@ -653,7 +653,10 @@ export function VCMarketClient({ isAdmin }: Props) {
                   <CartesianGrid strokeDasharray="3 3" className="stroke-border" horizontal={false} />
                   <XAxis type="number" tick={{ fontSize: 11 }} allowDecimals={false} />
                   <YAxis dataKey="country" type="category" tick={{ fontSize: 11 }} width={60} />
-                  <Tooltip contentStyle={{ fontSize: 12 }} formatter={(v: number) => [v, 'Deals']} />
+                  <Tooltip
+                    contentStyle={{ fontSize: 12 }}
+                    formatter={(v: number | undefined) => [v ?? 0, 'Deals']}
+                  />
                   <Bar dataKey="deals" radius={[0, 3, 3, 0]}>
                     {dealsByCountry.map((_, i) => (
                       <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
@@ -695,7 +698,10 @@ export function VCMarketClient({ isAdmin }: Props) {
                     ))}
                   </Pie>
                   <Legend iconSize={10} wrapperStyle={{ fontSize: 11 }} />
-                  <Tooltip contentStyle={{ fontSize: 12 }} formatter={(v: number) => [v, 'Deals']} />
+                  <Tooltip
+                    contentStyle={{ fontSize: 12 }}
+                    formatter={(v: number | undefined) => [v ?? 0, 'Deals']}
+                  />
                 </PieChart>
               </ResponsiveContainer>
             ) : (
