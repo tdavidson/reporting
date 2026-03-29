@@ -491,41 +491,56 @@ export function VCMarketClient({ isAdmin }: Props) {
         <KPICard label="Active Countries" value={kpis.activeCountries.toLocaleString()}                     icon={Globe}      color="bg-amber-500/10 text-amber-500" />
       </div>
 
-      {/* Latest Deals — single horizontal strip */}
+      {/* Latest Deals — single horizontal strip, fixed-width chips */}
       {latestDeals.length > 0 && (
-        <div className="bg-card border rounded-xl px-4 py-3 flex items-center gap-2 overflow-x-auto">
-          <Zap className="h-4 w-4 text-amber-500 shrink-0" />
-          <span className="text-sm font-medium shrink-0 mr-1">Latest</span>
+        <div className="bg-card border rounded-xl px-4 py-2.5 flex items-center gap-1.5 overflow-x-auto">
+          <Zap className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+          <span className="text-xs font-medium text-muted-foreground shrink-0 mr-2">Latest</span>
           {latestDeals.map((deal, i) => {
             const stageColor = deal.stage ? STAGE_COLORS[deal.stage] ?? '#94a3b8' : '#94a3b8'
+            const nameEl = deal.source_url ? (
+              <a
+                href={deal.source_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs font-semibold leading-none truncate hover:text-primary transition-colors inline-flex items-center gap-0.5 group"
+              >
+                <span className="truncate">{deal.company_name}</span>
+                <ExternalLink className="h-2.5 w-2.5 shrink-0 opacity-40 group-hover:opacity-100 transition-opacity" />
+              </a>
+            ) : (
+              <span className="text-xs font-semibold leading-none truncate">{deal.company_name}</span>
+            )
             const chip = (
-              <div key={deal.id} className="flex items-center gap-2 px-3 py-1.5 rounded-lg border bg-muted/40 shrink-0">
-                <div>
-                  <p className="text-xs font-semibold leading-none truncate max-w-[100px]">{deal.company_name}</p>
-                  <div className="flex items-center gap-1.5 mt-0.5">
-                    {deal.stage && (
-                      <span className="text-[10px] font-medium px-1.5 py-px rounded-full text-white leading-none" style={{ backgroundColor: stageColor }}>
-                        {deal.stage}
-                      </span>
-                    )}
-                    <span className="text-[10px] text-muted-foreground">
-                      {deal.deal_date ? new Date(deal.deal_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—'}
-                    </span>
-                  </div>
+              <div
+                key={deal.id}
+                className="w-[168px] shrink-0 flex flex-col gap-1 px-3 py-2 rounded-lg border bg-muted/40"
+              >
+                <div className="flex items-center justify-between gap-1 min-w-0">
+                  <div className="truncate flex-1 min-w-0">{nameEl}</div>
+                  <span className="text-xs font-semibold tabular-nums text-emerald-600 dark:text-emerald-400 shrink-0">
+                    {deal.amount_usd ? formatUSD(deal.amount_usd) : '—'}
+                  </span>
                 </div>
-                <span className="text-xs font-semibold tabular-nums text-emerald-600 dark:text-emerald-400 ml-1">
-                  {deal.amount_usd ? formatUSD(deal.amount_usd) : '—'}
-                </span>
-                {deal.source_url && (
-                  <a href={deal.source_url} target="_blank" rel="noopener noreferrer"
-                    className="text-muted-foreground hover:text-primary transition-colors">
-                    <ExternalLink className="h-3 w-3" />
-                  </a>
-                )}
+                <div className="flex items-center gap-1.5">
+                  {deal.stage && (
+                    <span
+                      className="text-[10px] font-medium px-1.5 py-px rounded-full text-white leading-none shrink-0"
+                      style={{ backgroundColor: stageColor }}
+                    >
+                      {deal.stage}
+                    </span>
+                  )}
+                  <span className="text-[10px] text-muted-foreground">
+                    {deal.deal_date
+                      ? new Date(deal.deal_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+                      : '—'}
+                  </span>
+                </div>
               </div>
             )
             return i < latestDeals.length - 1
-              ? [chip, <span key={`sep-${i}`} className="text-border shrink-0">·</span>]
+              ? [chip, <span key={`sep-${i}`} className="text-border/60 shrink-0 text-xs">·</span>]
               : chip
           })}
         </div>
