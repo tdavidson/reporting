@@ -14,20 +14,23 @@ export async function POST() {
       .eq('user_id', user.id)
       .single()
 
-    const { data: fund } = await supabase
+    const { data: fundRaw, error: fundError } = await supabase
       .from('funds')
       .select('id')
       .eq('user_id', user.id)
       .single()
-    if (!fund) return NextResponse.json({ error: 'Fund not found' }, { status: 404 })
+    if (fundError || !fundRaw) return NextResponse.json({ error: 'Fund not found' }, { status: 404 })
+    const fund = fundRaw as { id: string }
 
-    const deals = await scrapeVCDeals(fund.id, settings?.claude_api_key ?? undefined)
+    const deals = await scrapeVCDeals(fund.id, (settings as any)?.claude_api_key ?? undefined)
 
     if (deals.length === 0) {
       return NextResponse.json({ inserted: 0, skipped: 0, errors: [] })
     }
 
-    const { data: inserted, error } = await supabase
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const db = supabase as any
+    const { data: inserted, error } = await db
       .from('vc_deals')
       .upsert(deals, { onConflict: 'fund_id,company_name,deal_date', ignoreDuplicates: true })
       .select('id')
