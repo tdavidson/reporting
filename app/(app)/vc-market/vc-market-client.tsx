@@ -68,9 +68,9 @@ function formatUSD(n: number): string {
   return `$${n.toLocaleString()}`
 }
 
-// Returns the 5 most recent deals by deal_date (ignores week boundary)
-function getLatestDeals(deals: VCDeal[]): VCDeal[] {
-  return [...deals]
+// Always shows top 5 most recent deals regardless of the period filter
+function getLatestDeals(allDeals: VCDeal[]): VCDeal[] {
+  return [...allDeals]
     .sort((a, b) => (b.deal_date ?? '').localeCompare(a.deal_date ?? ''))
     .slice(0, 5)
 }
@@ -319,6 +319,7 @@ export function VCMarketClient({ isAdmin }: Props) {
   const [filters, setFilters] = useState<VCFilters>({
     period: 'ytd', country: '', segment: '', stage: '', investor: '',
   })
+  // allDeals always fetched with period=all to power filters dropdowns + Latest Deals section
   const [allDeals, setAllDeals] = useState<VCDeal[]>([])
 
   const fetchDeals = useCallback(async (f: VCFilters) => {
@@ -338,15 +339,15 @@ export function VCMarketClient({ isAdmin }: Props) {
     }
   }, [])
 
-  const fetchAllDeals = useCallback(async (period: string) => {
-    const params = new URLSearchParams({ period })
-    const res = await fetch(`/api/vc-market/deals?${params}`)
+  // Always fetches ALL deals (period=all) — used for filter dropdowns and Latest Deals
+  const fetchAllDeals = useCallback(async () => {
+    const res = await fetch('/api/vc-market/deals?period=all')
     const data = await res.json()
     setAllDeals(data.deals ?? [])
   }, [])
 
   useEffect(() => { fetchDeals(filters) }, [fetchDeals, filters])
-  useEffect(() => { fetchAllDeals(filters.period) }, [fetchAllDeals, filters.period])
+  useEffect(() => { fetchAllDeals() }, [fetchAllDeals])
 
   const setFilter = (key: keyof VCFilters, value: string) => {
     setFilters(prev => ({ ...prev, [key]: value }))
@@ -361,6 +362,7 @@ export function VCMarketClient({ isAdmin }: Props) {
       if (!res.ok) throw new Error(data.error ?? 'Scrape failed')
       toast.success(`Scrape complete: ${data.inserted} new deals${data.skipped > 0 ? `, ${data.skipped} dupes skipped` : ''}`)
       fetchDeals(filters)
+      fetchAllDeals()
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Scrape failed')
     } finally {
@@ -369,7 +371,7 @@ export function VCMarketClient({ isAdmin }: Props) {
   }
 
   const kpis             = computeKPIs(deals)
-  const latestDeals      = getLatestDeals(deals)
+  const latestDeals      = getLatestDeals(allDeals)  // always from full dataset
   const roundsByMonth    = buildRoundsByMonth(deals)
   const capitalByMonth   = buildCapitalByMonth(deals)
   const capitalBySegment = buildCapitalBySegment(deals)
@@ -497,8 +499,8 @@ export function VCMarketClient({ isAdmin }: Props) {
         <KPICard label="Active Countries" value={kpis.activeCountries.toLocaleString()}                     icon={Globe}      color="bg-amber-500/10 text-amber-500" />
       </div>
 
-      {/* Latest 5 Deals */}
-      {!loading && latestDeals.length > 0 && (
+      {/* Latest 5 Deals — always visible regardless of period filter */}
+      {latestDeals.length > 0 && (
         <div className="bg-card border rounded-xl overflow-hidden">
           <div className="px-4 py-3 border-b flex items-center gap-2">
             <Zap className="h-4 w-4 text-amber-500" />
@@ -720,7 +722,7 @@ export function VCMarketClient({ isAdmin }: Props) {
         </div>
       )}
 
-      {showImport && <ImportModal onClose={() => setShowImport(false)} onSuccess={() => fetchDeals(filters)} />}
+      {showImport && <ImportModal onClose={() => setShowImport(false)} onSuccess={() => { fetchDeals(filters); fetchAllDeals() }} />}
     </div>
   )
 }
