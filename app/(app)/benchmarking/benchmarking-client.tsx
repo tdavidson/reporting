@@ -8,7 +8,9 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from 'recharts'
 
-// ─── Types ───────────────────────────────────────────────────────────────────
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
 
 interface FundGroupMetric {
   group: string
@@ -40,7 +42,15 @@ interface GroupConfig {
   carry_rate: number | null
 }
 
-// ─── Constants ────────────────────────────────────────────────────────────────
+interface NavPoint {
+  date: string
+  nav: number
+  irr: number | null
+}
+
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
 
 const QUARTILE_COLORS = {
   top_quartile:    { bg: 'bg-green-100 dark:bg-green-900/30',  text: 'text-green-700 dark:text-green-400',  label: 'Top Quartile' },
@@ -57,49 +67,42 @@ const INDEX_COLORS: Record<string, string> = {
 }
 
 const FUND_COLOR = '#0F2332'
+const IRR_COLOR  = '#f43f5e'
 
 const SOURCES = [
   {
     name: 'Cambridge Associates',
     description: 'US Venture Capital Index — quartile benchmarks (TVPI, DPI, RVPI, Net IRR) by vintage year.',
     url: 'https://www.cambridgeassociates.com/research/us-venture-capital-index-and-selected-benchmark-statistics/',
-    frequency: 'Quarterly',
-    lastUpdate: 'Q3 2024',
-    type: 'Manual (hardcoded)',
+    frequency: 'Quarterly', lastUpdate: 'Q3 2024', type: 'Manual (hardcoded)',
   },
   {
     name: 'Banco Central do Brasil',
-    description: 'Official CDI (series 12) and IPCA (series 433) accumulated return series via open API.',
+    description: 'CDI (série 12) e IPCA (série 433) acumulados via API aberta.',
     url: 'https://dadosabertos.bcb.gov.br/dataset/12-taxa-de-juros---selic',
-    frequency: 'Daily / Monthly',
-    lastUpdate: 'Live',
-    type: 'Automatic',
+    frequency: 'Daily / Monthly', lastUpdate: 'Live', type: 'Automatic',
   },
   {
     name: 'Yahoo Finance',
-    description: 'Ibovespa (^BVSP) and S&P 500 (^GSPC) monthly adjusted close, rebased to 100 at vintage start.',
+    description: 'Ibovespa (^BVSP) e S&P 500 (^GSPC) mensais, rebaseados a 100 na data do primeiro investimento.',
     url: 'https://finance.yahoo.com/quote/%5EBVSP/',
-    frequency: 'Monthly',
-    lastUpdate: 'Live',
-    type: 'Automatic',
+    frequency: 'Monthly', lastUpdate: 'Live', type: 'Automatic',
   },
   {
     name: 'Carta / Pitchbook',
-    description: 'VC fund performance benchmarks. Enter manually from your subscription reports.',
+    description: 'Benchmarks de fundos VC. Insira manualmente a partir dos seus relatórios.',
     url: 'https://carta.com/blog/state-of-private-markets/',
-    frequency: 'Quarterly',
-    lastUpdate: 'Manual',
-    type: 'Manual (input)',
+    frequency: 'Quarterly', lastUpdate: 'Manual', type: 'Manual (input)',
   },
 ]
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
 
 function fmtMoic(v: number | null) { return v == null ? '—' : `${v.toFixed(2)}x` }
-function fmtIrr(v: number | null) {
-  if (v == null) return '—'
-  return `${(v * 100).toFixed(1)}%`
-}
+function fmtIrr(v: number | null)  { return v == null ? '—' : `${(v * 100).toFixed(1)}%` }
+function fmtPct(v: number | null)  { return v == null ? '—' : `${(v * 100).toFixed(1)}%` }
 
 function QuartileBadge({ position }: { position: keyof typeof QUARTILE_COLORS }) {
   const c = QUARTILE_COLORS[position]
@@ -114,18 +117,18 @@ function MiniBar({ value, q1, median, q3 }: { value: number; q1: number; median:
   const pos = getQuartilePosition(value, { q1, median, q3 })
   const barColor = pos === 'top_quartile' ? 'bg-green-500'
     : pos === 'upper_mid' ? 'bg-blue-500'
-    : pos === 'lower_mid' ? 'bg-amber-500'
-    : 'bg-red-500'
+    : pos === 'lower_mid' ? 'bg-amber-500' : 'bg-red-500'
   return (
     <div className="relative h-2 w-full rounded-full bg-muted mt-1">
-      <div className="absolute h-2 rounded-full bg-muted-foreground/20" style={{ left: `${pct(q3)}%`, width: `${pct(q1) - pct(q3)}%` }} />
+      <div className="absolute h-2 rounded-full bg-muted-foreground/20"
+        style={{ left: `${pct(q3)}%`, width: `${pct(q1) - pct(q3)}%` }} />
       <div className="absolute h-2 w-0.5 bg-muted-foreground/60 rounded" style={{ left: `${pct(median)}%` }} />
-      <div className={`absolute h-3 w-3 -top-0.5 -translate-x-1/2 rounded-full border-2 border-background ${barColor}`} style={{ left: `${pct(value)}%` }} />
+      <div className={`absolute h-3 w-3 -top-0.5 -translate-x-1/2 rounded-full border-2 border-background ${barColor}`}
+        style={{ left: `${pct(value)}%` }} />
     </div>
   )
 }
 
-// Custom tooltip — no Recharts Formatter type issues
 function ChartTooltip({ active, payload, label }: {
   active?: boolean
   payload?: { name: string; value: number; color: string }[]
@@ -135,63 +138,86 @@ function ChartTooltip({ active, payload, label }: {
   return (
     <div className="rounded-lg border bg-popover px-3 py-2 shadow-md text-[11px] space-y-1">
       <p className="font-medium text-muted-foreground mb-1">{label}</p>
-      {payload.map(entry => (
-        <div key={entry.name} className="flex items-center gap-2">
-          <span className="h-2 w-2 rounded-full flex-shrink-0" style={{ backgroundColor: entry.color }} />
-          <span className="text-foreground">{entry.name}</span>
-          <span className="ml-auto font-semibold tabular-nums">{Number(entry.value).toFixed(1)}</span>
-        </div>
-      ))}
+      {payload.map(entry => {
+        const isIrr = entry.name === 'Net IRR'
+        const display = isIrr
+          ? `${(entry.value * 100).toFixed(1)}%`
+          : Number(entry.value).toFixed(1)
+        return (
+          <div key={entry.name} className="flex items-center gap-2">
+            <span className="h-2 w-2 rounded-full flex-shrink-0" style={{ backgroundColor: entry.color }} />
+            <span className="text-foreground">{entry.name}</span>
+            <span className="ml-auto font-semibold tabular-nums">{display}</span>
+          </div>
+        )
+      })}
     </div>
   )
 }
 
+// Merge NAV series + public indices into a single chart data array.
+// All series are rebased to 100 at the first NAV data point date.
 function mergeChartData(
-  fundSeries: { date: string; value: number }[],
+  navSeries: NavPoint[],
   fundLabel: string,
   indices: PublicIndices,
   activeIndices: Set<string>,
-  startDate: string,
+  showIrr: boolean,
 ): Record<string, any>[] {
+  if (navSeries.length === 0) return []
+
+  const startDate = navSeries[0].date
   const dateMap = new Map<string, Record<string, any>>()
-  for (const pt of fundSeries) {
-    if (pt.date >= startDate) dateMap.set(pt.date, { date: pt.date, [fundLabel]: pt.value })
+
+  // Fund NAV — already base-100 from API
+  for (const pt of navSeries) {
+    dateMap.set(pt.date, {
+      date: pt.date,
+      [fundLabel]: pt.nav,
+      ...(showIrr && pt.irr != null ? { 'Net IRR': pt.irr } : {}),
+    })
   }
+
+  // Public indices — rebase to 100 at startDate
   const indexMap: Record<string, { date: string; value: number }[]> = {
     CDI: indices.cdi.series,
     IPCA: indices.ipca.series,
     Ibovespa: indices.ibov.series,
     'S&P 500': indices.sp500.series,
   }
+
   for (const [label, series] of Object.entries(indexMap)) {
     if (!activeIndices.has(label)) continue
-    // Find base value at or just before startDate to rebase to 100
-    const relevantSeries = series.filter(d => d.date >= startDate)
-    if (relevantSeries.length === 0) continue
-    const baseValue = relevantSeries[0].value
-    for (const pt of relevantSeries) {
+    const relevant = series.filter(d => d.date >= startDate)
+    if (relevant.length === 0) continue
+    const base = relevant[0].value
+    for (const pt of relevant) {
       const existing = dateMap.get(pt.date) ?? { date: pt.date }
-      existing[label] = parseFloat(((pt.value / baseValue) * 100).toFixed(2))
+      existing[label] = parseFloat(((pt.value / base) * 100).toFixed(2))
       dateMap.set(pt.date, existing)
     }
   }
+
   return Array.from(dateMap.values()).sort((a, b) => a.date.localeCompare(b.date))
 }
 
-// ─── Main Component ───────────────────────────────────────────────────────────
+// ---------------------------------------------------------------------------
+// Main component
+// ---------------------------------------------------------------------------
 
 export function BenchmarkingClient() {
-  const [allMetrics, setAllMetrics] = useState<FundGroupMetric[]>([])
+  const [allMetrics, setAllMetrics]     = useState<FundGroupMetric[]>([])
   const [groupConfigs, setGroupConfigs] = useState<GroupConfig[]>([])
-  const [indices, setIndices] = useState<PublicIndices | null>(null)
-  const [navSeries, setNavSeries] = useState<{ date: string; value: number }[]>([])
-  const [loadingFund, setLoadingFund] = useState(true)
+  const [indices, setIndices]           = useState<PublicIndices | null>(null)
+  const [navSeries, setNavSeries]       = useState<NavPoint[]>([])
+  const [loadingFund, setLoadingFund]   = useState(true)
   const [loadingIndices, setLoadingIndices] = useState(true)
-  const [loadingNav, setLoadingNav] = useState(false)
-  const [selectedGroup, setSelectedGroup] = useState<string>('')
-  const [activeIndices, setActiveIndices] = useState<Set<string>>(new Set(['CDI', 'Ibovespa']))
-  const [manualBench, setManualBench] = useState<Record<string, { tvpi?: string; netIrr?: string; notes?: string }>>({})
-  const [showSources, setShowSources] = useState(false)
+  const [loadingNav, setLoadingNav]     = useState(false)
+  const [selectedGroup, setSelectedGroup]   = useState<string>('')
+  const [activeIndices, setActiveIndices]   = useState<Set<string>>(new Set(['CDI', 'Ibovespa']))
+  const [showIrr, setShowIrr]           = useState(false)
+  const [manualBench, setManualBench]   = useState<Record<string, { tvpi?: string; netIrr?: string; notes?: string }>>({})
+  const [showSources, setShowSources]   = useState(false)
 
   // Load fund group summaries
   useEffect(() => {
@@ -216,41 +242,46 @@ export function BenchmarkingClient() {
             unrealizedValue: g.unrealizedValue,
           }))
           setAllMetrics(metrics)
-          if (metrics.length > 0 && !selectedGroup) setSelectedGroup(metrics[0].group)
+          if (metrics.length > 0) setSelectedGroup(metrics[0].group)
         }
       } finally {
         setLoadingFund(false)
       }
     }
     load()
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const vintageForSelected = useMemo(() => {
-    if (!selectedGroup) return null
-    return groupConfigs.find(c => c.portfolio_group === selectedGroup)?.vintage ?? null
-  }, [selectedGroup, groupConfigs])
+  const vintageForSelected = useMemo(() =>
+    groupConfigs.find(c => c.portfolio_group === selectedGroup)?.vintage ?? null
+  , [selectedGroup, groupConfigs])
 
-  // Load public indices
+  // Load public indices starting from vintage year (or earliest investment)
   useEffect(() => {
+    if (!indices && !loadingIndices) return
     async function load() {
       setLoadingIndices(true)
       try {
-        const vintage = vintageForSelected ?? 2020
-        const res = await fetch(`/api/benchmarks/public-indices?startDate=${vintage}-01-01`)
+        // Use nav start date if available, else vintage
+        const fallbackYear = vintageForSelected ?? new Date().getFullYear() - 5
+        const startDate = navSeries.length > 0
+          ? navSeries[0].date
+          : `${fallbackYear}-01-01`
+        const res = await fetch(`/api/benchmarks/public-indices?startDate=${startDate}`)
         if (res.ok) setIndices(await res.json())
       } finally {
         setLoadingIndices(false)
       }
     }
     load()
-  }, [vintageForSelected])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [navSeries, vintageForSelected])
 
-  // Load real NAV series from cashflows
+  // Load NAV series whenever selected group changes
   useEffect(() => {
-    if (!selectedGroup && selectedGroup !== '') return
+    if (selectedGroup === null) return
     async function load() {
       setLoadingNav(true)
+      setNavSeries([])
       try {
         const res = await fetch(`/api/benchmarks/nav-series?group=${encodeURIComponent(selectedGroup)}`)
         if (res.ok) {
@@ -264,19 +295,18 @@ export function BenchmarkingClient() {
     load()
   }, [selectedGroup])
 
-  const selectedMetric = useMemo(() => allMetrics.find(m => m.group === selectedGroup) ?? null, [allMetrics, selectedGroup])
-  const bench = useMemo(() => vintageForSelected ? getBenchmarkForVintage(vintageForSelected) : null, [vintageForSelected])
+  const selectedMetric = useMemo(() =>
+    allMetrics.find(m => m.group === selectedGroup) ?? null
+  , [allMetrics, selectedGroup])
 
-  const chartStartDate = useMemo(() => {
-    if (navSeries.length > 0) return navSeries[0].date
-    const vintage = vintageForSelected ?? 2020
-    return `${vintage}-01-01`
-  }, [navSeries, vintageForSelected])
+  const bench = useMemo(() =>
+    vintageForSelected ? getBenchmarkForVintage(vintageForSelected) : null
+  , [vintageForSelected])
 
   const chartData = useMemo(() => {
     if (!indices || navSeries.length === 0) return []
-    return mergeChartData(navSeries, selectedGroup || 'Fund', indices, activeIndices, chartStartDate)
-  }, [navSeries, indices, activeIndices, selectedGroup, chartStartDate])
+    return mergeChartData(navSeries, selectedGroup || 'Fund', indices, activeIndices, showIrr)
+  }, [navSeries, indices, activeIndices, selectedGroup, showIrr])
 
   function toggleIndex(label: string) {
     setActiveIndices(prev => {
@@ -286,7 +316,7 @@ export function BenchmarkingClient() {
     })
   }
 
-  const loading = loadingFund
+  const latestIrr = navSeries.at(-1)?.irr ?? null
 
   return (
     <div className="p-4 md:py-8 md:pl-8 md:pr-4 w-full max-w-5xl">
@@ -297,21 +327,21 @@ export function BenchmarkingClient() {
           Benchmarking
         </h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Fund performance vs. public indices and VC peer benchmarks
+          Performance do fundo vs. índices públicos e benchmarks VC
         </p>
       </div>
 
-      {loading ? (
+      {loadingFund ? (
         <div className="flex items-center gap-2 text-muted-foreground">
           <Loader2 className="h-4 w-4 animate-spin" /> Loading...
         </div>
       ) : (
         <div className="space-y-8">
 
-          {/* ── Fund Selector ── */}
+          {/* Fund Selector */}
           <section>
             <div className="flex items-center gap-3 flex-wrap">
-              <span className="text-sm font-medium text-muted-foreground">Analyzing fund:</span>
+              <span className="text-sm font-medium text-muted-foreground">Fundo:</span>
               <div className="relative">
                 <select
                   value={selectedGroup}
@@ -329,20 +359,33 @@ export function BenchmarkingClient() {
                   Vintage {vintageForSelected}
                 </span>
               )}
-              {!vintageForSelected && (
-                <span className="text-xs text-amber-600 bg-amber-50 dark:bg-amber-900/20 px-2.5 py-1 rounded-full">
-                  No vintage set — configure in Vehicles settings
+              {latestIrr != null && (
+                <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400">
+                  Net IRR atual: {fmtPct(latestIrr)}
                 </span>
               )}
             </div>
           </section>
 
-          {/* ── Performance Line Chart ── */}
+          {/* NAV Index + Net IRR Chart */}
           {selectedMetric && (
             <section>
               <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
                 <h2 className="text-base font-semibold">NAV Index vs. Benchmarks</h2>
                 <div className="flex items-center gap-2 flex-wrap">
+                  {/* IRR toggle */}
+                  <button
+                    onClick={() => setShowIrr(v => !v)}
+                    className={`text-[11px] px-2.5 py-1 rounded-full border transition-colors font-medium ${
+                      showIrr
+                        ? 'border-transparent text-white'
+                        : 'border-border text-muted-foreground hover:bg-accent'
+                    }`}
+                    style={showIrr ? { backgroundColor: IRR_COLOR } : {}}
+                  >
+                    Net IRR
+                  </button>
+                  {/* Index toggles */}
                   {(['CDI', 'IPCA', 'Ibovespa', 'S&P 500'] as const).map(label => (
                     <button
                       key={label}
@@ -359,18 +402,19 @@ export function BenchmarkingClient() {
                   ))}
                 </div>
               </div>
+
               <Card>
                 <CardContent className="pt-4 pb-2">
                   {(loadingIndices || loadingNav) ? (
                     <div className="h-64 flex items-center justify-center text-muted-foreground text-sm gap-2">
-                      <Loader2 className="h-4 w-4 animate-spin" /> Loading chart data...
+                      <Loader2 className="h-4 w-4 animate-spin" /> Carregando série...
                     </div>
                   ) : chartData.length < 2 ? (
                     <div className="h-64 flex items-center justify-center text-muted-foreground text-sm">
-                      Not enough data to plot.
+                      Sem dados suficientes para plotar.
                     </div>
                   ) : (
-                    <ResponsiveContainer width="100%" height={280}>
+                    <ResponsiveContainer width="100%" height={300}>
                       <LineChart data={chartData} margin={{ top: 4, right: 8, bottom: 4, left: 0 }}>
                         <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                         <XAxis
@@ -379,15 +423,30 @@ export function BenchmarkingClient() {
                           tickFormatter={(d: string) => d?.slice(0, 7) ?? ''}
                           interval="preserveStartEnd"
                         />
+                        {/* Left axis: NAV index */}
                         <YAxis
+                          yAxisId="nav"
                           tick={{ fontSize: 10 }}
                           tickFormatter={(v: number) => String(Math.round(v))}
-                          label={{ value: 'Index (base 100)', angle: -90, position: 'insideLeft', style: { fontSize: 9 }, dy: 50 }}
-                          width={52}
+                          label={{ value: 'Índice (base 100)', angle: -90, position: 'insideLeft', style: { fontSize: 9 }, dy: 55 }}
+                          width={56}
                         />
+                        {/* Right axis: IRR % */}
+                        {showIrr && (
+                          <YAxis
+                            yAxisId="irr"
+                            orientation="right"
+                            tick={{ fontSize: 10 }}
+                            tickFormatter={(v: number) => `${(v * 100).toFixed(0)}%`}
+                            width={44}
+                          />
+                        )}
                         <Tooltip content={<ChartTooltip />} />
                         <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
+
+                        {/* Fund NAV line */}
                         <Line
+                          yAxisId="nav"
                           type="monotone"
                           dataKey={selectedGroup || 'Fund'}
                           stroke={FUND_COLOR}
@@ -395,9 +454,26 @@ export function BenchmarkingClient() {
                           dot={false}
                           connectNulls
                         />
+
+                        {/* Net IRR line (right axis) */}
+                        {showIrr && (
+                          <Line
+                            yAxisId="irr"
+                            type="monotone"
+                            dataKey="Net IRR"
+                            stroke={IRR_COLOR}
+                            strokeWidth={1.5}
+                            dot={false}
+                            strokeDasharray="3 3"
+                            connectNulls
+                          />
+                        )}
+
+                        {/* Public index lines */}
                         {Array.from(activeIndices).map(label => (
                           <Line
                             key={label}
+                            yAxisId="nav"
                             type="monotone"
                             dataKey={label}
                             stroke={INDEX_COLORS[label]}
@@ -412,16 +488,16 @@ export function BenchmarkingClient() {
                   )}
                   <p className="text-[10px] text-muted-foreground mt-1 flex items-center gap-1">
                     <Info className="h-3 w-3 flex-shrink-0" />
-                    NAV index = (unrealized + proceeds) / invested × 100. Benchmarks rebased to 100 at first investment date.
+                    NAV = (unrealizado + distribuições) / capital chamado × 100. Índices rebaseados a 100 na data do primeiro investimento. Net IRR = XIRR mensal com NAV como terminal value.
                   </p>
                 </CardContent>
               </Card>
             </section>
           )}
 
-          {/* ── Public Indices Summary Cards ── */}
+          {/* Public Indices Summary */}
           <section>
-            <h2 className="text-base font-semibold mb-3">Public Markets Return</h2>
+            <h2 className="text-base font-semibold mb-3">Retorno Mercado Público</h2>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               {indices && Object.values(indices).map(idx => {
                 const pct = idx.latest != null ? idx.latest - 100 : null
@@ -434,7 +510,7 @@ export function BenchmarkingClient() {
                         {pct != null ? `${positive ? '+' : ''}${pct.toFixed(1)}%` : '—'}
                       </div>
                       <div className="text-[10px] text-muted-foreground mt-0.5">
-                        Since {vintageForSelected ?? '—'}
+                        Desde primeiro investimento
                       </div>
                     </CardContent>
                   </Card>
@@ -443,12 +519,12 @@ export function BenchmarkingClient() {
             </div>
           </section>
 
-          {/* ── Cambridge Associates Quartile Comparison ── */}
+          {/* Cambridge Associates Quartile Comparison */}
           {selectedMetric && (
             <section>
               <div className="flex items-center gap-2 mb-3">
                 <h2 className="text-base font-semibold">Cambridge Associates VC Quartiles</h2>
-                <span className="text-[10px] text-muted-foreground bg-muted px-2 py-0.5 rounded">US VC peers by vintage</span>
+                <span className="text-[10px] text-muted-foreground bg-muted px-2 py-0.5 rounded">US VC peers por vintage</span>
               </div>
               <Card>
                 <CardHeader className="pb-2 pt-4">
@@ -460,7 +536,7 @@ export function BenchmarkingClient() {
                 <CardContent className="pb-4">
                   {!bench ? (
                     <p className="text-xs text-muted-foreground">
-                      No vintage configured. Set it in <strong>Vehicles → Group Config</strong> to see peer comparison.
+                      Nenhum vintage configurado. Defina em <strong>Vehicles → Group Config</strong>.
                     </p>
                   ) : (
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -500,11 +576,11 @@ export function BenchmarkingClient() {
             </section>
           )}
 
-          {/* ── Manual Benchmarks ── */}
+          {/* Manual Benchmarks */}
           <section>
             <div className="flex items-center gap-2 mb-3">
-              <h2 className="text-base font-semibold">Manual Benchmarks</h2>
-              <span className="text-[10px] text-muted-foreground bg-muted px-2 py-0.5 rounded">Carta, Pitchbook — enter manually</span>
+              <h2 className="text-base font-semibold">Benchmarks Manuais</h2>
+              <span className="text-[10px] text-muted-foreground bg-muted px-2 py-0.5 rounded">Carta, Pitchbook</span>
             </div>
             <Card>
               <CardContent className="pt-4 pb-4">
@@ -512,42 +588,33 @@ export function BenchmarkingClient() {
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b">
-                        <th className="text-left pb-2 text-xs font-medium text-muted-foreground">Source</th>
-                        <th className="text-left pb-2 text-xs font-medium text-muted-foreground">Peer TVPI (median)</th>
-                        <th className="text-left pb-2 text-xs font-medium text-muted-foreground">Peer Net IRR (median)</th>
-                        <th className="text-left pb-2 text-xs font-medium text-muted-foreground">Notes</th>
+                        <th className="text-left pb-2 text-xs font-medium text-muted-foreground">Fonte</th>
+                        <th className="text-left pb-2 text-xs font-medium text-muted-foreground">TVPI peer (mediana)</th>
+                        <th className="text-left pb-2 text-xs font-medium text-muted-foreground">Net IRR peer (mediana)</th>
+                        <th className="text-left pb-2 text-xs font-medium text-muted-foreground">Notas</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {(['Carta', 'Pitchbook', 'Other'] as const).map(src => (
+                      {(['Carta', 'Pitchbook', 'Outro'] as const).map(src => (
                         <tr key={src} className="border-b last:border-0">
                           <td className="py-2 pr-4 font-medium text-xs">{src}</td>
                           <td className="py-2 pr-4">
-                            <input
-                              type="text"
-                              placeholder="e.g. 1.8x"
+                            <input type="text" placeholder="ex: 1.8x"
                               value={manualBench[src]?.tvpi ?? ''}
                               onChange={e => setManualBench(prev => ({ ...prev, [src]: { ...prev[src], tvpi: e.target.value } }))}
-                              className="border rounded px-2 py-1 text-xs w-24 bg-background"
-                            />
+                              className="border rounded px-2 py-1 text-xs w-24 bg-background" />
                           </td>
                           <td className="py-2 pr-4">
-                            <input
-                              type="text"
-                              placeholder="e.g. 12.5%"
+                            <input type="text" placeholder="ex: 12.5%"
                               value={manualBench[src]?.netIrr ?? ''}
                               onChange={e => setManualBench(prev => ({ ...prev, [src]: { ...prev[src], netIrr: e.target.value } }))}
-                              className="border rounded px-2 py-1 text-xs w-24 bg-background"
-                            />
+                              className="border rounded px-2 py-1 text-xs w-24 bg-background" />
                           </td>
                           <td className="py-2">
-                            <input
-                              type="text"
-                              placeholder="Period, vintage..."
+                            <input type="text" placeholder="Período, vintage..."
                               value={manualBench[src]?.notes ?? ''}
-                              onChange={e => setManualBench(prev => ({ ...prev, [src]: { ...prev[src], notes: e.target.value } }))}
-                              className="border rounded px-2 py-1 text-xs w-40 bg-background"
-                            />
+                              onChange={e => setManualBench(prev => ({ ...prev,[src]: { ...prev[src], notes: e.target.value } }))}
+                              className="border rounded px-2 py-1 text-xs w-40 bg-background" />
                           </td>
                         </tr>
                       ))}
@@ -555,21 +622,20 @@ export function BenchmarkingClient() {
                   </table>
                 </div>
                 <p className="text-[10px] text-muted-foreground mt-3 flex items-center gap-1">
-                  <Info className="h-3 w-3" />
-                  Values are session-only for now.
+                  <Info className="h-3 w-3" /> Valores apenas na sessão atual.
                 </p>
               </CardContent>
             </Card>
           </section>
 
-          {/* ── Data Sources ── */}
+          {/* Data Sources */}
           <section className="border-t pt-6">
             <button
               onClick={() => setShowSources(v => !v)}
               className="flex items-center gap-2 text-sm font-semibold hover:text-foreground text-muted-foreground transition-colors mb-4"
             >
               <ChevronDown className={`h-4 w-4 transition-transform ${showSources ? 'rotate-180' : ''}`} />
-              Data Sources & Methodology
+              Fontes de Dados & Metodologia
             </button>
             {showSources && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -581,20 +647,14 @@ export function BenchmarkingClient() {
                         src.type === 'Automatic'
                           ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
                           : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
-                      }`}>
-                        {src.type}
-                      </span>
+                      }`}>{src.type}</span>
                     </div>
                     <p className="text-xs text-muted-foreground">{src.description}</p>
                     <div className="flex items-center justify-between text-[10px] text-muted-foreground">
-                      <span>Updated: <strong>{src.lastUpdate}</strong> · {src.frequency}</span>
-                      <a
-                        href={src.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-1 text-blue-600 hover:underline font-medium"
-                      >
-                        Source <ExternalLink className="h-3 w-3" />
+                      <span>Atualização: <strong>{src.lastUpdate}</strong> · {src.frequency}</span>
+                      <a href={src.url} target="_blank" rel="noopener noreferrer"
+                        className="flex items-center gap-1 text-blue-600 hover:underline font-medium">
+                        Fonte <ExternalLink className="h-3 w-3" />
                       </a>
                     </div>
                   </div>
