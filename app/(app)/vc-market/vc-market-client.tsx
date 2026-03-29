@@ -186,6 +186,17 @@ const fmtDeals   = (v: number | undefined) => [v ?? 0, 'Deals']   as [number, st
 const fmtCapital = (v: number | undefined) => [formatUSD(v ?? 0), 'Capital'] as [string, string]
 const fmtUSDAxis = (v: number | undefined) => formatUSD(v ?? 0)
 
+// ─── Field (top-level — must NOT be inside any component) ────────────────────
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex flex-col gap-1">
+      <label className="text-xs text-muted-foreground">{label}</label>
+      {children}
+    </div>
+  )
+}
+
 // ─── MultiSelect ─────────────────────────────────────────────────────────────
 
 function MultiSelect({
@@ -275,8 +286,8 @@ function EditDealModal({
     country:      deal.country ?? '',
     source_url:   deal.source_url ?? '',
   })
-  const [saving,   setSaving]   = useState(false)
-  const [deleting, setDeleting] = useState(false)
+  const [saving,    setSaving]    = useState(false)
+  const [deleting,  setDeleting]  = useState(false)
   const [confirmDel, setConfirmDel] = useState(false)
 
   const set = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }))
@@ -326,13 +337,6 @@ function EditDealModal({
     }
   }
 
-  const Field = ({ label, children }: { label: string; children: React.ReactNode }) => (
-    <div className="flex flex-col gap-1">
-      <label className="text-xs text-muted-foreground">{label}</label>
-      {children}
-    </div>
-  )
-
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
       <div className="bg-background border rounded-xl shadow-xl w-full max-w-lg">
@@ -369,7 +373,7 @@ function EditDealModal({
             <Input value={form.segment} onChange={e => set('segment', e.target.value)} placeholder="Fintech" className="h-8 text-xs" />
           </Field>
           <Field label="Investors (comma-separated)">
-            <Input value={form.investors} onChange={e => set('investors', e.target.value)} placeholder="Sequoia, a16z" className="h-8 text-xs col-span-2" />
+            <Input value={form.investors} onChange={e => set('investors', e.target.value)} placeholder="Sequoia, a16z" className="h-8 text-xs" />
           </Field>
           <Field label="Source URL">
             <Input value={form.source_url} onChange={e => set('source_url', e.target.value)} placeholder="https://..." className="h-8 text-xs" />
@@ -534,15 +538,15 @@ function DealRow({ deal, onEdit }: { deal: VCDeal; onEdit: (d: VCDeal) => void }
 interface Props { isAdmin: boolean }
 
 export function VCMarketClient({ isAdmin }: Props) {
-  const [deals, setDeals]           = useState<VCDeal[]>([])
-  const [loading, setLoading]       = useState(true)
-  const [scraping, setScraping]     = useState(false)
-  const [showImport, setShowImport] = useState(false)
+  const [deals, setDeals]             = useState<VCDeal[]>([])
+  const [loading, setLoading]         = useState(true)
+  const [scraping, setScraping]       = useState(false)
+  const [showImport, setShowImport]   = useState(false)
   const [editingDeal, setEditingDeal] = useState<VCDeal | null>(null)
-  const [search, setSearch]         = useState('')
-  const [sortKey, setSortKey]       = useState<keyof VCDeal>('deal_date')
-  const [sortDir, setSortDir]       = useState<'asc' | 'desc'>('desc')
-  const [page, setPage]             = useState(1)
+  const [search, setSearch]           = useState('')
+  const [sortKey, setSortKey]         = useState<keyof VCDeal>('deal_date')
+  const [sortDir, setSortDir]         = useState<'asc' | 'desc'>('desc')
+  const [page, setPage]               = useState(1)
   const PAGE_SIZE = 50
 
   const [filters, setFilters] = useState<VCFilters>({
@@ -688,41 +692,16 @@ export function VCMarketClient({ isAdmin }: Props) {
 
       {/* Filters */}
       <div className="flex flex-wrap gap-2 items-center">
-        {/* Period — single select */}
         <Select value={filters.period} onValueChange={v => setFilters(f => ({ ...f, period: v }))}>
           <SelectTrigger className="h-8 w-32 text-xs"><SelectValue placeholder="Period" /></SelectTrigger>
           <SelectContent>{PERIOD_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
         </Select>
-
-        {/* Multi-selects */}
-        <MultiSelect
-          options={countryOptions}
-          selected={filters.countries}
-          onChange={v => { setFilters(f => ({ ...f, countries: v })); setPage(1) }}
-          placeholder="Country"
-        />
-        <MultiSelect
-          options={segmentOptions}
-          selected={filters.segments}
-          onChange={v => { setFilters(f => ({ ...f, segments: v })); setPage(1) }}
-          placeholder="Segment"
-        />
-        <MultiSelect
-          options={stageOptions}
-          selected={filters.stages}
-          onChange={v => { setFilters(f => ({ ...f, stages: v })); setPage(1) }}
-          placeholder="Stage"
-        />
-        <MultiSelect
-          options={investorOptions}
-          selected={filters.investors}
-          onChange={v => { setFilters(f => ({ ...f, investors: v })); setPage(1) }}
-          placeholder="Investor"
-        />
-
+        <MultiSelect options={countryOptions}  selected={filters.countries} onChange={v => { setFilters(f => ({ ...f, countries: v })); setPage(1) }} placeholder="Country" />
+        <MultiSelect options={segmentOptions}  selected={filters.segments}  onChange={v => { setFilters(f => ({ ...f, segments: v }));  setPage(1) }} placeholder="Segment" />
+        <MultiSelect options={stageOptions}    selected={filters.stages}    onChange={v => { setFilters(f => ({ ...f, stages: v }));    setPage(1) }} placeholder="Stage" />
+        <MultiSelect options={investorOptions} selected={filters.investors} onChange={v => { setFilters(f => ({ ...f, investors: v })); setPage(1) }} placeholder="Investor" />
         {hasActiveFilters && (
-          <button onClick={clearFilters}
-            className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1">
+          <button onClick={clearFilters} className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1">
             <X className="h-3 w-3" /> Clear
           </button>
         )}
