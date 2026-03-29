@@ -9,6 +9,15 @@
     },
     "app/api/emails/*/reprocess/route.ts": {
       "maxDuration": 120
+    },
+    "app/api/vc-market/cron/route.ts": {
+      "maxDuration": 120
     }
-  }
+  },
+  "crons": [
+    {
+      "path": "/api/vc-market/cron",
+      "schedule": "0 13 * * *"
+    }
+  ]
 }
