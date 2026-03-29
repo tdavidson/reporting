@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { startOfYear, startOfQuarter, subYears, format } from 'date-fns'
 
 function getPeriodRange(period: string): { from?: string; to?: string } {
   const now = new Date()
