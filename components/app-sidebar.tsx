@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Building2, ClipboardCheck, Mail, Upload, Send, Settings, LifeBuoy, PanelLeftClose, PanelLeftOpen, BarChart3, TrendingUp, StickyNote, Lock, Users, Handshake, ArrowDownCircle, FileText, Briefcase, Crown, ShieldCheck, Newspaper } from 'lucide-react'
+import { Building2, ClipboardCheck, Mail, Upload, Send, Settings, LifeBuoy, PanelLeftClose, PanelLeftOpen, BarChart3, TrendingUp, StickyNote, Lock, Users, Handshake, ArrowDownCircle, FileText, Briefcase, Crown, ShieldCheck, Newspaper, Globe2 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useState } from 'react'
 import { useSidebar } from '@/components/sidebar-context'
@@ -19,6 +19,7 @@ const NAV_ITEMS: { href: string; label: string; icon: LucideIcon; badgeKey?: 're
   { href: '/requests', label: 'Asks', icon: Send, featureKey: 'asks' },
   { href: '/notes', label: 'Notes', icon: StickyNote, badgeKey: 'notes', featureKey: 'notes' },
   { href: '/news', label: 'News', icon: Newspaper },
+  { href: '/vc-market', label: 'VC Market', icon: Globe2, featureKey: 'vc_market' },
   { href: '/interactions', label: 'Interactions', icon: Handshake, featureKey: 'interactions' },
   { href: '/letters', label: 'Letters', icon: FileText, featureKey: 'lp_letters' },
   { href: '/lps', label: 'LPs', icon: Crown, featureKey: 'lps' },
