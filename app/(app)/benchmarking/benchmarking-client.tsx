@@ -19,7 +19,6 @@ interface FundGroupMetric {
   totalInvested: number
   totalRealized: number
   unrealizedValue: number
-  cashFlows?: { date: string; cumulative: number }[]
 }
 
 interface IndexSummary {
@@ -124,29 +123,6 @@ function MiniBar({ value, q1, median, q3 }: { value: number; q1: number; median:
   )
 }
 
-// Build NAV index series for the fund: cumulative (realized + unrealized) / invested, base 100
-// Uses the public indices series dates as x-axis anchors, interpolating fund value linearly
-function buildFundIndexSeries(
-  cashFlowEvents: { date: string; totalValue: number; invested: number }[],
-  startDate: string,
-  referenceDates: string[]
-): { date: string; value: number }[] {
-  if (cashFlowEvents.length === 0) return []
-  const sorted = [...cashFlowEvents].sort((a, b) => a.date.localeCompare(b.date))
-  const result: { date: string; value: number }[] = []
-  for (const d of referenceDates) {
-    if (d < startDate) continue
-    const past = sorted.filter(e => e.date <= d)
-    if (past.length === 0) continue
-    const last = past[past.length - 1]
-    if (last.invested <= 0) continue
-    const navIndex = (last.totalValue / last.invested) * 100
-    result.push({ date: d, value: parseFloat(navIndex.toFixed(2)) })
-  }
-  return result
-}
-
-// Merge all series into chart-ready data points by date
 function mergeChartData(
   fundSeries: { date: string; value: number }[],
   fundLabel: string,
@@ -187,7 +163,6 @@ export function BenchmarkingClient() {
   const [manualBench, setManualBench] = useState<Record<string, { tvpi?: string; netIrr?: string; notes?: string }>>({})
   const [showSources, setShowSources] = useState(false)
 
-  // ── Load fund data ──
   useEffect(() => {
     async function load() {
       setLoadingFund(true)
@@ -225,7 +200,6 @@ export function BenchmarkingClient() {
     return groupConfigs.find(c => c.portfolio_group === selectedGroup)?.vintage ?? null
   }, [selectedGroup, groupConfigs])
 
-  // ── Load public indices based on selected group vintage ──
   useEffect(() => {
     async function load() {
       setLoadingIndices(true)
@@ -243,35 +217,28 @@ export function BenchmarkingClient() {
   const selectedMetric = useMemo(() => allMetrics.find(m => m.group === selectedGroup) ?? null, [allMetrics, selectedGroup])
   const bench = useMemo(() => vintageForSelected ? getBenchmarkForVintage(vintageForSelected) : null, [vintageForSelected])
 
-  // ── Build NAV index series for fund ──
   const fundNavSeries = useMemo(() => {
     if (!selectedMetric || !indices) return []
     const vintage = vintageForSelected ?? 2020
     const startDate = `${vintage}-01-01`
-    // Simplified: use total value vs invested as a single point projected across time
-    // For a real series you'd need historical snapshots — here we linearly interpolate from 100 → current TVPI×100
     const referenceDates = indices.cdi.series.map(d => d.date)
     if (referenceDates.length === 0) return []
     const tvpi = selectedMetric.tvpi ?? 1
-    const totalPoints = referenceDates.filter(d => d >= startDate).length
+    const filtered = referenceDates.filter(d => d >= startDate)
+    const totalPoints = filtered.length
     if (totalPoints === 0) return []
-    return referenceDates
-      .filter(d => d >= startDate)
-      .map((date, i) => {
-        const progress = i / (totalPoints - 1 || 1)
-        // J-curve: starts below 100, then grows — simple approximation
-        const jcurve = progress < 0.2
-          ? 100 - (progress / 0.2) * 8          // slight dip first 20%
-          : 92 + ((progress - 0.2) / 0.8) * (tvpi * 100 - 92) // recover and grow
-        return { date, value: parseFloat(jcurve.toFixed(2)) }
-      })
+    return filtered.map((date, i) => {
+      const progress = i / (totalPoints - 1 || 1)
+      const jcurve = progress < 0.2
+        ? 100 - (progress / 0.2) * 8
+        : 92 + ((progress - 0.2) / 0.8) * (tvpi * 100 - 92)
+      return { date, value: parseFloat(jcurve.toFixed(2)) }
+    })
   }, [selectedMetric, indices, vintageForSelected])
 
-  // ── Merge chart data ──
   const chartData = useMemo(() => {
     if (!indices || fundNavSeries.length === 0) return []
-    const fundLabel = selectedGroup || 'Fund'
-    return mergeChartData(fundNavSeries, fundLabel, indices, activeIndices)
+    return mergeChartData(fundNavSeries, selectedGroup || 'Fund', indices, activeIndices)
   }, [fundNavSeries, indices, activeIndices, selectedGroup])
 
   function toggleIndex(label: string) {
@@ -282,12 +249,16 @@ export function BenchmarkingClient() {
     })
   }
 
+  // ─── Tooltip formatter — value can be number | undefined per Recharts types ───
+  const tooltipFormatter = (value: number | undefined, name: string): [string, string] => {
+    return [value != null ? `${value.toFixed(1)}` : '—', name]
+  }
+
   const loading = loadingFund
 
   return (
     <div className="p-4 md:py-8 md:pl-8 md:pr-4 w-full max-w-5xl">
 
-      {/* ── Header ── */}
       <div className="mb-6">
         <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2">
           <TrendingUp className="h-5 w-5" />
@@ -373,22 +344,21 @@ export function BenchmarkingClient() {
                         <XAxis
                           dataKey="date"
                           tick={{ fontSize: 10 }}
-                          tickFormatter={d => d?.slice(0, 7) ?? ''}
+                          tickFormatter={(d: string) => d?.slice(0, 7) ?? ''}
                           interval="preserveStartEnd"
                         />
                         <YAxis
                           tick={{ fontSize: 10 }}
-                          tickFormatter={v => `${v.toFixed(0)}`}
+                          tickFormatter={(v: number) => `${v.toFixed(0)}`}
                           label={{ value: 'Index (base 100)', angle: -90, position: 'insideLeft', style: { fontSize: 9 }, dy: 50 }}
                           width={52}
                         />
                         <Tooltip
-                          formatter={(value: number, name: string) => [`${value.toFixed(1)}`, name]}
-                          labelFormatter={l => `Period: ${l}`}
+                          formatter={tooltipFormatter}
+                          labelFormatter={(l: string) => `Period: ${l}`}
                           contentStyle={{ fontSize: 11 }}
                         />
                         <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
-                        {/* Fund line */}
                         <Line
                           type="monotone"
                           dataKey={selectedGroup || 'Fund'}
@@ -397,7 +367,6 @@ export function BenchmarkingClient() {
                           dot={false}
                           connectNulls
                         />
-                        {/* Index lines */}
                         {Array.from(activeIndices).map(label => (
                           <Line
                             key={label}
@@ -415,7 +384,7 @@ export function BenchmarkingClient() {
                   )}
                   <p className="text-[10px] text-muted-foreground mt-1 flex items-center gap-1">
                     <Info className="h-3 w-3 flex-shrink-0" />
-                    Fund NAV index is approximated using a J-curve model from current TVPI. For precise tracking, historical NAV snapshots are required.
+                    Fund NAV index is approximated using a J-curve model from current TVPI. Historical NAV snapshots required for precise tracking.
                   </p>
                 </CardContent>
               </Card>
@@ -468,10 +437,10 @@ export function BenchmarkingClient() {
                   ) : (
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                       {([
-                        { label: 'TVPI',    value: selectedMetric.tvpi,    quartiles: bench.tvpi,    fmt: fmtMoic },
-                        { label: 'DPI',     value: selectedMetric.dpi,     quartiles: bench.dpi,     fmt: fmtMoic },
-                        { label: 'RVPI',    value: selectedMetric.rvpi,    quartiles: bench.rvpi,    fmt: fmtMoic },
-                        { label: 'Net IRR', value: selectedMetric.netIrr,  quartiles: bench.netIrr,  fmt: fmtIrr  },
+                        { label: 'TVPI',    value: selectedMetric.tvpi,   quartiles: bench.tvpi,   fmt: fmtMoic },
+                        { label: 'DPI',     value: selectedMetric.dpi,    quartiles: bench.dpi,    fmt: fmtMoic },
+                        { label: 'RVPI',    value: selectedMetric.rvpi,   quartiles: bench.rvpi,   fmt: fmtMoic },
+                        { label: 'Net IRR', value: selectedMetric.netIrr, quartiles: bench.netIrr, fmt: fmtIrr  },
                       ] as const).map(({ label, value, quartiles, fmt }) => {
                         if (value == null) return (
                           <div key={label}>
@@ -580,15 +549,13 @@ export function BenchmarkingClient() {
                   <div key={src.name} className="rounded-lg border p-4 space-y-2">
                     <div className="flex items-start justify-between gap-2">
                       <span className="font-semibold text-sm">{src.name}</span>
-                      <div className="flex items-center gap-2 flex-shrink-0">
-                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
-                          src.type === 'Automatic'
-                            ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                            : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
-                        }`}>
-                          {src.type}
-                        </span>
-                      </div>
+                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium flex-shrink-0 ${
+                        src.type === 'Automatic'
+                          ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                          : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+                      }`}>
+                        {src.type}
+                      </span>
                     </div>
                     <p className="text-xs text-muted-foreground">{src.description}</p>
                     <div className="flex items-center justify-between text-[10px] text-muted-foreground">
