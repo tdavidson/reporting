@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { scrapeVCDeals } from '@/lib/vc-market/scrapers'
+import { sendDealDigest } from '@/lib/vc-market/digest-email'
 
-// Called by Vercel Cron — authenticated via CRON_SECRET header
 export async function GET(req: NextRequest) {
   const secret = req.headers.get('x-cron-secret')
   if (secret !== process.env.CRON_SECRET) {
@@ -13,10 +13,10 @@ export async function GET(req: NextRequest) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const db = createAdminClient() as any
 
-    // Fetch all admin users and their Claude API keys from settings
+    // Fetch all users with settings (includes fund_id for email config lookup)
     const { data: adminSettings, error: settingsError } = await db
       .from('settings')
-      .select('user_id, claude_api_key')
+      .select('user_id, fund_id, claude_api_key')
 
     if (settingsError) throw settingsError
     if (!adminSettings || adminSettings.length === 0) {
@@ -27,11 +27,9 @@ export async function GET(req: NextRequest) {
     let totalSkipped  = 0
     const errors: string[] = []
 
-    // Run scraper for each user that has settings configured
     for (const setting of adminSettings) {
       try {
         const deals = await scrapeVCDeals(setting.user_id, setting.claude_api_key ?? undefined)
-
         if (deals.length === 0) continue
 
         const { data: inserted, error } = await db
@@ -42,8 +40,15 @@ export async function GET(req: NextRequest) {
         if (error) throw error
 
         const insertedCount = inserted?.length ?? deals.length
+        const newDeals = deals.slice(0, insertedCount)
+
         totalInserted += insertedCount
         totalSkipped  += deals.length - insertedCount
+
+        // Send digest only if new deals were actually inserted
+        if (insertedCount > 0 && setting.fund_id) {
+          await sendDealDigest(db, setting.user_id, setting.fund_id, newDeals)
+        }
       } catch (err) {
         errors.push(`user ${setting.user_id}: ${String(err)}`)
       }
