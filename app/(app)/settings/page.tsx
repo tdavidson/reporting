@@ -617,6 +617,7 @@ const FEATURE_META: Record<FeatureKey, { label: string; description: string; hre
   lps: { label: 'LPs', description: 'Investor-level report cards with consolidated performance across fund vehicles', href: '/support#lps' },
   lp_associates: { label: 'GP Entities', description: 'Entity ownership mappings and pro-rata associates calculations for LP reporting', href: '/support#lps' },
   compliance: { label: 'Compliance', description: 'Track regulatory deadlines, filings, and compliance workflows', href: '/support#compliance' },
+  vc_market: { label: 'VC Market', description: 'Deal flow and market intelligence scraped from VC news sources', href: '/support#vc-market' },
 }
 
 const VISIBILITY_OPTIONS: { value: FeatureVisibility; label: string; description: string }[] = [
