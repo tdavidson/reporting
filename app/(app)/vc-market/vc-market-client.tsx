@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, Legend, LineChart, Line,
+  PieChart, Pie, Cell, Legend,
 } from 'recharts'
 import type { PieLabelRenderProps } from 'recharts'
 import {
@@ -49,6 +49,9 @@ const PIE_COLORS = [
   '#6366f1', '#8b5cf6', '#3b82f6', '#0ea5e9',
   '#14b8a6', '#22c55e', '#f59e0b', '#f97316', '#ef4444',
 ]
+
+const COLOR_ROUNDS  = '#0F2332'
+const COLOR_CAPITAL = '#22c55e'
 
 function formatUSD(n: number): string {
   if (n >= 1_000_000_000) return `$${(n / 1_000_000_000).toFixed(1)}B`
@@ -196,7 +199,6 @@ function renderPieLabel({ name, percent }: PieLabelRenderProps): string {
   return `${name ?? ''} ${(((percent as number) ?? 0) * 100).toFixed(0)}%`
 }
 
-// Recharts formatter helpers — value can be undefined per Recharts types
 const fmtRounds  = (v: number | undefined) => [v ?? 0, 'Rounds']  as [number, string]
 const fmtDeals   = (v: number | undefined) => [v ?? 0, 'Deals']   as [number, string]
 const fmtCapital = (v: number | undefined) => [formatUSD(v ?? 0), 'Capital'] as [string, string]
@@ -544,17 +546,11 @@ export function VCMarketClient({ isAdmin }: Props) {
                   </p>
                 </div>
                 {deal.source_url ? (
-                  <a
-                    href={deal.source_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="shrink-0 text-muted-foreground hover:text-primary transition-colors"
-                  >
+                  <a href={deal.source_url} target="_blank" rel="noopener noreferrer"
+                    className="shrink-0 text-muted-foreground hover:text-primary transition-colors">
                     <ExternalLink className="h-4 w-4" />
                   </a>
-                ) : (
-                  <div className="shrink-0 w-4" />
-                )}
+                ) : <div className="shrink-0 w-4" />}
               </div>
             ))}
           </div>
@@ -565,6 +561,7 @@ export function VCMarketClient({ isAdmin }: Props) {
       {!loading && deals.length > 0 && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
 
+          {/* Rounds by Month — column bar, #0F2332 */}
           <div className="bg-card border rounded-xl p-4">
             <h3 className="text-sm font-medium mb-4">Rounds by Month</h3>
             {roundsByMonth.length > 0 ? (
@@ -574,27 +571,29 @@ export function VCMarketClient({ isAdmin }: Props) {
                   <XAxis dataKey="month" tick={{ fontSize: 11 }} />
                   <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
                   <Tooltip contentStyle={{ fontSize: 12 }} formatter={fmtRounds} />
-                  <Bar dataKey="rounds" fill="#6366f1" radius={[3, 3, 0, 0]} />
+                  <Bar dataKey="rounds" fill={COLOR_ROUNDS} radius={[3, 3, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             ) : emptyChart('No dated deals in period')}
           </div>
 
+          {/* Capital by Month — column bar, #22c55e */}
           <div className="bg-card border rounded-xl p-4">
             <h3 className="text-sm font-medium mb-4">Capital by Month (USD)</h3>
             {capitalByMonth.length > 0 ? (
               <ResponsiveContainer width="100%" height={220}>
-                <LineChart data={capitalByMonth} margin={{ top: 0, right: 8, bottom: 0, left: 8 }}>
+                <BarChart data={capitalByMonth} margin={{ top: 0, right: 8, bottom: 0, left: 8 }}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                   <XAxis dataKey="month" tick={{ fontSize: 11 }} />
                   <YAxis tick={{ fontSize: 11 }} tickFormatter={fmtUSDAxis} width={56} />
                   <Tooltip contentStyle={{ fontSize: 12 }} formatter={fmtCapital} />
-                  <Line type="monotone" dataKey="capital" stroke="#22c55e" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
-                </LineChart>
+                  <Bar dataKey="capital" fill={COLOR_CAPITAL} radius={[3, 3, 0, 0]} />
+                </BarChart>
               </ResponsiveContainer>
             ) : emptyChart('No capital data in period')}
           </div>
 
+          {/* Capital by Vertical — horizontal bar, #22c55e */}
           <div className="bg-card border rounded-xl p-4">
             <h3 className="text-sm font-medium mb-4">Capital by Vertical (USD)</h3>
             {capitalBySegment.length > 0 ? (
@@ -604,12 +603,13 @@ export function VCMarketClient({ isAdmin }: Props) {
                   <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={fmtUSDAxis} />
                   <YAxis dataKey="segment" type="category" tick={{ fontSize: 11 }} width={60} />
                   <Tooltip contentStyle={{ fontSize: 12 }} formatter={fmtCapital} />
-                  <Bar dataKey="amount" fill="#3b82f6" radius={[0, 3, 3, 0]} />
+                  <Bar dataKey="amount" fill={COLOR_CAPITAL} radius={[0, 3, 3, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             ) : emptyChart('No capital data available')}
           </div>
 
+          {/* Rounds by Vertical — horizontal bar, #0F2332 */}
           <div className="bg-card border rounded-xl p-4">
             <h3 className="text-sm font-medium mb-4">Rounds by Vertical</h3>
             {roundsByVertical.length > 0 ? (
@@ -619,9 +619,7 @@ export function VCMarketClient({ isAdmin }: Props) {
                   <XAxis type="number" tick={{ fontSize: 11 }} allowDecimals={false} />
                   <YAxis dataKey="segment" type="category" tick={{ fontSize: 11 }} width={60} />
                   <Tooltip contentStyle={{ fontSize: 12 }} formatter={fmtRounds} />
-                  <Bar dataKey="rounds" radius={[0, 3, 3, 0]}>
-                    {roundsByVertical.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
-                  </Bar>
+                  <Bar dataKey="rounds" fill={COLOR_ROUNDS} radius={[0, 3, 3, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             ) : emptyChart('No vertical data available')}
