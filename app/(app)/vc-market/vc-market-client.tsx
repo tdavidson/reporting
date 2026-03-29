@@ -631,7 +631,7 @@ export function VCMarketClient({ isAdmin }: Props) {
                   <Bar dataKey="deals" radius={[0, 3, 3, 0]}>
                     {dealsByCountry.map((_, i) => {
                       const c = PIE_COLORS[i % PIE_COLORS.length]
-                      return <Cell key={i} fill={c} fillOpacity={0.4} stroke={c} strokeWidth={1} />
+                      return <Cell key={i} fill={c} fillOpacity={0.2} stroke={c} strokeWidth={1} />
                     })}
                   </Bar>
                 </BarChart>
