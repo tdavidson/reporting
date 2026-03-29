@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import * as XLSX from 'xlsx'
-import type { VCDealInsert } from '@/lib/vc-market/types'
 
 function parseDate(raw: unknown): string | null {
   if (!raw) return null
@@ -34,15 +33,6 @@ export async function POST(req: NextRequest) {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const admin = createAdminClient()
-    const { data: membership } = await admin
-      .from('fund_members')
-      .select('fund_id')
-      .eq('user_id', user.id)
-      .maybeSingle()
-    if (!membership) return NextResponse.json({ error: 'Fund not found' }, { status: 404 })
-    const fundId = membership.fund_id as string
-
     const formData = await req.formData()
     const file = formData.get('file') as File | null
     if (!file) return NextResponse.json({ error: 'No file provided' }, { status: 400 })
@@ -52,7 +42,7 @@ export async function POST(req: NextRequest) {
     const ws = wb.Sheets[wb.SheetNames[0]]
     const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws, { defval: '' })
 
-    const deals: VCDealInsert[] = []
+    const deals: Record<string, unknown>[] = []
     const errors: string[] = []
 
     for (let i = 0; i < rows.length; i++) {
@@ -61,7 +51,7 @@ export async function POST(req: NextRequest) {
       if (!company) { errors.push(`Row ${i + 2}: missing Company Name`); continue }
 
       deals.push({
-        fund_id:      fundId,
+        user_id:      user.id,
         company_name: company,
         amount_usd:   parseAmount(row['Amount USD'] ?? row['amount_usd']),
         deal_date:    parseDate(row['Date'] ?? row['deal_date']),
@@ -78,11 +68,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ inserted: 0, skipped: 0, errors })
     }
 
+    const admin = createAdminClient()
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const db = admin as any
-    const { data: inserted, error } = await db
+    const { data: inserted, error } = await (admin as any)
       .from('vc_deals')
-      .upsert(deals, { onConflict: 'fund_id,company_name,deal_date', ignoreDuplicates: true })
+      .upsert(deals, { onConflict: 'user_id,company_name,deal_date', ignoreDuplicates: true })
       .select('id')
 
     if (error) throw error

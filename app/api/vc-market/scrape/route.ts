@@ -11,31 +11,22 @@ export async function POST() {
 
     const admin = createAdminClient()
 
-    const { data: membership } = await admin
-      .from('fund_members')
-      .select('fund_id')
-      .eq('user_id', user.id)
-      .maybeSingle()
-    if (!membership) return NextResponse.json({ error: 'Fund not found' }, { status: 404 })
-    const fundId = membership.fund_id as string
-
     const { data: settings } = await admin
       .from('settings')
       .select('claude_api_key')
       .eq('user_id', user.id)
       .maybeSingle()
 
-    const deals = await scrapeVCDeals(fundId, (settings as any)?.claude_api_key ?? undefined)
+    const deals = await scrapeVCDeals(user.id, (settings as any)?.claude_api_key ?? undefined)
 
     if (deals.length === 0) {
       return NextResponse.json({ inserted: 0, skipped: 0, errors: [] })
     }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const db = admin as any
-    const { data: inserted, error } = await db
+    const { data: inserted, error } = await (admin as any)
       .from('vc_deals')
-      .upsert(deals, { onConflict: 'fund_id,company_name,deal_date', ignoreDuplicates: true })
+      .upsert(deals, { onConflict: 'user_id,company_name,deal_date', ignoreDuplicates: true })
       .select('id')
 
     if (error) throw error

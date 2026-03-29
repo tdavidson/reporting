@@ -26,14 +26,6 @@ export async function GET(req: NextRequest) {
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     const admin = createAdminClient()
-    const { data: membership } = await admin
-      .from('fund_members')
-      .select('fund_id')
-      .eq('user_id', user.id)
-      .maybeSingle()
-    if (!membership) return NextResponse.json({ deals: [] })
-    const fundId = membership.fund_id as string
-
     const sp = req.nextUrl.searchParams
     const period   = sp.get('period') ?? 'ytd'
     const country  = sp.get('country') ?? ''
@@ -45,7 +37,7 @@ export async function GET(req: NextRequest) {
     let q = (admin as any)
       .from('vc_deals')
       .select('*')
-      .eq('fund_id', fundId)
+      .eq('user_id', user.id)
       .order('deal_date', { ascending: false })
 
     const { from, to } = getPeriodRange(period)

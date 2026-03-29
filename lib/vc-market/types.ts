@@ -1,6 +1,6 @@
 export interface VCDeal {
   id: string
-  fund_id: string
+  user_id: string
   company_name: string
   amount_usd: number | null
   deal_date: string | null
@@ -13,17 +13,17 @@ export interface VCDeal {
   created_at: string
   updated_at: string
 }
- 
+
 export type VCDealInsert = Omit<VCDeal, 'id' | 'created_at' | 'updated_at'>
- 
+
 export interface VCFilters {
-  period: string   // 'ytd' | 'last_year' | '2025' | 'q1' | 'q2' | 'q3' | 'q4' | 'all'
+  period: string
   country: string
   segment: string
   stage: string
   investor: string
 }
- 
+
 export interface VCKPIs {
   totalRounds: number
   totalCapital: number
@@ -31,13 +31,13 @@ export interface VCKPIs {
   avgTicket: number
   activeCountries: number
 }
- 
+
 export interface ScrapeResult {
   inserted: number
   skipped: number
   errors: string[]
 }
- 
+
 export interface ImportResult {
   inserted: number
   skipped: number
