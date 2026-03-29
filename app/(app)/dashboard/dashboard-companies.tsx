@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useMemo, useEffect, useRef } from 'react'
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import Link from 'next/link'
-import { ArrowDownAZ, ArrowUpZA, ArrowDown, ArrowUp, LayoutGrid, Table2, CalendarDays, Plus, Upload } from 'lucide-react'
+import { ArrowDownAZ, ArrowUpZA, ArrowDown, ArrowUp, LayoutGrid, Table2, CalendarDays, Plus, Upload, GripVertical } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { DashboardTable } from './dashboard-table'
@@ -46,9 +46,29 @@ interface Company {
 interface Props {
   companies: Company[]
   allGroups: string[]
+  fundId: string
 }
 
-type SortMode = 'alpha' | 'investDate' | null
+type SortMode = 'alpha' | 'investDate' | 'manual' | null
+
+function storageKey(fundId: string) {
+  return `portfolio-order-${fundId}`
+}
+
+function loadOrder(fundId: string): string[] | null {
+  try {
+    const raw = localStorage.getItem(storageKey(fundId))
+    return raw ? JSON.parse(raw) : null
+  } catch {
+    return null
+  }
+}
+
+function saveOrder(fundId: string, ids: string[]) {
+  try {
+    localStorage.setItem(storageKey(fundId), JSON.stringify(ids))
+  } catch {}
+}
 
 function formatMetricValue(v: number | null, metric: ActiveMetric, fundCurrency: string): string {
   if (v === null) return '\u2014'
@@ -118,13 +138,23 @@ function CompanyAvatar({ company, onLogoUpdate }: { company: Company; onLogoUpda
   )
 }
 
-export function DashboardCompanies({ companies, allGroups }: Props) {
+export function DashboardCompanies({ companies, allGroups, fundId }: Props) {
   const [view, setView] = useState<'cards' | 'table'>('cards')
   const [statusFilter, setStatusFilter] = useState<string>('active')
   const [sortMode, setSortMode] = useState<SortMode>('investDate')
   const [alphaSortAsc, setAlphaSortAsc] = useState(true)
   const [investDateSortAsc, setInvestDateSortAsc] = useState(false)
   const [logoMap, setLogoMap] = useState<Record<string, string>>({})
+  const [manualOrder, setManualOrder] = useState<string[] | null>(null)
+
+  // Load persisted order on mount
+  useEffect(() => {
+    const saved = loadOrder(fundId)
+    if (saved && saved.length > 0) {
+      setManualOrder(saved)
+      setSortMode('manual')
+    }
+  }, [fundId])
 
   function handleLogoUpdate(id: string, url: string) {
     setLogoMap(prev => ({ ...prev, [id]: url }))
@@ -138,7 +168,15 @@ export function DashboardCompanies({ companies, allGroups }: Props) {
     return result
   }, [companies, statusFilter])
 
-  function sortCompanies(list: Company[]) {
+  function sortCompanies(list: Company[]): Company[] {
+    if (sortMode === 'manual' && manualOrder) {
+      const orderMap = new Map(manualOrder.map((id, i) => [id, i]))
+      return [...list].sort((a, b) => {
+        const ai = orderMap.has(a.id) ? orderMap.get(a.id)! : 9999
+        const bi = orderMap.has(b.id) ? orderMap.get(b.id)! : 9999
+        return ai - bi
+      })
+    }
     if (sortMode === 'alpha') {
       return [...list].sort((a, b) =>
         alphaSortAsc ? a.name.localeCompare(b.name) : b.name.localeCompare(a.name)
@@ -158,7 +196,21 @@ export function DashboardCompanies({ companies, allGroups }: Props) {
   }
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const sortedFiltered = useMemo(() => sortCompanies(filtered), [filtered, sortMode, alphaSortAsc, investDateSortAsc])
+  const sortedFiltered = useMemo(() => sortCompanies(filtered), [filtered, sortMode, alphaSortAsc, investDateSortAsc, manualOrder])
+
+  function handleReorder(newOrder: string[]) {
+    setManualOrder(newOrder)
+    setSortMode('manual')
+    saveOrder(fundId, newOrder)
+  }
+
+  function activateManualMode() {
+    // Capture current sorted order as the starting manual order
+    const currentIds = sortedFiltered.map(c => c.id)
+    setManualOrder(currentIds)
+    setSortMode('manual')
+    saveOrder(fundId, currentIds)
+  }
 
   return (
     <div>
@@ -217,6 +269,17 @@ export function DashboardCompanies({ companies, allGroups }: Props) {
                 <ArrowDown className="h-3 w-3" />
               )}
             </Button>
+            <Button
+              variant={sortMode === 'manual' ? 'secondary' : 'ghost'}
+              size="sm"
+              title="Manual order (drag to reorder)"
+              className="text-muted-foreground hover:text-foreground"
+              onClick={() => {
+                if (sortMode !== 'manual') activateManualMode()
+              }}
+            >
+              <GripVertical className="h-3.5 w-3.5" />
+            </Button>
             <Button variant={view === 'cards' ? 'secondary' : 'ghost'} size="sm" className="text-muted-foreground hover:text-foreground" onClick={() => setView('cards')}>
               <LayoutGrid className="h-3.5 w-3.5" />
             </Button>
@@ -225,6 +288,10 @@ export function DashboardCompanies({ companies, allGroups }: Props) {
             </Button>
           </div>
         </div>
+      )}
+
+      {sortMode === 'manual' && view === 'cards' && (
+        <p className="text-[11px] text-muted-foreground mb-3">Drag cards to reorder — order is saved automatically.</p>
       )}
 
       {filtered.length === 0 ? (
@@ -238,20 +305,38 @@ export function DashboardCompanies({ companies, allGroups }: Props) {
           grouped={null}
         />
       ) : (
-        <CompanyGrid companies={sortedFiltered} logoMap={logoMap} onLogoUpdate={handleLogoUpdate} />
+        <CompanyGrid
+          companies={sortedFiltered}
+          logoMap={logoMap}
+          onLogoUpdate={handleLogoUpdate}
+          isDraggable={sortMode === 'manual'}
+          onReorder={handleReorder}
+        />
       )}
     </div>
   )
 }
 
-function CompanyGrid({ companies, logoMap, onLogoUpdate }: { companies: Company[]; logoMap: Record<string, string>; onLogoUpdate: (id: string, url: string) => void }) {
+function CompanyGrid({
+  companies,
+  logoMap,
+  onLogoUpdate,
+  isDraggable,
+  onReorder,
+}: {
+  companies: Company[]
+  logoMap: Record<string, string>
+  onLogoUpdate: (id: string, url: string) => void
+  isDraggable: boolean
+  onReorder: (ids: string[]) => void
+}) {
   const fundCurrency = useCurrency()
   const [metricValues, setMetricValues] = useState<Record<string, number | null>>({})
   const [loadingMetrics, setLoadingMetrics] = useState<Set<string>>(new Set())
   const fetchedRef = useRef<Set<string>>(new Set())
+  const dragIdRef = useRef<string | null>(null)
+  const [dragOverId, setDragOverId] = useState<string | null>(null)
 
-  // activeMetrics already arrives filtered by is_active=true and sorted by display_order
-  // just take the first 2
   function getSelectedMetrics(c: Company): [ActiveMetric | null, ActiveMetric | null] {
     return [c.activeMetrics[0] ?? null, c.activeMetrics[1] ?? null]
   }
@@ -299,15 +384,62 @@ function CompanyGrid({ companies, logoMap, onLogoUpdate }: { companies: Company[
     }
   }, [companies])
 
+  function handleDragStart(id: string) {
+    dragIdRef.current = id
+  }
+
+  function handleDragOver(e: React.DragEvent, id: string) {
+    e.preventDefault()
+    setDragOverId(id)
+  }
+
+  function handleDrop(targetId: string) {
+    const fromId = dragIdRef.current
+    if (!fromId || fromId === targetId) {
+      setDragOverId(null)
+      return
+    }
+    const ids = companies.map(c => c.id)
+    const fromIdx = ids.indexOf(fromId)
+    const toIdx = ids.indexOf(targetId)
+    const next = [...ids]
+    next.splice(fromIdx, 1)
+    next.splice(toIdx, 0, fromId)
+    onReorder(next)
+    dragIdRef.current = null
+    setDragOverId(null)
+  }
+
+  function handleDragEnd() {
+    dragIdRef.current = null
+    setDragOverId(null)
+  }
+
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
       {companies.map((c) => {
         const isExited = c.status === 'exited' || c.status === 'written-off'
         const logoUrl = logoMap[c.id] ?? c.logoUrl
+        const isOver = dragOverId === c.id
 
         return (
-          <div key={c.id} className="rounded-lg border bg-card p-4 hover:bg-accent/50 transition-colors">
+          <div
+            key={c.id}
+            draggable={isDraggable}
+            onDragStart={() => handleDragStart(c.id)}
+            onDragOver={e => handleDragOver(e, c.id)}
+            onDrop={() => handleDrop(c.id)}
+            onDragEnd={handleDragEnd}
+            className={`rounded-lg border bg-card p-4 hover:bg-accent/50 transition-colors ${
+              isDraggable ? 'cursor-grab active:cursor-grabbing' : ''
+            } ${
+              isOver ? 'ring-2 ring-primary ring-offset-1' : ''
+            }`}
+          >
             <div className="flex items-start gap-3 mb-1">
+              {isDraggable && (
+                <GripVertical className="h-4 w-4 text-muted-foreground/40 mt-0.5 flex-shrink-0 select-none" />
+              )}
               <CompanyAvatar
                 company={{ ...c, logoUrl }}
                 onLogoUpdate={onLogoUpdate}

@@ -18,11 +18,12 @@ export default async function DashboardPage() {
 
   const { data: membership } = await supabase
     .from('fund_members')
-    .select('role')
+    .select('role, fund_id')
     .eq('user_id', user.id)
-    .maybeSingle() as { data: { role: string } | null }
+    .maybeSingle() as { data: { role: string; fund_id: string } | null }
 
   const isAdmin = membership?.role === 'admin'
+  const fundId = membership?.fund_id ?? 'default'
 
   const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString()
 
@@ -184,7 +185,7 @@ export default async function DashboardPage() {
 
         <div className="flex flex-col lg:flex-row gap-6 items-start">
           <div className="flex-1 min-w-0 max-w-7xl w-full">
-            <DashboardCompanies companies={companiesWithInvestments} allGroups={allGroups} />
+            <DashboardCompanies companies={companiesWithInvestments} allGroups={allGroups} fundId={fundId} />
           </div>
           <DashboardNotesPanel />
           <AnalystPanel />
