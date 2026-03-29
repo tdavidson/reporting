@@ -24,12 +24,13 @@ export async function GET(req: NextRequest) {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const { data: fund, error: fundError } = await supabase
+    const { data: fundRaw, error: fundError } = await supabase
       .from('funds')
       .select('id')
       .eq('user_id', user.id)
       .single()
-    if (fundError || !fund) return NextResponse.json({ deals: [] })
+    if (fundError || !fundRaw) return NextResponse.json({ deals: [] })
+    const fund = fundRaw as { id: string }
 
     const sp = req.nextUrl.searchParams
     const period   = sp.get('period') ?? 'ytd'
@@ -38,7 +39,8 @@ export async function GET(req: NextRequest) {
     const stage    = sp.get('stage') ?? ''
     const investor = sp.get('investor') ?? ''
 
-    let q = supabase
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let q = (supabase as any)
       .from('vc_deals')
       .select('*')
       .eq('fund_id', fund.id)
