@@ -27,11 +27,11 @@ export async function GET(req: NextRequest) {
 
     const admin = createAdminClient()
     const sp = req.nextUrl.searchParams
-    const period   = sp.get('period') ?? 'ytd'
-    const country  = sp.get('country') ?? ''
-    const segment  = sp.get('segment') ?? ''
-    const stage    = sp.get('stage') ?? ''
-    const investor = sp.get('investor') ?? ''
+    const period    = sp.get('period') ?? 'ytd'
+    const countries = sp.getAll('country').filter(Boolean)
+    const segments  = sp.getAll('segment').filter(Boolean)
+    const stages    = sp.getAll('stage').filter(Boolean)
+    const investors = sp.getAll('investor').filter(Boolean)
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let q = (admin as any)
@@ -43,10 +43,13 @@ export async function GET(req: NextRequest) {
     const { from, to } = getPeriodRange(period)
     if (from) q = q.gte('deal_date', from)
     if (to)   q = q.lte('deal_date', to)
-    if (country)  q = q.eq('country', country)
-    if (segment)  q = q.eq('segment', segment)
-    if (stage)    q = q.eq('stage', stage)
-    if (investor) q = q.contains('investors', [investor])
+    if (countries.length === 1) q = q.eq('country', countries[0])
+    else if (countries.length > 1) q = q.in('country', countries)
+    if (segments.length === 1) q = q.eq('segment', segments[0])
+    else if (segments.length > 1) q = q.in('segment', segments)
+    if (stages.length === 1) q = q.eq('stage', stages[0])
+    else if (stages.length > 1) q = q.in('stage', stages)
+    if (investors.length > 0) q = q.overlaps('investors', investors)
 
     const { data, error } = await q
     if (error) throw error

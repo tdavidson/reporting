@@ -18,10 +18,10 @@ export type VCDealInsert = Omit<VCDeal, 'id' | 'created_at' | 'updated_at'>
 
 export interface VCFilters {
   period: string
-  country: string
-  segment: string
-  stage: string
-  investor: string
+  countries: string[]
+  segments: string[]
+  stages: string[]
+  investors: string[]
 }
 
 export interface VCKPIs {

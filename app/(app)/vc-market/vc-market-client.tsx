@@ -4,11 +4,10 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
 } from 'recharts'
-import type { PieLabelRenderProps } from 'recharts'
 import {
   TrendingUp, Globe, DollarSign, Building2, BarChart3,
   Upload, RefreshCw, ExternalLink, X, FileSpreadsheet, Loader2,
-  ChevronDown, ChevronUp, Search, Zap,
+  ChevronDown, ChevronUp, Search, Zap, Pencil, Trash2, Check, ChevronsUpDown,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -20,6 +19,8 @@ import { toast } from 'sonner'
 import type { VCDeal, VCFilters, VCKPIs } from '@/lib/vc-market/types'
 import * as XLSX from 'xlsx'
 
+// ─── constants ───────────────────────────────────────────────────────────────
+
 const PERIOD_OPTIONS = [
   { value: 'ytd',       label: 'YTD' },
   { value: 'q1',        label: 'Q1' },
@@ -30,6 +31,10 @@ const PERIOD_OPTIONS = [
   { value: '2024',      label: '2024' },
   { value: '2023',      label: '2023' },
   { value: 'all',       label: 'All time' },
+]
+
+const STAGE_OPTIONS = [
+  'Pre-Seed','Seed','Series A','Series B','Series C','Series D','Series E','Growth','Bridge',
 ]
 
 const STAGE_COLORS: Record<string, string> = {
@@ -45,12 +50,14 @@ const STAGE_COLORS: Record<string, string> = {
 }
 
 const PIE_COLORS = [
-  '#6366f1', '#8b5cf6', '#3b82f6', '#0ea5e9',
-  '#14b8a6', '#22c55e', '#f59e0b', '#f97316', '#ef4444',
+  '#6366f1','#8b5cf6','#3b82f6','#0ea5e9',
+  '#14b8a6','#22c55e','#f59e0b','#f97316','#ef4444',
 ]
 
 const COLOR_ROUNDS  = '#0F2332'
 const COLOR_CAPITAL = '#22c55e'
+
+// ─── helpers ─────────────────────────────────────────────────────────────────
 
 function barProps(color: string) {
   return { fill: color, fillOpacity: 0.6, stroke: color, strokeWidth: 1.5 }
@@ -117,8 +124,7 @@ function buildCapitalBySegment(deals: VCDeal[]) {
     map.set(seg, (map.get(seg) ?? 0) + (d.amount_usd ?? 0))
   }
   return Array.from(map.entries())
-    .sort(([, a], [, b]) => b - a)
-    .slice(0, 10)
+    .sort(([, a], [, b]) => b - a).slice(0, 10)
     .map(([segment, amount]) => ({ segment, amount }))
 }
 
@@ -129,8 +135,7 @@ function buildRoundsByVertical(deals: VCDeal[]) {
     map.set(seg, (map.get(seg) ?? 0) + 1)
   }
   return Array.from(map.entries())
-    .sort(([, a], [, b]) => b - a)
-    .slice(0, 10)
+    .sort(([, a], [, b]) => b - a).slice(0, 10)
     .map(([segment, rounds]) => ({ segment, rounds }))
 }
 
@@ -141,8 +146,7 @@ function buildDealsByCountry(deals: VCDeal[]) {
     map.set(c, (map.get(c) ?? 0) + 1)
   }
   return Array.from(map.entries())
-    .sort(([, a], [, b]) => b - a)
-    .slice(0, 12)
+    .sort(([, a], [, b]) => b - a).slice(0, 12)
     .map(([country, count]) => ({ country, deals: count }))
 }
 
@@ -154,8 +158,7 @@ function buildCapitalByCountry(deals: VCDeal[]) {
     map.set(c, (map.get(c) ?? 0) + d.amount_usd)
   }
   return Array.from(map.entries())
-    .sort(([, a], [, b]) => b - a)
-    .slice(0, 12)
+    .sort(([, a], [, b]) => b - a).slice(0, 12)
     .map(([country, capital]) => ({ country, capital }))
 }
 
@@ -182,6 +185,223 @@ const fmtRounds  = (v: number | undefined) => [v ?? 0, 'Rounds']  as [number, st
 const fmtDeals   = (v: number | undefined) => [v ?? 0, 'Deals']   as [number, string]
 const fmtCapital = (v: number | undefined) => [formatUSD(v ?? 0), 'Capital'] as [string, string]
 const fmtUSDAxis = (v: number | undefined) => formatUSD(v ?? 0)
+
+// ─── MultiSelect ─────────────────────────────────────────────────────────────
+
+function MultiSelect({
+  options, selected, onChange, placeholder,
+}: {
+  options: string[]
+  selected: string[]
+  onChange: (v: string[]) => void
+  placeholder: string
+}) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  const toggle = (v: string) => {
+    onChange(selected.includes(v) ? selected.filter(s => s !== v) : [...selected, v])
+  }
+
+  const label = selected.length === 0
+    ? placeholder
+    : selected.length === 1
+      ? selected[0]
+      : `${selected.length} selected`
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        className={`h-8 min-w-[120px] max-w-[160px] flex items-center justify-between gap-1 px-3 rounded-md border bg-background text-xs transition-colors hover:bg-accent ${
+          selected.length > 0 ? 'border-primary/60 text-foreground' : 'text-muted-foreground'
+        }`}
+      >
+        <span className="truncate">{label}</span>
+        <ChevronsUpDown className="h-3 w-3 shrink-0 opacity-50" />
+      </button>
+      {open && (
+        <div className="absolute top-full mt-1 left-0 z-50 min-w-[160px] max-h-56 overflow-y-auto bg-popover border rounded-md shadow-md py-1">
+          {options.map(opt => (
+            <button
+              key={opt}
+              type="button"
+              onClick={() => toggle(opt)}
+              className="w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-accent text-left"
+            >
+              <span className={`h-3.5 w-3.5 rounded border flex items-center justify-center shrink-0 ${
+                selected.includes(opt) ? 'bg-primary border-primary' : 'border-border'
+              }`}>
+                {selected.includes(opt) && <Check className="h-2.5 w-2.5 text-primary-foreground" />}
+              </span>
+              {opt}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── EditDealModal ────────────────────────────────────────────────────────────
+
+function EditDealModal({
+  deal,
+  onClose,
+  onSaved,
+  onDeleted,
+}: {
+  deal: VCDeal
+  onClose: () => void
+  onSaved: (updated: VCDeal) => void
+  onDeleted: (id: string) => void
+}) {
+  const [form, setForm] = useState({
+    company_name: deal.company_name,
+    amount_usd:   deal.amount_usd?.toString() ?? '',
+    deal_date:    deal.deal_date ?? '',
+    stage:        deal.stage ?? '',
+    investors:    deal.investors?.join(', ') ?? '',
+    segment:      deal.segment ?? '',
+    country:      deal.country ?? '',
+    source_url:   deal.source_url ?? '',
+  })
+  const [saving,   setSaving]   = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [confirmDel, setConfirmDel] = useState(false)
+
+  const set = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }))
+
+  const handleSave = async () => {
+    setSaving(true)
+    try {
+      const payload = {
+        company_name: form.company_name.trim(),
+        amount_usd:   form.amount_usd ? parseFloat(form.amount_usd) : null,
+        deal_date:    form.deal_date || null,
+        stage:        form.stage || null,
+        investors:    form.investors ? form.investors.split(',').map(s => s.trim()).filter(Boolean) : [],
+        segment:      form.segment || null,
+        country:      form.country || null,
+        source_url:   form.source_url || null,
+      }
+      const res = await fetch(`/api/vc-market/deals/${deal.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Save failed')
+      toast.success('Deal updated')
+      onSaved(data.deal)
+      onClose()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Save failed')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleDelete = async () => {
+    setDeleting(true)
+    try {
+      const res = await fetch(`/api/vc-market/deals/${deal.id}`, { method: 'DELETE' })
+      if (!res.ok) throw new Error('Delete failed')
+      toast.success('Deal deleted')
+      onDeleted(deal.id)
+      onClose()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Delete failed')
+    } finally {
+      setDeleting(false)
+    }
+  }
+
+  const Field = ({ label, children }: { label: string; children: React.ReactNode }) => (
+    <div className="flex flex-col gap-1">
+      <label className="text-xs text-muted-foreground">{label}</label>
+      {children}
+    </div>
+  )
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div className="bg-background border rounded-xl shadow-xl w-full max-w-lg">
+        <div className="flex items-center justify-between px-5 py-4 border-b">
+          <h2 className="text-sm font-semibold">Edit Deal</h2>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="px-5 py-4 grid grid-cols-2 gap-3">
+          <Field label="Company">
+            <Input value={form.company_name} onChange={e => set('company_name', e.target.value)} className="h-8 text-xs" />
+          </Field>
+          <Field label="Amount (USD)">
+            <Input value={form.amount_usd} onChange={e => set('amount_usd', e.target.value)} placeholder="5000000" className="h-8 text-xs" />
+          </Field>
+          <Field label="Date">
+            <Input type="date" value={form.deal_date} onChange={e => set('deal_date', e.target.value)} className="h-8 text-xs" />
+          </Field>
+          <Field label="Stage">
+            <select
+              value={form.stage}
+              onChange={e => set('stage', e.target.value)}
+              className="h-8 rounded-md border bg-background text-xs px-2"
+            >
+              <option value="">— none —</option>
+              {STAGE_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </Field>
+          <Field label="Country">
+            <Input value={form.country} onChange={e => set('country', e.target.value)} placeholder="BR" className="h-8 text-xs" />
+          </Field>
+          <Field label="Segment">
+            <Input value={form.segment} onChange={e => set('segment', e.target.value)} placeholder="Fintech" className="h-8 text-xs" />
+          </Field>
+          <Field label="Investors (comma-separated)">
+            <Input value={form.investors} onChange={e => set('investors', e.target.value)} placeholder="Sequoia, a16z" className="h-8 text-xs col-span-2" />
+          </Field>
+          <Field label="Source URL">
+            <Input value={form.source_url} onChange={e => set('source_url', e.target.value)} placeholder="https://..." className="h-8 text-xs" />
+          </Field>
+        </div>
+        <div className="flex items-center justify-between px-5 py-3 border-t">
+          {confirmDel ? (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-destructive">Confirm delete?</span>
+              <Button variant="destructive" size="sm" className="h-7 text-xs" onClick={handleDelete} disabled={deleting}>
+                {deleting ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Yes, delete'}
+              </Button>
+              <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setConfirmDel(false)}>Cancel</Button>
+            </div>
+          ) : (
+            <Button variant="ghost" size="sm" className="h-7 text-xs text-destructive hover:text-destructive" onClick={() => setConfirmDel(true)}>
+              <Trash2 className="h-3 w-3 mr-1" />Delete
+            </Button>
+          )}
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" className="h-7 text-xs" onClick={onClose}>Cancel</Button>
+            <Button size="sm" className="h-7 text-xs" onClick={handleSave} disabled={saving}>
+              {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Save'}
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── ImportModal ──────────────────────────────────────────────────────────────
 
 function ImportModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: () => void }) {
   const [file, setFile] = useState<File | null>(null)
@@ -251,6 +471,8 @@ function ImportModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
   )
 }
 
+// ─── KPICard ──────────────────────────────────────────────────────────────────
+
 function KPICard({ label, value, icon: Icon, color }: {
   label: string; value: string; icon: React.ElementType; color: string
 }) {
@@ -265,10 +487,12 @@ function KPICard({ label, value, icon: Icon, color }: {
   )
 }
 
-function DealRow({ deal }: { deal: VCDeal }) {
+// ─── DealRow ──────────────────────────────────────────────────────────────────
+
+function DealRow({ deal, onEdit }: { deal: VCDeal; onEdit: (d: VCDeal) => void }) {
   const stageColor = deal.stage ? STAGE_COLORS[deal.stage] ?? '#94a3b8' : '#94a3b8'
   return (
-    <tr className="border-b last:border-0 hover:bg-muted/30 transition-colors">
+    <tr className="border-b last:border-0 hover:bg-muted/30 transition-colors group">
       <td className="px-4 py-3 font-medium text-sm">{deal.company_name}</td>
       <td className="px-4 py-3 text-sm tabular-nums">
         {deal.amount_usd ? formatUSD(deal.amount_usd) : <span className="text-muted-foreground">—</span>}
@@ -293,9 +517,19 @@ function DealRow({ deal }: { deal: VCDeal }) {
           ? <a href={deal.source_url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline inline-flex items-center gap-1 text-xs">Link <ExternalLink className="h-3 w-3" /></a>
           : <span className="text-muted-foreground text-sm">—</span>}
       </td>
+      <td className="px-3 py-3">
+        <button
+          onClick={() => onEdit(deal)}
+          className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground"
+        >
+          <Pencil className="h-3.5 w-3.5" />
+        </button>
+      </td>
     </tr>
   )
 }
+
+// ─── Main ─────────────────────────────────────────────────────────────────────
 
 interface Props { isAdmin: boolean }
 
@@ -304,6 +538,7 @@ export function VCMarketClient({ isAdmin }: Props) {
   const [loading, setLoading]       = useState(true)
   const [scraping, setScraping]     = useState(false)
   const [showImport, setShowImport] = useState(false)
+  const [editingDeal, setEditingDeal] = useState<VCDeal | null>(null)
   const [search, setSearch]         = useState('')
   const [sortKey, setSortKey]       = useState<keyof VCDeal>('deal_date')
   const [sortDir, setSortDir]       = useState<'asc' | 'desc'>('desc')
@@ -311,7 +546,7 @@ export function VCMarketClient({ isAdmin }: Props) {
   const PAGE_SIZE = 50
 
   const [filters, setFilters] = useState<VCFilters>({
-    period: 'ytd', country: '', segment: '', stage: '', investor: '',
+    period: 'ytd', countries: [], segments: [], stages: [], investors: [],
   })
   const [allDeals, setAllDeals] = useState<VCDeal[]>([])
 
@@ -319,11 +554,11 @@ export function VCMarketClient({ isAdmin }: Props) {
     setLoading(true)
     try {
       const params = new URLSearchParams()
-      if (f.period)   params.set('period',   f.period)
-      if (f.country)  params.set('country',  f.country)
-      if (f.segment)  params.set('segment',  f.segment)
-      if (f.stage)    params.set('stage',    f.stage)
-      if (f.investor) params.set('investor', f.investor)
+      params.set('period', f.period)
+      f.countries.forEach(v => params.append('country', v))
+      f.segments.forEach(v => params.append('segment', v))
+      f.stages.forEach(v => params.append('stage', v))
+      f.investors.forEach(v => params.append('investor', v))
       const res = await fetch(`/api/vc-market/deals?${params}`)
       const data = await res.json()
       setDeals(data.deals ?? [])
@@ -341,10 +576,14 @@ export function VCMarketClient({ isAdmin }: Props) {
   useEffect(() => { fetchDeals(filters) }, [fetchDeals, filters])
   useEffect(() => { fetchAllDeals() }, [fetchAllDeals])
 
-  const setFilter = (key: keyof VCFilters, value: string) => {
-    setFilters(prev => ({ ...prev, [key]: value }))
-    setPage(1)
-  }
+  const hasActiveFilters = (
+    filters.countries.length > 0 ||
+    filters.segments.length > 0 ||
+    filters.stages.length > 0 ||
+    filters.investors.length > 0
+  )
+
+  const clearFilters = () => setFilters(f => ({ ...f, countries: [], segments: [], stages: [], investors: [] }))
 
   const handleScrape = async () => {
     setScraping(true)
@@ -360,6 +599,16 @@ export function VCMarketClient({ isAdmin }: Props) {
     } finally {
       setScraping(false)
     }
+  }
+
+  const handleDealSaved = (updated: VCDeal) => {
+    setDeals(prev => prev.map(d => d.id === updated.id ? updated : d))
+    setAllDeals(prev => prev.map(d => d.id === updated.id ? updated : d))
+  }
+
+  const handleDealDeleted = (id: string) => {
+    setDeals(prev => prev.filter(d => d.id !== id))
+    setAllDeals(prev => prev.filter(d => d.id !== id))
   }
 
   const kpis             = computeKPIs(deals)
@@ -439,40 +688,40 @@ export function VCMarketClient({ isAdmin }: Props) {
 
       {/* Filters */}
       <div className="flex flex-wrap gap-2 items-center">
-        <Select value={filters.period} onValueChange={v => setFilter('period', v)}>
+        {/* Period — single select */}
+        <Select value={filters.period} onValueChange={v => setFilters(f => ({ ...f, period: v }))}>
           <SelectTrigger className="h-8 w-32 text-xs"><SelectValue placeholder="Period" /></SelectTrigger>
           <SelectContent>{PERIOD_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
         </Select>
-        <Select value={filters.country || '_all'} onValueChange={v => setFilter('country', v === '_all' ? '' : v)}>
-          <SelectTrigger className="h-8 w-36 text-xs"><SelectValue placeholder="Country" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="_all">All countries</SelectItem>
-            {countryOptions.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-          </SelectContent>
-        </Select>
-        <Select value={filters.segment || '_all'} onValueChange={v => setFilter('segment', v === '_all' ? '' : v)}>
-          <SelectTrigger className="h-8 w-36 text-xs"><SelectValue placeholder="Segment" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="_all">All segments</SelectItem>
-            {segmentOptions.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-          </SelectContent>
-        </Select>
-        <Select value={filters.stage || '_all'} onValueChange={v => setFilter('stage', v === '_all' ? '' : v)}>
-          <SelectTrigger className="h-8 w-32 text-xs"><SelectValue placeholder="Stage" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="_all">All stages</SelectItem>
-            {stageOptions.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-          </SelectContent>
-        </Select>
-        <Select value={filters.investor || '_all'} onValueChange={v => setFilter('investor', v === '_all' ? '' : v)}>
-          <SelectTrigger className="h-8 w-40 text-xs"><SelectValue placeholder="Investor" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="_all">All investors</SelectItem>
-            {investorOptions.map(i => <SelectItem key={i} value={i}>{i}</SelectItem>)}
-          </SelectContent>
-        </Select>
-        {(filters.country || filters.segment || filters.stage || filters.investor) && (
-          <button onClick={() => setFilters(f => ({ ...f, country: '', segment: '', stage: '', investor: '' }))}
+
+        {/* Multi-selects */}
+        <MultiSelect
+          options={countryOptions}
+          selected={filters.countries}
+          onChange={v => { setFilters(f => ({ ...f, countries: v })); setPage(1) }}
+          placeholder="Country"
+        />
+        <MultiSelect
+          options={segmentOptions}
+          selected={filters.segments}
+          onChange={v => { setFilters(f => ({ ...f, segments: v })); setPage(1) }}
+          placeholder="Segment"
+        />
+        <MultiSelect
+          options={stageOptions}
+          selected={filters.stages}
+          onChange={v => { setFilters(f => ({ ...f, stages: v })); setPage(1) }}
+          placeholder="Stage"
+        />
+        <MultiSelect
+          options={investorOptions}
+          selected={filters.investors}
+          onChange={v => { setFilters(f => ({ ...f, investors: v })); setPage(1) }}
+          placeholder="Investor"
+        />
+
+        {hasActiveFilters && (
+          <button onClick={clearFilters}
             className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1">
             <X className="h-3 w-3" /> Clear
           </button>
@@ -491,7 +740,7 @@ export function VCMarketClient({ isAdmin }: Props) {
         <KPICard label="Active Countries" value={kpis.activeCountries.toLocaleString()}                     icon={Globe}      color="bg-amber-500/10 text-amber-500" />
       </div>
 
-      {/* Latest Deals — linha única com scroll, 10 deals, valor à direita */}
+      {/* Latest Deals */}
       {latestDeals.length > 0 && (
         <div className="bg-card border rounded-xl px-4 py-2.5 flex items-center gap-2 overflow-x-auto">
           <Zap className="h-3.5 w-3.5 text-amber-500 shrink-0" />
@@ -499,46 +748,28 @@ export function VCMarketClient({ isAdmin }: Props) {
           {latestDeals.map((deal, i) => {
             const stageColor = deal.stage ? STAGE_COLORS[deal.stage] ?? '#94a3b8' : '#94a3b8'
             const chip = (
-              <div
-                key={deal.id}
-                className="w-[160px] shrink-0 flex flex-col gap-1 px-3 py-2 rounded-lg border bg-muted/40"
-              >
-                {/* linha 1: nome à esquerda, valor à direita */}
+              <div key={deal.id} className="w-[160px] shrink-0 flex flex-col gap-1 px-3 py-2 rounded-lg border bg-muted/40">
                 <div className="flex items-center justify-between gap-1 min-w-0">
                   {deal.source_url ? (
-                    <a
-                      href={deal.source_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-xs font-semibold leading-none truncate hover:text-primary transition-colors inline-flex items-center gap-0.5 group min-w-0"
-                    >
+                    <a href={deal.source_url} target="_blank" rel="noopener noreferrer"
+                      className="text-xs font-semibold leading-none truncate hover:text-primary transition-colors inline-flex items-center gap-0.5 group min-w-0">
                       <span className="truncate">{deal.company_name}</span>
                       <ExternalLink className="h-2.5 w-2.5 shrink-0 opacity-40 group-hover:opacity-100 transition-opacity" />
                     </a>
                   ) : (
                     <span className="text-xs font-semibold leading-none truncate min-w-0">{deal.company_name}</span>
                   )}
-                  <span
-                    className="text-sm font-bold tabular-nums leading-none shrink-0"
-                    style={{ color: '#22c55e' }}
-                  >
+                  <span className="text-sm font-bold tabular-nums leading-none shrink-0" style={{ color: '#22c55e' }}>
                     {deal.amount_usd ? formatUSD(deal.amount_usd) : '—'}
                   </span>
                 </div>
-                {/* linha 2: stage + data */}
                 <div className="flex items-center gap-1.5">
                   {deal.stage && (
-                    <span
-                      className="text-[10px] font-medium px-1.5 py-px rounded-full text-white leading-none shrink-0"
-                      style={{ backgroundColor: stageColor }}
-                    >
-                      {deal.stage}
-                    </span>
+                    <span className="text-[10px] font-medium px-1.5 py-px rounded-full text-white leading-none shrink-0"
+                      style={{ backgroundColor: stageColor }}>{deal.stage}</span>
                   )}
                   <span className="text-[10px] text-muted-foreground">
-                    {deal.deal_date
-                      ? new Date(deal.deal_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-                      : '—'}
+                    {deal.deal_date ? new Date(deal.deal_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—'}
                   </span>
                 </div>
               </div>
@@ -553,7 +784,6 @@ export function VCMarketClient({ isAdmin }: Props) {
       {/* Charts */}
       {!loading && deals.length > 0 && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-
           <div className="bg-card border rounded-xl p-4">
             <h3 className="text-sm font-medium mb-4">Rounds by Month</h3>
             {roundsByMonth.length > 0 ? (
@@ -568,7 +798,6 @@ export function VCMarketClient({ isAdmin }: Props) {
               </ResponsiveContainer>
             ) : emptyChart('No dated deals in period')}
           </div>
-
           <div className="bg-card border rounded-xl p-4">
             <h3 className="text-sm font-medium mb-4">Capital by Month (USD)</h3>
             {capitalByMonth.length > 0 ? (
@@ -583,7 +812,6 @@ export function VCMarketClient({ isAdmin }: Props) {
               </ResponsiveContainer>
             ) : emptyChart('No capital data in period')}
           </div>
-
           <div className="bg-card border rounded-xl p-4">
             <h3 className="text-sm font-medium mb-4">Rounds by Vertical</h3>
             {roundsByVertical.length > 0 ? (
@@ -598,7 +826,6 @@ export function VCMarketClient({ isAdmin }: Props) {
               </ResponsiveContainer>
             ) : emptyChart('No vertical data available')}
           </div>
-
           <div className="bg-card border rounded-xl p-4">
             <h3 className="text-sm font-medium mb-4">Capital by Vertical (USD)</h3>
             {capitalBySegment.length > 0 ? (
@@ -613,7 +840,6 @@ export function VCMarketClient({ isAdmin }: Props) {
               </ResponsiveContainer>
             ) : emptyChart('No capital data available')}
           </div>
-
           <div className="bg-card border rounded-xl p-4">
             <h3 className="text-sm font-medium mb-4">Deals by Country</h3>
             {dealsByCountry.length > 0 ? (
@@ -624,16 +850,12 @@ export function VCMarketClient({ isAdmin }: Props) {
                   <YAxis dataKey="country" type="category" tick={{ fontSize: 11 }} width={60} />
                   <Tooltip contentStyle={{ fontSize: 12 }} formatter={fmtDeals} />
                   <Bar dataKey="deals" radius={[0, 3, 3, 0]}>
-                    {dealsByCountry.map((_, i) => {
-                      const c = PIE_COLORS[i % PIE_COLORS.length]
-                      return <Cell key={i} fill={c} fillOpacity={0.6} stroke={c} strokeWidth={1.5} />
-                    })}
+                    {dealsByCountry.map((_, i) => { const c = PIE_COLORS[i % PIE_COLORS.length]; return <Cell key={i} fill={c} fillOpacity={0.6} stroke={c} strokeWidth={1.5} /> })}
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
             ) : emptyChart('No country data available')}
           </div>
-
           <div className="bg-card border rounded-xl p-4">
             <h3 className="text-sm font-medium mb-4">Capital by Country (USD)</h3>
             {capitalByCountry.length > 0 ? (
@@ -644,16 +866,12 @@ export function VCMarketClient({ isAdmin }: Props) {
                   <YAxis dataKey="country" type="category" tick={{ fontSize: 11 }} width={60} />
                   <Tooltip contentStyle={{ fontSize: 12 }} formatter={fmtCapital} />
                   <Bar dataKey="capital" radius={[0, 3, 3, 0]}>
-                    {capitalByCountry.map((_, i) => {
-                      const c = PIE_COLORS[i % PIE_COLORS.length]
-                      return <Cell key={i} fill={c} fillOpacity={0.6} stroke={c} strokeWidth={1.5} />
-                    })}
+                    {capitalByCountry.map((_, i) => { const c = PIE_COLORS[i % PIE_COLORS.length]; return <Cell key={i} fill={c} fillOpacity={0.6} stroke={c} strokeWidth={1.5} /> })}
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
             ) : emptyChart('No capital by country data')}
           </div>
-
         </div>
       )}
 
@@ -701,6 +919,7 @@ export function VCMarketClient({ isAdmin }: Props) {
                     ['segment',      'Segment'],
                     ['country',      'Country'],
                     [null,           'Source'],
+                    [null,           ''],
                   ] as [keyof VCDeal | null, string][]).map(([key, label]) => (
                     <th key={label}
                       className={`px-4 py-2.5 text-left font-medium ${key ? 'cursor-pointer select-none hover:text-foreground' : ''}`}
@@ -712,8 +931,8 @@ export function VCMarketClient({ isAdmin }: Props) {
               </thead>
               <tbody>
                 {paged.length === 0
-                  ? <tr><td colSpan={8} className="px-4 py-8 text-center text-muted-foreground text-sm">No deals match your search</td></tr>
-                  : paged.map(deal => <DealRow key={deal.id} deal={deal} />)}
+                  ? <tr><td colSpan={9} className="px-4 py-8 text-center text-muted-foreground text-sm">No deals match your search</td></tr>
+                  : paged.map(deal => <DealRow key={deal.id} deal={deal} onEdit={setEditingDeal} />)}
               </tbody>
             </table>
           </div>
@@ -730,6 +949,14 @@ export function VCMarketClient({ isAdmin }: Props) {
       )}
 
       {showImport && <ImportModal onClose={() => setShowImport(false)} onSuccess={() => { fetchDeals(filters); fetchAllDeals() }} />}
+      {editingDeal && (
+        <EditDealModal
+          deal={editingDeal}
+          onClose={() => setEditingDeal(null)}
+          onSaved={handleDealSaved}
+          onDeleted={handleDealDeleted}
+        />
+      )}
     </div>
   )
 }
