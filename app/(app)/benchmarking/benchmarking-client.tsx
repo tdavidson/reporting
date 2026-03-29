@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useRef, useState, useMemo, useCallback } from 'react'
 import { Loader2, TrendingUp, Info, ExternalLink, ChevronDown } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { getBenchmarkForVintage, getQuartilePosition } from '@/lib/benchmarks/cambridge-associates'
@@ -61,47 +61,33 @@ const QUARTILE_COLORS = {
 }
 
 const INDEX_COLORS: Record<string, string> = {
-  CDI: '#22c55e',
-  IPCA: '#f59e0b',
-  Ibovespa: '#3b82f6',
+  CDI:       '#22c55e',
+  IPCA:      '#f59e0b',
+  Ibovespa:  '#3b82f6',
   'S&P 500': '#8b5cf6',
 }
 
 const FUND_COLOR = '#0F2332'
 
+const MARGIN_LEFT  = 56
+const MARGIN_RIGHT = 90
+const MARGIN_TOP   = 12
+const MARGIN_BOT   = 30
+const CHART_H      = 300
+
 const PERIOD_OPTIONS = [
   { label: 'Desde início', value: 'all' },
-  { label: '5 anos',       value: '5y'  },
-  { label: '3 anos',       value: '3y'  },
-  { label: '2 anos',       value: '2y'  },
-  { label: '1 ano',        value: '1y'  },
+  { label: '5 anos',        value: '5y'  },
+  { label: '3 anos',        value: '3y'  },
+  { label: '2 anos',        value: '2y'  },
+  { label: '1 ano',         value: '1y'  },
 ]
 
 const SOURCES = [
-  {
-    name: 'Cambridge Associates',
-    description: 'US Venture Capital Index — quartile benchmarks (TVPI, DPI, RVPI, Net IRR) by vintage year.',
-    url: 'https://www.cambridgeassociates.com/research/us-venture-capital-index-and-selected-benchmark-statistics/',
-    frequency: 'Quarterly', lastUpdate: 'Q3 2024', type: 'Manual (hardcoded)',
-  },
-  {
-    name: 'Banco Central do Brasil',
-    description: 'CDI (série 12) e IPCA (série 433) acumulados via API aberta — agregados mensalmente.',
-    url: 'https://dadosabertos.bcb.gov.br/dataset/12-taxa-de-juros---selic',
-    frequency: 'Monthly (end-of-month)', lastUpdate: 'Live', type: 'Automatic',
-  },
-  {
-    name: 'Yahoo Finance',
-    description: 'Ibovespa (^BVSP) e S&P 500 (^GSPC) mensais, rebaseados a 100 na data do primeiro investimento.',
-    url: 'https://finance.yahoo.com/quote/%5EBVSP/',
-    frequency: 'Monthly', lastUpdate: 'Live', type: 'Automatic',
-  },
-  {
-    name: 'Carta / Pitchbook',
-    description: 'Benchmarks de fundos VC. Insira manualmente a partir dos seus relatórios.',
-    url: 'https://carta.com/blog/state-of-private-markets/',
-    frequency: 'Quarterly', lastUpdate: 'Manual', type: 'Manual (input)',
-  },
+  { name: 'Cambridge Associates', description: 'US Venture Capital Index — quartile benchmarks (TVPI, DPI, RVPI, Net IRR) by vintage year.', url: 'https://www.cambridgeassociates.com/research/us-venture-capital-index-and-selected-benchmark-statistics/', frequency: 'Quarterly', lastUpdate: 'Q3 2024', type: 'Manual (hardcoded)' },
+  { name: 'Banco Central do Brasil', description: 'CDI (série 12) e IPCA (série 433) acumulados via API aberta — agregados mensalmente.', url: 'https://dadosabertos.bcb.gov.br/dataset/12-taxa-de-juros---selic', frequency: 'Monthly (end-of-month)', lastUpdate: 'Live', type: 'Automatic' },
+  { name: 'Yahoo Finance', description: 'Ibovespa (^BVSP) e S&P 500 (^GSPC) mensais, rebaseados a 100 na data do primeiro investimento.', url: 'https://finance.yahoo.com/quote/%5EBVSP/', frequency: 'Monthly', lastUpdate: 'Live', type: 'Automatic' },
+  { name: 'Carta / Pitchbook', description: 'Benchmarks de fundos VC. Insira manualmente a partir dos seus relatórios.', url: 'https://carta.com/blog/state-of-private-markets/', frequency: 'Quarterly', lastUpdate: 'Manual', type: 'Manual (input)' },
 ]
 
 // ---------------------------------------------------------------------------
@@ -110,13 +96,11 @@ const SOURCES = [
 
 function fmtMoic(v: number | null) { return v == null ? '—' : `${v.toFixed(2)}x` }
 function fmtIrr(v: number | null)  { return v == null ? '—' : `${(v * 100).toFixed(1)}%` }
-function fmtPct(v: number | null)  { return v == null ? '—' : `${(v * 100).toFixed(1)}%` }
 
 function periodCutoff(period: string): string | null {
   if (period === 'all') return null
   const now = new Date()
-  const years = parseInt(period)
-  now.setFullYear(now.getFullYear() - years)
+  now.setFullYear(now.getFullYear() - parseInt(period))
   return now.toISOString().split('T')[0]
 }
 
@@ -131,25 +115,17 @@ function MiniBar({ value, q1, median, q3 }: { value: number; q1: number; median:
   const range = max - min || 1
   const pct = (v: number) => Math.max(0, Math.min(100, ((v - min) / range) * 100))
   const pos = getQuartilePosition(value, { q1, median, q3 })
-  const barColor = pos === 'top_quartile' ? 'bg-green-500'
-    : pos === 'upper_mid' ? 'bg-blue-500'
-    : pos === 'lower_mid' ? 'bg-amber-500' : 'bg-red-500'
+  const barColor = pos === 'top_quartile' ? 'bg-green-500' : pos === 'upper_mid' ? 'bg-blue-500' : pos === 'lower_mid' ? 'bg-amber-500' : 'bg-red-500'
   return (
     <div className="relative h-2 w-full rounded-full bg-muted mt-1">
-      <div className="absolute h-2 rounded-full bg-muted-foreground/20"
-        style={{ left: `${pct(q3)}%`, width: `${pct(q1) - pct(q3)}%` }} />
+      <div className="absolute h-2 rounded-full bg-muted-foreground/20" style={{ left: `${pct(q3)}%`, width: `${pct(q1) - pct(q3)}%` }} />
       <div className="absolute h-2 w-0.5 bg-muted-foreground/60 rounded" style={{ left: `${pct(median)}%` }} />
-      <div className={`absolute h-3 w-3 -top-0.5 -translate-x-1/2 rounded-full border-2 border-background ${barColor}`}
-        style={{ left: `${pct(value)}%` }} />
+      <div className={`absolute h-3 w-3 -top-0.5 -translate-x-1/2 rounded-full border-2 border-background ${barColor}`} style={{ left: `${pct(value)}%` }} />
     </div>
   )
 }
 
-function ChartTooltip({ active, payload, label }: {
-  active?: boolean
-  payload?: { name: string; value: number; color: string }[]
-  label?: string
-}) {
+function ChartTooltip({ active, payload, label }: { active?: boolean; payload?: { name: string; value: number; color: string }[]; label?: string }) {
   if (!active || !payload || payload.length === 0) return null
   return (
     <div className="rounded-lg border bg-popover px-3 py-2 shadow-md text-[11px] space-y-1">
@@ -166,98 +142,71 @@ function ChartTooltip({ active, payload, label }: {
 }
 
 // ---------------------------------------------------------------------------
-// EndLabel — SVG overlay rendered ONCE after the chart, avoiding overlaps
-// by stacking labels vertically sorted by value.
+// EndLabelsOverlay — pure SVG, no state, renders only when chartW is known
 // ---------------------------------------------------------------------------
-type EndLabelInfo = { key: string; value: number; color: string }
-
 function EndLabelsOverlay({
-  chartData,
-  seriesKeys,
-  seriesColors,
-  chartWidth,
-  chartHeight,
-  marginRight,
-  yMin,
-  yMax,
+  chartData, seriesKeys, seriesColors, chartW, yMin, yMax,
 }: {
   chartData: Record<string, any>[]
   seriesKeys: string[]
   seriesColors: Record<string, string>
-  chartWidth: number
-  chartHeight: number
-  marginRight: number
+  chartW: number
   yMin: number
   yMax: number
 }) {
   const last = chartData.at(-1)
-  if (!last) return null
+  if (!last || chartW <= 0) return null
 
-  const LABEL_H    = 18
-  const LABEL_PAD  = 5  // vertical gap between labels
-  const DOT_R      = 5
-  const plotH      = chartHeight
+  const LABEL_H = 18
+  const GAP     = 4
+  const plotH   = CHART_H - MARGIN_TOP - MARGIN_BOT
+  const yRange  = yMax - yMin || 1
 
-  // Build initial positions based on actual y value
-  const labels: (EndLabelInfo & { y: number })[] = seriesKeys
+  const labels = seriesKeys
     .map(key => {
       const val = last[key]
-      if (val == null || isNaN(val)) return null
-      const yRatio = 1 - (val - yMin) / (yMax - yMin)
-      const y = Math.max(LABEL_H / 2, Math.min(plotH - LABEL_H / 2, yRatio * plotH))
-      return { key, value: val, color: seriesColors[key], y }
+      if (val == null || isNaN(Number(val))) return null
+      const frac = 1 - (Number(val) - yMin) / yRange
+      const y = Math.max(LABEL_H / 2, Math.min(plotH - LABEL_H / 2, frac * plotH))
+      return { key, value: Number(val), color: seriesColors[key] ?? '#888', y }
     })
-    .filter(Boolean) as (EndLabelInfo & { y: number })[]
+    .filter((x): x is NonNullable<typeof x> => x !== null)
+    .sort((a, b) => b.value - a.value)
 
-  // Sort by value descending so highest line gets top label
-  labels.sort((a, b) => b.value - a.value)
-
-  // Resolve overlaps: push labels apart until no collision
-  for (let pass = 0; pass < 20; pass++) {
+  // Resolve overlaps (20 passes)
+  for (let p = 0; p < 20; p++) {
     let moved = false
     for (let i = 1; i < labels.length; i++) {
-      const prev = labels[i - 1]
-      const cur  = labels[i]
-      const minGap = LABEL_H + LABEL_PAD
-      if (cur.y - prev.y < minGap) {
+      const prev = labels[i - 1], cur = labels[i]
+      const need = LABEL_H + GAP
+      if (cur.y - prev.y < need) {
         const mid = (prev.y + cur.y) / 2
-        prev.y = mid - minGap / 2
-        cur.y  = mid + minGap / 2
+        prev.y = mid - need / 2
+        cur.y  = mid + need / 2
         moved = true
       }
     }
     if (!moved) break
   }
 
-  // x anchor = right edge of plot area (inside margin)
-  const xAnchor = chartWidth - marginRight + 8
+  // xAnchor: right edge of plot area = chartW - MARGIN_RIGHT
+  const xAnchor = chartW - MARGIN_RIGHT + 6
 
   return (
-    <svg
-      style={{ position: 'absolute', top: 12, left: 0, width: chartWidth, height: chartHeight, pointerEvents: 'none', overflow: 'visible' }}
-    >
+    <svg style={{
+      position: 'absolute', top: MARGIN_TOP, left: MARGIN_LEFT,
+      width: chartW - MARGIN_LEFT, height: plotH,
+      pointerEvents: 'none', overflow: 'visible',
+    }}>
       {labels.map(({ key, value, color, y }) => {
         const text = value.toFixed(1)
-        const boxW = text.length * 6.5 + 12
+        const boxW = text.length * 6.5 + 14
+        const xBox = xAnchor - MARGIN_LEFT
         return (
           <g key={key}>
-            {/* dot on line */}
-            <circle cx={xAnchor - 8} cy={y} r={DOT_R} fill={color} stroke="white" strokeWidth={2} />
-            {/* connector line from dot to label box */}
-            <line x1={xAnchor - 3} y1={y} x2={xAnchor + 2} y2={y} stroke={color} strokeWidth={1} strokeDasharray="2 2" />
-            {/* label pill */}
-            <rect x={xAnchor + 2} y={y - LABEL_H / 2} width={boxW} height={LABEL_H} rx={4} fill={color} opacity={0.93} />
-            <text
-              x={xAnchor + 2 + boxW / 2}
-              y={y + 1}
-              textAnchor="middle"
-              dominantBaseline="middle"
-              fontSize={10}
-              fontWeight={600}
-              fill="white"
-            >
-              {text}
-            </text>
+            <circle cx={xBox - 6} cy={y} r={4} fill={color} stroke="white" strokeWidth={2} />
+            <rect x={xBox} y={y - LABEL_H / 2} width={boxW} height={LABEL_H} rx={4} fill={color} opacity={0.92} />
+            <text x={xBox + boxW / 2} y={y} textAnchor="middle" dominantBaseline="middle" fontSize={10} fontWeight={600} fill="white">{text}</text>
           </g>
         )
       })}
@@ -276,26 +225,19 @@ function mergeChartData(
   period: string,
 ): Record<string, any>[] {
   if (navSeries.length === 0) return []
-
   const cutoff = periodCutoff(period)
   const filtered = cutoff ? navSeries.filter(p => p.date >= cutoff) : navSeries
   if (filtered.length === 0) return []
-
   const startYM = filtered[0].date.slice(0, 7)
-
   const monthMap = new Map<string, Record<string, any>>()
   for (const pt of filtered) {
     const ym = pt.date.slice(0, 7)
     monthMap.set(ym, { date: pt.date, ym, [fundLabel]: pt.nav })
   }
-
   const indexMap: Record<string, { date: string; value: number }[]> = {
-    CDI:       indices.cdi.series,
-    IPCA:      indices.ipca.series,
-    Ibovespa:  indices.ibov.series,
-    'S&P 500': indices.sp500.series,
+    CDI: indices.cdi.series, IPCA: indices.ipca.series,
+    Ibovespa: indices.ibov.series, 'S&P 500': indices.sp500.series,
   }
-
   for (const [label, series] of Object.entries(indexMap)) {
     if (!activeIndices.has(label)) continue
     const relevant = series.filter(d => d.date.slice(0, 7) >= startYM)
@@ -303,16 +245,13 @@ function mergeChartData(
     const base = relevant[0].value
     if (!base) continue
     for (const pt of relevant) {
-      const ym = pt.date.slice(0, 7)
-      const row = monthMap.get(ym)
-      if (!row) continue
-      row[label] = parseFloat(((pt.value / base) * 100).toFixed(2))
+      const row = monthMap.get(pt.date.slice(0, 7))
+      if (row) row[label] = parseFloat(((pt.value / base) * 100).toFixed(2))
     }
   }
-
   return Array.from(monthMap.values())
     .sort((a, b) => a.ym.localeCompare(b.ym))
-    .map(({ ym: _ym, ...rest }) => rest)
+    .map(({ ym: _, ...rest }) => rest)
 }
 
 // ---------------------------------------------------------------------------
@@ -320,24 +259,40 @@ function mergeChartData(
 // ---------------------------------------------------------------------------
 
 export function BenchmarkingClient() {
-  const [allMetrics, setAllMetrics]     = useState<FundGroupMetric[]>([])
-  const [groupConfigs, setGroupConfigs] = useState<GroupConfig[]>([])
-  const [indices, setIndices]           = useState<PublicIndices | null>(null)
-  const [navSeries, setNavSeries]       = useState<NavPoint[]>([])
-  const [loadingFund, setLoadingFund]   = useState(true)
+  const [allMetrics, setAllMetrics]         = useState<FundGroupMetric[]>([])
+  const [groupConfigs, setGroupConfigs]     = useState<GroupConfig[]>([])
+  const [indices, setIndices]               = useState<PublicIndices | null>(null)
+  const [navSeries, setNavSeries]           = useState<NavPoint[]>([])
+  const [loadingFund, setLoadingFund]       = useState(true)
   const [loadingIndices, setLoadingIndices] = useState(true)
-  const [loadingNav, setLoadingNav]     = useState(false)
+  const [loadingNav, setLoadingNav]         = useState(false)
   const [selectedGroup, setSelectedGroup]   = useState<string>('')
   const [activeIndices, setActiveIndices]   = useState<Set<string>>(new Set(['CDI', 'Ibovespa']))
-  const [period, setPeriod]             = useState<string>('all')
-  const [manualBench, setManualBench]   = useState<Record<string, { tvpi?: string; netIrr?: string; notes?: string }>>({})
-  const [showSources, setShowSources]   = useState(false)
-  // chart container dimensions (for SVG overlay)
-  const [chartDims, setChartDims]       = useState({ w: 0, h: 300 })
-  const chartRef = (node: HTMLDivElement | null) => {
-    if (node) setChartDims({ w: node.offsetWidth, h: 300 })
-  }
+  const [period, setPeriod]                 = useState('all')
+  const [manualBench, setManualBench]       = useState<Record<string, { tvpi?: string; netIrr?: string; notes?: string }>>({})
+  const [showSources, setShowSources]       = useState(false)
+  const [chartW, setChartW]                 = useState(0)
 
+  // Use a stable ref + ResizeObserver to measure chart container width
+  const chartContainerRef = useRef<HTMLDivElement | null>(null)
+  const roRef             = useRef<ResizeObserver | null>(null)
+
+  const attachRef = useCallback((node: HTMLDivElement | null) => {
+    if (roRef.current) { roRef.current.disconnect(); roRef.current = null }
+    chartContainerRef.current = node
+    if (!node) return
+    setChartW(node.offsetWidth)
+    const ro = new ResizeObserver(entries => {
+      const w = entries[0]?.contentRect.width ?? 0
+      setChartW(Math.round(w))
+    })
+    ro.observe(node)
+    roRef.current = ro
+  }, [])
+
+  useEffect(() => () => { roRef.current?.disconnect() }, [])
+
+  // Load fund groups
   useEffect(() => {
     async function load() {
       setLoadingFund(true)
@@ -362,9 +317,7 @@ export function BenchmarkingClient() {
           setAllMetrics(metrics)
           if (metrics.length > 0) setSelectedGroup(metrics[0].group)
         }
-      } finally {
-        setLoadingFund(false)
-      }
+      } finally { setLoadingFund(false) }
     }
     load()
   }, [])
@@ -373,21 +326,21 @@ export function BenchmarkingClient() {
     groupConfigs.find(c => c.portfolio_group === selectedGroup)?.vintage ?? null
   , [selectedGroup, groupConfigs])
 
+  // Load NAV series
   useEffect(() => {
-    if (selectedGroup === null) return
+    if (!selectedGroup && selectedGroup !== '') return
     async function load() {
       setLoadingNav(true)
       setNavSeries([])
       try {
         const res = await fetch(`/api/benchmarks/nav-series?group=${encodeURIComponent(selectedGroup)}`)
         if (res.ok) setNavSeries((await res.json()).series ?? [])
-      } finally {
-        setLoadingNav(false)
-      }
+      } finally { setLoadingNav(false) }
     }
     load()
   }, [selectedGroup])
 
+  // Load public indices
   useEffect(() => {
     async function load() {
       setLoadingIndices(true)
@@ -396,165 +349,123 @@ export function BenchmarkingClient() {
         const startDate = navSeries.length > 0 ? navSeries[0].date : `${fallbackYear}-01-01`
         const res = await fetch(`/api/benchmarks/public-indices?startDate=${startDate}`)
         if (res.ok) setIndices(await res.json())
-      } finally {
-        setLoadingIndices(false)
-      }
+      } finally { setLoadingIndices(false) }
     }
     load()
   }, [navSeries, vintageForSelected])
 
-  const selectedMetric = useMemo(() =>
-    allMetrics.find(m => m.group === selectedGroup) ?? null
-  , [allMetrics, selectedGroup])
-
-  const bench = useMemo(() =>
-    vintageForSelected ? getBenchmarkForVintage(vintageForSelected) : null
-  , [vintageForSelected])
-
-  const chartData = useMemo(() => {
-    if (!indices || navSeries.length === 0) return []
-    return mergeChartData(navSeries, selectedGroup || 'Fund', indices, activeIndices, period)
-  }, [navSeries, indices, activeIndices, selectedGroup, period])
+  const selectedMetric = useMemo(() => allMetrics.find(m => m.group === selectedGroup) ?? null, [allMetrics, selectedGroup])
+  const bench          = useMemo(() => vintageForSelected ? getBenchmarkForVintage(vintageForSelected) : null, [vintageForSelected])
 
   const fundLabel = selectedGroup || 'Fund'
 
-  // All active series keys + their colors for the overlay
-  const allSeriesKeys  = [fundLabel, ...Array.from(activeIndices)]
-  const allSeriesColors: Record<string, string> = { [fundLabel]: FUND_COLOR, ...INDEX_COLORS }
+  const chartData = useMemo(() => {
+    if (!indices || navSeries.length === 0) return []
+    return mergeChartData(navSeries, fundLabel, indices, activeIndices, period)
+  }, [navSeries, indices, activeIndices, fundLabel, period])
 
-  // Compute y domain for the overlay's coordinate mapping
+  const allSeriesKeys   = useMemo(() => [fundLabel, ...Array.from(activeIndices)], [fundLabel, activeIndices])
+  const allSeriesColors = useMemo(() => ({ [fundLabel]: FUND_COLOR, ...INDEX_COLORS }), [fundLabel])
+
   const yDomain = useMemo(() => {
-    if (chartData.length === 0) return { min: 0, max: 200 }
+    if (chartData.length === 0) return { min: 80, max: 200 }
     let min = Infinity, max = -Infinity
     for (const row of chartData) {
       for (const key of allSeriesKeys) {
         const v = row[key]
-        if (v != null && !isNaN(v)) { min = Math.min(min, v); max = Math.max(max, v) }
+        if (v != null && isFinite(Number(v))) {
+          min = Math.min(min, Number(v))
+          max = Math.max(max, Number(v))
+        }
       }
     }
-    const pad = (max - min) * 0.08
+    if (!isFinite(min) || !isFinite(max)) return { min: 80, max: 200 }
+    const pad = (max - min) * 0.1 || 10
     return { min: min - pad, max: max + pad }
   }, [chartData, allSeriesKeys])
 
   function toggleIndex(label: string) {
-    setActiveIndices(prev => {
-      const next = new Set(prev)
-      next.has(label) ? next.delete(label) : next.add(label)
-      return next
-    })
+    setActiveIndices(prev => { const n = new Set(prev); n.has(label) ? n.delete(label) : n.add(label); return n })
   }
-
-  // YAxis left margin = 56px (from width={56}), top margin = 12
-  const MARGIN_LEFT  = 56
-  const MARGIN_RIGHT = 90
-  const MARGIN_TOP   = 12
-  const MARGIN_BOT   = 30
-  const plotW = chartDims.w - MARGIN_LEFT - MARGIN_RIGHT
-  const plotH = chartDims.h - MARGIN_TOP - MARGIN_BOT
 
   return (
     <div className="w-full max-w-5xl mx-auto px-4 py-8">
-
       <div className="mb-6">
         <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2">
-          <TrendingUp className="h-5 w-5" />
-          Benchmarking
+          <TrendingUp className="h-5 w-5" /> Benchmarking
         </h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Performance do fundo vs. índices públicos e benchmarks VC
-        </p>
+        <p className="text-sm text-muted-foreground mt-1">Performance do fundo vs. índices públicos e benchmarks VC</p>
       </div>
 
       {loadingFund ? (
-        <div className="flex items-center gap-2 text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin" /> Loading...
-        </div>
+        <div className="flex items-center gap-2 text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Loading...</div>
       ) : (
         <div className="space-y-8">
 
-          {/* ── 1. Fund Selector ──────────────────────────────────────────── */}
+          {/* 1. Fund Selector */}
           <section>
             <div className="flex items-center gap-3 flex-wrap">
               <span className="text-sm font-medium text-muted-foreground">Fundo:</span>
               <div className="relative">
-                <select
-                  value={selectedGroup}
-                  onChange={e => setSelectedGroup(e.target.value)}
-                  className="appearance-none pl-3 pr-8 py-2 text-sm font-semibold border rounded-lg bg-background hover:bg-accent transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-ring"
-                >
-                  {allMetrics.map(m => (
-                    <option key={m.group} value={m.group}>{m.group || 'Default Fund'}</option>
-                  ))}
+                <select value={selectedGroup} onChange={e => setSelectedGroup(e.target.value)}
+                  className="appearance-none pl-3 pr-8 py-2 text-sm font-semibold border rounded-lg bg-background hover:bg-accent transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-ring">
+                  {allMetrics.map(m => <option key={m.group} value={m.group}>{m.group || 'Default Fund'}</option>)}
                 </select>
                 <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 h-4 w-4 pointer-events-none text-muted-foreground" />
               </div>
               {vintageForSelected && (
                 <span className="text-xs text-muted-foreground bg-muted px-2.5 py-1 rounded-full">Vintage {vintageForSelected}</span>
               )}
-              {/* Net IRR badge REMOVIDO */}
             </div>
           </section>
 
-          {/* ── 2. Public Indices Summary ─────────────────────────────────── */}
+          {/* 2. Public Indices */}
           <section>
             <h2 className="text-base font-semibold mb-3">Retorno Mercado Público</h2>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              {loadingIndices ? (
-                Array.from({ length: 4 }).map((_, i) => (
-                  <Card key={i}><CardContent className="pt-4 pb-4 h-20 animate-pulse bg-muted rounded-lg" /></Card>
-                ))
-              ) : indices && Object.values(indices).map(idx => {
-                const pct = idx.latest != null ? idx.latest - 100 : null
-                const positive = pct != null && pct >= 0
-                return (
-                  <Card key={idx.label}>
-                    <CardContent className="pt-4 pb-4">
-                      <div className="text-xs text-muted-foreground mb-1">{idx.label}</div>
-                      <div className={`text-2xl font-bold tabular-nums ${positive ? 'text-green-600' : 'text-red-500'}`}>
-                        {pct != null ? `${positive ? '+' : ''}${pct.toFixed(1)}%` : '—'}
-                      </div>
-                      <div className="text-[10px] text-muted-foreground mt-0.5">Desde primeiro investimento</div>
-                    </CardContent>
-                  </Card>
-                )
-              })}
+              {loadingIndices
+                ? Array.from({ length: 4 }).map((_, i) => <Card key={i}><CardContent className="pt-4 pb-4 h-20 animate-pulse bg-muted rounded-lg" /></Card>)
+                : indices && Object.values(indices).map(idx => {
+                    const pct = idx.latest != null ? idx.latest - 100 : null
+                    const pos = pct != null && pct >= 0
+                    return (
+                      <Card key={idx.label}>
+                        <CardContent className="pt-4 pb-4">
+                          <div className="text-xs text-muted-foreground mb-1">{idx.label}</div>
+                          <div className={`text-2xl font-bold tabular-nums ${pos ? 'text-green-600' : 'text-red-500'}`}>
+                            {pct != null ? `${pos ? '+' : ''}${pct.toFixed(1)}%` : '—'}
+                          </div>
+                          <div className="text-[10px] text-muted-foreground mt-0.5">Desde primeiro investimento</div>
+                        </CardContent>
+                      </Card>
+                    )
+                  })
+              }
             </div>
           </section>
 
-          {/* ── 3. NAV Chart ──────────────────────────────────────────────── */}
+          {/* 3. NAV Chart */}
           {selectedMetric && (
             <section>
               <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
                 <h2 className="text-base font-semibold">NAV Index vs. Benchmarks</h2>
                 <div className="flex items-center gap-2 flex-wrap">
-                  {/* Period filter */}
                   <div className="flex items-center gap-1 bg-muted rounded-lg p-0.5">
                     {PERIOD_OPTIONS.map(opt => (
-                      <button
-                        key={opt.value}
-                        onClick={() => setPeriod(opt.value)}
+                      <button key={opt.value} onClick={() => setPeriod(opt.value)}
                         className={`text-[11px] px-2.5 py-1 rounded-md transition-colors font-medium ${
-                          period === opt.value
-                            ? 'bg-background text-foreground shadow-sm'
-                            : 'text-muted-foreground hover:text-foreground'
-                        }`}
-                      >
+                          period === opt.value ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+                        }`}>
                         {opt.label}
                       </button>
                     ))}
                   </div>
-                  {/* Index toggles */}
                   {(['CDI', 'IPCA', 'Ibovespa', 'S&P 500'] as const).map(label => (
-                    <button
-                      key={label}
-                      onClick={() => toggleIndex(label)}
+                    <button key={label} onClick={() => toggleIndex(label)}
                       className={`text-[11px] px-2.5 py-1 rounded-full border transition-colors font-medium ${
-                        activeIndices.has(label)
-                          ? 'border-transparent text-white'
-                          : 'border-border text-muted-foreground hover:bg-accent'
+                        activeIndices.has(label) ? 'border-transparent text-white' : 'border-border text-muted-foreground hover:bg-accent'
                       }`}
-                      style={activeIndices.has(label) ? { backgroundColor: INDEX_COLORS[label] } : {}}
-                    >
+                      style={activeIndices.has(label) ? { backgroundColor: INDEX_COLORS[label] } : {}}>
                       {label}
                     </button>
                   ))}
@@ -572,34 +483,18 @@ export function BenchmarkingClient() {
                       Sem dados suficientes para plotar.
                     </div>
                   ) : (
-                    // Wrapper div for overlay positioning
-                    <div ref={chartRef} className="relative">
-                      <ResponsiveContainer width="100%" height={300}>
-                        <LineChart
-                          data={chartData}
-                          margin={{ top: MARGIN_TOP, right: MARGIN_RIGHT, bottom: MARGIN_BOT, left: 0 }}
-                        >
+                    <div ref={attachRef} className="relative">
+                      <ResponsiveContainer width="100%" height={CHART_H}>
+                        <LineChart data={chartData} margin={{ top: MARGIN_TOP, right: MARGIN_RIGHT, bottom: MARGIN_BOT, left: 0 }}>
                           <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                          <XAxis
-                            dataKey="date"
-                            tick={{ fontSize: 10 }}
-                            tickFormatter={(d: string) => d?.slice(0, 7) ?? ''}
-                            interval="preserveStartEnd"
-                          />
-                          <YAxis
-                            yAxisId="nav"
-                            tick={{ fontSize: 10 }}
+                          <XAxis dataKey="date" tick={{ fontSize: 10 }} tickFormatter={(d: string) => d?.slice(0, 7) ?? ''} interval="preserveStartEnd" />
+                          <YAxis yAxisId="nav" width={MARGIN_LEFT} tick={{ fontSize: 10 }}
                             tickFormatter={(v: number) => String(Math.round(v))}
                             label={{ value: 'Índice (base 100)', angle: -90, position: 'insideLeft', style: { fontSize: 9 }, dy: 55 }}
-                            width={MARGIN_LEFT}
-                            domain={[yDomain.min, yDomain.max]}
-                          />
+                            domain={[yDomain.min, yDomain.max]} />
                           <Tooltip content={<ChartTooltip />} />
                           <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11, paddingTop: 4 }} />
-
-                          <Line yAxisId="nav" type="monotone" dataKey={fundLabel}
-                            stroke={FUND_COLOR} strokeWidth={2.5} dot={false} activeDot={{ r: 4 }} connectNulls />
-
+                          <Line yAxisId="nav" type="monotone" dataKey={fundLabel} stroke={FUND_COLOR} strokeWidth={2.5} dot={false} activeDot={{ r: 4 }} connectNulls />
                           {Array.from(activeIndices).map(label => (
                             <Line key={label} yAxisId="nav" type="monotone" dataKey={label}
                               stroke={INDEX_COLORS[label]} strokeWidth={1.5} dot={false}
@@ -607,32 +502,24 @@ export function BenchmarkingClient() {
                           ))}
                         </LineChart>
                       </ResponsiveContainer>
-
-                      {/* SVG overlay with non-overlapping end labels */}
-                      {chartDims.w > 0 && (
+                      {chartW > 0 && (
                         <EndLabelsOverlay
-                          chartData={chartData}
-                          seriesKeys={allSeriesKeys}
-                          seriesColors={allSeriesColors}
-                          chartWidth={chartDims.w}
-                          chartHeight={plotH}
-                          marginRight={MARGIN_RIGHT}
-                          yMin={yDomain.min}
-                          yMax={yDomain.max}
+                          chartData={chartData} seriesKeys={allSeriesKeys} seriesColors={allSeriesColors}
+                          chartW={chartW} yMin={yDomain.min} yMax={yDomain.max}
                         />
                       )}
                     </div>
                   )}
                   <p className="text-[10px] text-muted-foreground mt-1 flex items-center gap-1">
                     <Info className="h-3 w-3 flex-shrink-0" />
-                    NAV = (unrealizado + distribuições) / capital chamado × 100. Índices alinhados mensalmente e rebaseados a 100 no primeiro investimento do período.
+                    NAV = (unrealizado + distribuições) / capital chamado × 100, rebaseado a 100 no primeiro mês. Índices alinhados mensalmente.
                   </p>
                 </CardContent>
               </Card>
             </section>
           )}
 
-          {/* ── 4. Cambridge Associates ───────────────────────────────────── */}
+          {/* 4. Cambridge Associates */}
           {selectedMetric && (
             <section>
               <div className="flex items-center gap-2 mb-3">
@@ -648,9 +535,7 @@ export function BenchmarkingClient() {
                 </CardHeader>
                 <CardContent className="pb-4">
                   {!bench ? (
-                    <p className="text-xs text-muted-foreground">
-                      Nenhum vintage configurado. Defina em <strong>Vehicles → Group Config</strong>.
-                    </p>
+                    <p className="text-xs text-muted-foreground">Nenhum vintage configurado. Defina em <strong>Vehicles → Group Config</strong>.</p>
                   ) : (
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                       {([
@@ -689,7 +574,7 @@ export function BenchmarkingClient() {
             </section>
           )}
 
-          {/* ── 5. Manual Benchmarks ──────────────────────────────────────── */}
+          {/* 5. Manual Benchmarks */}
           <section>
             <div className="flex items-center gap-2 mb-3">
               <h2 className="text-base font-semibold">Benchmarks Manuais</h2>
@@ -711,42 +596,23 @@ export function BenchmarkingClient() {
                       {(['Carta', 'Pitchbook', 'Outro'] as const).map(src => (
                         <tr key={src} className="border-b last:border-0">
                           <td className="py-2 pr-4 font-medium text-xs">{src}</td>
-                          <td className="py-2 pr-4">
-                            <input type="text" placeholder="ex: 1.8x"
-                              value={manualBench[src]?.tvpi ?? ''}
-                              onChange={e => setManualBench(prev => ({ ...prev, [src]: { ...prev[src], tvpi: e.target.value } }))}
-                              className="border rounded px-2 py-1 text-xs w-24 bg-background" />
-                          </td>
-                          <td className="py-2 pr-4">
-                            <input type="text" placeholder="ex: 12.5%"
-                              value={manualBench[src]?.netIrr ?? ''}
-                              onChange={e => setManualBench(prev => ({ ...prev, [src]: { ...prev[src], netIrr: e.target.value } }))}
-                              className="border rounded px-2 py-1 text-xs w-24 bg-background" />
-                          </td>
-                          <td className="py-2">
-                            <input type="text" placeholder="Período, vintage..."
-                              value={manualBench[src]?.notes ?? ''}
-                              onChange={e => setManualBench(prev => ({ ...prev, [src]: { ...prev[src], notes: e.target.value } }))}
-                              className="border rounded px-2 py-1 text-xs w-40 bg-background" />
-                          </td>
+                          <td className="py-2 pr-4"><input type="text" placeholder="ex: 1.8x" value={manualBench[src]?.tvpi ?? ''} onChange={e => setManualBench(prev => ({ ...prev, [src]: { ...prev[src], tvpi: e.target.value } }))} className="border rounded px-2 py-1 text-xs w-24 bg-background" /></td>
+                          <td className="py-2 pr-4"><input type="text" placeholder="ex: 12.5%" value={manualBench[src]?.netIrr ?? ''} onChange={e => setManualBench(prev => ({ ...prev, [src]: { ...prev[src], netIrr: e.target.value } }))} className="border rounded px-2 py-1 text-xs w-24 bg-background" /></td>
+                          <td className="py-2"><input type="text" placeholder="Período, vintage..." value={manualBench[src]?.notes ?? ''} onChange={e => setManualBench(prev => ({ ...prev, [src]: { ...prev[src], notes: e.target.value } }))} className="border rounded px-2 py-1 text-xs w-40 bg-background" /></td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 </div>
-                <p className="text-[10px] text-muted-foreground mt-3 flex items-center gap-1">
-                  <Info className="h-3 w-3" /> Valores apenas na sessão atual.
-                </p>
+                <p className="text-[10px] text-muted-foreground mt-3 flex items-center gap-1"><Info className="h-3 w-3" /> Valores apenas na sessão atual.</p>
               </CardContent>
             </Card>
           </section>
 
-          {/* ── 6. Data Sources ───────────────────────────────────────────── */}
+          {/* 6. Data Sources */}
           <section className="border-t pt-6">
-            <button
-              onClick={() => setShowSources(v => !v)}
-              className="flex items-center gap-2 text-sm font-semibold hover:text-foreground text-muted-foreground transition-colors mb-4"
-            >
+            <button onClick={() => setShowSources(v => !v)}
+              className="flex items-center gap-2 text-sm font-semibold hover:text-foreground text-muted-foreground transition-colors mb-4">
               <ChevronDown className={`h-4 w-4 transition-transform ${showSources ? 'rotate-180' : ''}`} />
               Fontes de Dados & Metodologia
             </button>
@@ -757,18 +623,13 @@ export function BenchmarkingClient() {
                     <div className="flex items-start justify-between gap-2">
                       <span className="font-semibold text-sm">{src.name}</span>
                       <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium flex-shrink-0 ${
-                        src.type === 'Automatic'
-                          ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                          : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+                        src.type === 'Automatic' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
                       }`}>{src.type}</span>
                     </div>
                     <p className="text-xs text-muted-foreground">{src.description}</p>
                     <div className="flex items-center justify-between text-[10px] text-muted-foreground">
                       <span>Atualização: <strong>{src.lastUpdate}</strong> · {src.frequency}</span>
-                      <a href={src.url} target="_blank" rel="noopener noreferrer"
-                        className="flex items-center gap-1 text-blue-600 hover:underline font-medium">
-                        Fonte <ExternalLink className="h-3 w-3" />
-                      </a>
+                      <a href={src.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-blue-600 hover:underline font-medium">Fonte <ExternalLink className="h-3 w-3" /></a>
                     </div>
                   </div>
                 ))}
