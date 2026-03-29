@@ -66,11 +66,12 @@ export async function POST(req: NextRequest) {
   fundId = membership.fund_id
  
   // Fetch AI API key from fund settings
-  const { data: settings } = await supabase
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: settings } = await (supabase as any)
     .from('fund_settings')
     .select('claude_api_key_encrypted, encryption_key_encrypted')
     .eq('fund_id', fundId)
-    .maybeSingle()
+    .maybeSingle() as { data: { claude_api_key_encrypted: string | null; encryption_key_encrypted: string | null } | null }
  
   // Attempt to decrypt the API key if available
   let apiKey: string | undefined
