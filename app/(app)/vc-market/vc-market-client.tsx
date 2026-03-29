@@ -59,6 +59,10 @@ const PIE_COLORS = [
 const COLOR_ROUNDS  = '#0F2332'
 const COLOR_CAPITAL = '#22c55e'
 
+const LABEL_STYLE_ROUNDS  = { fontSize: 13, fontWeight: 700, fill: COLOR_ROUNDS  }
+const LABEL_STYLE_CAPITAL = { fontSize: 13, fontWeight: 700, fill: COLOR_CAPITAL }
+const LABEL_STYLE_COUNTRY = { fontSize: 13, fontWeight: 700, fill: '#6366f1'     }
+
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
 function barProps(color: string) {
@@ -189,7 +193,6 @@ const fmtCapital = (v: number | undefined) => [formatUSD(v ?? 0), 'Capital'] as 
 const fmtUSDAxis = (v: number | undefined) => formatUSD(v ?? 0)
 
 // ─── LabelList formatters ─────────────────────────────────────────────────────
-// Recharts LabelFormatter receives (value: RenderableText) — must use unknown
 const labelFmtRounds = (v: unknown) => (v != null ? String(v) : '')
 const labelFmtUSD    = (v: unknown) => (typeof v === 'number' && v ? formatUSD(v) : '')
 
@@ -821,7 +824,7 @@ export function VCMarketClient({ isAdmin }: Props) {
                   <Tooltip contentStyle={{ fontSize: 12 }} formatter={fmtRounds} />
                   <Bar dataKey="rounds" {...barProps(COLOR_ROUNDS)} radius={[3, 3, 0, 0]}>
                     <LabelList dataKey="rounds" position="top" formatter={labelFmtRounds}
-                      style={{ fontSize: 10, fontWeight: 700, fill: COLOR_ROUNDS }} />
+                      style={LABEL_STYLE_ROUNDS} />
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
@@ -840,7 +843,7 @@ export function VCMarketClient({ isAdmin }: Props) {
                   <Tooltip contentStyle={{ fontSize: 12 }} formatter={fmtCapital} />
                   <Bar dataKey="capital" {...barProps(COLOR_CAPITAL)} radius={[3, 3, 0, 0]}>
                     <LabelList dataKey="capital" position="top" formatter={labelFmtUSD}
-                      style={{ fontSize: 10, fontWeight: 700, fill: COLOR_CAPITAL }} />
+                      style={LABEL_STYLE_CAPITAL} />
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
@@ -859,7 +862,7 @@ export function VCMarketClient({ isAdmin }: Props) {
                   <Tooltip contentStyle={{ fontSize: 12 }} formatter={fmtRounds} />
                   <Bar dataKey="rounds" {...barProps(COLOR_ROUNDS)} radius={[0, 3, 3, 0]}>
                     <LabelList dataKey="rounds" position="right" formatter={labelFmtRounds}
-                      style={{ fontSize: 10, fontWeight: 700, fill: COLOR_ROUNDS }} />
+                      style={LABEL_STYLE_ROUNDS} />
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
@@ -878,7 +881,7 @@ export function VCMarketClient({ isAdmin }: Props) {
                   <Tooltip contentStyle={{ fontSize: 12 }} formatter={fmtCapital} />
                   <Bar dataKey="amount" {...barProps(COLOR_CAPITAL)} radius={[0, 3, 3, 0]}>
                     <LabelList dataKey="amount" position="right" formatter={labelFmtUSD}
-                      style={{ fontSize: 10, fontWeight: 700, fill: COLOR_CAPITAL }} />
+                      style={LABEL_STYLE_CAPITAL} />
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
@@ -901,7 +904,7 @@ export function VCMarketClient({ isAdmin }: Props) {
                       return <Cell key={i} fill={c} fillOpacity={0.6} stroke={c} strokeWidth={1.5} />
                     })}
                     <LabelList dataKey="deals" position="right" formatter={labelFmtRounds}
-                      style={{ fontSize: 10, fontWeight: 700, fill: '#6366f1' }} />
+                      style={LABEL_STYLE_COUNTRY} />
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
@@ -924,7 +927,7 @@ export function VCMarketClient({ isAdmin }: Props) {
                       return <Cell key={i} fill={c} fillOpacity={0.6} stroke={c} strokeWidth={1.5} />
                     })}
                     <LabelList dataKey="capital" position="right" formatter={labelFmtUSD}
-                      style={{ fontSize: 10, fontWeight: 700, fill: '#6366f1' }} />
+                      style={LABEL_STYLE_COUNTRY} />
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
