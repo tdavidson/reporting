@@ -56,6 +56,8 @@ const INDEX_COLORS: Record<string, string> = {
   'S&P 500': '#8b5cf6',
 }
 
+const FUND_COLOR = '#0F2332'
+
 const SOURCES = [
   {
     name: 'Cambridge Associates',
@@ -119,6 +121,27 @@ function MiniBar({ value, q1, median, q3 }: { value: number; q1: number; median:
       <div className="absolute h-2 rounded-full bg-muted-foreground/20" style={{ left: `${pct(q3)}%`, width: `${pct(q1) - pct(q3)}%` }} />
       <div className="absolute h-2 w-0.5 bg-muted-foreground/60 rounded" style={{ left: `${pct(median)}%` }} />
       <div className={`absolute h-3 w-3 -top-0.5 -translate-x-1/2 rounded-full border-2 border-background ${barColor}`} style={{ left: `${pct(value)}%` }} />
+    </div>
+  )
+}
+
+// Custom tooltip — avoids all Recharts Formatter type issues
+function ChartTooltip({ active, payload, label }: {
+  active?: boolean
+  payload?: { name: string; value: number; color: string }[]
+  label?: string
+}) {
+  if (!active || !payload || payload.length === 0) return null
+  return (
+    <div className="rounded-lg border bg-popover px-3 py-2 shadow-md text-[11px] space-y-1">
+      <p className="font-medium text-muted-foreground mb-1">{label}</p>
+      {payload.map(entry => (
+        <div key={entry.name} className="flex items-center gap-2">
+          <span className="h-2 w-2 rounded-full flex-shrink-0" style={{ backgroundColor: entry.color }} />
+          <span className="text-foreground">{entry.name}</span>
+          <span className="ml-auto font-semibold tabular-nums">{Number(entry.value).toFixed(1)}</span>
+        </div>
+      ))}
     </div>
   )
 }
@@ -348,20 +371,12 @@ export function BenchmarkingClient() {
                           label={{ value: 'Index (base 100)', angle: -90, position: 'insideLeft', style: { fontSize: 9 }, dy: 50 }}
                           width={52}
                         />
-                        {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-                        <Tooltip
-                          formatter={((value: any, name: any) => [
-                            value != null ? `${Number(value).toFixed(1)}` : '—',
-                            name ?? '',
-                          ]) as any}
-                          labelFormatter={(l: string) => `Period: ${l}`}
-                          contentStyle={{ fontSize: 11 }}
-                        />
+                        <Tooltip content={<ChartTooltip />} />
                         <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
                         <Line
                           type="monotone"
                           dataKey={selectedGroup || 'Fund'}
-                          stroke="#0F2332"
+                          stroke={FUND_COLOR}
                           strokeWidth={2.5}
                           dot={false}
                           connectNulls
