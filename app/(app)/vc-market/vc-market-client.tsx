@@ -1,5 +1,5 @@
 'use client'
- 
+
 import { useState, useEffect, useCallback, useRef } from 'react'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -9,7 +9,7 @@ import type { PieLabelRenderProps } from 'recharts'
 import {
   TrendingUp, Globe, DollarSign, Building2, BarChart3,
   Upload, RefreshCw, ExternalLink, X, FileSpreadsheet, Loader2,
-  ChevronDown, ChevronUp, Search,
+  ChevronDown, ChevronUp, Search, Zap,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -20,7 +20,7 @@ import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
 import type { VCDeal, VCFilters, VCKPIs } from '@/lib/vc-market/types'
 import * as XLSX from 'xlsx'
- 
+
 const PERIOD_OPTIONS = [
   { value: 'ytd',       label: 'YTD' },
   { value: 'q1',        label: 'Q1' },
@@ -32,7 +32,7 @@ const PERIOD_OPTIONS = [
   { value: '2023',      label: '2023' },
   { value: 'all',       label: 'All time' },
 ]
- 
+
 const STAGE_COLORS: Record<string, string> = {
   'Pre-Seed': '#6366f1',
   'Seed':     '#8b5cf6',
@@ -44,19 +44,34 @@ const STAGE_COLORS: Record<string, string> = {
   'Growth':   '#f59e0b',
   'Bridge':   '#f97316',
 }
- 
+
 const PIE_COLORS = [
   '#6366f1', '#8b5cf6', '#3b82f6', '#0ea5e9',
   '#14b8a6', '#22c55e', '#f59e0b', '#f97316', '#ef4444',
 ]
- 
+
 function formatUSD(n: number): string {
   if (n >= 1_000_000_000) return `$${(n / 1_000_000_000).toFixed(1)}B`
   if (n >= 1_000_000)     return `$${(n / 1_000_000).toFixed(1)}M`
   if (n >= 1_000)         return `$${(n / 1_000).toFixed(0)}K`
   return `$${n.toLocaleString()}`
 }
- 
+
+function getWeekDeals(deals: VCDeal[]): VCDeal[] {
+  const now = new Date()
+  const startOfWeek = new Date(now)
+  startOfWeek.setDate(now.getDate() - now.getDay())
+  startOfWeek.setHours(0, 0, 0, 0)
+  return deals
+    .filter(d => {
+      if (!d.deal_date) return false
+      const dt = new Date(d.deal_date)
+      return dt >= startOfWeek
+    })
+    .sort((a, b) => (b.deal_date ?? '').localeCompare(a.deal_date ?? ''))
+    .slice(0, 5)
+}
+
 function computeKPIs(deals: VCDeal[]): VCKPIs {
   const capital = deals.reduce((s, d) => s + (d.amount_usd ?? 0), 0)
   const companies = new Set(deals.map(d => d.company_name.toLowerCase())).size
@@ -67,7 +82,7 @@ function computeKPIs(deals: VCDeal[]): VCKPIs {
     : 0
   return { totalRounds: deals.length, totalCapital: capital, uniqueCompanies: companies, avgTicket, activeCountries: countries }
 }
- 
+
 function buildRoundsByMonth(deals: VCDeal[]) {
   const map = new Map<string, number>()
   for (const d of deals) {
@@ -82,7 +97,7 @@ function buildRoundsByMonth(deals: VCDeal[]) {
       rounds: count,
     }))
 }
- 
+
 function buildCapitalByMonth(deals: VCDeal[]) {
   const map = new Map<string, number>()
   for (const d of deals) {
@@ -97,7 +112,7 @@ function buildCapitalByMonth(deals: VCDeal[]) {
       capital,
     }))
 }
- 
+
 function buildCapitalBySegment(deals: VCDeal[]) {
   const map = new Map<string, number>()
   for (const d of deals) {
@@ -109,7 +124,7 @@ function buildCapitalBySegment(deals: VCDeal[]) {
     .slice(0, 10)
     .map(([segment, amount]) => ({ segment, amount }))
 }
- 
+
 function buildRoundsByVertical(deals: VCDeal[]) {
   const map = new Map<string, number>()
   for (const d of deals) {
@@ -121,7 +136,7 @@ function buildRoundsByVertical(deals: VCDeal[]) {
     .slice(0, 10)
     .map(([segment, rounds]) => ({ segment, rounds }))
 }
- 
+
 function buildDealsByCountry(deals: VCDeal[]) {
   const map = new Map<string, number>()
   for (const d of deals) {
@@ -133,7 +148,7 @@ function buildDealsByCountry(deals: VCDeal[]) {
     .slice(0, 12)
     .map(([country, deals]) => ({ country, deals }))
 }
- 
+
 function buildCapitalByCountry(deals: VCDeal[]) {
   const map = new Map<string, number>()
   for (const d of deals) {
@@ -146,7 +161,7 @@ function buildCapitalByCountry(deals: VCDeal[]) {
     .slice(0, 12)
     .map(([country, capital]) => ({ country, capital }))
 }
- 
+
 function buildStageDistribution(deals: VCDeal[]) {
   const map = new Map<string, number>()
   for (const d of deals) {
@@ -157,7 +172,7 @@ function buildStageDistribution(deals: VCDeal[]) {
     .sort(([, a], [, b]) => b - a)
     .map(([name, value]) => ({ name, value }))
 }
- 
+
 function getUniqueValues(deals: VCDeal[], key: keyof VCDeal): string[] {
   const set = new Set<string>()
   for (const d of deals) {
@@ -166,7 +181,7 @@ function getUniqueValues(deals: VCDeal[], key: keyof VCDeal): string[] {
   }
   return Array.from(set).sort()
 }
- 
+
 function getUniqueInvestors(deals: VCDeal[]): string[] {
   const set = new Set<string>()
   for (const d of deals) {
@@ -176,16 +191,16 @@ function getUniqueInvestors(deals: VCDeal[]): string[] {
   }
   return Array.from(set).sort()
 }
- 
+
 function renderPieLabel({ name, percent }: PieLabelRenderProps): string {
   return `${name ?? ''} ${(((percent as number) ?? 0) * 100).toFixed(0)}%`
 }
- 
+
 function ImportModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: () => void }) {
   const [file, setFile] = useState<File | null>(null)
   const [loading, setLoading] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
- 
+
   const handleImport = async () => {
     if (!file) return
     setLoading(true)
@@ -205,7 +220,7 @@ function ImportModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
       setLoading(false)
     }
   }
- 
+
   const handleDownloadTemplate = () => {
     const ws = XLSX.utils.aoa_to_sheet([
       ['Company Name', 'Amount USD', 'Date', 'Stage', 'Investors', 'Segment', 'Country', 'Source URL'],
@@ -215,15 +230,13 @@ function ImportModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
     XLSX.utils.book_append_sheet(wb, ws, 'VC Deals')
     XLSX.writeFile(wb, 'vc-market-template.xlsx')
   }
- 
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
       <div className="bg-background border rounded-xl shadow-xl w-full max-w-md mx-4 p-6">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold">Import Deals from Excel</h2>
-          <button onClick={onClose} className="text-muted-foreground hover:text-foreground">
-            <X className="h-5 w-5" />
-          </button>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground"><X className="h-5 w-5" /></button>
         </div>
         <p className="text-sm text-muted-foreground mb-4">
           Upload an <code>.xlsx</code> or <code>.csv</code> file with deal data.
@@ -236,16 +249,8 @@ function ImportModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
           }`}
         >
           <FileSpreadsheet className={`h-8 w-8 mx-auto mb-2 ${file ? 'text-primary' : 'text-muted-foreground'}`} />
-          {file
-            ? <p className="text-sm font-medium">{file.name}</p>
-            : <p className="text-sm text-muted-foreground">Click to select file</p>}
-          <input
-            ref={fileRef}
-            type="file"
-            accept=".xlsx,.xls,.csv"
-            className="hidden"
-            onChange={e => setFile(e.target.files?.[0] ?? null)}
-          />
+          {file ? <p className="text-sm font-medium">{file.name}</p> : <p className="text-sm text-muted-foreground">Click to select file</p>}
+          <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={e => setFile(e.target.files?.[0] ?? null)} />
         </div>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={handleDownloadTemplate} className="flex-1">Download Template</Button>
@@ -258,7 +263,7 @@ function ImportModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
     </div>
   )
 }
- 
+
 function KPICard({ label, value, icon: Icon, color }: {
   label: string; value: string; icon: React.ElementType; color: string
 }) {
@@ -272,7 +277,7 @@ function KPICard({ label, value, icon: Icon, color }: {
     </div>
   )
 }
- 
+
 function DealRow({ deal }: { deal: VCDeal }) {
   const stageColor = deal.stage ? STAGE_COLORS[deal.stage] ?? '#94a3b8' : '#94a3b8'
   return (
@@ -282,9 +287,7 @@ function DealRow({ deal }: { deal: VCDeal }) {
         {deal.amount_usd ? formatUSD(deal.amount_usd) : <span className="text-muted-foreground">—</span>}
       </td>
       <td className="px-4 py-3 text-sm text-muted-foreground">
-        {deal.deal_date
-          ? new Date(deal.deal_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-          : '—'}
+        {deal.deal_date ? new Date(deal.deal_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}
       </td>
       <td className="px-4 py-3">
         {deal.stage
@@ -306,9 +309,9 @@ function DealRow({ deal }: { deal: VCDeal }) {
     </tr>
   )
 }
- 
+
 interface Props { isAdmin: boolean }
- 
+
 export function VCMarketClient({ isAdmin }: Props) {
   const [deals, setDeals]           = useState<VCDeal[]>([])
   const [loading, setLoading]       = useState(true)
@@ -319,12 +322,12 @@ export function VCMarketClient({ isAdmin }: Props) {
   const [sortDir, setSortDir]       = useState<'asc' | 'desc'>('desc')
   const [page, setPage]             = useState(1)
   const PAGE_SIZE = 50
- 
+
   const [filters, setFilters] = useState<VCFilters>({
     period: 'ytd', country: '', segment: '', stage: '', investor: '',
   })
   const [allDeals, setAllDeals] = useState<VCDeal[]>([])
- 
+
   const fetchDeals = useCallback(async (f: VCFilters) => {
     setLoading(true)
     try {
@@ -341,22 +344,22 @@ export function VCMarketClient({ isAdmin }: Props) {
       setLoading(false)
     }
   }, [])
- 
+
   const fetchAllDeals = useCallback(async (period: string) => {
     const params = new URLSearchParams({ period })
     const res = await fetch(`/api/vc-market/deals?${params}`)
     const data = await res.json()
     setAllDeals(data.deals ?? [])
   }, [])
- 
+
   useEffect(() => { fetchDeals(filters) }, [fetchDeals, filters])
   useEffect(() => { fetchAllDeals(filters.period) }, [fetchAllDeals, filters.period])
- 
+
   const setFilter = (key: keyof VCFilters, value: string) => {
     setFilters(prev => ({ ...prev, [key]: value }))
     setPage(1)
   }
- 
+
   const handleScrape = async () => {
     setScraping(true)
     try {
@@ -371,27 +374,28 @@ export function VCMarketClient({ isAdmin }: Props) {
       setScraping(false)
     }
   }
- 
-  const kpis               = computeKPIs(deals)
-  const roundsByMonth      = buildRoundsByMonth(deals)
-  const capitalByMonth     = buildCapitalByMonth(deals)
-  const capitalBySegment   = buildCapitalBySegment(deals)
-  const roundsByVertical   = buildRoundsByVertical(deals)
-  const dealsByCountry     = buildDealsByCountry(deals)
-  const capitalByCountry   = buildCapitalByCountry(deals)
-  const stageDistribution  = buildStageDistribution(deals)
- 
+
+  const kpis              = computeKPIs(deals)
+  const weekDeals         = getWeekDeals(deals)
+  const roundsByMonth     = buildRoundsByMonth(deals)
+  const capitalByMonth    = buildCapitalByMonth(deals)
+  const capitalBySegment  = buildCapitalBySegment(deals)
+  const roundsByVertical  = buildRoundsByVertical(deals)
+  const dealsByCountry    = buildDealsByCountry(deals)
+  const capitalByCountry  = buildCapitalByCountry(deals)
+  const stageDistribution = buildStageDistribution(deals)
+
   const countryOptions  = getUniqueValues(allDeals, 'country')
   const segmentOptions  = getUniqueValues(allDeals, 'segment')
   const stageOptions    = getUniqueValues(allDeals, 'stage')
   const investorOptions = getUniqueInvestors(allDeals)
- 
+
   const toggleSort = (key: keyof VCDeal) => {
     if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
     else { setSortKey(key); setSortDir('desc') }
     setPage(1)
   }
- 
+
   const filtered = deals.filter(d => {
     if (!search) return true
     const q = search.toLowerCase()
@@ -403,30 +407,31 @@ export function VCMarketClient({ isAdmin }: Props) {
       d.investors.some(i => i.toLowerCase().includes(q))
     )
   })
- 
+
   const sorted = [...filtered].sort((a, b) => {
     const av = a[sortKey] ?? ''
     const bv = b[sortKey] ?? ''
     const cmp = av < bv ? -1 : av > bv ? 1 : 0
     return sortDir === 'asc' ? cmp : -cmp
   })
- 
+
   const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE))
   const paged = sorted.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
- 
+
   const SortIcon = ({ col }: { col: keyof VCDeal }) => {
     if (sortKey !== col) return null
     return sortDir === 'asc'
       ? <ChevronUp className="h-3 w-3 inline ml-0.5" />
       : <ChevronDown className="h-3 w-3 inline ml-0.5" />
   }
- 
+
   const emptyChart = (msg: string) => (
     <div className="h-[220px] flex items-center justify-center text-muted-foreground text-sm">{msg}</div>
   )
- 
+
   return (
     <div className="p-4 md:py-8 md:px-8 space-y-6 max-w-[1600px]">
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
@@ -445,7 +450,7 @@ export function VCMarketClient({ isAdmin }: Props) {
           </Button>
         </div>
       </div>
- 
+
       {/* Filters */}
       <div className="flex flex-wrap gap-2 items-center">
         <Select value={filters.period} onValueChange={v => setFilter('period', v)}>
@@ -490,21 +495,70 @@ export function VCMarketClient({ isAdmin }: Props) {
           {loading ? 'Loading…' : `${deals.length} deal${deals.length !== 1 ? 's' : ''}`}
         </span>
       </div>
- 
+
       {/* KPI Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-        <KPICard label="Total Rounds"     value={kpis.totalRounds.toLocaleString()}                      icon={BarChart3}  color="bg-indigo-500/10 text-indigo-500" />
+        <KPICard label="Total Rounds"     value={kpis.totalRounds.toLocaleString()}                         icon={BarChart3}  color="bg-indigo-500/10 text-indigo-500" />
         <KPICard label="Total Capital"    value={kpis.totalCapital > 0 ? formatUSD(kpis.totalCapital) : '—'} icon={DollarSign} color="bg-emerald-500/10 text-emerald-500" />
-        <KPICard label="Unique Companies" value={kpis.uniqueCompanies.toLocaleString()}                  icon={Building2}  color="bg-blue-500/10 text-blue-500" />
-        <KPICard label="Avg Ticket"       value={kpis.avgTicket > 0 ? formatUSD(kpis.avgTicket) : '—'}   icon={TrendingUp} color="bg-violet-500/10 text-violet-500" />
-        <KPICard label="Active Countries" value={kpis.activeCountries.toLocaleString()}                  icon={Globe}      color="bg-amber-500/10 text-amber-500" />
+        <KPICard label="Unique Companies" value={kpis.uniqueCompanies.toLocaleString()}                     icon={Building2}  color="bg-blue-500/10 text-blue-500" />
+        <KPICard label="Avg Ticket"       value={kpis.avgTicket > 0 ? formatUSD(kpis.avgTicket) : '—'}      icon={TrendingUp} color="bg-violet-500/10 text-violet-500" />
+        <KPICard label="Active Countries" value={kpis.activeCountries.toLocaleString()}                     icon={Globe}      color="bg-amber-500/10 text-amber-500" />
       </div>
- 
+
+      {/* Deals This Week */}
+      {!loading && weekDeals.length > 0 && (
+        <div className="bg-card border rounded-xl overflow-hidden">
+          <div className="px-4 py-3 border-b flex items-center gap-2">
+            <Zap className="h-4 w-4 text-amber-500" />
+            <h3 className="text-sm font-medium">Deals This Week</h3>
+            <span className="ml-auto text-xs text-muted-foreground">{weekDeals.length} deal{weekDeals.length !== 1 ? 's' : ''}</span>
+          </div>
+          <div className="divide-y">
+            {weekDeals.map(deal => (
+              <div key={deal.id} className="px-4 py-3 flex items-center gap-4 hover:bg-muted/30 transition-colors">
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-sm truncate">{deal.company_name}</p>
+                  {deal.stage && (
+                    <span
+                      className="text-xs font-medium px-1.5 py-0.5 rounded-full text-white mt-0.5 inline-block"
+                      style={{ backgroundColor: STAGE_COLORS[deal.stage] ?? '#94a3b8' }}
+                    >
+                      {deal.stage}
+                    </span>
+                  )}
+                </div>
+                <div className="text-right shrink-0">
+                  <p className="text-sm font-semibold tabular-nums text-emerald-600 dark:text-emerald-400">
+                    {deal.amount_usd ? formatUSD(deal.amount_usd) : '—'}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {deal.deal_date
+                      ? new Date(deal.deal_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+                      : '—'}
+                  </p>
+                </div>
+                {deal.source_url ? (
+                  <a
+                    href={deal.source_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="shrink-0 text-muted-foreground hover:text-primary transition-colors"
+                  >
+                    <ExternalLink className="h-4 w-4" />
+                  </a>
+                ) : (
+                  <div className="shrink-0 w-4" />
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Charts */}
       {!loading && deals.length > 0 && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
 
-          {/* Row 1 */}
           <div className="bg-card border rounded-xl p-4">
             <h3 className="text-sm font-medium mb-4">Rounds by Month</h3>
             {roundsByMonth.length > 0 ? (
@@ -535,7 +589,6 @@ export function VCMarketClient({ isAdmin }: Props) {
             ) : emptyChart('No capital data in period')}
           </div>
 
-          {/* Row 2 */}
           <div className="bg-card border rounded-xl p-4">
             <h3 className="text-sm font-medium mb-4">Capital by Vertical (USD)</h3>
             {capitalBySegment.length > 0 ? (
@@ -568,7 +621,6 @@ export function VCMarketClient({ isAdmin }: Props) {
             ) : emptyChart('No vertical data available')}
           </div>
 
-          {/* Row 3 */}
           <div className="bg-card border rounded-xl p-4">
             <h3 className="text-sm font-medium mb-4">Deals by Country</h3>
             {dealsByCountry.length > 0 ? (
@@ -603,7 +655,6 @@ export function VCMarketClient({ isAdmin }: Props) {
             ) : emptyChart('No capital by country data')}
           </div>
 
-          {/* Row 4 — Stage distribution (full width) */}
           <div className="bg-card border rounded-xl p-4 lg:col-span-2">
             <h3 className="text-sm font-medium mb-4">Distribution by Stage</h3>
             {stageDistribution.length > 0 ? (
@@ -631,7 +682,7 @@ export function VCMarketClient({ isAdmin }: Props) {
 
         </div>
       )}
- 
+
       {/* Empty state */}
       {!loading && deals.length === 0 && (
         <div className="bg-card border rounded-xl p-12 text-center">
@@ -651,7 +702,7 @@ export function VCMarketClient({ isAdmin }: Props) {
           </div>
         </div>
       )}
- 
+
       {/* Deals Table */}
       {deals.length > 0 && (
         <div className="bg-card border rounded-xl overflow-hidden">
@@ -703,7 +754,7 @@ export function VCMarketClient({ isAdmin }: Props) {
           )}
         </div>
       )}
- 
+
       {showImport && <ImportModal onClose={() => setShowImport(false)} onSuccess={() => fetchDeals(filters)} />}
     </div>
   )
