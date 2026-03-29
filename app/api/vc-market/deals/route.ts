@@ -24,12 +24,12 @@ export async function GET(req: NextRequest) {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const { data: fund } = await supabase
+    const { data: fund, error: fundError } = await supabase
       .from('funds')
       .select('id')
       .eq('user_id', user.id)
       .single()
-    if (!fund) return NextResponse.json({ deals: [] })
+    if (fundError || !fund) return NextResponse.json({ deals: [] })
 
     const sp = req.nextUrl.searchParams
     const period   = sp.get('period') ?? 'ytd'
