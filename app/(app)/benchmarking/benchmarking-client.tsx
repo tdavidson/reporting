@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { getBenchmarkForVintage, getQuartilePosition } from '@/lib/benchmarks/cambridge-associates'
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
-  ResponsiveContainer, ReferenceDot, LabelList,
+  ResponsiveContainer,
 } from 'recharts'
 
 // ---------------------------------------------------------------------------
@@ -112,7 +112,6 @@ function fmtMoic(v: number | null) { return v == null ? '—' : `${v.toFixed(2)}
 function fmtIrr(v: number | null)  { return v == null ? '—' : `${(v * 100).toFixed(1)}%` }
 function fmtPct(v: number | null)  { return v == null ? '—' : `${(v * 100).toFixed(1)}%` }
 
-// Returns YYYY-MM-DD cutoff for a period option relative to today
 function periodCutoff(period: string): string | null {
   if (period === 'all') return null
   const now = new Date()
@@ -166,21 +165,108 @@ function ChartTooltip({ active, payload, label }: {
   )
 }
 
-// Custom dot — renders only on the last data point to show the end label
-function LastDot(props: any) {
-  const { cx, cy, index, dataLength, value, color, label } = props
-  if (index !== dataLength - 1 || value == null) return null
+// ---------------------------------------------------------------------------
+// EndLabel — SVG overlay rendered ONCE after the chart, avoiding overlaps
+// by stacking labels vertically sorted by value.
+// ---------------------------------------------------------------------------
+type EndLabelInfo = { key: string; value: number; color: string }
+
+function EndLabelsOverlay({
+  chartData,
+  seriesKeys,
+  seriesColors,
+  chartWidth,
+  chartHeight,
+  marginRight,
+  yMin,
+  yMax,
+}: {
+  chartData: Record<string, any>[]
+  seriesKeys: string[]
+  seriesColors: Record<string, string>
+  chartWidth: number
+  chartHeight: number
+  marginRight: number
+  yMin: number
+  yMax: number
+}) {
+  const last = chartData.at(-1)
+  if (!last) return null
+
+  const LABEL_H    = 18
+  const LABEL_PAD  = 5  // vertical gap between labels
+  const DOT_R      = 5
+  const plotH      = chartHeight
+
+  // Build initial positions based on actual y value
+  const labels: (EndLabelInfo & { y: number })[] = seriesKeys
+    .map(key => {
+      const val = last[key]
+      if (val == null || isNaN(val)) return null
+      const yRatio = 1 - (val - yMin) / (yMax - yMin)
+      const y = Math.max(LABEL_H / 2, Math.min(plotH - LABEL_H / 2, yRatio * plotH))
+      return { key, value: val, color: seriesColors[key], y }
+    })
+    .filter(Boolean) as (EndLabelInfo & { y: number })[]
+
+  // Sort by value descending so highest line gets top label
+  labels.sort((a, b) => b.value - a.value)
+
+  // Resolve overlaps: push labels apart until no collision
+  for (let pass = 0; pass < 20; pass++) {
+    let moved = false
+    for (let i = 1; i < labels.length; i++) {
+      const prev = labels[i - 1]
+      const cur  = labels[i]
+      const minGap = LABEL_H + LABEL_PAD
+      if (cur.y - prev.y < minGap) {
+        const mid = (prev.y + cur.y) / 2
+        prev.y = mid - minGap / 2
+        cur.y  = mid + minGap / 2
+        moved = true
+      }
+    }
+    if (!moved) break
+  }
+
+  // x anchor = right edge of plot area (inside margin)
+  const xAnchor = chartWidth - marginRight + 8
+
   return (
-    <g>
-      <circle cx={cx} cy={cy} r={5} fill={color} stroke="white" strokeWidth={2} />
-      <rect x={cx + 8} y={cy - 13} width={label.length * 6.5 + 8} height={18} rx={4} fill={color} opacity={0.92} />
-      <text x={cx + 12} y={cy + 1} fontSize={10} fill="white" fontWeight={600}>{label}</text>
-    </g>
+    <svg
+      style={{ position: 'absolute', top: 12, left: 0, width: chartWidth, height: chartHeight, pointerEvents: 'none', overflow: 'visible' }}
+    >
+      {labels.map(({ key, value, color, y }) => {
+        const text = value.toFixed(1)
+        const boxW = text.length * 6.5 + 12
+        return (
+          <g key={key}>
+            {/* dot on line */}
+            <circle cx={xAnchor - 8} cy={y} r={DOT_R} fill={color} stroke="white" strokeWidth={2} />
+            {/* connector line from dot to label box */}
+            <line x1={xAnchor - 3} y1={y} x2={xAnchor + 2} y2={y} stroke={color} strokeWidth={1} strokeDasharray="2 2" />
+            {/* label pill */}
+            <rect x={xAnchor + 2} y={y - LABEL_H / 2} width={boxW} height={LABEL_H} rx={4} fill={color} opacity={0.93} />
+            <text
+              x={xAnchor + 2 + boxW / 2}
+              y={y + 1}
+              textAnchor="middle"
+              dominantBaseline="middle"
+              fontSize={10}
+              fontWeight={600}
+              fill="white"
+            >
+              {text}
+            </text>
+          </g>
+        )
+      })}
+    </svg>
   )
 }
 
 // ---------------------------------------------------------------------------
-// mergeChartData — align all series by YYYY-MM
+// mergeChartData
 // ---------------------------------------------------------------------------
 function mergeChartData(
   navSeries: NavPoint[],
@@ -192,10 +278,7 @@ function mergeChartData(
   if (navSeries.length === 0) return []
 
   const cutoff = periodCutoff(period)
-  const filtered = cutoff
-    ? navSeries.filter(p => p.date >= cutoff)
-    : navSeries
-
+  const filtered = cutoff ? navSeries.filter(p => p.date >= cutoff) : navSeries
   if (filtered.length === 0) return []
 
   const startYM = filtered[0].date.slice(0, 7)
@@ -249,6 +332,11 @@ export function BenchmarkingClient() {
   const [period, setPeriod]             = useState<string>('all')
   const [manualBench, setManualBench]   = useState<Record<string, { tvpi?: string; netIrr?: string; notes?: string }>>({})
   const [showSources, setShowSources]   = useState(false)
+  // chart container dimensions (for SVG overlay)
+  const [chartDims, setChartDims]       = useState({ w: 0, h: 300 })
+  const chartRef = (node: HTMLDivElement | null) => {
+    if (node) setChartDims({ w: node.offsetWidth, h: 300 })
+  }
 
   useEffect(() => {
     async function load() {
@@ -328,9 +416,25 @@ export function BenchmarkingClient() {
     return mergeChartData(navSeries, selectedGroup || 'Fund', indices, activeIndices, period)
   }, [navSeries, indices, activeIndices, selectedGroup, period])
 
-  // Last data point values for each active series (for end labels)
-  const lastPoint = chartData.at(-1)
   const fundLabel = selectedGroup || 'Fund'
+
+  // All active series keys + their colors for the overlay
+  const allSeriesKeys  = [fundLabel, ...Array.from(activeIndices)]
+  const allSeriesColors: Record<string, string> = { [fundLabel]: FUND_COLOR, ...INDEX_COLORS }
+
+  // Compute y domain for the overlay's coordinate mapping
+  const yDomain = useMemo(() => {
+    if (chartData.length === 0) return { min: 0, max: 200 }
+    let min = Infinity, max = -Infinity
+    for (const row of chartData) {
+      for (const key of allSeriesKeys) {
+        const v = row[key]
+        if (v != null && !isNaN(v)) { min = Math.min(min, v); max = Math.max(max, v) }
+      }
+    }
+    const pad = (max - min) * 0.08
+    return { min: min - pad, max: max + pad }
+  }, [chartData, allSeriesKeys])
 
   function toggleIndex(label: string) {
     setActiveIndices(prev => {
@@ -340,11 +444,16 @@ export function BenchmarkingClient() {
     })
   }
 
-  const latestIrr  = navSeries.at(-1)?.irr ?? null
-  const latestNav  = navSeries.at(-1)?.nav ?? null
+  // YAxis left margin = 56px (from width={56}), top margin = 12
+  const MARGIN_LEFT  = 56
+  const MARGIN_RIGHT = 90
+  const MARGIN_TOP   = 12
+  const MARGIN_BOT   = 30
+  const plotW = chartDims.w - MARGIN_LEFT - MARGIN_RIGHT
+  const plotH = chartDims.h - MARGIN_TOP - MARGIN_BOT
 
   return (
-    <div className="p-4 md:py-8 md:pl-8 md:pr-4 w-full max-w-5xl">
+    <div className="w-full max-w-5xl mx-auto px-4 py-8">
 
       <div className="mb-6">
         <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2">
@@ -363,7 +472,7 @@ export function BenchmarkingClient() {
       ) : (
         <div className="space-y-8">
 
-          {/* ── 1. Fund Selector + stats ───────────────────────────────── */}
+          {/* ── 1. Fund Selector ──────────────────────────────────────────── */}
           <section>
             <div className="flex items-center gap-3 flex-wrap">
               <span className="text-sm font-medium text-muted-foreground">Fundo:</span>
@@ -382,15 +491,11 @@ export function BenchmarkingClient() {
               {vintageForSelected && (
                 <span className="text-xs text-muted-foreground bg-muted px-2.5 py-1 rounded-full">Vintage {vintageForSelected}</span>
               )}
-              {latestIrr != null && (
-                <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400">
-                  Net IRR: {fmtPct(latestIrr)}
-                </span>
-              )}
+              {/* Net IRR badge REMOVIDO */}
             </div>
           </section>
 
-          {/* ── 2. Public Indices Summary (TOPO) ──────────────────────── */}
+          {/* ── 2. Public Indices Summary ─────────────────────────────────── */}
           <section>
             <h2 className="text-base font-semibold mb-3">Retorno Mercado Público</h2>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -416,15 +521,12 @@ export function BenchmarkingClient() {
             </div>
           </section>
 
-          {/* ── 3. NAV Chart ──────────────────────────────────────────── */}
+          {/* ── 3. NAV Chart ──────────────────────────────────────────────── */}
           {selectedMetric && (
             <section>
               <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
                 <h2 className="text-base font-semibold">NAV Index vs. Benchmarks</h2>
-
-                {/* Controls row */}
                 <div className="flex items-center gap-2 flex-wrap">
-
                   {/* Period filter */}
                   <div className="flex items-center gap-1 bg-muted rounded-lg p-0.5">
                     {PERIOD_OPTIONS.map(opt => (
@@ -441,7 +543,6 @@ export function BenchmarkingClient() {
                       </button>
                     ))}
                   </div>
-
                   {/* Index toggles */}
                   {(['CDI', 'IPCA', 'Ibovespa', 'S&P 500'] as const).map(label => (
                     <button
@@ -471,68 +572,56 @@ export function BenchmarkingClient() {
                       Sem dados suficientes para plotar.
                     </div>
                   ) : (
-                    <ResponsiveContainer width="100%" height={300}>
-                      <LineChart data={chartData} margin={{ top: 12, right: 80, bottom: 4, left: 0 }}>
-                        <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                        <XAxis
-                          dataKey="date"
-                          tick={{ fontSize: 10 }}
-                          tickFormatter={(d: string) => d?.slice(0, 7) ?? ''}
-                          interval="preserveStartEnd"
-                        />
-                        <YAxis
-                          yAxisId="nav"
-                          tick={{ fontSize: 10 }}
-                          tickFormatter={(v: number) => String(Math.round(v))}
-                          label={{ value: 'Índice (base 100)', angle: -90, position: 'insideLeft', style: { fontSize: 9 }, dy: 55 }}
-                          width={56}
-                        />
-                        <Tooltip content={<ChartTooltip />} />
-                        <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
-
-                        {/* Fund NAV — custom last-point dot with label */}
-                        <Line
-                          yAxisId="nav"
-                          type="monotone"
-                          dataKey={fundLabel}
-                          stroke={FUND_COLOR}
-                          strokeWidth={2.5}
-                          dot={(dotProps: any) => (
-                            <LastDot
-                              {...dotProps}
-                              dataLength={chartData.length}
-                              color={FUND_COLOR}
-                              label={lastPoint ? `${Number(lastPoint[fundLabel]).toFixed(1)}` : ''}
-                            />
-                          )}
-                          activeDot={{ r: 4 }}
-                          connectNulls
-                        />
-
-                        {/* Index lines — custom last-point dot with label */}
-                        {Array.from(activeIndices).map(label => (
-                          <Line
-                            key={label}
-                            yAxisId="nav"
-                            type="monotone"
-                            dataKey={label}
-                            stroke={INDEX_COLORS[label]}
-                            strokeWidth={1.5}
-                            dot={(dotProps: any) => (
-                              <LastDot
-                                {...dotProps}
-                                dataLength={chartData.length}
-                                color={INDEX_COLORS[label]}
-                                label={lastPoint?.[label] != null ? `${Number(lastPoint[label]).toFixed(1)}` : ''}
-                              />
-                            )}
-                            activeDot={{ r: 4 }}
-                            strokeDasharray="4 2"
-                            connectNulls
+                    // Wrapper div for overlay positioning
+                    <div ref={chartRef} className="relative">
+                      <ResponsiveContainer width="100%" height={300}>
+                        <LineChart
+                          data={chartData}
+                          margin={{ top: MARGIN_TOP, right: MARGIN_RIGHT, bottom: MARGIN_BOT, left: 0 }}
+                        >
+                          <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                          <XAxis
+                            dataKey="date"
+                            tick={{ fontSize: 10 }}
+                            tickFormatter={(d: string) => d?.slice(0, 7) ?? ''}
+                            interval="preserveStartEnd"
                           />
-                        ))}
-                      </LineChart>
-                    </ResponsiveContainer>
+                          <YAxis
+                            yAxisId="nav"
+                            tick={{ fontSize: 10 }}
+                            tickFormatter={(v: number) => String(Math.round(v))}
+                            label={{ value: 'Índice (base 100)', angle: -90, position: 'insideLeft', style: { fontSize: 9 }, dy: 55 }}
+                            width={MARGIN_LEFT}
+                            domain={[yDomain.min, yDomain.max]}
+                          />
+                          <Tooltip content={<ChartTooltip />} />
+                          <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11, paddingTop: 4 }} />
+
+                          <Line yAxisId="nav" type="monotone" dataKey={fundLabel}
+                            stroke={FUND_COLOR} strokeWidth={2.5} dot={false} activeDot={{ r: 4 }} connectNulls />
+
+                          {Array.from(activeIndices).map(label => (
+                            <Line key={label} yAxisId="nav" type="monotone" dataKey={label}
+                              stroke={INDEX_COLORS[label]} strokeWidth={1.5} dot={false}
+                              strokeDasharray="4 2" activeDot={{ r: 4 }} connectNulls />
+                          ))}
+                        </LineChart>
+                      </ResponsiveContainer>
+
+                      {/* SVG overlay with non-overlapping end labels */}
+                      {chartDims.w > 0 && (
+                        <EndLabelsOverlay
+                          chartData={chartData}
+                          seriesKeys={allSeriesKeys}
+                          seriesColors={allSeriesColors}
+                          chartWidth={chartDims.w}
+                          chartHeight={plotH}
+                          marginRight={MARGIN_RIGHT}
+                          yMin={yDomain.min}
+                          yMax={yDomain.max}
+                        />
+                      )}
+                    </div>
                   )}
                   <p className="text-[10px] text-muted-foreground mt-1 flex items-center gap-1">
                     <Info className="h-3 w-3 flex-shrink-0" />
@@ -543,7 +632,7 @@ export function BenchmarkingClient() {
             </section>
           )}
 
-          {/* ── 4. Cambridge Associates ───────────────────────────────── */}
+          {/* ── 4. Cambridge Associates ───────────────────────────────────── */}
           {selectedMetric && (
             <section>
               <div className="flex items-center gap-2 mb-3">
@@ -600,7 +689,7 @@ export function BenchmarkingClient() {
             </section>
           )}
 
-          {/* ── 5. Manual Benchmarks ──────────────────────────────────── */}
+          {/* ── 5. Manual Benchmarks ──────────────────────────────────────── */}
           <section>
             <div className="flex items-center gap-2 mb-3">
               <h2 className="text-base font-semibold">Benchmarks Manuais</h2>
@@ -652,7 +741,7 @@ export function BenchmarkingClient() {
             </Card>
           </section>
 
-          {/* ── 6. Data Sources ───────────────────────────────────────── */}
+          {/* ── 6. Data Sources ───────────────────────────────────────────── */}
           <section className="border-t pt-6">
             <button
               onClick={() => setShowSources(v => !v)}

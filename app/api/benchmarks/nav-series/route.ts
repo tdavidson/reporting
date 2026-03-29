@@ -6,13 +6,9 @@ import { xirr, type CashFlow } from '@/lib/xirr'
 
 interface DataPoint {
   date: string       // YYYY-MM-DD (last day of month)
-  nav: number        // (unrealized + proceeds) / invested * 100  — base 100
-  irr: number | null // rolling XIRR annualised, as decimal (e.g. 0.15 = 15%)
+  nav: number        // index rebaseado a 100 no primeiro mês com capital investido
+  irr: number | null
 }
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
 
 function lastDayOfMonth(ym: string): string {
   const [y, m] = ym.split('-').map(Number)
@@ -32,7 +28,6 @@ function monthRange(startYM: string, endYM: string): string[] {
 
 function toYM(dateStr: string) { return dateStr.slice(0, 7) }
 
-// Same unrealized-value logic as investments/route.ts
 function calcUnrealized(
   status: CompanyStatus | string | null,
   explicitNav: number | null,
@@ -41,7 +36,7 @@ function calcUnrealized(
   sharePrice: number | null,
   totalShares: number,
   totalInvested: number,
-  unrealizedDelta: number,   // sum of unrealized_value_change deltas via roundMap
+  unrealizedDelta: number,
   costBasisExited: number,
 ): number {
   if (status === 'written-off') return 0
@@ -50,10 +45,6 @@ function calcUnrealized(
   if (sharePrice != null && totalShares > 0) return Math.max(0, sharePrice * totalShares)
   return Math.max(0, totalInvested + unrealizedDelta - costBasisExited)
 }
-
-// ---------------------------------------------------------------------------
-// GET /api/benchmarks/nav-series?group=<name>
-// ---------------------------------------------------------------------------
 
 export async function GET(req: NextRequest) {
   const supabase = createClient()
@@ -73,7 +64,6 @@ export async function GET(req: NextRequest) {
 
   const fundId = membership.fund_id
 
-  // -- companies map (for status + default group fallback) --
   const { data: companies } = await admin
     .from('companies')
     .select('id, status, portfolio_group')
@@ -83,7 +73,6 @@ export async function GET(req: NextRequest) {
 
   const companyMap = new Map((companies ?? []).map(c => [c.id, c]))
 
-  // -- all transactions for the fund --
   const { data: allTxns } = await admin
     .from('investment_transactions' as any)
     .select('*')
@@ -92,8 +81,6 @@ export async function GET(req: NextRequest) {
 
   if (!allTxns || allTxns.length === 0) return NextResponse.json({ series: [] })
 
-  // -- filter to transactions that belong to the requested group --
-  // mirrors investments/route.ts: group = txn.portfolio_group ?? company.portfolio_group[0] ?? ''
   const txns = allTxns.filter(txn => {
     const company = companyMap.get(txn.company_id)
     const txnGroup = txn.portfolio_group ?? company?.portfolio_group?.[0] ?? ''
@@ -102,7 +89,6 @@ export async function GET(req: NextRequest) {
 
   if (txns.length === 0) return NextResponse.json({ series: [] })
 
-  // -- find first investment date to anchor the chart --
   const firstInvestment = txns.find(t => t.transaction_type === 'investment' && t.transaction_date)
   if (!firstInvestment) return NextResponse.json({ series: [] })
 
@@ -110,19 +96,18 @@ export async function GET(req: NextRequest) {
   const nowYM   = toYM(new Date().toISOString().split('T')[0])
   const months  = monthRange(startYM, nowYM)
 
-  // ---------------------------------------------------------------------------
-  // For each month-end snapshot, replay all transactions up to that cutoff
-  // exactly like investments/route.ts does for the terminal snapshot — but we
-  // do it for every month so we get a time-series.
-  // ---------------------------------------------------------------------------
-  const series: DataPoint[] = []
+  // -------------------------------------------------------------------------
+  // Build raw series (absolute R$) first, then rebase to 100 at the first
+  // month where totalInvested > 0. This avoids the series starting at 70 or
+  // any other arbitrary value when the first capital call is partial.
+  // -------------------------------------------------------------------------
+  type RawPoint = { ym: string; date: string; totalInvested: number; totalRealized: number; totalUnrealized: number; cashFlows: CashFlow[] }
+  const rawSeries: RawPoint[] = []
 
   for (const ym of months) {
     const cutoff     = lastDayOfMonth(ym)
-    const cutoffDate = new Date(cutoff)
     const pastTxns   = txns.filter(t => t.transaction_date != null && t.transaction_date <= cutoff)
 
-    // Per-company state at this cutoff
     type CompanyState = {
       totalInvested: number
       totalShares: number
@@ -130,8 +115,8 @@ export async function GET(req: NextRequest) {
       latestSharePrice: number | null
       latestValuation: number | null
       latestOwnership: number | null
-      explicitNav: number | null         // from unrealized_gain_change or proceeds
-      unrealizedDelta: number            // sum of unrealized_value_change via roundMap
+      explicitNav: number | null
+      unrealizedDelta: number
       costBasisExited: number
       roundMap: Map<string, { investmentCost: number; sharesAcquired: number; unrealizedDelta: number; costBasisExited: number }>
     }
@@ -170,7 +155,6 @@ export async function GET(req: NextRequest) {
         if (txn.cost_basis_exited != null) s.costBasisExited += Math.abs(txn.cost_basis_exited)
         if (txn.exit_valuation != null)    s.latestValuation  = txn.exit_valuation
         if (txn.ownership_pct != null)     s.latestOwnership  = txn.ownership_pct
-        // explicit residual nav after exit
         s.explicitNav = txn.unrealized_value_change ?? 0
 
         if (txn.round_name && txn.cost_basis_exited != null) {
@@ -198,7 +182,6 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // -- aggregate across companies --
     let totalInvested   = 0
     let totalRealized   = 0
     let totalUnrealized = 0
@@ -225,11 +208,7 @@ export async function GET(req: NextRequest) {
 
     if (totalInvested <= 0) continue
 
-    // -- NAV index (base 100) --
-    const nav = parseFloat((((totalUnrealized + totalRealized) / totalInvested) * 100).toFixed(2))
-
-    // -- rolling XIRR: investments as negative CFs, proceeds as positive CFs,
-    //    current NAV (unrealized) as terminal positive CF at cutoff date --
+    // Build XIRR cash flows: investments are NEGATIVE (capital out), proceeds POSITIVE
     for (const txn of pastTxns) {
       if (txn.transaction_type === 'investment' && txn.investment_cost && txn.transaction_date) {
         cashFlows.push({ date: new Date(txn.transaction_date), amount: -(txn.investment_cost) })
@@ -240,16 +219,36 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    rawSeries.push({ ym, date: cutoff, totalInvested, totalRealized, totalUnrealized, cashFlows })
+  }
+
+  if (rawSeries.length === 0) return NextResponse.json({ series: [] })
+
+  // -------------------------------------------------------------------------
+  // Rebase: the index is 100 at the FIRST month (base values frozen there).
+  // For subsequent months: nav = (unrealized + realized) / baseTotalInvested * 100
+  // This ensures investments never contribute positively to the index — the
+  // numerator only grows via unrealized appreciation or cash proceeds.
+  // -------------------------------------------------------------------------
+  const baseInvested = rawSeries[0].totalInvested
+  if (baseInvested <= 0) return NextResponse.json({ series: [] })
+
+  const series: DataPoint[] = []
+
+  for (const raw of rawSeries) {
+    const nav = parseFloat((((raw.totalUnrealized + raw.totalRealized) / baseInvested) * 100).toFixed(2))
+
     let irr: number | null = null
-    if (cashFlows.length > 0 && (totalUnrealized > 0 || totalRealized > 0)) {
+    if (raw.cashFlows.length > 0 && (raw.totalUnrealized > 0 || raw.totalRealized > 0)) {
+      const cutoffDate = new Date(raw.date)
       const flowsWithTerminal = [
-        ...cashFlows,
-        ...(totalUnrealized > 0 ? [{ date: cutoffDate, amount: totalUnrealized }] : []),
+        ...raw.cashFlows,
+        ...(raw.totalUnrealized > 0 ? [{ date: cutoffDate, amount: raw.totalUnrealized }] : []),
       ]
       try { irr = xirr(flowsWithTerminal) } catch { irr = null }
     }
 
-    series.push({ date: cutoff, nav, irr })
+    series.push({ date: raw.date, nav, irr })
   }
 
   return NextResponse.json({ series, latestValue: series.at(-1)?.nav ?? null })
