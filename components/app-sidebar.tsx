@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Building2, ClipboardCheck, Mail, Upload, Send, Settings, LifeBuoy, PanelLeftClose, PanelLeftOpen, BarChart3, TrendingUp, StickyNote, Lock, Users, Handshake, ArrowDownCircle, FileText, Briefcase, Crown, ShieldCheck, Newspaper, Globe2 } from 'lucide-react'
+import { Building2, ClipboardCheck, Mail, Upload, Send, Settings, PanelLeftClose, PanelLeftOpen, BarChart3, StickyNote, Lock, Users, Handshake, ArrowDownCircle, FileText, Briefcase, Crown, ShieldCheck, Newspaper, Globe2 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useState } from 'react'
 import { useSidebar } from '@/components/sidebar-context'
@@ -26,7 +26,6 @@ const NAV_ITEMS: { href: string; label: string; icon: LucideIcon; badgeKey?: 're
   { href: '/compliance', label: 'Compliance', icon: ShieldCheck, featureKey: 'compliance', beta: true },
   { href: '/usage', label: 'Usage', icon: Users, adminOnly: true },
   { href: '/settings', label: 'Settings', icon: Settings, badgeKey: 'settings' },
-  { href: '/support', label: 'Support', icon: LifeBuoy },
 ]
 
 interface AppSidebarProps {
