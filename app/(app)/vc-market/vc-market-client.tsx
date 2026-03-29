@@ -85,7 +85,7 @@ function buildRoundsByMonth(deals: VCDeal[]) {
   const map = new Map<string, number>()
   for (const d of deals) {
     if (!d.deal_date) continue
-    const month = d.deal_date.slice(0, 7) // YYYY-MM
+    const month = d.deal_date.slice(0, 7)
     map.set(month, (map.get(month) ?? 0) + 1)
   }
   return Array.from(map.entries())
@@ -345,7 +345,6 @@ export function VCMarketClient({ isAdmin }: Props) {
     investor: '',
   })
  
-  // Available filter options (derived from unfiltered deals for current period)
   const [allDeals, setAllDeals] = useState<VCDeal[]>([])
  
   const fetchDeals = useCallback(async (f: VCFilters) => {
@@ -365,7 +364,6 @@ export function VCMarketClient({ isAdmin }: Props) {
     }
   }, [])
  
-  // Fetch unfiltered deals for dropdown options (period only)
   const fetchAllDeals = useCallback(async (period: string) => {
     const params = new URLSearchParams({ period })
     const res = await fetch(`/api/vc-market/deals?${params}`)
@@ -403,19 +401,16 @@ export function VCMarketClient({ isAdmin }: Props) {
  
   const kpis = computeKPIs(deals)
  
-  // Chart data
   const roundsByMonth     = buildRoundsByMonth(deals)
   const capitalBySegment  = buildCapitalBySegment(deals)
   const dealsByCountry    = buildDealsByCountry(deals)
   const stageDistribution = buildStageDistribution(deals)
  
-  // Filter options from all period deals
   const countryOptions  = getUniqueValues(allDeals, 'country')
   const segmentOptions  = getUniqueValues(allDeals, 'segment')
   const stageOptions    = getUniqueValues(allDeals, 'stage')
   const investorOptions = getUniqueInvestors(allDeals)
  
-  // Table: search + sort + paginate
   const toggleSort = (key: keyof VCDeal) => {
     if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
     else { setSortKey(key); setSortDir('desc') }
@@ -482,7 +477,7 @@ export function VCMarketClient({ isAdmin }: Props) {
         </div>
       </div>
  
-      {/* ── Layer 2: Filters ── */}
+      {/* ── Filters ── */}
       <div className="flex flex-wrap gap-2 items-center">
         <Select value={filters.period} onValueChange={v => setFilter('period', v)}>
           <SelectTrigger className="h-8 w-32 text-xs">
@@ -549,41 +544,16 @@ export function VCMarketClient({ isAdmin }: Props) {
         </span>
       </div>
  
-      {/* ── Layer 1: KPI Cards ── */}
+      {/* ── KPI Cards ── */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-        <KPICard
-          label="Total Rounds"
-          value={kpis.totalRounds.toLocaleString()}
-          icon={BarChart3}
-          color="bg-indigo-500/10 text-indigo-500"
-        />
-        <KPICard
-          label="Total Capital"
-          value={kpis.totalCapital > 0 ? formatUSD(kpis.totalCapital) : '—'}
-          icon={DollarSign}
-          color="bg-emerald-500/10 text-emerald-500"
-        />
-        <KPICard
-          label="Unique Companies"
-          value={kpis.uniqueCompanies.toLocaleString()}
-          icon={Building2}
-          color="bg-blue-500/10 text-blue-500"
-        />
-        <KPICard
-          label="Avg Ticket"
-          value={kpis.avgTicket > 0 ? formatUSD(kpis.avgTicket) : '—'}
-          icon={TrendingUp}
-          color="bg-violet-500/10 text-violet-500"
-        />
-        <KPICard
-          label="Active Countries"
-          value={kpis.activeCountries.toLocaleString()}
-          icon={Globe}
-          color="bg-amber-500/10 text-amber-500"
-        />
+        <KPICard label="Total Rounds" value={kpis.totalRounds.toLocaleString()} icon={BarChart3} color="bg-indigo-500/10 text-indigo-500" />
+        <KPICard label="Total Capital" value={kpis.totalCapital > 0 ? formatUSD(kpis.totalCapital) : '—'} icon={DollarSign} color="bg-emerald-500/10 text-emerald-500" />
+        <KPICard label="Unique Companies" value={kpis.uniqueCompanies.toLocaleString()} icon={Building2} color="bg-blue-500/10 text-blue-500" />
+        <KPICard label="Avg Ticket" value={kpis.avgTicket > 0 ? formatUSD(kpis.avgTicket) : '—'} icon={TrendingUp} color="bg-violet-500/10 text-violet-500" />
+        <KPICard label="Active Countries" value={kpis.activeCountries.toLocaleString()} icon={Globe} color="bg-amber-500/10 text-amber-500" />
       </div>
  
-      {/* ── Layer 3: Charts ── */}
+      {/* ── Charts ── */}
       {!loading && deals.length > 0 && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {/* Rounds by month */}
@@ -595,17 +565,12 @@ export function VCMarketClient({ isAdmin }: Props) {
                   <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                   <XAxis dataKey="month" tick={{ fontSize: 11 }} />
                   <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
-                  <Tooltip
-                    contentStyle={{ fontSize: 12 }}
-                    formatter={(v: number | undefined) => [v ?? 0, 'Rounds']}
-                  />
+                  <Tooltip contentStyle={{ fontSize: 12 }} formatter={(v: number | undefined) => [v ?? 0, 'Rounds']} />
                   <Bar dataKey="rounds" fill="#6366f1" radius={[3, 3, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             ) : (
-              <div className="h-[220px] flex items-center justify-center text-muted-foreground text-sm">
-                No dated deals in period
-              </div>
+              <div className="h-[220px] flex items-center justify-center text-muted-foreground text-sm">No dated deals in period</div>
             )}
           </div>
  
@@ -614,29 +579,16 @@ export function VCMarketClient({ isAdmin }: Props) {
             <h3 className="text-sm font-medium mb-4">Capital by Vertical (USD)</h3>
             {capitalBySegment.length > 0 ? (
               <ResponsiveContainer width="100%" height={220}>
-                <BarChart
-                  data={capitalBySegment}
-                  layout="vertical"
-                  margin={{ top: 0, right: 8, bottom: 0, left: 60 }}
-                >
+                <BarChart data={capitalBySegment} layout="vertical" margin={{ top: 0, right: 8, bottom: 0, left: 60 }}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-border" horizontal={false} />
-                  <XAxis
-                    type="number"
-                    tick={{ fontSize: 11 }}
-                    tickFormatter={(v: number) => formatUSD(v)}
-                  />
+                  <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={(v: number) => formatUSD(v)} />
                   <YAxis dataKey="segment" type="category" tick={{ fontSize: 11 }} width={60} />
-                  <Tooltip
-                    contentStyle={{ fontSize: 12 }}
-                    formatter={(v: number | undefined) => [v != null ? formatUSD(v) : '—', 'Capital']}
-                  />
+                  <Tooltip contentStyle={{ fontSize: 12 }} formatter={(v: number | undefined) => [v != null ? formatUSD(v) : '—', 'Capital']} />
                   <Bar dataKey="amount" fill="#3b82f6" radius={[0, 3, 3, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             ) : (
-              <div className="h-[220px] flex items-center justify-center text-muted-foreground text-sm">
-                No capital data available
-              </div>
+              <div className="h-[220px] flex items-center justify-center text-muted-foreground text-sm">No capital data available</div>
             )}
           </div>
  
@@ -645,18 +597,11 @@ export function VCMarketClient({ isAdmin }: Props) {
             <h3 className="text-sm font-medium mb-4">Deals by Country</h3>
             {dealsByCountry.length > 0 ? (
               <ResponsiveContainer width="100%" height={220}>
-                <BarChart
-                  data={dealsByCountry}
-                  layout="vertical"
-                  margin={{ top: 0, right: 8, bottom: 0, left: 60 }}
-                >
+                <BarChart data={dealsByCountry} layout="vertical" margin={{ top: 0, right: 8, bottom: 0, left: 60 }}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-border" horizontal={false} />
                   <XAxis type="number" tick={{ fontSize: 11 }} allowDecimals={false} />
                   <YAxis dataKey="country" type="category" tick={{ fontSize: 11 }} width={60} />
-                  <Tooltip
-                    contentStyle={{ fontSize: 12 }}
-                    formatter={(v: number | undefined) => [v ?? 0, 'Deals']}
-                  />
+                  <Tooltip contentStyle={{ fontSize: 12 }} formatter={(v: number | undefined) => [v ?? 0, 'Deals']} />
                   <Bar dataKey="deals" radius={[0, 3, 3, 0]}>
                     {dealsByCountry.map((_, i) => (
                       <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
@@ -665,9 +610,7 @@ export function VCMarketClient({ isAdmin }: Props) {
                 </BarChart>
               </ResponsiveContainer>
             ) : (
-              <div className="h-[220px] flex items-center justify-center text-muted-foreground text-sm">
-                No country data available
-              </div>
+              <div className="h-[220px] flex items-center justify-center text-muted-foreground text-sm">No country data available</div>
             )}
           </div>
  
@@ -685,8 +628,8 @@ export function VCMarketClient({ isAdmin }: Props) {
                     outerRadius={90}
                     paddingAngle={2}
                     dataKey="value"
-                    label={({ name, percent }) =>
-                      `${name} ${(percent * 100).toFixed(0)}%`
+                    label={({ name, percent }: { name: string; percent?: number }) =>
+                      `${name} ${((percent ?? 0) * 100).toFixed(0)}%`
                     }
                     labelLine={false}
                   >
@@ -698,16 +641,11 @@ export function VCMarketClient({ isAdmin }: Props) {
                     ))}
                   </Pie>
                   <Legend iconSize={10} wrapperStyle={{ fontSize: 11 }} />
-                  <Tooltip
-                    contentStyle={{ fontSize: 12 }}
-                    formatter={(v: number | undefined) => [v ?? 0, 'Deals']}
-                  />
+                  <Tooltip contentStyle={{ fontSize: 12 }} formatter={(v: number | undefined) => [v ?? 0, 'Deals']} />
                 </PieChart>
               </ResponsiveContainer>
             ) : (
-              <div className="h-[220px] flex items-center justify-center text-muted-foreground text-sm">
-                No stage data available
-              </div>
+              <div className="h-[220px] flex items-center justify-center text-muted-foreground text-sm">No stage data available</div>
             )}
           </div>
         </div>
@@ -735,7 +673,7 @@ export function VCMarketClient({ isAdmin }: Props) {
         </div>
       )}
  
-      {/* ── Layer 4: Deals Table ── */}
+      {/* ── Deals Table ── */}
       {deals.length > 0 && (
         <div className="bg-card border rounded-xl overflow-hidden">
           <div className="p-4 border-b flex items-center justify-between gap-3">
@@ -798,22 +736,10 @@ export function VCMarketClient({ isAdmin }: Props) {
                 {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, sorted.length)} of {sorted.length}
               </span>
               <div className="flex gap-1">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-7 px-2 text-xs"
-                  disabled={page === 1}
-                  onClick={() => setPage(p => p - 1)}
-                >
+                <Button variant="outline" size="sm" className="h-7 px-2 text-xs" disabled={page === 1} onClick={() => setPage(p => p - 1)}>
                   Previous
                 </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-7 px-2 text-xs"
-                  disabled={page === totalPages}
-                  onClick={() => setPage(p => p + 1)}
-                >
+                <Button variant="outline" size="sm" className="h-7 px-2 text-xs" disabled={page === totalPages} onClick={() => setPage(p => p + 1)}>
                   Next
                 </Button>
               </div>
