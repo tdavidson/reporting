@@ -249,11 +249,6 @@ export function BenchmarkingClient() {
     })
   }
 
-  // ─── Tooltip formatter — value can be number | undefined per Recharts types ───
-  const tooltipFormatter = (value: number | undefined, name: string): [string, string] => {
-    return [value != null ? `${value.toFixed(1)}` : '—', name]
-  }
-
   const loading = loadingFund
 
   return (
@@ -349,12 +344,16 @@ export function BenchmarkingClient() {
                         />
                         <YAxis
                           tick={{ fontSize: 10 }}
-                          tickFormatter={(v: number) => `${v.toFixed(0)}`}
+                          tickFormatter={(v: number) => String(Math.round(v))}
                           label={{ value: 'Index (base 100)', angle: -90, position: 'insideLeft', style: { fontSize: 9 }, dy: 50 }}
                           width={52}
                         />
+                        {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
                         <Tooltip
-                          formatter={tooltipFormatter}
+                          formatter={((value: any, name: any) => [
+                            value != null ? `${Number(value).toFixed(1)}` : '—',
+                            name ?? '',
+                          ]) as any}
                           labelFormatter={(l: string) => `Period: ${l}`}
                           contentStyle={{ fontSize: 11 }}
                         />
