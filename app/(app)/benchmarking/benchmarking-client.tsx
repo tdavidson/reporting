@@ -43,7 +43,7 @@ interface GroupConfig {
 }
 
 interface NavPoint {
-  date: string
+  date: string   // YYYY-MM-DD (last day of month)
   nav: number
   irr: number | null
 }
@@ -78,9 +78,9 @@ const SOURCES = [
   },
   {
     name: 'Banco Central do Brasil',
-    description: 'CDI (série 12) e IPCA (série 433) acumulados via API aberta.',
+    description: 'CDI (série 12) e IPCA (série 433) acumulados via API aberta — agregados mensalmente.',
     url: 'https://dadosabertos.bcb.gov.br/dataset/12-taxa-de-juros---selic',
-    frequency: 'Daily / Monthly', lastUpdate: 'Live', type: 'Automatic',
+    frequency: 'Monthly (end-of-month)', lastUpdate: 'Live', type: 'Automatic',
   },
   {
     name: 'Yahoo Finance',
@@ -138,25 +138,28 @@ function ChartTooltip({ active, payload, label }: {
   return (
     <div className="rounded-lg border bg-popover px-3 py-2 shadow-md text-[11px] space-y-1">
       <p className="font-medium text-muted-foreground mb-1">{label}</p>
-      {payload.map(entry => {
-        const isIrr = entry.name === 'Net IRR'
-        const display = isIrr
-          ? `${(entry.value * 100).toFixed(1)}%`
-          : Number(entry.value).toFixed(1)
-        return (
-          <div key={entry.name} className="flex items-center gap-2">
-            <span className="h-2 w-2 rounded-full flex-shrink-0" style={{ backgroundColor: entry.color }} />
-            <span className="text-foreground">{entry.name}</span>
-            <span className="ml-auto font-semibold tabular-nums">{display}</span>
-          </div>
-        )
-      })}
+      {payload.map(entry => (
+        <div key={entry.name} className="flex items-center gap-2">
+          <span className="h-2 w-2 rounded-full flex-shrink-0" style={{ backgroundColor: entry.color }} />
+          <span className="text-foreground">{entry.name}</span>
+          <span className="ml-auto font-semibold tabular-nums">
+            {entry.name === 'Net IRR'
+              ? `${(entry.value * 100).toFixed(1)}%`
+              : Number(entry.value).toFixed(1)}
+          </span>
+        </div>
+      ))}
     </div>
   )
 }
 
-// Merge NAV series + public indices into a single chart data array.
-// All series are rebased to 100 at the first NAV data point date.
+// ---------------------------------------------------------------------------
+// mergeChartData
+//
+// KEY FIX: align everything by YYYY-MM (month key), not by full date string.
+// All series (NAV, CDI, IPCA, Ibov, SP500) snap to the same monthly slot.
+// The display date is taken from the NAV series (last day of month).
+// ---------------------------------------------------------------------------
 function mergeChartData(
   navSeries: NavPoint[],
   fundLabel: string,
@@ -166,39 +169,46 @@ function mergeChartData(
 ): Record<string, any>[] {
   if (navSeries.length === 0) return []
 
-  const startDate = navSeries[0].date
-  const dateMap = new Map<string, Record<string, any>>()
+  const startDate = navSeries[0].date // YYYY-MM-DD
+  const startYM   = startDate.slice(0, 7) // YYYY-MM
 
-  // Fund NAV — already base-100 from API
+  // Build month-keyed map from NAV series
+  const monthMap = new Map<string, Record<string, any>>()
   for (const pt of navSeries) {
-    dateMap.set(pt.date, {
-      date: pt.date,
-      [fundLabel]: pt.nav,
-      ...(showIrr && pt.irr != null ? { 'Net IRR': pt.irr } : {}),
-    })
+    const ym = pt.date.slice(0, 7)
+    const row: Record<string, any> = { date: pt.date, ym, [fundLabel]: pt.nav }
+    if (showIrr && pt.irr != null) row['Net IRR'] = pt.irr
+    monthMap.set(ym, row)
   }
 
-  // Public indices — rebase to 100 at startDate
+  // Merge public indices — rebase to 100 at the month of first investment
   const indexMap: Record<string, { date: string; value: number }[]> = {
-    CDI: indices.cdi.series,
-    IPCA: indices.ipca.series,
-    Ibovespa: indices.ibov.series,
+    CDI:       indices.cdi.series,
+    IPCA:      indices.ipca.series,
+    Ibovespa:  indices.ibov.series,
     'S&P 500': indices.sp500.series,
   }
 
   for (const [label, series] of Object.entries(indexMap)) {
     if (!activeIndices.has(label)) continue
-    const relevant = series.filter(d => d.date >= startDate)
+
+    // Find the base value at or just after startYM
+    const relevant = series.filter(d => d.date.slice(0, 7) >= startYM)
     if (relevant.length === 0) continue
     const base = relevant[0].value
+    if (!base || base === 0) continue
+
     for (const pt of relevant) {
-      const existing = dateMap.get(pt.date) ?? { date: pt.date }
+      const ym = pt.date.slice(0, 7)
+      const existing = monthMap.get(ym)
+      if (!existing) continue // only fill months where we have a NAV point
       existing[label] = parseFloat(((pt.value / base) * 100).toFixed(2))
-      dateMap.set(pt.date, existing)
     }
   }
 
-  return Array.from(dateMap.values()).sort((a, b) => a.date.localeCompare(b.date))
+  return Array.from(monthMap.values())
+    .sort((a, b) => a.ym.localeCompare(b.ym))
+    .map(({ ym: _ym, ...rest }) => rest) // strip internal ym key
 }
 
 // ---------------------------------------------------------------------------
@@ -255,13 +265,27 @@ export function BenchmarkingClient() {
     groupConfigs.find(c => c.portfolio_group === selectedGroup)?.vintage ?? null
   , [selectedGroup, groupConfigs])
 
-  // Load public indices starting from vintage year (or earliest investment)
+  // Load NAV series whenever selected group changes
   useEffect(() => {
-    if (!indices && !loadingIndices) return
+    if (selectedGroup === null) return
+    async function load() {
+      setLoadingNav(true)
+      setNavSeries([])
+      try {
+        const res = await fetch(`/api/benchmarks/nav-series?group=${encodeURIComponent(selectedGroup)}`)
+        if (res.ok) setNavSeries((await res.json()).series ?? [])
+      } finally {
+        setLoadingNav(false)
+      }
+    }
+    load()
+  }, [selectedGroup])
+
+  // Load public indices — triggered after navSeries loads so we know the real startDate
+  useEffect(() => {
     async function load() {
       setLoadingIndices(true)
       try {
-        // Use nav start date if available, else vintage
         const fallbackYear = vintageForSelected ?? new Date().getFullYear() - 5
         const startDate = navSeries.length > 0
           ? navSeries[0].date
@@ -273,27 +297,7 @@ export function BenchmarkingClient() {
       }
     }
     load()
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [navSeries, vintageForSelected])
-
-  // Load NAV series whenever selected group changes
-  useEffect(() => {
-    if (selectedGroup === null) return
-    async function load() {
-      setLoadingNav(true)
-      setNavSeries([])
-      try {
-        const res = await fetch(`/api/benchmarks/nav-series?group=${encodeURIComponent(selectedGroup)}`)
-        if (res.ok) {
-          const json = await res.json()
-          setNavSeries(json.series ?? [])
-        }
-      } finally {
-        setLoadingNav(false)
-      }
-    }
-    load()
-  }, [selectedGroup])
 
   const selectedMetric = useMemo(() =>
     allMetrics.find(m => m.group === selectedGroup) ?? null
@@ -361,7 +365,7 @@ export function BenchmarkingClient() {
               )}
               {latestIrr != null && (
                 <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400">
-                  Net IRR atual: {fmtPct(latestIrr)}
+                  Net IRR: {fmtPct(latestIrr)}
                 </span>
               )}
             </div>
@@ -373,19 +377,15 @@ export function BenchmarkingClient() {
               <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
                 <h2 className="text-base font-semibold">NAV Index vs. Benchmarks</h2>
                 <div className="flex items-center gap-2 flex-wrap">
-                  {/* IRR toggle */}
                   <button
                     onClick={() => setShowIrr(v => !v)}
                     className={`text-[11px] px-2.5 py-1 rounded-full border transition-colors font-medium ${
-                      showIrr
-                        ? 'border-transparent text-white'
-                        : 'border-border text-muted-foreground hover:bg-accent'
+                      showIrr ? 'border-transparent text-white' : 'border-border text-muted-foreground hover:bg-accent'
                     }`}
                     style={showIrr ? { backgroundColor: IRR_COLOR } : {}}
                   >
                     Net IRR
                   </button>
-                  {/* Index toggles */}
                   {(['CDI', 'IPCA', 'Ibovespa', 'S&P 500'] as const).map(label => (
                     <button
                       key={label}
@@ -423,7 +423,6 @@ export function BenchmarkingClient() {
                           tickFormatter={(d: string) => d?.slice(0, 7) ?? ''}
                           interval="preserveStartEnd"
                         />
-                        {/* Left axis: NAV index */}
                         <YAxis
                           yAxisId="nav"
                           tick={{ fontSize: 10 }}
@@ -431,7 +430,6 @@ export function BenchmarkingClient() {
                           label={{ value: 'Índice (base 100)', angle: -90, position: 'insideLeft', style: { fontSize: 9 }, dy: 55 }}
                           width={56}
                         />
-                        {/* Right axis: IRR % */}
                         {showIrr && (
                           <YAxis
                             yAxisId="irr"
@@ -444,7 +442,6 @@ export function BenchmarkingClient() {
                         <Tooltip content={<ChartTooltip />} />
                         <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
 
-                        {/* Fund NAV line */}
                         <Line
                           yAxisId="nav"
                           type="monotone"
@@ -455,7 +452,6 @@ export function BenchmarkingClient() {
                           connectNulls
                         />
 
-                        {/* Net IRR line (right axis) */}
                         {showIrr && (
                           <Line
                             yAxisId="irr"
@@ -469,7 +465,6 @@ export function BenchmarkingClient() {
                           />
                         )}
 
-                        {/* Public index lines */}
                         {Array.from(activeIndices).map(label => (
                           <Line
                             key={label}
@@ -488,7 +483,7 @@ export function BenchmarkingClient() {
                   )}
                   <p className="text-[10px] text-muted-foreground mt-1 flex items-center gap-1">
                     <Info className="h-3 w-3 flex-shrink-0" />
-                    NAV = (unrealizado + distribuições) / capital chamado × 100. Índices rebaseados a 100 na data do primeiro investimento. Net IRR = XIRR mensal com NAV como terminal value.
+                    NAV = (unrealizado + distribuições) / capital chamado × 100. Índices alinhados mensalmente e rebaseados a 100 no primeiro investimento. Net IRR = XIRR com NAV como terminal value.
                   </p>
                 </CardContent>
               </Card>
@@ -509,9 +504,7 @@ export function BenchmarkingClient() {
                       <div className={`text-2xl font-bold tabular-nums ${positive ? 'text-green-600' : 'text-red-500'}`}>
                         {pct != null ? `${positive ? '+' : ''}${pct.toFixed(1)}%` : '—'}
                       </div>
-                      <div className="text-[10px] text-muted-foreground mt-0.5">
-                        Desde primeiro investimento
-                      </div>
+                      <div className="text-[10px] text-muted-foreground mt-0.5">Desde primeiro investimento</div>
                     </CardContent>
                   </Card>
                 )
@@ -519,7 +512,7 @@ export function BenchmarkingClient() {
             </div>
           </section>
 
-          {/* Cambridge Associates Quartile Comparison */}
+          {/* Cambridge Associates */}
           {selectedMetric && (
             <section>
               <div className="flex items-center gap-2 mb-3">
@@ -613,7 +606,7 @@ export function BenchmarkingClient() {
                           <td className="py-2">
                             <input type="text" placeholder="Período, vintage..."
                               value={manualBench[src]?.notes ?? ''}
-                              onChange={e => setManualBench(prev => ({ ...prev,[src]: { ...prev[src], notes: e.target.value } }))}
+                              onChange={e => setManualBench(prev => ({ ...prev, [src]: { ...prev[src], notes: e.target.value } }))}
                               className="border rounded px-2 py-1 text-xs w-40 bg-background" />
                           </td>
                         </tr>
