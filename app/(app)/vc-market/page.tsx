@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { VCMarketClient } from './vc-market-client'
- 
+  
 export const metadata: Metadata = { title: 'VC Market' }
  
 export default async function VCMarketPage() {
