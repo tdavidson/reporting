@@ -5,7 +5,8 @@ import { Loader2, TrendingUp, Info, ExternalLink, ChevronDown } from 'lucide-rea
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { getBenchmarkForVintage, getQuartilePosition } from '@/lib/benchmarks/cambridge-associates'
 import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
+  ResponsiveContainer, ReferenceDot, LabelList,
 } from 'recharts'
 
 // ---------------------------------------------------------------------------
@@ -43,7 +44,7 @@ interface GroupConfig {
 }
 
 interface NavPoint {
-  date: string   // YYYY-MM-DD (last day of month)
+  date: string
   nav: number
   irr: number | null
 }
@@ -67,7 +68,14 @@ const INDEX_COLORS: Record<string, string> = {
 }
 
 const FUND_COLOR = '#0F2332'
-const IRR_COLOR  = '#f43f5e'
+
+const PERIOD_OPTIONS = [
+  { label: 'Desde início', value: 'all' },
+  { label: '5 anos',       value: '5y'  },
+  { label: '3 anos',       value: '3y'  },
+  { label: '2 anos',       value: '2y'  },
+  { label: '1 ano',        value: '1y'  },
+]
 
 const SOURCES = [
   {
@@ -104,6 +112,15 @@ function fmtMoic(v: number | null) { return v == null ? '—' : `${v.toFixed(2)}
 function fmtIrr(v: number | null)  { return v == null ? '—' : `${(v * 100).toFixed(1)}%` }
 function fmtPct(v: number | null)  { return v == null ? '—' : `${(v * 100).toFixed(1)}%` }
 
+// Returns YYYY-MM-DD cutoff for a period option relative to today
+function periodCutoff(period: string): string | null {
+  if (period === 'all') return null
+  const now = new Date()
+  const years = parseInt(period)
+  now.setFullYear(now.getFullYear() - years)
+  return now.toISOString().split('T')[0]
+}
+
 function QuartileBadge({ position }: { position: keyof typeof QUARTILE_COLORS }) {
   const c = QUARTILE_COLORS[position]
   return <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${c.bg} ${c.text}`}>{c.label}</span>
@@ -137,51 +154,58 @@ function ChartTooltip({ active, payload, label }: {
   if (!active || !payload || payload.length === 0) return null
   return (
     <div className="rounded-lg border bg-popover px-3 py-2 shadow-md text-[11px] space-y-1">
-      <p className="font-medium text-muted-foreground mb-1">{label}</p>
+      <p className="font-medium text-muted-foreground mb-1">{label?.slice(0, 7)}</p>
       {payload.map(entry => (
         <div key={entry.name} className="flex items-center gap-2">
           <span className="h-2 w-2 rounded-full flex-shrink-0" style={{ backgroundColor: entry.color }} />
           <span className="text-foreground">{entry.name}</span>
-          <span className="ml-auto font-semibold tabular-nums">
-            {entry.name === 'Net IRR'
-              ? `${(entry.value * 100).toFixed(1)}%`
-              : Number(entry.value).toFixed(1)}
-          </span>
+          <span className="ml-auto font-semibold tabular-nums">{Number(entry.value).toFixed(1)}</span>
         </div>
       ))}
     </div>
   )
 }
 
+// Custom dot — renders only on the last data point to show the end label
+function LastDot(props: any) {
+  const { cx, cy, index, dataLength, value, color, label } = props
+  if (index !== dataLength - 1 || value == null) return null
+  return (
+    <g>
+      <circle cx={cx} cy={cy} r={5} fill={color} stroke="white" strokeWidth={2} />
+      <rect x={cx + 8} y={cy - 13} width={label.length * 6.5 + 8} height={18} rx={4} fill={color} opacity={0.92} />
+      <text x={cx + 12} y={cy + 1} fontSize={10} fill="white" fontWeight={600}>{label}</text>
+    </g>
+  )
+}
+
 // ---------------------------------------------------------------------------
-// mergeChartData
-//
-// KEY FIX: align everything by YYYY-MM (month key), not by full date string.
-// All series (NAV, CDI, IPCA, Ibov, SP500) snap to the same monthly slot.
-// The display date is taken from the NAV series (last day of month).
+// mergeChartData — align all series by YYYY-MM
 // ---------------------------------------------------------------------------
 function mergeChartData(
   navSeries: NavPoint[],
   fundLabel: string,
   indices: PublicIndices,
   activeIndices: Set<string>,
-  showIrr: boolean,
+  period: string,
 ): Record<string, any>[] {
   if (navSeries.length === 0) return []
 
-  const startDate = navSeries[0].date // YYYY-MM-DD
-  const startYM   = startDate.slice(0, 7) // YYYY-MM
+  const cutoff = periodCutoff(period)
+  const filtered = cutoff
+    ? navSeries.filter(p => p.date >= cutoff)
+    : navSeries
 
-  // Build month-keyed map from NAV series
+  if (filtered.length === 0) return []
+
+  const startYM = filtered[0].date.slice(0, 7)
+
   const monthMap = new Map<string, Record<string, any>>()
-  for (const pt of navSeries) {
+  for (const pt of filtered) {
     const ym = pt.date.slice(0, 7)
-    const row: Record<string, any> = { date: pt.date, ym, [fundLabel]: pt.nav }
-    if (showIrr && pt.irr != null) row['Net IRR'] = pt.irr
-    monthMap.set(ym, row)
+    monthMap.set(ym, { date: pt.date, ym, [fundLabel]: pt.nav })
   }
 
-  // Merge public indices — rebase to 100 at the month of first investment
   const indexMap: Record<string, { date: string; value: number }[]> = {
     CDI:       indices.cdi.series,
     IPCA:      indices.ipca.series,
@@ -191,24 +215,21 @@ function mergeChartData(
 
   for (const [label, series] of Object.entries(indexMap)) {
     if (!activeIndices.has(label)) continue
-
-    // Find the base value at or just after startYM
     const relevant = series.filter(d => d.date.slice(0, 7) >= startYM)
     if (relevant.length === 0) continue
     const base = relevant[0].value
-    if (!base || base === 0) continue
-
+    if (!base) continue
     for (const pt of relevant) {
       const ym = pt.date.slice(0, 7)
-      const existing = monthMap.get(ym)
-      if (!existing) continue // only fill months where we have a NAV point
-      existing[label] = parseFloat(((pt.value / base) * 100).toFixed(2))
+      const row = monthMap.get(ym)
+      if (!row) continue
+      row[label] = parseFloat(((pt.value / base) * 100).toFixed(2))
     }
   }
 
   return Array.from(monthMap.values())
     .sort((a, b) => a.ym.localeCompare(b.ym))
-    .map(({ ym: _ym, ...rest }) => rest) // strip internal ym key
+    .map(({ ym: _ym, ...rest }) => rest)
 }
 
 // ---------------------------------------------------------------------------
@@ -225,11 +246,10 @@ export function BenchmarkingClient() {
   const [loadingNav, setLoadingNav]     = useState(false)
   const [selectedGroup, setSelectedGroup]   = useState<string>('')
   const [activeIndices, setActiveIndices]   = useState<Set<string>>(new Set(['CDI', 'Ibovespa']))
-  const [showIrr, setShowIrr]           = useState(false)
+  const [period, setPeriod]             = useState<string>('all')
   const [manualBench, setManualBench]   = useState<Record<string, { tvpi?: string; netIrr?: string; notes?: string }>>({})
   const [showSources, setShowSources]   = useState(false)
 
-  // Load fund group summaries
   useEffect(() => {
     async function load() {
       setLoadingFund(true)
@@ -265,7 +285,6 @@ export function BenchmarkingClient() {
     groupConfigs.find(c => c.portfolio_group === selectedGroup)?.vintage ?? null
   , [selectedGroup, groupConfigs])
 
-  // Load NAV series whenever selected group changes
   useEffect(() => {
     if (selectedGroup === null) return
     async function load() {
@@ -281,15 +300,12 @@ export function BenchmarkingClient() {
     load()
   }, [selectedGroup])
 
-  // Load public indices — triggered after navSeries loads so we know the real startDate
   useEffect(() => {
     async function load() {
       setLoadingIndices(true)
       try {
         const fallbackYear = vintageForSelected ?? new Date().getFullYear() - 5
-        const startDate = navSeries.length > 0
-          ? navSeries[0].date
-          : `${fallbackYear}-01-01`
+        const startDate = navSeries.length > 0 ? navSeries[0].date : `${fallbackYear}-01-01`
         const res = await fetch(`/api/benchmarks/public-indices?startDate=${startDate}`)
         if (res.ok) setIndices(await res.json())
       } finally {
@@ -309,8 +325,12 @@ export function BenchmarkingClient() {
 
   const chartData = useMemo(() => {
     if (!indices || navSeries.length === 0) return []
-    return mergeChartData(navSeries, selectedGroup || 'Fund', indices, activeIndices, showIrr)
-  }, [navSeries, indices, activeIndices, selectedGroup, showIrr])
+    return mergeChartData(navSeries, selectedGroup || 'Fund', indices, activeIndices, period)
+  }, [navSeries, indices, activeIndices, selectedGroup, period])
+
+  // Last data point values for each active series (for end labels)
+  const lastPoint = chartData.at(-1)
+  const fundLabel = selectedGroup || 'Fund'
 
   function toggleIndex(label: string) {
     setActiveIndices(prev => {
@@ -320,7 +340,8 @@ export function BenchmarkingClient() {
     })
   }
 
-  const latestIrr = navSeries.at(-1)?.irr ?? null
+  const latestIrr  = navSeries.at(-1)?.irr ?? null
+  const latestNav  = navSeries.at(-1)?.nav ?? null
 
   return (
     <div className="p-4 md:py-8 md:pl-8 md:pr-4 w-full max-w-5xl">
@@ -342,7 +363,7 @@ export function BenchmarkingClient() {
       ) : (
         <div className="space-y-8">
 
-          {/* Fund Selector */}
+          {/* ── 1. Fund Selector + stats ───────────────────────────────── */}
           <section>
             <div className="flex items-center gap-3 flex-wrap">
               <span className="text-sm font-medium text-muted-foreground">Fundo:</span>
@@ -359,9 +380,7 @@ export function BenchmarkingClient() {
                 <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 h-4 w-4 pointer-events-none text-muted-foreground" />
               </div>
               {vintageForSelected && (
-                <span className="text-xs text-muted-foreground bg-muted px-2.5 py-1 rounded-full">
-                  Vintage {vintageForSelected}
-                </span>
+                <span className="text-xs text-muted-foreground bg-muted px-2.5 py-1 rounded-full">Vintage {vintageForSelected}</span>
               )}
               {latestIrr != null && (
                 <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400">
@@ -371,21 +390,59 @@ export function BenchmarkingClient() {
             </div>
           </section>
 
-          {/* NAV Index + Net IRR Chart */}
+          {/* ── 2. Public Indices Summary (TOPO) ──────────────────────── */}
+          <section>
+            <h2 className="text-base font-semibold mb-3">Retorno Mercado Público</h2>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              {loadingIndices ? (
+                Array.from({ length: 4 }).map((_, i) => (
+                  <Card key={i}><CardContent className="pt-4 pb-4 h-20 animate-pulse bg-muted rounded-lg" /></Card>
+                ))
+              ) : indices && Object.values(indices).map(idx => {
+                const pct = idx.latest != null ? idx.latest - 100 : null
+                const positive = pct != null && pct >= 0
+                return (
+                  <Card key={idx.label}>
+                    <CardContent className="pt-4 pb-4">
+                      <div className="text-xs text-muted-foreground mb-1">{idx.label}</div>
+                      <div className={`text-2xl font-bold tabular-nums ${positive ? 'text-green-600' : 'text-red-500'}`}>
+                        {pct != null ? `${positive ? '+' : ''}${pct.toFixed(1)}%` : '—'}
+                      </div>
+                      <div className="text-[10px] text-muted-foreground mt-0.5">Desde primeiro investimento</div>
+                    </CardContent>
+                  </Card>
+                )
+              })}
+            </div>
+          </section>
+
+          {/* ── 3. NAV Chart ──────────────────────────────────────────── */}
           {selectedMetric && (
             <section>
               <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
                 <h2 className="text-base font-semibold">NAV Index vs. Benchmarks</h2>
+
+                {/* Controls row */}
                 <div className="flex items-center gap-2 flex-wrap">
-                  <button
-                    onClick={() => setShowIrr(v => !v)}
-                    className={`text-[11px] px-2.5 py-1 rounded-full border transition-colors font-medium ${
-                      showIrr ? 'border-transparent text-white' : 'border-border text-muted-foreground hover:bg-accent'
-                    }`}
-                    style={showIrr ? { backgroundColor: IRR_COLOR } : {}}
-                  >
-                    Net IRR
-                  </button>
+
+                  {/* Period filter */}
+                  <div className="flex items-center gap-1 bg-muted rounded-lg p-0.5">
+                    {PERIOD_OPTIONS.map(opt => (
+                      <button
+                        key={opt.value}
+                        onClick={() => setPeriod(opt.value)}
+                        className={`text-[11px] px-2.5 py-1 rounded-md transition-colors font-medium ${
+                          period === opt.value
+                            ? 'bg-background text-foreground shadow-sm'
+                            : 'text-muted-foreground hover:text-foreground'
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Index toggles */}
                   {(['CDI', 'IPCA', 'Ibovespa', 'S&P 500'] as const).map(label => (
                     <button
                       key={label}
@@ -415,7 +472,7 @@ export function BenchmarkingClient() {
                     </div>
                   ) : (
                     <ResponsiveContainer width="100%" height={300}>
-                      <LineChart data={chartData} margin={{ top: 4, right: 8, bottom: 4, left: 0 }}>
+                      <LineChart data={chartData} margin={{ top: 12, right: 80, bottom: 4, left: 0 }}>
                         <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                         <XAxis
                           dataKey="date"
@@ -430,41 +487,29 @@ export function BenchmarkingClient() {
                           label={{ value: 'Índice (base 100)', angle: -90, position: 'insideLeft', style: { fontSize: 9 }, dy: 55 }}
                           width={56}
                         />
-                        {showIrr && (
-                          <YAxis
-                            yAxisId="irr"
-                            orientation="right"
-                            tick={{ fontSize: 10 }}
-                            tickFormatter={(v: number) => `${(v * 100).toFixed(0)}%`}
-                            width={44}
-                          />
-                        )}
                         <Tooltip content={<ChartTooltip />} />
                         <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
 
+                        {/* Fund NAV — custom last-point dot with label */}
                         <Line
                           yAxisId="nav"
                           type="monotone"
-                          dataKey={selectedGroup || 'Fund'}
+                          dataKey={fundLabel}
                           stroke={FUND_COLOR}
                           strokeWidth={2.5}
-                          dot={false}
+                          dot={(dotProps: any) => (
+                            <LastDot
+                              {...dotProps}
+                              dataLength={chartData.length}
+                              color={FUND_COLOR}
+                              label={lastPoint ? `${Number(lastPoint[fundLabel]).toFixed(1)}` : ''}
+                            />
+                          )}
+                          activeDot={{ r: 4 }}
                           connectNulls
                         />
 
-                        {showIrr && (
-                          <Line
-                            yAxisId="irr"
-                            type="monotone"
-                            dataKey="Net IRR"
-                            stroke={IRR_COLOR}
-                            strokeWidth={1.5}
-                            dot={false}
-                            strokeDasharray="3 3"
-                            connectNulls
-                          />
-                        )}
-
+                        {/* Index lines — custom last-point dot with label */}
                         {Array.from(activeIndices).map(label => (
                           <Line
                             key={label}
@@ -473,7 +518,15 @@ export function BenchmarkingClient() {
                             dataKey={label}
                             stroke={INDEX_COLORS[label]}
                             strokeWidth={1.5}
-                            dot={false}
+                            dot={(dotProps: any) => (
+                              <LastDot
+                                {...dotProps}
+                                dataLength={chartData.length}
+                                color={INDEX_COLORS[label]}
+                                label={lastPoint?.[label] != null ? `${Number(lastPoint[label]).toFixed(1)}` : ''}
+                              />
+                            )}
+                            activeDot={{ r: 4 }}
                             strokeDasharray="4 2"
                             connectNulls
                           />
@@ -483,36 +536,14 @@ export function BenchmarkingClient() {
                   )}
                   <p className="text-[10px] text-muted-foreground mt-1 flex items-center gap-1">
                     <Info className="h-3 w-3 flex-shrink-0" />
-                    NAV = (unrealizado + distribuições) / capital chamado × 100. Índices alinhados mensalmente e rebaseados a 100 no primeiro investimento. Net IRR = XIRR com NAV como terminal value.
+                    NAV = (unrealizado + distribuições) / capital chamado × 100. Índices alinhados mensalmente e rebaseados a 100 no primeiro investimento do período.
                   </p>
                 </CardContent>
               </Card>
             </section>
           )}
 
-          {/* Public Indices Summary */}
-          <section>
-            <h2 className="text-base font-semibold mb-3">Retorno Mercado Público</h2>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              {indices && Object.values(indices).map(idx => {
-                const pct = idx.latest != null ? idx.latest - 100 : null
-                const positive = pct != null && pct >= 0
-                return (
-                  <Card key={idx.label}>
-                    <CardContent className="pt-4 pb-4">
-                      <div className="text-xs text-muted-foreground mb-1">{idx.label}</div>
-                      <div className={`text-2xl font-bold tabular-nums ${positive ? 'text-green-600' : 'text-red-500'}`}>
-                        {pct != null ? `${positive ? '+' : ''}${pct.toFixed(1)}%` : '—'}
-                      </div>
-                      <div className="text-[10px] text-muted-foreground mt-0.5">Desde primeiro investimento</div>
-                    </CardContent>
-                  </Card>
-                )
-              })}
-            </div>
-          </section>
-
-          {/* Cambridge Associates */}
+          {/* ── 4. Cambridge Associates ───────────────────────────────── */}
           {selectedMetric && (
             <section>
               <div className="flex items-center gap-2 mb-3">
@@ -569,7 +600,7 @@ export function BenchmarkingClient() {
             </section>
           )}
 
-          {/* Manual Benchmarks */}
+          {/* ── 5. Manual Benchmarks ──────────────────────────────────── */}
           <section>
             <div className="flex items-center gap-2 mb-3">
               <h2 className="text-base font-semibold">Benchmarks Manuais</h2>
@@ -621,7 +652,7 @@ export function BenchmarkingClient() {
             </Card>
           </section>
 
-          {/* Data Sources */}
+          {/* ── 6. Data Sources ───────────────────────────────────────── */}
           <section className="border-t pt-6">
             <button
               onClick={() => setShowSources(v => !v)}
