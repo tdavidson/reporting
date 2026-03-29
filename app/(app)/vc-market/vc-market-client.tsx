@@ -56,7 +56,7 @@ const COLOR_CAPITAL = '#22c55e'
 function barProps(color: string) {
   return {
     fill: color,
-    fillOpacity: 0.2,
+    fillOpacity: 0.7,
     stroke: color,
     strokeWidth: 1.5,
   }
@@ -631,7 +631,7 @@ export function VCMarketClient({ isAdmin }: Props) {
                   <Bar dataKey="deals" radius={[0, 3, 3, 0]}>
                     {dealsByCountry.map((_, i) => {
                       const c = PIE_COLORS[i % PIE_COLORS.length]
-                      return <Cell key={i} fill={c} fillOpacity={0.2} stroke={c} strokeWidth={1.5} />
+                      return <Cell key={i} fill={c} fillOpacity={0.7} stroke={c} strokeWidth={1.5} />
                     })}
                   </Bar>
                 </BarChart>
@@ -652,7 +652,7 @@ export function VCMarketClient({ isAdmin }: Props) {
                   <Bar dataKey="capital" radius={[0, 3, 3, 0]}>
                     {capitalByCountry.map((_, i) => {
                       const c = PIE_COLORS[i % PIE_COLORS.length]
-                      return <Cell key={i} fill={c} fillOpacity={0.2} stroke={c} strokeWidth={1.5} />
+                      return <Cell key={i} fill={c} fillOpacity={0.7} stroke={c} strokeWidth={1.5} />
                     })}
                   </Bar>
                 </BarChart>
