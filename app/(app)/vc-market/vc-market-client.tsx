@@ -2,8 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, Legend,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
 } from 'recharts'
 import type { PieLabelRenderProps } from 'recharts'
 import {
@@ -52,6 +51,16 @@ const PIE_COLORS = [
 
 const COLOR_ROUNDS  = '#0F2332'
 const COLOR_CAPITAL = '#22c55e'
+
+// Bar style helpers: fill at 40% opacity, stroke at 100% same color
+function barProps(color: string) {
+  return {
+    fill: color,
+    fillOpacity: 0.4,
+    stroke: color,
+    strokeWidth: 1,
+  }
+}
 
 function formatUSD(n: number): string {
   if (n >= 1_000_000_000) return `$${(n / 1_000_000_000).toFixed(1)}B`
@@ -165,17 +174,6 @@ function buildCapitalByCountry(deals: VCDeal[]) {
     .map(([country, capital]) => ({ country, capital }))
 }
 
-function buildStageDistribution(deals: VCDeal[]) {
-  const map = new Map<string, number>()
-  for (const d of deals) {
-    const s = d.stage ?? 'Unknown'
-    map.set(s, (map.get(s) ?? 0) + 1)
-  }
-  return Array.from(map.entries())
-    .sort(([, a], [, b]) => b - a)
-    .map(([name, value]) => ({ name, value }))
-}
-
 function getUniqueValues(deals: VCDeal[], key: keyof VCDeal): string[] {
   const set = new Set<string>()
   for (const d of deals) {
@@ -193,10 +191,6 @@ function getUniqueInvestors(deals: VCDeal[]): string[] {
     }
   }
   return Array.from(set).sort()
-}
-
-function renderPieLabel({ name, percent }: PieLabelRenderProps): string {
-  return `${name ?? ''} ${(((percent as number) ?? 0) * 100).toFixed(0)}%`
 }
 
 const fmtRounds  = (v: number | undefined) => [v ?? 0, 'Rounds']  as [number, string]
@@ -383,15 +377,14 @@ export function VCMarketClient({ isAdmin }: Props) {
     }
   }
 
-  const kpis              = computeKPIs(deals)
-  const weekDeals         = getWeekDeals(deals)
-  const roundsByMonth     = buildRoundsByMonth(deals)
-  const capitalByMonth    = buildCapitalByMonth(deals)
-  const capitalBySegment  = buildCapitalBySegment(deals)
-  const roundsByVertical  = buildRoundsByVertical(deals)
-  const dealsByCountry    = buildDealsByCountry(deals)
-  const capitalByCountry  = buildCapitalByCountry(deals)
-  const stageDistribution = buildStageDistribution(deals)
+  const kpis             = computeKPIs(deals)
+  const weekDeals        = getWeekDeals(deals)
+  const roundsByMonth    = buildRoundsByMonth(deals)
+  const capitalByMonth   = buildCapitalByMonth(deals)
+  const capitalBySegment = buildCapitalBySegment(deals)
+  const roundsByVertical = buildRoundsByVertical(deals)
+  const dealsByCountry   = buildDealsByCountry(deals)
+  const capitalByCountry = buildCapitalByCountry(deals)
 
   const countryOptions  = getUniqueValues(allDeals, 'country')
   const segmentOptions  = getUniqueValues(allDeals, 'segment')
@@ -557,11 +550,11 @@ export function VCMarketClient({ isAdmin }: Props) {
         </div>
       )}
 
-      {/* Charts */}
+      {/* Charts — order: Rounds/Month, Capital/Month, Rounds/Vertical, Capital/Vertical, Deals/Country, Capital/Country */}
       {!loading && deals.length > 0 && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
 
-          {/* Rounds by Month — column bar, #0F2332 */}
+          {/* 1. Rounds by Month */}
           <div className="bg-card border rounded-xl p-4">
             <h3 className="text-sm font-medium mb-4">Rounds by Month</h3>
             {roundsByMonth.length > 0 ? (
@@ -571,13 +564,13 @@ export function VCMarketClient({ isAdmin }: Props) {
                   <XAxis dataKey="month" tick={{ fontSize: 11 }} />
                   <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
                   <Tooltip contentStyle={{ fontSize: 12 }} formatter={fmtRounds} />
-                  <Bar dataKey="rounds" fill={COLOR_ROUNDS} radius={[3, 3, 0, 0]} />
+                  <Bar dataKey="rounds" {...barProps(COLOR_ROUNDS)} radius={[3, 3, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             ) : emptyChart('No dated deals in period')}
           </div>
 
-          {/* Capital by Month — column bar, #22c55e */}
+          {/* 2. Capital by Month */}
           <div className="bg-card border rounded-xl p-4">
             <h3 className="text-sm font-medium mb-4">Capital by Month (USD)</h3>
             {capitalByMonth.length > 0 ? (
@@ -587,29 +580,13 @@ export function VCMarketClient({ isAdmin }: Props) {
                   <XAxis dataKey="month" tick={{ fontSize: 11 }} />
                   <YAxis tick={{ fontSize: 11 }} tickFormatter={fmtUSDAxis} width={56} />
                   <Tooltip contentStyle={{ fontSize: 12 }} formatter={fmtCapital} />
-                  <Bar dataKey="capital" fill={COLOR_CAPITAL} radius={[3, 3, 0, 0]} />
+                  <Bar dataKey="capital" {...barProps(COLOR_CAPITAL)} radius={[3, 3, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             ) : emptyChart('No capital data in period')}
           </div>
 
-          {/* Capital by Vertical — horizontal bar, #22c55e */}
-          <div className="bg-card border rounded-xl p-4">
-            <h3 className="text-sm font-medium mb-4">Capital by Vertical (USD)</h3>
-            {capitalBySegment.length > 0 ? (
-              <ResponsiveContainer width="100%" height={220}>
-                <BarChart data={capitalBySegment} layout="vertical" margin={{ top: 0, right: 8, bottom: 0, left: 60 }}>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-border" horizontal={false} />
-                  <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={fmtUSDAxis} />
-                  <YAxis dataKey="segment" type="category" tick={{ fontSize: 11 }} width={60} />
-                  <Tooltip contentStyle={{ fontSize: 12 }} formatter={fmtCapital} />
-                  <Bar dataKey="amount" fill={COLOR_CAPITAL} radius={[0, 3, 3, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            ) : emptyChart('No capital data available')}
-          </div>
-
-          {/* Rounds by Vertical — horizontal bar, #0F2332 */}
+          {/* 3. Rounds by Vertical */}
           <div className="bg-card border rounded-xl p-4">
             <h3 className="text-sm font-medium mb-4">Rounds by Vertical</h3>
             {roundsByVertical.length > 0 ? (
@@ -619,12 +596,29 @@ export function VCMarketClient({ isAdmin }: Props) {
                   <XAxis type="number" tick={{ fontSize: 11 }} allowDecimals={false} />
                   <YAxis dataKey="segment" type="category" tick={{ fontSize: 11 }} width={60} />
                   <Tooltip contentStyle={{ fontSize: 12 }} formatter={fmtRounds} />
-                  <Bar dataKey="rounds" fill={COLOR_ROUNDS} radius={[0, 3, 3, 0]} />
+                  <Bar dataKey="rounds" {...barProps(COLOR_ROUNDS)} radius={[0, 3, 3, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             ) : emptyChart('No vertical data available')}
           </div>
 
+          {/* 4. Capital by Vertical */}
+          <div className="bg-card border rounded-xl p-4">
+            <h3 className="text-sm font-medium mb-4">Capital by Vertical (USD)</h3>
+            {capitalBySegment.length > 0 ? (
+              <ResponsiveContainer width="100%" height={220}>
+                <BarChart data={capitalBySegment} layout="vertical" margin={{ top: 0, right: 8, bottom: 0, left: 60 }}>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-border" horizontal={false} />
+                  <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={fmtUSDAxis} />
+                  <YAxis dataKey="segment" type="category" tick={{ fontSize: 11 }} width={60} />
+                  <Tooltip contentStyle={{ fontSize: 12 }} formatter={fmtCapital} />
+                  <Bar dataKey="amount" {...barProps(COLOR_CAPITAL)} radius={[0, 3, 3, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : emptyChart('No capital data available')}
+          </div>
+
+          {/* 5. Deals by Country */}
           <div className="bg-card border rounded-xl p-4">
             <h3 className="text-sm font-medium mb-4">Deals by Country</h3>
             {dealsByCountry.length > 0 ? (
@@ -635,13 +629,17 @@ export function VCMarketClient({ isAdmin }: Props) {
                   <YAxis dataKey="country" type="category" tick={{ fontSize: 11 }} width={60} />
                   <Tooltip contentStyle={{ fontSize: 12 }} formatter={fmtDeals} />
                   <Bar dataKey="deals" radius={[0, 3, 3, 0]}>
-                    {dealsByCountry.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
+                    {dealsByCountry.map((_, i) => {
+                      const c = PIE_COLORS[i % PIE_COLORS.length]
+                      return <Cell key={i} fill={c} fillOpacity={0.4} stroke={c} strokeWidth={1} />
+                    })}
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
             ) : emptyChart('No country data available')}
           </div>
 
+          {/* 6. Capital by Country */}
           <div className="bg-card border rounded-xl p-4">
             <h3 className="text-sm font-medium mb-4">Capital by Country (USD)</h3>
             {capitalByCountry.length > 0 ? (
@@ -652,36 +650,14 @@ export function VCMarketClient({ isAdmin }: Props) {
                   <YAxis dataKey="country" type="category" tick={{ fontSize: 11 }} width={60} />
                   <Tooltip contentStyle={{ fontSize: 12 }} formatter={fmtCapital} />
                   <Bar dataKey="capital" radius={[0, 3, 3, 0]}>
-                    {capitalByCountry.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
+                    {capitalByCountry.map((_, i) => {
+                      const c = PIE_COLORS[i % PIE_COLORS.length]
+                      return <Cell key={i} fill={c} fillOpacity={0.4} stroke={c} strokeWidth={1} />
+                    })}
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
             ) : emptyChart('No capital by country data')}
-          </div>
-
-          <div className="bg-card border rounded-xl p-4 lg:col-span-2">
-            <h3 className="text-sm font-medium mb-4">Distribution by Stage</h3>
-            {stageDistribution.length > 0 ? (
-              <ResponsiveContainer width="100%" height={220}>
-                <PieChart>
-                  <Pie
-                    data={stageDistribution}
-                    cx="50%" cy="50%"
-                    innerRadius={55} outerRadius={90}
-                    paddingAngle={2}
-                    dataKey="value"
-                    label={renderPieLabel}
-                    labelLine={false}
-                  >
-                    {stageDistribution.map((entry, i) => (
-                      <Cell key={entry.name} fill={STAGE_COLORS[entry.name] ?? PIE_COLORS[i % PIE_COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Legend iconSize={10} wrapperStyle={{ fontSize: 11 }} />
-                  <Tooltip contentStyle={{ fontSize: 12 }} formatter={fmtDeals} />
-                </PieChart>
-              </ResponsiveContainer>
-            ) : emptyChart('No stage data available')}
           </div>
 
         </div>
