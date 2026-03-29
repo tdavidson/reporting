@@ -1,6 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk'
 import type { VCDealInsert } from './types'
- 
+
 // Pre-determined RSS sources for VC/startup funding news
 const RSS_SOURCES = [
   {
@@ -20,14 +20,14 @@ const RSS_SOURCES = [
     url: 'https://techcrunch.com/tag/funding/feed/',
   },
 ]
- 
+
 interface RSSItem {
   title: string
   link: string
   pubDate: string
   description: string
 }
- 
+
 function parseRSSItems(xml: string): RSSItem[] {
   const items: RSSItem[] = []
   const matches = xml.matchAll(/<item>([\s\S]*?)<\/item>/g)
@@ -48,7 +48,7 @@ function parseRSSItems(xml: string): RSSItem[] {
   }
   return items.slice(0, 20)
 }
- 
+
 async function fetchRSSFeed(url: string): Promise<RSSItem[]> {
   try {
     const res = await fetch(url, {
@@ -62,7 +62,7 @@ async function fetchRSSFeed(url: string): Promise<RSSItem[]> {
     return []
   }
 }
- 
+
 interface ExtractedDeal {
   company_name: string
   amount_usd: number | null
@@ -73,19 +73,19 @@ interface ExtractedDeal {
   country: string | null
   source_url: string
 }
- 
+
 async function extractDealsWithAI(items: RSSItem[], apiKey?: string): Promise<ExtractedDeal[]> {
   const client = new Anthropic({ apiKey })
- 
+
   const articlesText = items
     .map(
       (item, i) =>
         `[${i}] Title: ${item.title}\nDate: ${item.pubDate}\nURL: ${item.link}\nSummary: ${item.description}`
     )
     .join('\n\n')
- 
+
   const prompt = `From the news articles below, extract only those that describe a startup or company funding round (VC investment, Seed, Series A/B/C/D+, growth equity, angel round, etc.).
- 
+
 For each valid deal return a JSON object with:
 - company_name: startup/company name (string)
 - amount_usd: amount raised in USD as integer (convert from BRL/EUR if mentioned, null if unknown)
@@ -95,45 +95,43 @@ For each valid deal return a JSON object with:
 - segment: vertical/industry e.g. "Fintech", "Healthtech", "SaaS", "E-commerce", "Proptech", "Edtech", "Deeptech", "Logistics", "Agritech" (null if unclear)
 - country: 2-letter ISO country code where startup is based (null if unknown)
 - source_url: exact article URL
- 
+
 Respond with a valid JSON array only — no markdown fences, no explanations. Skip any article that is NOT about a funding round.
- 
+
 Articles:
 ${articlesText}`
- 
+
   try {
     const response = await client.messages.create({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 4096,
       messages: [{ role: 'user', content: prompt }],
     })
- 
+
     const text = response.content[0].type === 'text' ? response.content[0].text : ''
     const jsonMatch = text.match(/\[[\s\S]*\]/)
     if (!jsonMatch) return []
- 
+
     const parsed = JSON.parse(jsonMatch[0]) as ExtractedDeal[]
     return Array.isArray(parsed) ? parsed : []
   } catch {
     return []
   }
 }
- 
+
 /**
  * Scrapes pre-determined RSS sources and extracts VC deal data using AI.
- * Called by the /api/vc-market/scrape endpoint (triggered daily at 10am BRT).
+ * Called by the /api/vc-market/scrape endpoint.
  */
-export async function scrapeVCDeals(fundId: string, apiKey?: string): Promise<VCDealInsert[]> {
-  // Fetch all sources in parallel
+export async function scrapeVCDeals(userId: string, apiKey?: string): Promise<VCDealInsert[]> {
   const results = await Promise.allSettled(RSS_SOURCES.map(s => fetchRSSFeed(s.url)))
   const allItems: RSSItem[] = []
   for (const r of results) {
     if (r.status === 'fulfilled') allItems.push(...r.value)
   }
- 
+
   if (allItems.length === 0) return []
- 
-  // Deduplicate by normalised title
+
   const seen = new Set<string>()
   const unique = allItems.filter(item => {
     const key = item.title.toLowerCase().trim()
@@ -141,13 +139,13 @@ export async function scrapeVCDeals(fundId: string, apiKey?: string): Promise<VC
     seen.add(key)
     return true
   })
- 
+
   const extracted = await extractDealsWithAI(unique, apiKey)
- 
+
   return extracted
     .filter(d => d.company_name?.trim())
     .map(d => ({
-      fund_id: fundId,
+      user_id: userId,
       company_name: d.company_name.trim(),
       amount_usd: d.amount_usd ?? null,
       deal_date: d.deal_date ?? null,
