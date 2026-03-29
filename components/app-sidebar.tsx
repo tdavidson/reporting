@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Building2, ClipboardCheck, Mail, Upload, Send, Settings, PanelLeftClose, PanelLeftOpen, BarChart3, StickyNote, Lock, Users, Handshake, ArrowDownCircle, FileText, Briefcase, Crown, ShieldCheck, Newspaper, Globe2 } from 'lucide-react'
+import { Building2, ClipboardCheck, Mail, Upload, Send, Settings, PanelLeftClose, PanelLeftOpen, BarChart3, StickyNote, Lock, Users, Handshake, ArrowDownCircle, FileText, Briefcase, Crown, ShieldCheck, Newspaper, Globe2, TrendingUp } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useState } from 'react'
 import { useSidebar } from '@/components/sidebar-context'
@@ -15,6 +15,7 @@ const NAV_ITEMS: { href: string; label: string; icon: LucideIcon; badgeKey?: 're
   { href: '/emails', label: 'E-mail', icon: Mail },
   { href: '/import', label: 'Import', icon: Upload, featureKey: 'imports' },
   { href: '/investments', label: 'Investments', icon: BarChart3, featureKey: 'investments' },
+  { href: '/benchmarking', label: 'Benchmarking', icon: TrendingUp, featureKey: 'investments', beta: true },
   { href: '/funds', label: 'Vehicles', icon: Briefcase, featureKey: 'funds' },
   { href: '/requests', label: 'Asks', icon: Send, featureKey: 'asks' },
   { href: '/notes', label: 'Notes', icon: StickyNote, badgeKey: 'notes', featureKey: 'notes' },
