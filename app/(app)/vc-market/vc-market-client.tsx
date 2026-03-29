@@ -146,7 +146,7 @@ function buildDealsByCountry(deals: VCDeal[]) {
   return Array.from(map.entries())
     .sort(([, a], [, b]) => b - a)
     .slice(0, 12)
-    .map(([country, deals]) => ({ country, deals }))
+    .map(([country, count]) => ({ country, deals: count }))
 }
 
 function buildCapitalByCountry(deals: VCDeal[]) {
@@ -195,6 +195,12 @@ function getUniqueInvestors(deals: VCDeal[]): string[] {
 function renderPieLabel({ name, percent }: PieLabelRenderProps): string {
   return `${name ?? ''} ${(((percent as number) ?? 0) * 100).toFixed(0)}%`
 }
+
+// Recharts formatter helpers — value can be undefined per Recharts types
+const fmtRounds  = (v: number | undefined) => [v ?? 0, 'Rounds']  as [number, string]
+const fmtDeals   = (v: number | undefined) => [v ?? 0, 'Deals']   as [number, string]
+const fmtCapital = (v: number | undefined) => [formatUSD(v ?? 0), 'Capital'] as [string, string]
+const fmtUSDAxis = (v: number | undefined) => formatUSD(v ?? 0)
 
 function ImportModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: () => void }) {
   const [file, setFile] = useState<File | null>(null)
@@ -567,7 +573,7 @@ export function VCMarketClient({ isAdmin }: Props) {
                   <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                   <XAxis dataKey="month" tick={{ fontSize: 11 }} />
                   <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
-                  <Tooltip contentStyle={{ fontSize: 12 }} formatter={(v: number) => [v, 'Rounds']} />
+                  <Tooltip contentStyle={{ fontSize: 12 }} formatter={fmtRounds} />
                   <Bar dataKey="rounds" fill="#6366f1" radius={[3, 3, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
@@ -581,8 +587,8 @@ export function VCMarketClient({ isAdmin }: Props) {
                 <LineChart data={capitalByMonth} margin={{ top: 0, right: 8, bottom: 0, left: 8 }}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                   <XAxis dataKey="month" tick={{ fontSize: 11 }} />
-                  <YAxis tick={{ fontSize: 11 }} tickFormatter={(v: number) => formatUSD(v)} width={56} />
-                  <Tooltip contentStyle={{ fontSize: 12 }} formatter={(v: number) => [formatUSD(v), 'Capital']} />
+                  <YAxis tick={{ fontSize: 11 }} tickFormatter={fmtUSDAxis} width={56} />
+                  <Tooltip contentStyle={{ fontSize: 12 }} formatter={fmtCapital} />
                   <Line type="monotone" dataKey="capital" stroke="#22c55e" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
                 </LineChart>
               </ResponsiveContainer>
@@ -595,9 +601,9 @@ export function VCMarketClient({ isAdmin }: Props) {
               <ResponsiveContainer width="100%" height={220}>
                 <BarChart data={capitalBySegment} layout="vertical" margin={{ top: 0, right: 8, bottom: 0, left: 60 }}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-border" horizontal={false} />
-                  <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={(v: number) => formatUSD(v)} />
+                  <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={fmtUSDAxis} />
                   <YAxis dataKey="segment" type="category" tick={{ fontSize: 11 }} width={60} />
-                  <Tooltip contentStyle={{ fontSize: 12 }} formatter={(v: number) => [formatUSD(v), 'Capital']} />
+                  <Tooltip contentStyle={{ fontSize: 12 }} formatter={fmtCapital} />
                   <Bar dataKey="amount" fill="#3b82f6" radius={[0, 3, 3, 0]} />
                 </BarChart>
               </ResponsiveContainer>
@@ -612,7 +618,7 @@ export function VCMarketClient({ isAdmin }: Props) {
                   <CartesianGrid strokeDasharray="3 3" className="stroke-border" horizontal={false} />
                   <XAxis type="number" tick={{ fontSize: 11 }} allowDecimals={false} />
                   <YAxis dataKey="segment" type="category" tick={{ fontSize: 11 }} width={60} />
-                  <Tooltip contentStyle={{ fontSize: 12 }} formatter={(v: number) => [v, 'Rounds']} />
+                  <Tooltip contentStyle={{ fontSize: 12 }} formatter={fmtRounds} />
                   <Bar dataKey="rounds" radius={[0, 3, 3, 0]}>
                     {roundsByVertical.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
                   </Bar>
@@ -629,7 +635,7 @@ export function VCMarketClient({ isAdmin }: Props) {
                   <CartesianGrid strokeDasharray="3 3" className="stroke-border" horizontal={false} />
                   <XAxis type="number" tick={{ fontSize: 11 }} allowDecimals={false} />
                   <YAxis dataKey="country" type="category" tick={{ fontSize: 11 }} width={60} />
-                  <Tooltip contentStyle={{ fontSize: 12 }} formatter={(v: number) => [v, 'Deals']} />
+                  <Tooltip contentStyle={{ fontSize: 12 }} formatter={fmtDeals} />
                   <Bar dataKey="deals" radius={[0, 3, 3, 0]}>
                     {dealsByCountry.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
                   </Bar>
@@ -644,9 +650,9 @@ export function VCMarketClient({ isAdmin }: Props) {
               <ResponsiveContainer width="100%" height={220}>
                 <BarChart data={capitalByCountry} layout="vertical" margin={{ top: 0, right: 8, bottom: 0, left: 60 }}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-border" horizontal={false} />
-                  <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={(v: number) => formatUSD(v)} />
+                  <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={fmtUSDAxis} />
                   <YAxis dataKey="country" type="category" tick={{ fontSize: 11 }} width={60} />
-                  <Tooltip contentStyle={{ fontSize: 12 }} formatter={(v: number) => [formatUSD(v), 'Capital']} />
+                  <Tooltip contentStyle={{ fontSize: 12 }} formatter={fmtCapital} />
                   <Bar dataKey="capital" radius={[0, 3, 3, 0]}>
                     {capitalByCountry.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
                   </Bar>
@@ -674,7 +680,7 @@ export function VCMarketClient({ isAdmin }: Props) {
                     ))}
                   </Pie>
                   <Legend iconSize={10} wrapperStyle={{ fontSize: 11 }} />
-                  <Tooltip contentStyle={{ fontSize: 12 }} formatter={(v: number) => [v, 'Deals']} />
+                  <Tooltip contentStyle={{ fontSize: 12 }} formatter={fmtDeals} />
                 </PieChart>
               </ResponsiveContainer>
             ) : emptyChart('No stage data available')}
