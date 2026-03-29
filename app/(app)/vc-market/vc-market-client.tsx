@@ -186,7 +186,7 @@ const fmtDeals   = (v: number | undefined) => [v ?? 0, 'Deals']   as [number, st
 const fmtCapital = (v: number | undefined) => [formatUSD(v ?? 0), 'Capital'] as [string, string]
 const fmtUSDAxis = (v: number | undefined) => formatUSD(v ?? 0)
 
-// ─── Field (top-level — must NOT be inside any component) ────────────────────
+// ─── Field ─────────────────────────────────────────────────────────────────────
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -498,27 +498,27 @@ function DealRow({ deal, onEdit }: { deal: VCDeal; onEdit: (d: VCDeal) => void }
   return (
     <tr className="border-b last:border-0 hover:bg-muted/30 transition-colors group">
       <td className="px-4 py-3 font-medium text-sm">{deal.company_name}</td>
-      <td className="px-4 py-3 text-sm tabular-nums">
+      <td className="px-4 py-3 text-sm tabular-nums whitespace-nowrap">
         {deal.amount_usd ? formatUSD(deal.amount_usd) : <span className="text-muted-foreground">—</span>}
       </td>
-      <td className="px-4 py-3 text-sm text-muted-foreground">
+      <td className="px-4 py-3 text-sm text-muted-foreground whitespace-nowrap">
         {deal.deal_date ? new Date(deal.deal_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}
       </td>
-      <td className="px-4 py-3">
+      <td className="px-4 py-3 whitespace-nowrap">
         {deal.stage
-          ? <span className="text-xs font-medium px-2 py-0.5 rounded-full text-white" style={{ backgroundColor: stageColor }}>{deal.stage}</span>
+          ? <span className="text-xs font-medium px-2 py-0.5 rounded-full text-white whitespace-nowrap" style={{ backgroundColor: stageColor }}>{deal.stage}</span>
           : <span className="text-muted-foreground text-sm">—</span>}
       </td>
       <td className="px-4 py-3 text-sm text-muted-foreground max-w-[180px] truncate">
         {deal.investors?.length > 0 ? deal.investors.join(', ') : '—'}
       </td>
       <td className="px-4 py-3 text-sm">
-        {deal.segment ? <Badge variant="secondary" className="text-xs">{deal.segment}</Badge> : <span className="text-muted-foreground">—</span>}
+        {deal.segment ? <Badge variant="secondary" className="text-xs whitespace-nowrap">{deal.segment}</Badge> : <span className="text-muted-foreground">—</span>}
       </td>
-      <td className="px-4 py-3 text-sm text-muted-foreground">{deal.country ?? '—'}</td>
+      <td className="px-4 py-3 text-sm text-muted-foreground whitespace-nowrap">{deal.country ?? '—'}</td>
       <td className="px-4 py-3">
         {deal.source_url
-          ? <a href={deal.source_url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline inline-flex items-center gap-1 text-xs">Link <ExternalLink className="h-3 w-3" /></a>
+          ? <a href={deal.source_url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline inline-flex items-center gap-1 text-xs whitespace-nowrap">Link <ExternalLink className="h-3 w-3" /></a>
           : <span className="text-muted-foreground text-sm">—</span>}
       </td>
       <td className="px-3 py-3">
@@ -901,7 +901,7 @@ export function VCMarketClient({ isAdmin }: Props) {
                     [null,           ''],
                   ] as [keyof VCDeal | null, string][]).map(([key, label]) => (
                     <th key={label}
-                      className={`px-4 py-2.5 text-left font-medium ${key ? 'cursor-pointer select-none hover:text-foreground' : ''}`}
+                      className={`px-4 py-2.5 text-left font-medium whitespace-nowrap ${key ? 'cursor-pointer select-none hover:text-foreground' : ''}`}
                       onClick={() => key && toggleSort(key)}>
                       {label}{key && <SortIcon col={key} />}
                     </th>
