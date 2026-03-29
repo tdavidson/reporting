@@ -70,8 +70,8 @@ function formatUSD(n: number): string {
   return `$${n.toLocaleString()}`
 }
 
-function getLatestDeals(allDeals: VCDeal[]): VCDeal[] {
-  return [...allDeals]
+function getLatestDeals(deals: VCDeal[]): VCDeal[] {
+  return [...deals]
     .sort((a, b) => (b.deal_date ?? '').localeCompare(a.deal_date ?? ''))
     .slice(0, 10)
 }
@@ -616,7 +616,7 @@ export function VCMarketClient({ isAdmin }: Props) {
   }
 
   const kpis             = computeKPIs(deals)
-  const latestDeals      = getLatestDeals(allDeals)
+  const latestDeals      = getLatestDeals(deals)  // ← agora usa deals (filtrado)
   const roundsByMonth    = buildRoundsByMonth(deals)
   const capitalByMonth   = buildCapitalByMonth(deals)
   const capitalBySegment = buildCapitalBySegment(deals)
