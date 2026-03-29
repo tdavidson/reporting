@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import * as XLSX from 'xlsx'
 import type { VCDealInsert } from '@/lib/vc-market/types'
 
@@ -29,17 +30,18 @@ function parseInvestors(raw: unknown): string[] {
 
 export async function POST(req: NextRequest) {
   try {
-    const supabase = await createClient()
+    const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const { data: fundRaw, error: fundError } = await supabase
-      .from('funds')
-      .select('id')
+    const admin = createAdminClient()
+    const { data: membership } = await admin
+      .from('fund_members')
+      .select('fund_id')
       .eq('user_id', user.id)
-      .single()
-    if (fundError || !fundRaw) return NextResponse.json({ error: 'Fund not found' }, { status: 404 })
-    const fund = fundRaw as { id: string }
+      .maybeSingle()
+    if (!membership) return NextResponse.json({ error: 'Fund not found' }, { status: 404 })
+    const fundId = membership.fund_id as string
 
     const formData = await req.formData()
     const file = formData.get('file') as File | null
@@ -59,7 +61,7 @@ export async function POST(req: NextRequest) {
       if (!company) { errors.push(`Row ${i + 2}: missing Company Name`); continue }
 
       deals.push({
-        fund_id:      fund.id,
+        fund_id:      fundId,
         company_name: company,
         amount_usd:   parseAmount(row['Amount USD'] ?? row['amount_usd']),
         deal_date:    parseDate(row['Date'] ?? row['deal_date']),
@@ -77,7 +79,7 @@ export async function POST(req: NextRequest) {
     }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const db = supabase as any
+    const db = admin as any
     const { data: inserted, error } = await db
       .from('vc_deals')
       .upsert(deals, { onConflict: 'fund_id,company_name,deal_date', ignoreDuplicates: true })

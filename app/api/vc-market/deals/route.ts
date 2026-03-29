@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 function getPeriodRange(period: string): { from?: string; to?: string } {
   const now = new Date()
@@ -20,17 +21,18 @@ function getPeriodRange(period: string): { from?: string; to?: string } {
 
 export async function GET(req: NextRequest) {
   try {
-    const supabase = await createClient()
+    const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const { data: fundRaw, error: fundError } = await supabase
-      .from('funds')
-      .select('id')
+    const admin = createAdminClient()
+    const { data: membership } = await admin
+      .from('fund_members')
+      .select('fund_id')
       .eq('user_id', user.id)
-      .single()
-    if (fundError || !fundRaw) return NextResponse.json({ deals: [] })
-    const fund = fundRaw as { id: string }
+      .maybeSingle()
+    if (!membership) return NextResponse.json({ deals: [] })
+    const fundId = membership.fund_id as string
 
     const sp = req.nextUrl.searchParams
     const period   = sp.get('period') ?? 'ytd'
@@ -40,10 +42,10 @@ export async function GET(req: NextRequest) {
     const investor = sp.get('investor') ?? ''
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let q = (supabase as any)
+    let q = (admin as any)
       .from('vc_deals')
       .select('*')
-      .eq('fund_id', fund.id)
+      .eq('fund_id', fundId)
       .order('deal_date', { ascending: false })
 
     const { from, to } = getPeriodRange(period)

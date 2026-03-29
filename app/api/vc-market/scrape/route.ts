@@ -1,35 +1,38 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { scrapeVCDeals } from '@/lib/vc-market/scrapers'
 
 export async function POST() {
   try {
-    const supabase = await createClient()
+    const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const { data: settings } = await supabase
+    const admin = createAdminClient()
+
+    const { data: membership } = await admin
+      .from('fund_members')
+      .select('fund_id')
+      .eq('user_id', user.id)
+      .maybeSingle()
+    if (!membership) return NextResponse.json({ error: 'Fund not found' }, { status: 404 })
+    const fundId = membership.fund_id as string
+
+    const { data: settings } = await admin
       .from('settings')
       .select('claude_api_key')
       .eq('user_id', user.id)
-      .single()
+      .maybeSingle()
 
-    const { data: fundRaw, error: fundError } = await supabase
-      .from('funds')
-      .select('id')
-      .eq('user_id', user.id)
-      .single()
-    if (fundError || !fundRaw) return NextResponse.json({ error: 'Fund not found' }, { status: 404 })
-    const fund = fundRaw as { id: string }
-
-    const deals = await scrapeVCDeals(fund.id, (settings as any)?.claude_api_key ?? undefined)
+    const deals = await scrapeVCDeals(fundId, (settings as any)?.claude_api_key ?? undefined)
 
     if (deals.length === 0) {
       return NextResponse.json({ inserted: 0, skipped: 0, errors: [] })
     }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const db = supabase as any
+    const db = admin as any
     const { data: inserted, error } = await db
       .from('vc_deals')
       .upsert(deals, { onConflict: 'fund_id,company_name,deal_date', ignoreDuplicates: true })
