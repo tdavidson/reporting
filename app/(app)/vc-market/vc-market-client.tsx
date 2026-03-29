@@ -5,6 +5,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend,
 } from 'recharts'
+import type { PieLabelRenderProps } from 'recharts'
 import {
   TrendingUp, Globe, DollarSign, Building2, BarChart3,
   Upload, RefreshCw, ExternalLink, X, FileSpreadsheet, Loader2,
@@ -148,6 +149,10 @@ function getUniqueInvestors(deals: VCDeal[]): string[] {
     }
   }
   return Array.from(set).sort()
+}
+ 
+function renderPieLabel({ name, percent }: PieLabelRenderProps): string {
+  return `${name ?? ''} ${(((percent as number) ?? 0) * 100).toFixed(0)}%`
 }
  
 // ---------------------------------------------------------------------------
@@ -628,9 +633,7 @@ export function VCMarketClient({ isAdmin }: Props) {
                     outerRadius={90}
                     paddingAngle={2}
                     dataKey="value"
-                    label={({ name, percent }: { name: string; percent?: number }) =>
-                      `${name} ${((percent ?? 0) * 100).toFixed(0)}%`
-                    }
+                    label={renderPieLabel}
                     labelLine={false}
                   >
                     {stageDistribution.map((entry, i) => (
