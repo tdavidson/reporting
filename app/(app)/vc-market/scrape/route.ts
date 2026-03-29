@@ -77,8 +77,8 @@ export async function POST(req: NextRequest) {
   let apiKey: string | undefined
   if (settings?.claude_api_key_encrypted && settings?.encryption_key_encrypted) {
     try {
-      const { decryptFundApiKey } = await import('@/lib/crypto')
-      apiKey = await decryptFundApiKey(
+      const { decryptApiKey } = await import('@/lib/crypto')
+      apiKey = decryptApiKey(
         settings.claude_api_key_encrypted,
         settings.encryption_key_encrypted
       )
