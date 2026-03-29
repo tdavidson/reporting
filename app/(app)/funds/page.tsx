@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Loader2, Plus, Trash2, Save, X, Pencil, Briefcase, Lock, Upload, GripVertical } from 'lucide-react'
+import { Loader2, Plus, Trash2, Save, X, Pencil, Briefcase, Lock, Upload, GripVertical, BarChart2, SlidersHorizontal } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
@@ -40,6 +40,8 @@ interface GroupConfig {
   gpCommitPct: number
   vintage: number | null
   managementFeeRate: number
+  navMode: 'metric' | 'manual'
+  navOverride: number | null
 }
 
 const DEFAULT_CONFIG: GroupConfig = {
@@ -48,6 +50,8 @@ const DEFAULT_CONFIG: GroupConfig = {
   gpCommitPct: 0,
   vintage: null,
   managementFeeRate: 0,
+  navMode: 'metric',
+  navOverride: null,
 }
 
 interface FundMetrics {
@@ -70,6 +74,7 @@ interface FundMetrics {
   grossTvpi: number | null
   netTvpi: number | null
   totalManagementFees: number
+  navMode: 'metric' | 'manual'
 }
 
 const FLOW_TYPE_LABELS: Record<string, string> = {
@@ -97,12 +102,12 @@ function parseLocalDate(dateStr: string): Date {
 
 function computeFundMetrics(
   cashFlows: FundCashFlow[],
-  grossResidual: number,
+  grossResidualFromInvestments: number,
   totalInvested: number,
   config: GroupConfig,
   asOfDate: string
 ): FundMetrics {
-  const { cashOnHand, carryRate, gpCommitPct, vintage, managementFeeRate } = config
+  const { cashOnHand, carryRate, gpCommitPct, vintage, managementFeeRate, navMode, navOverride } = config
 
   const filteredFlows = asOfDate
     ? cashFlows.filter(cf => cf.flow_date <= asOfDate)
@@ -119,6 +124,10 @@ function computeFundMetrics(
   }
 
   const finalCommitted = committed > 0 ? committed : called
+
+  // Use manual NAV override if set, otherwise use unrealized value from investments
+  const grossResidual = navMode === 'manual' && navOverride != null ? navOverride : grossResidualFromInvestments
+
   const grossAssets = grossResidual + cashOnHand
   const lpBasis = Math.max(0, called - distributions)
   const estimatedCarry = Math.max(0, carryRate * (grossAssets - lpBasis))
@@ -175,6 +184,7 @@ function computeFundMetrics(
     netTvpi,
     grossTvpi,
     totalManagementFees,
+    navMode,
   }
 }
 
@@ -214,9 +224,9 @@ export default function FundsPage() {
   const [addDraft, setAddDraft] = useState({ flowDate: '', flowType: 'commitment', amount: '', notes: '', portfolioGroup: '' })
   const [saving, setSaving] = useState(false)
 
-  const [editingCashGroup, setEditingCashGroup] = useState<string | null>(null)
-  const [cashOnHandDraft, setCashOnHandDraft] = useState<Record<string, string>>({})
-  const [savingCash, setSavingCash] = useState(false)
+  const [editingNavGroup, setEditingNavGroup] = useState<string | null>(null)
+  const [navOverrideDraft, setNavOverrideDraft] = useState<Record<string, string>>({})
+  const [savingNav, setSavingNav] = useState(false)
 
   const [importOpen, setImportOpen] = useState(false)
   const [importData, setImportData] = useState('')
@@ -245,13 +255,11 @@ export default function FundsPage() {
   const [draggedGroup, setDraggedGroup] = useState<string | null>(null)
   const [dragOverGroup, setDragOverGroup] = useState<string | null>(null)
 
-  // Hydrate asOfDate from localStorage (same key as Investments)
   useEffect(() => {
     const saved = localStorage.getItem('asOfDate') ?? new Date().toISOString().split('T')[0]
     setAsOfDate(saved)
   }, [])
 
-  // Load data only after asOfDate is hydrated
   useEffect(() => {
     if (!asOfDate) return
     async function load() {
@@ -285,6 +293,8 @@ export default function FundsPage() {
               gpCommitPct: Number(c.gp_commit_pct) || 0,
               vintage: c.vintage != null ? Number(c.vintage) : null,
               managementFeeRate: c.management_fee_rate != null ? Number(c.management_fee_rate) : 0,
+              navMode: c.nav_mode === 'manual' ? 'manual' : 'metric',
+              navOverride: c.nav_override != null ? Number(c.nav_override) : null,
             }
           }
           setGroupConfigs(map)
@@ -406,6 +416,7 @@ export default function FundsPage() {
       grossIrr: portfolioIRR,
       netTvpi: tvpi, grossTvpi,
       totalManagementFees,
+      navMode: 'metric' as const,
     }
   }, [cashFlows, groups, metricsByGroup, portfolioIRR, portfolioMOIC, asOfDate])
 
@@ -497,28 +508,49 @@ export default function FundsPage() {
     }
   }
 
-  async function handleSaveCashOnHand(group: string) {
-    setSavingCash(true)
+  async function handleToggleNavMode(group: string) {
+    const current = groupConfigs[group]?.navMode ?? 'metric'
+    const next = current === 'metric' ? 'manual' : 'metric'
+    const res = await fetch('/api/portfolio/fund-group-config', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ portfolioGroup: group, navMode: next }),
+    })
+    if (res.ok) {
+      setGroupConfigs(prev => ({
+        ...prev,
+        [group]: { ...(prev[group] ?? DEFAULT_CONFIG), navMode: next },
+      }))
+      if (next === 'manual') {
+        setEditingNavGroup(group)
+        setNavOverrideDraft(prev => ({ ...prev, [group]: String(groupConfigs[group]?.navOverride ?? '') }))
+      } else {
+        setEditingNavGroup(null)
+      }
+    }
+  }
+
+  async function handleSaveNavOverride(group: string) {
+    setSavingNav(true)
     try {
       const res = await fetch('/api/portfolio/fund-group-config', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           portfolioGroup: group,
-          cashOnHand: cashOnHandDraft[group] ?? (groupConfigs[group]?.cashOnHand ?? 0),
+          navOverride: navOverrideDraft[group] ?? null,
         }),
       })
       if (res.ok) {
         const data = await res.json()
         setGroupConfigs(prev => ({
           ...prev,
-          [group]: { ...(prev[group] ?? DEFAULT_CONFIG), cashOnHand: Number(data.cash_on_hand) || 0 },
+          [group]: { ...(prev[group] ?? DEFAULT_CONFIG), navOverride: data.nav_override != null ? Number(data.nav_override) : null },
         }))
-        setCashOnHandDraft(prev => { const next = { ...prev }; delete next[group]; return next })
-        setEditingCashGroup(null)
+        setEditingNavGroup(null)
       }
     } finally {
-      setSavingCash(false)
+      setSavingNav(false)
     }
   }
 
@@ -648,6 +680,10 @@ export default function FundsPage() {
   }
 
   function MetricCards({ metrics, group }: { metrics: FundMetrics; group?: string }) {
+    const config = group ? (groupConfigs[group] ?? DEFAULT_CONFIG) : null
+    const isManual = config?.navMode === 'manual'
+    const isEditingNav = group ? editingNavGroup === group : false
+
     return (
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
         {[
@@ -663,34 +699,59 @@ export default function FundsPage() {
           </Card>
         ))}
 
+        {/* Portfolio NAV card */}
         <Card>
           <CardContent className="pt-3 pb-2 px-3">
             <div className="flex items-center justify-between mb-0.5">
               <p className="text-[11px] text-muted-foreground">Portfolio NAV</p>
-              {group && editingCashGroup !== group ? (
+              {group && (
                 <button
-                  onClick={() => {
-                    setEditingCashGroup(group)
-                    setCashOnHandDraft(prev => ({ ...prev, [group]: String(groupConfigs[group]?.cashOnHand ?? 0) }))
-                  }}
-                  className="text-muted-foreground hover:text-foreground"
+                  onClick={() => handleToggleNavMode(group)}
+                  title={isManual ? 'Switch to NAV via metric' : 'Switch to Manual NAV'}
+                  className={`flex items-center gap-0.5 text-[10px] rounded px-1 py-0.5 transition-colors ${
+                    isManual
+                      ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400 hover:bg-amber-500/25'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-accent'
+                  }`}
                 >
-                  <Pencil className="h-3 w-3" />
+                  {isManual ? (
+                    <><SlidersHorizontal className="h-3 w-3" /><span className="ml-0.5">Manual</span></>
+                  ) : (
+                    <><BarChart2 className="h-3 w-3" /><span className="ml-0.5">Metric</span></>
+                  )}
                 </button>
-              ) : group && savingCash ? <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" /> : null}
+              )}
             </div>
-            {group && editingCashGroup === group ? (
-              <input
-                type="number"
-                step="0.01"
-                autoFocus
-                value={cashOnHandDraft[group] ?? ''}
-                onChange={e => setCashOnHandDraft(prev => ({ ...prev, [group]: e.target.value }))}
-                onBlur={() => handleSaveCashOnHand(group)}
-                onKeyDown={e => { if (e.key === 'Enter') handleSaveCashOnHand(group); if (e.key === 'Escape') setEditingCashGroup(null) }}
-                placeholder="0"
-                className="border rounded px-1.5 py-0.5 text-lg font-semibold w-full font-mono bg-transparent"
-              />
+
+            {group && isManual ? (
+              isEditingNav ? (
+                <input
+                  type="number"
+                  step="0.01"
+                  autoFocus
+                  value={navOverrideDraft[group] ?? ''}
+                  onChange={e => setNavOverrideDraft(prev => ({ ...prev, [group]: e.target.value }))}
+                  onBlur={() => handleSaveNavOverride(group)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') handleSaveNavOverride(group)
+                    if (e.key === 'Escape') setEditingNavGroup(null)
+                  }}
+                  placeholder="0"
+                  className="border rounded px-1.5 py-0.5 text-lg font-semibold w-full font-mono bg-transparent"
+                />
+              ) : (
+                <button
+                  className="text-left w-full group"
+                  onClick={() => {
+                    setEditingNavGroup(group)
+                    setNavOverrideDraft(prev => ({ ...prev, [group]: String(config?.navOverride ?? '') }))
+                  }}
+                >
+                  <p className="text-lg font-semibold group-hover:underline decoration-dotted">
+                    {config?.navOverride != null ? fmtCard(config.navOverride) : <span className="text-muted-foreground text-sm">Set NAV…</span>}
+                  </p>
+                </button>
+              )
             ) : (
               <p className="text-lg font-semibold">{fmtCard(metrics.grossResidual)}</p>
             )}

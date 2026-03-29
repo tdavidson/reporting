@@ -37,7 +37,7 @@ export async function PUT(req: NextRequest) {
     .maybeSingle()
   if (!membership) return NextResponse.json({ error: 'No fund found' }, { status: 403 })
   const body = await req.json()
-  const { portfolioGroup, cashOnHand, carryRate, gpCommitPct, vintage, managementFeeRate, performanceFeeRate } = body
+  const { portfolioGroup, cashOnHand, carryRate, gpCommitPct, vintage, managementFeeRate, performanceFeeRate, navMode, navOverride } = body
   if (!portfolioGroup) {
     return NextResponse.json({ error: 'portfolioGroup is required' }, { status: 400 })
   }
@@ -68,6 +68,13 @@ export async function PUT(req: NextRequest) {
   if (performanceFeeRate !== undefined) {
     const v = parseFloat(performanceFeeRate ?? 0)
     row.performance_fee_rate = isNaN(v) ? 0 : v
+  }
+  if (navMode !== undefined) {
+    row.nav_mode = navMode === 'manual' ? 'manual' : 'metric'
+  }
+  if (navOverride !== undefined) {
+    const v = parseFloat(navOverride ?? 0)
+    row.nav_override = isNaN(v) ? null : v
   }
   const { data, error } = await admin
     .from('fund_group_config' as any)
