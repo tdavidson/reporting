@@ -147,7 +147,6 @@ export function DashboardCompanies({ companies, allGroups, fundId }: Props) {
   const [logoMap, setLogoMap] = useState<Record<string, string>>({})
   const [manualOrder, setManualOrder] = useState<string[] | null>(null)
 
-  // Load persisted order on mount
   useEffect(() => {
     const saved = loadOrder(fundId)
     if (saved && saved.length > 0) {
@@ -205,7 +204,6 @@ export function DashboardCompanies({ companies, allGroups, fundId }: Props) {
   }
 
   function activateManualMode() {
-    // Capture current sorted order as the starting manual order
     const currentIds = sortedFiltered.map(c => c.id)
     setManualOrder(currentIds)
     setSortMode('manual')
@@ -437,9 +435,6 @@ function CompanyGrid({
             }`}
           >
             <div className="flex items-start gap-3 mb-1">
-              {isDraggable && (
-                <GripVertical className="h-4 w-4 text-muted-foreground/40 mt-0.5 flex-shrink-0 select-none" />
-              )}
               <CompanyAvatar
                 company={{ ...c, logoUrl }}
                 onLogoUpdate={onLogoUpdate}
