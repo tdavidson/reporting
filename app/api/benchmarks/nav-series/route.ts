@@ -5,8 +5,8 @@ import type { InvestmentTransaction, CompanyStatus } from '@/lib/types/database'
 import { xirr, type CashFlow } from '@/lib/xirr'
 
 interface DataPoint {
-  date: string       // YYYY-MM-DD (last day of month)
-  nav: number        // index rebaseado a 100 no primeiro mês com capital investido
+  date: string
+  nav: number        // (unrealized + distributed) / called × 100
   irr: number | null
 }
 
@@ -96,17 +96,11 @@ export async function GET(req: NextRequest) {
   const nowYM   = toYM(new Date().toISOString().split('T')[0])
   const months  = monthRange(startYM, nowYM)
 
-  // -------------------------------------------------------------------------
-  // Build raw series (absolute R$) first, then rebase to 100 at the first
-  // month where totalInvested > 0. This avoids the series starting at 70 or
-  // any other arbitrary value when the first capital call is partial.
-  // -------------------------------------------------------------------------
-  type RawPoint = { ym: string; date: string; totalInvested: number; totalRealized: number; totalUnrealized: number; cashFlows: CashFlow[] }
-  const rawSeries: RawPoint[] = []
+  const series: DataPoint[] = []
 
   for (const ym of months) {
-    const cutoff     = lastDayOfMonth(ym)
-    const pastTxns   = txns.filter(t => t.transaction_date != null && t.transaction_date <= cutoff)
+    const cutoff   = lastDayOfMonth(ym)
+    const pastTxns = txns.filter(t => t.transaction_date != null && t.transaction_date <= cutoff)
 
     type CompanyState = {
       totalInvested: number
@@ -141,7 +135,6 @@ export async function GET(req: NextRequest) {
         if (txn.share_price && txn.share_price > 0) s.latestSharePrice = txn.share_price
         if (txn.postmoney_valuation != null)         s.latestValuation  = txn.postmoney_valuation
         if (txn.ownership_pct != null)               s.latestOwnership  = txn.ownership_pct
-
         const rn = txn.round_name ?? 'Unknown'
         const r  = s.roundMap.get(rn) ?? { investmentCost: 0, sharesAcquired: 0, unrealizedDelta: 0, costBasisExited: 0 }
         r.investmentCost += txn.investment_cost ?? 0
@@ -156,7 +149,6 @@ export async function GET(req: NextRequest) {
         if (txn.exit_valuation != null)    s.latestValuation  = txn.exit_valuation
         if (txn.ownership_pct != null)     s.latestOwnership  = txn.ownership_pct
         s.explicitNav = txn.unrealized_value_change ?? 0
-
         if (txn.round_name && txn.cost_basis_exited != null) {
           const r = s.roundMap.get(txn.round_name)
           if (r) r.costBasisExited += Math.abs(txn.cost_basis_exited)
@@ -164,11 +156,10 @@ export async function GET(req: NextRequest) {
       }
 
       if (txn.transaction_type === 'unrealized_gain_change') {
-        if (txn.current_share_price != null)          s.latestSharePrice = txn.current_share_price
-        if (txn.latest_postmoney_valuation != null)   s.latestValuation  = txn.latest_postmoney_valuation
-        if (txn.ownership_pct != null)                s.latestOwnership  = txn.ownership_pct
-        if (txn.unrealized_value_change != null)      s.explicitNav      = txn.unrealized_value_change
-
+        if (txn.current_share_price != null)        s.latestSharePrice = txn.current_share_price
+        if (txn.latest_postmoney_valuation != null) s.latestValuation  = txn.latest_postmoney_valuation
+        if (txn.ownership_pct != null)              s.latestOwnership  = txn.ownership_pct
+        if (txn.unrealized_value_change != null)    s.explicitNav      = txn.unrealized_value_change
         if (txn.round_name && txn.unrealized_value_change != null) {
           const r = s.roundMap.get(txn.round_name)
           if (r) r.unrealizedDelta += txn.unrealized_value_change
@@ -176,19 +167,20 @@ export async function GET(req: NextRequest) {
       }
 
       if (txn.transaction_type === 'round_info') {
-        if (txn.share_price != null)          s.latestSharePrice = txn.share_price
-        if (txn.postmoney_valuation != null)  s.latestValuation  = txn.postmoney_valuation
-        if (txn.ownership_pct != null)        s.latestOwnership  = txn.ownership_pct
+        if (txn.share_price != null)         s.latestSharePrice = txn.share_price
+        if (txn.postmoney_valuation != null) s.latestValuation  = txn.postmoney_valuation
+        if (txn.ownership_pct != null)       s.latestOwnership  = txn.ownership_pct
       }
     }
 
-    let totalInvested   = 0
-    let totalRealized   = 0
-    let totalUnrealized = 0
+    // Aggregate across companies
+    let called      = 0   // total capital invested to date
+    let distributed = 0   // total proceeds received to date
+    let unrealized  = 0   // current fair value of remaining portfolio
     const cashFlows: CashFlow[] = []
 
     for (const [cid, s] of stateMap.entries()) {
-      const company = companyMap.get(cid)
+      const company     = companyMap.get(cid)
       const sumUnrDelta = [...s.roundMap.values()].reduce((acc, r) => acc + r.unrealizedDelta, 0)
       const uv = calcUnrealized(
         company?.status ?? null,
@@ -201,54 +193,38 @@ export async function GET(req: NextRequest) {
         sumUnrDelta,
         s.costBasisExited,
       )
-      totalInvested   += s.totalInvested
-      totalRealized   += s.totalRealized
-      totalUnrealized += uv
+      called      += s.totalInvested
+      distributed += s.totalRealized
+      unrealized  += uv
     }
 
-    if (totalInvested <= 0) continue
+    if (called <= 0) continue
 
-    // Build XIRR cash flows: investments are NEGATIVE (capital out), proceeds POSITIVE
+    // NAV Index = (Unrealized + Distributed) / Called × 100
+    // Starts at ~100 in month 1 (unrealized ≈ cost at entry), rises with appreciation
+    const nav = parseFloat(((unrealized + distributed) / called * 100).toFixed(2))
+
+    // XIRR
+    let irr: number | null = null
+    const cashFlowsForIrr: CashFlow[] = []
     for (const txn of pastTxns) {
       if (txn.transaction_type === 'investment' && txn.investment_cost && txn.transaction_date) {
-        cashFlows.push({ date: new Date(txn.transaction_date), amount: -(txn.investment_cost) })
+        cashFlowsForIrr.push({ date: new Date(txn.transaction_date), amount: -txn.investment_cost })
       }
       if (txn.transaction_type === 'proceeds' && txn.transaction_date) {
         const amt = (txn.proceeds_received ?? 0) + (txn.proceeds_escrow ?? 0)
-        if (amt > 0) cashFlows.push({ date: new Date(txn.transaction_date), amount: amt })
+        if (amt > 0) cashFlowsForIrr.push({ date: new Date(txn.transaction_date), amount: amt })
       }
     }
-
-    rawSeries.push({ ym, date: cutoff, totalInvested, totalRealized, totalUnrealized, cashFlows })
-  }
-
-  if (rawSeries.length === 0) return NextResponse.json({ series: [] })
-
-  // -------------------------------------------------------------------------
-  // Rebase: the index is 100 at the FIRST month (base values frozen there).
-  // For subsequent months: nav = (unrealized + realized) / baseTotalInvested * 100
-  // This ensures investments never contribute positively to the index — the
-  // numerator only grows via unrealized appreciation or cash proceeds.
-  // -------------------------------------------------------------------------
-  const baseInvested = rawSeries[0].totalInvested
-  if (baseInvested <= 0) return NextResponse.json({ series: [] })
-
-  const series: DataPoint[] = []
-
-  for (const raw of rawSeries) {
-    const nav = parseFloat((((raw.totalUnrealized + raw.totalRealized) / baseInvested) * 100).toFixed(2))
-
-    let irr: number | null = null
-    if (raw.cashFlows.length > 0 && (raw.totalUnrealized > 0 || raw.totalRealized > 0)) {
-      const cutoffDate = new Date(raw.date)
-      const flowsWithTerminal = [
-        ...raw.cashFlows,
-        ...(raw.totalUnrealized > 0 ? [{ date: cutoffDate, amount: raw.totalUnrealized }] : []),
+    if (cashFlowsForIrr.length > 0 && (unrealized > 0 || distributed > 0)) {
+      const flows = [
+        ...cashFlowsForIrr,
+        ...(unrealized > 0 ? [{ date: new Date(cutoff), amount: unrealized }] : []),
       ]
-      try { irr = xirr(flowsWithTerminal) } catch { irr = null }
+      try { irr = xirr(flows) } catch { irr = null }
     }
 
-    series.push({ date: raw.date, nav, irr })
+    series.push({ date: cutoff, nav, irr })
   }
 
   return NextResponse.json({ series, latestValue: series.at(-1)?.nav ?? null })
