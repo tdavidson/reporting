@@ -187,8 +187,9 @@ const fmtCapital = (v: number | undefined) => [formatUSD(v ?? 0), 'Capital'] as 
 const fmtUSDAxis = (v: number | undefined) => formatUSD(v ?? 0)
 
 // ─── LabelList formatters ─────────────────────────────────────────────────────
-const labelFmtRounds  = (v: number) => String(v ?? '')
-const labelFmtUSD     = (v: number) => v ? formatUSD(v) : ''
+// Recharts LabelFormatter receives (value: RenderableText) — must use unknown
+const labelFmtRounds = (v: unknown) => (v != null ? String(v) : '')
+const labelFmtUSD    = (v: unknown) => (typeof v === 'number' && v ? formatUSD(v) : '')
 
 // ─── Field ─────────────────────────────────────────────────────────────────────
 
@@ -268,7 +269,6 @@ function MultiSelect({
 }
 
 // ─── DragScroll ───────────────────────────────────────────────────────────────
-// Wrapper that enables click-and-drag horizontal scrolling (no scrollbar)
 function DragScroll({ children, className }: { children: React.ReactNode; className?: string }) {
   const ref = useRef<HTMLDivElement>(null)
   const dragging = useRef(false)
@@ -735,7 +735,7 @@ export function VCMarketClient({ isAdmin }: Props) {
         </div>
       </div>
 
-      {/* Filters — deal count removed */}
+      {/* Filters */}
       <div className="flex flex-wrap gap-2 items-center">
         <Select value={filters.period} onValueChange={v => setFilters(f => ({ ...f, period: v }))}>
           <SelectTrigger className="h-8 w-32 text-xs"><SelectValue placeholder="Period" /></SelectTrigger>
@@ -761,7 +761,7 @@ export function VCMarketClient({ isAdmin }: Props) {
         <KPICard label="Active Countries" value={kpis.activeCountries.toLocaleString()}                     icon={Globe}      color="bg-amber-500/10 text-amber-500" />
       </div>
 
-      {/* Latest Deals — drag-scroll, no scrollbar */}
+      {/* Latest Deals — drag-scroll */}
       {latestDeals.length > 0 && (
         <DragScroll className="bg-card border rounded-xl px-4 py-2.5 flex items-center gap-2">
           <Zap className="h-3.5 w-3.5 text-amber-500 shrink-0" />
