@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, Legend,
+  PieChart, Pie, Cell, Legend, LineChart, Line,
 } from 'recharts'
 import type { PieLabelRenderProps } from 'recharts'
 import {
@@ -20,10 +20,6 @@ import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
 import type { VCDeal, VCFilters, VCKPIs } from '@/lib/vc-market/types'
 import * as XLSX from 'xlsx'
- 
-// ---------------------------------------------------------------------------
-// Constants
-// ---------------------------------------------------------------------------
  
 const PERIOD_OPTIONS = [
   { value: 'ytd',       label: 'YTD' },
@@ -54,10 +50,6 @@ const PIE_COLORS = [
   '#14b8a6', '#22c55e', '#f59e0b', '#f97316', '#ef4444',
 ]
  
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
- 
 function formatUSD(n: number): string {
   if (n >= 1_000_000_000) return `$${(n / 1_000_000_000).toFixed(1)}B`
   if (n >= 1_000_000)     return `$${(n / 1_000_000).toFixed(1)}M`
@@ -73,13 +65,7 @@ function computeKPIs(deals: VCDeal[]): VCKPIs {
   const avgTicket = withAmount.length > 0
     ? withAmount.reduce((s, d) => s + (d.amount_usd ?? 0), 0) / withAmount.length
     : 0
-  return {
-    totalRounds: deals.length,
-    totalCapital: capital,
-    uniqueCompanies: companies,
-    avgTicket,
-    activeCountries: countries,
-  }
+  return { totalRounds: deals.length, totalCapital: capital, uniqueCompanies: companies, avgTicket, activeCountries: countries }
 }
  
 function buildRoundsByMonth(deals: VCDeal[]) {
@@ -97,6 +83,21 @@ function buildRoundsByMonth(deals: VCDeal[]) {
     }))
 }
  
+function buildCapitalByMonth(deals: VCDeal[]) {
+  const map = new Map<string, number>()
+  for (const d of deals) {
+    if (!d.deal_date || !d.amount_usd) continue
+    const month = d.deal_date.slice(0, 7)
+    map.set(month, (map.get(month) ?? 0) + d.amount_usd)
+  }
+  return Array.from(map.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([month, capital]) => ({
+      month: new Date(month + '-01').toLocaleDateString('en-US', { month: 'short', year: '2-digit' }),
+      capital,
+    }))
+}
+ 
 function buildCapitalBySegment(deals: VCDeal[]) {
   const map = new Map<string, number>()
   for (const d of deals) {
@@ -109,6 +110,18 @@ function buildCapitalBySegment(deals: VCDeal[]) {
     .map(([segment, amount]) => ({ segment, amount }))
 }
  
+function buildRoundsByVertical(deals: VCDeal[]) {
+  const map = new Map<string, number>()
+  for (const d of deals) {
+    const seg = d.segment ?? 'Other'
+    map.set(seg, (map.get(seg) ?? 0) + 1)
+  }
+  return Array.from(map.entries())
+    .sort(([, a], [, b]) => b - a)
+    .slice(0, 10)
+    .map(([segment, rounds]) => ({ segment, rounds }))
+}
+ 
 function buildDealsByCountry(deals: VCDeal[]) {
   const map = new Map<string, number>()
   for (const d of deals) {
@@ -119,6 +132,19 @@ function buildDealsByCountry(deals: VCDeal[]) {
     .sort(([, a], [, b]) => b - a)
     .slice(0, 12)
     .map(([country, deals]) => ({ country, deals }))
+}
+ 
+function buildCapitalByCountry(deals: VCDeal[]) {
+  const map = new Map<string, number>()
+  for (const d of deals) {
+    if (!d.amount_usd) continue
+    const c = d.country ?? 'Unknown'
+    map.set(c, (map.get(c) ?? 0) + d.amount_usd)
+  }
+  return Array.from(map.entries())
+    .sort(([, a], [, b]) => b - a)
+    .slice(0, 12)
+    .map(([country, capital]) => ({ country, capital }))
 }
  
 function buildStageDistribution(deals: VCDeal[]) {
@@ -154,10 +180,6 @@ function getUniqueInvestors(deals: VCDeal[]): string[] {
 function renderPieLabel({ name, percent }: PieLabelRenderProps): string {
   return `${name ?? ''} ${(((percent as number) ?? 0) * 100).toFixed(0)}%`
 }
- 
-// ---------------------------------------------------------------------------
-// Import Modal
-// ---------------------------------------------------------------------------
  
 function ImportModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: () => void }) {
   const [file, setFile] = useState<File | null>(null)
@@ -203,12 +225,10 @@ function ImportModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
             <X className="h-5 w-5" />
           </button>
         </div>
- 
         <p className="text-sm text-muted-foreground mb-4">
           Upload an <code>.xlsx</code> or <code>.csv</code> file with deal data.
           Columns: <strong>Company Name, Amount USD, Date, Stage, Investors, Segment, Country, Source URL</strong>.
         </p>
- 
         <div
           onClick={() => fileRef.current?.click()}
           className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors mb-4 ${
@@ -216,11 +236,9 @@ function ImportModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
           }`}
         >
           <FileSpreadsheet className={`h-8 w-8 mx-auto mb-2 ${file ? 'text-primary' : 'text-muted-foreground'}`} />
-          {file ? (
-            <p className="text-sm font-medium">{file.name}</p>
-          ) : (
-            <p className="text-sm text-muted-foreground">Click to select file</p>
-          )}
+          {file
+            ? <p className="text-sm font-medium">{file.name}</p>
+            : <p className="text-sm text-muted-foreground">Click to select file</p>}
           <input
             ref={fileRef}
             type="file"
@@ -229,11 +247,8 @@ function ImportModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
             onChange={e => setFile(e.target.files?.[0] ?? null)}
           />
         </div>
- 
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={handleDownloadTemplate} className="flex-1">
-            Download Template
-          </Button>
+          <Button variant="outline" size="sm" onClick={handleDownloadTemplate} className="flex-1">Download Template</Button>
           <Button size="sm" onClick={handleImport} disabled={!file || loading} className="flex-1">
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4 mr-1" />}
             Import
@@ -244,21 +259,12 @@ function ImportModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
   )
 }
  
-// ---------------------------------------------------------------------------
-// KPI Card
-// ---------------------------------------------------------------------------
- 
 function KPICard({ label, value, icon: Icon, color }: {
-  label: string
-  value: string
-  icon: React.ElementType
-  color: string
+  label: string; value: string; icon: React.ElementType; color: string
 }) {
   return (
     <div className="bg-card border rounded-xl p-4 flex items-center gap-4">
-      <div className={`p-2.5 rounded-lg ${color}`}>
-        <Icon className="h-5 w-5" />
-      </div>
+      <div className={`p-2.5 rounded-lg ${color}`}><Icon className="h-5 w-5" /></div>
       <div>
         <p className="text-xs text-muted-foreground">{label}</p>
         <p className="text-xl font-semibold tabular-nums">{value}</p>
@@ -266,10 +272,6 @@ function KPICard({ label, value, icon: Icon, color }: {
     </div>
   )
 }
- 
-// ---------------------------------------------------------------------------
-// Deals Table Row
-// ---------------------------------------------------------------------------
  
 function DealRow({ deal }: { deal: VCDeal }) {
   const stageColor = deal.stage ? STAGE_COLORS[deal.stage] ?? '#94a3b8' : '#94a3b8'
@@ -285,71 +287,42 @@ function DealRow({ deal }: { deal: VCDeal }) {
           : '—'}
       </td>
       <td className="px-4 py-3">
-        {deal.stage ? (
-          <span
-            className="text-xs font-medium px-2 py-0.5 rounded-full text-white"
-            style={{ backgroundColor: stageColor }}
-          >
-            {deal.stage}
-          </span>
-        ) : <span className="text-muted-foreground text-sm">—</span>}
+        {deal.stage
+          ? <span className="text-xs font-medium px-2 py-0.5 rounded-full text-white" style={{ backgroundColor: stageColor }}>{deal.stage}</span>
+          : <span className="text-muted-foreground text-sm">—</span>}
       </td>
       <td className="px-4 py-3 text-sm text-muted-foreground max-w-[180px] truncate">
-        {deal.investors?.length > 0
-          ? deal.investors.join(', ')
-          : '—'}
+        {deal.investors?.length > 0 ? deal.investors.join(', ') : '—'}
       </td>
       <td className="px-4 py-3 text-sm">
-        {deal.segment ? (
-          <Badge variant="secondary" className="text-xs">{deal.segment}</Badge>
-        ) : <span className="text-muted-foreground">—</span>}
+        {deal.segment ? <Badge variant="secondary" className="text-xs">{deal.segment}</Badge> : <span className="text-muted-foreground">—</span>}
       </td>
-      <td className="px-4 py-3 text-sm text-muted-foreground">
-        {deal.country ?? '—'}
-      </td>
+      <td className="px-4 py-3 text-sm text-muted-foreground">{deal.country ?? '—'}</td>
       <td className="px-4 py-3">
-        {deal.source_url ? (
-          <a
-            href={deal.source_url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-primary hover:underline inline-flex items-center gap-1 text-xs"
-          >
-            Link <ExternalLink className="h-3 w-3" />
-          </a>
-        ) : <span className="text-muted-foreground text-sm">—</span>}
+        {deal.source_url
+          ? <a href={deal.source_url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline inline-flex items-center gap-1 text-xs">Link <ExternalLink className="h-3 w-3" /></a>
+          : <span className="text-muted-foreground text-sm">—</span>}
       </td>
     </tr>
   )
 }
  
-// ---------------------------------------------------------------------------
-// Main Component
-// ---------------------------------------------------------------------------
- 
-interface Props {
-  isAdmin: boolean
-}
+interface Props { isAdmin: boolean }
  
 export function VCMarketClient({ isAdmin }: Props) {
-  const [deals, setDeals]         = useState<VCDeal[]>([])
-  const [loading, setLoading]     = useState(true)
-  const [scraping, setScraping]   = useState(false)
+  const [deals, setDeals]           = useState<VCDeal[]>([])
+  const [loading, setLoading]       = useState(true)
+  const [scraping, setScraping]     = useState(false)
   const [showImport, setShowImport] = useState(false)
-  const [search, setSearch]       = useState('')
-  const [sortKey, setSortKey]     = useState<keyof VCDeal>('deal_date')
-  const [sortDir, setSortDir]     = useState<'asc' | 'desc'>('desc')
-  const [page, setPage]           = useState(1)
+  const [search, setSearch]         = useState('')
+  const [sortKey, setSortKey]       = useState<keyof VCDeal>('deal_date')
+  const [sortDir, setSortDir]       = useState<'asc' | 'desc'>('desc')
+  const [page, setPage]             = useState(1)
   const PAGE_SIZE = 50
  
   const [filters, setFilters] = useState<VCFilters>({
-    period:   'ytd',
-    country:  '',
-    segment:  '',
-    stage:    '',
-    investor: '',
+    period: 'ytd', country: '', segment: '', stage: '', investor: '',
   })
- 
   const [allDeals, setAllDeals] = useState<VCDeal[]>([])
  
   const fetchDeals = useCallback(async (f: VCFilters) => {
@@ -376,13 +349,8 @@ export function VCMarketClient({ isAdmin }: Props) {
     setAllDeals(data.deals ?? [])
   }, [])
  
-  useEffect(() => {
-    fetchDeals(filters)
-  }, [fetchDeals, filters])
- 
-  useEffect(() => {
-    fetchAllDeals(filters.period)
-  }, [fetchAllDeals, filters.period])
+  useEffect(() => { fetchDeals(filters) }, [fetchDeals, filters])
+  useEffect(() => { fetchAllDeals(filters.period) }, [fetchAllDeals, filters.period])
  
   const setFilter = (key: keyof VCFilters, value: string) => {
     setFilters(prev => ({ ...prev, [key]: value }))
@@ -404,12 +372,14 @@ export function VCMarketClient({ isAdmin }: Props) {
     }
   }
  
-  const kpis = computeKPIs(deals)
- 
-  const roundsByMonth     = buildRoundsByMonth(deals)
-  const capitalBySegment  = buildCapitalBySegment(deals)
-  const dealsByCountry    = buildDealsByCountry(deals)
-  const stageDistribution = buildStageDistribution(deals)
+  const kpis               = computeKPIs(deals)
+  const roundsByMonth      = buildRoundsByMonth(deals)
+  const capitalByMonth     = buildCapitalByMonth(deals)
+  const capitalBySegment   = buildCapitalBySegment(deals)
+  const roundsByVertical   = buildRoundsByVertical(deals)
+  const dealsByCountry     = buildDealsByCountry(deals)
+  const capitalByCountry   = buildCapitalByCountry(deals)
+  const stageDistribution  = buildStageDistribution(deals)
  
   const countryOptions  = getUniqueValues(allDeals, 'country')
   const segmentOptions  = getUniqueValues(allDeals, 'segment')
@@ -451,117 +421,90 @@ export function VCMarketClient({ isAdmin }: Props) {
       : <ChevronDown className="h-3 w-3 inline ml-0.5" />
   }
  
+  const emptyChart = (msg: string) => (
+    <div className="h-[220px] flex items-center justify-center text-muted-foreground text-sm">{msg}</div>
+  )
+ 
   return (
     <div className="p-4 md:py-8 md:px-8 space-y-6 max-w-[1600px]">
-      {/* ── Header ── */}
+      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">VC Market</h1>
-          <p className="text-sm text-muted-foreground">
-            Global venture capital deal flow — scraped daily & importable
-          </p>
+          <p className="text-sm text-muted-foreground">Global venture capital deal flow — scraped daily & importable</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           {isAdmin && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleScrape}
-              disabled={scraping}
-            >
-              {scraping
-                ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" />
-                : <RefreshCw className="h-4 w-4 mr-1.5" />}
+            <Button variant="outline" size="sm" onClick={handleScrape} disabled={scraping}>
+              {scraping ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : <RefreshCw className="h-4 w-4 mr-1.5" />}
               Scrape now
             </Button>
           )}
           <Button size="sm" onClick={() => setShowImport(true)}>
-            <Upload className="h-4 w-4 mr-1.5" />
-            Import Excel
+            <Upload className="h-4 w-4 mr-1.5" />Import Excel
           </Button>
         </div>
       </div>
  
-      {/* ── Filters ── */}
+      {/* Filters */}
       <div className="flex flex-wrap gap-2 items-center">
         <Select value={filters.period} onValueChange={v => setFilter('period', v)}>
-          <SelectTrigger className="h-8 w-32 text-xs">
-            <SelectValue placeholder="Period" />
-          </SelectTrigger>
-          <SelectContent>
-            {PERIOD_OPTIONS.map(o => (
-              <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-            ))}
-          </SelectContent>
+          <SelectTrigger className="h-8 w-32 text-xs"><SelectValue placeholder="Period" /></SelectTrigger>
+          <SelectContent>{PERIOD_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
         </Select>
- 
         <Select value={filters.country || '_all'} onValueChange={v => setFilter('country', v === '_all' ? '' : v)}>
-          <SelectTrigger className="h-8 w-36 text-xs">
-            <SelectValue placeholder="Country" />
-          </SelectTrigger>
+          <SelectTrigger className="h-8 w-36 text-xs"><SelectValue placeholder="Country" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="_all">All countries</SelectItem>
             {countryOptions.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
           </SelectContent>
         </Select>
- 
         <Select value={filters.segment || '_all'} onValueChange={v => setFilter('segment', v === '_all' ? '' : v)}>
-          <SelectTrigger className="h-8 w-36 text-xs">
-            <SelectValue placeholder="Segment" />
-          </SelectTrigger>
+          <SelectTrigger className="h-8 w-36 text-xs"><SelectValue placeholder="Segment" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="_all">All segments</SelectItem>
             {segmentOptions.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
           </SelectContent>
         </Select>
- 
         <Select value={filters.stage || '_all'} onValueChange={v => setFilter('stage', v === '_all' ? '' : v)}>
-          <SelectTrigger className="h-8 w-32 text-xs">
-            <SelectValue placeholder="Stage" />
-          </SelectTrigger>
+          <SelectTrigger className="h-8 w-32 text-xs"><SelectValue placeholder="Stage" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="_all">All stages</SelectItem>
             {stageOptions.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
           </SelectContent>
         </Select>
- 
         <Select value={filters.investor || '_all'} onValueChange={v => setFilter('investor', v === '_all' ? '' : v)}>
-          <SelectTrigger className="h-8 w-40 text-xs">
-            <SelectValue placeholder="Investor" />
-          </SelectTrigger>
+          <SelectTrigger className="h-8 w-40 text-xs"><SelectValue placeholder="Investor" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="_all">All investors</SelectItem>
             {investorOptions.map(i => <SelectItem key={i} value={i}>{i}</SelectItem>)}
           </SelectContent>
         </Select>
- 
         {(filters.country || filters.segment || filters.stage || filters.investor) && (
-          <button
-            onClick={() => setFilters(f => ({ ...f, country: '', segment: '', stage: '', investor: '' }))}
-            className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
-          >
+          <button onClick={() => setFilters(f => ({ ...f, country: '', segment: '', stage: '', investor: '' }))}
+            className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1">
             <X className="h-3 w-3" /> Clear
           </button>
         )}
- 
         <span className="ml-auto text-xs text-muted-foreground">
           {loading ? 'Loading…' : `${deals.length} deal${deals.length !== 1 ? 's' : ''}`}
         </span>
       </div>
  
-      {/* ── KPI Cards ── */}
+      {/* KPI Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-        <KPICard label="Total Rounds" value={kpis.totalRounds.toLocaleString()} icon={BarChart3} color="bg-indigo-500/10 text-indigo-500" />
-        <KPICard label="Total Capital" value={kpis.totalCapital > 0 ? formatUSD(kpis.totalCapital) : '—'} icon={DollarSign} color="bg-emerald-500/10 text-emerald-500" />
-        <KPICard label="Unique Companies" value={kpis.uniqueCompanies.toLocaleString()} icon={Building2} color="bg-blue-500/10 text-blue-500" />
-        <KPICard label="Avg Ticket" value={kpis.avgTicket > 0 ? formatUSD(kpis.avgTicket) : '—'} icon={TrendingUp} color="bg-violet-500/10 text-violet-500" />
-        <KPICard label="Active Countries" value={kpis.activeCountries.toLocaleString()} icon={Globe} color="bg-amber-500/10 text-amber-500" />
+        <KPICard label="Total Rounds"     value={kpis.totalRounds.toLocaleString()}                      icon={BarChart3}  color="bg-indigo-500/10 text-indigo-500" />
+        <KPICard label="Total Capital"    value={kpis.totalCapital > 0 ? formatUSD(kpis.totalCapital) : '—'} icon={DollarSign} color="bg-emerald-500/10 text-emerald-500" />
+        <KPICard label="Unique Companies" value={kpis.uniqueCompanies.toLocaleString()}                  icon={Building2}  color="bg-blue-500/10 text-blue-500" />
+        <KPICard label="Avg Ticket"       value={kpis.avgTicket > 0 ? formatUSD(kpis.avgTicket) : '—'}   icon={TrendingUp} color="bg-violet-500/10 text-violet-500" />
+        <KPICard label="Active Countries" value={kpis.activeCountries.toLocaleString()}                  icon={Globe}      color="bg-amber-500/10 text-amber-500" />
       </div>
  
-      {/* ── Charts ── */}
+      {/* Charts */}
       {!loading && deals.length > 0 && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {/* Rounds by month */}
+
+          {/* Row 1 */}
           <div className="bg-card border rounded-xl p-4">
             <h3 className="text-sm font-medium mb-4">Rounds by Month</h3>
             {roundsByMonth.length > 0 ? (
@@ -570,16 +513,29 @@ export function VCMarketClient({ isAdmin }: Props) {
                   <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                   <XAxis dataKey="month" tick={{ fontSize: 11 }} />
                   <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
-                  <Tooltip contentStyle={{ fontSize: 12 }} formatter={(v: number | undefined) => [v ?? 0, 'Rounds']} />
+                  <Tooltip contentStyle={{ fontSize: 12 }} formatter={(v: number) => [v, 'Rounds']} />
                   <Bar dataKey="rounds" fill="#6366f1" radius={[3, 3, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
-            ) : (
-              <div className="h-[220px] flex items-center justify-center text-muted-foreground text-sm">No dated deals in period</div>
-            )}
+            ) : emptyChart('No dated deals in period')}
           </div>
- 
-          {/* Capital by vertical */}
+
+          <div className="bg-card border rounded-xl p-4">
+            <h3 className="text-sm font-medium mb-4">Capital by Month (USD)</h3>
+            {capitalByMonth.length > 0 ? (
+              <ResponsiveContainer width="100%" height={220}>
+                <LineChart data={capitalByMonth} margin={{ top: 0, right: 8, bottom: 0, left: 8 }}>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                  <XAxis dataKey="month" tick={{ fontSize: 11 }} />
+                  <YAxis tick={{ fontSize: 11 }} tickFormatter={(v: number) => formatUSD(v)} width={56} />
+                  <Tooltip contentStyle={{ fontSize: 12 }} formatter={(v: number) => [formatUSD(v), 'Capital']} />
+                  <Line type="monotone" dataKey="capital" stroke="#22c55e" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+                </LineChart>
+              </ResponsiveContainer>
+            ) : emptyChart('No capital data in period')}
+          </div>
+
+          {/* Row 2 */}
           <div className="bg-card border rounded-xl p-4">
             <h3 className="text-sm font-medium mb-4">Capital by Vertical (USD)</h3>
             {capitalBySegment.length > 0 ? (
@@ -588,16 +544,31 @@ export function VCMarketClient({ isAdmin }: Props) {
                   <CartesianGrid strokeDasharray="3 3" className="stroke-border" horizontal={false} />
                   <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={(v: number) => formatUSD(v)} />
                   <YAxis dataKey="segment" type="category" tick={{ fontSize: 11 }} width={60} />
-                  <Tooltip contentStyle={{ fontSize: 12 }} formatter={(v: number | undefined) => [v != null ? formatUSD(v) : '—', 'Capital']} />
+                  <Tooltip contentStyle={{ fontSize: 12 }} formatter={(v: number) => [formatUSD(v), 'Capital']} />
                   <Bar dataKey="amount" fill="#3b82f6" radius={[0, 3, 3, 0]} />
                 </BarChart>
               </ResponsiveContainer>
-            ) : (
-              <div className="h-[220px] flex items-center justify-center text-muted-foreground text-sm">No capital data available</div>
-            )}
+            ) : emptyChart('No capital data available')}
           </div>
- 
-          {/* Country heatmap */}
+
+          <div className="bg-card border rounded-xl p-4">
+            <h3 className="text-sm font-medium mb-4">Rounds by Vertical</h3>
+            {roundsByVertical.length > 0 ? (
+              <ResponsiveContainer width="100%" height={220}>
+                <BarChart data={roundsByVertical} layout="vertical" margin={{ top: 0, right: 8, bottom: 0, left: 60 }}>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-border" horizontal={false} />
+                  <XAxis type="number" tick={{ fontSize: 11 }} allowDecimals={false} />
+                  <YAxis dataKey="segment" type="category" tick={{ fontSize: 11 }} width={60} />
+                  <Tooltip contentStyle={{ fontSize: 12 }} formatter={(v: number) => [v, 'Rounds']} />
+                  <Bar dataKey="rounds" radius={[0, 3, 3, 0]}>
+                    {roundsByVertical.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            ) : emptyChart('No vertical data available')}
+          </div>
+
+          {/* Row 3 */}
           <div className="bg-card border rounded-xl p-4">
             <h3 className="text-sm font-medium mb-4">Deals by Country</h3>
             {dealsByCountry.length > 0 ? (
@@ -606,62 +577,67 @@ export function VCMarketClient({ isAdmin }: Props) {
                   <CartesianGrid strokeDasharray="3 3" className="stroke-border" horizontal={false} />
                   <XAxis type="number" tick={{ fontSize: 11 }} allowDecimals={false} />
                   <YAxis dataKey="country" type="category" tick={{ fontSize: 11 }} width={60} />
-                  <Tooltip contentStyle={{ fontSize: 12 }} formatter={(v: number | undefined) => [v ?? 0, 'Deals']} />
+                  <Tooltip contentStyle={{ fontSize: 12 }} formatter={(v: number) => [v, 'Deals']} />
                   <Bar dataKey="deals" radius={[0, 3, 3, 0]}>
-                    {dealsByCountry.map((_, i) => (
-                      <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
-                    ))}
+                    {dealsByCountry.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
-            ) : (
-              <div className="h-[220px] flex items-center justify-center text-muted-foreground text-sm">No country data available</div>
-            )}
+            ) : emptyChart('No country data available')}
           </div>
- 
-          {/* Stage distribution */}
+
           <div className="bg-card border rounded-xl p-4">
+            <h3 className="text-sm font-medium mb-4">Capital by Country (USD)</h3>
+            {capitalByCountry.length > 0 ? (
+              <ResponsiveContainer width="100%" height={220}>
+                <BarChart data={capitalByCountry} layout="vertical" margin={{ top: 0, right: 8, bottom: 0, left: 60 }}>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-border" horizontal={false} />
+                  <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={(v: number) => formatUSD(v)} />
+                  <YAxis dataKey="country" type="category" tick={{ fontSize: 11 }} width={60} />
+                  <Tooltip contentStyle={{ fontSize: 12 }} formatter={(v: number) => [formatUSD(v), 'Capital']} />
+                  <Bar dataKey="capital" radius={[0, 3, 3, 0]}>
+                    {capitalByCountry.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            ) : emptyChart('No capital by country data')}
+          </div>
+
+          {/* Row 4 — Stage distribution (full width) */}
+          <div className="bg-card border rounded-xl p-4 lg:col-span-2">
             <h3 className="text-sm font-medium mb-4">Distribution by Stage</h3>
             {stageDistribution.length > 0 ? (
               <ResponsiveContainer width="100%" height={220}>
                 <PieChart>
                   <Pie
                     data={stageDistribution}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={55}
-                    outerRadius={90}
+                    cx="50%" cy="50%"
+                    innerRadius={55} outerRadius={90}
                     paddingAngle={2}
                     dataKey="value"
                     label={renderPieLabel}
                     labelLine={false}
                   >
                     {stageDistribution.map((entry, i) => (
-                      <Cell
-                        key={entry.name}
-                        fill={STAGE_COLORS[entry.name] ?? PIE_COLORS[i % PIE_COLORS.length]}
-                      />
+                      <Cell key={entry.name} fill={STAGE_COLORS[entry.name] ?? PIE_COLORS[i % PIE_COLORS.length]} />
                     ))}
                   </Pie>
                   <Legend iconSize={10} wrapperStyle={{ fontSize: 11 }} />
-                  <Tooltip contentStyle={{ fontSize: 12 }} formatter={(v: number | undefined) => [v ?? 0, 'Deals']} />
+                  <Tooltip contentStyle={{ fontSize: 12 }} formatter={(v: number) => [v, 'Deals']} />
                 </PieChart>
               </ResponsiveContainer>
-            ) : (
-              <div className="h-[220px] flex items-center justify-center text-muted-foreground text-sm">No stage data available</div>
-            )}
+            ) : emptyChart('No stage data available')}
           </div>
+
         </div>
       )}
  
-      {/* ── Empty state ── */}
+      {/* Empty state */}
       {!loading && deals.length === 0 && (
         <div className="bg-card border rounded-xl p-12 text-center">
           <TrendingUp className="h-10 w-10 mx-auto mb-3 text-muted-foreground/40" />
           <p className="font-medium mb-1">No deals yet</p>
-          <p className="text-sm text-muted-foreground mb-4">
-            Import an Excel file or trigger a scrape to populate deal data.
-          </p>
+          <p className="text-sm text-muted-foreground mb-4">Import an Excel file or trigger a scrape to populate deal data.</p>
           <div className="flex items-center justify-center gap-2">
             {isAdmin && (
               <Button variant="outline" size="sm" onClick={handleScrape} disabled={scraping}>
@@ -676,88 +652,59 @@ export function VCMarketClient({ isAdmin }: Props) {
         </div>
       )}
  
-      {/* ── Deals Table ── */}
+      {/* Deals Table */}
       {deals.length > 0 && (
         <div className="bg-card border rounded-xl overflow-hidden">
           <div className="p-4 border-b flex items-center justify-between gap-3">
             <h3 className="text-sm font-medium">All Deals</h3>
             <div className="relative w-60">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-              <Input
-                value={search}
-                onChange={e => { setSearch(e.target.value); setPage(1) }}
-                placeholder="Search…"
-                className="pl-8 h-8 text-xs"
-              />
+              <Input value={search} onChange={e => { setSearch(e.target.value); setPage(1) }}
+                placeholder="Search…" className="pl-8 h-8 text-xs" />
             </div>
           </div>
- 
           <div className="overflow-x-auto">
             <table className="w-full text-sm min-w-[900px]">
               <thead>
                 <tr className="border-b bg-muted/30 text-muted-foreground text-xs">
-                  {(
-                    [
-                      ['company_name', 'Company'],
-                      ['amount_usd',   'Amount'],
-                      ['deal_date',    'Date'],
-                      ['stage',        'Stage'],
-                      ['investors',    'Investors'],
-                      ['segment',      'Segment'],
-                      ['country',      'Country'],
-                      [null,           'Source'],
-                    ] as [keyof VCDeal | null, string][]
-                  ).map(([key, label]) => (
-                    <th
-                      key={label}
+                  {([
+                    ['company_name', 'Company'],
+                    ['amount_usd',   'Amount'],
+                    ['deal_date',    'Date'],
+                    ['stage',        'Stage'],
+                    ['investors',    'Investors'],
+                    ['segment',      'Segment'],
+                    ['country',      'Country'],
+                    [null,           'Source'],
+                  ] as [keyof VCDeal | null, string][]).map(([key, label]) => (
+                    <th key={label}
                       className={`px-4 py-2.5 text-left font-medium ${key ? 'cursor-pointer select-none hover:text-foreground' : ''}`}
-                      onClick={() => key && toggleSort(key)}
-                    >
-                      {label}
-                      {key && <SortIcon col={key} />}
+                      onClick={() => key && toggleSort(key)}>
+                      {label}{key && <SortIcon col={key} />}
                     </th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {paged.length === 0 ? (
-                  <tr>
-                    <td colSpan={8} className="px-4 py-8 text-center text-muted-foreground text-sm">
-                      No deals match your search
-                    </td>
-                  </tr>
-                ) : (
-                  paged.map(deal => <DealRow key={deal.id} deal={deal} />)
-                )}
+                {paged.length === 0
+                  ? <tr><td colSpan={8} className="px-4 py-8 text-center text-muted-foreground text-sm">No deals match your search</td></tr>
+                  : paged.map(deal => <DealRow key={deal.id} deal={deal} />)}
               </tbody>
             </table>
           </div>
- 
           {totalPages > 1 && (
             <div className="p-3 border-t flex items-center justify-between text-xs text-muted-foreground">
-              <span>
-                {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, sorted.length)} of {sorted.length}
-              </span>
+              <span>{(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, sorted.length)} of {sorted.length}</span>
               <div className="flex gap-1">
-                <Button variant="outline" size="sm" className="h-7 px-2 text-xs" disabled={page === 1} onClick={() => setPage(p => p - 1)}>
-                  Previous
-                </Button>
-                <Button variant="outline" size="sm" className="h-7 px-2 text-xs" disabled={page === totalPages} onClick={() => setPage(p => p + 1)}>
-                  Next
-                </Button>
+                <Button variant="outline" size="sm" className="h-7 px-2 text-xs" disabled={page === 1} onClick={() => setPage(p => p - 1)}>Previous</Button>
+                <Button variant="outline" size="sm" className="h-7 px-2 text-xs" disabled={page === totalPages} onClick={() => setPage(p => p + 1)}>Next</Button>
               </div>
             </div>
           )}
         </div>
       )}
  
-      {/* ── Import Modal ── */}
-      {showImport && (
-        <ImportModal
-          onClose={() => setShowImport(false)}
-          onSuccess={() => fetchDeals(filters)}
-        />
-      )}
+      {showImport && <ImportModal onClose={() => setShowImport(false)} onSuccess={() => fetchDeals(filters)} />}
     </div>
   )
 }
