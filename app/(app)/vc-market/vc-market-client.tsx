@@ -56,12 +56,19 @@ const PIE_COLORS = [
   '#14b8a6','#22c55e','#f59e0b','#f97316','#ef4444',
 ]
 
+// Palette for segment-based coloring (Top 10 chart)
+const SEGMENT_PALETTE = [
+  '#6366f1','#3b82f6','#0ea5e9','#14b8a6',
+  '#22c55e','#84cc16','#f59e0b','#f97316','#ef4444','#8b5cf6',
+]
+
 const COLOR_ROUNDS  = '#0F2332'
 const COLOR_CAPITAL = '#22c55e'
 
 const LABEL_STYLE_ROUNDS  = { fontSize: 13, fontWeight: 700, fill: COLOR_ROUNDS  }
 const LABEL_STYLE_CAPITAL = { fontSize: 13, fontWeight: 700, fill: COLOR_CAPITAL }
 const LABEL_STYLE_COUNTRY = { fontSize: 13, fontWeight: 700, fill: '#6366f1'     }
+const LABEL_STYLE_TOP10   = { fontSize: 12, fontWeight: 700, fill: '#f1f5f9'     }
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
@@ -168,6 +175,27 @@ function buildCapitalByCountry(deals: VCDeal[]) {
     .map(([country, capital]) => ({ country, capital }))
 }
 
+// assigns a stable color per segment name
+function segmentColor(seg: string | null | undefined, segmentIndex: Map<string, number>): string {
+  const key = seg ?? 'Other'
+  if (!segmentIndex.has(key)) segmentIndex.set(key, segmentIndex.size)
+  return SEGMENT_PALETTE[segmentIndex.get(key)! % SEGMENT_PALETTE.length]
+}
+
+function buildTop10Deals(deals: VCDeal[]) {
+  return [...deals]
+    .filter(d => d.amount_usd)
+    .sort((a, b) => (b.amount_usd ?? 0) - (a.amount_usd ?? 0))
+    .slice(0, 10)
+    .map(d => ({
+      company:  d.company_name,
+      amount:   d.amount_usd ?? 0,
+      segment:  d.segment ?? 'Other',
+      stage:    d.stage ?? '',
+      country:  d.country ?? '',
+    }))
+}
+
 function getUniqueValues(deals: VCDeal[], key: keyof VCDeal): string[] {
   const set = new Set<string>()
   for (const d of deals) {
@@ -195,6 +223,22 @@ const fmtUSDAxis = (v: number | undefined) => formatUSD(v ?? 0)
 // ─── LabelList formatters ─────────────────────────────────────────────────────
 const labelFmtRounds = (v: unknown) => (v != null ? String(v) : '')
 const labelFmtUSD    = (v: unknown) => (typeof v === 'number' && v ? formatUSD(v) : '')
+
+// ─── custom tick for Top10 chart (rotated company names) ─────────────────────
+function CompanyTick({ x, y, payload }: { x?: number; y?: number; payload?: { value: string } }) {
+  return (
+    <g transform={`translate(${x},${y})`}>
+      <text
+        x={0} y={0} dy={10}
+        textAnchor="end"
+        transform="rotate(-35)"
+        style={{ fontSize: 11, fill: 'var(--muted-foreground)' }}
+      >
+        {payload?.value ?? ''}
+      </text>
+    </g>
+  )
+}
 
 // ─── Field ─────────────────────────────────────────────────────────────────────
 
@@ -583,6 +627,21 @@ function DealRow({ deal, onEdit }: { deal: VCDeal; onEdit: (d: VCDeal) => void }
   )
 }
 
+// ─── Top10 custom tooltip ─────────────────────────────────────────────────────
+function Top10Tooltip({ active, payload }: { active?: boolean; payload?: Array<{ payload: { company: string; amount: number; segment: string; stage: string; country: string } }> }) {
+  if (!active || !payload?.length) return null
+  const d = payload[0].payload
+  return (
+    <div className="bg-popover border rounded-lg shadow-lg px-3 py-2 text-xs space-y-0.5">
+      <p className="font-semibold text-foreground">{d.company}</p>
+      <p className="text-emerald-500 font-bold">{formatUSD(d.amount)}</p>
+      {d.segment && <p className="text-muted-foreground">{d.segment}</p>}
+      {d.stage   && <p className="text-muted-foreground">{d.stage}</p>}
+      {d.country && <p className="text-muted-foreground">{d.country}</p>}
+    </div>
+  )
+}
+
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 interface Props { isAdmin: boolean }
@@ -673,6 +732,16 @@ export function VCMarketClient({ isAdmin }: Props) {
   const roundsByVertical = buildRoundsByVertical(deals)
   const dealsByCountry   = buildDealsByCountry(deals)
   const capitalByCountry = buildCapitalByCountry(deals)
+  const top10Deals       = buildTop10Deals(deals)
+
+  // stable segment → color map for top10 chart
+  const segIdx = new Map<string, number>()
+  top10Deals.forEach(d => segmentColor(d.segment, segIdx))
+
+  // legend entries for top10
+  const top10Segments = Array.from(segIdx.entries()).map(([seg, idx]) => ({
+    seg, color: SEGMENT_PALETTE[idx % SEGMENT_PALETTE.length],
+  }))
 
   const countryOptions  = getUniqueValues(allDeals, 'country')
   const segmentOptions  = getUniqueValues(allDeals, 'segment')
@@ -810,130 +879,177 @@ export function VCMarketClient({ isAdmin }: Props) {
 
       {/* Charts */}
       {!loading && deals.length > 0 && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="space-y-4">
 
-          {/* Rounds by Month */}
-          <div className="bg-card border rounded-xl p-4">
-            <h3 className="text-sm font-medium mb-4">Rounds by Month</h3>
-            {roundsByMonth.length > 0 ? (
-              <ResponsiveContainer width="100%" height={240}>
-                <BarChart data={roundsByMonth} margin={{ top: 20, right: 8, bottom: 0, left: -20 }}>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                  <XAxis dataKey="month" tick={{ fontSize: 11 }} />
-                  <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
-                  <Tooltip contentStyle={{ fontSize: 12 }} formatter={fmtRounds} />
-                  <Bar dataKey="rounds" {...barProps(COLOR_ROUNDS)} radius={[3, 3, 0, 0]}>
-                    <LabelList dataKey="rounds" position="top" formatter={labelFmtRounds}
-                      style={LABEL_STYLE_ROUNDS} />
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            ) : emptyChart('No dated deals in period')}
-          </div>
-
-          {/* Capital by Month */}
-          <div className="bg-card border rounded-xl p-4">
-            <h3 className="text-sm font-medium mb-4">Capital by Month (USD)</h3>
-            {capitalByMonth.length > 0 ? (
-              <ResponsiveContainer width="100%" height={240}>
-                <BarChart data={capitalByMonth} margin={{ top: 20, right: 8, bottom: 0, left: 8 }}>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                  <XAxis dataKey="month" tick={{ fontSize: 11 }} />
+          {/* ── Top 10 Deals by Capital ── full width */}
+          {top10Deals.length > 0 && (
+            <div className="bg-card border rounded-xl p-4">
+              <div className="flex items-center justify-between mb-1">
+                <h3 className="text-sm font-medium">Top 10 Deals by Capital</h3>
+                {/* segment legend */}
+                {top10Segments.length > 0 && (
+                  <div className="flex flex-wrap gap-x-3 gap-y-1 justify-end">
+                    {top10Segments.map(({ seg, color }) => (
+                      <span key={seg} className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                        <span className="h-2.5 w-2.5 rounded-sm shrink-0" style={{ backgroundColor: color }} />
+                        {seg}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart
+                  data={top10Deals}
+                  margin={{ top: 28, right: 16, bottom: 60, left: 8 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-border" vertical={false} />
+                  <XAxis
+                    dataKey="company"
+                    tick={<CompanyTick />}
+                    interval={0}
+                  />
                   <YAxis tick={{ fontSize: 11 }} tickFormatter={fmtUSDAxis} width={56} />
-                  <Tooltip contentStyle={{ fontSize: 12 }} formatter={fmtCapital} />
-                  <Bar dataKey="capital" {...barProps(COLOR_CAPITAL)} radius={[3, 3, 0, 0]}>
-                    <LabelList dataKey="capital" position="top" formatter={labelFmtUSD}
-                      style={LABEL_STYLE_CAPITAL} />
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            ) : emptyChart('No capital data in period')}
-          </div>
-
-          {/* Rounds by Vertical */}
-          <div className="bg-card border rounded-xl p-4">
-            <h3 className="text-sm font-medium mb-4">Rounds by Vertical</h3>
-            {roundsByVertical.length > 0 ? (
-              <ResponsiveContainer width="100%" height={240}>
-                <BarChart data={roundsByVertical} layout="vertical" margin={{ top: 0, right: 40, bottom: 0, left: 60 }}>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-border" horizontal={false} />
-                  <XAxis type="number" tick={{ fontSize: 11 }} allowDecimals={false} />
-                  <YAxis dataKey="segment" type="category" tick={{ fontSize: 11 }} width={60} />
-                  <Tooltip contentStyle={{ fontSize: 12 }} formatter={fmtRounds} />
-                  <Bar dataKey="rounds" {...barProps(COLOR_ROUNDS)} radius={[0, 3, 3, 0]}>
-                    <LabelList dataKey="rounds" position="right" formatter={labelFmtRounds}
-                      style={LABEL_STYLE_ROUNDS} />
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            ) : emptyChart('No vertical data available')}
-          </div>
-
-          {/* Capital by Vertical */}
-          <div className="bg-card border rounded-xl p-4">
-            <h3 className="text-sm font-medium mb-4">Capital by Vertical (USD)</h3>
-            {capitalBySegment.length > 0 ? (
-              <ResponsiveContainer width="100%" height={240}>
-                <BarChart data={capitalBySegment} layout="vertical" margin={{ top: 0, right: 60, bottom: 0, left: 60 }}>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-border" horizontal={false} />
-                  <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={fmtUSDAxis} />
-                  <YAxis dataKey="segment" type="category" tick={{ fontSize: 11 }} width={60} />
-                  <Tooltip contentStyle={{ fontSize: 12 }} formatter={fmtCapital} />
-                  <Bar dataKey="amount" {...barProps(COLOR_CAPITAL)} radius={[0, 3, 3, 0]}>
-                    <LabelList dataKey="amount" position="right" formatter={labelFmtUSD}
-                      style={LABEL_STYLE_CAPITAL} />
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            ) : emptyChart('No capital data available')}
-          </div>
-
-          {/* Deals by Country */}
-          <div className="bg-card border rounded-xl p-4">
-            <h3 className="text-sm font-medium mb-4">Deals by Country</h3>
-            {dealsByCountry.length > 0 ? (
-              <ResponsiveContainer width="100%" height={240}>
-                <BarChart data={dealsByCountry} layout="vertical" margin={{ top: 0, right: 40, bottom: 0, left: 60 }}>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-border" horizontal={false} />
-                  <XAxis type="number" tick={{ fontSize: 11 }} allowDecimals={false} />
-                  <YAxis dataKey="country" type="category" tick={{ fontSize: 11 }} width={60} />
-                  <Tooltip contentStyle={{ fontSize: 12 }} formatter={fmtDeals} />
-                  <Bar dataKey="deals" radius={[0, 3, 3, 0]}>
-                    {dealsByCountry.map((_, i) => {
-                      const c = PIE_COLORS[i % PIE_COLORS.length]
-                      return <Cell key={i} fill={c} fillOpacity={0.6} stroke={c} strokeWidth={1.5} />
+                  <Tooltip content={<Top10Tooltip />} cursor={{ fill: 'rgba(255,255,255,0.04)' }} />
+                  <Bar dataKey="amount" radius={[4, 4, 0, 0]} maxBarSize={64}>
+                    {top10Deals.map((d, i) => {
+                      const c = segmentColor(d.segment, new Map(segIdx))
+                      return <Cell key={i} fill={c} fillOpacity={0.75} stroke={c} strokeWidth={1.5} />
                     })}
-                    <LabelList dataKey="deals" position="right" formatter={labelFmtRounds}
-                      style={LABEL_STYLE_COUNTRY} />
+                    <LabelList dataKey="amount" position="top" formatter={labelFmtUSD}
+                      style={{ fontSize: 11, fontWeight: 700, fill: 'hsl(var(--muted-foreground))' }} />
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
-            ) : emptyChart('No country data available')}
-          </div>
+            </div>
+          )}
 
-          {/* Capital by Country */}
-          <div className="bg-card border rounded-xl p-4">
-            <h3 className="text-sm font-medium mb-4">Capital by Country (USD)</h3>
-            {capitalByCountry.length > 0 ? (
-              <ResponsiveContainer width="100%" height={240}>
-                <BarChart data={capitalByCountry} layout="vertical" margin={{ top: 0, right: 60, bottom: 0, left: 60 }}>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-border" horizontal={false} />
-                  <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={fmtUSDAxis} />
-                  <YAxis dataKey="country" type="category" tick={{ fontSize: 11 }} width={60} />
-                  <Tooltip contentStyle={{ fontSize: 12 }} formatter={fmtCapital} />
-                  <Bar dataKey="capital" radius={[0, 3, 3, 0]}>
-                    {capitalByCountry.map((_, i) => {
-                      const c = PIE_COLORS[i % PIE_COLORS.length]
-                      return <Cell key={i} fill={c} fillOpacity={0.6} stroke={c} strokeWidth={1.5} />
-                    })}
-                    <LabelList dataKey="capital" position="right" formatter={labelFmtUSD}
-                      style={LABEL_STYLE_COUNTRY} />
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            ) : emptyChart('No capital by country data')}
-          </div>
+          {/* ── 2-col grid ── */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
 
+            {/* Rounds by Month */}
+            <div className="bg-card border rounded-xl p-4">
+              <h3 className="text-sm font-medium mb-4">Rounds by Month</h3>
+              {roundsByMonth.length > 0 ? (
+                <ResponsiveContainer width="100%" height={240}>
+                  <BarChart data={roundsByMonth} margin={{ top: 20, right: 8, bottom: 0, left: -20 }}>
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                    <XAxis dataKey="month" tick={{ fontSize: 11 }} />
+                    <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
+                    <Tooltip contentStyle={{ fontSize: 12 }} formatter={fmtRounds} />
+                    <Bar dataKey="rounds" {...barProps(COLOR_ROUNDS)} radius={[3, 3, 0, 0]}>
+                      <LabelList dataKey="rounds" position="top" formatter={labelFmtRounds}
+                        style={LABEL_STYLE_ROUNDS} />
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : emptyChart('No dated deals in period')}
+            </div>
+
+            {/* Capital by Month */}
+            <div className="bg-card border rounded-xl p-4">
+              <h3 className="text-sm font-medium mb-4">Capital by Month (USD)</h3>
+              {capitalByMonth.length > 0 ? (
+                <ResponsiveContainer width="100%" height={240}>
+                  <BarChart data={capitalByMonth} margin={{ top: 20, right: 8, bottom: 0, left: 8 }}>
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                    <XAxis dataKey="month" tick={{ fontSize: 11 }} />
+                    <YAxis tick={{ fontSize: 11 }} tickFormatter={fmtUSDAxis} width={56} />
+                    <Tooltip contentStyle={{ fontSize: 12 }} formatter={fmtCapital} />
+                    <Bar dataKey="capital" {...barProps(COLOR_CAPITAL)} radius={[3, 3, 0, 0]}>
+                      <LabelList dataKey="capital" position="top" formatter={labelFmtUSD}
+                        style={LABEL_STYLE_CAPITAL} />
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : emptyChart('No capital data in period')}
+            </div>
+
+            {/* Rounds by Vertical */}
+            <div className="bg-card border rounded-xl p-4">
+              <h3 className="text-sm font-medium mb-4">Rounds by Vertical</h3>
+              {roundsByVertical.length > 0 ? (
+                <ResponsiveContainer width="100%" height={240}>
+                  <BarChart data={roundsByVertical} layout="vertical" margin={{ top: 0, right: 40, bottom: 0, left: 60 }}>
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-border" horizontal={false} />
+                    <XAxis type="number" tick={{ fontSize: 11 }} allowDecimals={false} />
+                    <YAxis dataKey="segment" type="category" tick={{ fontSize: 11 }} width={60} />
+                    <Tooltip contentStyle={{ fontSize: 12 }} formatter={fmtRounds} />
+                    <Bar dataKey="rounds" {...barProps(COLOR_ROUNDS)} radius={[0, 3, 3, 0]}>
+                      <LabelList dataKey="rounds" position="right" formatter={labelFmtRounds}
+                        style={LABEL_STYLE_ROUNDS} />
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : emptyChart('No vertical data available')}
+            </div>
+
+            {/* Capital by Vertical */}
+            <div className="bg-card border rounded-xl p-4">
+              <h3 className="text-sm font-medium mb-4">Capital by Vertical (USD)</h3>
+              {capitalBySegment.length > 0 ? (
+                <ResponsiveContainer width="100%" height={240}>
+                  <BarChart data={capitalBySegment} layout="vertical" margin={{ top: 0, right: 60, bottom: 0, left: 60 }}>
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-border" horizontal={false} />
+                    <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={fmtUSDAxis} />
+                    <YAxis dataKey="segment" type="category" tick={{ fontSize: 11 }} width={60} />
+                    <Tooltip contentStyle={{ fontSize: 12 }} formatter={fmtCapital} />
+                    <Bar dataKey="amount" {...barProps(COLOR_CAPITAL)} radius={[0, 3, 3, 0]}>
+                      <LabelList dataKey="amount" position="right" formatter={labelFmtUSD}
+                        style={LABEL_STYLE_CAPITAL} />
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : emptyChart('No capital data available')}
+            </div>
+
+            {/* Deals by Country */}
+            <div className="bg-card border rounded-xl p-4">
+              <h3 className="text-sm font-medium mb-4">Deals by Country</h3>
+              {dealsByCountry.length > 0 ? (
+                <ResponsiveContainer width="100%" height={240}>
+                  <BarChart data={dealsByCountry} layout="vertical" margin={{ top: 0, right: 40, bottom: 0, left: 60 }}>
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-border" horizontal={false} />
+                    <XAxis type="number" tick={{ fontSize: 11 }} allowDecimals={false} />
+                    <YAxis dataKey="country" type="category" tick={{ fontSize: 11 }} width={60} />
+                    <Tooltip contentStyle={{ fontSize: 12 }} formatter={fmtDeals} />
+                    <Bar dataKey="deals" radius={[0, 3, 3, 0]}>
+                      {dealsByCountry.map((_, i) => {
+                        const c = PIE_COLORS[i % PIE_COLORS.length]
+                        return <Cell key={i} fill={c} fillOpacity={0.6} stroke={c} strokeWidth={1.5} />
+                      })}
+                      <LabelList dataKey="deals" position="right" formatter={labelFmtRounds}
+                        style={LABEL_STYLE_COUNTRY} />
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : emptyChart('No country data available')}
+            </div>
+
+            {/* Capital by Country */}
+            <div className="bg-card border rounded-xl p-4">
+              <h3 className="text-sm font-medium mb-4">Capital by Country (USD)</h3>
+              {capitalByCountry.length > 0 ? (
+                <ResponsiveContainer width="100%" height={240}>
+                  <BarChart data={capitalByCountry} layout="vertical" margin={{ top: 0, right: 60, bottom: 0, left: 60 }}>
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-border" horizontal={false} />
+                    <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={fmtUSDAxis} />
+                    <YAxis dataKey="country" type="category" tick={{ fontSize: 11 }} width={60} />
+                    <Tooltip contentStyle={{ fontSize: 12 }} formatter={fmtCapital} />
+                    <Bar dataKey="capital" radius={[0, 3, 3, 0]}>
+                      {capitalByCountry.map((_, i) => {
+                        const c = PIE_COLORS[i % PIE_COLORS.length]
+                        return <Cell key={i} fill={c} fillOpacity={0.6} stroke={c} strokeWidth={1.5} />
+                      })}
+                      <LabelList dataKey="capital" position="right" formatter={labelFmtUSD}
+                        style={LABEL_STYLE_COUNTRY} />
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : emptyChart('No capital by country data')}
+            </div>
+
+          </div>
         </div>
       )}
 
