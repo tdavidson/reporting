@@ -125,7 +125,7 @@ function MiniBar({ value, q1, median, q3 }: { value: number; q1: number; median:
   )
 }
 
-// Custom tooltip — avoids all Recharts Formatter type issues
+// Custom tooltip — no Recharts Formatter type issues
 function ChartTooltip({ active, payload, label }: {
   active?: boolean
   payload?: { name: string; value: number; color: string }[]
@@ -150,11 +150,12 @@ function mergeChartData(
   fundSeries: { date: string; value: number }[],
   fundLabel: string,
   indices: PublicIndices,
-  activeIndices: Set<string>
+  activeIndices: Set<string>,
+  startDate: string,
 ): Record<string, any>[] {
   const dateMap = new Map<string, Record<string, any>>()
   for (const pt of fundSeries) {
-    dateMap.set(pt.date, { date: pt.date, [fundLabel]: pt.value })
+    if (pt.date >= startDate) dateMap.set(pt.date, { date: pt.date, [fundLabel]: pt.value })
   }
   const indexMap: Record<string, { date: string; value: number }[]> = {
     CDI: indices.cdi.series,
@@ -164,9 +165,13 @@ function mergeChartData(
   }
   for (const [label, series] of Object.entries(indexMap)) {
     if (!activeIndices.has(label)) continue
-    for (const pt of series) {
+    // Find base value at or just before startDate to rebase to 100
+    const relevantSeries = series.filter(d => d.date >= startDate)
+    if (relevantSeries.length === 0) continue
+    const baseValue = relevantSeries[0].value
+    for (const pt of relevantSeries) {
       const existing = dateMap.get(pt.date) ?? { date: pt.date }
-      existing[label] = pt.value
+      existing[label] = parseFloat(((pt.value / baseValue) * 100).toFixed(2))
       dateMap.set(pt.date, existing)
     }
   }
@@ -179,13 +184,16 @@ export function BenchmarkingClient() {
   const [allMetrics, setAllMetrics] = useState<FundGroupMetric[]>([])
   const [groupConfigs, setGroupConfigs] = useState<GroupConfig[]>([])
   const [indices, setIndices] = useState<PublicIndices | null>(null)
+  const [navSeries, setNavSeries] = useState<{ date: string; value: number }[]>([])
   const [loadingFund, setLoadingFund] = useState(true)
   const [loadingIndices, setLoadingIndices] = useState(true)
+  const [loadingNav, setLoadingNav] = useState(false)
   const [selectedGroup, setSelectedGroup] = useState<string>('')
   const [activeIndices, setActiveIndices] = useState<Set<string>>(new Set(['CDI', 'Ibovespa']))
   const [manualBench, setManualBench] = useState<Record<string, { tvpi?: string; netIrr?: string; notes?: string }>>({})
   const [showSources, setShowSources] = useState(false)
 
+  // Load fund group summaries
   useEffect(() => {
     async function load() {
       setLoadingFund(true)
@@ -223,6 +231,7 @@ export function BenchmarkingClient() {
     return groupConfigs.find(c => c.portfolio_group === selectedGroup)?.vintage ?? null
   }, [selectedGroup, groupConfigs])
 
+  // Load public indices
   useEffect(() => {
     async function load() {
       setLoadingIndices(true)
@@ -237,32 +246,37 @@ export function BenchmarkingClient() {
     load()
   }, [vintageForSelected])
 
+  // Load real NAV series from cashflows
+  useEffect(() => {
+    if (!selectedGroup && selectedGroup !== '') return
+    async function load() {
+      setLoadingNav(true)
+      try {
+        const res = await fetch(`/api/benchmarks/nav-series?group=${encodeURIComponent(selectedGroup)}`)
+        if (res.ok) {
+          const json = await res.json()
+          setNavSeries(json.series ?? [])
+        }
+      } finally {
+        setLoadingNav(false)
+      }
+    }
+    load()
+  }, [selectedGroup])
+
   const selectedMetric = useMemo(() => allMetrics.find(m => m.group === selectedGroup) ?? null, [allMetrics, selectedGroup])
   const bench = useMemo(() => vintageForSelected ? getBenchmarkForVintage(vintageForSelected) : null, [vintageForSelected])
 
-  const fundNavSeries = useMemo(() => {
-    if (!selectedMetric || !indices) return []
+  const chartStartDate = useMemo(() => {
+    if (navSeries.length > 0) return navSeries[0].date
     const vintage = vintageForSelected ?? 2020
-    const startDate = `${vintage}-01-01`
-    const referenceDates = indices.cdi.series.map(d => d.date)
-    if (referenceDates.length === 0) return []
-    const tvpi = selectedMetric.tvpi ?? 1
-    const filtered = referenceDates.filter(d => d >= startDate)
-    const totalPoints = filtered.length
-    if (totalPoints === 0) return []
-    return filtered.map((date, i) => {
-      const progress = i / (totalPoints - 1 || 1)
-      const jcurve = progress < 0.2
-        ? 100 - (progress / 0.2) * 8
-        : 92 + ((progress - 0.2) / 0.8) * (tvpi * 100 - 92)
-      return { date, value: parseFloat(jcurve.toFixed(2)) }
-    })
-  }, [selectedMetric, indices, vintageForSelected])
+    return `${vintage}-01-01`
+  }, [navSeries, vintageForSelected])
 
   const chartData = useMemo(() => {
-    if (!indices || fundNavSeries.length === 0) return []
-    return mergeChartData(fundNavSeries, selectedGroup || 'Fund', indices, activeIndices)
-  }, [fundNavSeries, indices, activeIndices, selectedGroup])
+    if (!indices || navSeries.length === 0) return []
+    return mergeChartData(navSeries, selectedGroup || 'Fund', indices, activeIndices, chartStartDate)
+  }, [navSeries, indices, activeIndices, selectedGroup, chartStartDate])
 
   function toggleIndex(label: string) {
     setActiveIndices(prev => {
@@ -324,7 +338,7 @@ export function BenchmarkingClient() {
           </section>
 
           {/* ── Performance Line Chart ── */}
-          {selectedMetric && indices && (
+          {selectedMetric && (
             <section>
               <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
                 <h2 className="text-base font-semibold">NAV Index vs. Benchmarks</h2>
@@ -347,13 +361,13 @@ export function BenchmarkingClient() {
               </div>
               <Card>
                 <CardContent className="pt-4 pb-2">
-                  {loadingIndices ? (
+                  {(loadingIndices || loadingNav) ? (
                     <div className="h-64 flex items-center justify-center text-muted-foreground text-sm gap-2">
-                      <Loader2 className="h-4 w-4 animate-spin" /> Loading indices...
+                      <Loader2 className="h-4 w-4 animate-spin" /> Loading chart data...
                     </div>
                   ) : chartData.length < 2 ? (
                     <div className="h-64 flex items-center justify-center text-muted-foreground text-sm">
-                      Not enough data to plot. Set the vintage year for this group.
+                      Not enough data to plot.
                     </div>
                   ) : (
                     <ResponsiveContainer width="100%" height={280}>
@@ -398,7 +412,7 @@ export function BenchmarkingClient() {
                   )}
                   <p className="text-[10px] text-muted-foreground mt-1 flex items-center gap-1">
                     <Info className="h-3 w-3 flex-shrink-0" />
-                    Fund NAV index is approximated using a J-curve model from current TVPI. Historical NAV snapshots required for precise tracking.
+                    NAV index = (unrealized + proceeds) / invested × 100. Benchmarks rebased to 100 at first investment date.
                   </p>
                 </CardContent>
               </Card>
