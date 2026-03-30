@@ -1,12 +1,12 @@
 'use client'
 
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useMemo, useRef, useCallback } from 'react'
 import { Loader2, TrendingUp, Info, ExternalLink, ChevronDown } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { getBenchmarkForVintage, getQuartilePosition } from '@/lib/benchmarks/cambridge-associates'
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
-  ResponsiveContainer, Customized,
+  ResponsiveContainer,
 } from 'recharts'
 
 // ---------------------------------------------------------------------------
@@ -67,17 +67,17 @@ const INDEX_COLORS: Record<string, string> = {
   'S&P 500': '#8b5cf6',
 }
 
-const FUND_COLOR        = '#0F2332'
-const NAVY              = '#0F2332'
-const GREEN_VALUE       = '#16a34a'
-const LABEL_H           = 18
-const MIN_LABEL_GAP     = 20   // px minimum vertical gap between labels
+const FUND_COLOR    = '#0F2332'
+const NAVY          = '#0F2332'
+const GREEN_VALUE   = '#16a34a'
+const LABEL_H       = 18
+const MIN_GAP       = 20
 
-const MARGIN_LEFT  = 56
-const MARGIN_RIGHT = 100
-const MARGIN_TOP   = 12
-const MARGIN_BOT   = 30
-const CHART_H      = 300
+const MARGIN_LEFT   = 56
+const MARGIN_RIGHT  = 100
+const MARGIN_TOP    = 12
+const MARGIN_BOT    = 30
+const CHART_H       = 300
 
 const PERIOD_OPTIONS = [
   { label: 'All time', value: 'all' },
@@ -100,7 +100,6 @@ const SOURCES = [
 
 function fmtMoic(v: number | null) { return v == null ? '—' : `${v.toFixed(2)}x` }
 function fmtIrr(v: number | null)  { return v == null ? '—' : `${(v * 100).toFixed(1)}%` }
-// display label: empty string -> 'Prlx Fund I'
 function groupDisplayName(g: string) { return g === '' ? 'Prlx Fund I' : g }
 
 function periodCutoff(period: string): string | null {
@@ -120,65 +119,55 @@ function rebaseNav(series: NavPoint[]): NavPoint[] {
 function snapDown(v: number, step = 10) { return Math.floor(v / step) * step }
 function snapUp(v: number, step = 10)   { return Math.ceil(v  / step) * step }
 
-// ---------------------------------------------------------------------------
-// Anti-overlap end labels rendered via <Customized>
-// Collects last data point per series, resolves vertical overlaps, draws all
-// ---------------------------------------------------------------------------
-function EndLabels(props: any) {
-  const { xAxisMap, yAxisMap, data, series } = props
-  if (!xAxisMap || !yAxisMap || !data || !series) return null
+/**
+ * Given a list of {value, color} for the last data point of each series,
+ * compute anti-overlap vertical offsets using the Y scale.
+ * Returns a map: seriesKey -> labelY (adjusted)
+ */
+function resolveOffsets(
+  items: { key: string; value: number }[],
+  yScale: (v: number) => number,
+): Record<string, number> {
+  if (items.length === 0) return {}
+  const sorted = [...items]
+    .map(it => ({ key: it.key, rawY: yScale(it.value), adjY: yScale(it.value) }))
+    .sort((a, b) => a.rawY - b.rawY)
 
-  const xAxis = Object.values(xAxisMap as Record<string, any>)[0]
-  const yAxis = Object.values(yAxisMap as Record<string, any>)[0]
-  if (!xAxis || !yAxis) return null
-
-  const { scale: xScale, width: xWidth, x: xOffset } = xAxis
-  const { scale: yScale } = yAxis
-  if (!xScale || !yScale) return null
-
-  const lastRow = data[data.length - 1]
-  if (!lastRow) return null
-
-  // Build raw label positions
-  const items: { key: string; color: string; value: number; cy: number }[] = []
-  for (const s of series as { key: string; color: string }[]) {
-    const v = lastRow[s.key]
-    if (v == null) continue
-    items.push({ key: s.key, color: s.color, value: Number(v), cy: yScale(Number(v)) })
-  }
-  if (items.length === 0) return null
-
-  // Sort by cy (top to bottom)
-  items.sort((a, b) => a.cy - b.cy)
-
-  // Resolve overlaps: push items apart with MIN_LABEL_GAP
-  for (let i = 1; i < items.length; i++) {
-    const prev = items[i - 1]
-    const cur  = items[i]
-    if (cur.cy - prev.cy < MIN_LABEL_GAP) {
-      cur.cy = prev.cy + MIN_LABEL_GAP
+  for (let i = 1; i < sorted.length; i++) {
+    if (sorted[i].adjY - sorted[i - 1].adjY < MIN_GAP) {
+      sorted[i].adjY = sorted[i - 1].adjY + MIN_GAP
     }
   }
+  return Object.fromEntries(sorted.map(s => [s.key, s.adjY]))
+}
 
-  const cx = (xOffset ?? 0) + (xWidth ?? 0)
-
-  return (
-    <g>
-      {items.map(({ key, color, value, cy }) => {
-        const labelText = value.toFixed(1)
-        const boxW = labelText.length * 6.5 + 14
-        return (
-          <g key={key}>
-            <circle cx={cx - 2} cy={yScale(value)} r={4} fill={color} stroke="white" strokeWidth={2} />
-            <rect x={cx + 6} y={cy - LABEL_H / 2} width={boxW} height={LABEL_H} rx={4} fill={color} opacity={0.92} />
-            <text x={cx + 6 + boxW / 2} y={cy} textAnchor="middle" dominantBaseline="middle" fontSize={10} fontWeight={600} fill="white">
-              {labelText}
-            </text>
-          </g>
-        )
-      })}
-    </g>
-  )
+// ---------------------------------------------------------------------------
+// Per-line dot factory — only renders the last point as dot+label
+// labelY is the pre-computed anti-overlap Y position
+// ---------------------------------------------------------------------------
+function makeLastDot(
+  color: string,
+  totalPoints: number,
+  labelY: number | undefined,
+) {
+  return function LastDot(props: any) {
+    const { cx, cy, index, value } = props
+    if (index !== totalPoints - 1 || value == null || cx == null || cy == null) return null
+    const text  = Number(value).toFixed(1)
+    const boxW  = text.length * 6.5 + 14
+    const ly    = labelY ?? cy
+    return (
+      <g>
+        <circle cx={cx} cy={cy} r={4} fill={color} stroke="white" strokeWidth={2} />
+        <rect x={cx + 8} y={ly - LABEL_H / 2} width={boxW} height={LABEL_H} rx={4} fill={color} opacity={0.93} />
+        <text
+          x={cx + 8 + boxW / 2} y={ly}
+          textAnchor="middle" dominantBaseline="middle"
+          fontSize={10} fontWeight={600} fill="white"
+        >{text}</text>
+      </g>
+    )
+  }
 }
 
 function QuartileBadge({ position }: { position: keyof typeof QUARTILE_COLORS }) {
@@ -280,6 +269,19 @@ export function BenchmarkingClient() {
   const [period, setPeriod]                 = useState('all')
   const [manualBench, setManualBench]       = useState<Record<string, { tvpi?: string; netIrr?: string; notes?: string }>>({})
   const [showSources, setShowSources]       = useState(false)
+  // chart container size for yScale computation
+  const [chartWidth, setChartWidth]  = useState(600)
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!containerRef.current) return
+    const ro = new ResizeObserver(entries => {
+      const w = entries[0]?.contentRect.width
+      if (w) setChartWidth(w)
+    })
+    ro.observe(containerRef.current)
+    return () => ro.disconnect()
+  }, [])
 
   useEffect(() => {
     async function load() {
@@ -315,7 +317,7 @@ export function BenchmarkingClient() {
   , [selectedGroup, groupConfigs])
 
   useEffect(() => {
-    if (!selectedGroup && selectedGroup !== '') return
+    // selectedGroup can legitimately be '' (Prlx Fund I) — always fetch
     async function load() {
       setLoadingNav(true)
       setNavSeries([])
@@ -345,13 +347,15 @@ export function BenchmarkingClient() {
 
   const selectedMetric = useMemo(() => allMetrics.find(m => m.group === selectedGroup) ?? null, [allMetrics, selectedGroup])
   const bench          = useMemo(() => vintageForSelected ? getBenchmarkForVintage(vintageForSelected) : null, [vintageForSelected])
-  // use display name for chart label and card label
-  const fundLabel = groupDisplayName(selectedGroup)
+  // fundLabel is display-only key used in chartData
+  const fundLabel = useMemo(() => groupDisplayName(selectedGroup), [selectedGroup])
 
   const chartData = useMemo(() => {
     if (!indices || navSeries.length === 0) return []
     return mergeChartData(navSeries, fundLabel, indices, activeIndices, period)
   }, [navSeries, indices, activeIndices, fundLabel, period])
+
+  const totalPoints = chartData.length
 
   const fundPeriodReturn = useMemo(() => {
     if (chartData.length < 2) return null
@@ -362,12 +366,6 @@ export function BenchmarkingClient() {
   }, [chartData, fundLabel])
 
   const allSeriesKeys = useMemo(() => [fundLabel, ...Array.from(activeIndices)], [fundLabel, activeIndices])
-
-  // series config for EndLabels
-  const seriesConfig = useMemo(() => [
-    { key: fundLabel, color: FUND_COLOR },
-    ...Array.from(activeIndices).map(k => ({ key: k, color: INDEX_COLORS[k] ?? '#888' })),
-  ], [fundLabel, activeIndices])
 
   const yDomain = useMemo(() => {
     if (chartData.length === 0) return { min: 80, max: 200 }
@@ -385,14 +383,29 @@ export function BenchmarkingClient() {
     return { min: snapDown(min - 5, 10), max: snapUp(max + 5, 10) }
   }, [chartData, allSeriesKeys])
 
+  // Pre-compute anti-overlap label Y positions using a linear scale approximation
+  const labelOffsets = useMemo(() => {
+    if (chartData.length === 0 || totalPoints === 0) return {} as Record<string, number>
+    const lastRow = chartData[totalPoints - 1]
+    const plotH = CHART_H - MARGIN_TOP - MARGIN_BOT
+    const { min, max } = yDomain
+    const range = max - min || 1
+    // linear scale: value -> pixel y (top = MARGIN_TOP)
+    const yScale = (v: number) => MARGIN_TOP + ((max - v) / range) * plotH
+
+    const items = allSeriesKeys
+      .map(key => ({ key, value: lastRow[key] as number | null }))
+      .filter((it): it is { key: string; value: number } => it.value != null)
+
+    return resolveOffsets(items, yScale)
+  }, [chartData, totalPoints, yDomain, allSeriesKeys])
+
   function toggleIndex(label: string) {
     setActiveIndices(prev => { const n = new Set(prev); n.has(label) ? n.delete(label) : n.add(label); return n })
   }
 
   const periodLabel = PERIOD_OPTIONS.find(o => o.value === period)?.label ?? 'All time'
 
-  // Cards: fund first, then all 4 indices
-  // All pct values are rebased to same base (last chart value - 100 = % gain from start)
   const cardEntries = useMemo(() => {
     const entries: { key: string; label: string; pct: number | null; isFund: boolean }[] = []
     entries.push({ key: fundLabel, label: fundLabel, pct: fundPeriodReturn, isFund: true })
@@ -405,7 +418,6 @@ export function BenchmarkingClient() {
     return entries
   }, [fundLabel, fundPeriodReturn, indices])
 
-  // maxPct: highest value across ALL cards (fund + indices, same base = % return)
   const maxPct = useMemo(() => {
     const vals = cardEntries.map(e => e.pct).filter((v): v is number => v != null)
     return vals.length > 0 ? Math.max(...vals) : null
@@ -430,8 +442,11 @@ export function BenchmarkingClient() {
             <div className="flex items-center gap-3 flex-wrap">
               <span className="text-sm font-medium text-muted-foreground">Fund:</span>
               <div className="relative">
-                <select value={selectedGroup} onChange={e => setSelectedGroup(e.target.value)}
-                  className="appearance-none pl-3 pr-8 py-2 text-sm font-semibold border rounded-lg bg-background hover:bg-accent transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-ring">
+                <select
+                  value={selectedGroup}
+                  onChange={e => setSelectedGroup(e.target.value)}
+                  className="appearance-none pl-3 pr-8 py-2 text-sm font-semibold border rounded-lg bg-background hover:bg-accent transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-ring"
+                >
                   {allMetrics.map(m => (
                     <option key={m.group} value={m.group}>{groupDisplayName(m.group)}</option>
                   ))}
@@ -454,7 +469,6 @@ export function BenchmarkingClient() {
                   ))
                 : cardEntries.map(({ key, label, pct, isFund }) => {
                     const isTop = pct != null && maxPct != null && pct === maxPct
-                    // top card always green; others navy
                     const valueColor = isTop ? GREEN_VALUE : NAVY
                     return (
                       <Card key={key}>
@@ -462,18 +476,10 @@ export function BenchmarkingClient() {
                           <div className="flex items-center justify-between mb-1">
                             <span className="text-xs text-muted-foreground truncate">{label}</span>
                             {isTop && (
-                              <span
-                                className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full ml-1 flex-shrink-0 bg-muted"
-                                style={{ color: NAVY }}
-                              >
-                                #1
-                              </span>
+                              <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full ml-1 flex-shrink-0 bg-muted" style={{ color: NAVY }}>#1</span>
                             )}
                           </div>
-                          <div
-                            className="text-2xl font-bold tabular-nums"
-                            style={{ color: pct == null ? undefined : valueColor }}
-                          >
+                          <div className="text-2xl font-bold tabular-nums" style={{ color: pct == null ? undefined : valueColor }}>
                             {pct == null ? <span className="text-muted-foreground">—</span> : `${pct >= 0 ? '+' : ''}${pct}%`}
                           </div>
                           <div className="text-[10px] text-muted-foreground mt-0.5">
@@ -526,33 +532,45 @@ export function BenchmarkingClient() {
                       Not enough data to plot.
                     </div>
                   ) : (
-                    <ResponsiveContainer width="100%" height={CHART_H}>
-                      <LineChart data={chartData} margin={{ top: MARGIN_TOP, right: MARGIN_RIGHT, bottom: MARGIN_BOT, left: 0 }}>
-                        <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                        <XAxis dataKey="date" tick={{ fontSize: 10 }} tickFormatter={(d: string) => d?.slice(0, 7) ?? ''} interval="preserveStartEnd" />
-                        <YAxis
-                          yAxisId="nav" width={MARGIN_LEFT} tick={{ fontSize: 10 }}
-                          tickFormatter={(v: number) => String(Math.round(v))}
-                          label={{ value: 'Index (base 100)', angle: -90, position: 'insideLeft', style: { fontSize: 9 }, dy: 55 }}
-                          domain={[yDomain.min, yDomain.max]}
-                          tickCount={Math.round((yDomain.max - yDomain.min) / 10) + 1}
-                        />
-                        <Tooltip content={<ChartTooltip />} />
-                        <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11, paddingTop: 4 }} />
-                        {/* Lines — no per-line dots; labels handled by Customized */}
-                        <Line yAxisId="nav" type="monotone" dataKey={fundLabel} stroke={FUND_COLOR} strokeWidth={2.5}
-                          dot={false} activeDot={{ r: 4 }} connectNulls isAnimationActive={false} />
-                        {Array.from(activeIndices).map(lbl => (
-                          <Line key={lbl} yAxisId="nav" type="monotone" dataKey={lbl}
-                            stroke={INDEX_COLORS[lbl]} strokeWidth={1.5}
-                            dot={false} strokeDasharray="4 2" activeDot={{ r: 4 }} connectNulls isAnimationActive={false} />
-                        ))}
-                        {/* Anti-overlap end labels */}
-                        <Customized component={(p: any) => (
-                          <EndLabels {...p} data={chartData} series={seriesConfig} />
-                        )} />
-                      </LineChart>
-                    </ResponsiveContainer>
+                    <div ref={containerRef}>
+                      <ResponsiveContainer width="100%" height={CHART_H}>
+                        <LineChart data={chartData} margin={{ top: MARGIN_TOP, right: MARGIN_RIGHT, bottom: MARGIN_BOT, left: 0 }}>
+                          <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                          <XAxis dataKey="date" tick={{ fontSize: 10 }} tickFormatter={(d: string) => d?.slice(0, 7) ?? ''} interval="preserveStartEnd" />
+                          <YAxis
+                            yAxisId="nav" width={MARGIN_LEFT} tick={{ fontSize: 10 }}
+                            tickFormatter={(v: number) => String(Math.round(v))}
+                            label={{ value: 'Index (base 100)', angle: -90, position: 'insideLeft', style: { fontSize: 9 }, dy: 55 }}
+                            domain={[yDomain.min, yDomain.max]}
+                            tickCount={Math.round((yDomain.max - yDomain.min) / 10) + 1}
+                          />
+                          <Tooltip content={<ChartTooltip />} />
+                          <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11, paddingTop: 4 }} />
+                          {/* Fund line */}
+                          <Line
+                            yAxisId="nav" type="monotone" dataKey={fundLabel}
+                            stroke={FUND_COLOR} strokeWidth={2.5}
+                            dot={(p: any) => {
+                              const D = makeLastDot(FUND_COLOR, totalPoints, labelOffsets[fundLabel])
+                              return <D {...p} />
+                            }}
+                            activeDot={{ r: 4 }} connectNulls isAnimationActive={false}
+                          />
+                          {/* Index lines */}
+                          {Array.from(activeIndices).map(lbl => (
+                            <Line
+                              key={lbl} yAxisId="nav" type="monotone" dataKey={lbl}
+                              stroke={INDEX_COLORS[lbl]} strokeWidth={1.5} strokeDasharray="4 2"
+                              dot={(p: any) => {
+                                const D = makeLastDot(INDEX_COLORS[lbl], totalPoints, labelOffsets[lbl])
+                                return <D {...p} />
+                              }}
+                              activeDot={{ r: 4 }} connectNulls isAnimationActive={false}
+                            />
+                          ))}
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </div>
                   )}
                   <p className="text-[10px] text-muted-foreground mt-1 flex items-center gap-1">
                     <Info className="h-3 w-3 flex-shrink-0" />
