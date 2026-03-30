@@ -151,7 +151,7 @@ export async function GET(req: NextRequest) {
         if (txn.cost_basis_exited != null) s.costBasisExited += Math.abs(txn.cost_basis_exited)
         if (txn.exit_valuation != null)    s.latestValuation  = txn.exit_valuation
         if (txn.ownership_pct != null)     s.latestOwnership  = txn.ownership_pct
-        s.explicitNav = txn.unrealized_value_change ?? 0
+        if (txn.unrealized_value_change != null) s.explicitNav = txn.unrealized_value_change
         if (txn.round_name && txn.cost_basis_exited != null) {
           const r = s.roundMap.get(txn.round_name)
           if (r) r.costBasisExited += Math.abs(txn.cost_basis_exited)
