@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useMemo, useCallback, useRef } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { Loader2, TrendingUp, Info, ExternalLink, ChevronDown } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { getBenchmarkForVintage, getQuartilePosition } from '@/lib/benchmarks/cambridge-associates'
@@ -67,7 +67,9 @@ const INDEX_COLORS: Record<string, string> = {
   'S&P 500': '#8b5cf6',
 }
 
-const FUND_COLOR = '#0F2332'
+const FUND_COLOR   = '#0F2332'
+const NAVY         = '#0F2332'
+const FUND_VALUE_COLOR = '#16a34a'  // green-600
 
 const MARGIN_LEFT  = 56
 const MARGIN_RIGHT = 96
@@ -115,7 +117,7 @@ function snapDown(v: number, step = 10) { return Math.floor(v / step) * step }
 function snapUp(v: number, step = 10)   { return Math.ceil(v  / step) * step }
 
 // ---------------------------------------------------------------------------
-// Last-point dot + label rendered natively by Recharts (cx/cy guaranteed)
+// Last-point dot + label — rendered natively by Recharts (cx/cy guaranteed)
 // ---------------------------------------------------------------------------
 function makeEndDot(color: string, totalPoints: number) {
   // eslint-disable-next-line react/display-name
@@ -342,13 +344,14 @@ export function BenchmarkingClient() {
 
   const periodLabel = PERIOD_OPTIONS.find(o => o.value === period)?.label ?? 'All time'
 
+  // Cards: fund first, then all 4 indices always shown
   const cardEntries = useMemo(() => {
-    const entries: { key: string; label: string; pct: number | null; color: string; isFund: boolean }[] = []
-    entries.push({ key: fundLabel, label: fundLabel, pct: fundPeriodReturn, color: FUND_COLOR, isFund: true })
+    const entries: { key: string; label: string; pct: number | null; isFund: boolean }[] = []
+    entries.push({ key: fundLabel, label: fundLabel, pct: fundPeriodReturn, isFund: true })
     if (indices) {
       for (const idx of Object.values(indices)) {
         const pct = idx.latest != null ? parseFloat((idx.latest - 100).toFixed(1)) : null
-        entries.push({ key: idx.label, label: idx.label, pct, color: INDEX_COLORS[idx.label] ?? '#888', isFund: false })
+        entries.push({ key: idx.label, label: idx.label, pct, isFund: false })
       }
     }
     return entries
@@ -398,34 +401,29 @@ export function BenchmarkingClient() {
                 ? Array.from({ length: 5 }).map((_, i) => (
                     <Card key={i}><CardContent className="pt-4 pb-4 h-20 animate-pulse bg-muted rounded-lg" /></Card>
                   ))
-                : cardEntries.map(({ key, label, pct, color, isFund }) => {
-                    const isTop    = pct != null && pct === maxPct && maxPct != null
-                    const positive = pct != null && pct >= 0
+                : cardEntries.map(({ key, label, pct, isFund }) => {
+                    const isTop = pct != null && pct === maxPct && maxPct != null
+                    // Fund value: always green. Index values: navy.
+                    const valueColor = isFund ? FUND_VALUE_COLOR : NAVY
                     return (
-                      <Card
-                        key={key}
-                        style={isTop ? {
-                          outline: `2px solid ${color}`,
-                          outlineOffset: '0px',
-                          boxShadow: `0 4px 18px ${color}28`,
-                        } : {}}
-                      >
+                      <Card key={key}>
                         <CardContent className="pt-4 pb-4">
                           <div className="flex items-center justify-between mb-1">
                             <span className="text-xs text-muted-foreground truncate">{label}</span>
                             {isTop && (
                               <span
-                                className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full ml-1 flex-shrink-0"
-                                style={{ backgroundColor: `${color}18`, color }}
+                                className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full ml-1 flex-shrink-0 bg-muted"
+                                style={{ color: NAVY }}
                               >
                                 #1
                               </span>
                             )}
                           </div>
-                          <div className={`text-2xl font-bold tabular-nums ${
-                            pct == null ? 'text-muted-foreground' : positive ? 'text-green-600' : 'text-red-500'
-                          }`}>
-                            {pct == null ? '—' : `${positive ? '+' : ''}${pct}%`}
+                          <div
+                            className="text-2xl font-bold tabular-nums"
+                            style={{ color: pct == null ? undefined : valueColor }}
+                          >
+                            {pct == null ? <span className="text-muted-foreground">—</span> : `${pct >= 0 ? '+' : ''}${pct}%`}
                           </div>
                           <div className="text-[10px] text-muted-foreground mt-0.5">
                             {isFund ? periodLabel : 'Since first investment'}
@@ -482,9 +480,7 @@ export function BenchmarkingClient() {
                         <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                         <XAxis dataKey="date" tick={{ fontSize: 10 }} tickFormatter={(d: string) => d?.slice(0, 7) ?? ''} interval="preserveStartEnd" />
                         <YAxis
-                          yAxisId="nav"
-                          width={MARGIN_LEFT}
-                          tick={{ fontSize: 10 }}
+                          yAxisId="nav" width={MARGIN_LEFT} tick={{ fontSize: 10 }}
                           tickFormatter={(v: number) => String(Math.round(v))}
                           label={{ value: 'Index (base 100)', angle: -90, position: 'insideLeft', style: { fontSize: 9 }, dy: 55 }}
                           domain={[yDomain.min, yDomain.max]}
