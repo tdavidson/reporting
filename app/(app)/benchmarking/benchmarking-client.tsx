@@ -200,14 +200,13 @@ function mergeChartData(
   const cutoff = periodCutoff(period)
   const filtered = cutoff ? navSeries.filter(p => p.date >= cutoff) : navSeries
   if (filtered.length === 0) return []
-  const periodBase = filtered[0].nav
-  const startYM    = filtered[0].date.slice(0, 7)
-  const monthMap = new Map<string, Record<string, any>>()
-  for (const pt of filtered) {
-    const ym  = pt.date.slice(0, 7)
-    const nav = parseFloat(((pt.nav / periodBase) * 100).toFixed(2))
-    monthMap.set(ym, { date: pt.date, ym, [fundLabel]: nav })
-  }
+const startYM    = filtered[0].date.slice(0, 7)
+const monthMap = new Map<string, Record<string, any>>()
+for (const pt of filtered) {
+  const ym  = pt.date.slice(0, 7)
+  const nav = pt.nav   // já é TVPI × 100, sem rebase
+  monthMap.set(ym, { date: pt.date, ym, [fundLabel]: nav })
+}
   const indexMap: Record<string, { date: string; value: number }[]> = {
     CDI: indices.cdi.series, IPCA: indices.ipca.series,
     Ibovespa: indices.ibov.series, 'S&P 500': indices.sp500.series,
