@@ -110,10 +110,8 @@ function periodCutoff(period: string): string | null {
 }
 
 function rebaseNav(series: NavPoint[]): NavPoint[] {
-  if (series.length === 0) return []
-  const base = series[0].nav
-  if (!base || base === 0) return series
-  return series.map(pt => ({ ...pt, nav: parseFloat(((pt.nav / base) * 100).toFixed(2)) }))
+  // Nav bruto já é TVPI × 100 acumulado até cada data — sem rebase.
+  return series
 }
 
 function snapDown(v: number, step = 10) { return Math.floor(v / step) * step }
