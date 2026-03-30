@@ -81,11 +81,14 @@ export async function GET(req: NextRequest) {
 
   if (!allTxns || allTxns.length === 0) return NextResponse.json({ series: [] })
 
-  const txns = allTxns.filter(txn => {
-    const company = companyMap.get(txn.company_id)
-    const txnGroup = txn.portfolio_group ?? company?.portfolio_group?.[0] ?? ''
-    return txnGroup === group
-  })
+  // group='' means consolidated view across ALL vehicles — no group filter applied
+  const txns = group === ''
+    ? allTxns
+    : allTxns.filter(txn => {
+        const company = companyMap.get(txn.company_id)
+        const txnGroup = txn.portfolio_group ?? company?.portfolio_group?.[0] ?? ''
+        return txnGroup === group
+      })
 
   if (txns.length === 0) return NextResponse.json({ series: [] })
 
@@ -174,10 +177,9 @@ export async function GET(req: NextRequest) {
     }
 
     // Aggregate across companies
-    let called      = 0   // total capital invested to date
-    let distributed = 0   // total proceeds received to date
-    let unrealized  = 0   // current fair value of remaining portfolio
-    const cashFlows: CashFlow[] = []
+    let called      = 0
+    let distributed = 0
+    let unrealized  = 0
 
     for (const [cid, s] of stateMap.entries()) {
       const company     = companyMap.get(cid)
@@ -200,8 +202,6 @@ export async function GET(req: NextRequest) {
 
     if (called <= 0) continue
 
-    // NAV Index = (Unrealized + Distributed) / Called × 100
-    // Starts at ~100 in month 1 (unrealized ≈ cost at entry), rises with appreciation
     const nav = parseFloat(((unrealized + distributed) / called * 100).toFixed(2))
 
     // XIRR
