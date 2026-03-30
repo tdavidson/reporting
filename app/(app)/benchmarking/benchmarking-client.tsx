@@ -457,7 +457,7 @@ const cardEntries = useMemo(() => {
                 ? Array.from({ length: 5 }).map((_, i) => (
                     <Card key={i}><CardContent className="pt-4 pb-4 h-20 animate-pulse bg-muted rounded-lg" /></Card>
                   ))
-                : cardEntries.map(({ key, label, pct, tvpi, isFund }) => {
+                : cardEntries.map(({ key, label, pct, isFund }) => {
                     const isTop = pct != null && maxPct != null && pct === maxPct
                     const valueColor = isTop ? GREEN_VALUE : NAVY
                     return (
