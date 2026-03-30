@@ -396,17 +396,17 @@ export function BenchmarkingClient() {
 
   const periodLabel = PERIOD_OPTIONS.find(o => o.value === period)?.label ?? 'All time'
 
-  const cardEntries = useMemo(() => {
-    const entries: { key: string; label: string; pct: number | null; isFund: boolean }[] = []
-    entries.push({ key: fundLabel, label: fundLabel, pct: fundPeriodReturn, isFund: true })
-    if (indices) {
-      for (const idx of Object.values(indices)) {
-        const pct = idx.latest != null ? parseFloat((idx.latest - 100).toFixed(1)) : null
-        entries.push({ key: idx.label, label: idx.label, pct, isFund: false })
-      }
+const cardEntries = useMemo(() => {
+  const entries: { key: string; label: string; pct: number | null; isFund: boolean }[] = []
+  entries.push({ key: fundLabel, label: fundLabel, pct: selectedMetric?.tvpi ?? null, isFund: true })
+  if (indices) {
+    for (const idx of Object.values(indices)) {
+      const pct = idx.latest != null ? parseFloat((idx.latest / 100).toFixed(2)) : null
+      entries.push({ key: idx.label, label: idx.label, pct, isFund: false })
     }
-    return entries
-  }, [fundLabel, fundPeriodReturn, indices])
+  }
+  return entries
+}, [fundLabel, selectedMetric, indices])
 
   const maxPct = useMemo(() => {
     const vals = cardEntries.map(e => e.pct).filter((v): v is number => v != null)
@@ -457,7 +457,7 @@ export function BenchmarkingClient() {
                 ? Array.from({ length: 5 }).map((_, i) => (
                     <Card key={i}><CardContent className="pt-4 pb-4 h-20 animate-pulse bg-muted rounded-lg" /></Card>
                   ))
-                : cardEntries.map(({ key, label, pct, isFund }) => {
+                : cardEntries.map(({ key, label, pct, tvpi, isFund }) => {
                     const isTop = pct != null && maxPct != null && pct === maxPct
                     const valueColor = isTop ? GREEN_VALUE : NAVY
                     return (
@@ -470,7 +470,7 @@ export function BenchmarkingClient() {
                             )}
                           </div>
                           <div className="text-2xl font-bold tabular-nums" style={{ color: pct == null ? undefined : valueColor }}>
-                            {pct == null ? <span className="text-muted-foreground">—</span> : `${pct >= 0 ? '+' : ''}${pct}%`}
+                            {pct == null ? <span className="text-muted-foreground">—</span> : `${pct.toFixed(2)}x`}
                           </div>
                           <div className="text-[10px] text-muted-foreground mt-0.5">
                             {isFund ? periodLabel : 'Since first investment'}
