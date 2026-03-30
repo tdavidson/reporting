@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState, useMemo, useCallback } from 'react'
+import { useEffect, useState, useMemo, useCallback, useRef } from 'react'
 import { Loader2, TrendingUp, Info, ExternalLink, ChevronDown } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { getBenchmarkForVintage, getQuartilePosition } from '@/lib/benchmarks/cambridge-associates'
@@ -70,7 +70,7 @@ const INDEX_COLORS: Record<string, string> = {
 const FUND_COLOR = '#0F2332'
 
 const MARGIN_LEFT  = 56
-const MARGIN_RIGHT = 90
+const MARGIN_RIGHT = 96
 const MARGIN_TOP   = 12
 const MARGIN_BOT   = 30
 const CHART_H      = 300
@@ -104,7 +104,6 @@ function periodCutoff(period: string): string | null {
   return now.toISOString().split('T')[0]
 }
 
-/** Rebase a NavPoint[] so the first point = 100 */
 function rebaseNav(series: NavPoint[]): NavPoint[] {
   if (series.length === 0) return []
   const base = series[0].nav
@@ -112,10 +111,48 @@ function rebaseNav(series: NavPoint[]): NavPoint[] {
   return series.map(pt => ({ ...pt, nav: parseFloat(((pt.nav / base) * 100).toFixed(2)) }))
 }
 
-/** Snap a value down to nearest multiple of step */
 function snapDown(v: number, step = 10) { return Math.floor(v / step) * step }
-/** Snap a value up to nearest multiple of step */
 function snapUp(v: number, step = 10)   { return Math.ceil(v  / step) * step }
+
+// ---------------------------------------------------------------------------
+// Last-point dot + label rendered by Recharts itself
+// Recharts passes cx/cy already in correct SVG coordinates
+// ---------------------------------------------------------------------------
+function makeEndDot(color: string, totalPoints: number) {
+  // eslint-disable-next-line react/display-name
+  return function EndDot(props: any) {
+    const { cx, cy, index, value } = props
+    if (index !== totalPoints - 1 || value == null) return null
+    const label = Number(value).toFixed(1)
+    const boxW  = label.length * 6.5 + 14
+    const LABEL_H = 18
+    return (
+      <g>
+        <circle cx={cx} cy={cy} r={4} fill={color} stroke="white" strokeWidth={2} />
+        <rect
+          x={cx + 8}
+          y={cy - LABEL_H / 2}
+          width={boxW}
+          height={LABEL_H}
+          rx={4}
+          fill={color}
+          opacity={0.92}
+        />
+        <text
+          x={cx + 8 + boxW / 2}
+          y={cy}
+          textAnchor="middle"
+          dominantBaseline="middle"
+          fontSize={10}
+          fontWeight={600}
+          fill="white"
+        >
+          {label}
+        </text>
+      </g>
+    )
+  }
+}
 
 function QuartileBadge({ position }: { position: keyof typeof QUARTILE_COLORS }) {
   const c = QUARTILE_COLORS[position]
@@ -151,90 +188,6 @@ function ChartTooltip({ active, payload, label }: { active?: boolean; payload?: 
         </div>
       ))}
     </div>
-  )
-}
-
-// ---------------------------------------------------------------------------
-// EndLabelsOverlay
-// The SVG sits inside the chart container div (position: relative).
-// It is offset by MARGIN_TOP / MARGIN_LEFT to match the Recharts plot area.
-// The last data-point X position is the right edge of the plot area
-// (Recharts places the last point at plotW when there are N points and
-//  the axis is a category/linear axis from index 0 to N-1).
-// We draw the dot at that X and the label box just to the right.
-// ---------------------------------------------------------------------------
-function EndLabelsOverlay({
-  chartData, seriesKeys, seriesColors, chartW, yMin, yMax,
-}: {
-  chartData: Record<string, any>[]
-  seriesKeys: string[]
-  seriesColors: Record<string, string>
-  chartW: number
-  yMin: number
-  yMax: number
-}) {
-  const last = chartData.at(-1)
-  if (!last || chartW <= 0) return null
-
-  const LABEL_H = 18
-  const GAP     = 4
-  const plotW   = chartW - MARGIN_LEFT - MARGIN_RIGHT
-  const plotH   = CHART_H - MARGIN_TOP - MARGIN_BOT
-  const yRange  = yMax - yMin || 1
-
-  // X of last data point = right edge of the plot area
-  const xDot = plotW   // relative to SVG origin (which starts at MARGIN_LEFT)
-  // Labels start 8px to the right of the dot
-  const xBox = xDot + 8
-
-  const labels = seriesKeys
-    .map(key => {
-      const val = last[key]
-      if (val == null || isNaN(Number(val))) return null
-      const frac = 1 - (Number(val) - yMin) / yRange
-      const y = Math.max(LABEL_H / 2, Math.min(plotH - LABEL_H / 2, frac * plotH))
-      return { key, value: Number(val), color: seriesColors[key] ?? '#888', y }
-    })
-    .filter((x): x is NonNullable<typeof x> => x !== null)
-    .sort((a, b) => b.value - a.value)
-
-  // Resolve overlaps (20 passes)
-  for (let p = 0; p < 20; p++) {
-    let moved = false
-    for (let i = 1; i < labels.length; i++) {
-      const prev = labels[i - 1], cur = labels[i]
-      const need = LABEL_H + GAP
-      if (cur.y - prev.y < need) {
-        const mid = (prev.y + cur.y) / 2
-        prev.y = mid - need / 2
-        cur.y  = mid + need / 2
-        moved = true
-      }
-    }
-    if (!moved) break
-  }
-
-  return (
-    <svg style={{
-      position: 'absolute', top: MARGIN_TOP, left: MARGIN_LEFT,
-      width: chartW - MARGIN_LEFT,  // wide enough to include the label boxes
-      height: plotH,
-      pointerEvents: 'none', overflow: 'visible',
-    }}>
-      {labels.map(({ key, value, color, y }) => {
-        const text = value.toFixed(1)
-        const boxW = text.length * 6.5 + 14
-        return (
-          <g key={key}>
-            {/* dot exactly on the last data point */}
-            <circle cx={xDot} cy={y} r={4} fill={color} stroke="white" strokeWidth={2} />
-            {/* label box to the right, inside MARGIN_RIGHT space */}
-            <rect x={xBox} y={y - LABEL_H / 2} width={boxW} height={LABEL_H} rx={4} fill={color} opacity={0.92} />
-            <text x={xBox + boxW / 2} y={y} textAnchor="middle" dominantBaseline="middle" fontSize={10} fontWeight={600} fill="white">{text}</text>
-          </g>
-        )
-      })}
-    </svg>
   )
 }
 
@@ -300,25 +253,6 @@ export function BenchmarkingClient() {
   const [period, setPeriod]                 = useState('all')
   const [manualBench, setManualBench]       = useState<Record<string, { tvpi?: string; netIrr?: string; notes?: string }>>({})
   const [showSources, setShowSources]       = useState(false)
-  const [chartW, setChartW]                 = useState(0)
-
-  const chartContainerRef = useRef<HTMLDivElement | null>(null)
-  const roRef             = useRef<ResizeObserver | null>(null)
-
-  const attachRef = useCallback((node: HTMLDivElement | null) => {
-    if (roRef.current) { roRef.current.disconnect(); roRef.current = null }
-    chartContainerRef.current = node
-    if (!node) return
-    setChartW(node.offsetWidth)
-    const ro = new ResizeObserver(entries => {
-      const w = entries[0]?.contentRect.width ?? 0
-      setChartW(Math.round(w))
-    })
-    ro.observe(node)
-    roRef.current = ro
-  }, [])
-
-  useEffect(() => () => { roRef.current?.disconnect() }, [])
 
   useEffect(() => {
     async function load() {
@@ -391,6 +325,8 @@ export function BenchmarkingClient() {
     return mergeChartData(navSeries, fundLabel, indices, activeIndices, period)
   }, [navSeries, indices, activeIndices, fundLabel, period])
 
+  const totalPoints = chartData.length
+
   const fundPeriodReturn = useMemo(() => {
     if (chartData.length < 2) return null
     const first = chartData[0][fundLabel]
@@ -399,10 +335,15 @@ export function BenchmarkingClient() {
     return parseFloat(((last / first - 1) * 100).toFixed(1))
   }, [chartData, fundLabel])
 
-  const allSeriesKeys   = useMemo(() => [fundLabel, ...Array.from(activeIndices)], [fundLabel, activeIndices])
-  const allSeriesColors = useMemo(() => ({ [fundLabel]: FUND_COLOR, ...INDEX_COLORS }), [fundLabel])
+  const allSeriesKeys = useMemo(() => [fundLabel, ...Array.from(activeIndices)], [fundLabel, activeIndices])
 
-  // Y domain snapped to multiples of 10
+  // Compute last value per series for card highlight
+  const lastValues = useMemo(() => {
+    if (chartData.length === 0) return {} as Record<string, number | null>
+    const last = chartData[chartData.length - 1]
+    return Object.fromEntries(allSeriesKeys.map(k => [k, last[k] ?? null]))
+  }, [chartData, allSeriesKeys])
+
   const yDomain = useMemo(() => {
     if (chartData.length === 0) return { min: 80, max: 200 }
     let min = Infinity, max = -Infinity
@@ -416,11 +357,7 @@ export function BenchmarkingClient() {
       }
     }
     if (!isFinite(min) || !isFinite(max)) return { min: 80, max: 200 }
-    // Add a single step of padding then snap to nearest multiple of 10
-    return {
-      min: snapDown(min - 5, 10),
-      max: snapUp(max   + 5, 10),
-    }
+    return { min: snapDown(min - 5, 10), max: snapUp(max + 5, 10) }
   }, [chartData, allSeriesKeys])
 
   function toggleIndex(label: string) {
@@ -428,6 +365,35 @@ export function BenchmarkingClient() {
   }
 
   const periodLabel = PERIOD_OPTIONS.find(o => o.value === period)?.label ?? 'All time'
+
+  // Cards data: fund first, then active indices
+  const cardEntries = useMemo(() => {
+    const entries: { key: string; label: string; pct: number | null; color: string; isFund: boolean }[] = []
+
+    // Fund card
+    entries.push({
+      key: fundLabel,
+      label: fundLabel,
+      pct: fundPeriodReturn,
+      color: FUND_COLOR,
+      isFund: true,
+    })
+
+    // Index cards (only active)
+    if (indices) {
+      for (const idx of Object.values(indices)) {
+        const pct = idx.latest != null ? parseFloat((idx.latest - 100).toFixed(1)) : null
+        entries.push({ key: idx.label, label: idx.label, pct, color: INDEX_COLORS[idx.label] ?? '#888', isFund: false })
+      }
+    }
+    return entries
+  }, [fundLabel, fundPeriodReturn, indices])
+
+  // Find max pct across all cards for highlight
+  const maxPct = useMemo(() => {
+    const vals = cardEntries.map(e => e.pct).filter((v): v is number => v != null)
+    return vals.length > 0 ? Math.max(...vals) : null
+  }, [cardEntries])
 
   return (
     <div className="w-full max-w-5xl mx-auto px-4 py-8">
@@ -464,36 +430,45 @@ export function BenchmarkingClient() {
           <section>
             <h2 className="text-base font-semibold mb-3">Public Market Returns</h2>
             <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-              <Card className="border-2" style={{ borderColor: FUND_COLOR + '40' }}>
-                <CardContent className="pt-4 pb-4">
-                  <div className="text-xs text-muted-foreground mb-1 truncate">{fundLabel}</div>
-                  {loadingNav || loadingIndices ? (
-                    <div className="h-8 w-16 bg-muted animate-pulse rounded" />
-                  ) : (
-                    <div className={`text-2xl font-bold tabular-nums ${
-                      fundPeriodReturn == null ? 'text-muted-foreground'
-                      : fundPeriodReturn >= 0 ? 'text-green-600' : 'text-red-500'
-                    }`}>
-                      {fundPeriodReturn == null ? '—' : `${fundPeriodReturn >= 0 ? '+' : ''}${fundPeriodReturn}%`}
-                    </div>
-                  )}
-                  <div className="text-[10px] text-muted-foreground mt-0.5">{periodLabel}</div>
-                </CardContent>
-              </Card>
-
-              {loadingIndices
-                ? Array.from({ length: 4 }).map((_, i) => <Card key={i}><CardContent className="pt-4 pb-4 h-20 animate-pulse bg-muted rounded-lg" /></Card>)
-                : indices && Object.values(indices).map(idx => {
-                    const pct = idx.latest != null ? idx.latest - 100 : null
-                    const pos = pct != null && pct >= 0
+              {(loadingNav || loadingIndices)
+                ? Array.from({ length: 5 }).map((_, i) => (
+                    <Card key={i}><CardContent className="pt-4 pb-4 h-20 animate-pulse bg-muted rounded-lg" /></Card>
+                  ))
+                : cardEntries.map(({ key, label, pct, color, isFund }) => {
+                    const isTop = pct != null && pct === maxPct && maxPct != null
+                    const positive = pct != null && pct >= 0
                     return (
-                      <Card key={idx.label}>
+                      <Card
+                        key={key}
+                        className={`transition-all ${
+                          isTop
+                            ? 'ring-2 shadow-md'
+                            : 'shadow-none'
+                        }`}
+                        style={isTop ? { ringColor: color, boxShadow: `0 4px 16px ${color}28`, borderColor: `${color}50` } : {}}
+                      >
                         <CardContent className="pt-4 pb-4">
-                          <div className="text-xs text-muted-foreground mb-1">{idx.label}</div>
-                          <div className={`text-2xl font-bold tabular-nums ${pos ? 'text-green-600' : 'text-red-500'}`}>
-                            {pct != null ? `${pos ? '+' : ''}${pct.toFixed(1)}%` : '—'}
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-xs text-muted-foreground truncate">{label}</span>
+                            {isTop && (
+                              <span
+                                className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full ml-1 flex-shrink-0"
+                                style={{ backgroundColor: `${color}18`, color }}
+                              >
+                                #1
+                              </span>
+                            )}
                           </div>
-                          <div className="text-[10px] text-muted-foreground mt-0.5">Since first investment</div>
+                          <div className={`text-2xl font-bold tabular-nums ${
+                            pct == null
+                              ? 'text-muted-foreground'
+                              : positive ? 'text-green-600' : 'text-red-500'
+                          }`}>
+                            {pct == null ? '—' : `${positive ? '+' : ''}${pct}%`}
+                          </div>
+                          <div className="text-[10px] text-muted-foreground mt-0.5">
+                            {isFund ? periodLabel : 'Since first investment'}
+                          </div>
                         </CardContent>
                       </Card>
                     )
@@ -541,37 +516,61 @@ export function BenchmarkingClient() {
                       Not enough data to plot.
                     </div>
                   ) : (
-                    <div ref={attachRef} className="relative">
-                      <ResponsiveContainer width="100%" height={CHART_H}>
-                        <LineChart data={chartData} margin={{ top: MARGIN_TOP, right: MARGIN_RIGHT, bottom: MARGIN_BOT, left: 0 }}>
-                          <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                          <XAxis dataKey="date" tick={{ fontSize: 10 }} tickFormatter={(d: string) => d?.slice(0, 7) ?? ''} interval="preserveStartEnd" />
-                          <YAxis
-                            yAxisId="nav"
-                            width={MARGIN_LEFT}
-                            tick={{ fontSize: 10 }}
-                            tickFormatter={(v: number) => String(Math.round(v))}
-                            label={{ value: 'Index (base 100)', angle: -90, position: 'insideLeft', style: { fontSize: 9 }, dy: 55 }}
-                            domain={[yDomain.min, yDomain.max]}
-                            tickCount={Math.round((yDomain.max - yDomain.min) / 10) + 1}
-                          />
-                          <Tooltip content={<ChartTooltip />} />
-                          <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11, paddingTop: 4 }} />
-                          <Line yAxisId="nav" type="monotone" dataKey={fundLabel} stroke={FUND_COLOR} strokeWidth={2.5} dot={false} activeDot={{ r: 4 }} connectNulls />
-                          {Array.from(activeIndices).map(label => (
-                            <Line key={label} yAxisId="nav" type="monotone" dataKey={label}
-                              stroke={INDEX_COLORS[label]} strokeWidth={1.5} dot={false}
-                              strokeDasharray="4 2" activeDot={{ r: 4 }} connectNulls />
-                          ))}
-                        </LineChart>
-                      </ResponsiveContainer>
-                      {chartW > 0 && (
-                        <EndLabelsOverlay
-                          chartData={chartData} seriesKeys={allSeriesKeys} seriesColors={allSeriesColors}
-                          chartW={chartW} yMin={yDomain.min} yMax={yDomain.max}
+                    <ResponsiveContainer width="100%" height={CHART_H}>
+                      <LineChart
+                        data={chartData}
+                        margin={{ top: MARGIN_TOP, right: MARGIN_RIGHT, bottom: MARGIN_BOT, left: 0 }}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                        <XAxis
+                          dataKey="date"
+                          tick={{ fontSize: 10 }}
+                          tickFormatter={(d: string) => d?.slice(0, 7) ?? ''}
+                          interval="preserveStartEnd"
                         />
-                      )}
-                    </div>
+                        <YAxis
+                          yAxisId="nav"
+                          width={MARGIN_LEFT}
+                          tick={{ fontSize: 10 }}
+                          tickFormatter={(v: number) => String(Math.round(v))}
+                          label={{ value: 'Index (base 100)', angle: -90, position: 'insideLeft', style: { fontSize: 9 }, dy: 55 }}
+                          domain={[yDomain.min, yDomain.max]}
+                          tickCount={Math.round((yDomain.max - yDomain.min) / 10) + 1}
+                        />
+                        <Tooltip content={<ChartTooltip />} />
+                        <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11, paddingTop: 4 }} />
+
+                        {/* Fund line */}
+                        <Line
+                          yAxisId="nav"
+                          type="monotone"
+                          dataKey={fundLabel}
+                          stroke={FUND_COLOR}
+                          strokeWidth={2.5}
+                          dot={totalPoints > 0 ? makeEndDot(FUND_COLOR, totalPoints) : false}
+                          activeDot={{ r: 4 }}
+                          connectNulls
+                          isAnimationActive={false}
+                        />
+
+                        {/* Index lines */}
+                        {Array.from(activeIndices).map(label => (
+                          <Line
+                            key={label}
+                            yAxisId="nav"
+                            type="monotone"
+                            dataKey={label}
+                            stroke={INDEX_COLORS[label]}
+                            strokeWidth={1.5}
+                            dot={totalPoints > 0 ? makeEndDot(INDEX_COLORS[label], totalPoints) : false}
+                            strokeDasharray="4 2"
+                            activeDot={{ r: 4 }}
+                            connectNulls
+                            isAnimationActive={false}
+                          />
+                        ))}
+                      </LineChart>
+                    </ResponsiveContainer>
                   )}
                   <p className="text-[10px] text-muted-foreground mt-1 flex items-center gap-1">
                     <Info className="h-3 w-3 flex-shrink-0" />
