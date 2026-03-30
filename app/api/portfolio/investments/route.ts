@@ -235,10 +235,7 @@ export async function GET(req: NextRequest) {
           explicitNav = txn.unrealized_value_change
         } else if (txn.transaction_type === 'proceeds') {
           explicitNav = txn.unrealized_value_change ?? explicitNav
-        } else {
-          explicitNav = null
         }
-      }
 
       let unrealizedValue = 0
       if (company.status === 'written-off') {
