@@ -124,7 +124,43 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // Second pass: group ALL relevant transaction types by portfolio_group
+    // Resolve portfolio_group for transactions with NULL group:
+    // inherit from the most recent transaction (by date) that has a defined group.
+    // Sort by date desc, walk forward tracking last seen group, then assign.
+    const sortedForGroupResolution = [...txns].sort((a, b) =>
+      (b.transaction_date ?? '').localeCompare(a.transaction_date ?? '')
+    )
+    // Build a map: for each txn index (original), resolved group
+    // We need to resolve in chronological order: a NULL txn inherits the
+    // group of the closest LATER txn that has a group defined.
+    // Strategy: scan desc, carry last seen group forward (backwards in time = forward in desc)
+    let lastSeenGroup: string | null = null
+    const resolvedGroup = new Map<InvestmentTransaction, string>()
+    for (const txn of sortedForGroupResolution) {
+      if (txn.portfolio_group != null) {
+        lastSeenGroup = txn.portfolio_group
+      }
+      resolvedGroup.set(txn, txn.portfolio_group ?? lastSeenGroup ?? companyDefaultGroup)
+    }
+    // For any txn still without a resolved group (all NULLs before any defined group),
+    // do a second pass ascending to inherit from the earliest defined group
+    const sortedAsc = [...txns].sort((a, b) =>
+      (a.transaction_date ?? '').localeCompare(b.transaction_date ?? '')
+    )
+    let firstSeenGroup: string | null = null
+    for (const txn of sortedAsc) {
+      if (txn.portfolio_group != null) {
+        firstSeenGroup = txn.portfolio_group
+        break
+      }
+    }
+    for (const txn of txns) {
+      if (resolvedGroup.get(txn) === companyDefaultGroup && txn.portfolio_group == null && firstSeenGroup != null) {
+        resolvedGroup.set(txn, firstSeenGroup)
+      }
+    }
+
+    // Second pass: group ALL relevant transaction types by resolved portfolio_group
     const groupTxns = new Map<string, InvestmentTransaction[]>()
     for (const txn of txns) {
       if (
@@ -133,8 +169,7 @@ export async function GET(req: NextRequest) {
         txn.transaction_type === 'unrealized_gain_change' ||
         txn.transaction_type === 'round_info'
       ) {
-        // Use txn.portfolio_group if set; fall back to company default (may be '')
-        const group = txn.portfolio_group ?? companyDefaultGroup
+        const group = resolvedGroup.get(txn) ?? companyDefaultGroup
         const list = groupTxns.get(group) ?? []
         list.push(txn)
         groupTxns.set(group, list)
@@ -286,7 +321,6 @@ export async function GET(req: NextRequest) {
         companyId,
         companyName: company.name,
         status: company.status,
-        // FIX: do NOT filter(Boolean) — empty string '' is a valid group (Prlx Fund I)
         portfolioGroup: [group],
         totalInvested,
         totalRealized,
@@ -319,7 +353,6 @@ export async function GET(req: NextRequest) {
   const groupAgg = new Map<string, { totalInvested: number; proceedsReceived: number; proceedsEscrow: number; totalRealized: number; unrealizedValue: number; totalCostBasisExited: number }>()
 
   for (const cs of companySummaries) {
-    // portfolioGroup[0] is always defined now (never filtered)
     const groupName = cs.portfolioGroup[0] ?? ''
     const existing = groupAgg.get(groupName) ?? { totalInvested: 0, proceedsReceived: 0, proceedsEscrow: 0, totalRealized: 0, unrealizedValue: 0, totalCostBasisExited: 0 }
     existing.totalInvested += cs.totalInvested
