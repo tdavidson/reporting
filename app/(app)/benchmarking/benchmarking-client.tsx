@@ -112,6 +112,11 @@ function rebaseNav(series: NavPoint[]): NavPoint[] {
   return series.map(pt => ({ ...pt, nav: parseFloat(((pt.nav / base) * 100).toFixed(2)) }))
 }
 
+/** Snap a value down to nearest multiple of step */
+function snapDown(v: number, step = 10) { return Math.floor(v / step) * step }
+/** Snap a value up to nearest multiple of step */
+function snapUp(v: number, step = 10)   { return Math.ceil(v  / step) * step }
+
 function QuartileBadge({ position }: { position: keyof typeof QUARTILE_COLORS }) {
   const c = QUARTILE_COLORS[position]
   return <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${c.bg} ${c.text}`}>{c.label}</span>
@@ -151,6 +156,12 @@ function ChartTooltip({ active, payload, label }: { active?: boolean; payload?: 
 
 // ---------------------------------------------------------------------------
 // EndLabelsOverlay
+// The SVG sits inside the chart container div (position: relative).
+// It is offset by MARGIN_TOP / MARGIN_LEFT to match the Recharts plot area.
+// The last data-point X position is the right edge of the plot area
+// (Recharts places the last point at plotW when there are N points and
+//  the axis is a category/linear axis from index 0 to N-1).
+// We draw the dot at that X and the label box just to the right.
 // ---------------------------------------------------------------------------
 function EndLabelsOverlay({
   chartData, seriesKeys, seriesColors, chartW, yMin, yMax,
@@ -167,8 +178,14 @@ function EndLabelsOverlay({
 
   const LABEL_H = 18
   const GAP     = 4
+  const plotW   = chartW - MARGIN_LEFT - MARGIN_RIGHT
   const plotH   = CHART_H - MARGIN_TOP - MARGIN_BOT
   const yRange  = yMax - yMin || 1
+
+  // X of last data point = right edge of the plot area
+  const xDot = plotW   // relative to SVG origin (which starts at MARGIN_LEFT)
+  // Labels start 8px to the right of the dot
+  const xBox = xDot + 8
 
   const labels = seriesKeys
     .map(key => {
@@ -181,6 +198,7 @@ function EndLabelsOverlay({
     .filter((x): x is NonNullable<typeof x> => x !== null)
     .sort((a, b) => b.value - a.value)
 
+  // Resolve overlaps (20 passes)
   for (let p = 0; p < 20; p++) {
     let moved = false
     for (let i = 1; i < labels.length; i++) {
@@ -196,21 +214,21 @@ function EndLabelsOverlay({
     if (!moved) break
   }
 
-  const xAnchor = chartW - MARGIN_RIGHT + 6
-
   return (
     <svg style={{
       position: 'absolute', top: MARGIN_TOP, left: MARGIN_LEFT,
-      width: chartW - MARGIN_LEFT, height: plotH,
+      width: chartW - MARGIN_LEFT,  // wide enough to include the label boxes
+      height: plotH,
       pointerEvents: 'none', overflow: 'visible',
     }}>
       {labels.map(({ key, value, color, y }) => {
         const text = value.toFixed(1)
         const boxW = text.length * 6.5 + 14
-        const xBox = xAnchor - MARGIN_LEFT
         return (
           <g key={key}>
-            <circle cx={xBox - 6} cy={y} r={4} fill={color} stroke="white" strokeWidth={2} />
+            {/* dot exactly on the last data point */}
+            <circle cx={xDot} cy={y} r={4} fill={color} stroke="white" strokeWidth={2} />
+            {/* label box to the right, inside MARGIN_RIGHT space */}
             <rect x={xBox} y={y - LABEL_H / 2} width={boxW} height={LABEL_H} rx={4} fill={color} opacity={0.92} />
             <text x={xBox + boxW / 2} y={y} textAnchor="middle" dominantBaseline="middle" fontSize={10} fontWeight={600} fill="white">{text}</text>
           </g>
@@ -224,7 +242,7 @@ function EndLabelsOverlay({
 // mergeChartData
 // ---------------------------------------------------------------------------
 function mergeChartData(
-  navSeries: NavPoint[],   // already rebased to 100
+  navSeries: NavPoint[],
   fundLabel: string,
   indices: PublicIndices,
   activeIndices: Set<string>,
@@ -235,7 +253,6 @@ function mergeChartData(
   const filtered = cutoff ? navSeries.filter(p => p.date >= cutoff) : navSeries
   if (filtered.length === 0) return []
 
-  // When a period filter is applied, re-rebase from the period start
   const periodBase = filtered[0].nav
   const startYM    = filtered[0].date.slice(0, 7)
 
@@ -303,7 +320,6 @@ export function BenchmarkingClient() {
 
   useEffect(() => () => { roRef.current?.disconnect() }, [])
 
-  // Load fund groups
   useEffect(() => {
     async function load() {
       setLoadingFund(true)
@@ -337,7 +353,6 @@ export function BenchmarkingClient() {
     groupConfigs.find(c => c.portfolio_group === selectedGroup)?.vintage ?? null
   , [selectedGroup, groupConfigs])
 
-  // Load NAV series
   useEffect(() => {
     if (!selectedGroup && selectedGroup !== '') return
     async function load() {
@@ -347,14 +362,13 @@ export function BenchmarkingClient() {
         const res = await fetch(`/api/benchmarks/nav-series?group=${encodeURIComponent(selectedGroup)}`)
         if (res.ok) {
           const raw: NavPoint[] = (await res.json()).series ?? []
-          setNavSeries(rebaseNav(raw))   // ← rebase to 100 at first point
+          setNavSeries(rebaseNav(raw))
         }
       } finally { setLoadingNav(false) }
     }
     load()
   }, [selectedGroup])
 
-  // Load public indices
   useEffect(() => {
     async function load() {
       setLoadingIndices(true)
@@ -370,15 +384,13 @@ export function BenchmarkingClient() {
 
   const selectedMetric = useMemo(() => allMetrics.find(m => m.group === selectedGroup) ?? null, [allMetrics, selectedGroup])
   const bench          = useMemo(() => vintageForSelected ? getBenchmarkForVintage(vintageForSelected) : null, [vintageForSelected])
-
-  const fundLabel = selectedGroup || 'Fund'
+  const fundLabel      = selectedGroup || 'Fund'
 
   const chartData = useMemo(() => {
     if (!indices || navSeries.length === 0) return []
     return mergeChartData(navSeries, fundLabel, indices, activeIndices, period)
   }, [navSeries, indices, activeIndices, fundLabel, period])
 
-  // Fund return in the selected period (base 100 → % change)
   const fundPeriodReturn = useMemo(() => {
     if (chartData.length < 2) return null
     const first = chartData[0][fundLabel]
@@ -390,6 +402,7 @@ export function BenchmarkingClient() {
   const allSeriesKeys   = useMemo(() => [fundLabel, ...Array.from(activeIndices)], [fundLabel, activeIndices])
   const allSeriesColors = useMemo(() => ({ [fundLabel]: FUND_COLOR, ...INDEX_COLORS }), [fundLabel])
 
+  // Y domain snapped to multiples of 10
   const yDomain = useMemo(() => {
     if (chartData.length === 0) return { min: 80, max: 200 }
     let min = Infinity, max = -Infinity
@@ -403,15 +416,17 @@ export function BenchmarkingClient() {
       }
     }
     if (!isFinite(min) || !isFinite(max)) return { min: 80, max: 200 }
-    const pad = (max - min) * 0.1 || 10
-    return { min: min - pad, max: max + pad }
+    // Add a single step of padding then snap to nearest multiple of 10
+    return {
+      min: snapDown(min - 5, 10),
+      max: snapUp(max   + 5, 10),
+    }
   }, [chartData, allSeriesKeys])
 
   function toggleIndex(label: string) {
     setActiveIndices(prev => { const n = new Set(prev); n.has(label) ? n.delete(label) : n.add(label); return n })
   }
 
-  // Period label for cards subtitle
   const periodLabel = PERIOD_OPTIONS.find(o => o.value === period)?.label ?? 'All time'
 
   return (
@@ -449,8 +464,6 @@ export function BenchmarkingClient() {
           <section>
             <h2 className="text-base font-semibold mb-3">Public Market Returns</h2>
             <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-
-              {/* Fund card */}
               <Card className="border-2" style={{ borderColor: FUND_COLOR + '40' }}>
                 <CardContent className="pt-4 pb-4">
                   <div className="text-xs text-muted-foreground mb-1 truncate">{fundLabel}</div>
@@ -468,7 +481,6 @@ export function BenchmarkingClient() {
                 </CardContent>
               </Card>
 
-              {/* Index cards */}
               {loadingIndices
                 ? Array.from({ length: 4 }).map((_, i) => <Card key={i}><CardContent className="pt-4 pb-4 h-20 animate-pulse bg-muted rounded-lg" /></Card>)
                 : indices && Object.values(indices).map(idx => {
@@ -534,10 +546,15 @@ export function BenchmarkingClient() {
                         <LineChart data={chartData} margin={{ top: MARGIN_TOP, right: MARGIN_RIGHT, bottom: MARGIN_BOT, left: 0 }}>
                           <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                           <XAxis dataKey="date" tick={{ fontSize: 10 }} tickFormatter={(d: string) => d?.slice(0, 7) ?? ''} interval="preserveStartEnd" />
-                          <YAxis yAxisId="nav" width={MARGIN_LEFT} tick={{ fontSize: 10 }}
+                          <YAxis
+                            yAxisId="nav"
+                            width={MARGIN_LEFT}
+                            tick={{ fontSize: 10 }}
                             tickFormatter={(v: number) => String(Math.round(v))}
                             label={{ value: 'Index (base 100)', angle: -90, position: 'insideLeft', style: { fontSize: 9 }, dy: 55 }}
-                            domain={[yDomain.min, yDomain.max]} />
+                            domain={[yDomain.min, yDomain.max]}
+                            tickCount={Math.round((yDomain.max - yDomain.min) / 10) + 1}
+                          />
                           <Tooltip content={<ChartTooltip />} />
                           <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11, paddingTop: 4 }} />
                           <Line yAxisId="nav" type="monotone" dataKey={fundLabel} stroke={FUND_COLOR} strokeWidth={2.5} dot={false} activeDot={{ r: 4 }} connectNulls />
