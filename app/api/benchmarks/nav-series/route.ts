@@ -109,6 +109,20 @@ export async function GET(req: NextRequest) {
   const fundCashFlows = group === ''
     ? (allFundCashFlows ?? [])
     : (allFundCashFlows ?? []).filter(cf => cf.portfolio_group === group)
+
+  // Busca config de carry/cashOnHand para calcular net residual
+const { data: groupConfigData } = await admin
+  .from('fund_group_config' as any)
+  .select('portfolio_group, carry_rate, cash_on_hand, gp_commit_pct')
+  .eq('fund_id', fundId) as {
+    data: { portfolio_group: string; carry_rate: number; cash_on_hand: number; gp_commit_pct: number }[] | null
+  }
+
+// Monta mapa por grupo para acesso rápido dentro do loop
+const groupConfigMap = new Map(
+  (groupConfigData ?? []).map(c => [c.portfolio_group, c])
+)
+const defaultConfig = { carry_rate: 0.20, cash_on_hand: 0, gp_commit_pct: 0 }
  
   // Prefer LP-level data if called_capital entries exist; otherwise fall back to
   // investment_transactions (investment_cost as proxy for called, proceeds as realized).
@@ -253,7 +267,15 @@ export async function GET(req: NextRequest) {
 
     if (called <= 0) continue
 
-    const nav = parseFloat(((unrealized + distributed) / called * 100).toFixed(2))
+    // Aplica a mesma lógica de computeFundMetrics (funds/page.tsx)
+    const cfg         = groupConfigMap.get(group) ?? defaultConfig
+    const cashOnHand  = cfg.cash_on_hand ?? 0
+    const carryRate   = cfg.carry_rate   ?? 0.20
+    const grossAssets = unrealized + cashOnHand
+    const lpBasis     = Math.max(0, called - distributed)
+    const estimatedCarry = Math.max(0, carryRate * (grossAssets - lpBasis))
+    const netResidual    = grossAssets - estimatedCarry
+    const nav = parseFloat(((netResidual + distributed) / called * 100).toFixed(2))
 
     // XIRR
     let irr: number | null = null
