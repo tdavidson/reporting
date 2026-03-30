@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useMemo, useRef, useCallback } from 'react'
+import { useEffect, useState, useMemo, useRef } from 'react'
 import { Loader2, TrendingUp, Info, ExternalLink, ChevronDown } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { getBenchmarkForVintage, getQuartilePosition } from '@/lib/benchmarks/cambridge-associates'
@@ -67,17 +67,17 @@ const INDEX_COLORS: Record<string, string> = {
   'S&P 500': '#8b5cf6',
 }
 
-const FUND_COLOR    = '#0F2332'
-const NAVY          = '#0F2332'
-const GREEN_VALUE   = '#16a34a'
-const LABEL_H       = 18
-const MIN_GAP       = 20
+const FUND_COLOR   = '#0F2332'
+const NAVY         = '#0F2332'
+const GREEN_VALUE  = '#16a34a'
+const LABEL_H      = 18
+const MIN_GAP      = 20
 
-const MARGIN_LEFT   = 56
-const MARGIN_RIGHT  = 100
-const MARGIN_TOP    = 12
-const MARGIN_BOT    = 30
-const CHART_H       = 300
+const MARGIN_LEFT  = 56
+const MARGIN_RIGHT = 100
+const MARGIN_TOP   = 12
+const MARGIN_BOT   = 30
+const CHART_H      = 300
 
 const PERIOD_OPTIONS = [
   { label: 'All time', value: 'all' },
@@ -119,11 +119,6 @@ function rebaseNav(series: NavPoint[]): NavPoint[] {
 function snapDown(v: number, step = 10) { return Math.floor(v / step) * step }
 function snapUp(v: number, step = 10)   { return Math.ceil(v  / step) * step }
 
-/**
- * Given a list of {value, color} for the last data point of each series,
- * compute anti-overlap vertical offsets using the Y scale.
- * Returns a map: seriesKey -> labelY (adjusted)
- */
 function resolveOffsets(
   items: { key: string; value: number }[],
   yScale: (v: number) => number,
@@ -132,39 +127,25 @@ function resolveOffsets(
   const sorted = [...items]
     .map(it => ({ key: it.key, rawY: yScale(it.value), adjY: yScale(it.value) }))
     .sort((a, b) => a.rawY - b.rawY)
-
   for (let i = 1; i < sorted.length; i++) {
-    if (sorted[i].adjY - sorted[i - 1].adjY < MIN_GAP) {
+    if (sorted[i].adjY - sorted[i - 1].adjY < MIN_GAP)
       sorted[i].adjY = sorted[i - 1].adjY + MIN_GAP
-    }
   }
   return Object.fromEntries(sorted.map(s => [s.key, s.adjY]))
 }
 
-// ---------------------------------------------------------------------------
-// Per-line dot factory — only renders the last point as dot+label
-// labelY is the pre-computed anti-overlap Y position
-// ---------------------------------------------------------------------------
-function makeLastDot(
-  color: string,
-  totalPoints: number,
-  labelY: number | undefined,
-) {
+function makeLastDot(color: string, totalPoints: number, labelY: number | undefined) {
   return function LastDot(props: any) {
     const { cx, cy, index, value } = props
     if (index !== totalPoints - 1 || value == null || cx == null || cy == null) return null
-    const text  = Number(value).toFixed(1)
-    const boxW  = text.length * 6.5 + 14
-    const ly    = labelY ?? cy
+    const text = Number(value).toFixed(1)
+    const boxW = text.length * 6.5 + 14
+    const ly   = labelY ?? cy
     return (
       <g>
         <circle cx={cx} cy={cy} r={4} fill={color} stroke="white" strokeWidth={2} />
         <rect x={cx + 8} y={ly - LABEL_H / 2} width={boxW} height={LABEL_H} rx={4} fill={color} opacity={0.93} />
-        <text
-          x={cx + 8 + boxW / 2} y={ly}
-          textAnchor="middle" dominantBaseline="middle"
-          fontSize={10} fontWeight={600} fill="white"
-        >{text}</text>
+        <text x={cx + 8 + boxW / 2} y={ly} textAnchor="middle" dominantBaseline="middle" fontSize={10} fontWeight={600} fill="white">{text}</text>
       </g>
     )
   }
@@ -221,17 +202,14 @@ function mergeChartData(
   const cutoff = periodCutoff(period)
   const filtered = cutoff ? navSeries.filter(p => p.date >= cutoff) : navSeries
   if (filtered.length === 0) return []
-
   const periodBase = filtered[0].nav
   const startYM    = filtered[0].date.slice(0, 7)
-
   const monthMap = new Map<string, Record<string, any>>()
   for (const pt of filtered) {
     const ym  = pt.date.slice(0, 7)
     const nav = parseFloat(((pt.nav / periodBase) * 100).toFixed(2))
     monthMap.set(ym, { date: pt.date, ym, [fundLabel]: nav })
   }
-
   const indexMap: Record<string, { date: string; value: number }[]> = {
     CDI: indices.cdi.series, IPCA: indices.ipca.series,
     Ibovespa: indices.ibov.series, 'S&P 500': indices.sp500.series,
@@ -264,24 +242,13 @@ export function BenchmarkingClient() {
   const [loadingFund, setLoadingFund]       = useState(true)
   const [loadingIndices, setLoadingIndices] = useState(true)
   const [loadingNav, setLoadingNav]         = useState(false)
-  const [selectedGroup, setSelectedGroup]   = useState<string>('')
+  // null = not yet initialized; avoids false "no change" when API returns ''
+  const [selectedGroup, setSelectedGroup]   = useState<string | null>(null)
   const [activeIndices, setActiveIndices]   = useState<Set<string>>(new Set(['CDI', 'Ibovespa']))
   const [period, setPeriod]                 = useState('all')
   const [manualBench, setManualBench]       = useState<Record<string, { tvpi?: string; netIrr?: string; notes?: string }>>({})
   const [showSources, setShowSources]       = useState(false)
-  // chart container size for yScale computation
-  const [chartWidth, setChartWidth]  = useState(600)
   const containerRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    if (!containerRef.current) return
-    const ro = new ResizeObserver(entries => {
-      const w = entries[0]?.contentRect.width
-      if (w) setChartWidth(w)
-    })
-    ro.observe(containerRef.current)
-    return () => ro.disconnect()
-  }, [])
 
   useEffect(() => {
     async function load() {
@@ -305,6 +272,7 @@ export function BenchmarkingClient() {
             unrealizedValue: g.unrealizedValue,
           }))
           setAllMetrics(metrics)
+          // Always set — even if group === '' — triggering the nav useEffect
           if (metrics.length > 0) setSelectedGroup(metrics[0].group)
         }
       } finally { setLoadingFund(false) }
@@ -313,16 +281,17 @@ export function BenchmarkingClient() {
   }, [])
 
   const vintageForSelected = useMemo(() =>
-    groupConfigs.find(c => c.portfolio_group === selectedGroup)?.vintage ?? null
+    groupConfigs.find(c => c.portfolio_group === (selectedGroup ?? ''))?.vintage ?? null
   , [selectedGroup, groupConfigs])
 
+  // Fetch nav whenever selectedGroup changes (null = skip)
   useEffect(() => {
-    // selectedGroup can legitimately be '' (Prlx Fund I) — always fetch
+    if (selectedGroup === null) return
     async function load() {
       setLoadingNav(true)
       setNavSeries([])
       try {
-        const res = await fetch(`/api/benchmarks/nav-series?group=${encodeURIComponent(selectedGroup)}`)
+        const res = await fetch(`/api/benchmarks/nav-series?group=${encodeURIComponent(selectedGroup!)}`)
         if (res.ok) {
           const raw: NavPoint[] = (await res.json()).series ?? []
           setNavSeries(rebaseNav(raw))
@@ -345,10 +314,12 @@ export function BenchmarkingClient() {
     load()
   }, [navSeries, vintageForSelected])
 
-  const selectedMetric = useMemo(() => allMetrics.find(m => m.group === selectedGroup) ?? null, [allMetrics, selectedGroup])
-  const bench          = useMemo(() => vintageForSelected ? getBenchmarkForVintage(vintageForSelected) : null, [vintageForSelected])
-  // fundLabel is display-only key used in chartData
-  const fundLabel = useMemo(() => groupDisplayName(selectedGroup), [selectedGroup])
+  const selectedMetric = useMemo(() =>
+    allMetrics.find(m => m.group === (selectedGroup ?? '')) ?? null
+  , [allMetrics, selectedGroup])
+
+  const bench     = useMemo(() => vintageForSelected ? getBenchmarkForVintage(vintageForSelected) : null, [vintageForSelected])
+  const fundLabel = useMemo(() => groupDisplayName(selectedGroup ?? ''), [selectedGroup])
 
   const chartData = useMemo(() => {
     if (!indices || navSeries.length === 0) return []
@@ -373,30 +344,23 @@ export function BenchmarkingClient() {
     for (const row of chartData) {
       for (const key of allSeriesKeys) {
         const v = row[key]
-        if (v != null && isFinite(Number(v))) {
-          min = Math.min(min, Number(v))
-          max = Math.max(max, Number(v))
-        }
+        if (v != null && isFinite(Number(v))) { min = Math.min(min, Number(v)); max = Math.max(max, Number(v)) }
       }
     }
     if (!isFinite(min) || !isFinite(max)) return { min: 80, max: 200 }
     return { min: snapDown(min - 5, 10), max: snapUp(max + 5, 10) }
   }, [chartData, allSeriesKeys])
 
-  // Pre-compute anti-overlap label Y positions using a linear scale approximation
   const labelOffsets = useMemo(() => {
-    if (chartData.length === 0 || totalPoints === 0) return {} as Record<string, number>
+    if (chartData.length === 0) return {} as Record<string, number>
     const lastRow = chartData[totalPoints - 1]
-    const plotH = CHART_H - MARGIN_TOP - MARGIN_BOT
+    const plotH   = CHART_H - MARGIN_TOP - MARGIN_BOT
     const { min, max } = yDomain
-    const range = max - min || 1
-    // linear scale: value -> pixel y (top = MARGIN_TOP)
-    const yScale = (v: number) => MARGIN_TOP + ((max - v) / range) * plotH
-
-    const items = allSeriesKeys
+    const range   = max - min || 1
+    const yScale  = (v: number) => MARGIN_TOP + ((max - v) / range) * plotH
+    const items   = allSeriesKeys
       .map(key => ({ key, value: lastRow[key] as number | null }))
       .filter((it): it is { key: string; value: number } => it.value != null)
-
     return resolveOffsets(items, yScale)
   }, [chartData, totalPoints, yDomain, allSeriesKeys])
 
@@ -443,7 +407,7 @@ export function BenchmarkingClient() {
               <span className="text-sm font-medium text-muted-foreground">Fund:</span>
               <div className="relative">
                 <select
-                  value={selectedGroup}
+                  value={selectedGroup ?? ''}
                   onChange={e => setSelectedGroup(e.target.value)}
                   className="appearance-none pl-3 pr-8 py-2 text-sm font-semibold border rounded-lg bg-background hover:bg-accent transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-ring"
                 >
@@ -520,7 +484,6 @@ export function BenchmarkingClient() {
                   ))}
                 </div>
               </div>
-
               <Card>
                 <CardContent className="pt-4 pb-2">
                   {(loadingIndices || loadingNav) ? (
@@ -546,25 +509,17 @@ export function BenchmarkingClient() {
                           />
                           <Tooltip content={<ChartTooltip />} />
                           <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11, paddingTop: 4 }} />
-                          {/* Fund line */}
                           <Line
                             yAxisId="nav" type="monotone" dataKey={fundLabel}
                             stroke={FUND_COLOR} strokeWidth={2.5}
-                            dot={(p: any) => {
-                              const D = makeLastDot(FUND_COLOR, totalPoints, labelOffsets[fundLabel])
-                              return <D {...p} />
-                            }}
+                            dot={(p: any) => { const D = makeLastDot(FUND_COLOR, totalPoints, labelOffsets[fundLabel]); return <D {...p} /> }}
                             activeDot={{ r: 4 }} connectNulls isAnimationActive={false}
                           />
-                          {/* Index lines */}
                           {Array.from(activeIndices).map(lbl => (
                             <Line
                               key={lbl} yAxisId="nav" type="monotone" dataKey={lbl}
                               stroke={INDEX_COLORS[lbl]} strokeWidth={1.5} strokeDasharray="4 2"
-                              dot={(p: any) => {
-                                const D = makeLastDot(INDEX_COLORS[lbl], totalPoints, labelOffsets[lbl])
-                                return <D {...p} />
-                              }}
+                              dot={(p: any) => { const D = makeLastDot(INDEX_COLORS[lbl], totalPoints, labelOffsets[lbl]); return <D {...p} /> }}
                               activeDot={{ r: 4 }} connectNulls isAnimationActive={false}
                             />
                           ))}
