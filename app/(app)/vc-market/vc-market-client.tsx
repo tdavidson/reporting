@@ -7,7 +7,7 @@ import {
 import {
   TrendingUp, Globe, DollarSign, Building2, BarChart3,
   Upload, RefreshCw, ExternalLink, X, FileSpreadsheet, Loader2,
-  ChevronDown, ChevronUp, Search, Zap, Pencil, Trash2, Check, ChevronsUpDown,
+  ChevronDown, ChevronUp, Search, Zap, Pencil, Trash2, Check, ChevronsUpDown, ClipboardList,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -18,6 +18,7 @@ import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
 import type { VCDeal, VCFilters, VCKPIs } from '@/lib/vc-market/types'
 import * as XLSX from 'xlsx'
+import { ScrapeReviewModal } from './review-modal'
 
 // ─── constants ───────────────────────────────────────────────────────────────
 
@@ -67,10 +68,8 @@ const COLOR_CAPITAL = '#22c55e'
 const LABEL_STYLE_ROUNDS  = { fontSize: 13, fontWeight: 700, fill: COLOR_ROUNDS  }
 const LABEL_STYLE_CAPITAL = { fontSize: 13, fontWeight: 700, fill: COLOR_CAPITAL }
 const LABEL_STYLE_COUNTRY = { fontSize: 13, fontWeight: 700, fill: '#6366f1'     }
-const LABEL_STYLE_TOP10   = { fontSize: 12, fontWeight: 700, fill: '#f1f5f9'     }
 
-// row height + padding for horizontal bar charts
-const BAR_ROW_H = 36
+const BAR_ROW_H   = 36
 const CHART_MIN_H = 160
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
@@ -93,11 +92,11 @@ function getLatestDeals(deals: VCDeal[]): VCDeal[] {
 }
 
 function computeKPIs(deals: VCDeal[]): VCKPIs {
-  const capital = deals.reduce((s, d) => s + (d.amount_usd ?? 0), 0)
+  const capital   = deals.reduce((s, d) => s + (d.amount_usd ?? 0), 0)
   const companies = new Set(deals.map(d => d.company_name.toLowerCase())).size
   const countries = new Set(deals.map(d => d.country).filter(Boolean)).size
   const withAmount = deals.filter(d => d.amount_usd)
-  const avgTicket = withAmount.length > 0
+  const avgTicket  = withAmount.length > 0
     ? withAmount.reduce((s, d) => s + (d.amount_usd ?? 0), 0) / withAmount.length
     : 0
   return { totalRounds: deals.length, totalCapital: capital, uniqueCompanies: companies, avgTicket, activeCountries: countries }
@@ -190,11 +189,11 @@ function buildTop10Deals(deals: VCDeal[]) {
     .sort((a, b) => (b.amount_usd ?? 0) - (a.amount_usd ?? 0))
     .slice(0, 10)
     .map(d => ({
-      company:  d.company_name,
-      amount:   d.amount_usd ?? 0,
-      segment:  d.segment ?? 'Other',
-      stage:    d.stage ?? '',
-      country:  d.country ?? '',
+      company: d.company_name,
+      amount:  d.amount_usd ?? 0,
+      segment: d.segment ?? 'Other',
+      stage:   d.stage ?? '',
+      country: d.country ?? '',
     }))
 }
 
@@ -228,12 +227,8 @@ const labelFmtUSD    = (v: unknown) => (typeof v === 'number' && v ? formatUSD(v
 function CompanyTick({ x, y, payload }: { x?: number; y?: number; payload?: { value: string } }) {
   return (
     <g transform={`translate(${x},${y})`}>
-      <text
-        x={0} y={0} dy={10}
-        textAnchor="end"
-        transform="rotate(-35)"
-        style={{ fontSize: 11, fill: 'var(--muted-foreground)' }}
-      >
+      <text x={0} y={0} dy={10} textAnchor="end" transform="rotate(-35)"
+        style={{ fontSize: 11, fill: 'var(--muted-foreground)' }}>
         {payload?.value ?? ''}
       </text>
     </g>
@@ -251,13 +246,8 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 
 // ─── MultiSelect ─────────────────────────────────────────────────────────────
 
-function MultiSelect({
-  options, selected, onChange, placeholder,
-}: {
-  options: string[]
-  selected: string[]
-  onChange: (v: string[]) => void
-  placeholder: string
+function MultiSelect({ options, selected, onChange, placeholder }: {
+  options: string[]; selected: string[]; onChange: (v: string[]) => void; placeholder: string
 }) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
@@ -270,37 +260,27 @@ function MultiSelect({
     return () => document.removeEventListener('mousedown', handler)
   }, [])
 
-  const toggle = (v: string) => {
+  const toggle = (v: string) =>
     onChange(selected.includes(v) ? selected.filter(s => s !== v) : [...selected, v])
-  }
 
-  const label = selected.length === 0
-    ? placeholder
-    : selected.length === 1
-      ? selected[0]
-      : `${selected.length} selected`
+  const label = selected.length === 0 ? placeholder
+    : selected.length === 1 ? selected[0]
+    : `${selected.length} selected`
 
   return (
     <div ref={ref} className="relative">
-      <button
-        type="button"
-        onClick={() => setOpen(o => !o)}
+      <button type="button" onClick={() => setOpen(o => !o)}
         className={`h-8 min-w-[120px] max-w-[160px] flex items-center justify-between gap-1 px-3 rounded-md border bg-background text-xs transition-colors hover:bg-accent ${
           selected.length > 0 ? 'border-primary/60 text-foreground' : 'text-muted-foreground'
-        }`}
-      >
+        }`}>
         <span className="truncate">{label}</span>
         <ChevronsUpDown className="h-3 w-3 shrink-0 opacity-50" />
       </button>
       {open && (
         <div className="absolute top-full mt-1 left-0 z-50 min-w-[160px] max-h-56 overflow-y-auto bg-popover border rounded-md shadow-md py-1">
           {options.map(opt => (
-            <button
-              key={opt}
-              type="button"
-              onClick={() => toggle(opt)}
-              className="w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-accent text-left"
-            >
+            <button key={opt} type="button" onClick={() => toggle(opt)}
+              className="w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-accent text-left">
               <span className={`h-3.5 w-3.5 rounded border flex items-center justify-center shrink-0 ${
                 selected.includes(opt) ? 'bg-primary border-primary' : 'border-border'
               }`}>
@@ -316,8 +296,9 @@ function MultiSelect({
 }
 
 // ─── DragScroll ───────────────────────────────────────────────────────────────
+
 function DragScroll({ children, className }: { children: React.ReactNode; className?: string }) {
-  const ref = useRef<HTMLDivElement>(null)
+  const ref      = useRef<HTMLDivElement>(null)
   const dragging = useRef(false)
   const startX   = useRef(0)
   const scrollLeft = useRef(0)
@@ -335,21 +316,13 @@ function DragScroll({ children, className }: { children: React.ReactNode; classN
   const onMouseMove = (e: React.MouseEvent) => {
     if (!dragging.current || !ref.current) return
     e.preventDefault()
-    const x    = e.pageX - ref.current.offsetLeft
-    const walk = x - startX.current
-    ref.current.scrollLeft = scrollLeft.current - walk
+    ref.current.scrollLeft = scrollLeft.current - (e.pageX - ref.current.offsetLeft - startX.current)
   }
 
   return (
-    <div
-      ref={ref}
-      onMouseDown={onMouseDown}
-      onMouseUp={onMouseUp}
-      onMouseLeave={onMouseUp}
-      onMouseMove={onMouseMove}
-      className={className}
-      style={{ cursor: 'grab', overflowX: 'auto', scrollbarWidth: 'none' }}
-    >
+    <div ref={ref} onMouseDown={onMouseDown} onMouseUp={onMouseUp}
+      onMouseLeave={onMouseUp} onMouseMove={onMouseMove}
+      className={className} style={{ cursor: 'grab', overflowX: 'auto', scrollbarWidth: 'none' }}>
       {children}
     </div>
   )
@@ -357,13 +330,8 @@ function DragScroll({ children, className }: { children: React.ReactNode; classN
 
 // ─── EditDealModal ────────────────────────────────────────────────────────────
 
-function EditDealModal({
-  deal, onClose, onSaved, onDeleted,
-}: {
-  deal: VCDeal
-  onClose: () => void
-  onSaved: (updated: VCDeal) => void
-  onDeleted: (id: string) => void
+function EditDealModal({ deal, onClose, onSaved, onDeleted }: {
+  deal: VCDeal; onClose: () => void; onSaved: (u: VCDeal) => void; onDeleted: (id: string) => void
 }) {
   const [form, setForm] = useState({
     company_name: deal.company_name,
@@ -394,21 +362,14 @@ function EditDealModal({
         country:      form.country || null,
         source_url:   form.source_url || null,
       }
-      const res = await fetch(`/api/vc-market/deals/${deal.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      })
+      const res  = await fetch(`/api/vc-market/deals/${deal.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? 'Save failed')
       toast.success('Deal updated')
       onSaved(data.deal)
       onClose()
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Save failed')
-    } finally {
-      setSaving(false)
-    }
+    } catch (err) { toast.error(err instanceof Error ? err.message : 'Save failed') }
+    finally { setSaving(false) }
   }
 
   const handleDelete = async () => {
@@ -419,11 +380,8 @@ function EditDealModal({
       toast.success('Deal deleted')
       onDeleted(deal.id)
       onClose()
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Delete failed')
-    } finally {
-      setDeleting(false)
-    }
+    } catch (err) { toast.error(err instanceof Error ? err.message : 'Delete failed') }
+    finally { setDeleting(false) }
   }
 
   return (
@@ -431,42 +389,22 @@ function EditDealModal({
       <div className="bg-background border rounded-xl shadow-xl w-full max-w-lg">
         <div className="flex items-center justify-between px-5 py-4 border-b">
           <h2 className="text-sm font-semibold">Edit Deal</h2>
-          <button onClick={onClose} className="text-muted-foreground hover:text-foreground">
-            <X className="h-4 w-4" />
-          </button>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
         </div>
         <div className="px-5 py-4 grid grid-cols-2 gap-3">
-          <Field label="Company">
-            <Input value={form.company_name} onChange={e => set('company_name', e.target.value)} className="h-8 text-xs" />
-          </Field>
-          <Field label="Amount (USD)">
-            <Input value={form.amount_usd} onChange={e => set('amount_usd', e.target.value)} placeholder="5000000" className="h-8 text-xs" />
-          </Field>
-          <Field label="Date">
-            <Input type="date" value={form.deal_date} onChange={e => set('deal_date', e.target.value)} className="h-8 text-xs" />
-          </Field>
+          <Field label="Company"><Input value={form.company_name} onChange={e => set('company_name', e.target.value)} className="h-8 text-xs" /></Field>
+          <Field label="Amount (USD)"><Input value={form.amount_usd} onChange={e => set('amount_usd', e.target.value)} placeholder="5000000" className="h-8 text-xs" /></Field>
+          <Field label="Date"><Input type="date" value={form.deal_date} onChange={e => set('deal_date', e.target.value)} className="h-8 text-xs" /></Field>
           <Field label="Stage">
-            <select
-              value={form.stage}
-              onChange={e => set('stage', e.target.value)}
-              className="h-8 rounded-md border bg-background text-xs px-2"
-            >
+            <select value={form.stage} onChange={e => set('stage', e.target.value)} className="h-8 rounded-md border bg-background text-xs px-2">
               <option value="">— none —</option>
               {STAGE_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
             </select>
           </Field>
-          <Field label="Country">
-            <Input value={form.country} onChange={e => set('country', e.target.value)} placeholder="BR" className="h-8 text-xs" />
-          </Field>
-          <Field label="Segment">
-            <Input value={form.segment} onChange={e => set('segment', e.target.value)} placeholder="Fintech" className="h-8 text-xs" />
-          </Field>
-          <Field label="Investors (comma-separated)">
-            <Input value={form.investors} onChange={e => set('investors', e.target.value)} placeholder="Sequoia, a16z" className="h-8 text-xs" />
-          </Field>
-          <Field label="Source URL">
-            <Input value={form.source_url} onChange={e => set('source_url', e.target.value)} placeholder="https://..." className="h-8 text-xs" />
-          </Field>
+          <Field label="Country"><Input value={form.country} onChange={e => set('country', e.target.value)} placeholder="BR" className="h-8 text-xs" /></Field>
+          <Field label="Segment"><Input value={form.segment} onChange={e => set('segment', e.target.value)} placeholder="Fintech" className="h-8 text-xs" /></Field>
+          <Field label="Investors (comma-separated)"><Input value={form.investors} onChange={e => set('investors', e.target.value)} placeholder="Sequoia, a16z" className="h-8 text-xs" /></Field>
+          <Field label="Source URL"><Input value={form.source_url} onChange={e => set('source_url', e.target.value)} placeholder="https://..." className="h-8 text-xs" /></Field>
         </div>
         <div className="flex items-center justify-between px-5 py-3 border-t">
           {confirmDel ? (
@@ -507,18 +445,15 @@ function ImportModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
     try {
       const fd = new FormData()
       fd.append('file', file)
-      const res = await fetch('/api/vc-market/import', { method: 'POST', body: fd })
+      const res  = await fetch('/api/vc-market/import', { method: 'POST', body: fd })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? 'Import failed')
       toast.success(`Imported ${data.inserted} deals${data.skipped > 0 ? ` (${data.skipped} skipped)` : ''}`)
       if (data.errors?.length) toast.error(`${data.errors.length} row error(s) — check format`)
       onSuccess()
       onClose()
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Import failed')
-    } finally {
-      setLoading(false)
-    }
+    } catch (err) { toast.error(err instanceof Error ? err.message : 'Import failed') }
+    finally { setLoading(false) }
   }
 
   const handleDownloadTemplate = () => {
@@ -539,15 +474,13 @@ function ImportModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
           <button onClick={onClose} className="text-muted-foreground hover:text-foreground"><X className="h-5 w-5" /></button>
         </div>
         <p className="text-sm text-muted-foreground mb-4">
-          Upload an <code>.xlsx</code> or <code>.csv</code> file with deal data.
+          Upload an <code>.xlsx</code> or <code>.csv</code> file.
           Columns: <strong>Company Name, Amount USD, Date, Stage, Investors, Segment, Country, Source URL</strong>.
         </p>
-        <div
-          onClick={() => fileRef.current?.click()}
+        <div onClick={() => fileRef.current?.click()}
           className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors mb-4 ${
             file ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/50'
-          }`}
-        >
+          }`}>
           <FileSpreadsheet className={`h-8 w-8 mx-auto mb-2 ${file ? 'text-primary' : 'text-muted-foreground'}`} />
           {file ? <p className="text-sm font-medium">{file.name}</p> : <p className="text-sm text-muted-foreground">Click to select file</p>}
           <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={e => setFile(e.target.files?.[0] ?? null)} />
@@ -586,7 +519,6 @@ function DealRow({ deal, onEdit }: { deal: VCDeal; onEdit: (d: VCDeal) => void }
   const stageColor = deal.stage ? STAGE_COLORS[deal.stage] ?? '#94a3b8' : '#94a3b8'
   return (
     <tr className="border-b last:border-0 hover:bg-muted/30 transition-colors group">
-      {/* sticky company column */}
       <td className="px-4 py-3 font-medium text-sm sticky left-0 z-10 bg-card group-hover:bg-muted/30 transition-colors whitespace-nowrap">
         {deal.company_name}
       </td>
@@ -610,14 +542,14 @@ function DealRow({ deal, onEdit }: { deal: VCDeal; onEdit: (d: VCDeal) => void }
       <td className="px-4 py-3 text-sm text-muted-foreground whitespace-nowrap">{deal.country ?? '—'}</td>
       <td className="px-4 py-3">
         {deal.source_url
-          ? <a href={deal.source_url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline inline-flex items-center gap-1 text-xs whitespace-nowrap">Link <ExternalLink className="h-3 w-3" /></a>
+          ? <a href={deal.source_url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline inline-flex items-center gap-1 text-xs whitespace-nowrap">
+              Link <ExternalLink className="h-3 w-3" />
+            </a>
           : <span className="text-muted-foreground text-sm">—</span>}
       </td>
       <td className="px-3 py-3">
-        <button
-          onClick={() => onEdit(deal)}
-          className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground"
-        >
+        <button onClick={() => onEdit(deal)}
+          className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground">
           <Pencil className="h-3.5 w-3.5" />
         </button>
       </td>
@@ -625,7 +557,8 @@ function DealRow({ deal, onEdit }: { deal: VCDeal; onEdit: (d: VCDeal) => void }
   )
 }
 
-// ─── Top10 custom tooltip ─────────────────────────────────────────────────────
+// ─── Top10 tooltip ────────────────────────────────────────────────────────────
+
 function Top10Tooltip({ active, payload }: { active?: boolean; payload?: Array<{ payload: { company: string; amount: number; segment: string; stage: string; country: string } }> }) {
   if (!active || !payload?.length) return null
   const d = payload[0].payload
@@ -645,15 +578,17 @@ function Top10Tooltip({ active, payload }: { active?: boolean; payload?: Array<{
 interface Props { isAdmin: boolean }
 
 export function VCMarketClient({ isAdmin }: Props) {
-  const [deals, setDeals]             = useState<VCDeal[]>([])
-  const [loading, setLoading]         = useState(true)
-  const [scraping, setScraping]       = useState(false)
-  const [showImport, setShowImport]   = useState(false)
-  const [editingDeal, setEditingDeal] = useState<VCDeal | null>(null)
-  const [search, setSearch]           = useState('')
-  const [sortKey, setSortKey]         = useState<keyof VCDeal>('deal_date')
-  const [sortDir, setSortDir]         = useState<'asc' | 'desc'>('desc')
-  const [page, setPage]               = useState(1)
+  const [deals, setDeals]               = useState<VCDeal[]>([])
+  const [loading, setLoading]           = useState(true)
+  const [scraping, setScraping]         = useState(false)
+  const [showImport, setShowImport]     = useState(false)
+  const [showReview, setShowReview]     = useState(false)
+  const [pendingCount, setPendingCount] = useState(0)
+  const [editingDeal, setEditingDeal]   = useState<VCDeal | null>(null)
+  const [search, setSearch]             = useState('')
+  const [sortKey, setSortKey]           = useState<keyof VCDeal>('deal_date')
+  const [sortDir, setSortDir]           = useState<'asc' | 'desc'>('desc')
+  const [page, setPage]                 = useState(1)
   const PAGE_SIZE = 50
 
   const [filters, setFilters] = useState<VCFilters>({
@@ -667,30 +602,35 @@ export function VCMarketClient({ isAdmin }: Props) {
       const params = new URLSearchParams()
       params.set('period', f.period)
       f.countries.forEach(v => params.append('country', v))
-      f.segments.forEach(v => params.append('segment', v))
-      f.stages.forEach(v => params.append('stage', v))
+      f.segments.forEach(v  => params.append('segment', v))
+      f.stages.forEach(v    => params.append('stage', v))
       f.investors.forEach(v => params.append('investor', v))
-      const res = await fetch(`/api/vc-market/deals?${params}`)
+      const res  = await fetch(`/api/vc-market/deals?${params}`)
       const data = await res.json()
       setDeals(data.deals ?? [])
-    } finally {
-      setLoading(false)
-    }
+    } finally { setLoading(false) }
   }, [])
 
   const fetchAllDeals = useCallback(async () => {
-    const res = await fetch('/api/vc-market/deals?period=all')
+    const res  = await fetch('/api/vc-market/deals?period=all')
     const data = await res.json()
     setAllDeals(data.deals ?? [])
   }, [])
 
-  useEffect(() => { fetchDeals(filters) }, [fetchDeals, filters])
-  useEffect(() => { fetchAllDeals() }, [fetchAllDeals])
+  const fetchPendingCount = useCallback(async () => {
+    const res  = await fetch('/api/vc-market/pending')
+    const data = await res.json()
+    setPendingCount((data.deals ?? []).length)
+  }, [])
+
+  useEffect(() => { fetchDeals(filters) },    [fetchDeals, filters])
+  useEffect(() => { fetchAllDeals() },        [fetchAllDeals])
+  useEffect(() => { fetchPendingCount() },    [fetchPendingCount])
 
   const hasActiveFilters = (
     filters.countries.length > 0 ||
-    filters.segments.length > 0 ||
-    filters.stages.length > 0 ||
+    filters.segments.length  > 0 ||
+    filters.stages.length    > 0 ||
     filters.investors.length > 0
   )
 
@@ -699,28 +639,24 @@ export function VCMarketClient({ isAdmin }: Props) {
   const handleScrape = async () => {
     setScraping(true)
     try {
-      const res = await fetch('/api/vc-market/scrape', { method: 'POST' })
+      const res  = await fetch('/api/vc-market/scrape', { method: 'POST' })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? 'Scrape failed')
-      toast.success(`Scrape complete: ${data.inserted} new deals${data.skipped > 0 ? `, ${data.skipped} dupes skipped` : ''}`)
-      fetchDeals(filters)
-      fetchAllDeals()
+      const n = data.pending ?? 0
+      if (n > 0) {
+        toast.success(`${n} new deals ready for review`)
+        setPendingCount(prev => prev + n)
+        setShowReview(true)
+      } else {
+        toast.info('No new deals found')
+      }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Scrape failed')
-    } finally {
-      setScraping(false)
-    }
+    } finally { setScraping(false) }
   }
 
-  const handleDealSaved = (updated: VCDeal) => {
-    setDeals(prev => prev.map(d => d.id === updated.id ? updated : d))
-    setAllDeals(prev => prev.map(d => d.id === updated.id ? updated : d))
-  }
-
-  const handleDealDeleted = (id: string) => {
-    setDeals(prev => prev.filter(d => d.id !== id))
-    setAllDeals(prev => prev.filter(d => d.id !== id))
-  }
+  const handleDealSaved   = (u: VCDeal)  => { setDeals(p => p.map(d => d.id === u.id ? u : d)); setAllDeals(p => p.map(d => d.id === u.id ? u : d)) }
+  const handleDealDeleted = (id: string) => { setDeals(p => p.filter(d => d.id !== id));         setAllDeals(p => p.filter(d => d.id !== id)) }
 
   const kpis             = computeKPIs(deals)
   const latestDeals      = getLatestDeals(deals)
@@ -734,7 +670,6 @@ export function VCMarketClient({ isAdmin }: Props) {
 
   const segIdx = new Map<string, number>()
   top10Deals.forEach(d => segmentColor(d.segment, segIdx))
-
   const top10Segments = Array.from(segIdx.entries()).map(([seg, idx]) => ({
     seg, color: SEGMENT_PALETTE[idx % SEGMENT_PALETTE.length],
   }))
@@ -756,34 +691,30 @@ export function VCMarketClient({ isAdmin }: Props) {
     return (
       d.company_name.toLowerCase().includes(q) ||
       (d.segment ?? '').toLowerCase().includes(q) ||
-      (d.country ?? '').toLowerCase().includes(q) ||
-      (d.stage ?? '').toLowerCase().includes(q) ||
+      (d.country  ?? '').toLowerCase().includes(q) ||
+      (d.stage    ?? '').toLowerCase().includes(q) ||
       d.investors.some(i => i.toLowerCase().includes(q))
     )
   })
 
-  const sorted = [...filtered].sort((a, b) => {
+  const sorted     = [...filtered].sort((a, b) => {
     const av = a[sortKey] ?? ''
     const bv = b[sortKey] ?? ''
     const cmp = av < bv ? -1 : av > bv ? 1 : 0
     return sortDir === 'asc' ? cmp : -cmp
   })
-
   const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE))
-  const paged = sorted.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+  const paged      = sorted.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
   const SortIcon = ({ col }: { col: keyof VCDeal }) => {
     if (sortKey !== col) return null
-    return sortDir === 'asc'
-      ? <ChevronUp className="h-3 w-3 inline ml-0.5" />
-      : <ChevronDown className="h-3 w-3 inline ml-0.5" />
+    return sortDir === 'asc' ? <ChevronUp className="h-3 w-3 inline ml-0.5" /> : <ChevronDown className="h-3 w-3 inline ml-0.5" />
   }
 
   const emptyChart = (msg: string) => (
     <div className="h-[160px] flex items-center justify-center text-muted-foreground text-sm">{msg}</div>
   )
 
-  // dynamic heights for horizontal bar charts
   const horzH = (n: number) => Math.max(CHART_MIN_H, n * BAR_ROW_H + 40)
 
   return (
@@ -796,6 +727,17 @@ export function VCMarketClient({ isAdmin }: Props) {
           <p className="text-sm text-muted-foreground">Global venture capital deal flow — scraped daily & importable</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
+          {/* Pending review badge */}
+          {pendingCount > 0 && (
+            <Button variant="outline" size="sm" onClick={() => setShowReview(true)}
+              className="gap-1.5 border-amber-400/60 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/30">
+              <ClipboardList className="h-4 w-4" />
+              Review deals
+              <span className="ml-0.5 bg-amber-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-none">
+                {pendingCount}
+              </span>
+            </Button>
+          )}
           {isAdmin && (
             <Button variant="outline" size="sm" onClick={handleScrape} disabled={scraping}>
               {scraping ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : <RefreshCw className="h-4 w-4 mr-1.5" />}
@@ -860,8 +802,7 @@ export function VCMarketClient({ isAdmin }: Props) {
                 </div>
                 <div className="flex items-center gap-1.5">
                   {deal.stage && (
-                    <span className="text-[10px] font-medium px-1.5 py-px rounded-full text-white leading-none shrink-0"
-                      style={{ backgroundColor: stageColor }}>{deal.stage}</span>
+                    <span className="text-[10px] font-medium px-1.5 py-px rounded-full text-white leading-none shrink-0" style={{ backgroundColor: stageColor }}>{deal.stage}</span>
                   )}
                   <span className="text-[10px] text-muted-foreground">
                     {deal.deal_date ? new Date(deal.deal_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—'}
@@ -879,8 +820,6 @@ export function VCMarketClient({ isAdmin }: Props) {
       {/* Charts */}
       {!loading && deals.length > 0 && (
         <div className="space-y-4">
-
-          {/* Top 10 Deals by Capital — full width */}
           {top10Deals.length > 0 && (
             <div className="bg-card border rounded-xl p-4">
               <div className="flex items-center justify-between mb-1">
@@ -889,8 +828,7 @@ export function VCMarketClient({ isAdmin }: Props) {
                   <div className="flex flex-wrap gap-x-3 gap-y-1 justify-end">
                     {top10Segments.map(({ seg, color }) => (
                       <span key={seg} className="flex items-center gap-1 text-[11px] text-muted-foreground">
-                        <span className="h-2.5 w-2.5 rounded-sm shrink-0" style={{ backgroundColor: color }} />
-                        {seg}
+                        <span className="h-2.5 w-2.5 rounded-sm shrink-0" style={{ backgroundColor: color }} />{seg}
                       </span>
                     ))}
                   </div>
@@ -903,22 +841,15 @@ export function VCMarketClient({ isAdmin }: Props) {
                   <YAxis tick={{ fontSize: 11 }} tickFormatter={fmtUSDAxis} width={56} />
                   <Tooltip content={<Top10Tooltip />} cursor={{ fill: 'rgba(255,255,255,0.04)' }} />
                   <Bar dataKey="amount" radius={[4, 4, 0, 0]} maxBarSize={64}>
-                    {top10Deals.map((d, i) => {
-                      const c = segmentColor(d.segment, new Map(segIdx))
-                      return <Cell key={i} fill={c} fillOpacity={0.75} stroke={c} strokeWidth={1.5} />
-                    })}
-                    <LabelList dataKey="amount" position="top" formatter={labelFmtUSD}
-                      style={{ fontSize: 11, fontWeight: 700, fill: 'hsl(var(--muted-foreground))' }} />
+                    {top10Deals.map((d, i) => { const c = segmentColor(d.segment, new Map(segIdx)); return <Cell key={i} fill={c} fillOpacity={0.75} stroke={c} strokeWidth={1.5} /> })}
+                    <LabelList dataKey="amount" position="top" formatter={labelFmtUSD} style={{ fontSize: 11, fontWeight: 700, fill: 'hsl(var(--muted-foreground))' }} />
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </div>
           )}
 
-          {/* 2-col grid */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-
-            {/* Rounds by Month */}
             <div className="bg-card border rounded-xl p-4">
               <h3 className="text-sm font-medium mb-4">Rounds by Month</h3>
               {roundsByMonth.length > 0 ? (
@@ -936,7 +867,6 @@ export function VCMarketClient({ isAdmin }: Props) {
               ) : emptyChart('No dated deals in period')}
             </div>
 
-            {/* Capital by Month */}
             <div className="bg-card border rounded-xl p-4">
               <h3 className="text-sm font-medium mb-4">Capital by Month (USD)</h3>
               {capitalByMonth.length > 0 ? (
@@ -954,7 +884,6 @@ export function VCMarketClient({ isAdmin }: Props) {
               ) : emptyChart('No capital data in period')}
             </div>
 
-            {/* Rounds by Vertical */}
             <div className="bg-card border rounded-xl p-4">
               <h3 className="text-sm font-medium mb-4">Rounds by Vertical</h3>
               {roundsByVertical.length > 0 ? (
@@ -972,7 +901,6 @@ export function VCMarketClient({ isAdmin }: Props) {
               ) : emptyChart('No vertical data available')}
             </div>
 
-            {/* Capital by Vertical */}
             <div className="bg-card border rounded-xl p-4">
               <h3 className="text-sm font-medium mb-4">Capital by Vertical (USD)</h3>
               {capitalBySegment.length > 0 ? (
@@ -990,7 +918,6 @@ export function VCMarketClient({ isAdmin }: Props) {
               ) : emptyChart('No capital data available')}
             </div>
 
-            {/* Deals by Country */}
             <div className="bg-card border rounded-xl p-4">
               <h3 className="text-sm font-medium mb-4">Deals by Country</h3>
               {dealsByCountry.length > 0 ? (
@@ -1001,10 +928,8 @@ export function VCMarketClient({ isAdmin }: Props) {
                     <YAxis dataKey="country" type="category" tick={{ fontSize: 11 }} width={38} />
                     <Tooltip contentStyle={{ fontSize: 12 }} formatter={fmtDeals} />
                     <Bar dataKey="deals" radius={[0, 3, 3, 0]}>
-                      {dealsByCountry.map((_, i) => {
-                        const c = PIE_COLORS[i % PIE_COLORS.length]
-                        return <Cell key={i} fill={c} fillOpacity={0.6} stroke={c} strokeWidth={1.5} />
-                      })}
+                      {dealsByCountry.map((_, i) => { const c = PIE_COLORS[i % PIE_COLORS.length]; return <Cell key={i} fill={c} fillOpacity={0.6} stroke={c} strokeWidth={1.5} /> })
+                      }
                       <LabelList dataKey="deals" position="right" formatter={labelFmtRounds} style={LABEL_STYLE_COUNTRY} />
                     </Bar>
                   </BarChart>
@@ -1012,7 +937,6 @@ export function VCMarketClient({ isAdmin }: Props) {
               ) : emptyChart('No country data available')}
             </div>
 
-            {/* Capital by Country */}
             <div className="bg-card border rounded-xl p-4">
               <h3 className="text-sm font-medium mb-4">Capital by Country (USD)</h3>
               {capitalByCountry.length > 0 ? (
@@ -1023,17 +947,14 @@ export function VCMarketClient({ isAdmin }: Props) {
                     <YAxis dataKey="country" type="category" tick={{ fontSize: 11 }} width={38} />
                     <Tooltip contentStyle={{ fontSize: 12 }} formatter={fmtCapital} />
                     <Bar dataKey="capital" radius={[0, 3, 3, 0]}>
-                      {capitalByCountry.map((_, i) => {
-                        const c = PIE_COLORS[i % PIE_COLORS.length]
-                        return <Cell key={i} fill={c} fillOpacity={0.6} stroke={c} strokeWidth={1.5} />
-                      })}
+                      {capitalByCountry.map((_, i) => { const c = PIE_COLORS[i % PIE_COLORS.length]; return <Cell key={i} fill={c} fillOpacity={0.6} stroke={c} strokeWidth={1.5} /> })
+                      }
                       <LabelList dataKey="capital" position="right" formatter={labelFmtUSD} style={LABEL_STYLE_COUNTRY} />
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
               ) : emptyChart('No capital by country data')}
             </div>
-
           </div>
         </div>
       )}
@@ -1051,9 +972,7 @@ export function VCMarketClient({ isAdmin }: Props) {
                 Scrape now
               </Button>
             )}
-            <Button size="sm" onClick={() => setShowImport(true)}>
-              <Upload className="h-4 w-4 mr-1" /> Import Excel
-            </Button>
+            <Button size="sm" onClick={() => setShowImport(true)}><Upload className="h-4 w-4 mr-1" /> Import Excel</Button>
           </div>
         </div>
       )}
@@ -1087,9 +1006,7 @@ export function VCMarketClient({ isAdmin }: Props) {
                     <th key={label}
                       className={`px-4 py-2.5 text-left font-medium whitespace-nowrap ${
                         colIdx === 0 ? 'sticky left-0 z-10 bg-muted/30' : ''
-                      } ${
-                        key ? 'cursor-pointer select-none hover:text-foreground' : ''
-                      }`}
+                      } ${ key ? 'cursor-pointer select-none hover:text-foreground' : '' }`}
                       onClick={() => key && toggleSort(key)}>
                       {label}{key && <SortIcon col={key} />}
                     </th>
@@ -1116,6 +1033,14 @@ export function VCMarketClient({ isAdmin }: Props) {
       )}
 
       {showImport && <ImportModal onClose={() => setShowImport(false)} onSuccess={() => { fetchDeals(filters); fetchAllDeals() }} />}
+
+      {showReview && (
+        <ScrapeReviewModal
+          onClose={() => { setShowReview(false); fetchPendingCount() }}
+          onPublished={() => { fetchDeals(filters); fetchAllDeals(); setPendingCount(0) }}
+        />
+      )}
+
       {editingDeal && (
         <EditDealModal
           deal={editingDeal}
