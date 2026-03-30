@@ -798,11 +798,11 @@ function SummaryLine({
     const val = t.transaction_type === 'unrealized_gain_change' ? t.latest_postmoney_valuation : t.postmoney_valuation
     if (val != null) currentValuation = val
 
-    if (t.transaction_type === 'unrealized_gain_change' && t.unrealized_value_change != null) {
-      explicitNav = t.unrealized_value_change
-    } else if (t.transaction_type !== 'proceeds') {
-      explicitNav = null 
-    }
+if (t.transaction_type === 'unrealized_gain_change' && t.unrealized_value_change != null) {
+  explicitNav = t.unrealized_value_change
+} else if (t.transaction_type === 'proceeds') {
+  explicitNav = t.unrealized_value_change ?? explicitNav
+}
   }
 
   let calculatedNav = 0
