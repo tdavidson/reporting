@@ -1,6 +1,13 @@
 import Anthropic from '@anthropic-ai/sdk'
 import type { VCDealInsert } from './types'
 
+// ─── LATAM country codes ──────────────────────────────────────────────────────
+
+const LATAM_COUNTRIES = new Set([
+  'AR','BO','BR','CL','CO','CR','CU','DO','EC','GT','HN','HT',
+  'MX','NI','PA','PE','PY','SV','UY','VE','BZ','GY','SR','TT',
+])
+
 // ─── Source definitions ───────────────────────────────────────────────────────
 
 type SourceType = 'rss' | 'html'
@@ -12,33 +19,33 @@ interface Source {
 }
 
 const SOURCES: Source[] = [
-  // ── RSS (confirmed active) ──────────────────────────────────────────────────
+  // ── RSS LATAM-focused ───────────────────────────────────────────────────────
   {
-    name: 'Google News – VC Global',
-    url: 'https://news.google.com/rss/search?q=startup+funding+round+raised+million+venture+capital&hl=en-US&gl=US&ceid=US:en',
+    name: 'Google News – LatAm Funding',
+    url: 'https://news.google.com/rss/search?q=startup+rodada+captacao+venture+capital+serie+latam&hl=pt-BR&gl=BR&ceid=BR:pt',
     type: 'rss',
   },
   {
-    name: 'Google News – LatAm / Brazil',
-    url: 'https://news.google.com/rss/search?q=startup+rodada+captacao+venture+capital+serie&hl=pt-BR&gl=BR&ceid=BR:pt',
+    name: 'Google News – Brazil Startups',
+    url: 'https://news.google.com/rss/search?q=startup+brazil+funding+raised+series+venture&hl=en&gl=BR&ceid=BR:en',
     type: 'rss',
   },
   {
-    name: 'Google News – Fintech Funding',
-    url: 'https://news.google.com/rss/search?q=fintech+startup+series+funding+raised&hl=en-US&gl=US&ceid=US:en',
+    name: 'Google News – Mexico Startups',
+    url: 'https://news.google.com/rss/search?q=startup+mexico+funding+raised+series+venture&hl=en&gl=MX&ceid=MX:en',
     type: 'rss',
   },
   {
-    name: 'TechCrunch Funding',
-    url: 'https://techcrunch.com/tag/funding/feed/',
+    name: 'Google News – Colombia Startups',
+    url: 'https://news.google.com/rss/search?q=startup+colombia+funding+raised+series+venture&hl=en&gl=CO&ceid=CO:en',
     type: 'rss',
   },
   {
-    name: 'Crunchbase News',
-    url: 'https://news.crunchbase.com/feed/',
+    name: 'Google News – LATAM VC EN',
+    url: 'https://news.google.com/rss/search?q=latin+america+startup+funding+venture+capital+series&hl=en-US&gl=US&ceid=US:en',
     type: 'rss',
   },
-  // ── HTML scrape ─────────────────────────────────────────────────────────────
+  // ── HTML LATAM sources ──────────────────────────────────────────────────────
   {
     name: 'Pipeline Valor',
     url: 'https://pipelinevalor.globo.com/negocios/',
@@ -115,30 +122,24 @@ function parseRSSItems(xml: string, sourceName: string): Article[] {
 }
 
 // ─── HTML parser ─────────────────────────────────────────────────────────────
-// Extracts article candidates from raw HTML by scanning anchor tags
-// that look like article headlines (href + meaningful text).
 
 function parseHTMLItems(html: string, baseUrl: string, sourceName: string): Article[] {
   const items: Article[] = []
   const seen = new Set<string>()
 
-  // Extract <time> or datetime attributes for pub date hints
   const dateHints: string[] = []
   const timeMatches = html.matchAll(/<time[^>]*(?:datetime=["']([^"']+)["'])[^>]*>/g)
   for (const m of timeMatches) dateHints.push(m[1])
 
-  // Extract anchor tags with meaningful text
   const anchorRegex = /<a[^>]+href=["']([^"'#?][^"']*)["'][^>]*>([\s\S]*?)<\/a>/g
   let idx = 0
   for (const match of html.matchAll(anchorRegex)) {
     const rawHref = match[1]
     const rawText = match[2].replace(/<[^>]+>/g, '').trim()
 
-    // Skip nav/footer/social links — must have 20+ chars and look like a headline
     if (rawText.length < 20) continue
     if (/^(home|menu|login|sign|subscribe|newsletter|sobre|contato|privacy|terms)/i.test(rawText)) continue
 
-    // Resolve relative URLs
     let href = rawHref
     if (href.startsWith('/')) {
       try {
@@ -196,8 +197,17 @@ interface ExtractedDeal {
   confidence: 'high' | 'medium' | 'low'
 }
 
+const LATAM_COUNTRIES_LIST = [
+  'Brazil (BR)', 'Mexico (MX)', 'Colombia (CO)', 'Argentina (AR)',
+  'Chile (CL)', 'Peru (PE)', 'Uruguay (UY)', 'Costa Rica (CR)',
+  'Panama (PA)', 'Ecuador (EC)', 'Bolivia (BO)', 'Paraguay (PY)',
+  'Venezuela (VE)', 'Guatemala (GT)', 'Honduras (HN)', 'El Salvador (SV)',
+  'Dominican Republic (DO)', 'Cuba (CU)', 'Nicaragua (NI)', 'Haiti (HT)',
+  'Trinidad and Tobago (TT)', 'Guyana (GY)', 'Suriname (SR)', 'Belize (BZ)',
+].join(', ')
+
 function buildPrompt(articles: Article[]): string {
-  const today = new Date().toISOString().slice(0, 10)
+  const today     = new Date().toISOString().slice(0, 10)
   const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10)
 
   const articlesText = articles
@@ -206,12 +216,19 @@ function buildPrompt(articles: Article[]): string {
     )
     .join('\n\n')
 
-  return `You are a precise financial data extraction engine specializing in venture capital.
+  return `You are a precise financial data extraction engine specializing in Latin American venture capital.
 
 Today's date: ${today}
 Yesterday's date: ${yesterday}
 
-Your task: analyze the news articles below and extract ONLY confirmed startup/company funding rounds, IPOs, SPACs, and M&A events. Be conservative — when in doubt, skip the article.
+Your task: analyze the news articles below and extract ONLY confirmed startup/company funding rounds from LATIN AMERICA.
+
+━━━ GEOGRAPHIC FILTER — MANDATORY ━━━
+ONLY include deals where the company is headquartered in a LATAM country:
+${LATAM_COUNTRIES_LIST}
+
+IMPORTANT: If the company is from USA, Europe, Asia, Africa, or any country outside LATAM, DO NOT include it — even if the article mentions Latin America investors or a LATAM expansion.
+If the company's country cannot be determined and there is no clear indication it is LATAM-based, skip the article entirely.
 
 ━━━ DATE FILTER — STRICT ━━━
 Only process articles published on ${yesterday} or ${today}.
@@ -233,44 +250,29 @@ Exclude strictly:
 - Crowdfunding (Kickstarter, Indiegogo, etc.)
 - Real estate or infrastructure deals
 - Articles that only MENTION a company without confirming a closed event
+- Any deal outside Latin America
 
-━━━ DUPLICATE DETECTION — APPLY BEFORE INCLUDING ANY DEAL ━━━
-A deal is a duplicate if ALL THREE conditions match another deal in your output:
-  1. company_name is the same or highly similar (e.g. "Nubank" = "Nu Holdings")
-  2. stage is the same
-  3. deal_date is within ±30 days of another deal for the same company
-
-If a duplicate is detected:
-- Keep only the entry with the highest confidence
-- If confidence is equal, keep the one with more fields populated
-- Never include the same funding round twice, even if reported by multiple sources
+━━━ DUPLICATE DETECTION ━━━
+A deal is a duplicate if company_name + stage + deal_date (±30 days) all match.
+Keep only the highest-confidence entry. Never include the same round twice.
 
 ━━━ OUTPUT FORMAT ━━━
-Return a raw JSON array. No markdown fences. No explanations. No extra text.
-If zero valid deals are found, return an empty array: []
+Return a raw JSON array. No markdown fences. No explanations.
+If zero valid LATAM deals are found, return: []
 
-Each object must follow this exact schema:
+Each object:
 {
-  "company_name": string,           // official company name, not product name
-  "amount_usd": number | null,      // total raised in USD as integer (e.g. 5000000)
-                                    // convert: BRL ÷ 5.8 | EUR × 1.08 | GBP × 1.27
-                                    // null if amount is not stated anywhere
-  "deal_date": "YYYY-MM-DD" | null, // date the round was announced or closed
-                                    // fallback: article publication date
-                                    // must be between 2020-01-01 and ${today}
-                                    // null only if completely impossible to determine
+  "company_name": string,
+  "amount_usd": number | null,
+  "deal_date": "YYYY-MM-DD" | null,
   "stage": "Pre-Seed" | "Seed" | "Series A" | "Series B" | "Series C" |
            "Series D" | "Series E" | "Growth" | "Bridge" |
            "IPO" | "SPAC" | "Acquisition" | null,
-  "investors": string[],            // VC fund/angel/acquirer names only
-                                    // empty array [] if none mentioned
-  "segment": string | null,         // pick exactly one from the list below
-  "country": "XX" | null,           // ISO 3166-1 alpha-2, company HQ country
-  "source_url": string,             // exact article URL, no shorteners
+  "investors": string[],
+  "segment": string | null,
+  "country": "XX" | null,   // ISO 3166-1 alpha-2 — MUST be a LATAM country code
+  "source_url": string,
   "confidence": "high" | "medium" | "low"
-                                    // high = amount + stage + date all confirmed
-                                    // medium = 1-2 fields missing or inferred
-                                    // low = mostly inferred, consider skipping
 }
 
 ━━━ SEGMENT — pick exactly one ━━━
@@ -307,7 +309,6 @@ async function extractDealsWithAI(articles: Article[], apiKey?: string): Promise
 // ─── Main export ──────────────────────────────────────────────────────────────
 
 export async function scrapeVCDeals(userId: string, apiKey?: string): Promise<VCDealInsert[]> {
-  // Fetch all sources in parallel
   const results = await Promise.allSettled(SOURCES.map(s => fetchSource(s)))
   const allArticles: Article[] = []
   for (const r of results) {
@@ -316,7 +317,7 @@ export async function scrapeVCDeals(userId: string, apiKey?: string): Promise<VC
 
   if (allArticles.length === 0) return []
 
-  // Deduplicate by title before sending to AI
+  // Deduplicate by title
   const seen = new Set<string>()
   const unique = allArticles.filter(a => {
     const key = a.title.toLowerCase().trim()
@@ -327,9 +328,13 @@ export async function scrapeVCDeals(userId: string, apiKey?: string): Promise<VC
 
   const extracted = await extractDealsWithAI(unique, apiKey)
 
-  // Filter low-confidence deals and map to insert shape
   return extracted
-    .filter(d => d.company_name?.trim() && d.confidence !== 'low')
+    .filter(d =>
+      d.company_name?.trim() &&
+      d.confidence !== 'low' &&
+      // Hard filter: drop anything not in a known LATAM country
+      (d.country === null || LATAM_COUNTRIES.has(d.country.toUpperCase()))
+    )
     .map(d => ({
       user_id:      userId,
       company_name: d.company_name.trim(),
