@@ -95,6 +95,25 @@ export async function GET(req: NextRequest) {
   const firstInvestment = txns.find(t => t.transaction_type === 'investment' && t.transaction_date)
   if (!firstInvestment) return NextResponse.json({ series: [] })
 
+ // Fetch fund_cash_flows (LP-level capital calls and distributions).
+  // These are the correct source for "Called" and "Realized" in the formula
+  // (NAV + Realized) / Called, consistent with computeFundMetrics in funds/page.tsx.
+  const { data: allFundCashFlows } = await admin
+    .from('fund_cash_flows' as any)
+    .select('portfolio_group, flow_date, flow_type, amount')
+    .eq('fund_id', fundId)
+    .order('flow_date', { ascending: true }) as {
+      data: { portfolio_group: string; flow_date: string; flow_type: string; amount: number }[] | null
+    }
+ 
+  const fundCashFlows = group === ''
+    ? (allFundCashFlows ?? [])
+    : (allFundCashFlows ?? []).filter(cf => cf.portfolio_group === group)
+ 
+  // Prefer LP-level data if called_capital entries exist; otherwise fall back to
+  // investment_transactions (investment_cost as proxy for called, proceeds as realized).
+  const hasLpData = fundCashFlows.some(cf => cf.flow_type === 'called_capital')
+   
   const startYM = toYM(firstInvestment.transaction_date!)
   const nowYM   = toYM(new Date().toISOString().split('T')[0])
   const months  = monthRange(startYM, nowYM)
@@ -176,15 +195,13 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // Aggregate across companies
-    let called      = 0
-    let distributed = 0
-    let unrealized  = 0
-
+    // Unrealized value is always sourced from investment_transactions.
+    let unrealized = 0    
+    
     for (const [cid, s] of stateMap.entries()) {
       const company     = companyMap.get(cid)
       const sumUnrDelta = [...s.roundMap.values()].reduce((acc, r) => acc + r.unrealizedDelta, 0)
-      const uv = calcUnrealized(
+      unrealized += calcUnrealized(
         company?.status ?? null,
         s.explicitNav,
         s.latestOwnership,
@@ -195,9 +212,43 @@ export async function GET(req: NextRequest) {
         sumUnrDelta,
         s.costBasisExited,
       )
-      called      += s.totalInvested
-      distributed += s.totalRealized
-      unrealized  += uv
+
+        }
+ 
+    // "Called" and "Realized" follow the same source as computeFundMetrics:
+    // LP capital calls and LP distributions from fund_cash_flows when available,
+    // falling back to investment_transactions otherwise.
+    let called      = 0
+    let distributed = 0
+    const cashFlowsForIrr: CashFlow[] = []
+ 
+    if (hasLpData) {
+      const pastFlows = fundCashFlows.filter(cf => cf.flow_date <= cutoff)
+      for (const cf of pastFlows) {
+        if (cf.flow_type === 'called_capital') {
+          called      += cf.amount
+          cashFlowsForIrr.push({ date: new Date(cf.flow_date), amount: -cf.amount })
+        }
+        if (cf.flow_type === 'distribution') {
+          distributed += cf.amount
+          cashFlowsForIrr.push({ date: new Date(cf.flow_date), amount: cf.amount })
+        }
+      }
+    } else {
+      // Fallback: derive called and realized from investment_transactions
+      for (const [, s] of stateMap.entries()) {
+        called      += s.totalInvested
+        distributed += s.totalRealized
+      }
+      for (const txn of pastTxns) {
+        if (txn.transaction_type === 'investment' && txn.investment_cost && txn.transaction_date) {
+          cashFlowsForIrr.push({ date: new Date(txn.transaction_date), amount: -txn.investment_cost })
+        }
+        if (txn.transaction_type === 'proceeds' && txn.transaction_date) {
+          const amt = (txn.proceeds_received ?? 0) + (txn.proceeds_escrow ?? 0)
+          if (amt > 0) cashFlowsForIrr.push({ date: new Date(txn.transaction_date), amount: amt })
+        }
+      }
     }
 
     if (called <= 0) continue
@@ -206,16 +257,6 @@ export async function GET(req: NextRequest) {
 
     // XIRR
     let irr: number | null = null
-    const cashFlowsForIrr: CashFlow[] = []
-    for (const txn of pastTxns) {
-      if (txn.transaction_type === 'investment' && txn.investment_cost && txn.transaction_date) {
-        cashFlowsForIrr.push({ date: new Date(txn.transaction_date), amount: -txn.investment_cost })
-      }
-      if (txn.transaction_type === 'proceeds' && txn.transaction_date) {
-        const amt = (txn.proceeds_received ?? 0) + (txn.proceeds_escrow ?? 0)
-        if (amt > 0) cashFlowsForIrr.push({ date: new Date(txn.transaction_date), amount: amt })
-      }
-    }
     if (cashFlowsForIrr.length > 0 && (unrealized > 0 || distributed > 0)) {
       const flows = [
         ...cashFlowsForIrr,
