@@ -99,7 +99,6 @@ export async function GET(req: NextRequest) {
 
     for (const txn of txns) {
       if (txn.transaction_type === 'investment') {
-        // Only use positive share prices (skip $0 from SAFEs, warrants, etc.)
         if (txn.share_price != null && txn.share_price > 0 && txn.transaction_date) {
           if (!latestSharePriceDate || txn.transaction_date > latestSharePriceDate) {
             latestSharePrice = txn.share_price
@@ -134,6 +133,7 @@ export async function GET(req: NextRequest) {
         txn.transaction_type === 'unrealized_gain_change' ||
         txn.transaction_type === 'round_info'
       ) {
+        // Use txn.portfolio_group if set; fall back to company default (may be '')
         const group = txn.portfolio_group ?? companyDefaultGroup
         const list = groupTxns.get(group) ?? []
         list.push(txn)
@@ -141,7 +141,7 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // If no investment/proceeds transactions at all, create a single empty-group entry
+    // If no relevant transactions at all, create a single default-group entry
     if (groupTxns.size === 0) {
       groupTxns.set(companyDefaultGroup, [])
     }
@@ -220,7 +220,7 @@ export async function GET(req: NextRequest) {
       let currentValuation: number | null = null
       let explicitNav: number | null = null
 
-for (const txn of sortedGTxns) {
+      for (const txn of sortedGTxns) {
         if (!txn.transaction_date) continue
 
         if (txn.ownership_pct != null) currentOwnership = txn.ownership_pct
@@ -228,7 +228,7 @@ for (const txn of sortedGTxns) {
         let val = txn.postmoney_valuation
         if (txn.transaction_type === 'unrealized_gain_change') val = txn.latest_postmoney_valuation
         if (txn.transaction_type === 'proceeds' && txn.exit_valuation != null) val = txn.exit_valuation
-        
+
         if (val != null) currentValuation = val
 
         if (txn.transaction_type === 'unrealized_gain_change' && txn.unrealized_value_change != null) {
@@ -254,7 +254,6 @@ for (const txn of sortedGTxns) {
         unrealizedValue = Math.max(0, unrealizedValue)
       }
 
-      // Define o FMV baseado no valor capturado ou no status da empresa
       let fmv: number
       if (company.status === 'exited') {
         fmv = totalRealized
@@ -266,13 +265,10 @@ for (const txn of sortedGTxns) {
 
       const moic = totalInvested > 0 ? (totalRealized + unrealizedValue) / totalInvested : null
 
-      // Track cash flows per portfolio group for group-level IRR
-      // Must happen BEFORE per-company terminal value is pushed into groupCashFlows
       const pgFlows = portfolioGroupCashFlows.get(group) ?? []
       for (const cf of groupCashFlows) pgFlows.push(cf)
       portfolioGroupCashFlows.set(group, pgFlows)
 
-      // Compute per-company IRR (pushes terminal value into groupCashFlows)
       let groupIRR: number | null = null
       if (groupCashFlows.length > 0) {
         const terminalValue = company.status === 'written-off' ? 0 : unrealizedValue
@@ -293,7 +289,8 @@ for (const txn of sortedGTxns) {
         companyId,
         companyName: company.name,
         status: company.status,
-        portfolioGroup: [group].filter(Boolean),
+        // FIX: do NOT filter(Boolean) — empty string '' is a valid group (Prlx Fund I)
+        portfolioGroup: [group],
         totalInvested,
         totalRealized,
         unrealizedValue,
@@ -307,14 +304,12 @@ for (const txn of sortedGTxns) {
     }
   }
 
-  // Sort by invested amount descending
   companySummaries.sort((a, b) => b.totalInvested - a.totalInvested)
 
   const portfolioMOIC = portfolioInvested > 0
     ? (portfolioRealized + portfolioUnrealized) / portfolioInvested
     : null
 
-  // Portfolio-level IRR: add total unrealized as terminal cash flow
   let portfolioIRR: number | null = null
   if (allCashFlows.length > 0 && (portfolioUnrealized > 0 || portfolioRealized > 0)) {
     if (portfolioUnrealized > 0) {
@@ -327,6 +322,7 @@ for (const txn of sortedGTxns) {
   const groupAgg = new Map<string, { totalInvested: number; proceedsReceived: number; proceedsEscrow: number; totalRealized: number; unrealizedValue: number; totalCostBasisExited: number }>()
 
   for (const cs of companySummaries) {
+    // portfolioGroup[0] is always defined now (never filtered)
     const groupName = cs.portfolioGroup[0] ?? ''
     const existing = groupAgg.get(groupName) ?? { totalInvested: 0, proceedsReceived: 0, proceedsEscrow: 0, totalRealized: 0, unrealizedValue: 0, totalCostBasisExited: 0 }
     existing.totalInvested += cs.totalInvested
@@ -341,7 +337,6 @@ for (const txn of sortedGTxns) {
   const groups = Array.from(groupAgg.entries()).map(([group, g]) => {
     const moic = g.totalInvested > 0 ? (g.totalRealized + g.unrealizedValue) / g.totalInvested : null
 
-    // Group-level IRR from aggregated cash flows
     let irr: number | null = null
     const gFlows = portfolioGroupCashFlows.get(group)
     if (gFlows && gFlows.length > 0 && (g.unrealizedValue > 0 || g.totalRealized > 0)) {
