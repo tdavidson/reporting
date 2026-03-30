@@ -115,38 +115,21 @@ function snapDown(v: number, step = 10) { return Math.floor(v / step) * step }
 function snapUp(v: number, step = 10)   { return Math.ceil(v  / step) * step }
 
 // ---------------------------------------------------------------------------
-// Last-point dot + label rendered by Recharts itself
-// Recharts passes cx/cy already in correct SVG coordinates
+// Last-point dot + label rendered natively by Recharts (cx/cy guaranteed)
 // ---------------------------------------------------------------------------
 function makeEndDot(color: string, totalPoints: number) {
   // eslint-disable-next-line react/display-name
   return function EndDot(props: any) {
     const { cx, cy, index, value } = props
     if (index !== totalPoints - 1 || value == null) return null
-    const label = Number(value).toFixed(1)
-    const boxW  = label.length * 6.5 + 14
+    const label   = Number(value).toFixed(1)
+    const boxW    = label.length * 6.5 + 14
     const LABEL_H = 18
     return (
       <g>
         <circle cx={cx} cy={cy} r={4} fill={color} stroke="white" strokeWidth={2} />
-        <rect
-          x={cx + 8}
-          y={cy - LABEL_H / 2}
-          width={boxW}
-          height={LABEL_H}
-          rx={4}
-          fill={color}
-          opacity={0.92}
-        />
-        <text
-          x={cx + 8 + boxW / 2}
-          y={cy}
-          textAnchor="middle"
-          dominantBaseline="middle"
-          fontSize={10}
-          fontWeight={600}
-          fill="white"
-        >
+        <rect x={cx + 8} y={cy - LABEL_H / 2} width={boxW} height={LABEL_H} rx={4} fill={color} opacity={0.92} />
+        <text x={cx + 8 + boxW / 2} y={cy} textAnchor="middle" dominantBaseline="middle" fontSize={10} fontWeight={600} fill="white">
           {label}
         </text>
       </g>
@@ -337,13 +320,6 @@ export function BenchmarkingClient() {
 
   const allSeriesKeys = useMemo(() => [fundLabel, ...Array.from(activeIndices)], [fundLabel, activeIndices])
 
-  // Compute last value per series for card highlight
-  const lastValues = useMemo(() => {
-    if (chartData.length === 0) return {} as Record<string, number | null>
-    const last = chartData[chartData.length - 1]
-    return Object.fromEntries(allSeriesKeys.map(k => [k, last[k] ?? null]))
-  }, [chartData, allSeriesKeys])
-
   const yDomain = useMemo(() => {
     if (chartData.length === 0) return { min: 80, max: 200 }
     let min = Infinity, max = -Infinity
@@ -366,20 +342,9 @@ export function BenchmarkingClient() {
 
   const periodLabel = PERIOD_OPTIONS.find(o => o.value === period)?.label ?? 'All time'
 
-  // Cards data: fund first, then active indices
   const cardEntries = useMemo(() => {
     const entries: { key: string; label: string; pct: number | null; color: string; isFund: boolean }[] = []
-
-    // Fund card
-    entries.push({
-      key: fundLabel,
-      label: fundLabel,
-      pct: fundPeriodReturn,
-      color: FUND_COLOR,
-      isFund: true,
-    })
-
-    // Index cards (only active)
+    entries.push({ key: fundLabel, label: fundLabel, pct: fundPeriodReturn, color: FUND_COLOR, isFund: true })
     if (indices) {
       for (const idx of Object.values(indices)) {
         const pct = idx.latest != null ? parseFloat((idx.latest - 100).toFixed(1)) : null
@@ -389,7 +354,6 @@ export function BenchmarkingClient() {
     return entries
   }, [fundLabel, fundPeriodReturn, indices])
 
-  // Find max pct across all cards for highlight
   const maxPct = useMemo(() => {
     const vals = cardEntries.map(e => e.pct).filter((v): v is number => v != null)
     return vals.length > 0 ? Math.max(...vals) : null
@@ -435,17 +399,16 @@ export function BenchmarkingClient() {
                     <Card key={i}><CardContent className="pt-4 pb-4 h-20 animate-pulse bg-muted rounded-lg" /></Card>
                   ))
                 : cardEntries.map(({ key, label, pct, color, isFund }) => {
-                    const isTop = pct != null && pct === maxPct && maxPct != null
+                    const isTop    = pct != null && pct === maxPct && maxPct != null
                     const positive = pct != null && pct >= 0
                     return (
                       <Card
                         key={key}
-                        className={`transition-all ${
-                          isTop
-                            ? 'ring-2 shadow-md'
-                            : 'shadow-none'
-                        }`}
-                        style={isTop ? { ringColor: color, boxShadow: `0 4px 16px ${color}28`, borderColor: `${color}50` } : {}}
+                        style={isTop ? {
+                          outline: `2px solid ${color}`,
+                          outlineOffset: '0px',
+                          boxShadow: `0 4px 18px ${color}28`,
+                        } : {}}
                       >
                         <CardContent className="pt-4 pb-4">
                           <div className="flex items-center justify-between mb-1">
@@ -460,9 +423,7 @@ export function BenchmarkingClient() {
                             )}
                           </div>
                           <div className={`text-2xl font-bold tabular-nums ${
-                            pct == null
-                              ? 'text-muted-foreground'
-                              : positive ? 'text-green-600' : 'text-red-500'
+                            pct == null ? 'text-muted-foreground' : positive ? 'text-green-600' : 'text-red-500'
                           }`}>
                             {pct == null ? '—' : `${positive ? '+' : ''}${pct}%`}
                           </div>
@@ -517,17 +478,9 @@ export function BenchmarkingClient() {
                     </div>
                   ) : (
                     <ResponsiveContainer width="100%" height={CHART_H}>
-                      <LineChart
-                        data={chartData}
-                        margin={{ top: MARGIN_TOP, right: MARGIN_RIGHT, bottom: MARGIN_BOT, left: 0 }}
-                      >
+                      <LineChart data={chartData} margin={{ top: MARGIN_TOP, right: MARGIN_RIGHT, bottom: MARGIN_BOT, left: 0 }}>
                         <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                        <XAxis
-                          dataKey="date"
-                          tick={{ fontSize: 10 }}
-                          tickFormatter={(d: string) => d?.slice(0, 7) ?? ''}
-                          interval="preserveStartEnd"
-                        />
+                        <XAxis dataKey="date" tick={{ fontSize: 10 }} tickFormatter={(d: string) => d?.slice(0, 7) ?? ''} interval="preserveStartEnd" />
                         <YAxis
                           yAxisId="nav"
                           width={MARGIN_LEFT}
@@ -539,35 +492,14 @@ export function BenchmarkingClient() {
                         />
                         <Tooltip content={<ChartTooltip />} />
                         <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11, paddingTop: 4 }} />
-
-                        {/* Fund line */}
-                        <Line
-                          yAxisId="nav"
-                          type="monotone"
-                          dataKey={fundLabel}
-                          stroke={FUND_COLOR}
-                          strokeWidth={2.5}
+                        <Line yAxisId="nav" type="monotone" dataKey={fundLabel} stroke={FUND_COLOR} strokeWidth={2.5}
                           dot={totalPoints > 0 ? makeEndDot(FUND_COLOR, totalPoints) : false}
-                          activeDot={{ r: 4 }}
-                          connectNulls
-                          isAnimationActive={false}
-                        />
-
-                        {/* Index lines */}
+                          activeDot={{ r: 4 }} connectNulls isAnimationActive={false} />
                         {Array.from(activeIndices).map(label => (
-                          <Line
-                            key={label}
-                            yAxisId="nav"
-                            type="monotone"
-                            dataKey={label}
-                            stroke={INDEX_COLORS[label]}
-                            strokeWidth={1.5}
+                          <Line key={label} yAxisId="nav" type="monotone" dataKey={label}
+                            stroke={INDEX_COLORS[label]} strokeWidth={1.5}
                             dot={totalPoints > 0 ? makeEndDot(INDEX_COLORS[label], totalPoints) : false}
-                            strokeDasharray="4 2"
-                            activeDot={{ r: 4 }}
-                            connectNulls
-                            isAnimationActive={false}
-                          />
+                            strokeDasharray="4 2" activeDot={{ r: 4 }} connectNulls isAnimationActive={false} />
                         ))}
                       </LineChart>
                     </ResponsiveContainer>
