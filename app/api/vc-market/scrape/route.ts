@@ -22,20 +22,23 @@ export async function POST() {
     const deals = await scrapeVCDeals(user.id, settings?.claude_api_key ?? undefined)
 
     if (deals.length === 0) {
-      return NextResponse.json({ inserted: 0, skipped: 0, errors: [] })
+      return NextResponse.json({ pending: 0, skipped: 0 })
     }
 
+    // Save to staging table instead of publishing directly
     const { data: inserted, error } = await db
-      .from('vc_deals')
-      .upsert(deals, { onConflict: 'user_id,company_name,deal_date', ignoreDuplicates: true })
+      .from('vc_deals_pending')
+      .upsert(
+        deals.map(d => ({ ...d, status: 'pending' })),
+        { onConflict: 'user_id,company_name,deal_date', ignoreDuplicates: true }
+      )
       .select('id')
 
     if (error) throw error
 
     return NextResponse.json({
-      inserted: inserted?.length ?? deals.length,
-      skipped:  deals.length - (inserted?.length ?? deals.length),
-      errors:   [],
+      pending: inserted?.length ?? deals.length,
+      skipped: deals.length - (inserted?.length ?? deals.length),
     })
   } catch (err) {
     console.error('[vc-market/scrape]', err)
