@@ -68,8 +68,6 @@ export function computeSummary(
       explicitNav = txn.unrealized_value_change
     } else if (txn.transaction_type === 'proceeds') {
       explicitNav = txn.unrealized_value_change ?? explicitNav
-    } else {
-      explicitNav = null
     }
 
     const sPrice = txn.transaction_type === 'unrealized_gain_change' ? txn.current_share_price : txn.share_price
