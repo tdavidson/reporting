@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { getBenchmarkForVintage, getQuartilePosition } from '@/lib/benchmarks/cambridge-associates'
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
-  ResponsiveContainer,
+  ResponsiveContainer, Customized,
 } from 'recharts'
 
 // ---------------------------------------------------------------------------
@@ -67,12 +67,14 @@ const INDEX_COLORS: Record<string, string> = {
   'S&P 500': '#8b5cf6',
 }
 
-const FUND_COLOR   = '#0F2332'
-const NAVY         = '#0F2332'
-const FUND_VALUE_COLOR = '#16a34a'  // green-600
+const FUND_COLOR        = '#0F2332'
+const NAVY              = '#0F2332'
+const GREEN_VALUE       = '#16a34a'
+const LABEL_H           = 18
+const MIN_LABEL_GAP     = 20   // px minimum vertical gap between labels
 
 const MARGIN_LEFT  = 56
-const MARGIN_RIGHT = 96
+const MARGIN_RIGHT = 100
 const MARGIN_TOP   = 12
 const MARGIN_BOT   = 30
 const CHART_H      = 300
@@ -98,6 +100,8 @@ const SOURCES = [
 
 function fmtMoic(v: number | null) { return v == null ? '—' : `${v.toFixed(2)}x` }
 function fmtIrr(v: number | null)  { return v == null ? '—' : `${(v * 100).toFixed(1)}%` }
+// display label: empty string -> 'Prlx Fund I'
+function groupDisplayName(g: string) { return g === '' ? 'Prlx Fund I' : g }
 
 function periodCutoff(period: string): string | null {
   if (period === 'all') return null
@@ -117,26 +121,64 @@ function snapDown(v: number, step = 10) { return Math.floor(v / step) * step }
 function snapUp(v: number, step = 10)   { return Math.ceil(v  / step) * step }
 
 // ---------------------------------------------------------------------------
-// Last-point dot + label — rendered natively by Recharts (cx/cy guaranteed)
+// Anti-overlap end labels rendered via <Customized>
+// Collects last data point per series, resolves vertical overlaps, draws all
 // ---------------------------------------------------------------------------
-function makeEndDot(color: string, totalPoints: number) {
-  // eslint-disable-next-line react/display-name
-  return function EndDot(props: any) {
-    const { cx, cy, index, value } = props
-    if (index !== totalPoints - 1 || value == null) return null
-    const label   = Number(value).toFixed(1)
-    const boxW    = label.length * 6.5 + 14
-    const LABEL_H = 18
-    return (
-      <g>
-        <circle cx={cx} cy={cy} r={4} fill={color} stroke="white" strokeWidth={2} />
-        <rect x={cx + 8} y={cy - LABEL_H / 2} width={boxW} height={LABEL_H} rx={4} fill={color} opacity={0.92} />
-        <text x={cx + 8 + boxW / 2} y={cy} textAnchor="middle" dominantBaseline="middle" fontSize={10} fontWeight={600} fill="white">
-          {label}
-        </text>
-      </g>
-    )
+function EndLabels(props: any) {
+  const { xAxisMap, yAxisMap, data, series } = props
+  if (!xAxisMap || !yAxisMap || !data || !series) return null
+
+  const xAxis = Object.values(xAxisMap as Record<string, any>)[0]
+  const yAxis = Object.values(yAxisMap as Record<string, any>)[0]
+  if (!xAxis || !yAxis) return null
+
+  const { scale: xScale, width: xWidth, x: xOffset } = xAxis
+  const { scale: yScale } = yAxis
+  if (!xScale || !yScale) return null
+
+  const lastRow = data[data.length - 1]
+  if (!lastRow) return null
+
+  // Build raw label positions
+  const items: { key: string; color: string; value: number; cy: number }[] = []
+  for (const s of series as { key: string; color: string }[]) {
+    const v = lastRow[s.key]
+    if (v == null) continue
+    items.push({ key: s.key, color: s.color, value: Number(v), cy: yScale(Number(v)) })
   }
+  if (items.length === 0) return null
+
+  // Sort by cy (top to bottom)
+  items.sort((a, b) => a.cy - b.cy)
+
+  // Resolve overlaps: push items apart with MIN_LABEL_GAP
+  for (let i = 1; i < items.length; i++) {
+    const prev = items[i - 1]
+    const cur  = items[i]
+    if (cur.cy - prev.cy < MIN_LABEL_GAP) {
+      cur.cy = prev.cy + MIN_LABEL_GAP
+    }
+  }
+
+  const cx = (xOffset ?? 0) + (xWidth ?? 0)
+
+  return (
+    <g>
+      {items.map(({ key, color, value, cy }) => {
+        const labelText = value.toFixed(1)
+        const boxW = labelText.length * 6.5 + 14
+        return (
+          <g key={key}>
+            <circle cx={cx - 2} cy={yScale(value)} r={4} fill={color} stroke="white" strokeWidth={2} />
+            <rect x={cx + 6} y={cy - LABEL_H / 2} width={boxW} height={LABEL_H} rx={4} fill={color} opacity={0.92} />
+            <text x={cx + 6 + boxW / 2} y={cy} textAnchor="middle" dominantBaseline="middle" fontSize={10} fontWeight={600} fill="white">
+              {labelText}
+            </text>
+          </g>
+        )
+      })}
+    </g>
+  )
 }
 
 function QuartileBadge({ position }: { position: keyof typeof QUARTILE_COLORS }) {
@@ -303,14 +345,13 @@ export function BenchmarkingClient() {
 
   const selectedMetric = useMemo(() => allMetrics.find(m => m.group === selectedGroup) ?? null, [allMetrics, selectedGroup])
   const bench          = useMemo(() => vintageForSelected ? getBenchmarkForVintage(vintageForSelected) : null, [vintageForSelected])
-  const fundLabel      = selectedGroup || 'Fund'
+  // use display name for chart label and card label
+  const fundLabel = groupDisplayName(selectedGroup)
 
   const chartData = useMemo(() => {
     if (!indices || navSeries.length === 0) return []
     return mergeChartData(navSeries, fundLabel, indices, activeIndices, period)
   }, [navSeries, indices, activeIndices, fundLabel, period])
-
-  const totalPoints = chartData.length
 
   const fundPeriodReturn = useMemo(() => {
     if (chartData.length < 2) return null
@@ -321,6 +362,12 @@ export function BenchmarkingClient() {
   }, [chartData, fundLabel])
 
   const allSeriesKeys = useMemo(() => [fundLabel, ...Array.from(activeIndices)], [fundLabel, activeIndices])
+
+  // series config for EndLabels
+  const seriesConfig = useMemo(() => [
+    { key: fundLabel, color: FUND_COLOR },
+    ...Array.from(activeIndices).map(k => ({ key: k, color: INDEX_COLORS[k] ?? '#888' })),
+  ], [fundLabel, activeIndices])
 
   const yDomain = useMemo(() => {
     if (chartData.length === 0) return { min: 80, max: 200 }
@@ -344,7 +391,8 @@ export function BenchmarkingClient() {
 
   const periodLabel = PERIOD_OPTIONS.find(o => o.value === period)?.label ?? 'All time'
 
-  // Cards: fund first, then all 4 indices always shown
+  // Cards: fund first, then all 4 indices
+  // All pct values are rebased to same base (last chart value - 100 = % gain from start)
   const cardEntries = useMemo(() => {
     const entries: { key: string; label: string; pct: number | null; isFund: boolean }[] = []
     entries.push({ key: fundLabel, label: fundLabel, pct: fundPeriodReturn, isFund: true })
@@ -357,6 +405,7 @@ export function BenchmarkingClient() {
     return entries
   }, [fundLabel, fundPeriodReturn, indices])
 
+  // maxPct: highest value across ALL cards (fund + indices, same base = % return)
   const maxPct = useMemo(() => {
     const vals = cardEntries.map(e => e.pct).filter((v): v is number => v != null)
     return vals.length > 0 ? Math.max(...vals) : null
@@ -383,7 +432,9 @@ export function BenchmarkingClient() {
               <div className="relative">
                 <select value={selectedGroup} onChange={e => setSelectedGroup(e.target.value)}
                   className="appearance-none pl-3 pr-8 py-2 text-sm font-semibold border rounded-lg bg-background hover:bg-accent transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-ring">
-                  {allMetrics.map(m => <option key={m.group} value={m.group}>{m.group || 'Default Fund'}</option>)}
+                  {allMetrics.map(m => (
+                    <option key={m.group} value={m.group}>{groupDisplayName(m.group)}</option>
+                  ))}
                 </select>
                 <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 h-4 w-4 pointer-events-none text-muted-foreground" />
               </div>
@@ -402,9 +453,9 @@ export function BenchmarkingClient() {
                     <Card key={i}><CardContent className="pt-4 pb-4 h-20 animate-pulse bg-muted rounded-lg" /></Card>
                   ))
                 : cardEntries.map(({ key, label, pct, isFund }) => {
-                    const isTop = pct != null && pct === maxPct && maxPct != null
-                    // Fund value: always green. Index values: navy.
-                    const valueColor = isFund ? FUND_VALUE_COLOR : NAVY
+                    const isTop = pct != null && maxPct != null && pct === maxPct
+                    // top card always green; others navy
+                    const valueColor = isTop ? GREEN_VALUE : NAVY
                     return (
                       <Card key={key}>
                         <CardContent className="pt-4 pb-4">
@@ -452,13 +503,13 @@ export function BenchmarkingClient() {
                       </button>
                     ))}
                   </div>
-                  {(['CDI', 'IPCA', 'Ibovespa', 'S&P 500'] as const).map(label => (
-                    <button key={label} onClick={() => toggleIndex(label)}
+                  {(['CDI', 'IPCA', 'Ibovespa', 'S&P 500'] as const).map(lbl => (
+                    <button key={lbl} onClick={() => toggleIndex(lbl)}
                       className={`text-[11px] px-2.5 py-1 rounded-full border transition-colors font-medium ${
-                        activeIndices.has(label) ? 'border-transparent text-white' : 'border-border text-muted-foreground hover:bg-accent'
+                        activeIndices.has(lbl) ? 'border-transparent text-white' : 'border-border text-muted-foreground hover:bg-accent'
                       }`}
-                      style={activeIndices.has(label) ? { backgroundColor: INDEX_COLORS[label] } : {}}>
-                      {label}
+                      style={activeIndices.has(lbl) ? { backgroundColor: INDEX_COLORS[lbl] } : {}}>
+                      {lbl}
                     </button>
                   ))}
                 </div>
@@ -488,15 +539,18 @@ export function BenchmarkingClient() {
                         />
                         <Tooltip content={<ChartTooltip />} />
                         <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11, paddingTop: 4 }} />
+                        {/* Lines — no per-line dots; labels handled by Customized */}
                         <Line yAxisId="nav" type="monotone" dataKey={fundLabel} stroke={FUND_COLOR} strokeWidth={2.5}
-                          dot={totalPoints > 0 ? makeEndDot(FUND_COLOR, totalPoints) : false}
-                          activeDot={{ r: 4 }} connectNulls isAnimationActive={false} />
-                        {Array.from(activeIndices).map(label => (
-                          <Line key={label} yAxisId="nav" type="monotone" dataKey={label}
-                            stroke={INDEX_COLORS[label]} strokeWidth={1.5}
-                            dot={totalPoints > 0 ? makeEndDot(INDEX_COLORS[label], totalPoints) : false}
-                            strokeDasharray="4 2" activeDot={{ r: 4 }} connectNulls isAnimationActive={false} />
+                          dot={false} activeDot={{ r: 4 }} connectNulls isAnimationActive={false} />
+                        {Array.from(activeIndices).map(lbl => (
+                          <Line key={lbl} yAxisId="nav" type="monotone" dataKey={lbl}
+                            stroke={INDEX_COLORS[lbl]} strokeWidth={1.5}
+                            dot={false} strokeDasharray="4 2" activeDot={{ r: 4 }} connectNulls isAnimationActive={false} />
                         ))}
+                        {/* Anti-overlap end labels */}
+                        <Customized component={(p: any) => (
+                          <EndLabels {...p} data={chartData} series={seriesConfig} />
+                        )} />
                       </LineChart>
                     </ResponsiveContainer>
                   )}
@@ -519,7 +573,7 @@ export function BenchmarkingClient() {
               <Card>
                 <CardHeader className="pb-2 pt-4">
                   <CardTitle className="text-sm flex items-center justify-between">
-                    <span>{selectedGroup || 'Fund'}</span>
+                    <span>{fundLabel}</span>
                     {vintageForSelected && <span className="text-xs font-normal text-muted-foreground">Vintage {vintageForSelected}</span>}
                   </CardTitle>
                 </CardHeader>
