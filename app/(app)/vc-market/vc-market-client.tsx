@@ -56,7 +56,6 @@ const PIE_COLORS = [
   '#14b8a6','#22c55e','#f59e0b','#f97316','#ef4444',
 ]
 
-// Palette for segment-based coloring (Top 10 chart)
 const SEGMENT_PALETTE = [
   '#6366f1','#3b82f6','#0ea5e9','#14b8a6',
   '#22c55e','#84cc16','#f59e0b','#f97316','#ef4444','#8b5cf6',
@@ -69,6 +68,10 @@ const LABEL_STYLE_ROUNDS  = { fontSize: 13, fontWeight: 700, fill: COLOR_ROUNDS 
 const LABEL_STYLE_CAPITAL = { fontSize: 13, fontWeight: 700, fill: COLOR_CAPITAL }
 const LABEL_STYLE_COUNTRY = { fontSize: 13, fontWeight: 700, fill: '#6366f1'     }
 const LABEL_STYLE_TOP10   = { fontSize: 12, fontWeight: 700, fill: '#f1f5f9'     }
+
+// row height + padding for horizontal bar charts
+const BAR_ROW_H = 36
+const CHART_MIN_H = 160
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
@@ -137,7 +140,7 @@ function buildCapitalBySegment(deals: VCDeal[]) {
     map.set(seg, (map.get(seg) ?? 0) + (d.amount_usd ?? 0))
   }
   return Array.from(map.entries())
-    .sort(([, a], [, b]) => b - a).slice(0, 10)
+    .sort(([, a], [, b]) => b - a)
     .map(([segment, amount]) => ({ segment, amount }))
 }
 
@@ -148,7 +151,7 @@ function buildRoundsByVertical(deals: VCDeal[]) {
     map.set(seg, (map.get(seg) ?? 0) + 1)
   }
   return Array.from(map.entries())
-    .sort(([, a], [, b]) => b - a).slice(0, 10)
+    .sort(([, a], [, b]) => b - a)
     .map(([segment, rounds]) => ({ segment, rounds }))
 }
 
@@ -159,7 +162,7 @@ function buildDealsByCountry(deals: VCDeal[]) {
     map.set(c, (map.get(c) ?? 0) + 1)
   }
   return Array.from(map.entries())
-    .sort(([, a], [, b]) => b - a).slice(0, 12)
+    .sort(([, a], [, b]) => b - a)
     .map(([country, count]) => ({ country, deals: count }))
 }
 
@@ -171,11 +174,10 @@ function buildCapitalByCountry(deals: VCDeal[]) {
     map.set(c, (map.get(c) ?? 0) + d.amount_usd)
   }
   return Array.from(map.entries())
-    .sort(([, a], [, b]) => b - a).slice(0, 12)
+    .sort(([, a], [, b]) => b - a)
     .map(([country, capital]) => ({ country, capital }))
 }
 
-// assigns a stable color per segment name
 function segmentColor(seg: string | null | undefined, segmentIndex: Map<string, number>): string {
   const key = seg ?? 'Other'
   if (!segmentIndex.has(key)) segmentIndex.set(key, segmentIndex.size)
@@ -220,11 +222,9 @@ const fmtDeals   = (v: number | undefined) => [v ?? 0, 'Deals']   as [number, st
 const fmtCapital = (v: number | undefined) => [formatUSD(v ?? 0), 'Capital'] as [string, string]
 const fmtUSDAxis = (v: number | undefined) => formatUSD(v ?? 0)
 
-// ─── LabelList formatters ─────────────────────────────────────────────────────
 const labelFmtRounds = (v: unknown) => (v != null ? String(v) : '')
 const labelFmtUSD    = (v: unknown) => (typeof v === 'number' && v ? formatUSD(v) : '')
 
-// ─── custom tick for Top10 chart (rotated company names) ─────────────────────
 function CompanyTick({ x, y, payload }: { x?: number; y?: number; payload?: { value: string } }) {
   return (
     <g transform={`translate(${x},${y})`}>
@@ -239,8 +239,6 @@ function CompanyTick({ x, y, payload }: { x?: number; y?: number; payload?: { va
     </g>
   )
 }
-
-// ─── Field ─────────────────────────────────────────────────────────────────────
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -360,10 +358,7 @@ function DragScroll({ children, className }: { children: React.ReactNode; classN
 // ─── EditDealModal ────────────────────────────────────────────────────────────
 
 function EditDealModal({
-  deal,
-  onClose,
-  onSaved,
-  onDeleted,
+  deal, onClose, onSaved, onDeleted,
 }: {
   deal: VCDeal
   onClose: () => void
@@ -380,8 +375,8 @@ function EditDealModal({
     country:      deal.country ?? '',
     source_url:   deal.source_url ?? '',
   })
-  const [saving,    setSaving]    = useState(false)
-  const [deleting,  setDeleting]  = useState(false)
+  const [saving,     setSaving]     = useState(false)
+  const [deleting,   setDeleting]   = useState(false)
   const [confirmDel, setConfirmDel] = useState(false)
 
   const set = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }))
@@ -591,7 +586,10 @@ function DealRow({ deal, onEdit }: { deal: VCDeal; onEdit: (d: VCDeal) => void }
   const stageColor = deal.stage ? STAGE_COLORS[deal.stage] ?? '#94a3b8' : '#94a3b8'
   return (
     <tr className="border-b last:border-0 hover:bg-muted/30 transition-colors group">
-      <td className="px-4 py-3 font-medium text-sm">{deal.company_name}</td>
+      {/* sticky company column */}
+      <td className="px-4 py-3 font-medium text-sm sticky left-0 z-10 bg-card group-hover:bg-muted/30 transition-colors whitespace-nowrap">
+        {deal.company_name}
+      </td>
       <td className="px-4 py-3 text-sm tabular-nums whitespace-nowrap">
         {deal.amount_usd ? formatUSD(deal.amount_usd) : <span className="text-muted-foreground">—</span>}
       </td>
@@ -734,11 +732,9 @@ export function VCMarketClient({ isAdmin }: Props) {
   const capitalByCountry = buildCapitalByCountry(deals)
   const top10Deals       = buildTop10Deals(deals)
 
-  // stable segment → color map for top10 chart
   const segIdx = new Map<string, number>()
   top10Deals.forEach(d => segmentColor(d.segment, segIdx))
 
-  // legend entries for top10
   const top10Segments = Array.from(segIdx.entries()).map(([seg, idx]) => ({
     seg, color: SEGMENT_PALETTE[idx % SEGMENT_PALETTE.length],
   }))
@@ -784,8 +780,11 @@ export function VCMarketClient({ isAdmin }: Props) {
   }
 
   const emptyChart = (msg: string) => (
-    <div className="h-[220px] flex items-center justify-center text-muted-foreground text-sm">{msg}</div>
+    <div className="h-[160px] flex items-center justify-center text-muted-foreground text-sm">{msg}</div>
   )
+
+  // dynamic heights for horizontal bar charts
+  const horzH = (n: number) => Math.max(CHART_MIN_H, n * BAR_ROW_H + 40)
 
   return (
     <div className="p-4 md:py-8 md:px-8 space-y-6 max-w-[1600px]">
@@ -835,7 +834,7 @@ export function VCMarketClient({ isAdmin }: Props) {
         <KPICard label="Active Countries" value={kpis.activeCountries.toLocaleString()}                     icon={Globe}      color="bg-amber-500/10 text-amber-500" />
       </div>
 
-      {/* Latest Deals — drag-scroll */}
+      {/* Latest Deals */}
       {latestDeals.length > 0 && (
         <DragScroll className="bg-card border rounded-xl px-4 py-2.5 flex items-center gap-2">
           <Zap className="h-3.5 w-3.5 text-amber-500 shrink-0" />
@@ -881,12 +880,11 @@ export function VCMarketClient({ isAdmin }: Props) {
       {!loading && deals.length > 0 && (
         <div className="space-y-4">
 
-          {/* ── Top 10 Deals by Capital ── full width */}
+          {/* Top 10 Deals by Capital — full width */}
           {top10Deals.length > 0 && (
             <div className="bg-card border rounded-xl p-4">
               <div className="flex items-center justify-between mb-1">
                 <h3 className="text-sm font-medium">Top 10 Deals by Capital</h3>
-                {/* segment legend */}
                 {top10Segments.length > 0 && (
                   <div className="flex flex-wrap gap-x-3 gap-y-1 justify-end">
                     {top10Segments.map(({ seg, color }) => (
@@ -899,16 +897,9 @@ export function VCMarketClient({ isAdmin }: Props) {
                 )}
               </div>
               <ResponsiveContainer width="100%" height={300}>
-                <BarChart
-                  data={top10Deals}
-                  margin={{ top: 28, right: 16, bottom: 60, left: 8 }}
-                >
+                <BarChart data={top10Deals} margin={{ top: 28, right: 16, bottom: 60, left: 8 }}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-border" vertical={false} />
-                  <XAxis
-                    dataKey="company"
-                    tick={<CompanyTick />}
-                    interval={0}
-                  />
+                  <XAxis dataKey="company" tick={<CompanyTick />} interval={0} />
                   <YAxis tick={{ fontSize: 11 }} tickFormatter={fmtUSDAxis} width={56} />
                   <Tooltip content={<Top10Tooltip />} cursor={{ fill: 'rgba(255,255,255,0.04)' }} />
                   <Bar dataKey="amount" radius={[4, 4, 0, 0]} maxBarSize={64}>
@@ -924,7 +915,7 @@ export function VCMarketClient({ isAdmin }: Props) {
             </div>
           )}
 
-          {/* ── 2-col grid ── */}
+          {/* 2-col grid */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
 
             {/* Rounds by Month */}
@@ -934,12 +925,11 @@ export function VCMarketClient({ isAdmin }: Props) {
                 <ResponsiveContainer width="100%" height={240}>
                   <BarChart data={roundsByMonth} margin={{ top: 20, right: 8, bottom: 0, left: -20 }}>
                     <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                    <XAxis dataKey="month" tick={{ fontSize: 11 }} />
+                    <XAxis dataKey="month" tick={{ fontSize: 11 }} interval={0} />
                     <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
                     <Tooltip contentStyle={{ fontSize: 12 }} formatter={fmtRounds} />
                     <Bar dataKey="rounds" {...barProps(COLOR_ROUNDS)} radius={[3, 3, 0, 0]}>
-                      <LabelList dataKey="rounds" position="top" formatter={labelFmtRounds}
-                        style={LABEL_STYLE_ROUNDS} />
+                      <LabelList dataKey="rounds" position="top" formatter={labelFmtRounds} style={LABEL_STYLE_ROUNDS} />
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
@@ -953,12 +943,11 @@ export function VCMarketClient({ isAdmin }: Props) {
                 <ResponsiveContainer width="100%" height={240}>
                   <BarChart data={capitalByMonth} margin={{ top: 20, right: 8, bottom: 0, left: 8 }}>
                     <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                    <XAxis dataKey="month" tick={{ fontSize: 11 }} />
+                    <XAxis dataKey="month" tick={{ fontSize: 11 }} interval={0} />
                     <YAxis tick={{ fontSize: 11 }} tickFormatter={fmtUSDAxis} width={56} />
                     <Tooltip contentStyle={{ fontSize: 12 }} formatter={fmtCapital} />
                     <Bar dataKey="capital" {...barProps(COLOR_CAPITAL)} radius={[3, 3, 0, 0]}>
-                      <LabelList dataKey="capital" position="top" formatter={labelFmtUSD}
-                        style={LABEL_STYLE_CAPITAL} />
+                      <LabelList dataKey="capital" position="top" formatter={labelFmtUSD} style={LABEL_STYLE_CAPITAL} />
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
@@ -969,15 +958,14 @@ export function VCMarketClient({ isAdmin }: Props) {
             <div className="bg-card border rounded-xl p-4">
               <h3 className="text-sm font-medium mb-4">Rounds by Vertical</h3>
               {roundsByVertical.length > 0 ? (
-                <ResponsiveContainer width="100%" height={240}>
-                  <BarChart data={roundsByVertical} layout="vertical" margin={{ top: 0, right: 40, bottom: 0, left: 60 }}>
+                <ResponsiveContainer width="100%" height={horzH(roundsByVertical.length)}>
+                  <BarChart data={roundsByVertical} layout="vertical" margin={{ top: 0, right: 40, bottom: 0, left: 80 }}>
                     <CartesianGrid strokeDasharray="3 3" className="stroke-border" horizontal={false} />
                     <XAxis type="number" tick={{ fontSize: 11 }} allowDecimals={false} />
-                    <YAxis dataKey="segment" type="category" tick={{ fontSize: 11 }} width={60} />
+                    <YAxis dataKey="segment" type="category" tick={{ fontSize: 11 }} width={78} />
                     <Tooltip contentStyle={{ fontSize: 12 }} formatter={fmtRounds} />
                     <Bar dataKey="rounds" {...barProps(COLOR_ROUNDS)} radius={[0, 3, 3, 0]}>
-                      <LabelList dataKey="rounds" position="right" formatter={labelFmtRounds}
-                        style={LABEL_STYLE_ROUNDS} />
+                      <LabelList dataKey="rounds" position="right" formatter={labelFmtRounds} style={LABEL_STYLE_ROUNDS} />
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
@@ -988,15 +976,14 @@ export function VCMarketClient({ isAdmin }: Props) {
             <div className="bg-card border rounded-xl p-4">
               <h3 className="text-sm font-medium mb-4">Capital by Vertical (USD)</h3>
               {capitalBySegment.length > 0 ? (
-                <ResponsiveContainer width="100%" height={240}>
-                  <BarChart data={capitalBySegment} layout="vertical" margin={{ top: 0, right: 60, bottom: 0, left: 60 }}>
+                <ResponsiveContainer width="100%" height={horzH(capitalBySegment.length)}>
+                  <BarChart data={capitalBySegment} layout="vertical" margin={{ top: 0, right: 60, bottom: 0, left: 80 }}>
                     <CartesianGrid strokeDasharray="3 3" className="stroke-border" horizontal={false} />
                     <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={fmtUSDAxis} />
-                    <YAxis dataKey="segment" type="category" tick={{ fontSize: 11 }} width={60} />
+                    <YAxis dataKey="segment" type="category" tick={{ fontSize: 11 }} width={78} />
                     <Tooltip contentStyle={{ fontSize: 12 }} formatter={fmtCapital} />
                     <Bar dataKey="amount" {...barProps(COLOR_CAPITAL)} radius={[0, 3, 3, 0]}>
-                      <LabelList dataKey="amount" position="right" formatter={labelFmtUSD}
-                        style={LABEL_STYLE_CAPITAL} />
+                      <LabelList dataKey="amount" position="right" formatter={labelFmtUSD} style={LABEL_STYLE_CAPITAL} />
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
@@ -1007,19 +994,18 @@ export function VCMarketClient({ isAdmin }: Props) {
             <div className="bg-card border rounded-xl p-4">
               <h3 className="text-sm font-medium mb-4">Deals by Country</h3>
               {dealsByCountry.length > 0 ? (
-                <ResponsiveContainer width="100%" height={240}>
-                  <BarChart data={dealsByCountry} layout="vertical" margin={{ top: 0, right: 40, bottom: 0, left: 60 }}>
+                <ResponsiveContainer width="100%" height={horzH(dealsByCountry.length)}>
+                  <BarChart data={dealsByCountry} layout="vertical" margin={{ top: 0, right: 40, bottom: 0, left: 40 }}>
                     <CartesianGrid strokeDasharray="3 3" className="stroke-border" horizontal={false} />
                     <XAxis type="number" tick={{ fontSize: 11 }} allowDecimals={false} />
-                    <YAxis dataKey="country" type="category" tick={{ fontSize: 11 }} width={60} />
+                    <YAxis dataKey="country" type="category" tick={{ fontSize: 11 }} width={38} />
                     <Tooltip contentStyle={{ fontSize: 12 }} formatter={fmtDeals} />
                     <Bar dataKey="deals" radius={[0, 3, 3, 0]}>
                       {dealsByCountry.map((_, i) => {
                         const c = PIE_COLORS[i % PIE_COLORS.length]
                         return <Cell key={i} fill={c} fillOpacity={0.6} stroke={c} strokeWidth={1.5} />
                       })}
-                      <LabelList dataKey="deals" position="right" formatter={labelFmtRounds}
-                        style={LABEL_STYLE_COUNTRY} />
+                      <LabelList dataKey="deals" position="right" formatter={labelFmtRounds} style={LABEL_STYLE_COUNTRY} />
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
@@ -1030,19 +1016,18 @@ export function VCMarketClient({ isAdmin }: Props) {
             <div className="bg-card border rounded-xl p-4">
               <h3 className="text-sm font-medium mb-4">Capital by Country (USD)</h3>
               {capitalByCountry.length > 0 ? (
-                <ResponsiveContainer width="100%" height={240}>
-                  <BarChart data={capitalByCountry} layout="vertical" margin={{ top: 0, right: 60, bottom: 0, left: 60 }}>
+                <ResponsiveContainer width="100%" height={horzH(capitalByCountry.length)}>
+                  <BarChart data={capitalByCountry} layout="vertical" margin={{ top: 0, right: 60, bottom: 0, left: 40 }}>
                     <CartesianGrid strokeDasharray="3 3" className="stroke-border" horizontal={false} />
                     <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={fmtUSDAxis} />
-                    <YAxis dataKey="country" type="category" tick={{ fontSize: 11 }} width={60} />
+                    <YAxis dataKey="country" type="category" tick={{ fontSize: 11 }} width={38} />
                     <Tooltip contentStyle={{ fontSize: 12 }} formatter={fmtCapital} />
                     <Bar dataKey="capital" radius={[0, 3, 3, 0]}>
                       {capitalByCountry.map((_, i) => {
                         const c = PIE_COLORS[i % PIE_COLORS.length]
                         return <Cell key={i} fill={c} fillOpacity={0.6} stroke={c} strokeWidth={1.5} />
                       })}
-                      <LabelList dataKey="capital" position="right" formatter={labelFmtUSD}
-                        style={LABEL_STYLE_COUNTRY} />
+                      <LabelList dataKey="capital" position="right" formatter={labelFmtUSD} style={LABEL_STYLE_COUNTRY} />
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
@@ -1098,9 +1083,13 @@ export function VCMarketClient({ isAdmin }: Props) {
                     ['country',      'Country'],
                     [null,           'Source'],
                     [null,           ''],
-                  ] as [keyof VCDeal | null, string][]).map(([key, label]) => (
+                  ] as [keyof VCDeal | null, string][]).map(([key, label], colIdx) => (
                     <th key={label}
-                      className={`px-4 py-2.5 text-left font-medium whitespace-nowrap ${key ? 'cursor-pointer select-none hover:text-foreground' : ''}`}
+                      className={`px-4 py-2.5 text-left font-medium whitespace-nowrap ${
+                        colIdx === 0 ? 'sticky left-0 z-10 bg-muted/30' : ''
+                      } ${
+                        key ? 'cursor-pointer select-none hover:text-foreground' : ''
+                      }`}
                       onClick={() => key && toggleSort(key)}>
                       {label}{key && <SortIcon col={key} />}
                     </th>

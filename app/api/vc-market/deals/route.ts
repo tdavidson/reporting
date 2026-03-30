@@ -4,11 +4,14 @@ import { createAdminClient } from '@/lib/supabase/admin'
 
 function getPeriodRange(period: string): { from?: string; to?: string } {
   const now = new Date()
-  const y = now.getFullYear()
-  if (period === 'ytd') return { from: `${y}-01-01` }
+  const y   = now.getFullYear()
+  const today = now.toISOString().slice(0, 10)
+
+  if (period === 'ytd')       return { from: `${y}-01-01`, to: today }
   if (period === 'last_year') return { from: `${y - 1}-01-01`, to: `${y - 1}-12-31` }
-  if (period === 'all') return {}
+  if (period === 'all')       return {}
   if (/^\d{4}$/.test(period)) return { from: `${period}-01-01`, to: `${period}-12-31` }
+
   const qMap: Record<string, [string, string]> = {
     q1: [`${y}-01-01`, `${y}-03-31`],
     q2: [`${y}-04-01`, `${y}-06-30`],
@@ -16,7 +19,7 @@ function getPeriodRange(period: string): { from?: string; to?: string } {
     q4: [`${y}-10-01`, `${y}-12-31`],
   }
   if (qMap[period]) return { from: qMap[period][0], to: qMap[period][1] }
-  return { from: `${y}-01-01` }
+  return { from: `${y}-01-01`, to: today }
 }
 
 export async function GET(req: NextRequest) {
@@ -38,11 +41,13 @@ export async function GET(req: NextRequest) {
       .from('vc_deals')
       .select('*')
       .eq('user_id', user.id)
+      .not('deal_date', 'is', null)
       .order('deal_date', { ascending: false })
 
     const { from, to } = getPeriodRange(period)
     if (from) q = q.gte('deal_date', from)
     if (to)   q = q.lte('deal_date', to)
+
     if (countries.length === 1) q = q.eq('country', countries[0])
     else if (countries.length > 1) q = q.in('country', countries)
     if (segments.length === 1) q = q.eq('segment', segments[0])
