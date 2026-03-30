@@ -5,7 +5,6 @@ import { createAdminClient } from '@/lib/supabase/admin'
 interface ReviewAction {
   id: string
   action: 'approve' | 'reject'
-  // optional field overrides when approving
   company_name?: string
   amount_usd?: number | null
   deal_date?: string | null
@@ -37,7 +36,6 @@ export async function POST(req: NextRequest) {
     let approved = 0
     let rejected = 0
 
-    // Approve: fetch pending rows, merge edits, upsert into vc_deals
     if (toApprove.length > 0) {
       const ids = toApprove.map(a => a.id)
       const { data: rows } = await db
@@ -48,7 +46,7 @@ export async function POST(req: NextRequest) {
 
       if (rows && rows.length > 0) {
         const toInsert = rows.map((row: Record<string, unknown>) => {
-          const override = toApprove.find(a => a.id === row.id) ?? {}
+          const override: ReviewAction = toApprove.find(a => a.id === row.id) ?? { id: row.id as string, action: 'approve' }
           // eslint-disable-next-line @typescript-eslint/no-unused-vars
           const { id, status, created_at, ...base } = row as Record<string, unknown>
           return {
@@ -73,11 +71,9 @@ export async function POST(req: NextRequest) {
         approved = inserted?.length ?? toInsert.length
       }
 
-      // Mark as approved in staging
       await db.from('vc_deals_pending').update({ status: 'approved' }).in('id', ids).eq('user_id', user.id)
     }
 
-    // Reject: just mark as rejected
     if (toReject.length > 0) {
       const ids = toReject.map(a => a.id)
       await db.from('vc_deals_pending').update({ status: 'rejected' }).in('id', ids).eq('user_id', user.id)
