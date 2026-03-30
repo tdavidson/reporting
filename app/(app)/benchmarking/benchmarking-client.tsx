@@ -76,18 +76,18 @@ const MARGIN_BOT   = 30
 const CHART_H      = 300
 
 const PERIOD_OPTIONS = [
-  { label: 'Desde início', value: 'all' },
-  { label: '5 anos',        value: '5y'  },
-  { label: '3 anos',        value: '3y'  },
-  { label: '2 anos',        value: '2y'  },
-  { label: '1 ano',         value: '1y'  },
+  { label: 'All time', value: 'all' },
+  { label: '5Y',       value: '5y'  },
+  { label: '3Y',       value: '3y'  },
+  { label: '2Y',       value: '2y'  },
+  { label: '1Y',       value: '1y'  },
 ]
 
 const SOURCES = [
   { name: 'Cambridge Associates', description: 'US Venture Capital Index — quartile benchmarks (TVPI, DPI, RVPI, Net IRR) by vintage year.', url: 'https://www.cambridgeassociates.com/research/us-venture-capital-index-and-selected-benchmark-statistics/', frequency: 'Quarterly', lastUpdate: 'Q3 2024', type: 'Manual (hardcoded)' },
-  { name: 'Banco Central do Brasil', description: 'CDI (série 12) e IPCA (série 433) acumulados via API aberta — agregados mensalmente.', url: 'https://dadosabertos.bcb.gov.br/dataset/12-taxa-de-juros---selic', frequency: 'Monthly (end-of-month)', lastUpdate: 'Live', type: 'Automatic' },
-  { name: 'Yahoo Finance', description: 'Ibovespa (^BVSP) e S&P 500 (^GSPC) mensais, rebaseados a 100 na data do primeiro investimento.', url: 'https://finance.yahoo.com/quote/%5EBVSP/', frequency: 'Monthly', lastUpdate: 'Live', type: 'Automatic' },
-  { name: 'Carta / Pitchbook', description: 'Benchmarks de fundos VC. Insira manualmente a partir dos seus relatórios.', url: 'https://carta.com/blog/state-of-private-markets/', frequency: 'Quarterly', lastUpdate: 'Manual', type: 'Manual (input)' },
+  { name: 'Banco Central do Brasil', description: 'CDI (series 12) and IPCA (series 433) accumulated via open API — aggregated monthly.', url: 'https://dadosabertos.bcb.gov.br/dataset/12-taxa-de-juros---selic', frequency: 'Monthly (end-of-month)', lastUpdate: 'Live', type: 'Automatic' },
+  { name: 'Yahoo Finance', description: 'Ibovespa (^BVSP) and S&P 500 (^GSPC) monthly, rebased to 100 at first investment date.', url: 'https://finance.yahoo.com/quote/%5EBVSP/', frequency: 'Monthly', lastUpdate: 'Live', type: 'Automatic' },
+  { name: 'Carta / Pitchbook', description: 'VC fund benchmarks. Enter manually from your quarterly reports.', url: 'https://carta.com/blog/state-of-private-markets/', frequency: 'Quarterly', lastUpdate: 'Manual', type: 'Manual (input)' },
 ]
 
 // ---------------------------------------------------------------------------
@@ -102,6 +102,14 @@ function periodCutoff(period: string): string | null {
   const now = new Date()
   now.setFullYear(now.getFullYear() - parseInt(period))
   return now.toISOString().split('T')[0]
+}
+
+/** Rebase a NavPoint[] so the first point = 100 */
+function rebaseNav(series: NavPoint[]): NavPoint[] {
+  if (series.length === 0) return []
+  const base = series[0].nav
+  if (!base || base === 0) return series
+  return series.map(pt => ({ ...pt, nav: parseFloat(((pt.nav / base) * 100).toFixed(2)) }))
 }
 
 function QuartileBadge({ position }: { position: keyof typeof QUARTILE_COLORS }) {
@@ -142,7 +150,7 @@ function ChartTooltip({ active, payload, label }: { active?: boolean; payload?: 
 }
 
 // ---------------------------------------------------------------------------
-// EndLabelsOverlay — pure SVG, no state, renders only when chartW is known
+// EndLabelsOverlay
 // ---------------------------------------------------------------------------
 function EndLabelsOverlay({
   chartData, seriesKeys, seriesColors, chartW, yMin, yMax,
@@ -173,7 +181,6 @@ function EndLabelsOverlay({
     .filter((x): x is NonNullable<typeof x> => x !== null)
     .sort((a, b) => b.value - a.value)
 
-  // Resolve overlaps (20 passes)
   for (let p = 0; p < 20; p++) {
     let moved = false
     for (let i = 1; i < labels.length; i++) {
@@ -189,7 +196,6 @@ function EndLabelsOverlay({
     if (!moved) break
   }
 
-  // xAnchor: right edge of plot area = chartW - MARGIN_RIGHT
   const xAnchor = chartW - MARGIN_RIGHT + 6
 
   return (
@@ -218,7 +224,7 @@ function EndLabelsOverlay({
 // mergeChartData
 // ---------------------------------------------------------------------------
 function mergeChartData(
-  navSeries: NavPoint[],
+  navSeries: NavPoint[],   // already rebased to 100
   fundLabel: string,
   indices: PublicIndices,
   activeIndices: Set<string>,
@@ -228,12 +234,18 @@ function mergeChartData(
   const cutoff = periodCutoff(period)
   const filtered = cutoff ? navSeries.filter(p => p.date >= cutoff) : navSeries
   if (filtered.length === 0) return []
-  const startYM = filtered[0].date.slice(0, 7)
+
+  // When a period filter is applied, re-rebase from the period start
+  const periodBase = filtered[0].nav
+  const startYM    = filtered[0].date.slice(0, 7)
+
   const monthMap = new Map<string, Record<string, any>>()
   for (const pt of filtered) {
-    const ym = pt.date.slice(0, 7)
-    monthMap.set(ym, { date: pt.date, ym, [fundLabel]: pt.nav })
+    const ym  = pt.date.slice(0, 7)
+    const nav = parseFloat(((pt.nav / periodBase) * 100).toFixed(2))
+    monthMap.set(ym, { date: pt.date, ym, [fundLabel]: nav })
   }
+
   const indexMap: Record<string, { date: string; value: number }[]> = {
     CDI: indices.cdi.series, IPCA: indices.ipca.series,
     Ibovespa: indices.ibov.series, 'S&P 500': indices.sp500.series,
@@ -273,7 +285,6 @@ export function BenchmarkingClient() {
   const [showSources, setShowSources]       = useState(false)
   const [chartW, setChartW]                 = useState(0)
 
-  // Use a stable ref + ResizeObserver to measure chart container width
   const chartContainerRef = useRef<HTMLDivElement | null>(null)
   const roRef             = useRef<ResizeObserver | null>(null)
 
@@ -334,7 +345,10 @@ export function BenchmarkingClient() {
       setNavSeries([])
       try {
         const res = await fetch(`/api/benchmarks/nav-series?group=${encodeURIComponent(selectedGroup)}`)
-        if (res.ok) setNavSeries((await res.json()).series ?? [])
+        if (res.ok) {
+          const raw: NavPoint[] = (await res.json()).series ?? []
+          setNavSeries(rebaseNav(raw))   // ← rebase to 100 at first point
+        }
       } finally { setLoadingNav(false) }
     }
     load()
@@ -346,7 +360,7 @@ export function BenchmarkingClient() {
       setLoadingIndices(true)
       try {
         const fallbackYear = vintageForSelected ?? new Date().getFullYear() - 5
-        const startDate = navSeries.length > 0 ? navSeries[0].date : `${fallbackYear}-01-01`
+        const startDate    = navSeries.length > 0 ? navSeries[0].date : `${fallbackYear}-01-01`
         const res = await fetch(`/api/benchmarks/public-indices?startDate=${startDate}`)
         if (res.ok) setIndices(await res.json())
       } finally { setLoadingIndices(false) }
@@ -363,6 +377,15 @@ export function BenchmarkingClient() {
     if (!indices || navSeries.length === 0) return []
     return mergeChartData(navSeries, fundLabel, indices, activeIndices, period)
   }, [navSeries, indices, activeIndices, fundLabel, period])
+
+  // Fund return in the selected period (base 100 → % change)
+  const fundPeriodReturn = useMemo(() => {
+    if (chartData.length < 2) return null
+    const first = chartData[0][fundLabel]
+    const last  = chartData[chartData.length - 1][fundLabel]
+    if (first == null || last == null) return null
+    return parseFloat(((last / first - 1) * 100).toFixed(1))
+  }, [chartData, fundLabel])
 
   const allSeriesKeys   = useMemo(() => [fundLabel, ...Array.from(activeIndices)], [fundLabel, activeIndices])
   const allSeriesColors = useMemo(() => ({ [fundLabel]: FUND_COLOR, ...INDEX_COLORS }), [fundLabel])
@@ -388,13 +411,16 @@ export function BenchmarkingClient() {
     setActiveIndices(prev => { const n = new Set(prev); n.has(label) ? n.delete(label) : n.add(label); return n })
   }
 
+  // Period label for cards subtitle
+  const periodLabel = PERIOD_OPTIONS.find(o => o.value === period)?.label ?? 'All time'
+
   return (
     <div className="w-full max-w-5xl mx-auto px-4 py-8">
       <div className="mb-6">
         <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2">
           <TrendingUp className="h-5 w-5" /> Benchmarking
         </h1>
-        <p className="text-sm text-muted-foreground mt-1">Performance do fundo vs. índices públicos e benchmarks VC</p>
+        <p className="text-sm text-muted-foreground mt-1">Fund performance vs. public indices and VC benchmarks</p>
       </div>
 
       {loadingFund ? (
@@ -405,7 +431,7 @@ export function BenchmarkingClient() {
           {/* 1. Fund Selector */}
           <section>
             <div className="flex items-center gap-3 flex-wrap">
-              <span className="text-sm font-medium text-muted-foreground">Fundo:</span>
+              <span className="text-sm font-medium text-muted-foreground">Fund:</span>
               <div className="relative">
                 <select value={selectedGroup} onChange={e => setSelectedGroup(e.target.value)}
                   className="appearance-none pl-3 pr-8 py-2 text-sm font-semibold border rounded-lg bg-background hover:bg-accent transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-ring">
@@ -419,10 +445,30 @@ export function BenchmarkingClient() {
             </div>
           </section>
 
-          {/* 2. Public Indices */}
+          {/* 2. Public Market Returns */}
           <section>
-            <h2 className="text-base font-semibold mb-3">Retorno Mercado Público</h2>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <h2 className="text-base font-semibold mb-3">Public Market Returns</h2>
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+
+              {/* Fund card */}
+              <Card className="border-2" style={{ borderColor: FUND_COLOR + '40' }}>
+                <CardContent className="pt-4 pb-4">
+                  <div className="text-xs text-muted-foreground mb-1 truncate">{fundLabel}</div>
+                  {loadingNav || loadingIndices ? (
+                    <div className="h-8 w-16 bg-muted animate-pulse rounded" />
+                  ) : (
+                    <div className={`text-2xl font-bold tabular-nums ${
+                      fundPeriodReturn == null ? 'text-muted-foreground'
+                      : fundPeriodReturn >= 0 ? 'text-green-600' : 'text-red-500'
+                    }`}>
+                      {fundPeriodReturn == null ? '—' : `${fundPeriodReturn >= 0 ? '+' : ''}${fundPeriodReturn}%`}
+                    </div>
+                  )}
+                  <div className="text-[10px] text-muted-foreground mt-0.5">{periodLabel}</div>
+                </CardContent>
+              </Card>
+
+              {/* Index cards */}
               {loadingIndices
                 ? Array.from({ length: 4 }).map((_, i) => <Card key={i}><CardContent className="pt-4 pb-4 h-20 animate-pulse bg-muted rounded-lg" /></Card>)
                 : indices && Object.values(indices).map(idx => {
@@ -435,7 +481,7 @@ export function BenchmarkingClient() {
                           <div className={`text-2xl font-bold tabular-nums ${pos ? 'text-green-600' : 'text-red-500'}`}>
                             {pct != null ? `${pos ? '+' : ''}${pct.toFixed(1)}%` : '—'}
                           </div>
-                          <div className="text-[10px] text-muted-foreground mt-0.5">Desde primeiro investimento</div>
+                          <div className="text-[10px] text-muted-foreground mt-0.5">Since first investment</div>
                         </CardContent>
                       </Card>
                     )
@@ -476,11 +522,11 @@ export function BenchmarkingClient() {
                 <CardContent className="pt-4 pb-2">
                   {(loadingIndices || loadingNav) ? (
                     <div className="h-64 flex items-center justify-center text-muted-foreground text-sm gap-2">
-                      <Loader2 className="h-4 w-4 animate-spin" /> Carregando série...
+                      <Loader2 className="h-4 w-4 animate-spin" /> Loading series...
                     </div>
                   ) : chartData.length < 2 ? (
                     <div className="h-64 flex items-center justify-center text-muted-foreground text-sm">
-                      Sem dados suficientes para plotar.
+                      Not enough data to plot.
                     </div>
                   ) : (
                     <div ref={attachRef} className="relative">
@@ -490,7 +536,7 @@ export function BenchmarkingClient() {
                           <XAxis dataKey="date" tick={{ fontSize: 10 }} tickFormatter={(d: string) => d?.slice(0, 7) ?? ''} interval="preserveStartEnd" />
                           <YAxis yAxisId="nav" width={MARGIN_LEFT} tick={{ fontSize: 10 }}
                             tickFormatter={(v: number) => String(Math.round(v))}
-                            label={{ value: 'Índice (base 100)', angle: -90, position: 'insideLeft', style: { fontSize: 9 }, dy: 55 }}
+                            label={{ value: 'Index (base 100)', angle: -90, position: 'insideLeft', style: { fontSize: 9 }, dy: 55 }}
                             domain={[yDomain.min, yDomain.max]} />
                           <Tooltip content={<ChartTooltip />} />
                           <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11, paddingTop: 4 }} />
@@ -512,7 +558,7 @@ export function BenchmarkingClient() {
                   )}
                   <p className="text-[10px] text-muted-foreground mt-1 flex items-center gap-1">
                     <Info className="h-3 w-3 flex-shrink-0" />
-                    NAV = (unrealizado + distribuições) / capital chamado × 100, rebaseado a 100 no primeiro mês. Índices alinhados mensalmente.
+                    NAV = (unrealized + distributions) / called capital × 100, rebased to 100 at first month. Indices aligned monthly.
                   </p>
                 </CardContent>
               </Card>
@@ -524,7 +570,7 @@ export function BenchmarkingClient() {
             <section>
               <div className="flex items-center gap-2 mb-3">
                 <h2 className="text-base font-semibold">Cambridge Associates VC Quartiles</h2>
-                <span className="text-[10px] text-muted-foreground bg-muted px-2 py-0.5 rounded">US VC peers por vintage</span>
+                <span className="text-[10px] text-muted-foreground bg-muted px-2 py-0.5 rounded">US VC peers by vintage</span>
               </div>
               <Card>
                 <CardHeader className="pb-2 pt-4">
@@ -535,7 +581,7 @@ export function BenchmarkingClient() {
                 </CardHeader>
                 <CardContent className="pb-4">
                   {!bench ? (
-                    <p className="text-xs text-muted-foreground">Nenhum vintage configurado. Defina em <strong>Vehicles → Group Config</strong>.</p>
+                    <p className="text-xs text-muted-foreground">No vintage configured. Set it in <strong>Vehicles → Group Config</strong>.</p>
                   ) : (
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                       {([
@@ -577,7 +623,7 @@ export function BenchmarkingClient() {
           {/* 5. Manual Benchmarks */}
           <section>
             <div className="flex items-center gap-2 mb-3">
-              <h2 className="text-base font-semibold">Benchmarks Manuais</h2>
+              <h2 className="text-base font-semibold">Manual Benchmarks</h2>
               <span className="text-[10px] text-muted-foreground bg-muted px-2 py-0.5 rounded">Carta, Pitchbook</span>
             </div>
             <Card>
@@ -586,25 +632,25 @@ export function BenchmarkingClient() {
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b">
-                        <th className="text-left pb-2 text-xs font-medium text-muted-foreground">Fonte</th>
-                        <th className="text-left pb-2 text-xs font-medium text-muted-foreground">TVPI peer (mediana)</th>
-                        <th className="text-left pb-2 text-xs font-medium text-muted-foreground">Net IRR peer (mediana)</th>
-                        <th className="text-left pb-2 text-xs font-medium text-muted-foreground">Notas</th>
+                        <th className="text-left pb-2 text-xs font-medium text-muted-foreground">Source</th>
+                        <th className="text-left pb-2 text-xs font-medium text-muted-foreground">TVPI peer (median)</th>
+                        <th className="text-left pb-2 text-xs font-medium text-muted-foreground">Net IRR peer (median)</th>
+                        <th className="text-left pb-2 text-xs font-medium text-muted-foreground">Notes</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {(['Carta', 'Pitchbook', 'Outro'] as const).map(src => (
+                      {(['Carta', 'Pitchbook', 'Other'] as const).map(src => (
                         <tr key={src} className="border-b last:border-0">
                           <td className="py-2 pr-4 font-medium text-xs">{src}</td>
-                          <td className="py-2 pr-4"><input type="text" placeholder="ex: 1.8x" value={manualBench[src]?.tvpi ?? ''} onChange={e => setManualBench(prev => ({ ...prev, [src]: { ...prev[src], tvpi: e.target.value } }))} className="border rounded px-2 py-1 text-xs w-24 bg-background" /></td>
-                          <td className="py-2 pr-4"><input type="text" placeholder="ex: 12.5%" value={manualBench[src]?.netIrr ?? ''} onChange={e => setManualBench(prev => ({ ...prev, [src]: { ...prev[src], netIrr: e.target.value } }))} className="border rounded px-2 py-1 text-xs w-24 bg-background" /></td>
-                          <td className="py-2"><input type="text" placeholder="Período, vintage..." value={manualBench[src]?.notes ?? ''} onChange={e => setManualBench(prev => ({ ...prev, [src]: { ...prev[src], notes: e.target.value } }))} className="border rounded px-2 py-1 text-xs w-40 bg-background" /></td>
+                          <td className="py-2 pr-4"><input type="text" placeholder="e.g. 1.8x" value={manualBench[src]?.tvpi ?? ''} onChange={e => setManualBench(prev => ({ ...prev, [src]: { ...prev[src], tvpi: e.target.value } }))} className="border rounded px-2 py-1 text-xs w-24 bg-background" /></td>
+                          <td className="py-2 pr-4"><input type="text" placeholder="e.g. 12.5%" value={manualBench[src]?.netIrr ?? ''} onChange={e => setManualBench(prev => ({ ...prev, [src]: { ...prev[src], netIrr: e.target.value } }))} className="border rounded px-2 py-1 text-xs w-24 bg-background" /></td>
+                          <td className="py-2"><input type="text" placeholder="Period, vintage..." value={manualBench[src]?.notes ?? ''} onChange={e => setManualBench(prev => ({ ...prev, [src]: { ...prev[src], notes: e.target.value } }))} className="border rounded px-2 py-1 text-xs w-40 bg-background" /></td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 </div>
-                <p className="text-[10px] text-muted-foreground mt-3 flex items-center gap-1"><Info className="h-3 w-3" /> Valores apenas na sessão atual.</p>
+                <p className="text-[10px] text-muted-foreground mt-3 flex items-center gap-1"><Info className="h-3 w-3" /> Values stored in current session only.</p>
               </CardContent>
             </Card>
           </section>
@@ -614,7 +660,7 @@ export function BenchmarkingClient() {
             <button onClick={() => setShowSources(v => !v)}
               className="flex items-center gap-2 text-sm font-semibold hover:text-foreground text-muted-foreground transition-colors mb-4">
               <ChevronDown className={`h-4 w-4 transition-transform ${showSources ? 'rotate-180' : ''}`} />
-              Fontes de Dados & Metodologia
+              Data Sources & Methodology
             </button>
             {showSources && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -628,8 +674,8 @@ export function BenchmarkingClient() {
                     </div>
                     <p className="text-xs text-muted-foreground">{src.description}</p>
                     <div className="flex items-center justify-between text-[10px] text-muted-foreground">
-                      <span>Atualização: <strong>{src.lastUpdate}</strong> · {src.frequency}</span>
-                      <a href={src.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-blue-600 hover:underline font-medium">Fonte <ExternalLink className="h-3 w-3" /></a>
+                      <span>Updated: <strong>{src.lastUpdate}</strong> · {src.frequency}</span>
+                      <a href={src.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-blue-600 hover:underline font-medium">Source <ExternalLink className="h-3 w-3" /></a>
                     </div>
                   </div>
                 ))}
