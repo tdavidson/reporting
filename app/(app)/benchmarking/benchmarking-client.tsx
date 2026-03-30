@@ -258,7 +258,9 @@ export function BenchmarkingClient() {
           fetch('/api/portfolio/investments'),
           fetch('/api/portfolio/fund-group-config'),
         ])
-        if (gcRes.ok) setGroupConfigs(await gcRes.json())
+        const configs: GroupConfig[] = gcRes.ok ? await gcRes.json() : []
+        setGroupConfigs(configs)
+
         if (invRes.ok) {
           const data = await invRes.json()
           const metrics: FundGroupMetric[] = (data.groups ?? []).map((g: any) => ({
@@ -272,13 +274,37 @@ export function BenchmarkingClient() {
             unrealizedValue: g.unrealizedValue,
           }))
           setAllMetrics(metrics)
-          // Always set — even if group === '' — triggering the nav useEffect
-          if (metrics.length > 0) setSelectedGroup(metrics[0].group)
+
+          // Build the union of groups from both sources so that Prlx Fund I
+          // (group = '') always appears in the select even with no transactions yet.
+          const metricGroupKeys = new Set(metrics.map(m => m.group))
+          const configGroupKeys = configs.map(c => c.portfolio_group)
+          // '' (Prlx Fund I) is always included as the consolidated view
+          const allGroupKeys = Array.from(
+            new Set([...metricGroupKeys, ...configGroupKeys, ''])
+          )
+
+          // Pick the first group as default, preferring '' (Prlx Fund I)
+          const defaultGroup = allGroupKeys.includes('') ? '' : (allGroupKeys[0] ?? '')
+          setSelectedGroup(defaultGroup)
         }
       } finally { setLoadingFund(false) }
     }
     load()
   }, [])
+
+  // Derive the full list of selectable groups: union of allMetrics + groupConfigs + '' (Prlx Fund I)
+  const selectableGroups = useMemo(() => {
+    const metricGroupKeys = new Set(allMetrics.map(m => m.group))
+    const configGroupKeys = groupConfigs.map(c => c.portfolio_group)
+    return Array.from(new Set([...metricGroupKeys, ...configGroupKeys, '']))
+      .sort((a, b) => {
+        // '' (Prlx Fund I) always first
+        if (a === '') return -1
+        if (b === '') return 1
+        return a.localeCompare(b)
+      })
+  }, [allMetrics, groupConfigs])
 
   const vintageForSelected = useMemo(() =>
     groupConfigs.find(c => c.portfolio_group === (selectedGroup ?? ''))?.vintage ?? null
@@ -411,8 +437,8 @@ export function BenchmarkingClient() {
                   onChange={e => setSelectedGroup(e.target.value)}
                   className="appearance-none pl-3 pr-8 py-2 text-sm font-semibold border rounded-lg bg-background hover:bg-accent transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-ring"
                 >
-                  {allMetrics.map(m => (
-                    <option key={m.group} value={m.group}>{groupDisplayName(m.group)}</option>
+                  {selectableGroups.map(g => (
+                    <option key={g} value={g}>{groupDisplayName(g)}</option>
                   ))}
                 </select>
                 <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 h-4 w-4 pointer-events-none text-muted-foreground" />
