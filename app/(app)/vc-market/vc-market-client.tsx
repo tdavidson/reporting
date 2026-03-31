@@ -76,19 +76,21 @@ const CHART_MIN_H = 160
 // ─── Sources list (mirrors lib/vc-market/scrapers.ts SOURCES) ────────────────
 
 const SCRAPE_SOURCES = [
-  { name: 'Google News – LatAm Funding',   url: 'https://news.google.com/rss/search?q=startup+rodada+captacao+venture+capital+serie+latam&hl=pt-BR&gl=BR&ceid=BR:pt', type: 'RSS' },
-  { name: 'Google News – Brazil Startups', url: 'https://news.google.com/rss/search?q=startup+brazil+funding+raised+series+venture&hl=en&gl=BR&ceid=BR:en', type: 'RSS' },
-  { name: 'Google News – Mexico Startups', url: 'https://news.google.com/rss/search?q=startup+mexico+funding+raised+series+venture&hl=en&gl=MX&ceid=MX:en', type: 'RSS' },
+  { name: 'Google News – LatAm Funding',     url: 'https://news.google.com/rss/search?q=startup+rodada+captacao+venture+capital+serie+latam&hl=pt-BR&gl=BR&ceid=BR:pt', type: 'RSS' },
+  { name: 'Google News – Brazil Startups',   url: 'https://news.google.com/rss/search?q=startup+brazil+funding+raised+series+venture&hl=en&gl=BR&ceid=BR:en', type: 'RSS' },
+  { name: 'Google News – Mexico Startups',   url: 'https://news.google.com/rss/search?q=startup+mexico+funding+raised+series+venture&hl=en&gl=MX&ceid=MX:en', type: 'RSS' },
   { name: 'Google News – Colombia Startups', url: 'https://news.google.com/rss/search?q=startup+colombia+funding+raised+series+venture&hl=en&gl=CO&ceid=CO:en', type: 'RSS' },
-  { name: 'Google News – LATAM VC EN',     url: 'https://news.google.com/rss/search?q=latin+america+startup+funding+venture+capital+series&hl=en-US&gl=US&ceid=US:en', type: 'RSS' },
-  { name: 'Pipeline Valor',                url: 'https://pipelinevalor.globo.com/negocios/', type: 'HTML' },
-  { name: 'Brazil Journal – PE/VC',        url: 'https://braziljournal.com/hot-topic/private-equity-vc/', type: 'HTML' },
-  { name: 'NeoFeed Startups',              url: 'https://neofeed.com.br/startups/', type: 'HTML' },
-  { name: 'Finsiders Brasil',              url: 'https://finsidersbrasil.com.br/ultimas-noticias/', type: 'HTML' },
-  { name: 'LATAM List – Funding',          url: 'https://latamlist.com/category/startup-news/funding/', type: 'HTML' },
-  { name: 'Startups.com.br',               url: 'https://startups.com.br/ultimas-noticias/', type: 'HTML' },
-  { name: 'Startupi',                      url: 'https://startupi.com.br/noticias/', type: 'HTML' },
-  { name: 'LATAM Fintech',                 url: 'https://www.latamfintech.co/articles', type: 'HTML' },
+  { name: 'Google News – LATAM VC EN',       url: 'https://news.google.com/rss/search?q=latin+america+startup+funding+venture+capital+series&hl=en-US&gl=US&ceid=US:en', type: 'RSS' },
+  { name: 'Pipeline Valor',                  url: 'https://pipelinevalor.globo.com/negocios/', type: 'HTML' },
+  { name: 'Brazil Journal – PE/VC',          url: 'https://braziljournal.com/hot-topic/private-equity-vc/', type: 'HTML' },
+  { name: 'NeoFeed Startups',                url: 'https://neofeed.com.br/startups/', type: 'HTML' },
+  { name: 'Finsiders Brasil',                url: 'https://finsidersbrasil.com.br/ultimas-noticias/', type: 'HTML' },
+  { name: 'LATAM List – Funding',            url: 'https://latamlist.com/category/startup-news/funding/', type: 'HTML' },
+  { name: 'Startups.com.br',                 url: 'https://startups.com.br/ultimas-noticias/', type: 'HTML' },
+  { name: 'Startupi',                        url: 'https://startupi.com.br/noticias/', type: 'HTML' },
+  { name: 'Latam Fintech',                   url: 'https://www.latamfintech.co/articles', type: 'HTML' },
+  { name: 'Startups Latam',                  url: 'https://startupslatam.com/', type: 'HTML' },
+  { name: 'TechCrunch',                      url: 'https://techcrunch.com/latest/', type: 'HTML' },
 ]
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
@@ -814,7 +816,6 @@ export function VCMarketClient({ isAdmin }: Props) {
           </button>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          {/* Pending review badge */}
           {pendingCount > 0 && (
             <Button variant="outline" size="sm" onClick={() => setShowReview(true)}
               className="gap-1.5 border-amber-400/60 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/30">
