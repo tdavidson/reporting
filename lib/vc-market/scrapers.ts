@@ -301,26 +301,57 @@ Each object:
 ${articlesText}`
 }
 
+// ─── Rate-limit-safe batch extraction ────────────────────────────────────────
+// Haiku limit: 10,000 input tokens/min on free tier.
+// Each article is ~120-150 tokens; prompt overhead ~600 tokens.
+// BATCH_SIZE=12 → ~2,040 tokens/call, well under limit.
+// BATCH_DELAY_MS=65_000 → 1 call per minute (conservative).
+const BATCH_SIZE = 12
+const BATCH_DELAY_MS = 65_000
+
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms))
+}
+
 async function extractDealsWithAI(
   articles: Article[],
   apiKey?: string,
 ): Promise<{ deals: ExtractedDeal[]; error?: string }> {
   const client = new Anthropic({ apiKey })
+  const allDeals: ExtractedDeal[] = []
+  const errors: string[] = []
 
-  try {
-    const response = await client.messages.create({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 8192,
-      messages: [{ role: 'user', content: buildPrompt(articles) }],
-    })
+  // Split into batches to stay under 10k input tokens/min
+  const batches: Article[][] = []
+  for (let i = 0; i < articles.length; i += BATCH_SIZE) {
+    batches.push(articles.slice(i, i + BATCH_SIZE))
+  }
 
-    const text = response.content[0].type === 'text' ? response.content[0].text.trim() : ''
-    if (!text || text === '[]') return { deals: [] }
+  for (let i = 0; i < batches.length; i++) {
+    // Wait before every batch except the first
+    if (i > 0) await sleep(BATCH_DELAY_MS)
 
-    const parsed = extractJsonArray(text)
-    return { deals: parsed as ExtractedDeal[] }
-  } catch (err) {
-    return { deals: [], error: err instanceof Error ? err.message : String(err) }
+    try {
+      const response = await client.messages.create({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 4096,
+        messages: [{ role: 'user', content: buildPrompt(batches[i]) }],
+      })
+
+      const text = response.content[0].type === 'text' ? response.content[0].text.trim() : ''
+      if (text && text !== '[]') {
+        const parsed = extractJsonArray(text)
+        allDeals.push(...(parsed as ExtractedDeal[]))
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      errors.push(`batch ${i + 1}/${batches.length}: ${msg}`)
+    }
+  }
+
+  return {
+    deals: allDeals,
+    error: errors.length > 0 ? errors.join(' | ') : undefined,
   }
 }
 
