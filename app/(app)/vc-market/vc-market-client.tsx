@@ -8,6 +8,7 @@ import {
   TrendingUp, Globe, DollarSign, Building2, BarChart3,
   Upload, RefreshCw, ExternalLink, X, FileSpreadsheet, Loader2,
   ChevronDown, ChevronUp, Search, Zap, Pencil, Trash2, Check, ChevronsUpDown, ClipboardList,
+  Info,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -71,6 +72,24 @@ const LABEL_STYLE_COUNTRY = { fontSize: 13, fontWeight: 700, fill: '#6366f1'    
 
 const BAR_ROW_H   = 36
 const CHART_MIN_H = 160
+
+// ─── Sources list (mirrors lib/vc-market/scrapers.ts SOURCES) ────────────────
+
+const SCRAPE_SOURCES = [
+  { name: 'Google News – LatAm Funding',   url: 'https://news.google.com/rss/search?q=startup+rodada+captacao+venture+capital+serie+latam&hl=pt-BR&gl=BR&ceid=BR:pt', type: 'RSS' },
+  { name: 'Google News – Brazil Startups', url: 'https://news.google.com/rss/search?q=startup+brazil+funding+raised+series+venture&hl=en&gl=BR&ceid=BR:en', type: 'RSS' },
+  { name: 'Google News – Mexico Startups', url: 'https://news.google.com/rss/search?q=startup+mexico+funding+raised+series+venture&hl=en&gl=MX&ceid=MX:en', type: 'RSS' },
+  { name: 'Google News – Colombia Startups', url: 'https://news.google.com/rss/search?q=startup+colombia+funding+raised+series+venture&hl=en&gl=CO&ceid=CO:en', type: 'RSS' },
+  { name: 'Google News – LATAM VC EN',     url: 'https://news.google.com/rss/search?q=latin+america+startup+funding+venture+capital+series&hl=en-US&gl=US&ceid=US:en', type: 'RSS' },
+  { name: 'Pipeline Valor',                url: 'https://pipelinevalor.globo.com/negocios/', type: 'HTML' },
+  { name: 'Brazil Journal – PE/VC',        url: 'https://braziljournal.com/hot-topic/private-equity-vc/', type: 'HTML' },
+  { name: 'NeoFeed Startups',              url: 'https://neofeed.com.br/startups/', type: 'HTML' },
+  { name: 'Finsiders Brasil',              url: 'https://finsidersbrasil.com.br/ultimas-noticias/', type: 'HTML' },
+  { name: 'LATAM List – Funding',          url: 'https://latamlist.com/category/startup-news/funding/', type: 'HTML' },
+  { name: 'Startups.com.br',               url: 'https://startups.com.br/ultimas-noticias/', type: 'HTML' },
+  { name: 'Startupi',                      url: 'https://startupi.com.br/noticias/', type: 'HTML' },
+  { name: 'LATAM Fintech',                 url: 'https://www.latamfintech.co/articles', type: 'HTML' },
+]
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
@@ -240,6 +259,64 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
     <div className="flex flex-col gap-1">
       <label className="text-xs text-muted-foreground">{label}</label>
       {children}
+    </div>
+  )
+}
+
+// ─── SourcesModal ─────────────────────────────────────────────────────────────
+
+function SourcesModal({ onClose }: { onClose: () => void }) {
+  const rss  = SCRAPE_SOURCES.filter(s => s.type === 'RSS')
+  const html = SCRAPE_SOURCES.filter(s => s.type === 'HTML')
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div className="bg-background border rounded-xl shadow-xl w-full max-w-lg max-h-[80vh] flex flex-col">
+        <div className="flex items-center justify-between px-5 py-4 border-b shrink-0">
+          <div>
+            <h2 className="text-sm font-semibold">AI Scrape Sources</h2>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {SCRAPE_SOURCES.length} sources monitored daily for LATAM VC deals
+            </p>
+          </div>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="overflow-y-auto px-5 py-4 space-y-5">
+          <div>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+              RSS Feeds ({rss.length})
+            </p>
+            <div className="space-y-1.5">
+              {rss.map(s => (
+                <a key={s.url} href={s.url} target="_blank" rel="noopener noreferrer"
+                  className="flex items-center justify-between gap-3 px-3 py-2 rounded-lg border bg-muted/30 hover:bg-muted/60 transition-colors group">
+                  <span className="text-xs font-medium truncate">{s.name}</span>
+                  <ExternalLink className="h-3 w-3 shrink-0 text-muted-foreground group-hover:text-foreground transition-colors" />
+                </a>
+              ))}
+            </div>
+          </div>
+          <div>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+              HTML Sources ({html.length})
+            </p>
+            <div className="space-y-1.5">
+              {html.map(s => (
+                <a key={s.url} href={s.url} target="_blank" rel="noopener noreferrer"
+                  className="flex items-center justify-between gap-3 px-3 py-2 rounded-lg border bg-muted/30 hover:bg-muted/60 transition-colors group">
+                  <span className="text-xs font-medium truncate">{s.name}</span>
+                  <ExternalLink className="h-3 w-3 shrink-0 text-muted-foreground group-hover:text-foreground transition-colors" />
+                </a>
+              ))}
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground border-t pt-3">
+            Articles from the last 48 h are processed by Claude AI, which extracts only confirmed LATAM funding rounds and filters out debt, grants, and non-LATAM companies.
+          </p>
+        </div>
+      </div>
     </div>
   )
 }
@@ -583,6 +660,7 @@ export function VCMarketClient({ isAdmin }: Props) {
   const [scraping, setScraping]         = useState(false)
   const [showImport, setShowImport]     = useState(false)
   const [showReview, setShowReview]     = useState(false)
+  const [showSources, setShowSources]   = useState(false)
   const [pendingCount, setPendingCount] = useState(0)
   const [editingDeal, setEditingDeal]   = useState<VCDeal | null>(null)
   const [search, setSearch]             = useState('')
@@ -722,9 +800,18 @@ export function VCMarketClient({ isAdmin }: Props) {
 
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">VC Market</h1>
-          <p className="text-sm text-muted-foreground">Global venture capital deal flow — scraped daily & importable</p>
+        <div className="flex items-start gap-2">
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight">VC Market</h1>
+            <p className="text-sm text-muted-foreground">Global venture capital deal flow — scraped daily & importable</p>
+          </div>
+          <button
+            onClick={() => setShowSources(true)}
+            className="mt-1 p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+            title="View AI scrape sources"
+          >
+            <Info className="h-4 w-4" />
+          </button>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           {/* Pending review badge */}
@@ -1040,6 +1127,8 @@ export function VCMarketClient({ isAdmin }: Props) {
           onPublished={() => { fetchDeals(filters); fetchAllDeals(); setPendingCount(0) }}
         />
       )}
+
+      {showSources && <SourcesModal onClose={() => setShowSources(false)} />}
 
       {editingDeal && (
         <EditDealModal
