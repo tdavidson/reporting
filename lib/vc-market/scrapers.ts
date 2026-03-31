@@ -1,14 +1,14 @@
 import Anthropic from '@anthropic-ai/sdk'
 import type { VCDealInsert } from './types'
 
-// ─── LATAM country codes ──────────────────────────────────────────────────────
+// ─── LATAM country codes ────────────────────────────────────────────────────────
 
 const LATAM_COUNTRIES = new Set([
   'AR','BO','BR','CL','CO','CR','CU','DO','EC','GT','HN','HT',
   'MX','NI','PA','PE','PY','SV','UY','VE','BZ','GY','SR','TT',
 ])
 
-// ─── Source definitions ───────────────────────────────────────────────────────
+// ─── Source definitions ────────────────────────────────────────────────────────────
 
 type SourceType = 'rss' | 'html'
 
@@ -19,87 +19,44 @@ interface Source {
 }
 
 const SOURCES: Source[] = [
-  // ── RSS LATAM-focused ───────────────────────────────────────────────────────
-  {
-    name: 'Google News – LatAm Funding',
-    url: 'https://news.google.com/rss/search?q=startup+rodada+captacao+venture+capital+serie+latam&hl=pt-BR&gl=BR&ceid=BR:pt',
-    type: 'rss',
-  },
-  {
-    name: 'Google News – Brazil Startups',
-    url: 'https://news.google.com/rss/search?q=startup+brazil+funding+raised+series+venture&hl=en&gl=BR&ceid=BR:en',
-    type: 'rss',
-  },
-  {
-    name: 'Google News – Mexico Startups',
-    url: 'https://news.google.com/rss/search?q=startup+mexico+funding+raised+series+venture&hl=en&gl=MX&ceid=MX:en',
-    type: 'rss',
-  },
-  {
-    name: 'Google News – Colombia Startups',
-    url: 'https://news.google.com/rss/search?q=startup+colombia+funding+raised+series+venture&hl=en&gl=CO&ceid=CO:en',
-    type: 'rss',
-  },
-  {
-    name: 'Google News – LATAM VC EN',
-    url: 'https://news.google.com/rss/search?q=latin+america+startup+funding+venture+capital+series&hl=en-US&gl=US&ceid=US:en',
-    type: 'rss',
-  },
-  // ── HTML LATAM sources ──────────────────────────────────────────────────────
-  {
-    name: 'Pipeline Valor',
-    url: 'https://pipelinevalor.globo.com/negocios/',
-    type: 'html',
-  },
-  {
-    name: 'Brazil Journal – PE/VC',
-    url: 'https://braziljournal.com/hot-topic/private-equity-vc/',
-    type: 'html',
-  },
-  {
-    name: 'NeoFeed Startups',
-    url: 'https://neofeed.com.br/startups/',
-    type: 'html',
-  },
-  {
-    name: 'Finsiders Brasil',
-    url: 'https://finsidersbrasil.com.br/ultimas-noticias/',
-    type: 'html',
-  },
-  {
-    name: 'LATAM List – Funding',
-    url: 'https://latamlist.com/category/startup-news/funding/',
-    type: 'html',
-  },
-  {
-    name: 'Startups.com.br',
-    url: 'https://startups.com.br/ultimas-noticias/',
-    type: 'html',
-  },
-  {
-    name: 'Startupi',
-    url: 'https://startupi.com.br/noticias/',
-    type: 'html',
-  },
-  {
-    name: 'Latam Fintech',
-    url: 'https://www.latamfintech.co/articles',
-    type: 'html',
-  },
-  {
-    name: 'Startups Latam',
-    url: 'https://startupslatam.com/',
-    type: 'html',
-  },
-  {
-    name: 'TechCrunch',
-    url: 'https://techcrunch.com/latest/',
-    type: 'html',
-  },
-  
+  // ── RSS LATAM-focused ───────────────────────────────────────────────────────────
+  { name: 'Google News – LatAm Funding',     url: 'https://news.google.com/rss/search?q=startup+rodada+captacao+venture+capital+serie+latam&hl=pt-BR&gl=BR&ceid=BR:pt', type: 'rss' },
+  { name: 'Google News – Brazil Startups',   url: 'https://news.google.com/rss/search?q=startup+brazil+funding+raised+series+venture&hl=en&gl=BR&ceid=BR:en', type: 'rss' },
+  { name: 'Google News – Mexico Startups',   url: 'https://news.google.com/rss/search?q=startup+mexico+funding+raised+series+venture&hl=en&gl=MX&ceid=MX:en', type: 'rss' },
+  { name: 'Google News – Colombia Startups', url: 'https://news.google.com/rss/search?q=startup+colombia+funding+raised+series+venture&hl=en&gl=CO&ceid=CO:en', type: 'rss' },
+  { name: 'Google News – LATAM VC EN',       url: 'https://news.google.com/rss/search?q=latin+america+startup+funding+venture+capital+series&hl=en-US&gl=US&ceid=US:en', type: 'rss' },
+  // ── HTML LATAM sources ─────────────────────────────────────────────────────────
+  { name: 'Pipeline Valor',                  url: 'https://pipelinevalor.globo.com/negocios/', type: 'html' },
+  { name: 'Brazil Journal – PE/VC',          url: 'https://braziljournal.com/hot-topic/private-equity-vc/', type: 'html' },
+  { name: 'NeoFeed Startups',                url: 'https://neofeed.com.br/startups/', type: 'html' },
+  { name: 'Finsiders Brasil',                url: 'https://finsidersbrasil.com.br/ultimas-noticias/', type: 'html' },
+  { name: 'LATAM List – Funding',            url: 'https://latamlist.com/category/startup-news/funding/', type: 'html' },
+  { name: 'Startups.com.br',                 url: 'https://startups.com.br/ultimas-noticias/', type: 'html' },
+  { name: 'Startupi',                        url: 'https://startupi.com.br/noticias/', type: 'html' },
+  { name: 'Latam Fintech',                   url: 'https://www.latamfintech.co/articles', type: 'html' },
+  { name: 'Startups Latam',                  url: 'https://startupslatam.com/', type: 'html' },
+  { name: 'TechCrunch',                      url: 'https://techcrunch.com/latest/', type: 'html' },
 ]
 
-// ─── Shared article interface ─────────────────────────────────────────────────
+// ─── Report types ─────────────────────────────────────────────────────────────────
+
+export interface SourceResult {
+  name: string
+  status: 'ok' | 'error' | 'empty'
+  articlesFound: number
+  error?: string
+}
+
+export interface ScrapeReport {
+  sources: SourceResult[]
+  totalArticles: number
+  uniqueArticles: number
+  dealsExtracted: number
+  dealsAfterFilter: number
+  aiError?: string
+}
+
+// ─── Shared article interface ────────────────────────────────────────────────────────────────
 
 interface Article {
   title: string
@@ -109,7 +66,7 @@ interface Article {
   source: string
 }
 
-// ─── RSS parser ───────────────────────────────────────────────────────────────
+// ─── RSS parser ─────────────────────────────────────────────────────────────────────
 
 function parseRSSItems(xml: string, sourceName: string): Article[] {
   const items: Article[] = []
@@ -132,7 +89,7 @@ function parseRSSItems(xml: string, sourceName: string): Article[] {
   return items.slice(0, 20)
 }
 
-// ─── HTML parser ─────────────────────────────────────────────────────────────
+// ─── HTML parser ────────────────────────────────────────────────────────────────────
 
 function parseHTMLItems(html: string, baseUrl: string, sourceName: string): Article[] {
   const items: Article[] = []
@@ -171,9 +128,9 @@ function parseHTMLItems(html: string, baseUrl: string, sourceName: string): Arti
   return items
 }
 
-// ─── Fetch helpers ────────────────────────────────────────────────────────────
+// ─── Fetch helpers ────────────────────────────────────────────────────────────────────
 
-async function fetchSource(source: Source): Promise<Article[]> {
+async function fetchSource(source: Source): Promise<{ articles: Article[]; error?: string }> {
   try {
     const res = await fetch(source.url, {
       headers: {
@@ -184,17 +141,18 @@ async function fetchSource(source: Source): Promise<Article[]> {
       },
       signal: AbortSignal.timeout(10000),
     })
-    if (!res.ok) return []
+    if (!res.ok) return { articles: [], error: `HTTP ${res.status}` }
     const text = await res.text()
-    return source.type === 'rss'
+    const articles = source.type === 'rss'
       ? parseRSSItems(text, source.name)
       : parseHTMLItems(text, source.url, source.name)
-  } catch {
-    return []
+    return { articles }
+  } catch (err) {
+    return { articles: [], error: err instanceof Error ? err.message : String(err) }
   }
 }
 
-// ─── AI extraction ────────────────────────────────────────────────────────────
+// ─── AI extraction ────────────────────────────────────────────────────────────────────
 
 interface ExtractedDeal {
   company_name: string
@@ -296,7 +254,10 @@ Each object:
 ${articlesText}`
 }
 
-async function extractDealsWithAI(articles: Article[], apiKey?: string): Promise<ExtractedDeal[]> {
+async function extractDealsWithAI(
+  articles: Article[],
+  apiKey?: string,
+): Promise<{ deals: ExtractedDeal[]; error?: string }> {
   const client = new Anthropic({ apiKey })
 
   try {
@@ -308,25 +269,55 @@ async function extractDealsWithAI(articles: Article[], apiKey?: string): Promise
 
     const text = response.content[0].type === 'text' ? response.content[0].text : ''
     const jsonMatch = text.match(/\[[\s\S]*\]/)
-    if (!jsonMatch) return []
+    if (!jsonMatch) return { deals: [] }
 
     const parsed = JSON.parse(jsonMatch[0]) as ExtractedDeal[]
-    return Array.isArray(parsed) ? parsed : []
-  } catch {
-    return []
+    return { deals: Array.isArray(parsed) ? parsed : [] }
+  } catch (err) {
+    return { deals: [], error: err instanceof Error ? err.message : String(err) }
   }
 }
 
-// ─── Main export ──────────────────────────────────────────────────────────────
+// ─── Main export ─────────────────────────────────────────────────────────────────────
 
-export async function scrapeVCDeals(userId: string, apiKey?: string): Promise<VCDealInsert[]> {
-  const results = await Promise.allSettled(SOURCES.map(s => fetchSource(s)))
+export async function scrapeVCDeals(
+  userId: string,
+  apiKey?: string,
+): Promise<{ deals: VCDealInsert[]; report: ScrapeReport }> {
+  const sourceResults = await Promise.allSettled(SOURCES.map(s => fetchSource(s)))
+
   const allArticles: Article[] = []
-  for (const r of results) {
-    if (r.status === 'fulfilled') allArticles.push(...r.value)
+  const sources: SourceResult[] = []
+
+  for (let i = 0; i < SOURCES.length; i++) {
+    const r = sourceResults[i]
+    if (r.status === 'fulfilled') {
+      const { articles, error } = r.value
+      allArticles.push(...articles)
+      sources.push({
+        name: SOURCES[i].name,
+        status: error ? 'error' : articles.length === 0 ? 'empty' : 'ok',
+        articlesFound: articles.length,
+        error,
+      })
+    } else {
+      sources.push({
+        name: SOURCES[i].name,
+        status: 'error',
+        articlesFound: 0,
+        error: r.reason instanceof Error ? r.reason.message : String(r.reason),
+      })
+    }
   }
 
-  if (allArticles.length === 0) return []
+  const totalArticles = allArticles.length
+
+  if (totalArticles === 0) {
+    return {
+      deals: [],
+      report: { sources, totalArticles: 0, uniqueArticles: 0, dealsExtracted: 0, dealsAfterFilter: 0 },
+    }
+  }
 
   // Deduplicate by title
   const seen = new Set<string>()
@@ -337,13 +328,12 @@ export async function scrapeVCDeals(userId: string, apiKey?: string): Promise<VC
     return true
   })
 
-  const extracted = await extractDealsWithAI(unique, apiKey)
+  const { deals: extracted, error: aiError } = await extractDealsWithAI(unique, apiKey)
 
-  return extracted
+  const filtered = extracted
     .filter(d =>
       d.company_name?.trim() &&
       d.confidence !== 'low' &&
-      // Hard filter: drop anything not in a known LATAM country
       (d.country === null || LATAM_COUNTRIES.has(d.country.toUpperCase()))
     )
     .map(d => ({
@@ -358,4 +348,16 @@ export async function scrapeVCDeals(userId: string, apiKey?: string): Promise<VC
       source_url:   d.source_url ?? null,
       source:       'scrape' as const,
     }))
+
+  return {
+    deals: filtered,
+    report: {
+      sources,
+      totalArticles,
+      uniqueArticles: unique.length,
+      dealsExtracted: extracted.length,
+      dealsAfterFilter: filtered.length,
+      aiError,
+    },
+  }
 }
