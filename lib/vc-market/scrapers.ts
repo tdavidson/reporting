@@ -75,15 +75,19 @@ const FUNDING_KEYWORDS = [
   // Portuguese
   'rodada', 'captação', 'captacao', 'investimento', 'aporte', 'levantou', 'levanta',
   'série a', 'serie a', 'série b', 'serie b', 'série c', 'serie c',
-  'seed', 'pré-seed', 'pre-seed', 'anjo', 'ipo', 'aquisição', 'aquisicao',
-  'venture capital', 'fundo', 'unicorn', 'valuation',
+  'seed', 'pré-seed', 'pre-seed', 'anjo', 'ipo',
+  'aquisição', 'aquisicao', 'adquiriu', 'adquirido', 'comprou', 'compra',
+  'fusão', 'fusao', 'fundião', 'fundiu',
+  'm&a', 'venture capital', 'fundo', 'unicorn', 'valuation',
   // Spanish
   'ronda', 'financiamiento', 'inversión', 'inversion', 'levantó', 'levanto',
-  'serie a', 'serie b', 'serie c', 'capital de riesgo', 'adquisición',
+  'serie a', 'serie b', 'serie c', 'capital de riesgo',
+  'adquisición', 'adquisicion', 'fusion', 'fusión',
   // English
   'raised', 'raises', 'funding', 'series a', 'series b', 'series c', 'series d',
-  'seed round', 'pre-seed', 'growth round', 'bridge round', 'venture', 'acquired',
-  'acquisition', 'ipo', 'spac', 'valuation', 'unicorn', 'backed by', 'led by',
+  'seed round', 'pre-seed', 'growth round', 'bridge round', 'venture',
+  'acquired', 'acquisition', 'merger', 'acquires', 'buys', 'buyout',
+  'm&a', 'ipo', 'spac', 'valuation', 'unicorn', 'backed by', 'led by',
   'million', 'billion', '$',
 ]
 
@@ -271,7 +275,7 @@ Include:
 - Bridge rounds backed by institutional investors
 - Angel rounds with named investors
 - IPOs and SPACs (include amount raised and exchange if mentioned)
-- M&A, acquisitions and mergers (acquirer goes into investors[], stage = "Acquisition")
+- M&A, acquisitions and mergers (acquirer goes into investors[], stage = "M&A")
 
 Exclude strictly:
 - Debt rounds, loans, credit facilities, revenue-based financing
