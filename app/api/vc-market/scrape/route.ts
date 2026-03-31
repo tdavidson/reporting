@@ -19,17 +19,16 @@ export async function POST() {
       .eq('user_id', user.id)
       .maybeSingle()
 
-    const deals = await scrapeVCDeals(user.id, settings?.claude_api_key ?? undefined)
+    const { deals, report } = await scrapeVCDeals(user.id, settings?.claude_api_key ?? undefined)
 
     if (deals.length === 0) {
-      return NextResponse.json({ pending: 0, skipped: 0 })
+      return NextResponse.json({ pending: 0, skipped: 0, report })
     }
 
-    // Save to staging table instead of publishing directly
     const { data: inserted, error } = await db
       .from('vc_deals_pending')
       .upsert(
-        deals.map(d => ({ ...d, status: 'pending' })),
+        deals.map((d: Record<string, unknown>) => ({ ...d, status: 'pending' })),
         { onConflict: 'user_id,company_name,deal_date', ignoreDuplicates: true }
       )
       .select('id')
@@ -39,6 +38,7 @@ export async function POST() {
     return NextResponse.json({
       pending: inserted?.length ?? deals.length,
       skipped: deals.length - (inserted?.length ?? deals.length),
+      report,
     })
   } catch (err) {
     console.error('[vc-market/scrape]', err)
