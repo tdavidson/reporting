@@ -82,10 +82,21 @@ const SOURCES: Source[] = [
     type: 'html',
   },
   {
-    name: 'LATAM Fintech',
+    name: 'Latam Fintech',
     url: 'https://www.latamfintech.co/articles',
     type: 'html',
   },
+  {
+    name: 'Startups Latam',
+    url: 'https://startupslatam.com/',
+    type: 'html',
+  },
+  {
+    name: 'TechCrunch',
+    url: 'https://techcrunch.com/latest/',
+    type: 'html',
+  },
+  
 ]
 
 // ─── Shared article interface ─────────────────────────────────────────────────
@@ -267,7 +278,7 @@ Each object:
   "deal_date": "YYYY-MM-DD" | null,
   "stage": "Pre-Seed" | "Seed" | "Series A" | "Series B" | "Series C" |
            "Series D" | "Series E" | "Growth" | "Bridge" |
-           "IPO" | "SPAC" | "Acquisition" | null,
+           "IPO" | "SPAC" | "M&A" | null,
   "investors": string[],
   "segment": string | null,
   "country": "XX" | null,   // ISO 3166-1 alpha-2 — MUST be a LATAM country code
@@ -278,7 +289,7 @@ Each object:
 ━━━ SEGMENT — pick exactly one ━━━
 "AI/ML" | "Fintech" | "Healthtech" | "SaaS" | "E-commerce" | "Proptech" |
 "Edtech" | "Deeptech" | "Cybersecurity" | "Logistics" | "Agritech" |
-"Cleantech" | "Biotech" | "Gaming" | "Web3/Crypto" | "HR Tech" |
+"Cleantech" | "Biotech" | "Gaming"| "HR Tech" |
 "Legal Tech" | "Retail Tech" | "Marketplace" | "Other"
 
 ━━━ ARTICLES ━━━
