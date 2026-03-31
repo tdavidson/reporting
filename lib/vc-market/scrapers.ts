@@ -19,13 +19,11 @@ interface Source {
 }
 
 const SOURCES: Source[] = [
-  // ── RSS LATAM-focused ───────────────────────────────────────────────────────────
   { name: 'Google News – LatAm Funding',     url: 'https://news.google.com/rss/search?q=startup+rodada+captacao+venture+capital+serie+latam&hl=pt-BR&gl=BR&ceid=BR:pt', type: 'rss' },
   { name: 'Google News – Brazil Startups',   url: 'https://news.google.com/rss/search?q=startup+brazil+funding+raised+series+venture&hl=en&gl=BR&ceid=BR:en', type: 'rss' },
   { name: 'Google News – Mexico Startups',   url: 'https://news.google.com/rss/search?q=startup+mexico+funding+raised+series+venture&hl=en&gl=MX&ceid=MX:en', type: 'rss' },
   { name: 'Google News – Colombia Startups', url: 'https://news.google.com/rss/search?q=startup+colombia+funding+raised+series+venture&hl=en&gl=CO&ceid=CO:en', type: 'rss' },
   { name: 'Google News – LATAM VC EN',       url: 'https://news.google.com/rss/search?q=latin+america+startup+funding+venture+capital+series&hl=en-US&gl=US&ceid=US:en', type: 'rss' },
-  // ── HTML LATAM sources ─────────────────────────────────────────────────────────
   { name: 'Pipeline Valor',                  url: 'https://pipelinevalor.globo.com/negocios/', type: 'html' },
   { name: 'Brazil Journal – PE/VC',          url: 'https://braziljournal.com/hot-topic/private-equity-vc/', type: 'html' },
   { name: 'NeoFeed Startups',                url: 'https://neofeed.com.br/startups/', type: 'html' },
@@ -51,6 +49,7 @@ export interface ScrapeReport {
   sources: SourceResult[]
   totalArticles: number
   uniqueArticles: number
+  articlesAfterKeywordFilter: number
   dealsExtracted: number
   dealsAfterFilter: number
   aiError?: string
@@ -64,6 +63,39 @@ interface Article {
   pubDate: string
   description: string
   source: string
+}
+
+// ─── Keyword pre-filter ───────────────────────────────────────────────────────────────────
+//
+// Runs BEFORE the AI call — zero cost, zero latency.
+// Keeps only articles that contain at least one funding signal keyword.
+// Expected reduction: ~80-90% of articles dropped, ~15-30 pass through.
+
+const FUNDING_KEYWORDS = [
+  // Portuguese
+  'rodada', 'captação', 'captacao', 'investimento', 'aporte', 'levantou', 'levanta',
+  'série a', 'serie a', 'série b', 'serie b', 'série c', 'serie c',
+  'seed', 'pré-seed', 'pre-seed', 'anjo', 'ipo', 'aquisição', 'aquisicao',
+  'venture capital', 'fundo', 'unicorn', 'valuation',
+  // Spanish
+  'ronda', 'financiamiento', 'inversión', 'inversion', 'levantó', 'levanto',
+  'serie a', 'serie b', 'serie c', 'capital de riesgo', 'adquisición',
+  // English
+  'raised', 'raises', 'funding', 'series a', 'series b', 'series c', 'series d',
+  'seed round', 'pre-seed', 'growth round', 'bridge round', 'venture', 'acquired',
+  'acquisition', 'ipo', 'spac', 'valuation', 'unicorn', 'backed by', 'led by',
+  'million', 'billion', '$',
+]
+
+// Build a single regex for fast matching (case-insensitive)
+const KEYWORDS_RE = new RegExp(
+  FUNDING_KEYWORDS.map(k => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|'),
+  'i',
+)
+
+function isFundingArticle(article: Article): boolean {
+  const haystack = `${article.title} ${article.description}`
+  return KEYWORDS_RE.test(haystack)
 }
 
 // ─── RSS parser ─────────────────────────────────────────────────────────────────────
@@ -154,46 +186,27 @@ async function fetchSource(source: Source): Promise<{ articles: Article[]; error
 
 // ─── JSON extraction helper ────────────────────────────────────────────────────
 
-/**
- * Robustly extract a JSON array from Claude's raw text response.
- *
- * Handles:
- *  - Markdown fences (```json ... ```)
- *  - Truncated output (response cut off mid-object by max_tokens)
- *  - Stray text before/after the array
- */
 function extractJsonArray(text: string): unknown[] {
-  // Strip markdown fences if present
   const stripped = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim()
-
-  // Find the outermost '[' … ']'
   const start = stripped.indexOf('[')
   if (start === -1) return []
-
   let end = stripped.lastIndexOf(']')
-
-  // If no closing bracket (truncated response), attempt to close the array:
-  //  - remove any trailing incomplete object (no closing '}')
-  //  - then append ']'
   let raw: string
   if (end === -1 || end < start) {
     raw = stripped.slice(start)
-    // Drop anything after the last complete object
     const lastClose = raw.lastIndexOf('}')
     raw = lastClose !== -1 ? raw.slice(0, lastClose + 1) + ']' : '[]'
   } else {
     raw = stripped.slice(start, end + 1)
   }
-
   try {
     const parsed = JSON.parse(raw)
     return Array.isArray(parsed) ? parsed : []
   } catch {
-    // Last resort: find all complete {...} objects and build an array
     const objects: unknown[] = []
     const objectRegex = /\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}/g
     for (const m of raw.matchAll(objectRegex)) {
-      try { objects.push(JSON.parse(m[0])) } catch { /* skip malformed */ }
+      try { objects.push(JSON.parse(m[0])) } catch { /* skip */ }
     }
     return objects
   }
@@ -294,23 +307,11 @@ Each object:
 ━━━ SEGMENT — pick exactly one ━━━
 "AI/ML" | "Fintech" | "Healthtech" | "SaaS" | "E-commerce" | "Proptech" |
 "Edtech" | "Deeptech" | "Cybersecurity" | "Logistics" | "Agritech" |
-"Cleantech" | "Biotech" | "Gaming"| "HR Tech" |
+"Cleantech" | "Biotech" | "Gaming" | "HR Tech" |
 "Legal Tech" | "Retail Tech" | "Marketplace" | "Other"
 
 ━━━ ARTICLES ━━━
 ${articlesText}`
-}
-
-// ─── Rate-limit-safe batch extraction ────────────────────────────────────────
-// Haiku limit: 10,000 input tokens/min on free tier.
-// Each article is ~120-150 tokens; prompt overhead ~600 tokens.
-// BATCH_SIZE=12 → ~2,040 tokens/call, well under limit.
-// BATCH_DELAY_MS=65_000 → 1 call per minute (conservative).
-const BATCH_SIZE = 12
-const BATCH_DELAY_MS = 65_000
-
-function sleep(ms: number): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, ms))
 }
 
 async function extractDealsWithAI(
@@ -318,40 +319,18 @@ async function extractDealsWithAI(
   apiKey?: string,
 ): Promise<{ deals: ExtractedDeal[]; error?: string }> {
   const client = new Anthropic({ apiKey })
-  const allDeals: ExtractedDeal[] = []
-  const errors: string[] = []
-
-  // Split into batches to stay under 10k input tokens/min
-  const batches: Article[][] = []
-  for (let i = 0; i < articles.length; i += BATCH_SIZE) {
-    batches.push(articles.slice(i, i + BATCH_SIZE))
-  }
-
-  for (let i = 0; i < batches.length; i++) {
-    // Wait before every batch except the first
-    if (i > 0) await sleep(BATCH_DELAY_MS)
-
-    try {
-      const response = await client.messages.create({
-        model: 'claude-haiku-4-5-20251001',
-        max_tokens: 4096,
-        messages: [{ role: 'user', content: buildPrompt(batches[i]) }],
-      })
-
-      const text = response.content[0].type === 'text' ? response.content[0].text.trim() : ''
-      if (text && text !== '[]') {
-        const parsed = extractJsonArray(text)
-        allDeals.push(...(parsed as ExtractedDeal[]))
-      }
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
-      errors.push(`batch ${i + 1}/${batches.length}: ${msg}`)
-    }
-  }
-
-  return {
-    deals: allDeals,
-    error: errors.length > 0 ? errors.join(' | ') : undefined,
+  try {
+    const response = await client.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 4096,
+      messages: [{ role: 'user', content: buildPrompt(articles) }],
+    })
+    const text = response.content[0].type === 'text' ? response.content[0].text.trim() : ''
+    if (!text || text === '[]') return { deals: [] }
+    const parsed = extractJsonArray(text)
+    return { deals: parsed as ExtractedDeal[] }
+  } catch (err) {
+    return { deals: [], error: err instanceof Error ? err.message : String(err) }
   }
 }
 
@@ -392,11 +371,11 @@ export async function scrapeVCDeals(
   if (totalArticles === 0) {
     return {
       deals: [],
-      report: { sources, totalArticles: 0, uniqueArticles: 0, dealsExtracted: 0, dealsAfterFilter: 0 },
+      report: { sources, totalArticles: 0, uniqueArticles: 0, articlesAfterKeywordFilter: 0, dealsExtracted: 0, dealsAfterFilter: 0 },
     }
   }
 
-  // Deduplicate by title
+  // 1. Deduplicate by title
   const seen = new Set<string>()
   const unique = allArticles.filter(a => {
     const key = a.title.toLowerCase().trim()
@@ -405,7 +384,25 @@ export async function scrapeVCDeals(
     return true
   })
 
-  const { deals: extracted, error: aiError } = await extractDealsWithAI(unique, apiKey)
+  // 2. Keyword pre-filter — drop articles with no funding signal before hitting the AI
+  const candidates = unique.filter(isFundingArticle)
+
+  if (candidates.length === 0) {
+    return {
+      deals: [],
+      report: {
+        sources,
+        totalArticles,
+        uniqueArticles: unique.length,
+        articlesAfterKeywordFilter: 0,
+        dealsExtracted: 0,
+        dealsAfterFilter: 0,
+      },
+    }
+  }
+
+  // 3. AI extraction on the reduced set
+  const { deals: extracted, error: aiError } = await extractDealsWithAI(candidates, apiKey)
 
   const filtered = extracted
     .filter(d =>
@@ -432,6 +429,7 @@ export async function scrapeVCDeals(
       sources,
       totalArticles,
       uniqueArticles: unique.length,
+      articlesAfterKeywordFilter: candidates.length,
       dealsExtracted: extracted.length,
       dealsAfterFilter: filtered.length,
       aiError,
