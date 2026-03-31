@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { scrapeVCDeals } from '@/lib/vc-market/scrapers'
 
+// Safely extracts a readable message from any thrown value (including Supabase error objects)
 function errorMessage(err: unknown): string {
   if (err instanceof Error) return err.message
   if (typeof err === 'object' && err !== null) {
