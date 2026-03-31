@@ -80,14 +80,14 @@ function buildDigestHtml(deals: VCDealInsert[], runDate: string): string {
 }
 
 /**
- * Send a digest email to a user's configured outbound provider.
- * Looks up their email from auth.users via the admin client.
+ * Send a digest email to a user.
+ * Tries fund outbound config first; falls back to RESEND_API_KEY env var.
  * Fails silently — never throws.
  */
 export async function sendDealDigest(
   admin: SupabaseClient,
   userId: string,
-  fundId: string,
+  fundId: string | null,
   newDeals: VCDealInsert[],
 ): Promise<void> {
   if (newDeals.length === 0) return
@@ -100,14 +100,24 @@ export async function sendDealDigest(
       return
     }
 
-    const config = await getOutboundConfig(admin, fundId)
+    // Try fund outbound config first, then fall back to RESEND_API_KEY env
+    let config = null
+    if (fundId) {
+      config = await getOutboundConfig(admin, fundId)
+    }
     if (!config) {
-      console.warn(`[deal-digest] No outbound email provider for fund ${fundId} — skipping digest`)
+      const resendKey = process.env.RESEND_API_KEY
+      if (resendKey) {
+        config = { provider: 'resend' as const, apiKey: resendKey }
+      }
+    }
+    if (!config) {
+      console.warn(`[deal-digest] No email provider available for user ${userId} — skipping digest`)
       return
     }
 
     const runDate = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
-    const subject = `VC Market: ${newDeals.length} new deal${newDeals.length !== 1 ? 's' : ''} found (${runDate})`
+    const subject = `VC Market: ${newDeals.length} new deal${newDeals.length !== 1 ? 's' : ''} ready for review (${runDate})`
     const html = buildDigestHtml(newDeals, runDate)
 
     await sendOutboundEmail(config, {
