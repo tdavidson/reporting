@@ -3,6 +3,16 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { scrapeVCDeals } from '@/lib/vc-market/scrapers'
 
+function errorMessage(err: unknown): string {
+  if (err instanceof Error) return err.message
+  if (typeof err === 'object' && err !== null) {
+    const e = err as Record<string, unknown>
+    if (typeof e.message === 'string') return e.message
+    if (typeof e.error === 'string') return e.error
+  }
+  return String(err)
+}
+
 export async function POST() {
   try {
     const supabase = createClient()
@@ -42,6 +52,6 @@ export async function POST() {
     })
   } catch (err) {
     console.error('[vc-market/scrape]', err)
-    return NextResponse.json({ error: String(err) }, { status: 500 })
+    return NextResponse.json({ error: errorMessage(err) }, { status: 500 })
   }
 }
