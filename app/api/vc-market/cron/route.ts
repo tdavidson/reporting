@@ -13,7 +13,6 @@ export async function GET(req: NextRequest) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const db = createAdminClient() as any
 
-    // Fetch all users with settings (includes fund_id for email config lookup)
     const { data: adminSettings, error: settingsError } = await db
       .from('settings')
       .select('user_id, fund_id, claude_api_key')
@@ -32,9 +31,13 @@ export async function GET(req: NextRequest) {
         const deals = await scrapeVCDeals(setting.user_id, setting.claude_api_key ?? undefined)
         if (deals.length === 0) continue
 
+        // ✅ Insert into staging table — user must review before publishing
         const { data: inserted, error } = await db
-          .from('vc_deals')
-          .upsert(deals, { onConflict: 'user_id,company_name,deal_date', ignoreDuplicates: true })
+          .from('vc_deals_pending')
+          .upsert(
+            deals.map((d: Record<string, unknown>) => ({ ...d, status: 'pending' })),
+            { onConflict: 'user_id,company_name,deal_date', ignoreDuplicates: true },
+          )
           .select('id')
 
         if (error) throw error
@@ -45,9 +48,9 @@ export async function GET(req: NextRequest) {
         totalInserted += insertedCount
         totalSkipped  += deals.length - insertedCount
 
-        // Send digest only if new deals were actually inserted
-        if (insertedCount > 0 && setting.fund_id) {
-          await sendDealDigest(db, setting.user_id, setting.fund_id, newDeals)
+        // ✅ Send digest: use fund outbound config if available, fallback to RESEND_API_KEY env
+        if (insertedCount > 0) {
+          await sendDealDigest(db, setting.user_id, setting.fund_id ?? null, newDeals)
         }
       } catch (err) {
         errors.push(`user ${setting.user_id}: ${String(err)}`)
@@ -56,11 +59,7 @@ export async function GET(req: NextRequest) {
 
     console.log(`[vc-market/cron] inserted=${totalInserted} skipped=${totalSkipped} errors=${errors.length}`)
 
-    return NextResponse.json({
-      inserted: totalInserted,
-      skipped:  totalSkipped,
-      errors,
-    })
+    return NextResponse.json({ inserted: totalInserted, skipped: totalSkipped, errors })
   } catch (err) {
     console.error('[vc-market/cron]', err)
     return NextResponse.json({ error: String(err) }, { status: 500 })
