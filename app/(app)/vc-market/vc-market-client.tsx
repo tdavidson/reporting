@@ -20,6 +20,8 @@ import { toast } from 'sonner'
 import type { VCDeal, VCFilters, VCKPIs } from '@/lib/vc-market/types'
 import * as XLSX from 'xlsx'
 import { ScrapeReviewModal } from './review-modal'
+import { ScrapeReportModal } from './scrape-report-modal'
+import type { ScrapeReport } from '@/lib/vc-market/scrapers'
 
 // ─── constants ───────────────────────────────────────────────────────────────
 
@@ -669,6 +671,7 @@ export function VCMarketClient({ isAdmin }: Props) {
   const [sortKey, setSortKey]           = useState<keyof VCDeal>('deal_date')
   const [sortDir, setSortDir]           = useState<'asc' | 'desc'>('desc')
   const [page, setPage]                 = useState(1)
+  const [scrapeReport, setScrapeReport] = useState<{ report: ScrapeReport; pending: number; skipped: number } | null>(null)
   const PAGE_SIZE = 50
 
   const [filters, setFilters] = useState<VCFilters>({
@@ -728,7 +731,12 @@ export function VCMarketClient({ isAdmin }: Props) {
         setPendingCount(prev => prev + n)
         setShowReview(true)
       } else {
-        toast.info('No new deals found')
+        // Show report modal so user knows what happened
+        if (data.report) {
+          setScrapeReport({ report: data.report, pending: 0, skipped: data.skipped ?? 0 })
+        } else {
+          toast.info('No new deals found')
+        }
       }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Scrape failed')
@@ -1130,6 +1138,15 @@ export function VCMarketClient({ isAdmin }: Props) {
       )}
 
       {showSources && <SourcesModal onClose={() => setShowSources(false)} />}
+
+      {scrapeReport && (
+        <ScrapeReportModal
+          report={scrapeReport.report}
+          pending={scrapeReport.pending}
+          skipped={scrapeReport.skipped}
+          onClose={() => setScrapeReport(null)}
+        />
+      )}
 
       {editingDeal && (
         <EditDealModal
