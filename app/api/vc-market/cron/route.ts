@@ -28,10 +28,14 @@ export async function GET(req: NextRequest) {
 
     for (const setting of adminSettings) {
       try {
-        const deals = await scrapeVCDeals(setting.user_id, setting.claude_api_key ?? undefined)
+        const { deals, report } = await scrapeVCDeals(setting.user_id, setting.claude_api_key ?? undefined)
+
+        console.log(`[vc-market/cron] user=${setting.user_id} sources=${report.sources.length} articles=${report.uniqueArticles} extracted=${report.dealsExtracted} filtered=${report.dealsAfterFilter}${
+          report.aiError ? ` aiError=${report.aiError}` : ''
+        }`)
+
         if (deals.length === 0) continue
 
-        // ✅ Insert into staging table — user must review before publishing
         const { data: inserted, error } = await db
           .from('vc_deals_pending')
           .upsert(
@@ -48,7 +52,6 @@ export async function GET(req: NextRequest) {
         totalInserted += insertedCount
         totalSkipped  += deals.length - insertedCount
 
-        // ✅ Send digest: use fund outbound config if available, fallback to RESEND_API_KEY env
         if (insertedCount > 0) {
           await sendDealDigest(db, setting.user_id, setting.fund_id ?? null, newDeals)
         }
