@@ -152,6 +152,53 @@ async function fetchSource(source: Source): Promise<{ articles: Article[]; error
   }
 }
 
+// ─── JSON extraction helper ────────────────────────────────────────────────────
+
+/**
+ * Robustly extract a JSON array from Claude's raw text response.
+ *
+ * Handles:
+ *  - Markdown fences (```json ... ```)
+ *  - Truncated output (response cut off mid-object by max_tokens)
+ *  - Stray text before/after the array
+ */
+function extractJsonArray(text: string): unknown[] {
+  // Strip markdown fences if present
+  const stripped = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim()
+
+  // Find the outermost '[' … ']'
+  const start = stripped.indexOf('[')
+  if (start === -1) return []
+
+  let end = stripped.lastIndexOf(']')
+
+  // If no closing bracket (truncated response), attempt to close the array:
+  //  - remove any trailing incomplete object (no closing '}')
+  //  - then append ']'
+  let raw: string
+  if (end === -1 || end < start) {
+    raw = stripped.slice(start)
+    // Drop anything after the last complete object
+    const lastClose = raw.lastIndexOf('}')
+    raw = lastClose !== -1 ? raw.slice(0, lastClose + 1) + ']' : '[]'
+  } else {
+    raw = stripped.slice(start, end + 1)
+  }
+
+  try {
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    // Last resort: find all complete {...} objects and build an array
+    const objects: unknown[] = []
+    const objectRegex = /\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}/g
+    for (const m of raw.matchAll(objectRegex)) {
+      try { objects.push(JSON.parse(m[0])) } catch { /* skip malformed */ }
+    }
+    return objects
+  }
+}
+
 // ─── AI extraction ────────────────────────────────────────────────────────────────────
 
 interface ExtractedDeal {
@@ -226,7 +273,7 @@ A deal is a duplicate if company_name + stage + deal_date (±30 days) all match.
 Keep only the highest-confidence entry. Never include the same round twice.
 
 ━━━ OUTPUT FORMAT ━━━
-Return a raw JSON array. No markdown fences. No explanations.
+Return a raw JSON array. No markdown fences. No explanations. No trailing text.
 If zero valid LATAM deals are found, return: []
 
 Each object:
@@ -239,7 +286,7 @@ Each object:
            "IPO" | "SPAC" | "M&A" | null,
   "investors": string[],
   "segment": string | null,
-  "country": "XX" | null,   // ISO 3166-1 alpha-2 — MUST be a LATAM country code
+  "country": "XX" | null,
   "source_url": string,
   "confidence": "high" | "medium" | "low"
 }
@@ -263,16 +310,15 @@ async function extractDealsWithAI(
   try {
     const response = await client.messages.create({
       model: 'claude-haiku-4-5-20251001',
-      max_tokens: 4096,
+      max_tokens: 8192,
       messages: [{ role: 'user', content: buildPrompt(articles) }],
     })
 
-    const text = response.content[0].type === 'text' ? response.content[0].text : ''
-    const jsonMatch = text.match(/\[[\s\S]*\]/)
-    if (!jsonMatch) return { deals: [] }
+    const text = response.content[0].type === 'text' ? response.content[0].text.trim() : ''
+    if (!text || text === '[]') return { deals: [] }
 
-    const parsed = JSON.parse(jsonMatch[0]) as ExtractedDeal[]
-    return { deals: Array.isArray(parsed) ? parsed : [] }
+    const parsed = extractJsonArray(text)
+    return { deals: parsed as ExtractedDeal[] }
   } catch (err) {
     return { deals: [], error: err instanceof Error ? err.message : String(err) }
   }
