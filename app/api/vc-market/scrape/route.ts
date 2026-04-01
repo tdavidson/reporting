@@ -23,52 +23,40 @@ export async function POST() {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const db = admin as any
 
-    const { data: settings } = await db
-      .from('settings')
-      .select('claude_api_key')
-      .eq('user_id', user.id)
-      .maybeSingle()
+    // Fetch settings and existing deals in parallel
+    const since = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+    const [settingsRes, existingRes] = await Promise.all([
+      db.from('settings').select('claude_api_key').eq('user_id', user.id).maybeSingle(),
+      db.from('vc_deals_pending').select('company_name, deal_date, stage').gte('deal_date', since),
+    ])
 
-    const { deals, report } = await scrapeVCDeals(user.id, settings?.claude_api_key ?? undefined)
+    const existingDeals = (existingRes.data ?? []) as {
+      company_name: string
+      deal_date: string
+      stage: string | null
+    }[]
 
-    if (deals.length === 0) {
-      return NextResponse.json({ pending: 0, skipped: 0, report })
-    }
-
-    // Fetch recent deals (last 45 days) to deduplicate before inserting
-    const since = new Date(Date.now() - 45 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
-    const { data: existing } = await db
-      .from('vc_deals_pending')
-      .select('company_name, deal_date, stage')
-      .gte('deal_date', since)
-
-    const existingSet = new Set<string>(
-      (existing ?? []).map((r: { company_name: string; deal_date: string; stage: string }) =>
-        `${r.company_name?.toLowerCase().trim()}|${r.deal_date}|${r.stage?.toLowerCase()}`
-      )
+    // scrapeVCDeals runs Prompt 1 (extract) + Prompt 2 (review vs DB)
+    const { deals, report } = await scrapeVCDeals(
+      user.id,
+      existingDeals,
+      settingsRes.data?.claude_api_key ?? undefined,
     )
 
-    const newDeals = deals.filter((d: Record<string, unknown>) => {
-      const key = `${String(d.company_name ?? '').toLowerCase().trim()}|${d.deal_date}|${String(d.stage ?? '').toLowerCase()}`
-      return !existingSet.has(key)
-    })
-
-    const skipped = deals.length - newDeals.length
-
-    if (newDeals.length === 0) {
-      return NextResponse.json({ pending: 0, skipped, report })
+    if (deals.length === 0) {
+      return NextResponse.json({ pending: 0, skipped: report.dealsExtracted - report.dealsAfterReview, report })
     }
 
     const { data: inserted, error } = await db
       .from('vc_deals_pending')
-      .insert(newDeals.map((d: Record<string, unknown>) => ({ ...d, status: 'pending' })))
+      .insert(deals.map((d: Record<string, unknown>) => ({ ...d, status: 'pending' })))
       .select('id')
 
     if (error) throw error
 
     return NextResponse.json({
-      pending: inserted?.length ?? newDeals.length,
-      skipped,
+      pending: inserted?.length ?? deals.length,
+      skipped: report.dealsExtracted - report.dealsAfterReview,
       report,
     })
   } catch (err) {
