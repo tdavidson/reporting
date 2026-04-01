@@ -15,6 +15,16 @@ interface ReviewAction {
   source_url?: string | null
 }
 
+function errorMessage(err: unknown): string {
+  if (err instanceof Error) return err.message
+  if (typeof err === 'object' && err !== null) {
+    const e = err as Record<string, unknown>
+    if (typeof e.message === 'string') return e.message
+    if (typeof e.error === 'string') return e.error
+  }
+  return String(err)
+}
+
 export async function POST(req: NextRequest) {
   try {
     const supabase = createClient()
@@ -38,17 +48,18 @@ export async function POST(req: NextRequest) {
 
     if (toApprove.length > 0) {
       const ids = toApprove.map(a => a.id)
-      const { data: rows } = await db
+      const { data: rows, error: fetchErr } = await db
         .from('vc_deals_pending')
         .select('*')
         .in('id', ids)
-        .eq('user_id', user.id)
+
+      if (fetchErr) throw fetchErr
 
       if (rows && rows.length > 0) {
         const toInsert = rows.map((row: Record<string, unknown>) => {
           const override: ReviewAction = toApprove.find(a => a.id === row.id) ?? { id: row.id as string, action: 'approve' }
           // eslint-disable-next-line @typescript-eslint/no-unused-vars
-          const { id, status, created_at, ...base } = row as Record<string, unknown>
+          const { id, status, created_at, updated_at, raw_data, extraction_error, ...base } = row as Record<string, unknown>
           return {
             ...base,
             ...(override.company_name !== undefined && { company_name: override.company_name }),
@@ -64,25 +75,25 @@ export async function POST(req: NextRequest) {
 
         const { data: inserted, error: insertErr } = await db
           .from('vc_deals')
-          .upsert(toInsert, { onConflict: 'user_id,company_name,deal_date', ignoreDuplicates: true })
+          .insert(toInsert)
           .select('id')
 
         if (insertErr) throw insertErr
         approved = inserted?.length ?? toInsert.length
       }
 
-      await db.from('vc_deals_pending').update({ status: 'approved' }).in('id', ids).eq('user_id', user.id)
+      await db.from('vc_deals_pending').update({ status: 'approved' }).in('id', ids)
     }
 
     if (toReject.length > 0) {
       const ids = toReject.map(a => a.id)
-      await db.from('vc_deals_pending').update({ status: 'rejected' }).in('id', ids).eq('user_id', user.id)
+      await db.from('vc_deals_pending').update({ status: 'rejected' }).in('id', ids)
       rejected = toReject.length
     }
 
     return NextResponse.json({ approved, rejected })
   } catch (err) {
     console.error('[vc-market/pending/review]', err)
-    return NextResponse.json({ error: String(err) }, { status: 500 })
+    return NextResponse.json({ error: errorMessage(err) }, { status: 500 })
   }
 }
