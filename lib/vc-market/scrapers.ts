@@ -45,6 +45,7 @@ export interface ScrapeReport {
   totalArticles: number
   uniqueArticles: number
   articlesAfterKeywordFilter: number
+  articlesAfterDateFilter: number
   dealsExtracted: number
   dealsAfterFilter: number
   aiError?: string
@@ -58,6 +59,24 @@ interface Article {
   pubDate: string
   description: string
   source: string
+}
+
+// ─── Date helpers ───────────────────────────────────────────────────────────────────
+//
+// isRecentArticle: returns true if the article has no date (let it pass to the AI)
+// OR if its date falls within the last 48h window (today + yesterday).
+// We use 48h (not strict today/yesterday) to handle timezone edge cases gracefully.
+
+function parseArticleDate(raw: string): Date | null {
+  if (!raw) return null
+  const d = new Date(raw)
+  return isNaN(d.getTime()) ? null : d
+}
+
+function isRecentArticle(article: Article, cutoffMs: number): boolean {
+  const d = parseArticleDate(article.pubDate)
+  if (!d) return true  // no date → pass through (AI will handle it)
+  return d.getTime() >= cutoffMs
 }
 
 // ─── Keyword pre-filter ───────────────────────────────────────────────────────────────────
@@ -155,9 +174,6 @@ function parseHTMLItems(html: string, baseUrl: string, sourceName: string): Arti
 }
 
 // ─── Article body fetcher ────────────────────────────────────────────────────────
-// Fetches the full HTML of an article URL and extracts meaningful text content.
-// Strips scripts, styles, nav, footer, and other boilerplate.
-// Returns up to 1500 chars of clean body text.
 
 async function fetchArticleBody(url: string): Promise<string> {
   try {
@@ -168,7 +184,6 @@ async function fetchArticleBody(url: string): Promise<string> {
     if (!res.ok) return ''
     const html = await res.text()
 
-    // Remove unwanted blocks
     const cleaned = html
       .replace(/<script[\s\S]*?<\/script>/gi, '')
       .replace(/<style[\s\S]*?<\/style>/gi, '')
@@ -177,14 +192,12 @@ async function fetchArticleBody(url: string): Promise<string> {
       .replace(/<header[\s\S]*?<\/header>/gi, '')
       .replace(/<aside[\s\S]*?<\/aside>/gi, '')
 
-    // Try to isolate article body
     const bodyMatch =
       cleaned.match(/<article[^>]*>([\s\S]*?)<\/article>/i)?.[1] ??
       cleaned.match(/<main[^>]*>([\s\S]*?)<\/main>/i)?.[1] ??
       cleaned.match(/<div[^>]*class=["'][^"']*(?:content|post|entry|article-body)[^"']*["'][^>]*>([\s\S]*?)<\/div>/i)?.[1] ??
       cleaned
 
-    // Extract date hint from article page itself
     const dateInPage =
       bodyMatch.match(/<time[^>]*datetime=["']([^"']+)["']/i)?.[1] ??
       bodyMatch.match(/"datePublished"\s*:\s*"([^"]+)"/i)?.[1] ??
@@ -202,16 +215,15 @@ async function fetchArticleBody(url: string): Promise<string> {
   }
 }
 
-// ─── Enrich articles with full body (only after keyword pre-filter) ──────────────
+// ─── Enrich articles with full body + extracted date ───────────────────────────────
 
 async function enrichArticles(articles: Article[]): Promise<Article[]> {
   const results = await Promise.allSettled(
     articles.map(async (a) => {
-      if (a.description.length >= 300) return a  // already has enough content (RSS)
+      if (a.description.length >= 300) return a  // RSS already has content
       const body = await fetchArticleBody(a.link)
       if (!body) return a
 
-      // Extract date hint prefixed as [date:...]
       const dateMatch = body.match(/^\[date:([^\]]+)\]/)
       const extractedDate = dateMatch?.[1] ?? ''
       const cleanBody = body.replace(/^\[date:[^\]]+\]\s*/, '')
@@ -306,7 +318,7 @@ function buildPrompt(articles: Article[], today: string): string {
 
   const articlesText = articles
     .map((a, i) =>
-      `[${i}] Source: ${a.source}\nTitle: ${a.title}\nDate: ${a.pubDate || 'unknown — assume ${today}'}\nURL: ${a.link}\nContent: ${a.description}`
+      `[${i}] Source: ${a.source}\nTitle: ${a.title}\nDate: ${a.pubDate || `unknown — assume ${today}`}\nURL: ${a.link}\nContent: ${a.description}`
     )
     .join('\n\n')
 
@@ -316,6 +328,7 @@ Today's date: ${today}
 Yesterday's date: ${yesterday}
 
 Your task: analyze the news articles below and extract ONLY confirmed startup/company funding rounds from LATIN AMERICA.
+All articles have already been pre-filtered to today/yesterday — focus only on data extraction.
 
 ━━━ GEOGRAPHIC FILTER — MANDATORY ━━━
 ONLY include deals where the company is headquartered in a LATAM country:
@@ -325,10 +338,9 @@ IMPORTANT: If the company is from USA, Europe, Asia, Africa, or any country outs
 If the company's country cannot be determined and there is no clear indication it is LATAM-based, skip the article entirely.
 
 ━━━ DATE RULES ━━━
-- Prefer the date explicitly mentioned in the article content or title.
-- If no date is found in the content, use the article's publication date ("Date" field above).
-- If both are missing, use today's date: ${today}.
-- Format: YYYY-MM-DD. Never return null for deal_date — always provide a best-effort date.
+- Prefer the date explicitly mentioned in the article content.
+- If missing, use the "Date" field. If both missing, use today: ${today}.
+- Format: YYYY-MM-DD.
 
 ━━━ WHAT QUALIFIES AS A VALID DEAL ━━━
 Include:
@@ -336,23 +348,21 @@ Include:
 - Growth equity and late-stage VC rounds
 - Bridge rounds backed by institutional investors
 - Angel rounds with named investors
-- IPOs and SPACs (include amount raised and exchange if mentioned)
+- IPOs and SPACs
 - M&A, acquisitions and mergers (acquirer goes into investors[], stage = "M&A")
 
-Exclude strictly:
+Exclude:
 - Debt rounds, loans, credit facilities, revenue-based financing
 - Government grants, subsidies, public funding
-- Crowdfunding (Kickstarter, Indiegogo, etc.)
-- Real estate or infrastructure deals
+- Crowdfunding, real estate, infrastructure
 - Articles that only MENTION a company without confirming a closed event
 - Any deal outside Latin America
 
 ━━━ DUPLICATE DETECTION ━━━
-A deal is a duplicate if company_name + stage + deal_date (±30 days) all match.
-Keep only the highest-confidence entry. Never include the same round twice.
+Keep only the highest-confidence entry per company+stage+date(±30 days).
 
 ━━━ OUTPUT FORMAT ━━━
-Return a raw JSON array. No markdown fences. No explanations. No trailing text.
+Return a raw JSON array. No markdown fences. No explanations.
 If zero valid LATAM deals are found, return: []
 
 Each object:
@@ -360,21 +370,18 @@ Each object:
   "company_name": string,
   "amount_usd": number | null,
   "deal_date": "YYYY-MM-DD",
-  "stage": "Pre-Seed" | "Seed" | "Series A" | "Series B" | "Series C" |
-           "Series D" | "Series E" | "Growth" | "Bridge" |
-           "IPO" | "SPAC" | "M&A" | null,
+  "stage": "Pre-Seed"|"Seed"|"Series A"|"Series B"|"Series C"|"Series D"|"Series E"|"Growth"|"Bridge"|"IPO"|"SPAC"|"M&A"|null,
   "investors": string[],
   "segment": string | null,
   "country": "XX" | null,
   "source_url": string,
-  "confidence": "high" | "medium" | "low"
+  "confidence": "high"|"medium"|"low"
 }
 
-━━━ SEGMENT — pick exactly one ━━━
-"AI/ML" | "Fintech" | "Healthtech" | "SaaS" | "E-commerce" | "Proptech" |
-"Edtech" | "Deeptech" | "Cybersecurity" | "Logistics" | "Agritech" |
-"Cleantech" | "Biotech" | "Gaming" | "HR Tech" |
-"Legal Tech" | "Retail Tech" | "Marketplace" | "Other"
+━━━ SEGMENT ━━━
+"AI/ML"|"Fintech"|"Healthtech"|"SaaS"|"E-commerce"|"Proptech"|"Edtech"|"Deeptech"|
+"Cybersecurity"|"Logistics"|"Agritech"|"Cleantech"|"Biotech"|"Gaming"|"HR Tech"|
+"Legal Tech"|"Retail Tech"|"Marketplace"|"Other"
 
 ━━━ ARTICLES ━━━
 ${articlesText}`
@@ -408,6 +415,8 @@ export async function scrapeVCDeals(
   apiKey?: string,
 ): Promise<{ deals: VCDealInsert[]; report: ScrapeReport }> {
   const today = new Date().toISOString().slice(0, 10)
+  // 48h cutoff: covers today + yesterday + timezone drift
+  const cutoffMs = Date.now() - 48 * 60 * 60 * 1000
 
   const sourceResults = await Promise.allSettled(SOURCES.map(s => fetchSource(s)))
 
@@ -440,7 +449,7 @@ export async function scrapeVCDeals(
   if (totalArticles === 0) {
     return {
       deals: [],
-      report: { sources, totalArticles: 0, uniqueArticles: 0, articlesAfterKeywordFilter: 0, dealsExtracted: 0, dealsAfterFilter: 0 },
+      report: { sources, totalArticles: 0, uniqueArticles: 0, articlesAfterKeywordFilter: 0, articlesAfterDateFilter: 0, dealsExtracted: 0, dealsAfterFilter: 0 },
     }
   }
 
@@ -464,17 +473,37 @@ export async function scrapeVCDeals(
         totalArticles,
         uniqueArticles: unique.length,
         articlesAfterKeywordFilter: 0,
+        articlesAfterDateFilter: 0,
         dealsExtracted: 0,
         dealsAfterFilter: 0,
       },
     }
   }
 
-  // 3. Enrich with full article body (parallel fetch)
+  // 3. Enrich with full article body (parallel fetch) — also populates pubDate from page
   const enriched = await enrichArticles(candidates)
 
-  // 4. AI extraction on enriched articles
-  const { deals: extracted, error: aiError } = await extractDealsWithAI(enriched, today, apiKey)
+  // 4. Date filter — runs AFTER enrich so pubDate is populated from article page
+  //    Articles with no date still pass through (AI handles them)
+  const dated = enriched.filter(a => isRecentArticle(a, cutoffMs))
+
+  if (dated.length === 0) {
+    return {
+      deals: [],
+      report: {
+        sources,
+        totalArticles,
+        uniqueArticles: unique.length,
+        articlesAfterKeywordFilter: candidates.length,
+        articlesAfterDateFilter: 0,
+        dealsExtracted: 0,
+        dealsAfterFilter: 0,
+      },
+    }
+  }
+
+  // 5. AI extraction on recent enriched articles
+  const { deals: extracted, error: aiError } = await extractDealsWithAI(dated, today, apiKey)
 
   const filtered = extracted
     .filter(d =>
@@ -502,6 +531,7 @@ export async function scrapeVCDeals(
       totalArticles,
       uniqueArticles: unique.length,
       articlesAfterKeywordFilter: candidates.length,
+      articlesAfterDateFilter: dated.length,
       dealsExtracted: extracted.length,
       dealsAfterFilter: filtered.length,
       aiError,
