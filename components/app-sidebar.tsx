@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Building2, ClipboardCheck, Mail, Upload, Send, Settings, PanelLeftClose, PanelLeftOpen, BarChart3, StickyNote, Lock, Users, Handshake, ArrowDownCircle, FileText, Briefcase, Crown, ShieldCheck, Newspaper, Globe2, TrendingUp } from 'lucide-react'
+import { Building2, ClipboardCheck, Mail, Upload, Send, Settings, PanelLeftClose, PanelLeftOpen, BarChart3, StickyNote, Lock, Users, Handshake, ArrowDownCircle, FileText, Briefcase, Crown, ShieldCheck, Newspaper, Globe2, TrendingUp, Scale } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useState } from 'react'
 import { useSidebar } from '@/components/sidebar-context'
@@ -25,6 +25,7 @@ const NAV_ITEMS: { href: string; label: string; icon: LucideIcon; badgeKey?: 're
   { href: '/letters', label: 'Letters', icon: FileText, featureKey: 'lp_letters' },
   { href: '/lps', label: 'LPs', icon: Crown, featureKey: 'lps' },
   { href: '/compliance', label: 'Compliance', icon: ShieldCheck, featureKey: 'compliance', beta: true },
+  { href: '/regulacoes', label: 'Regulações BR', icon: Scale },
   { href: '/usage', label: 'Usage', icon: Users, adminOnly: true },
   { href: '/settings', label: 'Settings', icon: Settings, badgeKey: 'settings' },
 ]
