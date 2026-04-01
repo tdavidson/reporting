@@ -3,7 +3,6 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { scrapeVCDeals } from '@/lib/vc-market/scrapers'
 
-// Safely extracts a readable message from any thrown value (including Supabase error objects)
 function errorMessage(err: unknown): string {
   if (err instanceof Error) return err.message
   if (typeof err === 'object' && err !== null) {
@@ -36,19 +35,40 @@ export async function POST() {
       return NextResponse.json({ pending: 0, skipped: 0, report })
     }
 
+    // Fetch recent deals (last 45 days) to deduplicate before inserting
+    const since = new Date(Date.now() - 45 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+    const { data: existing } = await db
+      .from('vc_deals_pending')
+      .select('company_name, deal_date, stage')
+      .gte('deal_date', since)
+
+    const existingSet = new Set<string>(
+      (existing ?? []).map((r: { company_name: string; deal_date: string; stage: string }) =>
+        `${r.company_name?.toLowerCase().trim()}|${r.deal_date}|${r.stage?.toLowerCase()}`
+      )
+    )
+
+    const newDeals = deals.filter((d: Record<string, unknown>) => {
+      const key = `${String(d.company_name ?? '').toLowerCase().trim()}|${d.deal_date}|${String(d.stage ?? '').toLowerCase()}`
+      return !existingSet.has(key)
+    })
+
+    const skipped = deals.length - newDeals.length
+
+    if (newDeals.length === 0) {
+      return NextResponse.json({ pending: 0, skipped, report })
+    }
+
     const { data: inserted, error } = await db
       .from('vc_deals_pending')
-      .upsert(
-        deals.map((d: Record<string, unknown>) => ({ ...d, status: 'pending' })),
-        { onConflict: 'user_id,company_name,deal_date', ignoreDuplicates: true }
-      )
+      .insert(newDeals.map((d: Record<string, unknown>) => ({ ...d, status: 'pending' })))
       .select('id')
 
     if (error) throw error
 
     return NextResponse.json({
-      pending: inserted?.length ?? deals.length,
-      skipped: deals.length - (inserted?.length ?? deals.length),
+      pending: inserted?.length ?? newDeals.length,
+      skipped,
       report,
     })
   } catch (err) {
