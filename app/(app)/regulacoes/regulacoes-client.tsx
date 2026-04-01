@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
-import { Scale, ExternalLink, X, AlertTriangle } from 'lucide-react'
+import { Scale, ExternalLink, AlertTriangle, ChevronDown, ChevronUp } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import {
@@ -19,29 +19,18 @@ import type { Regulation, Issuer } from '@/lib/regulacoes/types'
 const ALL_TAGS = ['Crypto', 'Payments', 'Banking', 'Open Finance', 'AML', 'Credit', 'Capital Markets', 'ESG', 'Data & Privacy', 'FX'] as const
 type Tag = typeof ALL_TAGS[number]
 
-const BCB_STYLE = { dot: 'bg-emerald-500', badge: 'bg-emerald-500/10', badgeText: 'text-emerald-600 dark:text-emerald-400', border: 'border-emerald-500', label: 'BCB' }
-
-const ISSUER_STYLES: Record<Issuer, typeof BCB_STYLE> = {
-  CVM:   { dot: 'bg-blue-500',    badge: 'bg-blue-500/10',    badgeText: 'text-blue-600 dark:text-blue-400',    border: 'border-blue-500',   label: 'CVM' },
-  BCB:   BCB_STYLE,
-  CMN:   { dot: 'bg-amber-500',   badge: 'bg-amber-500/10',   badgeText: 'text-amber-600 dark:text-amber-400',   border: 'border-amber-500',  label: 'CMN' },
-  OTHER: { dot: 'bg-violet-500',  badge: 'bg-violet-500/10',  badgeText: 'text-violet-600 dark:text-violet-400', border: 'border-violet-500', label: 'Other' },
+const ISSUER_STYLES: Record<Issuer, { dot: string; badge: string; badgeText: string; label: string }> = {
+  CVM:   { dot: 'bg-blue-500',    badge: 'bg-blue-500/10',    badgeText: 'text-blue-600 dark:text-blue-400',       label: 'CVM' },
+  BCB:   { dot: 'bg-emerald-500', badge: 'bg-emerald-500/10', badgeText: 'text-emerald-600 dark:text-emerald-400', label: 'BCB' },
+  CMN:   { dot: 'bg-amber-500',   badge: 'bg-amber-500/10',   badgeText: 'text-amber-600 dark:text-amber-400',     label: 'CMN' },
+  OTHER: { dot: 'bg-violet-500',  badge: 'bg-violet-500/10',  badgeText: 'text-violet-600 dark:text-violet-400',   label: 'Other' },
 }
 
 const ORDER_CONFIG = [
-  { key: 'firstOrder' as const,  label: '1st Order', sub: 'Direct compliance obligations',    border: 'border-l-red-400' },
-  { key: 'secondOrder' as const, label: '2nd Order', sub: 'Indirectly affected players',      border: 'border-l-amber-400' },
-  { key: 'thirdOrder' as const,  label: '3rd Order', sub: 'Ecosystem & startup implications', border: 'border-l-blue-400' },
+  { key: 'firstOrder' as const,  label: '1st Order', sub: 'Direct compliance obligations',    accent: 'bg-red-400' },
+  { key: 'secondOrder' as const, label: '2nd Order', sub: 'Indirectly affected players',      accent: 'bg-amber-400' },
+  { key: 'thirdOrder' as const,  label: '3rd Order', sub: 'Ecosystem & startup implications', accent: 'bg-blue-400' },
 ]
-
-function TimelineSkeleton() {
-  return (
-    <div className="animate-pulse space-y-3">
-      <div className="h-4 bg-muted rounded w-48" />
-      <div className="h-16 bg-muted rounded" />
-    </div>
-  )
-}
 
 function TagFilter({ activeTag, onChange }: { activeTag: Tag | null; onChange: (t: Tag | null) => void }) {
   return (
@@ -51,134 +40,165 @@ function TagFilter({ activeTag, onChange }: { activeTag: Tag | null; onChange: (
         className={`px-2.5 py-1 rounded-full text-xs border transition-all ${
           !activeTag ? 'bg-foreground text-background border-transparent' : 'text-muted-foreground border-border hover:text-foreground'
         }`}
-      >
-        All
-      </button>
+      >All</button>
       {ALL_TAGS.map(tag => (
         <button
           key={tag}
           onClick={() => onChange(activeTag === tag ? null : tag)}
           className={`px-2.5 py-1 rounded-full text-xs border transition-all ${
-            activeTag === tag
-              ? 'bg-foreground text-background border-transparent'
-              : 'text-muted-foreground border-border hover:text-foreground'
+            activeTag === tag ? 'bg-foreground text-background border-transparent' : 'text-muted-foreground border-border hover:text-foreground'
           }`}
-        >
-          {tag}
-        </button>
+        >{tag}</button>
+      ))}
+    </div>
+  )
+}
+
+function TimelineSkeleton() {
+  return (
+    <div className="space-y-0 border rounded-lg overflow-hidden">
+      {Array.from({ length: 4 }).map((_, i) => (
+        <div key={i} className="flex gap-4 p-4 border-b last:border-b-0 animate-pulse">
+          <div className="w-16 shrink-0 space-y-1">
+            <div className="h-3 bg-muted rounded w-12" />
+            <div className="h-3 bg-muted rounded w-8" />
+          </div>
+          <div className="flex-1 space-y-2">
+            <div className="h-4 bg-muted rounded w-48" />
+            <div className="h-3 bg-muted rounded w-full" />
+          </div>
+        </div>
       ))}
     </div>
   )
 }
 
 function RegulationsTimeline({ regulations }: { regulations: Regulation[] }) {
-  const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [activeTag, setActiveTag] = useState<Tag | null>(null)
+  const [expandedId, setExpandedId] = useState<string | null>(null)
   const [filteredYear, setFilteredYear] = useState<string | null>(null)
 
   const years = useMemo(() =>
     Array.from(new Set(regulations.map(r => r.date.slice(0, 4)))).sort()
   , [regulations])
 
-  const filtered = useMemo(() => regulations.filter(r => {
-    if (activeTag && !r.tags?.includes(activeTag)) return false
-    if (filteredYear && !r.date.startsWith(filteredYear)) return false
-    return true
-  }), [regulations, activeTag, filteredYear])
+  const filtered = useMemo(() =>
+    regulations.filter(r => !filteredYear || r.date.startsWith(filteredYear))
+  , [regulations, filteredYear])
 
-  const selected = regulations.find(r => r.id === selectedId) ?? null
+  // Group by year
+  const grouped = useMemo(() => {
+    const map = new Map<string, Regulation[]>()
+    filtered.forEach(r => {
+      const y = r.date.slice(0, 4)
+      if (!map.has(y)) map.set(y, [])
+      map.get(y)!.push(r)
+    })
+    return Array.from(map.entries()).sort((a, b) => b[0].localeCompare(a[0]))
+  }, [filtered])
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap gap-3 items-start">
-        <TagFilter activeTag={activeTag} onChange={setActiveTag} />
-        <div className="flex gap-1 flex-wrap">
+    <div className="space-y-3">
+      {/* Year filter */}
+      <div className="flex gap-1.5 flex-wrap">
+        <button
+          onClick={() => setFilteredYear(null)}
+          className={`px-2.5 py-1 rounded-full text-xs border transition-all ${
+            !filteredYear ? 'bg-foreground text-background border-transparent' : 'text-muted-foreground border-border hover:text-foreground'
+          }`}
+        >All years</button>
+        {years.map(y => (
           <button
-            onClick={() => setFilteredYear(null)}
-            className={`px-2 py-0.5 rounded text-xs transition-colors ${
-              !filteredYear ? 'bg-foreground text-background' : 'text-muted-foreground hover:text-foreground'
+            key={y}
+            onClick={() => setFilteredYear(filteredYear === y ? null : y)}
+            className={`px-2.5 py-1 rounded-full text-xs border transition-all ${
+              filteredYear === y ? 'bg-foreground text-background border-transparent' : 'text-muted-foreground border-border hover:text-foreground'
             }`}
-          >
-            All years
-          </button>
-          {years.map(y => (
-            <button
-              key={y}
-              onClick={() => setFilteredYear(filteredYear === y ? null : y)}
-              className={`px-2 py-0.5 rounded text-xs transition-colors ${
-                filteredYear === y ? 'bg-foreground text-background' : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              {y}
-            </button>
-          ))}
-        </div>
+          >{y}</button>
+        ))}
       </div>
 
-      <div className="border rounded-lg bg-card overflow-hidden">
-        <div className="overflow-x-auto select-none" style={{ touchAction: 'pan-x' }}>
-          <div className="relative flex items-center min-w-max px-6 py-6 gap-0">
-            <div className="absolute left-0 right-0 top-1/2 h-px bg-border -translate-y-1/2 pointer-events-none" />
-            {filtered.length === 0 && (
-              <p className="text-sm text-muted-foreground py-2 px-4">No regulations match the selected filters.</p>
-            )}
-            {filtered.map((reg, i) => {
-              const s = ISSUER_STYLES[reg.issuer]
-              const isSelected = selectedId === reg.id
-              const year = reg.date.slice(0, 4)
-              const showYear = year !== (i > 0 ? filtered[i - 1].date.slice(0, 4) : null)
-              const dateLabel = new Date(reg.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
-              return (
-                <div key={reg.id} className="flex flex-col items-center min-w-[120px] relative">
-                  <div className="h-5 flex items-center justify-center mb-1">
-                    {showYear && (
-                      <span className="text-[10px] font-semibold text-muted-foreground tracking-wider uppercase">{year}</span>
+      {filtered.length === 0 && (
+        <p className="text-sm text-muted-foreground py-6 text-center">No regulations match the selected filters.</p>
+      )}
+
+      {/* Grouped vertical timeline */}
+      <div className="space-y-6">
+        {grouped.map(([year, regs]) => (
+          <div key={year}>
+            {/* Year header */}
+            <div className="flex items-center gap-3 mb-3">
+              <span className="text-xs font-semibold text-muted-foreground tracking-widest uppercase">{year}</span>
+              <div className="flex-1 h-px bg-border" />
+              <span className="text-xs text-muted-foreground">{regs.length} regulation{regs.length !== 1 ? 's' : ''}</span>
+            </div>
+
+            {/* Regulation rows */}
+            <div className="border rounded-lg overflow-hidden divide-y">
+              {regs.map(reg => {
+                const s = ISSUER_STYLES[reg.issuer]
+                const isOpen = expandedId === reg.id
+                const month = new Date(reg.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+
+                return (
+                  <div key={reg.id}>
+                    <button
+                      onClick={() => setExpandedId(isOpen ? null : reg.id)}
+                      className="w-full flex items-center gap-4 px-4 py-3.5 text-left hover:bg-muted/40 transition-colors group"
+                    >
+                      {/* Date */}
+                      <span className="text-xs text-muted-foreground w-14 shrink-0 tabular-nums">{month}</span>
+
+                      {/* Dot */}
+                      <span className={`w-2 h-2 rounded-full shrink-0 ${s.dot}`} />
+
+                      {/* Name + tags */}
+                      <div className="flex-1 min-w-0">
+                        <span className="text-sm font-medium truncate block">{reg.name}</span>
+                        <div className="flex gap-1 flex-wrap mt-1">
+                          {reg.tags?.map(t => (
+                            <span key={t} className="text-[10px] bg-muted px-1.5 py-0.5 rounded text-muted-foreground">{t}</span>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Issuer badge */}
+                      <Badge className={`${s.badge} ${s.badgeText} border-0 text-xs shrink-0 hidden sm:inline-flex`}>
+                        {s.label}
+                      </Badge>
+
+                      {/* Chevron */}
+                      <span className="text-muted-foreground shrink-0">
+                        {isOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                      </span>
+                    </button>
+
+                    {/* Expanded detail */}
+                    {isOpen && (
+                      <div className="px-4 pb-4 pt-1 bg-muted/20 border-t space-y-3">
+                        <p className="text-sm text-muted-foreground">{reg.description}</p>
+                        {reg.whatChanged && (
+                          <div className="bg-muted rounded-md px-3 py-2 text-xs">
+                            <span className="font-medium text-foreground">What changed: </span>
+                            <span className="text-muted-foreground">{reg.whatChanged}</span>
+                          </div>
+                        )}
+                        <a
+                          href={reg.officialUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                        >
+                          <ExternalLink className="h-3 w-3" />
+                          View official text
+                        </a>
+                      </div>
                     )}
                   </div>
-                  <span className="text-[10px] text-muted-foreground mb-1.5 truncate max-w-[110px] text-center">{reg.shortName}</span>
-                  <button
-                    onClick={() => setSelectedId(isSelected ? null : reg.id)}
-                    className={`relative z-10 w-3 h-3 rounded-full transition-all duration-150 ${s.dot} ${
-                      isSelected
-                        ? `scale-150 ring-2 ring-offset-2 ring-offset-background ${s.dot.replace('bg-', 'ring-')}`
-                        : 'hover:scale-125 ring-2 ring-background'
-                    }`}
-                    title={reg.name}
-                  />
-                  <span className="text-[10px] text-muted-foreground mt-1.5 text-center">{dateLabel}</span>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-
-        {selected && (
-          <div className="border-t bg-muted/30 p-4">
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex items-center gap-2 flex-wrap">
-                <Badge className={`${ISSUER_STYLES[selected.issuer].badge} ${ISSUER_STYLES[selected.issuer].badgeText} border-0 text-xs`}>
-                  {ISSUER_STYLES[selected.issuer].label}
-                </Badge>
-                <span className="font-semibold text-sm">{selected.name}</span>
-                {selected.tags?.map(t => (
-                  <span key={t} className="text-[10px] bg-muted px-1.5 py-0.5 rounded text-muted-foreground">{t}</span>
-                ))}
-              </div>
-              <button onClick={() => setSelectedId(null)} className="text-muted-foreground hover:text-foreground shrink-0">
-                <X className="h-4 w-4" />
-              </button>
+                )
+              })}
             </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              {new Date(selected.date + 'T00:00:00').toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' })}
-            </p>
-            <p className="text-sm mt-3">{selected.description}</p>
-            <a href={selected.officialUrl} target="_blank" rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 mt-3 hover:underline">
-              <ExternalLink className="h-3 w-3" />
-              View official text
-            </a>
           </div>
-        )}
+        ))}
       </div>
     </div>
   )
@@ -249,19 +269,22 @@ function ImpactFilterSection({ regulations }: { regulations: Regulation[] }) {
       {reg && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {ORDER_CONFIG.map(order => (
-            <div key={order.key} className="border rounded-lg p-4 space-y-3">
-              <div>
-                <p className="font-semibold text-sm">{order.label}</p>
-                <p className="text-xs text-muted-foreground">{order.sub}</p>
-              </div>
-              <Separator />
-              {reg.impacts[order.key].map((entry, i) => (
-                <div key={i} className={`border-l-2 pl-3 ${order.border} space-y-1`}>
-                  <Badge variant="secondary" className="text-[10px] h-auto py-0.5">{entry.sectorOrType}</Badge>
-                  <p className="text-xs text-muted-foreground">{entry.why}</p>
-                  {i < reg.impacts[order.key].length - 1 && <Separator className="mt-2" />}
+            <div key={order.key} className="border rounded-lg overflow-hidden">
+              <div className={`h-1 w-full ${order.accent}`} />
+              <div className="p-4 space-y-3">
+                <div>
+                  <p className="font-semibold text-sm">{order.label}</p>
+                  <p className="text-xs text-muted-foreground">{order.sub}</p>
                 </div>
-              ))}
+                <Separator />
+                {reg.impacts[order.key].map((entry, i) => (
+                  <div key={i} className="space-y-1">
+                    <Badge variant="secondary" className="text-[10px] h-auto py-0.5">{entry.sectorOrType}</Badge>
+                    <p className="text-xs text-muted-foreground">{entry.why}</p>
+                    {i < reg.impacts[order.key].length - 1 && <Separator className="mt-2" />}
+                  </div>
+                ))}
+              </div>
             </div>
           ))}
         </div>
@@ -285,14 +308,8 @@ export function RegulacoesBRClient() {
         }
         return r.json()
       })
-      .then((data: Regulation[]) => {
-        setRegulations(data)
-        setLoading(false)
-      })
-      .catch(e => {
-        setError(e.message)
-        setLoading(false)
-      })
+      .then((data: Regulation[]) => { setRegulations(data); setLoading(false) })
+      .catch(e => { setError(e.message); setLoading(false) })
   }, [])
 
   const filteredByTag = useMemo(
@@ -306,17 +323,17 @@ export function RegulacoesBRClient() {
   )
 
   return (
-    <div className="p-4 md:py-8 md:px-8 space-y-12">
+    <div className="p-4 md:py-8 md:px-8 space-y-10">
+      {/* Header */}
       <div>
         <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2">
           <Scale className="h-5 w-5" />
           BCB Regulatory Timeline
         </h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Banco Central do Brasil · 2017–2025
-        </p>
+        <p className="text-sm text-muted-foreground mt-1">Banco Central do Brasil · 2017–2025</p>
       </div>
 
+      {/* Error */}
       {error && (
         <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 flex items-start gap-3">
           <AlertTriangle className="h-4 w-4 text-destructive shrink-0 mt-0.5" />
@@ -329,19 +346,21 @@ export function RegulacoesBRClient() {
 
       {/* Global tag filter */}
       {!loading && !error && (
-        <div className="space-y-1">
-          <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Filter by topic</p>
+        <div className="space-y-2">
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Filter by topic</p>
           <TagFilter activeTag={activeTag} onChange={setActiveTag} />
         </div>
       )}
 
+      {/* Timeline */}
       <section>
-        <h2 className="text-lg font-semibold mb-4">Timeline</h2>
+        <h2 className="text-base font-semibold mb-4">Timeline</h2>
         {loading ? <TimelineSkeleton /> : <RegulationsTimeline regulations={filteredByTag} />}
       </section>
 
+      {/* Latest cards */}
       <section>
-        <h2 className="text-lg font-semibold mb-4">Latest 5 Regulations</h2>
+        <h2 className="text-base font-semibold mb-4">Latest 5 Regulations</h2>
         {loading ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {Array.from({ length: 5 }).map((_, i) => (
@@ -357,8 +376,9 @@ export function RegulacoesBRClient() {
         )}
       </section>
 
+      {/* Impact analysis */}
       <section>
-        <h2 className="text-lg font-semibold mb-1">Impact Analysis</h2>
+        <h2 className="text-base font-semibold mb-1">Impact Analysis</h2>
         <p className="text-sm text-muted-foreground mb-4">
           Select a regulation to view first, second, and third-order implications — which markets, industries, and startups are affected and why.
         </p>
