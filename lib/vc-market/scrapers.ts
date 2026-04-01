@@ -87,6 +87,7 @@ const FUNDING_KEYWORDS = [
   'aquisição', 'aquisicao', 'adquiriu', 'adquirido', 'comprou', 'compra',
   'fusão', 'fusao', 'fundião', 'fundiu',
   'm&a', 'venture capital', 'fundo', 'unicorn', 'valuation',
+  'fidc',  // Fundo de Investimento em Direitos Creditórios
   'ronda', 'financiamiento', 'inversión', 'inversion', 'levantó', 'levanto',
   'serie a', 'serie b', 'serie c', 'capital de riesgo',
   'adquisición', 'adquisicion', 'fusion', 'fusión',
@@ -279,6 +280,21 @@ function extractJsonArray(text: string): unknown[] {
   }
 }
 
+// ─── Stage enum (shared between both prompts) ──────────────────────────────────
+//
+// FIDC = Fundo de Investimento em Direitos Creditórios.
+// Brazilian debt/securitization instrument widely used by fintechs & startups
+// to raise working capital. Not equity, but tracked as a distinct funding event.
+
+const STAGE_ENUM =
+  '"Pre-Seed"|"Seed"|"Series A"|"Series B"|"Series C"|"Series D"|"Series E"|' +
+  '"Growth"|"Bridge"|"IPO"|"SPAC"|"M&A"|"FIDC"|null'
+
+const SEGMENT_ENUM =
+  '"AI/ML"|"Fintech"|"Healthtech"|"SaaS"|"E-commerce"|"Proptech"|"Edtech"|"Deeptech"|' +
+  '"Cybersecurity"|"Logistics"|"Agritech"|"Cleantech"|"Biotech"|"Gaming"|"HR Tech"|' +
+  '"Legal Tech"|"Retail Tech"|"Marketplace"|"Other"|null'
+
 // ─── Prompt 1 — Extractor ─────────────────────────────────────────────────────────────
 
 interface ExtractedDeal {
@@ -322,7 +338,11 @@ Skip if clearly non-LATAM. If uncertain, include with low confidence.
 
 ━━━ VALID DEAL TYPES ━━━
 Equity rounds (Pre-Seed to Series E+), Growth, Bridge, Angel, IPO, SPAC, M&A.
-Exclude: debt/loans, government grants, crowdfunding, real estate.
+FIDC (Fundo de Investimento em Direitos Creditórios) — Brazilian securitization instrument.
+Whenever a deal is funded via FIDC or mentions "fundo de recebíveis", "securitização" as the
+primary funding mechanism, set stage = "FIDC".
+Exclude: traditional bank loans/credit lines not backed by a FIDC structure, government grants,
+crowdfunding, real estate.
 
 ━━━ OUTPUT ━━━
 Raw JSON array only. No markdown. Return [] if nothing found.
@@ -330,9 +350,9 @@ Raw JSON array only. No markdown. Return [] if nothing found.
   "company_name": string,
   "amount_usd": number | null,
   "deal_date": "YYYY-MM-DD" | null,
-  "stage": "Pre-Seed"|"Seed"|"Series A"|"Series B"|"Series C"|"Series D"|"Series E"|"Growth"|"Bridge"|"IPO"|"SPAC"|"M&A"|null,
+  "stage": ${STAGE_ENUM},
   "investors": string[],
-  "segment": "AI/ML"|"Fintech"|"Healthtech"|"SaaS"|"E-commerce"|"Proptech"|"Edtech"|"Deeptech"|"Cybersecurity"|"Logistics"|"Agritech"|"Cleantech"|"Biotech"|"Gaming"|"HR Tech"|"Legal Tech"|"Retail Tech"|"Marketplace"|"Other"|null,
+  "segment": ${SEGMENT_ENUM},
   "country": "XX" | null,
   "source_url": string,
   "confidence": "high"|"medium"|"low"
@@ -367,8 +387,7 @@ async function extractDeals(
 interface ReviewedDeal extends ExtractedDeal {
   approved: boolean
   rejection_reason?: string
-  // reviewer may correct/enrich these fields:
-  deal_date: string  // always set after review
+  deal_date: string
   stage: string | null
   segment: string | null
   country: string | null
@@ -419,6 +438,9 @@ determine it from the company name/context, REJECT with reason "country unknown"
 For approved deals, correct/enrich the fields:
 - Normalize company_name (proper casing, remove legal suffixes like S.A., Ltda.)
 - Fix stage if obviously wrong (e.g. "Fund" is not a valid stage — set to null)
+- If the deal was funded via FIDC (Fundo de Investimento em Direitos Creditórios),
+  "fundo de recebíveis", or "securitização", set stage = "FIDC" regardless of what
+  the extractor set.
 - Infer segment if null and context makes it clear
 - Ensure investors is an array (not null)
 - Keep amount_usd null if not explicitly stated (do not guess)
@@ -431,9 +453,9 @@ No markdown. No explanations outside the rejection_reason field.
   "company_name": string,
   "amount_usd": number | null,
   "deal_date": "YYYY-MM-DD",
-  "stage": string | null,
+  "stage": ${STAGE_ENUM},
   "investors": string[],
-  "segment": string | null,
+  "segment": ${SEGMENT_ENUM},
   "country": "XX" | null,
   "source_url": string,
   "confidence": "high"|"medium"|"low",
@@ -507,7 +529,12 @@ export async function scrapeVCDeals(
   }
 
   const totalArticles = allArticles.length
-  const empty = { sources, totalArticles: 0, uniqueArticles: 0, articlesAfterKeywordFilter: 0, articlesAfterDateFilter: 0, dealsExtracted: 0, dealsAfterReview: 0, dealsAfterFilter: 0, reviewRejections: [] }
+  const empty = {
+    sources, totalArticles: 0, uniqueArticles: 0,
+    articlesAfterKeywordFilter: 0, articlesAfterDateFilter: 0,
+    dealsExtracted: 0, dealsAfterReview: 0, dealsAfterFilter: 0,
+    reviewRejections: [],
+  }
 
   if (totalArticles === 0) return { deals: [], report: empty }
 
@@ -554,8 +581,7 @@ export async function scrapeVCDeals(
     }
   }
 
-  // 6. Prompt 2 — review: validate date, dedup vs DB, enrich fields
-  // Pass only the last 60 days of existing deals to keep the prompt focused
+  // 6. Prompt 2 — review: validate date, dedup vs DB, enrich fields (incl. FIDC correction)
   const sixtyDaysAgo = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
   const recentExisting = existingDeals.filter(
     d => !d.deal_date || d.deal_date >= sixtyDaysAgo
