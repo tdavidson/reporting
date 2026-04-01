@@ -22,7 +22,7 @@ import * as XLSX from 'xlsx'
 import { ScrapeReviewModal } from './review-modal'
 import { ScrapeReportModal } from './scrape-report-modal'
 import type { ScrapeReport } from '@/lib/vc-market/scrapers'
-
+ 
 // ─── constants ───────────────────────────────────────────────────────────────
 
 const PERIOD_OPTIONS = [
