@@ -25,7 +25,7 @@ const NAV_ITEMS: { href: string; label: string; icon: LucideIcon; badgeKey?: 're
   { href: '/letters', label: 'Letters', icon: FileText, featureKey: 'lp_letters' },
   { href: '/lps', label: 'LPs', icon: Crown, featureKey: 'lps' },
   { href: '/compliance', label: 'Compliance', icon: ShieldCheck, featureKey: 'compliance', beta: true },
-  { href: '/regulacoes', label: 'Regulações BR', icon: Scale },
+  { href: '/regulacoes', label: 'BR Regulations', icon: Scale },
   { href: '/usage', label: 'Usage', icon: Users, adminOnly: true },
   { href: '/settings', label: 'Settings', icon: Settings, badgeKey: 'settings' },
 ]
@@ -43,7 +43,6 @@ interface AppSidebarProps {
 export function AppSidebar({ reviewBadge, settingsBadge, notesBadge, isAdmin, updateAvailable, featureVisibility, onNavigate }: AppSidebarProps) {
   const pathname = usePathname()
   const { collapsed, toggle } = useSidebar()
-
 
   return (
     <div className="flex flex-col flex-1">
@@ -114,7 +113,6 @@ export function AppSidebar({ reviewBadge, settingsBadge, notesBadge, isAdmin, up
           )
         })}
 
-        {/* Update available — admin only */}
         {isAdmin && updateAvailable && (() => {
           const isActive = pathname === '/updates' || pathname.startsWith('/updates/')
           return (
@@ -141,7 +139,6 @@ export function AppSidebar({ reviewBadge, settingsBadge, notesBadge, isAdmin, up
           )
         })()}
 
-        {/* Hide Sidebar toggle — only shown on desktop */}
         <button
           onClick={toggle}
           title={collapsed ? 'Show Sidebar' : 'Hide Sidebar'}

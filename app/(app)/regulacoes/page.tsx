@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { RegulacoesBRClient } from './regulacoes-client'
 
-export const metadata: Metadata = { title: 'Regulações BR' }
+export const metadata: Metadata = { title: 'BR Regulations' }
 
 export default async function RegulacoesPage() {
   const supabase = createClient()
