@@ -32,40 +32,85 @@ const ORDER_CONFIG = [
   { key: 'thirdOrder' as const,  label: '3rd Order', sub: 'Ecosystem & startup implications', accent: 'bg-blue-400' },
 ]
 
-function TagFilter({ activeTag, onChange }: { activeTag: Tag | null; onChange: (t: Tag | null) => void }) {
+// ─── Global filter ────────────────────────────────────────────────────────────
+function GlobalFilter({
+  activeTag, onTagChange,
+  activeYear, onYearChange,
+  years,
+}: {
+  activeTag: Tag | null; onTagChange: (t: Tag | null) => void
+  activeYear: string | null; onYearChange: (y: string | null) => void
+  years: string[]
+}) {
   return (
-    <div className="flex gap-1.5 flex-wrap">
-      <button
-        onClick={() => onChange(null)}
-        className={`px-2.5 py-1 rounded-full text-xs border transition-all ${
-          !activeTag ? 'bg-foreground text-background border-transparent' : 'text-muted-foreground border-border hover:text-foreground'
-        }`}
-      >All</button>
-      {ALL_TAGS.map(tag => (
-        <button
-          key={tag}
-          onClick={() => onChange(activeTag === tag ? null : tag)}
-          className={`px-2.5 py-1 rounded-full text-xs border transition-all ${
-            activeTag === tag ? 'bg-foreground text-background border-transparent' : 'text-muted-foreground border-border hover:text-foreground'
-          }`}
-        >{tag}</button>
-      ))}
+    <div className="rounded-lg border bg-card p-4 space-y-4">
+      {/* Topic row */}
+      <div className="space-y-2">
+        <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">Topic</p>
+        <div className="flex gap-1.5 flex-wrap">
+          <button
+            onClick={() => onTagChange(null)}
+            className={`px-3 py-1 rounded-full text-xs font-medium border transition-all ${
+              !activeTag
+                ? 'bg-foreground text-background border-transparent'
+                : 'bg-transparent text-muted-foreground border-border hover:border-foreground/30 hover:text-foreground'
+            }`}
+          >All</button>
+          {ALL_TAGS.map(tag => (
+            <button
+              key={tag}
+              onClick={() => onTagChange(activeTag === tag ? null : tag)}
+              className={`px-3 py-1 rounded-full text-xs font-medium border transition-all ${
+                activeTag === tag
+                  ? 'bg-foreground text-background border-transparent'
+                  : 'bg-transparent text-muted-foreground border-border hover:border-foreground/30 hover:text-foreground'
+              }`}
+            >{tag}</button>
+          ))}
+        </div>
+      </div>
+
+      {/* Year row */}
+      <div className="space-y-2">
+        <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">Year</p>
+        <div className="flex gap-1.5 flex-wrap">
+          <button
+            onClick={() => onYearChange(null)}
+            className={`px-3 py-1 rounded-full text-xs font-medium border transition-all ${
+              !activeYear
+                ? 'bg-foreground text-background border-transparent'
+                : 'bg-transparent text-muted-foreground border-border hover:border-foreground/30 hover:text-foreground'
+            }`}
+          >All</button>
+          {years.map(y => (
+            <button
+              key={y}
+              onClick={() => onYearChange(activeYear === y ? null : y)}
+              className={`px-3 py-1 rounded-full text-xs font-medium border transition-all ${
+                activeYear === y
+                  ? 'bg-foreground text-background border-transparent'
+                  : 'bg-transparent text-muted-foreground border-border hover:border-foreground/30 hover:text-foreground'
+              }`}
+            >{y}</button>
+          ))}
+        </div>
+      </div>
     </div>
   )
 }
 
+// ─── Timeline ─────────────────────────────────────────────────────────────────
 function TimelineSkeleton() {
   return (
-    <div className="space-y-0 border rounded-lg overflow-hidden">
+    <div className="border rounded-lg overflow-hidden divide-y">
       {Array.from({ length: 4 }).map((_, i) => (
-        <div key={i} className="flex gap-4 p-4 border-b last:border-b-0 animate-pulse">
-          <div className="w-16 shrink-0 space-y-1">
-            <div className="h-3 bg-muted rounded w-12" />
-            <div className="h-3 bg-muted rounded w-8" />
+        <div key={i} className="flex gap-4 p-4 animate-pulse">
+          <div className="w-14 shrink-0 space-y-1.5">
+            <div className="h-3 bg-muted rounded w-10" />
           </div>
           <div className="flex-1 space-y-2">
             <div className="h-4 bg-muted rounded w-48" />
-            <div className="h-3 bg-muted rounded w-full" />
+            <div className="h-3 bg-muted rounded w-32" />
           </div>
         </div>
       ))}
@@ -75,142 +120,93 @@ function TimelineSkeleton() {
 
 function RegulationsTimeline({ regulations }: { regulations: Regulation[] }) {
   const [expandedId, setExpandedId] = useState<string | null>(null)
-  const [filteredYear, setFilteredYear] = useState<string | null>(null)
 
-  const years = useMemo(() =>
-    Array.from(new Set(regulations.map(r => r.date.slice(0, 4)))).sort()
-  , [regulations])
-
-  const filtered = useMemo(() =>
-    regulations.filter(r => !filteredYear || r.date.startsWith(filteredYear))
-  , [regulations, filteredYear])
-
-  // Group by year
   const grouped = useMemo(() => {
     const map = new Map<string, Regulation[]>()
-    filtered.forEach(r => {
+    regulations.forEach(r => {
       const y = r.date.slice(0, 4)
       if (!map.has(y)) map.set(y, [])
       map.get(y)!.push(r)
     })
     return Array.from(map.entries()).sort((a, b) => b[0].localeCompare(a[0]))
-  }, [filtered])
+  }, [regulations])
+
+  if (regulations.length === 0) {
+    return <p className="text-sm text-muted-foreground py-6 text-center">No regulations match the selected filters.</p>
+  }
 
   return (
-    <div className="space-y-3">
-      {/* Year filter */}
-      <div className="flex gap-1.5 flex-wrap">
-        <button
-          onClick={() => setFilteredYear(null)}
-          className={`px-2.5 py-1 rounded-full text-xs border transition-all ${
-            !filteredYear ? 'bg-foreground text-background border-transparent' : 'text-muted-foreground border-border hover:text-foreground'
-          }`}
-        >All years</button>
-        {years.map(y => (
-          <button
-            key={y}
-            onClick={() => setFilteredYear(filteredYear === y ? null : y)}
-            className={`px-2.5 py-1 rounded-full text-xs border transition-all ${
-              filteredYear === y ? 'bg-foreground text-background border-transparent' : 'text-muted-foreground border-border hover:text-foreground'
-            }`}
-          >{y}</button>
-        ))}
-      </div>
-
-      {filtered.length === 0 && (
-        <p className="text-sm text-muted-foreground py-6 text-center">No regulations match the selected filters.</p>
-      )}
-
-      {/* Grouped vertical timeline */}
-      <div className="space-y-6">
-        {grouped.map(([year, regs]) => (
-          <div key={year}>
-            {/* Year header */}
-            <div className="flex items-center gap-3 mb-3">
-              <span className="text-xs font-semibold text-muted-foreground tracking-widest uppercase">{year}</span>
-              <div className="flex-1 h-px bg-border" />
-              <span className="text-xs text-muted-foreground">{regs.length} regulation{regs.length !== 1 ? 's' : ''}</span>
-            </div>
-
-            {/* Regulation rows */}
-            <div className="border rounded-lg overflow-hidden divide-y">
-              {regs.map(reg => {
-                const s = ISSUER_STYLES[reg.issuer]
-                const isOpen = expandedId === reg.id
-                const month = new Date(reg.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-
-                return (
-                  <div key={reg.id}>
-                    <button
-                      onClick={() => setExpandedId(isOpen ? null : reg.id)}
-                      className="w-full flex items-center gap-4 px-4 py-3.5 text-left hover:bg-muted/40 transition-colors group"
-                    >
-                      {/* Date */}
-                      <span className="text-xs text-muted-foreground w-14 shrink-0 tabular-nums">{month}</span>
-
-                      {/* Dot */}
-                      <span className={`w-2 h-2 rounded-full shrink-0 ${s.dot}`} />
-
-                      {/* Name + tags */}
-                      <div className="flex-1 min-w-0">
-                        <span className="text-sm font-medium truncate block">{reg.name}</span>
-                        <div className="flex gap-1 flex-wrap mt-1">
-                          {reg.tags?.map(t => (
-                            <span key={t} className="text-[10px] bg-muted px-1.5 py-0.5 rounded text-muted-foreground">{t}</span>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* Issuer badge */}
-                      <Badge className={`${s.badge} ${s.badgeText} border-0 text-xs shrink-0 hidden sm:inline-flex`}>
-                        {s.label}
-                      </Badge>
-
-                      {/* Chevron */}
-                      <span className="text-muted-foreground shrink-0">
-                        {isOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                      </span>
-                    </button>
-
-                    {/* Expanded detail */}
-                    {isOpen && (
-                      <div className="px-4 pb-4 pt-1 bg-muted/20 border-t space-y-3">
-                        <p className="text-sm text-muted-foreground">{reg.description}</p>
-                        {reg.whatChanged && (
-                          <div className="bg-muted rounded-md px-3 py-2 text-xs">
-                            <span className="font-medium text-foreground">What changed: </span>
-                            <span className="text-muted-foreground">{reg.whatChanged}</span>
-                          </div>
-                        )}
-                        <a
-                          href={reg.officialUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 hover:underline"
-                        >
-                          <ExternalLink className="h-3 w-3" />
-                          View official text
-                        </a>
-                      </div>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
+    <div className="space-y-6">
+      {grouped.map(([year, regs]) => (
+        <div key={year}>
+          <div className="flex items-center gap-3 mb-3">
+            <span className="text-xs font-semibold text-muted-foreground tracking-widest uppercase">{year}</span>
+            <div className="flex-1 h-px bg-border" />
+            <span className="text-xs text-muted-foreground">{regs.length} regulation{regs.length !== 1 ? 's' : ''}</span>
           </div>
-        ))}
-      </div>
+
+          <div className="border rounded-lg overflow-hidden divide-y">
+            {regs.map(reg => {
+              const s = ISSUER_STYLES[reg.issuer]
+              const isOpen = expandedId === reg.id
+              const month = new Date(reg.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+
+              return (
+                <div key={reg.id}>
+                  <button
+                    onClick={() => setExpandedId(isOpen ? null : reg.id)}
+                    className="w-full flex items-center gap-4 px-4 py-3.5 text-left hover:bg-muted/40 transition-colors"
+                  >
+                    <span className="text-xs text-muted-foreground w-14 shrink-0 tabular-nums">{month}</span>
+                    <span className={`w-2 h-2 rounded-full shrink-0 ${s.dot}`} />
+                    <div className="flex-1 min-w-0">
+                      <span className="text-sm font-medium truncate block">{reg.name}</span>
+                      <div className="flex gap-1 flex-wrap mt-1">
+                        {reg.tags?.map(t => (
+                          <span key={t} className="text-[10px] bg-muted px-1.5 py-0.5 rounded text-muted-foreground">{t}</span>
+                        ))}
+                      </div>
+                    </div>
+                    <Badge className={`${s.badge} ${s.badgeText} border-0 text-xs shrink-0 hidden sm:inline-flex`}>{s.label}</Badge>
+                    <span className="text-muted-foreground shrink-0">
+                      {isOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                    </span>
+                  </button>
+
+                  {isOpen && (
+                    <div className="px-4 pb-4 pt-2 bg-muted/20 border-t space-y-3">
+                      <p className="text-sm text-muted-foreground">{reg.description}</p>
+                      {reg.whatChanged && (
+                        <div className="bg-muted rounded-md px-3 py-2 text-xs">
+                          <span className="font-medium text-foreground">What changed: </span>
+                          <span className="text-muted-foreground">{reg.whatChanged}</span>
+                        </div>
+                      )}
+                      <a href={reg.officialUrl} target="_blank" rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 hover:underline">
+                        <ExternalLink className="h-3 w-3" />
+                        View official text
+                      </a>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      ))}
     </div>
   )
 }
 
+// ─── Latest cards ─────────────────────────────────────────────────────────────
 function LatestRegulationsCards({ regulations }: { regulations: Regulation[] }) {
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 items-stretch">
       {regulations.map(reg => {
         const s = ISSUER_STYLES[reg.issuer]
         return (
-          <Card key={reg.id} className="flex flex-col">
+          <Card key={reg.id} className="flex flex-col h-full">
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between gap-2">
                 <Badge className={`${s.badge} ${s.badgeText} border-0 text-xs`}>{s.label}</Badge>
@@ -218,21 +214,26 @@ function LatestRegulationsCards({ regulations }: { regulations: Regulation[] }) 
                   {new Date(reg.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
                 </span>
               </div>
-              <p className="font-semibold text-sm mt-1">{reg.name}</p>
-              <div className="flex gap-1 flex-wrap mt-1">
+              <p className="font-semibold text-sm mt-2 leading-snug">{reg.name}</p>
+              <div className="flex gap-1 flex-wrap mt-1.5">
                 {reg.tags?.map(t => (
                   <span key={t} className="text-[10px] bg-muted px-1.5 py-0.5 rounded text-muted-foreground">{t}</span>
                 ))}
               </div>
             </CardHeader>
-            <CardContent className="flex flex-col flex-1 gap-3">
-              <p className="text-sm text-muted-foreground">{reg.fullContext}</p>
-              <div className="bg-muted rounded p-3 text-xs">
-                <span className="font-medium">What changed: </span>
+
+            <CardContent className="flex flex-col flex-1 gap-0 pt-0">
+              {/* description fills space pushing whatChanged to bottom */}
+              <p className="text-sm text-muted-foreground flex-1">{reg.fullContext}</p>
+
+              {/* whatChanged pinned to bottom */}
+              <div className="mt-4 bg-muted rounded-md px-3 py-2 text-xs">
+                <span className="font-medium text-foreground">What changed: </span>
                 <span className="text-muted-foreground">{reg.whatChanged}</span>
               </div>
+
               <a href={reg.officialUrl} target="_blank" rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 mt-auto hover:underline">
+                className="inline-flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 mt-3 hover:underline">
                 <ExternalLink className="h-3 w-3" />
                 View official text
               </a>
@@ -244,6 +245,7 @@ function LatestRegulationsCards({ regulations }: { regulations: Regulation[] }) 
   )
 }
 
+// ─── Impact analysis ──────────────────────────────────────────────────────────
 function ImpactFilterSection({ regulations }: { regulations: Regulation[] }) {
   const [selectedId, setSelectedId] = useState(regulations[regulations.length - 1]?.id ?? '')
   const reg = regulations.find(r => r.id === selectedId)
@@ -293,11 +295,13 @@ function ImpactFilterSection({ regulations }: { regulations: Regulation[] }) {
   )
 }
 
+// ─── Root ─────────────────────────────────────────────────────────────────────
 export function RegulacoesBRClient() {
   const [regulations, setRegulations] = useState<Regulation[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [activeTag, setActiveTag] = useState<Tag | null>(null)
+  const [activeYear, setActiveYear] = useState<string | null>(null)
 
   useEffect(() => {
     fetch('/api/regulacoes')
@@ -312,14 +316,22 @@ export function RegulacoesBRClient() {
       .catch(e => { setError(e.message); setLoading(false) })
   }, [])
 
-  const filteredByTag = useMemo(
-    () => activeTag ? regulations.filter(r => r.tags?.includes(activeTag)) : regulations,
-    [regulations, activeTag]
-  )
+  const years = useMemo(() =>
+    Array.from(new Set(regulations.map(r => r.date.slice(0, 4)))).sort()
+  , [regulations])
+
+  // Single filtered list used by ALL sections
+  const filtered = useMemo(() =>
+    regulations.filter(r => {
+      if (activeTag && !r.tags?.includes(activeTag)) return false
+      if (activeYear && !r.date.startsWith(activeYear)) return false
+      return true
+    })
+  , [regulations, activeTag, activeYear])
 
   const latestFive = useMemo(
-    () => [...filteredByTag].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5),
-    [filteredByTag]
+    () => [...filtered].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5),
+    [filtered]
   )
 
   return (
@@ -344,21 +356,22 @@ export function RegulacoesBRClient() {
         </div>
       )}
 
-      {/* Global tag filter */}
+      {/* Single global filter */}
       {!loading && !error && (
-        <div className="space-y-2">
-          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Filter by topic</p>
-          <TagFilter activeTag={activeTag} onChange={setActiveTag} />
-        </div>
+        <GlobalFilter
+          activeTag={activeTag} onTagChange={setActiveTag}
+          activeYear={activeYear} onYearChange={setActiveYear}
+          years={years}
+        />
       )}
 
       {/* Timeline */}
       <section>
         <h2 className="text-base font-semibold mb-4">Timeline</h2>
-        {loading ? <TimelineSkeleton /> : <RegulationsTimeline regulations={filteredByTag} />}
+        {loading ? <TimelineSkeleton /> : <RegulationsTimeline regulations={filtered} />}
       </section>
 
-      {/* Latest cards */}
+      {/* Latest 5 */}
       <section>
         <h2 className="text-base font-semibold mb-4">Latest 5 Regulations</h2>
         {loading ? (
@@ -385,7 +398,7 @@ export function RegulacoesBRClient() {
         {loading ? (
           <div className="animate-pulse h-10 bg-muted rounded w-80" />
         ) : (
-          <ImpactFilterSection regulations={filteredByTag} />
+          <ImpactFilterSection regulations={filtered} />
         )}
       </section>
     </div>
