@@ -78,11 +78,6 @@ const CHART_MIN_H = 160
 // ─── Sources list (mirrors lib/vc-market/scrapers.ts SOURCES) ────────────────
 
 const SCRAPE_SOURCES = [
-  { name: 'Google News – LatAm Funding',     url: 'https://news.google.com/rss/search?q=startup+rodada+captacao+venture+capital+serie+latam&hl=pt-BR&gl=BR&ceid=BR:pt', type: 'RSS' },
-  { name: 'Google News – Brazil Startups',   url: 'https://news.google.com/rss/search?q=startup+brazil+funding+raised+series+venture&hl=en&gl=BR&ceid=BR:en', type: 'RSS' },
-  { name: 'Google News – Mexico Startups',   url: 'https://news.google.com/rss/search?q=startup+mexico+funding+raised+series+venture&hl=en&gl=MX&ceid=MX:en', type: 'RSS' },
-  { name: 'Google News – Colombia Startups', url: 'https://news.google.com/rss/search?q=startup+colombia+funding+raised+series+venture&hl=en&gl=CO&ceid=CO:en', type: 'RSS' },
-  { name: 'Google News – LATAM VC EN',       url: 'https://news.google.com/rss/search?q=latin+america+startup+funding+venture+capital+series&hl=en-US&gl=US&ceid=US:en', type: 'RSS' },
   { name: 'Pipeline Valor',                  url: 'https://pipelinevalor.globo.com/negocios/', type: 'HTML' },
   { name: 'Brazil Journal – PE/VC',          url: 'https://braziljournal.com/hot-topic/private-equity-vc/', type: 'HTML' },
   { name: 'NeoFeed Startups',                url: 'https://neofeed.com.br/startups/', type: 'HTML' },
