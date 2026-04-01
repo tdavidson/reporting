@@ -93,8 +93,16 @@ function formatPubDate(dateStr: string): string {
  * e.g. "NovaTech levanta R$50M - Pipeline Valor" → "NovaTech levanta R$50M"
  */
 function cleanTitle(title: string): string {
-  // Google News format: "Title - Source Name" — remove last " - ..." segment
   return title.replace(/\s+[-–—]\s+[^-–—]+$/, '').trim()
+}
+
+function isGoogleNewsLink(url: string): boolean {
+  try {
+    const hostname = new URL(url).hostname.toLowerCase()
+    return hostname === 'news.google.com' || hostname.endsWith('.news.google.com')
+  } catch {
+    return false
+  }
 }
 
 function parseRSSItems(xml: string, companyId: string, companyName: string): RawArticle[] {
@@ -111,7 +119,7 @@ function parseRSSItems(xml: string, companyId: string, companyName: string): Raw
     let sourceDomain = ''
     try { sourceDomain = new URL(sourceUrl).hostname.replace(/^www\./, '') } catch { sourceDomain = source.toLowerCase() }
     return { title, link, pubDate, source, sourceDomain, companyId, companyName }
-  }).filter(a => a.title && a.link)
+  }).filter(a => a.title && a.link && !isGoogleNewsLink(a.link))
 }
 
 async function fetchCompanyNews(
@@ -410,7 +418,7 @@ export async function GET(req: NextRequest) {
   const sourcesParam = req.nextUrl.searchParams.get('sources')
   const countryFilter = req.nextUrl.searchParams.get('country')
   const bust = req.nextUrl.searchParams.get('bust')
-  const fromDate = req.nextUrl.searchParams.get('fromDate') // new param
+  const fromDate = req.nextUrl.searchParams.get('fromDate')
 
   if (bust) { cache.clear() }
 
