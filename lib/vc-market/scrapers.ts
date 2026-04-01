@@ -1,5 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk'
-import type { VCDealInsert } from './types'
+import type { VCDeal, VCDealInsert } from './types'
 
 // ─── LATAM country codes ────────────────────────────────────────────────────────
 
@@ -19,16 +19,16 @@ interface Source {
 }
 
 const SOURCES: Source[] = [
-  { name: 'Pipeline Valor',                  url: 'https://pipelinevalor.globo.com/negocios/', type: 'html' },
-  { name: 'Brazil Journal – PE/VC',          url: 'https://braziljournal.com/hot-topic/private-equity-vc/', type: 'html' },
-  { name: 'NeoFeed Startups',                url: 'https://neofeed.com.br/startups/', type: 'html' },
-  { name: 'Finsiders Brasil',                url: 'https://finsidersbrasil.com.br/ultimas-noticias/', type: 'html' },
-  { name: 'LATAM List – Funding',            url: 'https://latamlist.com/category/startup-news/funding/', type: 'html' },
-  { name: 'Startups.com.br',                 url: 'https://startups.com.br/ultimas-noticias/', type: 'html' },
-  { name: 'Startupi',                        url: 'https://startupi.com.br/noticias/', type: 'html' },
-  { name: 'Latam Fintech',                   url: 'https://www.latamfintech.co/articles', type: 'html' },
-  { name: 'Startups Latam',                  url: 'https://startupslatam.com/', type: 'html' },
-  { name: 'TechCrunch',                      url: 'https://techcrunch.com/latest/', type: 'html' },
+  { name: 'Pipeline Valor',         url: 'https://pipelinevalor.globo.com/negocios/', type: 'html' },
+  { name: 'Brazil Journal – PE/VC', url: 'https://braziljournal.com/hot-topic/private-equity-vc/', type: 'html' },
+  { name: 'NeoFeed Startups',       url: 'https://neofeed.com.br/startups/', type: 'html' },
+  { name: 'Finsiders Brasil',       url: 'https://finsidersbrasil.com.br/ultimas-noticias/', type: 'html' },
+  { name: 'LATAM List – Funding',   url: 'https://latamlist.com/category/startup-news/funding/', type: 'html' },
+  { name: 'Startups.com.br',        url: 'https://startups.com.br/ultimas-noticias/', type: 'html' },
+  { name: 'Startupi',               url: 'https://startupi.com.br/noticias/', type: 'html' },
+  { name: 'Latam Fintech',          url: 'https://www.latamfintech.co/articles', type: 'html' },
+  { name: 'Startups Latam',         url: 'https://startupslatam.com/', type: 'html' },
+  { name: 'TechCrunch',             url: 'https://techcrunch.com/latest/', type: 'html' },
 ]
 
 // ─── Report types ─────────────────────────────────────────────────────────────────
@@ -47,8 +47,11 @@ export interface ScrapeReport {
   articlesAfterKeywordFilter: number
   articlesAfterDateFilter: number
   dealsExtracted: number
+  dealsAfterReview: number
   dealsAfterFilter: number
+  reviewRejections: { company: string; reason: string }[]
   aiError?: string
+  reviewError?: string
 }
 
 // ─── Shared article interface ────────────────────────────────────────────────────────────────
@@ -62,10 +65,6 @@ interface Article {
 }
 
 // ─── Date helpers ───────────────────────────────────────────────────────────────────
-//
-// isRecentArticle: returns true if the article has no date (let it pass to the AI)
-// OR if its date falls within the last 48h window (today + yesterday).
-// We use 48h (not strict today/yesterday) to handle timezone edge cases gracefully.
 
 function parseArticleDate(raw: string): Date | null {
   if (!raw) return null
@@ -75,25 +74,22 @@ function parseArticleDate(raw: string): Date | null {
 
 function isRecentArticle(article: Article, cutoffMs: number): boolean {
   const d = parseArticleDate(article.pubDate)
-  if (!d) return true  // no date → pass through (AI will handle it)
+  if (!d) return true  // no date → let reviewer decide
   return d.getTime() >= cutoffMs
 }
 
 // ─── Keyword pre-filter ───────────────────────────────────────────────────────────────────
 
 const FUNDING_KEYWORDS = [
-  // Portuguese
   'rodada', 'captação', 'captacao', 'investimento', 'aporte', 'levantou', 'levanta',
   'série a', 'serie a', 'série b', 'serie b', 'série c', 'serie c',
   'seed', 'pré-seed', 'pre-seed', 'anjo', 'ipo',
   'aquisição', 'aquisicao', 'adquiriu', 'adquirido', 'comprou', 'compra',
   'fusão', 'fusao', 'fundião', 'fundiu',
   'm&a', 'venture capital', 'fundo', 'unicorn', 'valuation',
-  // Spanish
   'ronda', 'financiamiento', 'inversión', 'inversion', 'levantó', 'levanto',
   'serie a', 'serie b', 'serie c', 'capital de riesgo',
   'adquisición', 'adquisicion', 'fusion', 'fusión',
-  // English
   'raised', 'raises', 'funding', 'series a', 'series b', 'series c', 'series d',
   'seed round', 'pre-seed', 'growth round', 'bridge round', 'venture',
   'acquired', 'acquisition', 'merger', 'acquires', 'buys', 'buyout',
@@ -220,19 +216,13 @@ async function fetchArticleBody(url: string): Promise<string> {
 async function enrichArticles(articles: Article[]): Promise<Article[]> {
   const results = await Promise.allSettled(
     articles.map(async (a) => {
-      if (a.description.length >= 300) return a  // RSS already has content
+      if (a.description.length >= 300) return a
       const body = await fetchArticleBody(a.link)
       if (!body) return a
-
       const dateMatch = body.match(/^\[date:([^\]]+)\]/)
       const extractedDate = dateMatch?.[1] ?? ''
       const cleanBody = body.replace(/^\[date:[^\]]+\]\s*/, '')
-
-      return {
-        ...a,
-        description: cleanBody,
-        pubDate: a.pubDate || extractedDate,
-      }
+      return { ...a, description: cleanBody, pubDate: a.pubDate || extractedDate }
     })
   )
   return results.map((r, i) => (r.status === 'fulfilled' ? r.value : articles[i]))
@@ -282,15 +272,14 @@ function extractJsonArray(text: string): unknown[] {
     return Array.isArray(parsed) ? parsed : []
   } catch {
     const objects: unknown[] = []
-    const objectRegex = /\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}/g
-    for (const m of raw.matchAll(objectRegex)) {
+    for (const m of raw.matchAll(/\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}/g)) {
       try { objects.push(JSON.parse(m[0])) } catch { /* skip */ }
     }
     return objects
   }
 }
 
-// ─── AI extraction ────────────────────────────────────────────────────────────────────
+// ─── Prompt 1 — Extractor ─────────────────────────────────────────────────────────────
 
 interface ExtractedDeal {
   company_name: string
@@ -313,81 +302,47 @@ const LATAM_COUNTRIES_LIST = [
   'Trinidad and Tobago (TT)', 'Guyana (GY)', 'Suriname (SR)', 'Belize (BZ)',
 ].join(', ')
 
-function buildPrompt(articles: Article[], today: string): string {
+function buildExtractorPrompt(articles: Article[], today: string): string {
   const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10)
-
   const articlesText = articles
     .map((a, i) =>
       `[${i}] Source: ${a.source}\nTitle: ${a.title}\nDate: ${a.pubDate || `unknown — assume ${today}`}\nURL: ${a.link}\nContent: ${a.description}`
     )
     .join('\n\n')
 
-  return `You are a precise financial data extraction engine specializing in Latin American venture capital.
+  return `You are a financial data extraction engine for Latin American VC deals.
+Today: ${today} | Yesterday: ${yesterday}
 
-Today's date: ${today}
-Yesterday's date: ${yesterday}
+Extract ALL potential funding deals from the articles. Be liberal — a second reviewer will validate.
+Focus on: company name, amount, date, stage, investors, segment, country.
 
-Your task: analyze the news articles below and extract ONLY confirmed startup/company funding rounds from LATIN AMERICA.
-All articles have already been pre-filtered to today/yesterday — focus only on data extraction.
+━━━ LATAM ONLY ━━━
+Company must be headquartered in: ${LATAM_COUNTRIES_LIST}
+Skip if clearly non-LATAM. If uncertain, include with low confidence.
 
-━━━ GEOGRAPHIC FILTER — MANDATORY ━━━
-ONLY include deals where the company is headquartered in a LATAM country:
-${LATAM_COUNTRIES_LIST}
+━━━ VALID DEAL TYPES ━━━
+Equity rounds (Pre-Seed to Series E+), Growth, Bridge, Angel, IPO, SPAC, M&A.
+Exclude: debt/loans, government grants, crowdfunding, real estate.
 
-IMPORTANT: If the company is from USA, Europe, Asia, Africa, or any country outside LATAM, DO NOT include it — even if the article mentions Latin America investors or a LATAM expansion.
-If the company's country cannot be determined and there is no clear indication it is LATAM-based, skip the article entirely.
-
-━━━ DATE RULES ━━━
-- Prefer the date explicitly mentioned in the article content.
-- If missing, use the "Date" field. If both missing, use today: ${today}.
-- Format: YYYY-MM-DD.
-
-━━━ WHAT QUALIFIES AS A VALID DEAL ━━━
-Include:
-- Equity funding rounds: Pre-Seed, Seed, Series A/B/C/D/E+
-- Growth equity and late-stage VC rounds
-- Bridge rounds backed by institutional investors
-- Angel rounds with named investors
-- IPOs and SPACs
-- M&A, acquisitions and mergers (acquirer goes into investors[], stage = "M&A")
-
-Exclude:
-- Debt rounds, loans, credit facilities, revenue-based financing
-- Government grants, subsidies, public funding
-- Crowdfunding, real estate, infrastructure
-- Articles that only MENTION a company without confirming a closed event
-- Any deal outside Latin America
-
-━━━ DUPLICATE DETECTION ━━━
-Keep only the highest-confidence entry per company+stage+date(±30 days).
-
-━━━ OUTPUT FORMAT ━━━
-Return a raw JSON array. No markdown fences. No explanations.
-If zero valid LATAM deals are found, return: []
-
-Each object:
-{
+━━━ OUTPUT ━━━
+Raw JSON array only. No markdown. Return [] if nothing found.
+[{
   "company_name": string,
   "amount_usd": number | null,
-  "deal_date": "YYYY-MM-DD",
+  "deal_date": "YYYY-MM-DD" | null,
   "stage": "Pre-Seed"|"Seed"|"Series A"|"Series B"|"Series C"|"Series D"|"Series E"|"Growth"|"Bridge"|"IPO"|"SPAC"|"M&A"|null,
   "investors": string[],
-  "segment": string | null,
+  "segment": "AI/ML"|"Fintech"|"Healthtech"|"SaaS"|"E-commerce"|"Proptech"|"Edtech"|"Deeptech"|"Cybersecurity"|"Logistics"|"Agritech"|"Cleantech"|"Biotech"|"Gaming"|"HR Tech"|"Legal Tech"|"Retail Tech"|"Marketplace"|"Other"|null,
   "country": "XX" | null,
   "source_url": string,
   "confidence": "high"|"medium"|"low"
-}
-
-━━━ SEGMENT ━━━
-"AI/ML"|"Fintech"|"Healthtech"|"SaaS"|"E-commerce"|"Proptech"|"Edtech"|"Deeptech"|
-"Cybersecurity"|"Logistics"|"Agritech"|"Cleantech"|"Biotech"|"Gaming"|"HR Tech"|
-"Legal Tech"|"Retail Tech"|"Marketplace"|"Other"
+}]
 
 ━━━ ARTICLES ━━━
 ${articlesText}`
 }
 
-async function extractDealsWithAI(
+async function extractDeals(
   articles: Article[],
   today: string,
   apiKey?: string,
@@ -397,14 +352,121 @@ async function extractDealsWithAI(
     const response = await client.messages.create({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 4096,
-      messages: [{ role: 'user', content: buildPrompt(articles, today) }],
+      messages: [{ role: 'user', content: buildExtractorPrompt(articles, today) }],
     })
     const text = response.content[0].type === 'text' ? response.content[0].text.trim() : ''
     if (!text || text === '[]') return { deals: [] }
-    const parsed = extractJsonArray(text)
-    return { deals: parsed as ExtractedDeal[] }
+    return { deals: extractJsonArray(text) as ExtractedDeal[] }
   } catch (err) {
     return { deals: [], error: err instanceof Error ? err.message : String(err) }
+  }
+}
+
+// ─── Prompt 2 — Reviewer ─────────────────────────────────────────────────────────────
+
+interface ReviewedDeal extends ExtractedDeal {
+  approved: boolean
+  rejection_reason?: string
+  // reviewer may correct/enrich these fields:
+  deal_date: string  // always set after review
+  stage: string | null
+  segment: string | null
+  country: string | null
+  investors: string[]
+}
+
+function buildReviewerPrompt(
+  candidates: ExtractedDeal[],
+  existingDeals: Pick<VCDeal, 'company_name' | 'deal_date' | 'stage'>[],
+  today: string,
+): string {
+  const cutoffDate = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString().slice(0, 10)
+
+  const candidatesText = JSON.stringify(candidates, null, 2)
+
+  const existingText = existingDeals.length > 0
+    ? existingDeals
+        .map(d => `- ${d.company_name} | ${d.stage ?? 'unknown stage'} | ${d.deal_date ?? 'unknown date'}`)
+        .join('\n')
+    : '(empty — no existing deals in database)'
+
+  return `You are a senior VC data analyst reviewing extracted deals before they enter a database.
+Today: ${today}
+Date cutoff (48h window): ${cutoffDate} to ${today}
+
+You will receive:
+1. CANDIDATES — deals extracted from today/yesterday news
+2. EXISTING DEALS — deals already in the database (last 60 days)
+
+For each candidate, decide APPROVE or REJECT based on ALL of these rules:
+
+━━━ RULE 1 — DATE ━━━
+The deal_date must be ${cutoffDate} or later (within last 48h).
+If deal_date is null, set it to today (${today}) and APPROVE.
+If deal_date is clearly older than ${cutoffDate}, REJECT with reason "outdated".
+
+━━━ RULE 2 — DUPLICATE VS DATABASE ━━━
+A deal is a duplicate if the EXISTING DEALS list contains the same company
+with any deal within the last 60 days (regardless of stage).
+Assume a company will not close two separate rounds within 2 months.
+If duplicate found, REJECT with reason "duplicate: already in DB as [stage] on [date]".
+
+━━━ RULE 3 — LATAM GEOGRAPHY ━━━
+Company must be based in Latin America. If country is null and you cannot
+determine it from the company name/context, REJECT with reason "country unknown".
+
+━━━ RULE 4 — DATA QUALITY ━━━
+For approved deals, correct/enrich the fields:
+- Normalize company_name (proper casing, remove legal suffixes like S.A., Ltda.)
+- Fix stage if obviously wrong (e.g. "Fund" is not a valid stage — set to null)
+- Infer segment if null and context makes it clear
+- Ensure investors is an array (not null)
+- Keep amount_usd null if not explicitly stated (do not guess)
+
+━━━ OUTPUT ━━━
+Return a raw JSON array with one object per candidate (same order).
+No markdown. No explanations outside the rejection_reason field.
+
+[{
+  "company_name": string,
+  "amount_usd": number | null,
+  "deal_date": "YYYY-MM-DD",
+  "stage": string | null,
+  "investors": string[],
+  "segment": string | null,
+  "country": "XX" | null,
+  "source_url": string,
+  "confidence": "high"|"medium"|"low",
+  "approved": true | false,
+  "rejection_reason": string | undefined
+}]
+
+━━━ CANDIDATES ━━━
+${candidatesText}
+
+━━━ EXISTING DEALS (last 60 days) ━━━
+${existingText}`
+}
+
+async function reviewDeals(
+  candidates: ExtractedDeal[],
+  existingDeals: Pick<VCDeal, 'company_name' | 'deal_date' | 'stage'>[],
+  today: string,
+  apiKey?: string,
+): Promise<{ reviewed: ReviewedDeal[]; error?: string }> {
+  if (candidates.length === 0) return { reviewed: [] }
+  const client = new Anthropic({ apiKey })
+  try {
+    const response = await client.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 4096,
+      messages: [{ role: 'user', content: buildReviewerPrompt(candidates, existingDeals, today) }],
+    })
+    const text = response.content[0].type === 'text' ? response.content[0].text.trim() : ''
+    if (!text || text === '[]') return { reviewed: [] }
+    return { reviewed: extractJsonArray(text) as ReviewedDeal[] }
+  } catch (err) {
+    return { reviewed: [], error: err instanceof Error ? err.message : String(err) }
   }
 }
 
@@ -412,10 +474,10 @@ async function extractDealsWithAI(
 
 export async function scrapeVCDeals(
   userId: string,
+  existingDeals: Pick<VCDeal, 'company_name' | 'deal_date' | 'stage'>[],
   apiKey?: string,
 ): Promise<{ deals: VCDealInsert[]; report: ScrapeReport }> {
   const today = new Date().toISOString().slice(0, 10)
-  // 48h cutoff: covers today + yesterday + timezone drift
   const cutoffMs = Date.now() - 48 * 60 * 60 * 1000
 
   const sourceResults = await Promise.allSettled(SOURCES.map(s => fetchSource(s)))
@@ -445,13 +507,9 @@ export async function scrapeVCDeals(
   }
 
   const totalArticles = allArticles.length
+  const empty = { sources, totalArticles: 0, uniqueArticles: 0, articlesAfterKeywordFilter: 0, articlesAfterDateFilter: 0, dealsExtracted: 0, dealsAfterReview: 0, dealsAfterFilter: 0, reviewRejections: [] }
 
-  if (totalArticles === 0) {
-    return {
-      deals: [],
-      report: { sources, totalArticles: 0, uniqueArticles: 0, articlesAfterKeywordFilter: 0, articlesAfterDateFilter: 0, dealsExtracted: 0, dealsAfterFilter: 0 },
-    }
-  }
+  if (totalArticles === 0) return { deals: [], report: empty }
 
   // 1. Deduplicate by title
   const seen = new Set<string>()
@@ -464,48 +522,53 @@ export async function scrapeVCDeals(
 
   // 2. Keyword pre-filter
   const candidates = unique.filter(isFundingArticle)
-
   if (candidates.length === 0) {
-    return {
-      deals: [],
-      report: {
-        sources,
-        totalArticles,
-        uniqueArticles: unique.length,
-        articlesAfterKeywordFilter: 0,
-        articlesAfterDateFilter: 0,
-        dealsExtracted: 0,
-        dealsAfterFilter: 0,
-      },
-    }
+    return { deals: [], report: { ...empty, totalArticles, uniqueArticles: unique.length } }
   }
 
-  // 3. Enrich with full article body (parallel fetch) — also populates pubDate from page
+  // 3. Enrich: fetch article body + extract pubDate from page
   const enriched = await enrichArticles(candidates)
 
-  // 4. Date filter — runs AFTER enrich so pubDate is populated from article page
-  //    Articles with no date still pass through (AI handles them)
+  // 4. Date filter (after enrich so pubDate is populated)
   const dated = enriched.filter(a => isRecentArticle(a, cutoffMs))
-
   if (dated.length === 0) {
     return {
       deals: [],
+      report: { ...empty, totalArticles, uniqueArticles: unique.length, articlesAfterKeywordFilter: candidates.length },
+    }
+  }
+
+  // 5. Prompt 1 — extract deals from articles
+  const { deals: extracted, error: aiError } = await extractDeals(dated, today, apiKey)
+
+  if (extracted.length === 0) {
+    return {
+      deals: [],
       report: {
-        sources,
-        totalArticles,
-        uniqueArticles: unique.length,
+        ...empty,
+        totalArticles, uniqueArticles: unique.length,
         articlesAfterKeywordFilter: candidates.length,
-        articlesAfterDateFilter: 0,
-        dealsExtracted: 0,
-        dealsAfterFilter: 0,
+        articlesAfterDateFilter: dated.length,
+        aiError,
       },
     }
   }
 
-  // 5. AI extraction on recent enriched articles
-  const { deals: extracted, error: aiError } = await extractDealsWithAI(dated, today, apiKey)
+  // 6. Prompt 2 — review: validate date, dedup vs DB, enrich fields
+  // Pass only the last 60 days of existing deals to keep the prompt focused
+  const sixtyDaysAgo = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+  const recentExisting = existingDeals.filter(
+    d => !d.deal_date || d.deal_date >= sixtyDaysAgo
+  )
+  const { reviewed, error: reviewError } = await reviewDeals(extracted, recentExisting, today, apiKey)
 
-  const filtered = extracted
+  const approved = reviewed.filter(d => d.approved)
+  const rejections = reviewed
+    .filter(d => !d.approved)
+    .map(d => ({ company: d.company_name, reason: d.rejection_reason ?? 'unknown' }))
+
+  // 7. Final hard filter: LATAM country + confidence
+  const filtered = approved
     .filter(d =>
       d.company_name?.trim() &&
       d.confidence !== 'low' &&
@@ -533,8 +596,11 @@ export async function scrapeVCDeals(
       articlesAfterKeywordFilter: candidates.length,
       articlesAfterDateFilter: dated.length,
       dealsExtracted: extracted.length,
+      dealsAfterReview: approved.length,
       dealsAfterFilter: filtered.length,
+      reviewRejections: rejections,
       aiError,
+      reviewError,
     },
   }
 }
