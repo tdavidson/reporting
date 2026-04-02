@@ -79,7 +79,7 @@ const CHART_MIN_H = 160
 
 const DEFAULT_FILTERS: VCFilters = {
   period:    'ytd',
-  countries: ['BR'],
+  countries: ['Brazil'],
   segments:  ['Fintech'],
   stages:    [],
   investors: [],
@@ -399,21 +399,26 @@ function MultiSelect({ options, selected, onChange, placeholder }: {
 }
 
 // ─── InvestorSearch ───────────────────────────────────────────────────────────
-// Campo de texto livre para buscar investidor(es). Suporta múltiplos valores
-// separados por vírgula, e também exibe sugestões enquanto o usuário digita.
 
-function InvestorSearch({ allInvestors, selected, onChange }: {
-  allInvestors: string[]; selected: string[]; onChange: (v: string[]) => void
+function InvestorSearch({ allInvestors, selected, onChange, resetKey }: {
+  allInvestors: string[]
+  selected: string[]
+  onChange: (v: string[]) => void
+  resetKey: number
 }) {
   const [inputValue, setInputValue] = useState(selected.join(', '))
   const [suggestions, setSuggestions] = useState<string[]>([])
   const [showSuggestions, setShowSuggestions] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
-  // Sync external clear
+  // Reset when parent triggers a clear (resetKey changes or selected goes empty)
   useEffect(() => {
-    if (selected.length === 0) setInputValue('')
-  }, [selected])
+    if (selected.length === 0) {
+      setInputValue('')
+      setSuggestions([])
+      setShowSuggestions(false)
+    }
+  }, [resetKey, selected.length])
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -425,7 +430,6 @@ function InvestorSearch({ allInvestors, selected, onChange }: {
 
   const handleChange = (raw: string) => {
     setInputValue(raw)
-    // Derive the current partial token (after last comma)
     const parts = raw.split(',')
     const partial = parts[parts.length - 1].trim().toLowerCase()
     if (partial.length >= 1) {
@@ -438,13 +442,11 @@ function InvestorSearch({ allInvestors, selected, onChange }: {
       setSuggestions([])
       setShowSuggestions(false)
     }
-    // Commit all complete tokens (finished with comma or single value)
     const committed = parts.slice(0, -1).map(p => p.trim()).filter(Boolean)
     onChange(committed)
   }
 
   const handleBlur = () => {
-    // On blur, commit whatever is typed
     const parts = inputValue.split(',').map(p => p.trim()).filter(Boolean)
     onChange(parts)
     setShowSuggestions(false)
@@ -475,13 +477,21 @@ function InvestorSearch({ allInvestors, selected, onChange }: {
           onChange={e => handleChange(e.target.value)}
           onBlur={handleBlur}
           onFocus={() => { if (suggestions.length > 0) setShowSuggestions(true) }}
+          onMouseDown={e => e.stopPropagation()}
           placeholder="Investor…"
           className="flex-1 bg-transparent outline-none min-w-[90px] max-w-[160px] text-xs placeholder:text-muted-foreground"
         />
         {hasValue && (
           <button
             type="button"
-            onMouseDown={e => { e.preventDefault(); setInputValue(''); onChange([]); setSuggestions([]); setShowSuggestions(false) }}
+            onMouseDown={e => {
+              e.preventDefault()
+              e.stopPropagation()
+              setInputValue('')
+              onChange([])
+              setSuggestions([])
+              setShowSuggestions(false)
+            }}
             className="text-muted-foreground hover:text-foreground transition-colors"
           >
             <X className="h-3 w-3" />
@@ -512,6 +522,9 @@ function DragScroll({ children, className }: { children: React.ReactNode; classN
   const scrollLeft = useRef(0)
 
   const onMouseDown = (e: React.MouseEvent) => {
+    // Don't hijack clicks on interactive children (inputs, buttons, links)
+    const target = e.target as HTMLElement
+    if (target.closest('input, button, a')) return
     dragging.current   = true
     startX.current     = e.pageX - (ref.current?.offsetLeft ?? 0)
     scrollLeft.current = ref.current?.scrollLeft ?? 0
@@ -609,7 +622,7 @@ function EditDealModal({ deal, onClose, onSaved, onDeleted }: {
               {STAGE_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
             </select>
           </Field>
-          <Field label="Country"><Input value={form.country} onChange={e => set('country', e.target.value)} placeholder="BR" className="h-8 text-xs" /></Field>
+          <Field label="Country"><Input value={form.country} onChange={e => set('country', e.target.value)} placeholder="Brazil" className="h-8 text-xs" /></Field>
           <Field label="Segment"><Input value={form.segment} onChange={e => set('segment', e.target.value)} placeholder="Fintech" className="h-8 text-xs" /></Field>
           <Field label="Investors (comma-separated)"><Input value={form.investors} onChange={e => set('investors', e.target.value)} placeholder="Sequoia, a16z" className="h-8 text-xs" /></Field>
           <Field label="Source URL"><Input value={form.source_url} onChange={e => set('source_url', e.target.value)} placeholder="https://..." className="h-8 text-xs" /></Field>
@@ -667,7 +680,7 @@ function ImportModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
   const handleDownloadTemplate = () => {
     const ws = XLSX.utils.aoa_to_sheet([
       ['Company Name', 'Amount USD', 'Date', 'Stage', 'Investors', 'Segment', 'Country', 'Source URL'],
-      ['Acme Corp', 5000000, '2026-01-15', 'Series A', 'Sequoia, a16z', 'Fintech', 'BR', 'https://techcrunch.com/...'],
+      ['Acme Corp', 5000000, '2026-01-15', 'Series A', 'Sequoia, a16z', 'Fintech', 'Brazil', 'https://techcrunch.com/...'],
     ])
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'VC Deals')
@@ -801,6 +814,8 @@ export function VCMarketClient({ isAdmin }: Props) {
   const [sortDir, setSortDir]           = useState<'asc' | 'desc'>('desc')
   const [page, setPage]                 = useState(1)
   const [scrapeReport, setScrapeReport] = useState<{ report: ScrapeReport; pending: number; skipped: number } | null>(null)
+  // Bumped every time clearFilters is called so InvestorSearch can reset
+  const [investorResetKey, setInvestorResetKey] = useState(0)
   const PAGE_SIZE = 50
 
   const [filters, setFilters] = useState<VCFilters>(DEFAULT_FILTERS)
@@ -837,15 +852,20 @@ export function VCMarketClient({ isAdmin }: Props) {
   useEffect(() => { fetchAllDeals() },        [fetchAllDeals])
   useEffect(() => { fetchPendingCount() },    [fetchPendingCount])
 
-  // Active filters = anything beyond the defaults (period is always set)
-  const hasActiveFilters = (
-    filters.countries.length > 0 ||
-    filters.segments.length  > 0 ||
-    filters.stages.length    > 0 ||
-    filters.investors.length > 0
+  // Show "Clear" only when current filters differ from defaults
+  const isDefaultFilters = (
+    filters.period === DEFAULT_FILTERS.period &&
+    JSON.stringify([...filters.countries].sort()) === JSON.stringify([...DEFAULT_FILTERS.countries].sort()) &&
+    JSON.stringify([...filters.segments].sort())  === JSON.stringify([...DEFAULT_FILTERS.segments].sort()) &&
+    filters.stages.length    === 0 &&
+    filters.investors.length === 0
   )
 
-  const clearFilters = () => setFilters(DEFAULT_FILTERS)
+  const clearFilters = () => {
+    setFilters(DEFAULT_FILTERS)
+    setInvestorResetKey(k => k + 1)
+    setPage(1)
+  }
 
   const handleScrape = async () => {
     setScraping(true)
@@ -986,8 +1006,9 @@ export function VCMarketClient({ isAdmin }: Props) {
           allInvestors={investorOptions}
           selected={filters.investors}
           onChange={v => { setFilters(f => ({ ...f, investors: v })); setPage(1) }}
+          resetKey={investorResetKey}
         />
-        {hasActiveFilters && (
+        {!isDefaultFilters && (
           <button onClick={clearFilters} className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1">
             <X className="h-3 w-3" /> Clear
           </button>
