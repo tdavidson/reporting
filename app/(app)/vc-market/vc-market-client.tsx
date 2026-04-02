@@ -3,714 +3,1125 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, LabelList,
-  PieChart, Pie, Legend
 } from 'recharts'
 import {
   TrendingUp, Globe, DollarSign, Building2, BarChart3,
-  ChevronDown, ChevronUp, Search, Filter, X, AlertCircle,
-  RefreshCw, Plus, ExternalLink, Loader2, ChevronLeft, ChevronRight,
-  SlidersHorizontal, Download, Calendar, Check, BookOpen
+  Upload, RefreshCw, ExternalLink, X, FileSpreadsheet, Loader2,
+  ChevronDown, ChevronUp, Search, Pencil, Trash2, Check, ChevronsUpDown, ClipboardList,
+  Info,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
-import { createClient } from '@/lib/supabase/client'
-import { formatCurrency } from '@/lib/format'
-import { useDisplayUnit } from '@/components/display-unit-context'
+import { toast } from 'sonner'
+import type { VCDeal, VCFilters, VCKPIs } from '@/lib/vc-market/types'
+import * as XLSX from 'xlsx'
+import { ScrapeReviewModal } from './review-modal'
 import { ScrapeReportModal } from './scrape-report-modal'
-import { ReviewModal } from './review-modal'
+import type { ScrapeReport } from '@/lib/vc-market/scrapers'
+ 
+// ─── constants ───────────────────────────────────────────────────────────────
 
-// ─── Types ──────────────────────────────────────────────────────────────────
+const PERIOD_OPTIONS = [
+  { value: 'ytd',       label: 'YTD' },
+  { value: 'q1',        label: 'Q1' },
+  { value: 'q2',        label: 'Q2' },
+  { value: 'q3',        label: 'Q3' },
+  { value: 'q4',        label: 'Q4' },
+  { value: 'last_year', label: 'Last Year' },
+  { value: '2024',      label: '2024' },
+  { value: '2023',      label: '2023' },
+  { value: 'all',       label: 'All time' },
+]
 
-interface Deal {
-  id: string
-  company_name: string
-  amount_usd: number | null
-  round_type: string | null
-  vertical: string | null
-  country: string | null
-  city: string | null
-  announced_date: string | null
-  source_url: string | null
-  source_name: string | null
-  investors: string[] | null
-  description: string | null
-  tags: string[] | null
-  status: string
-  created_at: string
-  reviewed_at: string | null
-  reviewed_by: string | null
-  org_id: string
+// [1] Bridge removido, FIDC / M&A / IPO adicionados
+const STAGE_OPTIONS = [
+  'Pre-Seed', 'Seed', 'Series A', 'Series B', 'Series C', 'Series D', 'Series E',
+  'Growth', 'FIDC', 'M&A', 'IPO',
+]
+
+const STAGE_COLORS: Record<string, string> = {
+  'Pre-Seed': '#6366f1',
+  'Seed':     '#8b5cf6',
+  'Series A': '#3b82f6',
+  'Series B': '#0ea5e9',
+  'Series C': '#84cc16',
+  'Series D': '#84cc16',
+  'Series E': '#84cc16',
+  'Growth':   '#84cc16',
+  'Bridge':   '#f97316',
+  'IPO':      '#f97316',
+  'M&A':      '#f97316',
+  'FIDC':     '#14b8a6',
 }
-
-interface KPIs {
-  totalRounds: number
-  totalCapital: number
-  avgDeal: number
-  topVertical: string
-  topCountry: string
-}
-
-interface ChartRow { name: string; value: number }
-
-// ─── Constants ───────────────────────────────────────────────────────────────
-
-const COLOR_ROUNDS  = '#6366f1'
-const COLOR_CAPITAL = '#22c55e'
 
 const PIE_COLORS = [
-  '#6366f1','#22c55e','#f59e0b','#ef4444','#3b82f6',
-  '#a855f7','#14b8a6','#f97316','#84cc16','#ec4899',
+  '#6366f1','#8b5cf6','#3b82f6','#0ea5e9',
+  '#14b8a6','#22c55e','#f59e0b','#f97316','#ef4444',
 ]
 
-const LABEL_STYLE_ROUNDS  = { fontSize: 11, fill: '#6366f1', fontWeight: 600 }
-const LABEL_STYLE_CAPITAL = { fontSize: 11, fill: '#16a34a', fontWeight: 600 }
-const LABEL_STYLE_COUNTRY = { fontSize: 11, fill: '#6b7280', fontWeight: 600 }
-
-const ROUND_TYPES = [
-  'Pre-Seed','Seed','Series A','Series B','Series C',
-  'Series D','Series E','Series F','Growth','Bridge',
-  'Convertible Note','SAFE','Venture Debt','Strategic','Other',
+const SEGMENT_PALETTE = [
+  '#6366f1','#3b82f6','#0ea5e9','#14b8a6',
+  '#22c55e','#84cc16','#f59e0b','#f97316','#ef4444','#8b5cf6',
 ]
 
-const VERTICAL_OPTIONS = [
-  'Fintech','EdTech','HealthTech','AgriTech','CleanTech',
-  'Proptech','Logistics','SaaS','AI/ML','Cybersecurity',
-  'Marketplace','E-commerce','Gaming','Media','Deep Tech',
-  'BioTech','LegalTech','HRTech','Insurtech','Other',
+const COLOR_ROUNDS  = '#0F2332'
+const COLOR_CAPITAL = '#22c55e'
+
+const LABEL_STYLE_ROUNDS  = { fontSize: 13, fontWeight: 700, fill: COLOR_ROUNDS  }
+const LABEL_STYLE_CAPITAL = { fontSize: 13, fontWeight: 700, fill: COLOR_CAPITAL }
+const LABEL_STYLE_COUNTRY = { fontSize: 13, fontWeight: 700, fill: '#6366f1'     }
+
+const BAR_ROW_H   = 36
+const CHART_MIN_H = 160
+
+// ─── Default filters ─────────────────────────────────────────────────────────
+
+const DEFAULT_FILTERS: VCFilters = {
+  period:    'ytd',
+  countries: ['Brazil'],
+  segments:  ['Fintech'],
+  stages:    [],
+  investors: [],
+}
+
+// ─── Sources list ─────────────────────────────────────────────────────────────
+
+const SCRAPE_SOURCES = [
+  { name: 'Pipeline Valor',                  url: 'https://pipelinevalor.globo.com/negocios/', type: 'HTML' },
+  { name: 'Brazil Journal – PE/VC',          url: 'https://braziljournal.com/hot-topic/private-equity-vc/', type: 'HTML' },
+  { name: 'NeoFeed Startups',                url: 'https://neofeed.com.br/startups/', type: 'HTML' },
+  { name: 'Finsiders Brasil',                url: 'https://finsidersbrasil.com.br/ultimas-noticias/', type: 'HTML' },
+  { name: 'LATAM List – Funding',            url: 'https://latamlist.com/category/startup-news/funding/', type: 'HTML' },
+  { name: 'Startups.com.br',                 url: 'https://startups.com.br/ultimas-noticias/', type: 'HTML' },
+  { name: 'Startupi',                        url: 'https://startupi.com.br/noticias/', type: 'HTML' },
+  { name: 'Latam Fintech',                   url: 'https://www.latamfintech.co/articles', type: 'HTML' },
+  { name: 'Startups Latam',                  url: 'https://startupslatam.com/', type: 'HTML' },
+  { name: 'TechCrunch',                      url: 'https://techcrunch.com/latest/', type: 'HTML' },
 ]
 
-const PAGE_SIZE = 25
-
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-
-function fmtUSD(v: number) {
-  if (v >= 1_000_000_000) return `$${(v/1_000_000_000).toFixed(1)}B`
-  if (v >= 1_000_000)     return `$${(v/1_000_000).toFixed(1)}M`
-  if (v >= 1_000)         return `$${(v/1_000).toFixed(0)}K`
-  return `$${v.toFixed(0)}`
-}
-
-function fmtUSDAxis(v: number) { return fmtUSD(v) }
-
-function fmtRounds(_v: unknown, _n: unknown, p: { value: number }) {
-  return [`${p.value} round${p.value !== 1 ? 's' : ''}`, '']
-}
-function fmtCapital(_v: unknown, _n: unknown, p: { value: number }) {
-  return [fmtUSD(p.value), '']
-}
-function fmtDeals(_v: unknown, _n: unknown, p: { value: number }) {
-  return [`${p.value} deal${p.value !== 1 ? 's' : ''}`, '']
-}
-
-function labelFmtRounds(v: number) { return v }
-function labelFmtUSD(v: number)    { return fmtUSD(v) }
-
-function horzH(n: number) { return Math.max(180, n * 36) }
+// ─── helpers ─────────────────────────────────────────────────────────────────
 
 function barProps(color: string) {
-  return { fill: color, fillOpacity: 0.75, stroke: color, strokeWidth: 1 } as const
+  return { fill: color, fillOpacity: 0.6, stroke: color, strokeWidth: 1.5 }
 }
 
-function parseDate(s: string | null) {
-  if (!s) return null
-  const d = new Date(s)
-  return isNaN(d.getTime()) ? null : d
+function formatUSD(n: number): string {
+  if (n >= 1_000_000_000) return `$${(n / 1_000_000_000).toFixed(1)}B`
+  if (n >= 1_000_000)     return `$${(n / 1_000_000).toFixed(1)}M`
+  if (n >= 1_000)         return `$${(n / 1_000).toFixed(0)}K`
+  return `$${n.toLocaleString()}`
 }
 
-function formatDate(s: string | null) {
-  const d = parseDate(s)
-  if (!d) return '—'
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+function parseDateLocal(iso: string): Date {
+  const [y, m, d] = iso.split('-').map(Number)
+  return new Date(y, (m ?? 1) - 1, d ?? 1)
 }
 
-// ─── Sub-components ───────────────────────────────────────────────────────────
+function fmtYearMonth(ym: string): string {
+  const [y, m] = ym.split('-').map(Number)
+  const d = new Date(y, m - 1, 1)
+  return d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' })
+}
+
+function getLatestDeals(deals: VCDeal[]): VCDeal[] {
+  return [...deals]
+    .sort((a, b) => (b.deal_date ?? '').localeCompare(a.deal_date ?? ''))
+    .slice(0, 10)
+}
+
+function computeKPIs(deals: VCDeal[]): VCKPIs {
+  const capital   = deals.reduce((s, d) => s + (d.amount_usd ?? 0), 0)
+  const companies = new Set(deals.map(d => d.company_name.toLowerCase())).size
+  const countries = new Set(deals.map(d => d.country).filter(Boolean)).size
+  const withAmount = deals.filter(d => d.amount_usd)
+  const avgTicket  = withAmount.length > 0
+    ? withAmount.reduce((s, d) => s + (d.amount_usd ?? 0), 0) / withAmount.length
+    : 0
+  return { totalRounds: deals.length, totalCapital: capital, uniqueCompanies: companies, avgTicket, activeCountries: countries }
+}
+
+function buildRoundsByMonth(deals: VCDeal[]) {
+  const map = new Map<string, number>()
+  for (const d of deals) {
+    if (!d.deal_date) continue
+    const month = d.deal_date.slice(0, 7)
+    map.set(month, (map.get(month) ?? 0) + 1)
+  }
+  return Array.from(map.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([month, count]) => ({ month: fmtYearMonth(month), rounds: count }))
+}
+
+function buildCapitalByMonth(deals: VCDeal[]) {
+  const map = new Map<string, number>()
+  for (const d of deals) {
+    if (!d.deal_date || !d.amount_usd) continue
+    const month = d.deal_date.slice(0, 7)
+    map.set(month, (map.get(month) ?? 0) + d.amount_usd)
+  }
+  return Array.from(map.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([month, capital]) => ({ month: fmtYearMonth(month), capital }))
+}
+
+function buildCapitalBySegment(deals: VCDeal[]) {
+  const map = new Map<string, number>()
+  for (const d of deals) {
+    const seg = d.segment ?? 'Other'
+    map.set(seg, (map.get(seg) ?? 0) + (d.amount_usd ?? 0))
+  }
+  return Array.from(map.entries())
+    .sort(([, a], [, b]) => b - a)
+    .map(([segment, amount]) => ({ segment, amount }))
+}
+
+function buildRoundsByVertical(deals: VCDeal[]) {
+  const map = new Map<string, number>()
+  for (const d of deals) {
+    const seg = d.segment ?? 'Other'
+    map.set(seg, (map.get(seg) ?? 0) + 1)
+  }
+  return Array.from(map.entries())
+    .sort(([, a], [, b]) => b - a)
+    .map(([segment, rounds]) => ({ segment, rounds }))
+}
+
+function buildDealsByCountry(deals: VCDeal[]) {
+  const map = new Map<string, number>()
+  for (const d of deals) {
+    const c = d.country ?? 'Unknown'
+    map.set(c, (map.get(c) ?? 0) + 1)
+  }
+  return Array.from(map.entries())
+    .sort(([, a], [, b]) => b - a)
+    .map(([country, count]) => ({ country, deals: count }))
+}
+
+function buildCapitalByCountry(deals: VCDeal[]) {
+  const map = new Map<string, number>()
+  for (const d of deals) {
+    if (!d.amount_usd) continue
+    const c = d.country ?? 'Unknown'
+    map.set(c, (map.get(c) ?? 0) + d.amount_usd)
+  }
+  return Array.from(map.entries())
+    .sort(([, a], [, b]) => b - a)
+    .map(([country, capital]) => ({ country, capital }))
+}
+
+function segmentColor(seg: string | null | undefined, segmentIndex: Map<string, number>): string {
+  const key = seg ?? 'Other'
+  if (!segmentIndex.has(key)) segmentIndex.set(key, segmentIndex.size)
+  return SEGMENT_PALETTE[segmentIndex.get(key)! % SEGMENT_PALETTE.length]
+}
+
+function buildTop10Deals(deals: VCDeal[]) {
+  return [...deals]
+    .filter(d => d.amount_usd)
+    .sort((a, b) => (b.amount_usd ?? 0) - (a.amount_usd ?? 0))
+    .slice(0, 10)
+    .map(d => ({
+      company: d.company_name,
+      amount:  d.amount_usd ?? 0,
+      segment: d.segment ?? 'Other',
+      stage:   d.stage ?? '',
+      country: d.country ?? '',
+    }))
+}
+
+function getUniqueValues(deals: VCDeal[], key: keyof VCDeal): string[] {
+  const set = new Set<string>()
+  for (const d of deals) {
+    const v = d[key]
+    if (v && typeof v === 'string') set.add(v)
+  }
+  return Array.from(set).sort()
+}
+
+function getUniqueInvestors(deals: VCDeal[]): string[] {
+  const set = new Set<string>()
+  for (const d of deals) {
+    for (const inv of d.investors ?? []) {
+      if (inv) set.add(inv)
+    }
+  }
+  return Array.from(set).sort()
+}
+
+const fmtRounds  = (v: number | undefined) => [v ?? 0, 'Rounds']  as [number, string]
+const fmtDeals   = (v: number | undefined) => [v ?? 0, 'Deals']   as [number, string]
+const fmtCapital = (v: number | undefined) => [formatUSD(v ?? 0), 'Capital'] as [string, string]
+const fmtUSDAxis = (v: number | undefined) => formatUSD(v ?? 0)
+
+const labelFmtRounds = (v: unknown) => (v != null ? String(v) : '')
+const labelFmtUSD    = (v: unknown) => (typeof v === 'number' && v ? formatUSD(v) : '')
+
+function CompanyTick({ x, y, payload }: { x?: number; y?: number; payload?: { value: string } }) {
+  return (
+    <g transform={`translate(${x},${y})`}>
+      <text x={0} y={0} dy={10} textAnchor="end" transform="rotate(-35)"
+        style={{ fontSize: 11, fill: 'var(--muted-foreground)' }}>
+        {payload?.value ?? ''}
+      </text>
+    </g>
+  )
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex flex-col gap-1">
+      <label className="text-xs text-muted-foreground">{label}</label>
+      {children}
+    </div>
+  )
+}
+
+// ─── SourcesModal ─────────────────────────────────────────────────────────────
+
+function SourcesModal({ onClose }: { onClose: () => void }) {
+  const rss  = SCRAPE_SOURCES.filter(s => s.type === 'RSS')
+  const html = SCRAPE_SOURCES.filter(s => s.type === 'HTML')
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div className="bg-background border rounded-xl shadow-xl w-full max-w-lg max-h-[80vh] flex flex-col">
+        <div className="flex items-center justify-between px-5 py-4 border-b shrink-0">
+          <div>
+            <h2 className="text-sm font-semibold">AI Scrape Sources</h2>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {SCRAPE_SOURCES.length} sources monitored daily for LATAM VC deals
+            </p>
+          </div>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="overflow-y-auto px-5 py-4 space-y-5">
+          <div>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+              RSS Feeds ({rss.length})
+            </p>
+            <div className="space-y-1.5">
+              {rss.map(s => (
+                <a key={s.url} href={s.url} target="_blank" rel="noopener noreferrer"
+                  className="flex items-center justify-between gap-3 px-3 py-2 rounded-lg border bg-muted/30 hover:bg-muted/60 transition-colors group">
+                  <span className="text-xs font-medium truncate">{s.name}</span>
+                  <ExternalLink className="h-3 w-3 shrink-0 text-muted-foreground group-hover:text-foreground transition-colors" />
+                </a>
+              ))}
+            </div>
+          </div>
+          <div>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+              HTML Sources ({html.length})
+            </p>
+            <div className="space-y-1.5">
+              {html.map(s => (
+                <a key={s.url} href={s.url} target="_blank" rel="noopener noreferrer"
+                  className="flex items-center justify-between gap-3 px-3 py-2 rounded-lg border bg-muted/30 hover:bg-muted/60 transition-colors group">
+                  <span className="text-xs font-medium truncate">{s.name}</span>
+                  <ExternalLink className="h-3 w-3 shrink-0 text-muted-foreground group-hover:text-foreground transition-colors" />
+                </a>
+              ))}
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground border-t pt-3">
+            Articles from the last 48 h are processed by Claude AI, which extracts only confirmed LATAM funding rounds and filters out debt, grants, and non-LATAM companies.
+          </p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── MultiSelect ─────────────────────────────────────────────────────────────
+
+function MultiSelect({ options, selected, onChange, placeholder }: {
+  options: string[]; selected: string[]; onChange: (v: string[]) => void; placeholder: string
+}) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  const toggle = (v: string) =>
+    onChange(selected.includes(v) ? selected.filter(s => s !== v) : [...selected, v])
+
+  const label = selected.length === 0 ? placeholder
+    : selected.length === 1 ? selected[0]
+    : `${selected.length} selected`
+
+  return (
+    <div ref={ref} className="relative">
+      <button type="button" onClick={() => setOpen(o => !o)}
+        className={`h-8 min-w-[120px] max-w-[160px] flex items-center justify-between gap-1 px-3 rounded-md border bg-background text-xs transition-colors hover:bg-accent ${
+          selected.length > 0 ? 'border-primary/60 text-foreground' : 'text-muted-foreground'
+        }`}>
+        <span className="truncate">{label}</span>
+        <ChevronsUpDown className="h-3 w-3 shrink-0 opacity-50" />
+      </button>
+      {open && (
+        <div className="absolute top-full mt-1 left-0 z-50 min-w-[160px] max-h-56 overflow-y-auto bg-popover border rounded-md shadow-md py-1">
+          {options.map(opt => (
+            <button key={opt} type="button" onClick={() => toggle(opt)}
+              className="w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-accent text-left">
+              <span className={`h-3.5 w-3.5 rounded border flex items-center justify-center shrink-0 ${
+                selected.includes(opt) ? 'bg-primary border-primary' : 'border-border'
+              }`}>
+                {selected.includes(opt) && <Check className="h-2.5 w-2.5 text-primary-foreground" />}
+              </span>
+              {opt}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── InvestorSearch ───────────────────────────────────────────────────────────
+
+function InvestorSearch({ allInvestors, selected, onChange, resetKey }: {
+  allInvestors: string[]
+  selected: string[]
+  onChange: (v: string[]) => void
+  resetKey: number
+}) {
+  const [inputValue, setInputValue] = useState(selected.join(', '))
+  const [suggestions, setSuggestions] = useState<string[]>([])
+  const [showSuggestions, setShowSuggestions] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (selected.length === 0) {
+      setInputValue('')
+      setSuggestions([])
+      setShowSuggestions(false)
+    }
+  }, [resetKey, selected.length])
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setShowSuggestions(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  const handleChange = (raw: string) => {
+    setInputValue(raw)
+    const parts = raw.split(',')
+    const partial = parts[parts.length - 1].trim().toLowerCase()
+    if (partial.length >= 1) {
+      const matched = allInvestors
+        .filter(inv => inv.toLowerCase().includes(partial))
+        .slice(0, 8)
+      setSuggestions(matched)
+      setShowSuggestions(matched.length > 0)
+    } else {
+      setSuggestions([])
+      setShowSuggestions(false)
+    }
+    const committed = parts.slice(0, -1).map(p => p.trim()).filter(Boolean)
+    onChange(committed)
+  }
+
+  const handleBlur = () => {
+    const parts = inputValue.split(',').map(p => p.trim()).filter(Boolean)
+    onChange(parts)
+    setShowSuggestions(false)
+  }
+
+  const pickSuggestion = (inv: string) => {
+    const parts = inputValue.split(',')
+    parts[parts.length - 1] = ` ${inv}`
+    const next = parts.join(',').replace(/^,\s*/, '')
+    setInputValue(next)
+    setSuggestions([])
+    setShowSuggestions(false)
+    const committed = next.split(',').map(p => p.trim()).filter(Boolean)
+    onChange(committed)
+  }
+
+  const hasValue = inputValue.trim().length > 0
+
+  return (
+    <div ref={ref} className="relative">
+      <div className={`h-8 flex items-center gap-1 px-2.5 rounded-md border bg-background text-xs transition-colors focus-within:ring-1 focus-within:ring-primary/40 ${
+        hasValue ? 'border-primary/60' : 'border-border'
+      }`}>
+        <Search className="h-3 w-3 shrink-0 text-muted-foreground" />
+        <input
+          type="text"
+          value={inputValue}
+          onChange={e => handleChange(e.target.value)}
+          onBlur={handleBlur}
+          onFocus={() => { if (suggestions.length > 0) setShowSuggestions(true) }}
+          onMouseDown={e => e.stopPropagation()}
+          placeholder="Investor…"
+          className="flex-1 bg-transparent outline-none min-w-[90px] max-w-[160px] text-xs placeholder:text-muted-foreground"
+        />
+        {hasValue && (
+          <button
+            type="button"
+            onMouseDown={e => {
+              e.preventDefault()
+              e.stopPropagation()
+              setInputValue('')
+              onChange([])
+              setSuggestions([])
+              setShowSuggestions(false)
+            }}
+            className="text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <X className="h-3 w-3" />
+          </button>
+        )}
+      </div>
+      {showSuggestions && (
+        <div className="absolute top-full mt-1 left-0 z-50 min-w-[200px] max-h-48 overflow-y-auto bg-popover border rounded-md shadow-md py-1">
+          {suggestions.map(inv => (
+            <button key={inv} type="button"
+              onMouseDown={e => { e.preventDefault(); pickSuggestion(inv) }}
+              className="w-full px-3 py-1.5 text-xs hover:bg-accent text-left truncate">
+              {inv}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── DragScroll ───────────────────────────────────────────────────────────────
+
+function DragScroll({ children, className }: { children: React.ReactNode; className?: string }) {
+  const ref      = useRef<HTMLDivElement>(null)
+  const dragging = useRef(false)
+  const startX   = useRef(0)
+  const scrollLeft = useRef(0)
+
+  const onMouseDown = (e: React.MouseEvent) => {
+    const target = e.target as HTMLElement
+    if (target.closest('input, button, a')) return
+    dragging.current   = true
+    startX.current     = e.pageX - (ref.current?.offsetLeft ?? 0)
+    scrollLeft.current = ref.current?.scrollLeft ?? 0
+    if (ref.current) ref.current.style.cursor = 'grabbing'
+  }
+  const onMouseUp = () => {
+    dragging.current = false
+    if (ref.current) ref.current.style.cursor = 'grab'
+  }
+  const onMouseMove = (e: React.MouseEvent) => {
+    if (!dragging.current || !ref.current) return
+    e.preventDefault()
+    ref.current.scrollLeft = scrollLeft.current - (e.pageX - ref.current.offsetLeft - startX.current)
+  }
+
+  return (
+    <div ref={ref} onMouseDown={onMouseDown} onMouseUp={onMouseUp}
+      onMouseLeave={onMouseUp} onMouseMove={onMouseMove}
+      className={className} style={{ cursor: 'grab', overflowX: 'auto', scrollbarWidth: 'none' }}>
+      {children}
+    </div>
+  )
+}
+
+// ─── EditDealModal ────────────────────────────────────────────────────────────
+
+function EditDealModal({ deal, onClose, onSaved, onDeleted }: {
+  deal: VCDeal; onClose: () => void; onSaved: (u: VCDeal) => void; onDeleted: (id: string) => void
+}) {
+  const [form, setForm] = useState({
+    company_name: deal.company_name,
+    amount_usd:   deal.amount_usd?.toString() ?? '',
+    deal_date:    deal.deal_date ?? '',
+    stage:        deal.stage ?? '',
+    investors:    deal.investors?.join(', ') ?? '',
+    segment:      deal.segment ?? '',
+    country:      deal.country ?? '',
+    source_url:   deal.source_url ?? '',
+  })
+  const [saving,     setSaving]     = useState(false)
+  const [deleting,   setDeleting]   = useState(false)
+  const [confirmDel, setConfirmDel] = useState(false)
+
+  const set = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }))
+
+  const handleSave = async () => {
+    setSaving(true)
+    try {
+      const payload = {
+        company_name: form.company_name.trim(),
+        amount_usd:   form.amount_usd ? parseFloat(form.amount_usd) : null,
+        deal_date:    form.deal_date || null,
+        stage:        form.stage || null,
+        investors:    form.investors ? form.investors.split(',').map(s => s.trim()).filter(Boolean) : [],
+        segment:      form.segment || null,
+        country:      form.country || null,
+        source_url:   form.source_url || null,
+      }
+      const res  = await fetch(`/api/vc-market/deals/${deal.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Save failed')
+      toast.success('Deal updated')
+      onSaved(data.deal)
+      onClose()
+    } catch (err) { toast.error(err instanceof Error ? err.message : 'Save failed') }
+    finally { setSaving(false) }
+  }
+
+  const handleDelete = async () => {
+    setDeleting(true)
+    try {
+      const res = await fetch(`/api/vc-market/deals/${deal.id}`, { method: 'DELETE' })
+      if (!res.ok) throw new Error('Delete failed')
+      toast.success('Deal deleted')
+      onDeleted(deal.id)
+      onClose()
+    } catch (err) { toast.error(err instanceof Error ? err.message : 'Delete failed') }
+    finally { setDeleting(false) }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div className="bg-background border rounded-xl shadow-xl w-full max-w-lg">
+        <div className="flex items-center justify-between px-5 py-4 border-b">
+          <h2 className="text-sm font-semibold">Edit Deal</h2>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
+        </div>
+        <div className="px-5 py-4 grid grid-cols-2 gap-3">
+          <Field label="Company"><Input value={form.company_name} onChange={e => set('company_name', e.target.value)} className="h-8 text-xs" /></Field>
+          <Field label="Amount (USD)"><Input value={form.amount_usd} onChange={e => set('amount_usd', e.target.value)} placeholder="5000000" className="h-8 text-xs" /></Field>
+          <Field label="Date"><Input type="date" value={form.deal_date} onChange={e => set('deal_date', e.target.value)} className="h-8 text-xs" /></Field>
+          {/* [1] Stage options updated */}
+          <Field label="Stage">
+            <select value={form.stage} onChange={e => set('stage', e.target.value)} className="h-8 rounded-md border bg-background text-xs px-2">
+              <option value="">— none —</option>
+              {STAGE_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </Field>
+          <Field label="Country"><Input value={form.country} onChange={e => set('country', e.target.value)} placeholder="Brazil" className="h-8 text-xs" /></Field>
+          <Field label="Segment"><Input value={form.segment} onChange={e => set('segment', e.target.value)} placeholder="Fintech" className="h-8 text-xs" /></Field>
+          <Field label="Investors (comma-separated)"><Input value={form.investors} onChange={e => set('investors', e.target.value)} placeholder="Sequoia, a16z" className="h-8 text-xs" /></Field>
+          <Field label="Source URL"><Input value={form.source_url} onChange={e => set('source_url', e.target.value)} placeholder="https://..." className="h-8 text-xs" /></Field>
+        </div>
+        <div className="flex items-center justify-between px-5 py-3 border-t">
+          {confirmDel ? (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-destructive">Confirm delete?</span>
+              <Button variant="destructive" size="sm" className="h-7 text-xs" onClick={handleDelete} disabled={deleting}>
+                {deleting ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Yes, delete'}
+              </Button>
+              <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setConfirmDel(false)}>Cancel</Button>
+            </div>
+          ) : (
+            <Button variant="ghost" size="sm" className="h-7 text-xs text-destructive hover:text-destructive" onClick={() => setConfirmDel(true)}>
+              <Trash2 className="h-3 w-3 mr-1" />Delete
+            </Button>
+          )}
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" className="h-7 text-xs" onClick={onClose}>Cancel</Button>
+            <Button size="sm" className="h-7 text-xs" onClick={handleSave} disabled={saving}>
+              {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Save'}
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── ImportModal ──────────────────────────────────────────────────────────────
+
+function ImportModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: () => void }) {
+  const [file, setFile] = useState<File | null>(null)
+  const [loading, setLoading] = useState(false)
+  const fileRef = useRef<HTMLInputElement>(null)
+
+  const handleImport = async () => {
+    if (!file) return
+    setLoading(true)
+    try {
+      const fd = new FormData()
+      fd.append('file', file)
+      const res  = await fetch('/api/vc-market/import', { method: 'POST', body: fd })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Import failed')
+      toast.success(`Imported ${data.inserted} deals${data.skipped > 0 ? ` (${data.skipped} skipped)` : ''}`)
+      if (data.errors?.length) toast.error(`${data.errors.length} row error(s) — check format`)
+      onSuccess()
+      onClose()
+    } catch (err) { toast.error(err instanceof Error ? err.message : 'Import failed') }
+    finally { setLoading(false) }
+  }
+
+  const handleDownloadTemplate = () => {
+    const ws = XLSX.utils.aoa_to_sheet([
+      ['Company Name', 'Amount USD', 'Date', 'Stage', 'Investors', 'Segment', 'Country', 'Source URL'],
+      ['Acme Corp', 5000000, '2026-01-15', 'Series A', 'Sequoia, a16z', 'Fintech', 'Brazil', 'https://techcrunch.com/...'],
+    ])
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'VC Deals')
+    XLSX.writeFile(wb, 'vc-market-template.xlsx')
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+      <div className="bg-background border rounded-xl shadow-xl w-full max-w-md mx-4 p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold">Import Deals from Excel</h2>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground"><X className="h-5 w-5" /></button>
+        </div>
+        <p className="text-sm text-muted-foreground mb-4">
+          Upload an <code>.xlsx</code> or <code>.csv</code> file.
+          Columns: <strong>Company Name, Amount USD, Date, Stage, Investors, Segment, Country, Source URL</strong>.
+        </p>
+        <div onClick={() => fileRef.current?.click()}
+          className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors mb-4 ${
+            file ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/50'
+          }`}>
+          <FileSpreadsheet className={`h-8 w-8 mx-auto mb-2 ${file ? 'text-primary' : 'text-muted-foreground'}`} />
+          {file ? <p className="text-sm font-medium">{file.name}</p> : <p className="text-sm text-muted-foreground">Click to select file</p>}
+          <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={e => setFile(e.target.files?.[0] ?? null)} />
+        </div>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={handleDownloadTemplate} className="flex-1">Download Template</Button>
+          <Button size="sm" onClick={handleImport} disabled={!file || loading} className="flex-1">
+            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4 mr-1" />}
+            Import
+          </Button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── KPICard ──────────────────────────────────────────────────────────────────
 
 function KPICard({ label, value, icon: Icon, color }: {
   label: string; value: string; icon: React.ElementType; color: string
 }) {
   return (
-    <div className="bg-card border rounded-xl p-4 flex items-start gap-3">
-      <div className={`p-2 rounded-lg ${color}`}>
-        <Icon className="h-4 w-4" />
-      </div>
-      <div className="min-w-0">
-        <p className="text-xs text-muted-foreground truncate">{label}</p>
-        <p className="text-lg font-semibold tracking-tight truncate">{value}</p>
+    <div className="bg-card border rounded-xl p-4 flex items-center gap-4">
+      <div className={`p-2.5 rounded-lg ${color}`}><Icon className="h-5 w-5" /></div>
+      <div>
+        <p className="text-xs text-muted-foreground">{label}</p>
+        <p className="text-xl font-semibold tabular-nums">{value}</p>
       </div>
     </div>
   )
 }
 
-function emptyChart(msg: string) {
-  return (
-    <div className="flex items-center justify-center h-[180px] text-sm text-muted-foreground">
-      {msg}
-    </div>
-  )
-}
+// ─── InvestorsCell — [2] tooltip with all investors on hover ──────────────────
 
-// ─── Dropdown helpers ─────────────────────────────────────────────────────────
-
-function MultiSelectDropdown({
-  label, options, selected, onToggle, onClear,
-}: {
-  label: string
-  options: string[]
-  selected: string[]
-  onToggle: (v: string) => void
-  onClear: () => void
-}) {
-  const [open, setOpen] = useState(false)
+function InvestorsCell({ investors }: { investors: string[] }) {
+  const [visible, setVisible] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
-  useEffect(() => {
-    function handler(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
-    }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [])
-
-  return (
-    <div className="relative" ref={ref}>
-      <button
-        onClick={() => setOpen(o => !o)}
-        className="flex items-center gap-1.5 h-8 px-3 rounded-lg border text-xs font-medium bg-background hover:bg-accent transition-colors"
-      >
-        {label}
-        {selected.length > 0 && (
-          <span className="bg-primary text-primary-foreground rounded-full px-1.5 py-0.5 text-[10px] font-semibold">
-            {selected.length}
-          </span>
-        )}
-        <ChevronDown className="h-3 w-3 text-muted-foreground" />
-      </button>
-      {open && (
-        <div className="absolute top-full mt-1 left-0 z-50 min-w-[160px] max-h-56 overflow-y-auto bg-popover border rounded-md shadow-md py-1">
-          {selected.length > 0 && (
-            <button onClick={onClear}
-              className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-muted-foreground hover:bg-accent text-left">
-              <X className="h-3 w-3" /> Clear all
-            </button>
-          )}
-          {options.map(o => (
-            <button key={o} onClick={() => onToggle(o)}
-              className="w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-accent text-left">
-              <span className={`h-3.5 w-3.5 rounded border flex items-center justify-center ${
-                selected.includes(o) ? 'bg-primary border-primary' : 'border-border'
-              }`}>
-                {selected.includes(o) && <Check className="h-2.5 w-2.5 text-primary-foreground" />}
-              </span>
-              {o}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
-
-function SingleSelectDropdown({
-  label, options, value, onChange,
-}: {
-  label: string
-  options: { value: string; label: string }[]
-  value: string
-  onChange: (v: string) => void
-}) {
-  const [open, setOpen] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    function handler(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
-    }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [])
-
-  const current = options.find(o => o.value === value)
-
-  return (
-    <div className="relative" ref={ref}>
-      <button
-        onClick={() => setOpen(o => !o)}
-        className="flex items-center gap-1.5 h-8 px-3 rounded-lg border text-xs font-medium bg-background hover:bg-accent transition-colors"
-      >
-        {current?.label ?? label}
-        <ChevronDown className="h-3 w-3 text-muted-foreground" />
-      </button>
-      {open && (
-        <div className="absolute top-full mt-1 left-0 z-50 min-w-[200px] max-h-48 overflow-y-auto bg-popover border rounded-md shadow-md py-1">
-          {options.map(o => (
-            <button key={o.value} onClick={() => { onChange(o.value); setOpen(false) }}
-              className="w-full px-3 py-1.5 text-xs hover:bg-accent text-left truncate">
-              {o.label}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
-
-// ─── Deal tooltip ─────────────────────────────────────────────────────────────
-
-function DealTooltip({ deal }: { deal: Deal }) {
-  return (
-    <div className="absolute bottom-full left-0 mb-2 z-50 bg-popover border rounded-lg shadow-lg p-2.5 min-w-[160px] max-w-[280px]">
-      <p className="font-semibold text-xs mb-1 truncate">{deal.company_name}</p>
-      {deal.description && (
-        <p className="text-[11px] text-muted-foreground line-clamp-3 mb-1">{deal.description}</p>
-      )}
-      {deal.investors && deal.investors.length > 0 && (
-        <p className="text-[11px] text-muted-foreground">
-          <span className="font-medium">Investors: </span>
-          {deal.investors.slice(0, 3).join(', ')}
-          {deal.investors.length > 3 && ` +${deal.investors.length - 3}`}
-        </p>
-      )}
-      <div className="absolute top-full left-4 -mt-px w-2.5 h-2.5 bg-popover border-b border-r border-border rotate-45" />
-    </div>
-  )
-}
-
-// ─── Table row ────────────────────────────────────────────────────────────────
-
-function DealRow({
-  deal,
-  onReview,
-  isAdmin,
-}: {
-  deal: Deal
-  onReview: (deal: Deal) => void
-  isAdmin: boolean
-}) {
-  const [hover, setHover] = useState(false)
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  function startHover() {
-    timerRef.current = setTimeout(() => setHover(true), 400)
-  }
-  function endHover() {
-    if (timerRef.current) clearTimeout(timerRef.current)
-    setHover(false)
+  if (!investors || investors.length === 0) {
+    return <span className="text-muted-foreground">—</span>
   }
 
-  const statusColor =
-    deal.status === 'approved' ? 'bg-green-500/10 text-green-600 border-green-200' :
-    deal.status === 'rejected' ? 'bg-red-500/10 text-red-600 border-red-200' :
-    'bg-yellow-500/10 text-yellow-600 border-yellow-200'
+  const preview = investors.slice(0, 2).join(', ') + (investors.length > 2 ? ` +${investors.length - 2}` : '')
 
   return (
-    <tr
-      className="group border-b last:border-0 hover:bg-muted/30 transition-colors"
-      onMouseEnter={startHover}
-      onMouseLeave={endHover}
+    <div
+      ref={ref}
+      className="relative inline-block"
+      onMouseEnter={() => setVisible(true)}
+      onMouseLeave={() => setVisible(false)}
     >
-      <td className="px-4 py-3 font-medium text-sm sticky left-0 z-10 bg-card group-hover:bg-muted/30 transition-colors whitespace-nowrap">
-        <div className="relative">
-          <span
-            className="hover:underline cursor-pointer"
-            onClick={() => onReview(deal)}
-          >
-            {deal.company_name}
-          </span>
-          {hover && <DealTooltip deal={deal} />}
+      <span className="text-sm text-muted-foreground cursor-default truncate max-w-[180px] block">
+        {preview}
+      </span>
+      {visible && investors.length > 0 && (
+        <div className="absolute bottom-full left-0 mb-2 z-50 bg-popover border rounded-lg shadow-lg p-2.5 min-w-[160px] max-w-[280px]">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">
+            Investors ({investors.length})
+          </p>
+          <ul className="space-y-1">
+            {investors.map((inv, i) => (
+              <li key={i} className="text-xs text-foreground whitespace-nowrap">{inv}</li>
+            ))}
+          </ul>
+          {/* arrow */}
+          <div className="absolute top-full left-4 -mt-px w-2.5 h-2.5 bg-popover border-b border-r border-border rotate-45" />
         </div>
+      )}
+    </div>
+  )
+}
+
+// ─── DealRow ──────────────────────────────────────────────────────────────────
+
+function DealRow({ deal, onEdit }: { deal: VCDeal; onEdit: (d: VCDeal) => void }) {
+  const stageColor = deal.stage ? STAGE_COLORS[deal.stage] ?? '#94a3b8' : '#94a3b8'
+  return (
+    <tr className="border-b last:border-0 hover:bg-muted/30 transition-colors group">
+      <td className="px-4 py-3 font-medium text-sm sticky left-0 z-10 bg-card group-hover:bg-muted/30 transition-colors whitespace-nowrap">
+        {deal.company_name}
       </td>
-      <td className="px-4 py-3 text-sm text-right tabular-nums">
-        {deal.amount_usd ? fmtUSD(deal.amount_usd) : '—'}
+      <td className="px-4 py-3 text-sm tabular-nums whitespace-nowrap">
+        {deal.amount_usd ? formatUSD(deal.amount_usd) : <span className="text-muted-foreground">—</span>}
+      </td>
+      <td className="px-4 py-3 text-sm text-muted-foreground whitespace-nowrap">
+        {deal.deal_date
+          ? parseDateLocal(deal.deal_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+          : '—'}
+      </td>
+      <td className="px-4 py-3 whitespace-nowrap">
+        {deal.stage
+          ? <span className="text-xs font-medium px-2 py-0.5 rounded-full text-white whitespace-nowrap" style={{ backgroundColor: stageColor }}>{deal.stage}</span>
+          : <span className="text-muted-foreground text-sm">—</span>}
+      </td>
+      {/* [2] investors tooltip */}
+      <td className="px-4 py-3 max-w-[200px]">
+        <InvestorsCell investors={deal.investors ?? []} />
       </td>
       <td className="px-4 py-3 text-sm">
-        {deal.round_type ? (
-          <Badge variant="outline" className="text-xs whitespace-nowrap">{deal.round_type}</Badge>
-        ) : '—'}
+        {deal.segment ? <Badge variant="secondary" className="text-xs whitespace-nowrap">{deal.segment}</Badge> : <span className="text-muted-foreground">—</span>}
       </td>
-      <td className="px-4 py-3 text-sm text-muted-foreground">{deal.vertical ?? '—'}</td>
-      <td className="px-4 py-3 text-sm text-muted-foreground">{deal.country ?? '—'}</td>
-      <td className="px-4 py-3 text-sm text-muted-foreground">{formatDate(deal.announced_date)}</td>
+      <td className="px-4 py-3 text-sm text-muted-foreground whitespace-nowrap">{deal.country ?? '—'}</td>
       <td className="px-4 py-3">
-        <Badge variant="outline" className={`text-[10px] capitalize ${statusColor}`}>
-          {deal.status}
-        </Badge>
+        {deal.source_url
+          ? <a href={deal.source_url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline inline-flex items-center gap-1 text-xs whitespace-nowrap">
+              Link <ExternalLink className="h-3 w-3" />
+            </a>
+          : <span className="text-muted-foreground text-sm">—</span>}
       </td>
-      <td className="px-4 py-3 text-sm text-muted-foreground">
-        {deal.source_url ? (
-          <a
-            href={deal.source_url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-1 hover:text-foreground transition-colors"
-          >
-            <ExternalLink className="h-3 w-3" />
-            <span className="truncate max-w-[120px]">{deal.source_name ?? 'Link'}</span>
-          </a>
-        ) : '—'}
+      <td className="px-3 py-3">
+        <button onClick={() => onEdit(deal)}
+          className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground">
+          <Pencil className="h-3.5 w-3.5" />
+        </button>
       </td>
-      {isAdmin && (
-        <td className="px-4 py-3">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 px-2 text-xs"
-            onClick={() => onReview(deal)}
-          >
-            Review
-          </Button>
-        </td>
-      )}
     </tr>
   )
 }
 
-// ─── Main component ───────────────────────────────────────────────────────────
+// ─── Top10 tooltip ────────────────────────────────────────────────────────────
 
-export function VcMarketClient() {
-  const supabase = createClient()
-  const { user } = useUser()
-  const { organization } = useOrganization()
+function Top10Tooltip({ active, payload }: { active?: boolean; payload?: Array<{ payload: { company: string; amount: number; segment: string; stage: string; country: string } }> }) {
+  if (!active || !payload?.length) return null
+  const d = payload[0].payload
+  return (
+    <div className="bg-popover border rounded-lg shadow-lg px-3 py-2 text-xs space-y-0.5">
+      <p className="font-semibold text-foreground">{d.company}</p>
+      <p className="text-emerald-500 font-bold">{formatUSD(d.amount)}</p>
+      {d.segment && <p className="text-muted-foreground">{d.segment}</p>}
+      {d.stage   && <p className="text-muted-foreground">{d.stage}</p>}
+      {d.country && <p className="text-muted-foreground">{d.country}</p>}
+    </div>
+  )
+}
 
-  // ── State ──
-  const [deals, setDeals]             = useState<Deal[]>([])
-  const [loading, setLoading]         = useState(true)
-  const [error, setError]             = useState<string | null>(null)
-  const [activeTab, setActiveTab]     = useState<'overview' | 'deals'>('overview')
+// ─── Main ─────────────────────────────────────────────────────────────────────
 
-  // filters
-  const [search, setSearch]           = useState('')
-  const [selectedRoundTypes, setSelectedRoundTypes] = useState<string[]>([])
-  const [selectedVerticals, setSelectedVerticals]   = useState<string[]>([])
-  const [selectedCountries, setSelectedCountries]   = useState<string[]>([])
-  const [selectedStatuses, setSelectedStatuses]     = useState<string[]>([])
-  const [sortField, setSortField]     = useState<'announced_date' | 'amount_usd' | 'company_name'>('announced_date')
-  const [sortDir, setSortDir]         = useState<'desc' | 'asc'>('desc')
-  const [page, setPage]               = useState(1)
+interface Props { isAdmin: boolean }
 
-  const [selectedPeriod, setSelectedPeriod] = useState('all')
-  const [reviewDeal, setReviewDeal]         = useState<Deal | null>(null)
-  const [showScrapeReport, setShowScrapeReport] = useState(false)
+export function VCMarketClient({ isAdmin }: Props) {
+  const [deals, setDeals]               = useState<VCDeal[]>([])
+  const [loading, setLoading]           = useState(true)
+  const [scraping, setScraping]         = useState(false)
+  const [showImport, setShowImport]     = useState(false)
+  const [showReview, setShowReview]     = useState(false)
+  const [showSources, setShowSources]   = useState(false)
+  const [pendingCount, setPendingCount] = useState(0)
+  const [editingDeal, setEditingDeal]   = useState<VCDeal | null>(null)
+  const [search, setSearch]             = useState('')
+  const [sortKey, setSortKey]           = useState<keyof VCDeal>('deal_date')
+  const [sortDir, setSortDir]           = useState<'asc' | 'desc'>('desc')
+  const [page, setPage]                 = useState(1)
+  const [scrapeReport, setScrapeReport] = useState<{ report: ScrapeReport; pending: number; skipped: number } | null>(null)
+  const [investorResetKey, setInvestorResetKey] = useState(0)
+  const PAGE_SIZE = 50
 
-  const isAdmin = organization?.role === 'admin' || organization?.role === 'owner'
+  const [filters, setFilters] = useState<VCFilters>(DEFAULT_FILTERS)
+  const [allDeals, setAllDeals] = useState<VCDeal[]>([])
 
-  // ── Load deals ──
-  const loadDeals = useCallback(async () => {
-    if (!organization?.id) return
+  const fetchDeals = useCallback(async (f: VCFilters) => {
     setLoading(true)
-    setError(null)
     try {
-      const { data, error } = await supabase
-        .from('vc_market_deals')
-        .select('*')
-        .eq('org_id', organization.id)
-        .order('announced_date', { ascending: false })
+      const params = new URLSearchParams()
+      params.set('period', f.period)
+      f.countries.forEach(v => params.append('country', v))
+      f.segments.forEach(v  => params.append('segment', v))
+      f.stages.forEach(v    => params.append('stage', v))
+      f.investors.forEach(v => params.append('investor', v))
+      const res  = await fetch(`/api/vc-market/deals?${params}`)
+      const data = await res.json()
+      setDeals(data.deals ?? [])
+    } finally { setLoading(false) }
+  }, [])
 
-      if (error) throw error
-      setDeals(data ?? [])
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Failed to load deals')
-    } finally {
-      setLoading(false)
-    }
-  }, [organization?.id, supabase])
+  const fetchAllDeals = useCallback(async () => {
+    const res  = await fetch('/api/vc-market/deals?period=all')
+    const data = await res.json()
+    setAllDeals(data.deals ?? [])
+  }, [])
 
-  useEffect(() => { loadDeals() }, [loadDeals])
+  const fetchPendingCount = useCallback(async () => {
+    const res  = await fetch('/api/vc-market/pending')
+    const data = await res.json()
+    setPendingCount((data.deals ?? []).length)
+  }, [])
 
-  // ── Period filter ──
-  const periodOptions = [
-    { value: 'all',     label: 'All time' },
-    { value: '7d',      label: 'Last 7 days' },
-    { value: '30d',     label: 'Last 30 days' },
-    { value: '90d',     label: 'Last 90 days' },
-    { value: '180d',    label: 'Last 6 months' },
-    { value: '1y',      label: 'Last year' },
-    { value: 'ytd',     label: 'Year to date' },
-  ]
+  useEffect(() => { fetchDeals(filters) },    [fetchDeals, filters])
+  useEffect(() => { fetchAllDeals() },        [fetchAllDeals])
+  useEffect(() => { fetchPendingCount() },    [fetchPendingCount])
 
-  function periodCutoff(p: string): Date | null {
-    const now = new Date()
-    if (p === 'all')  return null
-    if (p === '7d')   return new Date(now.getTime() - 7   * 86400000)
-    if (p === '30d')  return new Date(now.getTime() - 30  * 86400000)
-    if (p === '90d')  return new Date(now.getTime() - 90  * 86400000)
-    if (p === '180d') return new Date(now.getTime() - 180 * 86400000)
-    if (p === '1y')   return new Date(now.getTime() - 365 * 86400000)
-    if (p === 'ytd')  return new Date(now.getFullYear(), 0, 1)
-    return null
+  const isDefaultFilters = (
+    filters.period === DEFAULT_FILTERS.period &&
+    JSON.stringify([...filters.countries].sort()) === JSON.stringify([...DEFAULT_FILTERS.countries].sort()) &&
+    JSON.stringify([...filters.segments].sort())  === JSON.stringify([...DEFAULT_FILTERS.segments].sort()) &&
+    filters.stages.length    === 0 &&
+    filters.investors.length === 0
+  )
+
+  const resetFilters = () => {
+    setFilters({ ...DEFAULT_FILTERS })
+    setInvestorResetKey(k => k + 1)
+    setPage(1)
   }
 
-  // ── Derived / filtered data ──
-  const cutoff = periodCutoff(selectedPeriod)
+  const handleScrape = async () => {
+    setScraping(true)
+    try {
+      const res  = await fetch('/api/vc-market/scrape', { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Scrape failed')
+      const n = data.pending ?? 0
+      if (n > 0) {
+        toast.success(`${n} new deals ready for review`)
+        setPendingCount(prev => prev + n)
+        setShowReview(true)
+      } else {
+        if (data.report) {
+          setScrapeReport({ report: data.report, pending: 0, skipped: data.skipped ?? 0 })
+        } else {
+          toast.info('No new deals found')
+        }
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Scrape failed')
+    } finally { setScraping(false) }
+  }
 
-  const periodDeals = deals.filter(d => {
-    if (!cutoff) return true
-    const dt = parseDate(d.announced_date)
-    return dt ? dt >= cutoff : false
-  })
+  const handleDealSaved   = (u: VCDeal)  => { setDeals(p => p.map(d => d.id === u.id ? u : d)); setAllDeals(p => p.map(d => d.id === u.id ? u : d)) }
+  const handleDealDeleted = (id: string) => { setDeals(p => p.filter(d => d.id !== id));         setAllDeals(p => p.filter(d => d.id !== id)) }
 
-  const availableCountries = Array.from(
-    new Set(periodDeals.map(d => d.country).filter(Boolean) as string[])
-  ).sort()
+  const kpis             = computeKPIs(deals)
+  const latestDeals      = getLatestDeals(deals)
+  const roundsByMonth    = buildRoundsByMonth(deals)
+  const capitalByMonth   = buildCapitalByMonth(deals)
+  const capitalBySegment = buildCapitalBySegment(deals)
+  const roundsByVertical = buildRoundsByVertical(deals)
+  const dealsByCountry   = buildDealsByCountry(deals)
+  const capitalByCountry = buildCapitalByCountry(deals)
+  const top10Deals       = buildTop10Deals(deals)
 
-  const filteredDeals = periodDeals.filter(d => {
+  const segIdx = new Map<string, number>()
+  top10Deals.forEach(d => segmentColor(d.segment, segIdx))
+  const top10Segments = Array.from(segIdx.entries()).map(([seg, idx]) => ({
+    seg, color: SEGMENT_PALETTE[idx % SEGMENT_PALETTE.length],
+  }))
+
+  const countryOptions  = getUniqueValues(allDeals, 'country')
+  const segmentOptions  = getUniqueValues(allDeals, 'segment')
+  const stageOptions    = getUniqueValues(allDeals, 'stage')
+  const investorOptions = getUniqueInvestors(allDeals)
+
+  const toggleSort = (key: keyof VCDeal) => {
+    if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    else { setSortKey(key); setSortDir('desc') }
+    setPage(1)
+  }
+
+  const filtered = deals.filter(d => {
+    if (!search) return true
     const q = search.toLowerCase()
-    if (q && ![
-      d.company_name, d.round_type, d.vertical, d.country, d.city,
-      ...(d.investors ?? []), ...(d.tags ?? []),
-    ].some(v => v?.toLowerCase().includes(q))) return false
-    if (selectedRoundTypes.length && !selectedRoundTypes.includes(d.round_type ?? '')) return false
-    if (selectedVerticals.length  && !selectedVerticals.includes(d.vertical ?? ''))   return false
-    if (selectedCountries.length  && !selectedCountries.includes(d.country ?? ''))    return false
-    if (selectedStatuses.length   && !selectedStatuses.includes(d.status))            return false
-    return true
+    return (
+      d.company_name.toLowerCase().includes(q) ||
+      (d.segment ?? '').toLowerCase().includes(q) ||
+      (d.country  ?? '').toLowerCase().includes(q) ||
+      (d.stage    ?? '').toLowerCase().includes(q) ||
+      d.investors.some(i => i.toLowerCase().includes(q))
+    )
   })
 
-  const sortedDeals = [...filteredDeals].sort((a, b) => {
-    let av: string | number | null, bv: string | number | null
-    if (sortField === 'announced_date') {
-      av = a.announced_date; bv = b.announced_date
-      const ad = parseDate(av); const bd = parseDate(bv)
-      if (!ad && !bd) return 0
-      if (!ad) return 1; if (!bd) return -1
-      return sortDir === 'desc' ? bd.getTime() - ad.getTime() : ad.getTime() - bd.getTime()
-    }
-    if (sortField === 'amount_usd') {
-      av = a.amount_usd ?? -1; bv = b.amount_usd ?? -1
-      return sortDir === 'desc' ? (bv as number) - (av as number) : (av as number) - (bv as number)
-    }
-    av = a.company_name ?? ''; bv = b.company_name ?? ''
-    return sortDir === 'desc'
-      ? (bv as string).localeCompare(av as string)
-      : (av as string).localeCompare(bv as string)
+  const sorted     = [...filtered].sort((a, b) => {
+    const av = a[sortKey] ?? ''
+    const bv = b[sortKey] ?? ''
+    const cmp = av < bv ? -1 : av > bv ? 1 : 0
+    return sortDir === 'asc' ? cmp : -cmp
   })
+  const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE))
+  const paged      = sorted.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
-  const totalPages  = Math.ceil(sortedDeals.length / PAGE_SIZE)
-  const pagedDeals  = sortedDeals.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
-
-  // ── Chart data ──
-  const approvedDeals = periodDeals.filter(d => d.status === 'approved')
-
-  const kpis: KPIs = {
-    totalRounds:  approvedDeals.length,
-    totalCapital: approvedDeals.reduce((s, d) => s + (d.amount_usd ?? 0), 0),
-    avgDeal:      approvedDeals.length
-      ? approvedDeals.reduce((s, d) => s + (d.amount_usd ?? 0), 0) / approvedDeals.filter(d => d.amount_usd).length || 0
-      : 0,
-    topVertical:  (() => {
-      const m = new Map<string, number>()
-      approvedDeals.forEach(d => { if (d.vertical) m.set(d.vertical, (m.get(d.vertical) ?? 0) + 1) })
-      return [...m.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? '—'
-    })(),
-    topCountry: (() => {
-      const m = new Map<string, number>()
-      approvedDeals.forEach(d => { if (d.country) m.set(d.country, (m.get(d.country) ?? 0) + 1) })
-      return [...m.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? '—'
-    })(),
+  const SortIcon = ({ col }: { col: keyof VCDeal }) => {
+    if (sortKey !== col) return null
+    return sortDir === 'asc' ? <ChevronUp className="h-3 w-3 inline ml-0.5" /> : <ChevronDown className="h-3 w-3 inline ml-0.5" />
   }
 
-  function groupByMonth(arr: Deal[], valueKey: 'amount_usd' | 'count') {
-    const m = new Map<string, number>()
-    arr.forEach(d => {
-      const dt = parseDate(d.announced_date)
-      if (!dt) return
-      const key = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}`
-      m.set(key, (m.get(key) ?? 0) + (valueKey === 'count' ? 1 : (d.amount_usd ?? 0)))
-    })
-    return Array.from(m.entries())
-      .sort((a, b) => a[0].localeCompare(b[0]))
-      .map(([k, v]) => ({
-        month: k.slice(5) + '/' + k.slice(2, 4),
-        value: v,
-      }))
-  }
-
-  const roundsByMonth   = groupByMonth(approvedDeals, 'count').map(r => ({ ...r, rounds: r.value }))
-  const capitalByMonth  = groupByMonth(approvedDeals, 'amount_usd').map(r => ({ ...r, amount: r.value }))
-
-  function topN<T extends object>(arr: T[], key: keyof T, valueKey: keyof T, n = 10) {
-    const m = new Map<string, number>()
-    arr.forEach(d => {
-      const k = (d[key] as string) ?? 'Unknown'
-      m.set(k, (m.get(k) ?? 0) + ((d[valueKey] as number) ?? 0))
-    })
-    return Array.from(m.entries())
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, n)
-      .map(([name, value]) => ({ name, value }))
-  }
-
-  function topNCount<T extends object>(arr: T[], key: keyof T, n = 10) {
-    const m = new Map<string, number>()
-    arr.forEach(d => {
-      const k = (d[key] as string) ?? 'Unknown'
-      m.set(k, (m.get(k) ?? 0) + 1)
-    })
-    return Array.from(m.entries())
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, n)
-      .map(([name, value]) => ({ name, value }))
-  }
-
-  const top10Deals = [...approvedDeals]
-    .filter(d => d.amount_usd)
-    .sort((a, b) => (b.amount_usd ?? 0) - (a.amount_usd ?? 0))
-    .slice(0, 10)
-    .map(d => ({ name: d.company_name, amount: d.amount_usd! }))
-
-  const roundsByVertical  = topNCount(approvedDeals, 'vertical').map(r => ({ segment: r.name, rounds: r.value }))
-  const capitalBySegment  = topN(approvedDeals, 'vertical', 'amount_usd').map(r => ({ segment: r.name, amount: r.value }))
-  const dealsByCountry    = topNCount(approvedDeals, 'country').map(r => ({ country: r.name, deals: r.value }))
-  const capitalByCountry  = topN(approvedDeals, 'country', 'amount_usd').map(r => ({ country: r.name, capital: r.value }))
-  const roundsByType      = topNCount(approvedDeals, 'round_type').map(r => ({ name: r.name, value: r.value }))
-
-  // ── Handlers ──
-
-  function toggleSort(field: typeof sortField) {
-    if (sortField === field) setSortDir(d => d === 'desc' ? 'asc' : 'desc')
-    else { setSortField(field); setSortDir('desc') }
-  }
-
-  function toggleFilter<T>(setter: React.Dispatch<React.SetStateAction<T[]>>, v: T) {
-    setter(prev => prev.includes(v) ? prev.filter(x => x !== v) : [...prev, v])
-  }
-
-  function resetFilters() {
-    setSearch(''); setSelectedRoundTypes([]); setSelectedVerticals([])
-    setSelectedCountries([]); setSelectedStatuses([]); setPage(1)
-  }
-
-  const hasFilters = search || selectedRoundTypes.length || selectedVerticals.length ||
-    selectedCountries.length || selectedStatuses.length
-
-  // ─────────────────────────────────────────────────────────────────────────────
-
-  if (loading) return (
-    <div className="p-6 space-y-6">
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-        {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-20 rounded-xl" />)}
-      </div>
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-64 rounded-xl" />)}
-      </div>
-    </div>
+  const emptyChart = (msg: string) => (
+    <div className="h-[160px] flex items-center justify-center text-muted-foreground text-sm">{msg}</div>
   )
 
-  if (error) return (
-    <div className="flex flex-col items-center justify-center h-64 gap-3 text-muted-foreground">
-      <AlertCircle className="h-8 w-8 text-destructive" />
-      <p className="text-sm">{error}</p>
-      <Button variant="outline" size="sm" onClick={loadDeals}>
-        <RefreshCw className="h-3.5 w-3.5 mr-1.5" /> Retry
-      </Button>
-    </div>
-  )
-
-  // ─── Render ───────────────────────────────────────────────────────────────
+  const horzH = (n: number) => Math.max(CHART_MIN_H, n * BAR_ROW_H + 40)
 
   return (
-    <div className="flex flex-col gap-0">
+    <div className="p-4 md:py-8 md:px-8 space-y-6 max-w-[1600px]">
 
-      {/* ── Header bar ── */}
-      <div className="flex items-center justify-between px-6 py-4 border-b gap-3 flex-wrap">
-        <div className="flex items-center gap-2 flex-wrap">
-          <SingleSelectDropdown
-            label="Period"
-            options={periodOptions}
-            value={selectedPeriod}
-            onChange={v => { setSelectedPeriod(v); setPage(1) }}
-          />
-          <MultiSelectDropdown
-            label="Round type"
-            options={ROUND_TYPES}
-            selected={selectedRoundTypes}
-            onToggle={v => { toggleFilter(setSelectedRoundTypes, v); setPage(1) }}
-            onClear={() => { setSelectedRoundTypes([]); setPage(1) }}
-          />
-          <MultiSelectDropdown
-            label="Vertical"
-            options={VERTICAL_OPTIONS}
-            selected={selectedVerticals}
-            onToggle={v => { toggleFilter(setSelectedVerticals, v); setPage(1) }}
-            onClear={() => { setSelectedVerticals([]); setPage(1) }}
-          />
-          {availableCountries.length > 0 && (
-            <MultiSelectDropdown
-              label="Country"
-              options={availableCountries}
-              selected={selectedCountries}
-              onToggle={v => { toggleFilter(setSelectedCountries, v); setPage(1) }}
-              onClear={() => { setSelectedCountries([]); setPage(1) }}
-            />
-          )}
-          {hasFilters && (
-            <button
-              onClick={resetFilters}
-              className="flex items-center gap-1 h-8 px-3 rounded-lg text-xs text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-            >
-              <X className="h-3 w-3" /> Clear
-            </button>
-          )}
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex items-start gap-2">
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight">VC Market</h1>
+            <p className="text-sm text-muted-foreground">Global venture capital deal flow — scraped daily & importable</p>
+          </div>
+          <button
+            onClick={() => setShowSources(true)}
+            className="mt-1 p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+            title="View AI scrape sources"
+          >
+            <Info className="h-4 w-4" />
+          </button>
         </div>
-        <div className="flex items-center gap-2">
-          {isAdmin && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-8 text-xs gap-1.5"
-              onClick={() => setShowScrapeReport(true)}
-            >
-              <BookOpen className="h-3.5 w-3.5" />
-              Scrape Report
+        <div className="flex items-center gap-2 flex-wrap">
+          {pendingCount > 0 && (
+            <Button variant="outline" size="sm" onClick={() => setShowReview(true)}
+              className="gap-1.5 border-amber-400/60 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/30">
+              <ClipboardList className="h-4 w-4" />
+              Review deals
+              <span className="ml-0.5 bg-amber-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-none">
+                {pendingCount}
+              </span>
             </Button>
           )}
-          <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5" onClick={loadDeals}>
-            <RefreshCw className="h-3.5 w-3.5" /> Refresh
+          {isAdmin && (
+            <Button variant="outline" size="sm" onClick={handleScrape} disabled={scraping}>
+              {scraping ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : <RefreshCw className="h-4 w-4 mr-1.5" />}
+              Scrape now
+            </Button>
+          )}
+          <Button size="sm" onClick={() => setShowImport(true)}>
+            <Upload className="h-4 w-4 mr-1.5" />Import Excel
           </Button>
         </div>
       </div>
 
-      {/* ── Tab bar ── */}
-      <div className="flex border-b px-6">
-        {(['overview', 'deals'] as const).map(tab => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            className={`px-4 py-2.5 text-sm font-medium capitalize transition-colors border-b-2 -mb-px ${
-              activeTab === tab
-                ? 'border-primary text-foreground'
-                : 'border-transparent text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            {tab}
-          </button>
-        ))}
+      {/* Filters */}
+      <div className="flex flex-wrap gap-2 items-center">
+        <Select value={filters.period} onValueChange={v => { setFilters(f => ({ ...f, period: v })); setPage(1) }}>
+          <SelectTrigger className="h-8 w-32 text-xs"><SelectValue placeholder="Period" /></SelectTrigger>
+          <SelectContent>{PERIOD_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
+        </Select>
+        <MultiSelect options={countryOptions}  selected={filters.countries} onChange={v => { setFilters(f => ({ ...f, countries: v })); setPage(1) }} placeholder="Country" />
+        <MultiSelect options={segmentOptions}  selected={filters.segments}  onChange={v => { setFilters(f => ({ ...f, segments: v }));  setPage(1) }} placeholder="Segment" />
+        <MultiSelect options={stageOptions}    selected={filters.stages}    onChange={v => { setFilters(f => ({ ...f, stages: v }));    setPage(1) }} placeholder="Stage" />
+        <InvestorSearch
+          allInvestors={investorOptions}
+          selected={filters.investors}
+          onChange={v => { setFilters(f => ({ ...f, investors: v })); setPage(1) }}
+          resetKey={investorResetKey}
+        />
+        <button
+          onClick={resetFilters}
+          disabled={isDefaultFilters}
+          className={`text-xs flex items-center gap-1 transition-opacity ${
+            isDefaultFilters
+              ? 'opacity-30 cursor-default pointer-events-none'
+              : 'text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          <X className="h-3 w-3" /> Reset
+        </button>
       </div>
 
-      {/* ══════════════════════ OVERVIEW TAB ══════════════════════ */}
-      {activeTab === 'overview' && !loading && deals.length > 0 && (
-        <div className="p-6 space-y-6">
+      {/* KPI Cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+        <KPICard label="Total Rounds"     value={kpis.totalRounds.toLocaleString()}                         icon={BarChart3}  color="bg-indigo-500/10 text-indigo-500" />
+        <KPICard label="Total Capital"    value={kpis.totalCapital > 0 ? formatUSD(kpis.totalCapital) : '—'} icon={DollarSign} color="bg-emerald-500/10 text-emerald-500" />
+        <KPICard label="Unique Companies" value={kpis.uniqueCompanies.toLocaleString()}                     icon={Building2}  color="bg-blue-500/10 text-blue-500" />
+        <KPICard label="Avg Ticket"       value={kpis.avgTicket > 0 ? formatUSD(kpis.avgTicket) : '—'}      icon={TrendingUp} color="bg-violet-500/10 text-violet-500" />
+        <KPICard label="Active Countries" value={kpis.activeCountries.toLocaleString()}                     icon={Globe}      color="bg-amber-500/10 text-amber-500" />
+      </div>
 
-          {/* KPIs */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-            <KPICard label="Total Rounds"     value={kpis.totalRounds.toLocaleString()}                         icon={BarChart3}  color="bg-indigo-500/10 text-indigo-500" />
-            <KPICard label="Total Capital"    value={fmtUSD(kpis.totalCapital)}                                  icon={DollarSign} color="bg-green-500/10 text-green-500" />
-            <KPICard label="Avg Deal Size"    value={kpis.avgDeal ? fmtUSD(kpis.avgDeal) : '—'}                  icon={TrendingUp} color="bg-blue-500/10 text-blue-500" />
-            <KPICard label="Top Vertical"     value={kpis.topVertical}                                           icon={Building2}  color="bg-purple-500/10 text-purple-500" />
-            <KPICard label="Top Country"      value={kpis.topCountry}                                            icon={Globe}      color="bg-orange-500/10 text-orange-500" />
-          </div>
+      {/* Latest Deals banner */}
+      {latestDeals.length > 0 && (
+        <DragScroll className="border-y border-border/50 py-2 flex items-center gap-3">
+          <span className="text-[10px] font-semibold tracking-widest uppercase text-muted-foreground/60 shrink-0 pl-1 pr-2 border-r border-border/40 mr-1">
+            Latest
+          </span>
+          {latestDeals.map((deal, i) => {
+            const chip = (
+              <div key={deal.id} className="shrink-0 flex items-center gap-2">
+                {deal.source_url ? (
+                  <a href={deal.source_url} target="_blank" rel="noopener noreferrer"
+                    className="text-xs font-medium text-foreground hover:text-primary transition-colors whitespace-nowrap"
+                    onMouseDown={e => e.stopPropagation()}>
+                    {deal.company_name}
+                  </a>
+                ) : (
+                  <span className="text-xs font-medium text-foreground whitespace-nowrap">{deal.company_name}</span>
+                )}
+                {deal.amount_usd && (
+                  <span className="text-xs tabular-nums font-semibold text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
+                    {formatUSD(deal.amount_usd)}
+                  </span>
+                )}
+                {deal.deal_date && (
+                  <span className="text-[11px] text-muted-foreground/60 whitespace-nowrap">
+                    {parseDateLocal(deal.deal_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                  </span>
+                )}
+              </div>
+            )
+            return i < latestDeals.length - 1
+              ? [chip, <span key={`sep-${i}`} className="text-border shrink-0 select-none">·</span>]
+              : chip
+          })}
+        </DragScroll>
+      )}
 
-          {/* Top 10 deals */}
+      {/* Charts */}
+      {!loading && deals.length > 0 && (
+        <div className="space-y-4">
           {top10Deals.length > 0 && (
             <div className="bg-card border rounded-xl p-4">
-              <h3 className="text-sm font-medium mb-4">Top 10 Deals by Size</h3>
+              <div className="flex items-center justify-between mb-1">
+                <h3 className="text-sm font-medium">Top 10 Deals by Capital</h3>
+                {top10Segments.length > 0 && (
+                  <div className="flex flex-wrap gap-x-3 gap-y-1 justify-end">
+                    {top10Segments.map(({ seg, color }) => (
+                      <span key={seg} className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                        <span className="h-2.5 w-2.5 rounded-sm shrink-0" style={{ backgroundColor: color }} />{seg}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
               <ResponsiveContainer width="100%" height={300}>
                 <BarChart data={top10Deals} margin={{ top: 28, right: 16, bottom: 60, left: 8 }}>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                  <XAxis dataKey="name" tick={{ fontSize: 10 }} angle={-45} textAnchor="end" interval={0} />
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-border" vertical={false} />
+                  <XAxis dataKey="company" tick={<CompanyTick />} interval={0} />
                   <YAxis tick={{ fontSize: 11 }} tickFormatter={fmtUSDAxis} width={56} />
-                  <Tooltip contentStyle={{ fontSize: 12 }} formatter={fmtCapital} />
-                  <Bar dataKey="amount" {...barProps(COLOR_CAPITAL)} radius={[3, 3, 0, 0]}>
-                    <LabelList dataKey="amount" position="top" formatter={labelFmtUSD} style={LABEL_STYLE_CAPITAL} />
+                  <Tooltip content={<Top10Tooltip />} cursor={{ fill: 'rgba(255,255,255,0.04)' }} />
+                  <Bar dataKey="amount" radius={[4, 4, 0, 0]} maxBarSize={64}>
+                    {top10Deals.map((d, i) => { const c = segmentColor(d.segment, new Map(segIdx)); return <Cell key={i} fill={c} fillOpacity={0.75} stroke={c} strokeWidth={1.5} /> })}
+                    <LabelList dataKey="amount" position="top" formatter={labelFmtUSD} style={{ fontSize: 11, fontWeight: 700, fill: 'hsl(var(--muted-foreground))' }} />
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
@@ -718,40 +1129,40 @@ export function VcMarketClient() {
           )}
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-
-            {/* Rounds by month */}
             <div className="bg-card border rounded-xl p-4">
               <h3 className="text-sm font-medium mb-4">Rounds by Month</h3>
               {roundsByMonth.length > 0 ? (
                 <ResponsiveContainer width="100%" height={240}>
                   <BarChart data={roundsByMonth} margin={{ top: 20, right: 8, bottom: 0, left: -20 }}>
                     <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                    <XAxis dataKey="month" tick={{ fontSize: 10 }} />
+                    <XAxis dataKey="month" tick={{ fontSize: 11 }} interval={0} />
                     <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
                     <Tooltip contentStyle={{ fontSize: 12 }} formatter={fmtRounds} />
-                    <Bar dataKey="rounds" {...barProps(COLOR_ROUNDS)} radius={[3, 3, 0, 0]} />
+                    <Bar dataKey="rounds" {...barProps(COLOR_ROUNDS)} radius={[3, 3, 0, 0]}>
+                      <LabelList dataKey="rounds" position="top" formatter={labelFmtRounds} style={LABEL_STYLE_ROUNDS} />
+                    </Bar>
                   </BarChart>
                 </ResponsiveContainer>
-              ) : emptyChart('No round data in period')}
+              ) : emptyChart('No dated deals in period')}
             </div>
 
-            {/* Capital by month */}
             <div className="bg-card border rounded-xl p-4">
               <h3 className="text-sm font-medium mb-4">Capital by Month (USD)</h3>
               {capitalByMonth.length > 0 ? (
                 <ResponsiveContainer width="100%" height={240}>
                   <BarChart data={capitalByMonth} margin={{ top: 20, right: 8, bottom: 0, left: 8 }}>
                     <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                    <XAxis dataKey="month" tick={{ fontSize: 10 }} />
+                    <XAxis dataKey="month" tick={{ fontSize: 11 }} interval={0} />
                     <YAxis tick={{ fontSize: 11 }} tickFormatter={fmtUSDAxis} width={56} />
                     <Tooltip contentStyle={{ fontSize: 12 }} formatter={fmtCapital} />
-                    <Bar dataKey="amount" {...barProps(COLOR_CAPITAL)} radius={[3, 3, 0, 0]} />
+                    <Bar dataKey="capital" {...barProps(COLOR_CAPITAL)} radius={[3, 3, 0, 0]}>
+                      <LabelList dataKey="capital" position="top" formatter={labelFmtUSD} style={LABEL_STYLE_CAPITAL} />
+                    </Bar>
                   </BarChart>
                 </ResponsiveContainer>
               ) : emptyChart('No capital data in period')}
             </div>
 
-            {/* Rounds by Vertical */}
             <div className="bg-card border rounded-xl p-4">
               <h3 className="text-sm font-medium mb-4">Rounds by Vertical</h3>
               {roundsByVertical.length > 0 ? (
@@ -769,7 +1180,6 @@ export function VcMarketClient() {
               ) : emptyChart('No vertical data available')}
             </div>
 
-            {/* Capital by Vertical */}
             <div className="bg-card border rounded-xl p-4">
               <h3 className="text-sm font-medium mb-4">Capital by Vertical (USD)</h3>
               {capitalBySegment.length > 0 ? (
@@ -787,19 +1197,17 @@ export function VcMarketClient() {
               ) : emptyChart('No capital data available')}
             </div>
 
-            {/* Deals by Country */}
             <div className="bg-card border rounded-xl p-4">
               <h3 className="text-sm font-medium mb-4">Deals by Country</h3>
               {dealsByCountry.length > 0 ? (
                 <ResponsiveContainer width="100%" height={horzH(dealsByCountry.length)}>
-                  <BarChart data={dealsByCountry} layout="vertical" margin={{ top: 0, right: 40, bottom: 0, left: 80 }}>
+                  <BarChart data={dealsByCountry} layout="vertical" margin={{ top: 0, right: 40, bottom: 0, left: 40 }}>
                     <CartesianGrid strokeDasharray="3 3" className="stroke-border" horizontal={false} />
                     <XAxis type="number" tick={{ fontSize: 11 }} allowDecimals={false} />
-                    <YAxis dataKey="country" type="category" tick={{ fontSize: 11 }} width={78} />
+                    <YAxis dataKey="country" type="category" tick={{ fontSize: 11 }} width={38} />
                     <Tooltip contentStyle={{ fontSize: 12 }} formatter={fmtDeals} />
                     <Bar dataKey="deals" radius={[0, 3, 3, 0]}>
-                      {dealsByCountry.map((_, i) => { const c = PIE_COLORS[i % PIE_COLORS.length]; return <Cell key={i} fill={c} fillOpacity={0.6} stroke={c} strokeWidth={1.5} /> })
-                      }
+                      {dealsByCountry.map((_, i) => { const c = PIE_COLORS[i % PIE_COLORS.length]; return <Cell key={i} fill={c} fillOpacity={0.6} stroke={c} strokeWidth={1.5} /> })}
                       <LabelList dataKey="deals" position="right" formatter={labelFmtRounds} style={LABEL_STYLE_COUNTRY} />
                     </Bar>
                   </BarChart>
@@ -807,19 +1215,17 @@ export function VcMarketClient() {
               ) : emptyChart('No country data available')}
             </div>
 
-            {/* Capital by Country */}
             <div className="bg-card border rounded-xl p-4">
               <h3 className="text-sm font-medium mb-4">Capital by Country (USD)</h3>
               {capitalByCountry.length > 0 ? (
                 <ResponsiveContainer width="100%" height={horzH(capitalByCountry.length)}>
-                  <BarChart data={capitalByCountry} layout="vertical" margin={{ top: 0, right: 40, bottom: 0, left: 80 }}>
+                  <BarChart data={capitalByCountry} layout="vertical" margin={{ top: 0, right: 40, bottom: 0, left: 40 }}>
                     <CartesianGrid strokeDasharray="3 3" className="stroke-border" horizontal={false} />
                     <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={fmtUSDAxis} />
-                    <YAxis dataKey="country" type="category" tick={{ fontSize: 11 }} width={78} />
+                    <YAxis dataKey="country" type="category" tick={{ fontSize: 11 }} width={38} />
                     <Tooltip contentStyle={{ fontSize: 12 }} formatter={fmtCapital} />
                     <Bar dataKey="capital" radius={[0, 3, 3, 0]}>
-                      {capitalByCountry.map((_, i) => { const c = PIE_COLORS[i % PIE_COLORS.length]; return <Cell key={i} fill={c} fillOpacity={0.6} stroke={c} strokeWidth={1.5} /> })
-                      }
+                      {capitalByCountry.map((_, i) => { const c = PIE_COLORS[i % PIE_COLORS.length]; return <Cell key={i} fill={c} fillOpacity={0.6} stroke={c} strokeWidth={1.5} /> })}
                       <LabelList dataKey="capital" position="right" formatter={labelFmtUSD} style={LABEL_STYLE_COUNTRY} />
                     </Bar>
                   </BarChart>
@@ -827,161 +1233,105 @@ export function VcMarketClient() {
               ) : emptyChart('No capital by country data')}
             </div>
           </div>
-
-          {/* Round type pie */}
-          {roundsByType.length > 0 && (
-            <div className="bg-card border rounded-xl p-4">
-              <h3 className="text-sm font-medium mb-4">Rounds by Type</h3>
-              <div className="px-5 py-4 grid grid-cols-2 gap-3">
-                <ResponsiveContainer width="100%" height={220}>
-                  <PieChart>
-                    <Pie
-                      data={roundsByType}
-                      dataKey="value"
-                      nameKey="name"
-                      cx="50%" cy="50%"
-                      outerRadius={85}
-                      label={({ name, percent }) =>
-                        percent > 0.05 ? `${(percent * 100).toFixed(0)}%` : ''
-                      }
-                      labelLine={false}
-                    >
-                      {roundsByType.map((_, i) => (
-                        <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} fillOpacity={0.8} />
-                      ))}
-                    </Pie>
-                    <Tooltip contentStyle={{ fontSize: 12 }} />
-                  </PieChart>
-                </ResponsiveContainer>
-                <div className="flex flex-col justify-center gap-1.5">
-                  {roundsByType.map((r, i) => (
-                    <div key={r.name} className="flex items-center gap-2 text-xs">
-                      <span
-                        className="h-2.5 w-2.5 rounded-sm flex-shrink-0"
-                        style={{ background: PIE_COLORS[i % PIE_COLORS.length] }}
-                      />
-                      <span className="truncate text-muted-foreground">{r.name}</span>
-                      <span className="ml-auto font-medium tabular-nums">{r.value}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ══════════════════════ DEALS TAB ══════════════════════ */}
-      {activeTab === 'deals' && (
-        <div className="flex flex-col gap-0">
-
-          {/* Search + status filter */}
-          <div className="flex items-center gap-3 px-6 py-3 border-b flex-wrap">
-            <div className="relative flex-1 min-w-[200px] max-w-sm">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-              <input
-                type="text"
-                placeholder="Search company, investor, tag…"
-                value={search}
-                onChange={e => { setSearch(e.target.value); setPage(1) }}
-                className="w-full h-8 pl-8 pr-3 text-xs rounded-lg border bg-background focus:outline-none focus:ring-1 focus:ring-ring"
-              />
-            </div>
-            <MultiSelectDropdown
-              label="Status"
-              options={['pending', 'approved', 'rejected']}
-              selected={selectedStatuses}
-              onToggle={v => { toggleFilter(setSelectedStatuses, v); setPage(1) }}
-              onClear={() => { setSelectedStatuses([]); setPage(1) }}
-            />
-            <span className="text-xs text-muted-foreground ml-auto">
-              {filteredDeals.length} deal{filteredDeals.length !== 1 ? 's' : ''}
-            </span>
-          </div>
-
-          {/* Table */}
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b bg-muted/40">
-                  {([
-                    ['company_name', 'Company'],
-                    ['amount_usd',   'Amount'],
-                  ] as const).map(([field, label]) => (
-                    <th
-                      key={field}
-                      className={`px-4 py-2.5 text-left text-xs font-medium text-muted-foreground cursor-pointer select-none hover:text-foreground ${
-                        field === 'company_name' ? 'sticky left-0 z-20 bg-muted/40' : ''
-                      }`}
-                      onClick={() => toggleSort(field)}
-                    >
-                      <span className="flex items-center gap-1">
-                        {label}
-                        {sortField === field
-                          ? (sortDir === 'desc' ? <ChevronDown className="h-3 w-3" /> : <ChevronUp className="h-3 w-3" />)
-                          : null}
-                      </span>
-                    </th>
-                  ))}
-                  {(['Round', 'Vertical', 'Country', 'Date', 'Status', 'Source'] as const).map(h => (
-                    <th key={h} className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground">{h}</th>
-                  ))}
-                  {isAdmin && <th className="px-4 py-2.5" />}
-                </tr>
-              </thead>
-              <tbody>
-                {pagedDeals.length === 0 ? (
-                  <tr><td colSpan={isAdmin ? 9 : 8} className="px-4 py-12 text-center text-sm text-muted-foreground">No deals found</td></tr>
-                ) : (
-                  pagedDeals.map(d => (
-                    <DealRow key={d.id} deal={d} onReview={setReviewDeal} isAdmin={isAdmin} />
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="flex items-center justify-between px-6 py-3 border-t">
-              <span className="text-xs text-muted-foreground">
-                Page {page} of {totalPages}
-              </span>
-              <div className="flex items-center gap-1">
-                <Button variant="ghost" size="icon" className="h-7 w-7" disabled={page === 1} onClick={() => setPage(p => p - 1)}>
-                  <ChevronLeft className="h-3.5 w-3.5" />
-                </Button>
-                <Button variant="ghost" size="icon" className="h-7 w-7" disabled={page === totalPages} onClick={() => setPage(p => p + 1)}>
-                  <ChevronRight className="h-3.5 w-3.5" />
-                </Button>
-              </div>
-            </div>
-          )}
         </div>
       )}
 
       {/* Empty state */}
       {!loading && deals.length === 0 && (
-        <div className="flex flex-col items-center justify-center py-20 gap-3 text-muted-foreground">
-          <BarChart3 className="h-10 w-10 opacity-30" />
-          <p className="text-sm">No market deals yet.</p>
-          <p className="text-xs">Data will appear here as deals are scraped and approved.</p>
+        <div className="bg-card border rounded-xl p-12 text-center">
+          <TrendingUp className="h-10 w-10 mx-auto mb-3 text-muted-foreground/40" />
+          <p className="font-medium mb-1">No deals yet</p>
+          <p className="text-sm text-muted-foreground mb-4">Import an Excel file or trigger a scrape to populate deal data.</p>
+          <div className="flex items-center justify-center gap-2">
+            {isAdmin && (
+              <Button variant="outline" size="sm" onClick={handleScrape} disabled={scraping}>
+                {scraping ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <RefreshCw className="h-4 w-4 mr-1" />}
+                Scrape now
+              </Button>
+            )}
+            <Button size="sm" onClick={() => setShowImport(true)}><Upload className="h-4 w-4 mr-1" /> Import Excel</Button>
+          </div>
         </div>
       )}
 
-      {/* Modals */}
-      {reviewDeal && (
-        <ReviewModal
-          deal={reviewDeal}
-          onClose={() => setReviewDeal(null)}
-          onUpdate={loadDeals}
-          isAdmin={isAdmin}
+      {/* Deals Table */}
+      {deals.length > 0 && (
+        <div className="bg-card border rounded-xl overflow-hidden">
+          <div className="p-4 border-b flex items-center justify-between gap-3">
+            <h3 className="text-sm font-medium">All Deals</h3>
+            <div className="relative w-60">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              <Input value={search} onChange={e => { setSearch(e.target.value); setPage(1) }}
+                placeholder="Search…" className="pl-8 h-8 text-xs" />
+            </div>
+          </div>
+          {/* [3] overflow-auto on wrapper + sticky thead */}
+          <div className="overflow-auto max-h-[600px]">
+            <table className="w-full text-sm min-w-[900px]">
+              <thead className="sticky top-0 z-20">
+                <tr className="border-b bg-muted/80 backdrop-blur-sm text-muted-foreground text-xs">
+                  {([
+                    ['company_name', 'Company'],
+                    ['amount_usd',   'Amount'],
+                    ['deal_date',    'Date'],
+                    ['stage',        'Stage'],
+                    ['investors',    'Investors'],
+                    ['segment',      'Segment'],
+                    ['country',      'Country'],
+                    [null,           'Source'],
+                    [null,           ''],
+                  ] as [keyof VCDeal | null, string][]).map(([key, label], colIdx) => (
+                    <th key={label}
+                      className={`px-4 py-2.5 text-left font-medium whitespace-nowrap ${
+                        colIdx === 0 ? 'sticky left-0 z-30 bg-muted/80' : ''
+                      } ${ key ? 'cursor-pointer select-none hover:text-foreground' : '' }`}
+                      onClick={() => key && toggleSort(key)}>
+                      {label}{key && <SortIcon col={key} />}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {paged.length === 0
+                  ? <tr><td colSpan={9} className="px-4 py-8 text-center text-muted-foreground text-sm">No deals match your search</td></tr>
+                  : paged.map(deal => <DealRow key={deal.id} deal={deal} onEdit={setEditingDeal} />)}
+              </tbody>
+            </table>
+          </div>
+          {totalPages > 1 && (
+            <div className="p-3 border-t flex items-center justify-between text-xs text-muted-foreground">
+              <span>{(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, sorted.length)} of {sorted.length}</span>
+              <div className="flex gap-1">
+                <Button variant="outline" size="sm" className="h-7 px-2 text-xs" disabled={page === 1} onClick={() => setPage(p => p - 1)}>Previous</Button>
+                <Button variant="outline" size="sm" className="h-7 px-2 text-xs" disabled={page === totalPages} onClick={() => setPage(p => p + 1)}>Next</Button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {showImport && <ImportModal onClose={() => setShowImport(false)} onSuccess={() => { fetchDeals(filters); fetchAllDeals() }} />}
+      {showReview && (
+        <ScrapeReviewModal
+          onClose={() => { setShowReview(false); fetchPendingCount() }}
+          onPublished={() => { fetchDeals(filters); fetchAllDeals(); setPendingCount(0) }}
         />
       )}
-      {showScrapeReport && (
+      {showSources && <SourcesModal onClose={() => setShowSources(false)} />}
+      {scrapeReport && (
         <ScrapeReportModal
-          orgId={organization?.id ?? ''}
-          onClose={() => setShowScrapeReport(false)}
+          report={scrapeReport.report}
+          pending={scrapeReport.pending}
+          skipped={scrapeReport.skipped}
+          onClose={() => setScrapeReport(null)}
+        />
+      )}
+      {editingDeal && (
+        <EditDealModal
+          deal={editingDeal}
+          onClose={() => setEditingDeal(null)}
+          onSaved={handleDealSaved}
+          onDeleted={handleDealDeleted}
         />
       )}
     </div>
