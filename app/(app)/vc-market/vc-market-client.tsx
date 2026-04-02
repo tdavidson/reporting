@@ -37,8 +37,10 @@ const PERIOD_OPTIONS = [
   { value: 'all',       label: 'All time' },
 ]
 
+// [1] Bridge removido, FIDC / M&A / IPO adicionados
 const STAGE_OPTIONS = [
-  'Pre-Seed','Seed','Series A','Series B','Series C','Series D','Series E','Growth','Bridge',
+  'Pre-Seed', 'Seed', 'Series A', 'Series B', 'Series C', 'Series D', 'Series E',
+  'Growth', 'FIDC', 'M&A', 'IPO',
 ]
 
 const STAGE_COLORS: Record<string, string> = {
@@ -53,6 +55,7 @@ const STAGE_COLORS: Record<string, string> = {
   'Bridge':   '#f97316',
   'IPO':      '#f97316',
   'M&A':      '#f97316',
+  'FIDC':     '#14b8a6',
 }
 
 const PIE_COLORS = [
@@ -85,7 +88,7 @@ const DEFAULT_FILTERS: VCFilters = {
   investors: [],
 }
 
-// ─── Sources list (mirrors lib/vc-market/scrapers.ts SOURCES) ────────────────
+// ─── Sources list ─────────────────────────────────────────────────────────────
 
 const SCRAPE_SOURCES = [
   { name: 'Pipeline Valor',                  url: 'https://pipelinevalor.globo.com/negocios/', type: 'HTML' },
@@ -113,17 +116,11 @@ function formatUSD(n: number): string {
   return `$${n.toLocaleString()}`
 }
 
-/**
- * Parse a YYYY-MM-DD (or YYYY-MM) string as LOCAL date to avoid the UTC
- * midnight → previous-day shift that new Date('YYYY-MM-DD') causes in
- * negative-offset timezones (e.g. UTC-3 in São Paulo).
- */
 function parseDateLocal(iso: string): Date {
   const [y, m, d] = iso.split('-').map(Number)
   return new Date(y, (m ?? 1) - 1, d ?? 1)
 }
 
-/** Format a YYYY-MM key (e.g. "2026-03") as "Mar 26" without UTC offset issues. */
 function fmtYearMonth(ym: string): string {
   const [y, m] = ym.split('-').map(Number)
   const d = new Date(y, m - 1, 1)
@@ -156,10 +153,7 @@ function buildRoundsByMonth(deals: VCDeal[]) {
   }
   return Array.from(map.entries())
     .sort(([a], [b]) => a.localeCompare(b))
-    .map(([month, count]) => ({
-      month: fmtYearMonth(month),
-      rounds: count,
-    }))
+    .map(([month, count]) => ({ month: fmtYearMonth(month), rounds: count }))
 }
 
 function buildCapitalByMonth(deals: VCDeal[]) {
@@ -171,10 +165,7 @@ function buildCapitalByMonth(deals: VCDeal[]) {
   }
   return Array.from(map.entries())
     .sort(([a], [b]) => a.localeCompare(b))
-    .map(([month, capital]) => ({
-      month: fmtYearMonth(month),
-      capital,
-    }))
+    .map(([month, capital]) => ({ month: fmtYearMonth(month), capital }))
 }
 
 function buildCapitalBySegment(deals: VCDeal[]) {
@@ -411,7 +402,6 @@ function InvestorSearch({ allInvestors, selected, onChange, resetKey }: {
   const [showSuggestions, setShowSuggestions] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
-  // Reset when parent triggers a clear (resetKey changes or selected goes empty)
   useEffect(() => {
     if (selected.length === 0) {
       setInputValue('')
@@ -522,7 +512,6 @@ function DragScroll({ children, className }: { children: React.ReactNode; classN
   const scrollLeft = useRef(0)
 
   const onMouseDown = (e: React.MouseEvent) => {
-    // Don't hijack clicks on interactive children (inputs, buttons, links)
     const target = e.target as HTMLElement
     if (target.closest('input, button, a')) return
     dragging.current   = true
@@ -616,6 +605,7 @@ function EditDealModal({ deal, onClose, onSaved, onDeleted }: {
           <Field label="Company"><Input value={form.company_name} onChange={e => set('company_name', e.target.value)} className="h-8 text-xs" /></Field>
           <Field label="Amount (USD)"><Input value={form.amount_usd} onChange={e => set('amount_usd', e.target.value)} placeholder="5000000" className="h-8 text-xs" /></Field>
           <Field label="Date"><Input type="date" value={form.deal_date} onChange={e => set('deal_date', e.target.value)} className="h-8 text-xs" /></Field>
+          {/* [1] Stage options updated */}
           <Field label="Stage">
             <select value={form.stage} onChange={e => set('stage', e.target.value)} className="h-8 rounded-md border bg-background text-xs px-2">
               <option value="">— none —</option>
@@ -734,6 +724,46 @@ function KPICard({ label, value, icon: Icon, color }: {
   )
 }
 
+// ─── InvestorsCell — [2] tooltip with all investors on hover ──────────────────
+
+function InvestorsCell({ investors }: { investors: string[] }) {
+  const [visible, setVisible] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  if (!investors || investors.length === 0) {
+    return <span className="text-muted-foreground">—</span>
+  }
+
+  const preview = investors.slice(0, 2).join(', ') + (investors.length > 2 ? ` +${investors.length - 2}` : '')
+
+  return (
+    <div
+      ref={ref}
+      className="relative inline-block"
+      onMouseEnter={() => setVisible(true)}
+      onMouseLeave={() => setVisible(false)}
+    >
+      <span className="text-sm text-muted-foreground cursor-default truncate max-w-[180px] block">
+        {preview}
+      </span>
+      {visible && investors.length > 0 && (
+        <div className="absolute bottom-full left-0 mb-2 z-50 bg-popover border rounded-lg shadow-lg p-2.5 min-w-[160px] max-w-[280px]">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">
+            Investors ({investors.length})
+          </p>
+          <ul className="space-y-1">
+            {investors.map((inv, i) => (
+              <li key={i} className="text-xs text-foreground whitespace-nowrap">{inv}</li>
+            ))}
+          </ul>
+          {/* arrow */}
+          <div className="absolute top-full left-4 -mt-px w-2.5 h-2.5 bg-popover border-b border-r border-border rotate-45" />
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── DealRow ──────────────────────────────────────────────────────────────────
 
 function DealRow({ deal, onEdit }: { deal: VCDeal; onEdit: (d: VCDeal) => void }) {
@@ -756,8 +786,9 @@ function DealRow({ deal, onEdit }: { deal: VCDeal; onEdit: (d: VCDeal) => void }
           ? <span className="text-xs font-medium px-2 py-0.5 rounded-full text-white whitespace-nowrap" style={{ backgroundColor: stageColor }}>{deal.stage}</span>
           : <span className="text-muted-foreground text-sm">—</span>}
       </td>
-      <td className="px-4 py-3 text-sm text-muted-foreground max-w-[180px] truncate">
-        {deal.investors?.length > 0 ? deal.investors.join(', ') : '—'}
+      {/* [2] investors tooltip */}
+      <td className="px-4 py-3 max-w-[200px]">
+        <InvestorsCell investors={deal.investors ?? []} />
       </td>
       <td className="px-4 py-3 text-sm">
         {deal.segment ? <Badge variant="secondary" className="text-xs whitespace-nowrap">{deal.segment}</Badge> : <span className="text-muted-foreground">—</span>}
@@ -814,7 +845,6 @@ export function VCMarketClient({ isAdmin }: Props) {
   const [sortDir, setSortDir]           = useState<'asc' | 'desc'>('desc')
   const [page, setPage]                 = useState(1)
   const [scrapeReport, setScrapeReport] = useState<{ report: ScrapeReport; pending: number; skipped: number } | null>(null)
-  // Bumped every time clearFilters is called so InvestorSearch can reset
   const [investorResetKey, setInvestorResetKey] = useState(0)
   const PAGE_SIZE = 50
 
@@ -852,7 +882,6 @@ export function VCMarketClient({ isAdmin }: Props) {
   useEffect(() => { fetchAllDeals() },        [fetchAllDeals])
   useEffect(() => { fetchPendingCount() },    [fetchPendingCount])
 
-  // True when filters match defaults exactly — used to dim the Reset button
   const isDefaultFilters = (
     filters.period === DEFAULT_FILTERS.period &&
     JSON.stringify([...filters.countries].sort()) === JSON.stringify([...DEFAULT_FILTERS.countries].sort()) &&
@@ -1008,7 +1037,6 @@ export function VCMarketClient({ isAdmin }: Props) {
           onChange={v => { setFilters(f => ({ ...f, investors: v })); setPage(1) }}
           resetKey={investorResetKey}
         />
-        {/* Reset sempre visível — dimmed quando já está no default */}
         <button
           onClick={resetFilters}
           disabled={isDefaultFilters}
@@ -1031,7 +1059,7 @@ export function VCMarketClient({ isAdmin }: Props) {
         <KPICard label="Active Countries" value={kpis.activeCountries.toLocaleString()}                     icon={Globe}      color="bg-amber-500/10 text-amber-500" />
       </div>
 
-      {/* Latest Deals — elegant ticker-style banner */}
+      {/* Latest Deals banner */}
       {latestDeals.length > 0 && (
         <DragScroll className="border-y border-border/50 py-2 flex items-center gap-3">
           <span className="text-[10px] font-semibold tracking-widest uppercase text-muted-foreground/60 shrink-0 pl-1 pr-2 border-r border-border/40 mr-1">
@@ -1041,13 +1069,9 @@ export function VCMarketClient({ isAdmin }: Props) {
             const chip = (
               <div key={deal.id} className="shrink-0 flex items-center gap-2">
                 {deal.source_url ? (
-                  <a
-                    href={deal.source_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                  <a href={deal.source_url} target="_blank" rel="noopener noreferrer"
                     className="text-xs font-medium text-foreground hover:text-primary transition-colors whitespace-nowrap"
-                    onMouseDown={e => e.stopPropagation()}
-                  >
+                    onMouseDown={e => e.stopPropagation()}>
                     {deal.company_name}
                   </a>
                 ) : (
@@ -1183,8 +1207,7 @@ export function VCMarketClient({ isAdmin }: Props) {
                     <YAxis dataKey="country" type="category" tick={{ fontSize: 11 }} width={38} />
                     <Tooltip contentStyle={{ fontSize: 12 }} formatter={fmtDeals} />
                     <Bar dataKey="deals" radius={[0, 3, 3, 0]}>
-                      {dealsByCountry.map((_, i) => { const c = PIE_COLORS[i % PIE_COLORS.length]; return <Cell key={i} fill={c} fillOpacity={0.6} stroke={c} strokeWidth={1.5} /> })
-                      }
+                      {dealsByCountry.map((_, i) => { const c = PIE_COLORS[i % PIE_COLORS.length]; return <Cell key={i} fill={c} fillOpacity={0.6} stroke={c} strokeWidth={1.5} /> })}
                       <LabelList dataKey="deals" position="right" formatter={labelFmtRounds} style={LABEL_STYLE_COUNTRY} />
                     </Bar>
                   </BarChart>
@@ -1202,8 +1225,7 @@ export function VCMarketClient({ isAdmin }: Props) {
                     <YAxis dataKey="country" type="category" tick={{ fontSize: 11 }} width={38} />
                     <Tooltip contentStyle={{ fontSize: 12 }} formatter={fmtCapital} />
                     <Bar dataKey="capital" radius={[0, 3, 3, 0]}>
-                      {capitalByCountry.map((_, i) => { const c = PIE_COLORS[i % PIE_COLORS.length]; return <Cell key={i} fill={c} fillOpacity={0.6} stroke={c} strokeWidth={1.5} /> })
-                      }
+                      {capitalByCountry.map((_, i) => { const c = PIE_COLORS[i % PIE_COLORS.length]; return <Cell key={i} fill={c} fillOpacity={0.6} stroke={c} strokeWidth={1.5} /> })}
                       <LabelList dataKey="capital" position="right" formatter={labelFmtUSD} style={LABEL_STYLE_COUNTRY} />
                     </Bar>
                   </BarChart>
@@ -1243,10 +1265,11 @@ export function VCMarketClient({ isAdmin }: Props) {
                 placeholder="Search…" className="pl-8 h-8 text-xs" />
             </div>
           </div>
-          <div className="overflow-x-auto">
+          {/* [3] overflow-auto on wrapper + sticky thead */}
+          <div className="overflow-auto max-h-[600px]">
             <table className="w-full text-sm min-w-[900px]">
-              <thead>
-                <tr className="border-b bg-muted/30 text-muted-foreground text-xs">
+              <thead className="sticky top-0 z-20">
+                <tr className="border-b bg-muted/80 backdrop-blur-sm text-muted-foreground text-xs">
                   {([
                     ['company_name', 'Company'],
                     ['amount_usd',   'Amount'],
@@ -1260,7 +1283,7 @@ export function VCMarketClient({ isAdmin }: Props) {
                   ] as [keyof VCDeal | null, string][]).map(([key, label], colIdx) => (
                     <th key={label}
                       className={`px-4 py-2.5 text-left font-medium whitespace-nowrap ${
-                        colIdx === 0 ? 'sticky left-0 z-10 bg-muted/30' : ''
+                        colIdx === 0 ? 'sticky left-0 z-30 bg-muted/80' : ''
                       } ${ key ? 'cursor-pointer select-none hover:text-foreground' : '' }`}
                       onClick={() => key && toggleSort(key)}>
                       {label}{key && <SortIcon col={key} />}
@@ -1288,16 +1311,13 @@ export function VCMarketClient({ isAdmin }: Props) {
       )}
 
       {showImport && <ImportModal onClose={() => setShowImport(false)} onSuccess={() => { fetchDeals(filters); fetchAllDeals() }} />}
-
       {showReview && (
         <ScrapeReviewModal
           onClose={() => { setShowReview(false); fetchPendingCount() }}
           onPublished={() => { fetchDeals(filters); fetchAllDeals(); setPendingCount(0) }}
         />
       )}
-
       {showSources && <SourcesModal onClose={() => setShowSources(false)} />}
-
       {scrapeReport && (
         <ScrapeReportModal
           report={scrapeReport.report}
@@ -1306,7 +1326,6 @@ export function VCMarketClient({ isAdmin }: Props) {
           onClose={() => setScrapeReport(null)}
         />
       )}
-
       {editingDeal && (
         <EditDealModal
           deal={editingDeal}
