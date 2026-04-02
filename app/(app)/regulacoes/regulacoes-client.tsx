@@ -34,12 +34,12 @@ function getRegColor(reg: Regulation) {
   return firstTag ? (TAG_COLORS[firstTag] ?? DEFAULT_COLOR) : DEFAULT_COLOR
 }
 
-// const ISSUER_STYLES: Record<Issuer, { badge: string; badgeText: string; label: string }> = {
-//   CVM:   { badge: 'bg-blue-500/10',    badgeText: 'text-blue-600 dark:text-blue-400',       label: 'CVM'   },
-//   BCB:   { badge: 'bg-emerald-500/10', badgeText: 'text-emerald-600 dark:text-emerald-400', label: 'BCB'   },
-//   CMN:   { badge: 'bg-amber-500/10',   badgeText: 'text-amber-600 dark:text-amber-400',     label: 'CMN'   },
-//   OTHER: { badge: 'bg-violet-500/10',  badgeText: 'text-violet-600 dark:text-violet-400',   label: 'Other' },
-// }
+const ISSUER_STYLES: Record<Issuer, { badge: string; badgeText: string; label: string }> = {
+  CVM:   { badge: 'bg-blue-500/10',    badgeText: 'text-blue-600 dark:text-blue-400',       label: 'CVM'   },
+  BCB:   { badge: 'bg-emerald-500/10', badgeText: 'text-emerald-600 dark:text-emerald-400', label: 'BCB'   },
+  CMN:   { badge: 'bg-amber-500/10',   badgeText: 'text-amber-600 dark:text-amber-400',     label: 'CMN'   },
+  OTHER: { badge: 'bg-violet-500/10',  badgeText: 'text-violet-600 dark:text-violet-400',   label: 'Other' },
+}
 
 const ORDER_CONFIG = [
   { key: 'firstOrder'  as const, label: '1st Order', sub: 'Direct compliance obligations',    accent: 'bg-red-400'   },
