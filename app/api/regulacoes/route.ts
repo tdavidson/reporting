@@ -2,8 +2,7 @@ import { NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import type { Regulation } from '@/lib/regulacoes/types'
 
-let cache: { data: Regulation[]; ts: number } | null = null
-const CACHE_TTL_MS = 1000 * 60 * 60 * 24 // 24h
+export const revalidate = 86400 // 24h — Next.js data cache, survives cold starts
 
 const SYSTEM_PROMPT = `You are an expert on Brazilian Central Bank (BACEN/BCB) regulation.
 Return ONLY a valid JSON array. No markdown, no code fences, no explanations.
@@ -29,36 +28,34 @@ impacts must have firstOrder, secondOrder, thirdOrder — each an array of 2 obj
 Return ONLY the JSON array.
 `
 
-export async function GET() {
-  if (cache && Date.now() - cache.ts < CACHE_TTL_MS) {
-    return NextResponse.json(cache.data)
-  }
-
+async function fetchFromAI(): Promise<Regulation[]> {
   const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
+  const message = await client.messages.create({
+    model: 'claude-haiku-4-5-20251001',
+    max_tokens: 6000,
+    system: SYSTEM_PROMPT,
+    messages: [{ role: 'user', content: USER_PROMPT }],
+  })
+
+  const raw = message.content[0].type === 'text' ? message.content[0].text : ''
+  const clean = raw.replace(/^```(?:json)?\n?/i, '').replace(/\n?```$/i, '').trim()
+
   try {
-    const message = await client.messages.create({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 6000,
-      system: SYSTEM_PROMPT,
-      messages: [{ role: 'user', content: USER_PROMPT }],
+    return JSON.parse(clean)
+  } catch {
+    const lastBracket = clean.lastIndexOf('},')
+    const fixed = clean.slice(0, lastBracket + 1) + ']'
+    return JSON.parse(fixed)
+  }
+}
+
+export async function GET() {
+  try {
+    const data = await fetchFromAI()
+    return NextResponse.json(data, {
+      headers: { 'Cache-Control': 's-maxage=86400, stale-while-revalidate=3600' },
     })
-
-    const raw = message.content[0].type === 'text' ? message.content[0].text : ''
-    const clean = raw.replace(/^```(?:json)?\n?/i, '').replace(/\n?```$/i, '').trim()
-
-    let data: Regulation[]
-    try {
-      data = JSON.parse(clean)
-    } catch {
-      // Last resort: truncate to last complete object
-      const lastBracket = clean.lastIndexOf('},')
-      const fixed = clean.slice(0, lastBracket + 1) + ']'
-      data = JSON.parse(fixed)
-    }
-
-    cache = { data, ts: Date.now() }
-    return NextResponse.json(data)
   } catch (err) {
     console.error('[/api/regulacoes]', err)
     const msg = err instanceof Error ? err.message : 'Unknown error'
