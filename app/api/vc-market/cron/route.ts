@@ -17,7 +17,7 @@ export async function GET() {
     const db = createAdminClient() as any
 
     const { data: adminSettings, error: settingsError } = await db
-      .from('settings')
+      .from('app_settings')
       .select('user_id, fund_id, claude_api_key')
 
     if (settingsError) {
