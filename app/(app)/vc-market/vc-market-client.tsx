@@ -1184,7 +1184,7 @@ export function VCMarketClient({ isAdmin }: Props) {
               <h3 className="text-sm font-medium mb-4">Capital by Vertical (USD)</h3>
               {capitalBySegment.length > 0 ? (
                 <ResponsiveContainer width="100%" height={horzH(capitalBySegment.length)}>
-                  <BarChart data={capitalBySegment} layout="vertical" margin={{ top: 0, right: 40, bottom: 0, left: 80 }}>
+                  <BarChart data={capitalBySegment} layout="vertical" margin={{ top: 0, right: 60, bottom: 0, left: 80 }}>
                     <CartesianGrid strokeDasharray="3 3" className="stroke-border" horizontal={false} />
                     <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={fmtUSDAxis} />
                     <YAxis dataKey="segment" type="category" tick={{ fontSize: 11 }} width={78} />
@@ -1219,7 +1219,7 @@ export function VCMarketClient({ isAdmin }: Props) {
               <h3 className="text-sm font-medium mb-4">Capital by Country (USD)</h3>
               {capitalByCountry.length > 0 ? (
                 <ResponsiveContainer width="100%" height={horzH(capitalByCountry.length)}>
-                  <BarChart data={capitalByCountry} layout="vertical" margin={{ top: 0, right: 40, bottom: 0, left: 40 }}>
+                  <BarChart data={capitalByCountry} layout="vertical" margin={{ top: 0, right: 60, bottom: 0, left: 40 }}>
                     <CartesianGrid strokeDasharray="3 3" className="stroke-border" horizontal={false} />
                     <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={fmtUSDAxis} />
                     <YAxis dataKey="country" type="category" tick={{ fontSize: 11 }} width={38} />
