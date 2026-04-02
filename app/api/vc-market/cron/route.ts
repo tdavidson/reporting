@@ -23,7 +23,19 @@ export async function GET() {
 
     for (const setting of adminSettings) {
       try {
-        const { deals, report } = await scrapeVCDeals(setting.user_id, setting.claude_api_key ?? undefined)
+        // Fetch existing deals from last 60 days for dedup
+        const sixtyDaysAgo = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+        const { data: existingDeals } = await db
+          .from('vc_deals_pending')
+          .select('company_name, deal_date, stage')
+          .eq('user_id', setting.user_id)
+          .gte('deal_date', sixtyDaysAgo)
+
+        const { deals, report } = await scrapeVCDeals(
+          setting.user_id,
+          existingDeals ?? [],
+          setting.claude_api_key ?? undefined,
+        )
 
         console.log(`[vc-market/cron] user=${setting.user_id} sources=${report.sources.length} articles=${report.uniqueArticles} extracted=${report.dealsExtracted} filtered=${report.dealsAfterFilter}${
           report.aiError ? ` aiError=${report.aiError}` : ''
@@ -51,7 +63,7 @@ export async function GET() {
           await sendDealDigest(db, setting.user_id, setting.fund_id ?? null, newDeals)
         }
       } catch (err) {
-        errors.push(`user ${setting.user_id}: ${String(err)}`)
+        errors.push(`user ${setting.user_id}: ${err instanceof Error ? err.message : String(err)}`)
       }
     }
 
@@ -60,6 +72,6 @@ export async function GET() {
     return NextResponse.json({ inserted: totalInserted, skipped: totalSkipped, errors })
   } catch (err) {
     console.error('[vc-market/cron]', err)
-    return NextResponse.json({ error: String(err) }, { status: 500 })
+    return NextResponse.json({ error: err instanceof Error ? err.message : String(err) }, { status: 500 })
   }
 }
