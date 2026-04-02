@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import { VcMarketClient } from './vc-market-client'
+import { VCMarketClient } from './vc-market-client'
 
 export const metadata: Metadata = { title: 'VC Market' }
 
@@ -18,5 +18,5 @@ export default async function VCMarketPage() {
 
   const isAdmin = membership?.role === 'admin'
 
-  return <VcMarketClient isAdmin={isAdmin} />
+  return <VCMarketClient isAdmin={isAdmin} />
 }
