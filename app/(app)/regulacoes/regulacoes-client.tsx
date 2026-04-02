@@ -38,7 +38,6 @@ const ISSUER_STYLES: Record<Issuer, { badge: string; badgeText: string; label: s
   OTHER: { badge: 'bg-violet-500/10',  badgeText: 'text-violet-600 dark:text-violet-400',   label: 'Other' },
 }
 
-// 1st = Parallax blue, 2nd = green, 3rd = purple
 const ORDER_CONFIG = [
   { key: 'firstOrder'  as const, label: '1st Order', sub: 'Direct compliance obligations',    accentBar: 'bg-[#006494]',  accentBadge: 'bg-[#006494]/10 text-[#006494] dark:text-blue-300'   },
   { key: 'secondOrder' as const, label: '2nd Order', sub: 'Indirectly affected players',      accentBar: 'bg-emerald-500', accentBadge: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300' },
@@ -49,10 +48,8 @@ function fmtDate(iso: string) {
   return new Date(iso + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', year: 'numeric' }).replace(' ', '/')
 }
 
-// ─── Shared form types ────────────────────────────────────────────────────────
 type ImpactDraft  = { sectorOrType: string; why: string }
 type ImpactsDraft = { firstOrder: ImpactDraft[]; secondOrder: ImpactDraft[]; thirdOrder: ImpactDraft[] }
-
 const emptyImpact  = (): ImpactDraft  => ({ sectorOrType: '', why: '' })
 const emptyImpacts = (): ImpactsDraft => ({ firstOrder: [emptyImpact()], secondOrder: [emptyImpact()], thirdOrder: [emptyImpact()] })
 
@@ -74,7 +71,6 @@ function regToImpactsDraft(reg: Regulation): ImpactsDraft {
   }
 }
 
-// ─── ImpactSection (shared by Add + Edit) ────────────────────────────────────
 function ImpactSection({ title, sub, entries, onChange }: {
   title: string; sub: string; entries: ImpactDraft[]; onChange: (e: ImpactDraft[]) => void
 }) {
@@ -110,12 +106,10 @@ function ImpactSection({ title, sub, entries, onChange }: {
   )
 }
 
-// ─── RegulationForm (shared by Add + Edit modals) ────────────────────────────
 type FormState = ReturnType<typeof regToForm>
 
 function RegulationForm({
-  initial, initialImpacts, title, subtitle, submitLabel,
-  onSubmit, onClose,
+  initial, initialImpacts, title, subtitle, submitLabel, onSubmit, onClose,
 }: {
   initial: FormState; initialImpacts: ImpactsDraft
   title: string; subtitle: string; submitLabel: string
@@ -160,7 +154,6 @@ function RegulationForm({
     <div ref={backdropRef} onClick={onBackdrop}
       className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 backdrop-blur-sm overflow-y-auto py-8 px-4">
       <div className="relative w-full max-w-2xl bg-background border rounded-xl shadow-xl">
-
         <div className="flex items-center justify-between px-6 py-4 border-b">
           <div>
             <p className="font-semibold text-sm">{title}</p>
@@ -170,7 +163,6 @@ function RegulationForm({
             <X className="h-4 w-4" />
           </button>
         </div>
-
         <form onSubmit={handleSubmit} className="px-6 py-5 space-y-5">
           <div className="space-y-1">
             <label className="form-label">Full name <span className="text-destructive">*</span></label>
@@ -178,7 +170,6 @@ function RegulationForm({
               placeholder="e.g. Resolução BCB 1 (PIX)" className="input-field w-full" />
             {errors.name && <p className="text-[10px] text-destructive">{errors.name}</p>}
           </div>
-
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1">
               <label className="form-label">Short name <span className="text-destructive">*</span></label>
@@ -192,7 +183,6 @@ function RegulationForm({
                 placeholder="e.g. res-bcb-1-2020" className="input-field w-full" />
             </div>
           </div>
-
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
             <div className="space-y-1">
               <label className="form-label">Issuer</label>
@@ -211,26 +201,22 @@ function RegulationForm({
                 placeholder="https://bcb.gov.br/..." className="input-field w-full" />
             </div>
           </div>
-
           <div className="space-y-1">
             <label className="form-label">Description <span className="text-destructive">*</span></label>
             <textarea value={form.description} onChange={e => set('description', e.target.value)}
               rows={2} placeholder="Brief description" className="input-field w-full resize-none" />
             {errors.description && <p className="text-[10px] text-destructive">{errors.description}</p>}
           </div>
-
           <div className="space-y-1">
             <label className="form-label">Full context</label>
             <textarea value={form.fullContext} onChange={e => set('fullContext', e.target.value)}
               rows={2} placeholder="Broader regulatory context" className="input-field w-full resize-none" />
           </div>
-
           <div className="space-y-1">
             <label className="form-label">What changed</label>
             <input value={form.whatChanged} onChange={e => set('whatChanged', e.target.value)}
               placeholder="What changed vs. prior regime" className="input-field w-full" />
           </div>
-
           <div className="space-y-2">
             <label className="form-label">Topics</label>
             <div className="flex flex-wrap gap-1.5">
@@ -246,7 +232,6 @@ function RegulationForm({
               })}
             </div>
           </div>
-
           <div className="space-y-4">
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
               Impact Analysis <span className="font-normal normal-case">(optional)</span>
@@ -260,7 +245,6 @@ function RegulationForm({
             <ImpactSection title="3rd Order" sub="Ecosystem & startup implications"
               entries={impacts.thirdOrder} onChange={v => setImpacts(i => ({ ...i, thirdOrder: v }))} />
           </div>
-
           <div className="flex justify-end gap-2 pt-2 border-t">
             <button type="button" onClick={onClose}
               className="h-8 px-4 rounded-md text-xs border hover:bg-muted transition-colors">Cancel</button>
@@ -275,7 +259,6 @@ function RegulationForm({
   )
 }
 
-// ─── Add modal ────────────────────────────────────────────────────────────────
 function AddRegulationModal({ onAdd, onClose }: { onAdd: (reg: Regulation) => void; onClose: () => void }) {
   const blankForm: FormState = {
     id: '', name: '', shortName: '', issuer: 'BCB', date: '',
@@ -285,13 +268,11 @@ function AddRegulationModal({ onAdd, onClose }: { onAdd: (reg: Regulation) => vo
     <RegulationForm
       initial={blankForm} initialImpacts={emptyImpacts()}
       title="Add Regulation" subtitle="Fill in the fields below to add a regulation manually"
-      submitLabel="Add regulation"
-      onSubmit={onAdd} onClose={onClose}
+      submitLabel="Add regulation" onSubmit={onAdd} onClose={onClose}
     />
   )
 }
 
-// ─── Edit modal ───────────────────────────────────────────────────────────────
 function EditRegulationModal({ reg, onSave, onClose }: {
   reg: Regulation; onSave: (updated: Regulation) => void; onClose: () => void
 }) {
@@ -299,8 +280,7 @@ function EditRegulationModal({ reg, onSave, onClose }: {
     <RegulationForm
       initial={regToForm(reg)} initialImpacts={regToImpactsDraft(reg)}
       title="Edit Regulation" subtitle={`Editing: ${reg.shortName}`}
-      submitLabel="Save changes"
-      onSubmit={onSave} onClose={onClose}
+      submitLabel="Save changes" onSubmit={onSave} onClose={onClose}
     />
   )
 }
@@ -320,27 +300,35 @@ function MultiSelect({ label, options, selected, onChange }: {
   const count  = selected.length
   return (
     <div ref={ref} className="relative">
-      <button onClick={() => setOpen(o => !o)}
-        className="flex items-center gap-2 h-8 px-3 rounded-md text-xs font-medium border border-white/20 bg-white/10 hover:bg-white/20 text-white transition-colors">
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="flex items-center gap-2 h-8 px-3 rounded-md text-xs font-medium border border-border bg-muted hover:bg-muted/80 text-foreground transition-colors"
+      >
         <span>{label}</span>
-        {count > 0 && <span className="flex items-center justify-center w-4 h-4 rounded-full bg-white text-[10px] font-bold text-slate-800">{count}</span>}
-        <SlidersHorizontal className="h-3 w-3 opacity-70" />
+        {count > 0 && (
+          <span className="flex items-center justify-center w-4 h-4 rounded-full bg-foreground text-[10px] font-bold text-background">
+            {count}
+          </span>
+        )}
+        <SlidersHorizontal className="h-3 w-3 opacity-50" />
       </button>
       {open && (
-        <div className="absolute right-0 top-10 z-50 w-52 rounded-lg border border-white/10 shadow-xl overflow-hidden bg-slate-900">
+        <div className="absolute right-0 top-10 z-50 w-52 rounded-lg border border-border shadow-xl overflow-hidden bg-popover">
           <div className="p-1.5 space-y-0.5 max-h-72 overflow-y-auto">
             {options.map(opt => (
               <button key={opt} onClick={() => toggle(opt)}
-                className="w-full flex items-center justify-between gap-2 px-3 py-1.5 rounded-md text-xs text-white/80 hover:bg-white/10 hover:text-white transition-colors">
+                className="w-full flex items-center justify-between gap-2 px-3 py-1.5 rounded-md text-xs text-muted-foreground hover:bg-muted hover:text-foreground transition-colors">
                 <span>{opt}</span>
-                {selected.includes(opt) && <Check className="h-3 w-3 text-white" />}
+                {selected.includes(opt) && <Check className="h-3 w-3 text-foreground" />}
               </button>
             ))}
           </div>
           {count > 0 && (<>
-            <div className="h-px bg-white/10" />
+            <div className="h-px bg-border" />
             <button onClick={() => { onChange([]); setOpen(false) }}
-              className="w-full px-3 py-2 text-xs text-white/50 hover:text-white/80 text-center transition-colors">Clear all</button>
+              className="w-full px-3 py-2 text-xs text-muted-foreground hover:text-foreground text-center transition-colors">
+              Clear all
+            </button>
           </>)}
         </div>
       )}
@@ -348,7 +336,7 @@ function MultiSelect({ label, options, selected, onChange }: {
   )
 }
 
-// ─── Filter bar ───────────────────────────────────────────────────────────────
+// ─── Filter bar ── sem background no container, apenas nos botões ─────────────
 function FilterBar({ activeTags, onTagsChange, activeYears, onYearsChange, years, totalCount, filteredCount, onAdd }: {
   activeTags: Tag[]; onTagsChange: (t: Tag[]) => void
   activeYears: string[]; onYearsChange: (y: string[]) => void
@@ -357,23 +345,28 @@ function FilterBar({ activeTags, onTagsChange, activeYears, onYearsChange, years
 }) {
   const hasFilters = activeTags.length > 0 || activeYears.length > 0
   return (
-    <div className="rounded-lg px-4 py-3 flex items-center justify-between gap-4 flex-wrap bg-slate-800">
-      <p className="text-xs text-white/50">Showing <span className="text-white font-medium">{filteredCount}</span> of {totalCount}</p>
-      <div className="flex items-center gap-2">
-        {hasFilters && (
-          <button onClick={() => { onTagsChange([]); onYearsChange([]) }}
-            className="flex items-center gap-1 h-8 px-2 rounded-md text-xs text-white/50 hover:text-white transition-colors">
-            <X className="h-3 w-3" /> Clear
-          </button>
-        )}
-        <MultiSelect label="Year"  options={years}          selected={activeYears}           onChange={onYearsChange} />
-        <MultiSelect label="Topic" options={[...ALL_TAGS]}  selected={activeTags as string[]} onChange={v => onTagsChange(v as Tag[])} />
-        <div className="w-px h-5 bg-white/20" />
-        <button onClick={onAdd}
-          className="flex items-center gap-1.5 h-8 px-3 rounded-md text-xs font-medium bg-white hover:bg-white/90 text-slate-800 transition-colors">
-          <Plus className="h-3.5 w-3.5" /> Add
+    <div className="flex items-center gap-2 flex-wrap">
+      <p className="text-xs text-muted-foreground">
+        Showing <span className="text-foreground font-medium">{filteredCount}</span> of {totalCount}
+      </p>
+      <div className="w-px h-4 bg-border" />
+      {hasFilters && (
+        <button
+          onClick={() => { onTagsChange([]); onYearsChange([]) }}
+          className="flex items-center gap-1 h-8 px-2 rounded-md text-xs text-muted-foreground hover:text-foreground border border-border hover:bg-muted transition-colors"
+        >
+          <X className="h-3 w-3" /> Clear
         </button>
-      </div>
+      )}
+      <MultiSelect label="Year"  options={years}          selected={activeYears}           onChange={onYearsChange} />
+      <MultiSelect label="Topic" options={[...ALL_TAGS]}  selected={activeTags as string[]} onChange={v => onTagsChange(v as Tag[])} />
+      <div className="w-px h-4 bg-border" />
+      <button
+        onClick={onAdd}
+        className="flex items-center gap-1.5 h-8 px-3 rounded-md text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+      >
+        <Plus className="h-3.5 w-3.5" /> Add
+      </button>
     </div>
   )
 }
@@ -402,7 +395,6 @@ function RegulationsTimeline({ regulations, onEdit }: { regulations: Regulation[
   const dragStart  = useRef({ x: 0, scrollLeft: 0 })
   const [dragging, setDragging] = useState(false)
 
-  // Mouse-drag scroll
   const onMouseDown = useCallback((e: React.MouseEvent) => {
     if (e.button !== 0) return
     isDragging.current = true
@@ -413,14 +405,10 @@ function RegulationsTimeline({ regulations, onEdit }: { regulations: Regulation[
 
   const onMouseMove = useCallback((e: React.MouseEvent) => {
     if (!isDragging.current || !scrollRef.current) return
-    const dx = e.clientX - dragStart.current.x
-    scrollRef.current.scrollLeft = dragStart.current.scrollLeft - dx
+    scrollRef.current.scrollLeft = dragStart.current.scrollLeft - (e.clientX - dragStart.current.x)
   }, [])
 
-  const onMouseUp = useCallback(() => {
-    isDragging.current = false
-    setDragging(false)
-  }, [])
+  const onMouseUp = useCallback(() => { isDragging.current = false; setDragging(false) }, [])
 
   useEffect(() => {
     const stop = () => { isDragging.current = false; setDragging(false) }
@@ -435,23 +423,17 @@ function RegulationsTimeline({ regulations, onEdit }: { regulations: Regulation[
 
   return (
     <div className="border rounded-xl overflow-hidden">
-      {/* Timeline scroll area — light gray bg, drag to scroll */}
       <div
         ref={scrollRef}
         onMouseDown={onMouseDown}
         onMouseMove={onMouseMove}
         onMouseUp={onMouseUp}
         className="overflow-x-auto bg-slate-100 dark:bg-slate-800/40"
-        style={{
-          scrollbarWidth: 'none',
-          msOverflowStyle: 'none',
-          cursor: dragging ? 'grabbing' : 'grab',
-          userSelect: 'none',
-        }}
+        style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', cursor: dragging ? 'grabbing' : 'grab', userSelect: 'none' }}
       >
         <div className="flex gap-3 px-5 pt-5 pb-5 min-w-max">
           {regulations.map(reg => {
-            const c          = getRegColor(reg)
+            const c = getRegColor(reg)
             const isSelected = selectedId === reg.id
             return (
               <button
@@ -478,7 +460,6 @@ function RegulationsTimeline({ regulations, onEdit }: { regulations: Regulation[
         </div>
       </div>
 
-      {/* Detail panel */}
       {selected && (() => {
         const c = getRegColor(selected)
         const s = ISSUER_STYLES[selected.issuer]
@@ -497,8 +478,7 @@ function RegulationsTimeline({ regulations, onEdit }: { regulations: Regulation[
                 <p className="text-xs text-muted-foreground">{fmtDate(selected.date)}</p>
               </div>
               <div className="flex items-center gap-1 shrink-0">
-                <button onClick={() => onEdit(selected)}
-                  className="text-muted-foreground hover:text-foreground transition-colors p-1">
+                <button onClick={() => onEdit(selected)} className="text-muted-foreground hover:text-foreground transition-colors p-1">
                   <Pencil className="h-3.5 w-3.5" />
                 </button>
                 <button onClick={() => setSelectedId(null)} className="text-muted-foreground hover:text-foreground transition-colors p-1">
@@ -539,8 +519,7 @@ function LatestRegulationsCards({ regulations, onEdit }: { regulations: Regulati
                 <Badge className={`${s.badge} ${s.badgeText} border-0 text-xs`}>{s.label}</Badge>
                 <div className="flex items-center gap-1">
                   <span className="text-xs text-muted-foreground">{fmtDate(reg.date)}</span>
-                  <button onClick={() => onEdit(reg)}
-                    className="text-muted-foreground hover:text-foreground transition-colors ml-1">
+                  <button onClick={() => onEdit(reg)} className="text-muted-foreground hover:text-foreground transition-colors ml-1">
                     <Pencil className="h-3 w-3" />
                   </button>
                 </div>
@@ -670,8 +649,8 @@ export function RegulacoesBRClient() {
 
   const filtered = useMemo(() =>
     allRegs.filter(r => {
-      if (activeTags.length  > 0 && !activeTags.some(t  => r.tags?.includes(t)))    return false
-      if (activeYears.length > 0 && !activeYears.includes(r.date.slice(0, 4)))      return false
+      if (activeTags.length  > 0 && !activeTags.some(t => r.tags?.includes(t)))  return false
+      if (activeYears.length > 0 && !activeYears.includes(r.date.slice(0, 4)))   return false
       return true
     })
   , [allRegs, activeTags, activeYears])
@@ -718,9 +697,7 @@ export function RegulacoesBRClient() {
 
       <section>
         <h2 className="text-base font-semibold mb-4">Timeline</h2>
-        {loading
-          ? <TimelineSkeleton />
-          : <RegulationsTimeline regulations={filtered} onEdit={setEditingReg} />}
+        {loading ? <TimelineSkeleton /> : <RegulationsTimeline regulations={filtered} onEdit={setEditingReg} />}
       </section>
 
       <section>
@@ -752,7 +729,6 @@ export function RegulacoesBRClient() {
           onClose={() => setShowAdd(false)}
         />
       )}
-
       {editingReg && (
         <EditRegulationModal
           reg={editingReg}
