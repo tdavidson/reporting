@@ -13,27 +13,25 @@ export default function Icon() {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          background: 'white',
+          background: '#0f1117',
         }}
       >
+        {/* Parallax brand mark — extracted from the geometric symbol (the parallel lines) */}
         <svg
+          width="26"
+          height="26"
+          viewBox="408 33 159 112"
           xmlns="http://www.w3.org/2000/svg"
-          width="21"
-          height="21"
-          viewBox="0 0 24 24"
           fill="none"
-          stroke="#52525b"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
         >
-          <path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z" />
-          <path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2" />
-          <path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2" />
-          <path d="M10 6h4" />
-          <path d="M10 10h4" />
-          <path d="M10 14h4" />
-          <path d="M10 18h4" />
+          <path d="M541.265 0H433.737V6.231H433.741L450.201 20.996H524.801L541.261 6.231H541.265V0Z" fill="white" transform="translate(0 33.452)" />
+          <path d="M433.796 143.831H541.324V137.6H433.796V143.831Z" fill="white" />
+          <path d="M566.402 33.452H408.599V39.683H566.402V33.452Z" fill="white" />
+          <path d="M408.599 100.863H566.402V107.094H408.599V100.863Z" fill="white" />
+          <path d="M580 67.66H395V73.891H580V67.66Z" fill="white" />
+          <path d="M541.351 137.6L529.662 119.617H445.527L433.838 137.6H541.351Z" fill="white" />
+          <path d="M454.214 48.223L408.599 39.685H566.402L520.787 48.223H454.214Z" fill="white" />
+          <path d="M433.27 86.351L408.599 100.863H566.402L541.265 86.351H433.27Z" fill="white" />
         </svg>
       </div>
     ),
