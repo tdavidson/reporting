@@ -3,16 +3,27 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { scrapeVCDeals } from '@/lib/vc-market/scrapers'
 import { sendDealDigest } from '@/lib/vc-market/digest-email'
 
+function serializeError(err: unknown): string {
+  if (err instanceof Error) return `${err.name}: ${err.message}${err.cause ? ` (cause: ${err.cause})` : ''}`
+  if (typeof err === 'object' && err !== null) {
+    try { return JSON.stringify(err) } catch { return Object.prototype.toString.call(err) }
+  }
+  return String(err)
+}
+
 export async function GET() {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const db = createAdminClient() as any
+    const db = createAdminClient()
 
     const { data: adminSettings, error: settingsError } = await db
       .from('settings')
-      .select('user_id, fund_id, claude_api_key')
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .select('user_id, fund_id, claude_api_key') as any
 
-    if (settingsError) throw settingsError
+    if (settingsError) {
+      console.error('[vc-market/cron] settingsError:', JSON.stringify(settingsError))
+      return NextResponse.json({ error: serializeError(settingsError) }, { status: 500 })
+    }
     if (!adminSettings || adminSettings.length === 0) {
       return NextResponse.json({ message: 'No users found', inserted: 0, skipped: 0 })
     }
@@ -23,7 +34,6 @@ export async function GET() {
 
     for (const setting of adminSettings) {
       try {
-        // Fetch existing deals from last 60 days for dedup
         const sixtyDaysAgo = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
         const { data: existingDeals } = await db
           .from('vc_deals_pending')
@@ -43,18 +53,21 @@ export async function GET() {
 
         if (deals.length === 0) continue
 
-        const { data: inserted, error } = await db
+        const { data: inserted, error: upsertError } = await db
           .from('vc_deals_pending')
           .upsert(
-            deals.map((d: Record<string, unknown>) => ({ ...d, status: 'pending' })),
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            deals.map((d: any) => ({ ...d, status: 'pending' })),
             { onConflict: 'user_id,company_name,deal_date', ignoreDuplicates: true },
           )
           .select('id')
 
-        if (error) throw error
+        if (upsertError) throw upsertError
 
-        const insertedCount = inserted?.length ?? deals.length
-        const newDeals = deals.slice(0, insertedCount)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const insertedCount = (inserted as any)?.length ?? deals.length
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const newDeals = deals.slice(0, insertedCount) as any
 
         totalInserted += insertedCount
         totalSkipped  += deals.length - insertedCount
@@ -63,15 +76,18 @@ export async function GET() {
           await sendDealDigest(db, setting.user_id, setting.fund_id ?? null, newDeals)
         }
       } catch (err) {
-        errors.push(`user ${setting.user_id}: ${err instanceof Error ? err.message : String(err)}`)
+        const msg = serializeError(err)
+        console.error(`[vc-market/cron] user=${setting.user_id} error:`, msg)
+        errors.push(`user ${setting.user_id}: ${msg}`)
       }
     }
 
     console.log(`[vc-market/cron] inserted=${totalInserted} skipped=${totalSkipped} errors=${errors.length}`)
-
     return NextResponse.json({ inserted: totalInserted, skipped: totalSkipped, errors })
+
   } catch (err) {
-    console.error('[vc-market/cron]', err)
-    return NextResponse.json({ error: err instanceof Error ? err.message : String(err) }, { status: 500 })
+    const msg = serializeError(err)
+    console.error('[vc-market/cron] fatal:', msg)
+    return NextResponse.json({ error: msg }, { status: 500 })
   }
 }
