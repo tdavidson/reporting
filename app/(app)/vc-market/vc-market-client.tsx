@@ -75,6 +75,16 @@ const LABEL_STYLE_COUNTRY = { fontSize: 13, fontWeight: 700, fill: '#6366f1'    
 const BAR_ROW_H   = 36
 const CHART_MIN_H = 160
 
+// ─── Default filters ─────────────────────────────────────────────────────────
+
+const DEFAULT_FILTERS: VCFilters = {
+  period:    'ytd',
+  countries: ['BR'],
+  segments:  ['Fintech'],
+  stages:    [],
+  investors: [],
+}
+
 // ─── Sources list (mirrors lib/vc-market/scrapers.ts SOURCES) ────────────────
 
 const SCRAPE_SOURCES = [
@@ -388,6 +398,111 @@ function MultiSelect({ options, selected, onChange, placeholder }: {
   )
 }
 
+// ─── InvestorSearch ───────────────────────────────────────────────────────────
+// Campo de texto livre para buscar investidor(es). Suporta múltiplos valores
+// separados por vírgula, e também exibe sugestões enquanto o usuário digita.
+
+function InvestorSearch({ allInvestors, selected, onChange }: {
+  allInvestors: string[]; selected: string[]; onChange: (v: string[]) => void
+}) {
+  const [inputValue, setInputValue] = useState(selected.join(', '))
+  const [suggestions, setSuggestions] = useState<string[]>([])
+  const [showSuggestions, setShowSuggestions] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  // Sync external clear
+  useEffect(() => {
+    if (selected.length === 0) setInputValue('')
+  }, [selected])
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setShowSuggestions(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  const handleChange = (raw: string) => {
+    setInputValue(raw)
+    // Derive the current partial token (after last comma)
+    const parts = raw.split(',')
+    const partial = parts[parts.length - 1].trim().toLowerCase()
+    if (partial.length >= 1) {
+      const matched = allInvestors
+        .filter(inv => inv.toLowerCase().includes(partial))
+        .slice(0, 8)
+      setSuggestions(matched)
+      setShowSuggestions(matched.length > 0)
+    } else {
+      setSuggestions([])
+      setShowSuggestions(false)
+    }
+    // Commit all complete tokens (finished with comma or single value)
+    const committed = parts.slice(0, -1).map(p => p.trim()).filter(Boolean)
+    onChange(committed)
+  }
+
+  const handleBlur = () => {
+    // On blur, commit whatever is typed
+    const parts = inputValue.split(',').map(p => p.trim()).filter(Boolean)
+    onChange(parts)
+    setShowSuggestions(false)
+  }
+
+  const pickSuggestion = (inv: string) => {
+    const parts = inputValue.split(',')
+    parts[parts.length - 1] = ` ${inv}`
+    const next = parts.join(',').replace(/^,\s*/, '')
+    setInputValue(next)
+    setSuggestions([])
+    setShowSuggestions(false)
+    const committed = next.split(',').map(p => p.trim()).filter(Boolean)
+    onChange(committed)
+  }
+
+  const hasValue = inputValue.trim().length > 0
+
+  return (
+    <div ref={ref} className="relative">
+      <div className={`h-8 flex items-center gap-1 px-2.5 rounded-md border bg-background text-xs transition-colors focus-within:ring-1 focus-within:ring-primary/40 ${
+        hasValue ? 'border-primary/60' : 'border-border'
+      }`}>
+        <Search className="h-3 w-3 shrink-0 text-muted-foreground" />
+        <input
+          type="text"
+          value={inputValue}
+          onChange={e => handleChange(e.target.value)}
+          onBlur={handleBlur}
+          onFocus={() => { if (suggestions.length > 0) setShowSuggestions(true) }}
+          placeholder="Investor…"
+          className="flex-1 bg-transparent outline-none min-w-[90px] max-w-[160px] text-xs placeholder:text-muted-foreground"
+        />
+        {hasValue && (
+          <button
+            type="button"
+            onMouseDown={e => { e.preventDefault(); setInputValue(''); onChange([]); setSuggestions([]); setShowSuggestions(false) }}
+            className="text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <X className="h-3 w-3" />
+          </button>
+        )}
+      </div>
+      {showSuggestions && (
+        <div className="absolute top-full mt-1 left-0 z-50 min-w-[200px] max-h-48 overflow-y-auto bg-popover border rounded-md shadow-md py-1">
+          {suggestions.map(inv => (
+            <button key={inv} type="button"
+              onMouseDown={e => { e.preventDefault(); pickSuggestion(inv) }}
+              className="w-full px-3 py-1.5 text-xs hover:bg-accent text-left truncate">
+              {inv}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── DragScroll ───────────────────────────────────────────────────────────────
 
 function DragScroll({ children, className }: { children: React.ReactNode; className?: string }) {
@@ -688,9 +803,7 @@ export function VCMarketClient({ isAdmin }: Props) {
   const [scrapeReport, setScrapeReport] = useState<{ report: ScrapeReport; pending: number; skipped: number } | null>(null)
   const PAGE_SIZE = 50
 
-  const [filters, setFilters] = useState<VCFilters>({
-    period: 'ytd', countries: [], segments: [], stages: [], investors: [],
-  })
+  const [filters, setFilters] = useState<VCFilters>(DEFAULT_FILTERS)
   const [allDeals, setAllDeals] = useState<VCDeal[]>([])
 
   const fetchDeals = useCallback(async (f: VCFilters) => {
@@ -724,6 +837,7 @@ export function VCMarketClient({ isAdmin }: Props) {
   useEffect(() => { fetchAllDeals() },        [fetchAllDeals])
   useEffect(() => { fetchPendingCount() },    [fetchPendingCount])
 
+  // Active filters = anything beyond the defaults (period is always set)
   const hasActiveFilters = (
     filters.countries.length > 0 ||
     filters.segments.length  > 0 ||
@@ -731,7 +845,7 @@ export function VCMarketClient({ isAdmin }: Props) {
     filters.investors.length > 0
   )
 
-  const clearFilters = () => setFilters(f => ({ ...f, countries: [], segments: [], stages: [], investors: [] }))
+  const clearFilters = () => setFilters(DEFAULT_FILTERS)
 
   const handleScrape = async () => {
     setScraping(true)
@@ -745,7 +859,6 @@ export function VCMarketClient({ isAdmin }: Props) {
         setPendingCount(prev => prev + n)
         setShowReview(true)
       } else {
-        // Show report modal so user knows what happened
         if (data.report) {
           setScrapeReport({ report: data.report, pending: 0, skipped: data.skipped ?? 0 })
         } else {
@@ -869,7 +982,11 @@ export function VCMarketClient({ isAdmin }: Props) {
         <MultiSelect options={countryOptions}  selected={filters.countries} onChange={v => { setFilters(f => ({ ...f, countries: v })); setPage(1) }} placeholder="Country" />
         <MultiSelect options={segmentOptions}  selected={filters.segments}  onChange={v => { setFilters(f => ({ ...f, segments: v }));  setPage(1) }} placeholder="Segment" />
         <MultiSelect options={stageOptions}    selected={filters.stages}    onChange={v => { setFilters(f => ({ ...f, stages: v }));    setPage(1) }} placeholder="Stage" />
-        <MultiSelect options={investorOptions} selected={filters.investors} onChange={v => { setFilters(f => ({ ...f, investors: v })); setPage(1) }} placeholder="Investor" />
+        <InvestorSearch
+          allInvestors={investorOptions}
+          selected={filters.investors}
+          onChange={v => { setFilters(f => ({ ...f, investors: v })); setPage(1) }}
+        />
         {hasActiveFilters && (
           <button onClick={clearFilters} className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1">
             <X className="h-3 w-3" /> Clear
@@ -886,44 +1003,42 @@ export function VCMarketClient({ isAdmin }: Props) {
         <KPICard label="Active Countries" value={kpis.activeCountries.toLocaleString()}                     icon={Globe}      color="bg-amber-500/10 text-amber-500" />
       </div>
 
-      {/* Latest Deals */}
+      {/* Latest Deals — elegant ticker-style banner */}
       {latestDeals.length > 0 && (
-        <DragScroll className="bg-card border rounded-xl px-4 py-2.5 flex items-center gap-2">
-          <Zap className="h-3.5 w-3.5 text-amber-500 shrink-0" />
-          <span className="text-xs font-medium text-muted-foreground shrink-0 mr-1">Latest</span>
+        <DragScroll className="border-y border-border/50 py-2 flex items-center gap-3">
+          <span className="text-[10px] font-semibold tracking-widest uppercase text-muted-foreground/60 shrink-0 pl-1 pr-2 border-r border-border/40 mr-1">
+            Latest
+          </span>
           {latestDeals.map((deal, i) => {
-            const stageColor = deal.stage ? STAGE_COLORS[deal.stage] ?? '#94a3b8' : '#94a3b8'
             const chip = (
-              <div key={deal.id} className="w-[160px] shrink-0 flex flex-col gap-1 px-3 py-2 rounded-lg border bg-muted/40">
-                <div className="flex items-center justify-between gap-1 min-w-0">
-                  {deal.source_url ? (
-                    <a href={deal.source_url} target="_blank" rel="noopener noreferrer"
-                      className="text-xs font-semibold leading-none truncate hover:text-primary transition-colors inline-flex items-center gap-0.5 group min-w-0"
-                      onMouseDown={e => e.stopPropagation()}>
-                      <span className="truncate">{deal.company_name}</span>
-                      <ExternalLink className="h-2.5 w-2.5 shrink-0 opacity-40 group-hover:opacity-100 transition-opacity" />
-                    </a>
-                  ) : (
-                    <span className="text-xs font-semibold leading-none truncate min-w-0">{deal.company_name}</span>
-                  )}
-                  <span className="text-sm font-bold tabular-nums leading-none shrink-0" style={{ color: '#22c55e' }}>
-                    {deal.amount_usd ? formatUSD(deal.amount_usd) : '—'}
+              <div key={deal.id} className="shrink-0 flex items-center gap-2">
+                {deal.source_url ? (
+                  <a
+                    href={deal.source_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs font-medium text-foreground hover:text-primary transition-colors whitespace-nowrap"
+                    onMouseDown={e => e.stopPropagation()}
+                  >
+                    {deal.company_name}
+                  </a>
+                ) : (
+                  <span className="text-xs font-medium text-foreground whitespace-nowrap">{deal.company_name}</span>
+                )}
+                {deal.amount_usd && (
+                  <span className="text-xs tabular-nums font-semibold text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
+                    {formatUSD(deal.amount_usd)}
                   </span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  {deal.stage && (
-                    <span className="text-[10px] font-medium px-1.5 py-px rounded-full text-white leading-none shrink-0" style={{ backgroundColor: stageColor }}>{deal.stage}</span>
-                  )}
-                  <span className="text-[10px] text-muted-foreground">
-                    {deal.deal_date
-                      ? parseDateLocal(deal.deal_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-                      : '—'}
+                )}
+                {deal.deal_date && (
+                  <span className="text-[11px] text-muted-foreground/60 whitespace-nowrap">
+                    {parseDateLocal(deal.deal_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                   </span>
-                </div>
+                )}
               </div>
             )
             return i < latestDeals.length - 1
-              ? [chip, <span key={`sep-${i}`} className="text-border/60 shrink-0">·</span>]
+              ? [chip, <span key={`sep-${i}`} className="text-border shrink-0 select-none">·</span>]
               : chip
           })}
         </DragScroll>
