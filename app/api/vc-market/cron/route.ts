@@ -1,19 +1,9 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { scrapeVCDeals } from '@/lib/vc-market/scrapers'
 import { sendDealDigest } from '@/lib/vc-market/digest-email'
 
-export async function GET(req: NextRequest) {
-  // Vercel Cron protects this route natively in production.
-  // In non-Vercel environments, require a CRON_SECRET header as fallback.
-  const isVercel = req.headers.get('x-vercel-id') !== null
-  if (!isVercel) {
-    const secret = req.headers.get('x-cron-secret')
-    if (!process.env.CRON_SECRET || secret !== process.env.CRON_SECRET) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-  }
-
+export async function GET() {
   try {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const db = createAdminClient() as any
