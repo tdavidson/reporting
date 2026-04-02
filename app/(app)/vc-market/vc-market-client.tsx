@@ -7,7 +7,7 @@ import {
 import {
   TrendingUp, Globe, DollarSign, Building2, BarChart3,
   Upload, RefreshCw, ExternalLink, X, FileSpreadsheet, Loader2,
-  ChevronDown, ChevronUp, Search, Zap, Pencil, Trash2, Check, ChevronsUpDown, ClipboardList,
+  ChevronDown, ChevronUp, Search, Pencil, Trash2, Check, ChevronsUpDown, ClipboardList,
   Info,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -852,7 +852,7 @@ export function VCMarketClient({ isAdmin }: Props) {
   useEffect(() => { fetchAllDeals() },        [fetchAllDeals])
   useEffect(() => { fetchPendingCount() },    [fetchPendingCount])
 
-  // Show "Clear" only when current filters differ from defaults
+  // True when filters match defaults exactly — used to dim the Reset button
   const isDefaultFilters = (
     filters.period === DEFAULT_FILTERS.period &&
     JSON.stringify([...filters.countries].sort()) === JSON.stringify([...DEFAULT_FILTERS.countries].sort()) &&
@@ -861,8 +861,8 @@ export function VCMarketClient({ isAdmin }: Props) {
     filters.investors.length === 0
   )
 
-  const clearFilters = () => {
-    setFilters(DEFAULT_FILTERS)
+  const resetFilters = () => {
+    setFilters({ ...DEFAULT_FILTERS })
     setInvestorResetKey(k => k + 1)
     setPage(1)
   }
@@ -995,7 +995,7 @@ export function VCMarketClient({ isAdmin }: Props) {
 
       {/* Filters */}
       <div className="flex flex-wrap gap-2 items-center">
-        <Select value={filters.period} onValueChange={v => setFilters(f => ({ ...f, period: v }))}>
+        <Select value={filters.period} onValueChange={v => { setFilters(f => ({ ...f, period: v })); setPage(1) }}>
           <SelectTrigger className="h-8 w-32 text-xs"><SelectValue placeholder="Period" /></SelectTrigger>
           <SelectContent>{PERIOD_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
         </Select>
@@ -1008,11 +1008,18 @@ export function VCMarketClient({ isAdmin }: Props) {
           onChange={v => { setFilters(f => ({ ...f, investors: v })); setPage(1) }}
           resetKey={investorResetKey}
         />
-        {!isDefaultFilters && (
-          <button onClick={clearFilters} className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1">
-            <X className="h-3 w-3" /> Clear
-          </button>
-        )}
+        {/* Reset sempre visível — dimmed quando já está no default */}
+        <button
+          onClick={resetFilters}
+          disabled={isDefaultFilters}
+          className={`text-xs flex items-center gap-1 transition-opacity ${
+            isDefaultFilters
+              ? 'opacity-30 cursor-default pointer-events-none'
+              : 'text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          <X className="h-3 w-3" /> Reset
+        </button>
       </div>
 
       {/* KPI Cards */}
