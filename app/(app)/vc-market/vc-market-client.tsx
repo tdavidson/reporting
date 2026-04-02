@@ -103,6 +103,23 @@ function formatUSD(n: number): string {
   return `$${n.toLocaleString()}`
 }
 
+/**
+ * Parse a YYYY-MM-DD (or YYYY-MM) string as LOCAL date to avoid the UTC
+ * midnight → previous-day shift that new Date('YYYY-MM-DD') causes in
+ * negative-offset timezones (e.g. UTC-3 in São Paulo).
+ */
+function parseDateLocal(iso: string): Date {
+  const [y, m, d] = iso.split('-').map(Number)
+  return new Date(y, (m ?? 1) - 1, d ?? 1)
+}
+
+/** Format a YYYY-MM key (e.g. "2026-03") as "Mar 26" without UTC offset issues. */
+function fmtYearMonth(ym: string): string {
+  const [y, m] = ym.split('-').map(Number)
+  const d = new Date(y, m - 1, 1)
+  return d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' })
+}
+
 function getLatestDeals(deals: VCDeal[]): VCDeal[] {
   return [...deals]
     .sort((a, b) => (b.deal_date ?? '').localeCompare(a.deal_date ?? ''))
@@ -130,7 +147,7 @@ function buildRoundsByMonth(deals: VCDeal[]) {
   return Array.from(map.entries())
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([month, count]) => ({
-      month: new Date(month + '-01').toLocaleDateString('en-US', { month: 'short', year: '2-digit' }),
+      month: fmtYearMonth(month),
       rounds: count,
     }))
 }
@@ -145,7 +162,7 @@ function buildCapitalByMonth(deals: VCDeal[]) {
   return Array.from(map.entries())
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([month, capital]) => ({
-      month: new Date(month + '-01').toLocaleDateString('en-US', { month: 'short', year: '2-digit' }),
+      month: fmtYearMonth(month),
       capital,
     }))
 }
@@ -602,7 +619,9 @@ function DealRow({ deal, onEdit }: { deal: VCDeal; onEdit: (d: VCDeal) => void }
         {deal.amount_usd ? formatUSD(deal.amount_usd) : <span className="text-muted-foreground">—</span>}
       </td>
       <td className="px-4 py-3 text-sm text-muted-foreground whitespace-nowrap">
-        {deal.deal_date ? new Date(deal.deal_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}
+        {deal.deal_date
+          ? parseDateLocal(deal.deal_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+          : '—'}
       </td>
       <td className="px-4 py-3 whitespace-nowrap">
         {deal.stage
@@ -896,7 +915,9 @@ export function VCMarketClient({ isAdmin }: Props) {
                     <span className="text-[10px] font-medium px-1.5 py-px rounded-full text-white leading-none shrink-0" style={{ backgroundColor: stageColor }}>{deal.stage}</span>
                   )}
                   <span className="text-[10px] text-muted-foreground">
-                    {deal.deal_date ? new Date(deal.deal_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—'}
+                    {deal.deal_date
+                      ? parseDateLocal(deal.deal_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+                      : '—'}
                   </span>
                 </div>
               </div>
