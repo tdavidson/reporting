@@ -1,19 +1,18 @@
 'use client'
 
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
-import { Scale, ExternalLink, AlertTriangle, X, SlidersHorizontal, Check } from 'lucide-react'
+import { Scale, ExternalLink, AlertTriangle, X, SlidersHorizontal, Check, Plus, Trash2 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import {
   Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
-import type { Regulation, Issuer } from '@/lib/regulacoes/types'
+import type { Regulation, Issuer, ImpactEntry } from '@/lib/regulacoes/types'
 
 const ALL_TAGS = ['Crypto','Payments','Banking','Open Finance','AML','Credit','Capital Markets','ESG','Data & Privacy','FX'] as const
 type Tag = typeof ALL_TAGS[number]
 
-// Color per topic
 const TAG_COLORS: Record<Tag, { dot: string; bg: string; text: string; border: string }> = {
   'Crypto':          { dot: 'bg-violet-500',  bg: 'bg-violet-500/8',  text: 'text-violet-600 dark:text-violet-400',  border: 'border-violet-500/30' },
   'Payments':        { dot: 'bg-emerald-500', bg: 'bg-emerald-500/8', text: 'text-emerald-600 dark:text-emerald-400', border: 'border-emerald-500/30' },
@@ -26,12 +25,10 @@ const TAG_COLORS: Record<Tag, { dot: string; bg: string; text: string; border: s
   'Data & Privacy':  { dot: 'bg-pink-500',    bg: 'bg-pink-500/8',    text: 'text-pink-600 dark:text-pink-400',      border: 'border-pink-500/30' },
   'FX':              { dot: 'bg-amber-500',   bg: 'bg-amber-500/8',   text: 'text-amber-600 dark:text-amber-400',    border: 'border-amber-500/30' },
 }
-
 const DEFAULT_COLOR = { dot: 'bg-slate-400', bg: 'bg-slate-500/8', text: 'text-slate-600 dark:text-slate-400', border: 'border-slate-500/30' }
-
 function getRegColor(reg: Regulation) {
-  const firstTag = reg.tags?.[0] as Tag | undefined
-  return firstTag ? (TAG_COLORS[firstTag] ?? DEFAULT_COLOR) : DEFAULT_COLOR
+  const t = reg.tags?.[0] as Tag | undefined
+  return t ? (TAG_COLORS[t] ?? DEFAULT_COLOR) : DEFAULT_COLOR
 }
 
 const ISSUER_STYLES: Record<Issuer, { badge: string; badgeText: string; label: string }> = {
@@ -40,15 +37,250 @@ const ISSUER_STYLES: Record<Issuer, { badge: string; badgeText: string; label: s
   CMN:   { badge: 'bg-amber-500/10',   badgeText: 'text-amber-600 dark:text-amber-400',     label: 'CMN'   },
   OTHER: { badge: 'bg-violet-500/10',  badgeText: 'text-violet-600 dark:text-violet-400',   label: 'Other' },
 }
-
 const ORDER_CONFIG = [
   { key: 'firstOrder'  as const, label: '1st Order', sub: 'Direct compliance obligations',    accent: 'bg-red-400'   },
   { key: 'secondOrder' as const, label: '2nd Order', sub: 'Indirectly affected players',      accent: 'bg-amber-400' },
   { key: 'thirdOrder'  as const, label: '3rd Order', sub: 'Ecosystem & startup implications', accent: 'bg-blue-400'  },
 ]
-
 function fmtDate(iso: string) {
   return new Date(iso + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', year: 'numeric' }).replace(' ', '/')
+}
+
+// ─── Add Regulation Modal ──────────────────────────────────────────────────────
+
+type ImpactDraft = { sectorOrType: string; why: string }
+type ImpactsDraft = { firstOrder: ImpactDraft[]; secondOrder: ImpactDraft[]; thirdOrder: ImpactDraft[] }
+
+const emptyImpact = (): ImpactDraft => ({ sectorOrType: '', why: '' })
+const emptyImpacts = (): ImpactsDraft => ({
+  firstOrder:  [emptyImpact()],
+  secondOrder: [emptyImpact()],
+  thirdOrder:  [emptyImpact()],
+})
+
+function ImpactSection({
+  title, sub, entries, onChange,
+}: {
+  title: string; sub: string
+  entries: ImpactDraft[]
+  onChange: (entries: ImpactDraft[]) => void
+}) {
+  const update = (i: number, field: keyof ImpactDraft, val: string) => {
+    const next = entries.map((e, idx) => idx === i ? { ...e, [field]: val } : e)
+    onChange(next)
+  }
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-xs font-semibold">{title}</p>
+          <p className="text-[10px] text-muted-foreground">{sub}</p>
+        </div>
+        <button type="button" onClick={() => onChange([...entries, emptyImpact()])}
+          className="text-[10px] text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors">
+          <Plus className="h-3 w-3" /> Add
+        </button>
+      </div>
+      {entries.map((e, i) => (
+        <div key={i} className="grid grid-cols-[1fr_1fr_auto] gap-2 items-start">
+          <input value={e.sectorOrType} onChange={ev => update(i, 'sectorOrType', ev.target.value)}
+            placeholder="Sector / type" className="input-field" />
+          <input value={e.why} onChange={ev => update(i, 'why', ev.target.value)}
+            placeholder="Why affected" className="input-field" />
+          {entries.length > 1 && (
+            <button type="button" onClick={() => onChange(entries.filter((_, idx) => idx !== i))}
+              className="mt-1 text-muted-foreground hover:text-destructive transition-colors">
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function AddRegulationModal({ onAdd, onClose }: { onAdd: (reg: Regulation) => void; onClose: () => void }) {
+  const [form, setForm] = useState({
+    id: '', name: '', shortName: '', issuer: 'BCB' as Issuer, date: '',
+    description: '', fullContext: '', whatChanged: '', officialUrl: '',
+    tags: [] as string[],
+  })
+  const [impacts, setImpacts] = useState<ImpactsDraft>(emptyImpacts())
+  const [errors, setErrors]   = useState<Record<string, string>>({})
+
+  const set = (k: string, v: string | string[]) => setForm(f => ({ ...f, [k]: v }))
+
+  const toggleTag = (t: string) =>
+    set('tags', form.tags.includes(t) ? form.tags.filter(x => x !== t) : [...form.tags, t])
+
+  const validate = () => {
+    const e: Record<string, string> = {}
+    if (!form.name.trim())        e.name        = 'Required'
+    if (!form.shortName.trim())   e.shortName   = 'Required'
+    if (!form.date)               e.date        = 'Required'
+    if (!form.description.trim()) e.description = 'Required'
+    return e
+  }
+
+  const handleSubmit = (ev: React.FormEvent) => {
+    ev.preventDefault()
+    const e = validate()
+    if (Object.keys(e).length) { setErrors(e); return }
+    const reg: Regulation = {
+      ...form,
+      id: form.id.trim() || `manual-${Date.now()}`,
+      impacts: {
+        firstOrder:  impacts.firstOrder.filter(x => x.sectorOrType) as ImpactEntry[],
+        secondOrder: impacts.secondOrder.filter(x => x.sectorOrType) as ImpactEntry[],
+        thirdOrder:  impacts.thirdOrder.filter(x => x.sectorOrType) as ImpactEntry[],
+      },
+    }
+    onAdd(reg)
+    onClose()
+  }
+
+  const backdropRef = useRef<HTMLDivElement>(null)
+  const onBackdrop  = (e: React.MouseEvent) => { if (e.target === backdropRef.current) onClose() }
+
+  return (
+    <div ref={backdropRef} onClick={onBackdrop}
+      className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 backdrop-blur-sm overflow-y-auto py-8 px-4">
+      <div className="relative w-full max-w-2xl bg-background border rounded-xl shadow-xl">
+
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b">
+          <div>
+            <p className="font-semibold text-sm">Add Regulation</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Fill in the fields below to add a regulation manually</p>
+          </div>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="px-6 py-5 space-y-5">
+
+          {/* Name */}
+          <div className="space-y-1">
+            <label className="form-label">Full name <span className="text-destructive">*</span></label>
+            <input value={form.name} onChange={e => set('name', e.target.value)}
+              placeholder="e.g. Resolução BCB 1 (PIX)" className="input-field w-full" />
+            {errors.name && <p className="text-[10px] text-destructive">{errors.name}</p>}
+          </div>
+
+          {/* Short name + ID */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-1">
+              <label className="form-label">Short name <span className="text-destructive">*</span></label>
+              <input value={form.shortName} onChange={e => set('shortName', e.target.value)}
+                placeholder="e.g. PIX" className="input-field w-full" />
+              {errors.shortName && <p className="text-[10px] text-destructive">{errors.shortName}</p>}
+            </div>
+            <div className="space-y-1">
+              <label className="form-label">ID <span className="text-muted-foreground text-[10px]">(auto if empty)</span></label>
+              <input value={form.id} onChange={e => set('id', e.target.value)}
+                placeholder="e.g. res-bcb-1-2020" className="input-field w-full" />
+            </div>
+          </div>
+
+          {/* Issuer + Date + URL */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+            <div className="space-y-1">
+              <label className="form-label">Issuer</label>
+              <select value={form.issuer} onChange={e => set('issuer', e.target.value)}
+                className="input-field w-full">
+                {(['BCB','CMN','CVM','OTHER'] as Issuer[]).map(v => (
+                  <option key={v} value={v}>{v}</option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1">
+              <label className="form-label">Date <span className="text-destructive">*</span></label>
+              <input type="date" value={form.date} onChange={e => set('date', e.target.value)}
+                className="input-field w-full" />
+              {errors.date && <p className="text-[10px] text-destructive">{errors.date}</p>}
+            </div>
+            <div className="space-y-1 col-span-2 sm:col-span-1">
+              <label className="form-label">Official URL</label>
+              <input value={form.officialUrl} onChange={e => set('officialUrl', e.target.value)}
+                placeholder="https://bcb.gov.br/..." className="input-field w-full" />
+            </div>
+          </div>
+
+          {/* Description */}
+          <div className="space-y-1">
+            <label className="form-label">Description <span className="text-destructive">*</span></label>
+            <textarea value={form.description} onChange={e => set('description', e.target.value)}
+              rows={2} placeholder="Brief description of the regulation"
+              className="input-field w-full resize-none" />
+            {errors.description && <p className="text-[10px] text-destructive">{errors.description}</p>}
+          </div>
+
+          {/* Full context */}
+          <div className="space-y-1">
+            <label className="form-label">Full context</label>
+            <textarea value={form.fullContext} onChange={e => set('fullContext', e.target.value)}
+              rows={2} placeholder="Broader regulatory context"
+              className="input-field w-full resize-none" />
+          </div>
+
+          {/* What changed */}
+          <div className="space-y-1">
+            <label className="form-label">What changed</label>
+            <input value={form.whatChanged} onChange={e => set('whatChanged', e.target.value)}
+              placeholder="What changed vs. prior regime" className="input-field w-full" />
+          </div>
+
+          {/* Tags */}
+          <div className="space-y-2">
+            <label className="form-label">Topics</label>
+            <div className="flex flex-wrap gap-1.5">
+              {ALL_TAGS.map(t => {
+                const active = form.tags.includes(t)
+                const c = TAG_COLORS[t]
+                return (
+                  <button type="button" key={t} onClick={() => toggleTag(t)}
+                    className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-all ${
+                      active
+                        ? `${c.bg} ${c.text} ${c.border}`
+                        : 'text-muted-foreground border-border hover:text-foreground'
+                    }`}>{t}</button>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* Impacts */}
+          <div className="space-y-4">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+              Impact Analysis <span className="font-normal normal-case">(optional)</span>
+            </p>
+            <ImpactSection title="1st Order" sub="Direct compliance obligations"
+              entries={impacts.firstOrder}
+              onChange={v => setImpacts(i => ({ ...i, firstOrder: v }))} />
+            <Separator />
+            <ImpactSection title="2nd Order" sub="Indirectly affected players"
+              entries={impacts.secondOrder}
+              onChange={v => setImpacts(i => ({ ...i, secondOrder: v }))} />
+            <Separator />
+            <ImpactSection title="3rd Order" sub="Ecosystem & startup implications"
+              entries={impacts.thirdOrder}
+              onChange={v => setImpacts(i => ({ ...i, thirdOrder: v }))} />
+          </div>
+
+          {/* Footer */}
+          <div className="flex justify-end gap-2 pt-2 border-t">
+            <button type="button" onClick={onClose}
+              className="h-8 px-4 rounded-md text-xs border hover:bg-muted transition-colors">Cancel</button>
+            <button type="submit"
+              className="h-8 px-4 rounded-md text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors">
+              Add regulation
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
 }
 
 // ─── Multiselect ──────────────────────────────────────────────────────────────
@@ -63,17 +295,17 @@ function MultiSelect({ label, options, selected, onChange }: {
     return () => document.removeEventListener('mousedown', h)
   }, [])
   const toggle = (v: string) => onChange(selected.includes(v) ? selected.filter(x => x !== v) : [...selected, v])
-  const count = selected.length
+  const count  = selected.length
   return (
     <div ref={ref} className="relative">
       <button onClick={() => setOpen(o => !o)}
         className="flex items-center gap-2 h-8 px-3 rounded-md text-xs font-medium border border-white/20 bg-white/10 hover:bg-white/20 text-white transition-colors">
         <span>{label}</span>
-        {count > 0 && <span className="flex items-center justify-center w-4 h-4 rounded-full bg-white text-[10px] font-bold" style={{ color: 'hsl(206 54% 13%)' }}>{count}</span>}
+        {count > 0 && <span className="flex items-center justify-center w-4 h-4 rounded-full bg-white text-[10px] font-bold text-slate-800">{count}</span>}
         <SlidersHorizontal className="h-3 w-3 opacity-70" />
       </button>
       {open && (
-        <div className="absolute right-0 top-10 z-50 w-52 rounded-lg border border-white/10 shadow-xl overflow-hidden" style={{ background: 'hsl(206 54% 10%)' }}>
+        <div className="absolute right-0 top-10 z-50 w-52 rounded-lg border border-white/10 shadow-xl overflow-hidden bg-slate-900">
           <div className="p-1.5 space-y-0.5 max-h-72 overflow-y-auto">
             {options.map(opt => (
               <button key={opt} onClick={() => toggle(opt)}
@@ -95,14 +327,15 @@ function MultiSelect({ label, options, selected, onChange }: {
 }
 
 // ─── Filter bar ───────────────────────────────────────────────────────────────
-function FilterBar({ activeTags, onTagsChange, activeYears, onYearsChange, years, totalCount, filteredCount }: {
-  activeTags: Tag[]; onTagsChange: (t: Tag[]) => void
+function FilterBar({ activeTags, onTagsChange, activeYears, onYearsChange, years, totalCount, filteredCount, onAdd }: {
+  activeTags: Tag[];   onTagsChange:  (t: Tag[]) => void
   activeYears: string[]; onYearsChange: (y: string[]) => void
-  years: string[]; totalCount: number; filteredCount: number
+  years: string[];  totalCount: number; filteredCount: number
+  onAdd: () => void
 }) {
   const hasFilters = activeTags.length > 0 || activeYears.length > 0
   return (
-    <div className="rounded-lg px-4 py-3 flex items-center justify-between gap-4 flex-wrap" style={{ background: 'hsl(206 54% 13%)' }}>
+    <div className="rounded-lg px-4 py-3 flex items-center justify-between gap-4 flex-wrap bg-slate-800">
       <p className="text-xs text-white/50">Showing <span className="text-white font-medium">{filteredCount}</span> of {totalCount}</p>
       <div className="flex items-center gap-2">
         {hasFilters && (
@@ -111,37 +344,42 @@ function FilterBar({ activeTags, onTagsChange, activeYears, onYearsChange, years
             <X className="h-3 w-3" /> Clear
           </button>
         )}
-        <MultiSelect label="Year" options={years} selected={activeYears} onChange={onYearsChange} />
-        <MultiSelect label="Topic" options={[...ALL_TAGS]} selected={activeTags as string[]} onChange={v => onTagsChange(v as Tag[])} />
+        <MultiSelect label="Year"  options={years}           selected={activeYears}          onChange={onYearsChange} />
+        <MultiSelect label="Topic" options={[...ALL_TAGS]}   selected={activeTags as string[]} onChange={v => onTagsChange(v as Tag[])} />
+        <div className="w-px h-5 bg-white/20" />
+        <button onClick={onAdd}
+          className="flex items-center gap-1.5 h-8 px-3 rounded-md text-xs font-medium bg-white hover:bg-white/90 text-slate-800 transition-colors">
+          <Plus className="h-3.5 w-3.5" /> Add
+        </button>
       </div>
     </div>
   )
 }
 
-// ─── Timeline with scrubber ───────────────────────────────────────────────────
+// ─── Timeline ─────────────────────────────────────────────────────────────────
 function TimelineSkeleton() {
   return (
     <div className="border rounded-xl overflow-hidden">
-      <div className="flex gap-4 px-6 py-6 animate-pulse">
+      <div className="flex gap-3 px-5 pt-5 pb-4 animate-pulse">
         {Array.from({ length: 5 }).map((_, i) => (
-          <div key={i} className="min-w-[140px] border rounded-lg p-3 space-y-2">
-            <div className="flex items-center gap-2"><div className="w-2.5 h-2.5 rounded-full bg-muted" /><div className="h-3 bg-muted rounded w-16" /></div>
+          <div key={i} className="min-w-[148px] border rounded-lg p-3 space-y-2">
+            <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-muted" /><div className="h-3 bg-muted rounded w-16" /></div>
             <div className="h-3 bg-muted rounded w-24" />
-            <div className="h-3 bg-muted rounded w-20" />
+            <div className="h-3 bg-muted rounded w-16 mt-auto" />
           </div>
         ))}
       </div>
-      <div className="border-t px-6 py-3"><div className="h-1 bg-muted rounded-full" /></div>
+      <div className="border-t px-5 py-3"><div className="h-1 bg-muted rounded-full" /></div>
     </div>
   )
 }
 
 function RegulationsTimeline({ regulations }: { regulations: Regulation[] }) {
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  const scrollRef   = useRef<HTMLDivElement>(null)
-  const trackRef    = useRef<HTMLDivElement>(null)
-  const isDragging  = useRef(false)
-  const dragStart   = useRef({ x: 0, scrollLeft: 0 })
+  const scrollRef  = useRef<HTMLDivElement>(null)
+  const trackRef   = useRef<HTMLDivElement>(null)
+  const isDragging = useRef(false)
+  const dragStart  = useRef({ x: 0, scrollLeft: 0 })
   const [thumbPct, setThumbPct] = useState(0)
 
   const syncThumb = useCallback(() => {
@@ -158,7 +396,6 @@ function RegulationsTimeline({ regulations }: { regulations: Regulation[] }) {
     return () => el?.removeEventListener('scroll', syncThumb)
   }, [syncThumb, regulations])
 
-  // Scrubber drag
   const onThumbPointerDown = useCallback((e: React.PointerEvent) => {
     e.preventDefault()
     isDragging.current = true
@@ -168,65 +405,43 @@ function RegulationsTimeline({ regulations }: { regulations: Regulation[] }) {
 
   const onThumbPointerMove = useCallback((e: React.PointerEvent) => {
     if (!isDragging.current) return
-    const track  = trackRef.current
-    const scroll = scrollRef.current
+    const track = trackRef.current, scroll = scrollRef.current
     if (!track || !scroll) return
-    const trackW  = track.clientWidth - 20 // subtract thumb width
     const dx      = e.clientX - dragStart.current.x
-    const ratio   = dx / trackW
     const maxScroll = scroll.scrollWidth - scroll.clientWidth
-    scroll.scrollLeft = Math.max(0, Math.min(maxScroll, dragStart.current.scrollLeft + ratio * maxScroll))
+    scroll.scrollLeft = Math.max(0, Math.min(maxScroll, dragStart.current.scrollLeft + (dx / track.clientWidth) * maxScroll))
   }, [])
 
-  const onThumbPointerUp = useCallback(() => { isDragging.current = false }, [])
-
-  // Track click-to-jump
+  const onThumbPointerUp     = useCallback(() => { isDragging.current = false }, [])
   const onTrackClick = useCallback((e: React.MouseEvent) => {
-    const track  = trackRef.current
-    const scroll = scrollRef.current
+    const track = trackRef.current, scroll = scrollRef.current
     if (!track || !scroll) return
-    const rect   = track.getBoundingClientRect()
-    const ratio  = (e.clientX - rect.left) / rect.width
-    scroll.scrollLeft = ratio * (scroll.scrollWidth - scroll.clientWidth)
+    const rect = track.getBoundingClientRect()
+    scroll.scrollLeft = ((e.clientX - rect.left) / rect.width) * (scroll.scrollWidth - scroll.clientWidth)
   }, [])
 
   const selected = regulations.find(r => r.id === selectedId) ?? null
 
-  if (regulations.length === 0) {
+  if (regulations.length === 0)
     return <p className="text-sm text-muted-foreground py-10 text-center">No regulations match the selected filters.</p>
-  }
 
   return (
     <div className="border rounded-xl overflow-hidden">
-      {/* Cards strip */}
-      <div
-        ref={scrollRef}
-        className="overflow-x-auto"
-        style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
-      >
+      <div ref={scrollRef} className="overflow-x-auto" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
         <div className="flex gap-3 px-5 pt-5 pb-4 min-w-max">
           {regulations.map(reg => {
-            const c = getRegColor(reg)
+            const c          = getRegColor(reg)
             const isSelected = selectedId === reg.id
-            const s = ISSUER_STYLES[reg.issuer]
             return (
-              <button
-                key={reg.id}
-                onClick={() => setSelectedId(isSelected ? null : reg.id)}
+              <button key={reg.id} onClick={() => setSelectedId(isSelected ? null : reg.id)}
                 className={`flex flex-col gap-2 text-left rounded-lg border p-3 min-w-[148px] max-w-[148px] transition-all duration-150 ${
-                  isSelected
-                    ? `${c.bg} ${c.border} shadow-sm`
-                    : 'bg-card hover:bg-muted/50 border-border'
-                }`}
-              >
-                {/* Dot + date */}
+                  isSelected ? `${c.bg} ${c.border} shadow-sm` : 'bg-card hover:bg-muted/50 border-border'
+                }`}>
                 <div className="flex items-center gap-1.5">
                   <span className={`w-2 h-2 rounded-full shrink-0 ${c.dot}`} />
                   <span className="text-[10px] text-muted-foreground tabular-nums">{fmtDate(reg.date)}</span>
                 </div>
-                {/* Name */}
                 <p className="text-xs font-medium leading-snug line-clamp-3">{reg.shortName}</p>
-                {/* First tag */}
                 {reg.tags?.[0] && (
                   <span className={`self-start text-[9px] font-medium px-1.5 py-0.5 rounded-full ${c.bg} ${c.text} mt-auto`}>
                     {reg.tags[0]}
@@ -238,7 +453,6 @@ function RegulationsTimeline({ regulations }: { regulations: Regulation[] }) {
         </div>
       </div>
 
-      {/* Detail panel */}
       {selected && (() => {
         const c = getRegColor(selected)
         const s = ISSUER_STYLES[selected.issuer]
@@ -256,7 +470,7 @@ function RegulationsTimeline({ regulations }: { regulations: Regulation[] }) {
                 <p className="font-semibold text-sm">{selected.name}</p>
                 <p className="text-xs text-muted-foreground">{fmtDate(selected.date)}</p>
               </div>
-              <button onClick={() => setSelectedId(null)} className="text-muted-foreground hover:text-foreground shrink-0 mt-0.5">
+              <button onClick={() => setSelectedId(null)} className="text-muted-foreground hover:text-foreground shrink-0">
                 <X className="h-4 w-4" />
               </button>
             </div>
@@ -267,33 +481,26 @@ function RegulationsTimeline({ regulations }: { regulations: Regulation[] }) {
                 <span className="text-muted-foreground">{selected.whatChanged}</span>
               </div>
             )}
-            <a href={selected.officialUrl} target="_blank" rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 hover:underline">
-              <ExternalLink className="h-3 w-3" /> View official text
-            </a>
+            {selected.officialUrl && (
+              <a href={selected.officialUrl} target="_blank" rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 hover:underline">
+                <ExternalLink className="h-3 w-3" /> View official text
+              </a>
+            )}
           </div>
         )
       })()}
 
       {/* Scrubber */}
       <div className="border-t px-5 py-3 bg-muted/30">
-        <div
-          ref={trackRef}
-          onClick={onTrackClick}
-          className="relative h-1 bg-border rounded-full cursor-pointer"
-        >
-          {/* Progress fill */}
+        <div ref={trackRef} onClick={onTrackClick}
+          className="relative h-1 bg-border rounded-full cursor-pointer">
+          <div className="absolute left-0 top-0 h-full rounded-full bg-muted-foreground/30"
+            style={{ width: `${thumbPct * 100}%` }} />
           <div
-            className="absolute left-0 top-0 h-full rounded-full bg-muted-foreground/30 transition-none"
-            style={{ width: `calc(${thumbPct * 100}% + 20px)` }}
-          />
-          {/* Draggable thumb */}
-          <div
-            onPointerDown={onThumbPointerDown}
-            onPointerMove={onThumbPointerMove}
-            onPointerUp={onThumbPointerUp}
-            onPointerCancel={onThumbPointerUp}
-            style={{ left: `calc(${thumbPct * 100}% * (1 - 20px / 100%))`, transform: 'translateY(-50%) translateX(-50%)' , top: '50%', position: 'absolute' }}
+            onPointerDown={onThumbPointerDown} onPointerMove={onThumbPointerMove}
+            onPointerUp={onThumbPointerUp}     onPointerCancel={onThumbPointerUp}
+            style={{ left: `${thumbPct * 100}%`, transform: 'translateY(-50%) translateX(-50%)', top: '50%', position: 'absolute' }}
             className="w-5 h-5 rounded-full border-2 border-foreground/30 bg-background shadow-sm cursor-grab active:cursor-grabbing hover:border-foreground/60 transition-colors touch-none"
           />
         </div>
@@ -302,7 +509,7 @@ function RegulationsTimeline({ regulations }: { regulations: Regulation[] }) {
   )
 }
 
-// ─── Latest cards ───────────────────────────────────────────────────────────
+// ─── Latest cards ─────────────────────────────────────────────────────────────
 function LatestRegulationsCards({ regulations }: { regulations: Regulation[] }) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 items-stretch">
@@ -329,10 +536,12 @@ function LatestRegulationsCards({ regulations }: { regulations: Regulation[] }) 
                 <span className="font-medium text-foreground">What changed: </span>
                 <span className="text-muted-foreground">{reg.whatChanged}</span>
               </div>
-              <a href={reg.officialUrl} target="_blank" rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 mt-3 hover:underline">
-                <ExternalLink className="h-3 w-3" /> View official text
-              </a>
+              {reg.officialUrl && (
+                <a href={reg.officialUrl} target="_blank" rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 mt-3 hover:underline">
+                  <ExternalLink className="h-3 w-3" /> View official text
+                </a>
+              )}
             </CardContent>
           </Card>
         )
@@ -341,7 +550,7 @@ function LatestRegulationsCards({ regulations }: { regulations: Regulation[] }) 
   )
 }
 
-// ─── Impact analysis ─────────────────────────────────────────────────────────
+// ─── Impact analysis ──────────────────────────────────────────────────────────
 function ImpactFilterSection({ regulations }: { regulations: Regulation[] }) {
   const [selectedId, setSelectedId] = useState(regulations[regulations.length - 1]?.id ?? '')
   const reg = regulations.find(r => r.id === selectedId)
@@ -351,7 +560,7 @@ function ImpactFilterSection({ regulations }: { regulations: Regulation[] }) {
         <SelectTrigger className="w-full md:w-80"><SelectValue placeholder="Select a regulation" /></SelectTrigger>
         <SelectContent>
           <SelectGroup>
-            <SelectLabel>BCB</SelectLabel>
+            <SelectLabel>Regulations</SelectLabel>
             {regulations.map(r => (
               <SelectItem key={r.id} value={r.id}>{r.shortName} – {r.date.slice(0,4)}</SelectItem>
             ))}
@@ -369,6 +578,9 @@ function ImpactFilterSection({ regulations }: { regulations: Regulation[] }) {
                   <p className="text-xs text-muted-foreground">{order.sub}</p>
                 </div>
                 <Separator />
+                {reg.impacts[order.key].length === 0 && (
+                  <p className="text-xs text-muted-foreground italic">No entries</p>
+                )}
                 {reg.impacts[order.key].map((entry, i) => (
                   <div key={i} className="space-y-1">
                     <Badge variant="secondary" className="text-[10px] h-auto py-0.5">{entry.sectorOrType}</Badge>
@@ -385,13 +597,15 @@ function ImpactFilterSection({ regulations }: { regulations: Regulation[] }) {
   )
 }
 
-// ─── Root ───────────────────────────────────────────────────────────────────
+// ─── Root ──────────────────────────────────────────────────────────────────────
 export function RegulacoesBRClient() {
   const [regulations, setRegulations] = useState<Regulation[]>([])
+  const [manualRegs, setManualRegs]   = useState<Regulation[]>([])
   const [loading, setLoading]         = useState(true)
   const [error, setError]             = useState<string | null>(null)
   const [activeTags, setActiveTags]   = useState<Tag[]>([])
   const [activeYears, setActiveYears] = useState<string[]>([])
+  const [showAdd, setShowAdd]         = useState(false)
 
   useEffect(() => {
     fetch('/api/regulacoes')
@@ -406,17 +620,22 @@ export function RegulacoesBRClient() {
       .catch(e => { setError(e.message); setLoading(false) })
   }, [])
 
+  const allRegs = useMemo(
+    () => [...regulations, ...manualRegs].sort((a, b) => a.date.localeCompare(b.date)),
+    [regulations, manualRegs]
+  )
+
   const years = useMemo(() =>
-    Array.from(new Set(regulations.map(r => r.date.slice(0, 4)))).sort()
-  , [regulations])
+    Array.from(new Set(allRegs.map(r => r.date.slice(0, 4)))).sort()
+  , [allRegs])
 
   const filtered = useMemo(() =>
-    regulations.filter(r => {
-      if (activeTags.length  > 0 && !activeTags.some(t => r.tags?.includes(t)))    return false
-      if (activeYears.length > 0 && !activeYears.includes(r.date.slice(0, 4))) return false
+    allRegs.filter(r => {
+      if (activeTags.length  > 0 && !activeTags.some(t  => r.tags?.includes(t)))       return false
+      if (activeYears.length > 0 && !activeYears.includes(r.date.slice(0, 4)))         return false
       return true
     })
-  , [regulations, activeTags, activeYears])
+  , [allRegs, activeTags, activeYears])
 
   const latestFive = useMemo(
     () => [...filtered].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5),
@@ -425,11 +644,18 @@ export function RegulacoesBRClient() {
 
   return (
     <div className="p-4 md:py-8 md:px-8 space-y-8">
-      {/* Header + filter */}
+      {/* Inline styles for modal form inputs */}
+      <style>{`
+        .input-field { display:block; font-size:0.75rem; background:hsl(var(--background)); border:1px solid hsl(var(--border)); border-radius:0.375rem; padding:0.375rem 0.75rem; outline:none; }
+        .input-field:focus { box-shadow:0 0 0 2px hsl(var(--ring)/0.4); }
+        .form-label  { display:block; font-size:0.75rem; font-weight:500; margin-bottom:0.25rem; }
+      `}</style>
+
+      {/* Header */}
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2">
-            <Scale className="h-5 w-5" /> Regulatory Timeline
+            <Scale className="h-5 w-5" /> BCB Regulatory Timeline
           </h1>
           <p className="text-sm text-muted-foreground mt-1">Banco Central do Brasil · 2017–2025</p>
         </div>
@@ -437,7 +663,8 @@ export function RegulacoesBRClient() {
           <FilterBar
             activeTags={activeTags}   onTagsChange={setActiveTags}
             activeYears={activeYears} onYearsChange={setActiveYears}
-            years={years} totalCount={regulations.length} filteredCount={filtered.length}
+            years={years} totalCount={allRegs.length} filteredCount={filtered.length}
+            onAdd={() => setShowAdd(true)}
           />
         )}
       </div>
@@ -479,6 +706,13 @@ export function RegulacoesBRClient() {
           ? <div className="animate-pulse h-10 bg-muted rounded w-80" />
           : <ImpactFilterSection regulations={filtered} />}
       </section>
+
+      {showAdd && (
+        <AddRegulationModal
+          onAdd={reg => setManualRegs(prev => [...prev, reg])}
+          onClose={() => setShowAdd(false)}
+        />
+      )}
     </div>
   )
 }
