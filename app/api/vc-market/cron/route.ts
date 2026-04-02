@@ -13,12 +13,12 @@ function serializeError(err: unknown): string {
 
 export async function GET() {
   try {
-    const db = createAdminClient()
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const db = createAdminClient() as any
 
     const { data: adminSettings, error: settingsError } = await db
       .from('settings')
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .select('user_id, fund_id, claude_api_key') as any
+      .select('user_id, fund_id, claude_api_key')
 
     if (settingsError) {
       console.error('[vc-market/cron] settingsError:', JSON.stringify(settingsError))
@@ -56,18 +56,15 @@ export async function GET() {
         const { data: inserted, error: upsertError } = await db
           .from('vc_deals_pending')
           .upsert(
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            deals.map((d: any) => ({ ...d, status: 'pending' })),
+            deals.map((d: Record<string, unknown>) => ({ ...d, status: 'pending' })),
             { onConflict: 'user_id,company_name,deal_date', ignoreDuplicates: true },
           )
           .select('id')
 
         if (upsertError) throw upsertError
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const insertedCount = (inserted as any)?.length ?? deals.length
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const newDeals = deals.slice(0, insertedCount) as any
+        const insertedCount = inserted?.length ?? deals.length
+        const newDeals = deals.slice(0, insertedCount)
 
         totalInserted += insertedCount
         totalSkipped  += deals.length - insertedCount
