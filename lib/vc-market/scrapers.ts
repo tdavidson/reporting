@@ -4,8 +4,8 @@ import type { VCDeal, VCDealInsert } from './types'
 // ─── LATAM country codes ────────────────────────────────────────────────────────
 
 const LATAM_COUNTRIES = new Set([
-  'AR','BO','BR','CL','CO','CR','CU','DO','EC','GT','HN','HT',
-  'MX','NI','PA','PE','PY','SV','UY','VE','BZ','GY','SR','TT',
+  'Argentina','Bolivia','Brazil','Colombia','Ecuador',
+  'Mexico','Peru','Paraguay','Uruguay','Venezuela',
 ])
 
 // ─── Source definitions ────────────────────────────────────────────────────────────
