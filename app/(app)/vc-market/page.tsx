@@ -19,7 +19,8 @@ export default async function VCMarketPage() {
 
   const isAdmin = membership?.role === 'admin'
 
-  const admin = createAdminClient()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const admin = createAdminClient() as any
   const [pendingRes, dealsRes] = await Promise.all([
     admin.from('vc_deals_pending')
       .select('created_at')
@@ -36,8 +37,8 @@ export default async function VCMarketPage() {
   ])
  
   const candidates = [
-    pendingRes.data?.created_at,
-    dealsRes.data?.created_at,
+    (pendingRes.data as { created_at: string } | null)?.created_at,
+    (dealsRes.data as { created_at: string } | null)?.created_at,
   ].filter(Boolean) as string[]
  
   const lastScrapedAt = candidates.length > 0
