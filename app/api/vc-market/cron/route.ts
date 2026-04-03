@@ -23,6 +23,22 @@ export async function GET() {
 
     const db = createAdminClient() as any // eslint-disable-line @typescript-eslint/no-explicit-any
 
+    // Resolve Claude API key: env var takes priority, fallback to user settings in DB.
+    // This mirrors what the manual /api/vc-market/scrape route does.
+    const apiKey: string | undefined =
+      process.env.ANTHROPIC_API_KEY ||
+      (await db
+        .from('settings')
+        .select('claude_api_key')
+        .eq('user_id', cronUserId)
+        .maybeSingle()
+        .then(({ data }: { data: { claude_api_key?: string } | null }) => data?.claude_api_key ?? undefined))
+
+    if (!apiKey) {
+      console.error('[vc-market/cron] No Claude API key available (set ANTHROPIC_API_KEY env var or save key in settings)')
+      return NextResponse.json({ error: 'Claude API key not configured' }, { status: 500 })
+    }
+
     const sixtyDaysAgo = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
     const { data: existingDeals } = await db
       .from('vc_deals_pending')
@@ -32,6 +48,7 @@ export async function GET() {
     const { deals, report } = await scrapeVCDeals(
       cronUserId,
       existingDeals ?? [],
+      apiKey,
     )
 
     console.log(
