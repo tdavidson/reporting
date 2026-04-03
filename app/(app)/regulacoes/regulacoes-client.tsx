@@ -484,8 +484,8 @@ function TimelineSkeleton() {
     <div className="border rounded-xl overflow-hidden bg-slate-100 dark:bg-slate-800/40">
       <div className="flex gap-3 px-5 pt-5 pb-5 animate-pulse">
         {Array.from({ length: 5 }).map((_, i) => (
-          <div key={i} className="min-w-[148px] border rounded-lg p-3 space-y-2 bg-white dark:bg-slate-700">
-            <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-muted" /><div className="h-3 bg-muted rounded w-16" /></div>
+          <div key={i} className="min-w-[148px] border border-black rounded-lg p-3 space-y-2 bg-white dark:bg-slate-700">
+            <div className="flex items-center gap-2"><div className="w-[18px] h-[18px] rounded-full bg-muted" /><div className="h-3 bg-muted rounded w-16" /></div>
             <div className="h-3 bg-muted rounded w-24" />
             <div className="h-3 bg-muted rounded w-16 mt-auto" />
           </div>
@@ -535,6 +535,7 @@ function RegulationsTimeline({ regulations, onEdit }: { regulations: Regulation[
 
   return (
     <div className="border rounded-xl overflow-hidden">
+      {/* Timeline strip */}
       <div
         ref={scrollRef}
         onMouseDown={onMouseDown}
@@ -543,30 +544,40 @@ function RegulationsTimeline({ regulations, onEdit }: { regulations: Regulation[
         className="overflow-x-auto bg-slate-100 dark:bg-slate-800/40"
         style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', cursor: dragging ? 'grabbing' : 'grab', userSelect: 'none' }}
       >
-        <div className="flex gap-3 px-5 pt-5 pb-5 min-w-max">
+        {/* Outer wrapper: positions the horizontal line + cards */}
+        <div className="relative flex items-start gap-3 px-5 pt-8 pb-5 min-w-max">
+          {/* Horizontal center line — sits at top of cards area (aligned to dot center) */}
+          <div
+            className="absolute left-5 right-5 bg-border dark:bg-slate-600 pointer-events-none"
+            style={{ top: 'calc(2rem + 9px)', height: '1px' }}
+          />
+
           {regulations.map(reg => {
             const c = getRegColor(reg)
             const isSelected = selectedId === reg.id
             return (
-              <button
-                key={reg.id}
-                onClick={() => !dragging && setSelectedId(isSelected ? null : reg.id)}
-                className={`flex flex-col gap-2 text-left rounded-lg border p-3 min-w-[148px] max-w-[148px] transition-all duration-150 ${
-                  isSelected ? `${c.bg} ${c.border} shadow-sm` : 'bg-white dark:bg-slate-700 hover:bg-slate-50 dark:hover:bg-slate-600 border-border'
-                }`}
-                style={{ pointerEvents: 'auto' }}
-              >
-                <div className="flex items-center gap-1.5">
-                  <span className={`w-2 h-2 rounded-full shrink-0 ${c.dot}`} />
+              <div key={reg.id} className="relative flex flex-col items-center">
+                {/* Dot centered above card — line passes through its center */}
+                <div
+                  className={`relative z-10 mb-2 rounded-full shrink-0 ${c.dot}`}
+                  style={{ width: 18, height: 18 }}
+                />
+                <button
+                  onClick={() => !dragging && setSelectedId(isSelected ? null : reg.id)}
+                  className={`flex flex-col gap-2 text-left rounded-lg border border-black p-3 min-w-[148px] max-w-[148px] transition-all duration-150 ${
+                    isSelected ? `${c.bg} ${c.border} shadow-sm` : 'bg-white dark:bg-slate-700 hover:bg-slate-50 dark:hover:bg-slate-600'
+                  }`}
+                  style={{ pointerEvents: 'auto' }}
+                >
                   <span className="text-[10px] text-muted-foreground tabular-nums">{fmtDate(reg.date)}</span>
-                </div>
-                <p className="text-xs font-medium leading-snug line-clamp-3">{reg.shortName}</p>
-                {reg.tags?.[0] && (
-                  <span className={`self-start text-[9px] font-medium px-1.5 py-0.5 rounded-full ${c.bg} ${c.text} mt-auto`}>
-                    {reg.tags[0]}
-                  </span>
-                )}
-              </button>
+                  <p className="text-xs font-medium leading-snug line-clamp-3">{reg.shortName}</p>
+                  {reg.tags?.[0] && (
+                    <span className={`self-start text-[9px] font-medium px-1.5 py-0.5 rounded-full ${c.bg} ${c.text} mt-auto`}>
+                      {reg.tags[0]}
+                    </span>
+                  )}
+                </button>
+              </div>
             )
           })}
         </div>
@@ -626,7 +637,7 @@ function LatestRegulationsCards({ regulations, onEdit }: { regulations: Regulati
       {regulations.map(reg => {
         const s = ISSUER_STYLES[reg.issuer]
         return (
-          <Card key={reg.id} className="flex flex-col h-full">
+          <Card key={reg.id} className="flex flex-col h-full border-black">
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between gap-2">
                 <Badge className={`${s.badge} ${s.badgeText} border-0 text-xs`}>{s.label}</Badge>
@@ -818,7 +829,7 @@ export function RegulacoesBRClient() {
         {loading ? (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {Array.from({ length: 3 }).map((_, i) => (
-              <div key={i} className="animate-pulse border rounded-lg p-4 space-y-3">
+              <div key={i} className="animate-pulse border border-black rounded-lg p-4 space-y-3">
                 <div className="h-4 bg-muted rounded w-20" />
                 <div className="h-4 bg-muted rounded w-40" />
                 <div className="h-20 bg-muted rounded" />
