@@ -283,6 +283,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 // ─── SourcesModal ─────────────────────────────────────────────────────────────
 
 function SourcesModal({ onClose }: { onClose: () => void }) {
+  const rss  = SCRAPE_SOURCES.filter(s => s.type === 'RSS')
   const html = SCRAPE_SOURCES.filter(s => s.type === 'HTML')
 
   return (
@@ -301,8 +302,16 @@ function SourcesModal({ onClose }: { onClose: () => void }) {
         </div>
         <div className="overflow-y-auto px-5 py-4 space-y-5">
           <div>
-           </div>
-        
+            </p>
+            <div className="space-y-1.5">
+              {rss.map(s => (
+                <a key={s.url} href={s.url} target="_blank" rel="noopener noreferrer"
+                  className="flex items-center justify-between gap-3 px-3 py-2 rounded-lg border bg-muted/30 hover:bg-muted/60 transition-colors group">
+                  <span className="text-xs font-medium truncate">{s.name}</span>
+                  <ExternalLink className="h-3 w-3 shrink-0 text-muted-foreground group-hover:text-foreground transition-colors" />
+                </a>
+              ))}
+            </div>
           </div>
           <div>
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
