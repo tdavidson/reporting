@@ -1167,7 +1167,7 @@ export function VCMarketClient({ isAdmin }: Props) {
                   <BarChart data={roundsByVertical} layout="vertical" margin={{ top: 0, right: 40, bottom: 0, left: 40 }}>
                     <CartesianGrid strokeDasharray="3 3" className="stroke-border" horizontal={false} />
                     <XAxis type="number" tick={{ fontSize: 11 }} allowDecimals={false} />
-                    <YAxis dataKey="segment" type="category" tick={{ fontSize: 11 }} width={78} />
+                    <YAxis dataKey="segment" type="category" tick={{ fontSize: 11 }} width={38} />
                     <Tooltip contentStyle={{ fontSize: 12 }} formatter={fmtRounds} />
                     <Bar dataKey="rounds" {...barProps(COLOR_ROUNDS)} radius={[0, 3, 3, 0]}>
                       <LabelList dataKey="rounds" position="right" formatter={labelFmtRounds} style={LABEL_STYLE_ROUNDS} />
@@ -1184,7 +1184,7 @@ export function VCMarketClient({ isAdmin }: Props) {
                   <BarChart data={capitalBySegment} layout="vertical" margin={{ top: 0, right: 40, bottom: 0, left: 40 }}>
                     <CartesianGrid strokeDasharray="3 3" className="stroke-border" horizontal={false} />
                     <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={fmtUSDAxis} />
-                    <YAxis dataKey="segment" type="category" tick={{ fontSize: 11 }} width={78} />
+                    <YAxis dataKey="segment" type="category" tick={{ fontSize: 11 }} width={38} />
                     <Tooltip contentStyle={{ fontSize: 12 }} formatter={fmtCapital} />
                     <Bar dataKey="amount" {...barProps(COLOR_CAPITAL)} radius={[0, 3, 3, 0]}>
                       <LabelList dataKey="amount" position="right" formatter={labelFmtUSD} style={LABEL_STYLE_CAPITAL} />
