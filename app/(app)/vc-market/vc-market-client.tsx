@@ -302,7 +302,6 @@ function SourcesModal({ onClose }: { onClose: () => void }) {
         </div>
         <div className="overflow-y-auto px-5 py-4 space-y-5">
           <div>
-            </p>
             <div className="space-y-1.5">
               {rss.map(s => (
                 <a key={s.url} href={s.url} target="_blank" rel="noopener noreferrer"
