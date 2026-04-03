@@ -1,13 +1,14 @@
 'use client'
 
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
-import { Scale, ExternalLink, AlertTriangle, X, SlidersHorizontal, Check, Plus, Trash2, Pencil } from 'lucide-react'
+import { Scale, ExternalLink, AlertTriangle, X, SlidersHorizontal, Check, Plus, Trash2, Pencil, Sparkles, Loader2 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import {
   Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
+import { toast } from 'sonner'
 import type { Regulation, Issuer, ImpactEntry } from '@/lib/regulacoes/types'
 
 const ALL_TAGS = ['Crypto','Payments','Banking','Open Finance','AML','Credit','Capital Markets','ESG','Data & Privacy','FX'] as const
@@ -109,10 +110,10 @@ function ImpactSection({ title, sub, entries, onChange }: {
 type FormState = ReturnType<typeof regToForm>
 
 function RegulationForm({
-  initial, initialImpacts, title, subtitle, submitLabel, onSubmit, onClose,
+  initial, initialImpacts, title, subtitle, submitLabel, onSubmit, onClose, saving,
 }: {
   initial: FormState; initialImpacts: ImpactsDraft
-  title: string; subtitle: string; submitLabel: string
+  title: string; subtitle: string; submitLabel: string; saving?: boolean
   onSubmit: (reg: Regulation) => void; onClose: () => void
 }) {
   const [form, setForm]       = useState<FormState>(initial)
@@ -144,7 +145,6 @@ function RegulationForm({
         thirdOrder:  impacts.thirdOrder.filter(x => x.sectorOrType) as ImpactEntry[],
       },
     })
-    onClose()
   }
 
   const backdropRef = useRef<HTMLDivElement>(null)
@@ -246,10 +246,11 @@ function RegulationForm({
               entries={impacts.thirdOrder} onChange={v => setImpacts(i => ({ ...i, thirdOrder: v }))} />
           </div>
           <div className="flex justify-end gap-2 pt-2 border-t">
-            <button type="button" onClick={onClose}
-              className="h-8 px-4 rounded-md text-xs border hover:bg-muted transition-colors">Cancel</button>
-            <button type="submit"
-              className="h-8 px-4 rounded-md text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors">
+            <button type="button" onClick={onClose} disabled={saving}
+              className="h-8 px-4 rounded-md text-xs border hover:bg-muted transition-colors disabled:opacity-50">Cancel</button>
+            <button type="submit" disabled={saving}
+              className="h-8 px-4 rounded-md text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center gap-1.5">
+              {saving && <Loader2 className="h-3 w-3 animate-spin" />}
               {submitLabel}
             </button>
           </div>
@@ -260,15 +261,33 @@ function RegulationForm({
 }
 
 function AddRegulationModal({ onAdd, onClose }: { onAdd: (reg: Regulation) => void; onClose: () => void }) {
+  const [saving, setSaving] = useState(false)
   const blankForm: FormState = {
     id: '', name: '', shortName: '', issuer: 'BCB', date: '',
     description: '', fullContext: '', whatChanged: '', officialUrl: '', tags: [],
+  }
+  const handleAdd = async (reg: Regulation) => {
+    setSaving(true)
+    try {
+      const res = await fetch('/api/regulacoes', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(reg),
+      })
+      if (!res.ok) throw new Error((await res.json()).error ?? 'Failed')
+      const saved: Regulation = await res.json()
+      onAdd(saved)
+      toast.success('Regulation added')
+      onClose()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to save')
+    } finally {
+      setSaving(false)
+    }
   }
   return (
     <RegulationForm
       initial={blankForm} initialImpacts={emptyImpacts()}
       title="Add Regulation" subtitle="Fill in the fields below to add a regulation manually"
-      submitLabel="Add regulation" onSubmit={onAdd} onClose={onClose}
+      submitLabel="Add regulation" saving={saving} onSubmit={handleAdd} onClose={onClose}
     />
   )
 }
@@ -276,12 +295,94 @@ function AddRegulationModal({ onAdd, onClose }: { onAdd: (reg: Regulation) => vo
 function EditRegulationModal({ reg, onSave, onClose }: {
   reg: Regulation; onSave: (updated: Regulation) => void; onClose: () => void
 }) {
+  const [saving, setSaving] = useState(false)
+  const handleSave = async (updated: Regulation) => {
+    setSaving(true)
+    try {
+      const res = await fetch('/api/regulacoes', {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updated),
+      })
+      if (!res.ok) throw new Error((await res.json()).error ?? 'Failed')
+      const saved: Regulation = await res.json()
+      onSave(saved)
+      toast.success('Regulation saved')
+      onClose()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to save')
+    } finally {
+      setSaving(false)
+    }
+  }
   return (
     <RegulationForm
       initial={regToForm(reg)} initialImpacts={regToImpactsDraft(reg)}
       title="Edit Regulation" subtitle={`Editing: ${reg.shortName}`}
-      submitLabel="Save changes" onSubmit={onSave} onClose={onClose}
+      submitLabel="Save changes" saving={saving} onSubmit={handleSave} onClose={onClose}
     />
+  )
+}
+
+// ─── FetchYearModal ───────────────────────────────────────────────────────────
+function FetchYearModal({ onFetched, onClose }: {
+  onFetched: (regs: Regulation[]) => void; onClose: () => void
+}) {
+  const currentYear = new Date().getFullYear()
+  const years = Array.from({ length: currentYear - 2016 }, (_, i) => currentYear - i)
+  const [year, setYear]       = useState(currentYear)
+  const [loading, setLoading] = useState(false)
+  const backdropRef = useRef<HTMLDivElement>(null)
+  const onBackdrop  = (e: React.MouseEvent) => { if (e.target === backdropRef.current) onClose() }
+
+  const handleFetch = async () => {
+    setLoading(true)
+    try {
+      const res = await fetch('/api/regulacoes/fetch-year', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ year }),
+      })
+      if (!res.ok) throw new Error((await res.json()).error ?? 'Failed')
+      const { inserted, skipped } = await res.json()
+      toast.success(`${year}: ${inserted} added, ${skipped} already existed`)
+      // Reload from DB
+      const listRes = await fetch('/api/regulacoes')
+      const all: Regulation[] = await listRes.json()
+      onFetched(all)
+      onClose()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div ref={backdropRef} onClick={onBackdrop}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm px-4">
+      <div className="w-full max-w-sm bg-background border rounded-xl shadow-xl p-6 space-y-5">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="font-semibold text-sm">Fetch regulations by year</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Claude will search for BCB/CVM/CMN regulations published that year and save them to the database.</p>
+          </div>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors ml-3 shrink-0">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="space-y-1">
+          <label className="form-label">Year</label>
+          <select value={year} onChange={e => setYear(Number(e.target.value))} className="input-field w-full">
+            {years.map(y => <option key={y} value={y}>{y}</option>)}
+          </select>
+        </div>
+        <div className="flex justify-end gap-2">
+          <button onClick={onClose} disabled={loading}
+            className="h-8 px-4 rounded-md text-xs border hover:bg-muted transition-colors disabled:opacity-50">Cancel</button>
+          <button onClick={handleFetch} disabled={loading}
+            className="h-8 px-4 rounded-md text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center gap-1.5">
+            {loading ? <><Loader2 className="h-3 w-3 animate-spin" /> Fetching...</> : <><Sparkles className="h-3 w-3" /> Fetch {year}</>}
+          </button>
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -336,12 +437,12 @@ function MultiSelect({ label, options, selected, onChange }: {
   )
 }
 
-// ─── Filter bar ── sem background no container, apenas nos botões ─────────────
-function FilterBar({ activeTags, onTagsChange, activeYears, onYearsChange, years, totalCount, filteredCount, onAdd }: {
+// ─── Filter bar ───────────────────────────────────────────────────────────────
+function FilterBar({ activeTags, onTagsChange, activeYears, onYearsChange, years, totalCount, filteredCount, onAdd, onFetchYear }: {
   activeTags: Tag[]; onTagsChange: (t: Tag[]) => void
   activeYears: string[]; onYearsChange: (y: string[]) => void
   years: string[]; totalCount: number; filteredCount: number
-  onAdd: () => void
+  onAdd: () => void; onFetchYear: () => void
 }) {
   const hasFilters = activeTags.length > 0 || activeYears.length > 0
   return (
@@ -361,6 +462,12 @@ function FilterBar({ activeTags, onTagsChange, activeYears, onYearsChange, years
       <MultiSelect label="Year"  options={years}          selected={activeYears}           onChange={onYearsChange} />
       <MultiSelect label="Topic" options={[...ALL_TAGS]}  selected={activeTags as string[]} onChange={v => onTagsChange(v as Tag[])} />
       <div className="w-px h-4 bg-border" />
+      <button
+        onClick={onFetchYear}
+        className="flex items-center gap-1.5 h-8 px-3 rounded-md text-xs font-medium border border-border hover:bg-muted transition-colors"
+      >
+        <Sparkles className="h-3.5 w-3.5" /> Fetch year
+      </button>
       <button
         onClick={onAdd}
         className="flex items-center gap-1.5 h-8 px-3 rounded-md text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
@@ -419,7 +526,12 @@ function RegulationsTimeline({ regulations, onEdit }: { regulations: Regulation[
   const selected = regulations.find(r => r.id === selectedId) ?? null
 
   if (regulations.length === 0)
-    return <p className="text-sm text-muted-foreground py-10 text-center">No regulations match the selected filters.</p>
+    return (
+      <div className="border rounded-xl p-10 text-center space-y-2">
+        <p className="text-sm text-muted-foreground">No regulations yet.</p>
+        <p className="text-xs text-muted-foreground">Use <span className="font-medium">Fetch year</span> to populate the database.</p>
+      </div>
+    )
 
   return (
     <div className="border rounded-xl overflow-hidden">
@@ -508,6 +620,7 @@ function RegulationsTimeline({ regulations, onEdit }: { regulations: Regulation[
 
 // ─── Latest cards ─────────────────────────────────────────────────────────────
 function LatestRegulationsCards({ regulations, onEdit }: { regulations: Regulation[]; onEdit: (r: Regulation) => void }) {
+  if (regulations.length === 0) return null
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 items-stretch">
       {regulations.map(reg => {
@@ -556,6 +669,7 @@ function LatestRegulationsCards({ regulations, onEdit }: { regulations: Regulati
 function ImpactFilterSection({ regulations, onEdit }: { regulations: Regulation[]; onEdit: (r: Regulation) => void }) {
   const [selectedId, setSelectedId] = useState(regulations[regulations.length - 1]?.id ?? '')
   const reg = regulations.find(r => r.id === selectedId)
+  if (regulations.length === 0) return <p className="text-sm text-muted-foreground">No regulations to analyse yet.</p>
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-3">
@@ -612,48 +726,46 @@ function ImpactFilterSection({ regulations, onEdit }: { regulations: Regulation[
 // ─── Root ─────────────────────────────────────────────────────────────────────
 export function RegulacoesBRClient() {
   const [regulations, setRegulations] = useState<Regulation[]>([])
-  const [manualRegs, setManualRegs]   = useState<Regulation[]>([])
   const [loading, setLoading]         = useState(true)
   const [error, setError]             = useState<string | null>(null)
   const [activeTags, setActiveTags]   = useState<Tag[]>([])
   const [activeYears, setActiveYears] = useState<string[]>([])
   const [showAdd, setShowAdd]         = useState(false)
+  const [showFetchYear, setShowFetchYear] = useState(false)
   const [editingReg, setEditingReg]   = useState<Regulation | null>(null)
 
-  useEffect(() => {
+  const loadRegs = useCallback(() => {
+    setLoading(true)
     fetch('/api/regulacoes')
       .then(async r => {
-        if (!r.ok) {
-          const body = await r.json().catch(() => ({}))
-          throw new Error(body?.error ?? `HTTP ${r.status} — ${r.statusText}`)
-        }
+        if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error ?? `HTTP ${r.status}`)
         return r.json()
       })
       .then((data: Regulation[]) => { setRegulations(data); setLoading(false) })
       .catch(e => { setError(e.message); setLoading(false) })
   }, [])
 
+  useEffect(() => { loadRegs() }, [loadRegs])
+
   const handleSave = useCallback((updated: Regulation) => {
-    setManualRegs(prev => prev.map(r => r.id === updated.id ? updated : r))
     setRegulations(prev => prev.map(r => r.id === updated.id ? updated : r))
   }, [])
 
-  const allRegs = useMemo(
-    () => [...regulations, ...manualRegs].sort((a, b) => a.date.localeCompare(b.date)),
-    [regulations, manualRegs]
-  )
+  const handleAdd = useCallback((reg: Regulation) => {
+    setRegulations(prev => [...prev, reg].sort((a, b) => a.date.localeCompare(b.date)))
+  }, [])
 
   const years = useMemo(() =>
-    Array.from(new Set(allRegs.map(r => r.date.slice(0, 4)))).sort()
-  , [allRegs])
+    Array.from(new Set(regulations.map(r => r.date.slice(0, 4)))).sort()
+  , [regulations])
 
   const filtered = useMemo(() =>
-    allRegs.filter(r => {
+    regulations.filter(r => {
       if (activeTags.length  > 0 && !activeTags.some(t => r.tags?.includes(t)))  return false
       if (activeYears.length > 0 && !activeYears.includes(r.date.slice(0, 4)))   return false
       return true
     })
-  , [allRegs, activeTags, activeYears])
+  , [regulations, activeTags, activeYears])
 
   const latestThree = useMemo(
     () => [...filtered].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 3),
@@ -673,14 +785,15 @@ export function RegulacoesBRClient() {
           <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2">
             <Scale className="h-5 w-5" /> BCB Regulatory Timeline
           </h1>
-          <p className="text-sm text-muted-foreground mt-1">Banco Central do Brasil · 2017–2025</p>
+          <p className="text-sm text-muted-foreground mt-1">Banco Central do Brasil · CVM · CMN</p>
         </div>
         {!loading && !error && (
           <FilterBar
             activeTags={activeTags}   onTagsChange={setActiveTags}
             activeYears={activeYears} onYearsChange={setActiveYears}
-            years={years} totalCount={allRegs.length} filteredCount={filtered.length}
+            years={years} totalCount={regulations.length} filteredCount={filtered.length}
             onAdd={() => setShowAdd(true)}
+            onFetchYear={() => setShowFetchYear(true)}
           />
         )}
       </div>
@@ -724,9 +837,12 @@ export function RegulacoesBRClient() {
       </section>
 
       {showAdd && (
-        <AddRegulationModal
-          onAdd={reg => setManualRegs(prev => [...prev, reg])}
-          onClose={() => setShowAdd(false)}
+        <AddRegulationModal onAdd={handleAdd} onClose={() => setShowAdd(false)} />
+      )}
+      {showFetchYear && (
+        <FetchYearModal
+          onFetched={setRegulations}
+          onClose={() => setShowFetchYear(false)}
         />
       )}
       {editingReg && (
