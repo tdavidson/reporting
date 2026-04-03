@@ -478,7 +478,6 @@ function FilterBar({ activeTags, onTagsChange, activeYears, onYearsChange, years
 }
 
 // ─── Timeline ─────────────────────────────────────────────────────────────────
-// Dot size: 18px (Tailwind spacing-4.5 = 1.125rem)
 const DOT_SIZE = 18
 
 function TimelineSkeleton() {
@@ -550,8 +549,6 @@ function RegulationsTimeline({ regulations, onEdit }: { regulations: Regulation[
       </div>
     )
 
-  // Horizontal line sits exactly at the vertical center of the dot.
-  // pt-8 = 32px, then line top = 32px + DOT_SIZE/2 = 32 + 9 = 41px
   const lineTop = `calc(2rem + ${DOT_SIZE / 2}px)`
 
   return (
@@ -584,7 +581,7 @@ function RegulationsTimeline({ regulations, onEdit }: { regulations: Regulation[
           style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', cursor: dragging ? 'grabbing' : 'grab', userSelect: 'none' }}
         >
           <div className="relative flex items-start gap-3 px-10 pt-8 pb-5 min-w-max">
-            {/* Horizontal line: top is aligned to the vertical center of every dot */}
+            {/* Horizontal line aligned to vertical center of dot */}
             <div
               className="absolute left-10 right-10 bg-border dark:bg-slate-600 pointer-events-none"
               style={{ top: lineTop, height: '1px' }}
@@ -595,7 +592,7 @@ function RegulationsTimeline({ regulations, onEdit }: { regulations: Regulation[
               const isSelected = selectedId === reg.id
               return (
                 <div key={reg.id} className="relative flex flex-col items-center">
-                  {/* Dot: 18×18px — matches lineTop calculation */}
+                  {/* Dot: 18×18px */}
                   <div
                     className={`relative z-10 mb-2 rounded-full shrink-0 border-2 border-black ${c.dot}`}
                     style={{ width: DOT_SIZE, height: DOT_SIZE }}
@@ -823,27 +820,27 @@ export function RegulacoesBRClient() {
   )
 
   return (
-    <div className="p-4 md:py-8 md:pl-8 md:pr-4 space-y-8">
+    <div className="p-4 md:p-8 space-y-8">
       <style>{`
         .input-field { display:block; font-size:0.75rem; background:hsl(var(--background)); border:1px solid hsl(var(--border)); border-radius:0.375rem; padding:0.375rem 0.75rem; outline:none; }
         .input-field:focus { box-shadow:0 0 0 2px hsl(var(--ring)/0.4); }
         .form-label  { display:block; font-size:0.75rem; font-weight:500; margin-bottom:0.25rem; }
       `}</style>
 
-      <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div className="mb-6 space-y-1">
+      <div className="mb-6">
+        <div className="flex items-center justify-between">
           <h1 className="text-2xl font-semibold tracking-tight">Regulatory Timeline</h1>
-          <p className="text-sm text-muted-foreground">Banco Central do Brasil · CVM · CMN</p>
+          {!loading && !error && (
+            <FilterBar
+              activeTags={activeTags}   onTagsChange={setActiveTags}
+              activeYears={activeYears} onYearsChange={setActiveYears}
+              years={years} totalCount={regulations.length} filteredCount={filtered.length}
+              onAdd={() => setShowAdd(true)}
+              onFetchYear={() => setShowFetchYear(true)}
+            />
+          )}
         </div>
-        {!loading && !error && (
-          <FilterBar
-            activeTags={activeTags}   onTagsChange={setActiveTags}
-            activeYears={activeYears} onYearsChange={setActiveYears}
-            years={years} totalCount={regulations.length} filteredCount={filtered.length}
-            onAdd={() => setShowAdd(true)}
-            onFetchYear={() => setShowFetchYear(true)}
-          />
-        )}
+        <p className="text-sm text-muted-foreground mt-1">Banco Central do Brasil · CVM · CMN</p>
       </div>
 
       {error && (
