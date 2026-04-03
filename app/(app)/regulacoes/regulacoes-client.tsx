@@ -478,14 +478,20 @@ function FilterBar({ activeTags, onTagsChange, activeYears, onYearsChange, years
 }
 
 // ─── Timeline ─────────────────────────────────────────────────────────────────
+// Dot size: 18px (Tailwind spacing-4.5 = 1.125rem)
+const DOT_SIZE = 18
+
 function TimelineSkeleton() {
   return (
     <div className="border rounded-xl overflow-hidden bg-slate-100 dark:bg-slate-800/40">
       <div className="flex gap-3 px-5 pt-8 pb-5 animate-pulse">
         {Array.from({ length: 5 }).map((_, i) => (
           <div key={i} className="flex flex-col items-center">
-            <div className="w-3 h-3 rounded-full border-2 border-black bg-muted mb-2" />
-            <div className="min-w-[148px] border rounded-lg p-3 space-y-2 bg-white dark:bg-slate-700">
+            <div
+              className="rounded-full border-2 border-black bg-muted mb-2"
+              style={{ width: DOT_SIZE, height: DOT_SIZE }}
+            />
+            <div className="min-w-[148px] border border-black rounded-lg p-3 space-y-2 bg-white dark:bg-slate-700">
               <div className="h-3 bg-muted rounded w-16" />
               <div className="h-3 bg-muted rounded w-24" />
               <div className="h-3 bg-muted rounded w-16 mt-auto" />
@@ -544,11 +550,14 @@ function RegulationsTimeline({ regulations, onEdit }: { regulations: Regulation[
       </div>
     )
 
+  // Horizontal line sits exactly at the vertical center of the dot.
+  // pt-8 = 32px, then line top = 32px + DOT_SIZE/2 = 32 + 9 = 41px
+  const lineTop = `calc(2rem + ${DOT_SIZE / 2}px)`
+
   return (
     <div className="border rounded-xl overflow-hidden">
-      {/* Scroll area with arrow buttons overlaid */}
       <div className="relative">
-        {/* Left arrow — scroll to first event */}
+        {/* Left arrow */}
         <button
           onClick={scrollToStart}
           className="absolute left-0 top-0 bottom-0 z-20 flex items-center justify-center w-8 bg-gradient-to-r from-slate-100 dark:from-slate-800 to-transparent hover:from-slate-200 dark:hover:from-slate-700 transition-colors"
@@ -557,7 +566,7 @@ function RegulationsTimeline({ regulations, onEdit }: { regulations: Regulation[
           <ChevronLeft className="h-4 w-4 text-muted-foreground" />
         </button>
 
-        {/* Right arrow — scroll to last event */}
+        {/* Right arrow */}
         <button
           onClick={scrollToEnd}
           className="absolute right-0 top-0 bottom-0 z-20 flex items-center justify-center w-8 bg-gradient-to-l from-slate-100 dark:from-slate-800 to-transparent hover:from-slate-200 dark:hover:from-slate-700 transition-colors"
@@ -575,10 +584,10 @@ function RegulationsTimeline({ regulations, onEdit }: { regulations: Regulation[
           style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', cursor: dragging ? 'grabbing' : 'grab', userSelect: 'none' }}
         >
           <div className="relative flex items-start gap-3 px-10 pt-8 pb-5 min-w-max">
-            {/* Horizontal line aligned to dot center */}
+            {/* Horizontal line: top is aligned to the vertical center of every dot */}
             <div
               className="absolute left-10 right-10 bg-border dark:bg-slate-600 pointer-events-none"
-              style={{ top: 'calc(2rem + 6px)', height: '1px' }}
+              style={{ top: lineTop, height: '1px' }}
             />
 
             {regulations.map(reg => {
@@ -586,10 +595,10 @@ function RegulationsTimeline({ regulations, onEdit }: { regulations: Regulation[
               const isSelected = selectedId === reg.id
               return (
                 <div key={reg.id} className="relative flex flex-col items-center">
-                  {/* Dot: 12x12px with black border */}
+                  {/* Dot: 18×18px — matches lineTop calculation */}
                   <div
                     className={`relative z-10 mb-2 rounded-full shrink-0 border-2 border-black ${c.dot}`}
-                    style={{ width: 12, height: 12 }}
+                    style={{ width: DOT_SIZE, height: DOT_SIZE }}
                   />
                   <button
                     onClick={() => !dragging && setSelectedId(isSelected ? null : reg.id)}
@@ -814,7 +823,7 @@ export function RegulacoesBRClient() {
   )
 
   return (
-      <div className="p-4 md:py-6 md:px-8 space-y-8">
+    <div className="p-4 md:py-8 md:pl-8 md:pr-4 space-y-8">
       <style>{`
         .input-field { display:block; font-size:0.75rem; background:hsl(var(--background)); border:1px solid hsl(var(--border)); border-radius:0.375rem; padding:0.375rem 0.75rem; outline:none; }
         .input-field:focus { box-shadow:0 0 0 2px hsl(var(--ring)/0.4); }
@@ -822,11 +831,9 @@ export function RegulacoesBRClient() {
       `}</style>
 
       <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">
-            Regulatory Timeline
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1"> · Banco Central do Brasil · </p>
+        <div className="mb-6 space-y-1">
+          <h1 className="text-2xl font-semibold tracking-tight">Regulatory Timeline</h1>
+          <p className="text-sm text-muted-foreground">Banco Central do Brasil · CVM · CMN</p>
         </div>
         {!loading && !error && (
           <FilterBar
