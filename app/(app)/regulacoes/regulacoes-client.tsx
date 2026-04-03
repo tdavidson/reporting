@@ -814,7 +814,7 @@ export function RegulacoesBRClient() {
   )
 
   return (
-      <div className="p-4 md:py-8 md:px-8 space-y-6">
+      <div className="p-4 md:py-6 md:px-8 space-y-8">
       <style>{`
         .input-field { display:block; font-size:0.75rem; background:hsl(var(--background)); border:1px solid hsl(var(--border)); border-radius:0.375rem; padding:0.375rem 0.75rem; outline:none; }
         .input-field:focus { box-shadow:0 0 0 2px hsl(var(--ring)/0.4); }
