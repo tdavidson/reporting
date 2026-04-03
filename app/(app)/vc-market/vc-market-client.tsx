@@ -1182,31 +1182,31 @@ export function VCMarketClient({ isAdmin, lastScrapedAt: initialLastScrapedAt }:
                   <BarChart data={roundsByVertical} layout="vertical" margin={{ top: 0, right: 40, bottom: 0, left: 40 }}>
                     <CartesianGrid strokeDasharray="3 3" className="stroke-border" horizontal={false} />
                     <XAxis type="number" tick={{ fontSize: 11 }} allowDecimals={false} />
-                    <YAxis dataKey="segment" type="category" tick={{ fontSize: 11 }} width={38} />
+                    <YAxis type="category" dataKey="segment" tick={{ fontSize: 11 }} width={80} />
                     <Tooltip contentStyle={{ fontSize: 12 }} formatter={fmtRounds} />
-                    <Bar dataKey="rounds" {...barProps(COLOR_ROUNDS)} radius={[0, 3, 3, 0]}>
+                    <Bar dataKey="rounds" {...barProps('#6366f1')} radius={[0, 3, 3, 0]}>
                       <LabelList dataKey="rounds" position="right" formatter={labelFmtRounds} style={LABEL_STYLE_ROUNDS} />
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
-              ) : emptyChart('No vertical data available')}
+              ) : emptyChart('No segment data')}
             </div>
 
             <div className="bg-card border rounded-xl p-4">
               <h3 className="text-sm font-medium mb-4">Capital by Vertical (USD)</h3>
               {capitalBySegment.length > 0 ? (
                 <ResponsiveContainer width="100%" height={horzH(capitalBySegment.length)}>
-                  <BarChart data={capitalBySegment} layout="vertical" margin={{ top: 0, right: 40, bottom: 0, left: 40 }}>
+                  <BarChart data={capitalBySegment} layout="vertical" margin={{ top: 0, right: 60, bottom: 0, left: 40 }}>
                     <CartesianGrid strokeDasharray="3 3" className="stroke-border" horizontal={false} />
                     <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={fmtUSDAxis} />
-                    <YAxis dataKey="segment" type="category" tick={{ fontSize: 11 }} width={38} />
+                    <YAxis type="category" dataKey="segment" tick={{ fontSize: 11 }} width={80} />
                     <Tooltip contentStyle={{ fontSize: 12 }} formatter={fmtCapital} />
                     <Bar dataKey="amount" {...barProps(COLOR_CAPITAL)} radius={[0, 3, 3, 0]}>
                       <LabelList dataKey="amount" position="right" formatter={labelFmtUSD} style={LABEL_STYLE_CAPITAL} />
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
-              ) : emptyChart('No capital data available')}
+              ) : emptyChart('No capital data')}
             </div>
 
             <div className="bg-card border rounded-xl p-4">
@@ -1216,118 +1216,118 @@ export function VCMarketClient({ isAdmin, lastScrapedAt: initialLastScrapedAt }:
                   <BarChart data={dealsByCountry} layout="vertical" margin={{ top: 0, right: 40, bottom: 0, left: 40 }}>
                     <CartesianGrid strokeDasharray="3 3" className="stroke-border" horizontal={false} />
                     <XAxis type="number" tick={{ fontSize: 11 }} allowDecimals={false} />
-                    <YAxis dataKey="country" type="category" tick={{ fontSize: 11 }} width={38} />
+                    <YAxis type="category" dataKey="country" tick={{ fontSize: 11 }} width={80} />
                     <Tooltip contentStyle={{ fontSize: 12 }} formatter={fmtDeals} />
-                    <Bar dataKey="deals" radius={[0, 3, 3, 0]}>
-                      {dealsByCountry.map((_, i) => { const c = PIE_COLORS[i % PIE_COLORS.length]; return <Cell key={i} fill={c} fillOpacity={0.6} stroke={c} strokeWidth={1.5} /> })}
+                    <Bar dataKey="deals" {...barProps('#6366f1')} radius={[0, 3, 3, 0]}>
                       <LabelList dataKey="deals" position="right" formatter={labelFmtRounds} style={LABEL_STYLE_COUNTRY} />
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
-              ) : emptyChart('No country data available')}
+              ) : emptyChart('No country data')}
             </div>
 
             <div className="bg-card border rounded-xl p-4">
               <h3 className="text-sm font-medium mb-4">Capital by Country (USD)</h3>
               {capitalByCountry.length > 0 ? (
                 <ResponsiveContainer width="100%" height={horzH(capitalByCountry.length)}>
-                  <BarChart data={capitalByCountry} layout="vertical" margin={{ top: 0, right: 40, bottom: 0, left: 40 }}>
+                  <BarChart data={capitalByCountry} layout="vertical" margin={{ top: 0, right: 60, bottom: 0, left: 40 }}>
                     <CartesianGrid strokeDasharray="3 3" className="stroke-border" horizontal={false} />
                     <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={fmtUSDAxis} />
-                    <YAxis dataKey="country" type="category" tick={{ fontSize: 11 }} width={38} />
+                    <YAxis type="category" dataKey="country" tick={{ fontSize: 11 }} width={80} />
                     <Tooltip contentStyle={{ fontSize: 12 }} formatter={fmtCapital} />
-                    <Bar dataKey="capital" radius={[0, 3, 3, 0]}>
-                      {capitalByCountry.map((_, i) => { const c = PIE_COLORS[i % PIE_COLORS.length]; return <Cell key={i} fill={c} fillOpacity={0.6} stroke={c} strokeWidth={1.5} /> })}
-                      <LabelList dataKey="capital" position="right" formatter={labelFmtUSD} style={LABEL_STYLE_COUNTRY} />
+                    <Bar dataKey="capital" {...barProps(COLOR_CAPITAL)} radius={[0, 3, 3, 0]}>
+                      <LabelList dataKey="capital" position="right" formatter={labelFmtUSD} style={LABEL_STYLE_CAPITAL} />
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
-              ) : emptyChart('No capital by country data')}
+              ) : emptyChart('No capital data')}
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* Empty state */}
-      {!loading && deals.length === 0 && (
-        <div className="bg-card border rounded-xl p-12 text-center">
-          <TrendingUp className="h-10 w-10 mx-auto mb-3 text-muted-foreground/40" />
-          <p className="font-medium mb-1">No deals yet</p>
-          <p className="text-sm text-muted-foreground mb-4">Import an Excel file or trigger a scrape to populate deal data.</p>
-          <div className="flex items-center justify-center gap-2">
-            {isAdmin && (
-              <Button variant="outline" size="sm" onClick={handleScrape} disabled={scraping}>
-                {scraping ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <RefreshCw className="h-4 w-4 mr-1" />}
-                Scrape now
-              </Button>
-            )}
-            <Button size="sm" onClick={() => setShowImport(true)}><Upload className="h-4 w-4 mr-1" /> Import Excel</Button>
           </div>
         </div>
       )}
 
       {/* Deals Table */}
-      {deals.length > 0 && (
-        <div className="bg-card border rounded-xl overflow-hidden">
-          <div className="p-4 border-b flex items-center justify-between gap-3">
+      <div className="bg-card border rounded-xl overflow-hidden">
+        <div className="flex items-center justify-between px-4 py-3 border-b gap-3">
+          <div className="flex items-center gap-2">
             <h3 className="text-sm font-medium">All Deals</h3>
-            <div className="relative w-60">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-              <Input value={search} onChange={e => { setSearch(e.target.value); setPage(1) }}
-                placeholder="Search…" className="pl-8 h-8 text-xs" />
-            </div>
+            {!loading && <span className="text-xs text-muted-foreground">({filtered.length})</span>}
           </div>
-          {/* [3] overflow-auto on wrapper + sticky thead */}
-          <div className="overflow-auto max-h-[600px]">
-            <table className="w-full text-sm min-w-[900px]">
-              <thead className="sticky top-0 z-20">
-                <tr className="border-b bg-muted/80 backdrop-blur-sm text-muted-foreground text-xs">
-                  {([
-                    ['company_name', 'Company'],
-                    ['amount_usd',   'Amount'],
-                    ['deal_date',    'Date'],
-                    ['stage',        'Stage'],
-                    [null,           'Investors'],
-                    ['segment',      'Segment'],
-                    ['country',      'Country'],
-                    [null,           'Source'],
-                    [null,           ''],
-                  ] as [keyof VCDeal | null, string][]).map(([key, label]) => (
-                    <th key={label}
-                      className={`px-4 py-2.5 text-left font-medium whitespace-nowrap ${key ? 'cursor-pointer hover:text-foreground select-none' : ''}`}
-                      onClick={key ? () => toggleSort(key) : undefined}>
-                      {label}{key && <SortIcon col={key} />}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {paged.map(deal => <DealRow key={deal.id} deal={deal} onEdit={setEditingDeal} />)}
-              </tbody>
-            </table>
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+            <Input
+              value={search}
+              onChange={e => { setSearch(e.target.value); setPage(1) }}
+              placeholder="Search deals…"
+              className="h-8 pl-8 text-xs w-48"
+            />
           </div>
-          {totalPages > 1 && (
-            <div className="p-3 border-t flex items-center justify-between gap-2">
-              <span className="text-xs text-muted-foreground">
-                {sorted.length} deals · page {page} of {totalPages}
-              </span>
-              <div className="flex gap-1">
-                <Button variant="outline" size="sm" className="h-7 text-xs px-2" onClick={() => setPage(1)} disabled={page === 1}>«</Button>
-                <Button variant="outline" size="sm" className="h-7 text-xs px-2" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}>‹</Button>
-                <Button variant="outline" size="sm" className="h-7 text-xs px-2" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}>›</Button>
-                <Button variant="outline" size="sm" className="h-7 text-xs px-2" onClick={() => setPage(totalPages)} disabled={page === totalPages}>»</Button>
-              </div>
-            </div>
-          )}
         </div>
-      )}
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b bg-muted/40">
+                {([
+                  ['company_name', 'Company'],
+                  ['amount_usd',   'Amount'],
+                  ['deal_date',    'Date'],
+                  ['stage',        'Stage'],
+                ] as [keyof VCDeal, string][]).map(([key, label]) => (
+                  <th key={key} onClick={() => toggleSort(key)}
+                    className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground cursor-pointer hover:text-foreground whitespace-nowrap select-none">
+                    {label}<SortIcon col={key} />
+                  </th>
+                ))}
+                <th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">Investors</th>
+                <th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">Segment</th>
+                <th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">Country</th>
+                <th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">Source</th>
+                <th className="w-10" />
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                Array.from({ length: 8 }).map((_, i) => (
+                  <tr key={i} className="border-b">
+                    {Array.from({ length: 9 }).map((_, j) => (
+                      <td key={j} className="px-4 py-3">
+                        <div className="h-4 rounded bg-muted animate-pulse" style={{ width: `${60 + Math.random() * 30}%` }} />
+                      </td>
+                    ))}
+                  </tr>
+                ))
+              ) : paged.length === 0 ? (
+                <tr><td colSpan={9} className="px-4 py-12 text-center text-muted-foreground text-sm">No deals found</td></tr>
+              ) : (
+                paged.map(deal => <DealRow key={deal.id} deal={deal} onEdit={setEditingDeal} />)
+              )}
+            </tbody>
+          </table>
+        </div>
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between px-4 py-3 border-t">
+            <span className="text-xs text-muted-foreground">
+              Page {page} of {totalPages} · {filtered.length} deals
+            </span>
+            <div className="flex gap-1">
+              <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}>Prev</Button>
+              <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}>Next</Button>
+            </div>
+          </div>
+        )}
+      </div>
 
-      {showImport  && <ImportModal onClose={() => setShowImport(false)} onSuccess={() => { fetchDeals(filters); fetchAllDeals() }} />}
-      {showSources && <SourcesModal onClose={() => setShowSources(false)} />}
-      {showReview  && (
+      {/* Modals */}
+      {showImport && (
+        <ImportModal
+          onClose={() => setShowImport(false)}
+          onSuccess={() => { fetchDeals(filters); fetchAllDeals() }}
+        />
+      )}
+      {showReview && (
         <ScrapeReviewModal
           onClose={() => setShowReview(false)}
-          onApproved={() => { fetchDeals(filters); fetchAllDeals(); fetchPendingCount() }}
+          onPublished={() => { fetchDeals(filters); fetchAllDeals(); fetchPendingCount() }}
         />
       )}
       {editingDeal && (
@@ -1338,6 +1338,7 @@ export function VCMarketClient({ isAdmin, lastScrapedAt: initialLastScrapedAt }:
           onDeleted={handleDealDeleted}
         />
       )}
+      {showSources && <SourcesModal onClose={() => setShowSources(false)} />}
       {scrapeReport && (
         <ScrapeReportModal
           report={scrapeReport.report}
