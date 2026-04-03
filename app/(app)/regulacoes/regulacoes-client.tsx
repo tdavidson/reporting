@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
-import { Scale, ExternalLink, AlertTriangle, X, SlidersHorizontal, Check, Plus, Trash2, Pencil, Sparkles, Loader2 } from 'lucide-react'
+import { Scale, ExternalLink, AlertTriangle, X, SlidersHorizontal, Check, Plus, Trash2, Pencil, Sparkles, Loader2, ChevronLeft, ChevronRight } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import {
@@ -525,6 +525,15 @@ function RegulationsTimeline({ regulations, onEdit }: { regulations: Regulation[
     return () => window.removeEventListener('mouseup', stop)
   }, [])
 
+  const scrollToStart = useCallback(() => {
+    scrollRef.current?.scrollTo({ left: 0, behavior: 'smooth' })
+  }, [])
+
+  const scrollToEnd = useCallback(() => {
+    if (!scrollRef.current) return
+    scrollRef.current.scrollTo({ left: scrollRef.current.scrollWidth, behavior: 'smooth' })
+  }, [])
+
   const selected = regulations.find(r => r.id === selectedId) ?? null
 
   if (regulations.length === 0)
@@ -537,49 +546,70 @@ function RegulationsTimeline({ regulations, onEdit }: { regulations: Regulation[
 
   return (
     <div className="border rounded-xl overflow-hidden">
-      <div
-        ref={scrollRef}
-        onMouseDown={onMouseDown}
-        onMouseMove={onMouseMove}
-        onMouseUp={onMouseUp}
-        className="overflow-x-auto bg-slate-100 dark:bg-slate-800/40"
-        style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', cursor: dragging ? 'grabbing' : 'grab', userSelect: 'none' }}
-      >
-        <div className="relative flex items-start gap-3 px-5 pt-8 pb-5 min-w-max">
-          {/* Horizontal line aligned to dot center: dot is 12px, sits at pt-8=2rem from top, line at 2rem+6px */}
-          <div
-            className="absolute left-5 right-5 bg-border dark:bg-slate-600 pointer-events-none"
-            style={{ top: 'calc(2rem + 6px)', height: '1px' }}
-          />
+      {/* Scroll area with arrow buttons overlaid */}
+      <div className="relative">
+        {/* Left arrow — scroll to first event */}
+        <button
+          onClick={scrollToStart}
+          className="absolute left-0 top-0 bottom-0 z-20 flex items-center justify-center w-8 bg-gradient-to-r from-slate-100 dark:from-slate-800 to-transparent hover:from-slate-200 dark:hover:from-slate-700 transition-colors"
+          aria-label="Scroll to first event"
+        >
+          <ChevronLeft className="h-4 w-4 text-muted-foreground" />
+        </button>
 
-          {regulations.map(reg => {
-            const c = getRegColor(reg)
-            const isSelected = selectedId === reg.id
-            return (
-              <div key={reg.id} className="relative flex flex-col items-center">
-                {/* Dot: 12x12px with black border */}
-                <div
-                  className={`relative z-10 mb-2 rounded-full shrink-0 border-2 border-black ${c.dot}`}
-                  style={{ width: 12, height: 12 }}
-                />
-                <button
-                  onClick={() => !dragging && setSelectedId(isSelected ? null : reg.id)}
-                  className={`flex flex-col gap-2 text-left rounded-lg border border-black p-3 min-w-[148px] max-w-[148px] transition-all duration-150 ${
-                    isSelected ? `${c.bg} ${c.border} shadow-sm` : 'bg-white dark:bg-slate-700 hover:bg-slate-50 dark:hover:bg-slate-600'
-                  }`}
-                  style={{ pointerEvents: 'auto' }}
-                >
-                  <span className="text-[10px] text-muted-foreground tabular-nums">{fmtDate(reg.date)}</span>
-                  <p className="text-xs font-medium leading-snug line-clamp-3">{reg.shortName}</p>
-                  {reg.tags?.[0] && (
-                    <span className={`self-start text-[9px] font-medium px-1.5 py-0.5 rounded-full ${c.bg} ${c.text} mt-auto`}>
-                      {reg.tags[0]}
-                    </span>
-                  )}
-                </button>
-              </div>
-            )
-          })}
+        {/* Right arrow — scroll to last event */}
+        <button
+          onClick={scrollToEnd}
+          className="absolute right-0 top-0 bottom-0 z-20 flex items-center justify-center w-8 bg-gradient-to-l from-slate-100 dark:from-slate-800 to-transparent hover:from-slate-200 dark:hover:from-slate-700 transition-colors"
+          aria-label="Scroll to last event"
+        >
+          <ChevronRight className="h-4 w-4 text-muted-foreground" />
+        </button>
+
+        <div
+          ref={scrollRef}
+          onMouseDown={onMouseDown}
+          onMouseMove={onMouseMove}
+          onMouseUp={onMouseUp}
+          className="overflow-x-auto bg-slate-100 dark:bg-slate-800/40"
+          style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', cursor: dragging ? 'grabbing' : 'grab', userSelect: 'none' }}
+        >
+          <div className="relative flex items-start gap-3 px-10 pt-8 pb-5 min-w-max">
+            {/* Horizontal line aligned to dot center */}
+            <div
+              className="absolute left-10 right-10 bg-border dark:bg-slate-600 pointer-events-none"
+              style={{ top: 'calc(2rem + 6px)', height: '1px' }}
+            />
+
+            {regulations.map(reg => {
+              const c = getRegColor(reg)
+              const isSelected = selectedId === reg.id
+              return (
+                <div key={reg.id} className="relative flex flex-col items-center">
+                  {/* Dot: 12x12px with black border */}
+                  <div
+                    className={`relative z-10 mb-2 rounded-full shrink-0 border-2 border-black ${c.dot}`}
+                    style={{ width: 12, height: 12 }}
+                  />
+                  <button
+                    onClick={() => !dragging && setSelectedId(isSelected ? null : reg.id)}
+                    className={`flex flex-col gap-2 text-left rounded-lg border border-black p-3 min-w-[148px] max-w-[148px] transition-all duration-150 ${
+                      isSelected ? `${c.bg} ${c.border} shadow-sm` : 'bg-white dark:bg-slate-700 hover:bg-slate-50 dark:hover:bg-slate-600'
+                    }`}
+                    style={{ pointerEvents: 'auto' }}
+                  >
+                    <span className="text-[10px] text-muted-foreground tabular-nums">{fmtDate(reg.date)}</span>
+                    <p className="text-xs font-medium leading-snug line-clamp-3">{reg.shortName}</p>
+                    {reg.tags?.[0] && (
+                      <span className={`self-start text-[9px] font-medium px-1.5 py-0.5 rounded-full ${c.bg} ${c.text} mt-auto`}>
+                        {reg.tags[0]}
+                      </span>
+                    )}
+                  </button>
+                </div>
+              )
+            })}
+          </div>
         </div>
       </div>
 
@@ -792,10 +822,10 @@ export function RegulacoesBRClient() {
       `}</style>
 
       <div className="flex items-start justify-between gap-4 flex-wrap">
-            <div>
-      <h1 className="text-2xl font-semibold tracking-tight">
-      Regulatory Timeline
-      </h1>
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">
+            Regulatory Timeline
+          </h1>
           <p className="text-sm text-muted-foreground mt-1"> · Banco Central do Brasil · </p>
         </div>
         {!loading && !error && (
