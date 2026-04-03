@@ -826,9 +826,10 @@ function Top10Tooltip({ active, payload }: { active?: boolean; payload?: Array<{
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
-interface Props { isAdmin: boolean }
+interface Props { isAdmin: boolean; lastScrapedAt: string | null }
 
-export function VCMarketClient({ isAdmin }: Props) {
+export function VCMarketClient({ isAdmin, lastScrapedAt: initialLastScrapedAt }: Props) {
+  const [lastScrape, setLastScrape]         = useState<string | null>(initialLastScrapedAt)
   const [deals, setDeals]               = useState<VCDeal[]>([])
   const [loading, setLoading]           = useState(true)
   const [scraping, setScraping]         = useState(false)
@@ -900,6 +901,7 @@ export function VCMarketClient({ isAdmin }: Props) {
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? 'Scrape failed')
       const n = data.pending ?? 0
+      setLastScrape(new Date().toISOString())
       if (n > 0) {
         toast.success(`${n} new deals ready for review`)
         setPendingCount(prev => prev + n)
@@ -986,7 +988,20 @@ export function VCMarketClient({ isAdmin }: Props) {
         <div className="flex items-start gap-2">
           <div>
             <h1 className="text-2xl font-semibold tracking-tight">VC Market</h1>
-            <p className="text-sm text-muted-foreground">Global venture capital deal flow — scraped daily & importable</p>
+            <div className="flex items-center gap-2 flex-wrap mt-0.5">
+              <p className="text-sm text-muted-foreground">
+                Global venture capital deal flow — scraped daily &amp; importable
+              </p>
+              {lastScrape && (
+                <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground/60 border border-border/50 rounded-full px-2 py-0.5 leading-none">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500/70 shrink-0" />
+                  Updated {new Date(lastScrape).toLocaleString('en-US', {
+                    month: 'short', day: 'numeric',
+                    hour: '2-digit', minute: '2-digit',
+                  })}
+                </span>
+              )}
+            </div>
           </div>
           <button
             onClick={() => setShowSources(true)}
@@ -1272,55 +1287,47 @@ export function VCMarketClient({ isAdmin }: Props) {
                     ['amount_usd',   'Amount'],
                     ['deal_date',    'Date'],
                     ['stage',        'Stage'],
-                    ['investors',    'Investors'],
+                    [null,           'Investors'],
                     ['segment',      'Segment'],
                     ['country',      'Country'],
                     [null,           'Source'],
                     [null,           ''],
-                  ] as [keyof VCDeal | null, string][]).map(([key, label], colIdx) => (
+                  ] as [keyof VCDeal | null, string][]).map(([key, label]) => (
                     <th key={label}
-                      className={`px-4 py-2.5 text-left font-medium whitespace-nowrap ${
-                        colIdx === 0 ? 'sticky left-0 z-30 bg-muted/80' : ''
-                      } ${ key ? 'cursor-pointer select-none hover:text-foreground' : '' }`}
-                      onClick={() => key && toggleSort(key)}>
+                      className={`px-4 py-2.5 text-left font-medium whitespace-nowrap ${key ? 'cursor-pointer hover:text-foreground select-none' : ''}`}
+                      onClick={key ? () => toggleSort(key) : undefined}>
                       {label}{key && <SortIcon col={key} />}
                     </th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {paged.length === 0
-                  ? <tr><td colSpan={9} className="px-4 py-8 text-center text-muted-foreground text-sm">No deals match your search</td></tr>
-                  : paged.map(deal => <DealRow key={deal.id} deal={deal} onEdit={setEditingDeal} />)}
+                {paged.map(deal => <DealRow key={deal.id} deal={deal} onEdit={setEditingDeal} />)}
               </tbody>
             </table>
           </div>
           {totalPages > 1 && (
-            <div className="p-3 border-t flex items-center justify-between text-xs text-muted-foreground">
-              <span>{(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, sorted.length)} of {sorted.length}</span>
+            <div className="p-3 border-t flex items-center justify-between gap-2">
+              <span className="text-xs text-muted-foreground">
+                {sorted.length} deals · page {page} of {totalPages}
+              </span>
               <div className="flex gap-1">
-                <Button variant="outline" size="sm" className="h-7 px-2 text-xs" disabled={page === 1} onClick={() => setPage(p => p - 1)}>Previous</Button>
-                <Button variant="outline" size="sm" className="h-7 px-2 text-xs" disabled={page === totalPages} onClick={() => setPage(p => p + 1)}>Next</Button>
+                <Button variant="outline" size="sm" className="h-7 text-xs px-2" onClick={() => setPage(1)} disabled={page === 1}>«</Button>
+                <Button variant="outline" size="sm" className="h-7 text-xs px-2" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}>‹</Button>
+                <Button variant="outline" size="sm" className="h-7 text-xs px-2" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}>›</Button>
+                <Button variant="outline" size="sm" className="h-7 text-xs px-2" onClick={() => setPage(totalPages)} disabled={page === totalPages}>»</Button>
               </div>
             </div>
           )}
         </div>
       )}
 
-      {showImport && <ImportModal onClose={() => setShowImport(false)} onSuccess={() => { fetchDeals(filters); fetchAllDeals() }} />}
-      {showReview && (
-        <ScrapeReviewModal
-          onClose={() => { setShowReview(false); fetchPendingCount() }}
-          onPublished={() => { fetchDeals(filters); fetchAllDeals(); setPendingCount(0) }}
-        />
-      )}
+      {showImport  && <ImportModal onClose={() => setShowImport(false)} onSuccess={() => { fetchDeals(filters); fetchAllDeals() }} />}
       {showSources && <SourcesModal onClose={() => setShowSources(false)} />}
-      {scrapeReport && (
-        <ScrapeReportModal
-          report={scrapeReport.report}
-          pending={scrapeReport.pending}
-          skipped={scrapeReport.skipped}
-          onClose={() => setScrapeReport(null)}
+      {showReview  && (
+        <ScrapeReviewModal
+          onClose={() => setShowReview(false)}
+          onApproved={() => { fetchDeals(filters); fetchAllDeals(); fetchPendingCount() }}
         />
       )}
       {editingDeal && (
@@ -1329,6 +1336,14 @@ export function VCMarketClient({ isAdmin }: Props) {
           onClose={() => setEditingDeal(null)}
           onSaved={handleDealSaved}
           onDeleted={handleDealDeleted}
+        />
+      )}
+      {scrapeReport && (
+        <ScrapeReportModal
+          report={scrapeReport.report}
+          pending={scrapeReport.pending}
+          skipped={scrapeReport.skipped}
+          onClose={() => setScrapeReport(null)}
         />
       )}
     </div>
