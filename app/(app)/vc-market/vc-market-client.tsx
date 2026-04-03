@@ -300,7 +300,7 @@ function SourcesModal({ onClose }: { onClose: () => void }) {
             <X className="h-4 w-4" />
           </button>
         </div>
-        <div className="overflow-y-auto px-5 py-4 space-y-5">
+        <div className="overflow-y-auto px-5 py-4 space-y-3">
           <div>
             <div className="space-y-1.5">
               {rss.map(s => (
@@ -327,7 +327,7 @@ function SourcesModal({ onClose }: { onClose: () => void }) {
             </div>
           </div>
           <p className="text-xs text-muted-foreground border-t pt-3">
-            Articles from the last 48 h are processed by Claude AI, which extracts only confirmed LATAM funding rounds and filters out debt, grants, and non-LATAM companies.
+            Articles from the last 48h are processed by Claude AI, which extracts only confirmed LATAM funding rounds and filters out debt, grants, and non-LATAM companies.
           </p>
         </div>
       </div>
