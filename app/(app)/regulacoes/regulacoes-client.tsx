@@ -342,7 +342,6 @@ function FetchYearModal({ onFetched, onClose }: {
       if (!res.ok) throw new Error((await res.json()).error ?? 'Failed')
       const { inserted, skipped } = await res.json()
       toast.success(`${year}: ${inserted} added, ${skipped} already existed`)
-      // Reload from DB
       const listRes = await fetch('/api/regulacoes')
       const all: Regulation[] = await listRes.json()
       onFetched(all)
@@ -482,12 +481,15 @@ function FilterBar({ activeTags, onTagsChange, activeYears, onYearsChange, years
 function TimelineSkeleton() {
   return (
     <div className="border rounded-xl overflow-hidden bg-slate-100 dark:bg-slate-800/40">
-      <div className="flex gap-3 px-5 pt-5 pb-5 animate-pulse">
+      <div className="flex gap-3 px-5 pt-8 pb-5 animate-pulse">
         {Array.from({ length: 5 }).map((_, i) => (
-          <div key={i} className="min-w-[148px] border border-black rounded-lg p-3 space-y-2 bg-white dark:bg-slate-700">
-            <div className="flex items-center gap-2"><div className="w-[18px] h-[18px] rounded-full bg-muted" /><div className="h-3 bg-muted rounded w-16" /></div>
-            <div className="h-3 bg-muted rounded w-24" />
-            <div className="h-3 bg-muted rounded w-16 mt-auto" />
+          <div key={i} className="flex flex-col items-center">
+            <div className="w-3 h-3 rounded-full border-2 border-black bg-muted mb-2" />
+            <div className="min-w-[148px] border rounded-lg p-3 space-y-2 bg-white dark:bg-slate-700">
+              <div className="h-3 bg-muted rounded w-16" />
+              <div className="h-3 bg-muted rounded w-24" />
+              <div className="h-3 bg-muted rounded w-16 mt-auto" />
+            </div>
           </div>
         ))}
       </div>
@@ -535,7 +537,6 @@ function RegulationsTimeline({ regulations, onEdit }: { regulations: Regulation[
 
   return (
     <div className="border rounded-xl overflow-hidden">
-      {/* Timeline strip */}
       <div
         ref={scrollRef}
         onMouseDown={onMouseDown}
@@ -544,12 +545,11 @@ function RegulationsTimeline({ regulations, onEdit }: { regulations: Regulation[
         className="overflow-x-auto bg-slate-100 dark:bg-slate-800/40"
         style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', cursor: dragging ? 'grabbing' : 'grab', userSelect: 'none' }}
       >
-        {/* Outer wrapper: positions the horizontal line + cards */}
         <div className="relative flex items-start gap-3 px-5 pt-8 pb-5 min-w-max">
-          {/* Horizontal center line — sits at top of cards area (aligned to dot center) */}
+          {/* Horizontal line aligned to dot center: dot is 12px, sits at pt-8=2rem from top, line at 2rem+6px */}
           <div
             className="absolute left-5 right-5 bg-border dark:bg-slate-600 pointer-events-none"
-            style={{ top: 'calc(2rem + 9px)', height: '1px' }}
+            style={{ top: 'calc(2rem + 6px)', height: '1px' }}
           />
 
           {regulations.map(reg => {
@@ -557,10 +557,10 @@ function RegulationsTimeline({ regulations, onEdit }: { regulations: Regulation[
             const isSelected = selectedId === reg.id
             return (
               <div key={reg.id} className="relative flex flex-col items-center">
-                {/* Dot centered above card — line passes through its center */}
+                {/* Dot: 12x12px with black border */}
                 <div
-                  className={`relative z-10 mb-2 rounded-full shrink-0 ${c.dot}`}
-                  style={{ width: 18, height: 18 }}
+                  className={`relative z-10 mb-2 rounded-full shrink-0 border-2 border-black ${c.dot}`}
+                  style={{ width: 12, height: 12 }}
                 />
                 <button
                   onClick={() => !dragging && setSelectedId(isSelected ? null : reg.id)}
@@ -637,7 +637,7 @@ function LatestRegulationsCards({ regulations, onEdit }: { regulations: Regulati
       {regulations.map(reg => {
         const s = ISSUER_STYLES[reg.issuer]
         return (
-          <Card key={reg.id} className="flex flex-col h-full border-black">
+          <Card key={reg.id} className="flex flex-col h-full">
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between gap-2">
                 <Badge className={`${s.badge} ${s.badgeText} border-0 text-xs`}>{s.label}</Badge>
@@ -829,7 +829,7 @@ export function RegulacoesBRClient() {
         {loading ? (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {Array.from({ length: 3 }).map((_, i) => (
-              <div key={i} className="animate-pulse border border-black rounded-lg p-4 space-y-3">
+              <div key={i} className="animate-pulse border rounded-lg p-4 space-y-3">
                 <div className="h-4 bg-muted rounded w-20" />
                 <div className="h-4 bg-muted rounded w-40" />
                 <div className="h-20 bg-muted rounded" />
