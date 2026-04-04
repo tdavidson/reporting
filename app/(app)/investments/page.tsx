@@ -27,6 +27,7 @@ interface CompanySummary {
   irr: number | null
   proceedsReceived: number
   totalCostBasisExited: number
+  cashFlows: { date: string; amount: number }[]
 }
 
 interface GroupSummary {
@@ -400,8 +401,25 @@ export default function InvestmentsPage() {
       t.totalCostBasisExited += c.totalCostBasisExited
     }
     const moic = t.totalInvested > 0 ? (t.totalRealized + t.unrealizedValue) / t.totalInvested : null
-    return { ...t, moic }
-  }, [filtered])
+
+    // Consolidate cash flows from all filtered companies and recalculate Gross IRR
+    const consolidatedFlows: CashFlow[] = []
+    for (const c of filtered) {
+      for (const cf of c.cashFlows) {
+        consolidatedFlows.push({ date: new Date(cf.date), amount: cf.amount })
+      }
+    }
+    // Add terminal value: unrealized NAV of non-exited companies
+    const terminalUnrealized = filtered
+      .filter(c => c.status !== 'exited' && c.status !== 'written-off')
+      .reduce((sum, c) => sum + c.unrealizedValue, 0)
+    if (terminalUnrealized > 0) {
+      consolidatedFlows.push({ date: new Date(asOfDate || new Date().toISOString().split('T')[0]), amount: terminalUnrealized })
+    }
+    const irr = consolidatedFlows.length >= 2 ? xirr(consolidatedFlows) : null
+
+    return { ...t, moic, irr }
+  }, [filtered, asOfDate])
 
   function handleSort(key: SortKey) {
     if (sortKey === key) {
@@ -692,7 +710,7 @@ export default function InvestmentsPage() {
               <td className="px-3 py-2" />
               <td className="px-3 py-2" />
               {companyNumericColumns.map(col => {
-                if (col.format === 'irr') return <td key={col.sortKey} className="px-3 py-2 text-right font-mono">{fmtIrr(data.portfolioIRR)}</td>
+                if (col.format === 'irr') return <td key={col.sortKey} className="px-3 py-2 text-right font-mono">{fmtIrr(totals.irr)}</td>
                 if (col.sortKey === 'moic') return <td key={col.sortKey} className="px-3 py-2 text-right font-mono">{fmtMoic(totals.moic)}</td>
                 return <td key={col.sortKey} className="px-3 py-2 text-right font-mono">{fmtVal(col.getValue(totals as unknown as CompanySummary), col.format)}</td>
               })}
