@@ -2,7 +2,7 @@ name: VC Market Scraper
 
 on:
   schedule:
-    - cron: '05 17 * * *'  # 10h BRT (UTC-3)
+    - cron: '00 20 * * *'  # 10h BRT (UTC-3)
   workflow_dispatch:       # permite rodar manualmente
 
 jobs:
