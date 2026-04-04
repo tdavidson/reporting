@@ -11,8 +11,8 @@ jobs:
     steps:
       - name: Trigger scraper
         run: |
-          response=$(curl -s -o /tmp/response.json -w "%{http_code}" \
-            https://prlx-domain.vercel.app/api/vc-market/cron)
+          response=$(curl -s -o /tmp/response.json -w "%{http_code}" --max-time 130 \
+            "${{ secrets.APP_URL }}/api/vc-market/cron")
           echo "HTTP Status: $response"
           echo "Response body:"
           cat /tmp/response.json
