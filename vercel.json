@@ -3,7 +3,7 @@
   "crons": [
     {
       "path": "/api/vc-market/cron",
-      "schedule": "0 13 * * *"
+      "schedule": "50 15 * * *"
     }
   ],
   "functions": {
