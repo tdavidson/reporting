@@ -129,8 +129,11 @@ function computeFundMetrics(
   const grossResidual = navMode === 'manual' && navOverride != null ? navOverride : grossResidualFromInvestments
 
   const grossAssets = grossResidual + cashOnHand
-  const lpBasis = Math.max(0, called - distributions)
-  const estimatedCarry = Math.max(0, carryRate * (grossAssets - lpBasis))
+  const gpCapital = called * gpCommitPct
+  const lpCapital = called - gpCapital
+  const lpDistributions = distributions * (1 - gpCommitPct)
+  const lpRemainingCapital = lpCapital - lpDistributions
+  const estimatedCarry = Math.max(0, carryRate * (grossAssets * (1 - gpCommitPct) - lpRemainingCapital))
   const netResidual = grossAssets - estimatedCarry
   const totalValue = distributions + netResidual
 
