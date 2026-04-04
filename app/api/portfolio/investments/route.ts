@@ -85,6 +85,7 @@ export async function GET(req: NextRequest) {
     proceedsReceived: number
     proceedsEscrow: number
     totalCostBasisExited: number
+    cashFlows: { date: string; amount: number }[]
   }[] = []
 
   for (const [companyId, txns] of Array.from(byCompany.entries())) {
@@ -125,15 +126,9 @@ export async function GET(req: NextRequest) {
     }
 
     // Resolve portfolio_group for transactions with NULL group:
-    // inherit from the most recent transaction (by date) that has a defined group.
-    // Sort by date desc, walk forward tracking last seen group, then assign.
     const sortedForGroupResolution = [...txns].sort((a, b) =>
       (b.transaction_date ?? '').localeCompare(a.transaction_date ?? '')
     )
-    // Build a map: for each txn index (original), resolved group
-    // We need to resolve in chronological order: a NULL txn inherits the
-    // group of the closest LATER txn that has a group defined.
-    // Strategy: scan desc, carry last seen group forward (backwards in time = forward in desc)
     let lastSeenGroup: string | null = null
     const resolvedGroup = new Map<InvestmentTransaction, string>()
     for (const txn of sortedForGroupResolution) {
@@ -142,8 +137,6 @@ export async function GET(req: NextRequest) {
       }
       resolvedGroup.set(txn, txn.portfolio_group ?? lastSeenGroup ?? companyDefaultGroup)
     }
-    // For any txn still without a resolved group (all NULLs before any defined group),
-    // do a second pass ascending to inherit from the earliest defined group
     const sortedAsc = [...txns].sort((a, b) =>
       (a.transaction_date ?? '').localeCompare(b.transaction_date ?? '')
     )
@@ -176,7 +169,6 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // If no relevant transactions at all, create a single default-group entry
     if (groupTxns.size === 0) {
       groupTxns.set(companyDefaultGroup, [])
     }
@@ -301,14 +293,16 @@ export async function GET(req: NextRequest) {
       for (const cf of groupCashFlows) pgFlows.push(cf)
       portfolioGroupCashFlows.set(group, pgFlows)
 
+      // Build IRR cash flows including terminal value
+      const irrFlows: CashFlow[] = [...groupCashFlows]
       let groupIRR: number | null = null
-      if (groupCashFlows.length > 0) {
+      if (irrFlows.length > 0) {
         const terminalValue = company.status === 'written-off' ? 0 : unrealizedValue
         if (terminalValue > 0 || totalRealized > 0) {
           if (company.status !== 'exited' && terminalValue > 0) {
-            groupCashFlows.push({ date: asOfDate, amount: terminalValue })
+            irrFlows.push({ date: asOfDate, amount: terminalValue })
           }
-          groupIRR = xirr(groupCashFlows)
+          groupIRR = xirr(irrFlows)
         }
       }
 
@@ -316,6 +310,12 @@ export async function GET(req: NextRequest) {
       portfolioRealized += totalRealized
       portfolioUnrealized += unrealizedValue
       portfolioFMV += fmv
+
+      // Serialize cash flows (without terminal) for front-end recalculation
+      const serializedCashFlows = groupCashFlows.map(cf => ({
+        date: cf.date.toISOString().split('T')[0],
+        amount: cf.amount,
+      }))
 
       companySummaries.push({
         companyId,
@@ -331,6 +331,7 @@ export async function GET(req: NextRequest) {
         proceedsReceived,
         proceedsEscrow,
         totalCostBasisExited,
+        cashFlows: serializedCashFlows,
       })
     }
   }
