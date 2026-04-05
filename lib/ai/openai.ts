@@ -86,17 +86,19 @@ export class OpenAIProvider implements AIProvider {
   }
 
   async listModels(): Promise<AIModel[]> {
+    if (this.customBaseURL) {
+      // Ollama uses /api/tags, not /models
+      const baseUrl = (this.client as any).baseURL as string
+      const tagsUrl = baseUrl.replace(/\/v1\/?$/, '') + '/api/tags'
+      const res = await fetch(tagsUrl)
+      const data = await res.json()
+      return (data.models ?? []).map((m: { name: string }) => ({ id: m.name, name: m.name }))
+    }
+
     const list = await this.client.models.list()
     const models: OpenAI.Model[] = []
     for await (const model of list) {
       models.push(model)
-    }
-
-    if (this.customBaseURL) {
-      // For Ollama/custom endpoints, return all models
-      return models
-        .sort((a, b) => b.created - a.created)
-        .map(m => ({ id: m.id, name: m.id }))
     }
 
     return models
