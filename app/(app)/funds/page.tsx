@@ -142,9 +142,11 @@ function computeFundMetrics(
   const dpi = called > 0 ? distributions / called : null
   const rvpi = called > 0 ? netResidual / called : null
 
-  const totalInvestedCalculation = called - totalManagementFees
-  const grossMoic = totalInvestedCalculation > 0 ? (distributions + grossResidual) / totalInvestedCalculation : null
-  const netMoic = totalInvestedCalculation > 0 ? totalValue / totalInvestedCalculation : null
+  // Gross MOIC: return of the portfolio itself, denominator is capital deployed into companies (no fee deduction)
+  const grossMoic = totalInvested > 0 ? (distributions + grossResidual) / totalInvested : null
+  // Net MOIC: LP return after carry and management fees
+  const netInvestedCalculation = called - totalManagementFees
+  const netMoic = netInvestedCalculation > 0 ? totalValue / netInvestedCalculation : null
   const grossTvpi = called > 0 ? (distributions + grossResidual) / called : null
 
   const asOfDateObj = asOfDate ? parseLocalDate(asOfDate) : new Date()
