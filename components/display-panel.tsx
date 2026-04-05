@@ -10,13 +10,13 @@ export function DisplayPanelButton() {
   const { toggle, open } = useDisplayPanel()
   return (
     <Button
-      variant="outline"
-      size="sm"
-      className={`gap-1.5 h-8 py-2 text-muted-foreground hover:text-foreground ${open ? 'bg-accent' : ''}`}
+      variant="ghost"
+      size="icon"
+      className={`h-8 w-8 text-muted-foreground hover:text-foreground ${open ? 'bg-accent' : ''}`}
       onClick={toggle}
+      aria-label="Toggle display settings"
     >
-      <SlidersHorizontal className="h-3.5 w-3.5" />
-      Display
+      <SlidersHorizontal className="h-4 w-4" />
     </Button>
   )
 }
