@@ -11,21 +11,26 @@ import type { FeatureKey, FeatureVisibilityMap } from '@/lib/types/features'
 
 const NAV_ITEMS: { href: string; label: string; icon: LucideIcon; badgeKey?: 'review' | 'settings' | 'notes'; adminOnly?: boolean; featureKey?: FeatureKey; beta?: boolean }[] = [
   { href: '/dashboard', label: 'Dashboard', icon: Building2 },
-  { href: '/review', label: 'Review', icon: ClipboardCheck, badgeKey: 'review' },
+  { href: '/investments', label: 'Investments', icon: BarChart3, featureKey: 'investments' },
+  { href: '/funds', label: 'Vehicles', icon: Briefcase, featureKey: 'funds' },
+ 
+  { href: '/interactions', label: 'Interactions', icon: Handshake, featureKey: 'interactions', beta: true  },
+  { href: '/notes', label: 'Notes', icon: StickyNote, badgeKey: 'notes', featureKey: 'notes' },
+  
   { href: '/emails', label: 'E-mail', icon: Mail },
   { href: '/import', label: 'Import', icon: Upload, featureKey: 'imports' },
-  { href: '/investments', label: 'Investments', icon: BarChart3, featureKey: 'investments' },
-  { href: '/benchmarking', label: 'Benchmarking', icon: TrendingUp, featureKey: 'investments', beta: true },
-  { href: '/funds', label: 'Vehicles', icon: Briefcase, featureKey: 'funds' },
+  
+  { href: '/review', label: 'Review', icon: ClipboardCheck, badgeKey: 'review' },
   { href: '/requests', label: 'Asks', icon: Send, featureKey: 'asks' },
-  { href: '/notes', label: 'Notes', icon: StickyNote, badgeKey: 'notes', featureKey: 'notes' },
+  
   { href: '/news', label: 'News', icon: Newspaper },
   { href: '/vc-market', label: 'VC Market', icon: Globe2, featureKey: 'vc_market', beta: true  },
-  { href: '/interactions', label: 'Interactions', icon: Handshake, featureKey: 'interactions', beta: true  },
+  { href: '/regulacoes', label: 'Regulation', icon: Scale, beta: true },
+  { href: '/benchmarking', label: 'Benchmarking', icon: TrendingUp, featureKey: 'investments', beta: true },
+ 
   { href: '/letters', label: 'Letters', icon: FileText, featureKey: 'lp_letters' },
   { href: '/lps', label: 'LPs', icon: Crown, featureKey: 'lps' },
   { href: '/compliance', label: 'Compliance', icon: ShieldCheck, featureKey: 'compliance', beta: true },
-  { href: '/regulacoes', label: 'Regulation', icon: Scale, beta: true },
   { href: '/usage', label: 'Usage', icon: Users, adminOnly: true },
   { href: '/settings', label: 'Settings', icon: Settings, badgeKey: 'settings' },
 ]
