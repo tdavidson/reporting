@@ -4,10 +4,17 @@ import type { AIProvider, AIModel, AIResult, CreateMessageParams, CreateChatPara
 export class OpenAIProvider implements AIProvider {
   private client: OpenAI
   private customBaseURL: boolean
+  private baseURL: string | undefined
 
   constructor(apiKey: string, baseURL?: string) {
     this.client = new OpenAI({ apiKey, ...(baseURL ? { baseURL } : {}) })
     this.customBaseURL = !!baseURL
+    this.baseURL = baseURL
+  }
+
+  private getOllamaTagsUrl(): string {
+    const base = (this.baseURL ?? '').replace(/\/v1\/?$/, '')
+    return base + '/api/tags'
   }
 
   async createMessage(params: CreateMessageParams): Promise<AIResult> {
@@ -68,14 +75,11 @@ export class OpenAIProvider implements AIProvider {
 
   async testConnection(): Promise<void> {
     if (this.customBaseURL) {
-      // For Ollama/custom endpoints, list models to verify connectivity
-      const list = await this.client.models.list()
-      const models: OpenAI.Model[] = []
-      for await (const model of list) {
-        models.push(model)
-        break // just need one to verify
-      }
-      if (models.length === 0) throw new Error('No models available')
+      // Ollama uses /api/tags, not /models
+      const res = await fetch(this.getOllamaTagsUrl())
+      if (!res.ok) throw new Error(`Ollama returned ${res.status}`)
+      const data = await res.json()
+      if (!data.models || data.models.length === 0) throw new Error('No models available')
       return
     }
     await this.client.chat.completions.create({
@@ -88,9 +92,7 @@ export class OpenAIProvider implements AIProvider {
   async listModels(): Promise<AIModel[]> {
     if (this.customBaseURL) {
       // Ollama uses /api/tags, not /models
-      const baseUrl = (this.client as any).baseURL as string
-      const tagsUrl = baseUrl.replace(/\/v1\/?$/, '') + '/api/tags'
-      const res = await fetch(tagsUrl)
+      const res = await fetch(this.getOllamaTagsUrl())
       const data = await res.json()
       return (data.models ?? []).map((m: { name: string }) => ({ id: m.name, name: m.name }))
     }
