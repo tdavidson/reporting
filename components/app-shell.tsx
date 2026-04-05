@@ -7,6 +7,7 @@ import { AppSidebar } from '@/components/app-sidebar'
 import { FeatureVisibilityProvider } from '@/components/feature-visibility-context'
 import { DisplayUnitProvider } from '@/components/display-unit-context'
 import { DisplayPanelProvider } from '@/components/display-panel-context'
+import { DisplayPanel } from '@/components/display-panel'
 import { DEFAULT_FEATURE_VISIBILITY } from '@/lib/types/features'
 import type { FeatureVisibilityMap } from '@/lib/types/features'
 
@@ -71,18 +72,23 @@ function AppShellInner({ fundName, fundLogo, userEmail, reviewBadge, settingsBad
         isAdmin={isAdmin}
         featureVisibility={featureVisibility}
       />
-<div className="flex flex-1 min-h-0">
-  <aside
-    className={`hidden md:flex flex-col shrink-0 pt-6 transition-all duration-200 border-r border-border/60 sticky top-14 h-[calc(100vh-3.5rem)] overflow-y-auto
-   ${
-      collapsed ? 'w-16' : 'w-56'
-    }`}
+      {/* Display panel floats as overlay below header, does not affect layout flow */}
+      <div className="relative">
+        <div className="absolute top-0 right-4 z-30">
+          <DisplayPanel />
+        </div>
+      </div>
+      <div className="flex flex-1 min-h-0">
+        <aside
+          className={`hidden md:flex flex-col shrink-0 pt-6 transition-all duration-200 border-r border-border/60 sticky top-14 h-[calc(100vh-3.5rem)] overflow-y-auto ${
+            collapsed ? 'w-16' : 'w-56'
+          }`}
         >
           <AppSidebar reviewBadge={reviewBadge} settingsBadge={settingsBadge} notesBadge={notesBadge} isAdmin={isAdmin} updateAvailable={updateAvailable} featureVisibility={featureVisibility} />
         </aside>
-<main className="flex-1 min-w-0 flex flex-col overflow-hidden">
-  {children}
-</main>
+        <main className="flex-1 min-w-0 flex flex-col overflow-hidden">
+          {children}
+        </main>
       </div>
     </>
   )

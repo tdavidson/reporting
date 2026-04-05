@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent } from '@/components/ui/sheet'
 import { AppSidebar } from '@/components/app-sidebar'
 import { useSidebar } from '@/components/sidebar-context'
-import { DisplayPanelButton, DisplayPanel } from '@/components/display-panel'
+import { DisplayPanelButton } from '@/components/display-panel'
 import type { FeatureVisibilityMap } from '@/lib/types/features'
 
 interface AppHeaderProps {
@@ -65,8 +65,6 @@ export function AppHeader({ fundName, fundLogo, userEmail, reviewBadge, settings
           </form>
         </div>
       </div>
-
-      <DisplayPanel />
 
       {/* Mobile drawer */}
       <Sheet open={drawerOpen} onOpenChange={setDrawerOpen}>
