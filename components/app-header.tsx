@@ -46,7 +46,7 @@ export function AppHeader({ fundName, fundLogo, userEmail, reviewBadge, settings
             </div>
           )}
 
-          <span className="font-bold text-lg text-primary tracking-tight truncate">
+          <span className="font-bold text-lg text-primary dark:text-white tracking-tight truncate">
             {fundName}
           </span>
         </div>
