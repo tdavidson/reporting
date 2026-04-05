@@ -10,6 +10,9 @@
     "app/api/inbound-email/route.ts": {
       "maxDuration": 120
     },
+    "app/api/analyst/route.ts": {
+      "maxDuration": 120
+    },
     "app/api/companies/*/summary/route.ts": {
       "maxDuration": 30
     },
