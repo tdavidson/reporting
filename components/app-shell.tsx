@@ -72,12 +72,7 @@ function AppShellInner({ fundName, fundLogo, userEmail, reviewBadge, settingsBad
         isAdmin={isAdmin}
         featureVisibility={featureVisibility}
       />
-      {/* Display panel floats as overlay below header, does not affect layout flow */}
-      <div className="relative">
-        <div className="absolute top-0 right-4 z-30">
-          <DisplayPanel />
-        </div>
-      </div>
+      <DisplayPanel />
       <div className="flex flex-1 min-h-0">
         <aside
           className={`hidden md:flex flex-col shrink-0 pt-6 transition-all duration-200 border-r border-border/60 sticky top-14 h-[calc(100vh-3.5rem)] overflow-y-auto ${
