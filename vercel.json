@@ -20,7 +20,7 @@
       "maxDuration": 120
     },
     "app/api/vc-market/cron/route.ts": {
-      "maxDuration": 120
+      "maxDuration": 300
     }
   }
 }
