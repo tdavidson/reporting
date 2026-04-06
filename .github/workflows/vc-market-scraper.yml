@@ -1,0 +1,21 @@
+name: VC Market Daily Scraper
+
+on:
+  schedule:
+    - cron: '0 18 * * *'  # 18:00 UTC = 15:00 BRT
+  workflow_dispatch:       # permite rodar manualmente pelo GitHub
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger scraper
+        run: |
+          STATUS=$(curl -s -o /tmp/response.txt -w "%{http_code}" \
+            -X GET "${{ secrets.APP_URL }}/api/vc-market/cron")
+          echo "HTTP Status: $STATUS"
+          echo "Response: $(cat /tmp/response.txt)"
+          if [ "$STATUS" != "200" ]; then
+            echo "Scraper failed with status $STATUS"
+            exit 1
+          fi
