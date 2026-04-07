@@ -58,18 +58,25 @@ function monthToQuarter(month: number): number {
 
 /**
  * Convert an Excel serial date number to { year, month }.
- * Excel epoch: Jan 1 1900 = serial 1 (with the Lotus 1-2-3 leap-year bug: serial 60 = Feb 29 1900, which never existed).
- * Valid range: 1 (1900-01-01) to 73050 (2099-12-31).
  */
 function excelSerialToDate(serial: number): { year: number; month: number } | null {
   if (serial < 1 || serial > 73050) return null
-  // Adjust for Lotus bug: serials >= 60 are off by one
   const adjusted = serial >= 60 ? serial - 1 : serial
-  // Days since Dec 30 1899
   const date = new Date(Date.UTC(1899, 11, 30) + adjusted * 86400000)
   return { year: date.getUTCFullYear(), month: date.getUTCMonth() + 1 }
 }
 
+/**
+ * Parse a period string into { year, quarter, month }.
+ *
+ * The AI prompt normalizes most dates to ISO yyyy-MM-dd before they reach here.
+ * This parser handles:
+ *   - ISO date / datetime       "2024-01-01", "2024-01-01T00:00:00"
+ *   - Quarter labels            "Q1 2025", "Q1/2025", "1Q25"
+ *   - Year only / fiscal year   "2025", "FY2025"
+ *   - Excel serial numbers      "45292"
+ *   - Anything else: Date.parse fallback (handles most locale formats JS understands)
+ */
 function parsePeriodLabel(period: string): {
   label: string
   year: number
@@ -79,119 +86,58 @@ function parsePeriodLabel(period: string): {
   const label = period.trim()
   if (!label) return null
 
-  // Excel serial date — may arrive as "45292" or "45,292" (CSV thousand-separator)
+  // Excel serial
   const serialStr = label.replace(/,/g, '')
-  if (/^\d{4,6}$/.test(serialStr)) {
+  if (/^\d{5,6}$/.test(serialStr)) {
     const serial = parseInt(serialStr)
-    // Only treat as serial if it looks like one: 5-digit numbers 10000+ are safely in date range
-    // but also accept 4-digit if > 2958 (year > 1900+8), which avoids clashing with plain years like 2025
-    // Strategy: if > 9999 it can't be a year, so treat as serial; if 1000-9999 try year first (handled below)
     if (serial > 9999) {
       const d = excelSerialToDate(serial)
       if (d) return { label, year: d.year, quarter: monthToQuarter(d.month), month: d.month }
     }
   }
 
-  // "yyyy-MM-dd HH:mm:ss" or "yyyy-MM-ddTHH:mm:ss"
-  const tsMatch = label.match(/^(\d{4})-(\d{2})-(\d{2})[T ]\d{2}:\d{2}/)
-  if (tsMatch) {
-    const month = parseInt(tsMatch[2])
+  // ISO datetime or date: "yyyy-MM-dd" or "yyyy-MM-ddTHH:mm"
+  const isoMatch = label.match(/^(\d{4})-(\d{2})-(\d{2})/)
+  if (isoMatch) {
+    const month = parseInt(isoMatch[2])
     if (month >= 1 && month <= 12)
-      return { label, year: parseInt(tsMatch[1]), quarter: monthToQuarter(month), month }
+      return { label, year: parseInt(isoMatch[1]), quarter: monthToQuarter(month), month }
   }
 
-  // "Q1 2025" or "Q1/2025"
-  const qSpaceMatch = label.match(/^Q(\d)[\s/]+(\d{4})$/i)
-  if (qSpaceMatch)
-    return { label, year: parseInt(qSpaceMatch[2]), quarter: parseInt(qSpaceMatch[1]), month: null }
+  // Quarter: "Q1 2025", "Q1/2025"
+  const qFwd = label.match(/^Q(\d)[\s/]+(\d{4})$/i)
+  if (qFwd) return { label, year: parseInt(qFwd[2]), quarter: parseInt(qFwd[1]), month: null }
 
-  // "1Q25" or "1Q2025"
-  const qSuffixMatch = label.match(/^(\d)Q(\d{2}|\d{4})$/i)
-  if (qSuffixMatch) {
-    const yr = qSuffixMatch[2].length === 2 ? 2000 + parseInt(qSuffixMatch[2]) : parseInt(qSuffixMatch[2])
-    return { label, year: yr, quarter: parseInt(qSuffixMatch[1]), month: null }
+  // Quarter: "1Q25" or "1Q2025"
+  const qBwd = label.match(/^(\d)Q(\d{2}|\d{4})$/i)
+  if (qBwd) {
+    const yr = qBwd[2].length === 2 ? 2000 + parseInt(qBwd[2]) : parseInt(qBwd[2])
+    return { label, year: yr, quarter: parseInt(qBwd[1]), month: null }
   }
 
-  const months     = ['january','february','march','april','may','june','july','august','september','october','november','december']
-  const monthAbbrs = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec']
-  for (let i = 0; i < months.length; i++) {
-    const re = new RegExp(`^(?:${months[i]}|${monthAbbrs[i]})\\s*(\\d{4})$`, 'i')
-    const m = label.match(re)
-    if (m) {
-      const month = i + 1
-      return { label, year: parseInt(m[1]), quarter: monthToQuarter(month), month }
-    }
-  }
-
-  // "d-Mon-yy" or "d-Mon-yyyy" — Excel format e.g. "1-Jan-24", "15-Mar-2025"
-  const dMonY = label.match(/^(\d{1,2})-([A-Za-z]{3})-(\d{2}|\d{4})$/)
-  if (dMonY) {
-    const abbr = dMonY[2].toLowerCase()
-    const monthIdx = monthAbbrs.indexOf(abbr)
-    if (monthIdx !== -1) {
-      const month = monthIdx + 1
-      const yr = dMonY[3].length === 2 ? 2000 + parseInt(dMonY[3]) : parseInt(dMonY[3])
-      return { label, year: yr, quarter: monthToQuarter(month), month }
-    }
-  }
-
-  // "M/yyyy"
-  const mSlashY = label.match(/^(\d{1,2})\/(\d{4})$/)
-  if (mSlashY) {
-    const month = parseInt(mSlashY[1])
-    if (month >= 1 && month <= 12) return { label, year: parseInt(mSlashY[2]), quarter: monthToQuarter(month), month }
-  }
-
-  // "yyyy-M" or "yyyy/M"
-  const yDashM = label.match(/^(\d{4})[-/](\d{1,2})$/)
-  if (yDashM) {
-    const month = parseInt(yDashM[2])
-    if (month >= 1 && month <= 12) return { label, year: parseInt(yDashM[1]), quarter: monthToQuarter(month), month }
-  }
-
-  // "M-yyyy"
-  const mDashY = label.match(/^(\d{1,2})-(\d{4})$/)
-  if (mDashY) {
-    const month = parseInt(mDashY[1])
-    if (month >= 1 && month <= 12) return { label, year: parseInt(mDashY[2]), quarter: monthToQuarter(month), month }
-  }
-
-  // "M/D/yyyy" — 4-digit year, US convention (first = month)
-  const mdY4 = label.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/)
-  if (mdY4) {
-    const month = parseInt(mdY4[1])
-    const year  = parseInt(mdY4[3])
-    if (month >= 1 && month <= 12) return { label, year, quarter: monthToQuarter(month), month }
-  }
-
-  // "M/D/YY" — 2-digit year (e.g. 2/1/22 → Feb 2022)
-  const mdY2 = label.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2})$/)
-  if (mdY2) {
-    const month = parseInt(mdY2[1])
-    const year  = 2000 + parseInt(mdY2[3])
-    if (month >= 1 && month <= 12) return { label, year, quarter: monthToQuarter(month), month }
-  }
-
-  // ISO "yyyy-MM-dd"
-  const isoDate = label.match(/^(\d{4})-(\d{2})-(\d{2})$/)
-  if (isoDate) {
-    const month = parseInt(isoDate[2])
-    if (month >= 1 && month <= 12) return { label, year: parseInt(isoDate[1]), quarter: monthToQuarter(month), month }
-  }
-
-  // "yyyy/MM/dd"
-  const yMD = label.match(/^(\d{4})\/(\d{2})\/(\d{2})$/)
-  if (yMD) {
-    const month = parseInt(yMD[2])
-    if (month >= 1 && month <= 12) return { label, year: parseInt(yMD[1]), quarter: monthToQuarter(month), month }
-  }
-
-  // "2025" or "FY2025"
+  // Year only: "2025" or "FY2025"
   const yearOnly = label.match(/^(\d{4})$/)
   if (yearOnly) return { label, year: parseInt(yearOnly[1]), quarter: null, month: null }
 
   const fyMatch = label.match(/^FY\s*(\d{4})$/i)
   if (fyMatch) return { label, year: parseInt(fyMatch[1]), quarter: null, month: null }
+
+  // Universal fallback: let JS Date parse whatever the AI didn't normalize
+  // Append a day if it looks like "Mon YYYY" or "YYYY Mon" to help Date.parse
+  const normalized = label
+    .replace(/^(\d{1,2})\/(\d{4})$/, '$1/1/$2')       // M/yyyy → M/1/yyyy
+    .replace(/^(\d{4})\/(\d{1,2})$/, '$2/1/$1')        // yyyy/M → M/1/yyyy
+    .replace(/^(\d{1,2})-(\d{4})$/, '$1/1/$2')         // M-yyyy → M/1/yyyy
+
+  const ts = Date.parse(normalized)
+  if (!isNaN(ts)) {
+    const d = new Date(ts)
+    // Date.parse uses local time; extract UTC parts to avoid off-by-one on midnight
+    const year  = d.getUTCFullYear()
+    const month = d.getUTCMonth() + 1
+    if (year >= 1990 && year <= 2100 && month >= 1 && month <= 12)
+      return { label, year, quarter: monthToQuarter(month), month }
+  }
 
   return null
 }
@@ -269,8 +215,8 @@ Return ONLY valid JSON in this exact format (no markdown, no explanation):
           "value_type": "currency",
           "cadence": "monthly",
           "historical_values": [
-            { "period": "2/1/22", "value": 50000 },
-            { "period": "3/1/22", "value": 55000 }
+            { "period": "2022-02-01", "value": 50000 },
+            { "period": "2022-03-01", "value": 55000 }
           ]
         }
       ]
@@ -278,14 +224,26 @@ Return ONLY valid JSON in this exact format (no markdown, no explanation):
   ]
 }
 
+CRITICAL — Period normalization:
+- ALL period values MUST be normalized to ISO format before output.
+- Monthly periods → "yyyy-MM-01" (first day of month). Examples:
+    "1-Jan-24"  → "2024-01-01"
+    "Feb-25"    → "2025-02-01"
+    "2/1/22"    → "2022-02-01"
+    "Jan 2025"  → "2025-01-01"
+    "01/2025"   → "2025-01-01"
+- Quarterly periods → "Q1 2025", "Q2 2025", etc.
+- Annual periods → "2025" or "FY2025".
+- Excel serial numbers (e.g. 45292) → convert to the corresponding "yyyy-MM-01".
+- When ambiguous, prefer month-level granularity.
+
 CRITICAL — Two common spreadsheet layouts:
 
 1. WIDE FORMAT (pivot table): columns are dates/periods, rows are companies+metrics.
    Example:
-     Company | Metric     | Unit | 2/1/22 | 3/1/22
+     Company | Metric     | Unit | 1-Jan-24 | 1-Feb-24
      Klubi   | AuM        | R$   | 29300000 | 38270000
-   → Each date column header becomes a period in historical_values.
-   → PRESERVE the column header EXACTLY as-is in the "period" field. Do NOT reformat or normalize dates.
+   → Each date column header becomes a period in historical_values, normalized to ISO.
    → Group rows by Company: all metric rows for the same company become one company entry.
 
 2. TALL FORMAT (normalized): each row is one value — columns: company, metric, period, value.
