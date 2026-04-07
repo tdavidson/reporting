@@ -39,6 +39,26 @@ const CONFIDENCE_COLORS: Record<string, string> = {
   low: 'hsl(var(--destructive))',
 }
 
+function formatPeriodLabel(v: MetricValueRow): string {
+  const { period_year, period_month, period_quarter } = v
+
+  // Monthly: MM/YY
+  if (period_month != null) {
+    const mm = String(period_month).padStart(2, '0')
+    const yy = String(period_year).slice(-2)
+    return `${mm}/${yy}`
+  }
+
+  // Quarterly: QX.YY
+  if (period_quarter != null) {
+    const yy = String(period_year).slice(-2)
+    return `Q${period_quarter}.${yy}`
+  }
+
+  // Annual: YYYY
+  return String(period_year)
+}
+
 export function MetricChart({ metric, values, onRefresh, compact }: Props) {
   const fundCurrency = useCurrency()
   const [chartType, setChartType] = useState<'line' | 'bar'>('line')
@@ -49,7 +69,7 @@ export function MetricChart({ metric, values, onRefresh, compact }: Props) {
   } | null>(null)
 
   const data: ChartPoint[] = values.map((v) => ({
-    label: v.period_label,
+    label: formatPeriodLabel(v),
     value: v.value_number,
     raw: v,
   }))
