@@ -56,9 +56,6 @@ function monthToQuarter(month: number): number {
   return Math.ceil(month / 3)
 }
 
-/**
- * Convert an Excel serial date number to { year, month }.
- */
 function excelSerialToDate(serial: number): { year: number; month: number } | null {
   if (serial < 1 || serial > 73050) return null
   const adjusted = serial >= 60 ? serial - 1 : serial
@@ -66,17 +63,6 @@ function excelSerialToDate(serial: number): { year: number; month: number } | nu
   return { year: date.getUTCFullYear(), month: date.getUTCMonth() + 1 }
 }
 
-/**
- * Parse a period string into { year, quarter, month }.
- *
- * The AI prompt normalizes most dates to ISO yyyy-MM-dd before they reach here.
- * This parser handles:
- *   - ISO date / datetime       "2024-01-01", "2024-01-01T00:00:00"
- *   - Quarter labels            "Q1 2025", "Q1/2025", "1Q25"
- *   - Year only / fiscal year   "2025", "FY2025"
- *   - Excel serial numbers      "45292"
- *   - Anything else: Date.parse fallback (handles most locale formats JS understands)
- */
 function parsePeriodLabel(period: string): {
   label: string
   year: number
@@ -86,7 +72,6 @@ function parsePeriodLabel(period: string): {
   const label = period.trim()
   if (!label) return null
 
-  // Excel serial
   const serialStr = label.replace(/,/g, '')
   if (/^\d{5,6}$/.test(serialStr)) {
     const serial = parseInt(serialStr)
@@ -96,7 +81,6 @@ function parsePeriodLabel(period: string): {
     }
   }
 
-  // ISO datetime or date: "yyyy-MM-dd" or "yyyy-MM-ddTHH:mm"
   const isoMatch = label.match(/^(\d{4})-(\d{2})-(\d{2})/)
   if (isoMatch) {
     const month = parseInt(isoMatch[2])
@@ -104,35 +88,29 @@ function parsePeriodLabel(period: string): {
       return { label, year: parseInt(isoMatch[1]), quarter: monthToQuarter(month), month }
   }
 
-  // Quarter: "Q1 2025", "Q1/2025"
   const qFwd = label.match(/^Q(\d)[\s/]+(\d{4})$/i)
   if (qFwd) return { label, year: parseInt(qFwd[2]), quarter: parseInt(qFwd[1]), month: null }
 
-  // Quarter: "1Q25" or "1Q2025"
   const qBwd = label.match(/^(\d)Q(\d{2}|\d{4})$/i)
   if (qBwd) {
     const yr = qBwd[2].length === 2 ? 2000 + parseInt(qBwd[2]) : parseInt(qBwd[2])
     return { label, year: yr, quarter: parseInt(qBwd[1]), month: null }
   }
 
-  // Year only: "2025" or "FY2025"
   const yearOnly = label.match(/^(\d{4})$/)
   if (yearOnly) return { label, year: parseInt(yearOnly[1]), quarter: null, month: null }
 
   const fyMatch = label.match(/^FY\s*(\d{4})$/i)
   if (fyMatch) return { label, year: parseInt(fyMatch[1]), quarter: null, month: null }
 
-  // Universal fallback: let JS Date parse whatever the AI didn't normalize
-  // Append a day if it looks like "Mon YYYY" or "YYYY Mon" to help Date.parse
   const normalized = label
-    .replace(/^(\d{1,2})\/(\d{4})$/, '$1/1/$2')       // M/yyyy → M/1/yyyy
-    .replace(/^(\d{4})\/(\d{1,2})$/, '$2/1/$1')        // yyyy/M → M/1/yyyy
-    .replace(/^(\d{1,2})-(\d{4})$/, '$1/1/$2')         // M-yyyy → M/1/yyyy
+    .replace(/^(\d{1,2})\/(\d{4})$/, '$1/1/$2')
+    .replace(/^(\d{4})\/(\d{1,2})$/, '$2/1/$1')
+    .replace(/^(\d{1,2})-(\d{4})$/, '$1/1/$2')
 
   const ts = Date.parse(normalized)
   if (!isNaN(ts)) {
     const d = new Date(ts)
-    // Date.parse uses local time; extract UTC parts to avoid off-by-one on midnight
     const year  = d.getUTCFullYear()
     const month = d.getUTCMonth() + 1
     if (year >= 1990 && year <= 2100 && month >= 1 && month <= 12)
@@ -165,7 +143,7 @@ export async function POST(req: NextRequest) {
 
   const fundId = membership.fund_id
   const body = await req.json()
-  const { text } = body
+  const { text, overwrite = false } = body
 
   if (typeof text !== 'string' || !text.trim())
     return NextResponse.json({ error: 'No text provided' }, { status: 400 })
@@ -315,6 +293,7 @@ ${text}`,
     metricsCreated: 0,
     metricsMatched: 0,
     metricValuesCreated: 0,
+    metricValuesUpdated: 0,
     metricValuesSkippedDuplicate: 0,
     metricValuesSkippedParseFail: 0,
     rejectedPeriods: [] as string[],
@@ -499,7 +478,22 @@ ${text}`,
             const { data: existingVal } = await existingQuery.maybeSingle()
 
             if (existingVal) {
-              results.metricValuesSkippedDuplicate++
+              if (!overwrite) {
+                results.metricValuesSkippedDuplicate++
+                continue
+              }
+              const { error: updateErr } = await admin
+                .from('metric_values')
+                .update({
+                  period_label: period.label,
+                  value_number: isNaN(valueNum) ? null : valueNum,
+                  value_text: isNaN(valueNum) ? sanitize(String(hv.value)) : null,
+                  confidence: 'high',
+                  is_manually_entered: true,
+                })
+                .eq('id', existingVal.id)
+              if (!updateErr) results.metricValuesUpdated++
+              else results.errors.push(`Failed to update metric value: ${updateErr.message}`)
               continue
             }
 
