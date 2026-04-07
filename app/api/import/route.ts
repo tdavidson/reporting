@@ -56,6 +56,20 @@ function monthToQuarter(month: number): number {
   return Math.ceil(month / 3)
 }
 
+/**
+ * Convert an Excel serial date number to { year, month }.
+ * Excel epoch: Jan 1 1900 = serial 1 (with the Lotus 1-2-3 leap-year bug: serial 60 = Feb 29 1900, which never existed).
+ * Valid range: 1 (1900-01-01) to 73050 (2099-12-31).
+ */
+function excelSerialToDate(serial: number): { year: number; month: number } | null {
+  if (serial < 1 || serial > 73050) return null
+  // Adjust for Lotus bug: serials >= 60 are off by one
+  const adjusted = serial >= 60 ? serial - 1 : serial
+  // Days since Dec 30 1899
+  const date = new Date(Date.UTC(1899, 11, 30) + adjusted * 86400000)
+  return { year: date.getUTCFullYear(), month: date.getUTCMonth() + 1 }
+}
+
 function parsePeriodLabel(period: string): {
   label: string
   year: number
@@ -64,6 +78,19 @@ function parsePeriodLabel(period: string): {
 } | null {
   const label = period.trim()
   if (!label) return null
+
+  // Excel serial date — may arrive as "45292" or "45,292" (CSV thousand-separator)
+  const serialStr = label.replace(/,/g, '')
+  if (/^\d{4,6}$/.test(serialStr)) {
+    const serial = parseInt(serialStr)
+    // Only treat as serial if it looks like one: 5-digit numbers 10000+ are safely in date range
+    // but also accept 4-digit if > 2958 (year > 1900+8), which avoids clashing with plain years like 2025
+    // Strategy: if > 9999 it can't be a year, so treat as serial; if 1000-9999 try year first (handled below)
+    if (serial > 9999) {
+      const d = excelSerialToDate(serial)
+      if (d) return { label, year: d.year, quarter: monthToQuarter(d.month), month: d.month }
+    }
+  }
 
   // "yyyy-MM-dd HH:mm:ss" or "yyyy-MM-ddTHH:mm:ss"
   const tsMatch = label.match(/^(\d{4})-(\d{2})-(\d{2})[T ]\d{2}:\d{2}/)
