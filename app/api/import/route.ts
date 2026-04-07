@@ -34,31 +34,26 @@ interface ParsedCompany {
   metrics?: ParsedMetric[]
 }
 
-// ---------------------------------------------------------------------------
-// Security helpers
-// ---------------------------------------------------------------------------
-
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
-/** Strip HTML tags, control chars, and cap length to prevent XSS / buffer issues */
 function sanitize(val: string): string {
   return val
-    .replace(/<[^>]*>/g, '')                              // strip HTML tags
-    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '')  // strip control chars
+    .replace(/<[^>]*>/g, '')
+    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '')
     .trim()
-    .slice(0, 10_000)                                     // hard length cap per field
+    .slice(0, 10_000)
 }
 
 function isValidEmail(email: string): boolean {
   return EMAIL_RE.test(email) && email.length <= 254
 }
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
 function slugify(name: string): string {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '')
+}
+
+function monthToQuarter(month: number): number {
+  return Math.ceil(month / 3)
 }
 
 function parsePeriodLabel(period: string): {
@@ -66,53 +61,101 @@ function parsePeriodLabel(period: string): {
   year: number
   quarter: number | null
   month: number | null
-} {
+} | null {
   const label = period.trim()
+  if (!label) return null
 
-  // Try Q1 2025 format
-  const qMatch = label.match(/Q(\d)\s+(\d{4})/)
-  if (qMatch) {
-    return {
-      label,
-      year: parseInt(qMatch[2]),
-      quarter: parseInt(qMatch[1]),
-      month: null,
-    }
+  // "yyyy-MM-dd HH:mm:ss" or "yyyy-MM-ddTHH:mm:ss"
+  const tsMatch = label.match(/^(\d{4})-(\d{2})-(\d{2})[T ]\d{2}:\d{2}/)
+  if (tsMatch) {
+    const month = parseInt(tsMatch[2])
+    if (month >= 1 && month <= 12)
+      return { label, year: parseInt(tsMatch[1]), quarter: monthToQuarter(month), month }
   }
 
-  // Try month name + year (e.g. "January 2025", "Jan 2025")
-  const months = [
-    'january', 'february', 'march', 'april', 'may', 'june',
-    'july', 'august', 'september', 'october', 'november', 'december',
-  ]
-  const monthAbbrs = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec']
+  // "Q1 2025" or "Q1/2025"
+  const qSpaceMatch = label.match(/^Q(\d)[\s/]+(\d{4})$/i)
+  if (qSpaceMatch)
+    return { label, year: parseInt(qSpaceMatch[2]), quarter: parseInt(qSpaceMatch[1]), month: null }
 
+  // "1Q25" or "1Q2025"
+  const qSuffixMatch = label.match(/^(\d)Q(\d{2}|\d{4})$/i)
+  if (qSuffixMatch) {
+    const yr = qSuffixMatch[2].length === 2 ? 2000 + parseInt(qSuffixMatch[2]) : parseInt(qSuffixMatch[2])
+    return { label, year: yr, quarter: parseInt(qSuffixMatch[1]), month: null }
+  }
+
+  const months     = ['january','february','march','april','may','june','july','august','september','october','november','december']
+  const monthAbbrs = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec']
   for (let i = 0; i < months.length; i++) {
-    const re = new RegExp(`(?:${months[i]}|${monthAbbrs[i]})\\s+(\\d{4})`, 'i')
+    const re = new RegExp(`^(?:${months[i]}|${monthAbbrs[i]})\\s*(\\d{4})$`, 'i')
     const m = label.match(re)
     if (m) {
-      return {
-        label,
-        year: parseInt(m[1]),
-        quarter: null,
-        month: i + 1,
-      }
+      const month = i + 1
+      return { label, year: parseInt(m[1]), quarter: monthToQuarter(month), month }
     }
   }
 
-  // Try year only
-  const yearMatch = label.match(/^(\d{4})$/)
-  if (yearMatch) {
-    return { label, year: parseInt(yearMatch[1]), quarter: null, month: null }
+  // "M/yyyy"
+  const mSlashY = label.match(/^(\d{1,2})\/(\d{4})$/)
+  if (mSlashY) {
+    const month = parseInt(mSlashY[1])
+    if (month >= 1 && month <= 12) return { label, year: parseInt(mSlashY[2]), quarter: monthToQuarter(month), month }
   }
 
-  // Fallback
-  return { label, year: new Date().getFullYear(), quarter: null, month: null }
-}
+  // "yyyy-M" or "yyyy/M"
+  const yDashM = label.match(/^(\d{4})[-/](\d{1,2})$/)
+  if (yDashM) {
+    const month = parseInt(yDashM[2])
+    if (month >= 1 && month <= 12) return { label, year: parseInt(yDashM[1]), quarter: monthToQuarter(month), month }
+  }
 
-// ---------------------------------------------------------------------------
-// POST handler
-// ---------------------------------------------------------------------------
+  // "M-yyyy"
+  const mDashY = label.match(/^(\d{1,2})-(\d{4})$/)
+  if (mDashY) {
+    const month = parseInt(mDashY[1])
+    if (month >= 1 && month <= 12) return { label, year: parseInt(mDashY[2]), quarter: monthToQuarter(month), month }
+  }
+
+  // "M/D/yyyy" — 4-digit year, US convention (first = month)
+  const mdY4 = label.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/)
+  if (mdY4) {
+    const month = parseInt(mdY4[1])
+    const year  = parseInt(mdY4[3])
+    if (month >= 1 && month <= 12) return { label, year, quarter: monthToQuarter(month), month }
+  }
+
+  // "M/D/YY" — 2-digit year (e.g. 2/1/22 → Feb 2022)
+  const mdY2 = label.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2})$/)
+  if (mdY2) {
+    const month = parseInt(mdY2[1])
+    const year  = 2000 + parseInt(mdY2[3])
+    if (month >= 1 && month <= 12) return { label, year, quarter: monthToQuarter(month), month }
+  }
+
+  // ISO "yyyy-MM-dd"
+  const isoDate = label.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  if (isoDate) {
+    const month = parseInt(isoDate[2])
+    if (month >= 1 && month <= 12) return { label, year: parseInt(isoDate[1]), quarter: monthToQuarter(month), month }
+  }
+
+  // "yyyy/MM/dd"
+  const yMD = label.match(/^(\d{4})\/(\d{2})\/(\d{2})$/)
+  if (yMD) {
+    const month = parseInt(yMD[2])
+    if (month >= 1 && month <= 12) return { label, year: parseInt(yMD[1]), quarter: monthToQuarter(month), month }
+  }
+
+  // "2025" or "FY2025"
+  const yearOnly = label.match(/^(\d{4})$/)
+  if (yearOnly) return { label, year: parseInt(yearOnly[1]), quarter: null, month: null }
+
+  const fyMatch = label.match(/^FY\s*(\d{4})$/i)
+  if (fyMatch) return { label, year: parseInt(fyMatch[1]), quarter: null, month: null }
+
+  return null
+}
 
 export async function POST(req: NextRequest) {
   const supabase = createClient()
@@ -122,7 +165,6 @@ export async function POST(req: NextRequest) {
   const writeCheck = await assertWriteAccess(createAdminClient(), user.id)
   if (writeCheck instanceof NextResponse) return writeCheck
 
-  // Rate limit import: 10 per 5 minutes per user
   const limited = await rateLimit({ key: `import:${user.id}`, limit: 10, windowSeconds: 300 })
   if (limited) return limited
 
@@ -140,16 +182,12 @@ export async function POST(req: NextRequest) {
   const body = await req.json()
   const { text } = body
 
-  // --- Input validation ---
-  if (typeof text !== 'string' || !text.trim()) {
+  if (typeof text !== 'string' || !text.trim())
     return NextResponse.json({ error: 'No text provided' }, { status: 400 })
-  }
 
-  if (text.length > 500_000) {
+  if (text.length > 500_000)
     return NextResponse.json({ error: 'Input too large. Maximum 500KB of text allowed.' }, { status: 400 })
-  }
 
-  // Get AI provider + model
   let provider: Awaited<ReturnType<typeof createFundAIProvider>>['provider']
   let claudeModel: string
   let aiProviderType: string
@@ -162,13 +200,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Claude API key not configured. Add one in Settings.' }, { status: 400 })
   }
 
-  // Parse with AI
   let responseText: string
   try {
     const aiResult = await provider.createMessage({
       model: claudeModel,
       maxTokens: 8192,
-      content: `Parse the following spreadsheet/CSV data into structured JSON. Extract companies with their details and metrics.
+      content: `Parse the following spreadsheet/CSV data into structured JSON. Extract companies with their metrics and historical values.
 
 Return ONLY valid JSON in this exact format (no markdown, no explanation):
 {
@@ -188,12 +225,13 @@ Return ONLY valid JSON in this exact format (no markdown, no explanation):
       "metrics": [
         {
           "name": "MRR",
-          "unit": "$",
+          "unit": "R$",
           "unit_position": "prefix",
           "value_type": "currency",
           "cadence": "monthly",
           "historical_values": [
-            { "period": "Q1 2025", "value": 50000 }
+            { "period": "2/1/22", "value": 50000 },
+            { "period": "3/1/22", "value": 55000 }
           ]
         }
       ]
@@ -201,19 +239,23 @@ Return ONLY valid JSON in this exact format (no markdown, no explanation):
   ]
 }
 
-Rules:
-- Each row likely represents a company
-- Look for columns like: company name, fund, email, industry/sector, stage, description/summary, founders, contact email, overview, investment thesis
-- Look for metric columns with values (revenue, MRR, ARR, headcount, burn rate, etc.)
-- The "fund" column maps to tags (e.g. "Fund I", "Fund II")
-- value_type: use "currency" for dollar amounts, "percentage" for percentages, "number" for counts
-- unit_position: "prefix" for currency ($), "suffix" for percent (%)
-- If a column header looks like a period (Q1 2025, Jan 2025, 2024), those are historical metric values
-- Infer the metric name from the row label or column group header
-- If two columns represent the same metric with different names (e.g. "Revenue" and "Rev"), combine them under one metric
-- If the data has free-form text describing metrics, extract numeric values and create appropriate metrics
-- Infer the reporting period from context (column headers, dates, labels)
-- Map "sector" fields to "industry"
+CRITICAL — Two common spreadsheet layouts:
+
+1. WIDE FORMAT (pivot table): columns are dates/periods, rows are companies+metrics.
+   Example:
+     Company | Metric     | Unit | 2/1/22 | 3/1/22
+     Klubi   | AuM        | R$   | 29300000 | 38270000
+   → Each date column header becomes a period in historical_values.
+   → PRESERVE the column header EXACTLY as-is in the "period" field. Do NOT reformat or normalize dates.
+   → Group rows by Company: all metric rows for the same company become one company entry.
+
+2. TALL FORMAT (normalized): each row is one value — columns: company, metric, period, value.
+
+General rules:
+- value_type: "currency" for monetary amounts, "percentage" for rates/percentages, "number" for counts
+- unit_position: "prefix" for currency symbols (R$, $, €), "suffix" for percent (%)
+- cadence: "monthly" if periods are month-level dates, "quarterly" if Q1/Q2..., "annual" if yearly
+- Skip rows or columns that are entirely empty
 - If you can't parse something, skip it rather than guessing wrong
 
 Data to parse:
@@ -232,14 +274,11 @@ ${text}`,
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
     console.error('[import] Claude API error:', message)
-    return NextResponse.json({
-      error: 'AI API call failed. Check your API key in Settings.',
-    }, { status: 500 })
+    return NextResponse.json({ error: 'AI API call failed. Check your API key in Settings.' }, { status: 500 })
   }
 
   let parsed: { companies: ParsedCompany[] }
   try {
-    // Try to extract JSON from the response (handle possible markdown wrapping)
     const jsonMatch = responseText.match(/\{[\s\S]*\}/)
     if (!jsonMatch) throw new Error('No JSON found in response')
     parsed = JSON.parse(jsonMatch[0])
@@ -249,16 +288,12 @@ ${text}`,
     }, { status: 500 })
   }
 
-  // --- Structure validation ---
-  if (!parsed.companies || !Array.isArray(parsed.companies)) {
+  if (!parsed.companies || !Array.isArray(parsed.companies))
     return NextResponse.json({ error: 'Invalid response structure' }, { status: 500 })
-  }
 
-  if (parsed.companies.length > 1000) {
+  if (parsed.companies.length > 1000)
     return NextResponse.json({ error: 'Too many companies in parsed result (max 1000)' }, { status: 400 })
-  }
 
-  // Get existing companies for matching
   const { data: existingCompanies } = await admin
     .from('companies')
     .select('id, name')
@@ -268,7 +303,6 @@ ${text}`,
     (existingCompanies ?? []).map(c => [c.name.toLowerCase(), c.id])
   )
 
-  // Get existing senders for dedup
   const { data: existingSenders } = await admin
     .from('authorized_senders')
     .select('email')
@@ -284,13 +318,14 @@ ${text}`,
     metricsCreated: 0,
     metricsMatched: 0,
     metricValuesCreated: 0,
-    metricValuesSkipped: 0,
+    metricValuesSkippedDuplicate: 0,
+    metricValuesSkippedParseFail: 0,
+    rejectedPeriods: [] as string[],
     sendersCreated: 0,
     errors: [] as string[],
   }
 
   for (const pc of parsed.companies) {
-    // Validate company entry
     if (!pc.name || typeof pc.name !== 'string' || !pc.name.trim()) {
       results.errors.push('Skipped company with no name')
       continue
@@ -304,7 +339,6 @@ ${text}`,
 
     let companyId = companyByName.get(companyName.toLowerCase())
 
-    // Build field values (sanitized)
     const companyFields: Record<string, unknown> = {}
     if (pc.industry) {
       const ind = sanitize(pc.industry)
@@ -322,28 +356,20 @@ ${text}`,
     if (pc.summary) companyFields.notes = sanitize(pc.summary) || null
 
     if (companyId) {
-      // Company already exists — update with new field values if any
       results.companiesMatched++
-
       const updateFields: Record<string, unknown> = {}
       for (const [key, val] of Object.entries(companyFields)) {
         if (val != null) updateFields[key] = val
       }
-
       if (Object.keys(updateFields).length > 0) {
         const { error: updateError } = await admin
           .from('companies')
           .update(updateFields)
           .eq('id', companyId)
-
-        if (!updateError) {
-          results.companiesUpdated++
-        } else {
-          results.errors.push(`Failed to update company "${companyName}": ${updateError.message}`)
-        }
+        if (!updateError) results.companiesUpdated++
+        else results.errors.push(`Failed to update company "${companyName}": ${updateError.message}`)
       }
     } else {
-      // Create company
       const sanitizedTags = Array.isArray(pc.tags)
         ? pc.tags.filter(t => typeof t === 'string').map(t => sanitize(t)).filter(Boolean)
         : []
@@ -370,21 +396,14 @@ ${text}`,
       companyByName.set(companyName.toLowerCase(), companyId)
     }
 
-    // Create authorized senders (skip duplicates)
     if (Array.isArray(pc.sender_emails)) {
       for (const email of pc.sender_emails) {
         if (typeof email !== 'string') continue
         const trimmedEmail = sanitize(email).toLowerCase()
         if (!trimmedEmail || !isValidEmail(trimmedEmail) || existingSenderEmails.has(trimmedEmail)) continue
-
         const { error: senderError } = await admin
           .from('authorized_senders')
-          .insert({
-            fund_id: fundId,
-            email: trimmedEmail,
-            label: companyName,
-          })
-
+          .insert({ fund_id: fundId, email: trimmedEmail, label: companyName })
         if (!senderError) {
           results.sendersCreated++
           existingSenderEmails.add(trimmedEmail)
@@ -392,7 +411,6 @@ ${text}`,
       }
     }
 
-    // Get existing metrics for this company to avoid duplicates
     const { data: existingMetrics } = await admin
       .from('metrics')
       .select('id, slug')
@@ -402,7 +420,6 @@ ${text}`,
       (existingMetrics ?? []).map(m => [m.slug as string, m.id as string])
     )
 
-    // Create metrics and historical values
     if (Array.isArray(pc.metrics) && pc.metrics.length > 0) {
       const nextOrder = (existingMetrics ?? []).length
 
@@ -417,7 +434,6 @@ ${text}`,
         let metricId = metricBySlug.get(slug)
 
         if (metricId) {
-          // Metric already exists — reuse it for values
           results.metricsMatched++
         } else {
           const { data: newMetric, error: metricError } = await admin
@@ -451,15 +467,24 @@ ${text}`,
           metricBySlug.set(slug, metricId)
         }
 
-        // Create historical values (upsert — skip if period already exists)
         if (Array.isArray(m.historical_values)) {
           for (const hv of m.historical_values) {
             if (!hv || typeof hv.period !== 'string') continue
 
-            const period = parsePeriodLabel(sanitize(hv.period))
-            const valueNum = typeof hv.value === 'number' ? hv.value : parseFloat(String(hv.value).replace(/[^0-9.-]/g, ''))
+            const rawPeriod = sanitize(hv.period)
+            const period = parsePeriodLabel(rawPeriod)
 
-            // Check if value already exists for this metric + period
+            if (!period) {
+              if (results.rejectedPeriods.length < 20)
+                results.rejectedPeriods.push(rawPeriod)
+              results.metricValuesSkippedParseFail++
+              continue
+            }
+
+            const valueNum = typeof hv.value === 'number'
+              ? hv.value
+              : parseFloat(String(hv.value).replace(/[^0-9.-]/g, ''))
+
             let existingQuery = admin
               .from('metric_values')
               .select('id')
@@ -477,7 +502,7 @@ ${text}`,
             const { data: existingVal } = await existingQuery.maybeSingle()
 
             if (existingVal) {
-              results.metricValuesSkipped++
+              results.metricValuesSkippedDuplicate++
               continue
             }
 
@@ -504,7 +529,10 @@ ${text}`,
     }
   }
 
-  logActivity(admin, fundId, user.id, 'import.data', { companiesCreated: results.companiesCreated, companiesMatched: results.companiesMatched })
+  logActivity(admin, fundId, user.id, 'import.data', {
+    companiesCreated: results.companiesCreated,
+    companiesMatched: results.companiesMatched,
+  })
 
   return NextResponse.json(results)
 }

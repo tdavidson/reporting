@@ -61,7 +61,6 @@ const TEXT_ONLY_THRESHOLD = 10 * 1024 * 1024
 type ExcelImportType = 'metrics' | 'investments' | 'cashflows'
 
 function sanitizeFilename(name: string): string {
-  // Normalize accents (e.g. ã → a), then remove any char that isn't alphanumeric, dash, underscore or dot
   return name
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
@@ -82,6 +81,7 @@ export default function ImportPage() {
   const [excelResult, setExcelResult] = useState<ImportResult | InvestmentImportResult | CashFlowImportResult | null>(null)
   const [excelError, setExcelError] = useState<string | null>(null)
   const [excelMode, setExcelMode] = useState<'add' | 'upsert'>('add')
+  const [csvPreview, setCsvPreview] = useState<string | null>(null)
   const excelInputRef = useRef<HTMLInputElement>(null)
 
   // Document upload state
@@ -137,17 +137,30 @@ export default function ImportPage() {
     loadFundId()
   }, [])
 
+  function buildCsvFromFile(file: File): Promise<string> {
+    return file.arrayBuffer().then(buffer => {
+      const workbook = XLSX.read(buffer, { type: 'array', cellDates: true })
+      const sheet = workbook.Sheets[workbook.SheetNames[0]]
+      return XLSX.utils.sheet_to_csv(sheet, { dateNF: 'yyyy-mm-dd' })
+    })
+  }
+
+  async function handlePreviewCsv() {
+    if (!excelFile) return
+    const csv = await buildCsvFromFile(excelFile)
+    const lines = csv.split('\n').slice(0, 10).join('\n')
+    setCsvPreview(lines)
+  }
+
   async function handleExcelImport() {
     if (!excelFile) return
     setExcelImporting(true)
     setExcelResult(null)
     setExcelError(null)
+    setCsvPreview(null)
 
     try {
-      const buffer = await excelFile.arrayBuffer()
-      const workbook = XLSX.read(buffer, { type: 'array' })
-      const sheet = workbook.Sheets[workbook.SheetNames[0]]
-      const csv = XLSX.utils.sheet_to_csv(sheet)
+      const csv = await buildCsvFromFile(excelFile)
 
       const endpoint =
         excelType === 'investments' ? '/api/import/investments' :
@@ -491,7 +504,7 @@ export default function ImportPage() {
               type="file"
               accept=".xlsx,.xls"
               className="hidden"
-              onChange={e => setExcelFile(e.target.files?.[0] ?? null)}
+              onChange={e => { setExcelFile(e.target.files?.[0] ?? null); setCsvPreview(null) }}
             />
             <Button
               variant="outline"
@@ -504,6 +517,9 @@ export default function ImportPage() {
 
             {excelFile && (
               <div className="flex items-center gap-2">
+                <Button variant="ghost" size="sm" onClick={handlePreviewCsv} disabled={excelImporting}>
+                  Preview CSV
+                </Button>
                 <Select value={excelMode} onValueChange={v => setExcelMode(v as 'add' | 'upsert')}>
                   <SelectTrigger className="w-32 h-9">
                     <SelectValue />
@@ -520,6 +536,14 @@ export default function ImportPage() {
               </div>
             )}
           </div>
+
+          {csvPreview && (
+            <div className="rounded-md border bg-muted/50 p-3">
+              <p className="text-xs text-muted-foreground mb-1 font-medium">CSV preview (first 10 lines):</p>
+              <pre className="text-xs overflow-x-auto whitespace-pre">{csvPreview}</pre>
+            </div>
+          )}
+
           <p className="text-xs text-muted-foreground">Supports .xlsx and .xls files. The first sheet will be used.</p>
         </div>
       </div>
