@@ -63,10 +63,22 @@ function parseLocalDate(dateStr: string): Date {
   return new Date(y, m - 1, d)
 }
 
+function computeTotalManagementFees(
+  called: number,
+  managementFeeRate: number,
+  vintage: number | null,
+  asOfDate: string
+): number {
+  if (!managementFeeRate || !vintage || called <= 0) return 0
+  const asOfYear = asOfDate ? new Date(asOfDate + 'T00:00:00').getFullYear() : new Date().getFullYear()
+  const years = Math.max(0, asOfYear - vintage)
+  return called * managementFeeRate * years
+}
+
 function computeFundMetricsByGroup(
   cashFlows: FundCashFlow[],
   grossResidualByGroup: Map<string, number>,
-  configsByGroup: Record<string, { cashOnHand: number; carryRate: number; gpCommitPct: number; navMode?: string; navOverride?: number | null }>,
+  configsByGroup: Record<string, { cashOnHand: number; carryRate: number; gpCommitPct: number; vintage?: number | null; managementFeeRate?: number; navMode?: string; navOverride?: number | null }>,
   asOfDate: string
 ): Map<string, FundGroupMetrics> {
   const byGroup = new Map<string, FundCashFlow[]>()
@@ -111,7 +123,16 @@ function computeFundMetricsByGroup(
     const tvpi = called > 0 ? totalValue / called : null
     const dpi = called > 0 ? distributions / called : null
     const rvpi = called > 0 ? netResidual / called : null
-    const netMoic = tvpi
+
+    // Net MOIC: same formula as Funds page — totalValue / (called - managementFees)
+    const totalManagementFees = computeTotalManagementFees(
+      called,
+      config.managementFeeRate ?? 0,
+      config.vintage ?? null,
+      asOfDate
+    )
+    const netInvestedBase = called - totalManagementFees
+    const netMoic = netInvestedBase > 0 ? totalValue / netInvestedBase : null
 
     const xirrFlows: CashFlow[] = []
     for (const cf of filteredFlows) {
@@ -231,7 +252,7 @@ export default function InvestmentsPage() {
   const [groupSortDir, setGroupSortDir] = useState<SortDir>('desc')
 
   const [fundCashFlows, setFundCashFlows] = useState<FundCashFlow[]>([])
-  const [groupConfigs, setGroupConfigs] = useState<Record<string, { cashOnHand: number; carryRate: number; gpCommitPct: number; vintage: number | null; navMode?: string; navOverride?: number | null }>>({})
+  const [groupConfigs, setGroupConfigs] = useState<Record<string, { cashOnHand: number; carryRate: number; gpCommitPct: number; vintage: number | null; managementFeeRate?: number; navMode?: string; navOverride?: number | null }>>({})
 
   useEffect(() => {
     if (!asOfDate) return
@@ -247,13 +268,14 @@ export default function InvestmentsPage() {
         if (cfRes.ok) setFundCashFlows(await cfRes.json())
         if (gcRes.ok) {
           const configs = await gcRes.json()
-          const map: Record<string, { cashOnHand: number; carryRate: number; gpCommitPct: number; vintage: number | null; navMode?: string; navOverride?: number | null }> = {}
+          const map: Record<string, { cashOnHand: number; carryRate: number; gpCommitPct: number; vintage: number | null; managementFeeRate?: number; navMode?: string; navOverride?: number | null }> = {}
           for (const c of configs) {
             map[c.portfolio_group] = {
               cashOnHand: Number(c.cash_on_hand) || 0,
               carryRate: c.carry_rate != null ? Number(c.carry_rate) : 0.20,
               gpCommitPct: Number(c.gp_commit_pct) || 0,
               vintage: c.vintage != null ? Number(c.vintage) : null,
+              managementFeeRate: c.management_fee_rate != null ? Number(c.management_fee_rate) : 0,
               navMode: c.nav_mode === 'manual' ? 'manual' : 'metric',
               navOverride: c.nav_override != null ? Number(c.nav_override) : null,
             }
@@ -302,6 +324,7 @@ export default function InvestmentsPage() {
     let called = 0
     let distributions = 0
     let netResidual = 0
+    let totalManagementFees = 0
     const xirrFlows: CashFlow[] = []
 
     const asOfDateObj = asOfDate ? parseLocalDate(asOfDate) : new Date()
@@ -351,9 +374,17 @@ export default function InvestmentsPage() {
       const estimatedCarry = Math.max(0, config.carryRate * (grossAssets * (1 - config.gpCommitPct) - lpRemainingCapital))
       const gNetResidual = grossAssets - estimatedCarry
 
+      const gMgmtFees = computeTotalManagementFees(
+        gCalled,
+        config.managementFeeRate ?? 0,
+        config.vintage ?? null,
+        asOfDate
+      )
+
       called += gCalled
       distributions += gDistributions
       netResidual += gNetResidual
+      totalManagementFees += gMgmtFees
     }
 
     if (netResidual > 0) xirrFlows.push({ date: asOfDateObj, amount: netResidual })
@@ -361,7 +392,8 @@ export default function InvestmentsPage() {
     const tvpi = called > 0 ? (distributions + netResidual) / called : null
     const dpi = called > 0 ? distributions / called : null
     const rvpi = called > 0 ? netResidual / called : null
-    const netMoic = tvpi
+    const netInvestedBase = called - totalManagementFees
+    const netMoic = netInvestedBase > 0 ? (distributions + netResidual) / netInvestedBase : null
     let netIrr = null
     if (xirrFlows.length >= 2) {
       try { netIrr = xirr(xirrFlows) } catch (e) { console.error(e) }
@@ -491,6 +523,7 @@ export default function InvestmentsPage() {
       : <ChevronDown className="inline h-3 w-3 ml-0.5" />
   }
 
+  // Column order: Invested | Proceeds | Current NAV | Total Value | Gross MOIC | Net MOIC | Gross IRR | Net IRR | TVPI | DPI | RVPI
   const groupNumericColumns: { label: string; sortKey: GroupSortKey; getValue: (row: GroupSummary) => number | null; format: 'currency' | 'moic' | 'irr' }[] = [
     { label: 'Invested', sortKey: 'totalInvested', getValue: r => r.totalInvested, format: 'currency' },
     { label: 'Proceeds', sortKey: 'proceedsReceived', getValue: r => r.proceedsReceived, format: 'currency' },
@@ -640,8 +673,8 @@ export default function InvestmentsPage() {
                       </button>
                     </th>
                   ))}
-                  <th className="text-right px-3 py-2 font-medium">Net IRR</th>
                   <th className="text-right px-3 py-2 font-medium">Net MOIC</th>
+                  <th className="text-right px-3 py-2 font-medium">Net IRR</th>
                   <th className="text-right px-3 py-2 font-medium">TVPI</th>
                   <th className="text-right px-3 py-2 font-medium">DPI</th>
                   <th className="text-right px-3 py-2 font-medium">RVPI</th>
@@ -656,8 +689,8 @@ export default function InvestmentsPage() {
                       if (col.sortKey === 'moic') return <td key={col.sortKey} className="px-3 py-2 text-right font-mono">{fmtMoic(groupTotals.moic)}</td>
                       return <td key={col.sortKey} className="px-3 py-2 text-right font-mono">{fmtVal(col.getValue(groupTotals as unknown as GroupSummary), col.format)}</td>
                     })}
-                    <td className="px-3 py-2 text-right font-mono">{fmtIrr(overallFundMetrics.netIrr)}</td>
                     <td className="px-3 py-2 text-right font-mono">{fmtMoic(overallFundMetrics.netMoic)}</td>
+                    <td className="px-3 py-2 text-right font-mono">{fmtIrr(overallFundMetrics.netIrr)}</td>
                     <td className="px-3 py-2 text-right font-mono">{fmtMoic(overallFundMetrics.tvpi)}</td>
                     <td className="px-3 py-2 text-right font-mono">{fmtMoic(overallFundMetrics.dpi)}</td>
                     <td className="px-3 py-2 text-right font-mono">{fmtMoic(overallFundMetrics.rvpi)}</td>
@@ -671,8 +704,8 @@ export default function InvestmentsPage() {
                       {groupNumericColumns.map(col => (
                         <td key={col.sortKey} className="px-3 py-2 text-right font-mono">{fmtVal(col.getValue(g), col.format)}</td>
                       ))}
-                      <td className="px-3 py-2 text-right font-mono">{fmtIrr(fm?.netIrr ?? null)}</td>
                       <td className="px-3 py-2 text-right font-mono">{fmtMoic(fm?.netMoic ?? null)}</td>
+                      <td className="px-3 py-2 text-right font-mono">{fmtIrr(fm?.netIrr ?? null)}</td>
                       <td className="px-3 py-2 text-right font-mono">{fmtMoic(fm?.tvpi ?? null)}</td>
                       <td className="px-3 py-2 text-right font-mono">{fmtMoic(fm?.dpi ?? null)}</td>
                       <td className="px-3 py-2 text-right font-mono">{fmtMoic(fm?.rvpi ?? null)}</td>
