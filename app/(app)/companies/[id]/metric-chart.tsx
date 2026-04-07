@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useMemo } from 'react'
 import {
   ResponsiveContainer,
   LineChart,
@@ -42,21 +42,23 @@ const CONFIDENCE_COLORS: Record<string, string> = {
 function formatPeriodLabel(v: MetricValueRow): string {
   const { period_year, period_month, period_quarter } = v
 
-  // Monthly: MM/YY
   if (period_month != null) {
     const mm = String(period_month).padStart(2, '0')
     const yy = String(period_year).slice(-2)
     return `${mm}/${yy}`
   }
 
-  // Quarterly: QX.YY
   if (period_quarter != null) {
     const yy = String(period_year).slice(-2)
     return `Q${period_quarter}.${yy}`
   }
 
-  // Annual: YYYY
   return String(period_year)
+}
+
+/** Estimate pixel width of a string at a given font size (monospace-safe approximation) */
+function estimateTextWidth(text: string, fontSize: number): number {
+  return text.length * fontSize * 0.62
 }
 
 export function MetricChart({ metric, values, onRefresh, compact }: Props) {
@@ -74,14 +76,13 @@ export function MetricChart({ metric, values, onRefresh, compact }: Props) {
     raw: v,
   }))
 
-  // Resolve effective unit: explicit metric unit, or metric/fund currency symbol for currency-type metrics
   const metricCurrency = metric.currency ?? fundCurrency
   const effectiveUnit = metric.unit ?? (metric.value_type === 'currency' ? getCurrencySymbol(metricCurrency) : null)
   const effectiveUnitPosition = metric.unit ? metric.unit_position : 'prefix'
 
   const formatValue = useCallback(
     (val: number | null) => {
-      if (val === null) return '—'
+      if (val === null) return '\u2014'
       const formatted =
         metric.value_type === 'percentage'
           ? `${val}%`
@@ -111,6 +112,22 @@ export function MetricChart({ metric, values, onRefresh, compact }: Props) {
     [metric, effectiveUnit, effectiveUnitPosition]
   )
 
+  // Dynamically compute YAxis width from the longest formatted tick label
+  const yAxisWidth = useMemo(() => {
+    const tickFontSize = compact ? 9 : 11
+    const numbers = data.map((d) => d.value).filter((v): v is number => v !== null)
+    if (numbers.length === 0) return compact ? 40 : 56
+
+    const maxVal = Math.max(...numbers)
+    const minVal = Math.min(...numbers)
+    const candidates = [maxVal, minVal, 0].map(formatYAxis)
+    const longestLabel = candidates.reduce((a, b) => (a.length >= b.length ? a : b), '')
+    const estimated = Math.ceil(estimateTextWidth(longestLabel, tickFontSize)) + 8 // 8px padding
+    const minWidth = compact ? 36 : 48
+    const maxWidth = compact ? 80 : 100
+    return Math.min(Math.max(estimated, minWidth), maxWidth)
+  }, [data, compact, formatYAxis])
+
   const handleClick = (payload: ChartPoint, e: React.MouseEvent) => {
     setActivePoint({
       data: payload.raw,
@@ -123,7 +140,6 @@ export function MetricChart({ metric, values, onRefresh, compact }: Props) {
 
   const chartHeight = compact ? 180 : 250
   const tickFontSize = compact ? 9 : 11
-  const yAxisWidth = compact ? 40 : 56
 
   const commonProps = {
     data,
@@ -201,7 +217,6 @@ export function MetricChart({ metric, values, onRefresh, compact }: Props) {
                 const color = point.raw.is_manually_entered
                     ? 'hsl(var(--chart-1))'
                     : (CONFIDENCE_COLORS[point.raw.confidence] ?? chartColor)
-                const isManual = point.raw.is_manually_entered
                 return (
                   <g key={index} className="cursor-pointer" onClick={(e: React.MouseEvent) => handleClick(point, e)}>
                     <circle cx={cx} cy={cy} r={3} fill='hsl(var(--background))' stroke={color} strokeWidth={1} strokeDasharray="none" />
