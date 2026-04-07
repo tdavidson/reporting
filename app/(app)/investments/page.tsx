@@ -53,12 +53,19 @@ interface FundGroupMetrics {
   dpi: number | null
   rvpi: number | null
   netIrr: number | null
+  netMoic: number | null
+}
+
+function parseLocalDate(dateStr: string): Date {
+  const [y, m, d] = dateStr.split('-').map(Number)
+  return new Date(y, m - 1, d)
 }
 
 function computeFundMetricsByGroup(
   cashFlows: FundCashFlow[],
   grossResidualByGroup: Map<string, number>,
-  configsByGroup: Record<string, { cashOnHand: number; carryRate: number; gpCommitPct: number }>
+  configsByGroup: Record<string, { cashOnHand: number; carryRate: number; gpCommitPct: number; navMode?: string; navOverride?: number | null }>,
+  asOfDate: string
 ): Map<string, FundGroupMetrics> {
   const byGroup = new Map<string, FundCashFlow[]>()
   for (const cf of cashFlows) {
@@ -67,17 +74,31 @@ function computeFundMetricsByGroup(
     byGroup.set(cf.portfolio_group, list)
   }
 
+  const asOfDateObj = asOfDate ? parseLocalDate(asOfDate) : new Date()
+
   const result = new Map<string, FundGroupMetrics>()
   for (const [group, flows] of Array.from(byGroup.entries())) {
+    // Filter by asOfDate — same as Funds page
+    const filteredFlows = asOfDate
+      ? flows.filter(cf => cf.flow_date <= asOfDate)
+      : flows
+
     let called = 0
     let distributions = 0
-    for (const cf of flows) {
+    for (const cf of filteredFlows) {
       if (cf.flow_type === 'called_capital') called += cf.amount
       if (cf.flow_type === 'distribution') distributions += cf.amount
     }
 
-    const grossResidual = grossResidualByGroup.get(group) ?? 0
     const config = configsByGroup[group] ?? { cashOnHand: 0, carryRate: 0.20, gpCommitPct: 0 }
+
+    // Respect navMode / navOverride — same as Funds page
+    const rawGrossResidual = grossResidualByGroup.get(group) ?? 0
+    const grossResidual =
+      config.navMode === 'manual' && config.navOverride != null
+        ? config.navOverride
+        : rawGrossResidual
+
     const grossAssets = grossResidual + config.cashOnHand
 
     const gpCapital = called * config.gpCommitPct
@@ -88,19 +109,25 @@ function computeFundMetricsByGroup(
     const netResidual = grossAssets - estimatedCarry
     const totalValue = distributions + netResidual
 
+    // TVPI / DPI / RVPI — denominator is called capital (same as Funds)
     const tvpi = called > 0 ? totalValue / called : null
     const dpi = called > 0 ? distributions / called : null
     const rvpi = called > 0 ? netResidual / called : null
 
+    // Net MOIC — same as Funds (totalValue / called, no mgmt fee deduction here since
+    // managementFeeRate is not passed to this function; consistent with Funds net MOIC display)
+    const netMoic = tvpi
+
+    // Net IRR — use parseLocalDate for consistency with Funds page
     const xirrFlows: CashFlow[] = []
-    for (const cf of flows) {
-      if (cf.flow_type === 'called_capital') xirrFlows.push({ date: new Date(cf.flow_date), amount: -cf.amount })
-      if (cf.flow_type === 'distribution') xirrFlows.push({ date: new Date(cf.flow_date), amount: cf.amount })
+    for (const cf of filteredFlows) {
+      if (cf.flow_type === 'called_capital') xirrFlows.push({ date: parseLocalDate(cf.flow_date), amount: -cf.amount })
+      if (cf.flow_type === 'distribution') xirrFlows.push({ date: parseLocalDate(cf.flow_date), amount: cf.amount })
     }
-    if (netResidual > 0) xirrFlows.push({ date: new Date(), amount: netResidual })
+    if (netResidual > 0) xirrFlows.push({ date: asOfDateObj, amount: netResidual })
     const netIrr = xirrFlows.length >= 2 ? xirr(xirrFlows) : null
 
-    result.set(group, { tvpi, dpi, rvpi, netIrr })
+    result.set(group, { tvpi, dpi, rvpi, netIrr, netMoic })
   }
   return result
 }
@@ -203,7 +230,8 @@ export default function InvestmentsPage() {
   const [groupSortDir, setGroupSortDir] = useState<SortDir>('desc')
 
   const [fundCashFlows, setFundCashFlows] = useState<FundCashFlow[]>([])
-  const [groupConfigs, setGroupConfigs] = useState<Record<string, { cashOnHand: number; carryRate: number; gpCommitPct: number; vintage: number | null }>>({})
+  const [groupConfigs, setGroupConfigs] = useState<Record<string, { cashOnHand: number; carryRate: number; gpCommitPct: number; vintage: number | null; navMode?: string; navOverride?: number | null }>>({}
+  )
 
   useEffect(() => {
     if (!asOfDate) return
@@ -219,13 +247,15 @@ export default function InvestmentsPage() {
         if (cfRes.ok) setFundCashFlows(await cfRes.json())
         if (gcRes.ok) {
           const configs = await gcRes.json()
-          const map: Record<string, { cashOnHand: number; carryRate: number; gpCommitPct: number; vintage: number | null }> = {}
+          const map: Record<string, { cashOnHand: number; carryRate: number; gpCommitPct: number; vintage: number | null; navMode?: string; navOverride?: number | null }> = {}
           for (const c of configs) {
             map[c.portfolio_group] = {
               cashOnHand: Number(c.cash_on_hand) || 0,
               carryRate: c.carry_rate != null ? Number(c.carry_rate) : 0.20,
               gpCommitPct: Number(c.gp_commit_pct) || 0,
               vintage: c.vintage != null ? Number(c.vintage) : null,
+              navMode: c.nav_mode === 'manual' ? 'manual' : 'metric',
+              navOverride: c.nav_override != null ? Number(c.nav_override) : null,
             }
           }
           setGroupConfigs(map)
@@ -265,14 +295,16 @@ export default function InvestmentsPage() {
     for (const g of data.groups ?? []) {
       grossResidualByGroup.set(g.group, g.unrealizedValue)
     }
-    return computeFundMetricsByGroup(fundCashFlows, grossResidualByGroup, groupConfigs)
-  }, [fundCashFlows, data, groupConfigs])
+    return computeFundMetricsByGroup(fundCashFlows, grossResidualByGroup, groupConfigs, asOfDate)
+  }, [fundCashFlows, data, groupConfigs, asOfDate])
 
   const overallFundMetrics = useMemo(() => {
     let called = 0
     let distributions = 0
     let netResidual = 0
     const xirrFlows: CashFlow[] = []
+
+    const asOfDateObj = asOfDate ? parseLocalDate(asOfDate) : new Date()
 
     const byGroup = new Map<string, FundCashFlow[]>()
     for (const cf of fundCashFlows) {
@@ -287,21 +319,30 @@ export default function InvestmentsPage() {
     }
 
     for (const [group, flows] of Array.from(byGroup.entries())) {
+      // Filter by asOfDate
+      const filteredFlows = asOfDate
+        ? flows.filter(cf => cf.flow_date <= asOfDate)
+        : flows
+
       let gCalled = 0
       let gDistributions = 0
-      for (const cf of flows) {
+      for (const cf of filteredFlows) {
         if (cf.flow_type === 'called_capital') {
           gCalled += cf.amount
-          xirrFlows.push({ date: new Date(cf.flow_date), amount: -cf.amount })
+          xirrFlows.push({ date: parseLocalDate(cf.flow_date), amount: -cf.amount })
         }
         if (cf.flow_type === 'distribution') {
           gDistributions += cf.amount
-          xirrFlows.push({ date: new Date(cf.flow_date), amount: cf.amount })
+          xirrFlows.push({ date: parseLocalDate(cf.flow_date), amount: cf.amount })
         }
       }
 
-      const grossResidual = grossResidualByGroup.get(group) ?? 0
       const config = groupConfigs[group] ?? { cashOnHand: 0, carryRate: 0.20, gpCommitPct: 0 }
+      const rawGrossResidual = grossResidualByGroup.get(group) ?? 0
+      const grossResidual =
+        config.navMode === 'manual' && config.navOverride != null
+          ? config.navOverride
+          : rawGrossResidual
       const grossAssets = grossResidual + config.cashOnHand
 
       const gpCapital = gCalled * config.gpCommitPct
@@ -316,18 +357,19 @@ export default function InvestmentsPage() {
       netResidual += gNetResidual
     }
 
-    if (netResidual > 0) xirrFlows.push({ date: new Date(), amount: netResidual })
+    if (netResidual > 0) xirrFlows.push({ date: asOfDateObj, amount: netResidual })
 
     const tvpi = called > 0 ? (distributions + netResidual) / called : null
     const dpi = called > 0 ? distributions / called : null
     const rvpi = called > 0 ? netResidual / called : null
+    const netMoic = tvpi
     let netIrr = null
     if (xirrFlows.length >= 2) {
       try { netIrr = xirr(xirrFlows) } catch (e) { console.error(e) }
     }
 
-    return { tvpi, dpi, rvpi, netIrr }
-  }, [fundCashFlows, data, groupConfigs])
+    return { tvpi, dpi, rvpi, netIrr, netMoic }
+  }, [fundCashFlows, data, groupConfigs, asOfDate])
 
   const groupTotalsMap = useMemo(() => {
     const map = new Map<string, { totalVal: number }>()
@@ -599,6 +641,7 @@ export default function InvestmentsPage() {
                     </th>
                   ))}
                   <th className="text-right px-3 py-2 font-medium">Net IRR</th>
+                  <th className="text-right px-3 py-2 font-medium">Net MOIC</th>
                   <th className="text-right px-3 py-2 font-medium">TVPI</th>
                   <th className="text-right px-3 py-2 font-medium">DPI</th>
                   <th className="text-right px-3 py-2 font-medium">RVPI</th>
@@ -614,6 +657,7 @@ export default function InvestmentsPage() {
                       return <td key={col.sortKey} className="px-3 py-2 text-right font-mono">{fmtVal(col.getValue(groupTotals as unknown as GroupSummary), col.format)}</td>
                     })}
                     <td className="px-3 py-2 text-right font-mono">{fmtIrr(overallFundMetrics.netIrr)}</td>
+                    <td className="px-3 py-2 text-right font-mono">{fmtMoic(overallFundMetrics.netMoic)}</td>
                     <td className="px-3 py-2 text-right font-mono">{fmtMoic(overallFundMetrics.tvpi)}</td>
                     <td className="px-3 py-2 text-right font-mono">{fmtMoic(overallFundMetrics.dpi)}</td>
                     <td className="px-3 py-2 text-right font-mono">{fmtMoic(overallFundMetrics.rvpi)}</td>
@@ -628,6 +672,7 @@ export default function InvestmentsPage() {
                         <td key={col.sortKey} className="px-3 py-2 text-right font-mono">{fmtVal(col.getValue(g), col.format)}</td>
                       ))}
                       <td className="px-3 py-2 text-right font-mono">{fmtIrr(fm?.netIrr ?? null)}</td>
+                      <td className="px-3 py-2 text-right font-mono">{fmtMoic(fm?.netMoic ?? null)}</td>
                       <td className="px-3 py-2 text-right font-mono">{fmtMoic(fm?.tvpi ?? null)}</td>
                       <td className="px-3 py-2 text-right font-mono">{fmtMoic(fm?.dpi ?? null)}</td>
                       <td className="px-3 py-2 text-right font-mono">{fmtMoic(fm?.rvpi ?? null)}</td>
