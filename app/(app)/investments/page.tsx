@@ -27,6 +27,8 @@ interface CompanySummary {
   proceedsReceived: number
   totalCostBasisExited: number
   cashFlows: { date: string; amount: number }[]
+  currentStake: number | null
+  currentValuation: number | null
 }
 
 interface GroupSummary {
@@ -78,7 +80,6 @@ function computeFundMetricsByGroup(
 
   const result = new Map<string, FundGroupMetrics>()
   for (const [group, flows] of Array.from(byGroup.entries())) {
-    // Filter by asOfDate — same as Funds page
     const filteredFlows = asOfDate
       ? flows.filter(cf => cf.flow_date <= asOfDate)
       : flows
@@ -91,8 +92,6 @@ function computeFundMetricsByGroup(
     }
 
     const config = configsByGroup[group] ?? { cashOnHand: 0, carryRate: 0.20, gpCommitPct: 0 }
-
-    // Respect navMode / navOverride — same as Funds page
     const rawGrossResidual = grossResidualByGroup.get(group) ?? 0
     const grossResidual =
       config.navMode === 'manual' && config.navOverride != null
@@ -109,16 +108,11 @@ function computeFundMetricsByGroup(
     const netResidual = grossAssets - estimatedCarry
     const totalValue = distributions + netResidual
 
-    // TVPI / DPI / RVPI — denominator is called capital (same as Funds)
     const tvpi = called > 0 ? totalValue / called : null
     const dpi = called > 0 ? distributions / called : null
     const rvpi = called > 0 ? netResidual / called : null
-
-    // Net MOIC — same as Funds (totalValue / called, no mgmt fee deduction here since
-    // managementFeeRate is not passed to this function; consistent with Funds net MOIC display)
     const netMoic = tvpi
 
-    // Net IRR — use parseLocalDate for consistency with Funds page
     const xirrFlows: CashFlow[] = []
     for (const cf of filteredFlows) {
       if (cf.flow_type === 'called_capital') xirrFlows.push({ date: parseLocalDate(cf.flow_date), amount: -cf.amount })
@@ -143,7 +137,7 @@ interface PortfolioData {
   groups: GroupSummary[]
 }
 
-type SortKey = 'companyName' | 'status' | 'portfolioGroup' | 'totalInvested' | 'proceedsReceived' | 'unrealizedValue' | 'totalValue' | 'moic' | 'irr' | 'pctTotalValue'
+type SortKey = 'companyName' | 'status' | 'portfolioGroup' | 'totalInvested' | 'proceedsReceived' | 'unrealizedValue' | 'totalValue' | 'moic' | 'irr' | 'pctTotalValue' | 'currentStake' | 'currentValuation'
 type SortDir = 'asc' | 'desc'
 
 type GroupSortKey = 'group' | 'totalInvested' | 'proceedsReceived' | 'unrealizedValue' | 'totalValue' | 'moic' | 'irr'
@@ -164,6 +158,11 @@ function fmtIrr(val: number | null): string {
   return `${pct.toFixed(1)}%`
 }
 
+function fmtPct(val: number | null): string {
+  if (val == null) return '-'
+  return `${val.toFixed(2)}%`
+}
+
 const STATUS_COLORS: Record<CompanyStatus, string> = {
   active: 'text-green-600',
   exited: 'text-blue-600',
@@ -181,6 +180,8 @@ function getDerivedValue(row: CompanySummary, key: SortKey, helpers?: { pctTotal
     case 'moic': return row.moic ?? -Infinity
     case 'irr': return row.irr ?? -Infinity
     case 'pctTotalValue': return helpers?.pctTotalValue(row) ?? -Infinity
+    case 'currentStake': return row.currentStake ?? -Infinity
+    case 'currentValuation': return row.currentValuation ?? -Infinity
     default: return 0
   }
 }
@@ -230,8 +231,7 @@ export default function InvestmentsPage() {
   const [groupSortDir, setGroupSortDir] = useState<SortDir>('desc')
 
   const [fundCashFlows, setFundCashFlows] = useState<FundCashFlow[]>([])
-  const [groupConfigs, setGroupConfigs] = useState<Record<string, { cashOnHand: number; carryRate: number; gpCommitPct: number; vintage: number | null; navMode?: string; navOverride?: number | null }>>({}
-  )
+  const [groupConfigs, setGroupConfigs] = useState<Record<string, { cashOnHand: number; carryRate: number; gpCommitPct: number; vintage: number | null; navMode?: string; navOverride?: number | null }>>({})
 
   useEffect(() => {
     if (!asOfDate) return
@@ -319,7 +319,6 @@ export default function InvestmentsPage() {
     }
 
     for (const [group, flows] of Array.from(byGroup.entries())) {
-      // Filter by asOfDate
       const filteredFlows = asOfDate
         ? flows.filter(cf => cf.flow_date <= asOfDate)
         : flows
@@ -443,14 +442,12 @@ export default function InvestmentsPage() {
     }
     const moic = t.totalInvested > 0 ? (t.totalRealized + t.unrealizedValue) / t.totalInvested : null
 
-    // Consolidate cash flows from all filtered companies and recalculate Gross IRR
     const consolidatedFlows: CashFlow[] = []
     for (const c of filtered) {
       for (const cf of c.cashFlows) {
         consolidatedFlows.push({ date: new Date(cf.date), amount: cf.amount })
       }
     }
-    // Add terminal value: unrealized NAV of non-exited companies
     const terminalUnrealized = filtered
       .filter(c => c.status !== 'exited' && c.status !== 'written-off')
       .reduce((sum, c) => sum + c.unrealizedValue, 0)
@@ -503,19 +500,22 @@ export default function InvestmentsPage() {
     { label: 'Gross IRR', sortKey: 'irr', getValue: r => r.irr ?? null, format: 'irr' },
   ]
 
-  const companyNumericColumns: { label: string; sortKey: SortKey; getValue: (row: CompanySummary) => number | null; format: 'currency' | 'moic' | 'irr' }[] = [
+  const companyNumericColumns: { label: string; sortKey: SortKey; getValue: (row: CompanySummary) => number | null; format: 'currency' | 'moic' | 'irr' | 'pct' }[] = [
     { label: 'Invested', sortKey: 'totalInvested', getValue: r => r.totalInvested, format: 'currency' },
     { label: 'Proceeds', sortKey: 'proceedsReceived', getValue: r => r.proceedsReceived, format: 'currency' },
     { label: 'Current NAV', sortKey: 'unrealizedValue', getValue: r => r.unrealizedValue, format: 'currency' },
     { label: 'Total Value', sortKey: 'totalValue', getValue: r => totalValue(r), format: 'currency' },
     { label: 'Gross MOIC', sortKey: 'moic', getValue: r => r.moic ?? null, format: 'moic' },
     { label: 'Gross IRR', sortKey: 'irr', getValue: r => r.irr ?? null, format: 'irr' },
+    { label: 'Stake', sortKey: 'currentStake', getValue: r => r.currentStake ?? null, format: 'pct' },
+    { label: 'Valuation', sortKey: 'currentValuation', getValue: r => r.currentValuation ?? null, format: 'currency' },
   ]
 
-  function fmtVal(val: number | null, format: 'currency' | 'moic' | 'irr'): string {
+  function fmtVal(val: number | null, format: 'currency' | 'moic' | 'irr' | 'pct'): string {
     if (val == null || val === 0) return '-'
     if (format === 'moic') return fmtMoic(val)
     if (format === 'irr') return fmtIrr(val)
+    if (format === 'pct') return fmtPct(val)
     return fmtTable(val)
   }
 
@@ -756,12 +756,11 @@ export default function InvestmentsPage() {
               {companyNumericColumns.map(col => {
                 if (col.format === 'irr') return <td key={col.sortKey} className="px-3 py-2 text-right font-mono">{fmtIrr(totals.irr)}</td>
                 if (col.sortKey === 'moic') return <td key={col.sortKey} className="px-3 py-2 text-right font-mono">{fmtMoic(totals.moic)}</td>
+                if (col.sortKey === 'currentStake' || col.sortKey === 'currentValuation') return <td key={col.sortKey} className="px-3 py-2 text-right font-mono">-</td>
                 return <td key={col.sortKey} className="px-3 py-2 text-right font-mono">{fmtVal(col.getValue(totals as unknown as CompanySummary), col.format)}</td>
               })}
             </tr>
-            {filtered.map(c => {
-              const pctTV = pctOfGroupTotalValue(c)
-              return (
+            {filtered.map(c => (
               <tr key={`${c.companyId}-${c.portfolioGroup.join('')}`} className="border-b last:border-b-0 hover:bg-muted/30">
                 <td className="px-3 py-2 sticky left-0 bg-background z-10">
                   <Link href={`/companies/${c.companyId}`} className="font-medium hover:underline">
@@ -780,8 +779,7 @@ export default function InvestmentsPage() {
                   <td key={col.sortKey} className="px-3 py-2 text-right font-mono">{fmtVal(col.getValue(c), col.format)}</td>
                 ))}
               </tr>
-              )
-            })}
+            ))}
           </tbody>
         </table>
       </div>

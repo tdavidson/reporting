@@ -86,6 +86,8 @@ export async function GET(req: NextRequest) {
     proceedsEscrow: number
     totalCostBasisExited: number
     cashFlows: { date: string; amount: number }[]
+    currentStake: number | null
+    currentValuation: number | null
   }[] = []
 
   for (const [companyId, txns] of Array.from(byCompany.entries())) {
@@ -332,6 +334,8 @@ export async function GET(req: NextRequest) {
         proceedsEscrow,
         totalCostBasisExited,
         cashFlows: serializedCashFlows,
+        currentStake: currentOwnership,
+        currentValuation,
       })
     }
   }
