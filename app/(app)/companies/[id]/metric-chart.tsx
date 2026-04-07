@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useMemo } from 'react'
+import { useState, useCallback } from 'react'
 import {
   ResponsiveContainer,
   LineChart,
@@ -56,9 +56,12 @@ function formatPeriodLabel(v: MetricValueRow): string {
   return String(period_year)
 }
 
-/** Estimate pixel width of a string at a given font size (monospace-safe approximation) */
-function estimateTextWidth(text: string, fontSize: number): number {
-  return text.length * fontSize * 0.62
+function compactNumber(val: number): string {
+  const abs = Math.abs(val)
+  if (abs >= 1_000_000_000) return `${(val / 1_000_000_000).toFixed(1)}B`
+  if (abs >= 1_000_000)     return `${(val / 1_000_000).toFixed(1)}M`
+  if (abs >= 1_000)         return `${(val / 1_000).toFixed(0)}K`
+  return val.toString()
 }
 
 export function MetricChart({ metric, values, onRefresh, compact }: Props) {
@@ -100,33 +103,13 @@ export function MetricChart({ metric, values, onRefresh, compact }: Props) {
 
   const formatYAxis = useCallback(
     (val: number) => {
-      let str: string
-      if (Math.abs(val) >= 1_000_000) str = `${(val / 1_000_000).toFixed(1)}M`
-      else if (Math.abs(val) >= 1_000) str = `${(val / 1_000).toFixed(0)}K`
-      else str = val.toString()
-
+      const str = compactNumber(val)
       if (effectiveUnit && effectiveUnitPosition === 'prefix') return `${effectiveUnit}${str}`
       if (metric.value_type === 'percentage') return `${str}%`
       return str
     },
     [metric, effectiveUnit, effectiveUnitPosition]
   )
-
-  // Dynamically compute YAxis width from the longest formatted tick label
-  const yAxisWidth = useMemo(() => {
-    const tickFontSize = compact ? 9 : 11
-    const numbers = data.map((d) => d.value).filter((v): v is number => v !== null)
-    if (numbers.length === 0) return compact ? 40 : 56
-
-    const maxVal = Math.max(...numbers)
-    const minVal = Math.min(...numbers)
-    const candidates = [maxVal, minVal, 0].map(formatYAxis)
-    const longestLabel = candidates.reduce((a, b) => (a.length >= b.length ? a : b), '')
-    const estimated = Math.ceil(estimateTextWidth(longestLabel, tickFontSize)) + 8 // 8px padding
-    const minWidth = compact ? 36 : 48
-    const maxWidth = compact ? 80 : 100
-    return Math.min(Math.max(estimated, minWidth), maxWidth)
-  }, [data, compact, formatYAxis])
 
   const handleClick = (payload: ChartPoint, e: React.MouseEvent) => {
     setActivePoint({
@@ -140,6 +123,7 @@ export function MetricChart({ metric, values, onRefresh, compact }: Props) {
 
   const chartHeight = compact ? 180 : 250
   const tickFontSize = compact ? 9 : 11
+  const yAxisWidth = compact ? 52 : 64
 
   const commonProps = {
     data,
