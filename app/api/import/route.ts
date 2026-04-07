@@ -123,6 +123,18 @@ function parsePeriodLabel(period: string): {
     }
   }
 
+  // "d-Mon-yy" or "d-Mon-yyyy" — Excel format e.g. "1-Jan-24", "15-Mar-2025"
+  const dMonY = label.match(/^(\d{1,2})-([A-Za-z]{3})-(\d{2}|\d{4})$/)
+  if (dMonY) {
+    const abbr = dMonY[2].toLowerCase()
+    const monthIdx = monthAbbrs.indexOf(abbr)
+    if (monthIdx !== -1) {
+      const month = monthIdx + 1
+      const yr = dMonY[3].length === 2 ? 2000 + parseInt(dMonY[3]) : parseInt(dMonY[3])
+      return { label, year: yr, quarter: monthToQuarter(month), month }
+    }
+  }
+
   // "M/yyyy"
   const mSlashY = label.match(/^(\d{1,2})\/(\d{4})$/)
   if (mSlashY) {
