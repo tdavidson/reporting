@@ -1,11 +1,18 @@
 /**
- * lib/news-pipeline.ts  (v2.2)
+ * lib/news-pipeline.ts  (v2.3)
  *
- * Fix (v2.2):
- *   semanticDedup now runs AFTER the existing-links filter so duplicates are
- *   only counted among articles that would actually be inserted in this run.
- *   Previously, duplicates were computed from all fetched articles and reported
- *   even when the DB was empty and toClassify = 0.
+ * Dedup strategy (v2.3):
+ *   When multiple fetched articles cover the same story (same company, similar
+ *   title), we GROUP them into a cluster and keep the BEST one instead of
+ *   silently discarding the rest and inflating the duplicate counter.
+ *
+ *   "Best" = curated source > Google News, then longer title, then newest date.
+ *
+ *   storedTitles are fetched via a date-range query (last 3 days) scoped to
+ *   the fund — NOT via .in(link, ...) which silently truncates on large lists.
+ *
+ *   duplicates in the summary only count articles that were truly redundant
+ *   AFTER the best-pick step, i.e. same story already in DB from a prior run.
  */
 
 import { createClient } from '@/lib/supabase/server'
@@ -61,7 +68,6 @@ export interface RefreshSummary {
 
 type RawArticle = Omit<NewsArticle, 'category' | 'isDuplicate' | 'duplicateOf'>
 
-/** Internal Company type — aliases is always an array (possibly empty). */
 type Company = {
   id: string
   name: string
@@ -75,6 +81,13 @@ type Company = {
 
 const THREE_DAYS_MS   = 3 * 24 * 60 * 60 * 1000
 const DEDUP_THRESHOLD = 0.60
+
+// Curated source names (used for confidence scoring in best-pick)
+const CURATED_SOURCE_NAMES = new Set([
+  'Pipeline Valor', 'Brazil Journal PE/VC', 'NeoFeed Startups',
+  'Finsiders Brasil', 'LATAM List Funding', 'Startups.com.br',
+  'Startupi', 'Latam Fintech', 'Startups Latam', 'TechCrunch',
+])
 
 // ---------------------------------------------------------------------------
 // String / URL helpers
@@ -126,7 +139,6 @@ function levenshteinSimilarity(a: string, b: string): number {
   if (s1 === s2) return 1
   const len = Math.max(s1.length, s2.length)
   if (len === 0) return 1
-
   let row = Array.from({ length: s2.length + 1 }, (_, i) => i)
   for (let i = 1; i <= s1.length; i++) {
     let prev = i
@@ -167,42 +179,93 @@ export function titleSimilarity(a: string, b: string): number {
 }
 
 // ---------------------------------------------------------------------------
-// Semantic deduplication
-// Runs ONLY on articles that are new (not yet in DB).
-// Also compares against already-stored titles to catch cross-run dups.
+// Article confidence score (for best-pick within a cluster)
+// Higher = better.
 // ---------------------------------------------------------------------------
 
-function semanticDedup(
+function articleScore(a: RawArticle): number {
+  let score = 0
+  // Curated source > Google News
+  if (CURATED_SOURCE_NAMES.has(a.source)) score += 100
+  // Longer title = more information
+  score += Math.min(a.title.length, 200) / 10
+  // More recent = better
+  try {
+    const age = Date.now() - new Date(a.pubDate).getTime()
+    score += Math.max(0, 1 - age / THREE_DAYS_MS) * 10
+  } catch { /* no pubDate */ }
+  return score
+}
+
+// ---------------------------------------------------------------------------
+// Deduplication: cluster + best-pick
+//
+// Groups articles into similarity clusters per company.
+// Within each cluster, keeps the BEST article (highest score).
+// Also compares against storedTitles (already in DB) to detect cross-run dups.
+//
+// Returns:
+//   canonical  — one best article per story, all new
+//   skipped    — articles dropped because a better version was kept (same cluster)
+//   dbDups     — articles whose story is already in DB (cross-run dup)
+// ---------------------------------------------------------------------------
+
+function clusterAndPick(
   newArticles: RawArticle[],
   storedTitles: Array<{ companyId: string; title: string }>
-): { canonical: RawArticle[]; duplicateLinks: Set<string> } {
-  // Seed canonical with already-stored titles so cross-run dups are caught
-  const canonical: Array<{ companyId: string; title: string; link?: string }> = [
-    ...storedTitles.map(s => ({ companyId: s.companyId, title: s.title })),
-  ]
-  const duplicateLinks = new Set<string>()
+): {
+  canonical:  RawArticle[]
+  skippedCount: number
+  dbDupCount:   number
+  dbDupByCompany: Map<string, number>
+} {
+  // Step A: cluster new articles among themselves
+  type Cluster = { articles: RawArticle[] }
+  const clusters: Cluster[] = []
 
   for (const article of newArticles) {
-    const isDup = canonical.some(
-      c => c.companyId === article.companyId &&
-           titleSimilarity(c.title, article.title) >= DEDUP_THRESHOLD
+    let placed = false
+    for (const cluster of clusters) {
+      const rep = cluster.articles[0]
+      if (
+        rep.companyId === article.companyId &&
+        titleSimilarity(rep.title, article.title) >= DEDUP_THRESHOLD
+      ) {
+        cluster.articles.push(article)
+        placed = true
+        break
+      }
+    }
+    if (!placed) clusters.push({ articles: [article] })
+  }
+
+  // Step B: pick best from each cluster
+  const candidates: RawArticle[] = clusters.map(c =>
+    c.articles.reduce((best, cur) => articleScore(cur) > articleScore(best) ? cur : best)
+  )
+  const skippedCount = newArticles.length - candidates.length
+
+  // Step C: compare candidates against storedTitles (cross-run dups)
+  const dbDupByCompany = new Map<string, number>()
+  const canonical: RawArticle[] = []
+
+  for (const candidate of candidates) {
+    const isInDB = storedTitles.some(
+      s => s.companyId === candidate.companyId &&
+           titleSimilarity(s.title, candidate.title) >= DEDUP_THRESHOLD
     )
-    if (isDup) {
-      duplicateLinks.add(article.link)
+    if (isInDB) {
+      dbDupByCompany.set(
+        candidate.companyId,
+        (dbDupByCompany.get(candidate.companyId) ?? 0) + 1
+      )
     } else {
-      canonical.push({ companyId: article.companyId, title: article.title, link: article.link })
+      canonical.push(candidate)
     }
   }
 
-  // Return only the new articles that are canonical (exclude stored seeds)
-  const storedCount = storedTitles.length
-  const canonicalNew = canonical
-    .slice(storedCount)
-    .filter((c): c is typeof c & { link: string } => !!c.link)
-    .map(c => newArticles.find(a => a.link === c.link)!)
-    .filter(Boolean)
-
-  return { canonical: canonicalNew, duplicateLinks }
+  const dbDupCount = [...dbDupByCompany.values()].reduce((s, v) => s + v, 0)
+  return { canonical, skippedCount, dbDupCount, dbDupByCompany }
 }
 
 // ---------------------------------------------------------------------------
@@ -269,50 +332,32 @@ async function fetchCuratedSource(
   }
 }
 
-/**
- * Match curated articles against portfolio companies.
- * Checks: primary name, aliases, tokens from both name & aliases, domain.
- */
 function matchCuratedArticles(
   curatedItems: Array<{ title: string; link: string; pubDate: string; sourceName: string }>,
   companies: Company[],
 ): RawArticle[] {
   const cutoff = Date.now() - THREE_DAYS_MS
   const result: RawArticle[] = []
-
   for (const item of curatedItems) {
     if (!item.title || !item.link) continue
     if (item.pubDate) {
       const ts = new Date(item.pubDate).getTime()
       if (!isNaN(ts) && ts < cutoff) continue
     }
-
     const titleLower = item.title.toLowerCase()
     let domain = ''
     try { domain = new URL(item.link).hostname.replace(/^www\./, '') } catch { /* ignore */ }
-
     for (const company of companies) {
       const coDomain  = extractDomain(company.website)
       const allNames  = [company.name, ...company.aliases]
-      const allTokens = allNames
-        .flatMap(n => n.toLowerCase().split(/\s+/))
-        .filter(t => t.length >= 4)
-
+      const allTokens = allNames.flatMap(n => n.toLowerCase().split(/\s+/)).filter(t => t.length >= 4)
       const matched =
         (coDomain && (domain.includes(coDomain) || item.link.includes(coDomain))) ||
         allNames.some(n => titleLower.includes(n.toLowerCase())) ||
         allTokens.some(tok => titleLower.includes(tok))
-
       if (matched) {
-        result.push({
-          title:        item.title,
-          link:         item.link,
-          pubDate:      item.pubDate,
-          source:       item.sourceName,
-          sourceDomain: domain,
-          companyId:    company.id,
-          companyName:  company.name,
-        })
+        result.push({ title: item.title, link: item.link, pubDate: item.pubDate,
+          source: item.sourceName, sourceDomain: domain, companyId: company.id, companyName: company.name })
         break
       }
     }
@@ -321,7 +366,7 @@ function matchCuratedArticles(
 }
 
 // ---------------------------------------------------------------------------
-// RSS / Google News (aliases added as OR terms in query)
+// RSS / Google News
 // ---------------------------------------------------------------------------
 
 function parseRSSItems(xml: string, companyId: string, companyName: string): RawArticle[] {
@@ -354,31 +399,24 @@ function parseRSSItems(xml: string, companyId: string, companyName: string): Raw
 
 async function fetchGoogleNews(company: Company): Promise<RawArticle[]> {
   try {
-    const domain = extractDomain(company.website)
-
+    const domain    = extractDomain(company.website)
     const nameParts = [`"${company.name}"`]
     for (const alias of company.aliases) {
       if (alias && alias !== company.name) nameParts.push(`"${alias}"`)
     }
     let q = `(${nameParts.join(' OR ')}) when:3d`
     if (domain) q += ` OR site:${domain}`
-
     const res = await fetch(
       `https://news.google.com/rss/search?q=${encodeURIComponent(q)}&hl=pt-BR&gl=BR&ceid=BR:pt`,
-      {
-        headers: { 'User-Agent': 'Mozilla/5.0 (compatible; NewsReader/1.0)' },
-        signal: AbortSignal.timeout(8000),
-      }
+      { headers: { 'User-Agent': 'Mozilla/5.0 (compatible; NewsReader/1.0)' }, signal: AbortSignal.timeout(8000) }
     )
     if (!res.ok) return []
     return parseRSSItems(await res.text(), company.id, company.name)
-  } catch {
-    return []
-  }
+  } catch { return [] }
 }
 
 // ---------------------------------------------------------------------------
-// Deterministic pre-filter (name + aliases + domain)
+// Deterministic pre-filter
 // ---------------------------------------------------------------------------
 
 function deterministicPreFilter(articles: RawArticle[], companies: Company[]): RawArticle[] {
@@ -386,16 +424,12 @@ function deterministicPreFilter(articles: RawArticle[], companies: Company[]): R
     companies.map(c => [
       c.id,
       {
-        name:      c.name,
         domain:    extractDomain(c.website),
         allNames:  [c.name, ...c.aliases].map(n => n.toLowerCase()),
-        allTokens: [c.name, ...c.aliases]
-          .flatMap(n => n.toLowerCase().split(/\s+/))
-          .filter(t => t.length >= 4),
+        allTokens: [c.name, ...c.aliases].flatMap(n => n.toLowerCase().split(/\s+/)).filter(t => t.length >= 4),
       },
     ] as const)
   )
-
   return articles.filter(a => {
     const co = coMap.get(a.companyId)
     if (!co) return false
@@ -467,8 +501,8 @@ async function classifyArticles(
   companies: Company[]
 ): Promise<ClassifyResult[]> {
   const companyList = companies.map(c => {
-    const domain       = extractDomain(c.website)
-    const aliasStr     = c.aliases.length > 0 ? ` | aliases: ${c.aliases.join(', ')}` : ''
+    const domain   = extractDomain(c.website)
+    const aliasStr = c.aliases.length > 0 ? ` | aliases: ${c.aliases.join(', ')}` : ''
     return `- id: ${c.id} | name: ${c.name}${aliasStr}${domain ? ` | website: ${domain}` : ''}`
   }).join('\n')
 
@@ -485,15 +519,14 @@ News articles:
 ${articleList}
 
 For each article return companyId (UUID or null) and category (or null).
-
 Categories: rodada | aquisicao | parceria | contratacao | produto | expansao | premio | crise | ipo | outro
 
-Rules (apply in order):
-1. Source domain matches company website domain -> assign that company
-2. Company primary name OR any alias appears in title -> assign and classify
-3. Otherwise -> null, null. Do NOT guess from industry.
+Rules:
+1. Source domain matches company website domain → assign that company
+2. Company primary name OR any alias appears in title → assign and classify
+3. Otherwise → null, null. Do NOT guess from industry.
 
-Respond ONLY with a JSON array — no markdown, no commentary:
+Respond ONLY with a JSON array — no markdown:
 [{"index":0,"companyId":"uuid","category":"rodada"},{"index":1,"companyId":null,"category":null}]`
 
   const raw = await withRetry(async () => {
@@ -529,10 +562,7 @@ async function reviewArticles(
 ): Promise<NewsArticle[]> {
   if (candidates.length === 0) return []
 
-  const coById = new Map(companies.map(c => [
-    c.id,
-    { ...c, domain: extractDomain(c.website) },
-  ]))
+  const coById = new Map(companies.map(c => [c.id, { ...c, domain: extractDomain(c.website) }]))
 
   const articleList = candidates.map((a, i) => {
     const co       = coById.get(a.companyId)
@@ -544,14 +574,14 @@ async function reviewArticles(
 Remove OBVIOUS false positives only — articles that clearly refer to a DIFFERENT company.
 
 Rules:
-- keep: true  if company primary name OR any alias appears in title, OR source domain is the company's website
-- keep: true  if you are UNCERTAIN — the user will manually delete incorrect articles if needed
-- keep: false ONLY if the article clearly refers to a different entity (name collision, different industry, etc.)
+- keep: true  when company primary name OR any alias appears in title, OR source is company website
+- keep: true  when UNCERTAIN — user will manually delete incorrect articles
+- keep: false ONLY when article clearly refers to a different entity (name collision, different industry)
 
 Articles:
 ${articleList}
 
-Respond ONLY with a JSON array — no markdown, no commentary:
+Respond ONLY with a JSON array — no markdown:
 [{"index":0,"keep":true},{"index":1,"keep":false}]`
 
   const raw = await withRetry(async () => {
@@ -597,14 +627,12 @@ async function resolveApiKey(
   try {
     if (fs?.claude_api_key_encrypted && fs?.encryption_key_encrypted)
       apiKey = decryptApiKey(fs.claude_api_key_encrypted, fs.encryption_key_encrypted)
-  } catch (e) {
-    console.error('[news-pipeline] failed to decrypt fund API key:', e)
-  }
+  } catch (e) { console.error('[news-pipeline] failed to decrypt fund API key:', e) }
   return apiKey ?? process.env.ANTHROPIC_API_KEY
 }
 
 // ---------------------------------------------------------------------------
-// Helpers to build the Company list with aliases
+// Helpers
 // ---------------------------------------------------------------------------
 
 type DBCompany = { id: string; name: string; website: string | null }
@@ -616,12 +644,7 @@ function buildCompanyList(dbCompanies: DBCompany[], dbAliases: DBAlias[]): Compa
     if (!aliasMap.has(row.company_id)) aliasMap.set(row.company_id, [])
     aliasMap.get(row.company_id)!.push(row.alias)
   }
-  return dbCompanies.map(c => ({
-    id:      c.id,
-    name:    c.name,
-    website: c.website,
-    aliases: aliasMap.get(c.id) ?? [],
-  }))
+  return dbCompanies.map(c => ({ id: c.id, name: c.name, website: c.website, aliases: aliasMap.get(c.id) ?? [] }))
 }
 
 // ---------------------------------------------------------------------------
@@ -644,31 +667,27 @@ export async function runNewsPipeline(
     .order('name') as { data: DBCompany[] | null }
 
   const rawList = dbCompanies ?? []
-  if (rawList.length === 0) {
-    return { added: 0, duplicates: 0, total: 0, byCompany: [], ranAt }
-  }
+  if (rawList.length === 0) return { added: 0, duplicates: 0, total: 0, byCompany: [], ranAt }
 
   // 2. Load aliases
   const companyIds = rawList.map(c => c.id)
   const { data: dbAliases } = await sdb
-    .from('company_aliases')
-    .select('company_id, alias')
-    .in('company_id', companyIds) as { data: DBAlias[] | null }
+    .from('company_aliases').select('company_id, alias').in('company_id', companyIds) as { data: DBAlias[] | null }
 
   const list = buildCompanyList(rawList, dbAliases ?? [])
 
-  // 3a. Google News per company
+  // 3a. Google News
   const googleBatches  = await Promise.all(list.map(c => fetchGoogleNews(c)))
   const googleArticles = googleBatches.flat()
 
-  // 3b. Curated LATAM/BR sources
+  // 3b. Curated sources
   const curatedBatches = await Promise.allSettled(CURATED_SOURCES.map(s => fetchCuratedSource(s)))
   const curatedRaw = curatedBatches
     .filter((r): r is PromiseFulfilledResult<Awaited<ReturnType<typeof fetchCuratedSource>>> => r.status === 'fulfilled')
     .flatMap(r => r.value)
   const curatedArticles = matchCuratedArticles(curatedRaw, list)
 
-  // 4. Merge + URL-level dedup
+  // 4. Merge + URL-exact dedup
   const seenUrls = new Set<string>()
   const allRaw: RawArticle[] = []
   for (const a of [...googleArticles, ...curatedArticles]) {
@@ -677,42 +696,55 @@ export async function runNewsPipeline(
   }
   const total = allRaw.length
 
-  // 5. Deterministic pre-filter
+  // 5. Deterministic name filter
   const preFiltered = deterministicPreFilter(allRaw, list)
 
-  // 6. Resolve API key (early — needed for step 9)
+  // 6. Resolve API key
   const apiKey = await resolveApiKey(fundId, supabase)
   if (!apiKey) {
-    console.warn('[news-pipeline] no Anthropic API key — aborting AI pass')
+    console.warn('[news-pipeline] no Anthropic API key — aborting')
     return { added: 0, duplicates: 0, total, byCompany: [], ranAt }
   }
 
-  // 7. Exclude already-stored links (URL-exact)
-  const prefilteredLinks = preFiltered.map(a => a.link)
-  const { data: existing } = await sdb
+  // 7. Fetch already-stored titles via date range (NOT via .in(link) to avoid truncation)
+  //    We only care about articles from the past 3 days for cross-run dedup.
+  const cutoffISO = new Date(Date.now() - THREE_DAYS_MS).toISOString()
+  const { data: recentStored } = await sdb
     .from('news_articles')
     .select('link, title, company_id')
     .eq('fund_id', fundId)
-    .in('link', prefilteredLinks)
+    .gte('scraped_at', cutoffISO) as { data: Array<{ link: string; title: string; company_id: string }> | null }
 
-  const existingRows: Array<{ link: string; title: string; company_id: string }> = existing ?? []
-  const existingLinkSet = new Set<string>(existingRows.map(r => r.link))
+  const storedRows        = recentStored ?? []
+  const storedLinkSet     = new Set<string>(storedRows.map(r => normalizeUrl(r.link)))
+  const storedTitles      = storedRows.map(r => ({ companyId: r.company_id, title: r.title }))
 
-  // Already-stored titles for cross-run dedup seeding
-  const storedTitles = existingRows.map(r => ({ companyId: r.company_id, title: r.title }))
-
-  // Articles not yet in DB
-  const newArticles = preFiltered.filter(a => !existingLinkSet.has(a.link))
+  // 8. Remove URL-exact matches already in DB
+  const newArticles = preFiltered.filter(a => !storedLinkSet.has(normalizeUrl(a.link)))
 
   if (newArticles.length === 0) {
-    // Nothing new — report zero duplicates (no new content to dedup)
     return { added: 0, duplicates: 0, total, byCompany: [], ranAt }
   }
 
-  // 8. Semantic dedup — only among new articles, seeded with stored titles
-  const { canonical, duplicateLinks } = semanticDedup(newArticles, storedTitles)
+  // 9. Cluster + best-pick
+  //    Within this fetch: group near-duplicate articles, keep the best one per story.
+  //    Cross-run: if best candidate matches a stored title, it's a DB dup (skipped silently).
+  const { canonical, skippedCount, dbDupCount, dbDupByCompany } =
+    clusterAndPick(newArticles, storedTitles)
 
-  // 9. AI classify + review
+  console.log(`[news-pipeline] cluster: ${newArticles.length} new → ${canonical.length} canonical, ${skippedCount} intra-run merged, ${dbDupCount} already in DB`)
+
+  if (canonical.length === 0) {
+    // All were cross-run dups — report those if any
+    const byCompany: RefreshSummaryByCompany[] = []
+    for (const [companyId, dups] of dbDupByCompany.entries()) {
+      const co = list.find(c => c.id === companyId)
+      if (co) byCompany.push({ companyId, companyName: co.name, added: 0, duplicates: dups })
+    }
+    return { added: 0, duplicates: dbDupCount, total, byCompany, ranAt }
+  }
+
+  // 10. AI classify + review
   const anthropic  = new Anthropic({ apiKey })
   const companyMap = new Map(list.map(c => [c.id, c.name]))
   let enriched: NewsArticle[] = []
@@ -741,7 +773,7 @@ export async function runNewsPipeline(
       .map(a => ({ ...a, category: 'outro' as NewsCategory }))
   }
 
-  // 10. Upsert
+  // 11. Upsert
   if (enriched.length > 0) {
     await sdb.from('news_articles').upsert(
       enriched.map(a => ({
@@ -761,18 +793,19 @@ export async function runNewsPipeline(
     )
   }
 
-  // 11. Per-company summary
+  // 12. Per-company summary
+  //     duplicates = only cross-run DB dups (intra-run merges are silent — we kept the best one)
   const byCompanyMap = new Map<string, RefreshSummaryByCompany>()
   for (const c of list) byCompanyMap.set(c.id, { companyId: c.id, companyName: c.name, added: 0, duplicates: 0 })
-  for (const a of enriched)       { const e = byCompanyMap.get(a.companyId); if (e) e.added++ }
-  for (const link of duplicateLinks) {
-    const article = newArticles.find(a => a.link === link)
-    if (article) { const e = byCompanyMap.get(article.companyId); if (e) e.duplicates++ }
+  for (const a of enriched) { const e = byCompanyMap.get(a.companyId); if (e) e.added++ }
+  for (const [companyId, dups] of dbDupByCompany.entries()) {
+    const e = byCompanyMap.get(companyId)
+    if (e) e.duplicates += dups
   }
 
   return {
     added:      enriched.length,
-    duplicates: duplicateLinks.size,
+    duplicates: dbDupCount,
     total,
     byCompany:  [...byCompanyMap.values()].filter(x => x.added > 0 || x.duplicates > 0),
     ranAt,
