@@ -9,8 +9,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 
+// fund_members and news_articles are not in the generated Supabase types,
+// so we cast to any to avoid TS errors (same pattern as the rest of the app).
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const db = (supabase: ReturnType<typeof createClient>) => supabase as any
+const db = (supabase: Awaited<ReturnType<typeof createClient>>) => supabase as any
 
 export async function DELETE(
   _req: NextRequest,
@@ -23,8 +25,10 @@ export async function DELETE(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Resolve the user's active fund
-    const { data: member } = await supabase
+    const sdb = db(supabase)
+
+    // Resolve the user's active fund (via db cast — table not in generated types)
+    const { data: member } = await sdb
       .from('fund_members')
       .select('fund_id')
       .eq('user_id', user.id)
@@ -40,7 +44,7 @@ export async function DELETE(
       return NextResponse.json({ error: 'Missing id' }, { status: 400 })
     }
 
-    const { error } = await db(supabase)
+    const { error } = await sdb
       .from('news_articles')
       .delete()
       .eq('id', id)
