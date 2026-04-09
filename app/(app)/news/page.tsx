@@ -9,24 +9,24 @@ import type { NewsArticle, NewsCategory } from '@/app/api/news/route'
 const NEWS_SOURCES_KEY = 'prlx:newsSources'
 
 const PRESET_PORTALS = [
-  { label: 'Pipeline Valor', url: 'pipelinevalor.globo.com' },
-  { label: 'Brazil Journal', url: 'braziljournal.com' },
-  { label: 'NeoFeed', url: 'neofeed.com.br' },
+  { label: 'Pipeline Valor',   url: 'pipelinevalor.globo.com' },
+  { label: 'Brazil Journal',   url: 'braziljournal.com' },
+  { label: 'NeoFeed',          url: 'neofeed.com.br' },
   { label: 'Finsiders Brasil', url: 'finsidersbrasil.com.br' },
-  { label: 'Valor Economico', url: 'valor.globo.com' },
-  { label: 'LATAM List', url: 'latamlist.com' },
-  { label: 'Crunchbase News', url: 'news.crunchbase.com' },
-  { label: 'Startups.com.br', url: 'startups.com.br' },
-  { label: 'Startupi', url: 'startupi.com.br' },
-  { label: 'LATAM Fintech', url: 'latamfintech.co' },
+  { label: 'Valor Economico',  url: 'valor.globo.com' },
+  { label: 'LATAM List',       url: 'latamlist.com' },
+  { label: 'Crunchbase News',  url: 'news.crunchbase.com' },
+  { label: 'Startups.com.br',  url: 'startups.com.br' },
+  { label: 'Startupi',         url: 'startupi.com.br' },
+  { label: 'LATAM Fintech',    url: 'latamfintech.co' },
 ]
 
 const DATE_OPTIONS = [
-  { value: 'all', label: 'All time' },
-  { value: '24h', label: '24h' },
-  { value: '7d', label: '7d' },
-  { value: '30d', label: '30d' },
-  { value: 'ytd', label: 'YTD' },
+  { value: 'all',      label: 'All time' },
+  { value: '24h',      label: '24h' },
+  { value: '7d',       label: '7d' },
+  { value: '30d',      label: '30d' },
+  { value: 'ytd',      label: 'YTD' },
   { value: 'lastyear', label: 'Last year' },
 ]
 
@@ -42,7 +42,7 @@ const CATEGORY_CONFIG: Record<string, { label: string; className: string }> = {
   crise:       { label: 'Crise',       className: 'bg-red-500/15 text-red-600 border-red-500/30' },
   outro:       { label: 'Outro',       className: 'bg-muted text-muted-foreground border-border' },
   // legacy compat
-  featured:    { label: 'Destaque',    className: 'bg-emerald-500/15 text-emerald-600 border-emerald-500/30' },
+  featured:    { label: 'Destaque',   className: 'bg-emerald-500/15 text-emerald-600 border-emerald-500/30' },
   mentioned:   { label: 'Mencionada', className: 'bg-blue-500/15 text-blue-600 border-blue-500/30' },
 }
 
@@ -57,7 +57,10 @@ function getTag(article: AnyArticle) {
 function getSavedSources(): string[] {
   try { return JSON.parse(localStorage.getItem(NEWS_SOURCES_KEY) ?? '[]') } catch { return [] }
 }
-function setSavedSources(s: string[]) { localStorage.setItem(NEWS_SOURCES_KEY, JSON.stringify(s)) }
+
+function setSavedSources(s: string[]) {
+  try { localStorage.setItem(NEWS_SOURCES_KEY, JSON.stringify(s)) } catch { /* sandboxed */ }
+}
 
 function timeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime()
@@ -67,6 +70,10 @@ function timeAgo(dateStr: string): string {
   if (hrs < 24) return `${hrs}h ago`
   return `${Math.floor(hrs / 24)}d ago`
 }
+
+// ---------------------------------------------------------------------------
+// Portals modal
+// ---------------------------------------------------------------------------
 
 function PortalsModal({ onClose }: { onClose: () => void }) {
   const [selected, setSelected] = useState<string[]>(getSavedSources)
@@ -87,8 +94,14 @@ function PortalsModal({ onClose }: { onClose: () => void }) {
             const active = selected.includes(p.url)
             return (
               <button key={p.url} onClick={() => toggle(p.url)}
-                className={`flex items-center gap-2 text-left px-3 py-2 rounded-lg border text-xs transition-colors ${active ? 'border-foreground/40 bg-accent font-medium' : 'border-border text-muted-foreground hover:bg-accent/40'}`}>
-                <span className={`h-3.5 w-3.5 rounded border flex items-center justify-center shrink-0 ${active ? 'bg-foreground border-foreground' : 'border-muted-foreground'}`}>
+                className={`flex items-center gap-2 text-left px-3 py-2 rounded-lg border text-xs transition-colors ${
+                  active
+                    ? 'border-foreground/40 bg-accent font-medium'
+                    : 'border-border text-muted-foreground hover:bg-accent/40'
+                }`}>
+                <span className={`h-3.5 w-3.5 rounded border flex items-center justify-center shrink-0 ${
+                  active ? 'bg-foreground border-foreground' : 'border-muted-foreground'
+                }`}>
                   {active && <Check className="h-2.5 w-2.5 text-background" />}
                 </span>
                 {p.label}
@@ -108,22 +121,25 @@ function PortalsModal({ onClose }: { onClose: () => void }) {
   )
 }
 
+// ---------------------------------------------------------------------------
+// Companies modal
+// ---------------------------------------------------------------------------
+
 function CompaniesModal({ companies, selected, onSave, onClose }: {
   companies: Company[]
   selected: string[]
   onSave: (ids: string[]) => void
   onClose: () => void
 }) {
-  // empty selected = all → pre-check all in modal
-  const allIds = companies.map(c => c.id)
+  const allIds    = companies.map(c => c.id)
   const [local, setLocal] = useState<string[]>(selected.length === 0 ? allIds : selected)
   const allChecked = local.length === companies.length
 
-  const toggle = (id: string) =>
+  const toggle    = (id: string) =>
     setLocal(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
   const toggleAll = () => setLocal(allChecked ? [] : allIds)
 
-  // if all selected, save as [] (= no filter = show all)
+  // If all selected → save as [] (no filter = show all)
   const handleSave = () => {
     onSave(local.length === companies.length ? [] : local)
     onClose()
@@ -137,10 +153,15 @@ function CompaniesModal({ companies, selected, onSave, onClose }: {
           <button onClick={onClose} className="text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
         </div>
 
-        {/* Select all row */}
         <button onClick={toggleAll}
-          className={`w-full flex items-center gap-2 text-left px-3 py-2 rounded-lg border text-xs mb-2 transition-colors font-medium ${allChecked ? 'border-foreground/40 bg-accent' : 'border-border text-muted-foreground hover:bg-accent/40'}`}>
-          <span className={`h-3.5 w-3.5 rounded border flex items-center justify-center shrink-0 ${allChecked ? 'bg-foreground border-foreground' : 'border-muted-foreground'}`}>
+          className={`w-full flex items-center gap-2 text-left px-3 py-2 rounded-lg border text-xs mb-2 transition-colors font-medium ${
+            allChecked
+              ? 'border-foreground/40 bg-accent'
+              : 'border-border text-muted-foreground hover:bg-accent/40'
+          }`}>
+          <span className={`h-3.5 w-3.5 rounded border flex items-center justify-center shrink-0 ${
+            allChecked ? 'bg-foreground border-foreground' : 'border-muted-foreground'
+          }`}>
             {allChecked && <Check className="h-2.5 w-2.5 text-background" />}
           </span>
           Todas as empresas
@@ -151,8 +172,14 @@ function CompaniesModal({ companies, selected, onSave, onClose }: {
             const active = local.includes(c.id)
             return (
               <button key={c.id} onClick={() => toggle(c.id)}
-                className={`w-full flex items-center gap-2 text-left px-3 py-2 rounded-lg border text-xs transition-colors ${active ? 'border-foreground/40 bg-accent font-medium' : 'border-border text-muted-foreground hover:bg-accent/40'}`}>
-                <span className={`h-3.5 w-3.5 rounded border flex items-center justify-center shrink-0 ${active ? 'bg-foreground border-foreground' : 'border-muted-foreground'}`}>
+                className={`w-full flex items-center gap-2 text-left px-3 py-2 rounded-lg border text-xs transition-colors ${
+                  active
+                    ? 'border-foreground/40 bg-accent font-medium'
+                    : 'border-border text-muted-foreground hover:bg-accent/40'
+                }`}>
+                <span className={`h-3.5 w-3.5 rounded border flex items-center justify-center shrink-0 ${
+                  active ? 'bg-foreground border-foreground' : 'border-muted-foreground'
+                }`}>
                   {active && <Check className="h-2.5 w-2.5 text-background" />}
                 </span>
                 <span className="truncate">{c.name}</span>
@@ -170,19 +197,22 @@ function CompaniesModal({ companies, selected, onSave, onClose }: {
   )
 }
 
+// ---------------------------------------------------------------------------
+// Main page
+// ---------------------------------------------------------------------------
+
 export default function NewsPage() {
-  const [articles, setArticles] = useState<AnyArticle[]>([])
-  const [companies, setCompanies] = useState<Company[]>([])
-  const [loading, setLoading] = useState(true)
-  const [refreshing, setRefreshing] = useState(false)
-  const [dateRange, setDateRange] = useState<string>('all')
-  // [] = all companies (no filter applied)
+  const [articles,          setArticles]          = useState<AnyArticle[]>([])
+  const [companies,         setCompanies]         = useState<Company[]>([])
+  const [loading,           setLoading]           = useState(true)
+  const [refreshing,        setRefreshing]        = useState(false)
+  const [dateRange,         setDateRange]         = useState<string>('all')
   const [selectedCompanies, setSelectedCompanies] = useState<string[]>([])
-  const [error, setError] = useState<string | null>(null)
-  const [sources, setSources] = useState<string[]>([])
-  const [showPortals, setShowPortals] = useState(false)
-  const [showCompanies, setShowCompanies] = useState(false)
-  const [fromDate, setFromDate] = useState<string>('')
+  const [error,             setError]             = useState<string | null>(null)
+  const [sources,           setSources]           = useState<string[]>([])
+  const [showPortals,       setShowPortals]       = useState(false)
+  const [showCompanies,     setShowCompanies]     = useState(false)
+  const [fromDate,          setFromDate]          = useState<string>('')
 
   useEffect(() => { setSources(getSavedSources()) }, [])
 
@@ -190,10 +220,13 @@ export default function NewsPage() {
     try {
       const currentSources = getSavedSources()
       setSources(currentSources)
+
       const params = new URLSearchParams()
-      if (bust) params.set('bust', String(Date.now()))
-      if (currentSources.length > 0) params.set('sources', currentSources.join(','))
-      if (fromDate) params.set('fromDate', fromDate)
+      if (bust)                          params.set('bust',      String(Date.now()))
+      if (currentSources.length > 0)     params.set('sources',   currentSources.join(','))
+      if (dateRange && dateRange !== 'all') params.set('dateRange', dateRange)
+      if (fromDate)                      params.set('fromDate',  fromDate)
+
       const res = await fetch(`/api/news?${params}`)
       if (!res.ok) throw new Error('Failed to load news')
       const data = await res.json()
@@ -205,15 +238,17 @@ export default function NewsPage() {
     }
   }
 
+  // Initial load
   useEffect(() => { load().finally(() => setLoading(false)) }, [])
 
+  // Reload when date filters change
   const [mounted, setMounted] = useState(false)
   useEffect(() => {
     if (!mounted) { setMounted(true); return }
     setLoading(true)
     load().finally(() => setLoading(false))
     // eslint-disable-next-line react-hooks/exhaustive-deps
-}, [dateRange, fromDate])
+  }, [dateRange, fromDate])
 
   async function handleRefresh() {
     setRefreshing(true)
@@ -227,12 +262,11 @@ export default function NewsPage() {
     load().finally(() => setLoading(false))
   }
 
-  // [] = show all; otherwise filter to selected
+  // Client-side company filter ([] = show all)
   const filtered = selectedCompanies.length > 0
     ? articles.filter(a => selectedCompanies.includes(a.companyId))
     : articles
 
-  // button shows "active" only when a real subset is selected
   const filterActive = selectedCompanies.length > 0 && selectedCompanies.length < companies.length
 
   return (
@@ -247,6 +281,7 @@ export default function NewsPage() {
         />
       )}
 
+      {/* Header */}
       <div className="mb-6">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2">
@@ -255,13 +290,20 @@ export default function NewsPage() {
           </h1>
           <div className="flex items-center gap-2">
             {sources.length > 0 && (
-              <span className="text-xs text-muted-foreground">{sources.length} portal{sources.length !== 1 ? 's' : ''}</span>
+              <span className="text-xs text-muted-foreground">
+                {sources.length} portal{sources.length !== 1 ? 's' : ''}
+              </span>
             )}
             <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setShowPortals(true)}>
               <Settings2 className="h-3.5 w-3.5" />
               Portals
             </Button>
-            <Button variant="outline" size="sm" onClick={handleRefresh} disabled={refreshing || loading} className="gap-1.5">
+            <Button
+              variant="outline" size="sm"
+              onClick={handleRefresh}
+              disabled={refreshing || loading}
+              className="gap-1.5"
+            >
               <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? 'animate-spin' : ''}`} />
               Refresh
             </Button>
@@ -270,7 +312,9 @@ export default function NewsPage() {
         <p className="text-sm text-muted-foreground mt-1">Latest news about your portfolio companies · cached for 1h</p>
       </div>
 
+      {/* Filters */}
       <div className="flex items-center justify-between mb-6 gap-3 flex-wrap">
+        {/* Period pills */}
         <div className="flex items-center gap-1.5 flex-wrap">
           <span className="text-xs text-muted-foreground">Period:</span>
           {DATE_OPTIONS.map(opt => (
@@ -284,25 +328,24 @@ export default function NewsPage() {
             </button>
           ))}
         </div>
-<div className="flex items-center gap-1.5">
-  <span className="text-xs text-muted-foreground">From:</span>
-  <input
-    type="date"
-    value={fromDate}
-    onChange={e => setFromDate(e.target.value)}
-    className="text-xs px-2 py-1 rounded-md border bg-transparent text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-  />
-  {fromDate && (
-    <button
-      onClick={() => setFromDate('')}
-      className="text-xs text-muted-foreground hover:text-foreground"
-    >
-      <X className="h-3 w-3" />
-    </button>
-  )}
-</div>
 
-        
+        {/* From date */}
+        <div className="flex items-center gap-1.5">
+          <span className="text-xs text-muted-foreground">From:</span>
+          <input
+            type="date"
+            value={fromDate}
+            onChange={e => setFromDate(e.target.value)}
+            className="text-xs px-2 py-1 rounded-md border bg-transparent text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+          />
+          {fromDate && (
+            <button onClick={() => setFromDate('')} className="text-xs text-muted-foreground hover:text-foreground">
+              <X className="h-3 w-3" />
+            </button>
+          )}
+        </div>
+
+        {/* Company filter */}
         {companies.length > 0 && (
           <button onClick={() => setShowCompanies(true)}
             className={`flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border transition-colors ${
@@ -316,6 +359,7 @@ export default function NewsPage() {
         )}
       </div>
 
+      {/* Loading skeleton */}
       {loading && (
         <div className="space-y-3">
           {[...Array(6)].map((_, i) => (
@@ -327,6 +371,7 @@ export default function NewsPage() {
         </div>
       )}
 
+      {/* Error */}
       {!loading && error && (
         <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-6 text-center">
           <p className="text-sm text-destructive">{error}</p>
@@ -334,6 +379,7 @@ export default function NewsPage() {
         </div>
       )}
 
+      {/* Empty */}
       {!loading && !error && filtered.length === 0 && (
         <div className="rounded-lg border border-dashed p-12 text-center">
           <Newspaper className="h-8 w-8 text-muted-foreground mx-auto mb-3" />
@@ -342,6 +388,7 @@ export default function NewsPage() {
         </div>
       )}
 
+      {/* Article list */}
       {!loading && !error && filtered.length > 0 && (
         <div className="space-y-2">
           {filtered.map((article, i) => {

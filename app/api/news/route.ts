@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { decryptApiKey } from '@/lib/crypto'
 import Anthropic from '@anthropic-ai/sdk'
 
-const cache = new Map<string, { data: RawArticle[]; expiresAt: number }>()
+// In-memory RSS cache keyed by company+sources
+const RSS_CACHE = new Map<string, { data: RawArticle[]; expiresAt: number }>()
 const CACHE_TTL_MS = 60 * 60 * 1000
-const AI_CACHE = new Map<string, { articles: NewsArticle[]; expiresAt: number }>()
 
 export type NewsCategory =
   | 'rodada'
@@ -31,28 +32,18 @@ export interface NewsArticle {
 
 type RawArticle = Omit<NewsArticle, 'category'>
 
-const TLD_TO_COUNTRY: Record<string, string> = {
-  'com': 'US', 'us': 'US', 'co.uk': 'UK', 'uk': 'UK',
-  'com.br': 'BR', 'br': 'BR', 'de': 'DE', 'fr': 'FR',
-  'es': 'ES', 'it': 'IT', 'ca': 'CA', 'au': 'AU',
-  'co.au': 'AU', 'in': 'IN', 'co.in': 'IN', 'jp': 'JP',
-  'cn': 'CN', 'sg': 'SG', 'io': 'TECH', 'ai': 'TECH',
-}
+type Company = { id: string; name: string; website: string | null }
 
-function domainToCountry(domain: string): string {
-  const d = domain.toLowerCase()
-  for (const [suffix, country] of Object.entries(TLD_TO_COUNTRY)) {
-    if (d.endsWith('.' + suffix) || d === suffix) return country
-  }
-  return 'US'
-}
+// ---------------------------------------------------------------------------
+// Date helpers
+// ---------------------------------------------------------------------------
 
 function getDateCutoff(dateRange: string): number | null {
   const now = new Date()
-  if (dateRange === '24h') return Date.now() - 86400000
-  if (dateRange === '7d') return Date.now() - 7 * 86400000
-  if (dateRange === '30d') return Date.now() - 30 * 86400000
-  if (dateRange === 'ytd') return new Date(now.getFullYear(), 0, 1).getTime()
+  if (dateRange === '24h')      return Date.now() - 86_400_000
+  if (dateRange === '7d')       return Date.now() - 7  * 86_400_000
+  if (dateRange === '30d')      return Date.now() - 30 * 86_400_000
+  if (dateRange === 'ytd')      return new Date(now.getFullYear(), 0, 1).getTime()
   if (dateRange === 'lastyear') return new Date(now.getFullYear() - 1, 0, 1).getTime()
   return null
 }
@@ -64,6 +55,10 @@ function getDateCeiling(dateRange: string): number | null {
   }
   return null
 }
+
+// ---------------------------------------------------------------------------
+// URL / domain helpers
+// ---------------------------------------------------------------------------
 
 function normalizeUrl(url: string): string {
   try {
@@ -88,12 +83,9 @@ function formatPubDate(dateStr: string): string {
   try { return new Date(dateStr).toISOString().split('T')[0] } catch { return dateStr }
 }
 
-/**
- * Strip the " - Source Name" suffix that Google News appends to article titles.
- * e.g. "NovaTech levanta R$50M - Pipeline Valor" → "NovaTech levanta R$50M"
- */
+/** Strip the " - Source Name" suffix that Google News appends to article titles. */
 function cleanTitle(title: string): string {
-  return title.replace(/\s+[-–—]\s+[^-–—]+$/, '').trim()
+  return title.replace(/\s+[-\u2013\u2014]\s+[^-\u2013\u2014]+$/, '').trim()
 }
 
 function isGoogleNewsLink(url: string): boolean {
@@ -105,17 +97,22 @@ function isGoogleNewsLink(url: string): boolean {
   }
 }
 
+// ---------------------------------------------------------------------------
+// RSS fetching
+// ---------------------------------------------------------------------------
+
 function parseRSSItems(xml: string, companyId: string, companyName: string): RawArticle[] {
   const items = Array.from(xml.matchAll(/<item>([\s\S]*?)<\/item>/g))
   return items.slice(0, 15).map(match => {
     const block = match[1]
     const rawTitle = block.match(/<title>(.*?)<\/title>/)?.[1]?.replace(/<[^>]+>/g, '').trim() ?? ''
     const title = cleanTitle(rawTitle)
-    const link = block.match(/<link\s*\/?>(.*?)(?:<\/link>|$)/)?.[1]?.trim()
-      ?? block.match(/<link>(.*?)<\/link>/)?.[1]?.trim() ?? ''
-    const pubDate = block.match(/<pubDate>(.*?)<\/pubDate>/)?.[1]?.trim() ?? ''
-    const source = block.match(/<source[^>]*>(.*?)<\/source>/)?.[1]?.trim() ?? 'Google News'
-    const sourceUrl = block.match(/<source[^>]*url="([^"]*)"/)?.[1] ?? ''
+    const link =
+      block.match(/<link\s*\/?>(.*?)(?:<\/link>|$)/)?.[1]?.trim() ??
+      block.match(/<link>(.*?)<\/link>/)?.[1]?.trim() ?? ''
+    const pubDate      = block.match(/<pubDate>(.*?)<\/pubDate>/)?.[1]?.trim() ?? ''
+    const source       = block.match(/<source[^>]*>(.*?)<\/source>/)?.[1]?.trim() ?? 'Google News'
+    const sourceUrl    = block.match(/<source[^>]*url="([^"]*)"/)?.[1] ?? ''
     let sourceDomain = ''
     try { sourceDomain = new URL(sourceUrl).hostname.replace(/^www\./, '') } catch { sourceDomain = source.toLowerCase() }
     return { title, link, pubDate, source, sourceDomain, companyId, companyName }
@@ -132,16 +129,16 @@ async function fetchCompanyNews(
     ? Array.from(new Set([...sources, websiteDomain]))
     : sources
 
-  const cacheKey = `news:${companyId}:${[...allSources].sort().join(',')}`
-  const cached = cache.get(cacheKey)
+  const cacheKey = `rss:${companyId}:${[...allSources].sort().join(',')}`
+  const cached = RSS_CACHE.get(cacheKey)
   if (cached && cached.expiresAt > Date.now()) return cached.data
 
   try {
-    let q1 = `"${companyName}"`
-    if (allSources.length > 0) q1 += ` (${allSources.map(s => `site:${s}`).join(' OR ')})`
+    let q = `"${companyName}"`
+    if (allSources.length > 0) q += ` (${allSources.map(s => `site:${s}`).join(' OR ')})`
 
-    const res1 = await fetch(
-      `https://news.google.com/rss/search?q=${encodeURIComponent(q1)}&hl=pt-BR&gl=BR&ceid=BR:pt`,
+    const res = await fetch(
+      `https://news.google.com/rss/search?q=${encodeURIComponent(q)}&hl=pt-BR&gl=BR&ceid=BR:pt`,
       {
         headers: { 'User-Agent': 'Mozilla/5.0 (compatible; NewsReader/1.0)' },
         signal: AbortSignal.timeout(6000),
@@ -151,65 +148,59 @@ async function fetchCompanyNews(
     const articles: RawArticle[] = []
     const seen = new Set<string>()
 
-    if (res1.ok) {
-      const xml = await res1.text()
+    if (res.ok) {
+      const xml = await res.text()
       for (const a of parseRSSItems(xml, companyId, companyName)) {
         const key = normalizeUrl(a.link)
         if (!seen.has(key)) { seen.add(key); articles.push(a) }
       }
     }
 
-    cache.set(cacheKey, { data: articles, expiresAt: Date.now() + CACHE_TTL_MS })
+    RSS_CACHE.set(cacheKey, { data: articles, expiresAt: Date.now() + CACHE_TTL_MS })
     return articles
   } catch {
     return []
   }
 }
 
-type ClassifyResult = {
-  index: number
-  companyId: string | null
-  category: NewsCategory | null
-}
+// ---------------------------------------------------------------------------
+// Deterministic pre-filter (runs before AI to reduce token cost)
+// ---------------------------------------------------------------------------
 
-type ReviewResult = {
-  index: number
-  keep: boolean
-  reason?: string
-}
-
-/**
- * Deterministic pre-filter before calling the AI.
- * Keeps only articles where the company name (or a meaningful token) appears in the title,
- * or the source domain matches the company website.
- */
-function deterministicPreFilter(
-  articles: RawArticle[],
-  companies: { id: string; name: string; website: string | null }[]
-): RawArticle[] {
-  const companyMap = new Map(companies.map(c => ({
-    id: c.id,
-    name: c.name,
-    domain: extractDomain(c.website),
-    tokens: c.name.toLowerCase().split(/\s+/).filter(t => t.length >= 4),
-  })).map(c => [c.id, c]))
+function deterministicPreFilter(articles: RawArticle[], companies: Company[]): RawArticle[] {
+  const companyMap = new Map(
+    companies.map(c => [
+      c.id,
+      {
+        name:   c.name,
+        domain: extractDomain(c.website),
+        tokens: c.name.toLowerCase().split(/\s+/).filter(t => t.length >= 4),
+      },
+    ] as const)
+  )
 
   return articles.filter(article => {
-    const titleLower = article.title.toLowerCase()
     const co = companyMap.get(article.companyId)
     if (!co) return false
+    const titleLower = article.title.toLowerCase()
     if (co.domain && article.sourceDomain.includes(co.domain)) return true
-    if (titleLower.includes(co.name.toLowerCase())) return true
-    if (co.tokens.some(token => titleLower.includes(token))) return true
+    if (titleLower.includes(co.name.toLowerCase()))            return true
+    if (co.tokens.some(token => titleLower.includes(token)))  return true
     return false
   })
 }
 
-// Pass 1 — classify articles: assign companyId + category
+// ---------------------------------------------------------------------------
+// AI pipeline — Pass 1: classify
+// ---------------------------------------------------------------------------
+
+type ClassifyResult = { index: number; companyId: string | null; category: NewsCategory | null }
+type ReviewResult   = { index: number; keep: boolean; reason?: string }
+
 async function classifyArticles(
   anthropic: Anthropic,
   articles: RawArticle[],
-  companies: { id: string; name: string; website: string | null }[]
+  companies: Company[]
 ): Promise<ClassifyResult[]> {
   const companyList = companies.map(c => {
     const domain = extractDomain(c.website)
@@ -261,16 +252,19 @@ Respond ONLY with a JSON array, no explanation:
     messages: [{ role: 'user', content: prompt }],
   })
   const raw = msg.content[0]?.type === 'text' ? msg.content[0].text : '[]'
-  console.log('[classify] raw AI response:', raw.slice(0, 1000))
+  console.log('[news:classify] raw AI response:', raw.slice(0, 1000))
   const match = raw.match(/\[[\s\S]*\]/)
   try { return match ? JSON.parse(match[0]) : [] } catch { return [] }
 }
 
-// Pass 2 — review: remove false positives with a strict lens
+// ---------------------------------------------------------------------------
+// AI pipeline — Pass 2: review (remove false positives)
+// ---------------------------------------------------------------------------
+
 async function reviewArticles(
   anthropic: Anthropic,
   candidates: NewsArticle[],
-  companies: { id: string; name: string; website: string | null }[]
+  companies: Company[]
 ): Promise<NewsArticle[]> {
   if (candidates.length === 0) return []
 
@@ -314,9 +308,13 @@ Respond ONLY with a JSON array:
   })
 }
 
+// ---------------------------------------------------------------------------
+// Main AI enrichment + DB cache layer
+// ---------------------------------------------------------------------------
+
 async function aiEnrichAndFilter(
   articles: RawArticle[],
-  companies: { id: string; name: string; website: string | null }[],
+  companies: Company[],
   fundId: string,
   supabase: ReturnType<typeof createClient>
 ): Promise<NewsArticle[]> {
@@ -325,7 +323,29 @@ async function aiEnrichAndFilter(
   const preFiltered = deterministicPreFilter(articles, companies)
   if (preFiltered.length === 0) return []
 
-  // Check which articles are already saved in DB
+  // Resolve API key: fund settings first, env fallback
+  const { data: fs } = await supabase
+    .from('fund_settings')
+    .select('claude_api_key_encrypted, encryption_key_encrypted')
+    .eq('fund_id', fundId)
+    .maybeSingle()
+
+  let apiKey: string | undefined
+  try {
+    if (fs?.claude_api_key_encrypted && fs?.encryption_key_encrypted) {
+      apiKey = decryptApiKey(fs.claude_api_key_encrypted, fs.encryption_key_encrypted)
+    }
+  } catch (e) {
+    console.error('[news] failed to decrypt fund API key:', e)
+  }
+  apiKey ??= process.env.ANTHROPIC_API_KEY
+
+  if (!apiKey) {
+    console.warn('[news] no Anthropic API key available — skipping AI enrichment')
+    return []
+  }
+
+  // Check which articles are already classified in DB
   const links = preFiltered.map(a => a.link)
   const { data: existing } = await supabase
     .from('news_articles')
@@ -335,7 +355,7 @@ async function aiEnrichAndFilter(
 
   const existingByLink = new Map((existing ?? []).map((a: any) => [a.link, a]))
 
-  const cached: NewsArticle[] = []
+  const cached: NewsArticle[]    = []
   const toClassify: RawArticle[] = []
 
   for (const article of preFiltered) {
@@ -343,8 +363,8 @@ async function aiEnrichAndFilter(
     if (saved) {
       cached.push({
         ...article,
-        category: saved.category as NewsCategory,
-        companyId: saved.company_id ?? article.companyId,
+        category:    saved.category as NewsCategory,
+        companyId:   saved.company_id   ?? article.companyId,
         companyName: saved.company_name ?? article.companyName,
       })
     } else {
@@ -353,12 +373,14 @@ async function aiEnrichAndFilter(
   }
 
   let newlyClassified: NewsArticle[] = []
+
   if (toClassify.length > 0) {
     try {
-      const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+      const anthropic  = new Anthropic({ apiKey })
       const companyMap = new Map(companies.map(c => [c.id, c.name]))
 
       const classified = await classifyArticles(anthropic, toClassify, companies)
+
       const pass1: NewsArticle[] = toClassify
         .map((article, i) => {
           const r = classified.find(x => x.index === i)
@@ -372,23 +394,24 @@ async function aiEnrichAndFilter(
       newlyClassified = await reviewArticles(anthropic, pass1, companies)
 
       if (newlyClassified.length > 0) {
-  await (supabase as any).from('news_articles').upsert(
-  newlyClassified.map(a => ({
-            fund_id: fundId,
-            company_id: a.companyId,
-            company_name: a.companyName,
-            title: a.title,
-            link: a.link,
-            pub_date: a.pubDate ? new Date(a.pubDate).toISOString() : new Date().toISOString(),
-            source: a.source,
+        await supabase.from('news_articles').upsert(
+          newlyClassified.map(a => ({
+            fund_id:       fundId,
+            company_id:    a.companyId,
+            company_name:  a.companyName,
+            title:         a.title,
+            link:          a.link,
+            pub_date:      a.pubDate ? new Date(a.pubDate).toISOString() : new Date().toISOString(),
+            source:        a.source,
             source_domain: a.sourceDomain,
-            category: a.category,
+            category:      a.category,
           })),
           { onConflict: 'fund_id,link', ignoreDuplicates: true }
         )
       }
     } catch (e) {
       console.error('[news] AI pipeline failed:', e)
+      // Graceful fallback: surface articles where company name is in title
       newlyClassified = toClassify
         .filter(a => {
           const co = companies.find(c => c.id === a.companyId)
@@ -401,6 +424,14 @@ async function aiEnrichAndFilter(
   return [...cached, ...newlyClassified]
 }
 
+// ---------------------------------------------------------------------------
+// GET /api/news
+// ---------------------------------------------------------------------------
+
+const CATEGORY_ORDER: Record<NewsCategory, number> = {
+  rodada: 0, ipo: 1, aquisicao: 2, parceria: 3, contratacao: 4,
+  produto: 5, expansao: 6, premio: 7, crise: 8, outro: 9,
+}
 
 export async function GET(req: NextRequest) {
   const supabase = createClient()
@@ -414,61 +445,62 @@ export async function GET(req: NextRequest) {
     .maybeSingle() as { data: { fund_id: string } | null }
   if (!membership) return NextResponse.json({ error: 'No fund' }, { status: 403 })
 
-  const companiesParam = req.nextUrl.searchParams.get('companies')
-  const sourcesParam = req.nextUrl.searchParams.get('sources')
-  const countryFilter = req.nextUrl.searchParams.get('country')
-  const bust = req.nextUrl.searchParams.get('bust')
-  const fromDate = req.nextUrl.searchParams.get('fromDate')
+  const { fund_id } = membership
+  const params      = req.nextUrl.searchParams
 
-  if (bust) { cache.clear() }
+  const sourcesParam  = params.get('sources')
+  const companiesParam = params.get('companies')
+  const dateRange     = params.get('dateRange') ?? 'all'
+  const fromDate      = params.get('fromDate')
+  const bust          = params.get('bust')
+
+  // Bust only this fund's RSS cache entries
+  if (bust) {
+    for (const key of RSS_CACHE.keys()) {
+      if (key.includes(fund_id)) RSS_CACHE.delete(key)
+    }
+  }
 
   const sources = sourcesParam
-    ? sourcesParam.split(',').map(s => s.trim()).filter(Boolean) : []
+    ? sourcesParam.split(',').map(s => s.trim()).filter(Boolean)
+    : []
 
   const { data: companies } = await supabase
     .from('companies')
     .select('id, name, website')
-    .eq('fund_id', membership.fund_id)
+    .eq('fund_id', fund_id)
     .eq('status', 'active')
-    .order('name') as { data: { id: string; name: string; website: string | null }[] | null }
+    .order('name') as { data: Company[] | null }
 
   const list = (companies ?? []).filter(c =>
     !companiesParam || companiesParam.split(',').includes(c.id)
   )
 
-  // Fetch fresh RSS articles
+  // Fetch RSS
   const results = await Promise.all(
     list.map(c => fetchCompanyNews(c.id, c.name, sources, extractDomain(c.website)))
   )
-  let articles = results.flat()
 
   // Deduplicate
   const seen = new Set<string>()
-  articles = articles.filter(a => {
+  const articles = results.flat().filter(a => {
     const key = normalizeUrl(a.link)
     if (seen.has(key)) return false
     seen.add(key)
     return true
   })
 
-  if (countryFilter && countryFilter !== 'all') {
-    articles = articles.filter(a => domainToCountry(a.sourceDomain) === countryFilter)
-  }
+  // AI classify + DB cache
+  const enriched = await aiEnrichAndFilter(articles, list, fund_id, supabase)
 
-  // Classify only new articles, return cached for existing
-  const enriched = await aiEnrichAndFilter(articles, list, membership.fund_id, supabase)
+  // Apply date filters
+  const cutoff  = getDateCutoff(dateRange)
+  const ceiling = getDateCeiling(dateRange)
 
-  // Apply fromDate filter (hides articles, doesn't delete)
   let filtered = enriched
-  if (fromDate) {
-    const cutoff = new Date(fromDate).getTime()
-    filtered = enriched.filter(a => new Date(a.pubDate).getTime() >= cutoff)
-  }
-
-  const CATEGORY_ORDER: Record<NewsCategory, number> = {
-    rodada: 0, ipo: 1, aquisicao: 2, parceria: 3, contratacao: 4,
-    produto: 5, expansao: 6, premio: 7, crise: 8, outro: 9,
-  }
+  if (cutoff)    filtered = filtered.filter(a => new Date(a.pubDate).getTime() >= cutoff)
+  if (ceiling)   filtered = filtered.filter(a => new Date(a.pubDate).getTime() <= ceiling)
+  if (fromDate)  filtered = filtered.filter(a => new Date(a.pubDate).getTime() >= new Date(fromDate).getTime())
 
   const sorted = filtered.sort((a, b) => {
     const cDiff = CATEGORY_ORDER[a.category] - CATEGORY_ORDER[b.category]
@@ -476,9 +508,5 @@ export async function GET(req: NextRequest) {
     return new Date(b.pubDate).getTime() - new Date(a.pubDate).getTime()
   })
 
-  const countriesInResults = Array.from(
-    new Set(sorted.map(a => domainToCountry(a.sourceDomain)))
-  ).sort()
-
-  return NextResponse.json({ articles: sorted, companies: list, countriesInResults })
+  return NextResponse.json({ articles: sorted, companies: list })
 }
