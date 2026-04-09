@@ -12,8 +12,8 @@ import type { NewsCategory, NewsArticle } from '@/lib/news-pipeline'
 export type { NewsCategory, NewsArticle } from '@/lib/news-pipeline'
 
 const CATEGORY_ORDER: Record<NewsCategory, number> = {
-  round: 0, ipo: 1, M&A: 2, partnership: 3, hiring: 4,
-  product: 5, expansion: 6, reward: 7, badnews: 8, other: 9,
+  rodada: 0, ipo: 1, aquisicao: 2, parceria: 3, contratacao: 4,
+  produto: 5, expansao: 6, premio: 7, crise: 8, outro: 9,
 }
 
 function getDateCutoff(dateRange: string): number | null {
