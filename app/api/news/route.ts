@@ -8,7 +8,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import type { NewsCategory, NewsArticle } from '@/lib/news-pipeline'
 
-re-export types for page.tsx backwards-compat
+// Re-export types for backwards-compat with page.tsx imports
 export type { NewsCategory, NewsArticle } from '@/lib/news-pipeline'
 
 const CATEGORY_ORDER: Record<NewsCategory, number> = {
