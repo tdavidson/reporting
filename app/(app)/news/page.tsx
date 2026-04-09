@@ -31,16 +31,16 @@ const DATE_OPTIONS = [
 ]
 
 const CATEGORY_CONFIG: Record<string, { label: string; className: string }> = {
-  rodada:      { label: 'Rodada',      className: 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30' },
+  rodada:      { label: 'Round',      className: 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30' },
   ipo:         { label: 'IPO',         className: 'bg-violet-500/15 text-violet-600 dark:text-violet-400 border-violet-500/30' },
   aquisicao:   { label: 'M&A',         className: 'bg-orange-500/15 text-orange-600 dark:text-orange-400 border-orange-500/30' },
-  parceria:    { label: 'Parceria',    className: 'bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/30' },
-  contratacao: { label: 'Contratação', className: 'bg-yellow-500/15 text-yellow-700 dark:text-yellow-400 border-yellow-500/30' },
-  produto:     { label: 'Produto',     className: 'bg-cyan-500/15 text-cyan-600 dark:text-cyan-400 border-cyan-500/30' },
-  expansao:    { label: 'Expansão',    className: 'bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 border-indigo-500/30' },
-  premio:      { label: 'Prêmio',      className: 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30' },
-  crise:       { label: 'Crise',       className: 'bg-red-500/15 text-red-600 dark:text-red-400 border-red-500/30' },
-  outro:       { label: 'Outro',       className: 'bg-muted text-muted-foreground border-border' },
+  parceria:    { label: 'Partnership',    className: 'bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/30' },
+  contratacao: { label: 'Hiring', className: 'bg-yellow-500/15 text-yellow-700 dark:text-yellow-400 border-yellow-500/30' },
+  produto:     { label: 'Product',     className: 'bg-cyan-500/15 text-cyan-600 dark:text-cyan-400 border-cyan-500/30' },
+  expansao:    { label: 'Expansion',    className: 'bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 border-indigo-500/30' },
+  premio:      { label: 'Rewards',      className: 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30' },
+  crise:       { label: 'Lowlight',       className: 'bg-red-500/15 text-red-600 dark:text-red-400 border-red-500/30' },
+  outro:       { label: 'Other',       className: 'bg-muted text-muted-foreground border-border' },
   featured:    { label: 'Destaque',    className: 'bg-emerald-500/15 text-emerald-600 border-emerald-500/30' },
   mentioned:   { label: 'Mencionada',  className: 'bg-blue-500/15 text-blue-600 border-blue-500/30' },
 }
