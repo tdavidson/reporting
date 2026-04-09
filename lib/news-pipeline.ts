@@ -8,7 +8,7 @@
  * Responsibilities:
  *   1. Fetch Google News RSS for each active company (last 3 days window)
  *   2. Deterministic pre-filter (company name / domain must appear)
- *   3. Semantic deduplication per company (Levenshtein-normalised ≤ 0.35 = same event)
+ *   3. Semantic deduplication per company (Levenshtein-normalised <= 0.35 = same event)
  *   4. AI classify (Pass 1) + AI review (Pass 2) via Claude Haiku
  *   5. Upsert to news_articles, mark duplicates
  *   6. Return RefreshSummary
@@ -64,6 +64,12 @@ export interface RefreshSummary {
 
 type RawArticle = Omit<NewsArticle, 'category' | 'isDuplicate' | 'duplicateOf'>
 type Company    = { id: string; name: string; website: string | null }
+
+/** Shape of the fund_settings row we need — cast to this after the query */
+type FundSettingsRow = {
+  claude_api_key_encrypted: string | null
+  encryption_key_encrypted: string | null
+}
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -129,7 +135,6 @@ function titleSimilarity(a: string, b: string): number {
   const len = Math.max(s1.length, s2.length)
   if (len === 0) return 1
 
-  // dp row-by-row
   let row = Array.from({ length: s2.length + 1 }, (_, i) => i)
   for (let i = 1; i <= s1.length; i++) {
     let prev = i
@@ -194,7 +199,6 @@ function parseRSSItems(xml: string, companyId: string, companyName: string): Raw
     .filter(a => {
       if (!a.title || !a.link)             return false
       if (isGoogleNewsLink(a.link))        return false
-      // Hard 3-day cutoff
       if (a.pubDate) {
         const ts = new Date(a.pubDate).getTime()
         if (!isNaN(ts) && ts < cutoff)     return false
@@ -288,9 +292,9 @@ For each article return companyId (UUID or null) and category (or null).
 Categories: rodada | aquisicao | parceria | contratacao | produto | expansao | premio | crise | ipo | outro
 
 Rules (apply in order):
-1. Source domain matches company website domain → assign that company
-2. Company name (or clear variant/acronym) appears in title → assign and classify
-3. Otherwise → null, null. Do NOT guess from industry.
+1. Source domain matches company website domain -> assign that company
+2. Company name (or clear variant/acronym) appears in title -> assign and classify
+3. Otherwise -> null, null. Do NOT guess from industry.
 
 Respond ONLY with JSON array:
 [{"index":0,"companyId":"uuid","category":"rodada"},{"index":1,"companyId":null,"category":null}]`
@@ -329,7 +333,7 @@ Remove false positives — articles NOT genuinely about the assigned company.
 Rules:
 - keep: true if company name (or clear variant) appears in title OR source domain is the company's website
 - keep: false if title does not mention the company, or article is about a different entity
-- When in doubt → keep: false
+- When in doubt -> keep: false
 
 Articles:
 ${articleList}
@@ -361,11 +365,12 @@ async function resolveApiKey(
   fundId: string,
   supabase: ReturnType<typeof createClient>
 ): Promise<string | undefined> {
+  // Cast to `any` — fund_settings columns may not be in generated Supabase types
   const { data: fs } = await supabase
     .from('fund_settings')
     .select('claude_api_key_encrypted, encryption_key_encrypted')
     .eq('fund_id', fundId)
-    .maybeSingle()
+    .maybeSingle() as { data: FundSettingsRow | null; error: unknown }
 
   let apiKey: string | undefined
   try {
@@ -430,7 +435,7 @@ export async function runNewsPipeline(
   // 6. Resolve API key
   const apiKey = await resolveApiKey(fundId, supabase)
   if (!apiKey) {
-    console.warn('[news-pipeline] no Anthropic API key — aborting AI pass')
+    console.warn('[news-pipeline] no Anthropic API key -- aborting AI pass')
     return { added: 0, duplicates: duplicateLinks.size, total, byCompany: [], ranAt }
   }
 
@@ -446,13 +451,16 @@ export async function runNewsPipeline(
   const toClassify = canonical.filter(a => !existingLinkSet.has(a.link))
 
   if (toClassify.length === 0) {
-    // Everything is already in DB — mark duplicates and return
-    const byCompany = list.map(c => ({
-      companyId:   c.id,
-      companyName: c.name,
-      added:       0,
-      duplicates:  [...duplicateLinks].filter(l => canonical.find(a => a.link === l)?.companyId === c.id).length,
-    })).filter(x => x.added > 0 || x.duplicates > 0)
+    const byCompany = list
+      .map(c => ({
+        companyId:   c.id,
+        companyName: c.name,
+        added:       0,
+        duplicates:  [...duplicateLinks].filter(
+          l => canonical.find(a => a.link === l)?.companyId === c.id
+        ).length,
+      }))
+      .filter(x => x.added > 0 || x.duplicates > 0)
 
     return { added: 0, duplicates: duplicateLinks.size, total, byCompany, ranAt }
   }
