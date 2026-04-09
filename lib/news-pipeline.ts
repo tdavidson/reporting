@@ -1,18 +1,14 @@
 /**
- * lib/news-pipeline.ts  (v2.3)
+ * lib/news-pipeline.ts  (v2.4)
  *
- * Dedup strategy (v2.3):
- *   When multiple fetched articles cover the same story (same company, similar
- *   title), we GROUP them into a cluster and keep the BEST one instead of
- *   silently discarding the rest and inflating the duplicate counter.
+ * Key fix (v2.4):
+ *   Pass 1 AI now ONLY classifies category — it no longer re-validates companyId.
+ *   The deterministic match (name/alias/domain) is already reliable; asking the AI
+ *   to confirm the UUID was the root cause of 0 articles being saved (AI returned
+ *   null companyId → article silently dropped).
  *
- *   "Best" = curated source > Google News, then longer title, then newest date.
- *
- *   storedTitles are fetched via a date-range query (last 3 days) scoped to
- *   the fund — NOT via .in(link, ...) which silently truncates on large lists.
- *
- *   duplicates in the summary only count articles that were truly redundant
- *   AFTER the best-pick step, i.e. same story already in DB from a prior run.
+ *   Pass 1 result: { index, category }  — category defaults to 'outro' if AI uncertain.
+ *   Pass 2 (review) stays as-is: keep=true bias, manual delete in UX.
  */
 
 import { createClient } from '@/lib/supabase/server'
@@ -82,7 +78,6 @@ type Company = {
 const THREE_DAYS_MS   = 3 * 24 * 60 * 60 * 1000
 const DEDUP_THRESHOLD = 0.60
 
-// Curated source names (used for confidence scoring in best-pick)
 const CURATED_SOURCE_NAMES = new Set([
   'Pipeline Valor', 'Brazil Journal PE/VC', 'NeoFeed Startups',
   'Finsiders Brasil', 'LATAM List Funding', 'Startups.com.br',
@@ -180,16 +175,12 @@ export function titleSimilarity(a: string, b: string): number {
 
 // ---------------------------------------------------------------------------
 // Article confidence score (for best-pick within a cluster)
-// Higher = better.
 // ---------------------------------------------------------------------------
 
 function articleScore(a: RawArticle): number {
   let score = 0
-  // Curated source > Google News
   if (CURATED_SOURCE_NAMES.has(a.source)) score += 100
-  // Longer title = more information
   score += Math.min(a.title.length, 200) / 10
-  // More recent = better
   try {
     const age = Date.now() - new Date(a.pubDate).getTime()
     score += Math.max(0, 1 - age / THREE_DAYS_MS) * 10
@@ -199,15 +190,6 @@ function articleScore(a: RawArticle): number {
 
 // ---------------------------------------------------------------------------
 // Deduplication: cluster + best-pick
-//
-// Groups articles into similarity clusters per company.
-// Within each cluster, keeps the BEST article (highest score).
-// Also compares against storedTitles (already in DB) to detect cross-run dups.
-//
-// Returns:
-//   canonical  — one best article per story, all new
-//   skipped    — articles dropped because a better version was kept (same cluster)
-//   dbDups     — articles whose story is already in DB (cross-run dup)
 // ---------------------------------------------------------------------------
 
 function clusterAndPick(
@@ -219,7 +201,6 @@ function clusterAndPick(
   dbDupCount:   number
   dbDupByCompany: Map<string, number>
 } {
-  // Step A: cluster new articles among themselves
   type Cluster = { articles: RawArticle[] }
   const clusters: Cluster[] = []
 
@@ -239,13 +220,11 @@ function clusterAndPick(
     if (!placed) clusters.push({ articles: [article] })
   }
 
-  // Step B: pick best from each cluster
   const candidates: RawArticle[] = clusters.map(c =>
     c.articles.reduce((best, cur) => articleScore(cur) > articleScore(best) ? cur : best)
   )
   const skippedCount = newArticles.length - candidates.length
 
-  // Step C: compare candidates against storedTitles (cross-run dups)
   const dbDupByCompany = new Map<string, number>()
   const canonical: RawArticle[] = []
 
@@ -269,7 +248,7 @@ function clusterAndPick(
 }
 
 // ---------------------------------------------------------------------------
-// Multi-source definitions (mirrors vc-market/scrapers.ts SOURCES)
+// Multi-source definitions
 // ---------------------------------------------------------------------------
 
 const CURATED_SOURCES = [
@@ -297,7 +276,7 @@ function parseHTMLArticles(html: string, baseUrl: string): Array<{ title: string
     dateHints.push(m[1])
   }
   let idx = 0
-  for (const match of html.matchAll(/<a[^>]+href=["']([^"'#?][^"']*)['"][^>]*>([\s\S]*?)<\/a>/g)) {
+  for (const match of html.matchAll(/<a[^>]+href=["']([^"'#?][^"']*)['"'][^>]*>([\s\S]*?)<\/a>/g)) {
     const rawHref = match[1]
     const rawText = match[2].replace(/<[^>]+>/g, '').trim()
     if (rawText.length < 20) continue
@@ -466,22 +445,20 @@ const VALID_CATEGORIES = new Set<string>([
   'rodada', 'aquisicao', 'parceria', 'contratacao',
   'produto', 'expansao', 'premio', 'crise', 'ipo', 'outro',
 ])
-function isValidUUID(s: string): boolean {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s)
-}
-interface ClassifyResult { index: number; companyId: string | null; category: NewsCategory | null }
+
+interface CategoryResult { index: number; category: NewsCategory }
 interface ReviewResult   { index: number; keep: boolean }
 
-function validateClassifyResult(raw: unknown): ClassifyResult | null {
+function validateCategoryResult(raw: unknown): CategoryResult | null {
   if (!raw || typeof raw !== 'object') return null
   const r = raw as Record<string, unknown>
   const index = typeof r.index === 'number' ? r.index : null
   if (index === null) return null
-  const companyId = (typeof r.companyId === 'string' && isValidUUID(r.companyId)) ? r.companyId : null
-  const rawCat    = typeof r.category === 'string' ? r.category : null
-  const category  = (rawCat && VALID_CATEGORIES.has(rawCat)) ? rawCat as NewsCategory : null
-  return { index, companyId, category }
+  const rawCat = typeof r.category === 'string' ? r.category : null
+  const category = (rawCat && VALID_CATEGORIES.has(rawCat)) ? rawCat as NewsCategory : 'outro'
+  return { index, category }
 }
+
 function validateReviewResult(raw: unknown): ReviewResult | null {
   if (!raw || typeof raw !== 'object') return null
   const r    = raw as Record<string, unknown>
@@ -492,63 +469,65 @@ function validateReviewResult(raw: unknown): ReviewResult | null {
 }
 
 // ---------------------------------------------------------------------------
-// AI Pass 1 — classify
+// AI Pass 1 — classify category only
+// companyId is TRUSTED from deterministic match — AI only assigns category.
+// If AI returns null/unknown category → defaults to 'outro' (never drops article).
 // ---------------------------------------------------------------------------
 
-async function classifyArticles(
+async function classifyCategories(
   anthropic: Anthropic,
   articles: RawArticle[],
-  companies: Company[]
-): Promise<ClassifyResult[]> {
-  const companyList = companies.map(c => {
-    const domain   = extractDomain(c.website)
-    const aliasStr = c.aliases.length > 0 ? ` | aliases: ${c.aliases.join(', ')}` : ''
-    return `- id: ${c.id} | name: ${c.name}${aliasStr}${domain ? ` | website: ${domain}` : ''}`
-  }).join('\n')
-
+): Promise<CategoryResult[]> {
   const articleList = articles.map((a, i) =>
-    `[${i}] "${a.title}" · source: ${a.sourceDomain} · date: ${formatPubDate(a.pubDate)}`
+    `[${i}] "${a.title}" · company: ${a.companyName} · source: ${a.sourceDomain} · date: ${formatPubDate(a.pubDate)}`
   ).join('\n')
 
-  const prompt = `You are a strict financial news classifier for a VC fund portfolio.
-
-Portfolio companies (name may appear in news as an alias):
-${companyList}
-
-News articles:
-${articleList}
-
-For each article return companyId (UUID or null) and category (or null).
+  const prompt = `Classify each news article into one category.
 Categories: rodada | aquisicao | parceria | contratacao | produto | expansao | premio | crise | ipo | outro
 
+Articles:
+${articleList}
+
 Rules:
-1. Source domain matches company website domain → assign that company
-2. Company primary name OR any alias appears in title → assign and classify
-3. Otherwise → null, null. Do NOT guess from industry.
+- rodada: funding round, investment, capital raise
+- aquisicao: M&A, acquisition, merger
+- parceria: partnership, deal, contract
+- contratacao: hiring, new executive, C-level appointment
+- produto: product launch, new feature, update
+- expansao: geographic expansion, new market, new office
+- premio: award, recognition, ranking
+- crise: layoffs, shutdown, legal trouble, scandal
+- ipo: IPO, public offering, listing
+- outro: anything else
 
 Respond ONLY with a JSON array — no markdown:
-[{"index":0,"companyId":"uuid","category":"rodada"},{"index":1,"companyId":null,"category":null}]`
+[{"index":0,"category":"rodada"},{"index":1,"category":"outro"}]`
 
   const raw = await withRetry(async () => {
     const msg = await anthropic.messages.create({
-      model: 'claude-haiku-4-5', max_tokens: 2048,
+      model: 'claude-haiku-4-5', max_tokens: 1024,
       messages: [{ role: 'user', content: prompt }],
     })
     return msg.content[0]?.type === 'text' ? msg.content[0].text : '[]'
-  }, 3, 'classifyArticles')
+  }, 3, 'classifyCategories')
 
   const match = raw.match(/\[[\s\S]*\]/)
   let parsed: unknown[] = []
   try { parsed = match ? JSON.parse(match[0]) : [] } catch {
-    console.warn('[news-pipeline] classifyArticles: JSON parse failed:', raw.slice(0, 200))
+    console.warn('[news-pipeline] classifyCategories: JSON parse failed — defaulting all to outro')
   }
-  const results: ClassifyResult[] = []
+
+  // Build results map; any missing index defaults to 'outro'
+  const resultsMap = new Map<number, NewsCategory>()
   for (const item of parsed) {
-    const v = validateClassifyResult(item)
-    if (v) results.push(v)
-    else console.warn('[news-pipeline] classifyArticles: invalid item:', JSON.stringify(item))
+    const v = validateCategoryResult(item)
+    if (v) resultsMap.set(v.index, v.category)
   }
-  return results
+
+  return articles.map((_, i) => ({
+    index: i,
+    category: resultsMap.get(i) ?? 'outro',
+  }))
 }
 
 // ---------------------------------------------------------------------------
@@ -574,7 +553,7 @@ async function reviewArticles(
 Remove OBVIOUS false positives only — articles that clearly refer to a DIFFERENT company.
 
 Rules:
-- keep: true  when company primary name OR any alias appears in title, OR source is company website
+- keep: true  when company name OR any alias appears in title, OR source is company website
 - keep: true  when UNCERTAIN — user will manually delete incorrect articles
 - keep: false ONLY when article clearly refers to a different entity (name collision, different industry)
 
@@ -706,8 +685,7 @@ export async function runNewsPipeline(
     return { added: 0, duplicates: 0, total, byCompany: [], ranAt }
   }
 
-  // 7. Fetch already-stored titles via date range (NOT via .in(link) to avoid truncation)
-  //    We only care about articles from the past 3 days for cross-run dedup.
+  // 7. Fetch already-stored titles via date range
   const cutoffISO = new Date(Date.now() - THREE_DAYS_MS).toISOString()
   const { data: recentStored } = await sdb
     .from('news_articles')
@@ -715,9 +693,9 @@ export async function runNewsPipeline(
     .eq('fund_id', fundId)
     .gte('scraped_at', cutoffISO) as { data: Array<{ link: string; title: string; company_id: string }> | null }
 
-  const storedRows        = recentStored ?? []
-  const storedLinkSet     = new Set<string>(storedRows.map(r => normalizeUrl(r.link)))
-  const storedTitles      = storedRows.map(r => ({ companyId: r.company_id, title: r.title }))
+  const storedRows    = recentStored ?? []
+  const storedLinkSet = new Set<string>(storedRows.map(r => normalizeUrl(r.link)))
+  const storedTitles  = storedRows.map(r => ({ companyId: r.company_id, title: r.title }))
 
   // 8. Remove URL-exact matches already in DB
   const newArticles = preFiltered.filter(a => !storedLinkSet.has(normalizeUrl(a.link)))
@@ -727,15 +705,12 @@ export async function runNewsPipeline(
   }
 
   // 9. Cluster + best-pick
-  //    Within this fetch: group near-duplicate articles, keep the best one per story.
-  //    Cross-run: if best candidate matches a stored title, it's a DB dup (skipped silently).
   const { canonical, skippedCount, dbDupCount, dbDupByCompany } =
     clusterAndPick(newArticles, storedTitles)
 
   console.log(`[news-pipeline] cluster: ${newArticles.length} new → ${canonical.length} canonical, ${skippedCount} intra-run merged, ${dbDupCount} already in DB`)
 
   if (canonical.length === 0) {
-    // All were cross-run dups — report those if any
     const byCompany: RefreshSummaryByCompany[] = []
     for (const [companyId, dups] of dbDupByCompany.entries()) {
       const co = list.find(c => c.id === companyId)
@@ -744,33 +719,24 @@ export async function runNewsPipeline(
     return { added: 0, duplicates: dbDupCount, total, byCompany, ranAt }
   }
 
-  // 10. AI classify + review
-  const anthropic  = new Anthropic({ apiKey })
-  const companyMap = new Map(list.map(c => [c.id, c.name]))
+  // 10. AI: classify category (Pass 1) + review false positives (Pass 2)
+  const anthropic = new Anthropic({ apiKey })
   let enriched: NewsArticle[] = []
 
   try {
-    const classified = await classifyArticles(anthropic, canonical, list)
-    const pass1: NewsArticle[] = canonical
-      .map((article, i) => {
-        const r    = classified.find(x => x.index === i)
-        if (!r || r.companyId === null || r.category === null) return null
-        const name = companyMap.get(r.companyId)
-        if (!name) return null
-        return { ...article, companyId: r.companyId, companyName: name, category: r.category }
-      })
-      .filter((a): a is NewsArticle => a !== null)
+    // Pass 1: category only — companyId/companyName come from deterministic match
+    const categoryResults = await classifyCategories(anthropic, canonical)
+    const pass1: NewsArticle[] = canonical.map((article, i) => ({
+      ...article,
+      category: categoryResults[i]?.category ?? 'outro',
+    }))
+
+    // Pass 2: remove obvious false positives (keep=true bias)
     enriched = await reviewArticles(anthropic, pass1, list)
   } catch (e) {
-    console.error('[news-pipeline] AI pipeline failed after retries:', e)
-    enriched = canonical
-      .filter(a => {
-        const co = list.find(c => c.id === a.companyId)
-        if (!co) return false
-        const tl = a.title.toLowerCase()
-        return [co.name, ...co.aliases].some(n => tl.includes(n.toLowerCase()))
-      })
-      .map(a => ({ ...a, category: 'outro' as NewsCategory }))
+    console.error('[news-pipeline] AI pipeline failed after retries — saving with category=outro:', e)
+    // Fallback: save everything that passed deterministic filter
+    enriched = canonical.map(a => ({ ...a, category: 'outro' as NewsCategory }))
   }
 
   // 11. Upsert
@@ -794,7 +760,6 @@ export async function runNewsPipeline(
   }
 
   // 12. Per-company summary
-  //     duplicates = only cross-run DB dups (intra-run merges are silent — we kept the best one)
   const byCompanyMap = new Map<string, RefreshSummaryByCompany>()
   for (const c of list) byCompanyMap.set(c.id, { companyId: c.id, companyName: c.name, added: 0, duplicates: 0 })
   for (const a of enriched) { const e = byCompanyMap.get(a.companyId); if (e) e.added++ }
