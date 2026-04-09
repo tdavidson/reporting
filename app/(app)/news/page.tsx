@@ -1,48 +1,47 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { Newspaper, ExternalLink, RefreshCw, Settings2, X, Check, Building2 } from 'lucide-react'
+import { useState, useEffect, useRef, useCallback } from 'react'
+import {
+  Newspaper,
+  ExternalLink,
+  RefreshCw,
+  X,
+  CheckCircle2,
+  AlertCircle,
+  Search,
+  ChevronDown,
+  Sparkles,
+  Clock,
+  Building2,
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import type { NewsArticle, NewsCategory } from '@/app/api/news/route'
+import type { NewsArticle, NewsCategory, RefreshSummary } from '@/lib/news-pipeline'
 
-const NEWS_SOURCES_KEY = 'prlx:newsSources'
-
-const PRESET_PORTALS = [
-  { label: 'Pipeline Valor',   url: 'pipelinevalor.globo.com' },
-  { label: 'Brazil Journal',   url: 'braziljournal.com' },
-  { label: 'NeoFeed',          url: 'neofeed.com.br' },
-  { label: 'Finsiders Brasil', url: 'finsidersbrasil.com.br' },
-  { label: 'Valor Economico',  url: 'valor.globo.com' },
-  { label: 'LATAM List',       url: 'latamlist.com' },
-  { label: 'Crunchbase News',  url: 'news.crunchbase.com' },
-  { label: 'Startups.com.br',  url: 'startups.com.br' },
-  { label: 'Startupi',         url: 'startupi.com.br' },
-  { label: 'LATAM Fintech',    url: 'latamfintech.co' },
-]
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
 
 const DATE_OPTIONS = [
-  { value: 'all',      label: 'All time' },
-  { value: '24h',      label: '24h' },
-  { value: '7d',       label: '7d' },
-  { value: '30d',      label: '30d' },
-  { value: 'ytd',      label: 'YTD' },
-  { value: 'lastyear', label: 'Last year' },
+  { value: 'all', label: 'Todos' },
+  { value: '3d',  label: '3d' },
+  { value: '7d',  label: '7d' },
+  { value: '30d', label: '30d' },
+  { value: 'ytd', label: 'YTD' },
 ]
 
 const CATEGORY_CONFIG: Record<string, { label: string; className: string }> = {
-  rodada:      { label: 'Rodada',      className: 'bg-emerald-500/15 text-emerald-600 border-emerald-500/30' },
-  ipo:         { label: 'IPO',         className: 'bg-violet-500/15 text-violet-600 border-violet-500/30' },
-  aquisicao:   { label: 'M&A',         className: 'bg-orange-500/15 text-orange-600 border-orange-500/30' },
-  parceria:    { label: 'Parceria',    className: 'bg-blue-500/15 text-blue-600 border-blue-500/30' },
-  contratacao: { label: 'Contratação', className: 'bg-yellow-500/15 text-yellow-700 border-yellow-500/30' },
-  produto:     { label: 'Produto',     className: 'bg-cyan-500/15 text-cyan-600 border-cyan-500/30' },
-  expansao:    { label: 'Expansão',    className: 'bg-indigo-500/15 text-indigo-600 border-indigo-500/30' },
-  premio:      { label: 'Prêmio',      className: 'bg-amber-500/15 text-amber-600 border-amber-500/30' },
-  crise:       { label: 'Crise',       className: 'bg-red-500/15 text-red-600 border-red-500/30' },
+  rodada:      { label: 'Rodada',      className: 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30' },
+  ipo:         { label: 'IPO',         className: 'bg-violet-500/15 text-violet-600 dark:text-violet-400 border-violet-500/30' },
+  aquisicao:   { label: 'M&A',         className: 'bg-orange-500/15 text-orange-600 dark:text-orange-400 border-orange-500/30' },
+  parceria:    { label: 'Parceria',    className: 'bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/30' },
+  contratacao: { label: 'Contratação', className: 'bg-yellow-500/15 text-yellow-700 dark:text-yellow-400 border-yellow-500/30' },
+  produto:     { label: 'Produto',     className: 'bg-cyan-500/15 text-cyan-600 dark:text-cyan-400 border-cyan-500/30' },
+  expansao:    { label: 'Expansão',    className: 'bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 border-indigo-500/30' },
+  premio:      { label: 'Prêmio',      className: 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30' },
+  crise:       { label: 'Crise',       className: 'bg-red-500/15 text-red-600 dark:text-red-400 border-red-500/30' },
   outro:       { label: 'Outro',       className: 'bg-muted text-muted-foreground border-border' },
-  // legacy compat
-  featured:    { label: 'Destaque',   className: 'bg-emerald-500/15 text-emerald-600 border-emerald-500/30' },
+  featured:    { label: 'Destaque',    className: 'bg-emerald-500/15 text-emerald-600 border-emerald-500/30' },
   mentioned:   { label: 'Mencionada', className: 'bg-blue-500/15 text-blue-600 border-blue-500/30' },
 }
 
@@ -54,67 +53,125 @@ function getTag(article: AnyArticle) {
   return CATEGORY_CONFIG[key] ?? CATEGORY_CONFIG.outro
 }
 
-function getSavedSources(): string[] {
-  try { return JSON.parse(localStorage.getItem(NEWS_SOURCES_KEY) ?? '[]') } catch { return [] }
-}
-
-function setSavedSources(s: string[]) {
-  try { localStorage.setItem(NEWS_SOURCES_KEY, JSON.stringify(s)) } catch { /* sandboxed */ }
-}
-
 function timeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime()
   const mins = Math.floor(diff / 60000)
-  if (mins < 60) return `${mins}m ago`
+  if (mins < 60)  return `${mins}m atrás`
   const hrs = Math.floor(mins / 60)
-  if (hrs < 24) return `${hrs}h ago`
-  return `${Math.floor(hrs / 24)}d ago`
+  if (hrs < 24)   return `${hrs}h atrás`
+  return `${Math.floor(hrs / 24)}d atrás`
+}
+
+function initials(name: string): string {
+  return name
+    .split(' ')
+    .slice(0, 2)
+    .map(w => w[0]?.toUpperCase() ?? '')
+    .join('')
+}
+
+// Deterministic pastel hue from string
+function companyHue(name: string): number {
+  let h = 0
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) & 0xffffffff
+  return Math.abs(h) % 360
 }
 
 // ---------------------------------------------------------------------------
-// Portals modal
+// Refresh Summary Drawer
 // ---------------------------------------------------------------------------
 
-function PortalsModal({ onClose }: { onClose: () => void }) {
-  const [selected, setSelected] = useState<string[]>(getSavedSources)
-  const toggle = (url: string) =>
-    setSelected(prev => prev.includes(url) ? prev.filter(s => s !== url) : [...prev, url])
-  const handleSave = () => { setSavedSources(selected); onClose() }
+function RefreshDrawer({
+  summary,
+  onClose,
+}: {
+  summary: RefreshSummary | null
+  loading: boolean
+  onClose: () => void
+}) {
+  const [visible, setVisible] = useState(false)
+
+  useEffect(() => {
+    if (summary) {
+      setVisible(true)
+      const t = setTimeout(() => { setVisible(false); setTimeout(onClose, 350) }, 8000)
+      return () => clearTimeout(t)
+    }
+  }, [summary, onClose])
+
+  const hide = () => { setVisible(false); setTimeout(onClose, 350) }
+
+  if (!summary) return null
+
+  const isEmpty  = summary.added === 0 && summary.duplicates === 0
+  const hasAdded = summary.added > 0
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
-      <div className="bg-background border rounded-xl shadow-xl w-full max-w-md mx-4 p-5" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-sm font-semibold">News Portals</h2>
-          <button onClick={onClose} className="text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
-        </div>
-        <p className="text-xs text-muted-foreground mb-4">Select portals to filter results. Leave all unchecked to search across all sources.</p>
-        <div className="grid grid-cols-2 gap-1.5">
-          {PRESET_PORTALS.map(p => {
-            const active = selected.includes(p.url)
-            return (
-              <button key={p.url} onClick={() => toggle(p.url)}
-                className={`flex items-center gap-2 text-left px-3 py-2 rounded-lg border text-xs transition-colors ${
-                  active
-                    ? 'border-foreground/40 bg-accent font-medium'
-                    : 'border-border text-muted-foreground hover:bg-accent/40'
-                }`}>
-                <span className={`h-3.5 w-3.5 rounded border flex items-center justify-center shrink-0 ${
-                  active ? 'bg-foreground border-foreground' : 'border-muted-foreground'
-                }`}>
-                  {active && <Check className="h-2.5 w-2.5 text-background" />}
-                </span>
-                {p.label}
-              </button>
-            )
-          })}
-        </div>
-        <div className="flex items-center justify-between mt-4 pt-3 border-t">
-          <button onClick={() => setSelected([])} className="text-xs text-muted-foreground hover:text-foreground">Clear all</button>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={onClose}>Cancel</Button>
-            <Button size="sm" onClick={handleSave}>Save</Button>
+    <div
+      role="status"
+      aria-live="polite"
+      className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-50 w-full max-w-sm transition-all duration-300 ease-out ${
+        visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none'
+      }`}
+    >
+      <div className="mx-4 bg-background border rounded-xl shadow-lg overflow-hidden">
+        {/* Header */}
+        <div className={`flex items-center gap-2.5 px-4 py-3 border-b ${
+          hasAdded ? 'bg-emerald-500/5' : isEmpty ? 'bg-muted/50' : 'bg-muted/30'
+        }`}>
+          {hasAdded ? (
+            <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
+          ) : isEmpty ? (
+            <Sparkles className="h-4 w-4 text-muted-foreground shrink-0" />
+          ) : (
+            <AlertCircle className="h-4 w-4 text-amber-500 shrink-0" />
+          )}
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold leading-tight">
+              {hasAdded
+                ? `${summary.added} nova${summary.added !== 1 ? 's notícias adicionadas' : ' notícia adicionada'}`
+                : isEmpty
+                  ? 'Nenhuma notícia nova encontrada'
+                  : `${summary.duplicates} duplicata${summary.duplicates !== 1 ? 's' : ''} ignorada${summary.duplicates !== 1 ? 's' : ''}`
+              }
+            </p>
+            {summary.duplicates > 0 && hasAdded && (
+              <p className="text-xs text-muted-foreground">
+                {summary.duplicates} duplicata{summary.duplicates !== 1 ? 's' : ''} ignorada{summary.duplicates !== 1 ? 's' : ''}
+              </p>
+            )}
           </div>
+          <button onClick={hide} className="text-muted-foreground hover:text-foreground transition-colors" aria-label="Fechar">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        {/* Per-company breakdown */}
+        {summary.byCompany.length > 0 && (
+          <div className="px-4 py-2.5 space-y-1 max-h-40 overflow-y-auto">
+            {summary.byCompany.map(c => (
+              <div key={c.companyId} className="flex items-center justify-between text-xs">
+                <span className="text-muted-foreground truncate max-w-[60%]">{c.companyName}</span>
+                <div className="flex items-center gap-2">
+                  {c.added > 0 && (
+                    <span className="text-emerald-600 dark:text-emerald-400 font-medium">+{c.added}</span>
+                  )}
+                  {c.duplicates > 0 && (
+                    <span className="text-muted-foreground">{c.duplicates} dup.</span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Footer */}
+        <div className="px-4 py-2 border-t flex items-center gap-1.5">
+          <Clock className="h-3 w-3 text-muted-foreground" />
+          <span className="text-[11px] text-muted-foreground">
+            {new Date(summary.ranAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+          </span>
+          <span className="text-[11px] text-muted-foreground ml-auto">{summary.total} artigos analisados</span>
         </div>
       </div>
     </div>
@@ -122,75 +179,190 @@ function PortalsModal({ onClose }: { onClose: () => void }) {
 }
 
 // ---------------------------------------------------------------------------
-// Companies modal
+// Inline company filter (chip strip + search)
 // ---------------------------------------------------------------------------
 
-function CompaniesModal({ companies, selected, onSave, onClose }: {
+function CompanyFilterStrip({
+  companies,
+  selected,
+  onChange,
+}: {
   companies: Company[]
   selected: string[]
-  onSave: (ids: string[]) => void
-  onClose: () => void
+  onChange: (ids: string[]) => void
 }) {
-  const allIds    = companies.map(c => c.id)
-  const [local, setLocal] = useState<string[]>(selected.length === 0 ? allIds : selected)
-  const allChecked = local.length === companies.length
+  const [expanded, setExpanded] = useState(false)
+  const [search, setSearch]     = useState('')
+  const inputRef = useRef<HTMLInputElement>(null)
 
-  const toggle    = (id: string) =>
-    setLocal(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
-  const toggleAll = () => setLocal(allChecked ? [] : allIds)
+  const filtered = search
+    ? companies.filter(c => c.name.toLowerCase().includes(search.toLowerCase()))
+    : companies
 
-  // If all selected → save as [] (no filter = show all)
-  const handleSave = () => {
-    onSave(local.length === companies.length ? [] : local)
-    onClose()
-  }
+  const allSelected = selected.length === 0 || selected.length === companies.length
+
+  const toggle = useCallback((id: string) => {
+    if (allSelected) {
+      // Start filtering: deselect the one we DON'T want
+      onChange(companies.filter(c => c.id !== id).map(c => c.id))
+    } else {
+      const next = selected.includes(id)
+        ? selected.filter(x => x !== id)
+        : [...selected, id]
+      onChange(next.length === companies.length ? [] : next)
+    }
+  }, [allSelected, selected, companies, onChange])
+
+  const resetAll = () => { onChange([]); setSearch(''); setExpanded(false) }
+
+  // Compact strip: show at most 5 chips + overflow count
+  const visible = companies.slice(0, expanded ? companies.length : 8)
+  const overflow = companies.length - 8
+
+  if (companies.length === 0) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
-      <div className="bg-background border rounded-xl shadow-xl w-full max-w-sm mx-4 p-5" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-semibold">Filter by Company</h2>
-          <button onClick={onClose} className="text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
+    <div className="space-y-2">
+      {/* Label + expand toggle */}
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+          <Building2 className="h-3.5 w-3.5" />
+          Empresas
+        </span>
+        <div className="flex items-center gap-2">
+          {!allSelected && (
+            <button
+              onClick={resetAll}
+              className="text-xs text-muted-foreground hover:text-foreground transition-colors underline-offset-2 hover:underline"
+            >
+              Limpar filtro
+            </button>
+          )}
+          {companies.length > 8 && (
+            <button
+              onClick={() => { setExpanded(e => !e); if (!expanded) setTimeout(() => inputRef.current?.focus(), 50) }}
+              className="text-xs text-muted-foreground hover:text-foreground transition-colors flex items-center gap-0.5"
+            >
+              {expanded ? 'Menos' : `+${overflow} mais`}
+              <ChevronDown className={`h-3 w-3 transition-transform ${expanded ? 'rotate-180' : ''}`} />
+            </button>
+          )}
         </div>
+      </div>
 
-        <button onClick={toggleAll}
-          className={`w-full flex items-center gap-2 text-left px-3 py-2 rounded-lg border text-xs mb-2 transition-colors font-medium ${
-            allChecked
-              ? 'border-foreground/40 bg-accent'
-              : 'border-border text-muted-foreground hover:bg-accent/40'
-          }`}>
-          <span className={`h-3.5 w-3.5 rounded border flex items-center justify-center shrink-0 ${
-            allChecked ? 'bg-foreground border-foreground' : 'border-muted-foreground'
-          }`}>
-            {allChecked && <Check className="h-2.5 w-2.5 text-background" />}
-          </span>
-          Todas as empresas
+      {/* Search (only when expanded) */}
+      {expanded && (
+        <div className="relative">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+          <input
+            ref={inputRef}
+            type="text"
+            placeholder="Buscar empresa…"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="w-full pl-8 pr-3 py-1.5 text-xs rounded-lg border bg-background focus:outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground"
+          />
+        </div>
+      )}
+
+      {/* Chip strip */}
+      <div className="flex flex-wrap gap-1.5">
+        {/* All chip */}
+        <button
+          onClick={resetAll}
+          className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs border transition-all ${
+            allSelected
+              ? 'bg-foreground text-background border-foreground font-medium'
+              : 'border-border text-muted-foreground hover:border-foreground/40 hover:text-foreground'
+          }`}
+        >
+          Todas
         </button>
 
-        <div className="space-y-1 max-h-64 overflow-y-auto">
-          {companies.map(c => {
-            const active = local.includes(c.id)
-            return (
-              <button key={c.id} onClick={() => toggle(c.id)}
-                className={`w-full flex items-center gap-2 text-left px-3 py-2 rounded-lg border text-xs transition-colors ${
-                  active
-                    ? 'border-foreground/40 bg-accent font-medium'
-                    : 'border-border text-muted-foreground hover:bg-accent/40'
-                }`}>
-                <span className={`h-3.5 w-3.5 rounded border flex items-center justify-center shrink-0 ${
-                  active ? 'bg-foreground border-foreground' : 'border-muted-foreground'
-                }`}>
-                  {active && <Check className="h-2.5 w-2.5 text-background" />}
-                </span>
-                <span className="truncate">{c.name}</span>
-              </button>
-            )
-          })}
-        </div>
+        {(expanded ? (search ? filtered : companies) : visible).map(c => {
+          const active = !allSelected && selected.includes(c.id)
+          const hue    = companyHue(c.name)
+          return (
+            <button
+              key={c.id}
+              onClick={() => toggle(c.id)}
+              className={`inline-flex items-center gap-1.5 pl-1.5 pr-2.5 py-1 rounded-full text-xs border transition-all ${
+                active
+                  ? 'border-foreground/40 bg-accent font-semibold text-foreground'
+                  : 'border-border text-muted-foreground hover:border-foreground/30 hover:text-foreground'
+              }`}
+            >
+              {/* Mini avatar */}
+              <span
+                className="inline-flex items-center justify-center rounded-full w-4 h-4 text-[9px] font-bold shrink-0"
+                style={{ background: `hsl(${hue} 60% ${active ? '50%' : '70%'})`, color: active ? '#fff' : `hsl(${hue} 60% 25%)` }}
+              >
+                {initials(c.name)}
+              </span>
+              <span className="truncate max-w-[100px]">{c.name}</span>
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
 
-        <div className="flex justify-end gap-2 mt-4 pt-3 border-t">
-          <Button variant="outline" size="sm" onClick={onClose}>Cancel</Button>
-          <Button size="sm" onClick={handleSave}>Save</Button>
+// ---------------------------------------------------------------------------
+// Article card
+// ---------------------------------------------------------------------------
+
+function ArticleCard({ article }: { article: AnyArticle }) {
+  const tag  = getTag(article)
+  const hue  = companyHue(article.companyName)
+
+  return (
+    <a
+      href={article.link}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="group flex items-start gap-3 rounded-xl border bg-card p-3.5 hover:bg-accent/40 hover:border-border/80 transition-all duration-150"
+    >
+      {/* Company avatar */}
+      <span
+        className="mt-0.5 inline-flex items-center justify-center rounded-lg w-8 h-8 text-[11px] font-bold shrink-0"
+        style={{ background: `hsl(${hue} 55% 88%)`, color: `hsl(${hue} 55% 28%)` }}
+        aria-hidden
+      >
+        {initials(article.companyName)}
+      </span>
+
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-medium leading-snug text-foreground group-hover:text-foreground line-clamp-2">{article.title}</p>
+        <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+          <Badge variant="outline" className="text-[10px] px-1.5 py-0 shrink-0">{article.companyName}</Badge>
+          <span className={`text-[10px] px-1.5 py-0.5 rounded-full border font-medium shrink-0 ${tag.className}`}>{tag.label}</span>
+          <span className="text-[11px] text-muted-foreground shrink-0">{article.source}</span>
+          {article.pubDate && (
+            <span className="text-[11px] text-muted-foreground shrink-0">{timeAgo(article.pubDate)}</span>
+          )}
+        </div>
+      </div>
+
+      <ExternalLink className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity" />
+    </a>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Loading skeleton
+// ---------------------------------------------------------------------------
+
+function SkeletonArticle() {
+  return (
+    <div className="flex items-start gap-3 rounded-xl border p-3.5 animate-pulse">
+      <div className="w-8 h-8 rounded-lg bg-muted shrink-0" />
+      <div className="flex-1 space-y-2">
+        <div className="h-4 bg-muted rounded w-3/4" />
+        <div className="h-3 bg-muted rounded w-1/2" />
+        <div className="flex gap-2">
+          <div className="h-3 bg-muted rounded w-16" />
+          <div className="h-3 bg-muted rounded w-12" />
         </div>
       </div>
     </div>
@@ -209,206 +381,169 @@ export default function NewsPage() {
   const [dateRange,         setDateRange]         = useState<string>('all')
   const [selectedCompanies, setSelectedCompanies] = useState<string[]>([])
   const [error,             setError]             = useState<string | null>(null)
-  const [sources,           setSources]           = useState<string[]>([])
-  const [showPortals,       setShowPortals]       = useState(false)
-  const [showCompanies,     setShowCompanies]     = useState(false)
-  const [fromDate,          setFromDate]          = useState<string>('')
+  const [refreshSummary,    setRefreshSummary]    = useState<RefreshSummary | null>(null)
+  const [showDrawer,        setShowDrawer]        = useState(false)
 
-  useEffect(() => { setSources(getSavedSources()) }, [])
-
-  async function load(bust = false) {
+  // Load from DB
+  const load = useCallback(async () => {
     try {
-      const currentSources = getSavedSources()
-      setSources(currentSources)
-
       const params = new URLSearchParams()
-      if (bust)                          params.set('bust',      String(Date.now()))
-      if (currentSources.length > 0)     params.set('sources',   currentSources.join(','))
       if (dateRange && dateRange !== 'all') params.set('dateRange', dateRange)
-      if (fromDate)                      params.set('fromDate',  fromDate)
+      if (selectedCompanies.length > 0)     params.set('companyIds', selectedCompanies.join(','))
 
       const res = await fetch(`/api/news?${params}`)
-      if (!res.ok) throw new Error('Failed to load news')
+      if (!res.ok) throw new Error('Falha ao carregar notícias')
       const data = await res.json()
       setArticles(data.articles ?? [])
       if (data.companies) setCompanies(data.companies)
       setError(null)
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Something went wrong')
+      setError(e instanceof Error ? e.message : 'Algo deu errado')
+    }
+  }, [dateRange, selectedCompanies])
+
+  // Initial load
+  useEffect(() => {
+    setLoading(true)
+    load().finally(() => setLoading(false))
+  }, [load])
+
+  // Refresh: trigger pipeline, then reload
+  async function handleRefresh() {
+    setRefreshing(true)
+    setShowDrawer(false)
+    setRefreshSummary(null)
+    try {
+      const res = await fetch('/api/news/refresh', { method: 'POST' })
+      if (!res.ok) throw new Error('Refresh falhou')
+      const summary: RefreshSummary = await res.json()
+      setRefreshSummary(summary)
+      setShowDrawer(true)
+      // Reload articles from DB after pipeline
+      setLoading(true)
+      await load()
+      setLoading(false)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Refresh falhou')
+    } finally {
+      setRefreshing(false)
     }
   }
 
-  // Initial load
-  useEffect(() => { load().finally(() => setLoading(false)) }, [])
-
-  // Reload when date filters change
-  const [mounted, setMounted] = useState(false)
-  useEffect(() => {
-    if (!mounted) { setMounted(true); return }
-    setLoading(true)
-    load().finally(() => setLoading(false))
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dateRange, fromDate])
-
-  async function handleRefresh() {
-    setRefreshing(true)
-    await load(true)
-    setRefreshing(false)
-  }
-
-  const handlePortalsClose = () => {
-    setShowPortals(false)
-    setLoading(true)
-    load().finally(() => setLoading(false))
-  }
+  const closeDrawer = () => { setShowDrawer(false); setRefreshSummary(null) }
 
   // Client-side company filter ([] = show all)
   const filtered = selectedCompanies.length > 0
     ? articles.filter(a => selectedCompanies.includes(a.companyId))
     : articles
 
-  const filterActive = selectedCompanies.length > 0 && selectedCompanies.length < companies.length
-
   return (
-    <div className="p-4 md:p-8">
-      {showPortals && <PortalsModal onClose={handlePortalsClose} />}
-      {showCompanies && (
-        <CompaniesModal
-          companies={companies}
-          selected={selectedCompanies}
-          onSave={setSelectedCompanies}
-          onClose={() => setShowCompanies(false)}
+    <div className="p-4 md:p-8 max-w-4xl mx-auto">
+      {/* Refresh summary drawer */}
+      {showDrawer && (
+        <RefreshDrawer
+          summary={refreshSummary}
+          loading={refreshing}
+          onClose={closeDrawer}
         />
       )}
 
       {/* Header */}
       <div className="mb-6">
-        <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2">
-            <Newspaper className="h-5 w-5" />
-            News
-          </h1>
-          <div className="flex items-center gap-2">
-            {sources.length > 0 && (
-              <span className="text-xs text-muted-foreground">
-                {sources.length} portal{sources.length !== 1 ? 's' : ''}
-              </span>
-            )}
-            <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setShowPortals(true)}>
-              <Settings2 className="h-3.5 w-3.5" />
-              Portals
-            </Button>
-            <Button
-              variant="outline" size="sm"
-              onClick={handleRefresh}
-              disabled={refreshing || loading}
-              className="gap-1.5"
-            >
-              <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? 'animate-spin' : ''}`} />
-              Refresh
-            </Button>
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h1 className="text-xl font-semibold tracking-tight flex items-center gap-2">
+              <Newspaper className="h-5 w-5" />
+              News Hub
+            </h1>
+            <p className="text-sm text-muted-foreground mt-0.5">Notícias do portfólio · últimos 3 dias</p>
           </div>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleRefresh}
+            disabled={refreshing || loading}
+            className="gap-1.5 shrink-0"
+            aria-label="Atualizar notícias"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? 'animate-spin' : ''}`} />
+            {refreshing ? 'Buscando…' : 'Refresh'}
+          </Button>
         </div>
-        <p className="text-sm text-muted-foreground mt-1">Latest news about your portfolio companies · cached for 1h</p>
       </div>
 
-      {/* Filters */}
-      <div className="flex items-center justify-between mb-6 gap-3 flex-wrap">
-        {/* Period pills */}
-        <div className="flex items-center gap-1.5 flex-wrap">
-          <span className="text-xs text-muted-foreground">Period:</span>
-          {DATE_OPTIONS.map(opt => (
-            <button key={opt.value} onClick={() => setDateRange(opt.value)}
-              className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
-                dateRange === opt.value
-                  ? 'bg-foreground text-background border-foreground'
-                  : 'border-border text-muted-foreground hover:text-foreground'
-              }`}>
-              {opt.label}
-            </button>
-          ))}
-        </div>
-
-        {/* From date */}
-        <div className="flex items-center gap-1.5">
-          <span className="text-xs text-muted-foreground">From:</span>
-          <input
-            type="date"
-            value={fromDate}
-            onChange={e => setFromDate(e.target.value)}
-            className="text-xs px-2 py-1 rounded-md border bg-transparent text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-          />
-          {fromDate && (
-            <button onClick={() => setFromDate('')} className="text-xs text-muted-foreground hover:text-foreground">
-              <X className="h-3 w-3" />
-            </button>
-          )}
-        </div>
-
-        {/* Company filter */}
-        {companies.length > 0 && (
-          <button onClick={() => setShowCompanies(true)}
-            className={`flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border transition-colors ${
-              filterActive
-                ? 'bg-foreground text-background border-foreground'
-                : 'border-border text-muted-foreground hover:text-foreground'
-            }`}>
-            <Building2 className="h-3 w-3" />
-            {filterActive ? `${selectedCompanies.length} empresas` : 'All companies'}
+      {/* Period pills */}
+      <div className="flex items-center gap-1.5 mb-4 flex-wrap">
+        <span className="text-xs text-muted-foreground font-medium">Período:</span>
+        {DATE_OPTIONS.map(opt => (
+          <button
+            key={opt.value}
+            onClick={() => setDateRange(opt.value)}
+            className={`text-xs px-2.5 py-1 rounded-full border transition-all ${
+              dateRange === opt.value
+                ? 'bg-foreground text-background border-foreground font-medium'
+                : 'border-border text-muted-foreground hover:text-foreground hover:border-foreground/40'
+            }`}
+          >
+            {opt.label}
           </button>
-        )}
+        ))}
       </div>
+
+      {/* Company filter strip */}
+      {companies.length > 0 && (
+        <div className="mb-5 p-3.5 rounded-xl border bg-card">
+          <CompanyFilterStrip
+            companies={companies}
+            selected={selectedCompanies}
+            onChange={setSelectedCompanies}
+          />
+        </div>
+      )}
 
       {/* Loading skeleton */}
       {loading && (
-        <div className="space-y-3">
-          {[...Array(6)].map((_, i) => (
-            <div key={i} className="rounded-lg border p-4 animate-pulse">
-              <div className="h-4 bg-muted rounded w-3/4 mb-2" />
-              <div className="h-3 bg-muted rounded w-1/3" />
-            </div>
-          ))}
+        <div className="space-y-2">
+          {[...Array(5)].map((_, i) => <SkeletonArticle key={i} />)}
         </div>
       )}
 
       {/* Error */}
       {!loading && error && (
-        <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-6 text-center">
-          <p className="text-sm text-destructive">{error}</p>
-          <Button variant="outline" size="sm" className="mt-3" onClick={() => load()}>Try again</Button>
+        <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-6 text-center">
+          <AlertCircle className="h-8 w-8 text-destructive mx-auto mb-2" />
+          <p className="text-sm text-destructive font-medium">{error}</p>
+          <Button variant="outline" size="sm" className="mt-3" onClick={() => { setLoading(true); load().finally(() => setLoading(false)) }}>
+            Tentar novamente
+          </Button>
         </div>
       )}
 
-      {/* Empty */}
+      {/* Empty state */}
       {!loading && !error && filtered.length === 0 && (
-        <div className="rounded-lg border border-dashed p-12 text-center">
-          <Newspaper className="h-8 w-8 text-muted-foreground mx-auto mb-3" />
-          <p className="text-muted-foreground text-sm">No news found.</p>
-          <p className="text-xs text-muted-foreground mt-1">Try adjusting the filters or refreshing.</p>
+        <div className="rounded-xl border border-dashed p-14 text-center">
+          <Newspaper className="h-10 w-10 text-muted-foreground/50 mx-auto mb-3" />
+          <p className="text-sm font-medium text-muted-foreground">Nenhuma notícia encontrada</p>
+          <p className="text-xs text-muted-foreground/70 mt-1 max-w-xs mx-auto">
+            Clique em <strong>Refresh</strong> para buscar as últimas notícias do portfólio.
+          </p>
+          <Button variant="outline" size="sm" className="mt-4 gap-1.5" onClick={handleRefresh} disabled={refreshing}>
+            <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? 'animate-spin' : ''}`} />
+            {refreshing ? 'Buscando…' : 'Buscar agora'}
+          </Button>
         </div>
       )}
 
       {/* Article list */}
       {!loading && !error && filtered.length > 0 && (
         <div className="space-y-2">
-          {filtered.map((article, i) => {
-            const tag = getTag(article)
-            return (
-              <a key={i} href={article.link} target="_blank" rel="noopener noreferrer"
-                className="flex items-start gap-3 rounded-lg border bg-card p-4 hover:bg-accent/50 transition-colors group">
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium leading-snug group-hover:underline">{article.title}</p>
-                  <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                    <Badge variant="outline" className="text-[10px] px-1.5 py-0">{article.companyName}</Badge>
-                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full border font-medium ${tag.className}`}>{tag.label}</span>
-                    <span className="text-[11px] text-muted-foreground">{article.source}</span>
-                    <span className="text-[11px] text-muted-foreground">{article.pubDate ? timeAgo(article.pubDate) : ''}</span>
-                  </div>
-                </div>
-                <ExternalLink className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity" />
-              </a>
-            )
-          })}
+          {filtered.map((article, i) => (
+            <ArticleCard key={article.link ?? i} article={article} />
+          ))}
+          <p className="text-center text-xs text-muted-foreground pt-4 pb-2">
+            {filtered.length} notícia{filtered.length !== 1 ? 's' : ''} · salvas no banco
+          </p>
         </div>
       )}
     </div>
