@@ -2,7 +2,7 @@ name: VC Market Daily Scraper
 
 on:
   schedule:
-    - cron: '25 15 * * *'  # 12:25 BRT (UTC-3)
+    - cron: '00 13 * * *'  
   workflow_dispatch:       # permite rodar manualmente pelo GitHub
 
 jobs:
