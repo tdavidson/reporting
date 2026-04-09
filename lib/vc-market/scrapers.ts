@@ -3,10 +3,30 @@ import type { VCDeal, VCDealInsert } from './types'
 
 // ─── LATAM country codes ────────────────────────────────────────────────────────
 
-const LATAM_COUNTRIES = new Set([
-  'Argentina','Bolivia','Brazil','Colombia','Ecuador',
-  'Mexico','Peru','Paraguay','Uruguay','Venezuela',
+// Accept both full names (e.g. "Brazil") and ISO-2 codes (e.g. "BR").
+// The AI extractor returns ISO-2 codes; we store them normalised to uppercase.
+const LATAM_NAMES = new Set([
+  'Argentina','Bolivia','Brazil','Chile','Colombia','Costa Rica','Cuba',
+  'Dominican Republic','Ecuador','El Salvador','Guatemala','Guyana','Haiti',
+  'Honduras','Mexico','Nicaragua','Panama','Paraguay','Peru','Suriname',
+  'Trinidad and Tobago','Uruguay','Venezuela','Belize',
 ])
+
+const LATAM_ISO2 = new Set([
+  'AR','BO','BR','CL','CO','CR','CU','DO','EC','SV',
+  'GT','GY','HT','HN','MX','NI','PA','PY','PE','SR',
+  'TT','UY','VE','BZ',
+])
+
+function isLatamCountry(country: string | null): boolean {
+  if (country === null) return true  // null → pass (reviewer already validated LATAM)
+  const v = country.trim().toUpperCase()
+  // ISO-2 check (fast path — what the AI usually returns)
+  if (LATAM_ISO2.has(v)) return true
+  // Full-name check (title-cased)
+  const titleCase = country.trim().replace(/\b\w/g, c => c.toUpperCase())
+  return LATAM_NAMES.has(titleCase)
+}
 
 // ─── Source definitions ────────────────────────────────────────────────────────────
 
@@ -152,7 +172,7 @@ function parseHTMLItems(html: string, baseUrl: string, sourceName: string): Arti
   const timeMatches = html.matchAll(/<time[^>]*(?:datetime=["']([^"']+)["'])[^>]*>/g)
   for (const m of timeMatches) dateHints.push(m[1])
 
-  const anchorRegex = /<a[^>]+href=["']([^"'#?][^"']*)["'][^>]*>([\s\S]*?)<\/a>/g
+  const anchorRegex = /<a[^>]+href=["']([^"'#?][^"']*)['"'][^>]*>([\s\S]*?)<\/a>/g
   let idx = 0
   for (const match of html.matchAll(anchorRegex)) {
     const rawHref = match[1]
@@ -357,6 +377,7 @@ crowdfunding, real estate.
 
 ━━━ OUTPUT ━━━
 Raw JSON array only. No markdown. Return [] if nothing found.
+Use the ISO 3166-1 alpha-2 country code (2 letters, uppercase) for the "country" field. E.g. "BR", "MX", "CO".
 [{
   "company_name": string,
   "amount_usd": number | null,
@@ -455,6 +476,7 @@ For approved deals, correct/enrich the fields:
 - Infer segment if null and context makes it clear
 - Ensure investors is an array (not null)
 - Keep amount_usd null if not explicitly stated (do not guess)
+- country must be ISO 3166-1 alpha-2 uppercase (e.g. "BR", "MX", "CO")
 
 ━━━ OUTPUT ━━━
 Return a raw JSON array with one object per candidate (same order).
@@ -604,11 +626,11 @@ export async function scrapeVCDeals(
     .filter(d => !d.approved)
     .map(d => ({ company: d.company_name, reason: d.rejection_reason ?? 'unknown' }))
 
-  // 7. Final hard filter: LATAM country + confidence
+  // 7. Final hard filter: LATAM country (ISO-2 or full name) + confidence
   const filtered = approved.filter(d =>
     d.company_name?.trim() &&
     d.confidence !== 'low' &&
-    (d.country === null || LATAM_COUNTRIES.has(d.country.toUpperCase()))
+    isLatamCountry(d.country)
   )
 
   const hardFilterRejections = approved
