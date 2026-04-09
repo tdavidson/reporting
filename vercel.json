@@ -1,11 +1,5 @@
 {
   "framework": "nextjs",
-  "crons": [
-    {
-      "path": "/api/vc-market/cron",
-      "schedule": "0 14 * * *"
-    }
-  ],
   "functions": {
     "app/api/inbound-email/route.ts": {
       "maxDuration": 120
