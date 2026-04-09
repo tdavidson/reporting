@@ -1,27 +1,19 @@
 /**
- * lib/news-pipeline.ts  (v2)
+ * lib/news-pipeline.ts  (v2.1)
  *
  * Shared news pipeline — used by:
  *   - POST /api/news/refresh  (manual, returns RefreshSummary)
  *   - GET  /api/news/cron     (scheduled, fire-and-forget)
  *
- * Changes from v1:
- *   1. Multi-source RSS/HTML — same 10 sources as vc-market scrapers.ts
- *   2. Hybrid dedup: Levenshtein + token-set ratio (more robust)
- *   3. No MAX_PER_COMPANY cap — all articles within time window are considered
- *   4. Pass 2 bias: "when in doubt → keep: true" (prefer recall over precision)
- *   5. JSON validation via manual schema check — silent drop replaced by warn+fallback
- *   6. Retry wrapper (3 attempts, exponential back-off) on Anthropic calls
- *   7. Structured per-call logging for observability
+ * v2.1 — aliases support:
+ *   Company aliases are now fetched and propagated through every match/filter
+ *   layer: Google News query, curated HTML matching, deterministic pre-filter,
+ *   and both AI prompt passes.
  */
 
 import { createClient } from '@/lib/supabase/server'
 import { decryptApiKey } from '@/lib/crypto'
 import Anthropic from '@anthropic-ai/sdk'
-
-// ---------------------------------------------------------------------------
-// Escape hatch for tables not yet in generated Supabase types
-// ---------------------------------------------------------------------------
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = (supabase: ReturnType<typeof createClient>) => supabase as any
@@ -71,16 +63,20 @@ export interface RefreshSummary {
 }
 
 type RawArticle = Omit<NewsArticle, 'category' | 'isDuplicate' | 'duplicateOf'>
-type Company    = { id: string; name: string; website: string | null }
+
+/** Internal Company type — aliases is always an array (possibly empty). */
+type Company = {
+  id: string
+  name: string
+  website: string | null
+  aliases: string[]
+}
 
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
 
 const THREE_DAYS_MS   = 3 * 24 * 60 * 60 * 1000
-// Slightly lower threshold than v1 to reduce false-dedup on different events
-// for the same company. Hybrid scorer (max of Levenshtein + token-set) is
-// more robust, so we can afford a tighter threshold.
 const DEDUP_THRESHOLD = 0.60
 
 // ---------------------------------------------------------------------------
@@ -125,16 +121,6 @@ function formatPubDate(dateStr: string): string {
 
 // ---------------------------------------------------------------------------
 // Hybrid title similarity
-//
-// Combines:
-//   a) Levenshtein edit distance (good for near-identical strings)
-//   b) Token-set ratio / Jaccard (good for same-event, different wording)
-//
-// Final score = max(levenshtein_sim, token_set_ratio)
-// This catches pairs like:
-//   "Startup X levanta R$10M em rodada Série A"
-//   "Startup X conclui Série A de R$10 milhões"
-// which score low on Levenshtein but high on token overlap.
 // ---------------------------------------------------------------------------
 
 function levenshteinSimilarity(a: string, b: string): number {
@@ -159,7 +145,6 @@ function levenshteinSimilarity(a: string, b: string): number {
 }
 
 function tokenSetRatio(a: string, b: string): number {
-  // Tokenise: lowercase, split on non-alphanumeric, drop stopwords & short tokens
   const stopwords = new Set([
     'de', 'da', 'do', 'em', 'no', 'na', 'para', 'com', 'por', 'que',
     'the', 'a', 'an', 'in', 'on', 'at', 'to', 'of', 'and', 'or', 'is',
@@ -171,17 +156,13 @@ function tokenSetRatio(a: string, b: string): number {
         .split(/[^a-z0-9áàãâéêíóôõúüçñ]+/)
         .filter(t => t.length >= 3 && !stopwords.has(t))
     )
-
   const setA = tokenise(a)
   const setB = tokenise(b)
   if (setA.size === 0 && setB.size === 0) return 1
   if (setA.size === 0 || setB.size === 0) return 0
-
   let intersection = 0
   for (const t of setA) if (setB.has(t)) intersection++
-
-  const union = setA.size + setB.size - intersection
-  return intersection / union
+  return intersection / (setA.size + setB.size - intersection)
 }
 
 export function titleSimilarity(a: string, b: string): number {
@@ -195,7 +176,6 @@ export function titleSimilarity(a: string, b: string): number {
 function semanticDedup(articles: RawArticle[]): { canonical: RawArticle[]; duplicateLinks: Set<string> } {
   const canonical: RawArticle[] = []
   const duplicateLinks = new Set<string>()
-
   for (const article of articles) {
     const isDup = canonical.some(
       c => c.companyId === article.companyId &&
@@ -204,7 +184,6 @@ function semanticDedup(articles: RawArticle[]): { canonical: RawArticle[]; dupli
     if (isDup) duplicateLinks.add(article.link)
     else       canonical.push(article)
   }
-
   return { canonical, duplicateLinks }
 }
 
@@ -213,16 +192,16 @@ function semanticDedup(articles: RawArticle[]): { canonical: RawArticle[]; dupli
 // ---------------------------------------------------------------------------
 
 const CURATED_SOURCES = [
-  { name: 'Pipeline Valor',         url: 'https://pipelinevalor.globo.com/negocios/',                          type: 'html' as const },
-  { name: 'Brazil Journal PE/VC',   url: 'https://braziljournal.com/hot-topic/private-equity-vc/',             type: 'html' as const },
-  { name: 'NeoFeed Startups',       url: 'https://neofeed.com.br/startups/',                                   type: 'html' as const },
-  { name: 'Finsiders Brasil',       url: 'https://finsidersbrasil.com.br/ultimas-noticias/',                   type: 'html' as const },
-  { name: 'LATAM List Funding',     url: 'https://latamlist.com/category/startup-news/funding/',               type: 'html' as const },
-  { name: 'Startups.com.br',        url: 'https://startups.com.br/ultimas-noticias/',                         type: 'html' as const },
-  { name: 'Startupi',               url: 'https://startupi.com.br/noticias/',                                  type: 'html' as const },
-  { name: 'Latam Fintech',          url: 'https://www.latamfintech.co/articles',                               type: 'html' as const },
-  { name: 'Startups Latam',         url: 'https://startupslatam.com/',                                         type: 'html' as const },
-  { name: 'TechCrunch',             url: 'https://techcrunch.com/latest/',                                     type: 'html' as const },
+  { name: 'Pipeline Valor',       url: 'https://pipelinevalor.globo.com/negocios/' },
+  { name: 'Brazil Journal PE/VC', url: 'https://braziljournal.com/hot-topic/private-equity-vc/' },
+  { name: 'NeoFeed Startups',     url: 'https://neofeed.com.br/startups/' },
+  { name: 'Finsiders Brasil',     url: 'https://finsidersbrasil.com.br/ultimas-noticias/' },
+  { name: 'LATAM List Funding',   url: 'https://latamlist.com/category/startup-news/funding/' },
+  { name: 'Startups.com.br',      url: 'https://startups.com.br/ultimas-noticias/' },
+  { name: 'Startupi',             url: 'https://startupi.com.br/noticias/' },
+  { name: 'Latam Fintech',        url: 'https://www.latamfintech.co/articles' },
+  { name: 'Startups Latam',       url: 'https://startupslatam.com/' },
+  { name: 'TechCrunch',           url: 'https://techcrunch.com/latest/' },
 ]
 
 // ---------------------------------------------------------------------------
@@ -232,36 +211,27 @@ const CURATED_SOURCES = [
 function parseHTMLArticles(html: string, baseUrl: string): Array<{ title: string; link: string; pubDate: string }> {
   const items: Array<{ title: string; link: string; pubDate: string }> = []
   const seen = new Set<string>()
-
   const dateHints: string[] = []
   for (const m of html.matchAll(/<time[^>]*(?:datetime=["']([^"']+)["'])[^>]*>/g)) {
     dateHints.push(m[1])
   }
-
   let idx = 0
   for (const match of html.matchAll(/<a[^>]+href=["']([^"'#?][^"']*)['"'][^>]*>([\s\S]*?)<\/a>/g)) {
     const rawHref = match[1]
     const rawText = match[2].replace(/<[^>]+>/g, '').trim()
-
     if (rawText.length < 20) continue
     if (/^(home|menu|login|sign|subscribe|newsletter|sobre|contato|privacy|terms)/i.test(rawText)) continue
-
     let href = rawHref
     if (href.startsWith('/')) {
-      try {
-        const base = new URL(baseUrl)
-        href = `${base.origin}${href}`
-      } catch { continue }
+      try { const base = new URL(baseUrl); href = `${base.origin}${href}` } catch { continue }
     }
     if (!href.startsWith('http')) continue
     if (seen.has(href)) continue
     seen.add(href)
-
     items.push({ title: cleanTitle(rawText), link: href, pubDate: dateHints[idx] ?? '' })
     idx++
     if (items.length >= 50) break
   }
-
   return items
 }
 
@@ -275,8 +245,7 @@ async function fetchCuratedSource(
     })
     if (!res.ok) return []
     const text = await res.text()
-    const items = parseHTMLArticles(text, source.url)
-    return items.map(i => ({ ...i, sourceName: source.name }))
+    return parseHTMLArticles(text, source.url).map(i => ({ ...i, sourceName: source.name }))
   } catch {
     return []
   }
@@ -284,8 +253,7 @@ async function fetchCuratedSource(
 
 /**
  * Match curated articles against portfolio companies.
- * An article matches if the company name (or a significant token ≥5 chars)
- * appears in the title, OR the article's domain matches the company's website.
+ * Checks: primary name, aliases, tokens from both name & aliases, domain.
  */
 function matchCuratedArticles(
   curatedItems: Array<{ title: string; link: string; pubDate: string; sourceName: string }>,
@@ -306,14 +274,17 @@ function matchCuratedArticles(
     try { domain = new URL(item.link).hostname.replace(/^www\./, '') } catch { /* ignore */ }
 
     for (const company of companies) {
-      const coName   = company.name.toLowerCase()
-      const coDomain = extractDomain(company.website)
-      const coTokens = company.name.toLowerCase().split(/\s+/).filter(t => t.length >= 5)
+      const coDomain  = extractDomain(company.website)
+      // All searchable names: primary + aliases
+      const allNames  = [company.name, ...company.aliases]
+      const allTokens = allNames
+        .flatMap(n => n.toLowerCase().split(/\s+/))
+        .filter(t => t.length >= 4)
 
       const matched =
         (coDomain && (domain.includes(coDomain) || item.link.includes(coDomain))) ||
-        titleLower.includes(coName) ||
-        coTokens.some(tok => titleLower.includes(tok))
+        allNames.some(n => titleLower.includes(n.toLowerCase())) ||
+        allTokens.some(tok => titleLower.includes(tok))
 
       if (matched) {
         result.push({
@@ -329,20 +300,16 @@ function matchCuratedArticles(
       }
     }
   }
-
   return result
 }
 
 // ---------------------------------------------------------------------------
-// RSS parsing (Google News per-company — no per-company cap)
+// RSS / Google News (aliases added as OR terms in query)
 // ---------------------------------------------------------------------------
 
 function parseRSSItems(xml: string, companyId: string, companyName: string): RawArticle[] {
   const cutoff = Date.now() - THREE_DAYS_MS
-  const items  = Array.from(xml.matchAll(/<item>([\s\S]*?)<\/item>/g))
-
-  // No MAX_PER_COMPANY cap — take all items within the time window
-  return items
+  return Array.from(xml.matchAll(/<item>([\s\S]*?)<\/item>/g))
     .map(match => {
       const block      = match[1]
       const rawTitle   = block.match(/<title>(.*?)<\/title>/)?.[1]?.replace(/<[^>]+>/g, '').trim() ?? ''
@@ -368,14 +335,17 @@ function parseRSSItems(xml: string, companyId: string, companyName: string): Raw
     })
 }
 
-async function fetchGoogleNews(
-  companyId: string,
-  companyName: string,
-  websiteDomain: string | null
-): Promise<RawArticle[]> {
+async function fetchGoogleNews(company: Company): Promise<RawArticle[]> {
   try {
-    let q = `"${companyName}" when:3d`
-    if (websiteDomain) q += ` OR site:${websiteDomain}`
+    const domain = extractDomain(company.website)
+
+    // Build query: primary name + each alias as OR terms
+    const nameParts = [`"${company.name}"`]
+    for (const alias of company.aliases) {
+      if (alias && alias !== company.name) nameParts.push(`"${alias}"`)
+    }
+    let q = `(${nameParts.join(' OR ')}) when:3d`
+    if (domain) q += ` OR site:${domain}`
 
     const res = await fetch(
       `https://news.google.com/rss/search?q=${encodeURIComponent(q)}&hl=pt-BR&gl=BR&ceid=BR:pt`,
@@ -385,15 +355,14 @@ async function fetchGoogleNews(
       }
     )
     if (!res.ok) return []
-    const xml = await res.text()
-    return parseRSSItems(xml, companyId, companyName)
+    return parseRSSItems(await res.text(), company.id, company.name)
   } catch {
     return []
   }
 }
 
 // ---------------------------------------------------------------------------
-// Deterministic pre-filter
+// Deterministic pre-filter (name + aliases + domain)
 // ---------------------------------------------------------------------------
 
 function deterministicPreFilter(articles: RawArticle[], companies: Company[]): RawArticle[] {
@@ -401,9 +370,13 @@ function deterministicPreFilter(articles: RawArticle[], companies: Company[]): R
     companies.map(c => [
       c.id,
       {
-        name:   c.name,
-        domain: extractDomain(c.website),
-        tokens: c.name.toLowerCase().split(/\s+/).filter(t => t.length >= 4),
+        name:      c.name,
+        domain:    extractDomain(c.website),
+        // All searchable terms from name + aliases
+        allNames:  [c.name, ...c.aliases].map(n => n.toLowerCase()),
+        allTokens: [c.name, ...c.aliases]
+          .flatMap(n => n.toLowerCase().split(/\s+/))
+          .filter(t => t.length >= 4),
       },
     ] as const)
   )
@@ -413,28 +386,22 @@ function deterministicPreFilter(articles: RawArticle[], companies: Company[]): R
     if (!co) return false
     const tl = a.title.toLowerCase()
     if (co.domain && a.sourceDomain.includes(co.domain)) return true
-    if (tl.includes(co.name.toLowerCase()))              return true
-    if (co.tokens.some(tok => tl.includes(tok)))         return true
+    if (co.allNames.some(n => tl.includes(n)))           return true
+    if (co.allTokens.some(tok => tl.includes(tok)))      return true
     return false
   })
 }
 
 // ---------------------------------------------------------------------------
-// Retry wrapper (3 attempts, exponential back-off)
+// Retry wrapper
 // ---------------------------------------------------------------------------
 
-async function withRetry<T>(
-  fn: () => Promise<T>,
-  maxAttempts = 3,
-  label = 'AI call',
-): Promise<T> {
+async function withRetry<T>(fn: () => Promise<T>, maxAttempts = 3, label = 'AI call'): Promise<T> {
   let lastError: unknown
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    try {
-      return await fn()
-    } catch (e) {
+    try { return await fn() } catch (e) {
       lastError = e
-      const delay = 500 * Math.pow(2, attempt - 1)  // 500ms, 1s, 2s
+      const delay = 500 * Math.pow(2, attempt - 1)
       console.warn(`[news-pipeline] ${label} attempt ${attempt}/${maxAttempts} failed (retry in ${delay}ms):`, e)
       if (attempt < maxAttempts) await new Promise(r => setTimeout(r, delay))
     }
@@ -443,18 +410,16 @@ async function withRetry<T>(
 }
 
 // ---------------------------------------------------------------------------
-// Manual JSON validation (replaces silent drops)
+// JSON validation
 // ---------------------------------------------------------------------------
 
 const VALID_CATEGORIES = new Set<string>([
   'rodada', 'aquisicao', 'parceria', 'contratacao',
   'produto', 'expansao', 'premio', 'crise', 'ipo', 'outro',
 ])
-
 function isValidUUID(s: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s)
 }
-
 interface ClassifyResult { index: number; companyId: string | null; category: NewsCategory | null }
 interface ReviewResult   { index: number; keep: boolean }
 
@@ -468,19 +433,17 @@ function validateClassifyResult(raw: unknown): ClassifyResult | null {
   const category  = (rawCat && VALID_CATEGORIES.has(rawCat)) ? rawCat as NewsCategory : null
   return { index, companyId, category }
 }
-
 function validateReviewResult(raw: unknown): ReviewResult | null {
   if (!raw || typeof raw !== 'object') return null
-  const r     = raw as Record<string, unknown>
+  const r    = raw as Record<string, unknown>
   const index = typeof r.index === 'number' ? r.index : null
   if (index === null) return null
-  // Default keep=true when field is missing — pass 2 recall bias
-  const keep  = typeof r.keep === 'boolean' ? r.keep : true
+  const keep = typeof r.keep === 'boolean' ? r.keep : true
   return { index, keep }
 }
 
 // ---------------------------------------------------------------------------
-// AI Pass 1 — classify
+// AI Pass 1 — classify (aliases listed per company)
 // ---------------------------------------------------------------------------
 
 async function classifyArticles(
@@ -489,8 +452,9 @@ async function classifyArticles(
   companies: Company[]
 ): Promise<ClassifyResult[]> {
   const companyList = companies.map(c => {
-    const domain = extractDomain(c.website)
-    return `- id: ${c.id} | name: ${c.name}${domain ? ` | website: ${domain}` : ''}`
+    const domain       = extractDomain(c.website)
+    const aliasStr     = c.aliases.length > 0 ? ` | aliases: ${c.aliases.join(', ')}` : ''
+    return `- id: ${c.id} | name: ${c.name}${aliasStr}${domain ? ` | website: ${domain}` : ''}`
   }).join('\n')
 
   const articleList = articles.map((a, i) =>
@@ -499,7 +463,7 @@ async function classifyArticles(
 
   const prompt = `You are a strict financial news classifier for a VC fund portfolio.
 
-Portfolio companies:
+Portfolio companies (name may appear in news as an alias):
 ${companyList}
 
 News articles:
@@ -511,7 +475,7 @@ Categories: rodada | aquisicao | parceria | contratacao | produto | expansao | p
 
 Rules (apply in order):
 1. Source domain matches company website domain -> assign that company
-2. Company name (or clear variant/acronym) appears in title -> assign and classify
+2. Company primary name OR any alias appears in title -> assign and classify
 3. Otherwise -> null, null. Do NOT guess from industry.
 
 Respond ONLY with a JSON array — no markdown, no commentary:
@@ -519,9 +483,8 @@ Respond ONLY with a JSON array — no markdown, no commentary:
 
   const raw = await withRetry(async () => {
     const msg = await anthropic.messages.create({
-      model:      'claude-haiku-4-5',
-      max_tokens: 2048,
-      messages:   [{ role: 'user', content: prompt }],
+      model: 'claude-haiku-4-5', max_tokens: 2048,
+      messages: [{ role: 'user', content: prompt }],
     })
     return msg.content[0]?.type === 'text' ? msg.content[0].text : '[]'
   }, 3, 'classifyArticles')
@@ -529,21 +492,20 @@ Respond ONLY with a JSON array — no markdown, no commentary:
   const match = raw.match(/\[[\s\S]*\]/)
   let parsed: unknown[] = []
   try { parsed = match ? JSON.parse(match[0]) : [] } catch {
-    console.warn('[news-pipeline] classifyArticles: JSON parse failed, raw:', raw.slice(0, 200))
+    console.warn('[news-pipeline] classifyArticles: JSON parse failed:', raw.slice(0, 200))
   }
-
   const results: ClassifyResult[] = []
   for (const item of parsed) {
     const v = validateClassifyResult(item)
     if (v) results.push(v)
-    else   console.warn('[news-pipeline] classifyArticles: invalid item dropped:', JSON.stringify(item))
+    else console.warn('[news-pipeline] classifyArticles: invalid item:', JSON.stringify(item))
   }
   return results
 }
 
 // ---------------------------------------------------------------------------
-// AI Pass 2 — review
-// BIAS: keep=true when uncertain — user can delete false positives from the UX.
+// AI Pass 2 — review (aliases shown alongside company name)
+// BIAS: keep=true when uncertain.
 // ---------------------------------------------------------------------------
 
 async function reviewArticles(
@@ -553,18 +515,22 @@ async function reviewArticles(
 ): Promise<NewsArticle[]> {
   if (candidates.length === 0) return []
 
-  const coById = new Map(companies.map(c => [c.id, { ...c, domain: extractDomain(c.website) }]))
+  const coById = new Map(companies.map(c => [
+    c.id,
+    { ...c, domain: extractDomain(c.website) },
+  ]))
 
   const articleList = candidates.map((a, i) => {
-    const co = coById.get(a.companyId)
-    return `[${i}] company: "${co?.name}"${co?.domain ? ` (${co.domain})` : ''} | title: "${a.title}" | source: ${a.sourceDomain}`
+    const co       = coById.get(a.companyId)
+    const aliasStr = (co?.aliases.length ?? 0) > 0 ? ` / aliases: ${co!.aliases.join(', ')}` : ''
+    return `[${i}] company: "${co?.name}"${aliasStr}${co?.domain ? ` (${co.domain})` : ''} | title: "${a.title}" | source: ${a.sourceDomain}`
   }).join('\n')
 
   const prompt = `You are a quality reviewer for a VC fund news feed.
 Remove OBVIOUS false positives only — articles that clearly refer to a DIFFERENT company.
 
 Rules:
-- keep: true  if company name (or clear variant) appears in title, OR source domain is the company's website
+- keep: true  if company primary name OR any alias appears in title, OR source domain is the company's website
 - keep: true  if you are UNCERTAIN — the user will manually delete incorrect articles if needed
 - keep: false ONLY if the article clearly refers to a different entity (name collision, different industry, etc.)
 
@@ -576,33 +542,26 @@ Respond ONLY with a JSON array — no markdown, no commentary:
 
   const raw = await withRetry(async () => {
     const msg = await anthropic.messages.create({
-      model:      'claude-haiku-4-5',
-      max_tokens: 1024,
-      messages:   [{ role: 'user', content: prompt }],
+      model: 'claude-haiku-4-5', max_tokens: 1024,
+      messages: [{ role: 'user', content: prompt }],
     })
     return msg.content[0]?.type === 'text' ? msg.content[0].text : '[]'
   }, 3, 'reviewArticles')
 
   const match = raw.match(/\[.*\]/s)
   let parsed: unknown[] = []
-  try {
-    parsed = match ? JSON.parse(match[0]) : []
-  } catch {
-    // If JSON is unparseable, keep everything (recall bias)
-    console.warn('[news-pipeline] reviewArticles: JSON parse failed — keeping all candidates')
+  try { parsed = match ? JSON.parse(match[0]) : [] } catch {
+    console.warn('[news-pipeline] reviewArticles: JSON parse failed — keeping all')
     return candidates
   }
-
   const results: ReviewResult[] = []
   for (const item of parsed) {
     const v = validateReviewResult(item)
     if (v) results.push(v)
-    else   console.warn('[news-pipeline] reviewArticles: invalid item, defaulting keep=true:', JSON.stringify(item))
+    else console.warn('[news-pipeline] reviewArticles: invalid item, keep=true:', JSON.stringify(item))
   }
-
   return candidates.filter((_, i) => {
     const r = results.find(x => x.index === i)
-    // keep=true if no result found for this index (recall bias)
     return !r || r.keep !== false
   })
 }
@@ -620,16 +579,35 @@ async function resolveApiKey(
     .select('claude_api_key_encrypted, encryption_key_encrypted')
     .eq('fund_id', fundId)
     .maybeSingle()
-
   let apiKey: string | undefined
   try {
-    if (fs?.claude_api_key_encrypted && fs?.encryption_key_encrypted) {
+    if (fs?.claude_api_key_encrypted && fs?.encryption_key_encrypted)
       apiKey = decryptApiKey(fs.claude_api_key_encrypted, fs.encryption_key_encrypted)
-    }
   } catch (e) {
     console.error('[news-pipeline] failed to decrypt fund API key:', e)
   }
   return apiKey ?? process.env.ANTHROPIC_API_KEY
+}
+
+// ---------------------------------------------------------------------------
+// Helpers to build the Company list with aliases
+// ---------------------------------------------------------------------------
+
+type DBCompany = { id: string; name: string; website: string | null }
+type DBAlias   = { company_id: string; alias: string }
+
+function buildCompanyList(dbCompanies: DBCompany[], dbAliases: DBAlias[]): Company[] {
+  const aliasMap = new Map<string, string[]>()
+  for (const row of dbAliases) {
+    if (!aliasMap.has(row.company_id)) aliasMap.set(row.company_id, [])
+    aliasMap.get(row.company_id)!.push(row.alias)
+  }
+  return dbCompanies.map(c => ({
+    id:      c.id,
+    name:    c.name,
+    website: c.website,
+    aliases: aliasMap.get(c.id) ?? [],
+  }))
 }
 
 // ---------------------------------------------------------------------------
@@ -644,36 +622,39 @@ export async function runNewsPipeline(
   const sdb   = db(supabase)
 
   // 1. Load active companies
-  const { data: companies } = await supabase
+  const { data: dbCompanies } = await supabase
     .from('companies')
     .select('id, name, website')
     .eq('fund_id', fundId)
     .eq('status', 'active')
-    .order('name') as { data: Company[] | null }
+    .order('name') as { data: DBCompany[] | null }
 
-  const list = companies ?? []
-  if (list.length === 0) {
+  const rawList = dbCompanies ?? []
+  if (rawList.length === 0) {
     return { added: 0, duplicates: 0, total: 0, byCompany: [], ranAt }
   }
 
-  // 2a. Fetch Google News RSS per company (personalised query, no cap)
-  const googleBatches = await Promise.all(
-    list.map(c => fetchGoogleNews(c.id, c.name, extractDomain(c.website)))
-  )
+  // 2. Load aliases for those companies
+  const companyIds = rawList.map(c => c.id)
+  const { data: dbAliases } = await sdb
+    .from('company_aliases')
+    .select('company_id, alias')
+    .in('company_id', companyIds) as { data: DBAlias[] | null }
+
+  const list = buildCompanyList(rawList, dbAliases ?? [])
+
+  // 3a. Google News per company (query includes aliases)
+  const googleBatches = await Promise.all(list.map(c => fetchGoogleNews(c)))
   const googleArticles = googleBatches.flat()
 
-  // 2b. Fetch curated LATAM/BR sources once (same 10 as vc-market)
-  const curatedBatches = await Promise.allSettled(
-    CURATED_SOURCES.map(s => fetchCuratedSource(s))
-  )
+  // 3b. Curated LATAM/BR sources
+  const curatedBatches = await Promise.allSettled(CURATED_SOURCES.map(s => fetchCuratedSource(s)))
   const curatedRaw = curatedBatches
     .filter((r): r is PromiseFulfilledResult<Awaited<ReturnType<typeof fetchCuratedSource>>> => r.status === 'fulfilled')
     .flatMap(r => r.value)
-
-  // Match curated articles to portfolio companies
   const curatedArticles = matchCuratedArticles(curatedRaw, list)
 
-  // 3. Merge + URL-level dedup
+  // 4. Merge + URL-level dedup
   const seenUrls = new Set<string>()
   const allRaw: RawArticle[] = []
   for (const a of [...googleArticles, ...curatedArticles]) {
@@ -682,27 +663,26 @@ export async function runNewsPipeline(
   }
   const total = allRaw.length
 
-  // 4. Deterministic pre-filter
+  // 5. Deterministic pre-filter (name + aliases)
   const preFiltered = deterministicPreFilter(allRaw, list)
 
-  // 5. Semantic dedup per company (hybrid Levenshtein + token-set)
+  // 6. Semantic dedup
   const { canonical, duplicateLinks } = semanticDedup(preFiltered)
 
-  // 6. Resolve API key
+  // 7. Resolve API key
   const apiKey = await resolveApiKey(fundId, supabase)
   if (!apiKey) {
     console.warn('[news-pipeline] no Anthropic API key — aborting AI pass')
     return { added: 0, duplicates: duplicateLinks.size, total, byCompany: [], ranAt }
   }
 
-  // 7. Exclude already-stored links
+  // 8. Exclude already-stored links
   const canonicalLinks = canonical.map(a => a.link)
   const { data: existing } = await sdb
     .from('news_articles')
     .select('link')
     .eq('fund_id', fundId)
     .in('link', canonicalLinks)
-
   const existingLinkSet = new Set<string>((existing ?? []).map((r: { link: string }) => r.link))
   const toClassify = canonical.filter(a => !existingLinkSet.has(a.link))
 
@@ -720,37 +700,37 @@ export async function runNewsPipeline(
     return { added: 0, duplicates: duplicateLinks.size, total, byCompany, ranAt }
   }
 
-  // 8. AI classify + review
+  // 9. AI classify + review
   const anthropic  = new Anthropic({ apiKey })
   const companyMap = new Map(list.map(c => [c.id, c.name]))
   let enriched: NewsArticle[] = []
 
   try {
     const classified = await classifyArticles(anthropic, toClassify, list)
-
     const pass1: NewsArticle[] = toClassify
       .map((article, i) => {
-        const r = classified.find(x => x.index === i)
+        const r    = classified.find(x => x.index === i)
         if (!r || r.companyId === null || r.category === null) return null
         const name = companyMap.get(r.companyId)
         if (!name) return null
         return { ...article, companyId: r.companyId, companyName: name, category: r.category }
       })
       .filter((a): a is NewsArticle => a !== null)
-
     enriched = await reviewArticles(anthropic, pass1, list)
   } catch (e) {
     console.error('[news-pipeline] AI pipeline failed after retries:', e)
-    // Fallback: keep articles with literal name match, categorise as 'outro'
+    // Fallback: literal name OR alias match
     enriched = toClassify
       .filter(a => {
         const co = list.find(c => c.id === a.companyId)
-        return co && a.title.toLowerCase().includes(co.name.toLowerCase())
+        if (!co) return false
+        const tl = a.title.toLowerCase()
+        return [co.name, ...co.aliases].some(n => tl.includes(n.toLowerCase()))
       })
       .map(a => ({ ...a, category: 'outro' as NewsCategory }))
   }
 
-  // 9. Upsert
+  // 10. Upsert
   if (enriched.length > 0) {
     await sdb.from('news_articles').upsert(
       enriched.map(a => ({
@@ -770,7 +750,7 @@ export async function runNewsPipeline(
     )
   }
 
-  // 10. Mark semantic duplicates
+  // 11. Mark semantic duplicates
   if (duplicateLinks.size > 0) {
     await sdb
       .from('news_articles')
@@ -779,21 +759,13 @@ export async function runNewsPipeline(
       .in('link', [...duplicateLinks])
   }
 
-  // 11. Build per-company summary
+  // 12. Per-company summary
   const byCompanyMap = new Map<string, RefreshSummaryByCompany>()
-  for (const c of list) {
-    byCompanyMap.set(c.id, { companyId: c.id, companyName: c.name, added: 0, duplicates: 0 })
-  }
-  for (const a of enriched) {
-    const entry = byCompanyMap.get(a.companyId)
-    if (entry) entry.added++
-  }
+  for (const c of list) byCompanyMap.set(c.id, { companyId: c.id, companyName: c.name, added: 0, duplicates: 0 })
+  for (const a of enriched) { const e = byCompanyMap.get(a.companyId); if (e) e.added++ }
   for (const link of duplicateLinks) {
     const article = preFiltered.find(a => a.link === link)
-    if (article) {
-      const entry = byCompanyMap.get(article.companyId)
-      if (entry) entry.duplicates++
-    }
+    if (article) { const e = byCompanyMap.get(article.companyId); if (e) e.duplicates++ }
   }
 
   return {
