@@ -40,6 +40,15 @@ export interface SourceResult {
   error?: string
 }
 
+export interface DealReviewRow {
+  company: string
+  stage: string | null
+  country: string | null
+  confidence: 'high' | 'medium' | 'low'
+  outcome: 'approved' | 'rejected_review' | 'rejected_filter'
+  reason?: string
+}
+
 export interface ScrapeReport {
   sources: SourceResult[]
   totalArticles: number
@@ -50,6 +59,8 @@ export interface ScrapeReport {
   dealsAfterReview: number
   dealsAfterFilter: number
   reviewRejections: { company: string; reason: string }[]
+  hardFilterRejections: { company: string; reason: string }[]
+  dealRows: DealReviewRow[]
   aiError?: string
   reviewError?: string
 }
@@ -529,11 +540,11 @@ export async function scrapeVCDeals(
   }
 
   const totalArticles = allArticles.length
-  const empty = {
+  const empty: ScrapeReport = {
     sources, totalArticles: 0, uniqueArticles: 0,
     articlesAfterKeywordFilter: 0, articlesAfterDateFilter: 0,
     dealsExtracted: 0, dealsAfterReview: 0, dealsAfterFilter: 0,
-    reviewRejections: [],
+    reviewRejections: [], hardFilterRejections: [], dealRows: [],
   }
 
   if (totalArticles === 0) return { deals: [], report: empty }
@@ -589,32 +600,74 @@ export async function scrapeVCDeals(
   const { reviewed, error: reviewError } = await reviewDeals(extracted, recentExisting, today, apiKey)
 
   const approved = reviewed.filter(d => d.approved)
-  const rejections = reviewed
+  const reviewRejections = reviewed
     .filter(d => !d.approved)
     .map(d => ({ company: d.company_name, reason: d.rejection_reason ?? 'unknown' }))
 
   // 7. Final hard filter: LATAM country + confidence
-  const filtered = approved
-    .filter(d =>
-      d.company_name?.trim() &&
-      d.confidence !== 'low' &&
-      (d.country === null || LATAM_COUNTRIES.has(d.country.toUpperCase()))
-    )
+  const filtered = approved.filter(d =>
+    d.company_name?.trim() &&
+    d.confidence !== 'low' &&
+    (d.country === null || LATAM_COUNTRIES.has(d.country.toUpperCase()))
+  )
+
+  const hardFilterRejections = approved
+    .filter(d => !filtered.includes(d))
     .map(d => ({
-      user_id:      userId,
-      company_name: d.company_name.trim(),
-      amount_usd:   d.amount_usd ?? null,
-      deal_date:    d.deal_date ?? today,
-      stage:        d.stage ?? null,
-      investors:    d.investors ?? [],
-      segment:      d.segment ?? null,
-      country:      d.country ?? null,
-      source_url:   d.source_url ?? null,
-      source:       'scrape' as const,
+      company: d.company_name,
+      reason: d.confidence === 'low'
+        ? 'low confidence'
+        : `non-LATAM country: ${d.country}`,
     }))
 
+  const deals: VCDealInsert[] = filtered.map(d => ({
+    user_id:      userId,
+    company_name: d.company_name.trim(),
+    amount_usd:   d.amount_usd ?? null,
+    deal_date:    d.deal_date ?? today,
+    stage:        d.stage ?? null,
+    investors:    d.investors ?? [],
+    segment:      d.segment ?? null,
+    country:      d.country ?? null,
+    source_url:   d.source_url ?? null,
+    source:       'scrape' as const,
+  }))
+
+  // Build unified deal rows for the report UI
+  const dealRows: DealReviewRow[] = [
+    ...filtered.map(d => ({
+      company: d.company_name,
+      stage: d.stage,
+      country: d.country,
+      confidence: d.confidence,
+      outcome: 'approved' as const,
+    })),
+    ...hardFilterRejections.map(r => {
+      const d = approved.find(a => a.company_name === r.company)
+      return {
+        company: r.company,
+        stage: d?.stage ?? null,
+        country: d?.country ?? null,
+        confidence: d?.confidence ?? 'low',
+        outcome: 'rejected_filter' as const,
+        reason: r.reason,
+      }
+    }),
+    ...reviewRejections.map(r => {
+      const d = reviewed.find(a => a.company_name === r.company)
+      return {
+        company: r.company,
+        stage: d?.stage ?? null,
+        country: d?.country ?? null,
+        confidence: d?.confidence ?? 'low',
+        outcome: 'rejected_review' as const,
+        reason: r.reason,
+      }
+    }),
+  ]
+
   return {
-    deals: filtered,
+    deals,
     report: {
       sources,
       totalArticles,
@@ -624,7 +677,9 @@ export async function scrapeVCDeals(
       dealsExtracted: extracted.length,
       dealsAfterReview: approved.length,
       dealsAfterFilter: filtered.length,
-      reviewRejections: rejections,
+      reviewRejections,
+      hardFilterRejections,
+      dealRows,
       aiError,
       reviewError,
     },
