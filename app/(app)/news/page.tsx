@@ -23,11 +23,11 @@ import type { NewsArticle, NewsCategory, RefreshSummary } from '@/lib/news-pipel
 // ---------------------------------------------------------------------------
 
 const DATE_OPTIONS = [
-  { value: 'all', label: 'Todos' },
-  { value: '3d',  label: '3d' },
-  { value: '7d',  label: '7d' },
-  { value: '30d', label: '30d' },
-  { value: 'ytd', label: 'YTD' },
+  { value: '7d',  label: '7 dias' },
+  { value: '30d', label: '30 dias' },
+  { value: '90d', label: '90 dias' },
+  { value: 'ytd', label: 'Este ano' },
+  { value: 'all', label: 'Tudo' },
 ]
 
 const CATEGORY_CONFIG: Record<string, { label: string; className: string }> = {
@@ -42,7 +42,7 @@ const CATEGORY_CONFIG: Record<string, { label: string; className: string }> = {
   crise:       { label: 'Crise',       className: 'bg-red-500/15 text-red-600 dark:text-red-400 border-red-500/30' },
   outro:       { label: 'Outro',       className: 'bg-muted text-muted-foreground border-border' },
   featured:    { label: 'Destaque',    className: 'bg-emerald-500/15 text-emerald-600 border-emerald-500/30' },
-  mentioned:   { label: 'Mencionada', className: 'bg-blue-500/15 text-blue-600 border-blue-500/30' },
+  mentioned:   { label: 'Mencionada',  className: 'bg-blue-500/15 text-blue-600 border-blue-500/30' },
 }
 
 type AnyArticle = Omit<NewsArticle, 'category'> & { category?: NewsCategory; relevance?: string }
@@ -59,7 +59,9 @@ function timeAgo(dateStr: string): string {
   if (mins < 60)  return `${mins}m atrás`
   const hrs = Math.floor(mins / 60)
   if (hrs < 24)   return `${hrs}h atrás`
-  return `${Math.floor(hrs / 24)}d atrás`
+  const days = Math.floor(hrs / 24)
+  if (days < 30)  return `${days}d atrás`
+  return new Date(dateStr).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })
 }
 
 function initials(name: string): string {
@@ -70,7 +72,6 @@ function initials(name: string): string {
     .join('')
 }
 
-// Deterministic pastel hue from string
 function companyHue(name: string): number {
   let h = 0
   for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) & 0xffffffff
@@ -115,7 +116,6 @@ function RefreshDrawer({
       }`}
     >
       <div className="mx-4 bg-background border rounded-xl shadow-lg overflow-hidden">
-        {/* Header */}
         <div className={`flex items-center gap-2.5 px-4 py-3 border-b ${
           hasAdded ? 'bg-emerald-500/5' : isEmpty ? 'bg-muted/50' : 'bg-muted/30'
         }`}>
@@ -146,7 +146,6 @@ function RefreshDrawer({
           </button>
         </div>
 
-        {/* Per-company breakdown */}
         {summary.byCompany.length > 0 && (
           <div className="px-4 py-2.5 space-y-1 max-h-40 overflow-y-auto">
             {summary.byCompany.map(c => (
@@ -165,7 +164,6 @@ function RefreshDrawer({
           </div>
         )}
 
-        {/* Footer */}
         <div className="px-4 py-2 border-t flex items-center gap-1.5">
           <Clock className="h-3 w-3 text-muted-foreground" />
           <span className="text-[11px] text-muted-foreground">
@@ -179,7 +177,7 @@ function RefreshDrawer({
 }
 
 // ---------------------------------------------------------------------------
-// Inline company filter (chip strip + search)
+// Inline company filter
 // ---------------------------------------------------------------------------
 
 function CompanyFilterStrip({
@@ -195,7 +193,7 @@ function CompanyFilterStrip({
   const [search, setSearch]     = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
 
-  const filtered = search
+  const filteredSearch = search
     ? companies.filter(c => c.name.toLowerCase().includes(search.toLowerCase()))
     : companies
 
@@ -203,7 +201,6 @@ function CompanyFilterStrip({
 
   const toggle = useCallback((id: string) => {
     if (allSelected) {
-      // Start filtering: deselect the one we DON'T want
       onChange(companies.filter(c => c.id !== id).map(c => c.id))
     } else {
       const next = selected.includes(id)
@@ -215,15 +212,13 @@ function CompanyFilterStrip({
 
   const resetAll = () => { onChange([]); setSearch(''); setExpanded(false) }
 
-  // Compact strip: show at most 5 chips + overflow count
-  const visible = companies.slice(0, expanded ? companies.length : 8)
+  const visible  = companies.slice(0, 8)
   const overflow = companies.length - 8
 
   if (companies.length === 0) return null
 
   return (
     <div className="space-y-2">
-      {/* Label + expand toggle */}
       <div className="flex items-center justify-between">
         <span className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
           <Building2 className="h-3.5 w-3.5" />
@@ -250,7 +245,6 @@ function CompanyFilterStrip({
         </div>
       </div>
 
-      {/* Search (only when expanded) */}
       {expanded && (
         <div className="relative">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
@@ -265,9 +259,7 @@ function CompanyFilterStrip({
         </div>
       )}
 
-      {/* Chip strip */}
       <div className="flex flex-wrap gap-1.5">
-        {/* All chip */}
         <button
           onClick={resetAll}
           className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs border transition-all ${
@@ -279,7 +271,7 @@ function CompanyFilterStrip({
           Todas
         </button>
 
-        {(expanded ? (search ? filtered : companies) : visible).map(c => {
+        {(expanded ? (search ? filteredSearch : companies) : visible).map(c => {
           const active = !allSelected && selected.includes(c.id)
           const hue    = companyHue(c.name)
           return (
@@ -292,7 +284,6 @@ function CompanyFilterStrip({
                   : 'border-border text-muted-foreground hover:border-foreground/30 hover:text-foreground'
               }`}
             >
-              {/* Mini avatar */}
               <span
                 className="inline-flex items-center justify-center rounded-full w-4 h-4 text-[9px] font-bold shrink-0"
                 style={{ background: `hsl(${hue} 60% ${active ? '50%' : '70%'})`, color: active ? '#fff' : `hsl(${hue} 60% 25%)` }}
@@ -313,8 +304,8 @@ function CompanyFilterStrip({
 // ---------------------------------------------------------------------------
 
 function ArticleCard({ article }: { article: AnyArticle }) {
-  const tag  = getTag(article)
-  const hue  = companyHue(article.companyName)
+  const tag = getTag(article)
+  const hue = companyHue(article.companyName)
 
   return (
     <a
@@ -323,7 +314,6 @@ function ArticleCard({ article }: { article: AnyArticle }) {
       rel="noopener noreferrer"
       className="group flex items-start gap-3 rounded-xl border bg-card p-3.5 hover:bg-accent/40 hover:border-border/80 transition-all duration-150"
     >
-      {/* Company avatar */}
       <span
         className="mt-0.5 inline-flex items-center justify-center rounded-lg w-8 h-8 text-[11px] font-bold shrink-0"
         style={{ background: `hsl(${hue} 55% 88%)`, color: `hsl(${hue} 55% 28%)` }}
@@ -333,7 +323,7 @@ function ArticleCard({ article }: { article: AnyArticle }) {
       </span>
 
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium leading-snug text-foreground group-hover:text-foreground line-clamp-2">{article.title}</p>
+        <p className="text-sm font-medium leading-snug text-foreground line-clamp-2">{article.title}</p>
         <div className="flex items-center gap-2 mt-1.5 flex-wrap">
           <Badge variant="outline" className="text-[10px] px-1.5 py-0 shrink-0">{article.companyName}</Badge>
           <span className={`text-[10px] px-1.5 py-0.5 rounded-full border font-medium shrink-0 ${tag.className}`}>{tag.label}</span>
@@ -378,13 +368,12 @@ export default function NewsPage() {
   const [companies,         setCompanies]         = useState<Company[]>([])
   const [loading,           setLoading]           = useState(true)
   const [refreshing,        setRefreshing]        = useState(false)
-  const [dateRange,         setDateRange]         = useState<string>('all')
+  const [dateRange,         setDateRange]         = useState<string>('7d')
   const [selectedCompanies, setSelectedCompanies] = useState<string[]>([])
   const [error,             setError]             = useState<string | null>(null)
   const [refreshSummary,    setRefreshSummary]    = useState<RefreshSummary | null>(null)
   const [showDrawer,        setShowDrawer]        = useState(false)
 
-  // Load from DB
   const load = useCallback(async () => {
     try {
       const params = new URLSearchParams()
@@ -402,13 +391,11 @@ export default function NewsPage() {
     }
   }, [dateRange, selectedCompanies])
 
-  // Initial load
   useEffect(() => {
     setLoading(true)
     load().finally(() => setLoading(false))
   }, [load])
 
-  // Refresh: trigger pipeline, then reload
   async function handleRefresh() {
     setRefreshing(true)
     setShowDrawer(false)
@@ -419,7 +406,6 @@ export default function NewsPage() {
       const summary: RefreshSummary = await res.json()
       setRefreshSummary(summary)
       setShowDrawer(true)
-      // Reload articles from DB after pipeline
       setLoading(true)
       await load()
       setLoading(false)
@@ -432,13 +418,12 @@ export default function NewsPage() {
 
   const closeDrawer = () => { setShowDrawer(false); setRefreshSummary(null) }
 
-  // Client-side company filter ([] = show all)
   const filtered = selectedCompanies.length > 0
     ? articles.filter(a => selectedCompanies.includes(a.companyId))
     : articles
 
   return (
-    <div className="p-4 md:p-8 max-w-4xl mx-auto">
+    <div className="p-4 md:py-8 md:pl-8 md:pr-4 w-full">
       {/* Refresh summary drawer */}
       {showDrawer && (
         <RefreshDrawer
@@ -448,17 +433,10 @@ export default function NewsPage() {
         />
       )}
 
-      {/* Header */}
-      <div className="mb-6">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <h1 className="text-xl font-semibold tracking-tight flex items-center gap-2">
-              <Newspaper className="h-5 w-5" />
-              News Hub
-            </h1>
-            <p className="text-sm text-muted-foreground mt-0.5">Notícias do portfólio · últimos 3 dias</p>
-          </div>
-
+      {/* Header — mesmo padrão do app */}
+      <div className="mb-6 space-y-1">
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-semibold tracking-tight">News Hub</h1>
           <Button
             variant="outline"
             size="sm"
@@ -471,81 +449,104 @@ export default function NewsPage() {
             {refreshing ? 'Buscando…' : 'Refresh'}
           </Button>
         </div>
+        <p className="text-sm text-muted-foreground">
+          Repositório de notícias das empresas do portfólio
+        </p>
       </div>
 
-      {/* Period pills */}
-      <div className="flex items-center gap-1.5 mb-4 flex-wrap">
-        <span className="text-xs text-muted-foreground font-medium">Período:</span>
-        {DATE_OPTIONS.map(opt => (
-          <button
-            key={opt.value}
-            onClick={() => setDateRange(opt.value)}
-            className={`text-xs px-2.5 py-1 rounded-full border transition-all ${
-              dateRange === opt.value
-                ? 'bg-foreground text-background border-foreground font-medium'
-                : 'border-border text-muted-foreground hover:text-foreground hover:border-foreground/40'
-            }`}
-          >
-            {opt.label}
-          </button>
-        ))}
+      <div className="flex flex-col lg:flex-row gap-6 items-start">
+        <div className="flex-1 min-w-0 w-full">
+
+          {/* Toolbar: period pills + company filter */}
+          <div className="flex flex-col gap-3 mb-5">
+            {/* Period pills */}
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-xs text-muted-foreground font-medium">Período:</span>
+              {DATE_OPTIONS.map(opt => (
+                <button
+                  key={opt.value}
+                  onClick={() => setDateRange(opt.value)}
+                  className={`text-xs px-2.5 py-1 rounded-full border transition-all ${
+                    dateRange === opt.value
+                      ? 'bg-foreground text-background border-foreground font-medium'
+                      : 'border-border text-muted-foreground hover:text-foreground hover:border-foreground/40'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Company filter strip */}
+            {companies.length > 0 && (
+              <div className="p-3.5 rounded-xl border bg-card">
+                <CompanyFilterStrip
+                  companies={companies}
+                  selected={selectedCompanies}
+                  onChange={setSelectedCompanies}
+                />
+              </div>
+            )}
+          </div>
+
+          {/* Loading skeleton */}
+          {loading && (
+            <div className="space-y-2">
+              {[...Array(6)].map((_, i) => <SkeletonArticle key={i} />)}
+            </div>
+          )}
+
+          {/* Error */}
+          {!loading && error && (
+            <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-6 text-center">
+              <AlertCircle className="h-8 w-8 text-destructive mx-auto mb-2" />
+              <p className="text-sm text-destructive font-medium">{error}</p>
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-3"
+                onClick={() => { setLoading(true); load().finally(() => setLoading(false)) }}
+              >
+                Tentar novamente
+              </Button>
+            </div>
+          )}
+
+          {/* Empty state */}
+          {!loading && !error && filtered.length === 0 && (
+            <div className="rounded-xl border border-dashed p-14 text-center">
+              <Newspaper className="h-10 w-10 text-muted-foreground/50 mx-auto mb-3" />
+              <p className="text-sm font-medium text-muted-foreground">Nenhuma notícia encontrada</p>
+              <p className="text-xs text-muted-foreground/70 mt-1 max-w-xs mx-auto">
+                Clique em <strong>Refresh</strong> para buscar as últimas notícias do portfólio.
+              </p>
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-4 gap-1.5"
+                onClick={handleRefresh}
+                disabled={refreshing}
+              >
+                <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? 'animate-spin' : ''}`} />
+                {refreshing ? 'Buscando…' : 'Buscar agora'}
+              </Button>
+            </div>
+          )}
+
+          {/* Article list */}
+          {!loading && !error && filtered.length > 0 && (
+            <div className="space-y-2">
+              {filtered.map((article, i) => (
+                <ArticleCard key={article.link ?? i} article={article} />
+              ))}
+              <p className="text-center text-xs text-muted-foreground pt-4 pb-2">
+                {filtered.length} notícia{filtered.length !== 1 ? 's' : ''} no repositório
+              </p>
+            </div>
+          )}
+
+        </div>
       </div>
-
-      {/* Company filter strip */}
-      {companies.length > 0 && (
-        <div className="mb-5 p-3.5 rounded-xl border bg-card">
-          <CompanyFilterStrip
-            companies={companies}
-            selected={selectedCompanies}
-            onChange={setSelectedCompanies}
-          />
-        </div>
-      )}
-
-      {/* Loading skeleton */}
-      {loading && (
-        <div className="space-y-2">
-          {[...Array(5)].map((_, i) => <SkeletonArticle key={i} />)}
-        </div>
-      )}
-
-      {/* Error */}
-      {!loading && error && (
-        <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-6 text-center">
-          <AlertCircle className="h-8 w-8 text-destructive mx-auto mb-2" />
-          <p className="text-sm text-destructive font-medium">{error}</p>
-          <Button variant="outline" size="sm" className="mt-3" onClick={() => { setLoading(true); load().finally(() => setLoading(false)) }}>
-            Tentar novamente
-          </Button>
-        </div>
-      )}
-
-      {/* Empty state */}
-      {!loading && !error && filtered.length === 0 && (
-        <div className="rounded-xl border border-dashed p-14 text-center">
-          <Newspaper className="h-10 w-10 text-muted-foreground/50 mx-auto mb-3" />
-          <p className="text-sm font-medium text-muted-foreground">Nenhuma notícia encontrada</p>
-          <p className="text-xs text-muted-foreground/70 mt-1 max-w-xs mx-auto">
-            Clique em <strong>Refresh</strong> para buscar as últimas notícias do portfólio.
-          </p>
-          <Button variant="outline" size="sm" className="mt-4 gap-1.5" onClick={handleRefresh} disabled={refreshing}>
-            <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? 'animate-spin' : ''}`} />
-            {refreshing ? 'Buscando…' : 'Buscar agora'}
-          </Button>
-        </div>
-      )}
-
-      {/* Article list */}
-      {!loading && !error && filtered.length > 0 && (
-        <div className="space-y-2">
-          {filtered.map((article, i) => (
-            <ArticleCard key={article.link ?? i} article={article} />
-          ))}
-          <p className="text-center text-xs text-muted-foreground pt-4 pb-2">
-            {filtered.length} notícia{filtered.length !== 1 ? 's' : ''} · salvas no banco
-          </p>
-        </div>
-      )}
     </div>
   )
 }
