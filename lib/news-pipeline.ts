@@ -1,14 +1,18 @@
 /**
- * lib/news-pipeline.ts
+ * lib/news-pipeline.ts  (v2)
  *
- * Shared news pipeline used by both:
+ * Shared news pipeline — used by:
  *   - POST /api/news/refresh  (manual, returns RefreshSummary)
  *   - GET  /api/news/cron     (scheduled, fire-and-forget)
  *
- * NOTE: news_articles and fund_settings are not yet in the generated Supabase
- * types (database.types.ts). All queries against those tables go through the
- * `db(supabase)` helper which casts the client to `any` once, keeping the
- * rest of the file clean and type-safe for tables that ARE in the schema.
+ * Changes from v1:
+ *   1. Multi-source RSS/HTML — same 10 sources as vc-market scrapers.ts
+ *   2. Hybrid dedup: Levenshtein + token-set ratio (more robust)
+ *   3. No MAX_PER_COMPANY cap — all articles within time window are considered
+ *   4. Pass 2 bias: "when in doubt → keep: true" (prefer recall over precision)
+ *   5. JSON validation via manual schema check — silent drop replaced by warn+fallback
+ *   6. Retry wrapper (3 attempts, exponential back-off) on Anthropic calls
+ *   7. Structured per-call logging for observability
  */
 
 import { createClient } from '@/lib/supabase/server'
@@ -74,8 +78,10 @@ type Company    = { id: string; name: string; website: string | null }
 // ---------------------------------------------------------------------------
 
 const THREE_DAYS_MS   = 3 * 24 * 60 * 60 * 1000
-const DEDUP_THRESHOLD = 0.65
-const MAX_PER_COMPANY = 20
+// Slightly lower threshold than v1 to reduce false-dedup on different events
+// for the same company. Hybrid scorer (max of Levenshtein + token-set) is
+// more robust, so we can afford a tighter threshold.
+const DEDUP_THRESHOLD = 0.60
 
 // ---------------------------------------------------------------------------
 // String / URL helpers
@@ -118,10 +124,20 @@ function formatPubDate(dateStr: string): string {
 }
 
 // ---------------------------------------------------------------------------
-// Levenshtein title similarity (O(n*m), capped at 200 chars)
+// Hybrid title similarity
+//
+// Combines:
+//   a) Levenshtein edit distance (good for near-identical strings)
+//   b) Token-set ratio / Jaccard (good for same-event, different wording)
+//
+// Final score = max(levenshtein_sim, token_set_ratio)
+// This catches pairs like:
+//   "Startup X levanta R$10M em rodada Série A"
+//   "Startup X conclui Série A de R$10 milhões"
+// which score low on Levenshtein but high on token overlap.
 // ---------------------------------------------------------------------------
 
-function titleSimilarity(a: string, b: string): number {
+function levenshteinSimilarity(a: string, b: string): number {
   const s1 = a.toLowerCase().slice(0, 200)
   const s2 = b.toLowerCase().slice(0, 200)
   if (s1 === s2) return 1
@@ -140,6 +156,36 @@ function titleSimilarity(a: string, b: string): number {
     }
   }
   return 1 - row[s2.length] / len
+}
+
+function tokenSetRatio(a: string, b: string): number {
+  // Tokenise: lowercase, split on non-alphanumeric, drop stopwords & short tokens
+  const stopwords = new Set([
+    'de', 'da', 'do', 'em', 'no', 'na', 'para', 'com', 'por', 'que',
+    'the', 'a', 'an', 'in', 'on', 'at', 'to', 'of', 'and', 'or', 'is',
+    'e', 'o', 'os', 'as', 'um', 'uma',
+  ])
+  const tokenise = (s: string) =>
+    new Set(
+      s.toLowerCase()
+        .split(/[^a-z0-9áàãâéêíóôõúüçñ]+/)
+        .filter(t => t.length >= 3 && !stopwords.has(t))
+    )
+
+  const setA = tokenise(a)
+  const setB = tokenise(b)
+  if (setA.size === 0 && setB.size === 0) return 1
+  if (setA.size === 0 || setB.size === 0) return 0
+
+  let intersection = 0
+  for (const t of setA) if (setB.has(t)) intersection++
+
+  const union = setA.size + setB.size - intersection
+  return intersection / union
+}
+
+export function titleSimilarity(a: string, b: string): number {
+  return Math.max(levenshteinSimilarity(a, b), tokenSetRatio(a, b))
 }
 
 // ---------------------------------------------------------------------------
@@ -163,15 +209,140 @@ function semanticDedup(articles: RawArticle[]): { canonical: RawArticle[]; dupli
 }
 
 // ---------------------------------------------------------------------------
-// RSS parsing
+// Multi-source definitions (mirrors vc-market/scrapers.ts SOURCES)
+// ---------------------------------------------------------------------------
+
+const CURATED_SOURCES = [
+  { name: 'Pipeline Valor',         url: 'https://pipelinevalor.globo.com/negocios/',                          type: 'html' as const },
+  { name: 'Brazil Journal PE/VC',   url: 'https://braziljournal.com/hot-topic/private-equity-vc/',             type: 'html' as const },
+  { name: 'NeoFeed Startups',       url: 'https://neofeed.com.br/startups/',                                   type: 'html' as const },
+  { name: 'Finsiders Brasil',       url: 'https://finsidersbrasil.com.br/ultimas-noticias/',                   type: 'html' as const },
+  { name: 'LATAM List Funding',     url: 'https://latamlist.com/category/startup-news/funding/',               type: 'html' as const },
+  { name: 'Startups.com.br',        url: 'https://startups.com.br/ultimas-noticias/',                         type: 'html' as const },
+  { name: 'Startupi',               url: 'https://startupi.com.br/noticias/',                                  type: 'html' as const },
+  { name: 'Latam Fintech',          url: 'https://www.latamfintech.co/articles',                               type: 'html' as const },
+  { name: 'Startups Latam',         url: 'https://startupslatam.com/',                                         type: 'html' as const },
+  { name: 'TechCrunch',             url: 'https://techcrunch.com/latest/',                                     type: 'html' as const },
+]
+
+// ---------------------------------------------------------------------------
+// HTML parsing for curated sources
+// ---------------------------------------------------------------------------
+
+function parseHTMLArticles(html: string, baseUrl: string): Array<{ title: string; link: string; pubDate: string }> {
+  const items: Array<{ title: string; link: string; pubDate: string }> = []
+  const seen = new Set<string>()
+
+  const dateHints: string[] = []
+  for (const m of html.matchAll(/<time[^>]*(?:datetime=["']([^"']+)["'])[^>]*>/g)) {
+    dateHints.push(m[1])
+  }
+
+  let idx = 0
+  for (const match of html.matchAll(/<a[^>]+href=["']([^"'#?][^"']*)['"'][^>]*>([\s\S]*?)<\/a>/g)) {
+    const rawHref = match[1]
+    const rawText = match[2].replace(/<[^>]+>/g, '').trim()
+
+    if (rawText.length < 20) continue
+    if (/^(home|menu|login|sign|subscribe|newsletter|sobre|contato|privacy|terms)/i.test(rawText)) continue
+
+    let href = rawHref
+    if (href.startsWith('/')) {
+      try {
+        const base = new URL(baseUrl)
+        href = `${base.origin}${href}`
+      } catch { continue }
+    }
+    if (!href.startsWith('http')) continue
+    if (seen.has(href)) continue
+    seen.add(href)
+
+    items.push({ title: cleanTitle(rawText), link: href, pubDate: dateHints[idx] ?? '' })
+    idx++
+    if (items.length >= 50) break
+  }
+
+  return items
+}
+
+async function fetchCuratedSource(
+  source: typeof CURATED_SOURCES[0]
+): Promise<Array<{ title: string; link: string; pubDate: string; sourceName: string }>> {
+  try {
+    const res = await fetch(source.url, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; NewsReader/1.0)', Accept: 'text/html' },
+      signal: AbortSignal.timeout(10000),
+    })
+    if (!res.ok) return []
+    const text = await res.text()
+    const items = parseHTMLArticles(text, source.url)
+    return items.map(i => ({ ...i, sourceName: source.name }))
+  } catch {
+    return []
+  }
+}
+
+/**
+ * Match curated articles against portfolio companies.
+ * An article matches if the company name (or a significant token ≥5 chars)
+ * appears in the title, OR the article's domain matches the company's website.
+ */
+function matchCuratedArticles(
+  curatedItems: Array<{ title: string; link: string; pubDate: string; sourceName: string }>,
+  companies: Company[],
+): RawArticle[] {
+  const cutoff = Date.now() - THREE_DAYS_MS
+  const result: RawArticle[] = []
+
+  for (const item of curatedItems) {
+    if (!item.title || !item.link) continue
+    if (item.pubDate) {
+      const ts = new Date(item.pubDate).getTime()
+      if (!isNaN(ts) && ts < cutoff) continue
+    }
+
+    const titleLower = item.title.toLowerCase()
+    let domain = ''
+    try { domain = new URL(item.link).hostname.replace(/^www\./, '') } catch { /* ignore */ }
+
+    for (const company of companies) {
+      const coName   = company.name.toLowerCase()
+      const coDomain = extractDomain(company.website)
+      const coTokens = company.name.toLowerCase().split(/\s+/).filter(t => t.length >= 5)
+
+      const matched =
+        (coDomain && (domain.includes(coDomain) || item.link.includes(coDomain))) ||
+        titleLower.includes(coName) ||
+        coTokens.some(tok => titleLower.includes(tok))
+
+      if (matched) {
+        result.push({
+          title:        item.title,
+          link:         item.link,
+          pubDate:      item.pubDate,
+          source:       item.sourceName,
+          sourceDomain: domain,
+          companyId:    company.id,
+          companyName:  company.name,
+        })
+        break
+      }
+    }
+  }
+
+  return result
+}
+
+// ---------------------------------------------------------------------------
+// RSS parsing (Google News per-company — no per-company cap)
 // ---------------------------------------------------------------------------
 
 function parseRSSItems(xml: string, companyId: string, companyName: string): RawArticle[] {
   const cutoff = Date.now() - THREE_DAYS_MS
   const items  = Array.from(xml.matchAll(/<item>([\s\S]*?)<\/item>/g))
 
+  // No MAX_PER_COMPANY cap — take all items within the time window
   return items
-    .slice(0, MAX_PER_COMPANY)
     .map(match => {
       const block      = match[1]
       const rawTitle   = block.match(/<title>(.*?)<\/title>/)?.[1]?.replace(/<[^>]+>/g, '').trim() ?? ''
@@ -197,7 +368,7 @@ function parseRSSItems(xml: string, companyId: string, companyName: string): Raw
     })
 }
 
-async function fetchCompanyNews(
+async function fetchGoogleNews(
   companyId: string,
   companyName: string,
   websiteDomain: string | null
@@ -249,11 +420,68 @@ function deterministicPreFilter(articles: RawArticle[], companies: Company[]): R
 }
 
 // ---------------------------------------------------------------------------
-// AI Pass 1 — classify
+// Retry wrapper (3 attempts, exponential back-off)
 // ---------------------------------------------------------------------------
 
-type ClassifyResult = { index: number; companyId: string | null; category: NewsCategory | null }
-type ReviewResult   = { index: number; keep: boolean }
+async function withRetry<T>(
+  fn: () => Promise<T>,
+  maxAttempts = 3,
+  label = 'AI call',
+): Promise<T> {
+  let lastError: unknown
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      return await fn()
+    } catch (e) {
+      lastError = e
+      const delay = 500 * Math.pow(2, attempt - 1)  // 500ms, 1s, 2s
+      console.warn(`[news-pipeline] ${label} attempt ${attempt}/${maxAttempts} failed (retry in ${delay}ms):`, e)
+      if (attempt < maxAttempts) await new Promise(r => setTimeout(r, delay))
+    }
+  }
+  throw lastError
+}
+
+// ---------------------------------------------------------------------------
+// Manual JSON validation (replaces silent drops)
+// ---------------------------------------------------------------------------
+
+const VALID_CATEGORIES = new Set<string>([
+  'rodada', 'aquisicao', 'parceria', 'contratacao',
+  'produto', 'expansao', 'premio', 'crise', 'ipo', 'outro',
+])
+
+function isValidUUID(s: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s)
+}
+
+interface ClassifyResult { index: number; companyId: string | null; category: NewsCategory | null }
+interface ReviewResult   { index: number; keep: boolean }
+
+function validateClassifyResult(raw: unknown): ClassifyResult | null {
+  if (!raw || typeof raw !== 'object') return null
+  const r = raw as Record<string, unknown>
+  const index = typeof r.index === 'number' ? r.index : null
+  if (index === null) return null
+  const companyId = (typeof r.companyId === 'string' && isValidUUID(r.companyId)) ? r.companyId : null
+  const rawCat    = typeof r.category === 'string' ? r.category : null
+  const category  = (rawCat && VALID_CATEGORIES.has(rawCat)) ? rawCat as NewsCategory : null
+  return { index, companyId, category }
+}
+
+function validateReviewResult(raw: unknown): ReviewResult | null {
+  if (!raw || typeof raw !== 'object') return null
+  const r     = raw as Record<string, unknown>
+  const index = typeof r.index === 'number' ? r.index : null
+  if (index === null) return null
+  // Default keep=true when field is missing — pass 2 recall bias
+  const keep  = typeof r.keep === 'boolean' ? r.keep : true
+  return { index, keep }
+}
+
+// ---------------------------------------------------------------------------
+// AI Pass 1 — classify
+// ---------------------------------------------------------------------------
 
 async function classifyArticles(
   anthropic: Anthropic,
@@ -286,21 +514,36 @@ Rules (apply in order):
 2. Company name (or clear variant/acronym) appears in title -> assign and classify
 3. Otherwise -> null, null. Do NOT guess from industry.
 
-Respond ONLY with JSON array:
+Respond ONLY with a JSON array — no markdown, no commentary:
 [{"index":0,"companyId":"uuid","category":"rodada"},{"index":1,"companyId":null,"category":null}]`
 
-  const msg   = await anthropic.messages.create({
-    model:      'claude-haiku-4-5',
-    max_tokens: 2048,
-    messages:   [{ role: 'user', content: prompt }],
-  })
-  const raw   = msg.content[0]?.type === 'text' ? msg.content[0].text : '[]'
+  const raw = await withRetry(async () => {
+    const msg = await anthropic.messages.create({
+      model:      'claude-haiku-4-5',
+      max_tokens: 2048,
+      messages:   [{ role: 'user', content: prompt }],
+    })
+    return msg.content[0]?.type === 'text' ? msg.content[0].text : '[]'
+  }, 3, 'classifyArticles')
+
   const match = raw.match(/\[[\s\S]*\]/)
-  try { return match ? JSON.parse(match[0]) : [] } catch { return [] }
+  let parsed: unknown[] = []
+  try { parsed = match ? JSON.parse(match[0]) : [] } catch {
+    console.warn('[news-pipeline] classifyArticles: JSON parse failed, raw:', raw.slice(0, 200))
+  }
+
+  const results: ClassifyResult[] = []
+  for (const item of parsed) {
+    const v = validateClassifyResult(item)
+    if (v) results.push(v)
+    else   console.warn('[news-pipeline] classifyArticles: invalid item dropped:', JSON.stringify(item))
+  }
+  return results
 }
 
 // ---------------------------------------------------------------------------
-// AI Pass 2 — review (remove false positives)
+// AI Pass 2 — review
+// BIAS: keep=true when uncertain — user can delete false positives from the UX.
 // ---------------------------------------------------------------------------
 
 async function reviewArticles(
@@ -318,31 +561,48 @@ async function reviewArticles(
   }).join('\n')
 
   const prompt = `You are a quality reviewer for a VC fund news feed.
-Remove false positives — articles NOT genuinely about the assigned company.
+Remove OBVIOUS false positives only — articles that clearly refer to a DIFFERENT company.
 
 Rules:
-- keep: true if company name (or clear variant) appears in title OR source domain is the company's website
-- keep: false if title does not mention the company, or article is about a different entity
-- When in doubt -> keep: false
+- keep: true  if company name (or clear variant) appears in title, OR source domain is the company's website
+- keep: true  if you are UNCERTAIN — the user will manually delete incorrect articles if needed
+- keep: false ONLY if the article clearly refers to a different entity (name collision, different industry, etc.)
 
 Articles:
 ${articleList}
 
-Respond ONLY with JSON array:
+Respond ONLY with a JSON array — no markdown, no commentary:
 [{"index":0,"keep":true},{"index":1,"keep":false}]`
 
-  const msg   = await anthropic.messages.create({
-    model:      'claude-haiku-4-5',
-    max_tokens: 1024,
-    messages:   [{ role: 'user', content: prompt }],
-  })
-  const raw   = msg.content[0]?.type === 'text' ? msg.content[0].text : '[]'
+  const raw = await withRetry(async () => {
+    const msg = await anthropic.messages.create({
+      model:      'claude-haiku-4-5',
+      max_tokens: 1024,
+      messages:   [{ role: 'user', content: prompt }],
+    })
+    return msg.content[0]?.type === 'text' ? msg.content[0].text : '[]'
+  }, 3, 'reviewArticles')
+
   const match = raw.match(/\[.*\]/s)
-  let results: ReviewResult[] = []
-  try { results = match ? JSON.parse(match[0]) : [] } catch { /* keep empty */ }
+  let parsed: unknown[] = []
+  try {
+    parsed = match ? JSON.parse(match[0]) : []
+  } catch {
+    // If JSON is unparseable, keep everything (recall bias)
+    console.warn('[news-pipeline] reviewArticles: JSON parse failed — keeping all candidates')
+    return candidates
+  }
+
+  const results: ReviewResult[] = []
+  for (const item of parsed) {
+    const v = validateReviewResult(item)
+    if (v) results.push(v)
+    else   console.warn('[news-pipeline] reviewArticles: invalid item, defaulting keep=true:', JSON.stringify(item))
+  }
 
   return candidates.filter((_, i) => {
     const r = results.find(x => x.index === i)
+    // keep=true if no result found for this index (recall bias)
     return !r || r.keep !== false
   })
 }
@@ -383,7 +643,7 @@ export async function runNewsPipeline(
   const ranAt = new Date().toISOString()
   const sdb   = db(supabase)
 
-  // 1. Load active companies (companies IS in generated types — use typed client)
+  // 1. Load active companies
   const { data: companies } = await supabase
     .from('companies')
     .select('id, name, website')
@@ -396,32 +656,42 @@ export async function runNewsPipeline(
     return { added: 0, duplicates: 0, total: 0, byCompany: [], ranAt }
   }
 
-  // 2. Fetch RSS concurrently
-  const fetched = await Promise.all(
-    list.map(c => fetchCompanyNews(c.id, c.name, extractDomain(c.website)))
+  // 2a. Fetch Google News RSS per company (personalised query, no cap)
+  const googleBatches = await Promise.all(
+    list.map(c => fetchGoogleNews(c.id, c.name, extractDomain(c.website)))
   )
+  const googleArticles = googleBatches.flat()
 
-  // 3. Flatten + URL-level dedup
+  // 2b. Fetch curated LATAM/BR sources once (same 10 as vc-market)
+  const curatedBatches = await Promise.allSettled(
+    CURATED_SOURCES.map(s => fetchCuratedSource(s))
+  )
+  const curatedRaw = curatedBatches
+    .filter((r): r is PromiseFulfilledResult<Awaited<ReturnType<typeof fetchCuratedSource>>> => r.status === 'fulfilled')
+    .flatMap(r => r.value)
+
+  // Match curated articles to portfolio companies
+  const curatedArticles = matchCuratedArticles(curatedRaw, list)
+
+  // 3. Merge + URL-level dedup
   const seenUrls = new Set<string>()
   const allRaw: RawArticle[] = []
-  for (const batch of fetched) {
-    for (const a of batch) {
-      const key = normalizeUrl(a.link)
-      if (!seenUrls.has(key)) { seenUrls.add(key); allRaw.push(a) }
-    }
+  for (const a of [...googleArticles, ...curatedArticles]) {
+    const key = normalizeUrl(a.link)
+    if (!seenUrls.has(key)) { seenUrls.add(key); allRaw.push(a) }
   }
   const total = allRaw.length
 
   // 4. Deterministic pre-filter
   const preFiltered = deterministicPreFilter(allRaw, list)
 
-  // 5. Semantic dedup per company
+  // 5. Semantic dedup per company (hybrid Levenshtein + token-set)
   const { canonical, duplicateLinks } = semanticDedup(preFiltered)
 
   // 6. Resolve API key
   const apiKey = await resolveApiKey(fundId, supabase)
   if (!apiKey) {
-    console.warn('[news-pipeline] no Anthropic API key -- aborting AI pass')
+    console.warn('[news-pipeline] no Anthropic API key — aborting AI pass')
     return { added: 0, duplicates: duplicateLinks.size, total, byCompany: [], ranAt }
   }
 
@@ -470,7 +740,8 @@ export async function runNewsPipeline(
 
     enriched = await reviewArticles(anthropic, pass1, list)
   } catch (e) {
-    console.error('[news-pipeline] AI pipeline failed:', e)
+    console.error('[news-pipeline] AI pipeline failed after retries:', e)
+    // Fallback: keep articles with literal name match, categorise as 'outro'
     enriched = toClassify
       .filter(a => {
         const co = list.find(c => c.id === a.companyId)

@@ -13,6 +13,8 @@ import {
   Sparkles,
   Clock,
   Building2,
+  Trash2,
+  Undo2,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -31,24 +33,29 @@ const DATE_OPTIONS = [
 ]
 
 const CATEGORY_CONFIG: Record<string, { label: string; className: string }> = {
-  rodada:      { label: 'Round',      className: 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30' },
-  ipo:         { label: 'IPO',         className: 'bg-violet-500/15 text-violet-600 dark:text-violet-400 border-violet-500/30' },
-  aquisicao:   { label: 'M&A',         className: 'bg-orange-500/15 text-orange-600 dark:text-orange-400 border-orange-500/30' },
-  parceria:    { label: 'Partnership',    className: 'bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/30' },
-  contratacao: { label: 'Hiring', className: 'bg-yellow-500/15 text-yellow-700 dark:text-yellow-400 border-yellow-500/30' },
-  produto:     { label: 'Product',     className: 'bg-cyan-500/15 text-cyan-600 dark:text-cyan-400 border-cyan-500/30' },
+  rodada:      { label: 'Round',       className: 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30' },
+  ipo:         { label: 'IPO',          className: 'bg-violet-500/15 text-violet-600 dark:text-violet-400 border-violet-500/30' },
+  aquisicao:   { label: 'M&A',          className: 'bg-orange-500/15 text-orange-600 dark:text-orange-400 border-orange-500/30' },
+  parceria:    { label: 'Partnership',  className: 'bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/30' },
+  contratacao: { label: 'Hiring',       className: 'bg-yellow-500/15 text-yellow-700 dark:text-yellow-400 border-yellow-500/30' },
+  produto:     { label: 'Product',      className: 'bg-cyan-500/15 text-cyan-600 dark:text-cyan-400 border-cyan-500/30' },
   expansao:    { label: 'Expansion',    className: 'bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 border-indigo-500/30' },
-  premio:      { label: 'Rewards',      className: 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30' },
-  crise:       { label: 'Lowlight',       className: 'bg-red-500/15 text-red-600 dark:text-red-400 border-red-500/30' },
-  outro:       { label: 'Other',       className: 'bg-muted text-muted-foreground border-border' },
-  featured:    { label: 'Destaque',    className: 'bg-emerald-500/15 text-emerald-600 border-emerald-500/30' },
-  mentioned:   { label: 'Mencionada',  className: 'bg-blue-500/15 text-blue-600 border-blue-500/30' },
+  premio:      { label: 'Award',        className: 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30' },
+  crise:       { label: 'Lowlight',     className: 'bg-red-500/15 text-red-600 dark:text-red-400 border-red-500/30' },
+  outro:       { label: 'Other',        className: 'bg-muted text-muted-foreground border-border' },
+  featured:    { label: 'Destaque',     className: 'bg-emerald-500/15 text-emerald-600 border-emerald-500/30' },
+  mentioned:   { label: 'Mencionada',   className: 'bg-blue-500/15 text-blue-600 border-blue-500/30' },
 }
 
-type AnyArticle = Omit<NewsArticle, 'category'> & { category?: NewsCategory; relevance?: string }
+type AnyArticle = Omit<NewsArticle, 'category'> & {
+  id?: string
+  category?: NewsCategory
+  relevance?: string
+}
 interface Company { id: string; name: string }
 
 function getTag(article: AnyArticle) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const key = article.category ?? (article as any).relevance ?? 'outro'
   return CATEGORY_CONFIG[key] ?? CATEGORY_CONFIG.outro
 }
@@ -171,6 +178,65 @@ function RefreshDrawer({
           </span>
           <span className="text-[11px] text-muted-foreground ml-auto">{summary.total} artigos analisados</span>
         </div>
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Delete undo toast
+// ---------------------------------------------------------------------------
+
+function DeleteToast({
+  article,
+  onUndo,
+  onDismiss,
+}: {
+  article: AnyArticle
+  onUndo: () => void
+  onDismiss: () => void
+}) {
+  const [visible, setVisible] = useState(false)
+
+  useEffect(() => {
+    setVisible(true)
+    const t = setTimeout(() => { setVisible(false); setTimeout(onDismiss, 300) }, 5000)
+    return () => clearTimeout(t)
+  }, [onDismiss])
+
+  const handleUndo = () => {
+    setVisible(false)
+    setTimeout(onUndo, 300)
+  }
+
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      className={`fixed bottom-6 right-6 z-50 transition-all duration-300 ease-out ${
+        visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none'
+      }`}
+    >
+      <div className="flex items-center gap-3 bg-background border rounded-xl shadow-lg px-4 py-3 min-w-[280px] max-w-xs">
+        <Trash2 className="h-4 w-4 text-muted-foreground shrink-0" />
+        <p className="text-sm text-foreground flex-1 min-w-0 truncate">
+          Notícia removida
+        </p>
+        <button
+          onClick={handleUndo}
+          className="flex items-center gap-1 text-xs font-medium text-primary hover:text-primary/80 transition-colors shrink-0"
+          aria-label="Desfazer exclusão"
+        >
+          <Undo2 className="h-3.5 w-3.5" />
+          Desfazer
+        </button>
+        <button
+          onClick={() => { setVisible(false); setTimeout(onDismiss, 300) }}
+          className="text-muted-foreground hover:text-foreground transition-colors shrink-0"
+          aria-label="Fechar"
+        >
+          <X className="h-3.5 w-3.5" />
+        </button>
       </div>
     </div>
   )
@@ -300,42 +366,84 @@ function CompanyFilterStrip({
 }
 
 // ---------------------------------------------------------------------------
-// Article card
+// Article card — with manual delete button
 // ---------------------------------------------------------------------------
 
-function ArticleCard({ article }: { article: AnyArticle }) {
-  const tag = getTag(article)
-  const hue = companyHue(article.companyName)
+function ArticleCard({
+  article,
+  onDelete,
+}: {
+  article: AnyArticle
+  onDelete: (article: AnyArticle) => void
+}) {
+  const tag      = getTag(article)
+  const hue      = companyHue(article.companyName)
+  const [deleting, setDeleting] = useState(false)
+
+  const handleDelete = async (e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (!article.id) return
+    setDeleting(true)
+    onDelete(article)
+  }
 
   return (
-    <a
-      href={article.link}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="group flex items-start gap-3 rounded-xl border bg-card p-3.5 hover:bg-accent/40 hover:border-border/80 transition-all duration-150"
-    >
-      <span
-        className="mt-0.5 inline-flex items-center justify-center rounded-lg w-8 h-8 text-[11px] font-bold shrink-0"
-        style={{ background: `hsl(${hue} 55% 88%)`, color: `hsl(${hue} 55% 28%)` }}
-        aria-hidden
+    <div className="group relative">
+      <a
+        href={article.link}
+        target="_blank"
+        rel="noopener noreferrer"
+        className={`flex items-start gap-3 rounded-xl border bg-card p-3.5 hover:bg-accent/40 hover:border-border/80 transition-all duration-150 ${
+          deleting ? 'opacity-40 pointer-events-none' : ''
+        }`}
       >
-        {initials(article.companyName)}
-      </span>
+        <span
+          className="mt-0.5 inline-flex items-center justify-center rounded-lg w-8 h-8 text-[11px] font-bold shrink-0"
+          style={{ background: `hsl(${hue} 55% 88%)`, color: `hsl(${hue} 55% 28%)` }}
+          aria-hidden
+        >
+          {initials(article.companyName)}
+        </span>
 
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium leading-snug text-foreground line-clamp-2">{article.title}</p>
-        <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-          <Badge variant="outline" className="text-[10px] px-1.5 py-0 shrink-0">{article.companyName}</Badge>
-          <span className={`text-[10px] px-1.5 py-0.5 rounded-full border font-medium shrink-0 ${tag.className}`}>{tag.label}</span>
-          <span className="text-[11px] text-muted-foreground shrink-0">{article.source}</span>
-          {article.pubDate && (
-            <span className="text-[11px] text-muted-foreground shrink-0">{timeAgo(article.pubDate)}</span>
-          )}
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium leading-snug text-foreground line-clamp-2">{article.title}</p>
+          <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+            <Badge variant="outline" className="text-[10px] px-1.5 py-0 shrink-0">{article.companyName}</Badge>
+            <span className={`text-[10px] px-1.5 py-0.5 rounded-full border font-medium shrink-0 ${tag.className}`}>{tag.label}</span>
+            <span className="text-[11px] text-muted-foreground shrink-0">{article.source}</span>
+            {article.pubDate && (
+              <span className="text-[11px] text-muted-foreground shrink-0">{timeAgo(article.pubDate)}</span>
+            )}
+          </div>
         </div>
-      </div>
 
-      <ExternalLink className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity" />
-    </a>
+        <ExternalLink className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-0.5 opacity-0 group-hover:opacity-60 transition-opacity" />
+      </a>
+
+      {/* Delete button — appears on hover, positioned over the card */}
+      {article.id && (
+        <button
+          onClick={handleDelete}
+          disabled={deleting}
+          className="
+            absolute top-2 right-2 z-10
+            p-1.5 rounded-lg
+            bg-background/80 backdrop-blur-sm
+            border border-border/60
+            text-muted-foreground
+            opacity-0 group-hover:opacity-100
+            hover:text-destructive hover:border-destructive/40 hover:bg-destructive/5
+            transition-all duration-150
+            disabled:cursor-not-allowed
+          "
+          aria-label={`Remover "${article.title}"`}
+          title="Remover notícia"
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+        </button>
+      )}
+    </div>
   )
 }
 
@@ -373,6 +481,9 @@ export default function NewsPage() {
   const [error,             setError]             = useState<string | null>(null)
   const [refreshSummary,    setRefreshSummary]    = useState<RefreshSummary | null>(null)
   const [showDrawer,        setShowDrawer]        = useState(false)
+  // Delete undo state
+  const [pendingDelete,     setPendingDelete]     = useState<AnyArticle | null>(null)
+  const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const load = useCallback(async () => {
     try {
@@ -418,6 +529,52 @@ export default function NewsPage() {
 
   const closeDrawer = () => { setShowDrawer(false); setRefreshSummary(null) }
 
+  // ---------------------------------------------------------------------------
+  // Optimistic delete with undo
+  // ---------------------------------------------------------------------------
+
+  const handleDelete = useCallback((article: AnyArticle) => {
+    if (!article.id) return
+
+    // Optimistically remove from UI
+    setArticles(prev => prev.filter(a => a.id !== article.id))
+    setPendingDelete(article)
+
+    // Clear any existing undo timer
+    if (undoTimerRef.current) clearTimeout(undoTimerRef.current)
+
+    // After 5s, commit the delete to the server
+    undoTimerRef.current = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/news/${article.id}`, { method: 'DELETE' })
+        if (!res.ok) throw new Error('Delete failed')
+      } catch {
+        // If server delete fails, restore the article
+        setArticles(prev => [article, ...prev])
+        setError('Não foi possível remover a notícia. Tente novamente.')
+      } finally {
+        setPendingDelete(null)
+      }
+    }, 5000)
+  }, [])
+
+  const handleUndo = useCallback(() => {
+    if (!pendingDelete) return
+    if (undoTimerRef.current) clearTimeout(undoTimerRef.current)
+    // Restore article
+    setArticles(prev => [pendingDelete, ...prev])
+    setPendingDelete(null)
+  }, [pendingDelete])
+
+  const dismissDeleteToast = useCallback(() => {
+    setPendingDelete(null)
+  }, [])
+
+  // Cleanup timer on unmount
+  useEffect(() => () => {
+    if (undoTimerRef.current) clearTimeout(undoTimerRef.current)
+  }, [])
+
   const filtered = selectedCompanies.length > 0
     ? articles.filter(a => selectedCompanies.includes(a.companyId))
     : articles
@@ -433,7 +590,16 @@ export default function NewsPage() {
         />
       )}
 
-      {/* Header — mesmo padrão do app */}
+      {/* Delete undo toast */}
+      {pendingDelete && (
+        <DeleteToast
+          article={pendingDelete}
+          onUndo={handleUndo}
+          onDismiss={dismissDeleteToast}
+        />
+      )}
+
+      {/* Header */}
       <div className="mb-6 space-y-1">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-semibold tracking-tight">News Hub</h1>
@@ -537,7 +703,11 @@ export default function NewsPage() {
           {!loading && !error && filtered.length > 0 && (
             <div className="space-y-2">
               {filtered.map((article, i) => (
-                <ArticleCard key={article.link ?? i} article={article} />
+                <ArticleCard
+                  key={article.link ?? i}
+                  article={article}
+                  onDelete={handleDelete}
+                />
               ))}
               <p className="text-center text-xs text-muted-foreground pt-4 pb-2">
                 {filtered.length} notícia{filtered.length !== 1 ? 's' : ''} no repositório
