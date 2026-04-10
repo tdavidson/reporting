@@ -47,7 +47,7 @@ export function CompanyEditButton({ company }: { company: Company }) {
             <Pencil className="h-3.5 w-3.5" />
           </Button>
         </DialogTrigger>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit Company</DialogTitle>
           </DialogHeader>
