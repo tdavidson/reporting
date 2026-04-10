@@ -91,6 +91,18 @@ function statusBadge(status: string) {
   return <Badge variant="secondary" className="text-[10px] px-1.5 py-0 bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300">Active</Badge>
 }
 
+function stageBadge(stage: string | null) {
+  if (!stage) return null
+  return (
+    <Badge
+      variant="outline"
+      className="text-[10px] px-1.5 py-0 border-border text-muted-foreground bg-background"
+    >
+      {stage}
+    </Badge>
+  )
+}
+
 function CompanyAvatar({ company, onLogoUpdate }: { company: Company; onLogoUpdate: (id: string, url: string) => void }) {
   const [uploading, setUploading] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -445,6 +457,7 @@ function CompanyGrid({
                     {c.name}
                   </Link>
                   <div className="flex items-center gap-1 flex-shrink-0">
+                    {stageBadge(c.stage)}
                     {statusBadge(c.status)}
                     {c.openReviews > 0 && (
                       <span className="rounded-full bg-amber-500 text-white text-[10px] font-semibold leading-none px-1.5 py-0.5 min-w-[18px] text-center">
