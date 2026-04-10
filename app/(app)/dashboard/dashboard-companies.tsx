@@ -95,8 +95,8 @@ function stageBadge(stage: string | null) {
   if (!stage) return null
   return (
     <Badge
-      variant="outline"
-      className="text-[10px] px-1.5 py-0 border-border text-muted-foreground bg-background"
+      variant="secondary"
+      className="text-[10px] px-1.5 py-0 bg-violet-100 text-violet-700 dark:bg-violet-900 dark:text-violet-300"
     >
       {stage}
     </Badge>
