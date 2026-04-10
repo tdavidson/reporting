@@ -91,12 +91,24 @@ function statusBadge(status: string) {
   return <Badge variant="secondary" className="text-[10px] px-1.5 py-0 bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300">Active</Badge>
 }
 
+// Blue gradient scale: Pre-Seed (lightest) → IPO track (darkest)
+const STAGE_COLORS: Record<string, { bg: string; text: string; darkBg: string; darkText: string }> = {
+  'Pre-Seed':  { bg: 'bg-sky-100',    text: 'text-sky-600',    darkBg: 'dark:bg-sky-950',    darkText: 'dark:text-sky-400' },
+  'Seed':      { bg: 'bg-sky-200',    text: 'text-sky-700',    darkBg: 'dark:bg-sky-900',    darkText: 'dark:text-sky-300' },
+  'Series A':  { bg: 'bg-blue-200',   text: 'text-blue-700',   darkBg: 'dark:bg-blue-900',   darkText: 'dark:text-blue-300' },
+  'Series B':  { bg: 'bg-blue-300',   text: 'text-blue-800',   darkBg: 'dark:bg-blue-800',   darkText: 'dark:text-blue-200' },
+  'Series C':  { bg: 'bg-indigo-300', text: 'text-indigo-800', darkBg: 'dark:bg-indigo-800', darkText: 'dark:text-indigo-200' },
+  'Growth':    { bg: 'bg-indigo-400', text: 'text-indigo-900', darkBg: 'dark:bg-indigo-700', darkText: 'dark:text-indigo-100' },
+  'IPO track': { bg: 'bg-violet-500', text: 'text-white',      darkBg: 'dark:bg-violet-600', darkText: 'dark:text-white' },
+}
+
 function stageBadge(stage: string | null) {
   if (!stage) return null
+  const colors = STAGE_COLORS[stage] ?? { bg: 'bg-blue-100', text: 'text-blue-700', darkBg: 'dark:bg-blue-900', darkText: 'dark:text-blue-300' }
   return (
     <Badge
       variant="secondary"
-      className="text-[10px] px-1.5 py-0 bg-violet-100 text-violet-700 dark:bg-violet-900 dark:text-violet-300"
+      className={`text-[10px] px-1.5 py-0 ${colors.bg} ${colors.text} ${colors.darkBg} ${colors.darkText}`}
     >
       {stage}
     </Badge>
@@ -540,7 +552,7 @@ function ActiveMetricDisplay({ company, metrics, metricValues, loadingMetrics, f
 function ExitedMetricDisplay({ company }: { company: Company }) {
   const currency = useCurrency()
   const { displayUnit } = useDisplayUnit()
-  const symbol = currency === 'BRL' ? 'R$' : currency === 'EUR' ? '€' : currency === 'GBP' ? '£' : '$'
+  const symbol = currency === 'BRL' ? 'R$' : currency === 'EUR' ? '\u20ac' : currency === 'GBP' ? '\u00a3' : '$'
 
 function fmtTable(v: number): string {
   const options = { minimumFractionDigits: 1, maximumFractionDigits: 1 };
