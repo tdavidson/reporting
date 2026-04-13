@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
-import { Scale, ExternalLink, AlertTriangle, X, SlidersHorizontal, Check, Plus, Trash2, Pencil, Sparkles, Loader2, ChevronLeft, ChevronRight, Search } from 'lucide-react'
+import { ExternalLink, AlertTriangle, X, SlidersHorizontal, Check, Plus, Trash2, Pencil, Sparkles, Loader2, ChevronLeft, ChevronRight, Search, ChevronDown } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
@@ -702,54 +702,98 @@ function LatestRegulationsCards({ regulations, onEdit }: { regulations: Regulati
   )
 }
 
-// ─── Impact Analysis searchable picker ────────────────────────────────────────
+// ─── Impact Analysis combobox picker ───────────────────────────────────────────
 function ImpactRegPicker({ regulations, selectedId, onSelect }: {
   regulations: Regulation[]; selectedId: string; onSelect: (id: string) => void
 }) {
+  const [open, setOpen]   = useState(false)
   const [query, setQuery] = useState('')
-  const filtered = useMemo(() =>
-    regulations.filter(r =>
-      r.shortName.toLowerCase().includes(query.toLowerCase()) ||
-      r.name.toLowerCase().includes(query.toLowerCase()) ||
-      r.date.slice(0, 4).includes(query)
+  const ref      = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  // close on outside click
+  useEffect(() => {
+    const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false) }
+    document.addEventListener('mousedown', h)
+    return () => document.removeEventListener('mousedown', h)
+  }, [])
+
+  // focus input when dropdown opens
+  useEffect(() => {
+    if (open) setTimeout(() => inputRef.current?.focus(), 0)
+  }, [open])
+
+  const selected = regulations.find(r => r.id === selectedId)
+
+  const filtered = useMemo(() => {
+    if (!query) return regulations
+    const q = query.toLowerCase()
+    return regulations.filter(r =>
+      r.shortName.toLowerCase().includes(q) ||
+      r.name.toLowerCase().includes(q) ||
+      r.date.slice(0, 4).includes(q)
     )
-  , [regulations, query])
+  }, [regulations, query])
+
+  const handleSelect = (id: string) => {
+    onSelect(id)
+    setQuery('')
+    setOpen(false)
+  }
 
   return (
-    <div className="flex flex-col border rounded-lg overflow-hidden" style={{ width: 320, height: 200 }}>
-      {/* Search input */}
-      <div className="flex items-center gap-2 px-3 py-2 border-b bg-muted/40">
+    <div ref={ref} className="relative">
+      {/* Trigger */}
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="flex items-center gap-2 h-9 pl-3 pr-2.5 rounded-md text-xs border border-border bg-background hover:bg-muted transition-colors min-w-[220px] max-w-[320px]"
+      >
         <Search className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-        <input
-          value={query}
-          onChange={e => setQuery(e.target.value)}
-          placeholder="Search regulations…"
-          className="flex-1 bg-transparent text-xs outline-none placeholder:text-muted-foreground"
-        />
-        {query && (
-          <button onClick={() => setQuery('')} className="text-muted-foreground hover:text-foreground transition-colors">
-            <X className="h-3 w-3" />
-          </button>
-        )}
-      </div>
-      {/* Scrollable list */}
-      <div className="flex-1 overflow-y-auto">
-        {filtered.length === 0 && (
-          <p className="text-xs text-muted-foreground text-center py-6">No results</p>
-        )}
-        {filtered.map(r => (
-          <button
-            key={r.id}
-            onClick={() => onSelect(r.id)}
-            className={`w-full flex items-center justify-between gap-2 px-3 py-2 text-left text-xs transition-colors hover:bg-muted ${
-              r.id === selectedId ? 'bg-muted font-medium text-foreground' : 'text-muted-foreground'
-            }`}
-          >
-            <span className="truncate">{r.shortName}</span>
-            <span className="shrink-0 text-[10px] text-muted-foreground tabular-nums">{r.date.slice(0, 4)}</span>
-          </button>
-        ))}
-      </div>
+        <span className="flex-1 text-left truncate text-muted-foreground">
+          {selected ? selected.shortName : 'Select regulation…'}
+        </span>
+        <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground transition-transform duration-150 ${open ? 'rotate-180' : ''}`} />
+      </button>
+
+      {/* Dropdown */}
+      {open && (
+        <div className="absolute left-0 top-11 z-50 w-80 rounded-lg border border-border shadow-xl bg-popover overflow-hidden">
+          {/* Search input */}
+          <div className="flex items-center gap-2 px-3 py-2 border-b">
+            <Search className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+            <input
+              ref={inputRef}
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              placeholder="Search by name or year…"
+              className="flex-1 bg-transparent text-xs outline-none placeholder:text-muted-foreground"
+            />
+            {query && (
+              <button onClick={() => setQuery('')} className="text-muted-foreground hover:text-foreground transition-colors">
+                <X className="h-3 w-3" />
+              </button>
+            )}
+          </div>
+          {/* Scrollable list */}
+          <div className="overflow-y-auto" style={{ maxHeight: 200 }}>
+            {filtered.length === 0 && (
+              <p className="text-xs text-muted-foreground text-center py-6">No results</p>
+            )}
+            {filtered.map(r => (
+              <button
+                key={r.id}
+                onClick={() => handleSelect(r.id)}
+                className={`w-full flex items-center justify-between gap-2 px-3 py-2 text-left text-xs transition-colors hover:bg-muted ${
+                  r.id === selectedId ? 'bg-muted font-medium text-foreground' : 'text-muted-foreground'
+                }`}
+              >
+                <span className="truncate">{r.shortName}</span>
+                <span className="shrink-0 text-[10px] text-muted-foreground tabular-nums">{r.date.slice(0, 4)}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -761,15 +805,16 @@ function ImpactFilterSection({ regulations, onEdit }: { regulations: Regulation[
   if (regulations.length === 0) return <p className="text-sm text-muted-foreground">No regulations to analyse yet.</p>
   return (
     <div className="space-y-4">
-      <div className="flex items-start gap-4 flex-wrap">
+      <div className="flex items-center gap-3 flex-wrap">
         <ImpactRegPicker regulations={regulations} selectedId={selectedId} onSelect={setSelectedId} />
         {reg && (
-          <div className="flex flex-col gap-1 pt-1">
-            <p className="text-xs font-semibold">{reg.shortName}</p>
-            <p className="text-xs text-muted-foreground">{reg.name}</p>
-            <p className="text-[10px] text-muted-foreground tabular-nums">{fmtDate(reg.date)}</p>
+          <div className="flex items-center gap-3">
+            <div>
+              <p className="text-xs font-medium">{reg.name}</p>
+              <p className="text-[10px] text-muted-foreground tabular-nums">{fmtDate(reg.date)}</p>
+            </div>
             <button onClick={() => onEdit(reg)}
-              className="mt-2 flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors self-start">
+              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors">
               <Pencil className="h-3 w-3" /> Edit
             </button>
           </div>
@@ -914,7 +959,7 @@ export function RegulacoesBRClient() {
         <h2 className="text-base font-semibold mb-1">Impact Analysis</h2>
         <p className="text-sm text-muted-foreground mb-4">Select a regulation to view first, second, and third-order implications.</p>
         {loading
-          ? <div className="animate-pulse h-10 bg-muted rounded w-80" />
+          ? <div className="animate-pulse h-9 bg-muted rounded w-56" />
           : <ImpactFilterSection regulations={filtered} onEdit={setEditingReg} />}
       </section>
 
