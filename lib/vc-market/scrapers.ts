@@ -206,6 +206,7 @@ function parseHTMLItems(html: string, baseUrl: string, sourceName: string): Arti
 async function fetchArticleBody(url: string): Promise<string> {
   try {
     const res = await fetch(url, {
+      cache: 'no-store',  // prevent Vercel data cache from serving stale article bodies
       headers: { 'User-Agent': 'Mozilla/5.0 (compatible; VCMarket/1.0)', 'Accept': 'text/html' },
       signal: AbortSignal.timeout(8000),
     })
@@ -265,6 +266,7 @@ async function enrichArticles(articles: Article[]): Promise<Article[]> {
 async function fetchSource(source: Source): Promise<{ articles: Article[]; error?: string }> {
   try {
     const res = await fetch(source.url, {
+      cache: 'no-store',  // prevent Vercel data cache from serving stale source pages
       headers: {
         'User-Agent': 'Mozilla/5.0 (compatible; VCMarket/1.0)',
         'Accept': source.type === 'rss'
