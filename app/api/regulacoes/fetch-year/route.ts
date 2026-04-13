@@ -54,12 +54,28 @@ function fromRow(row: Record<string, unknown>): Regulation {
 }
 
 export async function POST(req: Request) {
+  const db = createAdminClient() as any // eslint-disable-line
+  let userId: string | null = null
+  let userEmail: string | null = null
+  let trigger: 'manual' | 'cron' = 'manual'
+  let year = 0
+
   try {
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const { year } = await req.json() as { year: number }
+    // cron calls arrive without a user session — detect via header
+    const isCron = req.headers.get('x-trigger') === 'cron'
+    trigger = isCron ? 'cron' : 'manual'
+
+    if (!isCron) {
+      if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      userId    = user.id
+      userEmail = user.email ?? null
+    }
+
+    const body = await req.json() as { year: number }
+    year = body.year
     if (!year || year < 2010 || year > 2030) {
       return NextResponse.json({ error: 'Invalid year' }, { status: 400 })
     }
@@ -75,15 +91,15 @@ export async function POST(req: Request) {
       messages: [{ role: 'user', content: buildPrompt(year) }],
     })
 
-    const raw = message.content[0].type === 'text' ? message.content[0].text : ''
+    const raw   = message.content[0].type === 'text' ? message.content[0].text : ''
     const clean = raw.replace(/^```(?:json)?\n?/i, '').replace(/\n?```$/i, '').trim()
     const parsed: Regulation[] = JSON.parse(clean)
 
     if (!Array.isArray(parsed) || parsed.length === 0) {
+      await db.from('scraper_runs').insert({ trigger, user_id: userId, user_email: userEmail, year, inserted: 0, skipped: 0 })
       return NextResponse.json({ inserted: 0, skipped: 0 })
     }
 
-    const db = createAdminClient() as any // eslint-disable-line
     const rows = parsed.map(r => ({
       id:           r.id,
       name:         r.name,
@@ -107,11 +123,18 @@ export async function POST(req: Request) {
 
     const inserted = data?.length ?? 0
     const skipped  = parsed.length - inserted
+
+    await db.from('scraper_runs').insert({ trigger, user_id: userId, user_email: userEmail, year, inserted, skipped })
+
     return NextResponse.json({ inserted, skipped, regulations: parsed.map(r => r.id) })
 
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
     console.error('[POST /api/regulacoes/fetch-year]', msg)
+    // still log the failed run
+    try {
+      await db.from('scraper_runs').insert({ trigger, user_id: userId, user_email: userEmail, year, inserted: 0, skipped: 0, error: msg })
+    } catch { /* ignore log errors */ }
     return NextResponse.json({ error: msg }, { status: 500 })
   }
 }
