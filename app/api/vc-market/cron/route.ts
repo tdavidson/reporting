@@ -3,6 +3,16 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { scrapeVCDeals } from '@/lib/vc-market/scrapers'
 import { sendDealDigest } from '@/lib/vc-market/digest-email'
 
+// Force Next.js / Vercel to never cache this route.
+// Without this, Vercel's edge cache returns a stale 200 response and the
+// function body never executes — causing the cron to silently insert 0 deals.
+export const dynamic = 'force-dynamic'
+
+const NO_CACHE_HEADERS = {
+  'Cache-Control': 'no-store, no-cache, must-revalidate',
+  'Pragma': 'no-cache',
+}
+
 function serializeError(err: unknown): string {
   if (err instanceof Error) return `${err.name}: ${err.message}${err.cause ? ` (cause: ${err.cause})` : ''}`
   if (typeof err === 'object' && err !== null) {
@@ -18,7 +28,7 @@ export async function GET() {
     const cronUserId = process.env.CRON_USER_ID
     if (!cronUserId) {
       console.error('[vc-market/cron] CRON_USER_ID env var not set')
-      return NextResponse.json({ error: 'CRON_USER_ID not configured' }, { status: 500 })
+      return NextResponse.json({ error: 'CRON_USER_ID not configured' }, { status: 500, headers: NO_CACHE_HEADERS })
     }
 
     const db = createAdminClient() as any // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -36,7 +46,7 @@ export async function GET() {
 
     if (!apiKey) {
       console.error('[vc-market/cron] No Claude API key available (set ANTHROPIC_API_KEY env var or save key in settings)')
-      return NextResponse.json({ error: 'Claude API key not configured' }, { status: 500 })
+      return NextResponse.json({ error: 'Claude API key not configured' }, { status: 500, headers: NO_CACHE_HEADERS })
     }
 
     const sixtyDaysAgo = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
@@ -58,7 +68,7 @@ export async function GET() {
     )
 
     if (deals.length === 0) {
-      return NextResponse.json({ inserted: 0, skipped: 0, errors: [] })
+      return NextResponse.json({ inserted: 0, skipped: 0, errors: [] }, { headers: NO_CACHE_HEADERS })
     }
 
     const { data: inserted, error: upsertError } = await db
@@ -71,7 +81,7 @@ export async function GET() {
 
     if (upsertError) {
       console.error('[vc-market/cron] upsertError:', JSON.stringify(upsertError))
-      return NextResponse.json({ error: serializeError(upsertError) }, { status: 500 })
+      return NextResponse.json({ error: serializeError(upsertError) }, { status: 500, headers: NO_CACHE_HEADERS })
     }
 
     const insertedCount = inserted?.length ?? deals.length
@@ -82,11 +92,11 @@ export async function GET() {
     }
 
     console.log(`[vc-market/cron] inserted=${insertedCount} skipped=${skipped}`)
-    return NextResponse.json({ inserted: insertedCount, skipped, errors: [] })
+    return NextResponse.json({ inserted: insertedCount, skipped, errors: [] }, { headers: NO_CACHE_HEADERS })
 
   } catch (err) {
     const msg = serializeError(err)
     console.error('[vc-market/cron] fatal:', msg)
-    return NextResponse.json({ error: msg }, { status: 500 })
+    return NextResponse.json({ error: msg }, { status: 500, headers: NO_CACHE_HEADERS })
   }
 }
