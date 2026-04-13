@@ -15,6 +15,14 @@ const BACEN_FEEDS = [
   'https://www.bcb.gov.br/api/feed/app/demaisnormativos/atosecomunicados?ano=',
 ]
 
+// Keywords that identify comunicados — informational notices, not binding norms
+const COMUNICADO_PATTERNS = [
+  /^comunicado/i,
+  /^nota\s+(à|a)\s+imprensa/i,
+  /^aviso/i,
+  /^informe/i,
+]
+
 const SYSTEM_PROMPT = `You are an expert on Brazilian financial regulation (BCB, CVM, CMN).
 Return ONLY a valid JSON array — no markdown, no code fences, no explanations.
 All fields are required. Dates must be YYYY-MM-DD.
@@ -22,6 +30,8 @@ issuer must be one of: "BCB", "CVM", "CMN", "OTHER".
 officialUrl must be a real, verifiable URL from bcb.gov.br or similar.
 tags: 2-3 strings only from: "Crypto","Payments","Banking","Open Finance","AML","Credit","Capital Markets","Data & Privacy","FX","Fintechs".
 Be concise: description max 1 sentence, fullContext max 2 sentences, whatChanged max 1 sentence, each impact.why max 1 sentence.
+Include ONLY binding regulatory norms: Resoluções, Instruções Normativas, Circulares, Portarias, and similar instruments that create legal obligations.
+Do NOT include: Comunicados, Notas à Imprensa, Avisos, Informes, or any other non-binding informational notices.
 If a norm is NOT relevant to fintechs, banking, crypto, payments, open finance, AML, credit, capital markets, data & privacy, or FX — exclude it entirely.`
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -35,6 +45,10 @@ interface FeedEntry {
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function isComunicado(title: string): boolean {
+  return COMUNICADO_PATTERNS.some(pattern => pattern.test(title.trim()))
+}
 
 function parseAtomFeed(xml: string): FeedEntry[] {
   const entries: FeedEntry[] = []
@@ -73,7 +87,8 @@ async function fetchFeedEntries(year: number): Promise<FeedEntry[]> {
       // skip failed feed
     }
   }
-  return all
+  // Pre-filter: remove comunicados before sending to Claude
+  return all.filter(e => !isComunicado(e.title))
 }
 
 function buildFilterPrompt(entries: FeedEntry[]): string {
@@ -82,7 +97,8 @@ function buildFilterPrompt(entries: FeedEntry[]): string {
     .join('\n\n')
 
   return `Below are ${entries.length} BACEN regulatory items published in ${new Date().getFullYear()}.
-Filter and return ONLY those relevant to: Fintechs, Banking, Crypto, Payments, Open Finance, AML, Credit, Capital Markets, Data & Privacy, FX.
+Filter and return ONLY binding norms relevant to: Fintechs, Banking, Crypto, Payments, Open Finance, AML, Credit, Capital Markets, Data & Privacy, FX.
+Exclude any Comunicados, Notas à Imprensa, Avisos, or non-binding notices — even if topically relevant.
 
 For each RELEVANT item, return a full regulation object with ALL fields:
 - id: string (slug, e.g. "res-bcb-556-2026" — use the norm number from the title)
@@ -129,7 +145,7 @@ export async function GET(req: Request) {
   const year = new Date().getFullYear()
 
   try {
-    // 1. Fetch RSS feeds
+    // 1. Fetch RSS feeds (comunicados already filtered out)
     const entries = await fetchFeedEntries(year)
     if (entries.length === 0) {
       return NextResponse.json({ message: 'No entries found', inserted: 0, skipped: 0 })
