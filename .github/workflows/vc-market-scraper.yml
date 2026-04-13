@@ -12,6 +12,9 @@ jobs:
       - name: Trigger scraper
         run: |
           STATUS=$(curl -s -o /tmp/response.txt -w "%{http_code}" \
+            --max-time 310 \
+            -H "Cache-Control: no-cache" \
+            -H "Pragma: no-cache" \
             -X GET "${{ secrets.APP_URL }}/api/vc-market/cron")
           echo "HTTP Status: $STATUS"
           echo "Response: $(cat /tmp/response.txt)"
@@ -19,3 +22,6 @@ jobs:
             echo "Scraper failed with status $STATUS"
             exit 1
           fi
+          # Warn (but don't fail) if inserted=0 so we can detect silent no-ops
+          INSERTED=$(cat /tmp/response.txt | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('inserted',0))" 2>/dev/null || echo "unknown")
+          echo "Deals inserted: $INSERTED"
