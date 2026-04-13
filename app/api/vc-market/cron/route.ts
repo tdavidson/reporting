@@ -21,7 +21,14 @@ function serializeError(err: unknown): string {
   return String(err)
 }
 
-export async function GET() {
+export async function GET(req: Request) {
+  // Validate CRON_SECRET to prevent unauthorized external calls
+  const cronSecret = process.env.CRON_SECRET
+  const authHeader = req.headers.get('authorization')
+  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401, headers: NO_CACHE_HEADERS })
+  }
+
   try {
     // The scraper is global — not per fund/user.
     // CRON_USER_ID is a system user whose id populates vc_deals_pending.user_id.
