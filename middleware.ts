@@ -66,9 +66,9 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    // Exclude: Next.js internals, static assets, and the inbound email webhook.
-    // The webhook receives large Postmark payloads (base64 attachments) that must
-    // not pass through the Edge middleware layer, which has a tight body-size limit.
-    '/((?!_next/static|_next/image|favicon.ico|api/inbound-email|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    // Exclude: Next.js internals, static assets, inbound email webhook, and cron endpoints.
+    // Cron routes use their own Bearer token auth and must not pass through the Edge middleware
+    // layer (which requires a Supabase session and would block unauthenticated GitHub Actions calls).
+    '/((?!_next/static|_next/image|favicon.ico|api/inbound-email|api/bacen/scraper|api/vc-market/scraper|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 }
