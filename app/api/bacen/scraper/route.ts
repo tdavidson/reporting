@@ -121,16 +121,8 @@ function slugify(title: string, id: string): string {
 // ─── Route Handler ────────────────────────────────────────────────────────────
 
 export async function GET(req: Request) {
-  // Validate cron secret
   const auth = req.headers.get('authorization')
-  const secret = process.env.CRON_SECRET
-
-  // DEBUG — remove after fix
-  console.log('[bacen/scraper] auth header length:', auth?.length ?? 0)
-  console.log('[bacen/scraper] CRON_SECRET set:', !!secret, '| length:', secret?.length ?? 0)
-  console.log('[bacen/scraper] match:', auth === `Bearer ${secret}`)
-
-  if (auth !== `Bearer ${secret}`) {
+  if (auth !== `Bearer ${process.env.CRON_SECRET}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
