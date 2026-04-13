@@ -29,23 +29,17 @@ jobs:
 
           if [ "$STATUS" != "200" ]; then
             echo "scraper_status=failed" >> $GITHUB_OUTPUT
-            echo "scraper_body=$BODY" >> $GITHUB_OUTPUT
             echo "Scraper failed with status $STATUS"
             exit 1
           fi
 
-          # Parse result fields
           INSERTED=$(echo "$BODY" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('inserted',0))" 2>/dev/null || echo "0")
           SKIPPED=$(echo "$BODY" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('skipped',0))" 2>/dev/null || echo "0")
           RELEVANT=$(echo "$BODY" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('relevant',0))" 2>/dev/null || echo "0")
           TOTAL=$(echo "$BODY" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('total_fetched',0))" 2>/dev/null || echo "0")
           REGS=$(echo "$BODY" | python3 -c "import sys,json; d=json.load(sys.stdin); print(', '.join(d.get('regulations',[])))" 2>/dev/null || echo "")
 
-          echo "Total fetched from RSS: $TOTAL"
-          echo "Relevant (AI filtered): $RELEVANT"
-          echo "Inserted into DB: $INSERTED"
-          echo "Skipped (duplicates): $SKIPPED"
-          echo "Regulation IDs: $REGS"
+          echo "Total fetched: $TOTAL | Relevant: $RELEVANT | Inserted: $INSERTED | Skipped: $SKIPPED"
 
           echo "scraper_status=success" >> $GITHUB_OUTPUT
           echo "inserted=$INSERTED" >> $GITHUB_OUTPUT
@@ -59,7 +53,7 @@ jobs:
         env:
           SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }}
           NOTIFY_EMAIL: ${{ secrets.BACEN_NOTIFY_EMAIL }}
-          STATUS: ${{ steps.scraper.outputs.scraper_status }}
+          JOB_STATUS: ${{ steps.scraper.outputs.scraper_status }}
           INSERTED: ${{ steps.scraper.outputs.inserted }}
           SKIPPED: ${{ steps.scraper.outputs.skipped }}
           RELEVANT: ${{ steps.scraper.outputs.relevant }}
@@ -67,46 +61,60 @@ jobs:
           REGULATIONS: ${{ steps.scraper.outputs.regulations }}
         run: |
           if [ -z "$SENDGRID_API_KEY" ] || [ -z "$NOTIFY_EMAIL" ]; then
-            echo "Email secrets not configured, skipping notification."
+            echo "Email secrets not configured, skipping."
             exit 0
           fi
 
           RUN_DATE=$(date -u +"%Y-%m-%d %H:%M UTC")
-          JOB_STATUS=${STATUS:-"unknown"}
+          STATUS_LABEL=${JOB_STATUS:-"unknown"}
 
-          if [ "$JOB_STATUS" = "success" ]; then
-            SUBJECT="[BACEN Scraper] ${INSERTED} norma(s) inserida(s) - ${RUN_DATE}"
+          if [ "$STATUS_LABEL" = "success" ]; then
             COLOR="#16a34a"
             ICON="OK"
           else
-            SUBJECT="[BACEN Scraper] FALHA na execucao - ${RUN_DATE}"
             COLOR="#dc2626"
             ICON="ERRO"
           fi
 
-          BODY_HTML="<h2 style='color:${COLOR}'>[${ICON}] BACEN Regulatory Scraper</h2>\
-          <p><strong>Data:</strong> ${RUN_DATE}</p>\
-          <p><strong>Status:</strong> ${JOB_STATUS}</p>\
-          <hr/>\
-          <p><strong>Total buscado no RSS:</strong> ${TOTAL}</p>\
-          <p><strong>Relevantes (filtro AI):</strong> ${RELEVANT}</p>\
-          <p><strong>Inseridos no banco:</strong> ${INSERTED}</p>\
-          <p><strong>Ignorados (duplicatas):</strong> ${SKIPPED}</p>\
-          <hr/>\
-          <p><strong>IDs das normas inseridas:</strong><br/>${REGULATIONS}</p>\
-          <hr/>\
-          <p style='font-size:12px;color:#6b7280'>PRLX App - Regulatory Timeline Scraper | GitHub Actions</p>"
-
-          python3 - <<EOF
+          python3 - <<PYEOF
           import os, json, urllib.request
-          key = os.environ['SENDGRID_API_KEY']
-          to  = os.environ['NOTIFY_EMAIL']
+
+          key    = os.environ['SENDGRID_API_KEY']
+          to     = os.environ['NOTIFY_EMAIL']
+          status = os.environ.get('STATUS_LABEL', 'unknown')
+          icon   = os.environ.get('ICON', '')
+          color  = os.environ.get('COLOR', '#000')
+          date   = os.environ.get('RUN_DATE', '')
+          total  = os.environ.get('TOTAL', '0')
+          rel    = os.environ.get('RELEVANT', '0')
+          ins    = os.environ.get('INSERTED', '0')
+          skip   = os.environ.get('SKIPPED', '0')
+          regs   = os.environ.get('REGULATIONS', '')
+
+          subject = f"[BACEN Scraper] [{icon}] {ins} norma(s) inserida(s) - {date}"
+
+          html = f"""
+          <h2 style='color:{color}'>[{icon}] BACEN Regulatory Scraper</h2>
+          <p><strong>Data:</strong> {date}</p>
+          <p><strong>Status:</strong> {status}</p>
+          <hr/>
+          <p><strong>Total buscado no RSS:</strong> {total}</p>
+          <p><strong>Relevantes (filtro AI):</strong> {rel}</p>
+          <p><strong>Inseridos no banco:</strong> {ins}</p>
+          <p><strong>Ignorados (duplicatas):</strong> {skip}</p>
+          <hr/>
+          <p><strong>IDs das normas inseridas:</strong><br/>{regs or 'Nenhuma'}</p>
+          <hr/>
+          <p style='font-size:12px;color:#6b7280'>PRLX App - Regulatory Timeline | GitHub Actions</p>
+          """
+
           payload = json.dumps({
             "personalizations": [{"to": [{"email": to}]}],
             "from": {"email": "noreply@prlx.app", "name": "PRLX Regulatory Bot"},
-            "subject": os.environ['SUBJECT'],
-            "content": [{"type": "text/html", "value": os.environ['BODY_HTML']}]
+            "subject": subject,
+            "content": [{"type": "text/html", "value": html}]
           }).encode()
+
           req = urllib.request.Request(
             "https://api.sendgrid.com/v3/mail/send",
             data=payload,
@@ -117,7 +125,4 @@ jobs:
             print("Email sent successfully")
           except Exception as e:
             print(f"Email failed: {e}")
-          EOF
-        env:
-          SUBJECT: ${{ steps.scraper.outputs.scraper_status == 'success' && format('[BACEN Scraper] {0} norma(s) inserida(s)', steps.scraper.outputs.inserted) || '[BACEN Scraper] FALHA na execucao' }}
-          BODY_HTML: "<placeholder>"
+          PYEOF
