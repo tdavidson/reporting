@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
-import { ExternalLink, AlertTriangle, X, SlidersHorizontal, Check, Plus, Trash2, Pencil, Sparkles, Loader2, ChevronLeft, ChevronRight, Search, ChevronDown } from 'lucide-react'
+import { ExternalLink, AlertTriangle, X, SlidersHorizontal, Check, Plus, Trash2, Pencil, Sparkles, Loader2, ChevronLeft, ChevronRight, Search, ChevronDown, LayoutList, Table2 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
@@ -319,6 +319,60 @@ function EditRegulationModal({ reg, onSave, onClose }: {
   )
 }
 
+// ─── DeleteConfirmModal ───────────────────────────────────────────────────────
+function DeleteConfirmModal({ reg, onDeleted, onClose }: {
+  reg: Regulation; onDeleted: (id: string) => void; onClose: () => void
+}) {
+  const [deleting, setDeleting] = useState(false)
+  const backdropRef = useRef<HTMLDivElement>(null)
+  const onBackdrop  = (e: React.MouseEvent) => { if (e.target === backdropRef.current) onClose() }
+
+  const handleDelete = async () => {
+    setDeleting(true)
+    try {
+      const res = await fetch('/api/regulacoes', {
+        method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: reg.id }),
+      })
+      if (!res.ok) throw new Error((await res.json()).error ?? 'Failed')
+      onDeleted(reg.id)
+      toast.success('Regulation deleted')
+      onClose()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to delete')
+    } finally {
+      setDeleting(false)
+    }
+  }
+
+  return (
+    <div ref={backdropRef} onClick={onBackdrop}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm px-4">
+      <div className="w-full max-w-sm bg-background border rounded-xl shadow-xl p-6 space-y-4">
+        <div className="flex items-start gap-3">
+          <div className="flex items-center justify-center w-8 h-8 rounded-full bg-destructive/10 shrink-0">
+            <Trash2 className="h-4 w-4 text-destructive" />
+          </div>
+          <div>
+            <p className="font-semibold text-sm">Delete regulation?</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              <span className="font-medium text-foreground">{reg.shortName}</span> will be permanently removed. This cannot be undone.
+            </p>
+          </div>
+        </div>
+        <div className="flex justify-end gap-2 pt-1">
+          <button onClick={onClose} disabled={deleting}
+            className="h-8 px-4 rounded-md text-xs border hover:bg-muted transition-colors disabled:opacity-50">Cancel</button>
+          <button onClick={handleDelete} disabled={deleting}
+            className="h-8 px-4 rounded-md text-xs font-medium bg-destructive text-destructive-foreground hover:bg-destructive/90 transition-colors disabled:opacity-50 flex items-center gap-1.5">
+            {deleting && <Loader2 className="h-3 w-3 animate-spin" />}
+            Delete
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── FetchYearModal ───────────────────────────────────────────────────────────
 function FetchYearModal({ onFetched, onClose }: {
   onFetched: (regs: Regulation[]) => void; onClose: () => void
@@ -426,7 +480,7 @@ function MultiSelect({ label, options, selected, onChange }: {
               className="w-full px-3 py-2 text-xs text-muted-foreground hover:text-foreground text-center transition-colors">
               Clear all
             </button>
-          </>)}
+          </> )}
         </div>
       )}
     </div>
@@ -499,7 +553,11 @@ function TimelineSkeleton() {
   )
 }
 
-function RegulationsTimeline({ regulations, onEdit }: { regulations: Regulation[]; onEdit: (reg: Regulation) => void }) {
+function RegulationsTimeline({ regulations, onEdit, onDelete }: {
+  regulations: Regulation[]
+  onEdit: (reg: Regulation) => void
+  onDelete: (reg: Regulation) => void
+}) {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const scrollRef  = useRef<HTMLDivElement>(null)
   const isDragging = useRef(false)
@@ -630,6 +688,9 @@ function RegulationsTimeline({ regulations, onEdit }: { regulations: Regulation[
                 <button onClick={() => onEdit(selected)} className="text-muted-foreground hover:text-foreground transition-colors p-1">
                   <Pencil className="h-3.5 w-3.5" />
                 </button>
+                <button onClick={() => onDelete(selected)} className="text-muted-foreground hover:text-destructive transition-colors p-1" aria-label="Delete">
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
                 <button onClick={() => setSelectedId(null)} className="text-muted-foreground hover:text-foreground transition-colors p-1">
                   <X className="h-4 w-4" />
                 </button>
@@ -655,8 +716,116 @@ function RegulationsTimeline({ regulations, onEdit }: { regulations: Regulation[
   )
 }
 
+// ─── Regulations Table (paginated, 10/page) ────────────────────────────────────
+function RegulationsTable({ regulations, onEdit, onDelete }: {
+  regulations: Regulation[]
+  onEdit: (reg: Regulation) => void
+  onDelete: (reg: Regulation) => void
+}) {
+  const [page, setPage] = useState(1)
+  const PER_PAGE = 10
+  const totalPages = Math.max(1, Math.ceil(regulations.length / PER_PAGE))
+  const paginated = regulations.slice((page - 1) * PER_PAGE, page * PER_PAGE)
+
+  useEffect(() => { setPage(1) }, [regulations.length])
+
+  if (regulations.length === 0)
+    return (
+      <div className="border rounded-xl p-10 text-center space-y-2">
+        <p className="text-sm text-muted-foreground">No regulations yet.</p>
+        <p className="text-xs text-muted-foreground">Use <span className="font-medium">Fetch year</span> to populate the database.</p>
+      </div>
+    )
+
+  return (
+    <div className="border rounded-xl overflow-hidden">
+      <div className="overflow-x-auto">
+        <table className="w-full text-xs">
+          <thead>
+            <tr className="border-b bg-muted/40">
+              <th className="text-left px-4 py-2.5 font-medium text-muted-foreground w-24">Date</th>
+              <th className="text-left px-4 py-2.5 font-medium text-muted-foreground w-20">Issuer</th>
+              <th className="text-left px-4 py-2.5 font-medium text-muted-foreground">Name</th>
+              <th className="text-left px-4 py-2.5 font-medium text-muted-foreground w-40 hidden md:table-cell">Topics</th>
+              <th className="text-right px-4 py-2.5 font-medium text-muted-foreground w-20">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y">
+            {paginated.map(reg => {
+              const s = ISSUER_STYLES[reg.issuer]
+              return (
+                <tr key={reg.id} className="hover:bg-muted/30 transition-colors">
+                  <td className="px-4 py-2.5 tabular-nums text-muted-foreground whitespace-nowrap">{fmtDate(reg.date)}</td>
+                  <td className="px-4 py-2.5">
+                    <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-medium ${s.badge} ${s.badgeText}`}>{s.label}</span>
+                  </td>
+                  <td className="px-4 py-2.5">
+                    <p className="font-medium text-foreground leading-snug">{reg.shortName}</p>
+                    <p className="text-muted-foreground line-clamp-1 mt-0.5">{reg.description}</p>
+                  </td>
+                  <td className="px-4 py-2.5 hidden md:table-cell">
+                    <div className="flex flex-wrap gap-1">
+                      {reg.tags?.slice(0, 2).map(t => {
+                        const tc = TAG_COLORS[t as Tag] ?? DEFAULT_COLOR
+                        return <span key={t} className={`text-[9px] px-1.5 py-0.5 rounded-full ${tc.bg} ${tc.text}`}>{t}</span>
+                      })}
+                      {(reg.tags?.length ?? 0) > 2 && (
+                        <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground">+{(reg.tags?.length ?? 0) - 2}</span>
+                      )}
+                    </div>
+                  </td>
+                  <td className="px-4 py-2.5">
+                    <div className="flex items-center justify-end gap-1">
+                      {reg.officialUrl && (
+                        <a href={reg.officialUrl} target="_blank" rel="noopener noreferrer"
+                          className="p-1 text-muted-foreground hover:text-blue-500 transition-colors" aria-label="View official text">
+                          <ExternalLink className="h-3.5 w-3.5" />
+                        </a>
+                      )}
+                      <button onClick={() => onEdit(reg)} className="p-1 text-muted-foreground hover:text-foreground transition-colors" aria-label="Edit">
+                        <Pencil className="h-3.5 w-3.5" />
+                      </button>
+                      <button onClick={() => onDelete(reg)} className="p-1 text-muted-foreground hover:text-destructive transition-colors" aria-label="Delete">
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+      <div className="flex items-center justify-between px-4 py-2.5 border-t bg-muted/20">
+        <p className="text-[10px] text-muted-foreground">
+          {(page - 1) * PER_PAGE + 1}–{Math.min(page * PER_PAGE, regulations.length)} of {regulations.length}
+        </p>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
+            className="h-7 w-7 flex items-center justify-center rounded-md border border-border hover:bg-muted transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            <ChevronLeft className="h-3.5 w-3.5" />
+          </button>
+          <span className="text-xs px-2 tabular-nums">{page} / {totalPages}</span>
+          <button
+            onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}
+            className="h-7 w-7 flex items-center justify-center rounded-md border border-border hover:bg-muted transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            <ChevronRight className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Latest cards ─────────────────────────────────────────────────────────────
-function LatestRegulationsCards({ regulations, onEdit }: { regulations: Regulation[]; onEdit: (r: Regulation) => void }) {
+function LatestRegulationsCards({ regulations, onEdit, onDelete }: {
+  regulations: Regulation[]
+  onEdit: (r: Regulation) => void
+  onDelete: (r: Regulation) => void
+}) {
   if (regulations.length === 0) return null
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 items-stretch">
@@ -669,8 +838,11 @@ function LatestRegulationsCards({ regulations, onEdit }: { regulations: Regulati
                 <Badge className={`${s.badge} ${s.badgeText} border-0 text-xs`}>{s.label}</Badge>
                 <div className="flex items-center gap-1">
                   <span className="text-xs text-muted-foreground">{fmtDate(reg.date)}</span>
-                  <button onClick={() => onEdit(reg)} className="text-muted-foreground hover:text-foreground transition-colors ml-1">
+                  <button onClick={() => onEdit(reg)} className="text-muted-foreground hover:text-foreground transition-colors ml-1" aria-label="Edit">
                     <Pencil className="h-3 w-3" />
+                  </button>
+                  <button onClick={() => onDelete(reg)} className="text-muted-foreground hover:text-destructive transition-colors" aria-label="Delete">
+                    <Trash2 className="h-3 w-3" />
                   </button>
                 </div>
               </div>
@@ -711,14 +883,12 @@ function ImpactRegPicker({ regulations, selectedId, onSelect }: {
   const ref      = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
-  // close on outside click
   useEffect(() => {
     const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false) }
     document.addEventListener('mousedown', h)
     return () => document.removeEventListener('mousedown', h)
   }, [])
 
-  // focus input when dropdown opens
   useEffect(() => {
     if (open) setTimeout(() => inputRef.current?.focus(), 0)
   }, [open])
@@ -743,7 +913,6 @@ function ImpactRegPicker({ regulations, selectedId, onSelect }: {
 
   return (
     <div ref={ref} className="relative">
-      {/* Trigger */}
       <button
         onClick={() => setOpen(o => !o)}
         className="flex items-center gap-2 h-9 pl-3 pr-2.5 rounded-md text-xs border border-border bg-background hover:bg-muted transition-colors min-w-[220px] max-w-[320px]"
@@ -754,11 +923,8 @@ function ImpactRegPicker({ regulations, selectedId, onSelect }: {
         </span>
         <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground transition-transform duration-150 ${open ? 'rotate-180' : ''}`} />
       </button>
-
-      {/* Dropdown */}
       {open && (
         <div className="absolute left-0 top-11 z-50 w-80 rounded-lg border border-border shadow-xl bg-popover overflow-hidden">
-          {/* Search input */}
           <div className="flex items-center gap-2 px-3 py-2 border-b">
             <Search className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
             <input
@@ -774,7 +940,6 @@ function ImpactRegPicker({ regulations, selectedId, onSelect }: {
               </button>
             )}
           </div>
-          {/* Scrollable list */}
           <div className="overflow-y-auto" style={{ maxHeight: 200 }}>
             {filtered.length === 0 && (
               <p className="text-xs text-muted-foreground text-center py-6">No results</p>
@@ -862,6 +1027,8 @@ export function RegulacoesBRClient() {
   const [showAdd, setShowAdd]         = useState(false)
   const [showFetchYear, setShowFetchYear] = useState(false)
   const [editingReg, setEditingReg]   = useState<Regulation | null>(null)
+  const [deletingReg, setDeletingReg] = useState<Regulation | null>(null)
+  const [timelineView, setTimelineView] = useState<'timeline' | 'table'>('timeline')
 
   const loadRegs = useCallback(() => {
     setLoading(true)
@@ -882,6 +1049,10 @@ export function RegulacoesBRClient() {
 
   const handleAdd = useCallback((reg: Regulation) => {
     setRegulations(prev => [...prev, reg].sort((a, b) => a.date.localeCompare(b.date)))
+  }, [])
+
+  const handleDeleted = useCallback((id: string) => {
+    setRegulations(prev => prev.filter(r => r.id !== id))
   }, [])
 
   const years = useMemo(() =>
@@ -936,8 +1107,39 @@ export function RegulacoesBRClient() {
       )}
 
       <section>
-        <h2 className="text-base font-semibold mb-4">Timeline</h2>
-        {loading ? <TimelineSkeleton /> : <RegulationsTimeline regulations={filtered} onEdit={setEditingReg} />}
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-base font-semibold">Timeline</h2>
+          {!loading && (
+            <div className="flex items-center gap-0.5 border border-border rounded-md p-0.5 bg-muted/40">
+              <button
+                onClick={() => setTimelineView('timeline')}
+                className={`flex items-center gap-1.5 h-7 px-2.5 rounded text-xs font-medium transition-colors ${
+                  timelineView === 'timeline'
+                    ? 'bg-background text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <LayoutList className="h-3.5 w-3.5" /> Timeline
+              </button>
+              <button
+                onClick={() => setTimelineView('table')}
+                className={`flex items-center gap-1.5 h-7 px-2.5 rounded text-xs font-medium transition-colors ${
+                  timelineView === 'table'
+                    ? 'bg-background text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <Table2 className="h-3.5 w-3.5" /> Table
+              </button>
+            </div>
+          )}
+        </div>
+        {loading
+          ? <TimelineSkeleton />
+          : timelineView === 'timeline'
+            ? <RegulationsTimeline regulations={filtered} onEdit={setEditingReg} onDelete={setDeletingReg} />
+            : <RegulationsTable regulations={filtered} onEdit={setEditingReg} onDelete={setDeletingReg} />
+        }
       </section>
 
       <section>
@@ -952,7 +1154,7 @@ export function RegulacoesBRClient() {
               </div>
             ))}
           </div>
-        ) : <LatestRegulationsCards regulations={latestThree} onEdit={setEditingReg} />}
+        ) : <LatestRegulationsCards regulations={latestThree} onEdit={setEditingReg} onDelete={setDeletingReg} />}
       </section>
 
       <section>
@@ -977,6 +1179,13 @@ export function RegulacoesBRClient() {
           reg={editingReg}
           onSave={handleSave}
           onClose={() => setEditingReg(null)}
+        />
+      )}
+      {deletingReg && (
+        <DeleteConfirmModal
+          reg={deletingReg}
+          onDeleted={handleDeleted}
+          onClose={() => setDeletingReg(null)}
         />
       )}
     </div>
