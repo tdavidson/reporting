@@ -1,12 +1,9 @@
 'use client'
 
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
-import { Scale, ExternalLink, AlertTriangle, X, SlidersHorizontal, Check, Plus, Trash2, Pencil, Sparkles, Loader2, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Scale, ExternalLink, AlertTriangle, X, SlidersHorizontal, Check, Plus, Trash2, Pencil, Sparkles, Loader2, ChevronLeft, ChevronRight, Search } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
-import {
-  Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue,
-} from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
 import { toast } from 'sonner'
 import type { Regulation, Issuer, ImpactEntry } from '@/lib/regulacoes/types'
@@ -554,7 +551,6 @@ function RegulationsTimeline({ regulations, onEdit }: { regulations: Regulation[
   return (
     <div className="border rounded-xl overflow-hidden">
       <div className="relative">
-        {/* Left arrow */}
         <button
           onClick={scrollToStart}
           className="absolute left-0 top-0 bottom-0 z-20 flex items-center justify-center w-8 bg-gradient-to-r from-slate-100 dark:from-slate-800 to-transparent hover:from-slate-200 dark:hover:from-slate-700 transition-colors"
@@ -562,8 +558,6 @@ function RegulationsTimeline({ regulations, onEdit }: { regulations: Regulation[
         >
           <ChevronLeft className="h-4 w-4 text-muted-foreground" />
         </button>
-
-        {/* Right arrow */}
         <button
           onClick={scrollToEnd}
           className="absolute right-0 top-0 bottom-0 z-20 flex items-center justify-center w-8 bg-gradient-to-l from-slate-100 dark:from-slate-800 to-transparent hover:from-slate-200 dark:hover:from-slate-700 transition-colors"
@@ -571,7 +565,6 @@ function RegulationsTimeline({ regulations, onEdit }: { regulations: Regulation[
         >
           <ChevronRight className="h-4 w-4 text-muted-foreground" />
         </button>
-
         <div
           ref={scrollRef}
           onMouseDown={onMouseDown}
@@ -581,18 +574,15 @@ function RegulationsTimeline({ regulations, onEdit }: { regulations: Regulation[
           style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', cursor: dragging ? 'grabbing' : 'grab', userSelect: 'none' }}
         >
           <div className="relative flex items-start gap-3 px-10 pt-8 pb-5 min-w-max">
-            {/* Horizontal line aligned to vertical center of dot */}
             <div
               className="absolute left-10 right-10 bg-border dark:bg-slate-600 pointer-events-none"
               style={{ top: lineTop, height: '1px' }}
             />
-
             {regulations.map(reg => {
               const c = getRegColor(reg)
               const isSelected = selectedId === reg.id
               return (
                 <div key={reg.id} className="relative flex flex-col items-center">
-                  {/* Dot: 18×18px */}
                   <div
                     className={`relative z-10 mb-2 rounded-full shrink-0 border-2 border-black ${c.dot}`}
                     style={{ width: DOT_SIZE, height: DOT_SIZE }}
@@ -712,6 +702,58 @@ function LatestRegulationsCards({ regulations, onEdit }: { regulations: Regulati
   )
 }
 
+// ─── Impact Analysis searchable picker ────────────────────────────────────────
+function ImpactRegPicker({ regulations, selectedId, onSelect }: {
+  regulations: Regulation[]; selectedId: string; onSelect: (id: string) => void
+}) {
+  const [query, setQuery] = useState('')
+  const filtered = useMemo(() =>
+    regulations.filter(r =>
+      r.shortName.toLowerCase().includes(query.toLowerCase()) ||
+      r.name.toLowerCase().includes(query.toLowerCase()) ||
+      r.date.slice(0, 4).includes(query)
+    )
+  , [regulations, query])
+
+  return (
+    <div className="flex flex-col border rounded-lg overflow-hidden" style={{ width: 320, height: 200 }}>
+      {/* Search input */}
+      <div className="flex items-center gap-2 px-3 py-2 border-b bg-muted/40">
+        <Search className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+        <input
+          value={query}
+          onChange={e => setQuery(e.target.value)}
+          placeholder="Search regulations…"
+          className="flex-1 bg-transparent text-xs outline-none placeholder:text-muted-foreground"
+        />
+        {query && (
+          <button onClick={() => setQuery('')} className="text-muted-foreground hover:text-foreground transition-colors">
+            <X className="h-3 w-3" />
+          </button>
+        )}
+      </div>
+      {/* Scrollable list */}
+      <div className="flex-1 overflow-y-auto">
+        {filtered.length === 0 && (
+          <p className="text-xs text-muted-foreground text-center py-6">No results</p>
+        )}
+        {filtered.map(r => (
+          <button
+            key={r.id}
+            onClick={() => onSelect(r.id)}
+            className={`w-full flex items-center justify-between gap-2 px-3 py-2 text-left text-xs transition-colors hover:bg-muted ${
+              r.id === selectedId ? 'bg-muted font-medium text-foreground' : 'text-muted-foreground'
+            }`}
+          >
+            <span className="truncate">{r.shortName}</span>
+            <span className="shrink-0 text-[10px] text-muted-foreground tabular-nums">{r.date.slice(0, 4)}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 // ─── Impact analysis ──────────────────────────────────────────────────────────
 function ImpactFilterSection({ regulations, onEdit }: { regulations: Regulation[]; onEdit: (r: Regulation) => void }) {
   const [selectedId, setSelectedId] = useState(regulations[regulations.length - 1]?.id ?? '')
@@ -719,23 +761,18 @@ function ImpactFilterSection({ regulations, onEdit }: { regulations: Regulation[
   if (regulations.length === 0) return <p className="text-sm text-muted-foreground">No regulations to analyse yet.</p>
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-3">
-        <Select value={selectedId} onValueChange={setSelectedId}>
-          <SelectTrigger className="w-full md:w-80"><SelectValue placeholder="Select a regulation" /></SelectTrigger>
-          <SelectContent>
-            <SelectGroup>
-              <SelectLabel>Regulations</SelectLabel>
-              {regulations.map(r => (
-                <SelectItem key={r.id} value={r.id}>{r.shortName} – {r.date.slice(0,4)}</SelectItem>
-              ))}
-            </SelectGroup>
-          </SelectContent>
-        </Select>
+      <div className="flex items-start gap-4 flex-wrap">
+        <ImpactRegPicker regulations={regulations} selectedId={selectedId} onSelect={setSelectedId} />
         {reg && (
-          <button onClick={() => onEdit(reg)}
-            className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors">
-            <Pencil className="h-3 w-3" /> Edit
-          </button>
+          <div className="flex flex-col gap-1 pt-1">
+            <p className="text-xs font-semibold">{reg.shortName}</p>
+            <p className="text-xs text-muted-foreground">{reg.name}</p>
+            <p className="text-[10px] text-muted-foreground tabular-nums">{fmtDate(reg.date)}</p>
+            <button onClick={() => onEdit(reg)}
+              className="mt-2 flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors self-start">
+              <Pencil className="h-3 w-3" /> Edit
+            </button>
+          </div>
         )}
       </div>
       {reg && (
@@ -820,7 +857,7 @@ export function RegulacoesBRClient() {
   )
 
   return (
-<div className="p-4 md:px-8 md:pb-8 md:pt-2 space-y-8">
+    <div className="p-4 md:px-8 md:pb-8 md:pt-2 space-y-8">
       <style>{`
         .input-field { display:block; font-size:0.75rem; background:hsl(var(--background)); border:1px solid hsl(var(--border)); border-radius:0.375rem; padding:0.375rem 0.75rem; outline:none; }
         .input-field:focus { box-shadow:0 0 0 2px hsl(var(--ring)/0.4); }
