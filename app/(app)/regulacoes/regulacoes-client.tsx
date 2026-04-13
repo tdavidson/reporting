@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
-import { ExternalLink, AlertTriangle, X, SlidersHorizontal, Check, Plus, Trash2, Pencil, Sparkles, Loader2, ChevronLeft, ChevronRight, Search, ChevronDown, LayoutList, Table2 } from 'lucide-react'
+import { ExternalLink, AlertTriangle, X, SlidersHorizontal, Check, Plus, Trash2, Pencil, Sparkles, Loader2, ChevronLeft, ChevronRight, Search, ChevronDown, LayoutList, Table2, Clock, User, Cog } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
@@ -44,6 +44,60 @@ const ORDER_CONFIG = [
 
 function fmtDate(iso: string) {
   return new Date(iso + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', year: 'numeric' }).replace(' ', '/')
+}
+
+function fmtRunTime(iso: string) {
+  const d = new Date(iso)
+  return d.toLocaleString('en-US', {
+    month: 'short', day: 'numeric', year: 'numeric',
+    hour: '2-digit', minute: '2-digit', hour12: false,
+  })
+}
+
+// ─── Scraper run types ────────────────────────────────────────────────────────
+interface ScraperRun {
+  id: string
+  ran_at: string
+  trigger: 'manual' | 'cron'
+  user_email: string | null
+  year: number
+  inserted: number
+  skipped: number
+  error: string | null
+}
+
+// ─── Last Scraper Run badge ───────────────────────────────────────────────────
+function LastScraperRunBadge({ run }: { run: ScraperRun }) {
+  const isCron  = run.trigger === 'cron'
+  const hasError = !!run.error
+  return (
+    <div
+      title={run.error ? `Error: ${run.error}` : `Year ${run.year}: ${run.inserted} inserted, ${run.skipped} skipped`}
+      className={`inline-flex items-center gap-2 px-2.5 py-1.5 rounded-lg border text-[11px] leading-none ${
+        hasError
+          ? 'bg-destructive/5 border-destructive/20 text-destructive'
+          : 'bg-muted/60 border-border text-muted-foreground'
+      }`}
+    >
+      {isCron
+        ? <Cog className="h-3 w-3 shrink-0" aria-label="cron" />
+        : <User className="h-3 w-3 shrink-0" aria-label="manual" />
+      }
+      <span className="font-medium text-foreground">
+        {isCron ? 'cron' : (run.user_email ? run.user_email.split('@')[0] : 'manual')}
+      </span>
+      <span className="opacity-50">&middot;</span>
+      <Clock className="h-3 w-3 shrink-0" />
+      <span>{fmtRunTime(run.ran_at)}</span>
+      {!hasError && (
+        <>
+          <span className="opacity-50">&middot;</span>
+          <span className="tabular-nums">{run.inserted} added</span>
+        </>
+      )}
+      {hasError && <span className="font-medium">failed</span>}
+    </div>
+  )
 }
 
 type ImpactDraft  = { sectorOrType: string; why: string }
@@ -338,7 +392,7 @@ function DeleteConfirmModal({ reg, onDeleted, onClose }: {
       toast.success('Regulation deleted')
       onClose()
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Failed to delete')
+      toast.error(e instanceof Error ? e.message : 'Failed to save')
     } finally {
       setDeleting(false)
     }
@@ -1029,6 +1083,7 @@ export function RegulacoesBRClient() {
   const [editingReg, setEditingReg]   = useState<Regulation | null>(null)
   const [deletingReg, setDeletingReg] = useState<Regulation | null>(null)
   const [timelineView, setTimelineView] = useState<'timeline' | 'table'>('timeline')
+  const [lastRun, setLastRun]         = useState<ScraperRun | null>(null)
 
   const loadRegs = useCallback(() => {
     setLoading(true)
@@ -1041,7 +1096,14 @@ export function RegulacoesBRClient() {
       .catch(e => { setError(e.message); setLoading(false) })
   }, [])
 
-  useEffect(() => { loadRegs() }, [loadRegs])
+  const loadLastRun = useCallback(() => {
+    fetch('/api/regulacoes/scraper-runs?limit=1')
+      .then(r => r.ok ? r.json() : null)
+      .then((data: ScraperRun[] | null) => { if (data?.[0]) setLastRun(data[0]) })
+      .catch(() => { /* non-critical */ })
+  }, [])
+
+  useEffect(() => { loadRegs(); loadLastRun() }, [loadRegs, loadLastRun])
 
   const handleSave = useCallback((updated: Regulation) => {
     setRegulations(prev => prev.map(r => r.id === updated.id ? updated : r))
@@ -1054,6 +1116,12 @@ export function RegulacoesBRClient() {
   const handleDeleted = useCallback((id: string) => {
     setRegulations(prev => prev.filter(r => r.id !== id))
   }, [])
+
+  // Refresh last run after a fetch-year completes
+  const handleFetched = useCallback((regs: Regulation[]) => {
+    setRegulations(regs)
+    loadLastRun()
+  }, [loadLastRun])
 
   const years = useMemo(() =>
     Array.from(new Set(regulations.map(r => r.date.slice(0, 4)))).sort()
@@ -1081,8 +1149,17 @@ export function RegulacoesBRClient() {
       `}</style>
 
       <div className="mb-6">
-        <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-semibold tracking-tight">Regulatory Timeline</h1>
+        <div className="flex items-start justify-between gap-4 flex-wrap">
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight">Regulatory Timeline</h1>
+            <p className="text-sm text-muted-foreground mt-1">Banco Central do Brasil · CVM · CMN</p>
+            {lastRun && (
+              <div className="mt-2 flex items-center gap-1.5">
+                <span className="text-[11px] text-muted-foreground">Last scraper run:</span>
+                <LastScraperRunBadge run={lastRun} />
+              </div>
+            )}
+          </div>
           {!loading && !error && (
             <FilterBar
               activeTags={activeTags}   onTagsChange={setActiveTags}
@@ -1093,7 +1170,6 @@ export function RegulacoesBRClient() {
             />
           )}
         </div>
-        <p className="text-sm text-muted-foreground mt-1">Banco Central do Brasil · CVM · CMN</p>
       </div>
 
       {error && (
@@ -1170,7 +1246,7 @@ export function RegulacoesBRClient() {
       )}
       {showFetchYear && (
         <FetchYearModal
-          onFetched={setRegulations}
+          onFetched={handleFetched}
           onClose={() => setShowFetchYear(false)}
         />
       )}
