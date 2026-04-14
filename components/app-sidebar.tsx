@@ -17,15 +17,15 @@ const NAV_ITEMS: { href: string; label: string; icon: LucideIcon; badgeKey?: 're
   { href: '/interactions', label: 'Interactions', icon: Handshake, featureKey: 'interactions', beta: true  },
   { href: '/notes', label: 'Notes', icon: StickyNote, badgeKey: 'notes', featureKey: 'notes' },
   
-  { href: '/emails', label: 'E-mail', icon: Mail },
+  { href: '/emails', label: 'E-mail', icon: Mail, featureKey: 'emails' },
   { href: '/import', label: 'Import', icon: Upload, featureKey: 'imports' },
   
-  { href: '/review', label: 'Review', icon: ClipboardCheck, badgeKey: 'review' },
+  { href: '/review', label: 'Review', icon: ClipboardCheck, badgeKey: 'review', featureKey: 'review' },
   { href: '/requests', label: 'Asks', icon: Send, featureKey: 'asks' },
   
-  { href: '/news', label: 'News', icon: Newspaper },
+  { href: '/news', label: 'News', icon: Newspaper, featureKey: 'news' },
   { href: '/vc-market', label: 'VC Market', icon: Globe2, featureKey: 'vc_market', beta: true  },
-  { href: '/regulacoes', label: 'Regulation', icon: Scale, beta: true },
+  { href: '/regulacoes', label: 'Regulation', icon: Scale, featureKey: 'regulacoes', beta: true },
   { href: '/benchmarking', label: 'Benchmarking', icon: TrendingUp, featureKey: 'investments', beta: true },
  
   { href: '/letters', label: 'Letters', icon: FileText, featureKey: 'lp_letters' },
