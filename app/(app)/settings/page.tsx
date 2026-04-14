@@ -623,7 +623,7 @@ const FEATURE_META: Record<FeatureKey, { label: string; description: string; hre
   news: { label: 'News', description: 'Curated news feed with articles mentioning our portfolio companies', href: '/support#news' },
   regulacoes: { label: 'Regulation', description: 'Brazilian Financial Markets regulatory updates relevant to our Portfolio companies', href: '/support#regulation' },
   updates: { label: 'Updates', description: 'Platform version update notifications and release notes', href: '/support#updates' },
-  benchmarking: { label: 'Benchmarking', description: 'Compare portfolio company metrics against industry benchmarks', href: '/support#benchmarking' },
+  benchmarking: { label: 'Benchmarking', description: 'Compare portfolio company metrics against industry benchmarks', href: '/support#benchmarking' }, 
 }
 
 const VISIBILITY_OPTIONS: { value: FeatureVisibility; label: string; description: string }[] = [
