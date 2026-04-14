@@ -14,6 +14,7 @@ jobs:
           STATUS=$(curl -s -o /tmp/response.txt -w "%{http_code}" \
             --max-time 310 \
             -L \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
             -H "Cache-Control: no-cache" \
             -H "Pragma: no-cache" \
             -X GET "${{ secrets.APP_URL }}/api/vc-market/cron")
