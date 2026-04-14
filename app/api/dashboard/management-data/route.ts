@@ -9,25 +9,51 @@ interface ManagementRow {
   stage: string | null
   status: string
   portfolioGroup: string[]
-  // Investment
   ownershipPct: number | null
   capitalInvested: number | null
   entryValuation: number | null
-  // Valuation
   currentValuation: number | null
   moic: number | null
   evRevenue: number | null
-  // Operations
   mrr: number | null
   mrrGrowth: number | null
   cash: number | null
   burn: number | null
   runway: number | null
-  // Activity
   lastUpdateAt: string | null
 }
 
-// Match metric by keyword in name (case-insensitive)
+type Txn = {
+  company_id: string
+  transaction_type: string
+  transaction_date: string | null
+  ownership_pct: number | null
+  postmoney_valuation: number | null
+  latest_postmoney_valuation: number | null
+  exit_valuation: number | null
+  investment_cost: number | null
+  unrealized_value_change: number | null
+}
+
+type MetricMeta = {
+  id: string
+  company_id: string
+  name: string
+  value_type: string
+  unit: string | null
+  unit_position: string
+  currency: string | null
+}
+
+type ValRow = {
+  metric_id: string
+  value_number: number | null
+  period_year: number
+  period_month: number | null
+  period_quarter: number | null
+  updated_at: string
+}
+
 function matchMetric(
   metrics: { id: string; name: string }[],
   keywords: string[]
@@ -56,7 +82,7 @@ export async function GET() {
 
   const fundId = membership.fund_id
 
-  // --- Companies ---
+  // Companies
   const { data: companiesRaw } = await admin
     .from('companies')
     .select('id, name, stage, status, portfolio_group')
@@ -75,9 +101,10 @@ export async function GET() {
 
   const companyIds = companies.map(c => c.id)
 
-  // --- Investment data ---
-  const { data: txnsRaw } = await admin
-    .from('investment_transactions' as any)
+  // Investment transactions — cast through unknown to bypass Supabase type inference
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: txnsRaw } = await (admin as any)
+    .from('investment_transactions')
     .select(
       'company_id, transaction_type, transaction_date, ownership_pct, postmoney_valuation, latest_postmoney_valuation, exit_valuation, investment_cost, unrealized_value_change'
     )
@@ -85,50 +112,27 @@ export async function GET() {
     .in('company_id', companyIds)
     .order('transaction_date', { ascending: true })
 
-  type Txn = {
-    company_id: string
-    transaction_type: string
-    transaction_date: string | null
-    ownership_pct: number | null
-    postmoney_valuation: number | null
-    latest_postmoney_valuation: number | null
-    exit_valuation: number | null
-    investment_cost: number | null
-    unrealized_value_change: number | null
-  }
-
   const txnsByCompany = new Map<string, Txn[]>()
-  for (const t of (txnsRaw ?? []) as Txn[]) {
+  for (const t of (txnsRaw ?? []) as unknown as Txn[]) {
     const list = txnsByCompany.get(t.company_id) ?? []
     list.push(t)
     txnsByCompany.set(t.company_id, list)
   }
 
-  // --- Metrics ---
+  // Metrics
   const { data: metricsRaw } = await admin
     .from('metrics')
     .select('id, company_id, name, value_type, unit, unit_position, currency')
     .in('company_id', companyIds)
     .eq('is_active', true)
 
-  type MetricMeta = {
-    id: string
-    company_id: string
-    name: string
-    value_type: string
-    unit: string | null
-    unit_position: string
-    currency: string | null
-  }
-
   const metricsByCompany = new Map<string, MetricMeta[]>()
-  for (const m of (metricsRaw ?? []) as MetricMeta[]) {
+  for (const m of (metricsRaw ?? []) as unknown as MetricMeta[]) {
     const list = metricsByCompany.get(m.company_id) ?? []
     list.push(m)
     metricsByCompany.set(m.company_id, list)
   }
 
-  // Collect all relevant metric IDs
   const relevantMetricIds = new Set<string>()
   const metricRoleMap = new Map<string, { companyId: string; role: 'mrr' | 'cash' | 'burn' | 'revenue' }>()
 
@@ -144,7 +148,6 @@ export async function GET() {
     if (revId && !mrrId) { relevantMetricIds.add(revId); metricRoleMap.set(revId, { companyId, role: 'revenue' }) }
   }
 
-  // Fetch latest value for each relevant metric
   const latestValueMap = new Map<string, { value: number | null; date: string | null }>()
   const prevValueMap = new Map<string, number | null>()
 
@@ -157,17 +160,8 @@ export async function GET() {
       .order('period_year', { ascending: false })
       .order('period_month', { ascending: false, nullsFirst: false })
 
-    type ValRow = {
-      metric_id: string
-      value_number: number | null
-      period_year: number
-      period_month: number | null
-      period_quarter: number | null
-      updated_at: string
-    }
-
     const byMetric = new Map<string, ValRow[]>()
-    for (const v of (valuesRaw ?? []) as ValRow[]) {
+    for (const v of (valuesRaw ?? []) as unknown as ValRow[]) {
       const list = byMetric.get(v.metric_id) ?? []
       list.push(v)
       byMetric.set(v.metric_id, list)
@@ -185,7 +179,6 @@ export async function GET() {
     }
   }
 
-  // Last update per company
   const lastUpdateByCompany = new Map<string, string>()
   if (relevantMetricIds.size > 0) {
     const { data: lastUpdateRaw } = await admin
@@ -194,7 +187,7 @@ export async function GET() {
       .in('metric_id', Array.from(relevantMetricIds))
       .order('updated_at', { ascending: false })
 
-    for (const r of (lastUpdateRaw ?? []) as { metric_id: string; updated_at: string }[]) {
+    for (const r of (lastUpdateRaw ?? []) as unknown as { metric_id: string; updated_at: string }[]) {
       const role = metricRoleMap.get(r.metric_id)
       if (!role) continue
       const existing = lastUpdateByCompany.get(role.companyId)
@@ -204,7 +197,6 @@ export async function GET() {
     }
   }
 
-  // --- Build rows ---
   const rows: ManagementRow[] = companies.map(c => {
     const txns = txnsByCompany.get(c.id) ?? []
     const metrics = metricsByCompany.get(c.id) ?? []
@@ -259,7 +251,9 @@ export async function GET() {
       ? Math.round(cashVal / burnVal)
       : null
 
-    const revenueForEv = mrrVal != null ? mrrVal * 12 : (revId ? (latestValueMap.get(revId)?.value ?? null) : null)
+    const revenueForEv = mrrVal != null
+      ? mrrVal * 12
+      : revId ? (latestValueMap.get(revId)?.value ?? null) : null
     const evRevenue = currentValuation != null && revenueForEv != null && revenueForEv > 0
       ? currentValuation / revenueForEv
       : null
@@ -267,7 +261,7 @@ export async function GET() {
     return {
       companyId: c.id,
       name: c.name,
-      logoUrl: null, // logo_url column not in companies schema
+      logoUrl: null,
       stage: c.stage,
       status: c.status,
       portfolioGroup: c.portfolio_group ?? [],
