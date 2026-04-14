@@ -83,7 +83,6 @@ export async function GET() {
 
   const fundId = membership.fund_id
 
-  // Companies
   const { data: companiesRaw } = await admin
     .from('companies')
     .select('id, name, stage, status, portfolio_group')
@@ -102,7 +101,6 @@ export async function GET() {
 
   const companyIds = companies.map(c => c.id)
 
-  // Investment transactions
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: txnsRaw } = await (admin as any)
     .from('investment_transactions')
@@ -120,7 +118,6 @@ export async function GET() {
     txnsByCompany.set(t.company_id, list)
   }
 
-  // Metrics
   const { data: metricsRaw } = await admin
     .from('metrics')
     .select('id, company_id, name, value_type, unit, unit_position, currency')
@@ -141,15 +138,18 @@ export async function GET() {
     const mrrId = matchMetric(metrics, ['\\bmrr\\b', 'monthly recurring revenue', 'receita recorrente'])
     const cashId = matchMetric(metrics, ['\\bcash\\b', 'caixa', 'saldo'])
     const burnId = matchMetric(metrics, ['\\bburn\\b', 'queima', 'cash burn'])
-    const revId = matchMetric(metrics, ['\\brevenue\\b', 'receita', 'arr'])
+    // Only fall back to revenue metric if no MRR metric exists
+    const revId = !mrrId ? matchMetric(metrics, ['\\brevenue\\b', 'receita', 'arr']) : null
 
     if (mrrId) { relevantMetricIds.add(mrrId); metricRoleMap.set(mrrId, { companyId, role: 'mrr' }) }
     if (cashId) { relevantMetricIds.add(cashId); metricRoleMap.set(cashId, { companyId, role: 'cash' }) }
     if (burnId) { relevantMetricIds.add(burnId); metricRoleMap.set(burnId, { companyId, role: 'burn' }) }
-    if (revId && !mrrId) { relevantMetricIds.add(revId); metricRoleMap.set(revId, { companyId, role: 'revenue' }) }
+    if (revId) { relevantMetricIds.add(revId); metricRoleMap.set(revId, { companyId, role: 'revenue' }) }
   }
 
-  const latestValueMap = new Map<string, { value: number | null; date: string | null }>()
+  // latestValueMap stores the most recent value AND its period info so we can
+  // detect whether the revenue figure is monthly (period_month != null) and annualize it.
+  const latestValueMap = new Map<string, { value: number | null; date: string | null; isMonthly: boolean }>()
   const prevValueMap = new Map<string, number | null>()
 
   if (relevantMetricIds.size > 0) {
@@ -175,7 +175,12 @@ export async function GET() {
         : latest.period_quarter
           ? `${latest.period_year} Q${latest.period_quarter}`
           : `${latest.period_year}`
-      latestValueMap.set(metricId, { value: latest.value_number, date: dateStr })
+      latestValueMap.set(metricId, {
+        value: latest.value_number,
+        date: dateStr,
+        // A value is "monthly" if it was filed against a specific month (period_month != null)
+        isMonthly: latest.period_month != null,
+      })
       prevValueMap.set(metricId, rows[1]?.value_number ?? null)
     }
   }
@@ -211,7 +216,6 @@ export async function GET() {
     for (const t of txns) {
       if (t.transaction_type === 'investment') {
         totalInvested += t.investment_cost ?? 0
-        // First investment sets entryOwnershipPct
         if (t.ownership_pct != null) {
           if (entryOwnershipPct === null) entryOwnershipPct = t.ownership_pct
           ownershipPct = t.ownership_pct
@@ -243,9 +247,10 @@ export async function GET() {
     const mrrId = matchMetric(metrics, ['\\bmrr\\b', 'monthly recurring revenue', 'receita recorrente'])
     const cashId = matchMetric(metrics, ['\\bcash\\b', 'caixa', 'saldo'])
     const burnId = matchMetric(metrics, ['\\bburn\\b', 'queima', 'cash burn'])
-    const revId = matchMetric(metrics, ['\\brevenue\\b', 'receita', 'arr'])
+    const revId = !mrrId ? matchMetric(metrics, ['\\brevenue\\b', 'receita', 'arr']) : null
 
-    const mrrVal = mrrId ? (latestValueMap.get(mrrId)?.value ?? null) : null
+    const mrrEntry = mrrId ? latestValueMap.get(mrrId) : null
+    const mrrVal = mrrEntry?.value ?? null
     const mrrPrev = mrrId ? (prevValueMap.get(mrrId) ?? null) : null
     const mrrGrowth = mrrVal != null && mrrPrev != null && mrrPrev !== 0
       ? (mrrVal - mrrPrev) / Math.abs(mrrPrev)
@@ -257,12 +262,20 @@ export async function GET() {
       ? Math.round(cashVal / burnVal)
       : null
 
-    // EV/Rev always on annualized basis:
-    // - if MRR is available  → ARR = MRR × 12
-    // - if annual revenue metric → use as-is
-    const revenueForEv = mrrVal != null
-      ? mrrVal * 12
-      : revId ? (latestValueMap.get(revId)?.value ?? null) : null
+    // EV/Rev — always annualized (ARR):
+    //   Priority 1: MRR available → ARR = MRR × 12 (MRR is always a monthly figure)
+    //   Priority 2: revenue metric → annualize if the latest value was filed as a monthly
+    //               period (period_month != null), otherwise treat as annual already
+    let revenueForEv: number | null = null
+    if (mrrVal != null) {
+      revenueForEv = mrrVal * 12
+    } else if (revId) {
+      const revEntry = latestValueMap.get(revId)
+      if (revEntry?.value != null) {
+        revenueForEv = revEntry.isMonthly ? revEntry.value * 12 : revEntry.value
+      }
+    }
+
     const evRevenue = currentValuation != null && revenueForEv != null && revenueForEv > 0
       ? currentValuation / revenueForEv
       : null

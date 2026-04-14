@@ -29,7 +29,6 @@ interface ManagementRow {
   lastUpdateAt: string | null
 }
 
-// Stage colour scale
 const STAGE_COLORS: Record<string, { bg: string; text: string }> = {
   'Pre-Seed': { bg: 'bg-sky-100 dark:bg-sky-950', text: 'text-sky-700 dark:text-sky-400' },
   'Seed':     { bg: 'bg-sky-200 dark:bg-sky-900', text: 'text-sky-700 dark:text-sky-300' },
@@ -96,9 +95,13 @@ function CompanyAvatar({ row }: { row: ManagementRow }) {
   )
 }
 
-// Section boundary column indices (last col index of each section, for right-border divider)
-// Company(0-2), Investment(3-5), Valuation(6-8), Operations(9-13), Activity(14)
-const SECTION_LAST_COL_INDICES = new Set([2, 5, 8, 13])
+// Section layout:
+// Company    → cols 0,1,2       (colSpan 3, last=2)
+// Investment → cols 3,4,5      (colSpan 3, last=5)  Entry Own%, Current Own%, Invested
+// Valuation  → cols 6,7,8,9   (colSpan 4, last=9)  Entry Val., Current Val., MOIC, EV/Rev(ARR)
+// Operations → cols 10,11,12,13,14 (colSpan 5, last=14) MRR, MRR MoM, Cash, Burn, Runway
+// Activity   → col 15          (colSpan 1)
+const SECTION_LAST_COL_INDICES = new Set([2, 5, 9, 14])
 
 interface SectionHeader {
   label: string
@@ -115,14 +118,14 @@ interface ColDef {
 
 const SECTION_HEADERS: SectionHeader[] = [
   { label: 'Company',      colSpan: 3 },
-  { label: '💼 Investment', colSpan: 4 },
-  { label: '📈 Valuation',  colSpan: 3 },
+  { label: '💼 Investment', colSpan: 3 },
+  { label: '📈 Valuation',  colSpan: 4 },
   { label: '📊 Operations', colSpan: 5 },
   { label: '🗓 Activity',   colSpan: 1 },
 ]
 
 const COLUMNS: ColDef[] = [
-  // Company (0-2)
+  // ── Company (0-2) ──
   {
     key: 'name', label: 'Name', align: 'left',
     sortValue: (row) => row.name,
@@ -143,7 +146,7 @@ const COLUMNS: ColDef[] = [
     sortValue: (row) => row.status,
     render: (row) => statusBadge(row.status),
   },
-  // Investment (3-6)
+  // ── Investment (3-5) ──
   {
     key: 'entryOwnershipPct', label: 'Entry Own.%', align: 'right',
     sortValue: (row) => row.entryOwnershipPct,
@@ -159,12 +162,12 @@ const COLUMNS: ColDef[] = [
     sortValue: (row) => row.capitalInvested,
     render: (row, sym) => <span className="tabular-nums">{fmt(row.capitalInvested, 'currency', sym)}</span>,
   },
+  // ── Valuation (6-9) ──
   {
     key: 'entryValuation', label: 'Entry Val.', align: 'right',
     sortValue: (row) => row.entryValuation,
     render: (row, sym) => <span className="tabular-nums">{fmt(row.entryValuation, 'currency', sym)}</span>,
   },
-  // Valuation (7-9)
   {
     key: 'currentValuation', label: 'Current Val.', align: 'right',
     sortValue: (row) => row.currentValuation,
@@ -187,7 +190,7 @@ const COLUMNS: ColDef[] = [
     sortValue: (row) => row.evRevenue,
     render: (row, sym) => <span className="tabular-nums">{fmt(row.evRevenue, 'multiple', sym)}</span>,
   },
-  // Operations (10-14)
+  // ── Operations (10-14) ──
   {
     key: 'mrr', label: 'MRR', align: 'right',
     sortValue: (row) => row.mrr,
@@ -230,7 +233,7 @@ const COLUMNS: ColDef[] = [
       return <span className={`tabular-nums font-medium ${color}`}>{row.runway}mo</span>
     },
   },
-  // Activity (15)
+  // ── Activity (15) ──
   {
     key: 'lastUpdateAt', label: 'Last Update', align: 'left',
     sortValue: (row) => row.lastUpdateAt ?? '',
@@ -277,26 +280,39 @@ export function DashboardManagementTable({ allGroups }: Props) {
     })
   }, [])
 
-  // Group rows by portfolioGroup, with optional sorting within each group
-  const grouped = useMemo((): [string, ManagementRow[]][] => {
+  // Group rows preserving allGroups order.
+  // Rows with no portfolioGroup go into a null bucket rendered without a header.
+  const grouped = useMemo((): [string | null, ManagementRow[]][] => {
     if (!data) return []
     const map = new Map<string, ManagementRow[]>()
+    const ungrouped: ManagementRow[] = []
+
     for (const row of data) {
-      const groups = row.portfolioGroup.length > 0 ? row.portfolioGroup : ['(no group)']
-      for (const g of groups) {
-        const list = map.get(g) ?? []
-        list.push(row)
-        map.set(g, list)
+      if (row.portfolioGroup.length === 0) {
+        ungrouped.push(row)
+      } else {
+        for (const g of row.portfolioGroup) {
+          const list = map.get(g) ?? []
+          list.push(row)
+          map.set(g, list)
+        }
       }
     }
-    const result: [string, ManagementRow[]][] = []
+
+    const result: [string | null, ManagementRow[]][] = []
+
+    // Known groups in order
     for (const g of allGroups) {
       if (map.has(g)) result.push([g, map.get(g)!])
     }
+    // Any groups not in allGroups (shouldn't happen, but safe)
     for (const [g, rows] of Array.from(map.entries())) {
       if (!allGroups.includes(g)) result.push([g, rows])
     }
+    // Ungrouped companies appended last, with null key (no header rendered)
+    if (ungrouped.length > 0) result.push([null, ungrouped])
 
+    // Apply sort within each group
     if (sortKey && sortDir) {
       const col = COLUMNS.find(c => c.key === sortKey)
       if (col) {
@@ -353,7 +369,11 @@ export function DashboardManagementTable({ allGroups }: Props) {
               <th
                 key={i}
                 colSpan={s.colSpan}
-                className={`px-3 py-1.5 text-[11px] font-semibold text-muted-foreground text-left border-r border-border last:border-r-0 ${
+                className={`px-3 py-1.5 text-[11px] font-semibold text-muted-foreground text-left ${
+                  SECTION_LAST_COL_INDICES.has(
+                    SECTION_HEADERS.slice(0, i + 1).reduce((acc, h) => acc + h.colSpan, 0) - 1
+                  ) ? 'border-r border-border' : ''
+                } last:border-r-0 ${
                   i === 0 ? 'sticky left-0 z-20 bg-card' : 'bg-muted/30'
                 }`}
               >
@@ -384,17 +404,19 @@ export function DashboardManagementTable({ allGroups }: Props) {
         <tbody>
           {grouped.map(([groupName, rows], groupIdx) => (
             <>
-              {/* Group header — stronger top border to divide sections */}
-              <tr key={`group-${groupName}`}>
-                <td
-                  colSpan={totalCols}
-                  className={`px-3 py-2 text-xs font-semibold text-muted-foreground bg-muted/40 border-t-2 border-border ${
-                    groupIdx === 0 ? 'border-t border-border' : 'border-t-2 border-border'
-                  }`}
-                >
-                  {groupName}
-                </td>
-              </tr>
+              {/* Group header — only render when group has a name */}
+              {groupName !== null && (
+                <tr key={`group-${groupName}`}>
+                  <td
+                    colSpan={totalCols}
+                    className={`px-3 py-2 text-xs font-semibold text-muted-foreground bg-muted/40 ${
+                      groupIdx === 0 ? 'border-t border-border' : 'border-t-2 border-border'
+                    }`}
+                  >
+                    {groupName}
+                  </td>
+                </tr>
+              )}
               {/* Company rows */}
               {rows.map((row, rowIdx) => (
                 <tr
