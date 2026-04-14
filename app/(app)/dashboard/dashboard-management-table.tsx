@@ -1,10 +1,11 @@
 'use client'
 
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useMemo, useCallback } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { Badge } from '@/components/ui/badge'
 import { useCurrency, getCurrencySymbol } from '@/components/currency-context'
+import { ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react'
 
 interface ManagementRow {
   companyId: string
@@ -14,6 +15,7 @@ interface ManagementRow {
   status: string
   portfolioGroup: string[]
   ownershipPct: number | null
+  entryOwnershipPct: number | null
   capitalInvested: number | null
   entryValuation: number | null
   currentValuation: number | null
@@ -94,6 +96,10 @@ function CompanyAvatar({ row }: { row: ManagementRow }) {
   )
 }
 
+// Section boundary column indices (last col index of each section, for right-border divider)
+// Company(0-2), Investment(3-5), Valuation(6-8), Operations(9-13), Activity(14)
+const SECTION_LAST_COL_INDICES = new Set([2, 5, 8, 13])
+
 interface SectionHeader {
   label: string
   colSpan: number
@@ -103,21 +109,23 @@ interface ColDef {
   key: string
   label: string
   align: 'left' | 'right' | 'center'
+  sortValue: (row: ManagementRow) => number | string | null
   render: (row: ManagementRow, symbol: string) => React.ReactNode
 }
 
 const SECTION_HEADERS: SectionHeader[] = [
-  { label: 'Company',    colSpan: 3 },
-  { label: '💼 Investment', colSpan: 3 },
-  { label: '📈 Valuation', colSpan: 3 },
+  { label: 'Company',      colSpan: 3 },
+  { label: '💼 Investment', colSpan: 4 },
+  { label: '📈 Valuation',  colSpan: 3 },
   { label: '📊 Operations', colSpan: 5 },
-  { label: '🗓 Activity',  colSpan: 1 },
+  { label: '🗓 Activity',   colSpan: 1 },
 ]
 
 const COLUMNS: ColDef[] = [
-  // Company (3)
+  // Company (0-2)
   {
     key: 'name', label: 'Name', align: 'left',
+    sortValue: (row) => row.name,
     render: (row) => (
       <Link href={`/companies/${row.companyId}`} className="flex items-center gap-2 hover:underline font-medium">
         <CompanyAvatar row={row} />
@@ -127,32 +135,44 @@ const COLUMNS: ColDef[] = [
   },
   {
     key: 'stage', label: 'Stage', align: 'center',
+    sortValue: (row) => row.stage ?? '',
     render: (row) => stageBadge(row.stage),
   },
   {
     key: 'status', label: 'Status', align: 'center',
+    sortValue: (row) => row.status,
     render: (row) => statusBadge(row.status),
   },
-  // Investment (3)
+  // Investment (3-6)
   {
-    key: 'ownershipPct', label: 'Ownership %', align: 'right',
+    key: 'entryOwnershipPct', label: 'Entry Own.%', align: 'right',
+    sortValue: (row) => row.entryOwnershipPct,
+    render: (row, sym) => <span className="tabular-nums">{fmt(row.entryOwnershipPct != null ? row.entryOwnershipPct / 100 : null, 'pct', sym)}</span>,
+  },
+  {
+    key: 'ownershipPct', label: 'Current Own.%', align: 'right',
+    sortValue: (row) => row.ownershipPct,
     render: (row, sym) => <span className="tabular-nums">{fmt(row.ownershipPct != null ? row.ownershipPct / 100 : null, 'pct', sym)}</span>,
   },
   {
     key: 'capitalInvested', label: 'Invested', align: 'right',
+    sortValue: (row) => row.capitalInvested,
     render: (row, sym) => <span className="tabular-nums">{fmt(row.capitalInvested, 'currency', sym)}</span>,
   },
   {
     key: 'entryValuation', label: 'Entry Val.', align: 'right',
+    sortValue: (row) => row.entryValuation,
     render: (row, sym) => <span className="tabular-nums">{fmt(row.entryValuation, 'currency', sym)}</span>,
   },
-  // Valuation (3)
+  // Valuation (7-9)
   {
     key: 'currentValuation', label: 'Current Val.', align: 'right',
+    sortValue: (row) => row.currentValuation,
     render: (row, sym) => <span className="tabular-nums">{fmt(row.currentValuation, 'currency', sym)}</span>,
   },
   {
     key: 'moic', label: 'MOIC', align: 'right',
+    sortValue: (row) => row.moic,
     render: (row, sym) => (
       <span className={`tabular-nums font-medium ${
         row.moic != null && row.moic >= 2 ? 'text-green-600 dark:text-green-400' :
@@ -163,16 +183,19 @@ const COLUMNS: ColDef[] = [
     ),
   },
   {
-    key: 'evRevenue', label: 'EV/Rev', align: 'right',
+    key: 'evRevenue', label: 'EV/Rev (ARR)', align: 'right',
+    sortValue: (row) => row.evRevenue,
     render: (row, sym) => <span className="tabular-nums">{fmt(row.evRevenue, 'multiple', sym)}</span>,
   },
-  // Operations (5)
+  // Operations (10-14)
   {
     key: 'mrr', label: 'MRR', align: 'right',
+    sortValue: (row) => row.mrr,
     render: (row, sym) => <span className="tabular-nums">{fmt(row.mrr, 'currency', sym)}</span>,
   },
   {
     key: 'mrrGrowth', label: 'MRR MoM', align: 'right',
+    sortValue: (row) => row.mrrGrowth,
     render: (row) => {
       if (row.mrrGrowth == null) return <span className="text-muted-foreground/40">—</span>
       const pct = row.mrrGrowth * 100
@@ -188,15 +211,18 @@ const COLUMNS: ColDef[] = [
   },
   {
     key: 'cash', label: 'Cash', align: 'right',
+    sortValue: (row) => row.cash,
     render: (row, sym) => <span className="tabular-nums">{fmt(row.cash, 'currency', sym)}</span>,
   },
   {
     key: 'burn', label: 'Burn/mo', align: 'right',
+    sortValue: (row) => row.burn,
     render: (row, sym) => <span className="tabular-nums">{fmt(row.burn, 'currency', sym)}</span>,
   },
   {
     key: 'runway', label: 'Runway', align: 'right',
-    render: (row, sym) => {
+    sortValue: (row) => row.runway,
+    render: (row) => {
       if (row.runway == null) return <span className="text-muted-foreground/40">—</span>
       const color = row.runway <= 3 ? 'text-red-500 dark:text-red-400' :
                     row.runway <= 6 ? 'text-amber-500 dark:text-amber-400' :
@@ -204,12 +230,15 @@ const COLUMNS: ColDef[] = [
       return <span className={`tabular-nums font-medium ${color}`}>{row.runway}mo</span>
     },
   },
-  // Activity (1)
+  // Activity (15)
   {
     key: 'lastUpdateAt', label: 'Last Update', align: 'left',
+    sortValue: (row) => row.lastUpdateAt ?? '',
     render: (row) => <span className="text-muted-foreground text-xs">{fmtDate(row.lastUpdateAt)}</span>,
   },
 ]
+
+type SortDir = 'asc' | 'desc' | null
 
 interface Props {
   allGroups: string[]
@@ -220,6 +249,8 @@ export function DashboardManagementTable({ allGroups }: Props) {
   const symbol = getCurrencySymbol(currency)
   const [data, setData] = useState<ManagementRow[] | null>(null)
   const [loading, setLoading] = useState(true)
+  const [sortKey, setSortKey] = useState<string | null>(null)
+  const [sortDir, setSortDir] = useState<SortDir>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -238,7 +269,15 @@ export function DashboardManagementTable({ allGroups }: Props) {
     return () => { cancelled = true }
   }, [])
 
-  // Group rows by portfolioGroup
+  const handleSort = useCallback((key: string) => {
+    setSortKey(prev => {
+      if (prev !== key) { setSortDir('asc'); return key }
+      setSortDir(d => d === 'asc' ? 'desc' : d === 'desc' ? null : 'asc')
+      return key
+    })
+  }, [])
+
+  // Group rows by portfolioGroup, with optional sorting within each group
   const grouped = useMemo((): [string, ManagementRow[]][] => {
     if (!data) return []
     const map = new Map<string, ManagementRow[]>()
@@ -250,7 +289,6 @@ export function DashboardManagementTable({ allGroups }: Props) {
         map.set(g, list)
       }
     }
-    // Order: allGroups order first, then others
     const result: [string, ManagementRow[]][] = []
     for (const g of allGroups) {
       if (map.has(g)) result.push([g, map.get(g)!])
@@ -258,8 +296,28 @@ export function DashboardManagementTable({ allGroups }: Props) {
     for (const [g, rows] of Array.from(map.entries())) {
       if (!allGroups.includes(g)) result.push([g, rows])
     }
+
+    if (sortKey && sortDir) {
+      const col = COLUMNS.find(c => c.key === sortKey)
+      if (col) {
+        return result.map(([g, rows]) => {
+          const sorted = [...rows].sort((a, b) => {
+            const va = col.sortValue(a)
+            const vb = col.sortValue(b)
+            if (va == null && vb == null) return 0
+            if (va == null) return 1
+            if (vb == null) return -1
+            if (typeof va === 'string' && typeof vb === 'string') {
+              return sortDir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va)
+            }
+            return sortDir === 'asc' ? (va as number) - (vb as number) : (vb as number) - (va as number)
+          })
+          return [g, sorted]
+        })
+      }
+    }
     return result
-  }, [data, allGroups])
+  }, [data, allGroups, sortKey, sortDir])
 
   if (loading) {
     return (
@@ -279,6 +337,12 @@ export function DashboardManagementTable({ allGroups }: Props) {
 
   const totalCols = COLUMNS.length
 
+  function SortIcon({ colKey }: { colKey: string }) {
+    if (sortKey !== colKey || sortDir === null) return <ChevronsUpDown className="inline-block ml-1 h-3 w-3 opacity-30" />
+    if (sortDir === 'asc') return <ChevronUp className="inline-block ml-1 h-3 w-3 opacity-80" />
+    return <ChevronDown className="inline-block ml-1 h-3 w-3 opacity-80" />
+  }
+
   return (
     <div className="overflow-x-auto rounded-lg border bg-card">
       <table className="w-full border-collapse text-xs whitespace-nowrap">
@@ -289,7 +353,7 @@ export function DashboardManagementTable({ allGroups }: Props) {
               <th
                 key={i}
                 colSpan={s.colSpan}
-                className={`px-3 py-1.5 text-[11px] font-semibold text-muted-foreground text-left border-r border-border/50 last:border-r-0 ${
+                className={`px-3 py-1.5 text-[11px] font-semibold text-muted-foreground text-left border-r border-border last:border-r-0 ${
                   i === 0 ? 'sticky left-0 z-20 bg-card' : 'bg-muted/30'
                 }`}
               >
@@ -302,32 +366,43 @@ export function DashboardManagementTable({ allGroups }: Props) {
             {COLUMNS.map((col, i) => (
               <th
                 key={col.key}
-                className={`px-3 py-2 font-medium text-muted-foreground text-[11px] ${
+                onClick={() => handleSort(col.key)}
+                className={`px-3 py-2 font-medium text-muted-foreground text-[11px] cursor-pointer select-none hover:text-foreground transition-colors ${
                   col.align === 'right' ? 'text-right' : col.align === 'center' ? 'text-center' : 'text-left'
                 } ${
                   i === 0 ? 'sticky left-0 z-20 bg-card' : 'bg-card'
+                } ${
+                  SECTION_LAST_COL_INDICES.has(i) ? 'border-r border-border' : ''
                 }`}
               >
                 {col.label}
+                <SortIcon colKey={col.key} />
               </th>
             ))}
           </tr>
         </thead>
         <tbody>
-          {grouped.map(([groupName, rows]) => (
+          {grouped.map(([groupName, rows], groupIdx) => (
             <>
-              {/* Group header */}
+              {/* Group header — stronger top border to divide sections */}
               <tr key={`group-${groupName}`}>
                 <td
                   colSpan={totalCols}
-                  className="px-3 py-2 text-xs font-semibold text-muted-foreground bg-muted/40 border-t border-border"
+                  className={`px-3 py-2 text-xs font-semibold text-muted-foreground bg-muted/40 border-t-2 border-border ${
+                    groupIdx === 0 ? 'border-t border-border' : 'border-t-2 border-border'
+                  }`}
                 >
                   {groupName}
                 </td>
               </tr>
               {/* Company rows */}
-              {rows.map(row => (
-                <tr key={row.companyId} className="border-t border-border/50 hover:bg-muted/30 transition-colors">
+              {rows.map((row, rowIdx) => (
+                <tr
+                  key={row.companyId}
+                  className={`hover:bg-muted/30 transition-colors ${
+                    rowIdx < rows.length - 1 ? 'border-b border-border/40' : ''
+                  }`}
+                >
                   {COLUMNS.map((col, i) => (
                     <td
                       key={col.key}
@@ -335,6 +410,8 @@ export function DashboardManagementTable({ allGroups }: Props) {
                         col.align === 'right' ? 'text-right' : col.align === 'center' ? 'text-center' : 'text-left'
                       } ${
                         i === 0 ? 'sticky left-0 z-10 bg-card hover:bg-muted/30' : ''
+                      } ${
+                        SECTION_LAST_COL_INDICES.has(i) ? 'border-r border-border/60' : ''
                       }`}
                     >
                       {col.render(row, symbol)}
