@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import Link from 'next/link'
-import { ArrowDownAZ, ArrowUpZA, ArrowDown, ArrowUp, LayoutGrid, Table2, CalendarDays, Plus, Upload, GripVertical } from 'lucide-react'
+import { ArrowDownAZ, ArrowUpZA, ArrowDown, ArrowUp, LayoutGrid, Table2, CalendarDays, Plus, Upload, GripVertical, BarChart2 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { DashboardTable } from './dashboard-table'
@@ -163,7 +163,7 @@ function CompanyAvatar({ company, onLogoUpdate }: { company: Company; onLogoUpda
 }
 
 export function DashboardCompanies({ companies, allGroups, fundId }: Props) {
-  const [view, setView] = useState<'cards' | 'table'>('cards')
+  const [view, setView] = useState<'cards' | 'table' | 'management'>('cards')
   const [statusFilter, setStatusFilter] = useState<string>('active')
   const [sortMode, setSortMode] = useState<SortMode>('investDate')
   const [alphaSortAsc, setAlphaSortAsc] = useState(true)
@@ -221,6 +221,29 @@ export function DashboardCompanies({ companies, allGroups, fundId }: Props) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const sortedFiltered = useMemo(() => sortCompanies(filtered), [filtered, sortMode, alphaSortAsc, investDateSortAsc, manualOrder])
 
+  // Group companies by portfolioGroup for management view (includes all statuses)
+  const managementGrouped = useMemo((): [string, string[]][] => {
+    const allCompanies = companies // no status filter for management view
+    const groupMap = new Map<string, string[]>()
+    for (const c of allCompanies) {
+      const groups = c.portfolioGroup && c.portfolioGroup.length > 0 ? c.portfolioGroup : ['(no group)']
+      for (const g of groups) {
+        const list = groupMap.get(g) ?? []
+        list.push(c.id)
+        groupMap.set(g, list)
+      }
+    }
+    // Sort groups: known allGroups order first, then others
+    const sorted: [string, string[]][] = []
+    for (const g of allGroups) {
+      if (groupMap.has(g)) sorted.push([g, groupMap.get(g)!])
+    }
+    for (const [g, ids] of Array.from(groupMap.entries())) {
+      if (!allGroups.includes(g)) sorted.push([g, ids])
+    }
+    return sorted
+  }, [companies, allGroups])
+
   function handleReorder(newOrder: string[]) {
     setManualOrder(newOrder)
     setSortMode('manual')
@@ -236,74 +259,80 @@ export function DashboardCompanies({ companies, allGroups, fundId }: Props) {
 
   return (
     <div>
-      {filtered.length > 0 && (
+      {(filtered.length > 0 || view === 'management') && (
         <div className="flex items-center gap-2 flex-wrap mb-4">
-          <div>
-            <label className="block text-xs text-muted-foreground mb-1">Status</label>
-            <select
-              value={statusFilter}
-              onChange={e => setStatusFilter(e.target.value)}
-              className="text-xs px-2 py-1 rounded-md border border-border bg-background"
-            >
-              <option value="">All Statuses</option>
-              <option value="active">Active</option>
-              <option value="exited">Exited</option>
-              <option value="written-off">Written Off</option>
-            </select>
-          </div>
+          {view !== 'management' && (
+            <div>
+              <label className="block text-xs text-muted-foreground mb-1">Status</label>
+              <select
+                value={statusFilter}
+                onChange={e => setStatusFilter(e.target.value)}
+                className="text-xs px-2 py-1 rounded-md border border-border bg-background"
+              >
+                <option value="">All Statuses</option>
+                <option value="active">Active</option>
+                <option value="exited">Exited</option>
+                <option value="written-off">Written Off</option>
+              </select>
+            </div>
+          )}
           <div className="ml-auto flex items-center gap-2">
             <AddCompanyButton />
+            {view !== 'management' && (
+              <>
+                <div className="w-px h-4 bg-border" />
+                <Button
+                  variant={sortMode === 'alpha' ? 'secondary' : 'ghost'}
+                  size="sm"
+                  className="text-muted-foreground hover:text-foreground"
+                  onClick={() => {
+                    if (sortMode === 'alpha') {
+                      setAlphaSortAsc(prev => !prev)
+                    } else {
+                      setSortMode('alpha')
+                    }
+                  }}
+                >
+                  {alphaSortAsc ? (
+                    <ArrowDownAZ className="h-3.5 w-3.5" />
+                  ) : (
+                    <ArrowUpZA className="h-3.5 w-3.5" />
+                  )}
+                </Button>
+                <Button
+                  variant={sortMode === 'investDate' ? 'secondary' : 'ghost'}
+                  size="sm"
+                  className="text-xs gap-1.5 text-muted-foreground hover:text-foreground"
+                  onClick={() => {
+                    if (sortMode === 'investDate') {
+                      setInvestDateSortAsc(prev => !prev)
+                    } else {
+                      setSortMode('investDate')
+                    }
+                  }}
+                >
+                  <CalendarDays className="h-3.5 w-3.5" />
+                  {investDateSortAsc ? (
+                    <ArrowUp className="h-3 w-3" />
+                  ) : (
+                    <ArrowDown className="h-3 w-3" />
+                  )}
+                </Button>
+                <Button
+                  variant={sortMode === 'manual' ? 'secondary' : 'ghost'}
+                  size="sm"
+                  title="Manual order (drag to reorder)"
+                  className="text-muted-foreground hover:text-foreground"
+                  onClick={() => {
+                    if (sortMode !== 'manual') activateManualMode()
+                  }}
+                >
+                  <GripVertical className="h-3.5 w-3.5" />
+                </Button>
+              </>
+            )}
             <div className="w-px h-4 bg-border" />
-            <Button
-              variant={sortMode === 'alpha' ? 'secondary' : 'ghost'}
-              size="sm"
-              className="text-muted-foreground hover:text-foreground"
-              onClick={() => {
-                if (sortMode === 'alpha') {
-                  setAlphaSortAsc(prev => !prev)
-                } else {
-                  setSortMode('alpha')
-                }
-              }}
-            >
-              {alphaSortAsc ? (
-                <ArrowDownAZ className="h-3.5 w-3.5" />
-              ) : (
-                <ArrowUpZA className="h-3.5 w-3.5" />
-              )}
-            </Button>
-            <Button
-              variant={sortMode === 'investDate' ? 'secondary' : 'ghost'}
-              size="sm"
-              className="text-xs gap-1.5 text-muted-foreground hover:text-foreground"
-              onClick={() => {
-                if (sortMode === 'investDate') {
-                  setInvestDateSortAsc(prev => !prev)
-                } else {
-                  setSortMode('investDate')
-                }
-              }}
-            >
-              <CalendarDays className="h-3.5 w-3.5" />
-              {investDateSortAsc ? (
-                <ArrowUp className="h-3 w-3" />
-              ) : (
-                <ArrowDown className="h-3 w-3" />
-              )}
-            </Button>
-            <Button
-              variant={sortMode === 'manual' ? 'secondary' : 'ghost'}
-              size="sm"
-              title="Manual order (drag to reorder)"
-              className="text-muted-foreground hover:text-foreground"
-              onClick={() => {
-                if (sortMode !== 'manual') activateManualMode()
-              }}
-            >
-              <GripVertical className="h-3.5 w-3.5" />
-            </Button>
-            <div className="w-px h-4 bg-border" />
-            {/* Segmented toggle — same style as Regulatory Timeline */}
+            {/* Segmented toggle */}
             <div className="flex items-center gap-0.5 border border-border rounded-md p-0.5 bg-muted/40">
               <button
                 onClick={() => setView('cards')}
@@ -325,6 +354,16 @@ export function DashboardCompanies({ companies, allGroups, fundId }: Props) {
               >
                 <Table2 className="h-3.5 w-3.5" /> Table
               </button>
+              <button
+                onClick={() => setView('management')}
+                className={`flex items-center gap-1.5 h-7 px-2.5 rounded text-xs font-medium transition-colors ${
+                  view === 'management'
+                    ? 'bg-background text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <BarChart2 className="h-3.5 w-3.5" /> Management
+              </button>
             </div>
           </div>
         </div>
@@ -334,7 +373,12 @@ export function DashboardCompanies({ companies, allGroups, fundId }: Props) {
         <p className="text-[11px] text-muted-foreground mb-3">Drag cards to reorder — order is saved automatically.</p>
       )}
 
-      {filtered.length === 0 ? (
+      {view === 'management' ? (
+        <DashboardTable
+          companyIds={companies.map(c => c.id)}
+          grouped={managementGrouped}
+        />
+      ) : filtered.length === 0 ? (
         <div className="rounded-lg border border-dashed p-12 text-center space-y-4">
           <p className="text-muted-foreground">No companies match the selected filters.</p>
           <AddCompanyButton />
