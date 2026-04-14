@@ -27,6 +27,9 @@ export function computeSummary(
   let currentOwnership: number | null = null
   let currentValuation: number | null = null
   let explicitNav: number | null = null
+
+  // Entry valuation: postmoney_valuation da transação mais antiga com esse campo preenchido
+  let entryValuation: number | null = null
   
   const cashFlows: CashFlow[] = []
   const roundMap = new Map<string, InvestmentRoundSummary>()
@@ -63,6 +66,11 @@ export function computeSummary(
     if (txn.transaction_type === 'proceeds' && txn.exit_valuation != null) val = txn.exit_valuation
     
     if (val != null) currentValuation = val
+
+    // Captura o postmoney_valuation da transação mais antiga (sortedTxns já está em ASC)
+    if (entryValuation === null && txn.postmoney_valuation != null) {
+      entryValuation = txn.postmoney_valuation
+    }
 
     if (txn.transaction_type === 'unrealized_gain_change' && txn.unrealized_value_change != null) {
       explicitNav = txn.unrealized_value_change
@@ -125,6 +133,7 @@ export function computeSummary(
     fmv: companyStatus === 'exited' ? totalRealized : unrealizedValue,
     moic,
     grossIrr,
+    entryValuation,
     rounds: [], // Pode ser populado se houver necessidade de quebra por round na UI
   }
 }
