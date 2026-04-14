@@ -6,6 +6,7 @@ import { ArrowDownAZ, ArrowUpZA, ArrowDown, ArrowUp, LayoutGrid, Table2, Calenda
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { DashboardTable } from './dashboard-table'
+import { DashboardManagementTable } from './dashboard-management-table'
 import { useCurrency, getCurrencySymbol } from '@/components/currency-context'
 import { useDisplayUnit } from '@/components/display-unit-context'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
@@ -221,29 +222,6 @@ export function DashboardCompanies({ companies, allGroups, fundId }: Props) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const sortedFiltered = useMemo(() => sortCompanies(filtered), [filtered, sortMode, alphaSortAsc, investDateSortAsc, manualOrder])
 
-  // Group companies by portfolioGroup for management view (includes all statuses)
-  const managementGrouped = useMemo((): [string, string[]][] => {
-    const allCompanies = companies // no status filter for management view
-    const groupMap = new Map<string, string[]>()
-    for (const c of allCompanies) {
-      const groups = c.portfolioGroup && c.portfolioGroup.length > 0 ? c.portfolioGroup : ['(no group)']
-      for (const g of groups) {
-        const list = groupMap.get(g) ?? []
-        list.push(c.id)
-        groupMap.set(g, list)
-      }
-    }
-    // Sort groups: known allGroups order first, then others
-    const sorted: [string, string[]][] = []
-    for (const g of allGroups) {
-      if (groupMap.has(g)) sorted.push([g, groupMap.get(g)!])
-    }
-    for (const [g, ids] of Array.from(groupMap.entries())) {
-      if (!allGroups.includes(g)) sorted.push([g, ids])
-    }
-    return sorted
-  }, [companies, allGroups])
-
   function handleReorder(newOrder: string[]) {
     setManualOrder(newOrder)
     setSortMode('manual')
@@ -374,10 +352,7 @@ export function DashboardCompanies({ companies, allGroups, fundId }: Props) {
       )}
 
       {view === 'management' ? (
-        <DashboardTable
-          companyIds={companies.map(c => c.id)}
-          grouped={managementGrouped}
-        />
+        <DashboardManagementTable allGroups={allGroups} />
       ) : filtered.length === 0 ? (
         <div className="rounded-lg border border-dashed p-12 text-center space-y-4">
           <p className="text-muted-foreground">No companies match the selected filters.</p>
