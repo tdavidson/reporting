@@ -27,7 +27,7 @@ interface ManagementRow {
   lastUpdateAt: string | null
 }
 
-// Match metric by keyword in name (case-insensitive, whole-word preferred)
+// Match metric by keyword in name (case-insensitive)
 function matchMetric(
   metrics: { id: string; name: string }[],
   keywords: string[]
@@ -59,7 +59,7 @@ export async function GET() {
   // --- Companies ---
   const { data: companiesRaw } = await admin
     .from('companies')
-    .select('id, name, stage, status, portfolio_group, logo_url')
+    .select('id, name, stage, status, portfolio_group')
     .eq('fund_id', fundId)
     .order('name')
 
@@ -69,14 +69,13 @@ export async function GET() {
     stage: string | null
     status: string
     portfolio_group: string[] | null
-    logo_url: string | null
   }[]
 
   if (companies.length === 0) return NextResponse.json({ rows: [] })
 
   const companyIds = companies.map(c => c.id)
 
-  // --- Investment data (latest ownership, valuation, invested, entry val) ---
+  // --- Investment data ---
   const { data: txnsRaw } = await admin
     .from('investment_transactions' as any)
     .select(
@@ -147,7 +146,7 @@ export async function GET() {
 
   // Fetch latest value for each relevant metric
   const latestValueMap = new Map<string, { value: number | null; date: string | null }>()
-  const prevValueMap = new Map<string, number | null>() // second-to-last for MoM growth
+  const prevValueMap = new Map<string, number | null>()
 
   if (relevantMetricIds.size > 0) {
     const { data: valuesRaw } = await admin
@@ -167,7 +166,6 @@ export async function GET() {
       updated_at: string
     }
 
-    // Group by metric_id, keep sorted (already sorted DESC)
     const byMetric = new Map<string, ValRow[]>()
     for (const v of (valuesRaw ?? []) as ValRow[]) {
       const list = byMetric.get(v.metric_id) ?? []
@@ -187,20 +185,22 @@ export async function GET() {
     }
   }
 
-  // Fetch latest metric_values updated_at per company for "Last Update"
-  const { data: lastUpdateRaw } = await admin
-    .from('metric_values')
-    .select('metric_id, updated_at')
-    .in('metric_id', Array.from(relevantMetricIds))
-    .order('updated_at', { ascending: false })
-
+  // Last update per company
   const lastUpdateByCompany = new Map<string, string>()
-  for (const r of (lastUpdateRaw ?? []) as { metric_id: string; updated_at: string }[]) {
-    const role = metricRoleMap.get(r.metric_id)
-    if (!role) continue
-    const existing = lastUpdateByCompany.get(role.companyId)
-    if (!existing || r.updated_at > existing) {
-      lastUpdateByCompany.set(role.companyId, r.updated_at)
+  if (relevantMetricIds.size > 0) {
+    const { data: lastUpdateRaw } = await admin
+      .from('metric_values')
+      .select('metric_id, updated_at')
+      .in('metric_id', Array.from(relevantMetricIds))
+      .order('updated_at', { ascending: false })
+
+    for (const r of (lastUpdateRaw ?? []) as { metric_id: string; updated_at: string }[]) {
+      const role = metricRoleMap.get(r.metric_id)
+      if (!role) continue
+      const existing = lastUpdateByCompany.get(role.companyId)
+      if (!existing || r.updated_at > existing) {
+        lastUpdateByCompany.set(role.companyId, r.updated_at)
+      }
     }
   }
 
@@ -209,7 +209,6 @@ export async function GET() {
     const txns = txnsByCompany.get(c.id) ?? []
     const metrics = metricsByCompany.get(c.id) ?? []
 
-    // Investment aggregation
     let totalInvested = 0
     let ownershipPct: number | null = null
     let entryValuation: number | null = null
@@ -243,7 +242,6 @@ export async function GET() {
       ? (currentValuation * (ownershipPct / 100)) / totalInvested
       : null
 
-    // Operations
     const mrrId = matchMetric(metrics, ['\\bmrr\\b', 'monthly recurring revenue', 'receita recorrente'])
     const cashId = matchMetric(metrics, ['\\bcash\\b', 'caixa', 'saldo'])
     const burnId = matchMetric(metrics, ['\\bburn\\b', 'queima', 'cash burn'])
@@ -261,19 +259,15 @@ export async function GET() {
       ? Math.round(cashVal / burnVal)
       : null
 
-    // EV/Revenue: current valuation / (mrr * 12) or / annual revenue
     const revenueForEv = mrrVal != null ? mrrVal * 12 : (revId ? (latestValueMap.get(revId)?.value ?? null) : null)
     const evRevenue = currentValuation != null && revenueForEv != null && revenueForEv > 0
       ? currentValuation / revenueForEv
       : null
 
-    // Last update: most recent metric update
-    const lastUpdateAt = lastUpdateByCompany.get(c.id) ?? null
-
     return {
       companyId: c.id,
       name: c.name,
-      logoUrl: c.logo_url,
+      logoUrl: null, // logo_url column not in companies schema
       stage: c.stage,
       status: c.status,
       portfolioGroup: c.portfolio_group ?? [],
@@ -288,7 +282,7 @@ export async function GET() {
       cash: cashVal,
       burn: burnVal,
       runway,
-      lastUpdateAt,
+      lastUpdateAt: lastUpdateByCompany.get(c.id) ?? null,
     }
   })
 
