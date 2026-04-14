@@ -64,12 +64,7 @@ function parseLocalDate(dateStr: string): Date {
   return new Date(y, m - 1, d)
 }
 
-function computeTotalManagementFees(
-  called: number,
-  managementFeeRate: number,
-  vintage: number | null,
-  asOfDate: string
-): number {
+function computeTotalManagementFees(called: number, managementFeeRate: number, vintage: number | null, asOfDate: string): number {
   if (!managementFeeRate || !vintage || called <= 0) return 0
   const asOfYear = asOfDate ? new Date(asOfDate + 'T00:00:00').getFullYear() : new Date().getFullYear()
   const years = Math.max(0, asOfYear - vintage)
@@ -88,31 +83,20 @@ function computeFundMetricsByGroup(
     list.push(cf)
     byGroup.set(cf.portfolio_group, list)
   }
-
   const asOfDateObj = asOfDate ? parseLocalDate(asOfDate) : new Date()
-
   const result = new Map<string, FundGroupMetrics>()
   for (const [group, flows] of Array.from(byGroup.entries())) {
-    const filteredFlows = asOfDate
-      ? flows.filter(cf => cf.flow_date <= asOfDate)
-      : flows
-
+    const filteredFlows = asOfDate ? flows.filter(cf => cf.flow_date <= asOfDate) : flows
     let called = 0
     let distributions = 0
     for (const cf of filteredFlows) {
       if (cf.flow_type === 'called_capital') called += cf.amount
       if (cf.flow_type === 'distribution') distributions += cf.amount
     }
-
     const config = configsByGroup[group] ?? { cashOnHand: 0, carryRate: 0.20, gpCommitPct: 0 }
     const rawGrossResidual = grossResidualByGroup.get(group) ?? 0
-    const grossResidual =
-      config.navMode === 'manual' && config.navOverride != null
-        ? config.navOverride
-        : rawGrossResidual
-
+    const grossResidual = config.navMode === 'manual' && config.navOverride != null ? config.navOverride : rawGrossResidual
     const grossAssets = grossResidual + config.cashOnHand
-
     const gpCapital = called * config.gpCommitPct
     const lpCapital = called - gpCapital
     const lpDistributions = distributions * (1 - config.gpCommitPct)
@@ -120,21 +104,12 @@ function computeFundMetricsByGroup(
     const estimatedCarry = Math.max(0, config.carryRate * (grossAssets * (1 - config.gpCommitPct) - lpRemainingCapital))
     const netResidual = grossAssets - estimatedCarry
     const totalValue = distributions + netResidual
-
     const tvpi = called > 0 ? totalValue / called : null
     const dpi = called > 0 ? distributions / called : null
     const rvpi = called > 0 ? netResidual / called : null
-
-    // Net MOIC: same formula as Funds page — totalValue / (called - managementFees)
-    const totalManagementFees = computeTotalManagementFees(
-      called,
-      config.managementFeeRate ?? 0,
-      config.vintage ?? null,
-      asOfDate
-    )
+    const totalManagementFees = computeTotalManagementFees(called, config.managementFeeRate ?? 0, config.vintage ?? null, asOfDate)
     const netInvestedBase = called - totalManagementFees
     const netMoic = netInvestedBase > 0 ? totalValue / netInvestedBase : null
-
     const xirrFlows: CashFlow[] = []
     for (const cf of filteredFlows) {
       if (cf.flow_type === 'called_capital') xirrFlows.push({ date: parseLocalDate(cf.flow_date), amount: -cf.amount })
@@ -142,7 +117,6 @@ function computeFundMetricsByGroup(
     }
     if (netResidual > 0) xirrFlows.push({ date: asOfDateObj, amount: netResidual })
     const netIrr = xirrFlows.length >= 2 ? xirr(xirrFlows) : null
-
     result.set(group, { tvpi, dpi, rvpi, netIrr, netMoic })
   }
   return result
@@ -159,9 +133,8 @@ interface PortfolioData {
   groups: GroupSummary[]
 }
 
-type SortKey = 'companyName' | 'status' | 'portfolioGroup' | 'totalInvested' | 'proceedsReceived' | 'unrealizedValue' | 'totalValue' | 'moic' | 'irr' | 'pctTotalValue' | 'currentStake' | 'currentValuation' | 'entryValuation'
+type SortKey = 'companyName' | 'status' | 'portfolioGroup' | 'totalInvested' | 'proceedsReceived' | 'unrealizedValue' | 'totalValue' | 'moic' | 'irr' | 'currentStake' | 'currentValuation' | 'entryValuation'
 type SortDir = 'asc' | 'desc'
-
 type GroupSortKey = 'group' | 'totalInvested' | 'proceedsReceived' | 'unrealizedValue' | 'totalValue' | 'moic' | 'irr'
 
 function totalValue(row: { totalRealized: number; unrealizedValue: number }) {
@@ -169,57 +142,29 @@ function totalValue(row: { totalRealized: number; unrealizedValue: number }) {
 }
 
 function fmtMoic(val: number | null): string {
-  if (val == null) return '-'
+  if (val == null) return '—'
   return `${val.toFixed(2)}x`
 }
 
 function fmtIrr(val: number | null): string {
-  if (val == null) return '-'
+  if (val == null) return '—'
   let pct = val * 100
   if (Object.is(pct, -0) || (pct < 0 && pct > -0.05)) pct = 0
   return `${pct.toFixed(1)}%`
 }
 
 function fmtPct(val: number | null): string {
-  if (val == null) return '-'
+  if (val == null) return '—'
   return `${val.toFixed(2)}%`
 }
 
-const STATUS_COLORS: Record<CompanyStatus, string> = {
-  active: 'text-green-600',
-  exited: 'text-blue-600',
-  'written-off': 'text-muted-foreground',
+const STATUS_BADGE: Record<CompanyStatus, { label: string; cls: string }> = {
+  active:       { label: 'Active',       cls: 'bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950 dark:text-emerald-400 dark:border-emerald-800' },
+  exited:       { label: 'Exited',       cls: 'bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-950 dark:text-blue-400 dark:border-blue-800' },
+  'written-off':{ label: 'Written-off',  cls: 'bg-zinc-100 text-zinc-500 border border-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:border-zinc-700' },
 }
 
 const TEXT_SORT_KEYS: SortKey[] = ['companyName', 'status', 'portfolioGroup']
-
-function getDerivedValue(row: CompanySummary, key: SortKey, helpers?: { pctTotalValue: (c: CompanySummary) => number | null }): number {
-  switch (key) {
-    case 'proceedsReceived': return row.proceedsReceived
-    case 'unrealizedValue': return row.unrealizedValue
-    case 'totalValue': return totalValue(row)
-    case 'totalInvested': return row.totalInvested
-    case 'moic': return row.moic ?? -Infinity
-    case 'irr': return row.irr ?? -Infinity
-    case 'pctTotalValue': return helpers?.pctTotalValue(row) ?? -Infinity
-    case 'currentStake': return row.currentStake ?? -Infinity
-    case 'currentValuation': return row.currentValuation ?? -Infinity
-    case 'entryValuation': return row.entryValuation ?? -Infinity
-    default: return 0
-  }
-}
-
-function getGroupDerivedValue(row: GroupSummary, key: GroupSortKey): number {
-  switch (key) {
-    case 'proceedsReceived': return row.proceedsReceived
-    case 'unrealizedValue': return row.unrealizedValue
-    case 'totalValue': return totalValue(row)
-    case 'totalInvested': return row.totalInvested
-    case 'moic': return row.moic ?? -Infinity
-    case 'irr': return row.irr ?? -Infinity
-    default: return 0
-  }
-}
 
 export default function InvestmentsPage() {
   const fv = useFeatureVisibility()
@@ -294,9 +239,7 @@ export default function InvestmentsPage() {
   const availableGroups = useMemo(() => {
     if (!data) return []
     const groups = new Set<string>()
-    for (const c of data.companies) {
-      for (const g of c.portfolioGroup) groups.add(g)
-    }
+    for (const c of data.companies) for (const g of c.portfolioGroup) groups.add(g)
     return Array.from(groups).sort()
   }, [data])
 
@@ -305,120 +248,66 @@ export default function InvestmentsPage() {
     const seen = new Set<string>()
     return [...data.companies]
       .sort((a, b) => a.companyName.localeCompare(b.companyName))
-      .filter(c => {
-        if (seen.has(c.companyName)) return false
-        seen.add(c.companyName)
-        return true
-      })
+      .filter(c => { if (seen.has(c.companyName)) return false; seen.add(c.companyName); return true })
       .map(c => ({ id: c.companyId, name: c.companyName }))
   }, [data])
 
   const fundMetricsByGroup = useMemo(() => {
     if (!data) return new Map<string, FundGroupMetrics>()
     const grossResidualByGroup = new Map<string, number>()
-    for (const g of data.groups ?? []) {
-      grossResidualByGroup.set(g.group, g.unrealizedValue)
-    }
+    for (const g of data.groups ?? []) grossResidualByGroup.set(g.group, g.unrealizedValue)
     return computeFundMetricsByGroup(fundCashFlows, grossResidualByGroup, groupConfigs, asOfDate)
   }, [fundCashFlows, data, groupConfigs, asOfDate])
 
   const overallFundMetrics = useMemo(() => {
-    let called = 0
-    let distributions = 0
-    let netResidual = 0
-    let totalManagementFees = 0
+    let called = 0, distributions = 0, netResidual = 0, totalManagementFees = 0
     const xirrFlows: CashFlow[] = []
-
     const asOfDateObj = asOfDate ? parseLocalDate(asOfDate) : new Date()
-
     const byGroup = new Map<string, FundCashFlow[]>()
     for (const cf of fundCashFlows) {
-      const list = byGroup.get(cf.portfolio_group) ?? []
-      list.push(cf)
-      byGroup.set(cf.portfolio_group, list)
+      const list = byGroup.get(cf.portfolio_group) ?? []; list.push(cf); byGroup.set(cf.portfolio_group, list)
     }
-
     const grossResidualByGroup = new Map<string, number>()
-    for (const g of data?.groups ?? []) {
-      grossResidualByGroup.set(g.group, g.unrealizedValue)
-    }
+    for (const g of data?.groups ?? []) grossResidualByGroup.set(g.group, g.unrealizedValue)
 
     for (const [group, flows] of Array.from(byGroup.entries())) {
-      const filteredFlows = asOfDate
-        ? flows.filter(cf => cf.flow_date <= asOfDate)
-        : flows
-
-      let gCalled = 0
-      let gDistributions = 0
+      const filteredFlows = asOfDate ? flows.filter(cf => cf.flow_date <= asOfDate) : flows
+      let gCalled = 0, gDistributions = 0
       for (const cf of filteredFlows) {
-        if (cf.flow_type === 'called_capital') {
-          gCalled += cf.amount
-          xirrFlows.push({ date: parseLocalDate(cf.flow_date), amount: -cf.amount })
-        }
-        if (cf.flow_type === 'distribution') {
-          gDistributions += cf.amount
-          xirrFlows.push({ date: parseLocalDate(cf.flow_date), amount: cf.amount })
-        }
+        if (cf.flow_type === 'called_capital') { gCalled += cf.amount; xirrFlows.push({ date: parseLocalDate(cf.flow_date), amount: -cf.amount }) }
+        if (cf.flow_type === 'distribution') { gDistributions += cf.amount; xirrFlows.push({ date: parseLocalDate(cf.flow_date), amount: cf.amount }) }
       }
-
       const config = groupConfigs[group] ?? { cashOnHand: 0, carryRate: 0.20, gpCommitPct: 0 }
       const rawGrossResidual = grossResidualByGroup.get(group) ?? 0
-      const grossResidual =
-        config.navMode === 'manual' && config.navOverride != null
-          ? config.navOverride
-          : rawGrossResidual
+      const grossResidual = config.navMode === 'manual' && config.navOverride != null ? config.navOverride : rawGrossResidual
       const grossAssets = grossResidual + config.cashOnHand
-
       const gpCapital = gCalled * config.gpCommitPct
       const lpCapital = gCalled - gpCapital
       const lpDistributions = gDistributions * (1 - config.gpCommitPct)
       const lpRemainingCapital = lpCapital - lpDistributions
       const estimatedCarry = Math.max(0, config.carryRate * (grossAssets * (1 - config.gpCommitPct) - lpRemainingCapital))
       const gNetResidual = grossAssets - estimatedCarry
-
-      const gMgmtFees = computeTotalManagementFees(
-        gCalled,
-        config.managementFeeRate ?? 0,
-        config.vintage ?? null,
-        asOfDate
-      )
-
-      called += gCalled
-      distributions += gDistributions
-      netResidual += gNetResidual
-      totalManagementFees += gMgmtFees
+      const gMgmtFees = computeTotalManagementFees(gCalled, config.managementFeeRate ?? 0, config.vintage ?? null, asOfDate)
+      called += gCalled; distributions += gDistributions; netResidual += gNetResidual; totalManagementFees += gMgmtFees
     }
 
     if (netResidual > 0) xirrFlows.push({ date: asOfDateObj, amount: netResidual })
-
     const tvpi = called > 0 ? (distributions + netResidual) / called : null
     const dpi = called > 0 ? distributions / called : null
     const rvpi = called > 0 ? netResidual / called : null
     const netInvestedBase = called - totalManagementFees
     const netMoic = netInvestedBase > 0 ? (distributions + netResidual) / netInvestedBase : null
     let netIrr = null
-    if (xirrFlows.length >= 2) {
-      try { netIrr = xirr(xirrFlows) } catch (e) { console.error(e) }
-    }
-
+    if (xirrFlows.length >= 2) { try { netIrr = xirr(xirrFlows) } catch (e) { console.error(e) } }
     return { tvpi, dpi, rvpi, netIrr, netMoic }
   }, [fundCashFlows, data, groupConfigs, asOfDate])
 
   const groupTotalsMap = useMemo(() => {
     const map = new Map<string, { totalVal: number }>()
     if (!data) return map
-    for (const g of data.groups ?? []) {
-      map.set(g.group, { totalVal: totalValue(g) })
-    }
+    for (const g of data.groups ?? []) map.set(g.group, { totalVal: totalValue(g) })
     return map
   }, [data])
-
-  function pctOfGroupTotalValue(c: CompanySummary): number | null {
-    const groupName = c.portfolioGroup[0] ?? ''
-    const gt = groupTotalsMap.get(groupName)
-    if (!gt || gt.totalVal === 0) return null
-    return totalValue(c) / gt.totalVal
-  }
 
   const filtered = useMemo(() => {
     if (!data) return []
@@ -431,25 +320,45 @@ export default function InvestmentsPage() {
       if (sortKey === 'companyName') return dir * a.companyName.localeCompare(b.companyName)
       if (sortKey === 'status') return dir * a.status.localeCompare(b.status)
       if (sortKey === 'portfolioGroup') return dir * (a.portfolioGroup.join(', ')).localeCompare(b.portfolioGroup.join(', '))
-      const helpers = { pctTotalValue: pctOfGroupTotalValue }
-      const av = getDerivedValue(a, sortKey, helpers)
-      const bv = getDerivedValue(b, sortKey, helpers)
-      return dir * (av - bv)
+      const getVal = (r: CompanySummary): number => {
+        switch (sortKey) {
+          case 'totalInvested': return r.totalInvested
+          case 'proceedsReceived': return r.proceedsReceived
+          case 'unrealizedValue': return r.unrealizedValue
+          case 'totalValue': return totalValue(r)
+          case 'moic': return r.moic ?? -Infinity
+          case 'irr': return r.irr ?? -Infinity
+          case 'currentStake': return r.currentStake ?? -Infinity
+          case 'entryValuation': return r.entryValuation ?? -Infinity
+          case 'currentValuation': return r.currentValuation ?? -Infinity
+          default: return 0
+        }
+      }
+      return dir * (getVal(a) - getVal(b))
     })
     return list
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data, statusFilter, groupFilter, companyFilter, sortKey, sortDir, groupTotalsMap])
+  }, [data, statusFilter, groupFilter, companyFilter, sortKey, sortDir])
 
   const sortedGroups = useMemo(() => {
     if (!data || !data.groups || data.groups.length === 0) return []
     const dir = groupSortDir === 'asc' ? 1 : -1
     return [...data.groups].sort((a, b) => {
       if (groupSortKey === 'group') return dir * a.group.localeCompare(b.group)
-      const av = getGroupDerivedValue(a, groupSortKey)
-      const bv = getGroupDerivedValue(b, groupSortKey)
-      return dir * (av - bv)
+      const getVal = (r: GroupSummary): number => {
+        switch (groupSortKey) {
+          case 'totalInvested': return r.totalInvested
+          case 'proceedsReceived': return r.proceedsReceived
+          case 'unrealizedValue': return r.unrealizedValue
+          case 'totalValue': return totalValue(r)
+          case 'moic': return r.moic ?? -Infinity
+          case 'irr': return r.irr ?? -Infinity
+          default: return 0
+        }
+      }
+      return dir * (getVal(a) - getVal(b))
     })
-  }, [data, groupSortKey, groupSortDir, groupConfigs])
+  }, [data, groupSortKey, groupSortDir])
 
   const groupTotals = useMemo(() => {
     if (sortedGroups.length === 0) return null
@@ -475,57 +384,34 @@ export default function InvestmentsPage() {
       t.totalCostBasisExited += c.totalCostBasisExited
     }
     const moic = t.totalInvested > 0 ? (t.totalRealized + t.unrealizedValue) / t.totalInvested : null
-
     const consolidatedFlows: CashFlow[] = []
-    for (const c of filtered) {
-      for (const cf of c.cashFlows) {
-        consolidatedFlows.push({ date: new Date(cf.date), amount: cf.amount })
-      }
-    }
-    const terminalUnrealized = filtered
-      .filter(c => c.status !== 'exited' && c.status !== 'written-off')
-      .reduce((sum, c) => sum + c.unrealizedValue, 0)
-    if (terminalUnrealized > 0) {
-      consolidatedFlows.push({ date: new Date(asOfDate || new Date().toISOString().split('T')[0]), amount: terminalUnrealized })
-    }
+    for (const c of filtered) for (const cf of c.cashFlows) consolidatedFlows.push({ date: new Date(cf.date), amount: cf.amount })
+    const terminalUnrealized = filtered.filter(c => c.status !== 'exited' && c.status !== 'written-off').reduce((sum, c) => sum + c.unrealizedValue, 0)
+    if (terminalUnrealized > 0) consolidatedFlows.push({ date: new Date(asOfDate || new Date().toISOString().split('T')[0]), amount: terminalUnrealized })
     const irr = consolidatedFlows.length >= 2 ? xirr(consolidatedFlows) : null
-
     return { ...t, moic, irr }
   }, [filtered, asOfDate])
 
   function handleSort(key: SortKey) {
-    if (sortKey === key) {
-      setSortDir(d => d === 'asc' ? 'desc' : 'asc')
-    } else {
-      setSortKey(key)
-      setSortDir(TEXT_SORT_KEYS.includes(key) ? 'asc' : 'desc')
-    }
+    if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    else { setSortKey(key); setSortDir(TEXT_SORT_KEYS.includes(key) ? 'asc' : 'desc') }
   }
 
   function handleGroupSort(key: GroupSortKey) {
-    if (groupSortKey === key) {
-      setGroupSortDir(d => d === 'asc' ? 'desc' : 'asc')
-    } else {
-      setGroupSortKey(key)
-      setGroupSortDir(key === 'group' ? 'asc' : 'desc')
-    }
+    if (groupSortKey === key) setGroupSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    else { setGroupSortKey(key); setGroupSortDir(key === 'group' ? 'asc' : 'desc') }
   }
 
   function SortIcon({ col }: { col: SortKey }) {
-    if (sortKey !== col) return null
-    return sortDir === 'asc'
-      ? <ChevronUp className="inline h-3 w-3 ml-0.5" />
-      : <ChevronDown className="inline h-3 w-3 ml-0.5" />
+    if (sortKey !== col) return <span className="inline-block w-3" />
+    return sortDir === 'asc' ? <ChevronUp className="inline h-3 w-3 ml-0.5" /> : <ChevronDown className="inline h-3 w-3 ml-0.5" />
   }
 
   function GroupSortIcon({ col }: { col: GroupSortKey }) {
     if (groupSortKey !== col) return null
-    return groupSortDir === 'asc'
-      ? <ChevronUp className="inline h-3 w-3 ml-0.5" />
-      : <ChevronDown className="inline h-3 w-3 ml-0.5" />
+    return groupSortDir === 'asc' ? <ChevronUp className="inline h-3 w-3 ml-0.5" /> : <ChevronDown className="inline h-3 w-3 ml-0.5" />
   }
 
-  // Column order: Invested | Proceeds | Current NAV | Total Value | Gross MOIC | Net MOIC | Gross IRR | Net IRR | TVPI | DPI | RVPI
   const groupNumericColumns: { label: string; sortKey: GroupSortKey; getValue: (row: GroupSummary) => number | null; format: 'currency' | 'moic' | 'irr' }[] = [
     { label: 'Invested', sortKey: 'totalInvested', getValue: r => r.totalInvested, format: 'currency' },
     { label: 'Proceeds', sortKey: 'proceedsReceived', getValue: r => r.proceedsReceived, format: 'currency' },
@@ -535,20 +421,8 @@ export default function InvestmentsPage() {
     { label: 'Gross IRR', sortKey: 'irr', getValue: r => r.irr ?? null, format: 'irr' },
   ]
 
-  const companyNumericColumns: { label: string; sortKey: SortKey; getValue: (row: CompanySummary) => number | null; format: 'currency' | 'moic' | 'irr' | 'pct' }[] = [
-    { label: 'Invested', sortKey: 'totalInvested', getValue: r => r.totalInvested, format: 'currency' },
-    { label: 'Proceeds', sortKey: 'proceedsReceived', getValue: r => r.proceedsReceived, format: 'currency' },
-    { label: 'Current NAV', sortKey: 'unrealizedValue', getValue: r => r.unrealizedValue, format: 'currency' },
-    { label: 'Total Value', sortKey: 'totalValue', getValue: r => totalValue(r), format: 'currency' },
-    { label: 'Gross MOIC', sortKey: 'moic', getValue: r => r.moic ?? null, format: 'moic' },
-    { label: 'Gross IRR', sortKey: 'irr', getValue: r => r.irr ?? null, format: 'irr' },
-    { label: 'Stake', sortKey: 'currentStake', getValue: r => r.currentStake ?? null, format: 'pct' },
-    { label: 'Entry Val.', sortKey: 'entryValuation', getValue: r => r.entryValuation ?? null, format: 'currency' },
-    { label: 'Valuation', sortKey: 'currentValuation', getValue: r => r.currentValuation ?? null, format: 'currency' },
-  ]
-
   function fmtVal(val: number | null, format: 'currency' | 'moic' | 'irr' | 'pct'): string {
-    if (val == null || val === 0) return '-'
+    if (val == null || val === 0) return '—'
     if (format === 'moic') return fmtMoic(val)
     if (format === 'irr') return fmtIrr(val)
     if (format === 'pct') return fmtPct(val)
@@ -558,7 +432,9 @@ export default function InvestmentsPage() {
   const heading = (
     <div className="mb-6 space-y-1">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2">{fv.investments === 'admin' && <Lock className="h-4 w-4 text-amber-500" />}Investments</h1>
+        <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2">
+          {fv.investments === 'admin' && <Lock className="h-4 w-4 text-amber-500" />}Investments
+        </h1>
         <div className="flex items-center gap-2"><PortfolioNotesButton /><AnalystToggleButton /></div>
       </div>
       <p className="text-sm text-muted-foreground">Portfolio-level investment positions and returns</p>
@@ -567,10 +443,7 @@ export default function InvestmentsPage() {
         <input
           type="date"
           value={asOfDate}
-          onChange={e => {
-            setAsOfDate(e.target.value)
-            localStorage.setItem('asOfDate', e.target.value)
-          }}
+          onChange={e => { setAsOfDate(e.target.value); localStorage.setItem('asOfDate', e.target.value) }}
           className="border rounded px-2 py-1 text-sm"
         />
       </div>
@@ -580,19 +453,15 @@ export default function InvestmentsPage() {
   if (loading || !asOfDate) {
     return (
       <PortfolioNotesProvider pageContext="investments">
-      <div className="p-4 md:py-8 md:pl-8 md:pr-4 w-full">
-        {heading}
-        <div className="flex flex-col lg:flex-row gap-6 items-start">
-        <div className="flex-1 min-w-0 w-full">
-          <div className="flex items-center gap-2 text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            Loading...
+        <div className="p-4 md:py-8 md:pl-8 md:pr-4 w-full">
+          {heading}
+          <div className="flex flex-col lg:flex-row gap-6 items-start">
+            <div className="flex-1 min-w-0 w-full">
+              <div className="flex items-center gap-2 text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Loading...</div>
+            </div>
+            <PortfolioNotesPanel /><AnalystPanel />
           </div>
         </div>
-        <PortfolioNotesPanel />
-        <AnalystPanel />
-        </div>
-      </div>
       </PortfolioNotesProvider>
     )
   }
@@ -600,230 +469,229 @@ export default function InvestmentsPage() {
   if (!data || data.companies.length === 0) {
     return (
       <PortfolioNotesProvider pageContext="investments">
-      <div className="p-4 md:py-8 md:pl-8 md:pr-4 w-full">
-        {heading}
-        <div className="flex flex-col lg:flex-row gap-6 items-start">
-        <div className="flex-1 min-w-0 w-full">
-          <p className="text-sm text-muted-foreground">
-            No investment data yet. Add transactions from individual company pages or use the Import page.
-          </p>
+        <div className="p-4 md:py-8 md:pl-8 md:pr-4 w-full">
+          {heading}
+          <div className="flex flex-col lg:flex-row gap-6 items-start">
+            <div className="flex-1 min-w-0 w-full">
+              <p className="text-sm text-muted-foreground">No investment data yet. Add transactions from individual company pages or use the Import page.</p>
+            </div>
+            <PortfolioNotesPanel /><AnalystPanel />
+          </div>
         </div>
-        <PortfolioNotesPanel />
-        <AnalystPanel />
-        </div>
-      </div>
       </PortfolioNotesProvider>
     )
   }
 
   return (
     <PortfolioNotesProvider pageContext="investments">
-    <div className="p-4 md:py-8 md:pl-8 md:pr-4 w-full">
-      {heading}
+      <div className="p-4 md:py-8 md:pl-8 md:pr-4 w-full">
+        {heading}
 
-      <div className="flex flex-col lg:flex-row gap-6 items-start">
-      <div className="flex-1 min-w-0 w-full">
+        <div className="flex flex-col lg:flex-row gap-6 items-start">
+          <div className="flex-1 min-w-0 w-full">
 
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
-        <Card>
-          <CardContent className="pt-4 pb-3 px-4">
-            <p className="text-xs text-muted-foreground mb-1">Total Invested</p>
-            <p className="text-xl font-semibold">{fmt(data.totalInvested)}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-3 px-4">
-            <p className="text-xs text-muted-foreground mb-1">Current NAV</p>
-            <p className="text-xl font-semibold">{fmt(data.totalFMV)}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-3 px-4">
-            <p className="text-xs text-muted-foreground mb-1">Total Realized</p>
-            <p className="text-xl font-semibold">{fmt(data.totalRealized)}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-3 px-4">
-            <p className="text-xs text-muted-foreground mb-1">Gross MOIC</p>
-            <p className="text-xl font-semibold">{fmtMoic(data.portfolioMOIC)}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-3 px-4">
-            <p className="text-xs text-muted-foreground mb-1">Gross IRR</p>
-            <p className="text-xl font-semibold">{fmtIrr(data.portfolioIRR)}</p>
-          </CardContent>
-        </Card>
-      </div>
+            {/* KPI Cards */}
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
+              <Card><CardContent className="pt-4 pb-3 px-4"><p className="text-xs text-muted-foreground mb-1">Total Invested</p><p className="text-xl font-semibold">{fmt(data.totalInvested)}</p></CardContent></Card>
+              <Card><CardContent className="pt-4 pb-3 px-4"><p className="text-xs text-muted-foreground mb-1">Current NAV</p><p className="text-xl font-semibold">{fmt(data.totalFMV)}</p></CardContent></Card>
+              <Card><CardContent className="pt-4 pb-3 px-4"><p className="text-xs text-muted-foreground mb-1">Total Realized</p><p className="text-xl font-semibold">{fmt(data.totalRealized)}</p></CardContent></Card>
+              <Card><CardContent className="pt-4 pb-3 px-4"><p className="text-xs text-muted-foreground mb-1">Gross MOIC</p><p className="text-xl font-semibold">{fmtMoic(data.portfolioMOIC)}</p></CardContent></Card>
+              <Card><CardContent className="pt-4 pb-3 px-4"><p className="text-xs text-muted-foreground mb-1">Gross IRR</p><p className="text-xl font-semibold">{fmtIrr(data.portfolioIRR)}</p></CardContent></Card>
+            </div>
 
-      {sortedGroups.length > 0 && groupTotals && (
-        <div className="mb-8">
-          <h2 className="text-sm font-medium text-muted-foreground mb-2">Portfolio Groups</h2>
-          <div className="border rounded-lg overflow-x-auto">
-            <table className="w-full text-sm whitespace-nowrap">
-              <thead>
-                <tr className="border-b bg-muted">
-                  <th className="text-left px-3 py-2 font-medium sticky left-0 bg-muted z-10">
-                    <button onClick={() => handleGroupSort('group')} className="hover:text-foreground">
-                      Group<GroupSortIcon col="group" />
-                    </button>
-                  </th>
-                  {groupNumericColumns.map(col => (
-                    <th key={col.sortKey} className="text-right px-3 py-2 font-medium">
-                      <button onClick={() => handleGroupSort(col.sortKey)} className="hover:text-foreground">
-                        {col.label}<GroupSortIcon col={col.sortKey} />
-                      </button>
+            {/* Portfolio Groups Table */}
+            {sortedGroups.length > 0 && groupTotals && (
+              <div className="mb-8">
+                <h2 className="text-sm font-medium text-muted-foreground mb-2">Portfolio Groups</h2>
+                <div className="border rounded-lg overflow-x-auto">
+                  <table className="w-full text-sm whitespace-nowrap">
+                    <thead>
+                      <tr className="border-b bg-muted">
+                        <th className="text-left px-3 py-2 font-medium sticky left-0 bg-muted z-10">
+                          <button onClick={() => handleGroupSort('group')} className="hover:text-foreground">Group<GroupSortIcon col="group" /></button>
+                        </th>
+                        {groupNumericColumns.map(col => (
+                          <th key={col.sortKey} className="text-right px-3 py-2 font-medium">
+                            <button onClick={() => handleGroupSort(col.sortKey)} className="hover:text-foreground">{col.label}<GroupSortIcon col={col.sortKey} /></button>
+                          </th>
+                        ))}
+                        <th className="text-right px-3 py-2 font-medium">Net MOIC</th>
+                        <th className="text-right px-3 py-2 font-medium">Net IRR</th>
+                        <th className="text-right px-3 py-2 font-medium">TVPI</th>
+                        <th className="text-right px-3 py-2 font-medium">DPI</th>
+                        <th className="text-right px-3 py-2 font-medium">RVPI</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {sortedGroups.length > 1 && (
+                        <tr className="border-b bg-blue-50 dark:bg-blue-950 font-medium">
+                          <td className="px-3 py-2 sticky left-0 bg-blue-50 dark:bg-blue-950 z-10">Prlx Fund I</td>
+                          {groupNumericColumns.map(col => {
+                            if (col.format === 'irr') return <td key={col.sortKey} className="px-3 py-2 text-right font-mono">{fmtIrr(data.portfolioIRR)}</td>
+                            if (col.sortKey === 'moic') return <td key={col.sortKey} className="px-3 py-2 text-right font-mono">{fmtMoic(groupTotals.moic)}</td>
+                            return <td key={col.sortKey} className="px-3 py-2 text-right font-mono">{fmtVal(col.getValue(groupTotals as unknown as GroupSummary), col.format)}</td>
+                          })}
+                          <td className="px-3 py-2 text-right font-mono">{fmtMoic(overallFundMetrics.netMoic)}</td>
+                          <td className="px-3 py-2 text-right font-mono">{fmtIrr(overallFundMetrics.netIrr)}</td>
+                          <td className="px-3 py-2 text-right font-mono">{fmtMoic(overallFundMetrics.tvpi)}</td>
+                          <td className="px-3 py-2 text-right font-mono">{fmtMoic(overallFundMetrics.dpi)}</td>
+                          <td className="px-3 py-2 text-right font-mono">{fmtMoic(overallFundMetrics.rvpi)}</td>
+                        </tr>
+                      )}
+                      {sortedGroups.map(g => {
+                        const fm = fundMetricsByGroup.get(g.group)
+                        return (
+                          <tr key={g.group} className="border-b last:border-b-0 hover:bg-muted/30">
+                            <td className="px-3 py-2 font-medium sticky left-0 bg-background z-10">{g.group || '(none)'}</td>
+                            {groupNumericColumns.map(col => (
+                              <td key={col.sortKey} className="px-3 py-2 text-right font-mono">{fmtVal(col.getValue(g), col.format)}</td>
+                            ))}
+                            <td className="px-3 py-2 text-right font-mono">{fmtMoic(fm?.netMoic ?? null)}</td>
+                            <td className="px-3 py-2 text-right font-mono">{fmtIrr(fm?.netIrr ?? null)}</td>
+                            <td className="px-3 py-2 text-right font-mono">{fmtMoic(fm?.tvpi ?? null)}</td>
+                            <td className="px-3 py-2 text-right font-mono">{fmtMoic(fm?.dpi ?? null)}</td>
+                            <td className="px-3 py-2 text-right font-mono">{fmtMoic(fm?.rvpi ?? null)}</td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* Filters */}
+            <div className="flex items-center gap-4 mb-4 flex-wrap">
+              <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="border rounded px-2 py-1 text-sm">
+                <option value="">All Statuses</option>
+                <option value="active">Active</option>
+                <option value="exited">Exited</option>
+                <option value="written-off">Written Off</option>
+              </select>
+              {availableGroups.length > 0 && (
+                <select value={groupFilter} onChange={e => setGroupFilter(e.target.value)} className="border rounded px-2 py-1 text-sm">
+                  <option value="">All Groups</option>
+                  {availableGroups.map(g => <option key={g} value={g}>{g}</option>)}
+                </select>
+              )}
+              <select value={companyFilter} onChange={e => setCompanyFilter(e.target.value)} className="border rounded px-2 py-1 text-sm">
+                <option value="">All Companies</option>
+                {availableCompanies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            </div>
+
+            {/* Companies Table — GS/McKinsey grouped headers */}
+            <div className="border rounded-lg overflow-x-auto">
+              <table className="w-full text-sm whitespace-nowrap border-collapse">
+                <thead>
+                  {/* Row 1: Section group headers */}
+                  <tr className="bg-muted border-b">
+                    {/* Company */}
+                    <th colSpan={3} className="px-3 py-1.5 text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground border-r sticky left-0 bg-muted z-10">
+                      Company
                     </th>
-                  ))}
-                  <th className="text-right px-3 py-2 font-medium">Net MOIC</th>
-                  <th className="text-right px-3 py-2 font-medium">Net IRR</th>
-                  <th className="text-right px-3 py-2 font-medium">TVPI</th>
-                  <th className="text-right px-3 py-2 font-medium">DPI</th>
-                  <th className="text-right px-3 py-2 font-medium">RVPI</th>
-                </tr>
-              </thead>
-              <tbody>
-                {sortedGroups.length > 1 && (
-                  <tr className="border-b bg-blue-50 dark:bg-blue-950 font-medium">
-                    <td className="px-3 py-2 sticky left-0 bg-blue-50 dark:bg-blue-950 z-10">Prlx Fund I</td>
-                    {groupNumericColumns.map(col => {
-                      if (col.format === 'irr') return <td key={col.sortKey} className="px-3 py-2 text-right font-mono">{fmtIrr(data.portfolioIRR)}</td>
-                      if (col.sortKey === 'moic') return <td key={col.sortKey} className="px-3 py-2 text-right font-mono">{fmtMoic(groupTotals.moic)}</td>
-                      return <td key={col.sortKey} className="px-3 py-2 text-right font-mono">{fmtVal(col.getValue(groupTotals as unknown as GroupSummary), col.format)}</td>
-                    })}
-                    <td className="px-3 py-2 text-right font-mono">{fmtMoic(overallFundMetrics.netMoic)}</td>
-                    <td className="px-3 py-2 text-right font-mono">{fmtIrr(overallFundMetrics.netIrr)}</td>
-                    <td className="px-3 py-2 text-right font-mono">{fmtMoic(overallFundMetrics.tvpi)}</td>
-                    <td className="px-3 py-2 text-right font-mono">{fmtMoic(overallFundMetrics.dpi)}</td>
-                    <td className="px-3 py-2 text-right font-mono">{fmtMoic(overallFundMetrics.rvpi)}</td>
+                    {/* Investment */}
+                    <th colSpan={3} className="px-3 py-1.5 text-center text-[11px] font-semibold uppercase tracking-wider text-muted-foreground border-r">
+                      Investment
+                    </th>
+                    {/* Valuation */}
+                    <th colSpan={3} className="px-3 py-1.5 text-center text-[11px] font-semibold uppercase tracking-wider text-muted-foreground border-r">
+                      Valuation
+                    </th>
+                    {/* Returns */}
+                    <th colSpan={2} className="px-3 py-1.5 text-center text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      Returns
+                    </th>
                   </tr>
-                )}
-                {sortedGroups.map(g => {
-                  const fm = fundMetricsByGroup.get(g.group)
-                  return (
-                    <tr key={g.group} className="border-b last:border-b-0 hover:bg-muted/30">
-                      <td className="px-3 py-2 font-medium sticky left-0 bg-background z-10">{g.group || '(none)'}</td>
-                      {groupNumericColumns.map(col => (
-                        <td key={col.sortKey} className="px-3 py-2 text-right font-mono">{fmtVal(col.getValue(g), col.format)}</td>
-                      ))}
-                      <td className="px-3 py-2 text-right font-mono">{fmtMoic(fm?.netMoic ?? null)}</td>
-                      <td className="px-3 py-2 text-right font-mono">{fmtIrr(fm?.netIrr ?? null)}</td>
-                      <td className="px-3 py-2 text-right font-mono">{fmtMoic(fm?.tvpi ?? null)}</td>
-                      <td className="px-3 py-2 text-right font-mono">{fmtMoic(fm?.dpi ?? null)}</td>
-                      <td className="px-3 py-2 text-right font-mono">{fmtMoic(fm?.rvpi ?? null)}</td>
+                  {/* Row 2: Individual column headers */}
+                  <tr className="bg-muted border-b">
+                    {/* Company cols */}
+                    <th className="text-left px-3 py-2 font-medium sticky left-0 bg-muted z-10 min-w-[160px]">
+                      <button onClick={() => handleSort('companyName')} className="hover:text-foreground">Name<SortIcon col="companyName" /></button>
+                    </th>
+                    <th className="text-left px-3 py-2 font-medium">
+                      <button onClick={() => handleSort('status')} className="hover:text-foreground">Status<SortIcon col="status" /></button>
+                    </th>
+                    <th className="text-left px-3 py-2 font-medium border-r">
+                      <button onClick={() => handleSort('portfolioGroup')} className="hover:text-foreground">Group<SortIcon col="portfolioGroup" /></button>
+                    </th>
+                    {/* Investment cols */}
+                    <th className="text-right px-3 py-2 font-medium">
+                      <button onClick={() => handleSort('currentStake')} className="hover:text-foreground">Ownership<SortIcon col="currentStake" /></button>
+                    </th>
+                    <th className="text-right px-3 py-2 font-medium">
+                      <button onClick={() => handleSort('totalInvested')} className="hover:text-foreground">Invested<SortIcon col="totalInvested" /></button>
+                    </th>
+                    <th className="text-right px-3 py-2 font-medium border-r">
+                      <button onClick={() => handleSort('entryValuation')} className="hover:text-foreground">Entry Val.<SortIcon col="entryValuation" /></button>
+                    </th>
+                    {/* Valuation cols */}
+                    <th className="text-right px-3 py-2 font-medium">
+                      <button onClick={() => handleSort('currentValuation')} className="hover:text-foreground">Current Val.<SortIcon col="currentValuation" /></button>
+                    </th>
+                    <th className="text-right px-3 py-2 font-medium">
+                      <button onClick={() => handleSort('unrealizedValue')} className="hover:text-foreground">NAV<SortIcon col="unrealizedValue" /></button>
+                    </th>
+                    <th className="text-right px-3 py-2 font-medium border-r">
+                      <button onClick={() => handleSort('proceedsReceived')} className="hover:text-foreground">Proceeds<SortIcon col="proceedsReceived" /></button>
+                    </th>
+                    {/* Returns cols */}
+                    <th className="text-right px-3 py-2 font-medium">
+                      <button onClick={() => handleSort('moic')} className="hover:text-foreground">MOIC<SortIcon col="moic" /></button>
+                    </th>
+                    <th className="text-right px-3 py-2 font-medium">
+                      <button onClick={() => handleSort('irr')} className="hover:text-foreground">IRR<SortIcon col="irr" /></button>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {/* Totals row */}
+                  <tr className="border-b bg-blue-50 dark:bg-blue-950 font-medium">
+                    <td className="px-3 py-2 sticky left-0 bg-blue-50 dark:bg-blue-950 z-10">Total ({filtered.length})</td>
+                    <td className="px-3 py-2" />
+                    <td className="px-3 py-2 border-r" />
+                    <td className="px-3 py-2 text-right font-mono">—</td>
+                    <td className="px-3 py-2 text-right font-mono">{fmtTable(totals.totalInvested)}</td>
+                    <td className="px-3 py-2 text-right font-mono border-r">—</td>
+                    <td className="px-3 py-2 text-right font-mono">—</td>
+                    <td className="px-3 py-2 text-right font-mono">{fmtTable(totals.unrealizedValue)}</td>
+                    <td className="px-3 py-2 text-right font-mono border-r">{fmtTable(totals.proceedsReceived)}</td>
+                    <td className="px-3 py-2 text-right font-mono">{fmtMoic(totals.moic)}</td>
+                    <td className="px-3 py-2 text-right font-mono">{fmtIrr(totals.irr)}</td>
+                  </tr>
+                  {/* Company rows */}
+                  {filtered.map(c => (
+                    <tr key={`${c.companyId}-${c.portfolioGroup.join('')}`} className="border-b last:border-b-0 hover:bg-muted/30 transition-colors">
+                      <td className="px-3 py-2 sticky left-0 bg-background z-10">
+                        <Link href={`/companies/${c.companyId}`} className="font-medium hover:underline">{c.companyName}</Link>
+                      </td>
+                      <td className="px-3 py-2">
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_BADGE[c.status].cls}`}>
+                          {STATUS_BADGE[c.status].label}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2 text-xs text-muted-foreground border-r">
+                        {c.portfolioGroup.length > 0 ? c.portfolioGroup.join(', ') : '—'}
+                      </td>
+                      <td className="px-3 py-2 text-right font-mono">{fmtPct(c.currentStake)}</td>
+                      <td className="px-3 py-2 text-right font-mono">{fmtTable(c.totalInvested)}</td>
+                      <td className="px-3 py-2 text-right font-mono border-r">{c.entryValuation ? fmtTable(c.entryValuation) : '—'}</td>
+                      <td className="px-3 py-2 text-right font-mono">{c.currentValuation ? fmtTable(c.currentValuation) : '—'}</td>
+                      <td className="px-3 py-2 text-right font-mono">{fmtTable(c.unrealizedValue)}</td>
+                      <td className="px-3 py-2 text-right font-mono border-r">{c.proceedsReceived > 0 ? fmtTable(c.proceedsReceived) : '—'}</td>
+                      <td className="px-3 py-2 text-right font-mono">{fmtMoic(c.moic)}</td>
+                      <td className="px-3 py-2 text-right font-mono">{fmtIrr(c.irr)}</td>
                     </tr>
-                  )
-                })}
-              </tbody>
-            </table>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
           </div>
+          <PortfolioNotesPanel />
+          <AnalystPanel />
         </div>
-      )}
-
-      <div className="flex items-center gap-4 mb-4 flex-wrap">
-        <select
-          value={statusFilter}
-          onChange={e => setStatusFilter(e.target.value)}
-          className="border rounded px-2 py-1 text-sm"
-        >
-          <option value="">All Statuses</option>
-          <option value="active">Active</option>
-          <option value="exited">Exited</option>
-          <option value="written-off">Written Off</option>
-        </select>
-        {availableGroups.length > 0 && (
-          <select
-            value={groupFilter}
-            onChange={e => setGroupFilter(e.target.value)}
-            className="border rounded px-2 py-1 text-sm"
-          >
-            <option value="">All Groups</option>
-            {availableGroups.map(g => (
-              <option key={g} value={g}>{g}</option>
-            ))}
-          </select>
-        )}
-        <select
-          value={companyFilter}
-          onChange={e => setCompanyFilter(e.target.value)}
-          className="border rounded px-2 py-1 text-sm"
-        >
-          <option value="">All Companies</option>
-          {availableCompanies.map(c => (
-            <option key={c.id} value={c.id}>{c.name}</option>
-          ))}
-        </select>
       </div>
-
-      <div className="border rounded-lg overflow-x-auto">
-        <table className="w-full text-sm whitespace-nowrap">
-          <thead>
-            <tr className="border-b bg-muted">
-              <th className="text-left px-3 py-2 font-medium sticky left-0 bg-muted z-10">
-                <button onClick={() => handleSort('companyName')} className="hover:text-foreground">
-                  Company<SortIcon col="companyName" />
-                </button>
-              </th>
-              <th className="text-left px-3 py-2 font-medium">
-                <button onClick={() => handleSort('status')} className="hover:text-foreground">
-                  Status<SortIcon col="status" />
-                </button>
-              </th>
-              <th className="text-left px-3 py-2 font-medium">
-                <button onClick={() => handleSort('portfolioGroup')} className="hover:text-foreground">
-                  Group<SortIcon col="portfolioGroup" />
-                </button>
-              </th>
-              {companyNumericColumns.map(col => (
-                <th key={col.sortKey} className="text-right px-3 py-2 font-medium">
-                  <button onClick={() => handleSort(col.sortKey)} className="hover:text-foreground">
-                    {col.label}<SortIcon col={col.sortKey} />
-                  </button>
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            <tr className="border-b bg-blue-50 dark:bg-blue-950 font-medium">
-              <td className="px-3 py-2 sticky left-0 bg-blue-50 dark:bg-blue-950 z-10">Total ({filtered.length})</td>
-              <td className="px-3 py-2" />
-              <td className="px-3 py-2" />
-              {companyNumericColumns.map(col => {
-                if (col.format === 'irr') return <td key={col.sortKey} className="px-3 py-2 text-right font-mono">{fmtIrr(totals.irr)}</td>
-                if (col.sortKey === 'moic') return <td key={col.sortKey} className="px-3 py-2 text-right font-mono">{fmtMoic(totals.moic)}</td>
-                if (col.sortKey === 'currentStake' || col.sortKey === 'currentValuation' || col.sortKey === 'entryValuation') return <td key={col.sortKey} className="px-3 py-2 text-right font-mono">-</td>
-                return <td key={col.sortKey} className="px-3 py-2 text-right font-mono">{fmtVal(col.getValue(totals as unknown as CompanySummary), col.format)}</td>
-              })}
-            </tr>
-            {filtered.map(c => (
-              <tr key={`${c.companyId}-${c.portfolioGroup.join('')}`} className="border-b last:border-b-0 hover:bg-muted/30">
-                <td className="px-3 py-2 sticky left-0 bg-background z-10">
-                  <Link href={`/companies/${c.companyId}`} className="font-medium hover:underline">
-                    {c.companyName}
-                  </Link>
-                </td>
-                <td className="px-3 py-2">
-                  <span className={`text-xs capitalize ${STATUS_COLORS[c.status]}`}>
-                    {c.status}
-                  </span>
-                </td>
-                <td className="px-3 py-2 text-xs">
-                  {c.portfolioGroup.length > 0 ? c.portfolioGroup.join(', ') : '-'}
-                </td>
-                {companyNumericColumns.map(col => (
-                  <td key={col.sortKey} className="px-3 py-2 text-right font-mono">{fmtVal(col.getValue(c), col.format)}</td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-    <PortfolioNotesPanel />
-    <AnalystPanel />
-    </div>
-    </div>
     </PortfolioNotesProvider>
   )
 }
