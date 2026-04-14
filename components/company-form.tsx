@@ -67,6 +67,10 @@ export function CompanyForm({ company, initialName, onSuccess, onCancel }: Props
   function removeAlias(a: string) { setAliases(p => p.filter(x => x !== a)) }
   function handleAliasKeyDown(e: KeyboardEvent<HTMLInputElement>) { if (e.key === 'Enter') { e.preventDefault(); addAlias() } }
 
+  function addPortfolioGroup() { const t = portfolioGroupInput.trim(); if (!t || portfolioGroups.includes(t)) return; setPortfolioGroups(p => [...p, t]); setPortfolioGroupInput('') }
+  function removePortfolioGroup(v: string) { setPortfolioGroups(p => p.filter(x => x !== v)) }
+  function handlePortfolioGroupKeyDown(e: KeyboardEvent<HTMLInputElement>) { if (e.key === 'Enter') { e.preventDefault(); addPortfolioGroup() } }
+
   async function submit() {
     if (!name.trim()) { setError('Name is required.'); return }
     setError(null)
@@ -230,7 +234,31 @@ export function CompanyForm({ company, initialName, onSuccess, onCancel }: Props
             </div>
           </div>
 
-          {/* Row 4: Site (full width) */}
+          {/* Row 4: Portfolio Group (full width) */}
+          <div className="space-y-2">
+            <Label>Portfolio Group</Label>
+            {portfolioGroups.length > 0 && (
+              <div className="flex flex-wrap gap-1 mb-1">
+                {portfolioGroups.map(val => (
+                  <Badge key={val} variant="secondary" className="gap-1 pr-1 text-xs">
+                    {val}
+                    <button type="button" onClick={() => removePortfolioGroup(val)} className="rounded-full hover:bg-muted-foreground/20 p-0.5">
+                      <X className="h-3 w-3" />
+                    </button>
+                  </Badge>
+                ))}
+              </div>
+            )}
+            <Input
+              placeholder="Add group + Enter (e.g. Fund I, Fund II)"
+              value={portfolioGroupInput}
+              onChange={e => setPortfolioGroupInput(e.target.value)}
+              onKeyDown={handlePortfolioGroupKeyDown}
+              onBlur={addPortfolioGroup}
+            />
+          </div>
+
+          {/* Row 5: Site (full width) */}
           <div className="space-y-2">
             <Label htmlFor="website">Site</Label>
             <Input id="website" placeholder="https://acme.com" value={website} onChange={e => setWebsite(e.target.value)} />
