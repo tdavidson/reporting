@@ -29,6 +29,7 @@ interface CompanySummary {
   cashFlows: { date: string; amount: number }[]
   currentStake: number | null
   currentValuation: number | null
+  entryValuation: number | null
 }
 
 interface GroupSummary {
@@ -158,7 +159,7 @@ interface PortfolioData {
   groups: GroupSummary[]
 }
 
-type SortKey = 'companyName' | 'status' | 'portfolioGroup' | 'totalInvested' | 'proceedsReceived' | 'unrealizedValue' | 'totalValue' | 'moic' | 'irr' | 'pctTotalValue' | 'currentStake' | 'currentValuation'
+type SortKey = 'companyName' | 'status' | 'portfolioGroup' | 'totalInvested' | 'proceedsReceived' | 'unrealizedValue' | 'totalValue' | 'moic' | 'irr' | 'pctTotalValue' | 'currentStake' | 'currentValuation' | 'entryValuation'
 type SortDir = 'asc' | 'desc'
 
 type GroupSortKey = 'group' | 'totalInvested' | 'proceedsReceived' | 'unrealizedValue' | 'totalValue' | 'moic' | 'irr'
@@ -203,6 +204,7 @@ function getDerivedValue(row: CompanySummary, key: SortKey, helpers?: { pctTotal
     case 'pctTotalValue': return helpers?.pctTotalValue(row) ?? -Infinity
     case 'currentStake': return row.currentStake ?? -Infinity
     case 'currentValuation': return row.currentValuation ?? -Infinity
+    case 'entryValuation': return row.entryValuation ?? -Infinity
     default: return 0
   }
 }
@@ -541,6 +543,7 @@ export default function InvestmentsPage() {
     { label: 'Gross MOIC', sortKey: 'moic', getValue: r => r.moic ?? null, format: 'moic' },
     { label: 'Gross IRR', sortKey: 'irr', getValue: r => r.irr ?? null, format: 'irr' },
     { label: 'Stake', sortKey: 'currentStake', getValue: r => r.currentStake ?? null, format: 'pct' },
+    { label: 'Entry Val.', sortKey: 'entryValuation', getValue: r => r.entryValuation ?? null, format: 'currency' },
     { label: 'Valuation', sortKey: 'currentValuation', getValue: r => r.currentValuation ?? null, format: 'currency' },
   ]
 
@@ -789,7 +792,7 @@ export default function InvestmentsPage() {
               {companyNumericColumns.map(col => {
                 if (col.format === 'irr') return <td key={col.sortKey} className="px-3 py-2 text-right font-mono">{fmtIrr(totals.irr)}</td>
                 if (col.sortKey === 'moic') return <td key={col.sortKey} className="px-3 py-2 text-right font-mono">{fmtMoic(totals.moic)}</td>
-                if (col.sortKey === 'currentStake' || col.sortKey === 'currentValuation') return <td key={col.sortKey} className="px-3 py-2 text-right font-mono">-</td>
+                if (col.sortKey === 'currentStake' || col.sortKey === 'currentValuation' || col.sortKey === 'entryValuation') return <td key={col.sortKey} className="px-3 py-2 text-right font-mono">-</td>
                 return <td key={col.sortKey} className="px-3 py-2 text-right font-mono">{fmtVal(col.getValue(totals as unknown as CompanySummary), col.format)}</td>
               })}
             </tr>
