@@ -618,6 +618,11 @@ const FEATURE_META: Record<FeatureKey, { label: string; description: string; hre
   lp_associates: { label: 'GP Entities', description: 'Entity ownership mappings and pro-rata associates calculations for LP reporting', href: '/support#lps' },
   compliance: { label: 'Compliance', description: 'Track regulatory deadlines, filings, and compliance workflows', href: '/support#compliance' },
   vc_market: { label: 'VC Market', description: 'Deal flow and market intelligence scraped from VC news sources', href: '/support#vc-market' },
+  emails: { label: 'E-mail', description: 'Email inbox and outbox linked to portfolio companies', href: '/support#emails' },
+  review: { label: 'Review', description: 'Review queue for pending company data updates submitted by the team', href: '/support#review' },
+  news: { label: 'News', description: 'Curated news feed with articles mentioning our portfolio companies', href: '/support#news' },
+  regulacoes: { label: 'Regulation', description: 'Brazilian Financial Markets regulatory updates relevant to our Portfolio companies', href: '/support#regulation' },
+  updates: { label: 'Updates', description: 'Platform version update notifications and release notes', href: '/support#updates' },
 }
 
 const VISIBILITY_OPTIONS: { value: FeatureVisibility; label: string; description: string }[] = [
