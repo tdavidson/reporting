@@ -302,12 +302,30 @@ export function DashboardCompanies({ companies, allGroups, fundId }: Props) {
             >
               <GripVertical className="h-3.5 w-3.5" />
             </Button>
-            <Button variant={view === 'cards' ? 'secondary' : 'ghost'} size="sm" className="text-muted-foreground hover:text-foreground" onClick={() => setView('cards')}>
-              <LayoutGrid className="h-3.5 w-3.5" />
-            </Button>
-            <Button variant={view === 'table' ? 'secondary' : 'ghost'} size="sm" className="text-muted-foreground hover:text-foreground" onClick={() => setView('table')}>
-              <Table2 className="h-3.5 w-3.5" />
-            </Button>
+            <div className="w-px h-4 bg-border" />
+            {/* Segmented toggle — same style as Regulatory Timeline */}
+            <div className="flex items-center gap-0.5 border border-border rounded-md p-0.5 bg-muted/40">
+              <button
+                onClick={() => setView('cards')}
+                className={`flex items-center gap-1.5 h-7 px-2.5 rounded text-xs font-medium transition-colors ${
+                  view === 'cards'
+                    ? 'bg-background text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <LayoutGrid className="h-3.5 w-3.5" /> Cards
+              </button>
+              <button
+                onClick={() => setView('table')}
+                className={`flex items-center gap-1.5 h-7 px-2.5 rounded text-xs font-medium transition-colors ${
+                  view === 'table'
+                    ? 'bg-background text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <Table2 className="h-3.5 w-3.5" /> Table
+              </button>
+            </div>
           </div>
         </div>
       )}
