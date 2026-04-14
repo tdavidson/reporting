@@ -26,4 +26,5 @@ export interface CompanyInvestmentSummary {
   moic: number | null
   grossIrr: number | null
   rounds: InvestmentRoundSummary[]
+  entryValuation: number | null
 }
