@@ -88,6 +88,7 @@ export async function GET(req: NextRequest) {
     cashFlows: { date: string; amount: number }[]
     currentStake: number | null
     currentValuation: number | null
+    entryValuation: number | null
   }[] = []
 
   for (const [companyId, txns] of Array.from(byCompany.entries())) {
@@ -247,6 +248,7 @@ export async function GET(req: NextRequest) {
 
       let currentOwnership: number | null = null
       let currentValuation: number | null = null
+      let entryValuation: number | null = null
       let explicitNav: number | null = null
 
       for (const txn of sortedGTxns) {
@@ -258,7 +260,11 @@ export async function GET(req: NextRequest) {
         if (txn.transaction_type === 'unrealized_gain_change') val = txn.latest_postmoney_valuation
         if (txn.transaction_type === 'proceeds' && txn.exit_valuation != null) val = txn.exit_valuation
 
-        if (val != null) currentValuation = val
+        if (val != null) {
+          // First non-null valuation seen (earliest date) = entry valuation
+          if (entryValuation === null) entryValuation = val
+          currentValuation = val
+        }
 
         if (txn.transaction_type === 'unrealized_gain_change' && txn.unrealized_value_change != null) {
           explicitNav = txn.unrealized_value_change
@@ -336,6 +342,7 @@ export async function GET(req: NextRequest) {
         cashFlows: serializedCashFlows,
         currentStake: currentOwnership,
         currentValuation,
+        entryValuation,
       })
     }
   }
