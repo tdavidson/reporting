@@ -9,6 +9,7 @@ interface ManagementRow {
   stage: string | null
   status: string
   portfolioGroup: string[]
+  entryOwnershipPct: number | null
   ownershipPct: number | null
   capitalInvested: number | null
   entryValuation: number | null
@@ -101,7 +102,7 @@ export async function GET() {
 
   const companyIds = companies.map(c => c.id)
 
-  // Investment transactions — cast through unknown to bypass Supabase type inference
+  // Investment transactions
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: txnsRaw } = await (admin as any)
     .from('investment_transactions')
@@ -202,6 +203,7 @@ export async function GET() {
     const metrics = metricsByCompany.get(c.id) ?? []
 
     let totalInvested = 0
+    let entryOwnershipPct: number | null = null
     let ownershipPct: number | null = null
     let entryValuation: number | null = null
     let currentValuation: number | null = null
@@ -209,7 +211,11 @@ export async function GET() {
     for (const t of txns) {
       if (t.transaction_type === 'investment') {
         totalInvested += t.investment_cost ?? 0
-        if (t.ownership_pct != null) ownershipPct = t.ownership_pct
+        // First investment sets entryOwnershipPct
+        if (t.ownership_pct != null) {
+          if (entryOwnershipPct === null) entryOwnershipPct = t.ownership_pct
+          ownershipPct = t.ownership_pct
+        }
         const val = t.postmoney_valuation
         if (val != null) {
           if (entryValuation === null) entryValuation = val
@@ -251,6 +257,9 @@ export async function GET() {
       ? Math.round(cashVal / burnVal)
       : null
 
+    // EV/Rev always on annualized basis:
+    // - if MRR is available  → ARR = MRR × 12
+    // - if annual revenue metric → use as-is
     const revenueForEv = mrrVal != null
       ? mrrVal * 12
       : revId ? (latestValueMap.get(revId)?.value ?? null) : null
@@ -265,6 +274,7 @@ export async function GET() {
       stage: c.stage,
       status: c.status,
       portfolioGroup: c.portfolio_group ?? [],
+      entryOwnershipPct,
       ownershipPct,
       capitalInvested: totalInvested > 0 ? totalInvested : null,
       entryValuation,
