@@ -26,7 +26,7 @@ const NAV_ITEMS: { href: string; label: string; icon: LucideIcon; badgeKey?: 're
   { href: '/news', label: 'News', icon: Newspaper, featureKey: 'news' },
   { href: '/vc-market', label: 'VC Market', icon: Globe2, featureKey: 'vc_market', beta: true  },
   { href: '/regulacoes', label: 'Regulation', icon: Scale, featureKey: 'regulacoes', beta: true },
-  { href: '/benchmarking', label: 'Benchmarking', icon: TrendingUp, featureKey: 'investments', beta: true },
+  { href: '/benchmarking', label: 'Benchmarking', icon: TrendingUp, featureKey: 'benchmarking', beta: true },
  
   { href: '/letters', label: 'Letters', icon: FileText, featureKey: 'lp_letters' },
   { href: '/lps', label: 'LPs', icon: Crown, featureKey: 'lps' },
