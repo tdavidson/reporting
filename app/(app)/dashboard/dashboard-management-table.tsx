@@ -79,15 +79,14 @@ function fmtDate(iso: string | null): string {
 const SECTION_LAST_COL_INDICES = new Set([2, 5, 9, 14])
 const NAME_COL_IDX = 0
 
-// ── Multi-select dropdown ────────────────────────────────────────────────────
+// bg for sticky Name column — light gray in both modes
+const NAME_BG = 'bg-muted/50 dark:bg-muted/30'
+
+// ── Multi-select dropdown ─────────────────────────────────────────────────
 interface DropdownOption { value: string; label: string }
 
 function MultiSelectDropdown({
-  label,
-  options,
-  selected,
-  onToggle,
-  onClear,
+  label, options, selected, onToggle, onClear,
 }: {
   label: string
   options: DropdownOption[]
@@ -126,17 +125,13 @@ function MultiSelectDropdown({
         )}
         <ChevronDownSmall className={`h-3 w-3 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
-
       {open && (
         <div className="absolute top-full left-0 mt-1 z-50 bg-popover border border-border rounded-lg shadow-lg min-w-[160px] py-1 text-xs">
           {options.map(opt => {
             const checked = selected.includes(opt.value)
             return (
-              <button
-                key={opt.value}
-                onClick={() => onToggle(opt.value)}
-                className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-muted/60 transition-colors text-left"
-              >
+              <button key={opt.value} onClick={() => onToggle(opt.value)}
+                className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-muted/60 transition-colors text-left">
                 <span className={`w-4 h-4 flex-shrink-0 rounded border flex items-center justify-center transition-colors ${
                   checked ? 'bg-primary border-primary' : 'border-border bg-background'
                 }`}>
@@ -151,12 +146,9 @@ function MultiSelectDropdown({
           {count > 0 && (
             <>
               <div className="h-px bg-border mx-2 my-1" />
-              <button
-                onClick={() => { onClear(); setOpen(false) }}
-                className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-muted/60 transition-colors text-left text-muted-foreground hover:text-foreground"
-              >
-                <X className="h-3 w-3" />
-                Clear
+              <button onClick={() => { onClear(); setOpen(false) }}
+                className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-muted/60 transition-colors text-left text-muted-foreground hover:text-foreground">
+                <X className="h-3 w-3" />Clear
               </button>
             </>
           )}
@@ -193,16 +185,8 @@ const COLUMNS: ColDef[] = [
       </Link>
     ),
   },
-  {
-    key: 'stage', label: 'Stage',
-    sortValue: (row) => row.stage ?? '',
-    render: (row) => stageBadge(row.stage),
-  },
-  {
-    key: 'status', label: 'Status',
-    sortValue: (row) => row.status,
-    render: (row) => statusBadge(row.status),
-  },
+  { key: 'stage',  label: 'Stage',  sortValue: (row) => row.stage ?? '', render: (row) => stageBadge(row.stage) },
+  { key: 'status', label: 'Status', sortValue: (row) => row.status,      render: (row) => statusBadge(row.status) },
   {
     key: 'entryOwnershipPct', label: 'Entry Own.%',
     sortValue: (row) => row.entryOwnershipPct,
@@ -235,9 +219,7 @@ const COLUMNS: ColDef[] = [
       <span className={`tabular-nums font-medium ${
         row.moic != null && row.moic >= 2 ? 'text-green-600 dark:text-green-400' :
         row.moic != null && row.moic < 1  ? 'text-red-500 dark:text-red-400' : ''
-      }`}>
-        {fmt(row.moic, 'multiple')}
-      </span>
+      }`}>{fmt(row.moic, 'multiple')}</span>
     ),
   },
   {
@@ -260,9 +242,7 @@ const COLUMNS: ColDef[] = [
       return (
         <span className={`tabular-nums font-medium ${
           isPos ? 'text-green-600 dark:text-green-400' : 'text-red-500 dark:text-red-400'
-        }`}>
-          {isPos ? '+' : ''}{pct.toFixed(1)}%
-        </span>
+        }`}>{isPos ? '+' : ''}{pct.toFixed(1)}%</span>
       )
     },
   },
@@ -302,9 +282,7 @@ const STATUS_OPTIONS: DropdownOption[] = [
 
 type SortDir = 'asc' | 'desc' | null
 
-interface Props {
-  allGroups: string[]
-}
+interface Props { allGroups: string[] }
 
 export function DashboardManagementTable({ allGroups }: Props) {
   const currency = useCurrency()
@@ -348,7 +326,6 @@ export function DashboardManagementTable({ allGroups }: Props) {
     setFilterStatus(prev => prev.includes(v) ? prev.filter(x => x !== v) : [...prev, v])
   const toggleStage = (v: string) =>
     setFilterStage(prev => prev.includes(v) ? prev.filter(x => x !== v) : [...prev, v])
-
   const hasFilters = filterStatus.length > 0 || filterStage.length > 0
   const clearAll   = () => { setFilterStatus([]); setFilterStage([]) }
 
@@ -423,30 +400,12 @@ export function DashboardManagementTable({ allGroups }: Props) {
     <div className="space-y-3">
       {/* ── Filter bar ── */}
       <div className="flex flex-wrap items-center gap-2">
-        <MultiSelectDropdown
-          label="Status"
-          options={STATUS_OPTIONS}
-          selected={filterStatus}
-          onToggle={toggleStatus}
-          onClear={() => setFilterStatus([])}
-        />
-        <MultiSelectDropdown
-          label="Stage"
-          options={stageOptions}
-          selected={filterStage}
-          onToggle={toggleStage}
-          onClear={() => setFilterStage([])}
-        />
+        <MultiSelectDropdown label="Status" options={STATUS_OPTIONS} selected={filterStatus} onToggle={toggleStatus} onClear={() => setFilterStatus([])} />
+        <MultiSelectDropdown label="Stage"  options={stageOptions}   selected={filterStage}  onToggle={toggleStage}  onClear={() => setFilterStage([])} />
         {hasFilters && (
-          <button
-            onClick={clearAll}
-            className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors ml-1"
-          >
-            <X className="h-3 w-3" />
-            Clear all
-            <span className="ml-1 bg-muted text-muted-foreground px-1.5 py-0.5 rounded-full text-[10px]">
-              {totalRows}
-            </span>
+          <button onClick={clearAll} className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors ml-1">
+            <X className="h-3 w-3" />Clear all
+            <span className="ml-1 bg-muted text-muted-foreground px-1.5 py-0.5 rounded-full text-[10px]">{totalRows}</span>
           </button>
         )}
       </div>
@@ -455,9 +414,7 @@ export function DashboardManagementTable({ allGroups }: Props) {
       <div className="overflow-x-auto rounded-lg border bg-card">
         <table className="border-collapse text-xs whitespace-nowrap" style={{ tableLayout: 'auto', width: '100%' }}>
           <colgroup>
-            {/* col 0: Name — auto-sized to widest content */}
             <col />
-            {/* cols 1+: fixed equal width */}
             {COLUMNS.slice(1).map(col => (
               <col key={col.key} style={{ width: '100px', minWidth: '100px' }} />
             ))}
@@ -466,13 +423,12 @@ export function DashboardManagementTable({ allGroups }: Props) {
           <thead>
             {/* ── Section header row ── */}
             <tr className="border-b border-primary/30">
-              {/* col 0: sticky, carries "Company" label */}
-              <th colSpan={1} className="px-3 py-1.5 text-[11px] font-semibold text-left bg-primary text-primary-foreground sticky left-0 z-20">
+              {/* col 0: sticky Name cell */}
+              <th colSpan={1} className={`px-3 py-1.5 text-[11px] font-semibold text-left bg-primary text-primary-foreground sticky left-0 z-20`}>
                 Company
               </th>
-              {/* cols 1-2: Stage + Status — NOT sticky */}
+              {/* cols 1-2: Stage + Status continuation */}
               <th colSpan={SECTION_HEADERS[0].colSpan - 1} className="px-3 py-1.5 bg-primary text-primary-foreground border-r border-primary-foreground/20" />
-              {/* remaining section headers */}
               {SECTION_HEADERS.slice(1).map((s, i) => {
                 const globalIdx = i + 1
                 const isLast = SECTION_LAST_COL_INDICES.has(
@@ -489,14 +445,17 @@ export function DashboardManagementTable({ allGroups }: Props) {
               })}
             </tr>
 
-            {/* ── Column header row ── */}
+            {/* ── Column header row — bold ── */}
             <tr className="border-b border-border">
               {COLUMNS.map((col, i) => (
                 <th key={col.key} onClick={() => handleSort(col.key)}
                   className={[
-                    'px-3 py-2 font-medium text-muted-foreground text-[11px] cursor-pointer select-none',
-                    'hover:text-foreground transition-colors bg-card',
-                    i === NAME_COL_IDX ? 'sticky left-0 z-20 text-left' : 'text-center',
+                    'px-3 py-2 text-[11px] font-bold cursor-pointer select-none',
+                    'hover:text-foreground transition-colors',
+                    // Name header shares the same gray bg as the data cells
+                    i === NAME_COL_IDX
+                      ? `sticky left-0 z-20 text-left text-foreground ${NAME_BG}`
+                      : 'text-center text-muted-foreground bg-card',
                     SECTION_LAST_COL_INDICES.has(i) ? 'border-r border-border' : '',
                   ].join(' ')}>
                   {col.label}<SortIcon colKey={col.key} />
@@ -526,14 +485,17 @@ export function DashboardManagementTable({ allGroups }: Props) {
                 )}
                 {rows.map((row, rowIdx) => (
                   <tr key={row.companyId}
-                    className={`hover:bg-muted/30 transition-colors ${
+                    className={`transition-colors ${
                       rowIdx < rows.length - 1 ? 'border-b border-border/40' : ''
                     }`}>
                     {COLUMNS.map((col, i) => (
                       <td key={col.key}
                         className={[
                           'px-3 py-2',
-                          i === NAME_COL_IDX ? 'sticky left-0 z-10 bg-card text-left' : 'text-center',
+                          i === NAME_COL_IDX
+                            // sticky gray bg — no hover override so the gray stays visible
+                            ? `sticky left-0 z-10 text-left ${NAME_BG}`
+                            : 'text-center hover:bg-muted/30',
                           SECTION_LAST_COL_INDICES.has(i) ? 'border-r border-border/60' : '',
                         ].join(' ')}>
                         {col.render(row, symbol)}
