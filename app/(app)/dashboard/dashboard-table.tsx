@@ -28,13 +28,14 @@ interface CompanyData {
 interface Props {
   companyIds: string[]
   grouped: [string, string[]][] | null
+  hideCompanyColumn?: boolean
 }
 
 function formatValue(v: number | string | null, metric: MetricData, fundCurrency?: string): string {
   if (v === null || v === undefined) return '—'
   if (typeof v === 'string') return v
   let str: string
-if (Math.abs(v) >= 1_000_000) str = (v / 1_000_000).toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + 'M'
+  if (Math.abs(v) >= 1_000_000) str = (v / 1_000_000).toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + 'M'
   else if (Math.abs(v) >= 1_000) str = (v / 1_000).toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + 'K'
   else str = v.toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
   const metricCurrency = metric.currency ?? fundCurrency
@@ -47,7 +48,7 @@ if (Math.abs(v) >= 1_000_000) str = (v / 1_000_000).toLocaleString('en-US', { mi
   return str
 }
 
-export function DashboardTable({ companyIds, grouped }: Props) {
+export function DashboardTable({ companyIds, grouped, hideCompanyColumn = false }: Props) {
   const fundCurrency = useCurrency()
   const [data, setData] = useState<CompanyData[] | null>(null)
   const [loading, setLoading] = useState(true)
@@ -69,7 +70,6 @@ export function DashboardTable({ companyIds, grouped }: Props) {
     return () => { cancelled = true }
   }, [])
 
-  // Index companies by ID for fast lookup
   const companyMap = useMemo(() => {
     if (!data) return new Map<string, CompanyData>()
     const map = new Map<string, CompanyData>()
@@ -77,7 +77,6 @@ export function DashboardTable({ companyIds, grouped }: Props) {
     return map
   }, [data])
 
-  // Determine quarter columns from all data
   const quarterColumns = useMemo(() => {
     if (!data) return []
     const quarters = new Set<string>()
@@ -88,7 +87,6 @@ export function DashboardTable({ companyIds, grouped }: Props) {
         }
       }
     }
-    // Sort chronologically: Q1 2025, Q2 2025, ..., Q1 2026
     return Array.from(quarters).sort((a, b) => {
       const [qa, ya] = a.split(' ')
       const [qb, yb] = b.split(' ')
@@ -115,7 +113,7 @@ export function DashboardTable({ companyIds, grouped }: Props) {
   }
 
   const companyColWidth = 110
-  const metricColWidth = 100
+  const metricColWidth = hideCompanyColumn ? 160 : 100
 
   function renderCompanyRows(ids: string[]) {
     const rows: React.ReactNode[] = []
@@ -130,21 +128,27 @@ export function DashboardTable({ companyIds, grouped }: Props) {
             key={`${id}-${metric?.id ?? 'empty'}`}
             className={`${mIdx === 0 ? 'border-t border-border' : ''} hover:bg-muted/50`}
           >
-            {/* Company name - only on first metric row */}
-            <td
-              className="sticky left-0 z-10 bg-card px-2 py-1.5 text-xs font-medium truncate"
-              style={{ width: companyColWidth, minWidth: companyColWidth }}
-            >
-              {mIdx === 0 ? (
-                <Link href={`/companies/${id}`} className="hover:underline">
-                  {company.name}
-                </Link>
-              ) : null}
-            </td>
+            {/* Company name col — omitted when hideCompanyColumn is true */}
+            {!hideCompanyColumn && (
+              <td
+                className="sticky left-0 z-10 bg-card px-2 py-1.5 text-xs font-medium truncate"
+                style={{ width: companyColWidth, minWidth: companyColWidth }}
+              >
+                {mIdx === 0 ? (
+                  <Link href={`/companies/${id}`} className="hover:underline">
+                    {company.name}
+                  </Link>
+                ) : null}
+              </td>
+            )}
             {/* Metric name */}
             <td
               className="sticky z-10 bg-card px-2 py-1.5 text-xs text-muted-foreground truncate"
-              style={{ left: companyColWidth, width: metricColWidth, minWidth: metricColWidth }}
+              style={{
+                left: hideCompanyColumn ? 0 : companyColWidth,
+                width: metricColWidth,
+                minWidth: metricColWidth,
+              }}
             >
               {metric ? metric.name : <span className="text-muted-foreground/50">—</span>}
             </td>
@@ -170,22 +174,28 @@ export function DashboardTable({ companyIds, grouped }: Props) {
     return rows
   }
 
-  const totalCols = 2 + quarterColumns.length
+  const totalCols = (hideCompanyColumn ? 1 : 2) + quarterColumns.length
 
   return (
     <div className="overflow-x-auto rounded-lg border bg-card">
       <table className="w-full border-collapse">
         <thead>
           <tr className="border-b border-border">
-            <th
-              className="sticky left-0 z-20 bg-card px-3 py-2 text-left text-[11px] font-medium text-muted-foreground"
-              style={{ width: companyColWidth, minWidth: companyColWidth }}
-            >
-              Company
-            </th>
+            {!hideCompanyColumn && (
+              <th
+                className="sticky left-0 z-20 bg-card px-3 py-2 text-left text-[11px] font-medium text-muted-foreground"
+                style={{ width: companyColWidth, minWidth: companyColWidth }}
+              >
+                Company
+              </th>
+            )}
             <th
               className="sticky z-20 bg-card px-3 py-2 text-left text-[11px] font-medium text-muted-foreground"
-              style={{ left: companyColWidth, width: metricColWidth, minWidth: metricColWidth }}
+              style={{
+                left: hideCompanyColumn ? 0 : companyColWidth,
+                width: metricColWidth,
+                minWidth: metricColWidth,
+              }}
             >
               Metric
             </th>
