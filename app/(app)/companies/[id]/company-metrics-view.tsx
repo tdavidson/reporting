@@ -38,27 +38,29 @@ export function CompanyMetricsView({ companyId, companyName, metrics, isAdmin, a
   return (
     <div>
       {hydrated && (
-        <div className="flex items-center gap-0.5 border border-border rounded-md p-0.5 bg-muted/40 w-fit">
-          <button
-            onClick={() => switchView('charts')}
-            className={`flex items-center gap-1.5 h-7 px-2.5 rounded text-xs font-medium transition-colors ${
-              view === 'charts'
-                ? 'bg-background text-foreground shadow-sm'
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            <BarChart2 className="h-3.5 w-3.5" /> Charts
-          </button>
-          <button
-            onClick={() => switchView('table')}
-            className={`flex items-center gap-1.5 h-7 px-2.5 rounded text-xs font-medium transition-colors ${
-              view === 'table'
-                ? 'bg-background text-foreground shadow-sm'
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            <Table2 className="h-3.5 w-3.5" /> Table
-          </button>
+        <div className="flex justify-end">
+          <div className="flex items-center gap-0.5 border border-border rounded-md p-0.5 bg-muted/40 w-fit">
+            <button
+              onClick={() => switchView('charts')}
+              className={`flex items-center gap-1.5 h-7 px-2.5 rounded text-xs font-medium transition-colors ${
+                view === 'charts'
+                  ? 'bg-background text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <BarChart2 className="h-3.5 w-3.5" /> Charts
+            </button>
+            <button
+              onClick={() => switchView('table')}
+              className={`flex items-center gap-1.5 h-7 px-2.5 rounded text-xs font-medium transition-colors ${
+                view === 'table'
+                  ? 'bg-background text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <Table2 className="h-3.5 w-3.5" /> Table
+            </button>
+          </div>
         </div>
       )}
 
