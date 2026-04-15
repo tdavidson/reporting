@@ -31,10 +31,10 @@ interface ManagementRow {
 const STAGE_ORDER = ['Pre-Seed', 'Seed', 'Series A', 'Series B', 'Series C', 'Growth', 'IPO track']
 
 const STAGE_COLORS: Record<string, { bg: string; text: string }> = {
-  'Pre-Seed': { bg: 'bg-sky-100 dark:bg-sky-950',    text: 'text-sky-700 dark:text-sky-400' },
-  'Seed':     { bg: 'bg-sky-200 dark:bg-sky-900',    text: 'text-sky-700 dark:text-sky-300' },
-  'Series A': { bg: 'bg-blue-200 dark:bg-blue-900',  text: 'text-blue-700 dark:text-blue-300' },
-  'Series B': { bg: 'bg-blue-300 dark:bg-blue-800',  text: 'text-blue-800 dark:text-blue-200' },
+  'Pre-Seed': { bg: 'bg-sky-100 dark:bg-sky-950',       text: 'text-sky-700 dark:text-sky-400' },
+  'Seed':     { bg: 'bg-sky-200 dark:bg-sky-900',       text: 'text-sky-700 dark:text-sky-300' },
+  'Series A': { bg: 'bg-blue-200 dark:bg-blue-900',     text: 'text-blue-700 dark:text-blue-300' },
+  'Series B': { bg: 'bg-blue-300 dark:bg-blue-800',     text: 'text-blue-800 dark:text-blue-200' },
   'Series C': { bg: 'bg-indigo-300 dark:bg-indigo-800', text: 'text-indigo-800 dark:text-indigo-200' },
   'Growth':   { bg: 'bg-indigo-400 dark:bg-indigo-700', text: 'text-indigo-900 dark:text-indigo-100' },
   'IPO track':{ bg: 'bg-violet-500 dark:bg-violet-600', text: 'text-white' },
@@ -53,46 +53,20 @@ function statusBadge(status: string) {
 }
 
 /**
- * Format a number with up to 2 significant decimals + thousands comma.
- * Examples:
- *   1_234_567_890  → "$1.23B"
- *   1_500_000      → "$1.5M"
- *   1_200_000      → "$1.2M"
- *   1_000_000      → "$1M"
- *  12_345          → "$12,345"
- *   1_234          → "$1,234"
- *     500          → "$500"
+ * Always abbreviated, always 1 decimal:
+ *   >= 1 000 000 000  →  $1.2B
+ *   >= 1 000 000      →  $1.2M
+ *   >= 1 000          →  $1.2k
+ *   < 1 000           →  $500  (whole number, no suffix)
  */
 function fmtCurrency(value: number | null, symbol: string): string {
   if (value == null) return '—'
   const abs = Math.abs(value)
   const neg = value < 0 ? '-' : ''
-
-  if (abs >= 1_000_000_000) {
-    const n = abs / 1_000_000_000
-    const str = n % 1 === 0
-      ? n.toLocaleString('en-US', { maximumFractionDigits: 0 })
-      : n.toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 2 })
-    return `${neg}${symbol}${str}B`
-  }
-
-  if (abs >= 1_000_000) {
-    const n = abs / 1_000_000
-    const str = n % 1 === 0
-      ? n.toLocaleString('en-US', { maximumFractionDigits: 0 })
-      : n.toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 2 })
-    return `${neg}${symbol}${str}M`
-  }
-
-  if (abs >= 1_000) {
-    const n = abs / 1_000
-    const str = n % 1 === 0
-      ? n.toLocaleString('en-US', { maximumFractionDigits: 0 })
-      : n.toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
-    return `${neg}${symbol}${str}K`
-  }
-
-  return `${neg}${symbol}${Math.round(abs).toLocaleString('en-US')}`
+  if (abs >= 1_000_000_000) return `${neg}${symbol}${(abs / 1_000_000_000).toFixed(1)}B`
+  if (abs >= 1_000_000)     return `${neg}${symbol}${(abs / 1_000_000).toFixed(1)}M`
+  if (abs >= 1_000)         return `${neg}${symbol}${(abs / 1_000).toFixed(1)}k`
+  return `${neg}${symbol}${Math.round(abs)}`
 }
 
 function fmt(value: number | null, type: 'pct' | 'multiple' | 'months'): string {
@@ -109,9 +83,7 @@ function fmtDate(iso: string | null): string {
   return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
-// col index of the last column in each section (used for right-border dividers)
 const SECTION_LAST_COL_INDICES = new Set([2, 5, 9, 14])
-// col index 0 = Name  → only this column is sticky
 const NAME_COL_IDX = 0
 
 interface SectionHeader { label: string; colSpan: number }
@@ -319,7 +291,7 @@ export function DashboardManagementTable({ allGroups }: Props) {
       }
     }
     const result: [string | null, ManagementRow[]][] = []
-    for (const g of allGroups)            if (map.has(g)) result.push([g, map.get(g)!])
+    for (const g of allGroups)             if (map.has(g)) result.push([g, map.get(g)!])
     for (const [g, rows] of map.entries()) if (!allGroups.includes(g)) result.push([g, rows])
     if (ungrouped.length > 0) result.push([null, ungrouped])
     if (sortKey && sortDir) {
@@ -359,10 +331,6 @@ export function DashboardManagementTable({ allGroups }: Props) {
     if (sortDir === 'asc')  return <ChevronUp   className="inline-block ml-1 h-3 w-3 opacity-80" />
     return <ChevronDown className="inline-block ml-1 h-3 w-3 opacity-80" />
   }
-
-  // Pre-compute the starting col-index of each section header so we know
-  // which section contains col 0 (Name) and whether we need to split it.
-  // Section 0 = "Company" spans cols 0-2; col 0 is sticky, cols 1-2 are not.
 
   return (
     <div className="space-y-3">
@@ -417,48 +385,32 @@ export function DashboardManagementTable({ allGroups }: Props) {
       <div className="overflow-x-auto rounded-lg border bg-card">
         <table className="w-full border-collapse text-xs whitespace-nowrap">
           <colgroup>
-            {/* col 0: Name — auto width, sticky */}
             <col style={{ minWidth: '160px' }} />
-            {/* cols 1+: equal fixed width */}
             {COLUMNS.slice(1).map(col => (
               <col key={col.key} style={{ width: '100px', minWidth: '100px' }} />
             ))}
           </colgroup>
 
           <thead>
-            {/* ── Section header row ──
-                "Company" section (colSpan 3, cols 0-2) is split into:
-                  • col 0 – sticky cell with the "Company" label
-                  • cols 1-2 – non-sticky empty continuation cell
-                All other section headers render normally.
-            */}
+            {/* ── Section header row ── */}
             <tr className="border-b border-primary/30">
-              {/* Sticky Name cell carrying the "Company" label */}
-              <th
-                colSpan={1}
-                className="px-3 py-1.5 text-[11px] font-semibold text-left bg-primary text-primary-foreground sticky left-0 z-20"
-              >
+              {/* col 0: sticky — carries "Company" label */}
+              <th colSpan={1} className="px-3 py-1.5 text-[11px] font-semibold text-left bg-primary text-primary-foreground sticky left-0 z-20">
                 Company
               </th>
-              {/* Rest of Company section (Stage + Status) — NOT sticky */}
-              <th
-                colSpan={SECTION_HEADERS[0].colSpan - 1}
-                className="px-3 py-1.5 bg-primary text-primary-foreground border-r border-primary-foreground/20"
-              />
-              {/* Remaining section headers */}
+              {/* cols 1-2: Stage + Status — NOT sticky */}
+              <th colSpan={SECTION_HEADERS[0].colSpan - 1} className="px-3 py-1.5 bg-primary text-primary-foreground border-r border-primary-foreground/20" />
+              {/* remaining section headers */}
               {SECTION_HEADERS.slice(1).map((s, i) => {
                 const globalIdx = i + 1
                 const isLast = SECTION_LAST_COL_INDICES.has(
                   SECTION_HEADERS.slice(0, globalIdx + 1).reduce((acc, h) => acc + h.colSpan, 0) - 1
                 )
                 return (
-                  <th
-                    key={globalIdx}
-                    colSpan={s.colSpan}
+                  <th key={globalIdx} colSpan={s.colSpan}
                     className={`px-3 py-1.5 text-[11px] font-semibold text-left bg-primary text-primary-foreground ${
                       isLast ? 'border-r border-primary-foreground/20' : ''
-                    } last:border-r-0`}
-                  >
+                    } last:border-r-0`}>
                     {s.label}
                   </th>
                 )
@@ -468,18 +420,14 @@ export function DashboardManagementTable({ allGroups }: Props) {
             {/* ── Column header row ── */}
             <tr className="border-b border-border">
               {COLUMNS.map((col, i) => (
-                <th
-                  key={col.key}
-                  onClick={() => handleSort(col.key)}
+                <th key={col.key} onClick={() => handleSort(col.key)}
                   className={[
                     'px-3 py-2 font-medium text-muted-foreground text-[11px] cursor-pointer select-none',
                     'hover:text-foreground transition-colors bg-card',
                     i === NAME_COL_IDX ? 'sticky left-0 z-20 text-left' : 'text-center',
                     SECTION_LAST_COL_INDICES.has(i) ? 'border-r border-border' : '',
-                  ].join(' ')}
-                >
-                  {col.label}
-                  <SortIcon colKey={col.key} />
+                  ].join(' ')}>
+                  {col.label}<SortIcon colKey={col.key} />
                 </th>
               ))}
             </tr>
@@ -496,34 +444,26 @@ export function DashboardManagementTable({ allGroups }: Props) {
               <>
                 {groupName !== null && (
                   <tr key={`group-${groupName}`}>
-                    <td
-                      colSpan={totalCols}
+                    <td colSpan={totalCols}
                       className={`px-3 py-2 text-xs font-semibold text-muted-foreground bg-muted/40 ${
                         groupIdx === 0 ? 'border-t border-border' : 'border-t-2 border-border'
-                      }`}
-                    >
+                      }`}>
                       {groupName}
                     </td>
                   </tr>
                 )}
                 {rows.map((row, rowIdx) => (
-                  <tr
-                    key={row.companyId}
+                  <tr key={row.companyId}
                     className={`hover:bg-muted/30 transition-colors ${
                       rowIdx < rows.length - 1 ? 'border-b border-border/40' : ''
-                    }`}
-                  >
+                    }`}>
                     {COLUMNS.map((col, i) => (
-                      <td
-                        key={col.key}
+                      <td key={col.key}
                         className={[
                           'px-3 py-2',
-                          i === NAME_COL_IDX
-                            ? 'sticky left-0 z-10 bg-card text-left'
-                            : 'text-center',
+                          i === NAME_COL_IDX ? 'sticky left-0 z-10 bg-card text-left' : 'text-center',
                           SECTION_LAST_COL_INDICES.has(i) ? 'border-r border-border/60' : '',
-                        ].join(' ')}
-                      >
+                        ].join(' ')}>
                         {col.render(row, symbol)}
                       </td>
                     ))}
