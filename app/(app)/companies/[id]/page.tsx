@@ -14,7 +14,7 @@ export async function generateMetadata({ params }: { params: { id: string } }): 
 import { Badge } from '@/components/ui/badge'
 import { getCurrencySymbol } from '@/components/currency-context'
 import type { Company, Metric, CompanyStatus } from '@/lib/types/database'
-import { CompanyCharts } from './company-charts'
+import { CompanyMetricsView } from './company-metrics-view'
 import { CompanySummary } from './company-summary'
 import { CompanyEditButton } from './company-edit-button'
 import { CompanySelector } from './company-selector'
@@ -206,7 +206,7 @@ export default async function CompanyDetailPage({
                   defaultAIProvider={fundSettings?.default_ai_provider ?? 'anthropic'}
                 />
 
-                <CompanyCharts
+                <CompanyMetricsView
                   companyId={company.id}
                   companyName={company.name}
                   metrics={(metrics ?? []).filter(m => m.is_active)}
