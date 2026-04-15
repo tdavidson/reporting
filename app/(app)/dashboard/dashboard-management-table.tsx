@@ -77,23 +77,24 @@ function fmtDate(iso: string | null): string {
 }
 
 const NAME_COL_IDX = 0
-const NAME_BG = 'bg-muted/50 dark:bg-muted/30'
+// Solid backgrounds — no opacity — so sticky column never bleeds through
+const NAME_BG_HEADER = 'bg-slate-100 dark:bg-zinc-800'
+const NAME_BG_CELL   = 'bg-slate-50 dark:bg-zinc-900'
 
 // ── Segment definitions ───────────────────────────────────────────────────────
 
 interface SegmentDef {
   id: string
   label: string
-  colKeys: string[]   // ordered list of column keys belonging to this segment
+  colKeys: string[]
 }
 
-// Default display order
 const DEFAULT_SEGMENTS: SegmentDef[] = [
-  { id: 'company',    label: 'Company',        colKeys: ['stage', 'status'] },
-  { id: 'investment', label: '💼 Investment',   colKeys: ['entryOwnershipPct', 'ownershipPct', 'capitalInvested'] },
-  { id: 'valuation',  label: '📈 Valuation',    colKeys: ['entryValuation', 'currentValuation', 'moic', 'evRevenue'] },
-  { id: 'operations', label: '📊 Operations',   colKeys: ['mrr', 'mrrGrowth', 'cash', 'burn', 'runway'] },
-  { id: 'activity',   label: '🗓 Activity',     colKeys: ['lastUpdateAt'] },
+  { id: 'company',    label: 'Company',       colKeys: ['stage', 'status'] },
+  { id: 'investment', label: '💼 Investment',  colKeys: ['entryOwnershipPct', 'ownershipPct', 'capitalInvested'] },
+  { id: 'valuation',  label: '📈 Valuation',   colKeys: ['entryValuation', 'currentValuation', 'moic', 'evRevenue'] },
+  { id: 'operations', label: '📊 Operations',  colKeys: ['mrr', 'mrrGrowth', 'cash', 'burn', 'runway'] },
+  { id: 'activity',   label: '🗓 Activity',    colKeys: ['lastUpdateAt'] },
 ]
 
 const SEGMENT_ORDER_KEY = 'management-segment-order'
@@ -113,15 +114,14 @@ function applySegmentOrder(saved: string[] | null): SegmentDef[] {
   if (!saved) return DEFAULT_SEGMENTS
   const map = new Map(DEFAULT_SEGMENTS.map(s => [s.id, s]))
   const ordered = saved.map(id => map.get(id)).filter(Boolean) as SegmentDef[]
-  // append any new segments not in saved order
   DEFAULT_SEGMENTS.forEach(s => { if (!saved.includes(s.id)) ordered.push(s) })
   return ordered
 }
 
 // ── Multi-select dropdown ─────────────────────────────────────────────────────
-interface DropdownOption { value: string; label: string }
+export interface DropdownOption { value: string; label: string }
 
-function MultiSelectDropdown({
+export function MultiSelectDropdown({
   label, options, selected, onToggle, onClear,
 }: {
   label: string
@@ -147,7 +147,7 @@ function MultiSelectDropdown({
     <div ref={ref} className="relative">
       <button
         onClick={() => setOpen(o => !o)}
-        className={`flex items-center gap-1.5 text-[11px] px-2.5 py-1.5 rounded-md border transition-colors ${
+        className={`flex items-center gap-1.5 text-[11px] h-8 px-2.5 rounded-md border transition-colors ${
           count > 0
             ? 'bg-primary/10 text-primary border-primary/40 hover:bg-primary/15'
             : 'bg-background text-muted-foreground border-border hover:border-primary/50 hover:text-foreground'
@@ -193,6 +193,7 @@ function MultiSelectDropdown({
     </div>
   )
 }
+
 // ─────────────────────────────────────────────────────────────────────────────
 
 interface ColDef {
@@ -303,38 +304,42 @@ const ALL_COLUMNS: ColDef[] = [
 
 const COL_MAP = new Map(ALL_COLUMNS.map(c => [c.key, c]))
 
-const STATUS_OPTIONS: DropdownOption[] = [
+export const STATUS_OPTIONS: DropdownOption[] = [
   { value: 'active',      label: 'Active' },
   { value: 'exited',      label: 'Exited' },
   { value: 'written-off', label: 'Written Off' },
 ]
 
+export function getStageOptions(data: ManagementRow[] | null): DropdownOption[] {
+  if (!data) return STAGE_ORDER.map(s => ({ value: s, label: s }))
+  const present = new Set(data.map(r => r.stage).filter(Boolean) as string[])
+  return STAGE_ORDER.filter(s => present.has(s)).map(s => ({ value: s, label: s }))
+}
+
 type SortDir = 'asc' | 'desc' | null
 
-interface Props { allGroups: string[] }
+interface Props {
+  allGroups: string[]
+  // Filters are now owned by the parent toolbar and passed down
+  filterStatus: string[]
+  filterStage: string[]
+}
 
-export function DashboardManagementTable({ allGroups }: Props) {
+export function DashboardManagementTable({ allGroups, filterStatus, filterStage }: Props) {
   const currency = useCurrency()
   const symbol = getCurrencySymbol(currency)
   const [data, setData]       = useState<ManagementRow[] | null>(null)
   const [loading, setLoading] = useState(true)
   const [sortKey, setSortKey] = useState<string | null>(null)
   const [sortDir, setSortDir] = useState<SortDir>(null)
-  const [filterStatus, setFilterStatus] = useState<string[]>([])
-  const [filterStage,  setFilterStage]  = useState<string[]>([])
 
   // Segment reorder state
   const [segments, setSegments] = useState<SegmentDef[]>(() => applySegmentOrder(loadSegmentOrder()))
   const dragSegRef = useRef<string | null>(null)
   const [dragOverSeg, setDragOverSeg] = useState<string | null>(null)
 
-  function handleSegDragStart(id: string) {
-    dragSegRef.current = id
-  }
-  function handleSegDragOver(e: React.DragEvent, id: string) {
-    e.preventDefault()
-    setDragOverSeg(id)
-  }
+  function handleSegDragStart(id: string) { dragSegRef.current = id }
+  function handleSegDragOver(e: React.DragEvent, id: string) { e.preventDefault(); setDragOverSeg(id) }
   function handleSegDrop(targetId: string) {
     const fromId = dragSegRef.current
     if (!fromId || fromId === targetId) { setDragOverSeg(null); return }
@@ -350,12 +355,8 @@ export function DashboardManagementTable({ allGroups }: Props) {
     dragSegRef.current = null
     setDragOverSeg(null)
   }
-  function handleSegDragEnd() {
-    dragSegRef.current = null
-    setDragOverSeg(null)
-  }
+  function handleSegDragEnd() { dragSegRef.current = null; setDragOverSeg(null) }
 
-  // Build ordered columns from current segment order
   const COLUMNS = useMemo(() => {
     const nameCol = COL_MAP.get('name')!
     const rest = segments.flatMap(seg =>
@@ -364,20 +365,12 @@ export function DashboardManagementTable({ allGroups }: Props) {
     return [nameCol, ...rest]
   }, [segments])
 
-  // Which column indices are the last in their segment (for right border)
   const SECTION_LAST_COL_INDICES = useMemo(() => {
-    const set = new Set<number>()
-    let idx = 0 // starts after name col
-    for (const seg of segments) {
-      idx += seg.colKeys.length
-      set.add(idx) // idx is 1-based offset from name col, actual col idx = idx
-    }
-    // Convert: name is col 0, so segment col indices start at 1
     const result = new Set<number>()
     let colIdx = 0
     for (const seg of segments) {
       colIdx += seg.colKeys.length
-      result.add(colIdx) // last col of segment (1-based from name)
+      result.add(colIdx)
     }
     return result
   }, [segments])
@@ -398,24 +391,6 @@ export function DashboardManagementTable({ allGroups }: Props) {
     load()
     return () => { cancelled = true }
   }, [])
-
-  const availableStages = useMemo(() => {
-    if (!data) return STAGE_ORDER
-    const present = new Set(data.map(r => r.stage).filter(Boolean) as string[])
-    return STAGE_ORDER.filter(s => present.has(s))
-  }, [data])
-
-  const stageOptions: DropdownOption[] = useMemo(
-    () => availableStages.map(s => ({ value: s, label: s })),
-    [availableStages]
-  )
-
-  const toggleStatus = (v: string) =>
-    setFilterStatus(prev => prev.includes(v) ? prev.filter(x => x !== v) : [...prev, v])
-  const toggleStage = (v: string) =>
-    setFilterStage(prev => prev.includes(v) ? prev.filter(x => x !== v) : [...prev, v])
-  const hasFilters = filterStatus.length > 0 || filterStage.length > 0
-  const clearAll   = () => { setFilterStatus([]); setFilterStage([]) }
 
   const handleSort = useCallback((key: string) => {
     setSortKey(prev => {
@@ -485,23 +460,14 @@ export function DashboardManagementTable({ allGroups }: Props) {
   }
 
   return (
-    <div className="space-y-3">
-      {/* ── Filter bar ── */}
-      <div className="flex flex-wrap items-center gap-2">
-        <MultiSelectDropdown label="Status" options={STATUS_OPTIONS} selected={filterStatus} onToggle={toggleStatus} onClear={() => setFilterStatus([])} />
-        <MultiSelectDropdown label="Stage"  options={stageOptions}   selected={filterStage}  onToggle={toggleStage}  onClear={() => setFilterStage([])} />
-        {hasFilters && (
-          <button onClick={clearAll} className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors ml-1">
-            <X className="h-3 w-3" />Clear all
-            <span className="ml-1 bg-muted text-muted-foreground px-1.5 py-0.5 rounded-full text-[10px]">{totalRows}</span>
-          </button>
-        )}
-        <span className="ml-auto flex items-center gap-1 text-[10px] text-muted-foreground">
-          <GripVertical className="h-3 w-3" />Drag headers to reorder sections
-        </span>
+    <div className="space-y-2">
+      {/* Drag hint */}
+      <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
+        <GripVertical className="h-3 w-3" />
+        Drag section headers to reorder
       </div>
 
-      {/* ── Table ── */}
+      {/* Table */}
       <div className="overflow-x-auto rounded-lg border bg-card">
         <table className="border-collapse text-xs whitespace-nowrap" style={{ tableLayout: 'auto', width: '100%' }}>
           <colgroup>
@@ -512,51 +478,46 @@ export function DashboardManagementTable({ allGroups }: Props) {
           </colgroup>
 
           <thead>
-            {/* ── Section header row — draggable ── */}
+            {/* Section header row — draggable */}
             <tr className="border-b border-zinc-600">
-              {/* sticky Name cell */}
-              <th
-                colSpan={1}
-                className={`px-3 py-1.5 text-[11px] font-semibold text-left bg-zinc-700 text-zinc-100 sticky left-0 z-20`}
-              >
+              <th className={`px-3 py-1.5 text-[11px] font-semibold text-left bg-zinc-700 text-zinc-100 sticky left-0 z-20 ${NAME_BG_HEADER} !bg-zinc-700`}>
                 Company
               </th>
-              {segments.map((seg) => {
-                const isOver = dragOverSeg === seg.id
-                return (
-                  <th
-                    key={seg.id}
-                    colSpan={seg.colKeys.length}
-                    draggable
-                    onDragStart={() => handleSegDragStart(seg.id)}
-                    onDragOver={(e) => handleSegDragOver(e, seg.id)}
-                    onDrop={() => handleSegDrop(seg.id)}
-                    onDragEnd={handleSegDragEnd}
-                    className={`px-3 py-1.5 text-[11px] font-semibold text-left bg-zinc-700 text-zinc-100 border-r border-zinc-600 cursor-grab active:cursor-grabbing select-none transition-colors ${
-                      isOver ? 'bg-zinc-500' : 'hover:bg-zinc-600'
-                    }`}
-                  >
-                    <span className="flex items-center gap-1">
-                      <GripVertical className="h-3 w-3 opacity-50" />
-                      {seg.label}
-                    </span>
-                  </th>
-                )
-              })}
+              {segments.map((seg) => (
+                <th
+                  key={seg.id}
+                  colSpan={seg.colKeys.length}
+                  draggable
+                  onDragStart={() => handleSegDragStart(seg.id)}
+                  onDragOver={(e) => handleSegDragOver(e, seg.id)}
+                  onDrop={() => handleSegDrop(seg.id)}
+                  onDragEnd={handleSegDragEnd}
+                  className={`px-3 py-1.5 text-[11px] font-semibold text-left text-zinc-100 border-r border-zinc-600 cursor-grab active:cursor-grabbing select-none transition-colors ${
+                    dragOverSeg === seg.id ? 'bg-zinc-500' : 'bg-zinc-700 hover:bg-zinc-600'
+                  }`}
+                >
+                  <span className="flex items-center gap-1">
+                    <GripVertical className="h-3 w-3 opacity-50" />
+                    {seg.label}
+                  </span>
+                </th>
+              ))}
             </tr>
 
-            {/* ── Column header row — bold ── */}
+            {/* Column header row */}
             <tr className="border-b border-border">
               {COLUMNS.map((col, i) => (
-                <th key={col.key} onClick={() => handleSort(col.key)}
+                <th
+                  key={col.key}
+                  onClick={() => handleSort(col.key)}
                   className={[
-                    'px-3 py-2 text-[11px] font-bold cursor-pointer select-none',
-                    'hover:text-foreground transition-colors',
+                    'px-3 py-2 text-[11px] font-bold cursor-pointer select-none hover:text-foreground transition-colors',
                     i === NAME_COL_IDX
-                      ? `sticky left-0 z-20 text-left text-foreground ${NAME_BG}`
+                      ? `sticky left-0 z-20 text-left text-foreground ${NAME_BG_HEADER}`
                       : 'text-center text-muted-foreground bg-card',
                     SECTION_LAST_COL_INDICES.has(i) ? 'border-r border-border' : '',
-                  ].join(' ')}>
+                  ].join(' ')}
+                >
                   {col.label}<SortIcon colKey={col.key} />
                 </th>
               ))}
@@ -574,28 +535,34 @@ export function DashboardManagementTable({ allGroups }: Props) {
               <>
                 {groupName !== null && (
                   <tr key={`group-${groupName}`}>
-                    <td colSpan={totalCols}
+                    <td
+                      colSpan={totalCols}
                       className={`px-3 py-2 text-xs font-semibold text-muted-foreground bg-muted/40 ${
                         groupIdx === 0 ? 'border-t border-border' : 'border-t-2 border-border'
-                      }`}>
+                      }`}
+                    >
                       {groupName}
                     </td>
                   </tr>
                 )}
                 {rows.map((row, rowIdx) => (
-                  <tr key={row.companyId}
+                  <tr
+                    key={row.companyId}
                     className={`transition-colors ${
                       rowIdx < rows.length - 1 ? 'border-b border-border/40' : ''
-                    }`}>
+                    }`}
+                  >
                     {COLUMNS.map((col, i) => (
-                      <td key={col.key}
+                      <td
+                        key={col.key}
                         className={[
                           'px-3 py-2',
                           i === NAME_COL_IDX
-                            ? `sticky left-0 z-10 text-left ${NAME_BG}`
+                            ? `sticky left-0 z-10 text-left ${NAME_BG_CELL}`
                             : 'text-center hover:bg-muted/30',
                           SECTION_LAST_COL_INDICES.has(i) ? 'border-r border-border/60' : '',
-                        ].join(' ')}>
+                        ].join(' ')}
+                      >
                         {col.render(row, symbol)}
                       </td>
                     ))}

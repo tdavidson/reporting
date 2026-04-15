@@ -2,11 +2,11 @@
 
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import Link from 'next/link'
-import { ArrowDownAZ, ArrowUpZA, ArrowDown, ArrowUp, LayoutGrid, Table2, CalendarDays, Plus, Upload, GripVertical, BarChart2 } from 'lucide-react'
+import { ArrowDownAZ, ArrowUpZA, ArrowDown, ArrowUp, LayoutGrid, Table2, CalendarDays, Plus, Upload, GripVertical, BarChart2, X } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { DashboardTable } from './dashboard-table'
-import { DashboardManagementTable } from './dashboard-management-table'
+import { DashboardManagementTable, MultiSelectDropdown, STATUS_OPTIONS, type DropdownOption } from './dashboard-management-table'
 import { useCurrency, getCurrencySymbol } from '@/components/currency-context'
 import { useDisplayUnit } from '@/components/display-unit-context'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
@@ -52,6 +52,8 @@ interface Props {
 
 type SortMode = 'alpha' | 'investDate' | 'manual' | null
 
+const STAGE_ORDER = ['Pre-Seed', 'Seed', 'Series A', 'Series B', 'Series C', 'Growth', 'IPO track']
+
 function storageKey(fundId: string) {
   return `portfolio-order-${fundId}`
 }
@@ -77,8 +79,8 @@ function formatMetricValue(v: number | null, metric: ActiveMetric, fundCurrency:
   const effectiveUnit = metric.unit ?? (metric.value_type === 'currency' ? getCurrencySymbol(metricCurrency) : null)
   const effectivePos = metric.unit ? metric.unit_position : 'prefix'
   let str: string
-if (Math.abs(v) >= 1_000_000) str = (v / 1_000_000).toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + 'M'
-else if (Math.abs(v) >= 1_000) str = (v / 1_000).toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + 'K'
+  if (Math.abs(v) >= 1_000_000) str = (v / 1_000_000).toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + 'M'
+  else if (Math.abs(v) >= 1_000) str = (v / 1_000).toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + 'K'
   else str = v.toLocaleString()
   if (effectiveUnit && effectivePos === 'prefix') return `${effectiveUnit}${str}`
   if (metric.value_type === 'percentage') return `${str}%`
@@ -92,7 +94,6 @@ function statusBadge(status: string) {
   return <Badge variant="secondary" className="text-[10px] px-1.5 py-0 bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300">Active</Badge>
 }
 
-// Blue gradient scale: Pre-Seed (lightest) → IPO track (darkest)
 const STAGE_COLORS: Record<string, { bg: string; text: string; darkBg: string; darkText: string }> = {
   'Pre-Seed':  { bg: 'bg-sky-100',    text: 'text-sky-600',    darkBg: 'dark:bg-sky-950',    darkText: 'dark:text-sky-400' },
   'Seed':      { bg: 'bg-sky-200',    text: 'text-sky-700',    darkBg: 'dark:bg-sky-900',    darkText: 'dark:text-sky-300' },
@@ -107,10 +108,7 @@ function stageBadge(stage: string | null) {
   if (!stage) return null
   const colors = STAGE_COLORS[stage] ?? { bg: 'bg-blue-100', text: 'text-blue-700', darkBg: 'dark:bg-blue-900', darkText: 'dark:text-blue-300' }
   return (
-    <Badge
-      variant="secondary"
-      className={`text-[10px] px-1.5 py-0 ${colors.bg} ${colors.text} ${colors.darkBg} ${colors.darkText}`}
-    >
+    <Badge variant="secondary" className={`text-[10px] px-1.5 py-0 ${colors.bg} ${colors.text} ${colors.darkBg} ${colors.darkText}`}>
       {stage}
     </Badge>
   )
@@ -128,10 +126,7 @@ function CompanyAvatar({ company, onLogoUpdate }: { company: Company; onLogoUpda
     const formData = new FormData()
     formData.append('file', file)
     try {
-      const res = await fetch(`/api/companies/${company.id}/logo`, {
-        method: 'POST',
-        body: formData,
-      })
+      const res = await fetch(`/api/companies/${company.id}/logo`, { method: 'POST', body: formData })
       const data = await res.json()
       if (res.ok) onLogoUpdate(company.id, data.logo_url)
     } finally {
@@ -151,11 +146,7 @@ function CompanyAvatar({ company, onLogoUpdate }: { company: Company; onLogoUpda
           <span className="text-xs font-semibold text-muted-foreground">{initials}</span>
         )}
         <div className="absolute inset-0 bg-black/40 rounded-md opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-          {uploading ? (
-            <span className="text-white text-[10px]">...</span>
-          ) : (
-            <Upload className="h-3.5 w-3.5 text-white" />
-          )}
+          {uploading ? <span className="text-white text-[10px]">...</span> : <Upload className="h-3.5 w-3.5 text-white" />}
         </div>
       </div>
       <input ref={inputRef} type="file" accept="image/*" className="hidden" onChange={handleUpload} />
@@ -172,6 +163,15 @@ export function DashboardCompanies({ companies, allGroups, fundId }: Props) {
   const [logoMap, setLogoMap] = useState<Record<string, string>>({})
   const [manualOrder, setManualOrder] = useState<string[] | null>(null)
 
+  // Management-view filters (live in parent so they sit in the shared toolbar)
+  const [mgmtFilterStatus, setMgmtFilterStatus] = useState<string[]>([])
+  const [mgmtFilterStage,  setMgmtFilterStage]  = useState<string[]>([])
+
+  const stageOptions: DropdownOption[] = useMemo(
+    () => STAGE_ORDER.map(s => ({ value: s, label: s })),
+    []
+  )
+
   useEffect(() => {
     const saved = loadOrder(fundId)
     if (saved && saved.length > 0) {
@@ -186,9 +186,7 @@ export function DashboardCompanies({ companies, allGroups, fundId }: Props) {
 
   const filtered = useMemo(() => {
     let result = companies
-    if (statusFilter) {
-      result = result.filter(c => c.status === statusFilter)
-    }
+    if (statusFilter) result = result.filter(c => c.status === statusFilter)
     return result
   }, [companies, statusFilter])
 
@@ -235,16 +233,19 @@ export function DashboardCompanies({ companies, allGroups, fundId }: Props) {
     saveOrder(fundId, currentIds)
   }
 
+  const hasMgmtFilters = mgmtFilterStatus.length > 0 || mgmtFilterStage.length > 0
+
   return (
     <div>
       {(filtered.length > 0 || view === 'management') && (
         <div className="flex items-center gap-2 flex-wrap mb-4">
-          {/* Status filter — only shown outside management view */}
+
+          {/* ── Cards/Table status filter ── */}
           {view !== 'management' && (
             <select
               value={statusFilter}
               onChange={e => setStatusFilter(e.target.value)}
-              className="text-xs px-2 py-1.5 rounded-md border border-border bg-background h-8"
+              className="h-8 text-xs px-2 rounded-md border border-border bg-background"
             >
               <option value="">All Statuses</option>
               <option value="active">Active</option>
@@ -253,6 +254,35 @@ export function DashboardCompanies({ companies, allGroups, fundId }: Props) {
             </select>
           )}
 
+          {/* ── Management filters — inline with the same toolbar ── */}
+          {view === 'management' && (
+            <>
+              <MultiSelectDropdown
+                label="Status"
+                options={STATUS_OPTIONS}
+                selected={mgmtFilterStatus}
+                onToggle={v => setMgmtFilterStatus(prev => prev.includes(v) ? prev.filter(x => x !== v) : [...prev, v])}
+                onClear={() => setMgmtFilterStatus([])}
+              />
+              <MultiSelectDropdown
+                label="Stage"
+                options={stageOptions}
+                selected={mgmtFilterStage}
+                onToggle={v => setMgmtFilterStage(prev => prev.includes(v) ? prev.filter(x => x !== v) : [...prev, v])}
+                onClear={() => setMgmtFilterStage([])}
+              />
+              {hasMgmtFilters && (
+                <button
+                  onClick={() => { setMgmtFilterStatus([]); setMgmtFilterStage([]) }}
+                  className="flex items-center gap-1 h-8 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <X className="h-3 w-3" />Clear
+                </button>
+              )}
+            </>
+          )}
+
+          {/* ── Right side: Add Company + sort controls + view toggle ── */}
           <div className="ml-auto flex items-center gap-2">
             <AddCompanyButton />
             {view !== 'management' && (
@@ -263,60 +293,41 @@ export function DashboardCompanies({ companies, allGroups, fundId }: Props) {
                   size="sm"
                   className="text-muted-foreground hover:text-foreground"
                   onClick={() => {
-                    if (sortMode === 'alpha') {
-                      setAlphaSortAsc(prev => !prev)
-                    } else {
-                      setSortMode('alpha')
-                    }
+                    if (sortMode === 'alpha') setAlphaSortAsc(prev => !prev)
+                    else setSortMode('alpha')
                   }}
                 >
-                  {alphaSortAsc ? (
-                    <ArrowDownAZ className="h-3.5 w-3.5" />
-                  ) : (
-                    <ArrowUpZA className="h-3.5 w-3.5" />
-                  )}
+                  {alphaSortAsc ? <ArrowDownAZ className="h-3.5 w-3.5" /> : <ArrowUpZA className="h-3.5 w-3.5" />}
                 </Button>
                 <Button
                   variant={sortMode === 'investDate' ? 'secondary' : 'ghost'}
                   size="sm"
                   className="text-xs gap-1.5 text-muted-foreground hover:text-foreground"
                   onClick={() => {
-                    if (sortMode === 'investDate') {
-                      setInvestDateSortAsc(prev => !prev)
-                    } else {
-                      setSortMode('investDate')
-                    }
+                    if (sortMode === 'investDate') setInvestDateSortAsc(prev => !prev)
+                    else setSortMode('investDate')
                   }}
                 >
                   <CalendarDays className="h-3.5 w-3.5" />
-                  {investDateSortAsc ? (
-                    <ArrowUp className="h-3 w-3" />
-                  ) : (
-                    <ArrowDown className="h-3 w-3" />
-                  )}
+                  {investDateSortAsc ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />}
                 </Button>
                 <Button
                   variant={sortMode === 'manual' ? 'secondary' : 'ghost'}
                   size="sm"
                   title="Manual order (drag to reorder)"
                   className="text-muted-foreground hover:text-foreground"
-                  onClick={() => {
-                    if (sortMode !== 'manual') activateManualMode()
-                  }}
+                  onClick={() => { if (sortMode !== 'manual') activateManualMode() }}
                 >
                   <GripVertical className="h-3.5 w-3.5" />
                 </Button>
               </>
             )}
             <div className="w-px h-4 bg-border" />
-            {/* Segmented toggle */}
             <div className="flex items-center gap-0.5 border border-border rounded-md p-0.5 bg-muted/40">
               <button
                 onClick={() => setView('cards')}
                 className={`flex items-center gap-1.5 h-7 px-2.5 rounded text-xs font-medium transition-colors ${
-                  view === 'cards'
-                    ? 'bg-background text-foreground shadow-sm'
-                    : 'text-muted-foreground hover:text-foreground'
+                  view === 'cards' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
                 }`}
               >
                 <LayoutGrid className="h-3.5 w-3.5" /> Cards
@@ -324,9 +335,7 @@ export function DashboardCompanies({ companies, allGroups, fundId }: Props) {
               <button
                 onClick={() => setView('table')}
                 className={`flex items-center gap-1.5 h-7 px-2.5 rounded text-xs font-medium transition-colors ${
-                  view === 'table'
-                    ? 'bg-background text-foreground shadow-sm'
-                    : 'text-muted-foreground hover:text-foreground'
+                  view === 'table' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
                 }`}
               >
                 <Table2 className="h-3.5 w-3.5" /> Table
@@ -334,9 +343,7 @@ export function DashboardCompanies({ companies, allGroups, fundId }: Props) {
               <button
                 onClick={() => setView('management')}
                 className={`flex items-center gap-1.5 h-7 px-2.5 rounded text-xs font-medium transition-colors ${
-                  view === 'management'
-                    ? 'bg-background text-foreground shadow-sm'
-                    : 'text-muted-foreground hover:text-foreground'
+                  view === 'management' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
                 }`}
               >
                 <BarChart2 className="h-3.5 w-3.5" /> Management
@@ -351,17 +358,18 @@ export function DashboardCompanies({ companies, allGroups, fundId }: Props) {
       )}
 
       {view === 'management' ? (
-        <DashboardManagementTable allGroups={allGroups} />
+        <DashboardManagementTable
+          allGroups={allGroups}
+          filterStatus={mgmtFilterStatus}
+          filterStage={mgmtFilterStage}
+        />
       ) : filtered.length === 0 ? (
         <div className="rounded-lg border border-dashed p-12 text-center space-y-4">
           <p className="text-muted-foreground">No companies match the selected filters.</p>
           <AddCompanyButton />
         </div>
       ) : view === 'table' ? (
-        <DashboardTable
-          companyIds={sortedFiltered.map(c => c.id)}
-          grouped={null}
-        />
+        <DashboardTable companyIds={sortedFiltered.map(c => c.id)} grouped={null} />
       ) : (
         <CompanyGrid
           companies={sortedFiltered}
@@ -376,11 +384,7 @@ export function DashboardCompanies({ companies, allGroups, fundId }: Props) {
 }
 
 function CompanyGrid({
-  companies,
-  logoMap,
-  onLogoUpdate,
-  isDraggable,
-  onReorder,
+  companies, logoMap, onLogoUpdate, isDraggable, onReorder,
 }: {
   companies: Company[]
   logoMap: Record<string, string>
@@ -411,52 +415,25 @@ function CompanyGrid({
         }
       }
     }
-
     if (metricsToFetch.length === 0) return
-
-    setLoadingMetrics(prev => {
-      const next = new Set(prev)
-      metricsToFetch.forEach(({ metricId }) => next.add(metricId))
-      return next
-    })
-
+    setLoadingMetrics(prev => { const next = new Set(prev); metricsToFetch.forEach(({ metricId }) => next.add(metricId)); return next })
     for (const { companyId, metricId } of metricsToFetch) {
       fetch(`/api/companies/${companyId}/metrics/${metricId}/values`)
         .then(res => res.ok ? res.json() : [])
         .then((values: { value_number: number | null }[]) => {
           const lastVal = values.length > 0 ? values[values.length - 1].value_number : null
           setMetricValues(prev => ({ ...prev, [metricId]: lastVal }))
-          setLoadingMetrics(prev => {
-            const next = new Set(prev)
-            next.delete(metricId)
-            return next
-          })
+          setLoadingMetrics(prev => { const next = new Set(prev); next.delete(metricId); return next })
         })
-        .catch(() => {
-          setLoadingMetrics(prev => {
-            const next = new Set(prev)
-            next.delete(metricId)
-            return next
-          })
-        })
+        .catch(() => { setLoadingMetrics(prev => { const next = new Set(prev); next.delete(metricId); return next }) })
     }
   }, [companies])
 
-  function handleDragStart(id: string) {
-    dragIdRef.current = id
-  }
-
-  function handleDragOver(e: React.DragEvent, id: string) {
-    e.preventDefault()
-    setDragOverId(id)
-  }
-
+  function handleDragStart(id: string) { dragIdRef.current = id }
+  function handleDragOver(e: React.DragEvent, id: string) { e.preventDefault(); setDragOverId(id) }
   function handleDrop(targetId: string) {
     const fromId = dragIdRef.current
-    if (!fromId || fromId === targetId) {
-      setDragOverId(null)
-      return
-    }
+    if (!fromId || fromId === targetId) { setDragOverId(null); return }
     const ids = companies.map(c => c.id)
     const fromIdx = ids.indexOf(fromId)
     const toIdx = ids.indexOf(targetId)
@@ -467,11 +444,7 @@ function CompanyGrid({
     dragIdRef.current = null
     setDragOverId(null)
   }
-
-  function handleDragEnd() {
-    dragIdRef.current = null
-    setDragOverId(null)
-  }
+  function handleDragEnd() { dragIdRef.current = null; setDragOverId(null) }
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -479,7 +452,6 @@ function CompanyGrid({
         const isExited = c.status === 'exited' || c.status === 'written-off'
         const logoUrl = logoMap[c.id] ?? c.logoUrl
         const isOver = dragOverId === c.id
-
         return (
           <div
             key={c.id}
@@ -490,20 +462,13 @@ function CompanyGrid({
             onDragEnd={handleDragEnd}
             className={`rounded-lg border bg-card p-4 hover:bg-accent/50 transition-colors ${
               isDraggable ? 'cursor-grab active:cursor-grabbing' : ''
-            } ${
-              isOver ? 'ring-2 ring-primary ring-offset-1' : ''
-            }`}
+            } ${isOver ? 'ring-2 ring-primary ring-offset-1' : ''}`}
           >
             <div className="flex items-start gap-3 mb-1">
-              <CompanyAvatar
-                company={{ ...c, logoUrl }}
-                onLogoUpdate={onLogoUpdate}
-              />
+              <CompanyAvatar company={{ ...c, logoUrl }} onLogoUpdate={onLogoUpdate} />
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between gap-2">
-                  <Link href={`/companies/${c.id}`} className="font-medium text-sm hover:underline truncate">
-                    {c.name}
-                  </Link>
+                  <Link href={`/companies/${c.id}`} className="font-medium text-sm hover:underline truncate">{c.name}</Link>
                   <div className="flex items-center gap-1 flex-shrink-0">
                     {stageBadge(c.stage)}
                     {statusBadge(c.status)}
@@ -516,7 +481,6 @@ function CompanyGrid({
                 </div>
               </div>
             </div>
-
             <Link href={`/companies/${c.id}`} className="block">
               {isExited ? (
                 <ExitedMetricDisplay company={c} />
@@ -537,9 +501,7 @@ function CompanyGrid({
                 />
               )}
               {c.lastReportAt ? (
-                <div className="text-[10px] text-muted-foreground mt-2">
-                  Last reported: {c.lastReportAt}
-                </div>
+                <div className="text-[10px] text-muted-foreground mt-2">Last reported: {c.lastReportAt}</div>
               ) : c.firstInvestmentDate ? (
                 <div className="text-[10px] text-muted-foreground mt-2">
                   Invested: {new Date(c.firstInvestmentDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
@@ -561,7 +523,6 @@ function ActiveMetricDisplay({ company, metrics, metricValues, loadingMetrics, f
   fundCurrency: string
 }) {
   const [m1, m2] = metrics
-
   return (
     <div className="grid grid-cols-2 gap-3 mt-3">
       {[m1, m2].map((metric, i) => {
@@ -572,11 +533,7 @@ function ActiveMetricDisplay({ company, metrics, metricValues, loadingMetrics, f
           <div key={metric.id} className="min-w-0">
             <div className="text-[10px] text-muted-foreground truncate mb-0.5">{metric.name}</div>
             <div className="text-xl font-semibold tabular-nums truncate">
-              {isLoading ? (
-                <span className="text-muted-foreground text-sm">...</span>
-              ) : (
-                formatMetricValue(value, metric, fundCurrency)
-              )}
+              {isLoading ? <span className="text-muted-foreground text-sm">...</span> : formatMetricValue(value, metric, fundCurrency)}
             </div>
           </div>
         )
@@ -590,22 +547,18 @@ function ExitedMetricDisplay({ company }: { company: Company }) {
   const { displayUnit } = useDisplayUnit()
   const symbol = currency === 'BRL' ? 'R$' : currency === 'EUR' ? '\u20ac' : currency === 'GBP' ? '\u00a3' : '$'
 
-function fmtTable(v: number): string {
-  const options = { minimumFractionDigits: 1, maximumFractionDigits: 1 };
-  
-  if (displayUnit === 'millions') return `${symbol}${(v / 1_000_000).toLocaleString('en-US', options)}M`
-  if (displayUnit === 'thousands') return `${symbol}${(v / 1_000).toLocaleString('en-US', options)}K`
-  
-  const neg = v < 0
-  const abs = Math.abs(v)
-  let str: string
-  
-  if (abs >= 1_000_000) str = `${symbol}${(abs / 1_000_000).toLocaleString('en-US', options)}M`
-  else if (abs >= 1_000) str = `${symbol}${(abs / 1_000).toLocaleString('en-US', options)}K`
-  else str = `${symbol}${abs.toLocaleString('en-US', options)}`
-  
-  return neg ? `-${str}` : str
-}
+  function fmtTable(v: number): string {
+    const options = { minimumFractionDigits: 1, maximumFractionDigits: 1 }
+    if (displayUnit === 'millions') return `${symbol}${(v / 1_000_000).toLocaleString('en-US', options)}M`
+    if (displayUnit === 'thousands') return `${symbol}${(v / 1_000).toLocaleString('en-US', options)}K`
+    const neg = v < 0
+    const abs = Math.abs(v)
+    let str: string
+    if (abs >= 1_000_000) str = `${symbol}${(abs / 1_000_000).toLocaleString('en-US', options)}M`
+    else if (abs >= 1_000) str = `${symbol}${(abs / 1_000).toLocaleString('en-US', options)}K`
+    else str = `${symbol}${abs.toLocaleString('en-US', options)}`
+    return neg ? `-${str}` : str
+  }
 
   const { totalInvested, totalRealized, unrealizedValue, moic } = company
   const netGain = totalInvested != null && totalRealized != null && unrealizedValue != null
@@ -636,15 +589,13 @@ function AddCompanyButton() {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-<Button size="sm" className="gap-1.5 bg-[#0F2332] hover:bg-[#0F2332]/90 text-white">         
-  <Plus className="h-3.5 w-3.5" />
+        <Button size="sm" className="gap-1.5 bg-[#0F2332] hover:bg-[#0F2332]/90 text-white">
+          <Plus className="h-3.5 w-3.5" />
           Add Company
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Add Company</DialogTitle>
-        </DialogHeader>
+        <DialogHeader><DialogTitle>Add Company</DialogTitle></DialogHeader>
         <CompanyForm
           onSuccess={() => { setOpen(false); router.refresh() }}
           onCancel={() => setOpen(false)}
