@@ -239,21 +239,20 @@ export function DashboardCompanies({ companies, allGroups, fundId }: Props) {
     <div>
       {(filtered.length > 0 || view === 'management') && (
         <div className="flex items-center gap-2 flex-wrap mb-4">
+          {/* Status filter — only shown outside management view */}
           {view !== 'management' && (
-            <div>
-              <label className="block text-xs text-muted-foreground mb-1">Status</label>
-              <select
-                value={statusFilter}
-                onChange={e => setStatusFilter(e.target.value)}
-                className="text-xs px-2 py-1 rounded-md border border-border bg-background"
-              >
-                <option value="">All Statuses</option>
-                <option value="active">Active</option>
-                <option value="exited">Exited</option>
-                <option value="written-off">Written Off</option>
-              </select>
-            </div>
+            <select
+              value={statusFilter}
+              onChange={e => setStatusFilter(e.target.value)}
+              className="text-xs px-2 py-1.5 rounded-md border border-border bg-background h-8"
+            >
+              <option value="">All Statuses</option>
+              <option value="active">Active</option>
+              <option value="exited">Exited</option>
+              <option value="written-off">Written Off</option>
+            </select>
           )}
+
           <div className="ml-auto flex items-center gap-2">
             <AddCompanyButton />
             {view !== 'management' && (
