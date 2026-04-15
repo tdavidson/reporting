@@ -1,10 +1,10 @@
 'use client'
 
-import { useEffect, useState, useMemo, useCallback } from 'react'
+import { useEffect, useState, useMemo, useCallback, useRef } from 'react'
 import Link from 'next/link'
 import { Badge } from '@/components/ui/badge'
 import { useCurrency, getCurrencySymbol } from '@/components/currency-context'
-import { ChevronUp, ChevronDown, ChevronsUpDown, X } from 'lucide-react'
+import { ChevronUp, ChevronDown, ChevronsUpDown, ChevronDown as ChevronDownSmall, X, Check } from 'lucide-react'
 
 interface ManagementRow {
   companyId: string
@@ -52,13 +52,6 @@ function statusBadge(status: string) {
   return <Badge variant="secondary" className="text-[10px] px-1.5 py-0 bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300">Active</Badge>
 }
 
-/**
- * Always abbreviated, always 1 decimal:
- *   >= 1 000 000 000  →  $1.2B
- *   >= 1 000 000      →  $1.2M
- *   >= 1 000          →  $1.2k
- *   < 1 000           →  $500  (whole number, no suffix)
- */
 function fmtCurrency(value: number | null, symbol: string): string {
   if (value == null) return '—'
   const abs = Math.abs(value)
@@ -86,6 +79,94 @@ function fmtDate(iso: string | null): string {
 const SECTION_LAST_COL_INDICES = new Set([2, 5, 9, 14])
 const NAME_COL_IDX = 0
 
+// ── Multi-select dropdown ────────────────────────────────────────────────────
+interface DropdownOption { value: string; label: string }
+
+function MultiSelectDropdown({
+  label,
+  options,
+  selected,
+  onToggle,
+  onClear,
+}: {
+  label: string
+  options: DropdownOption[]
+  selected: string[]
+  onToggle: (v: string) => void
+  onClear: () => void
+}) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [])
+
+  const count = selected.length
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen(o => !o)}
+        className={`flex items-center gap-1.5 text-[11px] px-2.5 py-1.5 rounded-md border transition-colors ${
+          count > 0
+            ? 'bg-primary/10 text-primary border-primary/40 hover:bg-primary/15'
+            : 'bg-background text-muted-foreground border-border hover:border-primary/50 hover:text-foreground'
+        }`}
+      >
+        <span className="font-medium">{label}</span>
+        {count > 0 && (
+          <span className="bg-primary text-primary-foreground rounded-full w-4 h-4 flex items-center justify-center text-[9px] font-bold">
+            {count}
+          </span>
+        )}
+        <ChevronDownSmall className={`h-3 w-3 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+
+      {open && (
+        <div className="absolute top-full left-0 mt-1 z-50 bg-popover border border-border rounded-lg shadow-lg min-w-[160px] py-1 text-xs">
+          {options.map(opt => {
+            const checked = selected.includes(opt.value)
+            return (
+              <button
+                key={opt.value}
+                onClick={() => onToggle(opt.value)}
+                className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-muted/60 transition-colors text-left"
+              >
+                <span className={`w-4 h-4 flex-shrink-0 rounded border flex items-center justify-center transition-colors ${
+                  checked ? 'bg-primary border-primary' : 'border-border bg-background'
+                }`}>
+                  {checked && <Check className="h-2.5 w-2.5 text-primary-foreground" />}
+                </span>
+                <span className={checked ? 'text-foreground font-medium' : 'text-muted-foreground'}>
+                  {opt.label}
+                </span>
+              </button>
+            )
+          })}
+          {count > 0 && (
+            <>
+              <div className="h-px bg-border mx-2 my-1" />
+              <button
+                onClick={() => { onClear(); setOpen(false) }}
+                className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-muted/60 transition-colors text-left text-muted-foreground hover:text-foreground"
+              >
+                <X className="h-3 w-3" />
+                Clear
+              </button>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 interface SectionHeader { label: string; colSpan: number }
 interface ColDef {
   key: string
@@ -107,8 +188,8 @@ const COLUMNS: ColDef[] = [
     key: 'name', label: 'Name',
     sortValue: (row) => row.name,
     render: (row) => (
-      <Link href={`/companies/${row.companyId}`} className="flex items-center gap-2 hover:underline font-medium">
-        <span className="truncate max-w-[140px]">{row.name}</span>
+      <Link href={`/companies/${row.companyId}`} className="flex items-center gap-2 hover:underline font-medium whitespace-nowrap">
+        {row.name}
       </Link>
     ),
   },
@@ -213,7 +294,7 @@ const COLUMNS: ColDef[] = [
   },
 ]
 
-const STATUS_OPTIONS = [
+const STATUS_OPTIONS: DropdownOption[] = [
   { value: 'active',      label: 'Active' },
   { value: 'exited',      label: 'Exited' },
   { value: 'written-off', label: 'Written Off' },
@@ -258,12 +339,18 @@ export function DashboardManagementTable({ allGroups }: Props) {
     return STAGE_ORDER.filter(s => present.has(s))
   }, [data])
 
+  const stageOptions: DropdownOption[] = useMemo(
+    () => availableStages.map(s => ({ value: s, label: s })),
+    [availableStages]
+  )
+
   const toggleStatus = (v: string) =>
     setFilterStatus(prev => prev.includes(v) ? prev.filter(x => x !== v) : [...prev, v])
   const toggleStage = (v: string) =>
     setFilterStage(prev => prev.includes(v) ? prev.filter(x => x !== v) : [...prev, v])
-  const clearFilters = () => { setFilterStatus([]); setFilterStage([]) }
+
   const hasFilters = filterStatus.length > 0 || filterStage.length > 0
+  const clearAll   = () => { setFilterStatus([]); setFilterStage([]) }
 
   const handleSort = useCallback((key: string) => {
     setSortKey(prev => {
@@ -335,57 +422,42 @@ export function DashboardManagementTable({ allGroups }: Props) {
   return (
     <div className="space-y-3">
       {/* ── Filter bar ── */}
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="flex items-center gap-1.5">
-          <span className="text-xs text-muted-foreground font-medium">Status:</span>
-          <div className="flex gap-1">
-            {STATUS_OPTIONS.map(opt => (
-              <button key={opt.value} onClick={() => toggleStatus(opt.value)}
-                className={`text-[11px] px-2.5 py-1 rounded-full border transition-colors ${
-                  filterStatus.includes(opt.value)
-                    ? 'bg-primary text-primary-foreground border-primary'
-                    : 'bg-background text-muted-foreground border-border hover:border-primary/50 hover:text-foreground'
-                }`}>
-                {opt.label}
-              </button>
-            ))}
-          </div>
-        </div>
-        <div className="h-4 w-px bg-border" />
-        <div className="flex items-center gap-1.5">
-          <span className="text-xs text-muted-foreground font-medium">Stage:</span>
-          <div className="flex flex-wrap gap-1">
-            {availableStages.map(stage => {
-              const c = STAGE_COLORS[stage] ?? { bg: '', text: '' }
-              const active = filterStage.includes(stage)
-              return (
-                <button key={stage} onClick={() => toggleStage(stage)}
-                  className={`text-[11px] px-2.5 py-1 rounded-full border transition-colors ${
-                    active
-                      ? `${c.bg} ${c.text} border-transparent`
-                      : 'bg-background text-muted-foreground border-border hover:border-primary/50 hover:text-foreground'
-                  }`}>
-                  {stage}
-                </button>
-              )
-            })}
-          </div>
-        </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <MultiSelectDropdown
+          label="Status"
+          options={STATUS_OPTIONS}
+          selected={filterStatus}
+          onToggle={toggleStatus}
+          onClear={() => setFilterStatus([])}
+        />
+        <MultiSelectDropdown
+          label="Stage"
+          options={stageOptions}
+          selected={filterStage}
+          onToggle={toggleStage}
+          onClear={() => setFilterStage([])}
+        />
         {hasFilters && (
-          <button onClick={clearFilters}
-            className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors ml-auto">
+          <button
+            onClick={clearAll}
+            className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors ml-1"
+          >
             <X className="h-3 w-3" />
-            Clear filters
-            <span className="ml-1 bg-muted text-muted-foreground px-1.5 py-0.5 rounded-full text-[10px]">{totalRows}</span>
+            Clear all
+            <span className="ml-1 bg-muted text-muted-foreground px-1.5 py-0.5 rounded-full text-[10px]">
+              {totalRows}
+            </span>
           </button>
         )}
       </div>
 
       {/* ── Table ── */}
       <div className="overflow-x-auto rounded-lg border bg-card">
-        <table className="w-full border-collapse text-xs whitespace-nowrap">
+        <table className="border-collapse text-xs whitespace-nowrap" style={{ tableLayout: 'auto', width: '100%' }}>
           <colgroup>
-            <col style={{ minWidth: '160px' }} />
+            {/* col 0: Name — auto-sized to widest content */}
+            <col />
+            {/* cols 1+: fixed equal width */}
             {COLUMNS.slice(1).map(col => (
               <col key={col.key} style={{ width: '100px', minWidth: '100px' }} />
             ))}
@@ -394,7 +466,7 @@ export function DashboardManagementTable({ allGroups }: Props) {
           <thead>
             {/* ── Section header row ── */}
             <tr className="border-b border-primary/30">
-              {/* col 0: sticky — carries "Company" label */}
+              {/* col 0: sticky, carries "Company" label */}
               <th colSpan={1} className="px-3 py-1.5 text-[11px] font-semibold text-left bg-primary text-primary-foreground sticky left-0 z-20">
                 Company
               </th>
