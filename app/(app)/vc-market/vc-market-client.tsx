@@ -8,7 +8,7 @@ import {
   TrendingUp, Globe, DollarSign, Building2, BarChart3,
   Upload, RefreshCw, ExternalLink, X, FileSpreadsheet, Loader2,
   ChevronDown, ChevronUp, Search, Pencil, Trash2, Check, ChevronsUpDown, ClipboardList,
-  Info,
+  Info, Zap,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -1074,8 +1074,9 @@ export function VCMarketClient({ isAdmin, lastScrapedAt: initialLastScrapedAt }:
 
       {/* Latest Deals banner */}
       {latestDeals.length > 0 && (
-        <DragScroll className="border-y border-border/50 py-2 flex items-center gap-3">
-          <span className="text-[10px] font-semibold tracking-widest uppercase text-muted-foreground/60 shrink-0 pl-1 pr-2 border-r border-border/40 mr-1">
+        <DragScroll className="bg-muted/50 rounded-lg border border-border/40 px-3 py-2 flex items-center gap-3">
+          <span className="flex items-center gap-1 text-[10px] font-semibold tracking-widest uppercase text-muted-foreground/70 shrink-0 pr-2 border-r border-border/40 mr-1">
+            <Zap className="h-3 w-3 shrink-0" />
             Latest
           </span>
           {latestDeals.map((deal, i) => {
