@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { scrapeVCDeals } from '@/lib/vc-market/scrapers'
 import { decryptApiKey } from '@/lib/crypto'
+import { sendDealDigest } from '@/lib/vc-market/digest-email'
 
 function errorMessage(err: unknown): string {
   if (err instanceof Error) return err.message
@@ -97,6 +98,9 @@ export async function POST() {
       .select('id')
 
     if (error) throw error
+
+    // Send digest email with the newly inserted deals
+    await sendDealDigest(admin, user.id, membership.fund_id, deals)
 
     return NextResponse.json({
       pending: inserted?.length ?? deals.length,
