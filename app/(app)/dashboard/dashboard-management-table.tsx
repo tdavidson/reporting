@@ -55,6 +55,10 @@ function statusBadge(status: string) {
   return <Badge variant="secondary" className="text-[10px] px-1.5 py-0 bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300">Active</Badge>
 }
 
+function withThousands(n: number): string {
+  return n.toLocaleString('en-US')
+}
+
 function fmt(value: number | null, type: 'currency' | 'pct' | 'multiple' | 'integer' | 'months', symbol: string): string {
   if (value == null) return '—'
   switch (type) {
@@ -62,37 +66,42 @@ function fmt(value: number | null, type: 'currency' | 'pct' | 'multiple' | 'inte
       const abs = Math.abs(value)
       const neg = value < 0 ? '-' : ''
       if (abs >= 1_000_000) return `${neg}${symbol}${(abs / 1_000_000).toFixed(1)}M`
-      if (abs >= 1_000) return `${neg}${symbol}${(abs / 1_000).toFixed(0)}K`
-      return `${neg}${symbol}${abs.toFixed(0)}`
+      if (abs >= 1_000) return `${neg}${symbol}${withThousands(Math.round(abs / 1_000) * 1_000).replace(/,/g, ',')}K`.replace('K', () => {
+        // e.g. $500K — keep abbreviated but with comma if needed in the number part
+        const k = abs / 1_000
+        return `${k % 1 === 0 ? withThousands(Math.round(k)) : k.toFixed(1)}K`
+      }).replace(`${neg}${symbol}`, `${neg}${symbol}`)
+      return `${neg}${symbol}${withThousands(Math.round(abs))}`
     }
     case 'pct':
       return `${(value * 100).toFixed(1)}%`
     case 'multiple':
       return `${value.toFixed(2)}x`
     case 'integer':
-      return value.toFixed(0)
+      return withThousands(Math.round(value))
     case 'months':
       return `${value}mo`
   }
+}
+
+// Cleaner currency fmt helper used internally
+function fmtCurrency(value: number | null, symbol: string): string {
+  if (value == null) return '—'
+  const abs = Math.abs(value)
+  const neg = value < 0 ? '-' : ''
+  if (abs >= 1_000_000) return `${neg}${symbol}${(abs / 1_000_000).toFixed(1)}M`
+  if (abs >= 1_000) {
+    const k = abs / 1_000
+    const kStr = k % 1 === 0 ? withThousands(Math.round(k)) : k.toFixed(1)
+    return `${neg}${symbol}${kStr}K`
+  }
+  return `${neg}${symbol}${withThousands(Math.round(abs))}`
 }
 
 function fmtDate(iso: string | null): string {
   if (!iso) return '—'
   const d = new Date(iso)
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-}
-
-function CompanyAvatar({ row }: { row: ManagementRow }) {
-  const initials = row.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
-  return (
-    <div className="w-7 h-7 rounded-md overflow-hidden bg-muted flex items-center justify-center flex-shrink-0">
-      {row.logoUrl ? (
-        <Image src={row.logoUrl} alt={row.name} width={28} height={28} className="object-cover w-full h-full" />
-      ) : (
-        <span className="text-[10px] font-semibold text-muted-foreground">{initials}</span>
-      )}
-    </div>
-  )
 }
 
 // Section layout:
@@ -131,8 +140,7 @@ const COLUMNS: ColDef[] = [
     sortValue: (row) => row.name,
     render: (row) => (
       <Link href={`/companies/${row.companyId}`} className="flex items-center gap-2 hover:underline font-medium">
-        <CompanyAvatar row={row} />
-        <span className="truncate max-w-[120px]">{row.name}</span>
+        <span className="truncate max-w-[140px]">{row.name}</span>
       </Link>
     ),
   },
@@ -148,33 +156,33 @@ const COLUMNS: ColDef[] = [
   },
   // ── Investment (3-5) ──
   {
-    key: 'entryOwnershipPct', label: 'Entry Own.%', align: 'right',
+    key: 'entryOwnershipPct', label: 'Entry Own.%', align: 'center',
     sortValue: (row) => row.entryOwnershipPct,
     render: (row, sym) => <span className="tabular-nums">{fmt(row.entryOwnershipPct != null ? row.entryOwnershipPct / 100 : null, 'pct', sym)}</span>,
   },
   {
-    key: 'ownershipPct', label: 'Current Own.%', align: 'right',
+    key: 'ownershipPct', label: 'Current Own.%', align: 'center',
     sortValue: (row) => row.ownershipPct,
     render: (row, sym) => <span className="tabular-nums">{fmt(row.ownershipPct != null ? row.ownershipPct / 100 : null, 'pct', sym)}</span>,
   },
   {
-    key: 'capitalInvested', label: 'Invested', align: 'right',
+    key: 'capitalInvested', label: 'Invested', align: 'center',
     sortValue: (row) => row.capitalInvested,
-    render: (row, sym) => <span className="tabular-nums">{fmt(row.capitalInvested, 'currency', sym)}</span>,
+    render: (row, sym) => <span className="tabular-nums">{fmtCurrency(row.capitalInvested, sym)}</span>,
   },
   // ── Valuation (6-9) ──
   {
-    key: 'entryValuation', label: 'Entry Val.', align: 'right',
+    key: 'entryValuation', label: 'Entry Val.', align: 'center',
     sortValue: (row) => row.entryValuation,
-    render: (row, sym) => <span className="tabular-nums">{fmt(row.entryValuation, 'currency', sym)}</span>,
+    render: (row, sym) => <span className="tabular-nums">{fmtCurrency(row.entryValuation, sym)}</span>,
   },
   {
-    key: 'currentValuation', label: 'Current Val.', align: 'right',
+    key: 'currentValuation', label: 'Current Val.', align: 'center',
     sortValue: (row) => row.currentValuation,
-    render: (row, sym) => <span className="tabular-nums">{fmt(row.currentValuation, 'currency', sym)}</span>,
+    render: (row, sym) => <span className="tabular-nums">{fmtCurrency(row.currentValuation, sym)}</span>,
   },
   {
-    key: 'moic', label: 'MOIC', align: 'right',
+    key: 'moic', label: 'MOIC', align: 'center',
     sortValue: (row) => row.moic,
     render: (row, sym) => (
       <span className={`tabular-nums font-medium ${
@@ -186,18 +194,18 @@ const COLUMNS: ColDef[] = [
     ),
   },
   {
-    key: 'evRevenue', label: 'EV/Rev (ARR)', align: 'right',
+    key: 'evRevenue', label: 'EV/Rev (ARR)', align: 'center',
     sortValue: (row) => row.evRevenue,
     render: (row, sym) => <span className="tabular-nums">{fmt(row.evRevenue, 'multiple', sym)}</span>,
   },
   // ── Operations (10-14) ──
   {
-    key: 'mrr', label: 'MRR', align: 'right',
+    key: 'mrr', label: 'MRR', align: 'center',
     sortValue: (row) => row.mrr,
-    render: (row, sym) => <span className="tabular-nums">{fmt(row.mrr, 'currency', sym)}</span>,
+    render: (row, sym) => <span className="tabular-nums">{fmtCurrency(row.mrr, sym)}</span>,
   },
   {
-    key: 'mrrGrowth', label: 'MRR MoM', align: 'right',
+    key: 'mrrGrowth', label: 'MRR MoM', align: 'center',
     sortValue: (row) => row.mrrGrowth,
     render: (row) => {
       if (row.mrrGrowth == null) return <span className="text-muted-foreground/40">—</span>
@@ -213,17 +221,17 @@ const COLUMNS: ColDef[] = [
     },
   },
   {
-    key: 'cash', label: 'Cash', align: 'right',
+    key: 'cash', label: 'Cash', align: 'center',
     sortValue: (row) => row.cash,
-    render: (row, sym) => <span className="tabular-nums">{fmt(row.cash, 'currency', sym)}</span>,
+    render: (row, sym) => <span className="tabular-nums">{fmtCurrency(row.cash, sym)}</span>,
   },
   {
-    key: 'burn', label: 'Burn/mo', align: 'right',
+    key: 'burn', label: 'Burn/mo', align: 'center',
     sortValue: (row) => row.burn,
-    render: (row, sym) => <span className="tabular-nums">{fmt(row.burn, 'currency', sym)}</span>,
+    render: (row, sym) => <span className="tabular-nums">{fmtCurrency(row.burn, sym)}</span>,
   },
   {
-    key: 'runway', label: 'Runway', align: 'right',
+    key: 'runway', label: 'Runway', align: 'center',
     sortValue: (row) => row.runway,
     render: (row) => {
       if (row.runway == null) return <span className="text-muted-foreground/40">—</span>
@@ -235,7 +243,7 @@ const COLUMNS: ColDef[] = [
   },
   // ── Activity (15) ──
   {
-    key: 'lastUpdateAt', label: 'Last Update', align: 'left',
+    key: 'lastUpdateAt', label: 'Last Update', align: 'center',
     sortValue: (row) => row.lastUpdateAt ?? '',
     render: (row) => <span className="text-muted-foreground text-xs">{fmtDate(row.lastUpdateAt)}</span>,
   },
@@ -280,8 +288,6 @@ export function DashboardManagementTable({ allGroups }: Props) {
     })
   }, [])
 
-  // Group rows preserving allGroups order.
-  // Rows with no portfolioGroup go into a null bucket rendered without a header.
   const grouped = useMemo((): [string | null, ManagementRow[]][] => {
     if (!data) return []
     const map = new Map<string, ManagementRow[]>()
@@ -301,18 +307,14 @@ export function DashboardManagementTable({ allGroups }: Props) {
 
     const result: [string | null, ManagementRow[]][] = []
 
-    // Known groups in order
     for (const g of allGroups) {
       if (map.has(g)) result.push([g, map.get(g)!])
     }
-    // Any groups not in allGroups (shouldn't happen, but safe)
     for (const [g, rows] of Array.from(map.entries())) {
       if (!allGroups.includes(g)) result.push([g, rows])
     }
-    // Ungrouped companies appended last, with null key (no header rendered)
     if (ungrouped.length > 0) result.push([null, ungrouped])
 
-    // Apply sort within each group
     if (sortKey && sortDir) {
       const col = COLUMNS.find(c => c.key === sortKey)
       if (col) {
@@ -362,19 +364,27 @@ export function DashboardManagementTable({ allGroups }: Props) {
   return (
     <div className="overflow-x-auto rounded-lg border bg-card">
       <table className="w-full border-collapse text-xs whitespace-nowrap">
+        <colgroup>
+          {/* Name column: auto width */}
+          <col className="w-auto min-w-[160px]" />
+          {/* All other columns: equal fixed width */}
+          {COLUMNS.slice(1).map((col) => (
+            <col key={col.key} style={{ width: '100px', minWidth: '100px' }} />
+          ))}
+        </colgroup>
         <thead>
-          {/* Section header row */}
-          <tr className="border-b border-border">
+          {/* Section header row — graphite background */}
+          <tr className="border-b border-border bg-zinc-700 dark:bg-zinc-800">
             {SECTION_HEADERS.map((s, i) => (
               <th
                 key={i}
                 colSpan={s.colSpan}
-                className={`px-3 py-1.5 text-[11px] font-semibold text-muted-foreground text-left ${
+                className={`px-3 py-1.5 text-[11px] font-semibold text-zinc-100 text-left ${
                   SECTION_LAST_COL_INDICES.has(
                     SECTION_HEADERS.slice(0, i + 1).reduce((acc, h) => acc + h.colSpan, 0) - 1
-                  ) ? 'border-r border-border' : ''
+                  ) ? 'border-r border-zinc-600' : ''
                 } last:border-r-0 ${
-                  i === 0 ? 'sticky left-0 z-20 bg-card' : 'bg-muted/30'
+                  i === 0 ? 'sticky left-0 z-20 bg-zinc-700 dark:bg-zinc-800' : ''
                 }`}
               >
                 {s.label}
@@ -387,10 +397,8 @@ export function DashboardManagementTable({ allGroups }: Props) {
               <th
                 key={col.key}
                 onClick={() => handleSort(col.key)}
-                className={`px-3 py-2 font-medium text-muted-foreground text-[11px] cursor-pointer select-none hover:text-foreground transition-colors ${
-                  col.align === 'right' ? 'text-right' : col.align === 'center' ? 'text-center' : 'text-left'
-                } ${
-                  i === 0 ? 'sticky left-0 z-20 bg-card' : 'bg-card'
+                className={`px-3 py-2 font-medium text-muted-foreground text-[11px] cursor-pointer select-none hover:text-foreground transition-colors text-center ${
+                  i === 0 ? 'sticky left-0 z-20 bg-card text-left' : 'bg-card'
                 } ${
                   SECTION_LAST_COL_INDICES.has(i) ? 'border-r border-border' : ''
                 }`}
@@ -404,7 +412,6 @@ export function DashboardManagementTable({ allGroups }: Props) {
         <tbody>
           {grouped.map(([groupName, rows], groupIdx) => (
             <>
-              {/* Group header — only render when group has a name */}
               {groupName !== null && (
                 <tr key={`group-${groupName}`}>
                   <td
@@ -417,7 +424,6 @@ export function DashboardManagementTable({ allGroups }: Props) {
                   </td>
                 </tr>
               )}
-              {/* Company rows */}
               {rows.map((row, rowIdx) => (
                 <tr
                   key={row.companyId}
@@ -428,10 +434,8 @@ export function DashboardManagementTable({ allGroups }: Props) {
                   {COLUMNS.map((col, i) => (
                     <td
                       key={col.key}
-                      className={`px-3 py-2 ${
-                        col.align === 'right' ? 'text-right' : col.align === 'center' ? 'text-center' : 'text-left'
-                      } ${
-                        i === 0 ? 'sticky left-0 z-10 bg-card hover:bg-muted/30' : ''
+                      className={`px-3 py-2 text-center ${
+                        i === 0 ? 'sticky left-0 z-10 bg-card hover:bg-muted/30 text-left' : ''
                       } ${
                         SECTION_LAST_COL_INDICES.has(i) ? 'border-r border-border/60' : ''
                       }`}
