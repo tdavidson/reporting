@@ -37,7 +37,6 @@ export function CompanyMetricsView({ companyId, companyName, metrics, isAdmin, a
 
   return (
     <div>
-      {/* Toggle — rendered inside the metrics section, visible only when hydrated */}
       {hydrated && (
         <div className="flex items-center gap-0.5 border border-border rounded-md p-0.5 bg-muted/40 w-fit">
           <button
@@ -73,7 +72,11 @@ export function CompanyMetricsView({ companyId, companyName, metrics, isAdmin, a
             allMetrics={allMetrics}
           />
         ) : (
-          <DashboardTable companyIds={[companyId]} grouped={null} />
+          <DashboardTable
+            companyIds={[companyId]}
+            grouped={null}
+            hideCompanyColumn
+          />
         )}
       </div>
     </div>
