@@ -37,15 +37,21 @@ const PERIOD_OPTIONS = [
   { value: 'all',       label: 'All time' },
 ]
 
-// [1] Bridge removido, FIDC / M&A / IPO adicionados
+// Stage options updated
 const STAGE_OPTIONS = [
-  'Pre-Seed', 'Seed', 'Series A', 'Series B', 'Series C', 'Series D', 'Series E',
-  'Growth', 'FIDC', 'M&A', 'IPO',
+  'Venture Debt', 'Late-Stage', 'Early-Stage', 'Seed', 'M&A', 'IPO', 'FIDC',
 ]
 
 const STAGE_COLORS: Record<string, string> = {
+  'Venture Debt': '#6366f1',
+  'Late-Stage':   '#3b82f6',
+  'Early-Stage':  '#0ea5e9',
+  'Seed':         '#8b5cf6',
+  'M&A':          '#f97316',
+  'IPO':          '#f97316',
+  'FIDC':         '#14b8a6',
+  // legacy fallbacks
   'Pre-Seed': '#6366f1',
-  'Seed':     '#8b5cf6',
   'Series A': '#3b82f6',
   'Series B': '#0ea5e9',
   'Series C': '#84cc16',
@@ -53,9 +59,6 @@ const STAGE_COLORS: Record<string, string> = {
   'Series E': '#84cc16',
   'Growth':   '#84cc16',
   'Bridge':   '#f97316',
-  'IPO':      '#f97316',
-  'M&A':      '#f97316',
-  'FIDC':     '#14b8a6',
 }
 
 const PIE_COLORS = [
@@ -82,8 +85,8 @@ const CHART_MIN_H = 160
 
 const DEFAULT_FILTERS: VCFilters = {
   period:    'ytd',
-  countries: ['Brazil'],
-  segments:  ['Fintech'],
+  countries: [],
+  segments:  [],
   stages:    [],
   investors: [],
 }
@@ -602,7 +605,6 @@ function EditDealModal({ deal, onClose, onSaved, onDeleted }: {
           <Field label="Company"><Input value={form.company_name} onChange={e => set('company_name', e.target.value)} className="h-8 text-xs" /></Field>
           <Field label="Amount (USD)"><Input value={form.amount_usd} onChange={e => set('amount_usd', e.target.value)} placeholder="5000000" className="h-8 text-xs" /></Field>
           <Field label="Date"><Input type="date" value={form.deal_date} onChange={e => set('deal_date', e.target.value)} className="h-8 text-xs" /></Field>
-          {/* [1] Stage options updated */}
           <Field label="Stage">
             <select value={form.stage} onChange={e => set('stage', e.target.value)} className="h-8 rounded-md border bg-background text-xs px-2">
               <option value="">— none —</option>
@@ -721,7 +723,7 @@ function KPICard({ label, value, icon: Icon, color }: {
   )
 }
 
-// ─── InvestorsCell — [2] tooltip with all investors on hover ──────────────────
+// ─── InvestorsCell — tooltip with all investors on hover ──────────────────
 
 function InvestorsCell({ investors }: { investors: string[] }) {
   const [visible, setVisible] = useState(false)
@@ -783,7 +785,6 @@ function DealRow({ deal, onEdit }: { deal: VCDeal; onEdit: (d: VCDeal) => void }
           ? <span className="text-xs font-medium px-2 py-0.5 rounded-full text-white whitespace-nowrap" style={{ backgroundColor: stageColor }}>{deal.stage}</span>
           : <span className="text-muted-foreground text-sm">—</span>}
       </td>
-      {/* [2] investors tooltip */}
       <td className="px-4 py-3 max-w-[200px]">
         <InvestorsCell investors={deal.investors ?? []} />
       </td>
@@ -882,8 +883,8 @@ export function VCMarketClient({ isAdmin, lastScrapedAt: initialLastScrapedAt }:
 
   const isDefaultFilters = (
     filters.period === DEFAULT_FILTERS.period &&
-    JSON.stringify([...filters.countries].sort()) === JSON.stringify([...DEFAULT_FILTERS.countries].sort()) &&
-    JSON.stringify([...filters.segments].sort())  === JSON.stringify([...DEFAULT_FILTERS.segments].sort()) &&
+    filters.countries.length === 0 &&
+    filters.segments.length  === 0 &&
     filters.stages.length    === 0 &&
     filters.investors.length === 0
   )
@@ -939,7 +940,7 @@ export function VCMarketClient({ isAdmin, lastScrapedAt: initialLastScrapedAt }:
 
   const countryOptions  = getUniqueValues(allDeals, 'country')
   const segmentOptions  = getUniqueValues(allDeals, 'segment')
-  const stageOptions    = getUniqueValues(allDeals, 'stage')
+  const stageOptions    = STAGE_OPTIONS
   const investorOptions = getUniqueInvestors(allDeals)
 
   const toggleSort = (key: keyof VCDeal) => {
