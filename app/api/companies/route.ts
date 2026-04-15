@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { assertWriteAccess } from '@/lib/api-helpers'
 import { dbError } from '@/lib/api-error'
 import { logActivity } from '@/lib/activity'
+import { seedDefaultMetrics } from '@/lib/default-metrics'
 
 export async function GET() {
   const supabase = createClient()
@@ -109,6 +110,14 @@ export async function POST(req: NextRequest) {
     .single()
 
   if (error) return dbError(error, 'companies')
+
+  // Seed the 4 default metrics for every new company
+  try {
+    await seedDefaultMetrics(admin, data.id, membership.fund_id)
+  } catch (metricErr) {
+    // Non-fatal — company was created successfully; log and move on
+    console.error('[seed-default-metrics] failed for company', data.id, metricErr)
+  }
 
   logActivity(admin, membership.fund_id, user.id, 'company.create', { companyName: name.trim() })
 
