@@ -2,10 +2,9 @@
 
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import Link from 'next/link'
-import { ArrowDownAZ, ArrowUpZA, ArrowDown, ArrowUp, LayoutGrid, Table2, CalendarDays, Plus, Upload, GripVertical, BarChart2, X } from 'lucide-react'
+import { ArrowDownAZ, ArrowUpZA, ArrowDown, ArrowUp, LayoutGrid, CalendarDays, Plus, Upload, GripVertical, BarChart2, X } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { DashboardTable } from './dashboard-table'
 import { DashboardManagementTable, MultiSelectDropdown, STATUS_OPTIONS, type DropdownOption } from './dashboard-management-table'
 import { useCurrency, getCurrencySymbol } from '@/components/currency-context'
 import { useDisplayUnit } from '@/components/display-unit-context'
@@ -155,7 +154,7 @@ function CompanyAvatar({ company, onLogoUpdate }: { company: Company; onLogoUpda
 }
 
 export function DashboardCompanies({ companies, allGroups, fundId }: Props) {
-  const [view, setView] = useState<'cards' | 'table' | 'management'>('cards')
+  const [view, setView] = useState<'cards' | 'management'>('cards')
   const [statusFilter, setStatusFilter] = useState<string>('active')
   const [sortMode, setSortMode] = useState<SortMode>('investDate')
   const [alphaSortAsc, setAlphaSortAsc] = useState(true)
@@ -240,7 +239,7 @@ export function DashboardCompanies({ companies, allGroups, fundId }: Props) {
       {(filtered.length > 0 || view === 'management') && (
         <div className="flex items-center gap-2 flex-wrap mb-4">
 
-          {/* ── Cards/Table status filter ── */}
+          {/* ── Cards status filter ── */}
           {view !== 'management' && (
             <select
               value={statusFilter}
@@ -333,14 +332,6 @@ export function DashboardCompanies({ companies, allGroups, fundId }: Props) {
                 <LayoutGrid className="h-3.5 w-3.5" /> Cards
               </button>
               <button
-                onClick={() => setView('table')}
-                className={`flex items-center gap-1.5 h-7 px-2.5 rounded text-xs font-medium transition-colors ${
-                  view === 'table' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                <Table2 className="h-3.5 w-3.5" /> Table
-              </button>
-              <button
                 onClick={() => setView('management')}
                 className={`flex items-center gap-1.5 h-7 px-2.5 rounded text-xs font-medium transition-colors ${
                   view === 'management' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
@@ -368,8 +359,6 @@ export function DashboardCompanies({ companies, allGroups, fundId }: Props) {
           <p className="text-muted-foreground">No companies match the selected filters.</p>
           <AddCompanyButton />
         </div>
-      ) : view === 'table' ? (
-        <DashboardTable companyIds={sortedFiltered.map(c => c.id)} grouped={null} />
       ) : (
         <CompanyGrid
           companies={sortedFiltered}
