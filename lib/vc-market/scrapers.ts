@@ -118,10 +118,9 @@ const FUNDING_KEYWORDS = [
   'aquisição', 'aquisicao', 'adquiriu', 'adquirido', 'comprou', 'compra',
   'fusão', 'fusao', 'fundião', 'fundiu',
   'm&a', 'venture capital', 'fundo', 'unicorn', 'valuation',
-  'fidc',  // Fundo de Investimento em Direitos Creditórios
-  'ronda', 'financiamiento', 'inversión', 'inversion', 'levantó', 'levanto',
+  'fidc', 'ronda', 'financiamiento', 'inversión', 'inversion', 'levantó', 'levanto',
   'serie a', 'serie b', 'serie c', 'capital de riesgo',
-  'adquisición', 'adquisicion', 'fusion', 'fusión',
+  'adquisición', 'adquisicion', 'fusion', 'fusión', 'early-stage','late-stage',
   'raised', 'raises', 'funding', 'series a', 'series b', 'series c', 'series d',
   'seed round', 'pre-seed', 'growth round', 'bridge round', 'venture',
   'acquired', 'acquisition', 'merger', 'acquires', 'buys', 'buyout',
@@ -320,8 +319,8 @@ function extractJsonArray(text: string): unknown[] {
 // to raise working capital. Not equity, but tracked as a distinct funding event.
 
 const STAGE_ENUM =
-  '"Pre-Seed"|"Seed"|"Series A"|"Series B"|"Series C"|"Series D"|"Series E"|' +
-  '"Growth"|"Bridge"|"IPO"|"SPAC"|"M&A"|"FIDC"|null'
+  '"Seed"|"Early-Stage"|"Late-Stage"|"Venture Debt"|' +
+  '|"IPO"|"SPAC"|"M&A"|"FIDC"|null'
 
 const SEGMENT_ENUM =
   '"AI/ML"|"Fintech"|"Healthtech"|"SaaS"|"E-commerce"|"Proptech"|"Edtech"|"Deeptech"|' +
