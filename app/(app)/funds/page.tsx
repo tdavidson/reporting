@@ -1,1 +1,16 @@
-$(cat /tmp/fixed.tsx)
+'use client'
+
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Loader2, Plus, Trash2, Save, X, Pencil, Briefcase, Lock, Upload, GripVertical, BarChart2, SlidersHorizontal, FileText, ExternalLink, FilePlus } from 'lucide-react'
+import { Card, CardContent } from '@/components/ui/card'
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
+import { Button } from '@/components/ui/button'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { useCurrency, formatCurrency, formatCurrencyFull } from '@/components/currency-context'
+import { xirr, type CashFlow } from '@/lib/xirr'
+import { useFeatureVisibility } from '@/components/feature-visibility-context'
+import { AnalystToggleButton } from '@/components/analyst-button'
+import { AnalystPanel } from '@/components/analyst-panel'
+import { PortfolioNotesProvider, PortfolioNotesButton, PortfolioNotesPanel } from '@/components/portfolio-notes'
+import { useDisplayUnit, type DisplayUnit } from '@/components/display-unit-context'
