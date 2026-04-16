@@ -441,7 +441,7 @@ export function ContractualTab({
 { label: 'Taxa de administração', value: d['management_fee_rate'] ? `${parseFloat(d['management_fee_rate']).toFixed(2)}%` : '—' },
 { label: 'Hurdle rate', value: d['hurdle_rate'] ? `${parseFloat(d['hurdle_rate']).toFixed(2)}%` : '—' },
 { label: 'Prazo do fundo', value: d['term_years'] ? `${d['term_years']} anos` : '—' },
-              ].map(m => (
+              ].map((m, i) => (
                 <div key={m.label} className={`bg-muted/20 px-4 py-3 text-center ${i < 3 ? 'border-r border-border/30' : ''}`}>
                   <p className="text-lg font-medium">{m.value}</p>
                   <p className="text-[11px] text-muted-foreground mt-0.5">{m.label}</p>
