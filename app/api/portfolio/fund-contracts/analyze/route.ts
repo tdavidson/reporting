@@ -57,15 +57,14 @@ async function fetchDocumentText(url: string): Promise<string> {
   const contentType = res.headers.get('content-type') ?? ''
   const buffer = Buffer.from(await res.arrayBuffer())
 
+  // DOCX — use mammoth (already in package.json)
   if (contentType.includes('officedocument') || url.toLowerCase().endsWith('.docx')) {
-    const JSZip = (await import('jszip')).default
-    const zip = await JSZip.loadAsync(buffer)
-    const xmlFile = zip.file('word/document.xml')
-    if (!xmlFile) throw new Error('DOCX inválido: word/document.xml não encontrado')
-    const xml = await xmlFile.async('string')
-    return xml.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
+    const mammoth = (await import('mammoth')).default
+    const result = await mammoth.extractRawText({ buffer })
+    return result.value
   }
 
+  // PDF — use pdf-parse
   if (contentType.includes('pdf') || url.toLowerCase().endsWith('.pdf')) {
     const pdfParse = (await import('pdf-parse')).default
     const data = await pdfParse(buffer)
@@ -83,16 +82,7 @@ async function extractFields(text: string): Promise<Record<string, any>> {
     max_tokens: 2048,
     messages: [{
       role: 'user',
-      content: `Você é um especialista em análise de regulamentos e contratos de fundos de investimento brasileiros.
-
-Analise o seguinte documento e extraia as informações solicitadas.
-
-${FIELD_DESCRIPTIONS}
-
-Retorne APENAS um objeto JSON válido com os campos extraídos. Sem explicações, sem markdown, apenas o JSON puro.
-
-DOCUMENTO:
-${truncated}`,
+      content: `Você é um especialista em análise de regulamentos e contratos de fundos de investimento brasileiros.\n\nAnalise o seguinte documento e extraia as informações solicitadas.\n\n${FIELD_DESCRIPTIONS}\n\nRetorne APENAS um objeto JSON válido com os campos extraídos. Sem explicações, sem markdown, apenas o JSON puro.\n\nDOCUMENTO:\n${truncated}`,
     }],
   })
 
@@ -110,24 +100,7 @@ async function reviewFields(extracted: Record<string, any>, text: string): Promi
     max_tokens: 2048,
     messages: [{
       role: 'user',
-      content: `Você é um revisor especializado em fundos de investimento. Outro agente extraiu os seguintes dados de um regulamento:
-
-DADOS EXTRAÍDOS:
-${JSON.stringify(extracted, null, 2)}
-
-${FIELD_DESCRIPTIONS}
-
-Sua tarefa:
-1. Verifique se os valores fazem sentido (ex: taxa de carry de 0.20 = 20% é razoável; 20.0 = 2000% não faz sentido)
-2. Corrija inconsistências (ex: taxas que foram extraídas como % em vez de decimal)
-3. Confirme ou corrija os valores verificando o trecho do documento abaixo
-4. Se um valor estiver claramente errado, corrija. Se estiver incerto, mantenha null
-5. Todos os textos em português
-
-Retorne APENAS o JSON corrigido. Sem explicações, apenas JSON puro.
-
-TRECHO DO DOCUMENTO (para verificação):
-${truncated}`,
+      content: `Você é um revisor especializado em fundos de investimento. Outro agente extraiu os seguintes dados de um regulamento:\n\nDADOS EXTRAÍDOS:\n${JSON.stringify(extracted, null, 2)}\n\n${FIELD_DESCRIPTIONS}\n\nSua tarefa:\n1. Verifique se os valores fazem sentido (ex: taxa de carry de 0.20 = 20% é razoável; 20.0 = 2000% não faz sentido)\n2. Corrija inconsistências (ex: taxas que foram extraídas como % em vez de decimal)\n3. Confirme ou corrija os valores verificando o trecho do documento abaixo\n4. Se um valor estiver claramente errado, corrija. Se estiver incerto, mantenha null\n5. Todos os textos em português\n\nRetorne APENAS o JSON corrigido. Sem explicações, apenas JSON puro.\n\nTRECHO DO DOCUMENTO (para verificação):\n${truncated}`,
     }],
   })
 
