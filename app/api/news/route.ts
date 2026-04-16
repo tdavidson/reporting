@@ -34,7 +34,7 @@ function getDateCeiling(dateRange: string): number | null {
 }
 
 export async function GET(req: NextRequest) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
@@ -77,7 +77,8 @@ export async function GET(req: NextRequest) {
   const cutoff  = getDateCutoff(dateRange)
   const ceiling = getDateCeiling(dateRange)
 
-  let articles: NewsArticle[] = (rows ?? []).map((r: any) => ({
+ let articles: (NewsArticle & { id: string })[] = (rows ?? []).map((r: any) => ({
+    id:           r.id,
     title:        r.title,
     link:         r.link,
     pubDate:      r.pub_date,
