@@ -1792,7 +1792,7 @@ export default function FundsPage() {
       </Tabs>
       </div>
 
-      <AnalystPanel pageContext="funds" />
+      <AnalystPanel />
       </div>
 
       {/* Settings Dialog */}
