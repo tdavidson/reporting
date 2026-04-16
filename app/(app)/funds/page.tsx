@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Loader2, Plus, Trash2, Save, X, Pencil, Briefcase, Lock, Upload, GripVertical, BarChart2, SlidersHorizontal, FileText, ExternalLink, FilePlus } from 'lucide-react'
+import { Loader2, Plus, Trash2, Save, X, Pencil, Briefcase, Lock, Upload, GripVertical, BarChart2, SlidersHorizontal, FileText, ExternalLink, FilePlus, Sparkles } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
@@ -297,6 +297,11 @@ function ContractualTab({
   const [docDraft, setDocDraft] = useState({ name: '', docType: 'LPA', version: '', effectiveDate: '', url: '', notes: '' })
   const [savingDoc, setSavingDoc] = useState(false)
   const [deletingDocId, setDeletingDocId] = useState<string | null>(null)
+  const [analyzeUrl, setAnalyzeUrl] = useState('')
+  const [analyzeDocName, setAnalyzeDocName] = useState('')
+  const [analyzing, setAnalyzing] = useState(false)
+  const [analyzeError, setAnalyzeError] = useState<string | null>(null)
+  const [analyzeOpen, setAnalyzeOpen] = useState(false)
 
   // termsDraft holds ALL contractual fields as strings for form inputs.
   // Fields that overlap with groupConfig (vintage, carry_rate, management_fee_rate,
@@ -480,6 +485,60 @@ function ContractualTab({
     }
   }
 
+ async function handleAnalyze() {
+    if (!analyzeUrl) return
+    setAnalyzing(true)
+    setAnalyzeError(null)
+    try {
+      const res = await fetch('/api/portfolio/fund-contracts/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          url: analyzeUrl,
+          portfolioGroup: group,
+          docName: analyzeDocName || 'Regulamento',
+          docType: 'LPA',
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setAnalyzeError(data.error ?? 'Erro ao analisar'); return }
+ 
+      const reload = await fetch(`/api/portfolio/fund-contracts?group=${encodeURIComponent(group)}`)
+      if (reload.ok) {
+        const { terms: t, documents: d } = await reload.json()
+        if (d) setDocuments(d)
+        if (t && t.length > 0) {
+          const base: Record<string, string> = {}
+          for (const [k, v] of Object.entries(t[0])) {
+            if (v != null) base[k] = String(v)
+          }
+          const gc = groupConfigRef.current
+          base['carry_rate'] = String(gc.carryRate * 100)
+          base['management_fee_rate'] = String(gc.managementFeeRate * 100)
+          base['gp_commit_pct'] = String(gc.gpCommitPct * 100)
+          if (gc.vintage != null) base['vintage'] = String(gc.vintage)
+          setTermsDraft(base)
+          setTermsDirty(false)
+ 
+          const record = t[0]
+          onConfigChange({
+            vintage: record.vintage != null ? Number(record.vintage) : null,
+            carryRate: record.carry_rate != null ? Number(record.carry_rate) : 0.20,
+            managementFeeRate: record.management_fee_rate != null ? Number(record.management_fee_rate) : 0,
+            gpCommitPct: record.gp_commit_pct != null ? Number(record.gp_commit_pct) : 0,
+          })
+        }
+      }
+      setAnalyzeOpen(false)
+      setAnalyzeUrl('')
+      setAnalyzeDocName('')
+    } catch (e: any) {
+      setAnalyzeError(e.message ?? 'Erro inesperado')
+    } finally {
+      setAnalyzing(false)
+    }
+  }
+
   if (loadingContract) {
     return (
       <div className="flex items-center gap-2 text-muted-foreground py-6">
@@ -490,6 +549,57 @@ function ContractualTab({
 
   return (
     <div className="space-y-8">
+            {/* ── AI Analyzer ── */}
+      <div className="border rounded-lg p-3 bg-muted/20">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Sparkles className="h-4 w-4 text-primary" />
+            <span className="text-sm font-medium">Analisar Regulamento com IA</span>
+          </div>
+          <Button variant="outline" size="sm" className="text-xs" onClick={() => setAnalyzeOpen(v => !v)}>
+            {analyzeOpen ? 'Fechar' : 'Importar'}
+          </Button>
+        </div>
+ 
+        {analyzeOpen && (
+          <div className="mt-3 space-y-3">
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">URL do documento (PDF ou DOCX) *</label>
+              <input
+                type="url"
+                value={analyzeUrl}
+                onChange={e => setAnalyzeUrl(e.target.value)}
+                placeholder="https://..."
+                className="border rounded px-2 py-1.5 text-sm w-full bg-transparent"
+                autoFocus
+              />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">Nome do documento</label>
+              <input
+                type="text"
+                value={analyzeDocName}
+                onChange={e => setAnalyzeDocName(e.target.value)}
+                placeholder="Regulamento (opcional)"
+                className="border rounded px-2 py-1.5 text-sm w-full bg-transparent"
+              />
+            </div>
+            {analyzeError && (
+              <p className="text-xs text-red-600">{analyzeError}</p>
+            )}
+            <div className="flex items-center gap-2">
+              <Button size="sm" onClick={handleAnalyze} disabled={analyzing || !analyzeUrl}>
+                {analyzing
+                  ? <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />Analisando…</>
+                  : <><Sparkles className="h-3.5 w-3.5 mr-1.5" />Analisar e Preencher</>
+                }
+              </Button>
+              {analyzing && <span className="text-xs text-muted-foreground">Aguarde, isso pode levar ~30s</span>}
+            </div>
+          </div>
+        )}
+      </div>
+ 
       {/* ── Fund Identity ── */}
       <section>
         <h3 className="text-sm font-semibold mb-3">Fund Identity</h3>
