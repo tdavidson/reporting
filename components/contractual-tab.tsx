@@ -435,7 +435,7 @@ export function ContractualTab({
           <div className="px-5 py-4 space-y-6">
 
             {/* Key metrics strip */}
-            <div className="grid grid-cols-4 gap-px bg-border/40 rounded-md overflow-hidden border border-border/40">
+            <div className="grid grid-cols-4 gap-px bg-border/60 rounded-md overflow-hidden border border-border/60">
               {[
 { label: 'Carry / Performance', value: d['carry_rate'] ? `${parseFloat(d['carry_rate']).toFixed(2)}%` : '—' },
 { label: 'Taxa de administração', value: d['management_fee_rate'] ? `${parseFloat(d['management_fee_rate']).toFixed(2)}%` : '—' },
