@@ -13,7 +13,7 @@ Sua tarefa é extrair campos estruturados de documentos como Regulamentos, LPAs,
 
 Regras críticas:
 - Extraia APENAS o que está explicitamente no documento. Nunca invente ou deduza valores.
-- Taxas percentuais devem ser retornadas como decimais (2% = 0.02, 20% = 0.20).
+- Taxas percentuais devem ser retornadas como unidade (2% = 2, 20% = 20).
 - Se um campo não existir no documento, retorne null.
 - Textos de descrição em português.
 - Retorne APENAS JSON puro, sem markdown, sem explicações.`
@@ -50,10 +50,10 @@ const EXTRACTION_PROMPT = `Analise este documento e extraia os seguintes campos:
 }
 
 Exemplos de taxas corretas:
-- "taxa de administração de 2% ao ano" → management_fee_rate: 0.02
-- "taxa de performance de 20%" → carry_rate: 0.20  
-- "hurdle de 8% a.a." → hurdle_rate: 0.08
-- "GP commit de 1%" → gp_commit_pct: 0.01`
+- "taxa de administração de 2% ao ano" → management_fee_rate: 2
+- "taxa de performance de 20%" → carry_rate: 20  
+- "hurdle de 8% a.a." → hurdle_rate: 8
+- "GP commit de 1%" → gp_commit_pct: 1`
 
 async function extractFromPdfNative(buffer: Buffer): Promise<Record<string, any>> {
   const base64 = buffer.toString('base64')
