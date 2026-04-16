@@ -435,14 +435,14 @@ export function ContractualTab({
           <div className="px-5 py-4 space-y-6">
 
             {/* Key metrics strip */}
-            <div className="grid grid-cols-4 gap-px bg-border/60 rounded-md overflow-hidden border border-border/60">
+            <div className="grid grid-cols-4 rounded-md overflow-hidden border border-border/30">
               {[
 { label: 'Carry / Performance', value: d['carry_rate'] ? `${parseFloat(d['carry_rate']).toFixed(2)}%` : '—' },
 { label: 'Taxa de administração', value: d['management_fee_rate'] ? `${parseFloat(d['management_fee_rate']).toFixed(2)}%` : '—' },
 { label: 'Hurdle rate', value: d['hurdle_rate'] ? `${parseFloat(d['hurdle_rate']).toFixed(2)}%` : '—' },
 { label: 'Prazo do fundo', value: d['term_years'] ? `${d['term_years']} anos` : '—' },
               ].map(m => (
-                <div key={m.label} className="bg-muted/50 px-4 py-3 text-center">
+                <div key={m.label} className={`bg-muted/20 px-4 py-3 text-center ${i < 3 ? 'border-r border-border/30' : ''}`}>
                   <p className="text-lg font-medium">{m.value}</p>
                   <p className="text-[11px] text-muted-foreground mt-0.5">{m.label}</p>
                 </div>
