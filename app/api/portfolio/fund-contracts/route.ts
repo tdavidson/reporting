@@ -11,6 +11,9 @@ import { dbError } from '@/lib/api-error'
 export interface FundContractTerms {
   portfolio_group: string
   fund_id: string
+  // Fund identity
+  fund_name: string | null
+  cnpj: string | null
   // Parties
   gp_name: string | null
   lp_names: string | null
@@ -18,14 +21,11 @@ export interface FundContractTerms {
   auditor: string | null
   legal_counsel: string | null
   // Economic terms
-  target_size: number | null
-  hard_cap: number | null
-  min_commitment: number | null
   management_fee_rate: number | null
   management_fee_basis: string | null  // 'committed' | 'invested' | 'nav'
   carry_rate: number | null
   hurdle_rate: number | null
-  hurdle_type: string | null           // 'preferred_return' | 'catch_up'
+  hurdle_type: string | null           // free text, e.g. 'Preferred Return', 'IRR Hurdle'
   catch_up_rate: number | null
   waterfall_type: string | null        // 'european' | 'american'
   gp_commit_pct: number | null
@@ -138,16 +138,16 @@ export async function PUT(req: NextRequest) {
   }
 
   const termFields = [
+    'fund_name', 'cnpj',
     'gp_name', 'lp_names', 'fund_administrator', 'auditor', 'legal_counsel',
-    'target_size', 'hard_cap', 'min_commitment', 'management_fee_rate',
-    'management_fee_basis', 'carry_rate', 'hurdle_rate', 'hurdle_type',
-    'catch_up_rate', 'waterfall_type', 'gp_commit_pct', 'recycling_allowed',
-    'recycling_cap', 'vintage', 'term_years', 'investment_period_years',
+    'management_fee_rate', 'management_fee_basis', 'carry_rate',
+    'hurdle_rate', 'hurdle_type', 'catch_up_rate', 'waterfall_type',
+    'gp_commit_pct', 'recycling_allowed', 'recycling_cap',
+    'vintage', 'term_years', 'investment_period_years',
     'extension_options', 'reporting_frequency', 'audit_required',
   ]
 
   // Accept both snake_case and camelCase from client
-  const camelToSnake = (s: string) => s.replace(/([A-Z])/g, '_$1').toLowerCase()
   for (const field of termFields) {
     const camel = field.replace(/_([a-z])/g, (_, c) => c.toUpperCase())
     if (rest[field] !== undefined) upsertPayload[field] = rest[field]
