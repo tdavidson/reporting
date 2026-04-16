@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Loader2, Plus, Trash2, Save, X, Pencil, Briefcase, Lock, Upload, GripVertical, BarChart2, SlidersHorizontal } from 'lucide-react'
+import { Loader2, Plus, Trash2, Save, X, Pencil, Briefcase, Lock, Upload, GripVertical, BarChart2, SlidersHorizontal, FileText, ExternalLink, FilePlus } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
@@ -26,6 +26,69 @@ interface FundCashFlow {
   created_at: string
   updated_at: string
 }
+
+// ---------------------------------------------------------------------------
+// Contract types
+// ---------------------------------------------------------------------------
+
+interface FundContractTerms {
+  portfolio_group: string
+  fund_id: string
+  gp_name: string | null
+  lp_names: string | null
+  fund_administrator: string | null
+  auditor: string | null
+  legal_counsel: string | null
+  target_size: number | null
+  hard_cap: number | null
+  min_commitment: number | null
+  management_fee_rate: number | null
+  management_fee_basis: string | null
+  carry_rate: number | null
+  hurdle_rate: number | null
+  hurdle_type: string | null
+  catch_up_rate: number | null
+  waterfall_type: string | null
+  gp_commit_pct: number | null
+  recycling_allowed: boolean | null
+  recycling_cap: number | null
+  vintage: number | null
+  term_years: number | null
+  investment_period_years: number | null
+  extension_options: string | null
+  reporting_frequency: string | null
+  audit_required: boolean | null
+  created_at: string
+  updated_at: string
+}
+
+interface FundContractDocument {
+  id: string
+  portfolio_group: string
+  fund_id: string
+  name: string
+  doc_type: string
+  version: string | null
+  effective_date: string | null
+  url: string | null
+  notes: string | null
+  created_at: string
+  updated_at: string
+}
+
+const DOC_TYPES = ['LPA', 'SPA', 'NDA', 'Side Letter', 'Amendment', 'Other']
+
+const EMPTY_TERMS: Partial<FundContractTerms> = {
+  gp_name: null, lp_names: null, fund_administrator: null, auditor: null,
+  legal_counsel: null, target_size: null, hard_cap: null, min_commitment: null,
+  management_fee_rate: null, management_fee_basis: null, carry_rate: null,
+  hurdle_rate: null, hurdle_type: null, catch_up_rate: null, waterfall_type: null,
+  gp_commit_pct: null, recycling_allowed: null, recycling_cap: null,
+  vintage: null, term_years: null, investment_period_years: null,
+  extension_options: null, reporting_frequency: null, audit_required: null,
+}
+
+// ---------------------------------------------------------------------------
 
 interface GroupSummaryFromInvestments {
   group: string
@@ -124,7 +187,6 @@ function computeFundMetrics(
 
   const finalCommitted = committed > 0 ? committed : called
 
-  // Use manual NAV override if set, otherwise use unrealized value from investments
   const grossResidual = navMode === 'manual' && navOverride != null ? navOverride : grossResidualFromInvestments
 
   const grossAssets = grossResidual + cashOnHand
@@ -142,9 +204,7 @@ function computeFundMetrics(
   const dpi = called > 0 ? distributions / called : null
   const rvpi = called > 0 ? netResidual / called : null
 
-  // Gross MOIC: return of the portfolio itself, denominator is capital deployed into companies (no fee deduction)
   const grossMoic = totalInvested > 0 ? (distributions + grossResidual) / totalInvested : null
-  // Net MOIC: LP return after carry and management fees
   const netInvestedCalculation = called - totalManagementFees
   const netMoic = netInvestedCalculation > 0 ? totalValue / netInvestedCalculation : null
   const grossTvpi = called > 0 ? (distributions + grossResidual) / called : null
@@ -211,6 +271,397 @@ function formatWithUnit(val: number, unit: DisplayUnit, currency: string): strin
 }
 
 const MASTER_FUND_KEY = '__master__'
+
+// ---------------------------------------------------------------------------
+// ContractualTab — sub-tab rendered inside each fund group tab
+// ---------------------------------------------------------------------------
+
+function ContractualTab({ group }: { group: string }) {
+  const currency = useCurrency()
+  const [terms, setTerms] = useState<Partial<FundContractTerms>>(EMPTY_TERMS)
+  const [documents, setDocuments] = useState<FundContractDocument[]>([])
+  const [loadingContract, setLoadingContract] = useState(false)
+  const [savingTerms, setSavingTerms] = useState(false)
+  const [termsDirty, setTermsDirty] = useState(false)
+  const [termsDraft, setTermsDraft] = useState<Record<string, string>>({})
+  const [addDocOpen, setAddDocOpen] = useState(false)
+  const [docDraft, setDocDraft] = useState({ name: '', docType: 'LPA', version: '', effectiveDate: '', url: '', notes: '' })
+  const [savingDoc, setSavingDoc] = useState(false)
+  const [deletingDocId, setDeletingDocId] = useState<string | null>(null)
+
+  const symbol = currency === 'BRL' ? 'R$' : currency === 'EUR' ? '€' : currency === 'GBP' ? '£' : '$'
+
+  useEffect(() => {
+    async function load() {
+      setLoadingContract(true)
+      try {
+        const res = await fetch(`/api/portfolio/fund-contracts?group=${encodeURIComponent(group)}`)
+        if (res.ok) {
+          const { terms: t, documents: d } = await res.json()
+          if (t && t.length > 0) {
+            setTerms(t[0])
+            // Populate draft from loaded terms
+            const draft: Record<string, string> = {}
+            for (const [k, v] of Object.entries(t[0])) {
+              if (v != null) draft[k] = String(v)
+            }
+            setTermsDraft(draft)
+          }
+          if (d) setDocuments(d)
+        }
+      } finally {
+        setLoadingContract(false)
+      }
+    }
+    load()
+  }, [group])
+
+  function setDraftField(field: string, value: string) {
+    setTermsDraft(prev => ({ ...prev, [field]: value }))
+    setTermsDirty(true)
+  }
+
+  async function handleSaveTerms() {
+    setSavingTerms(true)
+    try {
+      const payload: Record<string, any> = { portfolioGroup: group }
+      for (const [k, v] of Object.entries(termsDraft)) {
+        if (v === '') payload[k] = null
+        else if (['target_size','hard_cap','min_commitment','management_fee_rate','carry_rate',
+                   'hurdle_rate','catch_up_rate','gp_commit_pct','recycling_cap',
+                   'vintage','term_years','investment_period_years'].includes(k)) {
+          payload[k] = parseFloat(v)
+        } else if (['recycling_allowed','audit_required'].includes(k)) {
+          payload[k] = v === 'true'
+        } else {
+          payload[k] = v
+        }
+      }
+      const res = await fetch('/api/portfolio/fund-contracts', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setTerms(data)
+        setTermsDirty(false)
+      }
+    } finally {
+      setSavingTerms(false)
+    }
+  }
+
+  async function handleAddDocument() {
+    if (!docDraft.name) return
+    setSavingDoc(true)
+    try {
+      const res = await fetch('/api/portfolio/fund-contracts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          portfolioGroup: group,
+          name: docDraft.name,
+          docType: docDraft.docType,
+          version: docDraft.version || null,
+          effectiveDate: docDraft.effectiveDate || null,
+          url: docDraft.url || null,
+          notes: docDraft.notes || null,
+        }),
+      })
+      if (res.ok) {
+        const created = await res.json()
+        setDocuments(prev => [created, ...prev])
+        setDocDraft({ name: '', docType: 'LPA', version: '', effectiveDate: '', url: '', notes: '' })
+        setAddDocOpen(false)
+      }
+    } finally {
+      setSavingDoc(false)
+    }
+  }
+
+  async function handleDeleteDocument(id: string) {
+    setDeletingDocId(id)
+    try {
+      const res = await fetch(`/api/portfolio/fund-contracts?id=${id}`, { method: 'DELETE' })
+      if (res.ok) setDocuments(prev => prev.filter(d => d.id !== id))
+    } finally {
+      setDeletingDocId(null)
+    }
+  }
+
+  if (loadingContract) {
+    return (
+      <div className="flex items-center gap-2 text-muted-foreground py-6">
+        <Loader2 className="h-4 w-4 animate-spin" />Loading contractual data...
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-8">
+      {/* ── Economic Terms ── */}
+      <section>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-semibold">Economic Terms</h3>
+          {termsDirty && (
+            <Button size="sm" onClick={handleSaveTerms} disabled={savingTerms} className="h-7 px-3 text-xs">
+              {savingTerms ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Save className="h-3.5 w-3.5 mr-1" />}
+              Save
+            </Button>
+          )}
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+          {([
+            { field: 'target_size', label: `Target Size (${symbol})`, type: 'number' },
+            { field: 'hard_cap', label: `Hard Cap (${symbol})`, type: 'number' },
+            { field: 'min_commitment', label: `Min Commitment (${symbol})`, type: 'number' },
+            { field: 'carry_rate', label: 'Carry Rate (%)', type: 'number' },
+            { field: 'hurdle_rate', label: 'Hurdle Rate (%)', type: 'number' },
+            { field: 'hurdle_type', label: 'Hurdle Type', type: 'select', options: ['preferred_return', 'catch_up'] },
+            { field: 'catch_up_rate', label: 'Catch-up Rate (%)', type: 'number' },
+            { field: 'waterfall_type', label: 'Waterfall', type: 'select', options: ['european', 'american'] },
+            { field: 'management_fee_rate', label: 'Mgmt Fee (% p.a.)', type: 'number' },
+            { field: 'management_fee_basis', label: 'Fee Basis', type: 'select', options: ['committed', 'invested', 'nav'] },
+            { field: 'gp_commit_pct', label: 'GP Commit (%)', type: 'number' },
+            { field: 'recycling_allowed', label: 'Recycling', type: 'select', options: ['true', 'false'] },
+            { field: 'recycling_cap', label: `Recycling Cap (${symbol})`, type: 'number' },
+          ] as const).map(({ field, label, type, options }: any) => (
+            <div key={field}>
+              <label className="text-xs text-muted-foreground mb-1 block">{label}</label>
+              {type === 'select' ? (
+                <select
+                  value={termsDraft[field] ?? ''}
+                  onChange={e => setDraftField(field, e.target.value)}
+                  className="border rounded px-2 py-1.5 text-sm w-full bg-transparent"
+                >
+                  <option value="">—</option>
+                  {options.map((o: string) => (
+                    <option key={o} value={o}>{o}</option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  type="number"
+                  step="0.01"
+                  value={termsDraft[field] ?? ''}
+                  onChange={e => setDraftField(field, e.target.value)}
+                  placeholder="—"
+                  className="border rounded px-2 py-1.5 text-sm w-full font-mono bg-transparent"
+                />
+              )}
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* ── Duration & Structure ── */}
+      <section>
+        <h3 className="text-sm font-semibold mb-3">Duration & Structure</h3>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+          {([
+            { field: 'vintage', label: 'Vintage Year', type: 'number' },
+            { field: 'term_years', label: 'Fund Term (years)', type: 'number' },
+            { field: 'investment_period_years', label: 'Investment Period (years)', type: 'number' },
+            { field: 'extension_options', label: 'Extension Options', type: 'text' },
+            { field: 'reporting_frequency', label: 'Reporting', type: 'select', options: ['quarterly', 'semi-annual', 'annual'] },
+            { field: 'audit_required', label: 'Audit Required', type: 'select', options: ['true', 'false'] },
+          ] as const).map(({ field, label, type, options }: any) => (
+            <div key={field}>
+              <label className="text-xs text-muted-foreground mb-1 block">{label}</label>
+              {type === 'select' ? (
+                <select
+                  value={termsDraft[field] ?? ''}
+                  onChange={e => setDraftField(field, e.target.value)}
+                  className="border rounded px-2 py-1.5 text-sm w-full bg-transparent"
+                >
+                  <option value="">—</option>
+                  {options.map((o: string) => (
+                    <option key={o} value={o}>{o}</option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  type={type}
+                  step="0.01"
+                  value={termsDraft[field] ?? ''}
+                  onChange={e => setDraftField(field, e.target.value)}
+                  placeholder="—"
+                  className="border rounded px-2 py-1.5 text-sm w-full font-mono bg-transparent"
+                />
+              )}
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* ── Parties ── */}
+      <section>
+        <h3 className="text-sm font-semibold mb-3">Parties</h3>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+          {([
+            { field: 'gp_name', label: 'GP Name' },
+            { field: 'lp_names', label: 'LP Names / Notes' },
+            { field: 'fund_administrator', label: 'Fund Administrator' },
+            { field: 'auditor', label: 'Auditor' },
+            { field: 'legal_counsel', label: 'Legal Counsel' },
+          ] as const).map(({ field, label }: any) => (
+            <div key={field} className={field === 'lp_names' ? 'md:col-span-2' : ''}>
+              <label className="text-xs text-muted-foreground mb-1 block">{label}</label>
+              <input
+                type="text"
+                value={termsDraft[field] ?? ''}
+                onChange={e => setDraftField(field, e.target.value)}
+                placeholder="—"
+                className="border rounded px-2 py-1.5 text-sm w-full bg-transparent"
+              />
+            </div>
+          ))}
+        </div>
+        {termsDirty && (
+          <div className="mt-3">
+            <Button size="sm" onClick={handleSaveTerms} disabled={savingTerms} className="h-7 px-3 text-xs">
+              {savingTerms ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Save className="h-3.5 w-3.5 mr-1" />}
+              Save Changes
+            </Button>
+          </div>
+        )}
+      </section>
+
+      {/* ── Documents ── */}
+      <section>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-semibold">Documents</h3>
+          <Button variant="outline" size="sm" className="h-7 px-3 text-xs" onClick={() => setAddDocOpen(true)}>
+            <FilePlus className="h-3.5 w-3.5 mr-1" />Add Document
+          </Button>
+        </div>
+
+        {documents.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No documents yet. Add the LPA, SPAs, and other key documents.</p>
+        ) : (
+          <div className="border rounded-lg divide-y">
+            {documents.map(doc => (
+              <div key={doc.id} className="flex items-center gap-3 px-3 py-2.5 hover:bg-muted/30">
+                <FileText className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium truncate">{doc.name}</span>
+                    <span className="text-xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground flex-shrink-0">{doc.doc_type}</span>
+                    {doc.version && <span className="text-xs text-muted-foreground">v{doc.version}</span>}
+                  </div>
+                  <div className="flex items-center gap-3 mt-0.5">
+                    {doc.effective_date && <span className="text-xs text-muted-foreground">{doc.effective_date}</span>}
+                    {doc.notes && <span className="text-xs text-muted-foreground truncate max-w-[200px]">{doc.notes}</span>}
+                  </div>
+                </div>
+                <div className="flex items-center gap-1.5 flex-shrink-0">
+                  {doc.url && (
+                    <a href={doc.url} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-foreground">
+                      <ExternalLink className="h-3.5 w-3.5" />
+                    </a>
+                  )}
+                  <button
+                    onClick={() => handleDeleteDocument(doc.id)}
+                    disabled={deletingDocId === doc.id}
+                    className="text-muted-foreground hover:text-red-600"
+                    title="Delete document"
+                  >
+                    {deletingDocId === doc.id
+                      ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      : <Trash2 className="h-3.5 w-3.5" />}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      {/* Add document dialog */}
+      <Dialog open={addDocOpen} onOpenChange={setAddDocOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add Document</DialogTitle>
+            <DialogDescription>Add a contractual document for {group}. Provide metadata and a URL.</DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-3 py-2">
+            <div className="col-span-2">
+              <label className="text-xs text-muted-foreground mb-1 block">Document Name *</label>
+              <input
+                type="text"
+                value={docDraft.name}
+                onChange={e => setDocDraft(d => ({ ...d, name: e.target.value }))}
+                placeholder="Limited Partnership Agreement"
+                className="border rounded px-2 py-1.5 text-sm w-full bg-transparent"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">Type</label>
+              <select
+                value={docDraft.docType}
+                onChange={e => setDocDraft(d => ({ ...d, docType: e.target.value }))}
+                className="border rounded px-2 py-1.5 text-sm w-full bg-transparent"
+              >
+                {DOC_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">Version</label>
+              <input
+                type="text"
+                value={docDraft.version}
+                onChange={e => setDocDraft(d => ({ ...d, version: e.target.value }))}
+                placeholder="1.0"
+                className="border rounded px-2 py-1.5 text-sm w-full bg-transparent"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">Effective Date</label>
+              <input
+                type="date"
+                value={docDraft.effectiveDate}
+                onChange={e => setDocDraft(d => ({ ...d, effectiveDate: e.target.value }))}
+                className="border rounded px-2 py-1.5 text-sm w-full bg-transparent"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">URL</label>
+              <input
+                type="url"
+                value={docDraft.url}
+                onChange={e => setDocDraft(d => ({ ...d, url: e.target.value }))}
+                placeholder="https://..."
+                className="border rounded px-2 py-1.5 text-sm w-full bg-transparent"
+              />
+            </div>
+            <div className="col-span-2">
+              <label className="text-xs text-muted-foreground mb-1 block">Notes</label>
+              <input
+                type="text"
+                value={docDraft.notes}
+                onChange={e => setDocDraft(d => ({ ...d, notes: e.target.value }))}
+                placeholder="Optional notes"
+                className="border rounded px-2 py-1.5 text-sm w-full bg-transparent"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAddDocOpen(false)}>Cancel</Button>
+            <Button onClick={handleAddDocument} disabled={savingDoc || !docDraft.name}>
+              {savingDoc && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Add
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Main page
+// ---------------------------------------------------------------------------
 
 export default function FundsPage() {
   const fv = useFeatureVisibility()
@@ -958,159 +1409,175 @@ export default function FundsPage() {
 
               <MetricCards metrics={metrics} group={group} />
 
-              <div className="border rounded-lg overflow-x-auto">
-                <table className="w-full text-sm whitespace-nowrap">
-                  <thead>
-                    <tr className="border-b bg-muted/50">
-                      <th className="text-left px-3 py-2 font-medium">Date</th>
-                      <th className="text-left px-3 py-2 font-medium">Type</th>
-                      <th className="text-left px-3 py-2 font-medium">Group</th>
-                      <th className="text-right px-3 py-2 font-medium">Amount</th>
-                      <th className="text-right px-3 py-2 font-medium">Capital Called</th>
-                      <th className="text-right px-3 py-2 font-medium">Capital Distributed</th>
-                      <th className="px-3 py-2 w-20 font-medium">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {groupFlows.map((cf, idx) => {
-                      const cumul = rowCumulatives[idx]
-                      const isEditing = editingId === cf.id
+              {/* Sub-tabs: Cash Flows | Contractual */}
+              <Tabs defaultValue="cashflows" className="w-full">
+                <TabsList className="mb-4">
+                  <TabsTrigger value="cashflows" className="text-xs">Cash Flows</TabsTrigger>
+                  <TabsTrigger value="contractual" className="text-xs">Contractual</TabsTrigger>
+                </TabsList>
 
-                      if (isEditing) {
-                        return (
-                          <tr key={cf.id} className="border-b last:border-b-0 bg-blue-50/50 dark:bg-blue-950/20">
+                {/* Cash Flows sub-tab */}
+                <TabsContent value="cashflows">
+                  <div className="border rounded-lg overflow-x-auto">
+                    <table className="w-full text-sm whitespace-nowrap">
+                      <thead>
+                        <tr className="border-b bg-muted/50">
+                          <th className="text-left px-3 py-2 font-medium">Date</th>
+                          <th className="text-left px-3 py-2 font-medium">Type</th>
+                          <th className="text-left px-3 py-2 font-medium">Group</th>
+                          <th className="text-right px-3 py-2 font-medium">Amount</th>
+                          <th className="text-right px-3 py-2 font-medium">Capital Called</th>
+                          <th className="text-right px-3 py-2 font-medium">Capital Distributed</th>
+                          <th className="px-3 py-2 w-20 font-medium">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {groupFlows.map((cf, idx) => {
+                          const cumul = rowCumulatives[idx]
+                          const isEditing = editingId === cf.id
+
+                          if (isEditing) {
+                            return (
+                              <tr key={cf.id} className="border-b last:border-b-0 bg-blue-50/50 dark:bg-blue-950/20">
+                                <td className="px-3 py-1.5">
+                                  <input type="date" value={editDraft.flowDate} onChange={e => setEditDraft(d => ({ ...d, flowDate: e.target.value }))} className="border rounded px-1.5 py-0.5 text-sm w-32" />
+                                </td>
+                                <td className="px-3 py-1.5">
+                                  <select value={editDraft.flowType} onChange={e => setEditDraft(d => ({ ...d, flowType: e.target.value }))} className="border rounded px-1.5 py-0.5 text-sm">
+                                    <option value="commitment">Commitment</option>
+                                    <option value="called_capital">Called Capital</option>
+                                    <option value="distribution">Distribution</option>
+                                  </select>
+                                </td>
+                                <td className="px-3 py-1.5">
+                                  <input type="text" value={editDraft.portfolioGroup} onChange={e => setEditDraft(d => ({ ...d, portfolioGroup: e.target.value }))} className="border rounded px-1.5 py-0.5 text-sm w-28" />
+                                </td>
+                                <td className="px-3 py-1.5">
+                                  <input type="number" step="0.01" value={editDraft.amount} onChange={e => setEditDraft(d => ({ ...d, amount: e.target.value }))} className="border rounded px-1.5 py-0.5 text-sm text-right w-28" />
+                                </td>
+                                <td className="px-3 py-1.5">
+                                  <div className="flex items-center gap-2">
+                                    <Button variant="outline" size="sm" className="text-muted-foreground h-7 px-2 text-xs" onClick={handleSaveEdit} disabled={saving}>
+                                      <Save className="h-3.5 w-3.5 mr-1" />Save
+                                    </Button>
+                                    <Button variant="outline" size="sm" className="text-muted-foreground h-7 px-2 text-xs" onClick={() => setEditingId(null)}>
+                                      <Trash2 className="h-3.5 w-3.5" />
+                                    </Button>
+                                  </div>
+                                </td>
+                                <td colSpan={4} />
+                              </tr>
+                            )
+                          }
+
+                          return (
+                            <tr key={cf.id} className="border-b last:border-b-0 hover:bg-muted/30">
+                              <td className="px-3 py-2">{cf.flow_date}</td>
+                              <td className="px-3 py-2">
+                                <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${
+                                  cf.flow_type === 'commitment' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400' :
+                                  cf.flow_type === 'called_capital' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' :
+                                  'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                                }`}>
+                                  {FLOW_TYPE_LABELS[cf.flow_type]}
+                                </span>
+                              </td>
+                              <td className="px-3 py-2 text-xs text-muted-foreground">{cf.portfolio_group}</td>
+                              <td className="px-3 py-2 text-right font-mono">{fmt(cf.amount)}</td>
+                              <td className="px-3 py-2 text-right font-mono">{fmt(cumul.called)}</td>
+                              <td className="px-3 py-2 text-right font-mono">{fmt(cumul.distributed)}</td>
+                              <td className="px-3 py-2">
+                                <div className="flex items-center gap-1">
+                                  <button onClick={() => startEdit(cf)} className="text-muted-foreground hover:text-foreground" title="Edit">
+                                    <Pencil className="h-3.5 w-3.5" />
+                                  </button>
+                                  <button onClick={() => handleDelete(cf.id)} className="text-muted-foreground hover:text-red-600" title="Delete">
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          )
+                        })}
+
+                        {addingGroup === group && (
+                          <tr className="border-b last:border-b-0 bg-green-50/50 dark:bg-green-950/20">
                             <td className="px-3 py-1.5">
-                              <input type="date" value={editDraft.flowDate} onChange={e => setEditDraft(d => ({ ...d, flowDate: e.target.value }))} className="border rounded px-1.5 py-0.5 text-sm w-32" />
+                              <input type="date" value={addDraft.flowDate} onChange={e => setAddDraft(d => ({ ...d, flowDate: e.target.value }))} className="border rounded px-1.5 py-0.5 text-sm w-32" />
                             </td>
                             <td className="px-3 py-1.5">
-                              <select value={editDraft.flowType} onChange={e => setEditDraft(d => ({ ...d, flowType: e.target.value }))} className="border rounded px-1.5 py-0.5 text-sm">
+                              <select value={addDraft.flowType} onChange={e => setAddDraft(d => ({ ...d, flowType: e.target.value }))} className="border rounded px-1.5 py-0.5 text-sm">
                                 <option value="commitment">Commitment</option>
                                 <option value="called_capital">Called Capital</option>
                                 <option value="distribution">Distribution</option>
                               </select>
                             </td>
                             <td className="px-3 py-1.5">
-                              <input type="text" value={editDraft.portfolioGroup} onChange={e => setEditDraft(d => ({ ...d, portfolioGroup: e.target.value }))} className="border rounded px-1.5 py-0.5 text-sm w-28" />
+                              <input type="text" value={addDraft.portfolioGroup} onChange={e => setAddDraft(d => ({ ...d, portfolioGroup: e.target.value }))} className="border rounded px-1.5 py-0.5 text-sm w-28" />
                             </td>
                             <td className="px-3 py-1.5">
-                              <input type="number" step="0.01" value={editDraft.amount} onChange={e => setEditDraft(d => ({ ...d, amount: e.target.value }))} className="border rounded px-1.5 py-0.5 text-sm text-right w-28" />
+                              <input type="number" step="0.01" value={addDraft.amount} onChange={e => setAddDraft(d => ({ ...d, amount: e.target.value }))} className="border rounded px-1.5 py-0.5 text-sm text-right w-28" placeholder="0.00" />
                             </td>
                             <td className="px-3 py-1.5">
                               <div className="flex items-center gap-2">
-                                <Button variant="outline" size="sm" className="text-muted-foreground h-7 px-2 text-xs" onClick={handleSaveEdit} disabled={saving}>
+                                <Button variant="outline" size="sm" className="text-muted-foreground h-7 px-2 text-xs" onClick={() => handleAdd(addDraft.portfolioGroup || group)} disabled={saving || !addDraft.flowDate || !addDraft.amount}>
                                   <Save className="h-3.5 w-3.5 mr-1" />Save
                                 </Button>
-                                <Button variant="outline" size="sm" className="text-muted-foreground h-7 px-2 text-xs" onClick={() => setEditingId(null)}>
+                                <Button variant="outline" size="sm" className="text-muted-foreground h-7 px-2 text-xs" onClick={() => { setAddingGroup(null); setAddDraft({ flowDate: '', flowType: 'commitment', amount: '', notes: '', portfolioGroup: '' }) }}>
                                   <Trash2 className="h-3.5 w-3.5" />
                                 </Button>
                               </div>
                             </td>
                             <td colSpan={4} />
                           </tr>
-                        )
-                      }
-
-                      return (
-                        <tr key={cf.id} className="border-b last:border-b-0 hover:bg-muted/30">
-                          <td className="px-3 py-2">{cf.flow_date}</td>
-                          <td className="px-3 py-2">
-                            <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${
-                              cf.flow_type === 'commitment' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400' :
-                              cf.flow_type === 'called_capital' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' :
-                              'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                            }`}>
-                              {FLOW_TYPE_LABELS[cf.flow_type]}
-                            </span>
-                          </td>
-                          <td className="px-3 py-2 text-xs text-muted-foreground">{cf.portfolio_group}</td>
-                          <td className="px-3 py-2 text-right font-mono">{fmt(cf.amount)}</td>
-                          <td className="px-3 py-2 text-right font-mono">{fmt(cumul.called)}</td>
-                          <td className="px-3 py-2 text-right font-mono">{fmt(cumul.distributed)}</td>
-                          <td className="px-3 py-2">
-                            <div className="flex items-center gap-1">
-                              <button onClick={() => startEdit(cf)} className="text-muted-foreground hover:text-foreground" title="Edit">
-                                <Pencil className="h-3.5 w-3.5" />
-                              </button>
-                              <button onClick={() => handleDelete(cf.id)} className="text-muted-foreground hover:text-red-600" title="Delete">
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      )
-                    })}
-
-                    {addingGroup === group && (
-                      <tr className="border-b last:border-b-0 bg-green-50/50 dark:bg-green-950/20">
-                        <td className="px-3 py-1.5">
-                          <input type="date" value={addDraft.flowDate} onChange={e => setAddDraft(d => ({ ...d, flowDate: e.target.value }))} className="border rounded px-1.5 py-0.5 text-sm w-32" />
-                        </td>
-                        <td className="px-3 py-1.5">
-                          <select value={addDraft.flowType} onChange={e => setAddDraft(d => ({ ...d, flowType: e.target.value }))} className="border rounded px-1.5 py-0.5 text-sm">
-                            <option value="commitment">Commitment</option>
-                            <option value="called_capital">Called Capital</option>
-                            <option value="distribution">Distribution</option>
-                          </select>
-                        </td>
-                        <td className="px-3 py-1.5">
-                          <input type="text" value={addDraft.portfolioGroup} onChange={e => setAddDraft(d => ({ ...d, portfolioGroup: e.target.value }))} className="border rounded px-1.5 py-0.5 text-sm w-28" />
-                        </td>
-                        <td className="px-3 py-1.5">
-                          <input type="number" step="0.01" value={addDraft.amount} onChange={e => setAddDraft(d => ({ ...d, amount: e.target.value }))} className="border rounded px-1.5 py-0.5 text-sm text-right w-28" placeholder="0.00" />
-                        </td>
-                        <td className="px-3 py-1.5">
-                          <div className="flex items-center gap-2">
-                            <Button variant="outline" size="sm" className="text-muted-foreground h-7 px-2 text-xs" onClick={() => handleAdd(addDraft.portfolioGroup || group)} disabled={saving || !addDraft.flowDate || !addDraft.amount}>
-                              <Save className="h-3.5 w-3.5 mr-1" />Save
-                            </Button>
-                            <Button variant="outline" size="sm" className="text-muted-foreground h-7 px-2 text-xs" onClick={() => { setAddingGroup(null); setAddDraft({ flowDate: '', flowType: 'commitment', amount: '', notes: '', portfolioGroup: '' }) }}>
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
-                          </div>
-                        </td>
-                        <td colSpan={4} />
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-
-              {addingGroup !== group && (
-                <div className="flex items-center gap-2 mt-3">
-                  <Button variant="outline" size="sm" className="text-muted-foreground" onClick={() => { setAddingGroup(group); setAddDraft({ flowDate: '', flowType: 'commitment', amount: '', notes: '', portfolioGroup: group }) }}>
-                    <Plus className="h-4 w-4 mr-1" />Add Cash Flow
-                  </Button>
-                  <Button variant="outline" size="sm" className="text-muted-foreground" onClick={() => { setImportOpen(!importOpen); setImportResult(null) }}>
-                    <Upload className="h-4 w-4 mr-1" />Import
-                  </Button>
-                </div>
-              )}
-
-              {importOpen && (
-                <div className="mt-4 border rounded-lg p-4">
-                  <p className="text-sm text-muted-foreground mb-2">
-                    Paste fund cash flow data from a spreadsheet.
-                  </p>
-                  <textarea
-                    value={importData}
-                    onChange={e => setImportData(e.target.value)}
-                    rows={6}
-                    className="w-full border border-input rounded p-2 text-sm font-mono bg-transparent text-foreground mb-2"
-                    placeholder="Paste any fund cash flow data here"
-                  />
-                  <div className="flex items-center gap-2">
-                    <Button size="sm" onClick={handleImport} disabled={importing || !importData.trim()}>
-                      {importing ? 'Importing...' : 'Import'}
-                    </Button>
-                    {importResult && (
-                      <span className={`text-sm ${importResult.created === 0 && importResult.errors.length > 0 ? 'text-red-600' : 'text-muted-foreground'}`}>
-                        {importResult.created > 0 && `${importResult.created} cash flow${importResult.created !== 1 ? 's' : ''} imported.`}
-                        {importResult.errors.length > 0 && ` ${importResult.errors.length} error${importResult.errors.length !== 1 ? 's' : ''}: ${importResult.errors[0]}`}
-                      </span>
-                    )}
+                        )}
+                      </tbody>
+                    </table>
                   </div>
-                </div>
-              )}
+
+                  {addingGroup !== group && (
+                    <div className="flex items-center gap-2 mt-3">
+                      <Button variant="outline" size="sm" className="text-muted-foreground" onClick={() => { setAddingGroup(group); setAddDraft({ flowDate: '', flowType: 'commitment', amount: '', notes: '', portfolioGroup: group }) }}>
+                        <Plus className="h-4 w-4 mr-1" />Add Cash Flow
+                      </Button>
+                      <Button variant="outline" size="sm" className="text-muted-foreground" onClick={() => { setImportOpen(!importOpen); setImportResult(null) }}>
+                        <Upload className="h-4 w-4 mr-1" />Import
+                      </Button>
+                    </div>
+                  )}
+
+                  {importOpen && (
+                    <div className="mt-4 border rounded-lg p-4">
+                      <p className="text-sm text-muted-foreground mb-2">
+                        Paste fund cash flow data from a spreadsheet.
+                      </p>
+                      <textarea
+                        value={importData}
+                        onChange={e => setImportData(e.target.value)}
+                        rows={6}
+                        className="w-full border border-input rounded p-2 text-sm font-mono bg-transparent text-foreground mb-2"
+                        placeholder="Paste any fund cash flow data here"
+                      />
+                      <div className="flex items-center gap-2">
+                        <Button size="sm" onClick={handleImport} disabled={importing || !importData.trim()}>
+                          {importing ? 'Importing...' : 'Import'}
+                        </Button>
+                        {importResult && (
+                          <span className={`text-sm ${importResult.created === 0 && importResult.errors.length > 0 ? 'text-red-600' : 'text-muted-foreground'}`}>
+                            {importResult.created > 0 && `${importResult.created} cash flow${importResult.created !== 1 ? 's' : ''} imported.`}
+                            {importResult.errors.length > 0 && ` ${importResult.errors.length} error${importResult.errors.length !== 1 ? 's' : ''}: ${importResult.errors[0]}`}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </TabsContent>
+
+                {/* Contractual sub-tab */}
+                <TabsContent value="contractual">
+                  <ContractualTab group={group} />
+                </TabsContent>
+              </Tabs>
             </TabsContent>
           )
         })}
