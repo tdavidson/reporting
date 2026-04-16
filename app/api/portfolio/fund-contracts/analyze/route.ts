@@ -50,28 +50,38 @@ IMPORTANTE:
 - Não invente valores — apenas extraia o que está explicitamente no documento
 `
 
-async function fetchDocumentText(url: string): Promise<string> {
-  const res = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } })
-  if (!res.ok) throw new Error(`Falha ao buscar documento: ${res.status}`)
+async function extractTextFromBuffer(buffer: Buffer, filename: string, mimeType: string): Promise<string> {
+  const isDocx =
+    mimeType.includes('officedocument') ||
+    mimeType.includes('wordprocessingml') ||
+    filename.toLowerCase().endsWith('.docx') ||
+    filename.toLowerCase().endsWith('.doc')
 
-  const contentType = res.headers.get('content-type') ?? ''
-  const buffer = Buffer.from(await res.arrayBuffer())
+  const isPdf =
+    mimeType.includes('pdf') ||
+    filename.toLowerCase().endsWith('.pdf')
 
-  // DOCX — use mammoth (already in package.json)
-  if (contentType.includes('officedocument') || url.toLowerCase().endsWith('.docx')) {
+  if (isDocx) {
     const mammoth = (await import('mammoth')).default
     const result = await mammoth.extractRawText({ buffer })
     return result.value
   }
 
-  // PDF — use pdf-parse
-  if (contentType.includes('pdf') || url.toLowerCase().endsWith('.pdf')) {
+  if (isPdf) {
     const pdfParse = (await import('pdf-parse')).default
     const data = await pdfParse(buffer)
     return data.text
   }
 
   throw new Error('Formato não suportado. Use PDF ou DOCX.')
+}
+
+async function fetchDocumentText(url: string): Promise<string> {
+  const res = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } })
+  if (!res.ok) throw new Error(`Falha ao buscar documento: ${res.status}`)
+  const contentType = res.headers.get('content-type') ?? ''
+  const buffer = Buffer.from(await res.arrayBuffer())
+  return extractTextFromBuffer(buffer, url, contentType)
 }
 
 async function extractFields(text: string): Promise<Record<string, any>> {
@@ -127,15 +137,44 @@ export async function POST(req: NextRequest) {
 
   if (!membership) return NextResponse.json({ error: 'No fund found' }, { status: 403 })
 
-  const body = await req.json()
-  const { url, portfolioGroup, docName, docType } = body
+  const contentType = req.headers.get('content-type') ?? ''
+  let buffer: Buffer
+  let filename = 'documento'
+  let mimeType = ''
+  let portfolioGroup = ''
+  let docName = 'Regulamento'
+  let docType = 'LPA'
 
-  if (!url || !portfolioGroup) {
-    return NextResponse.json({ error: 'url e portfolioGroup são obrigatórios' }, { status: 400 })
+  if (contentType.includes('multipart/form-data')) {
+    // File upload path
+    const formData = await req.formData()
+    const file = formData.get('file') as File | null
+    if (!file) return NextResponse.json({ error: 'Arquivo não enviado' }, { status: 400 })
+    portfolioGroup = (formData.get('portfolioGroup') as string) ?? ''
+    docName = (formData.get('docName') as string) || file.name || 'Regulamento'
+    docType = (formData.get('docType') as string) || 'LPA'
+    filename = file.name
+    mimeType = file.type
+    buffer = Buffer.from(await file.arrayBuffer())
+  } else {
+    // Legacy URL path
+    const body = await req.json()
+    const { url, portfolioGroup: pg, docName: dn, docType: dt } = body
+    if (!url || !pg) return NextResponse.json({ error: 'url e portfolioGroup são obrigatórios' }, { status: 400 })
+    portfolioGroup = pg
+    docName = dn ?? 'Regulamento'
+    docType = dt ?? 'LPA'
+    const res = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } })
+    if (!res.ok) return NextResponse.json({ error: `Falha ao buscar documento: ${res.status}` }, { status: 422 })
+    mimeType = res.headers.get('content-type') ?? ''
+    buffer = Buffer.from(await res.arrayBuffer())
+    filename = url
   }
 
+  if (!portfolioGroup) return NextResponse.json({ error: 'portfolioGroup é obrigatório' }, { status: 400 })
+
   try {
-    const text = await fetchDocumentText(url)
+    const text = await extractTextFromBuffer(buffer, filename, mimeType)
     if (!text || text.length < 100) {
       return NextResponse.json({ error: 'Documento vazio ou ilegível' }, { status: 422 })
     }
@@ -174,9 +213,9 @@ export async function POST(req: NextRequest) {
     await admin.from('fund_contract_documents' as any).insert({
       fund_id: membership.fund_id,
       portfolio_group: portfolioGroup,
-      name: docName ?? 'Regulamento',
-      doc_type: docType ?? 'LPA',
-      url,
+      name: docName,
+      doc_type: docType,
+      url: null, // file upload — no public URL
       notes: 'Importado e analisado por IA',
     })
 
