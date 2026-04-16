@@ -217,14 +217,37 @@ export async function POST(req: NextRequest) {
 
     if (upsertErr) return dbError(upsertErr, 'fund-contract-analyze-upsert')
 
-    await admin.from('fund_contract_documents' as any).insert({
-      fund_id: membership.fund_id,
-      portfolio_group: portfolioGroup,
-      name: docName,
-      doc_type: docType,
-      url: null,
-      notes: 'Importado e analisado por IA',
+let signedUrl: string | null = null
+let storagePath: string | null = null
+try {
+  const ext = filename.split('.').pop()?.toLowerCase() ?? 'pdf'
+  const storageKey = `${membership.fund_id}/${portfolioGroup}/${Date.now()}_${docName}.${ext}`
+  const { error: uploadErr } = await admin.storage
+    .from('fund-contracts')
+    .upload(storageKey, buffer, {
+      contentType: mimeType || 'application/octet-stream',
+      upsert: false,
     })
+  if (!uploadErr) {
+    storagePath = storageKey
+    const { data: signed } = await admin.storage
+      .from('fund-contracts')
+      .createSignedUrl(storageKey, 60 * 60 * 24 * 365)
+    signedUrl = signed?.signedUrl ?? null
+  }
+} catch {
+  // non-critical
+}
+
+await admin.from('fund_contract_documents' as any).insert({
+  fund_id: membership.fund_id,
+  portfolio_group: portfolioGroup,
+  name: docName,
+  doc_type: docType,
+  url: signedUrl,
+  storage_path: storagePath,
+  notes: 'Importado e analisado por IA',
+})
 
     return NextResponse.json({ ok: true, fields })
   } catch (err: any) {
