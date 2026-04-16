@@ -1786,6 +1786,72 @@ export type Database = {
           },
         ]
       }
+      news_articles: {
+        Row: {
+          category: string
+          company_id: string | null
+          company_name: string
+          created_at: string
+          duplicate_of: string | null
+          fund_id: string
+          id: string
+          is_duplicate: boolean
+          link: string
+          pub_date: string
+          scraped_at: string
+          source: string
+          source_domain: string
+          title: string
+        }
+        Insert: {
+          category?: string
+          company_id?: string | null
+          company_name: string
+          created_at?: string
+          duplicate_of?: string | null
+          fund_id: string
+          id?: string
+          is_duplicate?: boolean
+          link: string
+          pub_date: string
+          scraped_at?: string
+          source?: string
+          source_domain?: string
+          title: string
+        }
+        Update: {
+          category?: string
+          company_id?: string | null
+          company_name?: string
+          created_at?: string
+          duplicate_of?: string | null
+          fund_id?: string
+          id?: string
+          is_duplicate?: boolean
+          link?: string
+          pub_date?: string
+          scraped_at?: string
+          source?: string
+          source_domain?: string
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "news_articles_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "news_articles_fund_id_fkey"
+            columns: ["fund_id"]
+            isOneToOne: false
+            referencedRelation: "funds"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       note_company_subscriptions: {
         Row: {
           company_id: string

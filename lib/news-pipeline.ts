@@ -741,7 +741,7 @@ export async function runNewsPipeline(
 
   // 11. Upsert
   if (enriched.length > 0) {
-    await sdb.from('news_articles').upsert(
+    const { error: upsertError } = await sdb.from('news_articles').upsert(
       enriched.map(a => ({
         fund_id:       fundId,
         company_id:    a.companyId,
@@ -757,6 +757,7 @@ export async function runNewsPipeline(
       })),
       { onConflict: 'fund_id,link', ignoreDuplicates: true }
     )
+    if (upsertError) throw new Error(`news_articles upsert failed: ${upsertError.message}`)
   }
 
   // 12. Per-company summary
