@@ -73,7 +73,7 @@ function Row({ label, value, mono = false, accent = false }: {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="mb-6 last:mb-0">
-      <p className="text-[10px] font-medium uppercase tracking-widest text-muted-foreground mb-2 pb-1.5 border-b border-border/50">
+      <p className="text-xs font-semibold text-foreground mb-2 pb-1.5 border-b border-border/50">
         {title}
       </p>
       <table className="w-full">
@@ -459,10 +459,8 @@ export function ContractualTab({
             {/* Partes */}
             <Section title="Partes">
               <Row label="Gestor (GP)" value={fmt(d['gp_name'])} />
-              <Row label="Cotistas / LPs" value={fmt(d['lp_names'])} />
               <Row label="Administrador" value={fmt(d['fund_administrator'])} />
               <Row label="Auditor" value={fmt(d['auditor'])} />
-              <Row label="Assessor jurídico" value={fmt(d['legal_counsel'])} />
             </Section>
 
             {/* Termos econômicos */}
@@ -486,11 +484,6 @@ export function ContractualTab({
               <Row label="Opções de prorrogação" value={fmt(d['extension_options'])} />
             </Section>
 
-            {/* Relatórios */}
-            <Section title="Relatórios e auditoria">
-              <Row label="Frequência de relatórios" value={fmt(d['reporting_frequency'])} />
-              <Row label="Auditoria obrigatória" value={fmtBool(d['audit_required'])} />
-            </Section>
           </div>
         )}
 
@@ -500,7 +493,7 @@ export function ContractualTab({
 
             {/* Identidade */}
             <div>
-              <p className="text-[10px] font-medium uppercase tracking-widest text-muted-foreground mb-3 pb-1.5 border-b">
+              <p className="text-xs font-semibold text-foreground mb-3 pb-1.5 border-b">
                 Identidade do fundo
               </p>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
@@ -534,33 +527,25 @@ export function ContractualTab({
 
             {/* Partes */}
             <div>
-              <p className="text-[10px] font-medium uppercase tracking-widest text-muted-foreground mb-3 pb-1.5 border-b">
+              <p className="text-xs font-semibold text-foreground mb-3 pb-1.5 border-b">
                 Partes
               </p>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                 <EditField label="Gestor (GP)">
                   <input type="text" value={d['gp_name'] ?? ''} onChange={e => setDraftField('gp_name', e.target.value)} placeholder="—" className={inputCls} />
                 </EditField>
-                <div className="md:col-span-2">
-                  <EditField label="Cotistas / LPs">
-                    <input type="text" value={d['lp_names'] ?? ''} onChange={e => setDraftField('lp_names', e.target.value)} placeholder="—" className={inputCls} />
-                  </EditField>
-                </div>
                 <EditField label="Administrador">
                   <input type="text" value={d['fund_administrator'] ?? ''} onChange={e => setDraftField('fund_administrator', e.target.value)} placeholder="—" className={inputCls} />
                 </EditField>
                 <EditField label="Auditor">
                   <input type="text" value={d['auditor'] ?? ''} onChange={e => setDraftField('auditor', e.target.value)} placeholder="—" className={inputCls} />
                 </EditField>
-                <EditField label="Assessor jurídico">
-                  <input type="text" value={d['legal_counsel'] ?? ''} onChange={e => setDraftField('legal_counsel', e.target.value)} placeholder="—" className={inputCls} />
-                </EditField>
               </div>
             </div>
 
             {/* Economics */}
             <div>
-              <p className="text-[10px] font-medium uppercase tracking-widest text-muted-foreground mb-3 pb-1.5 border-b">
+              <p className="text-xs font-semibold text-foreground mb-3 pb-1.5 border-b">
                 Termos econômicos
               </p>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
@@ -595,7 +580,7 @@ export function ContractualTab({
 
             {/* Structure */}
             <div>
-              <p className="text-[10px] font-medium uppercase tracking-widest text-muted-foreground mb-3 pb-1.5 border-b">
+              <p className="text-xs font-semibold text-foreground mb-3 pb-1.5 border-b">
                 Prazo, estrutura e relatórios
               </p>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
@@ -607,18 +592,6 @@ export function ContractualTab({
                 </EditField>
                 <EditField label="Opções de prorrogação">
                   <input type="text" value={d['extension_options'] ?? ''} onChange={e => setDraftField('extension_options', e.target.value)} placeholder="ex: 2 prorrogações de 1 ano" className={inputCls} />
-                </EditField>
-                <EditField label="Frequência de relatórios">
-                  <input type="text" value={d['reporting_frequency'] ?? ''} onChange={e => setDraftField('reporting_frequency', e.target.value)} placeholder="ex: trimestral" className={inputCls} />
-                </EditField>
-                <EditField label="Auditoria obrigatória">
-                  <Select value={d['audit_required'] ?? ''} onValueChange={v => setDraftField('audit_required', v)}>
-                    <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="—" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="true">Sim</SelectItem>
-                      <SelectItem value="false">Não</SelectItem>
-                    </SelectContent>
-                  </Select>
                 </EditField>
               </div>
             </div>
