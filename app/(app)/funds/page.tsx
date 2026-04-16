@@ -293,6 +293,7 @@ export default function FundsPage() {
   const [addingGroup, setAddingGroup] = useState<string | null>(null)
   const [addDraft, setAddDraft] = useState({ flowDate: '', flowType: 'commitment', amount: '', notes: '', portfolioGroup: '' })
   const [saving, setSaving] = useState(false)
+  const [activeInnerTab, setActiveInnerTab] = useState<Record<string, string>>({})
 
   const [editingNavGroup, setEditingNavGroup] = useState<string | null>(null)
   const [navOverrideDraft, setNavOverrideDraft] = useState<Record<string, string>>({})
@@ -1028,13 +1029,19 @@ export default function FundsPage() {
                 <p className="text-xs text-muted-foreground mb-3">Vintage {groupConfigs[group].vintage}</p>
               )}
 
-              <MetricCards metrics={metrics} group={group} />
+{(activeInnerTab[group] ?? 'cashflows') === 'cashflows' && (
+  <MetricCards metrics={metrics} group={group} />
+)}
 
-              <Tabs defaultValue="cashflows" className="w-full">
-                <TabsList className="mb-4">
-                  <TabsTrigger value="cashflows" className="text-xs">Cash Flows</TabsTrigger>
-                  <TabsTrigger value="contractual" className="text-xs">Contractual</TabsTrigger>
-                </TabsList>
+<Tabs
+  defaultValue="cashflows"
+  onValueChange={val => setActiveInnerTab(prev => ({ ...prev, [group]: val }))}
+  className="w-full"
+>
+  <TabsList className="mb-4">
+    <TabsTrigger value="cashflows" className="text-xs">Cash Flows</TabsTrigger>
+    <TabsTrigger value="contractual" className="text-xs">Contractual</TabsTrigger>
+  </TabsList>
 
                 <TabsContent value="cashflows">
                   <div className="flex items-center justify-between mb-3">
