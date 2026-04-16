@@ -41,9 +41,6 @@ interface FundContractTerms {
   fund_administrator: string | null
   auditor: string | null
   legal_counsel: string | null
-  target_size: number | null
-  hard_cap: number | null
-  min_commitment: number | null
   management_fee_rate: number | null
   management_fee_basis: string | null
   carry_rate: number | null
@@ -277,23 +274,40 @@ const MASTER_FUND_KEY = '__master__'
 
 // ---------------------------------------------------------------------------
 // ContractualTab — sub-tab rendered inside each fund group tab
+// Receives groupConfig so that vintage/carry_rate/mgmt_fee/gp_commit are
+// initialised from the same source used by the metrics engine.
+// On save it calls onConfigChange to keep groupConfigs in sync.
 // ---------------------------------------------------------------------------
 
-function ContractualTab({ group }: { group: string }) {
+function ContractualTab({
+  group,
+  groupConfig,
+  onConfigChange,
+}: {
+  group: string
+  groupConfig: GroupConfig
+  onConfigChange: (patch: Partial<GroupConfig>) => void
+}) {
   const currency = useCurrency()
-  const [terms, setTerms] = useState<Partial<FundContractTerms>>(EMPTY_TERMS)
   const [documents, setDocuments] = useState<FundContractDocument[]>([])
   const [loadingContract, setLoadingContract] = useState(false)
   const [savingTerms, setSavingTerms] = useState(false)
   const [termsDirty, setTermsDirty] = useState(false)
-  const [termsDraft, setTermsDraft] = useState<Record<string, string>>({})
   const [addDocOpen, setAddDocOpen] = useState(false)
   const [docDraft, setDocDraft] = useState({ name: '', docType: 'LPA', version: '', effectiveDate: '', url: '', notes: '' })
   const [savingDoc, setSavingDoc] = useState(false)
   const [deletingDocId, setDeletingDocId] = useState<string | null>(null)
 
+  // termsDraft holds ALL contractual fields as strings for form inputs.
+  // Fields that overlap with groupConfig (vintage, carry_rate, management_fee_rate,
+  // gp_commit_pct) are initialised from groupConfig so there is ONE source of truth.
+  const [termsDraft, setTermsDraft] = useState<Record<string, string>>({})
+  const [termsLoaded, setTermsLoaded] = useState(false)
+
   const symbol = currency === 'BRL' ? 'R$' : currency === 'EUR' ? '€' : currency === 'GBP' ? '£' : '$'
 
+  // Build initial draft from groupConfig (authoritative for shared fields)
+  // then merge any extra fields from the DB record.
   useEffect(() => {
     async function load() {
       setLoadingContract(true)
@@ -301,55 +315,119 @@ function ContractualTab({ group }: { group: string }) {
         const res = await fetch(`/api/portfolio/fund-contracts?group=${encodeURIComponent(group)}`)
         if (res.ok) {
           const { terms: t, documents: d } = await res.json()
+          const base: Record<string, string> = {}
+
+          // Populate from DB record first (non-shared fields)
           if (t && t.length > 0) {
-            setTerms(t[0])
-            // Populate draft from loaded terms
-            const draft: Record<string, string> = {}
             for (const [k, v] of Object.entries(t[0])) {
-              if (v != null) draft[k] = String(v)
+              if (v != null) base[k] = String(v)
             }
-            setTermsDraft(draft)
           }
+
+          // Override shared fields with groupConfig values (single source of truth)
+          if (groupConfig.vintage != null) base['vintage'] = String(groupConfig.vintage)
+          if (groupConfig.carryRate != null) base['carry_rate'] = String(groupConfig.carryRate * 100)
+          if (groupConfig.managementFeeRate != null) base['management_fee_rate'] = String(groupConfig.managementFeeRate * 100)
+          if (groupConfig.gpCommitPct != null) base['gp_commit_pct'] = String(groupConfig.gpCommitPct * 100)
+
+          setTermsDraft(base)
           if (d) setDocuments(d)
         }
       } finally {
         setLoadingContract(false)
+        setTermsLoaded(true)
       }
     }
     load()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [group])
+
+  // Keep shared fields in sync when groupConfig changes from outside
+  // (e.g. user edits via Settings dialog)
+  useEffect(() => {
+    if (!termsLoaded) return
+    setTermsDraft(prev => {
+      const next = { ...prev }
+      if (groupConfig.vintage != null) next['vintage'] = String(groupConfig.vintage)
+      else delete next['vintage']
+      next['carry_rate'] = String(groupConfig.carryRate * 100)
+      next['management_fee_rate'] = String(groupConfig.managementFeeRate * 100)
+      next['gp_commit_pct'] = String(groupConfig.gpCommitPct * 100)
+      return next
+    })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [groupConfig.vintage, groupConfig.carryRate, groupConfig.managementFeeRate, groupConfig.gpCommitPct])
 
   function setDraftField(field: string, value: string) {
     setTermsDraft(prev => ({ ...prev, [field]: value }))
     setTermsDirty(true)
   }
 
+  // Shared fields that must also update groupConfig + fund-group-config API
+  const SHARED_FIELDS_TO_CONFIG: Record<string, keyof GroupConfig> = {
+    vintage: 'vintage',
+    carry_rate: 'carryRate',
+    management_fee_rate: 'managementFeeRate',
+    gp_commit_pct: 'gpCommitPct',
+  }
+
   async function handleSaveTerms() {
     setSavingTerms(true)
     try {
-      const payload: Record<string, any> = { portfolioGroup: group }
+      // 1. Build contractual payload
+      const contractPayload: Record<string, any> = { portfolioGroup: group }
       for (const [k, v] of Object.entries(termsDraft)) {
-        if (v === '') payload[k] = null
-        else if (['management_fee_rate','carry_rate',
-                   'hurdle_rate','catch_up_rate','gp_commit_pct','recycling_cap',
-                   'vintage','term_years','investment_period_years'].includes(k)) {
-          payload[k] = parseFloat(v)
-        } else if (['recycling_allowed','audit_required'].includes(k)) {
-          payload[k] = v === 'true'
+        if (v === '') contractPayload[k] = null
+        else if (['management_fee_rate', 'carry_rate',
+          'hurdle_rate', 'catch_up_rate', 'gp_commit_pct', 'recycling_cap',
+          'vintage', 'term_years', 'investment_period_years'].includes(k)) {
+          contractPayload[k] = parseFloat(v)
+        } else if (['recycling_allowed', 'audit_required'].includes(k)) {
+          contractPayload[k] = v === 'true'
         } else {
-          payload[k] = v
+          contractPayload[k] = v
         }
       }
-      const res = await fetch('/api/portfolio/fund-contracts', {
+
+      const contractRes = await fetch('/api/portfolio/fund-contracts', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(contractPayload),
       })
-      if (res.ok) {
-        const data = await res.json()
-        setTerms(data)
-        setTermsDirty(false)
+
+      // 2. Sync shared fields to fund-group-config so metrics stay in sync
+      const configPatch: Record<string, any> = { portfolioGroup: group }
+      let hasConfigChanges = false
+
+      const vintageVal = termsDraft['vintage']
+      const carryVal = termsDraft['carry_rate']
+      const feeVal = termsDraft['management_fee_rate']
+      const gpVal = termsDraft['gp_commit_pct']
+
+      if (vintageVal !== undefined) { configPatch['vintage'] = vintageVal === '' ? null : vintageVal; hasConfigChanges = true }
+      if (carryVal !== undefined) { configPatch['carryRate'] = carryVal === '' ? 0.20 : parseFloat(carryVal) / 100; hasConfigChanges = true }
+      if (feeVal !== undefined) { configPatch['managementFeeRate'] = feeVal === '' ? 0 : parseFloat(feeVal) / 100; hasConfigChanges = true }
+      if (gpVal !== undefined) { configPatch['gpCommitPct'] = gpVal === '' ? 0 : parseFloat(gpVal) / 100; hasConfigChanges = true }
+
+      if (hasConfigChanges) {
+        const gcRes = await fetch('/api/portfolio/fund-group-config', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(configPatch),
+        })
+        if (gcRes.ok) {
+          const data = await gcRes.json()
+          // Notify parent to update groupConfigs state
+          onConfigChange({
+            vintage: data.vintage != null ? Number(data.vintage) : null,
+            carryRate: data.carry_rate != null ? Number(data.carry_rate) : 0.20,
+            managementFeeRate: data.management_fee_rate != null ? Number(data.management_fee_rate) : 0,
+            gpCommitPct: Number(data.gp_commit_pct) || 0,
+          })
+        }
       }
+
+      if (contractRes.ok) setTermsDirty(false)
     } finally {
       setSavingTerms(false)
     }
@@ -837,6 +915,14 @@ export default function FundsPage() {
     }
     load()
   }, [asOfDate])
+
+  // Callback passed to ContractualTab so it can keep groupConfigs in sync
+  const handleContractualConfigChange = useCallback((group: string, patch: Partial<GroupConfig>) => {
+    setGroupConfigs(prev => ({
+      ...prev,
+      [group]: { ...(prev[group] ?? DEFAULT_CONFIG), ...patch },
+    }))
+  }, [])
 
   const groups = useMemo(() => {
     const set = new Set<string>()
@@ -1652,7 +1738,11 @@ export default function FundsPage() {
 
                 {/* Contractual sub-tab */}
                 <TabsContent value="contractual">
-                  <ContractualTab group={group} />
+                  <ContractualTab
+                    group={group}
+                    groupConfig={groupConfigs[group] ?? DEFAULT_CONFIG}
+                    onConfigChange={(patch) => handleContractualConfigChange(group, patch)}
+                  />
                 </TabsContent>
               </Tabs>
             </TabsContent>
