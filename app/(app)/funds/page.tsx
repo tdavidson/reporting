@@ -34,6 +34,8 @@ interface FundCashFlow {
 interface FundContractTerms {
   portfolio_group: string
   fund_id: string
+  fund_name: string | null
+  cnpj: string | null
   gp_name: string | null
   lp_names: string | null
   fund_administrator: string | null
@@ -79,8 +81,9 @@ interface FundContractDocument {
 const DOC_TYPES = ['LPA', 'SPA', 'NDA', 'Side Letter', 'Amendment', 'Other']
 
 const EMPTY_TERMS: Partial<FundContractTerms> = {
+  fund_name: null, cnpj: null,
   gp_name: null, lp_names: null, fund_administrator: null, auditor: null,
-  legal_counsel: null, target_size: null, hard_cap: null, min_commitment: null,
+  legal_counsel: null,
   management_fee_rate: null, management_fee_basis: null, carry_rate: null,
   hurdle_rate: null, hurdle_type: null, catch_up_rate: null, waterfall_type: null,
   gp_commit_pct: null, recycling_allowed: null, recycling_cap: null,
@@ -327,7 +330,7 @@ function ContractualTab({ group }: { group: string }) {
       const payload: Record<string, any> = { portfolioGroup: group }
       for (const [k, v] of Object.entries(termsDraft)) {
         if (v === '') payload[k] = null
-        else if (['target_size','hard_cap','min_commitment','management_fee_rate','carry_rate',
+        else if (['management_fee_rate','carry_rate',
                    'hurdle_rate','catch_up_rate','gp_commit_pct','recycling_cap',
                    'vintage','term_years','investment_period_years'].includes(k)) {
           payload[k] = parseFloat(v)
@@ -400,6 +403,87 @@ function ContractualTab({ group }: { group: string }) {
 
   return (
     <div className="space-y-8">
+      {/* ── Fund Identity ── */}
+      <section>
+        <h3 className="text-sm font-semibold mb-3">Fund Identity</h3>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+          <div className="md:col-span-2">
+            <label className="text-xs text-muted-foreground mb-1 block">Fund Name</label>
+            <input
+              type="text"
+              value={termsDraft['fund_name'] ?? group}
+              onChange={e => setDraftField('fund_name', e.target.value)}
+              placeholder={group}
+              className="border rounded px-2 py-1.5 text-sm w-full bg-transparent"
+            />
+          </div>
+          <div>
+            <label className="text-xs text-muted-foreground mb-1 block">CNPJ</label>
+            <input
+              type="text"
+              value={termsDraft['cnpj'] ?? ''}
+              onChange={e => setDraftField('cnpj', e.target.value)}
+              placeholder="00.000.000/0001-00"
+              className="border rounded px-2 py-1.5 text-sm w-full font-mono bg-transparent"
+            />
+          </div>
+          <div>
+            <label className="text-xs text-muted-foreground mb-1 block">Vintage</label>
+            <input
+              type="number"
+              step="1"
+              min="1900"
+              max="2100"
+              value={termsDraft['vintage'] ?? ''}
+              onChange={e => setDraftField('vintage', e.target.value)}
+              placeholder="—"
+              className="border rounded px-2 py-1.5 text-sm w-full font-mono bg-transparent"
+            />
+          </div>
+          <div>
+            <label className="text-xs text-muted-foreground mb-1 block">Carry Rate (%)</label>
+            <input
+              type="number"
+              step="0.01"
+              value={termsDraft['carry_rate'] ?? ''}
+              onChange={e => setDraftField('carry_rate', e.target.value)}
+              placeholder="—"
+              className="border rounded px-2 py-1.5 text-sm w-full font-mono bg-transparent"
+            />
+          </div>
+          <div>
+            <label className="text-xs text-muted-foreground mb-1 block">GP Commit (%)</label>
+            <input
+              type="number"
+              step="0.01"
+              value={termsDraft['gp_commit_pct'] ?? ''}
+              onChange={e => setDraftField('gp_commit_pct', e.target.value)}
+              placeholder="—"
+              className="border rounded px-2 py-1.5 text-sm w-full font-mono bg-transparent"
+            />
+          </div>
+          <div>
+            <label className="text-xs text-muted-foreground mb-1 block">Mgmt Fee (% p.a.)</label>
+            <input
+              type="number"
+              step="0.01"
+              value={termsDraft['management_fee_rate'] ?? ''}
+              onChange={e => setDraftField('management_fee_rate', e.target.value)}
+              placeholder="—"
+              className="border rounded px-2 py-1.5 text-sm w-full font-mono bg-transparent"
+            />
+          </div>
+        </div>
+        {termsDirty && (
+          <div className="mt-3">
+            <Button size="sm" onClick={handleSaveTerms} disabled={savingTerms} className="h-7 px-3 text-xs">
+              {savingTerms ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Save className="h-3.5 w-3.5 mr-1" />}
+              Save
+            </Button>
+          </div>
+        )}
+      </section>
+
       {/* ── Economic Terms ── */}
       <section>
         <div className="flex items-center justify-between mb-3">
@@ -413,17 +497,11 @@ function ContractualTab({ group }: { group: string }) {
         </div>
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
           {([
-            { field: 'target_size', label: `Target Size (${symbol})`, type: 'number' },
-            { field: 'hard_cap', label: `Hard Cap (${symbol})`, type: 'number' },
-            { field: 'min_commitment', label: `Min Commitment (${symbol})`, type: 'number' },
-            { field: 'carry_rate', label: 'Carry Rate (%)', type: 'number' },
             { field: 'hurdle_rate', label: 'Hurdle Rate (%)', type: 'number' },
-            { field: 'hurdle_type', label: 'Hurdle Type', type: 'select', options: ['preferred_return', 'catch_up'] },
+            { field: 'hurdle_type', label: 'Hurdle Type', type: 'text' },
             { field: 'catch_up_rate', label: 'Catch-up Rate (%)', type: 'number' },
             { field: 'waterfall_type', label: 'Waterfall', type: 'select', options: ['european', 'american'] },
-            { field: 'management_fee_rate', label: 'Mgmt Fee (% p.a.)', type: 'number' },
             { field: 'management_fee_basis', label: 'Fee Basis', type: 'select', options: ['committed', 'invested', 'nav'] },
-            { field: 'gp_commit_pct', label: 'GP Commit (%)', type: 'number' },
             { field: 'recycling_allowed', label: 'Recycling', type: 'select', options: ['true', 'false'] },
             { field: 'recycling_cap', label: `Recycling Cap (${symbol})`, type: 'number' },
           ] as const).map(({ field, label, type, options }: any) => (
@@ -442,12 +520,12 @@ function ContractualTab({ group }: { group: string }) {
                 </select>
               ) : (
                 <input
-                  type="number"
-                  step="0.01"
+                  type={type}
+                  step={type === 'number' ? '0.01' : undefined}
                   value={termsDraft[field] ?? ''}
                   onChange={e => setDraftField(field, e.target.value)}
                   placeholder="—"
-                  className="border rounded px-2 py-1.5 text-sm w-full font-mono bg-transparent"
+                  className={`border rounded px-2 py-1.5 text-sm w-full bg-transparent${type === 'number' ? ' font-mono' : ''}`}
                 />
               )}
             </div>
@@ -460,7 +538,6 @@ function ContractualTab({ group }: { group: string }) {
         <h3 className="text-sm font-semibold mb-3">Duration & Structure</h3>
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
           {([
-            { field: 'vintage', label: 'Vintage Year', type: 'number' },
             { field: 'term_years', label: 'Fund Term (years)', type: 'number' },
             { field: 'investment_period_years', label: 'Investment Period (years)', type: 'number' },
             { field: 'extension_options', label: 'Extension Options', type: 'text' },
