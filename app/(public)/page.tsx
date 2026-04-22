@@ -3,7 +3,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 
 export const metadata = ogMetadata({
-  title: 'Run your fund with Analyst',
+  title: 'Run your fund with Hemrock',
   description: 'Source-available portfolio reporting for venture capital firms, accelerators, and angel investors. Forward or upload your investor updates, and Analyst does the rest.',
 })
 import { Button } from '@/components/ui/button'
@@ -47,11 +47,11 @@ export default function HomePage() {
   return (
     <div className="p-4 pt-6 md:p-8">
       <h1 className="text-4xl md:text-7xl font-semibold tracking-tight mb-2 max-w-3xl">
-        Run your fund with Analyst
+        Run your fund with Hemrock
       </h1>
       <p className="text-xl text-muted-foreground mb-12 max-w-2xl">
         Source-available portfolio reporting for venture capital firms, accelerators, and angel investors.
-        Forward or upload your investor updates, and Analyst does the rest.
+        Forward or upload your investor updates, and Hemrock does the rest.
       </p>
 
       {/* Timeline / Flow */}
