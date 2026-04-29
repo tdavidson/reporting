@@ -40,6 +40,17 @@ Subject to the terms and conditions of this License, Licensor hereby grants you 
 
 This license grant applies to one Fund Entity only. Use by or on behalf of any additional Fund Entity requires a separate Commercial License.
 
+## 2A. Personal Evaluation and Educational Use
+
+In addition to the grant in Section 2, any natural person may use the Software for personal, non-commercial evaluation, learning, research, or hobby purposes — including running it locally, modifying it, and sharing the results of analyses they conducted on their own data. This Personal Use grant:
+
+1. Permits up to ninety (90) days of substantive use per person while you are evaluating the Software, learning fund operations, or building personal projects;
+2. Does not permit use to provide services to any third party, paid or unpaid;
+3. Does not permit redistribution, hosting, or making the Software available to others as a product or service; and
+4. Continues indefinitely for genuinely personal, non-commercial use that does not generate revenue or substitute for commercial use the user would otherwise pay for.
+
+If your use grows beyond Personal Use — for example, you start using the Software for actual fund operations, or to manage a fund you operate — switch to the Section 2 grant (Internal Use by a Fund Entity) or obtain a Commercial License.
+
 ## 3. Prohibited Uses
 
 Without a separate written Commercial License from Licensor, you may not:
@@ -87,7 +98,11 @@ LICENSOR'S TOTAL AGGREGATE LIABILITY UNDER THIS LICENSE SHALL NOT EXCEED ONE HUN
 
 ## 9. Termination
 
-This License is effective until terminated. Your rights under this License terminate automatically and immediately, without notice from Licensor, if you fail to comply with any term of this License. Upon termination, you must cease all use of the Software and destroy all copies in your possession or control.
+This License is effective until terminated. Your rights under this License terminate automatically if you fail to comply with any term of this License, subject to the cure period described below. Upon termination, you must cease all use of the Software and destroy all copies in your possession or control.
+
+**Cure period.** If your breach is capable of cure, Licensor will provide you with written notice of the breach (sent to the email address you have provided to Licensor or to a publicly listed contact address for your organization). You will have thirty (30) days from the date of that notice to cure the breach. If you cure the breach within that period, this License continues without interruption. If you do not, this License terminates automatically at the end of the cure period without further notice.
+
+Some breaches are not capable of cure — for example, redistribution of the Software to third parties under a different license, or public distribution of a modified version. In such cases, this License terminates immediately upon the breach without a cure period.
 
 Licensor reserves the right to terminate this License at any time for any reason upon thirty (30) days' written notice.
 
