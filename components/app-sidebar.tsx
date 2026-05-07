@@ -26,7 +26,7 @@ const NAV_ITEMS: { href: string; label: string; icon: LucideIcon; badgeKey?: 're
   { href: '/interactions', label: 'Interactions', icon: Handshake, featureKey: 'interactions' },
   { href: '/letters', label: 'Letters', icon: FileText, featureKey: 'lp_letters' },
   { href: '/lps', label: 'LPs', icon: Crown, featureKey: 'lps' },
-  { href: '/compliance', label: 'Compliance', icon: ShieldCheck, featureKey: 'compliance', beta: true },
+  { href: '/compliance', label: 'Compliance', icon: ShieldCheck, featureKey: 'compliance' },
   { href: '/usage', label: 'Usage', icon: Users, adminOnly: true },
   { href: '/settings', label: 'Settings', icon: Settings, badgeKey: 'settings' },
   { href: '/support', label: 'Support', icon: LifeBuoy },
