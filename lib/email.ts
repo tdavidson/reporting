@@ -63,7 +63,7 @@ async function sendViaGmail(admin: SupabaseClient, fundId: string, params: Email
   const { decrypt } = await import('@/lib/crypto')
   const { getGoogleCredentials } = await import('@/lib/google/credentials')
   const { getAccessToken } = await import('@/lib/google/drive')
-  const { sendEmail, getGmailProfile } = await import('@/lib/google/gmail')
+  const { sendEmail } = await import('@/lib/google/gmail')
 
   const { data: settings } = await admin
     .from('fund_settings')
@@ -85,9 +85,8 @@ async function sendViaGmail(admin: SupabaseClient, fundId: string, params: Email
     throw new Error('Google OAuth credentials not configured')
   }
   const accessToken = await getAccessToken(refreshToken, creds.clientId, creds.clientSecret)
-  const senderEmail = await getGmailProfile(accessToken)
 
-  const result = await sendEmail(accessToken, params.to, senderEmail, params.subject, params.html, params.cc)
+  const result = await sendEmail(accessToken, params.to, params.subject, params.html, params.cc)
   return { id: result.id }
 }
 

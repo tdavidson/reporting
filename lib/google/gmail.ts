@@ -1,23 +1,8 @@
 const GMAIL_API = 'https://gmail.googleapis.com/gmail/v1/users/me'
 
-export async function getGmailProfile(accessToken: string): Promise<string> {
-  const res = await fetch(`${GMAIL_API}/profile`, {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  })
-
-  if (!res.ok) {
-    const text = await res.text()
-    throw new Error(`Failed to get Gmail profile: ${text}`)
-  }
-
-  const data = await res.json()
-  return data.emailAddress
-}
-
 export async function sendEmail(
   accessToken: string,
   to: string,
-  from: string,
   subject: string,
   htmlBody: string,
   cc?: string,
@@ -32,10 +17,9 @@ export async function sendEmail(
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
 
-  const headers = [
-    `From: ${from}`,
-    `To: ${to}`,
-  ]
+  // Omit From: — Gmail fills it with the authenticated user. Avoids needing
+  // a profile-read scope (gmail.send alone can't call users.getProfile).
+  const headers = [`To: ${to}`]
   if (cc?.trim()) headers.push(`Cc: ${cc.trim()}`)
   headers.push(
     `Subject: ${subject}`,
