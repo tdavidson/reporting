@@ -11,7 +11,7 @@ export async function sendEmail(
   // formatting — line breaks, link detection, etc.  We strip any HTML tags
   // that might have snuck in, keeping the raw text the user typed.
   const plainBody = htmlBody
-    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<br\s*\/?>\r?\n?/gi, '\n')
     .replace(/<[^>]+>/g, '')
     .replace(/&amp;/g, '&')
     .replace(/&lt;/g, '<')
