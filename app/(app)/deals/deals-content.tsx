@@ -2,10 +2,12 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { Lock, Search, ExternalLink, Table as TableIcon, Columns3, ChevronUp, ChevronDown } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { Lock, Search, ExternalLink, Table as TableIcon, Columns3, ChevronUp, ChevronDown, Copy, Check, Plus, Loader2 } from 'lucide-react'
 import { useFeatureVisibility } from '@/components/feature-visibility-context'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 
 interface Deal {
   id: string
@@ -67,6 +69,16 @@ export function DealsContent({ initialDeals }: { initialDeals: Deal[] }) {
   const [sourceFilter, setSourceFilter] = useState<string>('')
   const [view, setView] = useState<ViewMode>('table')
   const [sort, setSort] = useState<SortState>({ key: 'date', dir: 'desc' })
+  const [inboundAddress, setInboundAddress] = useState('')
+  const [copied, setCopied] = useState(false)
+  const [createOpen, setCreateOpen] = useState(false)
+  const router = useRouter()
+
+  useEffect(() => {
+    fetch('/api/settings').then(r => r.ok ? r.json() : null).then(s => {
+      if (s?.postmarkInboundAddress) setInboundAddress(s.postmarkInboundAddress)
+    }).catch(() => {})
+  }, [])
 
   function toggleSort(key: SortKey) {
     setSort(prev => {
@@ -131,21 +143,32 @@ export function DealsContent({ initialDeals }: { initialDeals: Deal[] }) {
           </h1>
           <p className="text-sm text-muted-foreground">Inbound pitches screened against your fund thesis.</p>
         </div>
-        <div className="flex border rounded-md overflow-hidden bg-card">
-          <button
-            onClick={() => setView('table')}
-            className={`px-3 py-1.5 text-sm flex items-center gap-1.5 ${view === 'table' ? 'bg-muted' : 'hover:bg-muted/50'}`}
-          >
-            <TableIcon className="h-3.5 w-3.5" /> Table
-          </button>
-          <button
-            onClick={() => setView('board')}
-            className={`px-3 py-1.5 text-sm flex items-center gap-1.5 border-l ${view === 'board' ? 'bg-muted' : 'hover:bg-muted/50'}`}
-          >
-            <Columns3 className="h-3.5 w-3.5" /> Board
-          </button>
+        <div className="flex items-center gap-2">
+          <div className="flex border rounded-md overflow-hidden bg-card">
+            <button
+              onClick={() => setView('table')}
+              className={`px-3 py-1.5 text-sm flex items-center gap-1.5 ${view === 'table' ? 'bg-muted' : 'hover:bg-muted/50'}`}
+            >
+              <TableIcon className="h-3.5 w-3.5" /> Table
+            </button>
+            <button
+              onClick={() => setView('board')}
+              className={`px-3 py-1.5 text-sm flex items-center gap-1.5 border-l ${view === 'board' ? 'bg-muted' : 'hover:bg-muted/50'}`}
+            >
+              <Columns3 className="h-3.5 w-3.5" /> Board
+            </button>
+          </div>
+          <Button variant="outline" size="sm" onClick={() => setCreateOpen(true)}>
+            <Plus className="h-4 w-4 mr-1" /> New Deal
+          </Button>
         </div>
       </div>
+
+      <NewDealDialog open={createOpen} onOpenChange={setCreateOpen} onCreated={(dealId) => {
+        setCreateOpen(false)
+        if (dealId) router.push(`/deals/${dealId}`)
+        else router.refresh()
+      }} />
 
       <div className="flex flex-wrap items-center gap-2 mb-4">
         <div className="relative">
@@ -182,9 +205,31 @@ export function DealsContent({ initialDeals }: { initialDeals: Deal[] }) {
           />
           Show archived
         </label>
-        <div className="ml-auto text-sm text-muted-foreground">
-          {sorted.length} deal{sorted.length === 1 ? '' : 's'}
-        </div>
+        {inboundAddress && (
+          <div className="ml-auto flex items-end gap-1.5">
+            <div>
+              <label className="block text-xs text-muted-foreground mb-1">Send pitches to</label>
+              <Input
+                type="text"
+                readOnly
+                value={inboundAddress}
+                className="h-9 w-64 text-sm bg-muted text-muted-foreground cursor-default"
+                tabIndex={-1}
+              />
+            </div>
+            <button
+              onClick={() => {
+                navigator.clipboard.writeText(inboundAddress)
+                setCopied(true)
+                setTimeout(() => setCopied(false), 2000)
+              }}
+              className="h-9 px-2 text-muted-foreground hover:text-foreground transition-colors"
+              title="Copy to clipboard"
+            >
+              {copied ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
+            </button>
+          </div>
+        )}
       </div>
 
       {view === 'board' ? (
@@ -448,3 +493,156 @@ function escape(v: string): string {
   }
   return v
 }
+
+// ---------------------------------------------------------------------------
+// New Deal dialog — admin-entered pitch with optional file uploads. Posts as
+// multipart/form-data to /api/deals/manual which composes a synthetic email
+// and runs the same processDeal pipeline as Postmark webhooks.
+// ---------------------------------------------------------------------------
+
+function NewDealDialog({ open, onOpenChange, onCreated }: {
+  open: boolean
+  onOpenChange: (v: boolean) => void
+  onCreated: (dealId: string | null) => void
+}) {
+  const [companyName, setCompanyName] = useState('')
+  const [companyUrl, setCompanyUrl] = useState('')
+  const [founderName, setFounderName] = useState('')
+  const [founderEmail, setFounderEmail] = useState('')
+  const [introSource, setIntroSource] = useState('')
+  const [referrerName, setReferrerName] = useState('')
+  const [referrerEmail, setReferrerEmail] = useState('')
+  const [pitch, setPitch] = useState('')
+  const [files, setFiles] = useState<File[]>([])
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  function reset() {
+    setCompanyName(''); setCompanyUrl(''); setFounderName(''); setFounderEmail('')
+    setIntroSource(''); setReferrerName(''); setReferrerEmail('')
+    setPitch(''); setFiles([]); setError(null)
+  }
+
+  const canSubmit = !!companyName.trim() && !!founderName.trim() && !!founderEmail.trim() && !!pitch.trim() && !submitting
+
+  async function submit() {
+    if (!canSubmit) return
+    setSubmitting(true)
+    setError(null)
+    try {
+      const form = new FormData()
+      form.append('company_name', companyName.trim())
+      form.append('founder_name', founderName.trim())
+      form.append('founder_email', founderEmail.trim())
+      if (companyUrl.trim()) form.append('company_url', companyUrl.trim())
+      if (introSource) form.append('intro_source', introSource)
+      if (referrerName.trim()) form.append('referrer_name', referrerName.trim())
+      if (referrerEmail.trim()) form.append('referrer_email', referrerEmail.trim())
+      form.append('pitch', pitch.trim())
+      for (const f of files) form.append('files', f)
+
+      const res = await fetch('/api/deals/manual', { method: 'POST', body: form })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(body.error ?? 'Create failed')
+      reset()
+      onCreated(body.deal_id ?? null)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Create failed')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={v => { if (!v) reset(); onOpenChange(v) }}>
+      <DialogContent className="max-w-xl">
+        <DialogHeader>
+          <DialogTitle>New deal</DialogTitle>
+          <DialogDescription>Enter pitch details directly. The same AI screener runs as on inbound emails — thesis fit, dedupe, prior-deal check.</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1">Company name *</label>
+              <Input value={companyName} onChange={e => setCompanyName(e.target.value)} />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1">Company URL</label>
+              <Input value={companyUrl} onChange={e => setCompanyUrl(e.target.value)} placeholder="https://..." />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1">Founder name *</label>
+              <Input value={founderName} onChange={e => setFounderName(e.target.value)} />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1">Founder email *</label>
+              <Input type="email" value={founderEmail} onChange={e => setFounderEmail(e.target.value)} />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1">Intro source</label>
+              <select
+                value={introSource}
+                onChange={e => setIntroSource(e.target.value)}
+                className="h-9 w-full px-3 rounded-md border border-input bg-background text-sm"
+              >
+                <option value="">(none)</option>
+                {SOURCE_OPTIONS.map(o => <option key={o} value={o}>{labelFor(o)}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1">Referrer name</label>
+              <Input value={referrerName} onChange={e => setReferrerName(e.target.value)} />
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-muted-foreground mb-1">Referrer email</label>
+            <Input type="email" value={referrerEmail} onChange={e => setReferrerEmail(e.target.value)} />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-muted-foreground mb-1">Pitch / description *</label>
+            <textarea
+              value={pitch}
+              onChange={e => setPitch(e.target.value)}
+              rows={5}
+              placeholder="What the company does, traction, ask, anything you'd normally put in an intro email."
+              className="w-full resize-none rounded-md border border-input bg-transparent px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-muted-foreground mb-1">Attachments (optional)</label>
+            <label className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-md border bg-card text-sm hover:bg-muted/50 cursor-pointer ${submitting ? 'opacity-50 pointer-events-none' : ''}`}>
+              <Plus className="h-3.5 w-3.5" />
+              {files.length === 0 ? 'Choose files' : `${files.length} file${files.length === 1 ? '' : 's'} selected`}
+              <input
+                type="file"
+                multiple
+                className="hidden"
+                disabled={submitting}
+                onChange={e => setFiles(e.target.files ? Array.from(e.target.files) : [])}
+              />
+            </label>
+            {files.length > 0 && (
+              <ul className="mt-2 text-[11px] text-muted-foreground space-y-0.5 max-h-20 overflow-y-auto">
+                {files.map((f, i) => <li key={i} className="truncate">{f.name}</li>)}
+              </ul>
+            )}
+            <p className="text-[11px] text-muted-foreground mt-1">Pitch deck, one-pager, financial model. Up to 10 files, 10MB each.</p>
+          </div>
+          {error && <p className="text-sm text-destructive">{error}</p>}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={submitting}>Cancel</Button>
+          <Button variant="outline" onClick={submit} disabled={!canSubmit}>
+            {submitting && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
+            Create deal
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
