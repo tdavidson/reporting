@@ -40,9 +40,13 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
   const body = await req.json().catch(() => ({}))
   const folderUrl = typeof body.folder_url === 'string' ? body.folder_url : ''
-  const folderId = parseDriveFolderUrl(folderUrl) ?? (typeof body.folder_id === 'string' ? body.folder_id : null)
+  // Require the full Drive folder URL — accepting a raw folder_id let callers
+  // skip URL-format validation. The OAuth scope still permits the fund's
+  // token to read any folder it can see, but requiring a URL surfaces intent
+  // and makes audit logs more legible.
+  const folderId = parseDriveFolderUrl(folderUrl)
   if (!folderId) {
-    return NextResponse.json({ error: 'Provide a Google Drive folder URL or folder_id' }, { status: 400 })
+    return NextResponse.json({ error: 'Provide a valid Google Drive folder URL (must contain /folders/<id>)' }, { status: 400 })
   }
 
   // Resolve Google credentials + access token.

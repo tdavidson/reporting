@@ -16,12 +16,17 @@ import { runRenderJob } from '@/lib/memo-agent/jobs/render-job'
  * deals-digest cron.
  */
 export async function GET(req: NextRequest) {
+  // Fail-closed: an unset CRON_SECRET means the endpoint refuses traffic.
+  // The prior "if cronSecret then check" pattern silently opened the worker
+  // to anonymous callers in any environment where the env var wasn't set
+  // (PR previews, staging, misconfigured prod).
   const cronSecret = process.env.CRON_SECRET
-  if (cronSecret) {
-    const auth = req.headers.get('authorization')
-    if (auth !== `Bearer ${cronSecret}`) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+  if (!cronSecret) {
+    return NextResponse.json({ error: 'CRON_SECRET not configured' }, { status: 500 })
+  }
+  const auth = req.headers.get('authorization')
+  if (auth !== `Bearer ${cronSecret}`) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
   const admin = createAdminClient()

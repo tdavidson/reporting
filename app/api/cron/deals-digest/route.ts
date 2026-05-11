@@ -10,12 +10,15 @@ import { getOutboundConfig, sendOutboundEmail } from '@/lib/email'
  * `Authorization: Bearer ${CRON_SECRET}`. Set CRON_SECRET in env.
  */
 export async function GET(req: NextRequest) {
+  // Fail-closed: missing CRON_SECRET refuses traffic rather than opening the
+  // digest loop to anonymous callers.
   const cronSecret = process.env.CRON_SECRET
-  if (cronSecret) {
-    const auth = req.headers.get('authorization')
-    if (auth !== `Bearer ${cronSecret}`) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+  if (!cronSecret) {
+    return NextResponse.json({ error: 'CRON_SECRET not configured' }, { status: 500 })
+  }
+  const auth = req.headers.get('authorization')
+  if (auth !== `Bearer ${cronSecret}`) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
   const admin = createAdminClient()
