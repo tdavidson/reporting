@@ -24,7 +24,7 @@ export default function CompanyExplainerPage() {
       </p>
       <p className="text-muted-foreground">
         The main content area starts with the <strong>Analyst</strong> card. This is where you
-        can generate an AI-powered summary of the company based on all available data &mdash; reported
+        can generate an AI-powered summary of the company based on all available data - reported
         metrics, email content, uploaded documents, and any previous summaries. The AI acts as a
         senior analyst preparing a portfolio review memo: it highlights current performance, trends,
         strengths, risks, and follow-up questions. You can regenerate the summary at any time as new
@@ -39,14 +39,14 @@ export default function CompanyExplainerPage() {
         button, or delete a metric and all its data from its card. Each chart shows data points over
         time, color-coded by confidence level (green for high, amber for medium, red for low) with
         manual entries shown as hollow circles. Click any data point on a chart to open a popover
-        where you can view the full details &mdash; period, value, confidence, source email, and
-        notes &mdash; and edit or delete the value directly. You can also add data points manually
+        where you can view the full details - period, value, confidence, source email, and
+        notes - and edit or delete the value directly. You can also add data points manually
         using the &ldquo;Add&rdquo; button on each card, which is useful for entering historical data
         or correcting values. An export button at the top lets you download all metric data as a CSV.
       </p>
       <p className="text-muted-foreground">
         Further down the page, a <strong>documents section</strong> lists all files associated with
-        the company &mdash; both files you&apos;ve uploaded and attachments from processed emails.
+        the company - both files you&apos;ve uploaded and attachments from processed emails.
         These documents are available to the Analyst when generating summaries. Individual file
         uploads are limited to 20 MB per file. Finally, if the company has additional details like founders,
         contact emails, an overview, investment thesis, or a current business update, those appear
@@ -59,8 +59,8 @@ export default function CompanyExplainerPage() {
         fund&apos;s transaction history with that company. You can record investment rounds (with
         date, round name, amount invested, shares acquired, and cost per share), proceeds from
         exits or distributions (including escrowed amounts), and unrealized gain changes (current
-        share price updates). The section displays summary metrics &mdash; total invested, current
-        fair market value, MOIC, and total realized &mdash; along with a detailed transaction
+        share price updates). The section displays summary metrics - total invested, current
+        fair market value, MOIC, and total realized - along with a detailed transaction
         table. Admins can add, edit, and delete transactions directly from this panel. For exited
         companies the FMV reflects total realized proceeds; for written-off companies it shows zero;
         and for active companies it uses the latest share price multiplied by total shares held.

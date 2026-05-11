@@ -30,7 +30,7 @@ export default function LicensePage() {
         License
       </h1>
 
-      {/* Table of contents — inline on mobile only */}
+      {/* Table of contents - inline on mobile only */}
       <nav className="xl:hidden mt-6 text-sm">
         <h2 className="text-base font-medium mb-2">On this page</h2>
         {tocLinks}
@@ -59,7 +59,7 @@ export default function LicensePage() {
             </p>
             <p className="text-muted-foreground mb-2">
               This software is free to use if you are a single fund management company running your own
-              operations &mdash; that includes all of your funds, SPVs, and internal team members. You can
+              operations - that includes all of your funds, SPVs, and internal team members. You can
               modify it and deploy it on your own infrastructure. If you are a fund administrator, outsourced
               CFO, consultant, or any kind of service provider using this software across multiple clients or
               management companies, you need a paid commercial license.
@@ -310,11 +310,11 @@ export default function LicensePage() {
           </div>
 
           <p className="text-xs text-muted-foreground">
-            Version 1.1 &mdash; Copyright &copy; 2026 Unstructured Ventures, LLC. All rights reserved.
+            Version 1.1 - Copyright &copy; 2026 Unstructured Ventures, LLC. All rights reserved.
           </p>
         </div>
 
-        {/* TOC sidebar — desktop only */}
+        {/* TOC sidebar - desktop only */}
         <nav className="hidden xl:block w-44 shrink-0 text-sm">
           <div className="sticky top-8">
             <h2 className="text-[12px] font-medium text-muted-foreground uppercase tracking-wider mb-3">On this page</h2>

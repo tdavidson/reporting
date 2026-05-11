@@ -194,7 +194,7 @@ export default function LPsPage() {
       ) : snapshots.length === 0 ? (
         <div className="text-center py-12">
           <p className="text-muted-foreground mb-4">No snapshots yet. Create a snapshot to start tracking LP positions.</p>
-          <Button onClick={() => setCreateOpen(true)}>
+          <Button variant="outline" onClick={() => setCreateOpen(true)}>
             <Plus className="h-4 w-4 mr-1" />
             Create First Snapshot
           </Button>

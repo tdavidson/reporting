@@ -22,7 +22,7 @@ export default function NotesExplainerPage() {
       </p>
       <p className="text-muted-foreground">
         On a company detail page, the notes panel appears on the right side on desktop or can be
-        toggled via a chat button on mobile. Notes here are specific to that company &mdash; use
+        toggled via a chat button on mobile. Notes here are specific to that company - use
         them for takeaways from founder calls, questions to raise at the next board meeting, context
         on a metric anomaly, or anything else your team should know about that particular investment.
         On the Portfolio dashboard, the shared notes section is for fund-level observations that
@@ -36,7 +36,7 @@ export default function NotesExplainerPage() {
         with unread notes highlighted so you can quickly catch up on what you&apos;ve missed.
       </p>
       <p className="text-muted-foreground">
-        Notes support <strong>@mentions</strong> &mdash; type <strong>@</strong> while writing a note
+        Notes support <strong>@mentions</strong> - type <strong>@</strong> while writing a note
         to see a dropdown of team members, then select a name to mention them. Mentioned team members
         are highlighted in the note text and can receive email notifications depending on their
         preferences.
@@ -50,7 +50,7 @@ export default function NotesExplainerPage() {
         Notification preferences are managed in <strong>Settings</strong> under your user profile.
         You can choose to receive email notifications for all notes across the fund, only when you
         are @mentioned, or turn notifications off entirely. Company follows work alongside whichever
-        level you choose &mdash; if you follow a company, you&apos;ll get notified about notes on
+        level you choose - if you follow a company, you&apos;ll get notified about notes on
         that company regardless of your global setting.
       </p>
       <p className="text-muted-foreground">

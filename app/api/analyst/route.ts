@@ -5,7 +5,7 @@ import { createFundAIProviderWithOverride } from '@/lib/ai'
 import type { ChatMessage } from '@/lib/ai/types'
 import type { Json } from '@/lib/types/database'
 import { logAIUsage } from '@/lib/ai/usage'
-import { buildCompanyContext, buildPortfolioContext } from '@/lib/ai/context-builder'
+import { buildCompanyContext, buildPortfolioContext, buildDealContext } from '@/lib/ai/context-builder'
 import { rateLimit } from '@/lib/rate-limit'
 
 export async function POST(req: NextRequest) {
@@ -19,6 +19,7 @@ export async function POST(req: NextRequest) {
   let body: {
     messages?: ChatMessage[]
     companyId?: string
+    dealId?: string
     model?: { id: string; provider: string }
     conversationId?: string
   }
@@ -68,7 +69,25 @@ export async function POST(req: NextRequest) {
 
   let systemPrompt: string
 
-  if (body.companyId) {
+  if (body.dealId) {
+    const { data: dealCheck } = await admin
+      .from('inbound_deals')
+      .select('fund_id')
+      .eq('id', body.dealId)
+      .maybeSingle()
+    if (!dealCheck) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+    if ((dealCheck as any).fund_id !== membership.fund_id) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+
+    const ctx = await buildDealContext(admin, body.dealId)
+    if (!ctx) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+    systemPrompt = ctx.systemPrompt
+    systemPrompt += `\n\n=== FUND THESIS ===\n${ctx.thesisBlock}`
+    systemPrompt += `\n\n=== DEAL ===\n${ctx.dealBlock}`
+    if (ctx.emailBlock) systemPrompt += `\n\n=== ORIGINATING EMAIL ===\n${ctx.emailBlock}`
+  } else if (body.companyId) {
     // Verify company belongs to fund
     const { data: companyCheck } = await admin
       .from('companies')
@@ -142,10 +161,12 @@ export async function POST(req: NextRequest) {
       .order('updated_at', { ascending: false })
       .limit(5)
 
-    if (body.companyId) {
-      memoryQuery = memoryQuery.eq('company_id', body.companyId)
+    if (body.dealId) {
+      memoryQuery = memoryQuery.eq('deal_id', body.dealId)
+    } else if (body.companyId) {
+      memoryQuery = memoryQuery.eq('company_id', body.companyId).is('deal_id', null)
     } else {
-      memoryQuery = memoryQuery.is('company_id', null)
+      memoryQuery = memoryQuery.is('company_id', null).is('deal_id', null)
     }
 
     // Exclude current conversation from memory
@@ -230,6 +251,7 @@ export async function POST(req: NextRequest) {
             fund_id: membership.fund_id,
             user_id: user.id,
             company_id: body.companyId ?? null,
+            deal_id: body.dealId ?? null,
             title,
             messages: allMessages as unknown as Json,
             message_count: allMessages.length,
@@ -248,6 +270,7 @@ export async function POST(req: NextRequest) {
             membership.fund_id,
             user.id,
             body.companyId ?? null,
+            body.dealId ?? null,
             conversationId,
           ).catch(() => {})
         }
@@ -273,6 +296,7 @@ async function summarizePreviousConversation(
   fundId: string,
   userId: string,
   companyId: string | null,
+  dealId: string | null,
   excludeConvId: string,
 ) {
   // Find most recent unsummarized conversation in same scope
@@ -287,10 +311,12 @@ async function summarizePreviousConversation(
     .order('updated_at', { ascending: false })
     .limit(1)
 
-  if (companyId) {
-    query = query.eq('company_id', companyId)
+  if (dealId) {
+    query = query.eq('deal_id', dealId)
+  } else if (companyId) {
+    query = query.eq('company_id', companyId).is('deal_id', null)
   } else {
-    query = query.is('company_id', null)
+    query = query.is('company_id', null).is('deal_id', null)
   }
 
   const { data } = await query

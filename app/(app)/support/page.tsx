@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { Building2, ClipboardCheck, Mail, Upload, Send, Settings, MessageSquare, Monitor, PanelLeftClose, Sparkles, Shield, ShieldCheck, Handshake, Users, ArrowDownCircle, DollarSign, FileText, Briefcase, Crown } from 'lucide-react'
+import { Building2, ClipboardCheck, Mail, Upload, Send, Settings, MessageSquare, Monitor, PanelLeftClose, Sparkles, Shield, ShieldCheck, Handshake, Users, ArrowDownCircle, DollarSign, FileText, Briefcase, Crown, Lightbulb, Microscope } from 'lucide-react'
 import { AnalystToggleButton } from '@/components/analyst-button'
 import { AnalystPanel } from '@/components/analyst-panel'
 
@@ -20,6 +20,8 @@ export default function SupportPage() {
       <li><a href="#settings" className="hover:text-foreground underline underline-offset-4">Settings</a></li>
       <li><a href="#notes" className="hover:text-foreground underline underline-offset-4">Notes</a></li>
       <li><a href="#interactions" className="hover:text-foreground underline underline-offset-4">Interactions</a></li>
+      <li><a href="#deals" className="hover:text-foreground underline underline-offset-4">Deals</a></li>
+      <li><a href="#diligence" className="hover:text-foreground underline underline-offset-4">Diligence</a></li>
       <li><a href="#investments" className="hover:text-foreground underline underline-offset-4">Investments</a></li>
       <li><a href="#funds" className="hover:text-foreground underline underline-offset-4">Funds</a></li>
       <li><a href="#letters" className="hover:text-foreground underline underline-offset-4">Letters</a></li>
@@ -629,6 +631,101 @@ export default function SupportPage() {
             The fund&apos;s inbound email address is displayed at the top of the Interactions page for
             easy reference and can be copied with one click. Simply BCC this address on any email conversation
             you want to log.
+          </p>
+        </div>
+
+        <div id="deals">
+          <h2 className="text-base font-medium mb-2 flex items-center gap-2">
+            <Lightbulb className="h-4 w-4 text-muted-foreground" />
+            Deals
+          </h2>
+          <p className="text-muted-foreground mb-2">
+            Deals is the inbound side of deal flow &mdash; cold pitches, partner-forwarded intros, and
+            scout submissions arrive at your existing inbound email address and are screened against your
+            fund&apos;s thesis before they reach a partner&apos;s inbox. Every inbound email runs through a
+            content-aware classifier that decides between four destinations: <strong>reporting</strong> (portfolio
+            metrics), <strong>interactions</strong> (CRM-style emails from fund members),
+            <strong>deals</strong> (a company pitching the fund), or <strong>other</strong> (newsletters,
+            recruiter spam, vendor pitches). Sender identity is a strong signal but not a hard rule, so a
+            partner forwarding a cold pitch lands in Deals where it belongs.
+          </p>
+          <p className="text-muted-foreground mb-2">
+            For each pitch routed to Deals, a single AI call extracts company name, founder, intro source,
+            referrer when applicable, stage, industry, raise size, a 100&ndash;150 word company summary, and a
+            thesis-fit analysis with a fit score (strong, moderate, weak, out of thesis). Out-of-thesis pitches
+            auto-archive and surface in a weekly digest email so partners can sanity-check without eyeballing
+            every cold pitch. Founders can also submit pitches directly via a public form at a per-fund URL
+            &mdash; admins generate or rotate the URL in Settings.
+          </p>
+          <p className="text-muted-foreground mb-2">
+            The Deals page lists active pitches as a sortable table or a kanban board (drag-and-drop across
+            status columns: new, reviewing, advancing, met, passed). Click a pitch to see the summary,
+            thesis-fit analysis, source email, attachments, founders, intro source, and a deal-scoped Analyst
+            chat that knows the pitch and your thesis.
+          </p>
+          <p className="text-muted-foreground">
+            Settings &rarr; Deals controls the investment thesis, screening prompt, public submission token,
+            confidence threshold, optional routing-model override, the Known Referrers list (scouts and
+            friends-of-fund whose intros bias toward Deals), an <strong>Email Audit</strong> log of dropped
+            items, and a <strong>Routing Accuracy</strong> dashboard showing manual reroutes per week as a
+            drift signal. Below a configurable confidence threshold, items go to a Review queue with the top
+            two predicted destinations for one-click resolution &mdash; nothing is silently dropped.
+          </p>
+        </div>
+
+        <div id="diligence">
+          <h2 className="text-base font-medium mb-2 flex items-center gap-2">
+            <Microscope className="h-4 w-4 text-muted-foreground" />
+            Diligence
+          </h2>
+          <p className="text-muted-foreground mb-2">
+            Diligence is the pre-investment workflow: when a deal is worth real time, you create a diligence
+            record, upload the data room, and run a schema-driven <strong>Memo Agent</strong> that ingests the
+            documents, conducts external research, asks partner Q&amp;A, drafts a structured memo, scores it
+            per your rubric, and renders to Word or Google Docs. Each diligence record has tabs for Overview,
+            Deal Room (uploaded files), Drafts (memo versions), Q&amp;A, Research, and Notes.
+          </p>
+          <p className="text-muted-foreground mb-2">
+            The agent is operated by <strong>seven YAML/MD configuration files</strong> (&ldquo;schemas&rdquo;)
+            that admins edit per-fund through an in-app editor under Settings &rarr; Memo Agent &rarr; Schemas:
+            instructions, rubric, qa_library, data_room_ingestion, research_dossier, memo_output, and
+            style_anchors. The schema editor uses Monaco with inline YAML validation and version history;
+            rolling back to a prior version is one click. Defaults are seeded automatically the first time
+            you open the editor, so you can run the agent immediately and customize as you go.
+          </p>
+          <p className="text-muted-foreground mb-2">
+            <strong>Style Anchors</strong> are uploaded reference memos that teach the agent your firm&apos;s
+            voice. Upload 3&ndash;8 prior memos in Settings &rarr; Memo Agent &rarr; Style Anchors, tag each
+            with vintage, sector, voice representativeness, and partner notes, and the agent uses them to
+            match structure and tone during drafting. Reference memos teach voice &mdash; they never supply
+            facts to a new memo.
+          </p>
+          <p className="text-muted-foreground mb-2">
+            The agent runs in six stages: <strong>Ingest</strong> (classify each doc, extract claims, run gap
+            analysis), <strong>Research</strong> (verify or contradict claims, build a competitive map,
+            compile founder dossiers), <strong>Q&amp;A</strong> (next-best partner questions per the qa_library
+            with skip logic against ingestion + research), <strong>Draft</strong> (assemble paragraphs with
+            paragraph-level citations), <strong>Score</strong> (rate each rubric dimension; partner-only
+            dimensions like team get null score with supporting material), <strong>Render</strong> (markdown,
+            .docx download, or native Google Doc). Long stages run as background jobs picked up by a worker
+            every minute.
+          </p>
+          <p className="text-muted-foreground mb-2">
+            The memo editor is a two-pane view: rendered memo on the left with inline citation markers and
+            visual treatment for projections, unverified claims, and contradictions; paragraph inspector and
+            partner-attention sidebar on the right. Partners edit any paragraph (it flips to
+            <em>partner_edited</em> origin), update rubric scores by hand, work through the attention queue
+            (must-address / should-address / FYI), and finalize when ready &mdash; finalizing locks the draft.
+            Recommendation and team scoring are partner-only and can never be set by the agent.
+          </p>
+          <p className="text-muted-foreground">
+            Across all your active deals, the <strong>Memo Inbox</strong> aggregates open partner-attention
+            items so you can triage them in one pass. The <strong>Analytics</strong> view shows the agent
+            funnel (created &rarr; ingestion &rarr; research &rarr; Q&amp;A &rarr; draft &rarr; finalized
+            &rarr; won) with drop-off percentages, time-in-stage medians, win/loss by sector, and throughput
+            per lead partner. Settings &rarr; Memo Agent &rarr; Defaults sets per-deal and monthly token caps
+            (with current-month usage bar) and per-stage AI provider overrides &mdash; e.g. cheap model for
+            ingest, stronger model for draft.
           </p>
         </div>
 

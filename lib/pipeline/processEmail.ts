@@ -16,6 +16,8 @@ import { getGoogleCredentials } from '@/lib/google/credentials'
 import { getDropboxCredentials } from '@/lib/dropbox/credentials'
 import { getAccessToken as getDropboxAccessToken, findOrCreateFolder as findOrCreateDropboxFolder, uploadFile as uploadDropboxFile } from '@/lib/dropbox/files'
 import { extractInteraction } from '@/lib/claude/extractInteraction'
+import { classifyEmail, detectForward, type SenderFlags, type AttachmentDescriptor } from '@/lib/pipeline/classifyEmail'
+import { isAuthorizedSender } from '@/lib/pipeline/isAuthorizedSender'
 import type { Json, IssueType, ProcessingStatus } from '@/lib/types/database'
 
 type Supabase = ReturnType<typeof createAdminClient>
@@ -61,6 +63,65 @@ export async function runPipeline(
 
   // Fetch the fund's AI provider based on default_ai_provider setting
   const { provider, model, providerType } = await createFundAIProvider(supabase, fundId)
+
+  // Step 4.5: Routing classifier. Settings determine whether the result is
+  // acted on (active routing) or merely recorded (shadow mode — when
+  // deal_intake_enabled is false). A classifier failure must never break the
+  // existing reporting/interactions pipeline; on error we fall through.
+  const dealsSettings = await loadDealsSettings(supabase, fundId)
+  let routingDecision: RoutingDecision = 'shadow'
+  let classification: ClassificationResultStored | null = null
+  try {
+    classification = await classifyAndStore(
+      supabase, emailId, fundId, payload, extracted.emailBody, fundMember,
+      provider, providerType, model, dealsSettings.routing_model
+    )
+    if (classification) {
+      routingDecision = decideRoute(classification, dealsSettings)
+    }
+  } catch (err) {
+    console.error('[pipeline] Classifier failed (non-blocking):', err)
+  }
+
+  // Branch on classifier decision when intake is enabled.
+  if (routingDecision === 'deals') {
+    try {
+      const { processDeal } = await import('@/lib/pipeline/processDeal')
+      await processDeal({ supabase, emailId, fundId, payload, extracted, provider, providerType, model })
+      await supabase.from('inbound_emails').update({ routed_to: 'deals' }).eq('id', emailId)
+      await finalizeEmail(supabase, emailId, { status: 'success' })
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Unknown error'
+      console.error('[pipeline] processDeal failed:', err)
+      await finalizeEmail(supabase, emailId, { status: 'failed', warnings: [msg] })
+    }
+    return
+  }
+
+  if (routingDecision === 'audit') {
+    await supabase.from('inbound_emails').update({ routed_to: 'audit' }).eq('id', emailId)
+    await finalizeEmail(supabase, emailId, { status: 'not_processed' })
+    return
+  }
+
+  if (routingDecision === 'review') {
+    await createReview(supabase, {
+      fund_id: fundId,
+      email_id: emailId,
+      issue_type: 'routing_low_confidence',
+      context_snippet: classification
+        ? `Classifier: ${classification.label} @ ${classification.confidence.toFixed(2)} (secondary: ${classification.secondary_label ?? 'none'}). ${classification.reasoning}`
+        : '',
+    })
+    await supabase.from('inbound_emails').update({ routed_to: 'review' }).eq('id', emailId)
+    await finalizeEmail(supabase, emailId, { status: 'needs_review' })
+    return
+  }
+
+  // Shadow mode OR explicit reporting/interactions decision → existing flow.
+  // Persist routed_to so /emails UI can show the active destination.
+  const fallbackRouted = routingDecision === 'shadow' ? 'reporting' : routingDecision
+  await supabase.from('inbound_emails').update({ routed_to: fallbackRouted }).eq('id', emailId)
 
   // Step 5: Identify the company (skip if already assigned, e.g. from manual assignment)
   const { data: existingEmail } = await supabase
@@ -754,4 +815,133 @@ async function saveToDropbox(
       await uploadDropboxFile(accessToken, companyPath, safeName, content)
     }
   }
+}
+
+// ---------------------------------------------------------------------------
+// Routing classifier (Step 4.5)
+// ---------------------------------------------------------------------------
+
+export type RoutingDecision = 'deals' | 'audit' | 'review' | 'reporting' | 'interactions' | 'shadow'
+
+export interface ClassificationResultStored {
+  label: 'reporting' | 'interactions' | 'deals' | 'other'
+  confidence: number
+  reasoning: string
+  secondary_label: 'reporting' | 'interactions' | 'deals' | 'other' | null
+}
+
+interface DealsSettings {
+  deal_intake_enabled: boolean
+  routing_confidence_threshold: number | null
+  routing_model: string | null
+}
+
+async function loadDealsSettings(supabase: Supabase, fundId: string): Promise<DealsSettings> {
+  const { data } = await supabase
+    .from('fund_settings')
+    .select('deal_intake_enabled, routing_confidence_threshold, routing_model')
+    .eq('fund_id', fundId)
+    .maybeSingle()
+  const row = data as { deal_intake_enabled: boolean | null; routing_confidence_threshold: number | null; routing_model: string | null } | null
+  return {
+    deal_intake_enabled: row?.deal_intake_enabled ?? false,
+    routing_confidence_threshold: row?.routing_confidence_threshold ?? null,
+    routing_model: row?.routing_model ?? null,
+  }
+}
+
+/**
+ * Translate a classifier result + settings into a routing decision.
+ *   shadow       → intake disabled; existing pipeline runs unchanged
+ *   review       → confidence below threshold; queue for human resolution
+ *   audit        → label 'other'; recorded but no pipeline runs
+ *   deals        → run processDeal
+ *   reporting    → existing flow runs (label confirms reporting)
+ *   interactions → existing flow runs (label is interactions)
+ */
+function decideRoute(c: ClassificationResultStored, s: DealsSettings): RoutingDecision {
+  if (!s.deal_intake_enabled) return 'shadow'
+
+  const threshold = s.routing_confidence_threshold ?? 0
+  if (c.confidence < threshold) return 'review'
+
+  if (c.label === 'other') return 'audit'
+  if (c.label === 'deals') return 'deals'
+  return c.label // 'reporting' | 'interactions'
+}
+
+async function classifyAndStore(
+  supabase: Supabase,
+  emailId: string,
+  fundId: string,
+  payload: PostmarkPayload,
+  emailBody: string,
+  fundMember: { userId: string } | null | undefined,
+  provider: import('@/lib/ai/types').AIProvider,
+  providerType: string,
+  defaultModel: string,
+  routingModelOverride: string | null
+): Promise<ClassificationResultStored | null> {
+  const senderEmail = (payload.FromFull?.Email ?? payload.From ?? '').trim().toLowerCase()
+  if (!senderEmail) return null
+
+  const fwd = detectForward(emailBody || '')
+
+  const [authorizedSender, knownReferrer, fwdAuthorized] = await Promise.all([
+    fundMember ? Promise.resolve(false) : isAuthorizedSender(supabase, fundId, senderEmail),
+    isKnownReferrer(supabase, fundId, senderEmail),
+    fwd.forwarded_from_email
+      ? isAuthorizedSender(supabase, fundId, fwd.forwarded_from_email)
+      : Promise.resolve(false),
+  ])
+
+  const flags: SenderFlags = {
+    is_fund_member: !!fundMember,
+    is_authorized_sender: authorizedSender,
+    is_known_referrer: knownReferrer,
+    is_forward: fwd.is_forward,
+    forwarded_from_email: fwd.forwarded_from_email,
+    forwarded_from_is_authorized_sender: fwdAuthorized,
+  }
+
+  const attachments: AttachmentDescriptor[] = (payload.Attachments ?? []).map(a => ({
+    name: a.Name,
+    contentType: a.ContentType,
+    sizeBytes: a.ContentLength ?? 0,
+  }))
+
+  const result = await classifyEmail(
+    {
+      subject: payload.Subject ?? '',
+      body: emailBody || '',
+      attachments,
+      flags,
+    },
+    provider,
+    providerType,
+    routingModelOverride ?? defaultModel,
+    { admin: supabase, fundId }
+  )
+
+  await supabase
+    .from('inbound_emails')
+    .update({
+      routing_label: result.label,
+      routing_confidence: result.confidence,
+      routing_reasoning: result.reasoning,
+      routing_secondary_label: result.secondary_label,
+    })
+    .eq('id', emailId)
+
+  return result
+}
+
+async function isKnownReferrer(supabase: Supabase, fundId: string, email: string): Promise<boolean> {
+  const { data } = await supabase
+    .from('known_referrers')
+    .select('id')
+    .eq('fund_id', fundId)
+    .eq('email', email)
+    .maybeSingle()
+  return !!data
 }

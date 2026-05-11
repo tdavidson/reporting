@@ -1,0 +1,139 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://memo-agent.local/schemas/data_room_ingestion.schema.json",
+  "title": "Memo Agent Data Room Ingestion",
+  "description": "Per-document extraction format, claim provenance, financial-model handling, and gap analysis for the data room ingestion stage.",
+  "type": "object",
+  "required": [
+    "provenance_default",
+    "document_types",
+    "expected_documents",
+    "document_record",
+    "claim_record",
+    "financial_extraction",
+    "gap_analysis",
+    "ingestion_output"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "meta": { "type": "object", "additionalProperties": true },
+    "provenance_default": {
+      "type": "object",
+      "required": ["source_type", "rationale"],
+      "additionalProperties": false,
+      "properties": {
+        "source_type": { "type": "string", "enum": ["company_stated"] },
+        "rationale": { "type": "string", "minLength": 1 }
+      }
+    },
+    "document_types": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/definitions/document_type" }
+    },
+    "expected_documents": {
+      "type": "object",
+      "required": ["expected"],
+      "additionalProperties": true,
+      "properties": {
+        "description": { "type": "string" },
+        "expected": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "criticality"],
+            "additionalProperties": false,
+            "properties": {
+              "id": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+              "criticality": { "type": "string", "enum": ["required", "expected", "optional"] }
+            }
+          }
+        }
+      }
+    },
+    "document_record": { "$ref": "#/definitions/record_with_fields" },
+    "claim_record": { "$ref": "#/definitions/record_with_fields" },
+    "financial_extraction": {
+      "type": "object",
+      "required": ["rationale", "metrics_to_extract", "metric_record", "assumption_record", "rules"],
+      "additionalProperties": false,
+      "properties": {
+        "rationale": { "type": "string" },
+        "metrics_to_extract": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["id", "name", "units"],
+            "additionalProperties": true,
+            "properties": {
+              "id": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+              "name": { "type": "string" },
+              "units": { "type": "string", "enum": ["currency", "percent", "ratio", "months", "count", "number"] },
+              "historical": { "type": "string", "enum": ["required", "optional"] },
+              "projected": { "type": "string", "enum": ["required", "optional"] }
+            }
+          }
+        },
+        "metric_record": { "$ref": "#/definitions/record_with_fields" },
+        "assumption_record": { "$ref": "#/definitions/record_with_fields" },
+        "rules": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "gap_analysis": {
+      "type": "object",
+      "required": ["output_record"],
+      "additionalProperties": true,
+      "properties": {
+        "description": { "type": "string" },
+        "output_record": { "$ref": "#/definitions/record_with_fields" }
+      }
+    },
+    "ingestion_output": {
+      "type": "object",
+      "required": ["fields"],
+      "additionalProperties": true,
+      "properties": {
+        "fields": { "type": "array", "items": { "$ref": "#/definitions/field_spec" } }
+      }
+    }
+  },
+  "definitions": {
+    "document_type": {
+      "type": "object",
+      "required": ["id", "name", "typical_formats", "extraction_priority"],
+      "additionalProperties": true,
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+        "name": { "type": "string", "minLength": 1 },
+        "typical_formats": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+        "typical_content": { "type": "array", "items": { "type": "string" } },
+        "extraction_priority": { "type": "string", "enum": ["high", "medium", "low"] },
+        "special_handling": { "type": "string" },
+        "note": { "type": "string" }
+      }
+    },
+    "record_with_fields": {
+      "type": "object",
+      "required": ["fields"],
+      "additionalProperties": true,
+      "properties": {
+        "description": { "type": "string" },
+        "fields": { "type": "array", "minItems": 1, "items": { "$ref": "#/definitions/field_spec" } }
+      }
+    },
+    "field_spec": {
+      "type": "object",
+      "required": ["name", "type"],
+      "additionalProperties": true,
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "type": { "type": "string" },
+        "required": { "type": "boolean" },
+        "values": { "type": "array" },
+        "default": {},
+        "note": { "type": "string" }
+      }
+    }
+  }
+}

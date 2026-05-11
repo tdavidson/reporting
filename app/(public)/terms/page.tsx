@@ -34,7 +34,7 @@ export default function TermsPage() {
         Terms of Service
       </h1>
 
-      {/* Table of contents — inline on mobile only */}
+      {/* Table of contents - inline on mobile only */}
       <nav className="xl:hidden mt-6 text-sm">
         <h2 className="text-base font-medium mb-2">On this page</h2>
         {tocLinks}
@@ -115,7 +115,7 @@ export default function TermsPage() {
             </p>
             <ul className="list-disc pl-5 text-muted-foreground space-y-1">
               <li>Your data is stored on shared infrastructure (database, hosting) managed by us</li>
-              <li>The Platform enforces strict data isolation between funds at the database level through row-level security policies &mdash; no fund can access another fund&apos;s data</li>
+              <li>The Platform enforces strict data isolation between funds at the database level through row-level security policies - no fund can access another fund&apos;s data</li>
               <li>We may access the shared infrastructure for maintenance and support, but will not access your portfolio data except as necessary to provide the service</li>
               <li>Specific service levels, data handling, and fees are set forth in a separate written agreement</li>
               <li>Either party may terminate the managed hosting arrangement per the terms of that agreement</li>
@@ -155,9 +155,9 @@ export default function TermsPage() {
           <div id="not-advice">
             <h2 className="text-base font-medium mb-2">7. Not Financial or Investment Advice</h2>
             <p className="text-muted-foreground">
-              The Platform is a reporting and data organization tool. Nothing in the Platform &mdash;
+              The Platform is a reporting and data organization tool. Nothing in the Platform -
               including AI-generated summaries, metrics, investment calculations, IRR figures, or LP
-              letter drafts &mdash; constitutes financial, investment, legal, or tax advice. You should
+              letter drafts - constitutes financial, investment, legal, or tax advice. You should
               consult qualified professionals for advice specific to your situation. We are not
               registered investment advisors, broker-dealers, or tax professionals.
             </p>
@@ -275,11 +275,11 @@ export default function TermsPage() {
           </div>
 
           <p className="text-xs text-muted-foreground">
-            Last updated March 9, 2026 &mdash; Unstructured Ventures, LLC.
+            Last updated March 9, 2026 - Unstructured Ventures, LLC.
           </p>
         </div>
 
-        {/* TOC sidebar — desktop only */}
+        {/* TOC sidebar - desktop only */}
         <nav className="hidden xl:block w-44 shrink-0 text-sm">
           <div className="sticky top-8">
             <h2 className="text-[12px] font-medium text-muted-foreground uppercase tracking-wider mb-3">On this page</h2>

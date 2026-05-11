@@ -41,7 +41,7 @@ export default function InboundExplainerPage() {
       <p className="text-muted-foreground">
         The platform can also store documents for you automatically. If your admin has connected
         Google Drive or Dropbox in Settings, every inbound email and its attachments are saved
-        into company-specific folders &mdash; organized by company name &mdash; so you always have
+        into company-specific folders - organized by company name - so you always have
         the original source files alongside the extracted data.
       </p>
     </ExplainerContent>

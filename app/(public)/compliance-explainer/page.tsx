@@ -23,14 +23,14 @@ export default function ComplianceExplainerPage() {
       </p>
 
       <p className="text-muted-foreground">
-        <strong>Compliance profile</strong> &mdash; answer a short questionnaire about your fund
+        <strong>Compliance profile</strong> - answer a short questionnaire about your fund
         (registration status, AUM range, fund structure, Reg D exemption, state presence, etc.)
         and the system automatically determines which compliance items apply to your fund, which
         need further review, and which you can safely dismiss.
       </p>
 
       <p className="text-muted-foreground">
-        <strong>Calendar view</strong> &mdash; all applicable compliance items are displayed in a
+        <strong>Calendar view</strong> - all applicable compliance items are displayed in a
         monthly calendar organized by deadline. Items are color-coded by category: SEC filings in
         amber, tax filings in green, internal compliance in blue, fund reporting in purple, state
         compliance in rose, CFTC in orange, and AML/FinCEN in red. Quarterly items like partnership
@@ -39,20 +39,20 @@ export default function ComplianceExplainerPage() {
       </p>
 
       <p className="text-muted-foreground">
-        <strong>Event-driven items</strong> &mdash; filings like Form D and Blue Sky that are
+        <strong>Event-driven items</strong> - filings like Form D and Blue Sky that are
         triggered by fund closes appear only in the months where your fund has committed capital
         entries, rather than cluttering every month. This is derived automatically from your fund
         cash flows data.
       </p>
 
       <p className="text-muted-foreground">
-        <strong>Dismiss and filter</strong> &mdash; mark items as done for the year (or quarter)
+        <strong>Dismiss and filter</strong> - mark items as done for the year (or quarter)
         by dismissing them. Filter the view between active items, dismissed items, or all items to
         see what&apos;s been completed and what remains.
       </p>
 
       <p className="text-muted-foreground">
-        <strong>All items view</strong> &mdash; a comprehensive list of every compliance item
+        <strong>All items view</strong> - a comprehensive list of every compliance item
         organized by category (SEC Filings, Tax Filings, Internal Compliance, Fund Reporting,
         Securities Offerings, State Compliance, CFTC, and AML/FinCEN). Each item shows its
         frequency, deadline, applicability, filing system, and any relevant notes or alerts. Click
@@ -61,13 +61,13 @@ export default function ComplianceExplainerPage() {
       </p>
 
       <p className="text-muted-foreground">
-        <strong>Links &amp; accounts</strong> &mdash; save links to filing portals, regulatory
+        <strong>Links &amp; accounts</strong> - save links to filing portals, regulatory
         accounts, and reference documents. Each link can optionally be associated with a specific
         compliance item, and associated links appear on that item&apos;s detail card for quick access.
       </p>
 
       <p className="text-muted-foreground">
-        <strong>Built-in compliance registry</strong> &mdash; the system ships with a curated
+        <strong>Built-in compliance registry</strong> - the system ships with a curated
         registry of compliance items covering SEC filings (Form ADV, Form PF, Form 13F, Schedule
         13G, Form 13H, Form N-PX), securities offerings (Form D, Blue Sky), CFTC exemptions,
         California diversity reporting, tax filings (Form 1065, K-1s, Form 7004), internal

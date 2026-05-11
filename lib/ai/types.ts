@@ -10,6 +10,17 @@ export interface CreateMessageParams {
   maxTokens: number
   system?: string
   content: MessageContent
+  /**
+   * Enable provider-side web search. Only honored by Anthropic right now; other
+   * providers ignore the flag (the prompt fallback handles graceful degradation).
+   * Adds Anthropic's web_search billing (~$10 / 1,000 searches) on top of tokens.
+   */
+  enableWebSearch?: boolean
+  /**
+   * Maximum web search invocations per request. Only used when enableWebSearch
+   * is true. Defaults to 5 if omitted.
+   */
+  webSearchMaxUses?: number
 }
 
 export interface AIModel { id: string; name: string }

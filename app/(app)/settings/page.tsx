@@ -85,6 +85,12 @@ interface Settings {
   isAdmin: boolean
   appVersion: string
   updateAvailable: boolean
+  dealThesis: string | null
+  dealScreeningPrompt: string | null
+  dealIntakeEnabled: boolean
+  dealSubmissionToken: string | null
+  routingConfidenceThreshold: number | null
+  routingModel: string | null
 }
 
 export default function SettingsPage() {
@@ -212,6 +218,24 @@ export default function SettingsPage() {
             onSaved={load}
           />
           <AiSummaryPromptSection currentPrompt={settings.aiSummaryPrompt} onSaved={load} />
+
+          <GroupHeader label="Deals" />
+          <DealScreeningSection
+            thesis={settings.dealThesis}
+            prompt={settings.dealScreeningPrompt}
+            intakeEnabled={settings.dealIntakeEnabled}
+            submissionToken={settings.dealSubmissionToken}
+            onSaved={load}
+          />
+          <KnownReferrersSection />
+          <RoutingSection
+            threshold={settings.routingConfidenceThreshold}
+            model={settings.routingModel}
+            onSaved={load}
+          />
+
+          <GroupHeader label="Memo Agent" />
+          <MemoAgentSection />
 
           <GroupHeader label="Storage" />
           <StorageSection
@@ -617,6 +641,8 @@ const FEATURE_META: Record<FeatureKey, { label: string; description: string; hre
   lps: { label: 'LPs', description: 'Investor-level report cards with consolidated performance across fund vehicles', href: '/support#lps' },
   lp_associates: { label: 'GP Entities', description: 'Entity ownership mappings and pro-rata associates calculations for LP reporting', href: '/support#lps' },
   compliance: { label: 'Compliance', description: 'Track regulatory deadlines, filings, and compliance workflows', href: '/support#compliance' },
+  deals: { label: 'Deals', description: 'Inbound deal pitches screened against your fund thesis', href: '/support#deals' },
+  diligence: { label: 'Diligence', description: 'Pre-investment record-keeping and AI-assisted memo drafting', href: '/support#diligence' },
 }
 
 const VISIBILITY_OPTIONS: { value: FeatureVisibility; label: string; description: string }[] = [
@@ -4021,6 +4047,380 @@ function UsageTrackingSection({
           Disable user activity tracking
         </Label>
         {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+      </div>
+    </Section>
+  )
+}
+
+// ──────────────────────────── Deals ────────────────────────────
+
+const DEFAULT_DEAL_SCREENING_PROMPT = `You are a senior partner at a venture capital fund. The fund's thesis is provided above.
+
+For the inbound email and any attached materials, return structured output containing:
+
+- The standard extraction fields (company, founders, intro source, stage, industry, raise).
+- A company_summary describing what they do, who they sell to, stage, traction signals,
+  and team highlights drawn directly from the materials.
+- A thesis_fit_analysis covering:
+   - Alignment with each pillar of the thesis (cite specific evidence).
+   - Disqualifiers, if any.
+   - Open questions a partner would ask before a first meeting.
+- A single thesis_fit_score: strong | moderate | weak | out_of_thesis.
+
+Be specific. Avoid hedging adjectives. If a key fact is not in the materials, say so
+explicitly rather than inferring.`
+
+function DealScreeningSection({ thesis, prompt, intakeEnabled, submissionToken, onSaved }: {
+  thesis: string | null
+  prompt: string | null
+  intakeEnabled: boolean
+  submissionToken: string | null
+  onSaved: () => void
+}) {
+  const [thesisVal, setThesisVal] = useState(thesis ?? '')
+  const [promptVal, setPromptVal] = useState(prompt ?? DEFAULT_DEAL_SCREENING_PROMPT)
+  const [intake, setIntake] = useState(intakeEnabled)
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const [previewing, setPreviewing] = useState(false)
+  const [previewResult, setPreviewResult] = useState<string | null>(null)
+  const [tokenBusy, setTokenBusy] = useState(false)
+  const [tokenCopied, setTokenCopied] = useState(false)
+
+  const isCustomized = prompt !== null
+  const submissionUrl = submissionToken ? `${typeof window !== 'undefined' ? window.location.origin : ''}/submit/${submissionToken}` : null
+
+  async function generateToken() {
+    setTokenBusy(true)
+    const res = await fetch('/api/settings/deal-submission-token', { method: 'POST' })
+    setTokenBusy(false)
+    if (res.ok) onSaved()
+  }
+
+  async function clearToken() {
+    if (!confirm('Disable the public submission form? Anyone with the current URL will see a not-found page.')) return
+    setTokenBusy(true)
+    const res = await fetch('/api/settings/deal-submission-token', { method: 'DELETE' })
+    setTokenBusy(false)
+    if (res.ok) onSaved()
+  }
+
+  function copyUrl() {
+    if (!submissionUrl) return
+    navigator.clipboard.writeText(submissionUrl)
+    setTokenCopied(true)
+    setTimeout(() => setTokenCopied(false), 2000)
+  }
+
+  async function handleSave() {
+    setSaving(true)
+    const res = await fetch('/api/settings', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        dealThesis: thesisVal,
+        dealScreeningPrompt: promptVal,
+        dealIntakeEnabled: intake,
+      }),
+    })
+    setSaving(false)
+    if (res.ok) {
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2000)
+      onSaved()
+    }
+  }
+
+  async function handleResetPrompt() {
+    setSaving(true)
+    const res = await fetch('/api/settings', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ dealScreeningPrompt: null }),
+    })
+    setSaving(false)
+    if (res.ok) {
+      setPromptVal(DEFAULT_DEAL_SCREENING_PROMPT)
+      onSaved()
+    }
+  }
+
+  async function handlePreview() {
+    setPreviewing(true)
+    setPreviewResult(null)
+    const res = await fetch('/api/deals/preview', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ thesis: thesisVal, screeningPrompt: promptVal }),
+    })
+    setPreviewing(false)
+    if (res.ok) {
+      const body = await res.json()
+      setPreviewResult(JSON.stringify(body.analysis ?? body, null, 2))
+    } else {
+      const err = await res.text()
+      setPreviewResult(`Error: ${err}`)
+    }
+  }
+
+  return (
+    <Section title="Deal screening">
+      <p className="text-xs text-muted-foreground mb-3">
+        Configure how inbound pitches are screened against your fund's thesis. The thesis is included
+        verbatim before the screening instructions in the AI prompt.
+      </p>
+
+      <label className="block text-xs font-medium text-muted-foreground mb-1">Investment thesis</label>
+      <textarea
+        className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm font-mono leading-relaxed mb-4"
+        rows={6}
+        value={thesisVal}
+        onChange={e => setThesisVal(e.target.value)}
+        placeholder="Describe your thesis: stages, sectors, geographies, check sizes, what you avoid..."
+      />
+
+      <label className="block text-xs font-medium text-muted-foreground mb-1">Screening instructions</label>
+      <textarea
+        className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm font-mono leading-relaxed"
+        rows={10}
+        value={promptVal}
+        onChange={e => setPromptVal(e.target.value)}
+      />
+
+      <label className="flex items-center gap-2 mt-4 text-sm cursor-pointer">
+        <input type="checkbox" checked={intake} onChange={e => setIntake(e.target.checked)} className="h-4 w-4" />
+        <span>Enable inbound deal intake</span>
+      </label>
+      <p className="text-xs text-muted-foreground ml-6 mt-1">
+        When off, the classifier still runs in shadow mode (results recorded on each email) but no email is routed to Deals.
+      </p>
+
+      <div className="flex items-center gap-2 mt-4">
+        <Button onClick={handleSave} disabled={saving} size="sm">
+          {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : saved ? <Check className="h-3.5 w-3.5" /> : 'Save'}
+        </Button>
+        {isCustomized && (
+          <Button onClick={handleResetPrompt} disabled={saving} variant="outline" size="sm">
+            Reset prompt
+          </Button>
+        )}
+        <Button onClick={handlePreview} disabled={previewing || saving} variant="outline" size="sm">
+          {previewing ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : null}
+          Preview
+        </Button>
+      </div>
+
+      {previewResult && (
+        <pre className="mt-3 whitespace-pre-wrap text-xs bg-muted rounded-md px-3 py-2 font-mono leading-relaxed max-h-80 overflow-y-auto">
+          {previewResult}
+        </pre>
+      )}
+
+      <div className="border-t mt-6 pt-4">
+        <h3 className="text-sm font-medium mb-1">Public submission form</h3>
+        <p className="text-xs text-muted-foreground mb-3">
+          Share a public URL where founders can submit pitches directly. Each submission runs through the same screening pipeline as inbound emails.
+          Generating a new URL invalidates the previous one.
+        </p>
+        {submissionUrl ? (
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <Input readOnly value={submissionUrl} className="font-mono text-xs" />
+              <Button onClick={copyUrl} variant="outline" size="sm">
+                {tokenCopied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+              </Button>
+            </div>
+            <div className="flex gap-2">
+              <Button onClick={generateToken} disabled={tokenBusy} variant="outline" size="sm">
+                Regenerate URL
+              </Button>
+              <Button onClick={clearToken} disabled={tokenBusy} variant="outline" size="sm">
+                Disable form
+              </Button>
+            </div>
+            {!intake && (
+              <p className="text-xs text-amber-600 dark:text-amber-400">
+                Note: the form is currently inactive because deal intake is disabled above.
+              </p>
+            )}
+          </div>
+        ) : (
+          <Button onClick={generateToken} disabled={tokenBusy} variant="outline" size="sm">
+            Generate submission URL
+          </Button>
+        )}
+      </div>
+    </Section>
+  )
+}
+
+interface KnownReferrer {
+  id: string
+  email: string
+  name: string | null
+  notes: string | null
+  created_at: string | null
+}
+
+function KnownReferrersSection() {
+  const [items, setItems] = useState<KnownReferrer[]>([])
+  const [email, setEmail] = useState('')
+  const [name, setName] = useState('')
+  const [notes, setNotes] = useState('')
+  const [adding, setAdding] = useState(false)
+
+  async function load() {
+    const res = await fetch('/api/known-referrers')
+    if (res.ok) setItems(await res.json())
+  }
+
+  useEffect(() => { load() }, [])
+
+  async function add() {
+    if (!email.trim()) return
+    setAdding(true)
+    const res = await fetch('/api/known-referrers', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, name, notes }),
+    })
+    setAdding(false)
+    if (res.ok) {
+      setEmail(''); setName(''); setNotes('')
+      load()
+    }
+  }
+
+  async function remove(id: string) {
+    if (!confirm('Remove this referrer?')) return
+    const res = await fetch(`/api/known-referrers/${id}`, { method: 'DELETE' })
+    if (res.ok) setItems(items.filter(x => x.id !== id))
+  }
+
+  return (
+    <Section title="Known referrers">
+      <p className="text-xs text-muted-foreground mb-3">
+        Email addresses of scouts and friends-of-fund whose intros and forwards should bias toward Deals.
+        The classifier reads this as a soft signal, not a hard rule.
+      </p>
+
+      <div className="grid grid-cols-12 gap-2 mb-3">
+        <Input className="col-span-4 h-9" placeholder="email@example.com" value={email} onChange={e => setEmail(e.target.value)} />
+        <Input className="col-span-3 h-9" placeholder="Name (optional)" value={name} onChange={e => setName(e.target.value)} />
+        <Input className="col-span-4 h-9" placeholder="Notes (optional)" value={notes} onChange={e => setNotes(e.target.value)} />
+        <Button onClick={add} disabled={adding || !email.trim()} size="sm" className="col-span-1">Add</Button>
+      </div>
+
+      {items.length === 0 ? (
+        <div className="text-xs text-muted-foreground">No known referrers yet.</div>
+      ) : (
+        <div className="rounded border divide-y">
+          {items.map(r => (
+            <div key={r.id} className="flex items-center justify-between gap-2 p-2 text-sm">
+              <div className="min-w-0 flex-1">
+                <div className="font-medium truncate">{r.email}</div>
+                <div className="text-xs text-muted-foreground">
+                  {r.name ?? ''}{r.name && r.notes ? ' · ' : ''}{r.notes ?? ''}
+                </div>
+              </div>
+              <Button onClick={() => remove(r.id)} variant="ghost" size="sm">
+                <Trash2 className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          ))}
+        </div>
+      )}
+    </Section>
+  )
+}
+
+function RoutingSection({ threshold, model, onSaved }: {
+  threshold: number | null
+  model: string | null
+  onSaved: () => void
+}) {
+  const [thresholdVal, setThresholdVal] = useState(threshold !== null ? String(threshold) : '')
+  const [modelVal, setModelVal] = useState(model ?? '')
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+
+  async function save() {
+    setSaving(true)
+    const res = await fetch('/api/settings', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        routingConfidenceThreshold: thresholdVal === '' ? null : thresholdVal,
+        routingModel: modelVal,
+      }),
+    })
+    setSaving(false)
+    if (res.ok) {
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2000)
+      onSaved()
+    }
+  }
+
+  return (
+    <Section title="Routing (advanced)">
+      <p className="text-xs text-muted-foreground mb-3">
+        Tune how the inbound classifier routes emails. Leave the threshold blank to accept all classifier
+        decisions; set it (e.g. 0.7) once you've observed shadow-mode confidence distributions.
+      </p>
+
+      <div className="grid grid-cols-12 gap-3 mb-3">
+        <div className="col-span-4">
+          <label className="block text-xs font-medium text-muted-foreground mb-1">Confidence threshold</label>
+          <Input
+            type="number"
+            min="0" max="1" step="0.05"
+            value={thresholdVal}
+            onChange={e => setThresholdVal(e.target.value)}
+            placeholder="(none)"
+            className="h-9"
+          />
+        </div>
+        <div className="col-span-8">
+          <label className="block text-xs font-medium text-muted-foreground mb-1">Routing model override</label>
+          <Input
+            value={modelVal}
+            onChange={e => setModelVal(e.target.value)}
+            placeholder="e.g. claude-haiku-4-5 (defaults to fund's primary model)"
+            className="h-9"
+          />
+        </div>
+      </div>
+
+      <div className="flex items-center gap-2 mb-3">
+        <Button onClick={save} disabled={saving} size="sm">
+          {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : saved ? <Check className="h-3.5 w-3.5" /> : 'Save'}
+        </Button>
+      </div>
+
+      <div className="flex flex-wrap gap-3 text-xs">
+        <Link href="/settings/email-audit" className="text-muted-foreground hover:underline">Email audit log →</Link>
+        <Link href="/settings/routing-accuracy" className="text-muted-foreground hover:underline">Routing accuracy dashboard →</Link>
+      </div>
+    </Section>
+  )
+}
+
+// ──────────────────────────── Memo Agent ────────────────────────────
+
+function MemoAgentSection() {
+  return (
+    <Section title="Memo Agent">
+      <p className="text-xs text-muted-foreground mb-3">
+        Configure the agent's seven YAML/MD schemas, upload reference memos to teach voice, and tune
+        cost caps + per-stage providers.
+      </p>
+      <div className="rounded-md border bg-background p-3 flex flex-wrap gap-x-4 gap-y-1 text-sm">
+        <Link href="/settings/memo-agent/schemas" className="hover:underline">Schemas</Link>
+        <span className="text-muted-foreground">·</span>
+        <Link href="/settings/memo-agent/style-anchors" className="hover:underline">Style anchors</Link>
+        <span className="text-muted-foreground">·</span>
+        <Link href="/settings/memo-agent/defaults" className="hover:underline">Defaults &amp; caps</Link>
       </div>
     </Section>
   )

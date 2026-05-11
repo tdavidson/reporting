@@ -33,6 +33,7 @@ interface SetupStatus {
   outboundEmail: { providerConfigured: boolean; keyConfigured: boolean } | null
   fileStorage: { connected: boolean } | null
   senders: { count: number } | null
+  memoAgent: { schemasSeeded: boolean; styleAnchorCount: number } | null
 }
 
 interface CheckItem {
@@ -162,6 +163,35 @@ export default function SetupPage() {
         title: 'Authorized Senders',
         checks: [
           { label: `At least one sender (${s.senders.count} configured)`, passed: s.senders.count > 0, required: false, helpLabel: 'Settings', helpUrl: '/settings' },
+        ],
+      })
+    }
+
+    if (s.memoAgent) {
+      sections.push({
+        title: 'Memo Agent',
+        checks: [
+          {
+            label: 'Schema set seeded (7 active schemas)',
+            passed: s.memoAgent.schemasSeeded,
+            required: false,
+            helpLabel: 'Open schemas',
+            helpUrl: '/settings/memo-agent/schemas',
+          },
+          {
+            label: `Reference memos uploaded (${s.memoAgent.styleAnchorCount}; recommended ≥3 for reliable voice match)`,
+            passed: s.memoAgent.styleAnchorCount >= 3,
+            required: false,
+            helpLabel: 'Open style anchors',
+            helpUrl: '/settings/memo-agent/style-anchors',
+          },
+          {
+            label: 'AI provider configured (required for the agent)',
+            passed: !!s.ai?.hasProvider,
+            required: false,
+            helpLabel: 'Settings',
+            helpUrl: '/settings',
+          },
         ],
       })
     }

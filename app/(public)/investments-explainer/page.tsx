@@ -24,8 +24,8 @@ export default function InvestmentsExplainerPage() {
         On each <strong>company detail page</strong>, the Investments section tracks the fund&apos;s transaction
         history with that specific company. You can record investment rounds (with date, round name, amount invested,
         shares acquired, and cost per share), proceeds from exits or distributions (including escrowed amounts),
-        and unrealized gain changes (current share price updates). Summary metrics &mdash; total invested,
-        current FMV, MOIC, and total realized &mdash; are displayed above the transaction table.
+        and unrealized gain changes (current share price updates). Summary metrics - total invested,
+        current FMV, MOIC, and total realized - are displayed above the transaction table.
       </p>
       <p className="text-muted-foreground">
         Admins can add, edit, and delete transactions directly. For exited companies the FMV reflects total

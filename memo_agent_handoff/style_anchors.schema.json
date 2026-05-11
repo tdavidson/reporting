@@ -1,0 +1,121 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://memo-agent.local/schemas/style_anchors.schema.json",
+  "title": "Memo Agent Style Anchors",
+  "description": "Defines metadata for uploaded reference memos that teach the agent the firm's voice, structure, and analytical patterns.",
+  "type": "object",
+  "required": ["usage_principles", "memo_record", "attention_taxonomy", "aggregation", "guardrails"],
+  "additionalProperties": false,
+  "properties": {
+    "meta": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "usage_principles": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/rule" }
+    },
+    "memo_record": {
+      "type": "object",
+      "required": ["fields"],
+      "properties": {
+        "description": { "type": "string" },
+        "fields": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/field_spec" }
+        }
+      }
+    },
+    "attention_taxonomy": {
+      "type": "object",
+      "required": ["voice_dimensions", "structure_dimensions", "analytical_dimensions"],
+      "additionalProperties": false,
+      "properties": {
+        "voice_dimensions": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/taxonomy_entry" }
+        },
+        "structure_dimensions": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/taxonomy_entry" }
+        },
+        "analytical_dimensions": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/taxonomy_entry" }
+        }
+      }
+    },
+    "aggregation": {
+      "type": "object",
+      "required": ["default_weighting", "conflict_resolution"],
+      "additionalProperties": true,
+      "properties": {
+        "default_weighting": {
+          "type": "string",
+          "enum": ["equal", "recency_weighted", "conviction_weighted", "partner_marked"]
+        },
+        "alternative_weightings": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "description"],
+            "properties": {
+              "id": { "type": "string" },
+              "description": { "type": "string" }
+            }
+          }
+        },
+        "conflict_resolution": {
+          "type": "object",
+          "required": ["rule"],
+          "properties": { "rule": { "type": "string" } }
+        },
+        "minimum_useful_count": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      }
+    },
+    "style_synthesis": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "guardrails": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/rule" }
+    }
+  },
+  "definitions": {
+    "rule": {
+      "type": "object",
+      "required": ["id", "rule"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z]_[0-9]{3}$" },
+        "rule": { "type": "string", "minLength": 1 }
+      }
+    },
+    "taxonomy_entry": {
+      "type": "object",
+      "required": ["id", "name"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+        "name": { "type": "string", "minLength": 1 }
+      }
+    },
+    "field_spec": {
+      "type": "object",
+      "required": ["name", "type"],
+      "additionalProperties": true,
+      "properties": {
+        "name": { "type": "string" },
+        "type": { "type": "string" },
+        "required": { "type": "boolean" },
+        "default": {},
+        "values": { "type": "array" },
+        "note": { "type": "string" }
+      }
+    }
+  }
+}

@@ -1,0 +1,267 @@
+# Memo Agent — Founder Q&A Library
+# Version: 0.1 (draft)
+# Used by: Memo Drafting Agent (Stage 3 — partner Q&A)
+#
+# Each question has a stable ID. When removing or rephrasing,
+# do NOT renumber — the ID is the unit of measurement for tracking
+# which questions surface real signal over time.
+#
+# `feeds_dimensions` cross-references rubric.yaml dimension IDs.
+
+meta:
+  version: "0.1"
+  last_updated: "2026-05-06"
+  owner: partners
+  notes: |
+    Draft v1 derived from the build spec. Partners to refine phrasing,
+    add or remove questions based on what surfaces real insight in practice.
+
+batching_rules:
+  questions_per_batch: { min: 4, max: 6 }
+  ordering: |
+    Start with background/track record (lower stakes, builds rhythm).
+    Then founder-market fit, team dynamics, domain expertise.
+    Save personality/character for the last batch — by then the partner
+    has surfaced enough context that those questions land sharper.
+  spacing: |
+    Wait for partner answers before sending the next batch. Never send
+    all batches at once. If a partner skips more than 2 questions in
+    a batch, note it and move on rather than pushing.
+
+skip_logic:
+  global_rules:
+    - "If CRM interaction notes already answer the question, reference the note and ask a follow-up instead of the original question."
+    - "If a prior answer in this session covered the ground, skip and note as covered."
+    - "If the data room contains content that answers the question (e.g., founder bio), reference it and ask a verification or follow-up."
+
+sensitivity_levels:
+  standard: "Ask directly."
+  high: |
+    Frame thoughtfully. These questions touch on character, integrity,
+    or red flags. Ask in a way that invites honest reflection, not defensiveness.
+
+# ---------------------------------------------------------------------------
+# Categories (ordered)
+# ---------------------------------------------------------------------------
+
+categories:
+  - { id: background_track_record, name: "Background, track record, references", order: 1 }
+  - { id: founder_market_fit,      name: "Founder-market fit and motivation",    order: 2 }
+  - { id: team_dynamics,           name: "Team dynamics and co-founder relationship", order: 3 }
+  - { id: domain_expertise,        name: "Domain expertise and unfair advantages", order: 4 }
+  - { id: personality_character,   name: "Personality and character",            order: 5 }
+
+# ---------------------------------------------------------------------------
+# Questions
+# ---------------------------------------------------------------------------
+
+questions:
+
+  # --- Background, track record, references ---
+  - id: bg_001
+    category: background_track_record
+    prompt: "What's the strongest signal you got from references?"
+    intent: "Surface the single most important reference takeaway, positive or negative."
+    kind: open_text
+    feeds_dimensions: [team]
+    sensitivity: standard
+    skip_if_covered_in: [crm_notes]
+
+  - id: bg_002
+    category: background_track_record
+    prompt: "Have you verified the major claims in their background — degrees, prior roles, exits?"
+    intent: "Catch resume inflation early. Distinguishes verified from assumed."
+    kind: yes_no_with_context
+    feeds_dimensions: [team]
+    sensitivity: standard
+
+  - id: bg_003
+    category: background_track_record
+    prompt: "Is there anyone in your network who's worked with them before? What did they say?"
+    intent: "Backchannel references are often more honest than provided ones."
+    kind: open_text
+    feeds_dimensions: [team]
+    sensitivity: standard
+    reference_signal_in_crm: "Check connection mapping in your CRM for shared connections."
+
+  - id: bg_004
+    category: background_track_record
+    prompt: "Are there gaps or transitions in their history they didn't address? Did you ask?"
+    intent: "Unexplained gaps are not necessarily concerning, but unexplored ones are."
+    kind: open_text
+    feeds_dimensions: [team]
+    sensitivity: high
+
+  # --- Founder-market fit and motivation ---
+  - id: fmf_001
+    category: founder_market_fit
+    prompt: "Why this problem? Did their answer go beyond surface-level?"
+    intent: "Depth of the 'why now, why me' story is a strong predictor of resilience."
+    kind: open_text
+    feeds_dimensions: [team]
+    sensitivity: standard
+
+  - id: fmf_002
+    category: founder_market_fit
+    prompt: "How long have they been thinking about this space — months, years, a decade?"
+    intent: "Distinguish people pulled to a problem from people picking a market."
+    kind: open_text
+    feeds_dimensions: [team]
+    sensitivity: standard
+
+  - id: fmf_003
+    category: founder_market_fit
+    prompt: "What would they do if this didn't work?"
+    intent: "Tests whether the problem owns them or they're problem-shopping."
+    kind: open_text
+    feeds_dimensions: [team]
+    sensitivity: standard
+
+  - id: fmf_004
+    category: founder_market_fit
+    prompt: "Is the motivation pulling them forward, or are they pushing themselves?"
+    intent: "Pull is sustainable through hard years; push usually isn't."
+    kind: open_text
+    feeds_dimensions: [team]
+    sensitivity: high
+
+  # --- Team dynamics ---
+  - id: td_001
+    category: team_dynamics
+    prompt: "How long have the co-founders known each other, and in what context?"
+    intent: "Length and depth of relationship before founding predicts dynamics under stress."
+    kind: open_text
+    feeds_dimensions: [team]
+    sensitivity: standard
+    skip_if_covered_in: [data_room, crm_notes]
+
+  - id: td_002
+    category: team_dynamics
+    prompt: "Have they been through a hard moment together? What happened?"
+    intent: "Untested partnerships often crack on first real stress."
+    kind: open_text
+    feeds_dimensions: [team]
+    sensitivity: standard
+
+  - id: td_003
+    category: team_dynamics
+    prompt: "Who's clearly the CEO? Is there role clarity, or is it ambiguous?"
+    intent: "Ambiguous leadership often shows up later as cap table disputes."
+    kind: open_text
+    feeds_dimensions: [team]
+    sensitivity: standard
+
+  - id: td_004
+    category: team_dynamics
+    prompt: "If you had to bet on one of them solo, who would it be and why?"
+    intent: "Forces a real comparison; the answer often reveals who's actually driving."
+    kind: open_text
+    feeds_dimensions: [team]
+    sensitivity: high
+
+  - id: td_005
+    category: team_dynamics
+    prompt: "Did you sense any tension in your meetings — interruptions, contradictions, body language?"
+    intent: "Tension under low-stakes pitch usually means worse tension under real stress."
+    kind: open_text
+    feeds_dimensions: [team]
+    sensitivity: high
+
+  # --- Domain expertise ---
+  - id: de_001
+    category: domain_expertise
+    prompt: "What do they know that others in this space don't?"
+    intent: "Surface the actual edge — not credentials, but proprietary insight."
+    kind: open_text
+    feeds_dimensions: [team, product_technology]
+    sensitivity: standard
+
+  - id: de_002
+    category: domain_expertise
+    prompt: "What's their unfair access — customers, talent, capital, distribution?"
+    intent: "Concrete advantages, not theoretical ones."
+    kind: open_text
+    feeds_dimensions: [team, competition_moat]
+    sensitivity: standard
+
+  - id: de_003
+    category: domain_expertise
+    prompt: "Have they shipped before? Hired before? Sold before?"
+    intent: "Operating range matters more than pedigree."
+    kind: open_text
+    feeds_dimensions: [team]
+    sensitivity: standard
+    skip_if_covered_in: [founder_research]
+
+  - id: de_004
+    category: domain_expertise
+    prompt: "If a smart competitor entered tomorrow with similar funding, what would these founders have that the competitor wouldn't?"
+    intent: "Identifies founder-specific moat vs. transferable advantages."
+    kind: open_text
+    feeds_dimensions: [team, competition_moat]
+    sensitivity: standard
+
+  # --- Personality and character ---
+  - id: pc_001
+    category: personality_character
+    prompt: "How did they handle hard questions in your meetings — defensive, curious, honest?"
+    intent: "Reaction to challenge is one of the most predictive single signals."
+    kind: open_text
+    feeds_dimensions: [team]
+    sensitivity: high
+
+  - id: pc_002
+    category: personality_character
+    prompt: "Did they tell you about a recent failure unprompted?"
+    intent: "Self-disclosed failure usually correlates with self-awareness; absence is a flag."
+    kind: yes_no_with_context
+    feeds_dimensions: [team]
+    sensitivity: high
+
+  - id: pc_003
+    category: personality_character
+    prompt: "How do they talk about their team — credit-taking or credit-giving?"
+    intent: "Predicts ability to attract and keep talent."
+    kind: open_text
+    feeds_dimensions: [team]
+    sensitivity: high
+
+  - id: pc_004
+    category: personality_character
+    prompt: "How do they talk about competitors — dismissive, respectful, learning-from?"
+    intent: "Dismissiveness toward competitors is a consistent negative signal."
+    kind: open_text
+    feeds_dimensions: [team, competition_moat]
+    sensitivity: high
+
+  - id: pc_005
+    category: personality_character
+    prompt: "Coachability: did they update on anything you said, or just defend their view?"
+    intent: "Updating in real time is a strong positive; pure defense is concerning."
+    kind: open_text
+    feeds_dimensions: [team]
+    sensitivity: high
+
+  - id: pc_006
+    category: personality_character
+    prompt: "Did anything they said turn out not to match what you found later?"
+    intent: "Integrity gaps that surface during diligence usually grow, not shrink."
+    kind: yes_no_with_context
+    feeds_dimensions: [team]
+    sensitivity: high
+
+  - id: pc_007
+    category: personality_character
+    prompt: "What's your gut on whether you'd want to work with this person for 7–10 years through hard things?"
+    intent: "The single most important question. Trust the answer."
+    kind: open_text
+    feeds_dimensions: [team]
+    sensitivity: high
+
+  - id: pc_008
+    category: personality_character
+    prompt: "Anything that nagged at you that you can't quite articulate?"
+    intent: "Pattern-recognition without clear cause is often valid signal. Surface it before it gets rationalized away."
+    kind: open_text
+    feeds_dimensions: [team]
+    sensitivity: high

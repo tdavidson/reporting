@@ -186,10 +186,43 @@ On each company's detail page, a **Recent Interactions** section shows the lates
 
 ![Interactions](public/screenshots/interactions.png)
 
+## Deals
+
+Deals is the inbound side of deal flow — cold pitches, partner-forwarded intros, and scout submissions arrive at your existing inbound email address and get screened against your fund's thesis before they reach a partner's inbox.
+
+Every inbound email runs through a content-aware classifier that decides between four destinations: **reporting** (portfolio metrics, the existing pipeline), **interactions** (CRM-style emails from fund members), **deals** (a company pitching the fund), or **other** (newsletters, recruiter spam, vendor pitches). Sender identity is a strong signal but not a hard rule, so a partner forwarding a cold pitch lands in Deals where it belongs, and a portfolio founder pitching a side project gets routed correctly. Below a configurable confidence threshold, items go to a Review queue with the top two predicted destinations for one-click resolution. Items labelled "other" go to an Email Audit log instead of being silently dropped.
+
+For each pitch routed to Deals, a single AI call extracts company name, founder, intro source (referral / cold / warm intro / accelerator / demo day), referrer when applicable, stage, industry, raise size, a 100–150 word company summary, and a thesis-fit analysis with a fit score (strong, moderate, weak, out of thesis). Out-of-thesis pitches auto-archive and surface in a weekly digest email so partners can sanity-check without eyeballing every cold pitch. Founders can also submit pitches directly via a public form at a per-fund URL — no signup, file uploads supported, honeypot + rate-limited.
+
+The Deals page lists active pitches as a sortable table or a kanban board (drag-and-drop across status columns: new, reviewing, advancing, met, passed). Click a pitch to see the summary, thesis-fit analysis, source email, attachments, founders, intro source, and a deal-scoped Analyst chat that knows the pitch and your thesis. Settings → Deals controls the investment thesis, screening prompt, public submission token, confidence threshold, optional routing-model override, Known Referrers list (scouts and friends-of-fund whose intros bias toward Deals), an Email Audit log of dropped items, and a Routing Accuracy dashboard showing manual reroutes per week as a drift signal.
+
+## Diligence
+
+Diligence is the pre-investment workflow: when a deal is worth real time, you create a diligence record, upload the data room, and run a schema-driven Memo Agent that ingests the documents, conducts external research, asks partner Q&A, drafts a structured memo, scores it per your rubric, and renders to Word or Google Docs.
+
+The agent is operated by **seven YAML/MD configuration files** ("schemas") that partners edit per-fund through an in-app editor: instructions (operating manual), rubric (scoring dimensions), qa_library (partner Q&A pool), data_room_ingestion (per-document extraction rules), research_dossier (external research scope), memo_output (memo structure), and style_anchors (metadata for uploaded reference memos). The schema editor uses Monaco with inline YAML validation and version history; rolling back to a prior version is one click. Each fund seeds defaults on first use and customizes from there.
+
+**Style anchors** are uploaded reference memos that teach the agent your firm's voice. Drop in 3–8 prior memos, tag each with vintage, sector, voice representativeness, and partner notes, and the agent uses them to match structure and tone during drafting. A confidence indicator (unavailable / preliminary / reliable / robust) reflects how many memos you've uploaded. Reference memos teach voice — they never supply facts to a new memo.
+
+The agent runs in six stages, each producing structured output stored on a memo draft:
+
+1. **Ingest** — classify each document, extract claims with provenance, run a gap analysis against expected document types.
+2. **Research** — verify or contradict company-stated claims, build a competitive map (named-by-company vs. identified-by-research), compile founder dossiers, list research gaps.
+3. **Q&A** — pull batches from the Q&A library, apply skip logic against ingestion + research, capture partner answers.
+4. **Draft** — assemble paragraphs per the memo_output schema with paragraph-level source citations. Recommendation and team scoring are partner-only and can never be set by the agent (DB constraint enforces this).
+5. **Score** — rate each rubric dimension; partner-only dimensions (e.g. team) get null score with the rationale field populated as supporting material.
+6. **Render** — markdown (inline), `.docx` download, or native Google Doc.
+
+The memo editor is a two-pane view: rendered memo on the left with inline citation markers and visual treatment for projections, unverified claims, and contradictions; paragraph inspector and a partner-attention sidebar on the right. Partners edit any paragraph (it flips to `partner_edited` origin), update rubric scores by hand, work through the attention queue (must-address / should-address / FYI), and finalize when ready — finalizing locks the draft.
+
+Across all your active deals, the **Memo Inbox** aggregates open partner-attention items so you can triage them in one pass instead of clicking through each deal. The **Analytics** view shows the agent funnel (created → ingestion → research → Q&A → draft → finalized → won) with drop-off percentages, time-in-stage medians, win/loss by sector, and throughput per lead partner.
+
+Settings → Memo Agent has three controls: **Schemas** (the seven YAML editors), **Style Anchors** (reference memo library), and **Defaults** (per-deal and monthly token caps with current-month usage bar, plus per-stage AI provider overrides — e.g. cheap model for ingest, stronger model for draft).
+
 ## Settings
 
 Settings is where the platform is configured. Most settings are admin-only, but all users can update their display name and enable two-factor authentication.
 
-For admins, Settings covers: AI provider keys and model selection (Anthropic, OpenAI, Google Gemini, and/or Ollama for local models), fund currency, feature visibility (control which features are visible to everyone, admin-only, hidden, or off), inbound email setup (Postmark or Mailgun), outbound email providers (Gmail, Resend, Postmark, or Mailgun), file storage connections (Google Drive or Dropbox), the AI summary prompt, email templates for reporting asks, analytics (Fathom, Google Analytics, and custom scripts), authorized senders, team members and roles, and the signup allow-list. The current app version is shown at the bottom of Settings, with a link to the Updates page when a newer version is available.
+For admins, Settings covers: AI provider keys and model selection (Anthropic, OpenAI, Google Gemini, and/or Ollama for local models), fund currency, feature visibility (control which features are visible to everyone, admin-only, hidden, or off), inbound email setup (Postmark or Mailgun), outbound email providers (Gmail, Resend, Postmark, or Mailgun), file storage connections (Google Drive or Dropbox), the AI summary prompt, email templates for reporting asks, analytics (Fathom, Google Analytics, and custom scripts), authorized senders, team members and roles, and the signup allow-list. The **Deals** group configures the inbound-pitch screening flow: investment thesis, screening prompt, intake toggle, public submission URL, known referrers, routing confidence threshold, and optional per-stage routing-model override. The **Memo Agent** group has three sub-pages: Schemas (the seven YAML editors with version history), Style Anchors (reference memo library with text extraction), and Defaults (per-deal and monthly token caps, per-stage AI provider overrides). The current app version is shown at the bottom of Settings, with a link to the Updates page when a newer version is available.
 
 ![Settings](public/screenshots/settings.png)

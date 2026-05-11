@@ -1,4 +1,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
+import { seedInboundDeals, DEMO_DEAL_THESIS } from './seed-deals'
+import { seedDiligence } from './seed-diligence'
+import { seedLpSnapshot } from './seed-lps'
 
 const DEMO_FUND_NAME = 'Hemrock Ventures'
 
@@ -623,9 +626,44 @@ export async function seedDemoData(adminUserId: string): Promise<boolean> {
           asks: 'everyone',
           interactions: 'everyone',
           compliance: 'everyone',
+          deals: 'everyone',
+          diligence: 'everyone',
+          lps: 'everyone',
         },
+        deal_intake_enabled: true,
+        deal_thesis: DEMO_DEAL_THESIS,
       })
       .eq('fund_id', existingFund.id)
+
+    // Backfill the new feature data so existing demo funds pick up Deals,
+    // Diligence, and the LP snapshot. Each backfill is idempotent: clear
+    // any prior demo rows first, then re-seed.
+    await admin.from('inbound_deals').delete().eq('fund_id', existingFund.id)
+    await admin.from('routing_corrections').delete().eq('fund_id', existingFund.id)
+    await admin.from('known_referrers').delete().eq('fund_id', existingFund.id)
+    // Wipe inbound_emails that are deal-pitches or audit-bucket only — keep
+    // the existing reporting/interactions emails alone.
+    await admin
+      .from('inbound_emails')
+      .delete()
+      .eq('fund_id', existingFund.id)
+      .in('routed_to', ['deals', 'audit'])
+
+    await admin.from('diligence_attention_items').delete().eq('fund_id', existingFund.id)
+    await admin.from('diligence_memo_drafts').delete().eq('fund_id', existingFund.id)
+    await admin.from('diligence_documents').delete().eq('fund_id', existingFund.id)
+    await admin.from('diligence_notes').delete().eq('fund_id', existingFund.id)
+    await admin.from('diligence_agent_sessions').delete().eq('fund_id', existingFund.id)
+    await admin.from('diligence_deals').delete().eq('fund_id', existingFund.id)
+
+    await admin.from('lp_investments').delete().eq('fund_id', existingFund.id)
+    await admin.from('lp_entities').delete().eq('fund_id', existingFund.id)
+    await admin.from('lp_investors').delete().eq('fund_id', existingFund.id)
+    await admin.from('lp_snapshots').delete().eq('fund_id', existingFund.id)
+
+    await seedInboundDeals(admin, existingFund.id, adminUserId)
+    await seedDiligence(admin, existingFund.id, adminUserId)
+    await seedLpSnapshot(admin, existingFund.id)
 
     // Clear and re-seed interactions
     await admin
@@ -725,7 +763,12 @@ export async function seedDemoData(adminUserId: string): Promise<boolean> {
       asks: 'everyone',
       interactions: 'everyone',
       compliance: 'everyone',
+      deals: 'everyone',
+      diligence: 'everyone',
+      lps: 'everyone',
     },
+    deal_intake_enabled: true,
+    deal_thesis: DEMO_DEAL_THESIS,
   })
 
   // -------------------------------------------------------------------------
@@ -1110,6 +1153,21 @@ export async function seedDemoData(adminUserId: string): Promise<boolean> {
       created_by: demoUserId,
     },
   ])
+
+  // -------------------------------------------------------------------------
+  // Inbound Deals (pitches + classifier output)
+  // -------------------------------------------------------------------------
+  await seedInboundDeals(admin, fundId, demoUserId)
+
+  // -------------------------------------------------------------------------
+  // Diligence (deals + documents + memo drafts + attention items)
+  // -------------------------------------------------------------------------
+  await seedDiligence(admin, fundId, demoUserId)
+
+  // -------------------------------------------------------------------------
+  // LP snapshot (Year End 2025)
+  // -------------------------------------------------------------------------
+  await seedLpSnapshot(admin, fundId)
 
   console.log('[demo] Demo data seeded successfully')
   return true

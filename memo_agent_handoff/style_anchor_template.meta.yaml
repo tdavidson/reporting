@@ -1,0 +1,58 @@
+# Style anchor metadata template
+#
+# Copy this file alongside each reference memo you upload to project knowledge.
+# Rename to match: anchor_2024_aurora_health.pdf → anchor_2024_aurora_health.meta.yaml
+#
+# All fields are optional. The more you fill in, the better the agent weights this
+# memo when learning your firm's voice. See style_anchors.yaml for the full schema
+# and what each field means.
+#
+# Delete the comments and unused fields before uploading if you prefer a cleaner file.
+
+id: anchor_2024_aurora_health        # Stable ID. Suggested: anchor_<year>_<short-name>
+file_reference: anchor_2024_aurora_health.pdf  # Match the actual uploaded filename
+
+title: "Aurora Health — Series A Memo"
+anonymized: false                    # true if names/figures have been redacted
+
+vintage_year: 2024
+vintage_quarter: Q3                  # Q1 / Q2 / Q3 / Q4 — optional
+
+sector: "Healthcare AI — clinical decision support"
+deal_stage_at_writing: series_a      # pre_seed / seed / series_a / series_b / growth / follow_on / other
+
+outcome: invested                    # invested / passed / lost_competitive / withdrew / unknown
+conviction_at_writing: high          # high / medium / low / mixed
+
+# How well this memo represents your firm's typical voice.
+#   exemplary           = "this is how we want to sound"
+#   representative      = "this is normal for us" (default)
+#   atypical            = "this one's a bit off; read but don't lean on it"
+#   do_not_match_voice  = "structure only; ignore for tone"
+voice_representativeness: representative
+
+authorship: lead_with_input          # single_partner / lead_with_input / partnership / unknown
+author_initials: TD                  # Optional. Helps the agent group memos by author.
+
+# What to specifically pay attention to in this memo.
+# Leave empty to attend to everything equally.
+# IDs come from style_anchors.yaml attention_taxonomy:
+#   Voice: register, hedging, sentence_rhythm, vocabulary, declarative_vs_argued
+#   Structure: section_order, section_proportions, exec_summary_treatment,
+#              open_questions_treatment, idiosyncratic_sections
+#   Analytical: market_sizing, team_section, product_section, traction_treatment,
+#               financial_treatment, competitive_framing, risks_treatment, deal_terms_treatment
+focus_attention_on:
+  - team_section                      # e.g., "this is our gold-standard team section treatment"
+  - risks_treatment
+
+# Things to NOT learn from this memo. Useful when parts of a memo are dated
+# or otherwise unrepresentative.
+deprioritize_in_this_memo:
+  - market_sizing                     # e.g., "the market analysis here is dated; ignore the framing"
+
+# Free text for anything else the agent should know about this memo.
+partner_notes: |
+  Strong example of our risks section format. The market sizing here uses
+  an old framework we no longer use — model the structure but not the
+  TAM/SAM/SOM phrasing. Lead author was TD with input from the partnership.

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { revalidateTag } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { seedDemoData } from '@/lib/demo/seed'
@@ -21,6 +22,11 @@ export async function POST() {
   }
 
   const seeded = await seedDemoData(user.id)
+
+  // The layout caches fund_settings (including feature_visibility) for 5
+  // minutes. Bust it so the sidebar picks up Deals/Diligence immediately.
+  revalidateTag('fund-settings')
+  revalidateTag('fund-data')
 
   return NextResponse.json({ seeded })
 }

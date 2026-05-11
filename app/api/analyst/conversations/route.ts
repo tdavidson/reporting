@@ -18,20 +18,23 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = new URL(req.url)
   const companyId = searchParams.get('companyId')
+  const dealId = searchParams.get('dealId')
   const portfolio = searchParams.get('portfolio') === 'true'
 
   let query = admin
     .from('analyst_conversations')
-    .select('id, title, company_id, message_count, created_at, updated_at')
+    .select('id, title, company_id, deal_id, message_count, created_at, updated_at')
     .eq('fund_id', membership.fund_id)
     .eq('user_id', user.id)
     .order('updated_at', { ascending: false })
     .limit(20)
 
-  if (companyId) {
-    query = query.eq('company_id', companyId)
+  if (dealId) {
+    query = query.eq('deal_id', dealId)
+  } else if (companyId) {
+    query = query.eq('company_id', companyId).is('deal_id', null)
   } else if (portfolio) {
-    query = query.is('company_id', null)
+    query = query.is('company_id', null).is('deal_id', null)
   }
 
   const { data, error } = await query

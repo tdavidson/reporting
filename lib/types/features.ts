@@ -1,4 +1,4 @@
-export type FeatureKey = 'interactions' | 'investments' | 'funds' | 'notes' | 'lp_letters' | 'imports' | 'asks' | 'lps' | 'lp_associates' | 'compliance'
+export type FeatureKey = 'interactions' | 'investments' | 'funds' | 'notes' | 'lp_letters' | 'imports' | 'asks' | 'lps' | 'lp_associates' | 'compliance' | 'deals' | 'diligence'
 
 export type FeatureVisibility = 'everyone' | 'admin' | 'hidden' | 'off'
 
@@ -15,10 +15,12 @@ export const DEFAULT_FEATURE_VISIBILITY: FeatureVisibilityMap = {
   lps: 'admin',
   lp_associates: 'admin',
   compliance: 'admin',
+  deals: 'admin',
+  diligence: 'off',
 }
 
 /** Features that support the "off" level (functionally disabled) */
-export const FEATURES_WITH_OFF: FeatureKey[] = ['interactions']
+export const FEATURES_WITH_OFF: FeatureKey[] = ['interactions', 'diligence']
 
 /**
  * Returns true if the feature should be visible to the current user.

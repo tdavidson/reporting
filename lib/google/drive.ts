@@ -39,6 +39,89 @@ interface DriveFile {
   mimeType: string
 }
 
+export interface DriveFileWithMeta extends DriveFile {
+  size?: number
+  webViewLink?: string
+}
+
+/**
+ * List the files (not folders) directly inside a Drive folder. Used by the
+ * Diligence "import data room from Drive folder" flow.
+ *
+ * Pagination: returns up to 1000 files (10 pages × 100). Most data rooms are
+ * smaller than this; if a fund hits the limit we'll add proper pagination.
+ */
+export async function listFiles(accessToken: string, folderId: string): Promise<DriveFileWithMeta[]> {
+  if (!folderId || !/^[a-zA-Z0-9_-]+$/.test(folderId)) {
+    throw new Error('Invalid folder ID')
+  }
+
+  const q = `'${folderId}' in parents and mimeType != 'application/vnd.google-apps.folder' and trashed=false`
+  const out: DriveFileWithMeta[] = []
+  let pageToken: string | undefined
+  for (let i = 0; i < 10; i++) {
+    const url = new URL(`${DRIVE_API}/files`)
+    url.searchParams.set('q', q)
+    url.searchParams.set('fields', 'nextPageToken,files(id,name,mimeType,size,webViewLink)')
+    url.searchParams.set('orderBy', 'name')
+    url.searchParams.set('pageSize', '100')
+    url.searchParams.set('includeItemsFromAllDrives', 'true')
+    url.searchParams.set('supportsAllDrives', 'true')
+    if (pageToken) url.searchParams.set('pageToken', pageToken)
+
+    const res = await fetch(url.toString(), { headers: { Authorization: `Bearer ${accessToken}` } })
+    if (!res.ok) {
+      const text = await res.text()
+      throw new Error(`Failed to list files: ${text}`)
+    }
+    const data = await res.json()
+    for (const f of data.files ?? []) {
+      out.push({
+        id: f.id,
+        name: f.name,
+        mimeType: f.mimeType,
+        size: f.size ? parseInt(f.size, 10) : undefined,
+        webViewLink: f.webViewLink,
+      })
+    }
+    pageToken = data.nextPageToken
+    if (!pageToken) break
+  }
+  return out
+}
+
+/**
+ * Download a file's bytes from Drive. Used during the from-drive import to
+ * pull the file content into Supabase storage.
+ */
+export async function downloadFile(accessToken: string, fileId: string): Promise<Buffer> {
+  if (!fileId || !/^[a-zA-Z0-9_-]+$/.test(fileId)) {
+    throw new Error('Invalid file ID')
+  }
+  const url = new URL(`${DRIVE_API}/files/${fileId}`)
+  url.searchParams.set('alt', 'media')
+  url.searchParams.set('supportsAllDrives', 'true')
+  const res = await fetch(url.toString(), { headers: { Authorization: `Bearer ${accessToken}` } })
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(`Failed to download file: ${text}`)
+  }
+  const arr = await res.arrayBuffer()
+  return Buffer.from(arr)
+}
+
+/**
+ * Extract a Google Drive folder ID from a URL like
+ *   https://drive.google.com/drive/folders/<id>
+ *   https://drive.google.com/drive/u/0/folders/<id>
+ *   https://drive.google.com/drive/folders/<id>?usp=sharing
+ * Returns null if the URL doesn't look like a Drive folder URL.
+ */
+export function parseDriveFolderUrl(url: string): string | null {
+  const m = url.match(/\/folders\/([a-zA-Z0-9_-]+)/)
+  return m ? m[1] : null
+}
+
 export async function listFolders(
   accessToken: string,
   parentId?: string,

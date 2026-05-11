@@ -1,0 +1,121 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://memo-agent.local/schemas/qa_library.schema.json",
+  "title": "Memo Agent Q&A Library",
+  "description": "Pool of partner Q&A questions the agent draws from in Stage 3, with categories, skip logic, and cross-references to rubric dimensions.",
+  "type": "object",
+  "required": ["batching_rules", "categories", "questions"],
+  "additionalProperties": false,
+  "properties": {
+    "meta": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "version": { "type": "string" },
+        "last_updated": { "type": "string" },
+        "owner": { "type": "string" },
+        "notes": { "type": "string" }
+      }
+    },
+    "batching_rules": {
+      "type": "object",
+      "required": ["questions_per_batch"],
+      "additionalProperties": true,
+      "properties": {
+        "questions_per_batch": {
+          "type": "object",
+          "required": ["min", "max"],
+          "additionalProperties": false,
+          "properties": {
+            "min": { "type": "integer", "minimum": 1 },
+            "max": { "type": "integer", "minimum": 1 }
+          }
+        },
+        "ordering": { "type": "string" },
+        "spacing": { "type": "string" }
+      }
+    },
+    "skip_logic": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "global_rules": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "sensitivity_levels": {
+      "type": "object",
+      "additionalProperties": { "type": "string" }
+    },
+    "categories": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/definitions/category" }
+    },
+    "questions": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/definitions/question" }
+    }
+  },
+  "definitions": {
+    "category": {
+      "type": "object",
+      "required": ["id", "name", "order"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$"
+        },
+        "name": { "type": "string", "minLength": 1 },
+        "order": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "question": {
+      "type": "object",
+      "required": ["id", "category", "prompt", "intent", "kind", "feeds_dimensions", "sensitivity"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*_[0-9]{3,}$",
+          "description": "Stable ID like 'bg_001'. Do not renumber when removing or rephrasing — IDs track which questions surface signal over time."
+        },
+        "category": {
+          "type": "string",
+          "description": "Must match a category ID defined above."
+        },
+        "prompt": { "type": "string", "minLength": 1 },
+        "intent": { "type": "string", "minLength": 1 },
+        "kind": {
+          "type": "string",
+          "enum": ["open_text", "yes_no_with_context", "single_select", "multi_select"]
+        },
+        "feeds_dimensions": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "description": "Cross-reference to rubric.yaml dimension IDs."
+          },
+          "uniqueItems": true
+        },
+        "sensitivity": {
+          "type": "string",
+          "enum": ["standard", "high"]
+        },
+        "skip_if_covered_in": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["data_room", "crm_notes", "founder_research", "prior_session", "research_dossier"]
+          }
+        },
+        "reference_signal_in_crm": { "type": "string" }
+      }
+    }
+  }
+}

@@ -9,6 +9,31 @@
     },
     "app/api/emails/*/reprocess/route.ts": {
       "maxDuration": 120
+    },
+    "app/api/cron/deals-digest/route.ts": {
+      "maxDuration": 120
+    },
+    "app/api/firm/style-anchors/route.ts": {
+      "maxDuration": 60
+    },
+    "app/api/diligence/*/documents/from-drive/route.ts": {
+      "maxDuration": 120
+    },
+    "app/api/cron/memo-agent-worker/route.ts": {
+      "maxDuration": 120
+    },
+    "app/api/diligence/*/agent/render/route.ts": {
+      "maxDuration": 60
     }
-  }
+  },
+  "crons": [
+    {
+      "path": "/api/cron/deals-digest",
+      "schedule": "0 13 * * 1"
+    },
+    {
+      "path": "/api/cron/memo-agent-worker",
+      "schedule": "* * * * *"
+    }
+  ]
 }

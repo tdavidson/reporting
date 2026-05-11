@@ -34,8 +34,8 @@ export default function SettingsExplainerPage() {
         delete all fund data if needed.
       </p>
       <p className="text-muted-foreground">
-        For detailed technical setup instructions &mdash; configuring Supabase, environment
-        variables, encryption keys, email providers, deployment, and more &mdash; see the{' '}
+        For detailed technical setup instructions - configuring Supabase, environment
+        variables, encryption keys, email providers, deployment, and more - see the{' '}
         <a
           href="https://github.com/tdavidson/reporting"
           target="_blank"

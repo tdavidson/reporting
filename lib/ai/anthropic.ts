@@ -13,13 +13,26 @@ export class AnthropicProvider implements AIProvider {
       ? params.content
       : toAnthropicContent(params.content)
 
+    const tools = params.enableWebSearch
+      ? [{
+          type: 'web_search_20250305' as const,
+          name: 'web_search',
+          max_uses: params.webSearchMaxUses ?? 5,
+        }]
+      : undefined
+
     const response = await this.client.messages.create({
       model: params.model,
       max_tokens: params.maxTokens,
       ...(params.system ? { system: params.system } : {}),
+      ...(tools ? { tools: tools as any } : {}),
       messages: [{ role: 'user', content }],
     })
 
+    // When web search runs server-side, the response interleaves
+    // server_tool_use + web_search_tool_result blocks with text blocks. We
+    // concatenate just the text — the model is instructed to bake any URLs
+    // it relies on into the JSON output, so we don't need the tool results.
     const text = response.content
       .filter((b): b is Anthropic.TextBlock => b.type === 'text')
       .map(b => b.text)

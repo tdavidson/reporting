@@ -31,7 +31,7 @@ export default function PrivacyPage() {
         Privacy Policy
       </h1>
 
-      {/* Table of contents — inline on mobile only */}
+      {/* Table of contents - inline on mobile only */}
       <nav className="xl:hidden mt-6 text-sm">
         <h2 className="text-base font-medium mb-2">On this page</h2>
         {tocLinks}
@@ -80,7 +80,7 @@ export default function PrivacyPage() {
               We offer a hosted solution where your fund shares infrastructure with other funds. In
               this arrangement, your data is stored on shared resources (database, hosting). The
               Platform enforces strict data isolation between funds at the database level through
-              row-level security policies &mdash; no fund can access another fund&apos;s data. We may
+              row-level security policies - no fund can access another fund&apos;s data. We may
               access the shared infrastructure for maintenance and support, but will not access your
               portfolio data except as necessary to provide the service. Specific data handling terms
               are set forth in a separate managed hosting agreement.
@@ -159,12 +159,12 @@ export default function PrivacyPage() {
               The Platform integrates with third-party services, each with their own privacy policies:
             </p>
             <ul className="list-disc pl-5 text-muted-foreground space-y-1">
-              <li><strong className="text-foreground">Supabase</strong> &mdash; database, authentication, and file storage</li>
-              <li><strong className="text-foreground">Vercel / Netlify</strong> &mdash; application hosting</li>
-              <li><strong className="text-foreground">Anthropic / OpenAI / Google</strong> &mdash; AI processing</li>
-              <li><strong className="text-foreground">Postmark / Mailgun</strong> &mdash; inbound email processing</li>
-              <li><strong className="text-foreground">Gmail / Resend / Postmark / Mailgun</strong> &mdash; outbound email</li>
-              <li><strong className="text-foreground">Google Drive / Dropbox</strong> &mdash; optional file storage</li>
+              <li><strong className="text-foreground">Supabase</strong> - database, authentication, and file storage</li>
+              <li><strong className="text-foreground">Vercel / Netlify</strong> - application hosting</li>
+              <li><strong className="text-foreground">Anthropic / OpenAI / Google</strong> - AI processing</li>
+              <li><strong className="text-foreground">Postmark / Mailgun</strong> - inbound email processing</li>
+              <li><strong className="text-foreground">Gmail / Resend / Postmark / Mailgun</strong> - outbound email</li>
+              <li><strong className="text-foreground">Google Drive / Dropbox</strong> - optional file storage</li>
             </ul>
             <p className="text-muted-foreground mt-2">
               We encourage you to review the privacy policies of any third-party services you configure
@@ -250,11 +250,11 @@ export default function PrivacyPage() {
           </div>
 
           <p className="text-xs text-muted-foreground">
-            Last updated March 9, 2026 &mdash; Unstructured Ventures, LLC.
+            Last updated March 9, 2026 - Unstructured Ventures, LLC.
           </p>
         </div>
 
-        {/* TOC sidebar — desktop only */}
+        {/* TOC sidebar - desktop only */}
         <nav className="hidden xl:block w-44 shrink-0 text-sm">
           <div className="sticky top-8">
             <h2 className="text-[12px] font-medium text-muted-foreground uppercase tracking-wider mb-3">On this page</h2>

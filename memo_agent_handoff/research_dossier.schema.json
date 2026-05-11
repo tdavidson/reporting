@@ -1,0 +1,148 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://memo-agent.local/schemas/research_dossier.schema.json",
+  "title": "Memo Agent Research Dossier",
+  "description": "External research findings, source quality tiers, contradictions, founder research constraints, competitive map.",
+  "type": "object",
+  "required": [
+    "research_categories",
+    "source_quality_tiers",
+    "finding_record",
+    "contradiction_record",
+    "founder_research_special_handling",
+    "competitive_research_special_handling",
+    "research_output"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "meta": { "type": "object", "additionalProperties": true },
+    "research_categories": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "name", "description", "feeds_dimensions"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+          "name": { "type": "string", "minLength": 1 },
+          "description": { "type": "string" },
+          "feeds_dimensions": { "type": "array", "items": { "type": "string" }, "minItems": 1 }
+        }
+      }
+    },
+    "source_quality_tiers": {
+      "type": "object",
+      "required": ["tier_1_authoritative", "tier_2_credible", "tier_3_signal", "tier_4_weak", "tier_excluded"],
+      "additionalProperties": false,
+      "properties": {
+        "tier_1_authoritative": { "$ref": "#/definitions/tier" },
+        "tier_2_credible": { "$ref": "#/definitions/tier" },
+        "tier_3_signal": { "$ref": "#/definitions/tier" },
+        "tier_4_weak": { "$ref": "#/definitions/tier" },
+        "tier_excluded": { "$ref": "#/definitions/tier" }
+      }
+    },
+    "finding_record": { "$ref": "#/definitions/record_with_fields" },
+    "contradiction_record": {
+      "type": "object",
+      "required": ["fields"],
+      "additionalProperties": true,
+      "properties": {
+        "rationale": { "type": "string" },
+        "fields": { "type": "array", "minItems": 1, "items": { "$ref": "#/definitions/field_spec" } }
+      }
+    },
+    "founder_research_special_handling": {
+      "type": "object",
+      "required": ["in_scope", "out_of_scope", "alternative_source_taxonomy", "output_constraints"],
+      "additionalProperties": true,
+      "properties": {
+        "rationale": { "type": "string" },
+        "in_scope": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+        "out_of_scope": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+        "alternative_source_taxonomy": {
+          "type": "object",
+          "required": ["primary_sources"],
+          "additionalProperties": true,
+          "properties": {
+            "primary_sources": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["id", "name", "priority"],
+                "additionalProperties": true,
+                "properties": {
+                  "id": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+                  "name": { "type": "string" },
+                  "priority": { "type": "string", "enum": ["high", "medium", "low"] },
+                  "note": { "type": "string" }
+                }
+              }
+            },
+            "backchannel_signals": { "type": "object", "additionalProperties": true }
+          }
+        },
+        "output_constraints": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "competitive_research_special_handling": {
+      "type": "object",
+      "required": ["required_outputs", "per_competitor_record"],
+      "additionalProperties": true,
+      "properties": {
+        "rationale": { "type": "string" },
+        "required_outputs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "name"],
+            "additionalProperties": true,
+            "properties": {
+              "id": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+              "name": { "type": "string" },
+              "required": { "type": "boolean" },
+              "note": { "type": "string" }
+            }
+          }
+        },
+        "per_competitor_record": { "$ref": "#/definitions/record_with_fields" }
+      }
+    },
+    "research_output": { "$ref": "#/definitions/record_with_fields" }
+  },
+  "definitions": {
+    "tier": {
+      "type": "object",
+      "required": ["description", "examples"],
+      "additionalProperties": true,
+      "properties": {
+        "description": { "type": "string", "minLength": 1 },
+        "examples": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+        "default_confidence": { "type": "string" }
+      }
+    },
+    "record_with_fields": {
+      "type": "object",
+      "required": ["fields"],
+      "additionalProperties": true,
+      "properties": {
+        "description": { "type": "string" },
+        "fields": { "type": "array", "minItems": 1, "items": { "$ref": "#/definitions/field_spec" } }
+      }
+    },
+    "field_spec": {
+      "type": "object",
+      "required": ["name", "type"],
+      "additionalProperties": true,
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "type": { "type": "string" },
+        "required": { "type": "boolean" },
+        "values": { "type": "array" },
+        "default": {},
+        "note": { "type": "string" }
+      }
+    }
+  }
+}

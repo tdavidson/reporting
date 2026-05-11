@@ -19,7 +19,7 @@ export default function ImportExplainerPage() {
         Import lets you process reports manually when they arrive outside the normal email flow.
         You can paste email text directly, upload file attachments (PDFs, Excel spreadsheets, Word
         documents, PowerPoint decks, CSV files, and images up to 20 MB each), or combine both. The system runs the
-        same AI pipeline as automated inbound processing &mdash; identifying the company, extracting
+        same AI pipeline as automated inbound processing - identifying the company, extracting
         metrics, and writing results to the database.
       </p>
       <p className="text-muted-foreground">
@@ -35,21 +35,21 @@ export default function ImportExplainerPage() {
         for each one to finish.
       </p>
       <p className="text-muted-foreground">
-        You can also paste data that covers multiple companies at once &mdash; for example, rows copied
+        You can also paste data that covers multiple companies at once - for example, rows copied
         from a spreadsheet or CSV file containing metrics across your portfolio. The system will parse
         the data, create new companies if they don&apos;t already exist, add new metrics as needed, and
         populate values for existing companies and metrics. This makes it easy to bulk import historical
         data or onboard an entire portfolio in one step.
       </p>
       <p className="text-muted-foreground">
-        Additionally, you can paste investment transaction data &mdash; rounds, proceeds, valuations,
-        and share prices &mdash; and the AI will parse the entries and match them to your portfolio
+        Additionally, you can paste investment transaction data - rounds, proceeds, valuations,
+        and share prices - and the AI will parse the entries and match them to your portfolio
         companies. This is useful for bulk-importing cap table history, backfilling historical rounds,
         or onboarding an entire portfolio&apos;s investment data at once. Transactions are written to
         each company&apos;s Investments section automatically.
       </p>
       <p className="text-muted-foreground">
-        You can also paste fund-level cash flow data &mdash; commitments, capital calls, and
+        You can also paste fund-level cash flow data - commitments, capital calls, and
         distributions per portfolio group. Each row uses the format: date, group, type, amount,
         notes (optional). Type accepts full names (commitment, called_capital, distribution)
         or abbreviations (com, cc, dist). These cash flows power the computed LP metrics

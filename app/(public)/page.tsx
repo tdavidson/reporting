@@ -22,13 +22,13 @@ function XIcon({ className }: { className?: string }) {
 
 const steps: { icon: LucideIcon; step: string; title: string; text: string; href: string; screenshot: string }[] = [
   { icon: Mail, step: '1', title: 'Forward your investor updates', text: 'Send investor updates in any format to your inbound address. AI identifies the company, extracts metrics, and flags anything that needs review.', href: '/inbound-explainer', screenshot: '/screenshots/inbound-cropped.png' },
-  { icon: Upload, step: '2', title: 'Import your portfolio data', text: 'Paste text, upload files, or bulk-import spreadsheet data. The same AI pipeline processes everything — metrics, investments, and cash flows.', href: '/import-explainer', screenshot: '/screenshots/import-cropped.png' },
+  { icon: Upload, step: '2', title: 'Import your portfolio data', text: 'Paste text, upload files, or bulk-import spreadsheet data. The same AI pipeline processes everything - metrics, investments, and cash flows.', href: '/import-explainer', screenshot: '/screenshots/import-cropped.png' },
   { icon: LineChart, step: '3', title: 'Automated metrics tracking', text: 'Define the metrics that matter for each company in your portfolio. AI finds and charts them over time from your updates, and you can manually input anything it doesn\u2019t pick up.', href: '/dashboard-explainer', screenshot: '/screenshots/company-metrics-cropped.png' },
   { icon: BarChart3, step: '4', title: 'Track investments and performance', text: 'Track investments per company, per fund, and overall. Record rounds, proceeds, valuations, and compute metrics like TVPI, DPI, and Net IRR.', href: '/investments-explainer', screenshot: '/screenshots/investments-cropped.png' },
   { icon: StickyNote, step: '5', title: 'Communicate insights via Notes', text: 'Share metrics, observations, and context with your team through Notes. Keep a running record of what matters across your portfolio and surface it when you need it.', href: '/notes-explainer', screenshot: '/screenshots/notes-cropped.png' },
-  { icon: MessageCircle, step: '6', title: 'Ask your AI analyst anything', text: 'An always-available analyst to ask questions, interpret data, compare companies, and surface trends across your portfolio — grounded in your actual metrics and notes.', href: '/dashboard-explainer', screenshot: '/screenshots/company-cropped.png' },
+  { icon: MessageCircle, step: '6', title: 'Ask your AI analyst anything', text: 'An always-available analyst to ask questions, interpret data, compare companies, and surface trends across your portfolio - grounded in your actual metrics and notes.', href: '/dashboard-explainer', screenshot: '/screenshots/company-cropped.png' },
   { icon: Handshake, step: '7', title: 'Log interactions automatically', text: 'BCC your inbound address on conversations to log interactions and introductions automatically. A lightweight CRM built into your workflow.', href: '/interactions-explainer', screenshot: '/screenshots/interactions-cropped.png' },
-  { icon: FileText, step: '8', title: 'Generate LP letters', text: 'Draft quarterly update letters for your LPs using AI and your portfolio data — metrics, summaries, performance, and team notes.', href: '/letters-explainer', screenshot: '/screenshots/letters-cropped.png' },
+  { icon: FileText, step: '8', title: 'Generate LP letters', text: 'Draft quarterly update letters for your LPs using AI and your portfolio data - metrics, summaries, performance, and team notes.', href: '/letters-explainer', screenshot: '/screenshots/letters-cropped.png' },
   { icon: FolderOpen, step: '9', title: 'Consolidate everything in one place', text: 'Manage your portfolio, funds, SPVs, personal investments, and LPs by consolidating data from multiple platforms, spreadsheets, emails, and documents into a single source of truth. Works alongside your fund admin.', href: '/dashboard-explainer', screenshot: '/screenshots/dashboard-cropped.png' },
   { icon: ShieldCheck, step: '10', title: 'Stay on top of compliance', text: 'Track regulatory filings, tax deadlines, and internal compliance requirements in a calendar tailored to your fund profile. Color-coded by category, with automatic applicability and dismiss tracking.', href: '/compliance-explainer', screenshot: '/screenshots/compliance-cropped.png' },
 ]
@@ -40,7 +40,7 @@ const faqs: { q: string; a: React.ReactNode }[] = [
   { q: 'How much does it cost to run?', a: 'Most services in the stack have generous free tiers that cover normal usage. The main variable cost is AI API usage (Anthropic, OpenAI, or Gemini) for metric extraction, summaries, and analysis, which scales with your portfolio size and how often you generate reports.' },
   { q: 'Is my portfolio data private?', a: 'Yes. You deploy on your own infrastructure with your own database. No data is shared with other users or stored on third-party servers beyond the services you configure (your Supabase instance, your AI provider). You own and control everything. A hosted solution is also available for a select number of funds, which involves shared resources, but the platform is designed for data security and isolation between funds.' },
   { q: 'What AI models are supported?', a: 'The platform supports Anthropic (Claude), OpenAI (GPT), Google (Gemini), and Ollama for local models. You bring your own API key and can switch between providers. AI powers metric extraction from emails, company summaries, portfolio analysis chat, and LP letter drafting.' },
-  { q: 'Can I modify the code?', a: <>Yes. The source is available under a single-fund free use <a href="https://github.com/tdavidson/reporting/blob/main/LICENSE" className="underline hover:text-foreground">license</a>. You can customize the platform for your own fund. Commercial use across multiple clients requires a separate license. I&apos;m also available to assist with modifications — <Link href="/contact" className="underline hover:text-foreground">contact me</Link> to discuss.</> },
+  { q: 'Can I modify the code?', a: <>Yes. The source is available under a single-fund free use <a href="https://github.com/tdavidson/reporting/blob/main/LICENSE" className="underline hover:text-foreground">license</a>. You can customize the platform for your own fund. Commercial use across multiple clients requires a separate license. I&apos;m also available to assist with modifications - <Link href="/contact" className="underline hover:text-foreground">contact me</Link> to discuss.</> },
 ]
 
 export default function HomePage() {
@@ -203,7 +203,7 @@ export default function HomePage() {
           <span className="absolute -top-3 left-4 bg-muted text-muted-foreground text-xs font-medium px-2.5 py-0.5 rounded-full">Early Access</span>
           <div className="flex flex-col sm:flex-row sm:items-center gap-3">
             <p className="text-base text-muted-foreground flex-1">
-              <span className="font-medium text-foreground">Hosted</span> — Let us host your fund. Get help onboarding your information and processes. $250+ monthly subscription, cancel anytime.
+              <span className="font-medium text-foreground">Hosted</span> - Let us host your fund. Get help onboarding your information and processes. $250+ monthly subscription, cancel anytime.
             </p>
             <SubscriptionInquiryButton variant="outline" size="sm" className="w-full sm:w-auto shrink-0">
               <Send className="h-3.5 w-3.5 mr-1.5" />Request Access
@@ -212,7 +212,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* FAQ — 2 columns */}
+      {/* FAQ - 2 columns */}
       <section className="mb-12 mt-12">
         <h2 className="text-2xl font-semibold tracking-tight mb-6">Common Questions</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8">

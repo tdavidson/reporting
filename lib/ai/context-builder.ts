@@ -433,3 +433,102 @@ ${company.current_update ?? ''}
     teamNotesBlock,
   }
 }
+
+// ---------------------------------------------------------------------------
+// Deal context — for the analyst panel scoped to a single inbound deal.
+// ---------------------------------------------------------------------------
+
+export interface DealContext {
+  systemPrompt: string
+  dealName: string
+  dealBlock: string
+  thesisBlock: string
+  emailBlock: string
+}
+
+export async function buildDealContext(admin: Admin, dealId: string): Promise<DealContext | null> {
+  const { data: dealRow } = await admin
+    .from('inbound_deals')
+    .select('*')
+    .eq('id', dealId)
+    .maybeSingle()
+  if (!dealRow) return null
+  const deal = dealRow as Record<string, any>
+
+  const fundId: string = deal.fund_id
+  const emailId: string = deal.email_id
+
+  const [{ data: settingsRow }, { data: emailRow }, { data: priorRow }] = await Promise.all([
+    admin
+      .from('fund_settings')
+      .select('deal_thesis, deal_screening_prompt')
+      .eq('fund_id', fundId)
+      .maybeSingle(),
+    admin
+      .from('inbound_emails')
+      .select('from_address, subject, received_at, raw_payload')
+      .eq('id', emailId)
+      .maybeSingle(),
+    deal.prior_deal_id
+      ? admin
+          .from('inbound_deals')
+          .select('id, company_name, thesis_fit_score, status, created_at')
+          .eq('id', deal.prior_deal_id)
+          .maybeSingle()
+      : Promise.resolve({ data: null } as { data: null }),
+  ])
+
+  const settings = (settingsRow as { deal_thesis: string | null; deal_screening_prompt: string | null } | null) ?? null
+  const thesis = settings?.deal_thesis?.trim() ?? '(no thesis configured)'
+
+  const dealName = (deal.company_name as string | null) ?? 'this deal'
+
+  const dealLines = [
+    `Company: ${deal.company_name ?? 'unknown'}`,
+    deal.company_url ? `URL: ${deal.company_url}` : null,
+    deal.company_domain ? `Domain: ${deal.company_domain}` : null,
+    deal.founder_name ? `Primary founder: ${deal.founder_name}${deal.founder_email ? ` <${deal.founder_email}>` : ''}` : null,
+    Array.isArray(deal.co_founders) && deal.co_founders.length > 0
+      ? `Co-founders: ${deal.co_founders.map((c: any) => `${c.name}${c.role ? ` (${c.role})` : ''}`).join(', ')}`
+      : null,
+    deal.intro_source ? `Intro source: ${deal.intro_source}${deal.referrer_name ? ` via ${deal.referrer_name}` : ''}` : null,
+    deal.stage ? `Stage: ${deal.stage}` : null,
+    deal.industry ? `Industry: ${deal.industry}` : null,
+    deal.raise_amount ? `Raise: ${deal.raise_amount}` : null,
+    deal.thesis_fit_score ? `Thesis fit score: ${deal.thesis_fit_score}` : null,
+    deal.status ? `Status: ${deal.status}` : null,
+  ].filter(Boolean)
+
+  if (priorRow && (priorRow as any).id) {
+    const p = priorRow as { company_name: string | null; thesis_fit_score: string | null; status: string | null; created_at: string | null }
+    dealLines.push(`Prior pitch from same founder/company: ${p.company_name ?? 'unknown'} (status: ${p.status}, fit: ${p.thesis_fit_score}, ${p.created_at?.slice(0, 10) ?? '?'})`)
+  }
+
+  let dealBlock = dealLines.join('\n')
+  if (deal.company_summary) dealBlock += `\n\nGenerated summary:\n${deal.company_summary}`
+  if (deal.thesis_fit_analysis) dealBlock += `\n\nGenerated thesis-fit analysis:\n${deal.thesis_fit_analysis}`
+
+  const email = (emailRow as { from_address: string; subject: string | null; received_at: string | null; raw_payload: any } | null) ?? null
+  let emailBlock = ''
+  if (email) {
+    const payload = email.raw_payload as PostmarkPayload | null
+    const body = payload?.TextBody ?? ''
+    emailBlock = `From: ${email.from_address}\nSubject: ${email.subject ?? '(none)'}\nReceived: ${email.received_at ?? '(unknown)'}\n\n${body.slice(0, 4000)}`
+  }
+
+  const systemPrompt =
+    `You are the Analyst, helping a partner at a venture capital fund evaluate "${dealName}" — an inbound pitch. ` +
+    `Use the deal data, originating email, and fund thesis below to answer the partner's questions. ` +
+    `Be specific and ground your answers in the supplied materials. If something isn't in the materials, ` +
+    `say so explicitly rather than speculating. Use plain text (no markdown).`
+
+  const thesisBlock = thesis
+
+  return {
+    systemPrompt,
+    dealName,
+    dealBlock,
+    thesisBlock,
+    emailBlock,
+  }
+}

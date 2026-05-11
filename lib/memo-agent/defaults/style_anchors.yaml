@@ -1,0 +1,173 @@
+# Memo Agent — Style Anchors Schema
+# Version: 0.1 (draft)
+# Used by: Memo Drafting Agent (Stage 4 — drafting; consulted at every memo run)
+#
+# Defines the metadata wrapper around uploaded reference memos. The
+# memos themselves are stored as PDF / DOCX / Markdown files —
+# this schema describes how each one is annotated, how the agent
+# uses them, and how to aggregate across multiple uploads.
+#
+# In a Claude Project: reference memos are uploaded as project
+# knowledge files; this schema describes the metadata that should
+# accompany each one (in a sibling .yaml or front-matter).
+#
+# In a deployed component: reference memos are rows in a
+# style_anchor_memos table; this schema is the canonical contract
+# for that table's columns.
+
+meta:
+  version: "0.1"
+  last_updated: "2026-05-06"
+  owner: firm partners + vendor
+  notes: |
+    Reference memos are the highest-leverage configuration change
+    a firm can make to improve memo quality. They override the voice
+    defaults in instructions.md Section 6. See instructions.md
+    Section 7 for the agent's behavioral rules around using these.
+
+# ---------------------------------------------------------------------------
+# Usage principles — these are also stated in instructions.md but the
+# schema repeats the load-bearing ones so they're enforced at the data layer.
+# ---------------------------------------------------------------------------
+
+usage_principles:
+  - id: u_001
+    rule: "Reference memos teach voice, structure, and analytical patterns. They never supply facts to a new memo."
+  - id: u_002
+    rule: "The agent reads reference memos at the start of every memo run. This is in-context style learning, not fine-tuning."
+  - id: u_003
+    rule: "When `memo_output.yaml` and the reference memos disagree on structure, the schema wins. Surface the discrepancy for partner review."
+  - id: u_004
+    rule: "When reference memos disagree with each other, the agent matches the dominant cluster, not the average. Material conflicts surface to the partner rather than getting split."
+  - id: u_005
+    rule: "Outdated surface vocabulary in reference memos is updated. Structural patterns are preserved."
+  - id: u_006
+    rule: "All hard rules in instructions.md Section 3 still apply. A reference memo that breaks the rules (e.g., scores the team, drafts a recommendation) does not authorize the agent to do the same."
+
+# ---------------------------------------------------------------------------
+# Per-memo record — metadata wrapper around each uploaded memo
+# ---------------------------------------------------------------------------
+
+memo_record:
+  description: |
+    Every uploaded reference memo carries this metadata. Some fields
+    are required (the agent needs them to weight correctly); most are
+    optional and improve quality when provided.
+  fields:
+    - { name: id,                    type: string,   required: true,  note: "Stable ID. Suggested: 'anchor_<year>_<short-name>', e.g. 'anchor_2024_aurora_health'." }
+    - { name: file_reference,        type: string,   required: true,  note: "Project knowledge filename (Claude Project) OR Supabase storage path (deployed). Points to the actual PDF/DOCX/MD." }
+    - { name: title,                 type: string,   required: false, note: "Display title. Often the company name; can be anonymized." }
+    - { name: anonymized,            type: boolean,  required: false, default: false, note: "True if names/figures have been redacted. The agent should not attempt to identify the company from context." }
+    - { name: vintage_year,          type: integer,  required: false, note: "Year the memo was written. Used for recency weighting and to flag stale framings." }
+    - { name: vintage_quarter,       type: enum,     required: false, values: [Q1, Q2, Q3, Q4] }
+    - { name: sector,                type: string,   required: false, note: "Free text. e.g., 'B2B SaaS — vertical CRM', 'consumer fintech', 'healthcare AI'." }
+    - { name: deal_stage_at_writing, type: enum,     required: false, values: [pre_seed, seed, series_a, series_b, growth, follow_on, other] }
+    - { name: outcome,               type: enum,     required: false, values: [invested, passed, lost_competitive, withdrew, unknown], note: "What the firm did with this deal." }
+    - { name: conviction_at_writing, type: enum,     required: false, values: [high, medium, low, mixed], note: "How strong was the firm's conviction at the time the memo was written. Useful: high-conviction memos often surface the firm's clearest analytical voice." }
+    - { name: voice_representativeness, type: enum,  required: false, default: representative, values: [exemplary, representative, atypical, do_not_match_voice], note: "How well this memo represents the firm's typical voice. 'do_not_match_voice' = read for structure but ignore for voice." }
+    - { name: authorship,            type: enum,     required: false, values: [single_partner, lead_with_input, partnership, unknown] }
+    - { name: author_initials,       type: string,   required: false, note: "Optional. Helps the agent group memos by author when matching voice." }
+    - { name: focus_attention_on,    type: list,     required: false, note: "List of attention_taxonomy IDs — what to specifically attend to in this memo. Empty list = attend to everything equally." }
+    - { name: deprioritize_in_this_memo, type: list, required: false, note: "List of attention_taxonomy IDs — what to NOT learn from this memo (e.g., 'market_sizing' if the memo's market analysis is dated)." }
+    - { name: partner_notes,         type: string,   required: false, note: "Free text guidance from the firm. e.g., 'This is the gold standard for how we treat team sections.' or 'Structure is right; voice is too formal — match content, not tone.'" }
+
+# ---------------------------------------------------------------------------
+# Attention taxonomy — what aspects of a memo can be attended to or
+# deprioritized. Used in `focus_attention_on` and `deprioritize_in_this_memo`.
+# ---------------------------------------------------------------------------
+
+attention_taxonomy:
+
+  voice_dimensions:
+    - { id: register,                name: "Formal vs. conversational register" }
+    - { id: hedging,                 name: "How the firm phrases uncertainty" }
+    - { id: sentence_rhythm,         name: "Sentence length, paragraph rhythm" }
+    - { id: vocabulary,              name: "Domain language and recurring framings" }
+    - { id: declarative_vs_argued,   name: "Stating conclusions vs. building to them" }
+
+  structure_dimensions:
+    - { id: section_order,           name: "Order of memo sections" }
+    - { id: section_proportions,     name: "Relative length of sections" }
+    - { id: exec_summary_treatment,  name: "What goes in the executive summary" }
+    - { id: open_questions_treatment, name: "How open questions are presented" }
+    - { id: idiosyncratic_sections,  name: "Firm-specific sections like 'Why now', 'What we'd need to believe'" }
+
+  analytical_dimensions:
+    - { id: market_sizing,           name: "Approach to market analysis" }
+    - { id: team_section,            name: "How the team is treated (within partner_only constraints)" }
+    - { id: product_section,         name: "Depth and framing of product/technology analysis" }
+    - { id: traction_treatment,      name: "How metrics and evidence are presented" }
+    - { id: financial_treatment,     name: "How projections and unit economics are discussed" }
+    - { id: competitive_framing,     name: "How competitors and moats are framed" }
+    - { id: risks_treatment,         name: "How risks are surfaced and weighed" }
+    - { id: deal_terms_treatment,    name: "How terms and structure are discussed" }
+
+# ---------------------------------------------------------------------------
+# Aggregation rules — how the agent reconciles multiple reference memos
+# ---------------------------------------------------------------------------
+
+aggregation:
+  default_weighting: equal
+  alternative_weightings:
+    - id: recency_weighted
+      description: "Recent memos weighted more heavily. Useful when the firm's voice has evolved."
+    - id: conviction_weighted
+      description: "High-conviction memos weighted more heavily. Useful when the firm has a clearest analytical voice on its strongest deals."
+    - id: partner_marked
+      description: "Only memos with voice_representativeness in [exemplary, representative] inform voice. Others read for structure only."
+
+  conflict_resolution:
+    rule: |
+      When reference memos disagree on a structural or stylistic choice
+      (e.g., some have a "Why now" section and some don't), the agent:
+        1. Identifies the dominant cluster (most common pattern).
+        2. If the cluster is clear (>60% of memos), follows the cluster.
+        3. If no clear cluster, flags the divergence in agent_notes
+           and follows the structure in `memo_output.yaml`.
+        4. Never silently averages or invents a hybrid.
+
+  minimum_useful_count:
+    description: "How many uploaded memos before voice-matching becomes reliable."
+    guidance: |
+      With 1 memo: voice is approximated; treat output as draft only.
+      With 3-5 memos: voice-matching becomes reliable for the dominant author.
+      With 8+ memos: aggregate patterns become robust across authors and vintages.
+    note: "Below 3 memos, the agent's agent_notes should mention that the voice match is preliminary."
+
+# ---------------------------------------------------------------------------
+# What the agent extracts and writes to its working memory
+# ---------------------------------------------------------------------------
+
+style_synthesis:
+  description: |
+    At the start of every memo run, the agent reads all uploaded
+    reference memos (subject to weighting) and produces an internal
+    style synthesis it then applies during drafting (Stage 4) and
+    rendering (Stage 6). The synthesis is not user-facing but its
+    structure is documented here for auditability.
+  output_record:
+    fields:
+      - { name: synthesis_id,        type: string }
+      - { name: memos_consulted,     type: list,    note: "Memo IDs used in this synthesis." }
+      - { name: weighting_used,      type: enum,    values: [equal, recency_weighted, conviction_weighted, partner_marked] }
+      - { name: voice_summary,       type: string,  note: "1-2 paragraph internal description of the firm's voice." }
+      - { name: structure_summary,   type: string,  note: "How sections are typically ordered, weighted, and titled." }
+      - { name: vocabulary_signals,  type: list,    note: "Recurring phrases, framings, and rhetorical moves." }
+      - { name: identified_conflicts,type: list,    note: "Cases where memos disagreed; how the agent resolved them." }
+      - { name: confidence,          type: enum,    values: [low, medium, high], note: "How confident the agent is in the synthesis given the volume and consistency of inputs." }
+
+# ---------------------------------------------------------------------------
+# Guardrails — things the agent never does with reference memos
+# ---------------------------------------------------------------------------
+
+guardrails:
+  - id: g_001
+    rule: "Never carry a fact, claim, statistic, or finding from a reference memo into a new draft. Reference memos describe past deals, not the current one."
+  - id: g_002
+    rule: "Never reproduce a paragraph from a reference memo verbatim. Voice matching is structural and stylistic, not lexical copying."
+  - id: g_003
+    rule: "Never use a reference memo to justify breaking a hard rule from instructions.md Section 3 — even if the reference memo itself broke that rule."
+  - id: g_004
+    rule: "Never present the reference memos to the partner as if they were research findings on the current deal. Reference memos are voice training input only."
+  - id: g_005
+    rule: "When uncertain whether a stylistic choice should be matched, prefer the defaults in instructions.md Section 6. The agent errs toward neutral."

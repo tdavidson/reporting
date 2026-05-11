@@ -15,6 +15,7 @@ export function AnalystPanel() {
     messages,
     setMessages,
     companyId,
+    dealId,
     selectedModel,
     setSelectedModel,
     availableModels,
@@ -65,6 +66,7 @@ export function AnalystPanel() {
         body: JSON.stringify({
           messages: newMessages,
           companyId: companyId ?? undefined,
+          dealId: dealId ?? undefined,
           model: selectedModel ? { id: selectedModel.id, provider: selectedModel.provider } : undefined,
           conversationId: conversationId ?? undefined,
         }),
@@ -232,9 +234,11 @@ export function AnalystPanel() {
             <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 pb-3 space-y-3">
               {messages.length === 0 && !loading && (
                 <p className="text-xs text-muted-foreground">
-                  {companyId
-                    ? "Ask about this company\u2019s metrics, performance, documents, or portfolio position. You can also ask the AI to draft a summary."
-                    : 'Ask about your portfolio, compare companies, or get high-level insights across all investments.'}
+                  {dealId
+                    ? "Ask about this deal \u2014 fit against your thesis, founder background, dilution math, or comparable deals you've seen."
+                    : companyId
+                      ? "Ask about this company\u2019s metrics, performance, documents, or portfolio position. You can also ask the AI to draft a summary."
+                      : 'Ask about your portfolio, compare companies, or get high-level insights across all investments.'}
                 </p>
               )}
               {messages.map((msg, i) => (
@@ -289,7 +293,7 @@ export function AnalystPanel() {
                       handleSend()
                     }
                   }}
-                  placeholder={companyId ? 'Ask about this company...' : 'Ask about your portfolio...'}
+                  placeholder={dealId ? 'Ask about this deal...' : companyId ? 'Ask about this company...' : 'Ask about your portfolio...'}
                   rows={2}
                   className="w-full resize-none rounded-md border bg-transparent px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                 />

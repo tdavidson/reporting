@@ -29,7 +29,7 @@ export default function ReviewExplainerPage() {
         items for an email at once if the entire report should be skipped.
       </p>
       <p className="text-muted-foreground">
-        Staying on top of the review queue is important &mdash; it&apos;s how you ensure the
+        Staying on top of the review queue is important - it&apos;s how you ensure the
         data flowing into your portfolio metrics is accurate. The system is designed to err on the
         side of flagging rather than silently writing bad data.
       </p>

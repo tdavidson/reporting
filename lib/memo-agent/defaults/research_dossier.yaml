@@ -1,0 +1,253 @@
+# Memo Agent — External Research Dossier Schema
+# Version: 0.1 (draft)
+# Used by: Memo Drafting Agent (Stage 2 — external research)
+#
+# Symmetric partner to data_room_ingestion.yaml. Where that captures
+# what the COMPANY says, this captures what the WORLD says — with
+# the same provenance / confidence / feeds-section discipline.
+#
+# Findings link back to claims in the ingestion output by claim ID,
+# updating verification_status. The two schemas together fully define
+# the input to memo drafting (Stage 4).
+
+meta:
+  version: "0.1"
+  last_updated: "2026-05-06"
+  owner: vendor
+  notes: |
+    Per spec constraint: NO LinkedIn scraping. Founder research draws
+    from the alternative source taxonomy below. Per spec policy: the
+    agent compiles research material on founders but does NOT score
+    the team dimension — that remains partner-only (see rubric.yaml).
+
+# ---------------------------------------------------------------------------
+# Categories of research
+# ---------------------------------------------------------------------------
+
+research_categories:
+  - id: market
+    name: "Market validation"
+    description: "Independent verification of market size, growth, and dynamics claimed by the company."
+    feeds_dimensions: [market]
+
+  - id: competitive
+    name: "Competitive landscape"
+    description: "Direct, adjacent, and incumbent competitors. Includes competitors the company did not mention — usually the most valuable output of this category."
+    feeds_dimensions: [competition_moat, product_technology]
+
+  - id: founder_team
+    name: "Founder and team research"
+    description: "Background, prior work, public statements, technical output. Compiled for partner judgment; never scored by the agent."
+    feeds_dimensions: [team]   # Partner-only dimension. Agent surfaces material; partner scores.
+
+  - id: customer_validation
+    name: "Customer and demand validation"
+    description: "Independent signals of customer demand or product reception — reviews, forums, public references."
+    feeds_dimensions: [traction, product_technology]
+
+  - id: regulatory
+    name: "Regulatory and policy environment"
+    description: "Tailwinds, headwinds, pending legislation, compliance requirements."
+    feeds_dimensions: [market, business_model]
+
+  - id: technical_validation
+    name: "Technical validation"
+    description: "Independent assessment of technical claims — papers, benchmarks, engineering output."
+    feeds_dimensions: [product_technology, competition_moat]
+
+# ---------------------------------------------------------------------------
+# Source types and quality tiers
+# ---------------------------------------------------------------------------
+# Source quality drives confidence. The agent must record source type
+# alongside every finding. "I read it on the internet" is not a finding.
+
+source_quality_tiers:
+  tier_1_authoritative:
+    description: "Primary or near-primary sources with strong editorial or methodological standards."
+    examples:
+      - "Government data (Census, BLS, SEC filings, regulatory filings)"
+      - "Peer-reviewed research"
+      - "Major analyst firms with disclosed methodology (Gartner, Forrester, IDC)"
+      - "Industry associations with published methodology"
+      - "Court records, patent filings"
+    default_confidence: high
+
+  tier_2_credible:
+    description: "Established journalism and research with editorial standards but secondary."
+    examples:
+      - "Established business journalism (FT, WSJ, Bloomberg, Reuters, The Information)"
+      - "Vertical trade press with reputation"
+      - "Crunchbase, PitchBook (for funding/round data)"
+      - "Company press releases and SEC filings (for that company's own facts)"
+    default_confidence: medium_to_high
+
+  tier_3_signal:
+    description: "Useful as signal of sentiment or surface-level fact; not relied on alone for material claims."
+    examples:
+      - "Company website and marketing materials (third-party companies — not the target company)"
+      - "Podcast interviews, conference talks"
+      - "Founder personal blogs, Substacks"
+      - "Product Hunt, G2, Capterra reviews (signal, not statistic)"
+      - "GitHub repositories and release history"
+    default_confidence: medium
+
+  tier_4_weak:
+    description: "Use only with corroboration. Never the sole source for a material claim."
+    examples:
+      - "Reddit, Hacker News, Twitter/X threads"
+      - "Glassdoor reviews"
+      - "Anonymous forum posts"
+      - "Aggregator and SEO-optimized listicles"
+    default_confidence: low
+
+  tier_excluded:
+    description: "Never used."
+    examples:
+      - "LinkedIn scraping (per spec)"
+      - "Sites that require authentication or bypass paywalls"
+      - "Dark social, leaked private data"
+      - "Sites flagged for misinformation or extremism"
+
+# ---------------------------------------------------------------------------
+# Finding record — the unit of external research
+# ---------------------------------------------------------------------------
+
+finding_record:
+  description: "A discrete piece of external information the agent has gathered."
+  fields:
+    - { name: id,                        type: string,  required: true,  note: "Stable finding ID, e.g. 'finding_market_001'." }
+    - { name: category,                  type: string,  required: true,  note: "ID from research_categories." }
+    - { name: text,                      type: string,  required: true,  note: "The finding, phrased neutrally." }
+    - { name: finding_type,              type: enum,    required: true,  values: [fact, signal, opinion, datapoint, contradiction], note: "fact = independently established; signal = directional but not conclusive; opinion = third-party interpretation; datapoint = a specific number; contradiction = directly contradicts a company claim." }
+    - { name: source_url,                type: url,     required: true,  note: "Direct URL. If multiple sources, the primary." }
+    - { name: source_publisher,          type: string,  required: true,  note: "e.g., 'Bloomberg', 'SEC EDGAR', 'GitHub'." }
+    - { name: source_date,               type: date,    required: false, note: "Publication date. Recency matters; flag if >18 months old." }
+    - { name: source_quality_tier,       type: enum,    required: true,  values: [tier_1_authoritative, tier_2_credible, tier_3_signal, tier_4_weak] }
+    - { name: corroborating_sources,     type: list,    required: false, note: "Additional URLs supporting the same finding. Multi-source raises confidence." }
+    - { name: confidence,                type: enum,    required: true,  values: [low, medium, high] }
+    - { name: confidence_rationale,      type: string,  required: false, note: "Why this confidence level — source tier, corroboration, recency, methodology." }
+    - { name: feeds_memo_section,        type: list,    required: true,  note: "Memo sections this finding is relevant to." }
+    - { name: relates_to_claim_id,       type: string,  required: false, note: "If this finding bears on a specific data-room claim, reference it here." }
+    - { name: relationship_to_claim,     type: enum,    required: false, values: [confirms, partially_confirms, contradicts, contextualizes, unrelated], note: "How this finding relates to the company-stated claim." }
+
+# ---------------------------------------------------------------------------
+# Contradiction record — surfaced separately because they matter most
+# ---------------------------------------------------------------------------
+
+contradiction_record:
+  rationale: |
+    When external evidence contradicts a company-stated claim, that's
+    the highest-value output of the research stage. Partners need
+    these surfaced clearly, not buried in a flat list of findings.
+    Every contradiction also writes back to the originating claim's
+    verification_status (set to 'contradicted' in the ingestion
+    output).
+  fields:
+    - { name: id,                  type: string,  required: true }
+    - { name: company_claim_id,    type: string,  required: true,  note: "Claim ID from data_room_ingestion." }
+    - { name: company_claim_text,  type: string,  required: true,  note: "Restated for partner readability." }
+    - { name: contradicting_finding_ids, type: list, required: true }
+    - { name: nature,              type: enum,    required: true,  values: [factual, definitional, methodological, temporal, scope], note: "factual = numbers don't match; definitional = different definition of the same term; methodological = different measurement approach; temporal = the claim was true at one time but isn't now; scope = the claim is true for a subset but stated as universal." }
+    - { name: severity,            type: enum,    required: true,  values: [minor, moderate, material], note: "How much it should affect partner judgment." }
+    - { name: agent_notes,         type: string,  required: false, note: "Neutral framing of the discrepancy. Do not editorialize on intent." }
+
+# ---------------------------------------------------------------------------
+# Founder & team research — special handling
+# ---------------------------------------------------------------------------
+
+founder_research_special_handling:
+  rationale: |
+    Constraints: no LinkedIn scraping; team dimension is partner-only;
+    the agent compiles material but does not interpret character. This
+    section defines what's in-scope, what's out-of-scope, and the
+    alternative source taxonomy that fills the gap LinkedIn would
+    otherwise occupy.
+
+  in_scope:
+    - "Public professional history from company websites, press, official bios"
+    - "Published work: papers, patents, talks, books, podcasts"
+    - "Open source contributions (GitHub, package registries)"
+    - "Public statements: interviews, panel appearances, public letters"
+    - "Verifiable affiliations: prior companies, advisor roles, board seats"
+    - "Press mentions including coverage of prior ventures, exits, lawsuits"
+    - "Court records (subject to ethical and legal considerations)"
+    - "Educational credentials where publicly verified"
+
+  out_of_scope:
+    - "LinkedIn scraping (per spec constraint)"
+    - "Personal social media used for personal life (non-professional content)"
+    - "Speculation about personal relationships, family, or health"
+    - "Inference from photos, lifestyle, or appearance"
+    - "Anonymous accusations without corroboration"
+    - "Any character interpretation — the agent surfaces material; the partner interprets"
+
+  alternative_source_taxonomy:
+    primary_sources:
+      - { id: company_history,       name: "Prior company websites and About pages", priority: high }
+      - { id: press_coverage,        name: "Press coverage of prior roles and exits", priority: high }
+      - { id: government_filings,    name: "SEC, Companies House, regulatory filings", priority: high, note: "For director histories and prior ventures." }
+      - { id: court_records,         name: "Public court records",                     priority: medium, note: "Use cautiously; pending matters are not findings." }
+      - { id: patent_filings,        name: "USPTO, EPO, WIPO",                         priority: medium }
+      - { id: academic_publications, name: "Google Scholar, arXiv, peer-reviewed work", priority: high, note: "For technical founders." }
+      - { id: open_source,           name: "GitHub, package registries",                priority: high, note: "For technical founders — code is the strongest available signal." }
+      - { id: conference_talks,      name: "YouTube talks, conference recordings",      priority: medium }
+      - { id: podcast_interviews,    name: "Podcast appearances",                       priority: medium, note: "Often more candid than written press." }
+      - { id: long_form_interviews,  name: "Magazine profiles, deep-dive articles",     priority: medium }
+      - { id: founder_writing,       name: "Personal blogs, Substacks, op-eds",         priority: medium, note: "Distinguish between personal voice and ghostwritten content." }
+
+    backchannel_signals:
+      description: "Your CRM's connection mapping surfaces who in the partner network has worked with these founders. The agent identifies the connections; the partner does the actual outreach. Backchannel content is never reported in the dossier as a finding — it is collected by the partner and entered through Q&A."
+      agent_action: "Surface the connection list with prior affiliations. Do not contact, do not summarize what others might say."
+
+  output_constraints:
+    - "Compile material. Do not interpret character."
+    - "Direct quotes only when source is reliable; paraphrase otherwise."
+    - "Flag inconsistencies between data room founder bios and external sources."
+    - "Flag prior ventures the company did not mention."
+    - "Never state or imply a personal characteristic that isn't directly evidenced."
+
+# ---------------------------------------------------------------------------
+# Competitive research — special handling
+# ---------------------------------------------------------------------------
+
+competitive_research_special_handling:
+  rationale: |
+    The most valuable output of competitive research is usually the
+    competitors the company did NOT mention. Companies systematically
+    under-represent competition in pitch materials. This section
+    forces the agent to look beyond the company-supplied list.
+
+  required_outputs:
+    - { id: company_named_competitors,    name: "Competitors named by the company", required: true }
+    - { id: company_unnamed_competitors,  name: "Competitors NOT named by the company but operating in the same space", required: true, note: "Highest-value output of this stage." }
+    - { id: adjacent_competitors,         name: "Adjacent players who could enter", required: true }
+    - { id: incumbent_competitors,        name: "Incumbents who already serve this need (often with worse products)", required: true }
+    - { id: build_vs_buy_alternatives,    name: "What customers do today instead of buying anything", required: false, note: "Sometimes 'a spreadsheet' is the real competitor." }
+
+  per_competitor_record:
+    fields:
+      - { name: id,                    type: string }
+      - { name: name,                  type: string }
+      - { name: category,              type: enum,    values: [direct, adjacent, incumbent, alternative] }
+      - { name: company_mentioned,     type: boolean, note: "Did the company name them in the data room?" }
+      - { name: positioning_summary,   type: string,  note: "1–2 sentence neutral description of what they do." }
+      - { name: stage,                 type: enum,    values: [seed, series_a, series_b, growth, public, private_mature, unknown] }
+      - { name: most_recent_funding,   type: object,  required: false, note: "Round, amount, date, lead — when known." }
+      - { name: differentiation_vs_target, type: string, note: "How target company is positioned differently. Neutral framing." }
+      - { name: source_urls,           type: list }
+
+# ---------------------------------------------------------------------------
+# Research output — handed to Stage 4 (drafting)
+# ---------------------------------------------------------------------------
+
+research_output:
+  fields:
+    - { name: dossier_id,        type: string,    required: true }
+    - { name: research_date,     type: datetime,  required: true }
+    - { name: findings,          type: list,      required: true,  note: "All finding_record entries." }
+    - { name: contradictions,    type: list,      required: true,  note: "All contradiction_record entries." }
+    - { name: competitive_map,   type: object,    required: true,  note: "Output of competitive_research_special_handling." }
+    - { name: founder_dossiers,  type: list,      required: true,  note: "One per founder; compiled material only." }
+    - { name: claim_verifications, type: list,    required: true,  note: "Updates to data_room_ingestion claim verification_status fields." }
+    - { name: research_gaps,     type: list,      required: false, note: "Areas where the agent could not find independent sourcing — surfaced for partner attention." }
+    - { name: agent_notes,       type: string,    required: false, note: "Neutral overall observations: what was easy to verify, what wasn't, what surprised." }

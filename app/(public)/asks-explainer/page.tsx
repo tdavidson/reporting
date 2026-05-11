@@ -17,7 +17,7 @@ export default function AsksExplainerPage() {
     >
       <p className="text-muted-foreground">
         Asks lets you send reporting request emails to your portfolio companies. This is how you
-        kick off a reporting cycle &mdash; compose a message asking companies to send in their latest
+        kick off a reporting cycle - compose a message asking companies to send in their latest
         numbers, select which companies should receive it, and send it out. The system tracks each
         request so you know what was sent and when.
       </p>
@@ -36,8 +36,8 @@ export default function AsksExplainerPage() {
       <p className="text-muted-foreground">
         When companies reply to your ask email with their report, those replies flow into the
         Inbound pipeline automatically (assuming the sender is on the authorized senders list and
-        replies to the configured inbound address). The full loop &mdash; ask, receive, parse,
-        review &mdash; is designed to work end to end with minimal manual effort.
+        replies to the configured inbound address). The full loop - ask, receive, parse,
+        review - is designed to work end to end with minimal manual effort.
       </p>
     </ExplainerContent>
   )

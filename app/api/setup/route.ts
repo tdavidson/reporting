@@ -111,10 +111,11 @@ export async function GET() {
   let outboundEmail = null
   let fileStorage = null
   let senders = null
+  let memoAgent: { schemasSeeded: boolean; styleAnchorCount: number } | null = null
 
   if (hasFund) {
     try {
-      const [settingsResult, sendersResult] = await Promise.all([
+      const [settingsResult, sendersResult, schemasResult, anchorsResult] = await Promise.all([
         supabase
           .from('fund_settings')
           .select(
@@ -123,7 +124,15 @@ export async function GET() {
           .limit(1)
           .maybeSingle(),
         supabase.from('authorized_senders').select('id', { count: 'exact', head: true }),
+        supabase.from('firm_schemas').select('schema_name', { count: 'exact', head: false }).eq('is_active', true),
+        supabase.from('style_anchor_memos').select('id', { count: 'exact', head: true }),
       ])
+
+      memoAgent = {
+        // Seven schemas required when seeded.
+        schemasSeeded: (schemasResult.count ?? schemasResult.data?.length ?? 0) >= 7,
+        styleAnchorCount: anchorsResult.count ?? 0,
+      }
 
       const s = settingsResult.data
 
@@ -189,5 +198,6 @@ export async function GET() {
     outboundEmail,
     fileStorage,
     senders,
+    memoAgent,
   })
 }

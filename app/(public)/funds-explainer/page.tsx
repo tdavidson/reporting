@@ -19,7 +19,7 @@ export default function FundsExplainerPage() {
         The Funds page provides fund-level LP metrics computed from cash flow data. Each portfolio
         group gets its own tab showing committed capital, called capital (paid-in capital), uncalled
         capital, distributions, gross residual value, estimated carry, net residual value, and total
-        value &mdash; along with calculated TVPI, DPI, RVPI, and Net IRR.
+        value - along with calculated TVPI, DPI, RVPI, and Net IRR.
       </p>
       <p className="text-muted-foreground">
         Cash flows are recorded per portfolio group with three types: <strong>commitments</strong> (capital

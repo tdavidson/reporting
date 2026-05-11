@@ -80,7 +80,7 @@ export default function PricingPage() {
           <span className="absolute -top-3 left-4 bg-muted text-muted-foreground text-xs font-medium px-2.5 py-0.5 rounded-full">Early Access</span>
           <div className="flex flex-col sm:flex-row sm:items-center gap-3">
             <p className="text-base text-muted-foreground flex-1">
-              <span className="font-medium text-foreground">Hosted</span> — Let us host your fund. Get help onboarding your information and processes. $250+ monthly subscription, cancel anytime.
+              <span className="font-medium text-foreground">Hosted</span> - Let us host your fund. Get help onboarding your information and processes. $250+ monthly subscription, cancel anytime.
             </p>
             <SubscriptionInquiryButton variant="outline" size="sm" className="w-full sm:w-auto shrink-0">
               <Send className="h-3.5 w-3.5 mr-1.5" />Request Access
@@ -92,7 +92,7 @@ export default function PricingPage() {
         <div className="max-w-3xl">
           <h2 className="text-base font-medium mb-2">What does it cost to run?</h2>
           <p className="text-muted-foreground mb-4">
-            You deploy using your own accounts for the components in the stack &mdash; database, hosting,
+            You deploy using your own accounts for the components in the stack - database, hosting,
             email providers, file storage, and AI. This means you control your own operational
             details and costs.
           </p>

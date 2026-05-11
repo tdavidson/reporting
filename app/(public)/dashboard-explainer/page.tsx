@@ -33,7 +33,7 @@ export default function DashboardExplainerPage() {
         </p>
         <p className="text-muted-foreground">
           The dashboard also includes a shared notes section at the bottom where team members can post
-          fund-level observations &mdash; market commentary, cross-portfolio themes, reminders for the
+          fund-level observations - market commentary, cross-portfolio themes, reminders for the
           next IC meeting, and so on. These notes are visible to everyone on the team.
         </p>
       </div>
@@ -58,7 +58,7 @@ export default function DashboardExplainerPage() {
         </p>
         <p className="text-muted-foreground">
           The main content area starts with the <strong>Analyst</strong> card. This is where you
-          can generate an AI-powered summary of the company based on all available data &mdash; reported
+          can generate an AI-powered summary of the company based on all available data - reported
           metrics, email content, uploaded documents, and any previous summaries. The AI acts as a
           senior analyst preparing a portfolio review memo: it highlights current performance, trends,
           strengths, risks, and follow-up questions. You can regenerate the summary at any time as new
@@ -75,7 +75,7 @@ export default function DashboardExplainerPage() {
         </p>
         <p className="text-muted-foreground">
           Further down the page, a <strong>documents section</strong> lists all files associated with
-          the company &mdash; both files you&apos;ve uploaded and attachments from processed emails.
+          the company - both files you&apos;ve uploaded and attachments from processed emails.
           These documents are available to the Analyst when generating summaries. A <strong>notes panel</strong> on
           the right side (or toggled via the chat button on mobile) lets your team leave company-specific
           observations visible to all members.
@@ -84,7 +84,7 @@ export default function DashboardExplainerPage() {
           The company page also includes an <strong>Investments</strong> section that tracks the
           fund&apos;s transaction history with that company. You can record investment rounds, proceeds
           from exits or distributions, and unrealized gain changes. The section displays summary
-          metrics &mdash; total invested, current fair market value, MOIC, and total realized &mdash;
+          metrics - total invested, current fair market value, MOIC, and total realized -
           along with a detailed transaction table.
         </p>
       </div>

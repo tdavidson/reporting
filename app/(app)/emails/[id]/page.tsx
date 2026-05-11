@@ -7,6 +7,7 @@ import type { InboundEmail } from '@/lib/types/database'
 export const metadata: Metadata = { title: 'Email' }
 import { ChevronLeft } from 'lucide-react'
 import { ReprocessButton } from './reprocess-button'
+import { RerouteButton } from './reroute-button'
 import { ChangeStatusButton } from './change-status-button'
 import { UploadDocumentButton } from './upload-document-button'
 import { SaveToDriveButton } from './save-to-drive-button'
@@ -84,7 +85,7 @@ export default async function EmailDetailPage({ params }: { params: { id: string
   const { data: emailData, error } = await supabase
     .from('inbound_emails')
     .select(
-      'id, from_address, subject, received_at, processing_status, processing_error, claude_response, metrics_extracted, attachments_count, raw_payload, company_id, fund_id'
+      'id, from_address, subject, received_at, processing_status, processing_error, claude_response, metrics_extracted, attachments_count, raw_payload, company_id, fund_id, routed_to, routing_label, routing_confidence, routing_reasoning'
     )
     .eq('id', params.id)
     .maybeSingle()
@@ -320,7 +321,10 @@ export default async function EmailDetailPage({ params }: { params: { id: string
               values from this email will be replaced.
             </p>
           </div>
-          <ReprocessButton emailId={email.id} />
+          <div className="flex gap-2 shrink-0">
+            <RerouteButton emailId={email.id} currentTarget={(email as any).routed_to ?? null} />
+            <ReprocessButton emailId={email.id} />
+          </div>
         </div>
       </section>
     </div>

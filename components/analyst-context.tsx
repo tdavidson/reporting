@@ -12,6 +12,7 @@ export interface ConversationListItem {
   id: string
   title: string
   company_id: string | null
+  deal_id: string | null
   message_count: number
   created_at: string
   updated_at: string
@@ -25,6 +26,8 @@ interface AnalystContextValue {
   setMessages: React.Dispatch<React.SetStateAction<{ role: 'user' | 'assistant'; content: string }[]>>
   companyId: string | null
   setCompanyId: (id: string | null) => void
+  dealId: string | null
+  setDealId: (id: string | null) => void
   selectedModel: AnalystModel | null
   setSelectedModel: (model: AnalystModel | null) => void
   availableModels: AnalystModel[]
@@ -59,6 +62,7 @@ export function AnalystProvider({
   const [open, setOpen] = useState(false)
   const [messages, setMessages] = useState<{ role: 'user' | 'assistant'; content: string }[]>([])
   const [companyId, setCompanyIdState] = useState<string | null>(null)
+  const [dealId, setDealIdState] = useState<string | null>(null)
   const [availableModels, setAvailableModels] = useState<AnalystModel[]>([])
   const [selectedModel, setSelectedModel] = useState<AnalystModel | null>(null)
   const [conversationId, setConversationId] = useState<string | null>(null)
@@ -76,6 +80,23 @@ export function AnalystProvider({
         setConversationId(null)
         setShowHistory(false)
         setConversations([])
+        // Switching to/from a company scope clears any deal scope.
+        setDealIdState(null)
+      }
+      return id
+    })
+  }, [])
+
+  // Reset conversation state when dealId changes
+  const setDealId = useCallback((id: string | null) => {
+    setDealIdState(prev => {
+      if (prev !== id) {
+        setMessages([])
+        setConversationId(null)
+        setShowHistory(false)
+        setConversations([])
+        // Switching into a deal scope clears any company scope.
+        if (id) setCompanyIdState(null)
       }
       return id
     })
@@ -83,7 +104,9 @@ export function AnalystProvider({
 
   const loadConversations = useCallback(async () => {
     const params = new URLSearchParams()
-    if (companyId) {
+    if (dealId) {
+      params.set('dealId', dealId)
+    } else if (companyId) {
       params.set('companyId', companyId)
     } else {
       params.set('portfolio', 'true')
@@ -97,7 +120,7 @@ export function AnalystProvider({
     } catch {
       // Silently fail
     }
-  }, [companyId])
+  }, [companyId, dealId])
 
   const loadConversation = useCallback(async (id: string) => {
     try {
@@ -178,6 +201,8 @@ export function AnalystProvider({
       setMessages,
       companyId,
       setCompanyId,
+      dealId,
+      setDealId,
       selectedModel,
       setSelectedModel,
       availableModels,
