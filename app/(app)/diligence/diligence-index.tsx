@@ -185,8 +185,14 @@ function NewDealDialog({ open, onOpenChange, onCreated }: {
   const [sector, setSector] = useState('')
   const [stage, setStage] = useState('')
   const [folderUrl, setFolderUrl] = useState('')
+  const [files, setFiles] = useState<File[]>([])
   const [submitting, setSubmitting] = useState(false)
+  const [uploadProgress, setUploadProgress] = useState<{ done: number; total: number } | null>(null)
   const [error, setError] = useState<string | null>(null)
+
+  function reset() {
+    setName(''); setSector(''); setStage(''); setFolderUrl(''); setFiles([]); setUploadProgress(null)
+  }
 
   async function submit() {
     if (!name.trim()) return
@@ -208,8 +214,27 @@ function NewDealDialog({ open, onOpenChange, onCreated }: {
       }
       const created: Deal = await res.json()
 
+      // Upload any selected files sequentially so the partner gets ordered
+      // progress feedback. Errors are surfaced but don't roll back the deal.
+      if (files.length > 0) {
+        setUploadProgress({ done: 0, total: files.length })
+        for (let i = 0; i < files.length; i++) {
+          const formData = new FormData()
+          formData.append('file', files[i])
+          try {
+            await fetch(`/api/diligence/${created.id}/documents`, {
+              method: 'POST',
+              body: formData,
+            })
+          } catch {
+            // Continue with remaining files; partner can re-upload via Deal Room.
+          }
+          setUploadProgress({ done: i + 1, total: files.length })
+        }
+      }
+
       if (folderUrl.trim()) {
-        // Fire-and-forget — partner can wait or move on; the import runs synchronously.
+        // Fire-and-forget - partner can wait or move on; the import runs synchronously.
         fetch(`/api/diligence/${created.id}/documents/from-drive`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -218,7 +243,7 @@ function NewDealDialog({ open, onOpenChange, onCreated }: {
       }
 
       onCreated(created)
-      setName(''); setSector(''); setStage(''); setFolderUrl('')
+      reset()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Create failed')
     } finally {
@@ -249,10 +274,33 @@ function NewDealDialog({ open, onOpenChange, onCreated }: {
             </div>
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1">Drive folder URL (optional)</label>
-            <Input value={folderUrl} onChange={e => setFolderUrl(e.target.value)} placeholder="https://drive.google.com/drive/folders/..." />
-            <p className="text-[11px] text-muted-foreground mt-1">If provided, every file in the folder is imported to the deal room (synchronous; may take a minute).</p>
+            <label className="block text-xs font-medium text-muted-foreground mb-1">Upload files (optional)</label>
+            <label className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-md border bg-card text-sm hover:bg-muted/50 cursor-pointer ${submitting ? 'opacity-50 pointer-events-none' : ''}`}>
+              <Plus className="h-3.5 w-3.5" />
+              {files.length === 0 ? 'Choose files' : `${files.length} file${files.length === 1 ? '' : 's'} selected`}
+              <input
+                type="file"
+                multiple
+                className="hidden"
+                disabled={submitting}
+                onChange={e => setFiles(e.target.files ? Array.from(e.target.files) : [])}
+              />
+            </label>
+            {files.length > 0 && (
+              <ul className="mt-2 text-[11px] text-muted-foreground space-y-0.5 max-h-20 overflow-y-auto">
+                {files.map((f, i) => <li key={i} className="truncate">{f.name}</li>)}
+              </ul>
+            )}
+            <p className="text-[11px] text-muted-foreground mt-1">Pitch deck, financials, memos - the agent classifies and parses each file after upload.</p>
           </div>
+          <div>
+            <label className="block text-xs font-medium text-muted-foreground mb-1">Or import from a Google Drive folder</label>
+            <Input value={folderUrl} onChange={e => setFolderUrl(e.target.value)} placeholder="https://drive.google.com/drive/folders/..." />
+            <p className="text-[11px] text-muted-foreground mt-1">Every file in the folder is imported. Runs after the deal is created.</p>
+          </div>
+          {uploadProgress && (
+            <p className="text-xs text-muted-foreground">Uploading {uploadProgress.done} of {uploadProgress.total}...</p>
+          )}
           {error && <p className="text-sm text-destructive">{error}</p>}
         </div>
         <DialogFooter>

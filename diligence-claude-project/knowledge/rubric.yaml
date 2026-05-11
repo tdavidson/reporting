@@ -1,0 +1,232 @@
+# Memo Agent — Investment Memo Scoring Rubric
+# Version: 0.1 (draft)
+# Used by: Memo Drafting Agent (Stage 5 — scoring)
+#
+# Edit this file to change what gets scored, how, and by whom.
+# Stable IDs (e.g. "market", "team") are referenced from qa_library.yaml —
+# do not rename without updating cross-references there.
+
+meta:
+  version: "0.1"
+  last_updated: "2026-05-06"
+  owner: partners
+  notes: |
+    Draft v1. Partners to review the dimension list, scoring criteria,
+    and the machine/partner-only assignments before week 1 sign-off.
+
+scoring_scale:
+  type: integer
+  range: [1, 5]
+  levels:
+    1: "Significant concern. Disqualifying without strong offset."
+    2: "Below bar. Real concerns that need to be addressed."
+    3: "Acceptable. Meets baseline; not differentiated."
+    4: "Strong. Clear positive signal."
+    5: "Exceptional. Outlier in this dimension."
+
+confidence_levels:
+  - low      # Insufficient evidence or evidence quality is poor
+  - medium   # Reasonable evidence with some gaps
+  - high     # Strong, well-sourced evidence
+
+scoring_modes:
+  machine:
+    description: "Agent produces a score with reasoning. Partner can override."
+  partner_only:
+    description: "Agent leaves blank. Partner scores based on judgment. Agent compiles supporting evidence into the section narrative but does not score."
+  hybrid:
+    description: "Agent drafts a tentative score with explicit caveats; partner finalizes."
+
+# ---------------------------------------------------------------------------
+# Dimensions
+# ---------------------------------------------------------------------------
+
+dimensions:
+
+  - id: market
+    name: "Market"
+    mode: machine
+    description: |
+      Size, growth, and structural attractiveness of the market the
+      company is addressing.
+    sources:
+      - data_room
+      - market_research
+    criteria:
+      1: "Small or shrinking market; no clear path to venture-scale outcomes."
+      2: "Moderate market with limited growth or significant headwinds."
+      3: "Reasonable size and growth; not differentiated from many comparable opportunities."
+      4: "Large, growing market with clear tailwinds; supports venture-scale outcomes."
+      5: "Exceptional — large, fast-growing, structural shift creating a new category."
+    signals_to_consider:
+      - "TAM/SAM/SOM with credible third-party sources (not company-stated only)"
+      - "Market growth rate and the underlying drivers"
+      - "Regulatory tailwinds or headwinds"
+      - "Recent funding activity in the space (signal of investor conviction)"
+    flag_low_confidence_when:
+      - "Only company-stated market size available; no independent verification"
+      - "Market definition unclear or company is creating a new category"
+
+  - id: product_technology
+    name: "Product & Technology"
+    mode: machine
+    description: |
+      Quality, defensibility, and differentiation of the product or
+      underlying technology.
+    sources:
+      - data_room
+      - market_research
+      - founder_research
+    criteria:
+      1: "Undifferentiated; significant technical risk or commodity offering."
+      2: "Product works but is incremental; thin technical moat."
+      3: "Solid product, some differentiation; defensibility unclear."
+      4: "Clearly differentiated product with credible technical edge."
+      5: "Genuinely novel approach with deep technical moat or step-change in capability."
+    signals_to_consider:
+      - "What's hard about what they're building? Why hasn't it been done?"
+      - "Technical talent depth (per founder/team research)"
+      - "IP, proprietary data, or other non-replicable advantages"
+      - "Customer reactions to the product itself, not just the pitch"
+    flag_low_confidence_when:
+      - "Product in early development; limited evidence of execution capability"
+
+  - id: traction
+    name: "Traction & Evidence"
+    mode: machine
+    description: |
+      Concrete evidence of demand, usage, and momentum.
+    sources:
+      - data_room
+      - market_research
+    criteria:
+      1: "No meaningful traction; traction claims unsupported."
+      2: "Limited traction; growth slow or unclear."
+      3: "Meaningful early traction; pace consistent with stage."
+      4: "Strong traction relative to stage; momentum building."
+      5: "Outlier traction; metrics in top decile for stage."
+    signals_to_consider:
+      - "ARR, growth rate, retention/churn (with assumptions surfaced)"
+      - "Pipeline quality and sales cycle"
+      - "Usage and engagement (not just signups)"
+      - "Customer references — strong references over strong logos"
+    flag_low_confidence_when:
+      - "Pre-revenue or pre-product"
+      - "Numbers from company materials only; no independent customer verification"
+
+  - id: business_model
+    name: "Business Model & Unit Economics"
+    mode: machine
+    description: |
+      How the company makes money and whether the economics scale.
+    sources:
+      - data_room
+      - market_research
+    criteria:
+      1: "Model unclear or fundamentally broken economics."
+      2: "Model exists but unit economics weak or unproven."
+      3: "Reasonable model; unit economics workable but not exceptional."
+      4: "Strong unit economics with clear path to leverage at scale."
+      5: "Exceptional economics — high gross margins, capital efficient, structural advantages."
+    signals_to_consider:
+      - "Gross margin and trajectory"
+      - "CAC, LTV, payback period (and whether assumptions are credible)"
+      - "Burn vs. runway vs. milestones to next round"
+      - "Revenue concentration risk"
+    flag_low_confidence_when:
+      - "Financial model relies on aggressive assumptions not supported by current data"
+      - "Insufficient operating history to assess economics"
+
+  - id: competition_moat
+    name: "Competitive Position & Moat"
+    mode: machine
+    description: |
+      Who else is in the space, and what makes this company defensible.
+    sources:
+      - market_research
+      - data_room
+    criteria:
+      1: "Crowded space; no clear differentiation; defensibility absent."
+      2: "Competitive space; differentiation marginal."
+      3: "Recognizable position in the market; moat plausible but unproven."
+      4: "Clear competitive position; multiple credible moat sources."
+      5: "Structural advantage — network effects, data moat, regulatory edge, or category-defining position."
+    signals_to_consider:
+      - "Direct competitors, adjacent competitors, incumbents"
+      - "Competitors the company didn't mention (often more important than ones they did)"
+      - "Switching costs, network effects, data advantages"
+      - "Why this team wins this race"
+    flag_low_confidence_when:
+      - "Highly fragmented or rapidly evolving competitive landscape"
+      - "Stealth competitors likely but unknowable"
+
+  - id: team
+    name: "Team"
+    mode: partner_only
+    description: |
+      Founder-market fit, co-founder dynamics, character, motivation,
+      and judgment. By policy this dimension is partner-scored only.
+      Agent leaves the score blank and surfaces partner Q&A answers
+      as supporting context in the team section narrative.
+    sources:
+      - partner_qa
+      - crm_interactions
+      - founder_research   # informational only — never scored by agent
+    criteria:
+      1: "Significant concerns about character, capability, or fit."
+      2: "Real reservations; would need strong offsetting evidence."
+      3: "Capable team; nothing exceptional but no red flags."
+      4: "Strong team with clear founder-market fit and good dynamics."
+      5: "Exceptional founders — judgment, character, drive, and fit are outliers."
+    informed_by_qa_categories:
+      - background_track_record
+      - founder_market_fit
+      - team_dynamics
+      - domain_expertise
+      - personality_character
+    agent_behavior: |
+      Do NOT produce a score for this dimension under any circumstance.
+      Compile partner Q&A answers into the team section narrative.
+      Flag any inconsistencies between partner answers and external
+      founder research for partner attention.
+
+  - id: deal_terms
+    name: "Deal & Terms"
+    mode: hybrid
+    description: |
+      Valuation, round structure, ownership target, and terms relative
+      to the opportunity. Agent drafts based on data room and comps;
+      partner finalizes.
+    sources:
+      - data_room
+      - market_research
+    criteria:
+      1: "Terms inconsistent with opportunity; significant concerns."
+      2: "Terms tight relative to comparables and risk profile."
+      3: "Terms reasonable; not exceptional in either direction."
+      4: "Attractive terms relative to opportunity and comparables."
+      5: "Exceptional entry — terms significantly favorable given stage and traction."
+    signals_to_consider:
+      - "Valuation vs. comparables at stage"
+      - "Round size relative to milestones"
+      - "Ownership target and dilution path"
+      - "Pro rata, board, information rights"
+    flag_low_confidence_when:
+      - "Terms not yet finalized"
+      - "Limited comparable data for stage/sector"
+
+# ---------------------------------------------------------------------------
+# Overall recommendation
+# ---------------------------------------------------------------------------
+
+overall_recommendation:
+  mode: partner_only
+  description: |
+    Per firm convention, the agent does not produce an overall
+    recommendation. It surfaces dimension scores and confidence flags;
+    partners decide.
+  conventional_options:
+    - "Strong yes — proceed to IC"
+    - "Yes with conditions"
+    - "Pass — track"
+    - "Pass"

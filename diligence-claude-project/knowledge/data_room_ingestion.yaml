@@ -1,0 +1,267 @@
+# Memo Agent — Data Room Ingestion Schema
+# Version: 0.1 (draft)
+# Used by: Memo Drafting Agent (Stage 1 — ingestion)
+#
+# Defines: how each document in a Google Drive data room gets parsed
+# into structured claims, what document types we recognize, what we
+# expect to find (so we can flag gaps), and how financial models get
+# special treatment so company projections don't leak in as facts.
+
+meta:
+  version: "0.1"
+  last_updated: "2026-05-06"
+  owner: vendor   # Technical schema; partners review but don't typically edit.
+
+# ---------------------------------------------------------------------------
+# Provenance — every claim from the data room carries this by default
+# ---------------------------------------------------------------------------
+
+provenance_default:
+  source_type: company_stated
+  rationale: |
+    Every claim extracted from the data room is treated as
+    "company-stated" — the company has asserted it; it has NOT been
+    independently verified. The agent must never elevate a
+    company-stated claim to a fact in the memo. Verification belongs
+    to Stage 2 (external research) and Stage 3 (partner Q&A). This
+    is the single most important guardrail in this schema.
+
+# ---------------------------------------------------------------------------
+# Document types
+# ---------------------------------------------------------------------------
+
+document_types:
+  - id: pitch_deck
+    name: "Pitch deck"
+    typical_formats: [pdf, pptx, gslides]
+    typical_content: [problem, solution, market, traction, team, ask]
+    extraction_priority: high
+
+  - id: financial_model
+    name: "Financial model / projections"
+    typical_formats: [xlsx, gsheets]
+    typical_content: [historical_metrics, projections, assumptions, unit_economics]
+    extraction_priority: high
+    special_handling: financial_extraction   # see below
+
+  - id: cap_table
+    name: "Cap table"
+    typical_formats: [xlsx, gsheets, pdf]
+    typical_content: [ownership, option_pool, prior_rounds, preferences]
+    extraction_priority: high
+
+  - id: founder_bios
+    name: "Founder bios / resumes"
+    typical_formats: [pdf, docx]
+    typical_content: [education, prior_roles, exits, publications]
+    extraction_priority: high
+
+  - id: customer_reference
+    name: "Customer reference / case study"
+    typical_formats: [pdf, docx, gdocs, video, audio]
+    typical_content: [customer_name, use_case, outcomes, willingness_to_reference]
+    extraction_priority: high
+
+  - id: product_demo
+    name: "Product demo"
+    typical_formats: [video, mp4, mov]
+    typical_content: [product_walkthrough, ux, capabilities]
+    extraction_priority: medium
+    note: "Transcribe audio; extract feature list and key claims."
+
+  - id: technical_doc
+    name: "Technical architecture / spec"
+    typical_formats: [pdf, docx, gdocs, md]
+    typical_content: [architecture, stack, ip, moat_claims]
+    extraction_priority: medium
+
+  - id: market_analysis_internal
+    name: "Company-prepared market analysis"
+    typical_formats: [pdf, docx, gdocs, pptx]
+    typical_content: [tam_sam_som, competitors, trends]
+    extraction_priority: medium
+    note: |
+      Treat with extra skepticism. Company-prepared analyses tend to be
+      selectively sourced. Flag every claim for verification in Stage 2.
+
+  - id: prior_round_terms
+    name: "Prior round terms / SAFE / agreements"
+    typical_formats: [pdf, docx]
+    typical_content: [valuation, investors, rights, preferences]
+    extraction_priority: high
+
+  - id: hiring_plan
+    name: "Hiring plan"
+    typical_formats: [xlsx, gsheets, pdf]
+    typical_content: [roles, timing, comp_bands]
+    extraction_priority: medium
+
+  - id: roadmap
+    name: "Product roadmap"
+    typical_formats: [pdf, pptx, gsheets]
+    typical_content: [milestones, timing, features]
+    extraction_priority: medium
+
+  - id: whiteboard_or_sketch
+    name: "Whiteboard photo / strategy sketch"
+    typical_formats: [jpg, png, heic]
+    typical_content: [informal_diagrams, strategy_notes]
+    extraction_priority: low
+    note: "OCR plus visual interpretation. Often partial; flag low confidence."
+
+  - id: press_coverage
+    name: "Press coverage / clips"
+    typical_formats: [pdf, link, gdocs]
+    typical_content: [headlines, publication, date, tone]
+    extraction_priority: low
+    note: "Useful as signal, not as fact."
+
+  - id: other
+    name: "Other / unclassified"
+    typical_formats: [any]
+    extraction_priority: low
+    note: "Catch-all. Surface for partner review rather than guessing."
+
+# ---------------------------------------------------------------------------
+# Expected documents — drives gap analysis
+# ---------------------------------------------------------------------------
+
+expected_documents:
+  description: |
+    What we'd typically expect to find in a complete data room. Items
+    not present become entries in the gap_analysis output. Absence
+    isn't necessarily a flag — but it should always be visible.
+  expected:
+    - { id: pitch_deck,         criticality: required }
+    - { id: financial_model,    criticality: required }
+    - { id: cap_table,          criticality: required }
+    - { id: founder_bios,       criticality: required }
+    - { id: customer_reference, criticality: expected }
+    - { id: product_demo,       criticality: expected }
+    - { id: prior_round_terms,  criticality: expected }
+    - { id: hiring_plan,        criticality: optional }
+    - { id: roadmap,            criticality: optional }
+
+# ---------------------------------------------------------------------------
+# Per-document extraction format
+# ---------------------------------------------------------------------------
+
+document_record:
+  fields:
+    - { name: id,                  type: string,   required: true,  note: "Stable per-data-room ID." }
+    - { name: file_name,           type: string,   required: true }
+    - { name: file_format,         type: string,   required: true,  note: "pdf, xlsx, gslides, mp4, etc." }
+    - { name: drive_path,          type: string,   required: true }
+    - { name: drive_file_id,       type: string,   required: true,  note: "Google Drive file ID for traceability." }
+    - { name: detected_type,       type: string,   required: true,  note: "ID from document_types." }
+    - { name: type_confidence,     type: enum,     required: true,  values: [low, medium, high] }
+    - { name: document_date,       type: date,     required: false, note: "Author date if found; else file modified date." }
+    - { name: page_or_slide_count, type: integer,  required: false }
+    - { name: parse_status,        type: enum,     required: true,  values: [parsed, partial, failed, skipped] }
+    - { name: parse_notes,         type: string,   required: false, note: "Why partial/failed (scanned, password-protected, etc.)." }
+    - { name: summary,             type: string,   required: true,  note: "1–3 sentence summary of the document's purpose and content." }
+    - { name: claims,              type: list,     required: false, note: "List of claim_record entries — see below." }
+    - { name: financial_extract,   type: object,   required: false, note: "Only for financial_model; see financial_extraction." }
+
+# ---------------------------------------------------------------------------
+# Claim record — every meaningful assertion extracted from the data room
+# ---------------------------------------------------------------------------
+
+claim_record:
+  description: |
+    A discrete assertion extracted from a document. Each claim is
+    tagged with provenance, the section of the memo it likely feeds,
+    and a verification status the research stage will update.
+  fields:
+    - { name: id,                  type: string,  required: true,  note: "Stable claim ID, e.g. 'pitch_deck_001_claim_03'." }
+    - { name: text,                type: string,  required: true,  note: "The claim, phrased neutrally — strip marketing voice." }
+    - { name: claim_type,          type: enum,    required: true,  values: [metric, market_size, competitive_position, customer_evidence, team_credential, product_capability, financial_projection, other] }
+    - { name: source_document_id,  type: string,  required: true }
+    - { name: source_location,     type: string,  required: false, note: "Page, slide, cell — wherever the claim lives." }
+    - { name: source_type,         type: enum,    required: true,  values: [company_stated, third_party_cited_by_company, customer_quoted_by_company] }
+    - { name: feeds_memo_section,  type: list,    required: true,  note: "Memo sections this claim is likely relevant to." }
+    - { name: verification_status, type: enum,    required: true,  values: [unverified, verification_attempted, verified, contradicted, unverifiable] }
+    - { name: verification_notes,  type: string,  required: false, note: "How and where it was verified, or why not." }
+
+# ---------------------------------------------------------------------------
+# Financial model — special handling
+# ---------------------------------------------------------------------------
+
+financial_extraction:
+  rationale: |
+    Financial models are dense with numbers that look like facts. They
+    are not. Every projection rests on assumptions, and the assumptions
+    are where the actual judgment lives. The agent extracts both, links
+    each metric to its driving assumptions, and surfaces aggressiveness
+    versus historical actuals where comparison is possible. The agent
+    does NOT critique the model — it makes the assumption layer visible
+    so the partner can.
+
+  metrics_to_extract:
+    - { id: arr,             name: "ARR",                   units: currency, historical: required, projected: required }
+    - { id: arr_growth,      name: "ARR growth rate",       units: percent,  historical: required, projected: required }
+    - { id: gross_margin,    name: "Gross margin",          units: percent,  historical: required, projected: required }
+    - { id: net_margin,      name: "Net margin",            units: percent,  historical: optional, projected: optional }
+    - { id: burn,            name: "Net burn (monthly)",    units: currency, historical: required, projected: required }
+    - { id: runway,          name: "Runway (months)",       units: months,   historical: required, projected: required }
+    - { id: cac,             name: "CAC",                   units: currency, historical: optional, projected: optional }
+    - { id: ltv,             name: "LTV",                   units: currency, historical: optional, projected: optional }
+    - { id: ltv_cac,         name: "LTV:CAC ratio",         units: ratio,    historical: optional, projected: optional }
+    - { id: payback_months,  name: "CAC payback (months)",  units: months,   historical: optional, projected: optional }
+    - { id: nrr,             name: "Net revenue retention", units: percent,  historical: optional, projected: optional }
+    - { id: gross_retention, name: "Gross retention",       units: percent,  historical: optional, projected: optional }
+    - { id: headcount,       name: "Headcount",             units: count,    historical: required, projected: required }
+
+  metric_record:
+    fields:
+      - { name: metric_id,           type: string }
+      - { name: value,               type: number_or_range }
+      - { name: period,              type: string,   note: "e.g., 'FY2025', 'Q3 2025', 'projected EOY 2027'." }
+      - { name: is_projection,       type: boolean }
+      - { name: cell_reference,      type: string,   note: "Sheet name + cell, for traceability." }
+      - { name: driving_assumptions, type: list,     note: "List of assumption_record IDs this metric depends on." }
+
+  assumption_record:
+    fields:
+      - { name: id,                     type: string }
+      - { name: text,                   type: string,  note: "The assumption, stated plainly. e.g., 'Sales rep ramps to full quota in 4 months.'" }
+      - { name: cell_reference,         type: string }
+      - { name: assumption_type,        type: enum,    values: [growth_rate, conversion_rate, churn_rate, headcount_plan, pricing, cogs, opex_ratio, other] }
+      - { name: aggressiveness,         type: enum,    values: [conservative, in_line_with_history, optimistic, aggressive, unmarked], note: "Compared to historical actuals where available; 'unmarked' when no historical comparison possible." }
+      - { name: partner_attention_flag, type: boolean, note: "True when the assumption is materially more aggressive than historical actuals." }
+
+  rules:
+    - "Never quote a projected number without surfacing its driving assumptions in the memo or appendix."
+    - "Mark every projection as 'projected' in the memo; do not blur the historical/projected line."
+    - "Flag assumptions materially more aggressive than historical actuals; do not editorialize on whether they are achievable."
+    - "The agent does not score the model. It surfaces structure for partner judgment."
+
+# ---------------------------------------------------------------------------
+# Gap analysis — what's expected but missing
+# ---------------------------------------------------------------------------
+
+gap_analysis:
+  description: |
+    Run after all documents are ingested. Compare detected types
+    against `expected_documents`. Output the list of expected items
+    that were not found, with criticality and implication.
+  output_record:
+    fields:
+      - { name: missing_type,            type: string }
+      - { name: criticality,             type: enum,   values: [required, expected, optional] }
+      - { name: implication,             type: string, note: "What this absence means for the memo (e.g., 'Without a financial model, projections section will be partner-driven only.')." }
+      - { name: partner_recommendation,  type: string, note: "What the agent recommends asking the company for." }
+
+# ---------------------------------------------------------------------------
+# Ingestion output — the artifact handed to Stage 2 (research) and Stage 4 (drafting)
+# ---------------------------------------------------------------------------
+
+ingestion_output:
+  fields:
+    - { name: data_room_id,         type: string,    required: true }
+    - { name: ingestion_date,       type: datetime,  required: true }
+    - { name: documents,            type: list,      required: true,  note: "List of document_record entries." }
+    - { name: claims,               type: list,      required: true,  note: "Flattened list of all claim_record entries across documents." }
+    - { name: financial_summary,    type: object,    required: false, note: "Aggregated financial_extraction across the model(s)." }
+    - { name: gaps,                 type: list,      required: true,  note: "List of gap_analysis entries." }
+    - { name: partner_review_notes, type: string,    required: false, note: "Free text for the agent's overall observations — what surprised it, what's missing, what looked unusual." }

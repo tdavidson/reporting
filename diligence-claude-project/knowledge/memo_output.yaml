@@ -1,0 +1,315 @@
+# Memo Agent — Memo Output Schema
+# Version: 0.1 (draft)
+# Used by: Memo Drafting Agent (Stage 4 — drafting)
+#
+# The agent produces a STRUCTURED object, not a flat document. A
+# separate rendering step converts the structure to a Word doc / Google
+# Doc with inline citations for partner review. Storing the structured
+# intermediate makes provenance, versioning, and partner edits tractable.
+#
+# Source IDs in this file reference:
+#   - claim_id        from data_room_ingestion.yaml
+#   - finding_id      from research_dossier.yaml
+#   - qa_answer_id    captured from partner Q&A (Stage 3)
+#   - assumption_id   from data_room_ingestion.financial_extraction
+#   - dimension_id    from rubric.yaml
+
+meta:
+  version: "0.2"
+  last_updated: "2026-05-10"
+  owner: partners (section structure) + vendor (technical fields)
+  notes: |
+    The agent never produces a "final" memo — only drafts. The schema
+    enforces this. There is no field for "final recommendation" or
+    "approved." Partners produce the recommendation; the renderer
+    marks every memo as DRAFT until partners explicitly finalize.
+
+# ---------------------------------------------------------------------------
+# Memo structure — sections, order, sources, partner-only enforcement
+# ---------------------------------------------------------------------------
+
+memo_structure:
+  description: |
+    Section list. Order matters — partners read top to bottom. Each
+    section declares which inputs feed it and which fields are
+    partner-only.
+
+  sections:
+
+    - id: header
+      title: "Header"
+      kind: metadata
+      fields: [company_name, sector, stage, round_size, deal_lead, memo_date, draft_version, agent_version]
+      partner_only_fields: [deal_lead]
+
+    - id: executive_summary
+      title: "Executive Summary"
+      kind: prose
+      max_paragraphs: 3
+      sources: [claims, findings, scores, qa_answers]
+      guidance: |
+        Headlines the opportunity, the key risks, and the open questions.
+        Does NOT include a recommendation. Does NOT use superlatives or
+        marketing voice. If the company-stated claims and the external
+        findings disagree on a material fact, the executive summary
+        surfaces that disagreement.
+
+    - id: recommendation
+      title: "Recommendation"
+      kind: partner_only
+      agent_behavior: |
+        Leave empty. Insert placeholder: "[Partner to complete]". Do
+        not draft a recommendation, not even tentatively, not even as
+        a "for discussion" suggestion.
+
+    - id: company_overview
+      title: "Company Overview"
+      kind: prose
+      sources: [claims]
+      guidance: "Neutral description from data room. What they do, who they sell to, where they are."
+
+    - id: product
+      title: "Product"
+      kind: prose
+      sources: [claims, findings]
+      feeds_score: product_technology
+      guidance: |
+        What the product actually does, who uses it, the core user
+        flow, and concrete differentiation versus what existed before.
+        Describe screenshots/demos from the data room when present.
+        If the product is in early development, say so explicitly and
+        cite what exists today versus what's promised on the roadmap.
+        Defensibility and technical moat live here too — what's hard
+        about what they're building and why hasn't it been done.
+
+    - id: market
+      title: "Market"
+      kind: prose
+      sources: [claims, findings]
+      feeds_score: market
+      guidance: |
+        State market size and growth with sourcing. If TAM/SAM/SOM is
+        company-stated only, say so explicitly. Independent third-party
+        sources elevate confidence; their absence lowers it.
+
+    - id: traction
+      title: "Traction & Evidence"
+      kind: prose
+      sources: [claims, findings]
+      feeds_score: traction
+      guidance: |
+        Distinguish company-stated metrics from independently verified
+        ones. Customer references compiled from research are surfaced
+        as findings, not as facts.
+
+    - id: business_model
+      title: "Business Model & Financials"
+      kind: prose
+      sources: [claims, findings, financial_assumptions]
+      feeds_score: business_model
+      guidance: |
+        Every projected number must be marked as a projection.
+        Aggressive assumptions (per data_room_ingestion.financial_extraction)
+        appear inline next to the metrics they drive. Do not editorialize
+        on whether assumptions are achievable; surface the comparison
+        to historical actuals.
+
+    - id: team
+      title: "Team"
+      kind: hybrid
+      partner_only_fields: [character_assessment, founder_market_fit_judgment]
+      machine_fields: [factual_summary, prior_work, public_output, references_to_qa]
+      sources: [qa_answers, founder_research]
+      feeds_score: team
+      guidance: |
+        Compile factual material from founder research. Surface partner
+        Q&A answers verbatim where the partner has provided them. Do
+        not score the team. Do not interpret character. Flag any
+        inconsistencies between data room founder bios and external
+        sources for partner attention.
+
+    - id: competition_moat
+      title: "Competition & Moat"
+      kind: prose
+      sources: [claims, findings]
+      feeds_score: competition_moat
+      guidance: |
+        Required to address competitors NOT named by the company. If
+        the agent could not find any, state that explicitly rather
+        than implying the named list is exhaustive.
+
+    - id: outcomes_analysis
+      title: "Outcomes Analysis"
+      kind: hybrid
+      partner_only_fields: [base_case_judgment, upside_thesis, downside_floor, target_ownership]
+      machine_fields: [comparable_exits, revenue_projections_at_exit, implied_valuations]
+      sources: [claims, findings, financial_assumptions]
+      guidance: |
+        Lay out the return scenarios the fund is underwriting to.
+        Pull projected revenue at exit (typically year 5–7) from
+        financial_assumptions and surface the company's own targets
+        alongside any historical trajectory. Compile comparable exits
+        from research findings — recent M&A or IPO outcomes in this
+        space at similar revenue scale, with their exit valuations
+        and revenue multiples. Compute implied exit valuations and
+        the resulting fund return at the current entry valuation for
+        base / upside / downside scenarios. Every forward number is
+        a projection (contains_projection = true). The partner-only
+        fields capture the actual underwriting judgment — agent does
+        not write what to underwrite to, only the inputs.
+
+    - id: deal_terms
+      title: "Deal & Terms"
+      kind: hybrid
+      partner_only_fields: [terms_judgment, comp_analysis_conclusion]
+      sources: [claims, findings]
+      feeds_score: deal_terms
+
+    - id: risks_and_open_questions
+      title: "Risks & Open Questions"
+      kind: prose
+      sources: [claims, findings, contradictions, gaps, partner_attention]
+      guidance: |
+        Pulls directly from contradictions, low-confidence scores,
+        gap_analysis output, and unverified material claims. Aggressive
+        assumptions surface here too.
+
+    - id: scoring_summary
+      title: "Scoring Summary"
+      kind: structured
+      content: score_block_per_dimension
+      sources: [rubric]
+
+    - id: appendix
+      title: "Appendix — Sources & Citations"
+      kind: structured
+      content: citation_map
+
+# ---------------------------------------------------------------------------
+# Paragraph record — the unit of provenance
+# ---------------------------------------------------------------------------
+
+paragraph_record:
+  description: |
+    Every paragraph in a prose section is a paragraph_record. Sources
+    are required. A paragraph with no sources is either partner_only
+    or it shouldn't exist.
+  fields:
+    - { name: id,                        type: string,  required: true }
+    - { name: section_id,                type: string,  required: true }
+    - { name: order,                     type: integer, required: true }
+    - { name: prose,                     type: string,  required: true }
+    - { name: sources,                   type: list,    required: true,  note: "List of source_reference objects (below). Empty list ONLY allowed when origin = partner_only." }
+    - { name: origin,                    type: enum,    required: true,  values: [agent_drafted, partner_drafted, partner_only_placeholder, partner_edited] }
+    - { name: confidence,                type: enum,    required: true,  values: [low, medium, high, n/a] }
+    - { name: contains_projection,       type: boolean, required: true,  note: "True if any forward-looking number appears. Renderer marks the paragraph accordingly." }
+    - { name: contains_unverified_claim, type: boolean, required: true,  note: "True if any source has verification_status of 'unverified' or 'verification_attempted'." }
+    - { name: contains_contradiction,    type: boolean, required: true,  note: "True if the paragraph references a contradiction record." }
+
+source_reference:
+  description: "How a paragraph cites a source."
+  fields:
+    - { name: source_type, type: enum,   values: [claim, finding, qa_answer, assumption, partner_only, gap] }
+    - { name: source_id,   type: string, note: "ID from the corresponding schema. Required unless source_type = partner_only." }
+    - { name: span,        type: string, required: false, note: "Optional inline span the source supports — for sentence-level attribution within a paragraph." }
+
+# ---------------------------------------------------------------------------
+# Score block — per dimension, pulled from rubric.yaml
+# ---------------------------------------------------------------------------
+
+score_block:
+  description: "Per-dimension scoring output. Renders into the Scoring Summary section."
+  fields:
+    - { name: dimension_id,           type: string,   required: true,  note: "ID from rubric.yaml." }
+    - { name: mode,                   type: enum,     required: true,  values: [machine, hybrid, partner_only], note: "Echoed from rubric — agent does not change this." }
+    - { name: score,                  type: integer,  required: false, note: "1–5. NULL when mode = partner_only or when confidence is too low to score." }
+    - { name: confidence,             type: enum,     required: false, values: [low, medium, high], note: "NULL when mode = partner_only." }
+    - { name: rationale,              type: string,   required: true,  note: "1–3 sentence explanation. For partner_only, this is the agent's compiled supporting material, not a score justification." }
+    - { name: supporting_paragraphs,  type: list,     required: true,  note: "Paragraph IDs that feed this score." }
+    - { name: low_confidence_flags,   type: list,     required: false, note: "Which conditions from rubric.flag_low_confidence_when triggered." }
+    - { name: partner_override,       type: object,   required: false, note: "Populated only when partner adjusts. Captures original score, override score, override rationale, override timestamp." }
+
+# ---------------------------------------------------------------------------
+# Partner attention — items requiring partner action before finalization
+# ---------------------------------------------------------------------------
+
+partner_attention:
+  description: |
+    Surfaces issues the partner must address before the memo can be
+    finalized. Drawn from contradictions, low-confidence scores,
+    gaps, missing Q&A, and aggressive assumptions. This is the
+    "what's still unresolved" list.
+  item_record:
+    fields:
+      - { name: id,        type: string,  required: true }
+      - { name: kind,      type: enum,    required: true,  values: [unverified_material_claim, contradiction, data_room_gap, low_confidence_score, missing_qa, aggressive_assumption, partner_only_blank] }
+      - { name: urgency,   type: enum,    required: true,  values: [must_address, should_address, fyi] }
+      - { name: text,      type: string,  required: true }
+      - { name: links,     type: list,    required: true,  note: "Source IDs linking back to the originating record." }
+      - { name: status,    type: enum,    required: true,  values: [open, addressed, deferred], default: open }
+
+# ---------------------------------------------------------------------------
+# Citation map — appendix
+# ---------------------------------------------------------------------------
+
+citation_map:
+  description: |
+    Every source ID referenced anywhere in the memo, with full
+    context. The renderer uses this to produce footnotes that link
+    each in-memo citation to its origin. Partners can audit any
+    sentence back to its source in one click.
+  entry_record:
+    fields:
+      - { name: source_id,         type: string,  required: true }
+      - { name: source_type,       type: enum,    required: true,  values: [claim, finding, qa_answer, assumption, gap] }
+      - { name: text,              type: string,  required: true,  note: "The assertion as captured in its origin schema." }
+      - { name: origin_document,   type: string,  required: false, note: "For claims: data room file name + location. For findings: source URL + publisher." }
+      - { name: confidence,        type: enum,    required: false, values: [low, medium, high] }
+      - { name: verification_status, type: enum,  required: false, values: [unverified, verification_attempted, verified, contradicted, unverifiable], note: "Echoed from claim record." }
+
+# ---------------------------------------------------------------------------
+# Final assembly — what the agent hands off
+# ---------------------------------------------------------------------------
+
+memo_draft_output:
+  description: |
+    Complete agent output for one memo draft. The agent produces this
+    object; the renderer converts to Word/Doc. Every field below is
+    structured; nothing is freeform document text outside paragraph
+    records.
+  fields:
+    - { name: draft_id,         type: string,    required: true }
+    - { name: deal_id,          type: string,    required: true }
+    - { name: draft_date,       type: datetime,  required: true }
+    - { name: draft_version,    type: string,    required: true,  note: "e.g., 'v0.1', 'v0.2 — incorporated partner Q&A'." }
+    - { name: agent_version,    type: string,    required: true,  note: "Schema and prompt version used to produce this draft." }
+    - { name: header,           type: object,    required: true }
+    - { name: sections,         type: list,      required: true,  note: "Ordered list of section objects." }
+    - { name: paragraphs,       type: list,      required: true,  note: "All paragraph_record entries, flat." }
+    - { name: scores,           type: list,      required: true,  note: "All score_block entries — one per rubric dimension." }
+    - { name: partner_attention,type: list,      required: true }
+    - { name: citation_map,     type: list,      required: true }
+    - { name: is_draft,         type: boolean,   required: true,  default: true,  note: "Always true from the agent. Cannot be set to false by the agent under any circumstance." }
+    - { name: agent_notes,      type: string,    required: false, note: "Agent's overall observations: what was hard, what was missing, what the agent is least confident about." }
+
+# ---------------------------------------------------------------------------
+# Hard rules — structural enforcement of the 'draft, don't decide' principle
+# ---------------------------------------------------------------------------
+
+hard_rules:
+  - id: r_001
+    rule: "is_draft is always true in agent output. The agent has no path to set it false."
+  - id: r_002
+    rule: "The recommendation section is partner_only. Agent leaves placeholder; never drafts even as a suggestion."
+  - id: r_003
+    rule: "Every paragraph_record has at least one source unless origin = partner_only_placeholder."
+  - id: r_004
+    rule: "Team dimension score is always NULL in agent output (mode = partner_only per rubric.yaml)."
+  - id: r_005
+    rule: "Every projection appears as a paragraph with contains_projection = true. Renderer marks it visibly."
+  - id: r_006
+    rule: "Contradictions surface in BOTH the relevant section AND the partner_attention list. Never only one."
+  - id: r_007
+    rule: "If the agent cannot find independent verification of a material claim, the paragraph carrying that claim has confidence = low and contains_unverified_claim = true."
+  - id: r_008
+    rule: "Citation map entries are required for every source_id referenced in any paragraph. No floating citations."
