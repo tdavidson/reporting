@@ -14,6 +14,7 @@ import { IngestionSummary } from '@/components/diligence/ingestion-summary'
 import { ResearchSummary } from '@/components/diligence/research-summary'
 import type { IngestionOutput } from '@/lib/memo-agent/stages/ingest'
 import type { ResearchOutput } from '@/lib/memo-agent/stages/research'
+import { uploadDiligenceDocument } from '@/lib/diligence/upload-document'
 
 interface Deal {
   id: string
@@ -281,17 +282,11 @@ function DealRoomTab({ dealId, initialDocuments }: { dealId: string; initialDocu
     if (!files || files.length === 0) return
     setUploading(true)
     for (const file of Array.from(files)) {
-      const formData = new FormData()
-      formData.append('file', file)
       try {
-        const res = await fetch(`/api/diligence/${dealId}/documents`, {
-          method: 'POST',
-          body: formData,
-        })
-        if (res.ok) {
-          const row: DiligenceDocument = await res.json()
-          setDocuments(prev => [row, ...prev])
-        }
+        // Direct-to-storage upload via signed URL — bypasses Vercel's
+        // ~4.5 MB serverless body limit. Bucket caps each file at 100 MB.
+        const row: DiligenceDocument = await uploadDiligenceDocument(dealId, file)
+        setDocuments(prev => [row, ...prev])
       } catch {
         // continue with other files
       }

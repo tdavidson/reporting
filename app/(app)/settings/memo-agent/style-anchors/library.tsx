@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 import { useConfirm } from '@/components/confirm-dialog'
+import { createClient } from '@/lib/supabase/client'
 
 type Confidence = 'unavailable' | 'preliminary' | 'reliable' | 'robust'
 
@@ -180,20 +181,48 @@ function UploadDialog({ open, onOpenChange, onUploaded }: {
     setSubmitting(true)
     setError(null)
     try {
-      const fd = new FormData()
-      fd.append('file', file)
-      if (title.trim()) fd.append('title', title.trim())
-      if (vintageYear.trim()) fd.append('vintage_year', vintageYear.trim())
-      if (sector.trim()) fd.append('sector', sector.trim())
-      fd.append('voice_representativeness', voice)
-      if (partnerNotes.trim()) fd.append('partner_notes', partnerNotes.trim())
+      // Two-step upload to bypass Vercel's ~4.5 MB serverless body limit.
+      // Step 1: get a signed upload URL from the server. The server picks the
+      // storage path (scoped to the fund) and validates the file extension.
+      const urlRes = await fetch('/api/firm/style-anchors/upload-url', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ file_name: file.name }),
+      })
+      if (!urlRes.ok) {
+        const body = await urlRes.json().catch(() => ({}))
+        throw new Error(body.error ?? 'Failed to prepare upload')
+      }
+      const { storage_path, token } = await urlRes.json() as { storage_path: string; token: string }
 
-      const res = await fetch('/api/firm/style-anchors', { method: 'POST', body: fd })
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}))
+      // Step 2: upload directly to Supabase Storage using the signed URL.
+      // The bytes never touch Vercel, so the 4.5 MB body limit doesn't apply.
+      const supabase = createClient()
+      const { error: upErr } = await supabase.storage
+        .from('style-anchor-memos')
+        .uploadToSignedUrl(storage_path, token, file, { contentType: file.type || 'application/octet-stream' })
+      if (upErr) throw new Error(`Upload failed: ${upErr.message}`)
+
+      // Step 3: finalize — record the metadata row and trigger text extraction.
+      // Only the storage path + JSON metadata travel through Vercel here.
+      const finalRes = await fetch('/api/firm/style-anchors', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          storage_path,
+          file_name: file.name,
+          title: title.trim() || undefined,
+          vintage_year: vintageYear.trim() || undefined,
+          sector: sector.trim() || undefined,
+          voice_representativeness: voice,
+          partner_notes: partnerNotes.trim() || undefined,
+        }),
+      })
+      if (!finalRes.ok) {
+        const body = await finalRes.json().catch(() => ({}))
         throw new Error(body.error ?? 'Upload failed')
       }
-      const row: AnchorListItem = await res.json()
+      const row: AnchorListItem = await finalRes.json()
       onUploaded(row)
       // Reset form
       setFile(null); setTitle(''); setVintageYear(''); setSector(''); setVoice('representative'); setPartnerNotes('')

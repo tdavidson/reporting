@@ -8,6 +8,7 @@ import { useFeatureVisibility } from '@/components/feature-visibility-context'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
+import { uploadDiligenceDocument } from '@/lib/diligence/upload-document'
 
 interface Deal {
   id: string
@@ -219,13 +220,10 @@ function NewDealDialog({ open, onOpenChange, onCreated }: {
       if (files.length > 0) {
         setUploadProgress({ done: 0, total: files.length })
         for (let i = 0; i < files.length; i++) {
-          const formData = new FormData()
-          formData.append('file', files[i])
           try {
-            await fetch(`/api/diligence/${created.id}/documents`, {
-              method: 'POST',
-              body: formData,
-            })
+            // Direct-to-storage upload via signed URL — bypasses Vercel's
+            // ~4.5 MB serverless body limit. Files up to 100 MB now work.
+            await uploadDiligenceDocument(created.id, files[i])
           } catch {
             // Continue with remaining files; partner can re-upload via Deal Room.
           }

@@ -41,55 +41,111 @@ export async function POST(req: NextRequest) {
   if ('error' in guard) return guard.error
   const { admin, fundId, userId } = guard
 
-  let formData: FormData
-  try {
-    formData = await req.formData()
-  } catch {
-    return NextResponse.json({ error: 'Expected multipart/form-data' }, { status: 400 })
-  }
+  // Two acceptance modes:
+  //   1. multipart/form-data with `file` — legacy small-upload path (≤4.5 MB
+  //      due to Vercel's serverless body limit). Kept for backwards compat.
+  //   2. JSON with `storage_path` — the file was already uploaded directly to
+  //      Supabase Storage via a signed URL. No file body transits Vercel, so
+  //      this path works for the full 20 MB bucket limit. The signed URL is
+  //      issued by /api/firm/style-anchors/upload-url.
+  const contentType = req.headers.get('content-type') ?? ''
 
-  const file = formData.get('file')
-  if (!(file instanceof File)) {
-    return NextResponse.json({ error: 'file is required' }, { status: 400 })
-  }
-  if (file.size === 0) return NextResponse.json({ error: 'Empty file' }, { status: 400 })
-  if (file.size > MAX_BYTES) {
-    return NextResponse.json({ error: 'File exceeds 20 MB limit' }, { status: 400 })
-  }
+  let safeName: string
+  let ext: string
+  let storagePath: string
+  let fileSize: number
+  let buffer: Buffer
+  let formMeta: FormData | null = null
 
-  const safeName = file.name.replace(/[\/\\:*?"<>|]/g, '_').replace(/\.\./g, '_').slice(0, 200)
-  const ext = (safeName.match(/\.([a-z0-9]+)$/i)?.[1] ?? '').toLowerCase()
-  if (!ALLOWED_FORMATS.includes(ext as any)) {
-    return NextResponse.json({
-      error: `Unsupported format ".${ext}". Allowed: PDF, DOCX, MD.`,
-    }, { status: 400 })
-  }
+  if (contentType.includes('application/json')) {
+    const body = await req.json().catch(() => ({}))
+    if (typeof body.storage_path !== 'string') {
+      return NextResponse.json({ error: 'storage_path is required' }, { status: 400 })
+    }
+    storagePath = body.storage_path
+    // The path must live under the caller's fund folder. Server issued the
+    // signed URL with this constraint, but we re-check here defensively.
+    if (!storagePath.startsWith(`${fundId}/`)) {
+      return NextResponse.json({ error: 'storage_path outside fund folder' }, { status: 400 })
+    }
+    safeName = (typeof body.file_name === 'string' ? body.file_name : storagePath.split('/').pop() ?? '')
+      .replace(/[\/\\:*?"<>|]/g, '_').replace(/\.\./g, '_').slice(0, 200)
+    ext = (safeName.match(/\.([a-z0-9]+)$/i)?.[1] ?? '').toLowerCase()
+    if (!ALLOWED_FORMATS.includes(ext as any)) {
+      return NextResponse.json({ error: `Unsupported format ".${ext}". Allowed: PDF, DOCX, MD.` }, { status: 400 })
+    }
 
-  // Read the file once.
-  const buffer = Buffer.from(await file.arrayBuffer())
-  const storagePath = `${fundId}/${Date.now()}_${safeName}`
+    // Fetch the uploaded file from storage so we can run text extraction.
+    const { data: downloaded, error: dlErr } = await admin.storage
+      .from('style-anchor-memos')
+      .download(storagePath)
+    if (dlErr || !downloaded) {
+      return NextResponse.json({ error: `Failed to read uploaded file: ${dlErr?.message ?? 'unknown'}` }, { status: 500 })
+    }
+    buffer = Buffer.from(await downloaded.arrayBuffer())
+    fileSize = buffer.length
+    if (fileSize === 0) return NextResponse.json({ error: 'Empty file' }, { status: 400 })
+    if (fileSize > MAX_BYTES) return NextResponse.json({ error: 'File exceeds 20 MB limit' }, { status: 400 })
 
-  // Upload to storage first; if extraction fails we still keep the file so
-  // the partner can retry text extraction later.
-  const { error: uploadErr } = await admin.storage
-    .from('style-anchor-memos')
-    .upload(storagePath, buffer, { contentType: file.type || 'application/octet-stream', upsert: false })
-  if (uploadErr) {
-    return NextResponse.json({ error: `Upload failed: ${uploadErr.message}` }, { status: 500 })
+    // Metadata travels as siblings of storage_path in JSON.
+    formMeta = new FormData()
+    for (const key of ['title', 'vintage_year', 'vintage_quarter', 'sector', 'deal_stage_at_writing', 'outcome', 'conviction_at_writing', 'voice_representativeness', 'authorship', 'author_initials', 'partner_notes']) {
+      if (typeof body[key] === 'string' && body[key]) formMeta.append(key, body[key])
+    }
+    if (Array.isArray(body.focus_attention_on)) formMeta.append('focus_attention_on', body.focus_attention_on.join(','))
+    if (Array.isArray(body.deprioritize_in_this_memo)) formMeta.append('deprioritize_in_this_memo', body.deprioritize_in_this_memo.join(','))
+    if (typeof body.anonymized === 'boolean') formMeta.append('anonymized', String(body.anonymized))
+  } else {
+    // Legacy multipart path for files under Vercel's body limit.
+    let formData: FormData
+    try {
+      formData = await req.formData()
+    } catch {
+      return NextResponse.json({ error: 'Expected multipart/form-data or application/json' }, { status: 400 })
+    }
+
+    const file = formData.get('file')
+    if (!(file instanceof File)) {
+      return NextResponse.json({ error: 'file is required' }, { status: 400 })
+    }
+    if (file.size === 0) return NextResponse.json({ error: 'Empty file' }, { status: 400 })
+    if (file.size > MAX_BYTES) {
+      return NextResponse.json({ error: 'File exceeds 20 MB limit' }, { status: 400 })
+    }
+
+    safeName = file.name.replace(/[\/\\:*?"<>|]/g, '_').replace(/\.\./g, '_').slice(0, 200)
+    ext = (safeName.match(/\.([a-z0-9]+)$/i)?.[1] ?? '').toLowerCase()
+    if (!ALLOWED_FORMATS.includes(ext as any)) {
+      return NextResponse.json({
+        error: `Unsupported format ".${ext}". Allowed: PDF, DOCX, MD.`,
+      }, { status: 400 })
+    }
+
+    buffer = Buffer.from(await file.arrayBuffer())
+    fileSize = file.size
+    storagePath = `${fundId}/${Date.now()}_${safeName}`
+
+    const { error: uploadErr } = await admin.storage
+      .from('style-anchor-memos')
+      .upload(storagePath, buffer, { contentType: file.type || 'application/octet-stream', upsert: false })
+    if (uploadErr) {
+      return NextResponse.json({ error: `Upload failed: ${uploadErr.message}` }, { status: 500 })
+    }
+    formMeta = formData
   }
 
   // Run text extraction inline. ≤20 MB fits comfortably in a Vercel function.
   const text = await extractText(buffer, ext)
 
   // Pull metadata fields off the form (all optional).
-  const meta = readMeta(formData)
+  const meta = readMeta(formMeta!)
 
   const insert: Record<string, unknown> = {
     fund_id: fundId,
     storage_path: storagePath,
     file_name: safeName,
     file_format: ext === 'markdown' ? 'md' : (ext === 'txt' ? 'md' : ext),
-    file_size_bytes: file.size,
+    file_size_bytes: fileSize,
     extracted_text: text,
     extracted_at: text ? new Date().toISOString() : null,
     uploaded_by: userId,
