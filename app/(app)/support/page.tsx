@@ -689,9 +689,9 @@ export default function SupportPage() {
             The agent is operated by <strong>seven YAML/MD configuration files</strong> (&ldquo;schemas&rdquo;)
             that admins edit per-fund through an in-app editor under Settings &rarr; Diligence &rarr; Schemas:
             instructions, rubric, qa_library, data_room_ingestion, research_dossier, memo_output, and
-            style_anchors. The schema editor uses Monaco with inline YAML validation and version history;
-            rolling back to a prior version is one click. Defaults are seeded automatically the first time
-            you open the editor, so you can run the agent immediately and customize as you go.
+            style_anchors. The schema editor is a plain-text editor with inline YAML syntax validation and
+            version history; rolling back to a prior version is one click. Defaults are seeded automatically
+            the first time you open the editor, so you can run the agent immediately and customize as you go.
           </p>
           <p className="text-muted-foreground mb-2">
             <strong>Style Anchors</strong> are uploaded reference memos that teach the agent your firm&apos;s

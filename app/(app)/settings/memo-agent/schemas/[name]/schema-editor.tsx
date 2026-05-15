@@ -1,15 +1,11 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import dynamic from 'next/dynamic'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, Save, Loader2, AlertCircle, Clock, RotateCcw, Check, AlertTriangle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useConfirm } from '@/components/confirm-dialog'
-
-const MonacoEditor = dynamic(() => import('@monaco-editor/react').then(m => m.default), { ssr: false })
-const MonacoDiffEditor = dynamic(() => import('@monaco-editor/react').then(m => m.DiffEditor), { ssr: false })
 
 interface ValidationError {
   message: string
@@ -65,7 +61,6 @@ export function SchemaEditor({ schemaName, initialContent, initialVersion }: {
   const [diffAgainst, setDiffAgainst] = useState<HistoryEntry | null>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const language = schemaName === 'instructions' ? 'markdown' : 'yaml'
   const dirty = content !== initialContent
 
   const validate = useCallback(async (yaml: string) => {
@@ -158,15 +153,6 @@ export function SchemaEditor({ schemaName, initialContent, initialVersion }: {
     }
   }
 
-  const monacoOptions = useMemo(() => ({
-    minimap: { enabled: false },
-    fontSize: 13,
-    wordWrap: 'on' as const,
-    scrollBeyondLastLine: false,
-    automaticLayout: true,
-    tabSize: 2,
-  }), [])
-
   return (
     <div className="p-4 md:py-8 md:pl-8 md:pr-4 max-w-6xl">
       <Link href="/settings/memo-agent/schemas" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mb-4">
@@ -191,25 +177,41 @@ export function SchemaEditor({ schemaName, initialContent, initialVersion }: {
 
       <div className={`grid gap-4 ${showHistory ? 'lg:grid-cols-[1fr_280px]' : ''}`}>
         <div>
-          <div className="rounded-md border overflow-hidden bg-card">
-            {diffAgainst ? (
-              <MonacoDiffEditor
-                height="60vh"
-                language={language}
-                original={diffAgainst.yaml_content}
-                modified={content}
-                options={{ ...monacoOptions, readOnly: true }}
-              />
-            ) : (
-              <MonacoEditor
-                height="60vh"
-                language={language}
-                value={content}
-                onChange={v => setContent(v ?? '')}
-                options={monacoOptions}
-              />
-            )}
-          </div>
+          {diffAgainst ? (
+            // Side-by-side read-only view of the historical version vs the
+            // current draft. Plain monospace textareas — no syntax highlight,
+            // no line-level diff, just two scrollable panes the partner can
+            // eyeball. Sufficient for the actual frequency of comparison
+            // (rarely) without the Monaco bundle weight.
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+              <div>
+                <div className="text-[11px] font-medium text-muted-foreground mb-1 font-mono">{diffAgainst.schema_version} (historical)</div>
+                <textarea
+                  readOnly
+                  value={diffAgainst.yaml_content}
+                  className="w-full font-mono text-xs leading-relaxed rounded-md border bg-muted/30 p-3 resize-none focus:outline-none"
+                  style={{ height: '60vh' }}
+                />
+              </div>
+              <div>
+                <div className="text-[11px] font-medium text-muted-foreground mb-1 font-mono">{version} (current draft)</div>
+                <textarea
+                  readOnly
+                  value={content}
+                  className="w-full font-mono text-xs leading-relaxed rounded-md border bg-muted/30 p-3 resize-none focus:outline-none"
+                  style={{ height: '60vh' }}
+                />
+              </div>
+            </div>
+          ) : (
+            <textarea
+              value={content}
+              onChange={e => setContent(e.target.value)}
+              spellCheck={false}
+              className="w-full font-mono text-xs leading-relaxed rounded-md border bg-card p-3 resize-none focus:outline-none focus:ring-1 focus:ring-ring"
+              style={{ height: '60vh' }}
+            />
+          )}
 
           {errors.length > 0 && (
             <div className="mt-3 rounded-md border border-destructive/50 bg-destructive/5 p-3">

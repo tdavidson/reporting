@@ -28,9 +28,9 @@ export default function DiligenceExplainerPage() {
         edit per-fund through an in-app editor: instructions (operating manual), rubric (scoring
         dimensions), qa_library (partner Q&amp;A pool), data_room_ingestion (per-document extraction
         rules), research_dossier (external research scope), memo_output (memo structure), and
-        style_anchors (metadata for uploaded reference memos). The schema editor uses Monaco with
-        inline YAML validation and version history. Defaults are seeded automatically the first
-        time you open the editor.
+        style_anchors (metadata for uploaded reference memos). The schema editor is a plain-text editor
+        with inline YAML syntax validation and version history. Defaults are seeded automatically the
+        first time you open the editor.
       </p>
       <p className="text-muted-foreground">
         Style Anchors are uploaded reference memos that teach the agent your firm&apos;s voice.
