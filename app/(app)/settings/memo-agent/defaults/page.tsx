@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { DefaultsEditor } from './editor'
 
-export const metadata: Metadata = { title: 'Memo Agent — Defaults' }
+export const metadata: Metadata = { title: 'Diligence Defaults' }
 
 export default async function DefaultsPage() {
   const supabase = createClient()

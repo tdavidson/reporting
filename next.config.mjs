@@ -5,6 +5,15 @@ const nextConfig = {
   experimental: {
     serverComponentsExternalPackages: ['@sparticuz/chromium', 'puppeteer-core'],
   },
+  // Include the memo-agent default schema files in the serverless function
+  // bundle. Without this, `fs.readFile` calls inside `ensureDefaults` silently
+  // return null in production (the YAML/MD files aren't traced), so a fresh
+  // fund sees every schema marked "not yet seeded" and the schema editor loads
+  // empty content. The trace is keyed `/**` so every route that imports
+  // firm-schemas.ts gets the files — schemas page, agent stages, render job.
+  outputFileTracingIncludes: {
+    '/**': ['./lib/memo-agent/defaults/**/*'],
+  },
   async headers() {
     const securityHeaders = [
       { key: 'X-Frame-Options', value: 'DENY' },

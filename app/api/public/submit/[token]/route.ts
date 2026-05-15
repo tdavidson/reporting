@@ -7,6 +7,11 @@ import { processDeal } from '@/lib/pipeline/processDeal'
 import type { PostmarkPayload as PipelinePayload } from '@/lib/pipeline/processEmail'
 import { rateLimit } from '@/lib/rate-limit'
 
+import {
+  MAX_NAME_LEN, MAX_EMAIL_LEN, MAX_URL_LEN, MAX_PITCH_LEN,
+  EMAIL_RE, safeWebUrl, sanitizeFilename, validateAttachmentType,
+} from '@/lib/deals/submission-validation'
+
 const MAX_FILE_BYTES = 10 * 1024 * 1024
 const MIN_PITCH_LEN = 50
 
@@ -49,20 +54,32 @@ export async function POST(req: NextRequest, { params }: { params: { token: stri
     return NextResponse.json({ ok: true })
   }
 
-  const companyName = body.companyName?.trim() ?? ''
-  const founderName = body.founderName?.trim() ?? ''
-  const founderEmail = body.founderEmail?.trim().toLowerCase() ?? ''
-  const pitch = body.pitch?.trim() ?? ''
-  const companyUrl = body.companyUrl?.trim() ?? ''
+  const companyName = (body.companyName?.trim() ?? '').slice(0, MAX_NAME_LEN)
+  const founderName = (body.founderName?.trim() ?? '').slice(0, MAX_NAME_LEN)
+  const founderEmail = (body.founderEmail?.trim().toLowerCase() ?? '').slice(0, MAX_EMAIL_LEN)
+  const pitch = (body.pitch?.trim() ?? '').slice(0, MAX_PITCH_LEN)
+  const rawCompanyUrl = (body.companyUrl?.trim() ?? '').slice(0, MAX_URL_LEN)
 
   if (!companyName || !founderName || !founderEmail || !pitch) {
     return NextResponse.json({ error: 'Required fields missing' }, { status: 400 })
   }
-  if (!founderEmail.includes('@')) {
+  if (!EMAIL_RE.test(founderEmail)) {
     return NextResponse.json({ error: 'Invalid email' }, { status: 400 })
   }
   if (pitch.length < MIN_PITCH_LEN) {
     return NextResponse.json({ error: `Pitch must be at least ${MIN_PITCH_LEN} characters` }, { status: 400 })
+  }
+
+  // Validate and normalize the website URL. Reject anything that isn't
+  // http(s) — `javascript:`, `data:`, `file:` etc. would otherwise be stored
+  // and later rendered into an <a href>, opening a stored-XSS path.
+  let companyUrl = ''
+  if (rawCompanyUrl) {
+    const normalized = safeWebUrl(rawCompanyUrl)
+    if (!normalized) {
+      return NextResponse.json({ error: 'Website URL must start with http:// or https://' }, { status: 400 })
+    }
+    companyUrl = normalized
   }
 
   // Validate attachment if present.
@@ -75,8 +92,11 @@ export async function POST(req: NextRequest, { params }: { params: { token: stri
     if (raw.length === 0 || raw.length > MAX_FILE_BYTES) {
       return NextResponse.json({ error: 'Attachment too large' }, { status: 400 })
     }
+    const safeName = sanitizeFilename(body.attachment.name)
+    const typeErr = validateAttachmentType(safeName, body.attachment.contentType)
+    if (typeErr) return NextResponse.json({ error: typeErr.message }, { status: 400 })
     attachment = {
-      Name: body.attachment.name.replace(/[\/\\:*?"<>|]/g, '_').slice(0, 200),
+      Name: safeName,
       ContentType: body.attachment.contentType,
       Content: body.attachment.data,
       ContentLength: raw.length,

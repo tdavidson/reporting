@@ -7,7 +7,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { ensureDefaults, getActiveSchemas } from '@/lib/memo-agent/firm-schemas'
 import { SCHEMA_NAMES, type SchemaName } from '@/lib/memo-agent/validate'
 
-export const metadata: Metadata = { title: 'Memo Agent — Schemas' }
+export const metadata: Metadata = { title: 'Diligence Schemas' }
 
 const SCHEMA_LABELS: Record<SchemaName, { label: string; description: string }> = {
   rubric: { label: 'Rubric', description: 'Scoring dimensions, scale, criteria' },
@@ -41,7 +41,7 @@ export default async function SchemasIndexPage() {
       <Link href="/settings" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mb-4">
         <ArrowLeft className="h-3.5 w-3.5" /> Back to settings
       </Link>
-      <h1 className="text-2xl font-semibold tracking-tight mb-1">Memo Agent — Schemas</h1>
+      <h1 className="text-2xl font-semibold tracking-tight mb-1">Diligence Schemas</h1>
       <p className="text-sm text-muted-foreground mb-6 max-w-2xl">
         These seven YAML/MD files configure how the agent screens deals, runs research, asks Q&amp;A,
         scores per your rubric, and assembles memos. Edit any schema, validate inline, save versions,

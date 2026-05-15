@@ -19,7 +19,7 @@ Forward investor updates in any format — PDF, Excel, PowerPoint, plain text �
 - **LP reporting** — Export clean data or use built-in templates for professional presentation
 - **Lightweight CRM** - Track intros, strategy, qualitative value-adds to demonstrate how you work with your portfolio
 - **Inbound deal screening** — Cold pitches and partner-forwarded intros sent to your inbound address get classified, fit-scored against your thesis, and queued in a Deals pipeline. Optional public submission form for founders.
-- **Diligence + Memo Agent** — Pre-investment record-keeping with an AI agent that ingests the data room, runs external research, asks partner Q&A, drafts a structured memo with paragraph-level provenance, and renders to Word or Google Docs. Schemas (rubric, Q&A library, memo structure) are partner-editable per fund.
+- **Diligence** — Pre-investment record-keeping with a schema-driven AI agent that ingests the data room, runs external research, asks partner Q&A, drafts a structured memo with paragraph-level provenance, and renders to Word or Google Docs. Schemas (rubric, Q&A library, memo structure) are partner-editable per fund.
 
 > Detailed feature descriptions at [FEATURES](./FEATURES.md)
 

@@ -37,19 +37,27 @@ export async function middleware(request: NextRequest) {
     !!process.env.MARKETING_DEPLOYMENT_KEY
 
   const isMarketingRoute = pathname === '/' || pathname === '/license' || pathname === '/demo' || pathname === '/contact' || pathname === '/terms' || pathname === '/privacy' || pathname === '/pricing' || pathname.endsWith('-explainer')
-  const isPublicRoute = marketingEnabled && isMarketingRoute
+  const isPublicMarketingRoute = marketingEnabled && isMarketingRoute
+
+  // Token-gated public surfaces — always reachable regardless of the marketing
+  // site flag. The token in the URL is the auth: a fund admin generates it
+  // in Settings and shares the resulting link with founders. The page itself
+  // 404s if the token doesn't resolve or `deal_intake_enabled` is false on the
+  // fund, so the URL alone isn't enough to abuse the endpoint.
+  const isPublicTokenRoute = pathname.startsWith('/submit/')
 
   const isSetupRoute = pathname === '/setup' && process.env.ENABLE_SETUP_PAGE === 'true'
 
-  // Unauthenticated users can only access /auth, API, public, and setup routes
-  if (!user && !isAuthRoute && !isApiRoute && !isPublicRoute && !isSetupRoute) {
+  // Unauthenticated users can only access /auth, API, marketing pages (if
+  // enabled), the token-gated public submit form, and setup routes.
+  if (!user && !isAuthRoute && !isApiRoute && !isPublicMarketingRoute && !isPublicTokenRoute && !isSetupRoute) {
     const url = request.nextUrl.clone()
     url.pathname = '/auth'
     return NextResponse.redirect(url)
   }
 
   // Enforce MFA: redirect to verify page if user has enrolled TOTP but hasn't completed AAL2
-  if (user && !isAuthRoute && !isPublicRoute) {
+  if (user && !isAuthRoute && !isPublicMarketingRoute && !isPublicTokenRoute) {
     const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel()
     if (aal && aal.nextLevel === 'aal2' && aal.currentLevel !== 'aal2') {
       if (isApiRoute) {

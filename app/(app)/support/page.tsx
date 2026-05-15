@@ -680,14 +680,14 @@ export default function SupportPage() {
           </h2>
           <p className="text-muted-foreground mb-2">
             Diligence is the pre-investment workflow: when a deal is worth real time, you create a diligence
-            record, upload the data room, and run a schema-driven <strong>Memo Agent</strong> that ingests the
+            record, upload the data room, and run a schema-driven agent that ingests the
             documents, conducts external research, asks partner Q&amp;A, drafts a structured memo, scores it
-            per your rubric, and renders to Word or Google Docs. Each diligence record has tabs for Overview,
-            Deal Room (uploaded files), Drafts (memo versions), Q&amp;A, Research, and Notes.
+            per your rubric, and renders to Word or Google Docs. Each diligence record has tabs for Decision,
+            Data Room (uploaded files), Diligence (external research), Partner Q&amp;A, and Memo (drafts).
           </p>
           <p className="text-muted-foreground mb-2">
             The agent is operated by <strong>seven YAML/MD configuration files</strong> (&ldquo;schemas&rdquo;)
-            that admins edit per-fund through an in-app editor under Settings &rarr; Memo Agent &rarr; Schemas:
+            that admins edit per-fund through an in-app editor under Settings &rarr; Diligence &rarr; Schemas:
             instructions, rubric, qa_library, data_room_ingestion, research_dossier, memo_output, and
             style_anchors. The schema editor uses Monaco with inline YAML validation and version history;
             rolling back to a prior version is one click. Defaults are seeded automatically the first time
@@ -695,7 +695,7 @@ export default function SupportPage() {
           </p>
           <p className="text-muted-foreground mb-2">
             <strong>Style Anchors</strong> are uploaded reference memos that teach the agent your firm&apos;s
-            voice. Upload 3&ndash;8 prior memos in Settings &rarr; Memo Agent &rarr; Style Anchors, tag each
+            voice. Upload 3&ndash;8 prior memos in Settings &rarr; Diligence &rarr; Style Anchors, tag each
             with vintage, sector, voice representativeness, and partner notes, and the agent uses them to
             match structure and tone during drafting. Reference memos teach voice &mdash; they never supply
             facts to a new memo.
@@ -719,11 +719,11 @@ export default function SupportPage() {
             Recommendation and team scoring are partner-only and can never be set by the agent.
           </p>
           <p className="text-muted-foreground">
-            Across all your active deals, the <strong>Memo Inbox</strong> aggregates open partner-attention
+            Across all your active deals, the <strong>Inbox</strong> aggregates open partner-attention
             items so you can triage them in one pass. The <strong>Analytics</strong> view shows the agent
             funnel (created &rarr; ingestion &rarr; research &rarr; Q&amp;A &rarr; draft &rarr; finalized
             &rarr; won) with drop-off percentages, time-in-stage medians, win/loss by sector, and throughput
-            per lead partner. Settings &rarr; Memo Agent &rarr; Defaults sets per-deal and monthly token caps
+            per lead partner. Settings &rarr; Diligence &rarr; Defaults sets per-deal and monthly token caps
             (with current-month usage bar) and per-stage AI provider overrides &mdash; e.g. cheap model for
             ingest, stronger model for draft.
           </p>

@@ -4,7 +4,7 @@ import { ExplainerContent } from '../explainer-content'
 
 export const metadata = ogMetadata({
   title: 'Diligence',
-  description: 'Pre-investment workflow with a schema-driven Memo Agent that ingests the data room, runs research, asks partner Q&A, drafts a structured memo with paragraph-level provenance, and renders to Word or Google Docs.',
+  description: 'Pre-investment workflow with a schema-driven agent that ingests the data room, runs research, asks partner Q&A, drafts a structured memo with paragraph-level provenance, and renders to Word or Google Docs.',
 })
 
 export default function DiligenceExplainerPage() {
@@ -17,11 +17,11 @@ export default function DiligenceExplainerPage() {
     >
       <p className="text-muted-foreground">
         Diligence is the pre-investment workflow: when a deal is worth real time, you create a
-        diligence record, upload the data room, and run a schema-driven Memo Agent that ingests
+        diligence record, upload the data room, and run a schema-driven agent that ingests
         the documents, conducts external research, asks partner Q&amp;A, drafts a structured memo,
         scores it per your rubric, and renders to Word or Google Docs. Each diligence record has
-        tabs for Overview, Deal Room (uploaded files), Drafts (memo versions), Q&amp;A, Research,
-        and Notes.
+        tabs for Decision, Data Room (uploaded files), Diligence (external research), Partner
+        Q&amp;A, and Memo (drafts).
       </p>
       <p className="text-muted-foreground">
         The agent is operated by seven YAML/MD configuration files (&ldquo;schemas&rdquo;) that admins
@@ -58,7 +58,7 @@ export default function DiligenceExplainerPage() {
         be set by the agent.
       </p>
       <p className="text-muted-foreground">
-        Across all your active deals, the Memo Inbox aggregates open partner-attention items so
+        Across all your active deals, the Inbox aggregates open partner-attention items so
         you can triage them in one pass. The Analytics view shows the agent funnel with drop-off
         percentages, time-in-stage medians, win/loss by sector, and throughput per lead partner.
         Defaults under Settings sets per-deal and monthly token caps and per-stage AI provider

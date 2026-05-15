@@ -6,6 +6,10 @@ import { createFundAIProvider } from '@/lib/ai'
 import { extractAttachmentText, type PostmarkPayload } from '@/lib/parsing/extractAttachmentText'
 import { processDeal } from '@/lib/pipeline/processDeal'
 import type { PostmarkPayload as PipelinePayload } from '@/lib/pipeline/processEmail'
+import {
+  MAX_NAME_LEN, MAX_EMAIL_LEN, MAX_URL_LEN, MAX_PITCH_LEN,
+  EMAIL_RE, safeWebUrl, sanitizeFilename, validateAttachmentType,
+} from '@/lib/deals/submission-validation'
 
 const MAX_FILE_BYTES = 10 * 1024 * 1024
 const MAX_FILES = 10
@@ -49,20 +53,34 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Expected multipart/form-data' }, { status: 400 })
   }
 
-  const companyName = String(form.get('company_name') ?? '').trim()
-  const founderName = String(form.get('founder_name') ?? '').trim()
-  const founderEmail = String(form.get('founder_email') ?? '').trim().toLowerCase()
-  const companyUrl = String(form.get('company_url') ?? '').trim()
-  const introSource = String(form.get('intro_source') ?? '').trim()
-  const referrerName = String(form.get('referrer_name') ?? '').trim()
-  const referrerEmail = String(form.get('referrer_email') ?? '').trim()
-  const pitch = String(form.get('pitch') ?? '').trim()
+  const companyName = String(form.get('company_name') ?? '').trim().slice(0, MAX_NAME_LEN)
+  const founderName = String(form.get('founder_name') ?? '').trim().slice(0, MAX_NAME_LEN)
+  const founderEmail = String(form.get('founder_email') ?? '').trim().toLowerCase().slice(0, MAX_EMAIL_LEN)
+  const rawCompanyUrl = String(form.get('company_url') ?? '').trim().slice(0, MAX_URL_LEN)
+  const introSource = String(form.get('intro_source') ?? '').trim().slice(0, MAX_NAME_LEN)
+  const referrerName = String(form.get('referrer_name') ?? '').trim().slice(0, MAX_NAME_LEN)
+  const referrerEmail = String(form.get('referrer_email') ?? '').trim().slice(0, MAX_EMAIL_LEN)
+  const pitch = String(form.get('pitch') ?? '').trim().slice(0, MAX_PITCH_LEN)
 
   if (!companyName || !founderName || !founderEmail || !pitch) {
     return NextResponse.json({ error: 'company_name, founder_name, founder_email, and pitch are required' }, { status: 400 })
   }
-  if (!founderEmail.includes('@')) {
+  if (!EMAIL_RE.test(founderEmail)) {
     return NextResponse.json({ error: 'Invalid founder email' }, { status: 400 })
+  }
+  if (referrerEmail && !EMAIL_RE.test(referrerEmail)) {
+    return NextResponse.json({ error: 'Invalid referrer email' }, { status: 400 })
+  }
+
+  // Validate and normalize the website URL — only http(s) accepted so we
+  // don't store `javascript:` URLs that would later render as <a href>.
+  let companyUrl = ''
+  if (rawCompanyUrl) {
+    const normalized = safeWebUrl(rawCompanyUrl)
+    if (!normalized) {
+      return NextResponse.json({ error: 'company_url must be a valid http(s) URL' }, { status: 400 })
+    }
+    companyUrl = normalized
   }
 
   // Collect file entries (FormData.getAll for 'files' returns all entries).
@@ -74,6 +92,9 @@ export async function POST(req: NextRequest) {
     if (f.size > MAX_FILE_BYTES) {
       return NextResponse.json({ error: `${f.name} exceeds ${MAX_FILE_BYTES / (1024 * 1024)}MB` }, { status: 400 })
     }
+    const safeName = sanitizeFilename(f.name || 'untitled')
+    const typeErr = validateAttachmentType(safeName, f.type || 'application/octet-stream')
+    if (typeErr) return NextResponse.json({ error: `${f.name}: ${typeErr.message}` }, { status: 400 })
   }
 
   // Build the synthetic payload. Compose pitch + referral metadata so the
@@ -95,7 +116,7 @@ export async function POST(req: NextRequest) {
   for (const file of fileEntries) {
     const buf = Buffer.from(await file.arrayBuffer())
     attachments.push({
-      Name: (file.name || 'untitled').replace(/[\/\\:*?"<>|]/g, '_').slice(0, 200),
+      Name: sanitizeFilename(file.name || 'untitled'),
       ContentType: file.type || 'application/octet-stream',
       Content: buf.toString('base64'),
       ContentLength: buf.length,
