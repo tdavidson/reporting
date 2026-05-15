@@ -21,8 +21,11 @@ create table public.new_thing (
 );
 
 -- 1. Grants — required from 2026-05-30 onward for the Data API to see this table.
---    Match the legacy default unless you have a specific reason to be more restrictive.
-grant select, insert, update, delete on public.new_thing to anon, authenticated, service_role;
+--    Default posture: anon = SELECT only (no unauthenticated writes via Data API);
+--    authenticated + service_role get full CRUD, with RLS scoping per-row access.
+--    Only grant anon writes if the table genuinely needs unauthenticated insert/update.
+grant select on public.new_thing to anon;
+grant select, insert, update, delete on public.new_thing to authenticated, service_role;
 
 -- 2. RLS — enable even if you think it isn't needed. The schema-wide default is "RLS on".
 alter table public.new_thing enable row level security;

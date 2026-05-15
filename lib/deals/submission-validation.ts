@@ -53,21 +53,25 @@ export function fileExt(name: string): string {
  * Accept only `http(s)` URLs. Reject `javascript:`, `data:`, `file:`,
  * `vbscript:`, etc. Returns the normalized URL on success, null on failure.
  * If the input is missing a scheme, prepends `https://` and re-parses.
+ *
+ * Also rejects URLs with embedded credentials (`https://user:pass@host/`).
+ * The `URL` parser happily accepts those; a submitter could pass
+ * `https://attacker.com@legitvc.com/` which parses as a request to
+ * `legitvc.com` with username `attacker.com` — visually deceptive in any
+ * UI that renders the raw URL.
  */
 export function safeWebUrl(input: string): string | null {
-  try {
-    const u = new URL(input)
-    if (u.protocol !== 'http:' && u.protocol !== 'https:') return null
-    return u.toString()
-  } catch {
+  function check(raw: string): string | null {
     try {
-      const u = new URL(`https://${input}`)
+      const u = new URL(raw)
       if (u.protocol !== 'http:' && u.protocol !== 'https:') return null
+      if (u.username || u.password) return null
       return u.toString()
     } catch {
       return null
     }
   }
+  return check(input) ?? check(`https://${input}`)
 }
 
 export interface AttachmentValidationError { code: 'mime' | 'ext'; message: string }
