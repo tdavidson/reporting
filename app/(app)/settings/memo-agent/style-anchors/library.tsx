@@ -93,7 +93,7 @@ export function StyleAnchorsLibrary({ initialAnchors, initialConfidence }: {
             Reference memos teach style — they never supply facts to a new memo.
           </p>
         </div>
-        <Button onClick={() => setUploadOpen(true)} size="sm">
+        <Button variant="outline" size="sm" onClick={() => setUploadOpen(true)}>
           <Upload className="h-3.5 w-3.5 mr-1" /> Upload memo
         </Button>
       </div>
@@ -243,7 +243,17 @@ function UploadDialog({ open, onOpenChange, onUploaded }: {
         <div className="space-y-3">
           <div>
             <label className="block text-xs font-medium text-muted-foreground mb-1">File *</label>
-            <Input type="file" accept=".pdf,.docx,.md,.txt,application/pdf" onChange={e => setFile(e.target.files?.[0] ?? null)} />
+            <label className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-md border bg-card text-sm hover:bg-muted/50 cursor-pointer ${submitting ? 'opacity-50 pointer-events-none' : ''}`}>
+              <Upload className="h-3.5 w-3.5" />
+              {file ? 'Choose a different file' : 'Choose file'}
+              <input
+                type="file"
+                accept=".pdf,.docx,.md,.txt,application/pdf"
+                className="hidden"
+                disabled={submitting}
+                onChange={e => setFile(e.target.files?.[0] ?? null)}
+              />
+            </label>
             {file && <p className="text-[11px] text-muted-foreground mt-1">{file.name} · {(file.size / 1024 / 1024).toFixed(2)} MB</p>}
           </div>
           <div className="grid grid-cols-2 gap-3">

@@ -234,7 +234,7 @@ export default function SettingsPage() {
             onSaved={load}
           />
 
-          <GroupHeader label="Memo Agent" />
+          <GroupHeader label="Diligence" />
           <MemoAgentSection />
 
           <GroupHeader label="Storage" />
@@ -4406,21 +4406,45 @@ function RoutingSection({ threshold, model, onSaved }: {
   )
 }
 
-// ──────────────────────────── Memo Agent ────────────────────────────
+// ──────────────────────────── Diligence ────────────────────────────
 
 function MemoAgentSection() {
   return (
-    <Section title="Memo Agent">
+    <Section title="Diligence">
       <p className="text-xs text-muted-foreground mb-3">
-        Configure the agent's seven YAML/MD schemas, upload reference memos to teach voice, and tune
-        cost caps + per-stage providers.
+        Configure how the diligence agent reads data rooms, sources external research, runs partner Q&amp;A, and drafts memos.
       </p>
-      <div className="rounded-md border bg-background p-3 flex flex-wrap gap-x-4 gap-y-1 text-sm">
-        <Link href="/settings/memo-agent/schemas" className="hover:underline">Schemas</Link>
-        <span className="text-muted-foreground">·</span>
-        <Link href="/settings/memo-agent/style-anchors" className="hover:underline">Style anchors</Link>
-        <span className="text-muted-foreground">·</span>
-        <Link href="/settings/memo-agent/defaults" className="hover:underline">Defaults &amp; caps</Link>
+      <div className="grid gap-2 sm:grid-cols-3">
+        <Link
+          href="/settings/memo-agent/schemas"
+          className="rounded-md border bg-background p-3 hover:bg-muted/30 transition-colors block"
+        >
+          <div className="text-sm font-medium mb-0.5">Schemas →</div>
+          <p className="text-[11px] text-muted-foreground">
+            The seven YAML/MD files that govern the agent: rubric, Q&amp;A library, ingestion shape,
+            research shape, memo output, style anchors, and instructions.
+          </p>
+        </Link>
+        <Link
+          href="/settings/memo-agent/style-anchors"
+          className="rounded-md border bg-background p-3 hover:bg-muted/30 transition-colors block"
+        >
+          <div className="text-sm font-medium mb-0.5">Style anchors →</div>
+          <p className="text-[11px] text-muted-foreground">
+            Upload past investment memos so the agent learns your firm&apos;s voice and structure.
+            Used as reference only; never copied into new memos as facts.
+          </p>
+        </Link>
+        <Link
+          href="/settings/memo-agent/defaults"
+          className="rounded-md border bg-background p-3 hover:bg-muted/30 transition-colors block"
+        >
+          <div className="text-sm font-medium mb-0.5">Defaults &amp; caps →</div>
+          <p className="text-[11px] text-muted-foreground">
+            Per-stage AI provider overrides, per-deal and monthly token caps, and the web-search
+            toggle for the research stage.
+          </p>
+        </Link>
       </div>
     </Section>
   )
