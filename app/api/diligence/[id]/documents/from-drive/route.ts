@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { decrypt } from '@/lib/crypto'
 import { getGoogleCredentials } from '@/lib/google/credentials'
-import { getAccessToken, listFiles, downloadFile, parseDriveFolderUrl } from '@/lib/google/drive'
+import { getAccessToken, listFilesRecursive, downloadFile, parseDriveFolderUrl } from '@/lib/google/drive'
 import { classifyDocumentHeuristic } from '@/lib/memo-agent/heuristic-classify'
 
 /**
@@ -78,10 +78,11 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     return NextResponse.json({ error: err instanceof Error ? err.message : 'Token refresh failed' }, { status: 502 })
   }
 
-  // List files.
-  let files: Awaited<ReturnType<typeof listFiles>>
+  // List files recursively across subfolders. Data rooms typically have
+  // nested structure (Financials/, Legal/, Team/) — this pass walks them all.
+  let files: Awaited<ReturnType<typeof listFilesRecursive>>
   try {
-    files = await listFiles(accessToken, folderId)
+    files = await listFilesRecursive(accessToken, folderId)
   } catch (err) {
     return NextResponse.json({ error: err instanceof Error ? err.message : 'Drive list failed' }, { status: 502 })
   }
@@ -119,9 +120,19 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
     try {
       const buffer = await downloadFile(accessToken, f.id)
-      const safeName = f.name.replace(/[\/\\:*?"<>|]/g, '_').replace(/\.\./g, '_').slice(0, 200)
-      const ext = (safeName.match(/\.([a-z0-9]+)$/i)?.[1] ?? 'bin').toLowerCase()
-      const storagePath = `${params.id}/${Date.now()}_${f.id.slice(0, 8)}_${safeName}`
+      // Prefix the stored file_name with the subfolder path so partners can
+      // see which part of the data room each doc came from (e.g.
+      // "Financials/Q1/model.xlsx"). The actual storage object stays under
+      // the deal-scoped path regardless of subfolder.
+      const sanitizedPath = (f.relativePath ?? '').replace(/[\\:*?"<>|]/g, '_').replace(/\.\./g, '_').slice(0, 150)
+      const baseName = f.name.replace(/[\/\\:*?"<>|]/g, '_').replace(/\.\./g, '_').slice(0, 200)
+      const safeName = sanitizedPath ? `${sanitizedPath}/${baseName}` : baseName
+      const ext = (baseName.match(/\.([a-z0-9]+)$/i)?.[1] ?? 'bin').toLowerCase()
+      // Storage path stays flat (one folder per deal) — only file_name carries
+      // the subfolder context. Replace `/` in the storage key portion since
+      // Supabase Storage treats `/` as a folder separator.
+      const storageKeyName = baseName
+      const storagePath = `${params.id}/${Date.now()}_${f.id.slice(0, 8)}_${storageKeyName}`
 
       const { error: uploadErr } = await admin.storage
         .from('diligence-documents')

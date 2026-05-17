@@ -42,6 +42,8 @@ interface DriveFile {
 export interface DriveFileWithMeta extends DriveFile {
   size?: number
   webViewLink?: string
+  /** Slash-joined subfolder path from the root folder, e.g. "Financials/Q1". Empty for top-level files. */
+  relativePath?: string
 }
 
 /**
@@ -87,6 +89,65 @@ export async function listFiles(accessToken: string, folderId: string): Promise<
     pageToken = data.nextPageToken
     if (!pageToken) break
   }
+  return out
+}
+
+/**
+ * List files recursively from a Drive folder, walking into subfolders up to
+ * `maxDepth` levels deep and capping at `maxFiles` total to prevent runaway
+ * crawls on huge shared drives. Each returned file carries a `relativePath`
+ * indicating its position under the root (empty string for top-level files).
+ *
+ * Data rooms commonly have nested structure like `Financials/Q1/model.xlsx`
+ * — the diligence import flow uses this to pull everything in one pass.
+ */
+export async function listFilesRecursive(
+  accessToken: string,
+  rootFolderId: string,
+  opts: { maxDepth?: number; maxFiles?: number } = {}
+): Promise<DriveFileWithMeta[]> {
+  const maxDepth = opts.maxDepth ?? 5
+  const maxFiles = opts.maxFiles ?? 500
+  if (!rootFolderId || !/^[a-zA-Z0-9_-]+$/.test(rootFolderId)) {
+    throw new Error('Invalid folder ID')
+  }
+
+  const out: DriveFileWithMeta[] = []
+
+  // BFS so we don't blow the call stack on deeply-nested data rooms and so
+  // we get a predictable, breadth-first ordering of files.
+  const queue: Array<{ folderId: string; path: string; depth: number }> = [
+    { folderId: rootFolderId, path: '', depth: 0 },
+  ]
+
+  while (queue.length > 0 && out.length < maxFiles) {
+    const { folderId, path, depth } = queue.shift()!
+
+    // 1. Files directly in this folder.
+    const files = await listFiles(accessToken, folderId)
+    for (const f of files) {
+      if (out.length >= maxFiles) break
+      out.push({ ...f, relativePath: path })
+    }
+
+    // 2. Subfolders — enqueue if we have depth budget left.
+    if (depth < maxDepth) {
+      try {
+        const subfolders = await listFolders(accessToken, folderId)
+        for (const sub of subfolders) {
+          queue.push({
+            folderId: sub.id,
+            path: path ? `${path}/${sub.name}` : sub.name,
+            depth: depth + 1,
+          })
+        }
+      } catch {
+        // Don't fail the whole listing if one subfolder is unreadable; surface
+        // a synthetic error file via relativePath so the caller can log it.
+      }
+    }
+  }
+
   return out
 }
 

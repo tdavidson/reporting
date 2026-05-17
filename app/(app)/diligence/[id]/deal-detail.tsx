@@ -52,11 +52,11 @@ type LatestDraft = {
   finalized_at: string | null
 } | null
 
-// Tabs follow the actual workflow: Decision is the partner-facing landing
-// (recommendation, score, attention items, finalize/promote), then the pipeline
-// goes Data Room → Diligence (external research) → Partner Q&A → Memo. Notes
-// live in a right-side slide-in panel, mirroring the Companies notes UX.
-const TABS = ['Decision', 'Data Room', 'Diligence', 'Partner Q&A', 'Memo'] as const
+// Tabs follow the actual workflow: Overview is the partner-facing landing
+// (DDP status, details, finalize/promote), then the pipeline goes Data Room →
+// Diligence (external research) → Partner Q&A → Memo. Notes live in a
+// right-side slide-in panel, mirroring the Companies notes UX.
+const TABS = ['Overview', 'Data Room', 'Diligence', 'Partner Q&A', 'Memo'] as const
 type Tab = typeof TABS[number]
 
 const STATUS_LABEL: Record<Deal['deal_status'], { label: string; cls: string }> = {
@@ -78,7 +78,7 @@ export function DealDetail({ deal: initial, initialDocuments, latestDraft, isAdm
 }) {
   const router = useRouter()
   const [deal, setDeal] = useState(initial)
-  const [activeTab, setActiveTab] = useState<Tab>('Decision')
+  const [activeTab, setActiveTab] = useState<Tab>('Overview')
 
   async function updateStatus(deal_status: Deal['deal_status']) {
     setDeal(d => ({ ...d, deal_status }))
@@ -130,8 +130,8 @@ export function DealDetail({ deal: initial, initialDocuments, latestDraft, isAdm
 
       <div className="flex flex-col lg:flex-row gap-6 items-start">
         <div className="flex-1 min-w-0 max-w-5xl w-full">
-          {activeTab === 'Decision' && (
-            <DecisionTab deal={deal} documentCount={initialDocuments.length} latestDraft={latestDraft} isAdmin={isAdmin} onJumpToTab={setActiveTab} />
+          {activeTab === 'Overview' && (
+            <OverviewTab deal={deal} documentCount={initialDocuments.length} latestDraft={latestDraft} isAdmin={isAdmin} onJumpToTab={setActiveTab} />
           )}
           {activeTab === 'Data Room' && (
             <DealRoomTab dealId={deal.id} initialDocuments={initialDocuments} initialDriveFolderUrl={deal.drive_folder_url} />
@@ -148,11 +148,11 @@ export function DealDetail({ deal: initial, initialDocuments, latestDraft, isAdm
 }
 
 // ---------------------------------------------------------------------------
-// Decision — partner landing. Surfaces "what's the recommendation?" first:
-// memo agent progress, draft/score links, attention items, promote action.
+// Overview — partner landing. Surfaces the Due Diligence Process status,
+// deal details, and the promote action when ready.
 // ---------------------------------------------------------------------------
 
-function DecisionTab({ deal, documentCount, latestDraft, isAdmin, onJumpToTab }: {
+function OverviewTab({ deal, documentCount, latestDraft, isAdmin, onJumpToTab }: {
   deal: Deal
   documentCount: number
   latestDraft: LatestDraft
@@ -450,7 +450,7 @@ function DriveImportDialog({ open, onOpenChange, dealId, initialFolderUrl, onImp
       <div className="rounded-md border bg-card p-5 w-full max-w-lg">
         <h3 className="text-base font-semibold mb-2">Import from Drive folder</h3>
         <p className="text-xs text-muted-foreground mb-3">
-          Paste a Google Drive folder URL. Every file in the folder will be imported. Files already imported (matched by Drive ID) are skipped.
+          Paste a Google Drive folder URL. Every file in the folder and its subfolders is imported. Files already imported (matched by Drive ID) are skipped.
         </p>
         <Input
           value={folderUrl}
@@ -458,6 +458,12 @@ function DriveImportDialog({ open, onOpenChange, dealId, initialFolderUrl, onImp
           placeholder="https://drive.google.com/drive/folders/..."
           disabled={importing}
         />
+        <ul className="mt-3 text-[11px] text-muted-foreground space-y-1 list-disc pl-4">
+          <li>Walks subfolders up to <strong>5 levels deep</strong>. The imported filename shows the subfolder path (e.g. <code className="font-mono">Financials/Q1/model.xlsx</code>).</li>
+          <li>Imports up to <strong>500 files</strong> per run — larger data rooms need to be split.</li>
+          <li><strong>Google Docs, Sheets, and Slides are skipped</strong> — they require export rather than raw download. Save them as PDF/Word/Excel in Drive first, or upload them directly via the Upload files button.</li>
+          <li>Only files the connected Google account can access are visible. Shared folders work if your account has at least view access.</li>
+        </ul>
         {error && <p className="text-sm text-destructive mt-2">{error}</p>}
         {result && (
           <div className="mt-3 text-sm">
