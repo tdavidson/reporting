@@ -5,6 +5,7 @@ import { buildIngestDocContent, buildIngestSynthesisContent } from '@/lib/memo-a
 import { getStageProvider } from '@/lib/memo-agent/stage-provider'
 import { loadDealDocuments } from '@/lib/memo-agent/ingestion/sources'
 import { parseAll, type ParsedFile } from '@/lib/memo-agent/ingestion/parsers'
+import { extractJsonObject } from '@/lib/memo-agent/parse-ai-json'
 
 type Admin = ReturnType<typeof createAdminClient>
 
@@ -501,51 +502,6 @@ async function loadDraft(
 // ---------------------------------------------------------------------------
 // Response parsing
 // ---------------------------------------------------------------------------
-
-function stripCodeFence(raw: string): string {
-  return raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim()
-}
-
-/**
- * Tolerant JSON extractor. The model sometimes prefixes a JSON object with
- * "Here's the analysis:" or trails it with commentary, which trips direct
- * JSON.parse. Falls back to slicing from the first `{` to the matching
- * close brace before raising.
- */
-function extractJsonObject(raw: string): unknown {
-  const cleaned = stripCodeFence(raw)
-  try {
-    return JSON.parse(cleaned)
-  } catch {
-    // Fallback: find the outermost {…} block.
-    const start = cleaned.indexOf('{')
-    if (start === -1) throw new Error(`No JSON object in response: ${cleaned.slice(0, 300)}`)
-    let depth = 0
-    let inString = false
-    let escape = false
-    for (let i = start; i < cleaned.length; i++) {
-      const ch = cleaned[i]
-      if (inString) {
-        if (escape) { escape = false; continue }
-        if (ch === '\\') { escape = true; continue }
-        if (ch === '"') { inString = false }
-        continue
-      }
-      if (ch === '"') { inString = true; continue }
-      if (ch === '{') depth += 1
-      else if (ch === '}') {
-        depth -= 1
-        if (depth === 0) {
-          const slice = cleaned.slice(start, i + 1)
-          try { return JSON.parse(slice) } catch {
-            throw new Error(`JSON in response did not parse: ${slice.slice(0, 300)}`)
-          }
-        }
-      }
-    }
-    throw new Error(`Unbalanced JSON in response: ${cleaned.slice(0, 300)}`)
-  }
-}
 
 function parsePerDocResponse(raw: string, expectedDocId: string): IngestionDocumentOutput {
   const parsed = extractJsonObject(raw)
