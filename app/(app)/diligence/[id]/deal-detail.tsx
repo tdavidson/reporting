@@ -411,24 +411,37 @@ function DealRoomTab({ dealId, initialDocuments, initialDriveFolderUrl }: { deal
                     )}
                   </td>
                   <td className="px-3 py-2 text-right">
-                    {(d.parse_status === 'parsed' || d.parse_status === 'failed') && (
+                    <div className="inline-flex items-center gap-1.5">
+                      {(d.parse_status === 'parsed' || d.parse_status === 'failed') && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs px-2.5 text-muted-foreground hover:text-foreground"
+                          onClick={() => reprocess(d.id)}
+                          disabled={reprocessing.has(d.id)}
+                          title="Re-run ingest on just this document"
+                        >
+                          {reprocessing.has(d.id) ? 'Queuing…' : 'Reprocess'}
+                        </Button>
+                      )}
+                      {d.parse_status !== 'skipped' && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs px-2.5 text-muted-foreground hover:text-foreground"
+                          onClick={() => setSkipped(d.id)}
+                        >
+                          Skip
+                        </Button>
+                      )}
                       <button
-                        onClick={() => reprocess(d.id)}
-                        disabled={reprocessing.has(d.id)}
-                        className="text-[10px] text-muted-foreground hover:text-foreground mr-2 disabled:opacity-50"
-                        title="Re-run ingest on just this document"
+                        onClick={() => remove(d.id)}
+                        className="text-muted-foreground hover:text-destructive ml-0.5"
+                        title="Delete document"
                       >
-                        {reprocessing.has(d.id) ? 'Queuing…' : 'Reprocess'}
+                        <Trash2 className="h-3.5 w-3.5" />
                       </button>
-                    )}
-                    {d.parse_status !== 'skipped' && (
-                      <button onClick={() => setSkipped(d.id)} className="text-[10px] text-muted-foreground hover:text-foreground mr-2">
-                        Skip
-                      </button>
-                    )}
-                    <button onClick={() => remove(d.id)} className="text-muted-foreground hover:text-destructive">
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
+                    </div>
                   </td>
                 </tr>
               ))}
