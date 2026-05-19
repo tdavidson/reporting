@@ -152,6 +152,31 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     return NextResponse.json({ error: insertErr?.message ?? 'Insert failed' }, { status: 500 })
   }
 
+  // Audio/video recordings need transcription before they can be ingested
+  // into the memo draft. Enqueue a transcribe job unless another job is
+  // already active on this deal.
+  if (detected_type === 'call_recording') {
+    const { data: activeJob } = await admin
+      .from('memo_agent_jobs')
+      .select('id')
+      .eq('deal_id', params.id)
+      .eq('fund_id', fundId)
+      .in('status', ['pending', 'running'])
+      .limit(1)
+      .maybeSingle()
+    if (!activeJob) {
+      await admin
+        .from('memo_agent_jobs')
+        .insert({
+          fund_id: fundId,
+          deal_id: params.id,
+          kind: 'transcribe',
+          payload: { document_id: (row as any).id },
+          enqueued_by: userId,
+        } as any)
+    }
+  }
+
   return NextResponse.json(row)
 }
 
