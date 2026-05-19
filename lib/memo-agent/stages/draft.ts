@@ -5,6 +5,7 @@ import { getStageProvider } from '@/lib/memo-agent/stage-provider'
 import { getActiveSchema, ensureDefaults } from '@/lib/memo-agent/firm-schemas'
 import { buildSystemPrompt } from '@/lib/memo-agent/prompts/system'
 import { buildDraftUserContent, type QARecord } from '@/lib/memo-agent/prompts/draft'
+import { extractJsonObject } from '@/lib/memo-agent/parse-ai-json'
 import type { IngestionOutput } from './ingest'
 import type { ResearchOutput } from './research'
 
@@ -57,6 +58,7 @@ export async function runDraft(params: {
 }): Promise<DraftResult> {
   const { admin, fundId, dealId, progressCb } = params
   const note = async (msg: string) => { if (progressCb) await progressCb(msg) }
+  const warnings: string[] = []
 
   await note('Loading draft inputs…')
   const draft = await loadDraftWithInputs(admin, fundId, dealId, params.draftId)
@@ -66,6 +68,13 @@ export async function runDraft(params: {
   const ingestion = draft.ingestion_output as IngestionOutput
   const research = (draft.research_output as ResearchOutput | null) ?? null
   const qa_answers = Array.isArray(draft.qa_answers) ? draft.qa_answers as QARecord[] : []
+
+  // Input scale — surfaced in progress messages so the user can correlate
+  // long-running calls with a known cause (large data room) vs. a hang.
+  const docCount = ingestion.documents?.length ?? 0
+  const claimCount = ingestion.documents?.reduce((acc, d) => acc + (d.claims?.length ?? 0), 0) ?? 0
+  const findingCount = research?.findings?.length ?? 0
+  const qaCount = qa_answers.length
 
   await note('Loading deal record…')
   const { data: dealRow } = await admin
@@ -77,7 +86,6 @@ export async function runDraft(params: {
   const deal = (dealRow as any) ?? { name: 'this deal' }
 
   await note('Loading schemas…')
-  // Seed-on-demand for funds that never visited the Schemas editor.
   await ensureDefaults(fundId, admin)
   const memoOutputSchema = await getActiveSchema(fundId, 'memo_output', admin)
   const rubricSchema = await getActiveSchema(fundId, 'rubric', admin)
@@ -97,23 +105,40 @@ export async function runDraft(params: {
     qa_answers,
   })
 
-  await note('Calling AI provider for draft…')
+  await note(`Calling AI for draft (${docCount} docs, ${claimCount} claims, ${findingCount} findings, ${qaCount} Q&A)…`)
   const { provider, model, providerType } = await getStageProvider(admin, fundId, 'draft')
-  const { text, usage } = await provider.createMessage({
+  const { text, usage, truncated } = await provider.createMessage({
     model,
-    maxTokens: 16384,
+    // Bumped from 16384. Memo drafts with many sections + multi-paragraph
+    // team sections + partner_attention items routinely truncated at 16K,
+    // which threw "non-JSON" via direct JSON.parse. 32K is the Opus ceiling
+    // and well within Sonnet's range.
+    maxTokens: 32768,
     system,
     content: userContent,
   })
   logAIUsage(admin, { fundId, provider: providerType, model, feature: 'memo_agent_draft', usage })
 
+  if (truncated) {
+    warnings.push('Draft output was truncated by the model (max_tokens reached). The memo may be missing later sections — consider re-running or splitting the draft.')
+  }
+
   await note('Parsing draft…')
   const parsed = parseDraftResponse(text)
-  const warnings: string[] = []
 
   // Force the recommendation section to a partner-only placeholder, even if
   // the model misbehaved.
   parsed.paragraphs = enforceRecommendationPlaceholder(parsed.paragraphs)
+
+  // Quality checks — surface as warnings without failing the run so the
+  // partner can still see + edit what came back.
+  if (parsed.paragraphs.length === 0) {
+    warnings.push('Draft produced 0 paragraphs. Model may have ignored the prompt — consider re-running.')
+  }
+  const sectionsCovered = new Set(parsed.paragraphs.map(p => p.section_id))
+  if (sectionsCovered.size < 3) {
+    warnings.push(`Draft covers only ${sectionsCovered.size} section(s). The model likely stopped early.`)
+  }
 
   // Validate source IDs.
   const validIds = collectValidIds(ingestion, research, qa_answers)
@@ -127,7 +152,6 @@ export async function runDraft(params: {
     }
   }
 
-  // Persist.
   await note('Writing draft to database…')
   const { error: updateErr } = await admin
     .from('diligence_memo_drafts')
@@ -135,8 +159,6 @@ export async function runDraft(params: {
     .eq('id', draft.id)
   if (updateErr) throw new Error(`Failed to persist draft: ${updateErr.message}`)
 
-  // Persist partner-attention items as rows (separate from the JSONB so the
-  // attention queue UI can manage status without rewriting the whole draft).
   await note('Writing partner attention items…')
   if (parsed.partner_attention.length > 0) {
     const rows = parsed.partner_attention.map(item => ({
@@ -187,17 +209,25 @@ async function loadDraftWithInputs(admin: Admin, fundId: string, dealId: string,
 }
 
 function parseDraftResponse(raw: string): MemoDraftOutput {
-  const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim()
-  let parsed: any
-  try {
-    parsed = JSON.parse(cleaned)
-  } catch {
-    throw new Error(`Draft AI returned non-JSON: ${cleaned.slice(0, 300)}`)
+  const parsed = extractJsonObject(raw)
+  if (!parsed || typeof parsed !== 'object') {
+    throw new Error('Draft AI returned non-object JSON')
   }
+  const obj = parsed as Record<string, unknown>
+
+  // Required structure check. Missing top-level keys mean the model didn't
+  // follow the contract — fail loudly rather than silently persisting an
+  // empty memo as a "successful" draft.
+  const required = ['header', 'paragraphs', 'partner_attention'] as const
+  const missing = required.filter(k => !(k in obj))
+  if (missing.length > 0) {
+    throw new Error(`Draft AI response missing required keys: ${missing.join(', ')}. First 300 chars: ${JSON.stringify(obj).slice(0, 300)}`)
+  }
+
   return {
-    header: parsed?.header ?? {},
-    paragraphs: Array.isArray(parsed?.paragraphs) ? parsed.paragraphs.map(coerceParagraph).filter(Boolean) as MemoParagraph[] : [],
-    partner_attention: Array.isArray(parsed?.partner_attention) ? parsed.partner_attention as any[] : [],
+    header: (obj.header && typeof obj.header === 'object' ? obj.header : {}) as Record<string, any>,
+    paragraphs: Array.isArray(obj.paragraphs) ? obj.paragraphs.map(coerceParagraph).filter(Boolean) as MemoParagraph[] : [],
+    partner_attention: Array.isArray(obj.partner_attention) ? obj.partner_attention as any[] : [],
   }
 }
 

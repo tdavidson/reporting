@@ -5,6 +5,7 @@ import { getStageProvider } from '@/lib/memo-agent/stage-provider'
 import { getActiveSchema, ensureDefaults } from '@/lib/memo-agent/firm-schemas'
 import { buildSystemPrompt } from '@/lib/memo-agent/prompts/system'
 import { buildScoreUserContent, type QARecord } from '@/lib/memo-agent/prompts/draft'
+import { extractJsonObject } from '@/lib/memo-agent/parse-ai-json'
 import type { IngestionOutput } from './ingest'
 import type { ResearchOutput } from './research'
 import type { MemoDraftOutput } from './draft'
@@ -150,12 +151,9 @@ function summarizeMemoForScoring(memo: MemoDraftOutput): string {
 }
 
 function parseScoreResponse(raw: string, dimensions: Array<{ id: string; mode: string }>): ScoreOutput {
-  const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim()
-  let parsed: any
-  try {
-    parsed = JSON.parse(cleaned)
-  } catch {
-    throw new Error(`Score AI returned non-JSON: ${cleaned.slice(0, 300)}`)
+  const parsed = extractJsonObject(raw) as any
+  if (!parsed || typeof parsed !== 'object') {
+    throw new Error('Score AI returned non-object JSON')
   }
   const validIds = new Set(dimensions.map(d => d.id))
   const dimensionMode = new Map(dimensions.map(d => [d.id, d.mode]))
