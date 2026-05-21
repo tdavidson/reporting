@@ -4,7 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { getCapState } from '@/lib/memo-agent/cost'
 
 const VALID_PROVIDERS = ['anthropic', 'openai', 'gemini', 'ollama'] as const
-const VALID_STAGES = ['ingest', 'research', 'qa', 'draft', 'score', 'render'] as const
+const VALID_STAGES = ['ingest', 'ingest_synthesis', 'research', 'qa', 'draft', 'score', 'render'] as const
 
 export async function GET() {
   const guard = await ensureAdmin()
@@ -13,7 +13,7 @@ export async function GET() {
 
   const { data: settings } = await admin
     .from('fund_settings')
-    .select('memo_agent_per_deal_token_cap, memo_agent_monthly_token_cap, memo_agent_stage_models, memo_agent_web_search_enabled, default_ai_provider')
+    .select('memo_agent_per_deal_token_cap, memo_agent_monthly_token_cap, memo_agent_stage_models, memo_agent_web_search_enabled, default_ai_provider, memo_export_font_family, memo_export_font_size')
     .eq('fund_id', fundId)
     .maybeSingle()
 
@@ -25,6 +25,8 @@ export async function GET() {
     stage_models: ((settings as any)?.memo_agent_stage_models as Record<string, any> | null) ?? {},
     web_search_enabled: !!(settings as any)?.memo_agent_web_search_enabled,
     default_ai_provider: (settings as any)?.default_ai_provider ?? null,
+    export_font_family: (settings as any)?.memo_export_font_family ?? 'DM Sans',
+    export_font_size: (settings as any)?.memo_export_font_size ?? 11,
     monthly_used: caps.monthly_used,
     month_window: caps.month_window,
   })
@@ -69,6 +71,15 @@ export async function PATCH(req: NextRequest) {
   }
   if (body.web_search_enabled !== undefined) {
     updates.memo_agent_web_search_enabled = !!body.web_search_enabled
+  }
+  if (body.export_font_family !== undefined) {
+    const f = typeof body.export_font_family === 'string' ? body.export_font_family.trim() : ''
+    updates.memo_export_font_family = f || 'DM Sans'
+  }
+  if (body.export_font_size !== undefined) {
+    const n = Number(body.export_font_size)
+    // Clamp to a sane document range.
+    updates.memo_export_font_size = isFinite(n) && n >= 6 && n <= 32 ? Math.round(n) : 11
   }
 
   if (Object.keys(updates).length === 0) {

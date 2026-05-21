@@ -2,7 +2,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 
 type Admin = ReturnType<typeof createAdminClient>
 
-export type AgentStage = 'ingest' | 'research' | 'qa' | 'draft' | 'score' | 'render'
+export type AgentStage = 'ingest' | 'ingest_synthesis' | 'research' | 'qa' | 'draft' | 'draft_review' | 'score' | 'render'
 
 export interface CostEstimate {
   /** Estimated input tokens — based on character count / 4 (rough) plus per-stage fixed budgets. */
@@ -36,9 +36,15 @@ export interface EnforceResult {
 
 const STAGE_OUTPUT_BUDGET: Record<AgentStage, number> = {
   ingest: 12_000,
+  // Synthesis only emits gap_analysis + cross_doc_flags — a much smaller payload
+  // than the per-doc claims. Its tokens are counted at enqueue time when the
+  // original 'ingest' cap check runs, so this budget is for the standalone case.
+  ingest_synthesis: 4_000,
   research: 12_000,
   qa: 1_500,
   draft: 14_000,
+  // Review emits only targeted edits (changed paragraphs), not the full memo.
+  draft_review: 8_000,
   score: 3_500,
   render: 0,
 }
@@ -114,9 +120,16 @@ export async function estimateStageCost(params: {
 
 const MEMO_AGENT_FEATURES = [
   'memo_agent_ingest',
+  'memo_agent_ingest_synthesis',
   'memo_agent_research',
+  'memo_agent_research_claims',
+  'memo_agent_research_competitors',
+  'memo_agent_research_founders',
   'memo_agent_qa_batch',
   'memo_agent_draft',
+  'memo_agent_draft_outline',
+  'memo_agent_draft_fill',
+  'memo_agent_draft_review',
   'memo_agent_score',
 ]
 

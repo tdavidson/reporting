@@ -2,7 +2,12 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { logAIUsage } from '@/lib/ai/usage'
 import { getStageProvider } from '@/lib/memo-agent/stage-provider'
 import { buildSystemPrompt } from '@/lib/memo-agent/prompts/system'
-import { buildResearchUserContent } from '@/lib/memo-agent/prompts/research'
+import {
+  buildResearchClaimsContent,
+  buildResearchCompetitorsContent,
+  buildResearchFoundersContent,
+} from '@/lib/memo-agent/prompts/research'
+import { extractJsonObject } from '@/lib/memo-agent/parse-ai-json'
 import type { IngestionOutput } from './ingest'
 
 type Admin = ReturnType<typeof createAdminClient>
@@ -44,14 +49,22 @@ export interface ResearchResult {
 }
 
 /**
- * Run Stage 2 — external research. Reads the existing draft's ingestion_output,
- * builds the research prompt, calls the AI, validates the response.
+ * Run Stage 2 — external research.
  *
- * Web search: when the fund has set `memo_agent_web_search_enabled = true` AND
- * the resolved research-stage provider is Anthropic, we attach the
- * `web_search_20250305` server-side tool. The prompt switches to the
- * "with web search" variant so the model is told to verify claims and cite
- * URLs. Other providers always get the no-web-search prompt path.
+ * Fans out 3 AI sub-calls in parallel:
+ *   1. Claims verification → findings + contradictions + research_gaps
+ *   2. Competitive map     → named_by_company + named_by_research
+ *   3. Founder dossiers    → founder_dossiers
+ *
+ * Each sub-call gets its own focused prompt, ingestion subset, and output
+ * budget. A single sub-call failure surfaces as a warning while the other
+ * two still produce output — replacing the prior all-or-nothing single call
+ * that orphaned via max_tokens truncation on large data rooms.
+ *
+ * Web search: when the fund has set `memo_agent_web_search_enabled = true`
+ * AND the resolved research-stage provider is Anthropic, the web_search tool
+ * is attached to the 3 sub-calls. Other providers always get the no-web-search
+ * prompt variant.
  */
 export async function runResearch(params: {
   admin: Admin
@@ -62,6 +75,7 @@ export async function runResearch(params: {
 }): Promise<ResearchResult> {
   const { admin, fundId, dealId, progressCb } = params
   const note = async (msg: string) => { if (progressCb) await progressCb(msg) }
+  const warnings: string[] = []
 
   await note('Loading ingestion output…')
   const draftRow = await loadDraftWithIngestion(admin, fundId, dealId, params.draftId)
@@ -69,6 +83,8 @@ export async function runResearch(params: {
     throw new Error('No ingestion output found. Run Stage 1 ingest first.')
   }
   const ingestion = draftRow.ingestion_output as IngestionOutput
+  const docCount = ingestion.documents?.length ?? 0
+  const claimCount = ingestion.documents?.reduce((acc, d) => acc + (d.claims?.length ?? 0), 0) ?? 0
 
   await note('Loading deal record…')
   const { data: dealRow } = await admin
@@ -82,36 +98,96 @@ export async function runResearch(params: {
   await note('Building research prompt…')
   const { prompt: system } = await buildSystemPrompt({ admin, fundId, stage: 'research' })
 
-  await note('Calling AI provider for research…')
   const { provider, model, providerType, webSearchAvailable } = await getStageProvider(admin, fundId, 'research')
-
   const webSearchEnabled = webSearchAvailable
-  const userContent = buildResearchUserContent({ dealName, ingestion, webSearchEnabled })
+  const promptInput = { dealName, ingestion, webSearchEnabled }
 
-  let raw: string
-  try {
-    const { text, usage } = await provider.createMessage({
-      model,
-      maxTokens: 16384,
-      system,
-      content: userContent,
-      enableWebSearch: webSearchEnabled,
-    })
-    raw = text
-    logAIUsage(admin, {
-      fundId,
-      provider: providerType,
-      model,
-      feature: 'memo_agent_research',
-      usage,
-    })
-  } catch (err) {
-    throw new Error(`Research AI call failed: ${err instanceof Error ? err.message : String(err)}`)
+  await note(`Running 3 research sub-calls in parallel (${docCount} docs, ${claimCount} claims${webSearchEnabled ? ', web search on' : ''})…`)
+
+  // Sub-call helper — runs one focused AI call, logs usage, parses JSON.
+  // Each catches its own errors so a single failure doesn't kill siblings.
+  type SubCall<T> = { name: string; content: any; maxTokens: number; parse: (obj: Record<string, unknown>) => T; fallback: T }
+  const runSubCall = async <T>(s: SubCall<T>): Promise<T> => {
+    try {
+      const { text, usage } = await provider.createMessage({
+        model,
+        maxTokens: s.maxTokens,
+        system,
+        content: s.content,
+        enableWebSearch: webSearchEnabled,
+      })
+      logAIUsage(admin, {
+        fundId,
+        provider: providerType,
+        model,
+        feature: `memo_agent_research_${s.name}`,
+        usage,
+      })
+      const parsed = extractJsonObject(text)
+      if (!parsed || typeof parsed !== 'object') {
+        throw new Error(`${s.name} returned non-object JSON`)
+      }
+      return s.parse(parsed as Record<string, unknown>)
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      warnings.push(`Research sub-call "${s.name}" failed: ${msg}`)
+      return s.fallback
+    }
   }
 
-  await note('Parsing research output…')
-  const output = parseResearchResponse(raw)
-  output.research_mode = webSearchEnabled ? 'with_web_search' : 'no_web_search'
+  const [claimsResult, competitorsResult, foundersResult] = await Promise.all([
+    runSubCall({
+      name: 'claims',
+      content: buildResearchClaimsContent(promptInput),
+      // Claims is the heaviest output (findings + contradictions + gaps).
+      // 24K leaves headroom even for large data rooms.
+      maxTokens: 24576,
+      parse: (obj) => ({
+        findings: Array.isArray(obj.findings) ? obj.findings as ResearchOutput['findings'] : [],
+        contradictions: Array.isArray(obj.contradictions) ? obj.contradictions as ResearchOutput['contradictions'] : [],
+        research_gaps: Array.isArray(obj.research_gaps) ? obj.research_gaps as ResearchOutput['research_gaps'] : [],
+      }),
+      fallback: { findings: [], contradictions: [], research_gaps: [] },
+    }),
+    runSubCall({
+      name: 'competitors',
+      content: buildResearchCompetitorsContent(promptInput),
+      maxTokens: 6144,
+      parse: (obj) => {
+        const cm = (obj.competitive_map as any) ?? {}
+        return {
+          named_by_company: Array.isArray(cm.named_by_company) ? cm.named_by_company : [],
+          named_by_research: Array.isArray(cm.named_by_research) ? cm.named_by_research : [],
+        }
+      },
+      fallback: { named_by_company: [], named_by_research: [] },
+    }),
+    runSubCall({
+      name: 'founders',
+      content: buildResearchFoundersContent(promptInput),
+      maxTokens: 8192,
+      parse: (obj) => Array.isArray(obj.founder_dossiers) ? obj.founder_dossiers as ResearchOutput['founder_dossiers'] : [],
+      fallback: [] as ResearchOutput['founder_dossiers'],
+    }),
+  ])
+
+  const output: ResearchOutput = {
+    findings: claimsResult.findings,
+    contradictions: claimsResult.contradictions,
+    competitive_map: competitorsResult,
+    founder_dossiers: foundersResult,
+    research_gaps: claimsResult.research_gaps,
+    research_mode: webSearchEnabled ? 'with_web_search' : 'no_web_search',
+  }
+
+  // Sanity checks — empty outputs become warnings, not failures, so a partial
+  // result is still persisted and the partner can decide whether to re-run.
+  if (output.findings.length === 0 && claimCount > 0) {
+    warnings.push(`Research produced 0 findings despite ${claimCount} ingested claims. Model may have ignored the prompt — consider re-running.`)
+  }
+  if (webSearchEnabled && output.findings.length > 0 && output.findings.every(f => f.sources.length === 0)) {
+    warnings.push('Web search was enabled but no finding has a sourced URL. The model may have skipped the web_search tool.')
+  }
 
   await note('Writing research output to draft…')
   const { error: updateErr } = await admin
@@ -120,7 +196,7 @@ export async function runResearch(params: {
     .eq('id', draftRow.id)
   if (updateErr) throw new Error(`Failed to update draft: ${updateErr.message}`)
 
-  // Bump deal stage if currently in 'research'.
+  // Bump stage if currently at 'research'. Don't regress later stages.
   await admin
     .from('diligence_deals')
     .update({ current_memo_stage: 'qa' })
@@ -131,7 +207,7 @@ export async function runResearch(params: {
   return {
     draft_id: draftRow.id,
     research_output: output,
-    warnings: [],
+    warnings,
   }
 }
 
@@ -164,28 +240,4 @@ async function loadDraftWithIngestion(
     .limit(1)
     .maybeSingle()
   return (data as any) ?? null
-}
-
-function parseResearchResponse(raw: string): ResearchOutput {
-  const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim()
-  let parsed: unknown
-  try {
-    parsed = JSON.parse(cleaned)
-  } catch {
-    throw new Error(`Research AI returned non-JSON: ${cleaned.slice(0, 300)}`)
-  }
-  if (!parsed || typeof parsed !== 'object') throw new Error('Research AI returned non-object JSON')
-  const obj = parsed as Record<string, unknown>
-
-  return {
-    findings: Array.isArray(obj.findings) ? obj.findings as any[] : [],
-    contradictions: Array.isArray(obj.contradictions) ? obj.contradictions as any[] : [],
-    competitive_map: {
-      named_by_company: ((obj.competitive_map as any)?.named_by_company as any[]) ?? [],
-      named_by_research: ((obj.competitive_map as any)?.named_by_research as any[]) ?? [],
-    },
-    founder_dossiers: Array.isArray(obj.founder_dossiers) ? obj.founder_dossiers as any[] : [],
-    research_gaps: Array.isArray(obj.research_gaps) ? obj.research_gaps as any[] : [],
-    research_mode: obj.research_mode === 'with_web_search' ? 'with_web_search' : 'no_web_search',
-  }
 }

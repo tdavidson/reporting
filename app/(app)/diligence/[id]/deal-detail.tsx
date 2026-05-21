@@ -39,6 +39,7 @@ interface DiligenceDocument {
   detected_type: string | null
   type_confidence: string | null
   parse_status: string
+  parse_notes: string | null
   drive_source_url: string | null
   uploaded_at: string
 }
@@ -264,6 +265,8 @@ function DealRoomTab({ dealId, initialDocuments, initialDriveFolderUrl }: { deal
   const [documents, setDocuments] = useState(initialDocuments)
   const [uploading, setUploading] = useState(false)
   const [driveOpen, setDriveOpen] = useState(false)
+  const [reprocessing, setReprocessing] = useState<Set<string>>(new Set())
+  const [reprocessError, setReprocessError] = useState<string | null>(null)
 
   async function handleFiles(files: FileList | null) {
     if (!files || files.length === 0) return
@@ -299,6 +302,26 @@ function DealRoomTab({ dealId, initialDocuments, initialDriveFolderUrl }: { deal
     })
   }
 
+  async function reprocess(id: string) {
+    setReprocessing(prev => { const next = new Set(prev); next.add(id); return next })
+    setReprocessError(null)
+    try {
+      const res = await fetch(`/api/diligence/${dealId}/agent/ingest`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ document_ids: [id] }),
+      })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(body?.error ?? 'Failed to enqueue reprocess')
+      // Optimistic — mark pending until the worker picks it up.
+      setDocuments(prev => prev.map(d => d.id === id ? { ...d, parse_status: 'pending', parse_notes: null } : d))
+    } catch (err) {
+      setReprocessError(err instanceof Error ? err.message : 'Failed to enqueue reprocess')
+    } finally {
+      setReprocessing(prev => { const next = new Set(prev); next.delete(id); return next })
+    }
+  }
+
   async function remove(id: string) {
     const ok = await confirm({
       title: 'Delete document?',
@@ -332,6 +355,12 @@ function DealRoomTab({ dealId, initialDocuments, initialDriveFolderUrl }: { deal
           <FolderInput className="h-3.5 w-3.5 mr-1" /> Import from Drive
         </Button>
       </div>
+
+      {reprocessError && (
+        <div className="mb-3 rounded-md border border-destructive/40 bg-destructive/5 p-2 text-xs text-destructive">
+          {reprocessError}
+        </div>
+      )}
 
       {documents.length === 0 ? (
         <div className="rounded-md border bg-card p-12 text-center text-sm text-muted-foreground">
@@ -375,16 +404,44 @@ function DealRoomTab({ dealId, initialDocuments, initialDriveFolderUrl }: { deal
                   </td>
                   <td className="px-3 py-2 text-xs">
                     <span className="capitalize">{d.parse_status}</span>
+                    {d.parse_status === 'failed' && d.parse_notes && (
+                      <div className="text-[10px] text-destructive/80 mt-0.5 max-w-[280px]" title={d.parse_notes}>
+                        {d.parse_notes.length > 80 ? `${d.parse_notes.slice(0, 80)}…` : d.parse_notes}
+                      </div>
+                    )}
                   </td>
                   <td className="px-3 py-2 text-right">
-                    {d.parse_status !== 'skipped' && (
-                      <button onClick={() => setSkipped(d.id)} className="text-[10px] text-muted-foreground hover:text-foreground mr-2">
-                        Skip
+                    <div className="inline-flex items-center gap-1.5">
+                      {(d.parse_status === 'parsed' || d.parse_status === 'failed') && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs px-2.5 text-muted-foreground hover:text-foreground"
+                          onClick={() => reprocess(d.id)}
+                          disabled={reprocessing.has(d.id)}
+                          title="Re-run ingest on just this document"
+                        >
+                          {reprocessing.has(d.id) ? 'Queuing…' : 'Reprocess'}
+                        </Button>
+                      )}
+                      {d.parse_status !== 'skipped' && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs px-2.5 text-muted-foreground hover:text-foreground"
+                          onClick={() => setSkipped(d.id)}
+                        >
+                          Skip
+                        </Button>
+                      )}
+                      <button
+                        onClick={() => remove(d.id)}
+                        className="text-muted-foreground hover:text-destructive ml-0.5"
+                        title="Delete document"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
                       </button>
-                    )}
-                    <button onClick={() => remove(d.id)} className="text-muted-foreground hover:text-destructive">
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -606,7 +663,7 @@ interface AgentStatus {
   deal: { current_memo_stage: string }
   latest_job: {
     id: string
-    kind: 'ingest' | 'research' | 'qa' | 'draft' | 'render'
+    kind: 'ingest' | 'ingest_synthesis' | 'research' | 'qa' | 'draft' | 'draft_review' | 'score' | 'render'
     status: 'pending' | 'running' | 'success' | 'failed' | 'cancelled'
     progress_message: string | null
     error: string | null
@@ -656,29 +713,47 @@ function IngestionPanel({ dealId, documentCount }: { dealId: string; documentCou
   const [error, setError] = useState<string | null>(null)
   const [draft, setDraft] = useState<any>(null)
   const [fileNamesById, setFileNamesById] = useState<Record<string, string>>({})
+  const [failedDocIds, setFailedDocIds] = useState<string[]>([])
 
-  // Refresh draft + file-name map whenever ingestion lands or the panel mounts.
+  // Refresh draft + file-name map + failed-doc list. The failed list drives
+  // the "Reprocess failed" button so it's important to refetch after every
+  // ingest run, not just on mount.
   useEffect(() => {
-    if (!status?.latest_draft?.has_ingestion) { setDraft(null); return }
-    fetch(`/api/diligence/${dealId}/drafts`).then(r => r.ok ? r.json() : []).then(rows => {
-      const latest = (rows ?? [])[0]
-      setDraft(latest)
-    }).catch(() => {})
+    if (!status?.latest_draft?.has_ingestion) { setDraft(null) }
+    if (status?.latest_draft?.has_ingestion) {
+      fetch(`/api/diligence/${dealId}/drafts`).then(r => r.ok ? r.json() : []).then(rows => {
+        const latest = (rows ?? [])[0]
+        setDraft(latest)
+      }).catch(() => {})
+    }
     fetch(`/api/diligence/${dealId}/documents`).then(r => r.ok ? r.json() : []).then(docs => {
       const map: Record<string, string> = {}
-      for (const d of docs ?? []) map[d.id] = d.file_name
+      const failed: string[] = []
+      for (const d of docs ?? []) {
+        map[d.id] = d.file_name
+        if (d.parse_status === 'failed') failed.push(d.id)
+      }
       setFileNamesById(map)
+      setFailedDocIds(failed)
     }).catch(() => {})
-  }, [dealId, status?.latest_draft?.id, status?.latest_draft?.has_ingestion])
+  }, [dealId, status?.latest_draft?.id, status?.latest_draft?.has_ingestion, status?.latest_job?.status])
 
   const job = status?.latest_job
-  const isInFlight = job && (job.status === 'pending' || job.status === 'running') && job.kind === 'ingest'
+  // Treat the auto-enqueued synthesis job as part of the ingest workflow for
+  // status display + button disabling, so the user sees continuous feedback
+  // across the two-job pipeline rather than a misleading "complete" gap.
+  const isIngestWorkflowJob = job?.kind === 'ingest' || job?.kind === 'ingest_synthesis'
+  const isInFlight = job && (job.status === 'pending' || job.status === 'running') && isIngestWorkflowJob
 
-  async function runIngest() {
+  async function runIngest(documentIds?: string[]) {
     setSubmitting(true)
     setError(null)
     try {
-      const res = await fetch(`/api/diligence/${dealId}/agent/ingest`, { method: 'POST' })
+      const res = await fetch(`/api/diligence/${dealId}/agent/ingest`, {
+        method: 'POST',
+        headers: documentIds ? { 'content-type': 'application/json' } : {},
+        body: documentIds ? JSON.stringify({ document_ids: documentIds }) : undefined,
+      })
       const body = await res.json()
       if (!res.ok) throw new Error(body.error ?? 'Failed to enqueue ingest')
     } catch (err) {
@@ -699,17 +774,31 @@ function IngestionPanel({ dealId, documentCount }: { dealId: string; documentCou
             Re-run after adding more files.
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={runIngest} disabled={submitting || !!isInFlight || documentCount === 0}>
-          {isInFlight || submitting ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : status?.latest_draft?.has_ingestion ? <RefreshCw className="h-3.5 w-3.5 mr-1" /> : <Play className="h-3.5 w-3.5 mr-1" />}
-          {status?.latest_draft?.has_ingestion ? 'Re-run' : 'Run ingestion'}
-        </Button>
+        <div className="flex items-center gap-2">
+          {failedDocIds.length > 0 && !isInFlight && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => runIngest(failedDocIds)}
+              disabled={submitting}
+              title="Re-run the agent only on documents that failed in the previous ingest"
+            >
+              <RefreshCw className="h-3.5 w-3.5 mr-1" />
+              Reprocess failed ({failedDocIds.length})
+            </Button>
+          )}
+          <Button variant="outline" size="sm" onClick={() => runIngest()} disabled={submitting || !!isInFlight || documentCount === 0}>
+            {isInFlight || submitting ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : status?.latest_draft?.has_ingestion ? <RefreshCw className="h-3.5 w-3.5 mr-1" /> : <Play className="h-3.5 w-3.5 mr-1" />}
+            {status?.latest_draft?.has_ingestion ? 'Re-run' : 'Run ingestion'}
+          </Button>
+        </div>
       </div>
 
       {documentCount === 0 && (
         <p className="text-xs text-muted-foreground italic">Upload at least one document to enable ingestion.</p>
       )}
 
-      <JobStatusLine job={job ?? null} kind="ingest" error={error} />
+      <JobStatusLine job={job ?? null} kind={['ingest', 'ingest_synthesis']} error={error} />
 
       {draft?.ingestion_output && !isInFlight && (
         <div className="mt-4">
@@ -783,7 +872,7 @@ function AgentStageTab({ dealId, stage }: { dealId: string; stage: 'research' })
   )
 }
 
-function JobStatusLine({ job, kind, error }: { job: AgentStatus['latest_job']; kind: string; error: string | null }) {
+function JobStatusLine({ job, kind, error }: { job: AgentStatus['latest_job']; kind: string | string[]; error: string | null }) {
   if (error) {
     return (
       <div className="mt-3 rounded-md border border-destructive/40 bg-destructive/5 p-2 text-xs text-destructive">
@@ -791,7 +880,11 @@ function JobStatusLine({ job, kind, error }: { job: AgentStatus['latest_job']; k
       </div>
     )
   }
-  if (!job || job.kind !== kind) return null
+  const kinds = Array.isArray(kind) ? kind : [kind]
+  if (!job || !kinds.includes(job.kind)) return null
+  // For multi-kind families (ingest + ingest_synthesis), surface a friendly
+  // label rather than the raw enum value in the success line.
+  const displayLabel = kinds.length > 1 ? kinds[0] : kind as string
 
   const pretty = (s: string | null) => s?.replace(/^[a-z]/, c => c.toUpperCase()) ?? ''
 
@@ -814,7 +907,7 @@ function JobStatusLine({ job, kind, error }: { job: AgentStatus['latest_job']; k
   if (job.status === 'success') {
     return (
       <div className="mt-3 text-xs text-muted-foreground">
-        <Check className="h-3 w-3 inline mr-1" /> Last {kind} run finished {job.finished_at ? new Date(job.finished_at).toLocaleString() : 'just now'}.
+        <Check className="h-3 w-3 inline mr-1" /> Last {displayLabel} run finished {job.finished_at ? new Date(job.finished_at).toLocaleString() : 'just now'}.
       </div>
     )
   }
@@ -1013,6 +1106,9 @@ function DraftsTab({ dealId }: { dealId: string }) {
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // Re-fetch the drafts list whenever the latest job's status changes — the
+  // draft + draft_review jobs both write to the same draft row, so the row
+  // id alone doesn't change and wouldn't trigger a refresh on completion.
   useEffect(() => {
     fetch(`/api/diligence/${dealId}/drafts`).then(r => r.ok ? r.json() : []).then((rows: any[]) => {
       setDrafts(rows.map(r => ({
@@ -1027,10 +1123,15 @@ function DraftsTab({ dealId }: { dealId: string }) {
         has_qa: !!r.qa_answers,
       })))
     }).catch(() => {})
-  }, [dealId, status?.latest_draft?.id])
+  }, [dealId, status?.latest_draft?.id, status?.latest_job?.status, status?.latest_job?.id])
 
   const job = status?.latest_job
-  const isInFlight = job && (job.status === 'pending' || job.status === 'running') && job.kind === 'draft'
+  // Draft is a multi-job workflow: 'draft' (outline + fills) auto-enqueues
+  // 'draft_review' (review + score); 'score' can also run standalone. Treat
+  // all three as in-flight so the panel shows continuous progress.
+  const isDraftWorkflowJob = job?.kind === 'draft' || job?.kind === 'draft_review' || job?.kind === 'score'
+  const isInFlight = job && (job.status === 'pending' || job.status === 'running') && isDraftWorkflowJob
+  const hasMemo = drafts.some(d => d.has_memo_draft)
 
   async function runDraft() {
     setSubmitting(true)
@@ -1039,6 +1140,21 @@ function DraftsTab({ dealId }: { dealId: string }) {
       const res = await fetch(`/api/diligence/${dealId}/agent/draft`, { method: 'POST' })
       const body = await res.json()
       if (!res.ok) throw new Error(body.error ?? 'Failed to enqueue draft')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed')
+    } finally {
+      setSubmitting(false)
+      await refresh()
+    }
+  }
+
+  async function runScore() {
+    setSubmitting(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/diligence/${dealId}/agent/score`, { method: 'POST' })
+      const body = await res.json()
+      if (!res.ok) throw new Error(body.error ?? 'Failed to enqueue scoring')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed')
     } finally {
@@ -1056,15 +1172,29 @@ function DraftsTab({ dealId }: { dealId: string }) {
             Assemble a structured memo from ingestion, research, and Q&amp;A; score every machine and hybrid rubric dimension; surface partner-attention items.
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={runDraft} disabled={submitting || !!isInFlight}>
-          {isInFlight || submitting ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : drafts.some(d => d.has_memo_draft) ? <RefreshCw className="h-3.5 w-3.5 mr-1" /> : <Play className="h-3.5 w-3.5 mr-1" />}
-          {drafts.some(d => d.has_memo_draft) ? 'Re-draft' : 'Run draft'}
-        </Button>
+        <div className="flex items-center gap-2">
+          {hasMemo && !isInFlight && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={runScore}
+              disabled={submitting}
+              title="Score the existing memo against the rubric — without re-running the draft"
+            >
+              <RefreshCw className="h-3.5 w-3.5 mr-1" />
+              Run scoring
+            </Button>
+          )}
+          <Button variant="outline" size="sm" onClick={runDraft} disabled={submitting || !!isInFlight}>
+            {isInFlight || submitting ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : hasMemo ? <RefreshCw className="h-3.5 w-3.5 mr-1" /> : <Play className="h-3.5 w-3.5 mr-1" />}
+            {hasMemo ? 'Re-draft' : 'Run draft'}
+          </Button>
+        </div>
       </div>
 
       {error && <div className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">{error}</div>}
 
-      <JobStatusLine job={job ?? null} kind="draft" error={null} />
+      <JobStatusLine job={job ?? null} kind={['draft', 'draft_review', 'score']} error={null} />
 
       {drafts.length === 0 ? (
         <div className="rounded-md border bg-card p-12 text-center text-sm text-muted-foreground">
@@ -1090,9 +1220,11 @@ function DraftsTab({ dealId }: { dealId: string }) {
                 </div>
               </div>
               {d.has_memo_draft ? (
-                <Link href={`/diligence/${dealId}/drafts/${d.id}`} className="text-xs underline text-muted-foreground hover:text-foreground">
-                  Open
-                </Link>
+                <Button asChild variant="outline" size="sm" className="h-7 text-xs px-2.5">
+                  <Link href={`/diligence/${dealId}/drafts/${d.id}`}>
+                    Open draft
+                  </Link>
+                </Button>
               ) : null}
             </div>
           ))}

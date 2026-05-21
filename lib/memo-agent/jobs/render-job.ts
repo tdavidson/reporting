@@ -3,6 +3,7 @@ import { getActiveSchema, ensureDefaults } from '@/lib/memo-agent/firm-schemas'
 import { renderMarkdown } from '@/lib/memo-agent/render/markdown'
 import { renderDocx } from '@/lib/memo-agent/render/docx'
 import { uploadDocxToDrive } from '@/lib/memo-agent/render/gdoc'
+import { parseDriveFolderUrl } from '@/lib/google/drive'
 
 type Admin = ReturnType<typeof createAdminClient>
 
@@ -41,11 +42,21 @@ export async function runRenderJob(admin: Admin, job: RenderJob): Promise<unknow
 
   const { data: deal } = await admin
     .from('diligence_deals')
-    .select('name')
+    .select('name, drive_folder_url')
     .eq('id', job.deal_id)
     .eq('fund_id', job.fund_id)
     .maybeSingle()
   const dealName = (deal as { name: string } | null)?.name ?? 'Untitled deal'
+  const dealDriveFolderUrl = (deal as { drive_folder_url: string | null } | null)?.drive_folder_url ?? null
+
+  // Fund-configurable export formatting.
+  const { data: settings } = await admin
+    .from('fund_settings')
+    .select('memo_export_font_family, memo_export_font_size')
+    .eq('fund_id', job.fund_id)
+    .maybeSingle()
+  const fontFamily = (settings as any)?.memo_export_font_family as string | null
+  const fontSize = (settings as any)?.memo_export_font_size as number | null
 
   // Seed-on-demand so a fund that never visited the Schemas editor still
   // gets a non-empty memo_output schema. Without this the renderer's
@@ -62,6 +73,8 @@ export async function runRenderJob(admin: Admin, job: RenderJob): Promise<unknow
     isDraft: !!(draft as any).is_draft,
     dealName,
     draftVersion: (draft as any).draft_version,
+    fontFamily: fontFamily ?? undefined,
+    fontSize: fontSize ?? undefined,
   }
 
   if (format === 'markdown') {
@@ -95,18 +108,23 @@ export async function runRenderJob(admin: Admin, job: RenderJob): Promise<unknow
     }
   }
 
-  // gdoc: upload + convert to Google Doc.
+  // gdoc: upload + convert to Google Doc. Prefer the deal's own data-room
+  // folder when one is configured, so the memo lands alongside the deal's
+  // documents instead of the fund's default portfolio-reports folder.
+  const dealFolderId = dealDriveFolderUrl ? parseDriveFolderUrl(dealDriveFolderUrl) : null
   const result = await uploadDocxToDrive({
     admin,
     fundId: job.fund_id,
     filename,
     buffer,
+    folderIdOverride: dealFolderId,
   })
   return {
     format,
     filename,
     drive_file_id: result.fileId,
     web_view_link: result.webViewLink,
+    destination: dealFolderId ? 'deal_data_room' : 'fund_default_folder',
     bytes: buffer.length,
   }
 }

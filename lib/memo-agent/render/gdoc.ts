@@ -19,8 +19,14 @@ export async function uploadDocxToDrive(params: {
   fundId: string
   filename: string
   buffer: Buffer
+  /**
+   * Target Drive folder ID. When provided (e.g. the deal's own data-room
+   * folder), the upload goes there instead of the fund's default
+   * google_drive_folder_id (the portfolio-reports folder).
+   */
+  folderIdOverride?: string | null
 }): Promise<{ webViewLink: string | null; fileId: string | null }> {
-  const { admin, fundId, filename, buffer } = params
+  const { admin, fundId, filename, buffer, folderIdOverride } = params
 
   const { data: settings } = await admin
     .from('fund_settings')
@@ -29,9 +35,10 @@ export async function uploadDocxToDrive(params: {
     .maybeSingle()
   const refreshEnc = (settings as any)?.google_refresh_token_encrypted as string | null
   const dekEnc = (settings as any)?.encryption_key_encrypted as string | null
-  const folderId = (settings as any)?.google_drive_folder_id as string | null
+  const defaultFolderId = (settings as any)?.google_drive_folder_id as string | null
+  const folderId = folderIdOverride || defaultFolderId
   if (!refreshEnc || !dekEnc) throw new Error('Google Drive not connected for this fund.')
-  if (!folderId) throw new Error('Google Drive folder not configured. Set it in Settings → Storage.')
+  if (!folderId) throw new Error('No Google Drive folder available. Set a data-room folder on the deal, or a default folder in Settings → Storage.')
 
   const kek = process.env.ENCRYPTION_KEY
   if (!kek) throw new Error('ENCRYPTION_KEY not set')

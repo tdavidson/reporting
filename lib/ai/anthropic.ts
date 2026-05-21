@@ -21,13 +21,19 @@ export class AnthropicProvider implements AIProvider {
         }]
       : undefined
 
-    const response = await this.client.messages.create({
+    // Use the streaming endpoint via the SDK's `.stream()` helper. Anthropic
+    // requires streaming for any request that may take longer than 10 minutes
+    // (large max_tokens + slow models like Opus, or long web-search runs).
+    // `finalMessage()` reassembles the complete response so the rest of the
+    // pipeline sees the same shape as the legacy non-streaming call.
+    const stream = this.client.messages.stream({
       model: params.model,
       max_tokens: params.maxTokens,
       ...(params.system ? { system: params.system } : {}),
       ...(tools ? { tools: tools as any } : {}),
       messages: [{ role: 'user', content }],
     })
+    const response = await stream.finalMessage()
 
     // When web search runs server-side, the response interleaves
     // server_tool_use + web_search_tool_result blocks with text blocks. We
@@ -54,12 +60,14 @@ export class AnthropicProvider implements AIProvider {
       content: m.content,
     }))
 
-    const response = await this.client.messages.create({
+    // Same streaming-required reason as createMessage above.
+    const stream = this.client.messages.stream({
       model: params.model,
       max_tokens: params.maxTokens,
       ...(params.system ? { system: params.system } : {}),
       messages,
     })
+    const response = await stream.finalMessage()
 
     const text = response.content
       .filter((b): b is Anthropic.TextBlock => b.type === 'text')

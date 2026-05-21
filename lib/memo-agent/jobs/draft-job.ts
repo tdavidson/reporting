@@ -1,6 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { runDraft } from '@/lib/memo-agent/stages/draft'
-import { runScore } from '@/lib/memo-agent/stages/score'
 
 type Admin = ReturnType<typeof createAdminClient>
 
@@ -10,12 +9,15 @@ interface DraftJob {
   deal_id: string
   draft_id: string | null
   payload: Record<string, unknown>
+  enqueued_by?: string | null
 }
 
 /**
- * Stage 4 + 5 — drafting and scoring run together. They share the same
- * underlying input data and would always be invoked back-to-back, so a
- * single job runs both. On scoring failure we keep the draft.
+ * Stage 4 — drafting (outline + parallel section fills).
+ *
+ * On success, auto-enqueues a `draft_review` job which runs the review/edit
+ * pass and rubric scoring. Splitting the work keeps each job inside the 300s
+ * function ceiling: outline + fills here, review + score there.
  */
 export async function runDraftJob(admin: Admin, job: DraftJob): Promise<unknown> {
   const draftResult = await runDraft({
@@ -32,36 +34,40 @@ export async function runDraftJob(admin: Admin, job: DraftJob): Promise<unknown>
     await admin.from('memo_agent_jobs').update({ draft_id: draftResult.draft_id }).eq('id', job.id)
   }
 
-  let scoreResult: Awaited<ReturnType<typeof runScore>> | null = null
-  let scoreError: string | null = null
-  try {
-    scoreResult = await runScore({
-      admin,
-      fundId: job.fund_id,
-      dealId: job.deal_id,
-      draftId: draftResult.draft_id,
-      progressCb: async (msg) => {
-        await admin.from('memo_agent_jobs').update({ progress_message: `Scoring: ${msg}` }).eq('id', job.id)
-      },
-    })
-  } catch (err) {
-    scoreError = err instanceof Error ? err.message : String(err)
+  // Auto-enqueue the review + score follow-up. Skipped only if the draft
+  // produced nothing (every fill batch failed) — there's nothing to review.
+  let review_job_id: string | null = null
+  if (draftResult.output.paragraphs.length > 0) {
+    const { data: enq, error: enqErr } = await admin
+      .from('memo_agent_jobs')
+      .insert({
+        fund_id: job.fund_id,
+        deal_id: job.deal_id,
+        draft_id: draftResult.draft_id,
+        kind: 'draft_review',
+        payload: {},
+        enqueued_by: job.enqueued_by ?? null,
+      } as any)
+      .select('id')
+      .single()
+    // Fail loudly if the follow-up can't be scheduled — otherwise the memo
+    // silently lands with no review pass and no scoring. The draft prose is
+    // already persisted, so re-running after the fix is safe.
+    if (enqErr || !enq) {
+      throw new Error(
+        `Draft succeeded but the review + score job could not be enqueued: ${enqErr?.message ?? 'unknown error'}. ` +
+        `If this mentions a check constraint on "kind", apply migration ` +
+        `20260520000000_memo_agent_jobs_draft_review_kind.sql (supabase db push), then re-run the draft.`
+      )
+    }
+    review_job_id = (enq as { id: string }).id
   }
-
-  // Bump deal stage to 'render' (or 'score' if scoring failed).
-  await admin
-    .from('diligence_deals')
-    .update({ current_memo_stage: scoreError ? 'score' : 'render' })
-    .eq('id', job.deal_id)
-    .eq('fund_id', job.fund_id)
 
   return {
     draft_id: draftResult.draft_id,
     paragraphs: draftResult.output.paragraphs.length,
     partner_attention_items: draftResult.output.partner_attention.length,
-    scores: scoreResult?.output.scores.length ?? 0,
-    low_confidence_dimensions: scoreResult?.output.low_confidence_attention.length ?? 0,
-    score_error: scoreError,
+    review_job_id,
     warnings: draftResult.warnings,
   }
 }

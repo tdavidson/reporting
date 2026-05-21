@@ -1,7 +1,9 @@
 import type { ContentBlock } from '@/lib/ai/types'
 import type { ParsedFile } from '@/lib/memo-agent/ingestion/parsers'
 
-const PER_FILE_TEXT_BUDGET = 30_000
+// Matches the truncation budget in lib/parsing/extractAttachmentText.ts so
+// the shared extractor's output reaches the model without further clipping.
+const PER_FILE_TEXT_BUDGET = 50_000
 
 /**
  * Build the user-content payload for a single-document ingest call.
@@ -95,7 +97,7 @@ const INGEST_DOC_INSTRUCTIONS = `STAGE 1 — DATA ROOM INGESTION (per-document c
 
 For the target document only, produce a structured ingestion record per data_room_ingestion.yaml. Do NOT analyze other documents in this call — they're listed only for naming context.
 
-  1. Classify the document per data_room_ingestion.yaml document_types. Override the heuristic type if you disagree.
+  1. Classify the document per data_room_ingestion.yaml document_types. The detected_type field MUST be the exact \`id\` string from that schema (lowercase, snake_case — e.g. "pitch_deck", "financial_model", "cap_table"). Do not invent new IDs, do not title-case, do not pluralize. Use "unknown" only if none of the schema IDs fit.
   2. Extract claim_record entries per the schema. Mark every claim as company-stated (this stage does no verification).
   3. Note inadequacies on the issues field if the document is incomplete, illegible, or missing key sections.
 

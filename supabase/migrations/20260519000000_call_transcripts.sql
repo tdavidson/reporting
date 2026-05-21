@@ -44,12 +44,13 @@ create index if not exists diligence_documents_source_doc_idx
 -- 3 + 4. Extend memo_agent_jobs.
 -- ---------------------------------------------------------------------------
 
-alter table memo_agent_jobs
-  drop constraint if exists memo_agent_jobs_kind_check;
-
-alter table memo_agent_jobs
-  add constraint memo_agent_jobs_kind_check
-  check (kind in ('ingest', 'research', 'qa', 'draft', 'render', 'transcribe'));
+-- NOTE: the kind CHECK constraint is intentionally NOT rebuilt here. This
+-- branch was cut before `ingest_synthesis` / `draft_review` / `score` were
+-- added on main; rebuilding the constraint with only this branch's kinds
+-- would (a) fail validation against existing ingest_synthesis rows, and
+-- (b) drop the other kinds. The unified constraint — including 'transcribe'
+-- — is established by 20260521000002_memo_agent_jobs_kind_unified.sql, which
+-- runs after every branch's kind migration.
 
 alter table memo_agent_jobs
   add column if not exists external_job_id text;

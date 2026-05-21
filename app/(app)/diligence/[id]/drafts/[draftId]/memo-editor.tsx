@@ -227,7 +227,7 @@ export function MemoEditor({ dealId, dealName, draft: initial, initialAttention,
           </Button>
           <Button variant="outline" size="sm" onClick={() => exportTo('docx')} disabled={exporting !== null}>
             {exporting === 'docx' ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <FileDown className="h-3.5 w-3.5 mr-1" />}
-            .docx
+            Word Doc
           </Button>
           <Button variant="outline" size="sm" onClick={() => exportTo('gdoc')} disabled={exporting !== null}>
             {exporting === 'gdoc' ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <FileText className="h-3.5 w-3.5 mr-1" />}

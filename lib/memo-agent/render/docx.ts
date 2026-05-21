@@ -9,7 +9,14 @@ interface RenderInput {
   isDraft: boolean
   dealName: string
   draftVersion: string
+  /** Base font family for the export. Defaults to DM Sans. */
+  fontFamily?: string
+  /** Base font size in points. Defaults to 11. */
+  fontSize?: number
 }
+
+const DEFAULT_FONT_FAMILY = 'DM Sans'
+const DEFAULT_FONT_SIZE = 11
 
 const FALLBACK_ORDER = [
   'header', 'executive_summary', 'recommendation', 'company_overview', 'product', 'market',
@@ -50,16 +57,6 @@ export async function renderDocx(input: RenderInput): Promise<Buffer> {
     paragraphsBySection.get(p.section_id)!.push(p)
   }
 
-  // Citation key tracker (same approach as markdown).
-  const citationKeys: string[] = []
-  function citeNumber(sourceType: string, sourceId: string): number {
-    const key = `${sourceType}:${sourceId}`
-    const idx = citationKeys.indexOf(key)
-    if (idx >= 0) return idx + 1
-    citationKeys.push(key)
-    return citationKeys.length
-  }
-
   const children: (Paragraph | Table)[] = []
 
   if (input.isDraft) {
@@ -94,6 +91,9 @@ export async function renderDocx(input: RenderInput): Promise<Buffer> {
 
   for (const sectionId of order) {
     if (sectionId === 'header') continue
+    // The appendix is the citation list — intentionally omitted from the
+    // Word / Google Doc export per fund preference.
+    if (sectionId === 'appendix') continue
     const meta = sectionMeta.get(sectionId)
     if (!meta) continue
 
@@ -101,21 +101,6 @@ export async function renderDocx(input: RenderInput): Promise<Buffer> {
       children.push(headingPara(meta.title))
       children.push(buildScoresTable(input.memo.scores ?? []))
       children.push(new Paragraph({ text: '' }))
-      continue
-    }
-    if (meta.kind === 'structured' && sectionId === 'appendix') {
-      children.push(headingPara(meta.title))
-      citationKeys.forEach((key, i) => {
-        const [type, ...rest] = key.split(':')
-        const id = rest.join(':')
-        children.push(new Paragraph({
-          children: [
-            new TextRun({ text: `${i + 1}. `, bold: true }),
-            new TextRun({ text: `${type} — `, italics: true }),
-            new TextRun({ text: id, font: 'Courier New' }),
-          ],
-        }))
-      })
       continue
     }
 
@@ -132,13 +117,6 @@ export async function renderDocx(input: RenderInput): Promise<Buffer> {
         const isPlaceholder = p.origin === 'partner_only_placeholder'
         runs.push(new TextRun({ text: p.prose, italics: isPlaceholder }))
 
-        const cites = (p.sources ?? [])
-          .filter(s => s.source_type !== 'partner_only')
-          .map(s => citeNumber(s.source_type, s.source_id))
-        if (cites.length > 0) {
-          runs.push(new TextRun({ text: ` ${cites.map(n => `[${n}]`).join('')}`, superScript: true, color: '6B7280' }))
-        }
-
         const markers: string[] = []
         if (p.contains_projection) markers.push('projection')
         if (p.contains_unverified_claim) markers.push('unverified')
@@ -152,7 +130,21 @@ export async function renderDocx(input: RenderInput): Promise<Buffer> {
       })
   }
 
-  const doc = new Document({ sections: [{ children }] })
+  const fontFamily = input.fontFamily?.trim() || DEFAULT_FONT_FAMILY
+  const fontSizePt = input.fontSize && input.fontSize > 0 ? input.fontSize : DEFAULT_FONT_SIZE
+
+  const doc = new Document({
+    // Document-default run style. Body paragraphs inherit this; headings keep
+    // their own sizes but inherit the font family. Size is in half-points.
+    styles: {
+      default: {
+        document: {
+          run: { font: fontFamily, size: fontSizePt * 2 },
+        },
+      },
+    },
+    sections: [{ children }],
+  })
   return Buffer.from(await Packer.toBuffer(doc))
 }
 

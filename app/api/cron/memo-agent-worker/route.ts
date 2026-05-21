@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { runIngestJob } from '@/lib/memo-agent/jobs/ingest-job'
+import { runIngestSynthesisJob } from '@/lib/memo-agent/jobs/ingest-synthesis-job'
 import { runResearchJob } from '@/lib/memo-agent/jobs/research-job'
 import { runDraftJob } from '@/lib/memo-agent/jobs/draft-job'
+import { runDraftReviewJob } from '@/lib/memo-agent/jobs/draft-review-job'
+import { runScoreJob } from '@/lib/memo-agent/jobs/score-job'
 import { runRenderJob } from '@/lib/memo-agent/jobs/render-job'
 import { runTranscribeJob, isAwaitingCallback } from '@/lib/memo-agent/jobs/transcribe-job'
 
@@ -87,8 +90,9 @@ export async function GET(req: NextRequest) {
     fund_id: string
     deal_id: string
     draft_id: string | null
-    kind: 'ingest' | 'research' | 'qa' | 'draft' | 'render' | 'transcribe'
+    kind: 'ingest' | 'ingest_synthesis' | 'research' | 'qa' | 'draft' | 'draft_review' | 'score' | 'render' | 'transcribe'
     payload: Record<string, unknown>
+    enqueued_by: string | null
   }
 
   console.log(`[memo-agent-worker] claimed ${job.kind} job ${job.id} (deal ${job.deal_id})`)
@@ -99,11 +103,20 @@ export async function GET(req: NextRequest) {
       case 'ingest':
         result = await runIngestJob(admin, job)
         break
+      case 'ingest_synthesis':
+        result = await runIngestSynthesisJob(admin, job)
+        break
       case 'research':
         result = await runResearchJob(admin, job)
         break
       case 'draft':
         result = await runDraftJob(admin, job)
+        break
+      case 'draft_review':
+        result = await runDraftReviewJob(admin, job)
+        break
+      case 'score':
+        result = await runScoreJob(admin, job)
         break
       case 'render':
         result = await runRenderJob(admin, job)
