@@ -302,21 +302,41 @@ function DealRoomTab({ dealId, initialDocuments, initialDriveFolderUrl }: { deal
     })
   }
 
-  async function reprocess(id: string) {
+  // Ingest a single document on its own. Works for a brand-new (pending)
+  // upload, a re-run of an already-processed doc, or a previously-skipped
+  // doc. The ingest API treats a one-document request as a partial run: the
+  // result is merged into the deal's existing ingestion output (other docs
+  // untouched) and a synthesis refresh is auto-enqueued — additive, not a reset.
+  async function processDocument(id: string) {
     setReprocessing(prev => { const next = new Set(prev); next.add(id); return next })
     setReprocessError(null)
     try {
+      // A skipped doc is filtered out by loadDealDocuments, so it must be
+      // un-skipped (back to pending) before the ingest will pick it up.
+      const current = documents.find(d => d.id === id)
+      if (current?.parse_status === 'skipped') {
+        const unskipRes = await fetch(`/api/diligence/${dealId}/documents/${id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ parse_status: 'pending' }),
+        })
+        if (!unskipRes.ok) {
+          const b = await unskipRes.json().catch(() => ({}))
+          throw new Error(b?.error ?? 'Failed to un-skip document')
+        }
+      }
+
       const res = await fetch(`/api/diligence/${dealId}/agent/ingest`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ document_ids: [id] }),
       })
       const body = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(body?.error ?? 'Failed to enqueue reprocess')
+      if (!res.ok) throw new Error(body?.error ?? 'Failed to enqueue processing')
       // Optimistic — mark pending until the worker picks it up.
       setDocuments(prev => prev.map(d => d.id === id ? { ...d, parse_status: 'pending', parse_notes: null } : d))
     } catch (err) {
-      setReprocessError(err instanceof Error ? err.message : 'Failed to enqueue reprocess')
+      setReprocessError(err instanceof Error ? err.message : 'Failed to enqueue processing')
     } finally {
       setReprocessing(prev => { const next = new Set(prev); next.delete(id); return next })
     }
@@ -412,18 +432,27 @@ function DealRoomTab({ dealId, initialDocuments, initialDriveFolderUrl }: { deal
                   </td>
                   <td className="px-3 py-2 text-right">
                     <div className="inline-flex items-center gap-1.5">
-                      {(d.parse_status === 'parsed' || d.parse_status === 'failed') && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-7 text-xs px-2.5 text-muted-foreground hover:text-foreground"
-                          onClick={() => reprocess(d.id)}
-                          disabled={reprocessing.has(d.id)}
-                          title="Re-run ingest on just this document"
-                        >
-                          {reprocessing.has(d.id) ? 'Queuing…' : 'Reprocess'}
-                        </Button>
-                      )}
+                      {(() => {
+                        const notYetProcessed = d.parse_status === 'pending' || d.parse_status === 'skipped'
+                        return (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-xs px-2.5 text-muted-foreground hover:text-foreground"
+                            onClick={() => processDocument(d.id)}
+                            disabled={reprocessing.has(d.id)}
+                            title={d.parse_status === 'skipped'
+                              ? 'Un-skip and ingest this document — adds it to the existing ingestion output'
+                              : d.parse_status === 'pending'
+                                ? 'Ingest just this document — adds it to the existing ingestion output'
+                                : 'Re-run ingest on just this document — replaces its entry, keeps the rest'}
+                          >
+                            {reprocessing.has(d.id)
+                              ? 'Queuing…'
+                              : notYetProcessed ? 'Process' : 'Reprocess'}
+                          </Button>
+                        )
+                      })()}
                       {d.parse_status !== 'skipped' && (
                         <Button
                           size="sm"
