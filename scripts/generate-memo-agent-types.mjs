@@ -41,10 +41,12 @@ async function main() {
     console.log('done')
   }
 
-  // Index file re-exporting all type modules.
+  // Index file re-exporting all type modules. Namespaced per module — a flat
+  // `export *` collides when two schemas declare the same type name (e.g.
+  // FieldSpec in both data_room_ingestion and memo_output).
   const indexLines = schemas
     .map(f => f.replace(/\.schema\.json$/, ''))
-    .map(name => `export * from './${name}'`)
+    .map(name => `export * as ${name} from './${name}'`)
   await fs.writeFile(path.join(TYPES_DIR, 'index.ts'), indexLines.join('\n') + '\n', 'utf8')
   console.log(`  wrote types/index.ts (${schemas.length} modules)`)
 }
