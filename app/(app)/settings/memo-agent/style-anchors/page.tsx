@@ -19,7 +19,7 @@ export default async function StyleAnchorsPage() {
     .eq('user_id', user.id)
     .maybeSingle()
   if (!membership) redirect('/dashboard')
-  if ((membership as any).role !== 'admin') redirect('/settings')
+  // Diligence settings are open to any fund member, not admin-only.
 
   const anchors = await getActiveAnchors((membership as any).fund_id, admin)
   const confidence = getSynthesisConfidence(anchors.length)

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { parseCallbackPayload } from '@/lib/transcription/deepgram'
+import { uploadTranscriptToDrive } from '@/lib/memo-agent/render/gdoc'
+import { parseDriveFolderUrl } from '@/lib/google/drive'
 
 /**
  * Deepgram callback endpoint. Receives the transcript for a prerecorded
@@ -160,6 +162,38 @@ export async function POST(req: NextRequest, { params }: { params: { secret: str
     .from('diligence_documents')
     .update({ parse_status: 'transcribed' } as any)
     .eq('id', documentId)
+
+  // Mirror the transcript into the deal's Google Drive data-room folder so it
+  // lives alongside the recordings, not only in the database. Best-effort —
+  // the transcript is already saved in Supabase; a Drive failure must not
+  // fail the webhook.
+  try {
+    const { data: deal } = await admin
+      .from('diligence_deals')
+      .select('drive_folder_url')
+      .eq('id', job.deal_id)
+      .eq('fund_id', job.fund_id)
+      .maybeSingle()
+    const folderUrl = (deal as { drive_folder_url: string | null } | null)?.drive_folder_url ?? null
+    const driveFolderId = folderUrl ? parseDriveFolderUrl(folderUrl) : null
+    if (driveFolderId) {
+      const drive = await uploadTranscriptToDrive({
+        admin,
+        fundId: job.fund_id,
+        filename: transcriptName,
+        text: parsed.full_text,
+        folderId: driveFolderId,
+      })
+      if (drive.webViewLink) {
+        await admin
+          .from('diligence_documents')
+          .update({ drive_source_url: drive.webViewLink } as any)
+          .eq('id', transcriptDocId)
+      }
+    }
+  } catch (err) {
+    console.warn(`[transcription-webhook] Drive mirror failed: ${err instanceof Error ? err.message : String(err)}`)
+  }
 
   // Transcription is decoupled from memo ingest — the transcript document is
   // left pending for the partner to Process explicitly. No ingest job is

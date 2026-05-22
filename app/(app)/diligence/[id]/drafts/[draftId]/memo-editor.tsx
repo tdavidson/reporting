@@ -19,6 +19,7 @@ interface Paragraph {
   contains_projection: boolean
   contains_unverified_claim: boolean
   contains_contradiction: boolean
+  hidden?: boolean
 }
 
 interface DimensionScore {
@@ -146,6 +147,70 @@ export function MemoEditor({ dealId, dealName, draft: initial, initialAttention,
     }
   }
 
+  // Apply a draft mutation via PATCH and re-sync local state from the
+  // returned memo_draft_output (the server is authoritative — needed for
+  // inserts, whose ids are server-generated).
+  async function patchDraft(body: Record<string, unknown>): Promise<MemoOutput | null> {
+    setError(null)
+    try {
+      const res = await fetch(`/api/diligence/${dealId}/drafts/${draft.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error ?? 'Update failed')
+      if (data.memo_draft_output) {
+        setDraft(prev => ({ ...prev, memo_draft_output: data.memo_draft_output }))
+        return data.memo_draft_output as MemoOutput
+      }
+      return null
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Update failed')
+      return null
+    }
+  }
+
+  // Move a paragraph up/down within its section. Orders are renormalized to
+  // 0,1,2,… for the whole section so they stay clean.
+  async function moveParagraph(id: string, dir: 'up' | 'down') {
+    const para = (memo.paragraphs ?? []).find(p => p.id === id)
+    if (!para) return
+    const inSection = (memo.paragraphs ?? [])
+      .filter(p => p.section_id === para.section_id)
+      .slice()
+      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+    const idx = inSection.findIndex(p => p.id === id)
+    const swapWith = dir === 'up' ? idx - 1 : idx + 1
+    if (swapWith < 0 || swapWith >= inSection.length) return
+    const reordered = inSection.slice()
+    ;[reordered[idx], reordered[swapWith]] = [reordered[swapWith], reordered[idx]]
+    await patchDraft({
+      paragraph_order: reordered.map((p, i) => ({ id: p.id, section_id: p.section_id, order: i })),
+    })
+  }
+
+  async function toggleHidden(id: string) {
+    const para = (memo.paragraphs ?? []).find(p => p.id === id)
+    if (!para) return
+    await patchDraft({ paragraph_visibility: [{ id, hidden: !para.hidden }] })
+  }
+
+  async function insertParagraph(sectionId: string) {
+    const inSection = (memo.paragraphs ?? []).filter(p => p.section_id === sectionId)
+    const nextOrder = inSection.reduce((max, p) => Math.max(max, p.order ?? 0), -1) + 1
+    const updated = await patchDraft({
+      paragraph_inserts: [{ section_id: sectionId, order: nextOrder, prose: 'New paragraph — write your content here.' }],
+    })
+    if (updated) {
+      // Select the newest partner-drafted paragraph in this section for editing.
+      const fresh = updated.paragraphs
+        .filter(p => p.section_id === sectionId && p.origin === 'partner_drafted')
+        .sort((a, b) => (b.order ?? 0) - (a.order ?? 0))[0]
+      if (fresh) setSelected(fresh.id)
+    }
+  }
+
   async function exportTo(format: 'docx' | 'gdoc') {
     setExporting(format)
     setError(null)
@@ -263,14 +328,28 @@ export function MemoEditor({ dealId, dealName, draft: initial, initialAttention,
                 {paragraphs.length === 0 ? (
                   <p className="text-sm text-muted-foreground italic">[No content yet for this section.]</p>
                 ) : (
-                  paragraphs.map(p => (
+                  paragraphs.map((p, i) => (
                     <ParagraphView
                       key={p.id}
                       paragraph={p}
                       isSelected={selected === p.id}
                       onSelect={() => setSelected(p.id)}
+                      readOnly={isReadOnly}
+                      canMoveUp={i > 0}
+                      canMoveDown={i < paragraphs.length - 1}
+                      onMoveUp={() => moveParagraph(p.id, 'up')}
+                      onMoveDown={() => moveParagraph(p.id, 'down')}
+                      onToggleHidden={() => toggleHidden(p.id)}
                     />
                   ))
+                )}
+                {!isReadOnly && (
+                  <button
+                    onClick={() => insertParagraph(section.id)}
+                    className="text-xs text-muted-foreground hover:text-foreground mt-1"
+                  >
+                    + Add paragraph
+                  </button>
                 )}
               </section>
             )
@@ -411,26 +490,61 @@ export function MemoEditor({ dealId, dealName, draft: initial, initialAttention,
   )
 }
 
-function ParagraphView({ paragraph, isSelected, onSelect }: { paragraph: Paragraph; isSelected: boolean; onSelect: () => void }) {
+function ParagraphView({
+  paragraph, isSelected, onSelect, readOnly, canMoveUp, canMoveDown, onMoveUp, onMoveDown, onToggleHidden,
+}: {
+  paragraph: Paragraph
+  isSelected: boolean
+  onSelect: () => void
+  readOnly: boolean
+  canMoveUp: boolean
+  canMoveDown: boolean
+  onMoveUp: () => void
+  onMoveDown: () => void
+  onToggleHidden: () => void
+}) {
   const isPlaceholder = paragraph.origin === 'partner_only_placeholder'
+  const stop = (e: React.MouseEvent, fn: () => void) => { e.stopPropagation(); fn() }
   return (
     <div
       onClick={onSelect}
-      className={`group rounded-md p-3 mb-2 cursor-pointer transition-colors text-sm ${isSelected ? 'bg-muted ring-1 ring-primary/30' : 'hover:bg-muted/30'}`}
+      className={`group rounded-md p-3 mb-2 cursor-pointer transition-colors text-sm ${isSelected ? 'bg-muted ring-1 ring-primary/30' : 'hover:bg-muted/30'} ${paragraph.hidden ? 'opacity-50' : ''}`}
     >
       <p className={isPlaceholder ? 'italic text-muted-foreground' : ''}>
         {paragraph.prose}
-        {paragraph.sources.filter(s => s.source_type !== 'partner_only').length > 0 && (
+        {!paragraph.hidden && paragraph.sources.filter(s => s.source_type !== 'partner_only').length > 0 && (
           <sup className="ml-1 text-[10px] text-muted-foreground">
             {paragraph.sources.filter(s => s.source_type !== 'partner_only').slice(0, 5).map((_, i) => `[${i + 1}]`).join('')}
           </sup>
         )}
       </p>
-      <div className="flex flex-wrap gap-1 mt-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+      <div className="flex flex-wrap items-center gap-1 mt-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
         <Badge tone="muted">{paragraph.origin.replace(/_/g, ' ')}</Badge>
+        {paragraph.hidden && <Badge tone="amber">hidden — excluded from export</Badge>}
         {paragraph.contains_projection && <Badge tone="amber">projection</Badge>}
         {paragraph.contains_unverified_claim && <Badge tone="amber">⚠ unverified</Badge>}
         {paragraph.contains_contradiction && <Badge tone="red">contradiction</Badge>}
+        {!readOnly && (
+          <span className="ml-auto flex items-center gap-2">
+            <button
+              onClick={e => stop(e, onMoveUp)}
+              disabled={!canMoveUp}
+              className="text-[11px] text-muted-foreground hover:text-foreground disabled:opacity-30"
+              title="Move up"
+            >↑</button>
+            <button
+              onClick={e => stop(e, onMoveDown)}
+              disabled={!canMoveDown}
+              className="text-[11px] text-muted-foreground hover:text-foreground disabled:opacity-30"
+              title="Move down"
+            >↓</button>
+            <button
+              onClick={e => stop(e, onToggleHidden)}
+              className="text-[11px] text-muted-foreground hover:text-foreground"
+              title={paragraph.hidden ? 'Show in export' : 'Hide from export'}
+            >{paragraph.hidden ? 'Show' : 'Hide'}</button>
+          </span>
+        )}
       </div>
     </div>
   )

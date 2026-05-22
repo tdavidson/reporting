@@ -16,13 +16,11 @@ export async function GET() {
   const admin = createAdminClient()
   const { data: membership } = await admin
     .from('fund_members')
-    .select('role')
+    .select('fund_id')
     .eq('user_id', user.id)
     .maybeSingle()
+  // Open to any fund member, consistent with the rest of diligence settings.
   if (!membership) return NextResponse.json({ error: 'No fund found' }, { status: 403 })
-  if ((membership as any).role !== 'admin') {
-    return NextResponse.json({ error: 'Admin required' }, { status: 403 })
-  }
 
   const deepgram = await testDeepgramConnection()
 

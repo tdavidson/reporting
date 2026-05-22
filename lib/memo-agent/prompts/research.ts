@@ -76,9 +76,10 @@ function summarizeClaims(out: IngestionOutput): string {
       }
     }
   }
-  if (out.gap_analysis.missing.length > 0) {
+  const activeMissing = out.gap_analysis.missing.filter(g => !g.dismissed)
+  if (activeMissing.length > 0) {
     parts.push(`# Missing documents`)
-    for (const g of out.gap_analysis.missing) parts.push(`  • [${g.criticality}] ${g.expected_type ?? 'unknown'}: ${g.rationale}`)
+    for (const g of activeMissing) parts.push(`  • [${g.criticality}] ${g.expected_type ?? 'unknown'}: ${g.rationale}`)
   }
   if (out.cross_doc_flags.length > 0) {
     parts.push(`# Cross-doc inconsistencies`)

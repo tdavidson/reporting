@@ -98,24 +98,40 @@ export async function runResearch(params: {
   await note('Building research prompt…')
   const { prompt: system } = await buildSystemPrompt({ admin, fundId, stage: 'research' })
 
-  const { provider, model, providerType, webSearchAvailable } = await getStageProvider(admin, fundId, 'research')
+  const { provider, model, providerType, webSearchAvailable, webSearchOptIn } = await getStageProvider(admin, fundId, 'research')
   const webSearchEnabled = webSearchAvailable
   const promptInput = { dealName, ingestion, webSearchEnabled }
 
+  // The fund opted into web search but it can't run — research isn't on
+  // Anthropic. Surface this loudly: it's the most common reason web search
+  // "didn't work".
+  if (webSearchOptIn && !webSearchAvailable) {
+    warnings.push(
+      `Web search is enabled in settings but the research stage is not running on Anthropic ` +
+      `(web search only works with Anthropic). It was skipped — set the research-stage provider ` +
+      `to Anthropic, or the fund default to Anthropic.`
+    )
+  }
+
   await note(`Running 3 research sub-calls in parallel (${docCount} docs, ${claimCount} claims${webSearchEnabled ? ', web search on' : ''})…`)
+
+  // Total server-side web searches performed across all sub-calls — lets us
+  // tell "tool attached but model didn't search" from "searched, found little".
+  let totalWebSearches = 0
 
   // Sub-call helper — runs one focused AI call, logs usage, parses JSON.
   // Each catches its own errors so a single failure doesn't kill siblings.
   type SubCall<T> = { name: string; content: any; maxTokens: number; parse: (obj: Record<string, unknown>) => T; fallback: T }
   const runSubCall = async <T>(s: SubCall<T>): Promise<T> => {
     try {
-      const { text, usage } = await provider.createMessage({
+      const { text, usage, webSearchCount } = await provider.createMessage({
         model,
         maxTokens: s.maxTokens,
         system,
         content: s.content,
         enableWebSearch: webSearchEnabled,
       })
+      if (typeof webSearchCount === 'number') totalWebSearches += webSearchCount
       logAIUsage(admin, {
         fundId,
         provider: providerType,
@@ -185,8 +201,15 @@ export async function runResearch(params: {
   if (output.findings.length === 0 && claimCount > 0) {
     warnings.push(`Research produced 0 findings despite ${claimCount} ingested claims. Model may have ignored the prompt — consider re-running.`)
   }
-  if (webSearchEnabled && output.findings.length > 0 && output.findings.every(f => f.sources.length === 0)) {
-    warnings.push('Web search was enabled but no finding has a sourced URL. The model may have skipped the web_search tool.')
+  if (webSearchEnabled) {
+    if (totalWebSearches === 0) {
+      warnings.push(
+        'Web search was attached but the model performed 0 searches. ' +
+        'Verify web search is enabled on the Anthropic account, or that the research prompt instructs the model to search.'
+      )
+    } else if (output.findings.length > 0 && output.findings.every(f => f.sources.length === 0)) {
+      warnings.push(`Web search ran (${totalWebSearches} searches) but no finding carries a sourced URL — the model may not be citing what it found.`)
+    }
   }
 
   await note('Writing research output to draft…')

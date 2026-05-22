@@ -18,7 +18,7 @@ export default async function StyleAnchorEditorPage({ params }: { params: { id: 
     .eq('user_id', user.id)
     .maybeSingle()
   if (!membership) redirect('/dashboard')
-  if ((membership as any).role !== 'admin') redirect('/settings')
+  // Diligence settings are open to any fund member, not admin-only.
 
   const { data: anchor } = await admin
     .from('style_anchor_memos')

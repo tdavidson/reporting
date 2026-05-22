@@ -20,12 +20,17 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string;
 }
 
 /**
- * Partner edits to specific paragraphs or scores within a draft. The body shape:
- *   { paragraph_edits: [{ id, prose, origin? }], score_edits: [{ dimension_id, score, confidence?, rationale? }] }
+ * Partner edits to a draft. Body shape (all optional):
+ *   {
+ *     paragraph_edits:      [{ id, prose, origin? }],
+ *     paragraph_order:      [{ id, section_id, order }],   // reorder / move
+ *     paragraph_visibility: [{ id, hidden }],              // hide / show
+ *     paragraph_inserts:    [{ section_id, order, prose }],// new partner paragraphs
+ *     score_edits:          [{ dimension_id, score, confidence?, rationale? }],
+ *   }
  *
- * Edits create a new paragraph_record/score_record entry in-place; they don't
- * branch the draft. To create a new draft version, partners use the agent's
- * Re-run draft action (which enqueues a new draft job).
+ * Edits mutate the draft in-place; they don't branch it. To create a new
+ * draft version, partners use the agent's Re-run draft action.
  */
 export async function PATCH(req: NextRequest, { params }: { params: { id: string; draftId: string } }) {
   const guard = await ensureMember()
@@ -34,7 +39,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
   const { data: row } = await admin
     .from('diligence_memo_drafts')
-    .select('id, memo_draft_output, is_draft')
+    .select('id, memo_draft_output, ingestion_output, is_draft')
     .eq('id', params.draftId)
     .eq('deal_id', params.id)
     .eq('fund_id', fundId)
@@ -44,6 +49,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
   const body = await req.json().catch(() => ({}))
   const memoOutput = ((row as any).memo_draft_output as any) ?? { paragraphs: [], scores: [], partner_attention: [] }
+  const ingestionOutput = ((row as any).ingestion_output as any) ?? null
+  let ingestionChanged = false
 
   if (Array.isArray(body.paragraph_edits)) {
     const editsById = new Map<string, { prose?: string; origin?: string }>()
@@ -60,6 +67,66 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         origin: 'partner_edited',
       }
     })
+  }
+
+  // Reorder / move paragraphs between sections.
+  if (Array.isArray(body.paragraph_order)) {
+    const moveById = new Map<string, { section_id?: string; order?: number }>()
+    for (const e of body.paragraph_order) {
+      if (typeof e?.id !== 'string') continue
+      moveById.set(e.id, {
+        section_id: typeof e.section_id === 'string' ? e.section_id : undefined,
+        order: typeof e.order === 'number' ? e.order : undefined,
+      })
+    }
+    memoOutput.paragraphs = (memoOutput.paragraphs ?? []).map((p: any) => {
+      const m = moveById.get(p.id)
+      if (!m) return p
+      return {
+        ...p,
+        section_id: m.section_id ?? p.section_id,
+        order: m.order ?? p.order,
+      }
+    })
+  }
+
+  // Hide / show paragraphs.
+  if (Array.isArray(body.paragraph_visibility)) {
+    const hiddenById = new Map<string, boolean>()
+    for (const e of body.paragraph_visibility) {
+      if (typeof e?.id === 'string' && typeof e.hidden === 'boolean') hiddenById.set(e.id, e.hidden)
+    }
+    memoOutput.paragraphs = (memoOutput.paragraphs ?? []).map((p: any) =>
+      hiddenById.has(p.id) ? { ...p, hidden: hiddenById.get(p.id) } : p
+    )
+  }
+
+  // Insert new partner-written paragraphs.
+  if (Array.isArray(body.paragraph_inserts)) {
+    const inserts = body.paragraph_inserts
+      .filter((e: any) => e && typeof e.section_id === 'string' && typeof e.prose === 'string')
+      .map((e: any) => ({
+        id: `p_partner_${Math.random().toString(36).slice(2, 10)}`,
+        section_id: e.section_id,
+        order: typeof e.order === 'number' ? e.order : 0,
+        prose: e.prose,
+        sources: [],
+        origin: 'partner_drafted',
+        confidence: 'n/a',
+        contains_projection: false,
+        contains_unverified_claim: false,
+        contains_contradiction: false,
+        hidden: false,
+      }))
+    memoOutput.paragraphs = [...(memoOutput.paragraphs ?? []), ...inserts]
+  }
+
+  // Replace the ingestion gap_analysis — used by the interactive ingestion
+  // summary so a partner can dismiss false "missing"/"inadequate" findings.
+  // The client sends the full updated gap_analysis object.
+  if (body.ingestion_gap_analysis && typeof body.ingestion_gap_analysis === 'object' && ingestionOutput) {
+    ingestionOutput.gap_analysis = body.ingestion_gap_analysis
+    ingestionChanged = true
   }
 
   if (Array.isArray(body.score_edits)) {
@@ -85,13 +152,18 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     })
   }
 
+  const update: Record<string, unknown> = { memo_draft_output: memoOutput }
+  if (ingestionChanged) update.ingestion_output = ingestionOutput
+
   const { error } = await admin
     .from('diligence_memo_drafts')
-    .update({ memo_draft_output: memoOutput as any })
+    .update(update as any)
     .eq('id', params.draftId)
     .eq('fund_id', fundId)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({ ok: true })
+  // Return the updated output so the editor can re-sync without a second
+  // round-trip (needed for inserts — the new paragraph id is server-generated).
+  return NextResponse.json({ ok: true, memo_draft_output: memoOutput, ingestion_output: ingestionOutput })
 }
 
 async function ensureMember() {

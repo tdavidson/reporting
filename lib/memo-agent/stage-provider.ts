@@ -16,6 +16,13 @@ export interface StageProvider {
    * Other stages and other providers always get false.
    */
   webSearchAvailable: boolean
+  /**
+   * Whether the fund opted into web search, independent of whether it's
+   * actually available. When this is true but webSearchAvailable is false,
+   * the stage isn't running on Anthropic — surfaced as a warning so the
+   * opt-in doesn't silently do nothing.
+   */
+  webSearchOptIn: boolean
 }
 
 interface StageOverride {
@@ -54,5 +61,6 @@ export async function getStageProvider(admin: Admin, fundId: string, stage: Agen
   return {
     ...resolved,
     webSearchAvailable: stage === 'research' && webSearchOptIn && resolved.providerType === 'anthropic',
+    webSearchOptIn,
   }
 }

@@ -44,6 +44,12 @@ export class AnthropicProvider implements AIProvider {
       .map(b => b.text)
       .join('')
 
+    // Count actual web searches performed so callers can tell "tool attached
+    // but model didn't search" from "model searched but found nothing".
+    const webSearchCount = params.enableWebSearch
+      ? response.content.filter((b: any) => b.type === 'web_search_tool_result').length
+      : undefined
+
     return {
       text,
       usage: {
@@ -51,6 +57,7 @@ export class AnthropicProvider implements AIProvider {
         outputTokens: response.usage.output_tokens,
       },
       truncated: response.stop_reason === 'max_tokens',
+      webSearchCount,
     }
   }
 

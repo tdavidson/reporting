@@ -11,6 +11,7 @@ import {
   type OutlineSection,
 } from '@/lib/memo-agent/prompts/draft'
 import { extractJsonObject } from '@/lib/memo-agent/parse-ai-json'
+import { buildMemoTemplateBlock } from '@/lib/memo-agent/prompts/memo-template'
 import type { IngestionOutput } from './ingest'
 import type { ResearchOutput } from './research'
 
@@ -27,6 +28,8 @@ export interface MemoParagraph {
   contains_projection: boolean
   contains_unverified_claim: boolean
   contains_contradiction: boolean
+  /** Partner-hidden paragraphs are kept in the draft but excluded from renders. */
+  hidden?: boolean
 }
 
 export interface PartnerAttentionItem {
@@ -139,12 +142,17 @@ export async function runDraft(params: {
   await note('Building draft prompt…')
   const { prompt: system } = await buildSystemPrompt({ admin, fundId, stage: 'draft' })
   const { provider, model, providerType } = await getStageProvider(admin, fundId, 'draft')
+  // Fund memo template — first-page exemplar + structural reference from the
+  // fund's own sample memos.
+  const memoTemplate = await buildMemoTemplateBlock(admin, fundId)
 
   // ---- Phase 4A: outline -------------------------------------------------
   await note(`Planning memo outline (${docCount} docs, ${claimCount} claims)…`)
   const outlineContent = buildDraftOutlineContent({
     dealName: deal.name,
+    stage: deal.stage_at_consideration ?? null,
     memoOutputYaml: memoOutputSchema.yaml_content,
+    memoTemplate,
     ingestion,
     research,
     qa_answers,
@@ -185,6 +193,8 @@ export async function runDraft(params: {
         system,
         content: buildDraftSectionFillContent({
           dealName: deal.name,
+          stage: deal.stage_at_consideration ?? null,
+          memoTemplate,
           sectionsToWrite: batch,
           allSectionTopics,
           ingestion,
@@ -318,6 +328,14 @@ export async function runDraftReview(params: {
   }
 
   await note('Building review prompt…')
+  const { data: dealRow } = await admin
+    .from('diligence_deals')
+    .select('name, stage_at_consideration')
+    .eq('id', dealId)
+    .eq('fund_id', fundId)
+    .maybeSingle()
+  const dealName = (dealRow as { name: string } | null)?.name ?? 'this deal'
+  const dealStage = (dealRow as { stage_at_consideration: string | null } | null)?.stage_at_consideration ?? null
   const { prompt: system } = await buildSystemPrompt({ admin, fundId, stage: 'draft' })
   const { provider, model, providerType } = await getStageProvider(admin, fundId, 'draft_review')
 
@@ -337,7 +355,8 @@ export async function runDraftReview(params: {
         maxTokens: 16384,
         system,
         content: buildDraftReviewContent({
-          dealName: 'this deal',
+          dealName,
+          stage: dealStage,
           paragraphs: chunk.map(p => ({ id: p.id, section_id: p.section_id, prose: p.prose })),
           ingestion,
           research,

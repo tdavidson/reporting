@@ -23,7 +23,7 @@ export default async function SchemaEditorPage({ params }: { params: { name: str
     .eq('user_id', user.id)
     .maybeSingle()
   if (!membership) redirect('/dashboard')
-  if ((membership as any).role !== 'admin') redirect('/settings')
+  // Diligence settings are open to any fund member, not admin-only.
 
   await ensureDefaults((membership as any).fund_id, admin)
   const schema = await getActiveSchema((membership as any).fund_id, name, admin)

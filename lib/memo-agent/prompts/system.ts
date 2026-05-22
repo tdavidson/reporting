@@ -47,6 +47,19 @@ export async function buildSystemPrompt(params: {
     sections.push(`=== OPERATING INSTRUCTIONS ===\n${schemas.instructions.yaml_content}`)
   }
 
+  // Fund-editable per-stage guidance. Partners tune voice / approach / depth
+  // here without touching the JSON-contract prompts. Empty = shipped default.
+  const { data: promptRow } = await (admin as any)
+    .from('memo_agent_prompts')
+    .select('guidance')
+    .eq('fund_id', params.fundId)
+    .eq('stage', params.stage)
+    .maybeSingle()
+  const guidance = ((promptRow as { guidance: string } | null)?.guidance ?? '').trim()
+  if (guidance) {
+    sections.push(`=== FUND GUIDANCE FOR THIS STAGE (partner-authored — follow it) ===\n${guidance}`)
+  }
+
   // Schemas relevant to this stage.
   const relevant = schemasForStage(params.stage)
   for (const name of relevant) {

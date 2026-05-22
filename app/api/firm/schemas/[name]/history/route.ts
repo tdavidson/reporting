@@ -16,7 +16,7 @@ export async function GET(_req: NextRequest, { params }: { params: { name: strin
     .eq('user_id', user.id)
     .maybeSingle()
   if (!membership) return NextResponse.json({ error: 'No fund found' }, { status: 403 })
-  if ((membership as any).role !== 'admin') return NextResponse.json({ error: 'Admin required' }, { status: 403 })
+  // Open to any fund member — diligence settings are not admin-gated.
 
   const name = params.name as SchemaName
   if (!SCHEMA_NAMES.includes(name)) {

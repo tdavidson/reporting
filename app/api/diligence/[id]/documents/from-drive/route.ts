@@ -51,6 +51,12 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   if (!folderId) {
     return NextResponse.json({ error: 'Provide a valid Google Drive folder URL (must contain /folders/<id>)' }, { status: 400 })
   }
+  // Optional: import only these specific files (incremental import — pick a
+  // new file without re-importing the whole folder). When absent, all
+  // not-yet-imported files in the folder are imported.
+  const onlyFileIds: Set<string> | null = Array.isArray(body.file_ids) && body.file_ids.length > 0
+    ? new Set(body.file_ids.filter((x: unknown): x is string => typeof x === 'string'))
+    : null
 
   const { data: settings } = await admin
     .from('fund_settings')
@@ -99,7 +105,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
       try {
         emit({ type: 'log', message: 'Walking Drive folders…' })
-        const files = await listFilesRecursive(accessToken, folderId)
+        const allFiles = await listFilesRecursive(accessToken, folderId)
+        // When specific file_ids were requested, import only those.
+        const files = onlyFileIds ? allFiles.filter(f => onlyFileIds.has(f.id)) : allFiles
         emit({ type: 'listed', count: files.length })
 
         if (files.length === 0) {

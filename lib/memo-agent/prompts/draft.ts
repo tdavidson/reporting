@@ -1,12 +1,15 @@
 import type { ContentBlock } from '@/lib/ai/types'
 import type { IngestionOutput } from '@/lib/memo-agent/stages/ingest'
 import type { ResearchOutput } from '@/lib/memo-agent/stages/research'
+import { stageCalibrationBlock } from './stage-calibration'
 
 export interface QARecord {
   question_id: string
   answer_text: string
   feeds_dimensions?: string[]
   category?: string | null
+  /** Set for partner-authored questions (the partner wrote the question itself). */
+  question_text?: string
 }
 
 /** A planned (not-yet-written) paragraph from the outline pass. */
@@ -29,13 +32,18 @@ export interface OutlineSection {
  */
 export function buildDraftOutlineContent(params: {
   dealName: string
+  stage: string | null
   memoOutputYaml: string
+  memoTemplate?: string
   ingestion: IngestionOutput
   research: ResearchOutput | null
   qa_answers: QARecord[]
 }): ContentBlock[] {
   const text = [
     `Deal: ${params.dealName}`,
+    '',
+    stageCalibrationBlock(params.stage),
+    ...(params.memoTemplate ? ['', params.memoTemplate] : []),
     '',
     `=== STAGE 4A — MEMO OUTLINE ===`,
     `Plan the memo structure. Do NOT write prose in this call.`,
@@ -66,6 +74,8 @@ export function buildDraftOutlineContent(params: {
  */
 export function buildDraftSectionFillContent(params: {
   dealName: string
+  stage: string | null
+  memoTemplate?: string
   sectionsToWrite: OutlineSection[]
   allSectionTopics: Array<{ section_id: string; topics: string[] }>
   ingestion: IngestionOutput
@@ -86,6 +96,9 @@ export function buildDraftSectionFillContent(params: {
 
   const text = [
     `Deal: ${params.dealName}`,
+    '',
+    stageCalibrationBlock(params.stage),
+    ...(params.memoTemplate ? ['', params.memoTemplate] : []),
     '',
     `=== STAGE 4B — WRITE MEMO SECTIONS ===`,
     `Write the prose for ONLY the sections planned below. Other sections are`,
@@ -115,6 +128,7 @@ export function buildDraftSectionFillContent(params: {
 
 export interface ScorePromptInput {
   dealName: string
+  stage: string | null
   rubricYaml: string
   ingestion: IngestionOutput
   research: ResearchOutput | null
@@ -126,8 +140,11 @@ export function buildScoreUserContent(params: ScorePromptInput): ContentBlock[] 
   const text = [
     `Deal: ${params.dealName}`,
     '',
+    stageCalibrationBlock(params.stage),
+    '',
     `=== STAGE 5 — RUBRIC SCORING ===`,
     'Score every machine and hybrid dimension per the active rubric.yaml. Partner-only dimensions (e.g. team) get score=null and rationale containing supporting material.',
+    'Score against stage-appropriate expectations (see calibration above) — do NOT mark a dimension down for lacking data a company at this stage would not have.',
     '',
     `--- DRAFT MEMO (high-level) ---`,
     params.memo_draft_output_summary,
@@ -154,6 +171,7 @@ export function buildScoreUserContent(params: ScorePromptInput): ContentBlock[] 
  */
 export function buildDraftReviewContent(params: {
   dealName: string
+  stage: string | null
   paragraphs: Array<{ id: string; section_id: string; prose: string }>
   ingestion: IngestionOutput
   research: ResearchOutput | null
@@ -168,6 +186,8 @@ export function buildDraftReviewContent(params: {
 
   const text = [
     `Deal: ${params.dealName}`,
+    '',
+    stageCalibrationBlock(params.stage),
     '',
     `=== STAGE 4C — MEMO REVIEW & EDIT ===`,
     `Review the first-draft memo below. Return ONLY paragraphs that need`,
@@ -230,12 +250,19 @@ const OUTLINE_INSTRUCTIONS = `Output JSON ONLY. Plan the memo — do NOT write p
   ]
 }
 
+This memo is an INVESTMENT ARGUMENT, not a report. Before planning sections,
+decide the spine of the memo: What is the bet? What are the two or three
+things that have to be true for this to be a great investment? What is the
+single biggest risk? Plan the memo so it builds that argument — every
+section should advance it, not just catalogue facts.
+
 Planning rules:
   • Include every section from memo_output.yaml EXCEPT "scoring_summary" and "appendix" (those come from later stages).
+  • Plan FEWER, sharper paragraphs over exhaustive coverage. A section that makes one clear point in two paragraphs beats one that makes five diffuse ones. Only plan a paragraph if it earns its place in the argument.
   • The "recommendation" section gets exactly ONE paragraph with topic "[partner-only placeholder]".
   • The "team" section SHOULD plan MULTIPLE paragraphs: (a) factual_summary — per-founder background; (b) prior_work — what each founder built/shipped/led, with sourced specifics; (c) public_output — papers, talks, OSS, public writing; (d) references_to_qa — partner Q&A about the team. Plus placeholder paragraphs for character_assessment and founder_market_fit_judgment.
-  • Keep each "topic" to one concise line. The section-fill step has the full source data and will pick exact citations — do not enumerate source ids here.
-  • Surface unverified material claims, contradictions, gaps, missing Q&A, and partner_only blanks as partner_attention items now — they don't need prose.`
+  • Each "topic" is one concise line describing the POINT the paragraph makes (e.g. "why the wedge into mid-market is defensible"), not the facts it lists. The section-fill step has the full source data and will pick exact citations.
+  • Surface genuine concerns as partner_attention items — but calibrate to stage (see calibration above): do not raise the absence of late-stage data as something the partner must address.`
 
 const SECTION_FILL_INSTRUCTIONS = `Output JSON ONLY. Write prose for the planned paragraphs.
 
@@ -245,7 +272,7 @@ const SECTION_FILL_INSTRUCTIONS = `Output JSON ONLY. Write prose for the planned
       "id": string,                        // echo the planned paragraph id
       "section_id": string,                // echo the planned section id
       "order": integer,                    // echo the planned order
-      "prose": string,                     // Substantive. Target 4-6 sentences, 120-220 words — aim toward the upper end. Single-sentence or thin (<70 word) paragraphs are not acceptable; the partner should have enough context to evaluate without re-reading source material.
+      "prose": string,                     // Investigative prose — see writing standards below. Length serves the point; do not pad to a target.
       "sources": [
         {
           "source_type": "claim" | "finding" | "qa_answer" | "assumption" | "partner_only" | "gap",
@@ -261,6 +288,24 @@ const SECTION_FILL_INSTRUCTIONS = `Output JSON ONLY. Write prose for the planned
     }
   ]
 }
+
+WRITING STANDARDS — this is what the partner feedback is about. Follow closely:
+  • Be INVESTIGATIVE, not a reporter. Lead with what the evidence MEANS for the
+    investment decision — the judgment, the implication, the "so what" — then
+    support it. Do not catalogue facts and leave the reader to interpret them.
+  • Tell a STORY. The memo should read as a connected argument: each paragraph
+    follows from the last and advances the case. Use transitions. Don't write
+    a list of disconnected observations.
+  • Write the way an experienced partner writes to their own partnership —
+    direct, opinionated, plain-spoken, willing to take a view. Not hedged
+    corporate prose, not marketing language.
+  • Be CONCISE. Vary length to serve the point — a sharp two-sentence
+    observation can outweigh a dense paragraph. Cut anything that doesn't
+    advance the argument. Density is a flaw, not a virtue.
+  • Sourcing supports the point; it is not the point. Cite to back a claim,
+    but never let citation crowd out insight.
+  • Match the stage (see calibration above). Frame early-stage uncertainty as
+    normal; do not write as though missing late-stage data is a red flag.
 
 Hard rules:
   • Write a paragraph for every planned paragraph in the sections above — match the planned id, section_id, order.
@@ -283,16 +328,29 @@ const REVIEW_INSTRUCTIONS = `Output JSON ONLY. Return ONLY paragraphs that genui
   ]
 }
 
-Review for, in priority order:
-  1. Sourcing accuracy — prose that asserts something the source data does not support, or that reads as verified when the underlying claim is company-stated/unverified.
-  2. Thin paragraphs — anything under ~70 words or a single sentence. Expand to 120-220 words with substance from the source data.
-  3. Cross-section repetition — if two paragraphs cover the same ground, tighten the weaker one.
-  4. Voice and clarity — marketing language, hedging, or vague phrasing; make it crisp and partner-readable.
+You are the senior editor. Read the whole draft, then fix what's weak —
+prioritise the partner's feedback that the memo reads as a dense report
+rather than an investigative argument:
+
+  1. Story & flow — does the memo build a connected argument? Fix paragraphs
+     that read as disconnected observations; add the through-line so each
+     point follows from the last.
+  2. Insight over reporting — rewrite paragraphs that catalogue facts without
+     saying what they MEAN for the decision. Lead with the judgment.
+  3. Density — tighten flabby, overlong, or padded paragraphs. Cut anything
+     that doesn't advance the argument. Shorter and sharper is better.
+  4. Voice — replace hedged, corporate, or marketing-flavoured prose with
+     direct, opinionated partner-style writing.
+  5. Stage fit — rewrite anything that penalises the company for lacking
+     data it can't be expected to have at this stage (see calibration above).
+  6. Sourcing accuracy — fix prose that asserts more than the source supports,
+     or reads as verified when the claim is company-stated/unverified.
 
 Rules:
-  • Do NOT return paragraphs that are already good. An empty edits array is a valid response.
+  • Do NOT return paragraphs that are already good. An empty edits array is valid.
   • Do NOT rewrite partner_only_placeholder paragraphs (prose "[Partner to complete]"). Leave them alone.
   • Do NOT draft a recommendation or score the team.
+  • Do NOT pad paragraphs to a length target — tightening is an improvement.
   • revised_prose replaces the paragraph's prose verbatim — return the full improved paragraph, not a diff.`
 
 const SCORE_INSTRUCTIONS = `Output JSON ONLY:
@@ -333,9 +391,10 @@ function summarizeIngestion(out: IngestionOutput): string {
       parts.push(`  • [${c.criticality}] ${c.id} · ${c.field} = ${c.value}${c.context ? ` (${c.context})` : ''}`)
     }
   }
-  if (out.gap_analysis.missing.length > 0) {
+  const activeMissing = out.gap_analysis.missing.filter(g => !g.dismissed)
+  if (activeMissing.length > 0) {
     parts.push(`# Missing`)
-    for (const g of out.gap_analysis.missing) parts.push(`  • [${g.criticality}] ${g.expected_type ?? '?'}: ${g.rationale}`)
+    for (const g of activeMissing) parts.push(`  • [${g.criticality}] ${g.expected_type ?? '?'}: ${g.rationale}`)
   }
   if (out.cross_doc_flags.length > 0) {
     parts.push(`# Cross-doc flags`)
@@ -363,5 +422,12 @@ function summarizeResearch(out: ResearchOutput): string {
 
 function summarizeQA(records: QARecord[]): string {
   if (records.length === 0) return '(no Q&A captured)'
-  return records.map(r => `${r.question_id}${r.category ? ` [${r.category}]` : ''}: ${r.answer_text}`).join('\n')
+  return records.map(r => {
+    // Partner-authored questions carry their own text; agent questions are
+    // identified by id. Tag partner questions so the draft can weight them.
+    const label = r.question_text
+      ? `Partner question — "${r.question_text}"`
+      : `${r.question_id}${r.category ? ` [${r.category}]` : ''}`
+    return `${label}: ${r.answer_text}`
+  }).join('\n')
 }

@@ -246,6 +246,6 @@ async function ensureAdmin() {
     .eq('user_id', user.id)
     .maybeSingle()
   if (!membership) return { error: NextResponse.json({ error: 'No fund found' }, { status: 403 }) }
-  if ((membership as any).role !== 'admin') return { error: NextResponse.json({ error: 'Admin required' }, { status: 403 }) }
+  // Open to any fund member — diligence settings are not admin-gated.
   return { admin, fundId: (membership as any).fund_id as string, userId: user.id }
 }

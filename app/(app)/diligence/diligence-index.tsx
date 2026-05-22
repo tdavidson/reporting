@@ -96,9 +96,14 @@ export function DiligenceIndex({ initialDeals }: { initialDeals: Deal[] }) {
             Active deals — track stages, upload documents, draft memos.
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={() => setCreateOpen(true)}>
-          <Plus className="h-4 w-4 mr-1" /> New Deal
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button asChild variant="outline" size="sm">
+            <Link href="/diligence/settings">Settings</Link>
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => setCreateOpen(true)}>
+            <Plus className="h-4 w-4 mr-1" /> New Deal
+          </Button>
+        </div>
       </div>
 
       {openAttention && openAttention.count > 0 && (

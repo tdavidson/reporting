@@ -101,6 +101,7 @@ function parseCap(v: unknown): number | null {
   return Math.round(n)
 }
 
+// Diligence settings are open to any fund member, not admin-only.
 async function ensureAdmin() {
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -108,10 +109,9 @@ async function ensureAdmin() {
   const admin = createAdminClient()
   const { data: membership } = await admin
     .from('fund_members')
-    .select('fund_id, role')
+    .select('fund_id')
     .eq('user_id', user.id)
     .maybeSingle()
   if (!membership) return { error: NextResponse.json({ error: 'No fund found' }, { status: 403 }) }
-  if ((membership as any).role !== 'admin') return { error: NextResponse.json({ error: 'Admin required' }, { status: 403 }) }
   return { admin, fundId: (membership as any).fund_id as string }
 }

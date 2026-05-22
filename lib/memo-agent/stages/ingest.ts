@@ -30,6 +30,8 @@ export interface IngestionGap {
   document_id?: string
   criticality: 'blocker' | 'important' | 'nice_to_have'
   rationale: string
+  /** Partner-dismissed gaps are kept for the record but ignored downstream. */
+  dismissed?: boolean
 }
 
 export interface IngestionOutput {
@@ -271,11 +273,12 @@ export async function runIngestSynthesis(params: {
   await note('Loading deal record…')
   const { data: dealRow } = await admin
     .from('diligence_deals')
-    .select('name')
+    .select('name, stage_at_consideration')
     .eq('id', dealId)
     .eq('fund_id', fundId)
     .maybeSingle()
   const dealName = (dealRow as { name: string } | null)?.name ?? 'this deal'
+  const dealStage = (dealRow as { stage_at_consideration: string | null } | null)?.stage_at_consideration ?? null
 
   // We don't have the original file_names on the draft — best effort: look
   // them up by document_id so the synthesis prompt mentions human names.
@@ -309,6 +312,7 @@ export async function runIngestSynthesis(params: {
   try {
     const synthesisContent = buildIngestSynthesisContent({
       dealName,
+      stage: dealStage,
       perDoc: normalizedDocs.map(d => ({
         document_id: d.document_id,
         file_name: nameById.get(d.document_id) ?? d.document_id,

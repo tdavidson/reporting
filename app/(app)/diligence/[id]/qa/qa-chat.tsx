@@ -51,6 +51,33 @@ export function QAChat({ dealId, dealName }: { dealId: string; dealName: string 
   const [finished, setFinished] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [totalRemaining, setTotalRemaining] = useState<number | null>(null)
+  // Partner-authored questions.
+  const [ownQuestion, setOwnQuestion] = useState('')
+  const [ownAnswer, setOwnAnswer] = useState('')
+  const [addingOwn, setAddingOwn] = useState(false)
+  const [ownAdded, setOwnAdded] = useState<string[]>([])
+
+  async function addOwnQuestion() {
+    if (!ownQuestion.trim() || !ownAnswer.trim()) return
+    setAddingOwn(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/diligence/${dealId}/agent/qa/add-question`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question_text: ownQuestion, answer_text: ownAnswer }),
+      })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(body.error ?? 'Failed to add question')
+      setOwnAdded(prev => [...prev, ownQuestion.trim()])
+      setOwnQuestion('')
+      setOwnAnswer('')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to add question')
+    } finally {
+      setAddingOwn(false)
+    }
+  }
 
   async function fetchNextBatch() {
     setLoading(true)
@@ -154,6 +181,45 @@ export function QAChat({ dealId, dealName }: { dealId: string; dealName: string 
       )}
 
       {error && <div className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive mb-4">{error}</div>}
+
+      {/* Partner-authored questions — your own question + your take, fed to the memo. */}
+      {!finished && (
+        <details className="rounded-md border bg-card mb-4">
+          <summary className="px-4 py-2.5 cursor-pointer text-sm font-medium">
+            Add your own question
+            {ownAdded.length > 0 && <span className="ml-2 text-xs font-normal text-muted-foreground">{ownAdded.length} added</span>}
+          </summary>
+          <div className="px-4 pb-4 space-y-2">
+            <p className="text-xs text-muted-foreground">
+              A question you think matters, plus your own answer or take. It feeds the memo draft alongside the agent&apos;s Q&amp;A.
+            </p>
+            <input
+              value={ownQuestion}
+              onChange={e => setOwnQuestion(e.target.value)}
+              placeholder="Your question"
+              className="w-full h-9 rounded-md border border-input bg-transparent px-3 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            />
+            <textarea
+              value={ownAnswer}
+              onChange={e => setOwnAnswer(e.target.value)}
+              rows={3}
+              placeholder="Your answer / take"
+              className="w-full resize-y rounded-md border border-input bg-transparent px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            />
+            <div className="flex justify-end">
+              <Button variant="outline" size="sm" onClick={addOwnQuestion} disabled={addingOwn || !ownQuestion.trim() || !ownAnswer.trim()}>
+                {addingOwn ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : null}
+                Add to Q&amp;A
+              </Button>
+            </div>
+            {ownAdded.length > 0 && (
+              <ul className="text-xs text-muted-foreground space-y-0.5 pt-1">
+                {ownAdded.map((q, i) => <li key={i}>✓ {q}</li>)}
+              </ul>
+            )}
+          </div>
+        </details>
+      )}
 
       {covered.length > 0 && (
         <div className="rounded-md border bg-muted/20 p-3 mb-4 text-xs space-y-1">

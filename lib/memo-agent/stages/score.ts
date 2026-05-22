@@ -72,11 +72,12 @@ export async function runScore(params: {
 
   const { data: dealRow } = await admin
     .from('diligence_deals')
-    .select('name')
+    .select('name, stage_at_consideration')
     .eq('id', dealId)
     .eq('fund_id', fundId)
     .maybeSingle()
   const dealName = (dealRow as { name: string } | null)?.name ?? 'this deal'
+  const dealStage = (dealRow as { stage_at_consideration: string | null } | null)?.stage_at_consideration ?? null
 
   await note('Building score prompt…')
   const { prompt: system } = await buildSystemPrompt({ admin, fundId, stage: 'score' })
@@ -84,6 +85,7 @@ export async function runScore(params: {
   const memoSummary = summarizeMemoForScoring(memo)
   const userContent = buildScoreUserContent({
     dealName,
+    stage: dealStage,
     rubricYaml: rubricSchema.yaml_content,
     ingestion,
     research,

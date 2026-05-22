@@ -363,9 +363,22 @@ export async function finishQA(params: {
     category: byId.get(qid)?.category ?? null,
   }))
 
+  // Preserve partner-authored Q&A entries (added directly via the
+  // add-question endpoint) — they aren't part of the agent session so the
+  // session-derived records above would otherwise drop them.
+  const { data: draftRow } = await admin
+    .from('diligence_memo_drafts')
+    .select('qa_answers')
+    .eq('id', draftId)
+    .eq('fund_id', fundId)
+    .maybeSingle()
+  const existing = Array.isArray((draftRow as any)?.qa_answers) ? (draftRow as any).qa_answers as any[] : []
+  const partnerAuthored = existing.filter(r => typeof r?.question_id === 'string' && r.question_id.startsWith('partner_q_'))
+  const merged = [...records, ...partnerAuthored]
+
   await admin
     .from('diligence_memo_drafts')
-    .update({ qa_answers: records as any })
+    .update({ qa_answers: merged as any })
     .eq('id', draftId)
     .eq('fund_id', fundId)
 
@@ -376,7 +389,7 @@ export async function finishQA(params: {
     .eq('fund_id', fundId)
     .eq('current_memo_stage', 'qa')
 
-  return { qa_count: records.length }
+  return { qa_count: merged.length }
 }
 
 // ---------------------------------------------------------------------------

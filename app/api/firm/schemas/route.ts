@@ -15,7 +15,7 @@ export async function GET() {
     .eq('user_id', user.id)
     .maybeSingle()
   if (!membership) return NextResponse.json({ error: 'No fund found' }, { status: 403 })
-  if ((membership as any).role !== 'admin') return NextResponse.json({ error: 'Admin required' }, { status: 403 })
+  // Open to any fund member — diligence settings are not admin-gated.
 
   // First-call-per-fund seeds defaults.
   await ensureDefaults(membership.fund_id, admin)

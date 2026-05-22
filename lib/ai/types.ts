@@ -34,6 +34,12 @@ export interface AIResult {
   text: string
   usage: TokenUsage
   truncated: boolean
+  /**
+   * Number of server-side web searches the model actually performed. Only
+   * meaningful when the request was made with enableWebSearch. 0 means the
+   * tool was attached but the model chose not to search (or couldn't).
+   */
+  webSearchCount?: number
 }
 
 export interface ChatMessage {

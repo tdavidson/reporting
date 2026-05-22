@@ -271,6 +271,7 @@ function DealRoomTab({ dealId, initialDocuments, initialDriveFolderUrl }: { deal
   // doc reaches a terminal parse_status — the polling effect below clears it.
   const [processing, setProcessing] = useState<Set<string>>(new Set())
   const [reprocessError, setReprocessError] = useState<string | null>(null)
+  const [pickerOpen, setPickerOpen] = useState(false)
 
   // Poll the documents list while anything is processing, so the row reflects
   // the actual job lifecycle (not just the brief enqueue call) and updates
@@ -428,6 +429,11 @@ function DealRoomTab({ dealId, initialDocuments, initialDriveFolderUrl }: { deal
         <Button variant="outline" size="sm" onClick={() => setDriveOpen(true)}>
           <FolderInput className="h-3.5 w-3.5 mr-1" /> Import from Drive
         </Button>
+        {initialDriveFolderUrl && (
+          <Button variant="outline" size="sm" onClick={() => setPickerOpen(true)}>
+            <FolderInput className="h-3.5 w-3.5 mr-1" /> Add specific file
+          </Button>
+        )}
       </div>
 
       {reprocessError && (
@@ -563,6 +569,154 @@ function DealRoomTab({ dealId, initialDocuments, initialDriveFolderUrl }: { deal
           fetch(`/api/diligence/${dealId}/documents`).then(r => r.ok ? r.json() : []).then(setDocuments)
         }}
       />
+
+      <DriveFilePicker
+        open={pickerOpen}
+        onOpenChange={setPickerOpen}
+        dealId={dealId}
+        folderUrl={initialDriveFolderUrl}
+        onImported={() => {
+          fetch(`/api/diligence/${dealId}/documents`).then(r => r.ok ? r.json() : []).then(setDocuments)
+        }}
+      />
+      </div>
+    </div>
+  )
+}
+
+interface DriveFile {
+  id: string
+  name: string
+  relative_path: string
+  mime_type: string
+  google_native: boolean
+  already_imported: boolean
+}
+
+/**
+ * Lists the deal's Drive folder and lets a partner import one or more
+ * specific files — without re-walking and re-importing the whole folder.
+ */
+function DriveFilePicker({ open, onOpenChange, dealId, folderUrl, onImported }: {
+  open: boolean
+  onOpenChange: (v: boolean) => void
+  dealId: string
+  folderUrl: string | null
+  onImported: () => void
+}) {
+  const [files, setFiles] = useState<DriveFile[]>([])
+  const [loading, setLoading] = useState(false)
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [importing, setImporting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [doneMsg, setDoneMsg] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!open) return
+    setLoading(true); setError(null); setFiles([]); setSelected(new Set()); setDoneMsg(null)
+    fetch(`/api/diligence/${dealId}/documents/drive-files`)
+      .then(async r => { const b = await r.json(); if (!r.ok) throw new Error(b.error ?? 'Failed to list Drive files'); return b })
+      .then(b => setFiles(Array.isArray(b.files) ? b.files : []))
+      .catch(e => setError(e instanceof Error ? e.message : 'Failed to list Drive files'))
+      .finally(() => setLoading(false))
+  }, [open, dealId])
+
+  function toggle(id: string) {
+    setSelected(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
+  }
+
+  async function importSelected() {
+    if (selected.size === 0) return
+    setImporting(true); setError(null); setDoneMsg(null)
+    try {
+      const res = await fetch(`/api/diligence/${dealId}/documents/from-drive`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ folder_url: folderUrl ?? '', file_ids: Array.from(selected) }),
+      })
+      if (!res.ok || !res.body) {
+        const b = await res.json().catch(() => ({}))
+        throw new Error(b.error ?? 'Import failed')
+      }
+      // Drain the NDJSON progress stream to completion.
+      const reader = res.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
+      let imported = 0
+      let fatal: string | null = null
+      while (true) {
+        const { value, done } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n')
+        buffer = lines.pop() ?? ''
+        for (const line of lines) {
+          if (!line.trim()) continue
+          const evt = JSON.parse(line)
+          if (evt.type === 'done') imported = evt.imported
+          if (evt.type === 'fatal') fatal = evt.error
+        }
+      }
+      if (fatal) throw new Error(fatal)
+      setDoneMsg(`Imported ${imported} file${imported === 1 ? '' : 's'}.`)
+      onImported()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Import failed')
+    } finally {
+      setImporting(false)
+    }
+  }
+
+  if (!open) return null
+
+  const importable = files.filter(f => !f.already_imported && !f.google_native)
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => !importing && onOpenChange(false)}>
+      <div className="bg-card rounded-lg border shadow-lg w-full max-w-lg max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
+        <div className="p-4 border-b">
+          <h3 className="text-sm font-medium">Add a file from Drive</h3>
+          <p className="text-xs text-muted-foreground mt-0.5">Pick specific files to import — the rest of the data room is untouched.</p>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-4 space-y-1">
+          {loading && <div className="text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin inline mr-2" />Listing Drive folder…</div>}
+          {error && <div className="rounded-md border border-destructive/40 bg-destructive/5 p-2 text-xs text-destructive">{error}</div>}
+          {doneMsg && <div className="rounded-md border border-green-500/40 bg-green-50 dark:bg-green-950/30 p-2 text-xs text-green-700 dark:text-green-400">{doneMsg}</div>}
+          {!loading && !error && files.length === 0 && <div className="text-sm text-muted-foreground">No files in the Drive folder.</div>}
+          {files.map(f => (
+            <label
+              key={f.id}
+              className={`flex items-start gap-2 rounded-md p-2 text-sm ${f.already_imported || f.google_native ? 'opacity-50' : 'hover:bg-muted/40 cursor-pointer'}`}
+            >
+              <input
+                type="checkbox"
+                className="mt-0.5"
+                disabled={f.already_imported || f.google_native || importing}
+                checked={selected.has(f.id)}
+                onChange={() => toggle(f.id)}
+              />
+              <span className="min-w-0 flex-1">
+                <span className="block truncate">{f.relative_path ? `${f.relative_path}/${f.name}` : f.name}</span>
+                {f.already_imported && <span className="text-[10px] text-muted-foreground">already imported</span>}
+                {f.google_native && <span className="text-[10px] text-muted-foreground">Google-native file — not importable</span>}
+              </span>
+            </label>
+          ))}
+        </div>
+
+        <div className="p-4 border-t flex items-center justify-between gap-2">
+          <span className="text-xs text-muted-foreground">
+            {selected.size} selected · {importable.length} importable
+          </span>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={() => onOpenChange(false)} disabled={importing}>Close</Button>
+            <Button size="sm" onClick={importSelected} disabled={importing || selected.size === 0}>
+              {importing ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : null}
+              Import selected
+            </Button>
+          </div>
+        </div>
       </div>
     </div>
   )
@@ -917,7 +1071,13 @@ function IngestionPanel({ dealId, documentCount }: { dealId: string; documentCou
               Showing the last completed ingestion — updating…
             </p>
           )}
-          <IngestionSummary output={draft.ingestion_output as IngestionOutput} fileNamesById={fileNamesById} />
+          <IngestionSummary
+            output={draft.ingestion_output as IngestionOutput}
+            fileNamesById={fileNamesById}
+            dealId={dealId}
+            draftId={draft.id}
+            editable={draft.is_draft !== false}
+          />
         </div>
       )}
     </div>

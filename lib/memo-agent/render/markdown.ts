@@ -114,7 +114,8 @@ export function renderMarkdown(input: RenderInput): string {
       continue
     }
 
-    const paragraphs = paragraphsBySection.get(sectionId) ?? []
+    // Partner-hidden paragraphs are excluded from the render.
+    const paragraphs = (paragraphsBySection.get(sectionId) ?? []).filter(p => !p.hidden)
     if (paragraphs.length === 0) continue
 
     lines.push(`## ${meta.title}`)

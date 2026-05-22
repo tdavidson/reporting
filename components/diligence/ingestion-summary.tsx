@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import type { IngestionOutput } from '@/lib/memo-agent/stages/ingest'
 
 const CRIT_BADGE: Record<string, string> = {
@@ -15,49 +16,110 @@ function Crit({ level, children }: { level: string; children: React.ReactNode })
   return <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-medium ${CRIT_BADGE[level] ?? CRIT_BADGE.medium}`}>{children}</span>
 }
 
-export function IngestionSummary({ output, fileNamesById }: {
+export function IngestionSummary({ output, fileNamesById, dealId, draftId, editable }: {
   output: IngestionOutput
   fileNamesById: Record<string, string>
+  /** When dealId + draftId are set and editable is true, gap findings can be dismissed. */
+  dealId?: string
+  draftId?: string
+  editable?: boolean
 }) {
   const totalClaims = output.documents.reduce((acc, d) => acc + d.claims.length, 0)
+  const canEdit = !!(editable && dealId && draftId)
+
+  // Local copy of gap_analysis so dismiss toggles are instant.
+  const [gap, setGap] = useState(output.gap_analysis)
+  const [saveError, setSaveError] = useState<string | null>(null)
+
+  async function setDismissed(kind: 'missing' | 'inadequate', index: number, dismissed: boolean) {
+    const next = {
+      ...gap,
+      [kind]: gap[kind].map((g, i) => (i === index ? { ...g, dismissed } : g)),
+    }
+    setGap(next)
+    setSaveError(null)
+    try {
+      const res = await fetch(`/api/diligence/${dealId}/drafts/${draftId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ingestion_gap_analysis: next }),
+      })
+      if (!res.ok) {
+        const b = await res.json().catch(() => ({}))
+        throw new Error(b.error ?? 'Save failed')
+      }
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : 'Save failed')
+      setGap(gap)  // revert
+    }
+  }
+
+  const activeMissing = gap.missing.filter(g => !g.dismissed).length
+  const activeInadequate = gap.inadequate.filter(g => !g.dismissed).length
 
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
         <Stat label="Documents" value={output.documents.length} />
         <Stat label="Claims extracted" value={totalClaims} />
-        <Stat label="Missing docs" value={output.gap_analysis.missing.length} />
+        <Stat label="Missing docs" value={activeMissing} />
         <Stat label="Cross-doc flags" value={output.cross_doc_flags.length} />
       </div>
 
-      {output.gap_analysis.missing.length > 0 && (
+      {saveError && (
+        <div className="rounded-md border border-destructive/40 bg-destructive/5 p-2 text-xs text-destructive">{saveError}</div>
+      )}
+
+      {gap.missing.length > 0 && (
         <section>
-          <h3 className="text-sm font-medium mb-2">Missing documents</h3>
+          <h3 className="text-sm font-medium mb-2">
+            Missing documents
+            {canEdit && <span className="ml-2 text-xs font-normal text-muted-foreground">— dismiss anything the agent flagged wrongly</span>}
+          </h3>
           <div className="rounded-md border bg-card divide-y">
-            {output.gap_analysis.missing.map((g, i) => (
-              <div key={i} className="p-3 text-sm flex items-start gap-2">
+            {gap.missing.map((g, i) => (
+              <div key={i} className={`p-3 text-sm flex items-start gap-2 ${g.dismissed ? 'opacity-50' : ''}`}>
                 <Crit level={g.criticality}>{g.criticality.replace(/_/g, ' ')}</Crit>
                 <div className="flex-1 min-w-0">
-                  <div className="font-medium">{g.expected_type ?? 'Unknown'}</div>
+                  <div className={`font-medium ${g.dismissed ? 'line-through' : ''}`}>{g.expected_type ?? 'Unknown'}</div>
                   <div className="text-xs text-muted-foreground mt-0.5">{g.rationale}</div>
                 </div>
+                {canEdit && (
+                  <button
+                    onClick={() => setDismissed('missing', i, !g.dismissed)}
+                    className="shrink-0 text-[11px] text-muted-foreground hover:text-foreground"
+                  >
+                    {g.dismissed ? 'Restore' : 'Dismiss'}
+                  </button>
+                )}
               </div>
             ))}
           </div>
         </section>
       )}
 
-      {output.gap_analysis.inadequate.length > 0 && (
+      {gap.inadequate.length > 0 && (
         <section>
-          <h3 className="text-sm font-medium mb-2">Inadequate documents</h3>
+          <h3 className="text-sm font-medium mb-2">
+            Inadequate documents
+            {canEdit && <span className="ml-2 text-xs font-normal text-muted-foreground">— dismiss anything the agent flagged wrongly</span>}
+          </h3>
           <div className="rounded-md border bg-card divide-y">
-            {output.gap_analysis.inadequate.map((g, i) => (
-              <div key={i} className="p-3 text-sm flex items-start gap-2">
+            {gap.inadequate.map((g, i) => (
+              <div key={i} className={`p-3 text-sm flex items-start gap-2 ${g.dismissed ? 'opacity-50' : ''}`}>
                 <Crit level={g.criticality}>{g.criticality.replace(/_/g, ' ')}</Crit>
                 <div className="flex-1 min-w-0">
-                  <div className="font-medium">{g.document_id ? (fileNamesById[g.document_id] ?? g.document_id) : 'Unknown'}</div>
+                  <div className={`font-medium ${g.dismissed ? 'line-through' : ''}`}>{g.document_id ? (fileNamesById[g.document_id] ?? g.document_id) : 'Unknown'}</div>
                   <div className="text-xs text-muted-foreground mt-0.5">{g.rationale}</div>
                 </div>
+                {canEdit && (
+                  <button
+                    onClick={() => setDismissed('inadequate', i, !g.dismissed)}
+                    className="shrink-0 text-[11px] text-muted-foreground hover:text-foreground"
+                  >
+                    {g.dismissed ? 'Restore' : 'Dismiss'}
+                  </button>
+                )}
               </div>
             ))}
           </div>

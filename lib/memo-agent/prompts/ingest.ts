@@ -1,5 +1,6 @@
 import type { ContentBlock } from '@/lib/ai/types'
 import type { ParsedFile } from '@/lib/memo-agent/ingestion/parsers'
+import { stageCalibrationBlock } from './stage-calibration'
 
 // Matches the truncation budget in lib/parsing/extractAttachmentText.ts so
 // the shared extractor's output reaches the model without further clipping.
@@ -62,6 +63,7 @@ export function buildIngestDocContent(params: {
  */
 export function buildIngestSynthesisContent(params: {
   dealName: string
+  stage: string | null
   perDoc: Array<{
     document_id: string
     file_name: string
@@ -73,6 +75,8 @@ export function buildIngestSynthesisContent(params: {
 }): ContentBlock[] {
   const lines: string[] = [
     `Deal: ${params.dealName}`,
+    '',
+    stageCalibrationBlock(params.stage),
     '',
     'Per-document ingestion summaries (from the per-doc fan-out you just completed):',
     '',
@@ -127,9 +131,11 @@ const INGEST_SYNTHESIS_INSTRUCTIONS = `STAGE 1 — DATA ROOM INGESTION (synthesi
 
 Using ONLY the per-document summaries and claims above (you do not have the raw documents), produce the data-room-wide gap and cross-doc analysis per data_room_ingestion.yaml:
 
-  1. gap_analysis.missing — expected document types from the schema that aren't present in the manifest.
-  2. gap_analysis.inadequate — documents present but flagged as incomplete (use the per-doc issues fields).
+  1. gap_analysis.missing — documents that SHOULD be present given the company's stage but aren't. Calibrate hard to the stage (see calibration above): at pre-seed/seed, only flag genuinely stage-appropriate documents (a deck, a basic model, a cap table, founder background). Do NOT list audited financials, detailed cohort/retention data, or a multi-year operating history as missing — a company at this stage is not expected to have them, and flagging them makes the memo read as harsh and late-stage.
+  2. gap_analysis.inadequate — documents present but genuinely incomplete for the stage (use the per-doc issues fields). Do not flag a document as inadequate merely for lacking late-stage depth.
   3. cross_doc_flags — multi-doc inconsistencies (e.g. cap table revenue vs financial model revenue). Surface as flags only; do not resolve.
+
+Criticality must reflect the stage: at pre-seed/seed almost nothing is a "blocker" — reserve that for something genuinely deal-ending.
 
 Return JSON ONLY:
 
