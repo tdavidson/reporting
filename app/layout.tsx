@@ -14,10 +14,10 @@ export const metadata: Metadata = {
     template: '%s | Powered by Hemrock',
     default: 'Portfolio Reporting | Powered by Hemrock',
   },
-  description: 'Source-available portfolio reporting for venture capital firms, accelerators, and angel investors.',
+  description: 'Open source portfolio reporting for venture capital firms, accelerators, and angel investors.',
   openGraph: {
     title: 'Portfolio Reporting | Analyst by Hemrock',
-    description: 'Source-available portfolio reporting for venture capital firms, accelerators, and angel investors.',
+    description: 'Open source portfolio reporting for venture capital firms, accelerators, and angel investors.',
     images: [{ url: ogImageUrl, width: 1200, height: 630 }],
     type: 'website',
     siteName: 'Analyst by Hemrock',
@@ -25,7 +25,7 @@ export const metadata: Metadata = {
   twitter: {
     card: 'summary_large_image',
     title: 'Portfolio Reporting | Analyst by Hemrock',
-    description: 'Source-available portfolio reporting for venture capital firms, accelerators, and angel investors.',
+    description: 'Open source portfolio reporting for venture capital firms, accelerators, and angel investors.',
     images: [ogImageUrl],
   },
 }

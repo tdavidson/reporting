@@ -4,10 +4,10 @@ import Link from 'next/link'
 
 export const metadata = ogMetadata({
   title: 'Run your fund with Hemrock',
-  description: 'Source-available portfolio reporting for venture capital firms, accelerators, and angel investors. Forward or upload your investor updates, and Analyst does the rest.',
+  description: 'Open source portfolio reporting for venture capital firms, accelerators, and angel investors. Forward or upload your investor updates, and Analyst does the rest.',
 })
 import { Button } from '@/components/ui/button'
-import { Github, Play, Mail, Upload, BarChart3, Brain, Handshake, FileText, ChevronRight, Lightbulb, Database, TableProperties, ShieldUser, Users, Calendar, Send, ArrowDown, StickyNote, MessageCircle, FolderOpen, ShieldCheck, LineChart } from 'lucide-react'
+import { Github, Play, Mail, Upload, BarChart3, Brain, Handshake, FileText, ChevronRight, Lightbulb, Database, TableProperties, ShieldUser, Users, Calendar, Send, ArrowDown, StickyNote, MessageCircle, FolderOpen, ShieldCheck, LineChart, Briefcase, Microscope } from 'lucide-react'
 import { CalendlyButton } from '@/components/calendly-button'
 import { SubscriptionInquiryButton } from '@/components/subscription-inquiry-modal'
 import type { LucideIcon } from 'lucide-react'
@@ -28,9 +28,11 @@ const steps: { icon: LucideIcon; step: string; title: string; text: string; href
   { icon: StickyNote, step: '5', title: 'Communicate insights via Notes', text: 'Share metrics, observations, and context with your team through Notes. Keep a running record of what matters across your portfolio and surface it when you need it.', href: '/notes-explainer', screenshot: '/screenshots/notes-cropped.png' },
   { icon: MessageCircle, step: '6', title: 'Ask your AI analyst anything', text: 'An always-available analyst to ask questions, interpret data, compare companies, and surface trends across your portfolio - grounded in your actual metrics and notes.', href: '/dashboard-explainer', screenshot: '/screenshots/company-cropped.png' },
   { icon: Handshake, step: '7', title: 'Log interactions automatically', text: 'BCC your inbound address on conversations to log interactions and introductions automatically. A lightweight CRM built into your workflow.', href: '/interactions-explainer', screenshot: '/screenshots/interactions-cropped.png' },
-  { icon: FileText, step: '8', title: 'Generate LP letters', text: 'Draft quarterly update letters for your LPs using AI and your portfolio data - metrics, summaries, performance, and team notes.', href: '/letters-explainer', screenshot: '/screenshots/letters-cropped.png' },
-  { icon: FolderOpen, step: '9', title: 'Consolidate everything in one place', text: 'Manage your portfolio, funds, SPVs, personal investments, and LPs by consolidating data from multiple platforms, spreadsheets, emails, and documents into a single source of truth. Works alongside your fund admin.', href: '/dashboard-explainer', screenshot: '/screenshots/dashboard-cropped.png' },
-  { icon: ShieldCheck, step: '10', title: 'Stay on top of compliance', text: 'Track regulatory filings, tax deadlines, and internal compliance requirements in a calendar tailored to your fund profile. Color-coded by category, with automatic applicability and dismiss tracking.', href: '/compliance-explainer', screenshot: '/screenshots/compliance-cropped.png' },
+  { icon: Briefcase, step: '8', title: 'Screen inbound deals', text: 'Cold pitches and partner-forwarded intros sent to your inbound address get classified, fit-scored against your thesis, and queued in a Deals pipeline. An optional public submission form lets founders apply directly.', href: '/deals-explainer', screenshot: '/screenshots/deals.png' },
+  { icon: Microscope, step: '9', title: 'Run diligence and draft memos', text: 'A schema-driven AI agent ingests the data room, runs external research, asks partner Q&A, and drafts a structured investment memo with paragraph-level provenance - rendered to Word or Google Docs. Rubric, Q&A library, and memo structure are partner-editable per fund.', href: '/diligence-explainer', screenshot: '/screenshots/diligence.png' },
+  { icon: FileText, step: '10', title: 'Generate LP letters', text: 'Draft quarterly update letters for your LPs using AI and your portfolio data - metrics, summaries, performance, and team notes.', href: '/letters-explainer', screenshot: '/screenshots/letters-cropped.png' },
+  { icon: FolderOpen, step: '11', title: 'Consolidate everything in one place', text: 'Manage your portfolio, funds, SPVs, personal investments, and LPs by consolidating data from multiple platforms, spreadsheets, emails, and documents into a single source of truth. Works alongside your fund admin.', href: '/dashboard-explainer', screenshot: '/screenshots/dashboard-cropped.png' },
+  { icon: ShieldCheck, step: '12', title: 'Stay on top of compliance', text: 'Track regulatory filings, tax deadlines, and internal compliance requirements in a calendar tailored to your fund profile. Color-coded by category, with automatic applicability and dismiss tracking.', href: '/compliance-explainer', screenshot: '/screenshots/compliance-cropped.png' },
 ]
 
 const faqs: { q: string; a: React.ReactNode }[] = [
@@ -40,7 +42,7 @@ const faqs: { q: string; a: React.ReactNode }[] = [
   { q: 'How much does it cost to run?', a: 'Most services in the stack have generous free tiers that cover normal usage. The main variable cost is AI API usage (Anthropic, OpenAI, or Gemini) for metric extraction, summaries, and analysis, which scales with your portfolio size and how often you generate reports.' },
   { q: 'Is my portfolio data private?', a: 'Yes. You deploy on your own infrastructure with your own database. No data is shared with other users or stored on third-party servers beyond the services you configure (your Supabase instance, your AI provider). You own and control everything. A hosted solution is also available for a select number of funds, which involves shared resources, but the platform is designed for data security and isolation between funds.' },
   { q: 'What AI models are supported?', a: 'The platform supports Anthropic (Claude), OpenAI (GPT), Google (Gemini), and Ollama for local models. You bring your own API key and can switch between providers. AI powers metric extraction from emails, company summaries, portfolio analysis chat, and LP letter drafting.' },
-  { q: 'Can I modify the code?', a: <>Yes. The source is available under a single-fund free use <a href="https://github.com/tdavidson/reporting/blob/main/LICENSE" className="underline hover:text-foreground">license</a>. You can customize the platform for your own fund. Commercial use across multiple clients requires a separate license. I&apos;m also available to assist with modifications - <Link href="/contact" className="underline hover:text-foreground">contact me</Link> to discuss.</> },
+  { q: 'Can I modify the code?', a: <>Yes. It&apos;s open source under the <a href="https://github.com/tdavidson/reporting/blob/main/LICENSE.md" className="underline hover:text-foreground">Apache License 2.0</a> - use it, modify it, and deploy it freely, for your own fund or commercially. I&apos;m also available to assist with modifications, <Link href="/contact" className="underline hover:text-foreground">contact me</Link> to discuss.</> },
 ]
 
 export default function HomePage() {
@@ -50,7 +52,7 @@ export default function HomePage() {
         Run your fund with Hemrock
       </h1>
       <p className="text-xl text-muted-foreground mb-12 max-w-2xl">
-        Source-available portfolio reporting for venture capital firms, accelerators, and angel investors.
+        Open source portfolio reporting for venture capital firms, accelerators, and angel investors.
         Forward or upload your investor updates, and Hemrock does the rest.
       </p>
 
@@ -131,8 +133,8 @@ export default function HomePage() {
       <section className="mb-8">
         <h2 className="text-2xl font-semibold tracking-tight mb-2">Pricing</h2>
         <p className="text-sm text-muted-foreground mb-6">
-          Source-available under a single-fund free use license. See the full{' '}
-          <a href="https://github.com/tdavidson/reporting/blob/main/LICENSE" className="underline hover:text-foreground">
+          Free and open source under the Apache License 2.0. See the full{' '}
+          <a href="https://github.com/tdavidson/reporting/blob/main/LICENSE.md" className="underline hover:text-foreground">
             license on GitHub
           </a>
           .
@@ -156,8 +158,8 @@ export default function HomePage() {
             <p className="text-2xl font-bold mb-1">Free</p>
             <p className="text-xs text-muted-foreground mb-3">Run on your own servers</p>
             <ul className="text-sm text-muted-foreground space-y-1.5 mb-4 flex-1">
-              <li>Single fund management company</li>
-              <li>All your funds, SPVs, and team members</li>
+              <li>Free and open source (Apache 2.0)</li>
+              <li>All your funds, SPVs, and team members, no per-seat fees</li>
               <li>Deploy on your own infrastructure</li>
               <li>Modify and use on your own domain</li>
               <li>Estimated $0 to $75 per month in operational costs</li>
@@ -170,42 +172,32 @@ export default function HomePage() {
             </Button>
           </div>
           <div className="rounded-lg border p-6 flex flex-col">
-            <h3 className="font-semibold mb-1">Self-Hosted</h3>
-            <p className="text-2xl font-bold mb-1">Managed</p>
-            <p className="text-xs text-muted-foreground mb-3">One-time setup cost, run on your own servers</p>
+            <h3 className="font-semibold mb-1">Setup &amp; Support</h3>
+            <p className="text-2xl font-bold mb-1">Done for you</p>
+            <p className="text-xs text-muted-foreground mb-3">We deploy it on your own servers</p>
             <ul className="text-sm text-muted-foreground space-y-1.5 mb-4 flex-1">
               <li>Deployed on your infrastructure and accounts</li>
-              <li>Setup and onboarding included</li>
+              <li>Setup, onboarding, and data migration included</li>
               <li>Ongoing support available</li>
-              <li>$2,500+ one-time setup costs, ongoing based on need</li>
+              <li>$2,500+ one-time setup, ongoing based on need</li>
             </ul>
             <CalendlyButton url="https://calendly.com/foresighthq/15min" className="w-full">
               <Calendar className="h-4 w-4 mr-1.5" />
               Book a Demo
             </CalendlyButton>
           </div>
-          <div className="rounded-lg border p-6 flex flex-col">
-            <h3 className="font-semibold mb-1">Commercial</h3>
-            <p className="text-2xl font-bold mb-1">Licensed</p>
-            <p className="text-xs text-muted-foreground mb-3">Deploy to your customers</p>
+          <div className="rounded-lg border p-6 flex flex-col relative">
+            <span className="absolute -top-3 left-4 bg-muted text-muted-foreground text-xs font-medium px-2.5 py-0.5 rounded-full">Early Access</span>
+            <h3 className="font-semibold mb-1">Hosted</h3>
+            <p className="text-2xl font-bold mb-1">$250+/mo</p>
+            <p className="text-xs text-muted-foreground mb-3">We host it for you, cancel anytime</p>
             <ul className="text-sm text-muted-foreground space-y-1.5 mb-4 flex-1">
-              <li>Fund administrators and outsourced CFOs</li>
-              <li>Consultants and service providers</li>
-              <li>Use across multiple clients</li>
-              <li>License fee based on deployment</li>
+              <li>We host and maintain your fund</li>
+              <li>Help onboarding your information and processes</li>
+              <li>Ongoing support included</li>
+              <li>Monthly subscription, cancel anytime</li>
             </ul>
-            <Button variant="outline" size="sm" asChild className="w-full">
-              <Link href="/contact"><Mail className="h-3.5 w-3.5 mr-1.5" />Contact Taylor</Link>
-            </Button>
-          </div>
-        </div>
-        <div className="rounded-lg border p-6 mt-6 relative">
-          <span className="absolute -top-3 left-4 bg-muted text-muted-foreground text-xs font-medium px-2.5 py-0.5 rounded-full">Early Access</span>
-          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-            <p className="text-base text-muted-foreground flex-1">
-              <span className="font-medium text-foreground">Hosted</span> - Let us host your fund. Get help onboarding your information and processes. $250+ monthly subscription, cancel anytime.
-            </p>
-            <SubscriptionInquiryButton variant="outline" size="sm" className="w-full sm:w-auto shrink-0">
+            <SubscriptionInquiryButton variant="outline" size="sm" className="w-full">
               <Send className="h-3.5 w-3.5 mr-1.5" />Request Access
             </SubscriptionInquiryButton>
           </div>

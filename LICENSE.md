@@ -1,127 +1,201 @@
-# License
+                                 Apache License
+                           Version 2.0, January 2004
+                        http://www.apache.org/licenses/
 
-This license applies to the portfolio fund reporting software developed by Unstructured Ventures, LLC and available at https://github.com/tdavidson/reporting. It covers the source code in that repository, any instance deployed from it (including installations on hemrock.com, self-hosted deployments, and managed deployments), and all associated documentation, database schemas, and configuration files.
+   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
 
-This software is free to use if you are a single fund management company running your own operations — that includes all of your funds, SPVs, and internal team members. You can modify it and deploy it on your own infrastructure. If you are a fund administrator, outsourced CFO, consultant, or any kind of service provider using this software across multiple clients or management companies, you need a paid commercial license. You also cannot resell it, white-label it, offer it as SaaS, or bundle it into another product. All intellectual property stays with Unstructured Ventures, LLC. The software is provided as-is with no warranties, and liability is capped at $100. If you violate the terms, your license ends immediately. For commercial licensing, reach out to hello@hemrock.com.
+   1. Definitions.
 
-## 1. Definitions
+      "License" shall mean the terms and conditions for use, reproduction,
+      and distribution as defined by Sections 1 through 9 of this document.
 
-**"Software"** means the portfolio fund reporting software originally published at https://github.com/tdavidson/reporting, including all source code, object code, documentation, configuration files, database schema, and related materials provided under this License. This definition includes any fork, copy, or deployment derived from the repository, whether self-hosted, managed by a third party, or hosted at any domain (including but not limited to hemrock.com and its subdomains).
+      "Licensor" shall mean the copyright owner or entity authorized by
+      the copyright owner that is granting the License.
 
-**"Licensor"** means Unstructured Ventures, LLC.
+      "Legal Entity" shall mean the union of the acting entity and all
+      other entities that control, are controlled by, or are under common
+      control with that entity. For the purposes of this definition,
+      "control" means (i) the power, direct or indirect, to cause the
+      direction or management of such entity, whether by contract or
+      otherwise, or (ii) ownership of fifty percent (50%) or more of the
+      outstanding shares, or (iii) beneficial ownership of such entity.
 
-**"Fund Entity"** means a single legal management company, general partner entity, or affiliated group of entities under common control that operates one or more investment funds, special purpose vehicles (SPVs), or investment vehicles.
+      "You" (or "Your") shall mean an individual or Legal Entity
+      exercising permissions granted by this License.
 
-For purposes of clarity:
+      "Source" form shall mean the preferred form for making modifications,
+      including but not limited to software source code, documentation
+      source, and configuration files.
 
-- Multiple funds operated by the same management company constitute one Fund Entity.
-- Multiple SPVs operated by the same management company constitute one Fund Entity.
-- Separate management companies, even if owned by the same or similar individuals, constitute separate Fund Entities.
+      "Object" form shall mean any form resulting from mechanical
+      transformation or translation of a Source form, including but
+      not limited to compiled object code, generated documentation,
+      and conversions to other media types.
 
-**"Internal Use"** means use of the Software solely by employees, partners, members, or contractors of a single Fund Entity for that Fund Entity's own internal operations.
+      "Work" shall mean the work of authorship, whether in Source or
+      Object form, made available under the License, as indicated by a
+      copyright notice that is included in or attached to the work
+      (an example is provided in the Appendix below).
 
-**"Service Provider"** means any person or entity that provides services to two or more Fund Entities.
+      "Derivative Works" shall mean any work, whether in Source or Object
+      form, that is based on (or derived from) the Work and for which the
+      editorial revisions, annotations, elaborations, or other modifications
+      represent, as a whole, an original work of authorship. For the purposes
+      of this License, Derivative Works shall not include works that remain
+      separable from, or merely link (or bind by name) to the interfaces of,
+      the Work and Derivative Works thereof.
 
-**"Commercial Use"** means any use of the Software that involves one or more of the following:
+      "Contribution" shall mean any work of authorship, including
+      the original version of the Work and any modifications or additions
+      to that Work or Derivative Works thereof, that is intentionally
+      submitted to Licensor for inclusion in the Work by the copyright owner
+      or by an individual or Legal Entity authorized to submit on behalf of
+      the copyright owner. For the purposes of this definition, "submitted"
+      means any form of electronic, verbal, or written communication sent
+      to the Licensor or its representatives, including but not limited to
+      communication on electronic mailing lists, source code control systems,
+      and issue tracking systems that are managed by, or on behalf of, the
+      Licensor for the purpose of discussing and improving the Work, but
+      excluding communication that is conspicuously marked or otherwise
+      designated in writing by the copyright owner as "Not a Contribution."
 
-- Use across more than one Fund Entity;
-- Use to provide services to third parties;
-- Use as part of a managed, hosted, software-as-a-service (SaaS), or white-labeled offering;
-- Embedding within or incorporation into another commercial product or service.
+      "Contributor" shall mean Licensor and any individual or Legal Entity
+      on behalf of whom a Contribution has been received by Licensor and
+      subsequently incorporated within the Work.
 
-## 2. Free License Grant (Single Fund Entity)
+   2. Grant of Copyright License. Subject to the terms and conditions of
+      this License, each Contributor hereby grants to You a perpetual,
+      worldwide, non-exclusive, no-charge, royalty-free, irrevocable
+      copyright license to reproduce, prepare Derivative Works of,
+      publicly display, publicly perform, sublicense, and distribute the
+      Work and such Derivative Works in Source or Object form.
 
-Subject to the terms and conditions of this License, Licensor hereby grants you a limited, non-exclusive, non-transferable, non-sublicensable, royalty-free license to:
+   3. Grant of Patent License. Subject to the terms and conditions of
+      this License, each Contributor hereby grants to You a perpetual,
+      worldwide, non-exclusive, no-charge, royalty-free, irrevocable
+      (except as stated in this section) patent license to make, have made,
+      use, offer to sell, sell, import, and otherwise transfer the Work,
+      where such license applies only to those patent claims licensable
+      by such Contributor that are necessarily infringed by their
+      Contribution(s) alone or by combination of their Contribution(s)
+      with the Work to which such Contribution(s) was submitted. If You
+      institute patent litigation against any entity (including a
+      cross-claim or counterclaim in a lawsuit) alleging that the Work
+      or a Contribution incorporated within the Work constitutes direct
+      or contributory patent infringement, then any patent licenses
+      granted to You under this License for that Work shall terminate
+      as of the date such litigation is filed.
 
-1. Use the Software for Internal Use by one Fund Entity;
-2. Modify the Software for Internal Use;
-3. Deploy the Software on infrastructure controlled by that Fund Entity; and
-4. Operate the Software across multiple funds and SPVs managed by that Fund Entity.
+   4. Redistribution. You may reproduce and distribute copies of the
+      Work or Derivative Works thereof in any medium, with or without
+      modifications, and in Source or Object form, provided that You
+      meet the following conditions:
 
-This license grant applies to one Fund Entity only. Use by or on behalf of any additional Fund Entity requires a separate Commercial License.
+      (a) You must give any other recipients of the Work or
+          Derivative Works a copy of this License; and
 
-## 2A. Personal Evaluation and Educational Use
+      (b) You must cause any modified files to carry prominent notices
+          stating that You changed the files; and
 
-In addition to the grant in Section 2, any natural person may use the Software for personal, non-commercial evaluation, learning, research, or hobby purposes — including running it locally, modifying it, and sharing the results of analyses they conducted on their own data. This Personal Use grant:
+      (c) You must retain, in the Source form of any Derivative Works
+          that You distribute, all copyright, patent, trademark, and
+          attribution notices from the Source form of the Work,
+          excluding those notices that do not pertain to any part of
+          the Derivative Works; and
 
-1. Permits up to ninety (90) days of substantive use per person while you are evaluating the Software, learning fund operations, or building personal projects;
-2. Does not permit use to provide services to any third party, paid or unpaid;
-3. Does not permit redistribution, hosting, or making the Software available to others as a product or service; and
-4. Continues indefinitely for genuinely personal, non-commercial use that does not generate revenue or substitute for commercial use the user would otherwise pay for.
+      (d) If the Work includes a "NOTICE" text file as part of its
+          distribution, then any Derivative Works that You distribute must
+          include a readable copy of the attribution notices contained
+          within such NOTICE file, excluding those notices that do not
+          pertain to any part of the Derivative Works, in at least one
+          of the following places: within a NOTICE text file distributed
+          as part of the Derivative Works; within the Source form or
+          documentation, if provided along with the Derivative Works; or,
+          within a display generated by the Derivative Works, if and
+          wherever such third-party notices normally appear. The contents
+          of the NOTICE file are for informational purposes only and
+          do not modify the License. You may add Your own attribution
+          notices within Derivative Works that You distribute, alongside
+          or as an addendum to the NOTICE text from the Work, provided
+          that such additional attribution notices cannot be construed
+          as modifying the License.
 
-If your use grows beyond Personal Use — for example, you start using the Software for actual fund operations, or to manage a fund you operate — switch to the Section 2 grant (Internal Use by a Fund Entity) or obtain a Commercial License.
+      You may add Your own copyright statement to Your modifications and
+      may provide additional or different license terms and conditions
+      for use, reproduction, or distribution of Your modifications, or
+      for any such Derivative Works as a whole, provided Your use,
+      reproduction, and distribution of the Work otherwise complies with
+      the conditions stated in this License.
 
-## 3. Prohibited Uses
+   5. Submission of Contributions. Unless You explicitly state otherwise,
+      any Contribution intentionally submitted for inclusion in the Work
+      by You to the Licensor shall be under the terms and conditions of
+      this License, without any additional terms or conditions.
+      Notwithstanding the above, nothing herein shall supersede or modify
+      the terms of any separate license agreement you may have executed
+      with Licensor regarding such Contributions.
 
-Without a separate written Commercial License from Licensor, you may not:
+   6. Trademarks. This License does not grant permission to use the trade
+      names, trademarks, service marks, or product names of the Licensor,
+      except as required for reasonable and customary use in describing the
+      origin of the Work and reproducing the content of the NOTICE file.
 
-1. Use the Software across multiple unrelated management companies or Fund Entities;
-2. Use the Software to provide services to clients or third parties;
-3. Host, operate, or manage the Software on behalf of third parties;
-4. Offer the Software as a software-as-a-service (SaaS) product;
-5. White-label, rebrand, or relabel the Software;
-6. Distribute, sublicense, or otherwise make the Software available to any third party;
-7. Incorporate the Software into another commercial product or service; or
-8. Use the Software in a manner that competes with Licensor's consulting, licensing, or software business.
+   7. Disclaimer of Warranty. Unless required by applicable law or
+      agreed to in writing, Licensor provides the Work (and each
+      Contributor provides its Contributions) on an "AS IS" BASIS,
+      WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
+      implied, including, without limitation, any warranties or conditions
+      of TITLE, NON-INFRINGEMENT, MERCHANTABILITY, or FITNESS FOR A
+      PARTICULAR PURPOSE. You are solely responsible for determining the
+      appropriateness of using or redistributing the Work and assume any
+      risks associated with Your exercise of permissions under this License.
 
-## 4. Commercial License
+   8. Limitation of Liability. In no event and under no legal theory,
+      whether in tort (including negligence), contract, or otherwise,
+      unless required by applicable law (such as deliberate and grossly
+      negligent acts) or agreed to in writing, shall any Contributor be
+      liable to You for damages, including any direct, indirect, special,
+      incidental, or consequential damages of any character arising as a
+      result of this License or out of the use or inability to use the
+      Work (including but not limited to damages for loss of goodwill,
+      work stoppage, computer failure or malfunction, or any and all
+      other commercial damages or losses), even if such Contributor
+      has been advised of the possibility of such damages.
 
-A Commercial License is required if any of the following apply to your use of the Software:
+   9. Accepting Warranty or Additional Liability. While redistributing
+      the Work or Derivative Works thereof, You may choose to offer,
+      and charge a fee for, acceptance of support, warranty, indemnity,
+      or other liability obligations and/or rights consistent with this
+      License. However, in accepting such obligations, You may act only
+      on Your own behalf and on Your sole responsibility, not on behalf
+      of any other Contributor, and only if You agree to indemnify,
+      defend, and hold each Contributor harmless for any liability
+      incurred by, or claims asserted against, such Contributor by reason
+      of your accepting any such warranty or additional liability.
 
-- You are a fund administrator using the Software across client accounts;
-- You are an outsourced CFO firm or accounting service provider;
-- You provide reporting, analytics, or portfolio management services to third-party fund managers;
-- You operate the Software on behalf of multiple client fund managers; or
-- You deploy the Software across multiple independent management companies or Fund Entities.
+   END OF TERMS AND CONDITIONS
 
-Commercial License terms shall be set forth in a separate written agreement between you and Licensor.
+   APPENDIX: How to apply the Apache License to your work.
 
-For commercial licensing inquiries, contact: **hello@hemrock.com**
+      To apply the Apache License to your work, attach the following
+      boilerplate notice, with the fields enclosed by brackets "[]"
+      replaced with your own identifying information. (Don't include
+      the brackets!)  The text should be enclosed in the appropriate
+      comment syntax for the file format. We also recommend that a
+      file or class name and description of purpose be included on the
+      same "printed page" as the copyright notice for easier
+      identification within third-party archives.
 
-## 5. Modifications
+   Copyright 2026 Unstructured Ventures, LLC
 
-You may modify the Software solely for Internal Use by one Fund Entity in accordance with Section 2. You may not distribute, publish, or otherwise make available any modified version of the Software without a Commercial License.
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
 
-## 6. Ownership and Intellectual Property
+       http://www.apache.org/licenses/LICENSE-2.0
 
-The Software is licensed, not sold. Licensor retains all right, title, and interest in and to the Software, including all intellectual property rights therein. Nothing in this License conveys any ownership interest in the Software to you. Any modifications you make to the Software do not transfer ownership of the underlying Software or its intellectual property to you.
-
-## 7. No Warranty
-
-THE SOFTWARE IS PROVIDED "AS IS," WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT. LICENSOR MAKES NO WARRANTY THAT THE SOFTWARE WILL BE ERROR-FREE, UNINTERRUPTED, OR FREE OF HARMFUL COMPONENTS.
-
-## 8. Limitation of Liability
-
-TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, IN NO EVENT SHALL LICENSOR BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES, OR ANY LOSS OF PROFITS, REVENUE, DATA, OR USE, ARISING OUT OF OR RELATED TO THIS LICENSE OR THE SOFTWARE, REGARDLESS OF THE THEORY OF LIABILITY.
-
-LICENSOR'S TOTAL AGGREGATE LIABILITY UNDER THIS LICENSE SHALL NOT EXCEED ONE HUNDRED U.S. DOLLARS (USD $100.00).
-
-## 9. Termination
-
-This License is effective until terminated. Your rights under this License terminate automatically if you fail to comply with any term of this License, subject to the cure period described below. Upon termination, you must cease all use of the Software and destroy all copies in your possession or control.
-
-**Cure period.** If your breach is capable of cure, Licensor will provide you with written notice of the breach (sent to the email address you have provided to Licensor or to a publicly listed contact address for your organization). You will have thirty (30) days from the date of that notice to cure the breach. If you cure the breach within that period, this License continues without interruption. If you do not, this License terminates automatically at the end of the cure period without further notice.
-
-Some breaches are not capable of cure — for example, redistribution of the Software to third parties under a different license, or public distribution of a modified version. In such cases, this License terminates immediately upon the breach without a cure period.
-
-Licensor reserves the right to terminate this License at any time for any reason upon thirty (30) days' written notice.
-
-Sections 6, 7, 8, and 10 shall survive any termination of this License.
-
-## 10. General Provisions
-
-**Governing Law.** This License shall be governed by and construed in accordance with the laws of the State of Delaware, without regard to its conflict of laws principles.
-
-**Entire Agreement.** This License constitutes the entire agreement between you and Licensor with respect to the Software and supersedes all prior or contemporaneous understandings or agreements, whether written or oral, regarding the Software.
-
-**Severability.** If any provision of this License is held to be invalid or unenforceable, the remaining provisions shall continue in full force and effect.
-
-**Waiver.** The failure of Licensor to enforce any right or provision of this License shall not constitute a waiver of such right or provision.
-
-**Assignment.** You may not assign or transfer this License or any rights granted hereunder without the prior written consent of Licensor. Licensor may assign this License without restriction.
-
----
-
-**Version 1.1** Copyright © 2026 Unstructured Ventures, LLC. All rights reserved.
-
-*For questions about this License or commercial licensing, contact hello@hemrock.com.*
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.

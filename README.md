@@ -1,4 +1,4 @@
-![Next.js](https://img.shields.io/badge/Next.js-14-black?logo=next.js) ![Supabase](https://img.shields.io/badge/Supabase-PostgreSQL-3ECF8E?logo=supabase&logoColor=white) ![TypeScript](https://img.shields.io/badge/TypeScript-97.6%25-3178C6?logo=typescript&logoColor=white) ![GitHub Stars](https://img.shields.io/github/stars/tdavidson/reporting?style=flat) ![License](https://img.shields.io/badge/license-source--available-blue)
+![Next.js](https://img.shields.io/badge/Next.js-14-black?logo=next.js) ![Supabase](https://img.shields.io/badge/Supabase-PostgreSQL-3ECF8E?logo=supabase&logoColor=white) ![TypeScript](https://img.shields.io/badge/TypeScript-97.6%25-3178C6?logo=typescript&logoColor=white) ![GitHub Stars](https://img.shields.io/github/stars/tdavidson/reporting?style=flat) ![License](https://img.shields.io/badge/license-Apache_2.0-blue)
 
 # Portfolio Reporting Stack for Fund Managers
 
@@ -36,19 +36,17 @@ I've spent over a decade as a fund CFO, investor, and consultant — working wit
 
 Most portfolio reporting platforms lock your data in their database, process it through their AI, and charge per seat so half your team can't log in. Fund managers shouldn't have to choose between good tooling and owning their data.
 
-This is a complete portfolio reporting platform you deploy on your own infrastructure — your database, your AI keys, your domain. No per-seat fees. No black-box AI training on your portfolio. No vendor lock-in. The source code is yours to inspect, modify, and run forever.
+This is a complete portfolio reporting platform you deploy on your own infrastructure — your database, your AI keys, your domain. It's open source under the Apache 2.0 license: free to use, modify, and run forever, for your own fund or commercially. No per-seat fees. No black-box AI training on your portfolio. No vendor lock-in.
 
 Built by Taylor Davidson at [Hemrock](https://www.hemrock.com). Built by a fund manager, for fund managers.
 
 ## Get started
 
-Self-hosted version is free for single fund management companies. [Try the demo](https://portfolio.hemrock.com/demo) with sample data, no signup required. You can modify it and deploy it on your own infrastructure and on your own domain.
+Free and open source under the Apache 2.0 license — use it, modify it, and deploy it on your own infrastructure and domain, for your own fund or commercially. [Try the demo](https://portfolio.hemrock.com/demo) with sample data, no signup required.
 
-Managed deployments are available, [contact Taylor](https://portfolio.hemrock.com/contact) if you want him to deploy this for you on your infrastructure.
+Prefer not to run it yourself? Taylor offers paid **setup & support** (deployed on your own infrastructure and accounts) and an early-access **hosted subscription**. [Contact Taylor](https://portfolio.hemrock.com/contact) to discuss.
 
-If you are a fund administrator, outsourced CFO, consultant, or service provider using this across multiple clients, you need a paid commercial license. You cannot resell it, white-label it, offer it as SaaS, or bundle it into another product.
-
-See [LICENSE](./LICENSE.md) for full terms. For commercial licensing, [contact Taylor](https://portfolio.hemrock.com/contact).
+See [LICENSE](./LICENSE.md) for full terms.
 
 ## Quick start
 

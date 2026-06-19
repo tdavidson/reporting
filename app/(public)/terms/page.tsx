@@ -52,9 +52,9 @@ export default function TermsPage() {
 
           <p className="text-muted-foreground">
             These Terms apply to the website, any hosted instance of the Platform, and the managed
-            hosting service. The use of the source code itself is governed by the separate{' '}
+            hosting service. The use of the source code itself is governed by the separate open-source{' '}
             <Link href="/license" className="text-foreground underline underline-offset-4 hover:text-foreground/80">
-              Software License
+              Apache License 2.0
             </Link>.
           </p>
 
@@ -62,7 +62,7 @@ export default function TermsPage() {
           <div id="platform-description">
             <h2 className="text-base font-medium mb-2">1. Platform Description</h2>
             <p className="text-muted-foreground">
-              The Platform is a source-available portfolio reporting tool for venture capital firms,
+              The Platform is an open-source portfolio reporting tool for venture capital firms,
               accelerators, and angel investors. It can be self-hosted on your own infrastructure or
               accessed through a managed hosting arrangement. The Platform integrates with third-party
               services including database providers (Supabase), hosting providers (Vercel, Netlify),
@@ -189,7 +189,7 @@ export default function TermsPage() {
               <li>Circumvent any access controls, authentication, or security features</li>
               <li>Use the Platform in violation of the{' '}
                 <Link href="/license" className="text-foreground underline underline-offset-4 hover:text-foreground/80">
-                  Software License
+                  Apache License 2.0
                 </Link>
               </li>
             </ul>
@@ -275,7 +275,7 @@ export default function TermsPage() {
           </div>
 
           <p className="text-xs text-muted-foreground">
-            Last updated March 9, 2026 - Unstructured Ventures, LLC.
+            Last updated June 19, 2026 - Unstructured Ventures, LLC.
           </p>
         </div>
 

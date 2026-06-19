@@ -64,7 +64,7 @@ export default function ContactPage() {
             />
             <div>
               <p className="text-muted-foreground">
-                For questions about the platform, setup, licensing, managed hosting, or anything else,
+                For questions about the platform, setup, support, hosting, or anything else,
                 reach out to Taylor Davidson at{' '}
                 <a
                   href="mailto:hello@hemrock.com"

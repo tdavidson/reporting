@@ -159,20 +159,18 @@ export default function SupportPage() {
         <div id="license" className="pl-4 border-l-2 border-border">
           <h3 className="text-sm font-medium mb-2">License</h3>
           <p className="text-muted-foreground mb-2">
-            This software is free to use if you are a single fund management company running your own
-            operations &mdash; that includes all of your funds, SPVs, and internal team members. You can
-            modify it and deploy it on your own infrastructure. If you are a fund administrator, outsourced
-            CFO, consultant, or any kind of service provider using this software across multiple clients or
-            management companies, you need a paid commercial license.
+            Apache License 2.0. You are free to use it, modify it,
+            and deploy it on your own infrastructure &mdash; for your own fund or commercially. There are no
+            per-seat fees and no single-fund restriction. It includes an express patent grant, and the
+            software is provided as-is, without warranty of any kind.
           </p>
           <p className="text-muted-foreground mb-2">
-            You also cannot resell it, white-label it, offer it as SaaS, or bundle it into another product.
-            All intellectual property stays with Unstructured Ventures, LLC. The software is provided as-is
-            with no warranties, and liability is capped at $100. If you violate the terms, your license ends
-            immediately.
+            The license covers the source code and documentation. Per its trademark clause, it does not
+            grant rights to the &ldquo;Hemrock&rdquo; or &ldquo;Unstructured Ventures&rdquo; names or logos
+            &mdash; if you fork or redeploy the software, please use your own branding.
           </p>
           <p className="text-muted-foreground">
-            For commercial licensing, reach out to{' '}
+            Need help deploying, hosting, or supporting it? Reach out to{' '}
             <a
               href="mailto:hello@hemrock.com"
               className="text-foreground underline underline-offset-4 hover:text-foreground/80"

@@ -13,6 +13,14 @@ function XIcon({ className }: { className?: string }) {
     </svg>
   )
 }
+
+function HemrockIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className={className}>
+      <path d="M13 14L17 9L22 18H2.84444C2.46441 18 2.2233 17.5928 2.40603 17.2596L10.0509 3.31896C10.2429 2.96885 10.7476 2.97394 10.9325 3.32786L15.122 11.3476" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
 import type { LucideIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent } from '@/components/ui/sheet'
@@ -258,12 +266,8 @@ function PublicShell({ children }: { children: React.ReactNode }) {
             <Menu className="h-5 w-5" />
             <span className="sr-only">Open menu</span>
           </Button>
-          <a href="https://www.hemrock.com" target="_blank" rel="noopener noreferrer">
-            <img
-              src="https://avatars.githubusercontent.com/u/32076122?s=200&v=4"
-              alt="Hemrock"
-              className="h-7 w-7 rounded object-contain"
-            />
+          <a href="https://www.hemrock.com" target="_blank" rel="noopener noreferrer" aria-label="Hemrock">
+            <HemrockIcon className="h-7 w-7 text-foreground" />
           </a>
           {!collapsed && (
             <>

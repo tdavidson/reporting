@@ -87,7 +87,7 @@ export async function GET(req: NextRequest) {
               gap: '16px',
             }}
           >
-            <span>Source-available</span>
+            <span>Open source</span>
             <span>·</span>
             <span>AI-powered</span>
             <span>·</span>

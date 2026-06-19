@@ -1,10 +1,10 @@
 import { ogMetadata } from '@/lib/og-metadata'
 import Link from 'next/link'
-import { Tag, Github, Heart, Calendar, Mail, Send } from 'lucide-react'
+import { Tag, Github, Heart, Calendar, Send } from 'lucide-react'
 
 export const metadata = ogMetadata({
   title: 'Pricing',
-  description: 'Free self-hosted, managed deployment, commercial licensing, and hosted subscription options for Analyst portfolio reporting.',
+  description: 'Free and open source (Apache 2.0). Optional paid setup, support, and hosted subscription options for Analyst portfolio reporting.',
 })
 import { Button } from '@/components/ui/button'
 import { CalendlyButton } from '@/components/calendly-button'
@@ -20,10 +20,11 @@ export default function PricingPage() {
 
       <div className="space-y-8 text-sm leading-relaxed">
         <p className="text-muted-foreground">
-          Source-available under a single-fund free use license. See the full{' '}
+          Open source under the{' '}
           <Link href="/license" className="text-foreground underline underline-offset-4 hover:text-foreground/80">
-            license
-          </Link>.
+            Apache License 2.0
+          </Link>
+          . Free to use, modify, and deploy — for your own fund or commercially. Paid options below are for setup, support, and hosting if you&apos;d rather not run it yourself.
         </p>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -33,8 +34,8 @@ export default function PricingPage() {
             <p className="text-2xl font-bold mb-1">Free</p>
             <p className="text-xs text-muted-foreground mb-3">Run on your own servers</p>
             <ul className="text-sm text-muted-foreground space-y-1.5 mb-4 flex-1">
-              <li>Single fund management company</li>
-              <li>All your funds, SPVs, and team members</li>
+              <li>Free and open source (Apache 2.0)</li>
+              <li>All your funds, SPVs, and team members, no per-seat fees</li>
               <li>Deploy on your own infrastructure</li>
               <li>Modify and use on your own domain</li>
               <li>Estimated $0 to $75 per month in operational costs</li>
@@ -47,42 +48,32 @@ export default function PricingPage() {
             </Button>
           </div>
           <div className="rounded-lg border p-6 flex flex-col">
-            <h3 className="font-semibold mb-1">Self-Hosted</h3>
-            <p className="text-2xl font-bold mb-1">Managed</p>
-            <p className="text-xs text-muted-foreground mb-3">One-time setup cost, run on your own servers</p>
+            <h3 className="font-semibold mb-1">Setup &amp; Support</h3>
+            <p className="text-2xl font-bold mb-1">Done for you</p>
+            <p className="text-xs text-muted-foreground mb-3">We deploy it on your own servers</p>
             <ul className="text-sm text-muted-foreground space-y-1.5 mb-4 flex-1">
               <li>Deployed on your infrastructure and accounts</li>
-              <li>Setup and onboarding included</li>
+              <li>Setup, onboarding, and data migration included</li>
               <li>Ongoing support available</li>
-              <li>$2,500+ one-time setup costs, ongoing based on need</li>
+              <li>$2,500+ one-time setup, ongoing based on need</li>
             </ul>
             <CalendlyButton url="https://calendly.com/foresighthq/15min" className="w-full">
               <Calendar className="h-4 w-4 mr-1.5" />
               Book a Demo
             </CalendlyButton>
           </div>
-          <div className="rounded-lg border p-6 flex flex-col">
-            <h3 className="font-semibold mb-1">Commercial</h3>
-            <p className="text-2xl font-bold mb-1">Licensed</p>
-            <p className="text-xs text-muted-foreground mb-3">Deploy to your customers</p>
+          <div className="rounded-lg border p-6 flex flex-col relative">
+            <span className="absolute -top-3 left-4 bg-muted text-muted-foreground text-xs font-medium px-2.5 py-0.5 rounded-full">Early Access</span>
+            <h3 className="font-semibold mb-1">Hosted</h3>
+            <p className="text-2xl font-bold mb-1">$250+/mo</p>
+            <p className="text-xs text-muted-foreground mb-3">We host it for you, cancel anytime</p>
             <ul className="text-sm text-muted-foreground space-y-1.5 mb-4 flex-1">
-              <li>Fund administrators and outsourced CFOs</li>
-              <li>Consultants and service providers</li>
-              <li>Use across multiple clients</li>
-              <li>License fee based on deployment</li>
+              <li>We host and maintain your fund</li>
+              <li>Help onboarding your information and processes</li>
+              <li>Ongoing support included</li>
+              <li>Monthly subscription, cancel anytime</li>
             </ul>
-            <Button variant="outline" size="sm" asChild className="w-full">
-              <Link href="/contact"><Mail className="h-3.5 w-3.5 mr-1.5" />Contact Taylor</Link>
-            </Button>
-          </div>
-        </div>
-        <div className="rounded-lg border p-6 mt-4 relative">
-          <span className="absolute -top-3 left-4 bg-muted text-muted-foreground text-xs font-medium px-2.5 py-0.5 rounded-full">Early Access</span>
-          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-            <p className="text-base text-muted-foreground flex-1">
-              <span className="font-medium text-foreground">Hosted</span> - Let us host your fund. Get help onboarding your information and processes. $250+ monthly subscription, cancel anytime.
-            </p>
-            <SubscriptionInquiryButton variant="outline" size="sm" className="w-full sm:w-auto shrink-0">
+            <SubscriptionInquiryButton variant="outline" size="sm" className="w-full">
               <Send className="h-3.5 w-3.5 mr-1.5" />Request Access
             </SubscriptionInquiryButton>
           </div>

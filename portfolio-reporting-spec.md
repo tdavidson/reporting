@@ -437,7 +437,7 @@ The Claude API key is not an env var — each user provides their own via UI, st
 - One-click Vercel deploy button with env var prompts
 - `DEMO_MODE` env flag for seeded fake data, no real email parsing
 - README covers all three hosting options
-- MIT license
+- Apache 2.0 license
 
 ---
 
