@@ -6,9 +6,12 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useConfirm } from '@/components/confirm-dialog'
 
+export type MemoComplexity = 'brief' | 'standard' | 'detailed' | 'comprehensive'
+
 export interface MemoTemplateConfig {
   style_override?: 'pre_seed' | 'seed' | 'series_a' | 'series_b' | 'growth' | null
   analyst_persona?: string
+  complexity?: MemoComplexity
   emphasis?: string[]
   section_overrides?: Record<string, { included?: boolean; target_paragraphs?: number | null }>
 }
@@ -38,6 +41,26 @@ const STYLE_OPTIONS: Array<{ value: '' | NonNullable<MemoTemplateConfig['style_o
   { value: 'growth',    label: 'Growth' },
 ]
 
+// Curated analyst-voice presets. Stored verbatim as analyst_persona and fed to
+// the agent prompt. "Custom…" reveals a free-text field for anything bespoke.
+const PERSONA_PRESETS = [
+  'Balanced generalist',
+  'Skeptical, numbers-first',
+  'Conviction-driven (bull case)',
+  'Risk-focused (bear case)',
+  'Founder-empathetic operator',
+  'Market/TAM-first',
+]
+
+// Single proxy for completeness, depth, and length — replaces per-section
+// paragraph counts. Order runs shortest → most thorough.
+const COMPLEXITY_OPTIONS: Array<{ value: MemoComplexity; label: string; hint: string }> = [
+  { value: 'brief',         label: 'Brief',         hint: 'Concise, key points only' },
+  { value: 'standard',      label: 'Standard',      hint: 'Standard depth (default)' },
+  { value: 'detailed',      label: 'Detailed',      hint: 'Thorough, more evidence' },
+  { value: 'comprehensive', label: 'Comprehensive', hint: 'Exhaustive, maximum depth' },
+]
+
 interface MemoPreset {
   id: string
   name: string
@@ -58,6 +81,8 @@ export function MemoConfigPanel({ dealId }: { dealId: string }) {
   const [partnerGuidance, setPartnerGuidance] = useState('')
   const [styleOverride, setStyleOverride] = useState<'' | NonNullable<MemoTemplateConfig['style_override']>>('')
   const [persona, setPersona] = useState('')
+  const [personaCustom, setPersonaCustom] = useState(false)
+  const [complexity, setComplexity] = useState<MemoComplexity>('standard')
   const [emphasis, setEmphasis] = useState<string[]>([])
   const [emphasisDraft, setEmphasisDraft] = useState('')
   const [sectionOverrides, setSectionOverrides] = useState<Record<string, { included: boolean; target_paragraphs: number | null }>>({})
@@ -87,7 +112,10 @@ export function MemoConfigPanel({ dealId }: { dealId: string }) {
   function applyConfigToForm(guidance: string, cfg: MemoTemplateConfig) {
     setPartnerGuidance(guidance)
     setStyleOverride((cfg.style_override ?? '') as any)
-    setPersona(cfg.analyst_persona ?? '')
+    const p = cfg.analyst_persona ?? ''
+    setPersona(p)
+    setPersonaCustom(!!p && !PERSONA_PRESETS.includes(p))
+    setComplexity(cfg.complexity ?? 'standard')
     setEmphasis(Array.isArray(cfg.emphasis) ? cfg.emphasis : [])
     const ov: Record<string, { included: boolean; target_paragraphs: number | null }> = {}
     for (const s of SECTIONS) {
@@ -104,12 +132,10 @@ export function MemoConfigPanel({ dealId }: { dealId: string }) {
     return {
       style_override: (styleOverride || null) as MemoTemplateConfig['style_override'],
       analyst_persona: persona,
+      complexity,
       emphasis,
       section_overrides: Object.fromEntries(
-        SECTIONS.map(s => [s.id, {
-          included: sectionOverrides[s.id]?.included ?? true,
-          target_paragraphs: sectionOverrides[s.id]?.target_paragraphs ?? null,
-        }]),
+        SECTIONS.map(s => [s.id, { included: sectionOverrides[s.id]?.included ?? true }]),
       ),
     }
   }
@@ -167,17 +193,7 @@ export function MemoConfigPanel({ dealId }: { dealId: string }) {
   async function save() {
     setSaving(true); setError(null)
     try {
-      const config: MemoTemplateConfig = {
-        style_override: (styleOverride || null) as MemoTemplateConfig['style_override'],
-        analyst_persona: persona,
-        emphasis,
-        section_overrides: Object.fromEntries(
-          SECTIONS.map(s => [s.id, {
-            included: sectionOverrides[s.id]?.included ?? true,
-            target_paragraphs: sectionOverrides[s.id]?.target_paragraphs ?? null,
-          }]),
-        ),
-      }
+      const config = currentConfig()
       const res = await fetch(`/api/diligence/${dealId}/memo-config`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -221,6 +237,7 @@ export function MemoConfigPanel({ dealId }: { dealId: string }) {
     ? 'Loading…'
     : [
         styleOverride && STYLE_OPTIONS.find(s => s.value === styleOverride)?.label,
+        COMPLEXITY_OPTIONS.find(c => c.value === complexity)?.label.toLowerCase(),
         persona ? `persona: ${persona.length > 30 ? persona.slice(0, 30) + '…' : persona}` : null,
         emphasis.length > 0 ? `${emphasis.length} emphasis point${emphasis.length === 1 ? '' : 's'}` : null,
         `${includedCount}/${SECTIONS.length} sections`,
@@ -333,13 +350,30 @@ export function MemoConfigPanel({ dealId }: { dealId: string }) {
             </div>
             <div>
               <label className="block text-xs font-medium mb-1">Analyst persona</label>
-              <Input
-                value={persona}
-                onChange={e => setPersona(e.target.value)}
-                placeholder="e.g. skeptical numbers-first analyst"
-                className="h-8 text-sm"
-              />
-              <p className="text-[10px] text-muted-foreground mt-1">Optional. Free-form description of the voice the agent should write in.</p>
+              <select
+                value={personaCustom ? '__custom__' : (persona && PERSONA_PRESETS.includes(persona) ? persona : (persona ? '__custom__' : ''))}
+                onChange={e => {
+                  const v = e.target.value
+                  if (v === '') { setPersonaCustom(false); setPersona('') }
+                  else if (v === '__custom__') { setPersonaCustom(true) }
+                  else { setPersonaCustom(false); setPersona(v) }
+                }}
+                className="h-8 w-full rounded-md border border-input bg-background px-2 text-sm"
+              >
+                <option value="">No persona (default voice)</option>
+                {PERSONA_PRESETS.map(p => <option key={p} value={p}>{p}</option>)}
+                <option value="__custom__">Custom…</option>
+              </select>
+              {personaCustom && (
+                <Input
+                  value={persona}
+                  onChange={e => setPersona(e.target.value)}
+                  placeholder="e.g. skeptical numbers-first analyst"
+                  className="h-8 text-sm mt-1.5"
+                  autoFocus
+                />
+              )}
+              <p className="text-[10px] text-muted-foreground mt-1">The voice the agent writes in. Pick a preset, or choose Custom to describe your own.</p>
             </div>
           </div>
 
@@ -368,42 +402,43 @@ export function MemoConfigPanel({ dealId }: { dealId: string }) {
           </div>
 
           <div>
+            <label className="block text-xs font-medium mb-1">Complexity</label>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {COMPLEXITY_OPTIONS.map(o => (
+                <button
+                  key={o.value}
+                  type="button"
+                  onClick={() => setComplexity(o.value)}
+                  className={`rounded-md border px-2.5 py-2 text-left text-xs transition-colors ${complexity === o.value ? 'border-foreground bg-muted' : 'border-input hover:bg-muted/40'}`}
+                  aria-pressed={complexity === o.value}
+                >
+                  <div className="font-medium">{o.label}</div>
+                  <div className="text-[10px] text-muted-foreground leading-tight mt-0.5">{o.hint}</div>
+                </button>
+              ))}
+            </div>
+            <p className="text-[10px] text-muted-foreground mt-1">Sets completeness, depth of evidence, and length across the whole memo.</p>
+          </div>
+
+          <div>
             <label className="block text-xs font-medium mb-1">Sections</label>
             <div className="rounded-md border divide-y">
               {SECTIONS.map(s => {
                 const ov = sectionOverrides[s.id] ?? { included: true, target_paragraphs: null }
                 return (
-                  <div key={s.id} className="flex items-center gap-3 px-3 py-2 text-sm">
+                  <label key={s.id} className="flex items-center gap-3 px-3 py-2 text-sm cursor-pointer">
                     <input
                       type="checkbox"
                       checked={ov.included}
                       onChange={e => setSection(s.id, { included: e.target.checked })}
                       className="h-3.5 w-3.5"
                     />
-                    <div className="flex-1 min-w-0">
-                      <div className="font-medium truncate">{s.title}</div>
-                    </div>
-                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                      <span>paragraphs:</span>
-                      <input
-                        type="number"
-                        min={1}
-                        max={20}
-                        value={ov.target_paragraphs ?? ''}
-                        onChange={e => {
-                          const v = e.target.value
-                          setSection(s.id, { target_paragraphs: v === '' ? null : Math.max(1, Math.min(20, Number(v))) })
-                        }}
-                        placeholder={`~${s.defaultParagraphs}`}
-                        disabled={!ov.included}
-                        className="h-7 w-16 rounded border border-input bg-background px-2 text-sm disabled:opacity-40 disabled:cursor-not-allowed"
-                      />
-                    </div>
-                  </div>
+                    <span className="font-medium truncate flex-1 min-w-0">{s.title}</span>
+                  </label>
                 )
               })}
             </div>
-            <p className="text-[10px] text-muted-foreground mt-1">Blank = agent decides. Excluded sections are omitted entirely from the memo.</p>
+            <p className="text-[10px] text-muted-foreground mt-1">Unchecked sections are omitted entirely from the memo. Length and depth are driven by Complexity above.</p>
           </div>
 
           <div>

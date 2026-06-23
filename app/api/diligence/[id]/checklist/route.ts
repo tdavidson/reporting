@@ -53,6 +53,43 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   if (!deal) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   const body = await req.json().catch(() => ({}))
+
+  // mode === 'reorder' — persist a new order for a set of sibling items.
+  // The client sends the item ids in their new order; we reassign their own
+  // existing order_index values (a permutation), so the items stay within
+  // their current range and no other rows collide.
+  if (body.mode === 'reorder') {
+    const itemIds: string[] = Array.isArray(body.itemIds)
+      ? body.itemIds.filter((x: unknown): x is string => typeof x === 'string')
+      : []
+    if (itemIds.length === 0) return NextResponse.json({ error: 'itemIds is required' }, { status: 400 })
+
+    const { data: rows, error: fetchErr } = await (admin as any)
+      .from('diligence_checklist_items')
+      .select('id, order_index')
+      .eq('deal_id', params.id)
+      .eq('fund_id', fundId)
+      .in('id', itemIds)
+    if (fetchErr) return NextResponse.json({ error: fetchErr.message }, { status: 500 })
+    const found = (rows ?? []) as Array<{ id: string; order_index: number }>
+    if (found.length !== itemIds.length) {
+      return NextResponse.json({ error: 'Some items were not found on this deal' }, { status: 400 })
+    }
+
+    const slots = found.map(r => r.order_index).sort((a, b) => a - b)
+    const now = new Date().toISOString()
+    for (let i = 0; i < itemIds.length; i++) {
+      const { error: updErr } = await (admin as any)
+        .from('diligence_checklist_items')
+        .update({ order_index: slots[i], updated_at: now })
+        .eq('id', itemIds[i])
+        .eq('deal_id', params.id)
+        .eq('fund_id', fundId)
+      if (updErr) return NextResponse.json({ error: updErr.message }, { status: 500 })
+    }
+    return NextResponse.json({ ok: true })
+  }
+
   const mode = body.mode === 'add' || body.mode === 'add_section' ? body.mode : 'replace'
 
   if (mode === 'add_section') {

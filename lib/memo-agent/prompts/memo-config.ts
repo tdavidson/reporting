@@ -7,11 +7,29 @@
  * per-section include/length recipe.
  */
 
+export type MemoComplexity = 'brief' | 'standard' | 'detailed' | 'comprehensive'
+
 export interface MemoTemplateConfig {
   style_override?: 'pre_seed' | 'seed' | 'series_a' | 'series_b' | 'growth' | null
   analyst_persona?: string
+  // Single proxy for completeness, level of detail, and length. Replaces the
+  // older per-section target_paragraphs inputs (still read for back-compat).
+  complexity?: MemoComplexity
   emphasis?: string[]
   section_overrides?: Record<string, { included?: boolean; target_paragraphs?: number | null }>
+}
+
+// How each complexity level translates into a writing directive. Acts as a
+// proxy for completeness, depth of evidence, and length.
+const COMPLEXITY_GUIDANCE: Record<MemoComplexity, string> = {
+  brief:
+    'Complexity: BRIEF. Write a short, high-level memo — cover only the most decision-relevant points. Keep each included section to roughly one tight paragraph; omit minor detail and secondary evidence.',
+  standard:
+    'Complexity: STANDARD. Write a standard-depth memo — cover each included section adequately with the key evidence and reasoning, roughly one to two paragraphs per section.',
+  detailed:
+    'Complexity: DETAILED. Write a detailed memo — cover each included section thoroughly, with supporting evidence, reasoning, and relevant nuance, roughly two to three paragraphs per section.',
+  comprehensive:
+    'Complexity: COMPREHENSIVE. Write an exhaustive memo — cover every included section in depth, surfacing nuances, edge cases, counterarguments, and all material evidence. Use three or more paragraphs per section where the evidence warrants it.',
 }
 
 export function buildMemoConfigBlock(params: {
@@ -23,6 +41,7 @@ export function buildMemoConfigBlock(params: {
   const hasConfig = !!config && (
     !!config.style_override ||
     !!(config.analyst_persona && config.analyst_persona.trim()) ||
+    !!config.complexity ||
     (Array.isArray(config.emphasis) && config.emphasis.some(e => e && e.trim())) ||
     (config.section_overrides && Object.keys(config.section_overrides).length > 0)
   )
@@ -39,6 +58,10 @@ export function buildMemoConfigBlock(params: {
     lines.push(`Analyst persona: ${config.analyst_persona.trim()}`)
   }
 
+  if (config?.complexity && COMPLEXITY_GUIDANCE[config.complexity]) {
+    lines.push(COMPLEXITY_GUIDANCE[config.complexity])
+  }
+
   const emphasis = (config?.emphasis ?? []).map(s => (s ?? '').trim()).filter(Boolean)
   if (emphasis.length > 0) {
     lines.push('Points the partner wants emphasized:')
@@ -47,22 +70,13 @@ export function buildMemoConfigBlock(params: {
 
   const overrides = config?.section_overrides ?? {}
   const excluded: string[] = []
-  const lengthTargets: Array<{ section_id: string; paragraphs: number }> = []
   for (const [sectionId, ov] of Object.entries(overrides)) {
     if (ov?.included === false) excluded.push(sectionId)
-    if (typeof ov?.target_paragraphs === 'number' && ov.target_paragraphs > 0) {
-      lengthTargets.push({ section_id: sectionId, paragraphs: ov.target_paragraphs })
-    }
   }
 
   if (excluded.length > 0) {
     lines.push('Sections to OMIT entirely from the memo (do not outline or write them):')
     for (const id of excluded) lines.push(`  - ${id}`)
-  }
-
-  if (lengthTargets.length > 0) {
-    lines.push('Section-level paragraph targets (write approximately this many paragraphs per section):')
-    for (const t of lengthTargets) lines.push(`  - ${t.section_id}: ${t.paragraphs} paragraph${t.paragraphs === 1 ? '' : 's'}`)
   }
 
   if (guidance) {

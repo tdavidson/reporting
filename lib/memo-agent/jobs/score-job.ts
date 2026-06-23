@@ -65,5 +65,6 @@ export async function runScoreJob(admin: Admin, job: ScoreJob): Promise<unknown>
     draft_id: draftId,
     scores: result.output.scores.length,
     low_confidence_dimensions: result.output.low_confidence_attention.length,
+    warnings: result.warnings.length,
   }
 }

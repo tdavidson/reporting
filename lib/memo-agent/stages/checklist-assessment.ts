@@ -3,7 +3,7 @@ import { logAIUsage } from '@/lib/ai/usage'
 import { buildSystemPrompt } from '@/lib/memo-agent/prompts/system'
 import { buildChecklistAssessmentContent } from '@/lib/memo-agent/prompts/checklist-assessment'
 import { getStageProvider } from '@/lib/memo-agent/stage-provider'
-import { extractJsonObject, recoverArrayItems } from '@/lib/memo-agent/parse-ai-json'
+import { runBatchedExtraction } from '@/lib/memo-agent/batched-extraction'
 import type { IngestionOutput } from './ingest'
 
 type Admin = ReturnType<typeof createAdminClient>
@@ -131,78 +131,33 @@ export async function runChecklistAssessment(params: {
     claims: d.claims.map(c => ({ field: c.field, value: c.value })),
   }))
 
-  const batches: (typeof items)[] = []
-  for (let i = 0; i < items.length; i += ASSESSMENT_BATCH_SIZE) {
-    batches.push(items.slice(i, i + ASSESSMENT_BATCH_SIZE))
-  }
-
-  // The LLM calls ARE the assessment. A single batch failing transiently
-  // shouldn't nuke the whole run, so per-batch failures are collected as
-  // warnings and we keep going — but if *every* batch yields nothing usable
-  // the job fails (below) with the collected reasons, so the worker marks it
-  // failed rather than success-with-nothing.
-  const assessments: AssessmentEntry[] = []
-  const batchErrors: string[] = []
-  for (let b = 0; b < batches.length; b++) {
-    const batch = batches[b]
-    const from = b * ASSESSMENT_BATCH_SIZE + 1
-    const to = from + batch.length - 1
-    await note(
-      batches.length === 1
-        ? `Assessing ${items.length} checklist items against ${docs.length} document${docs.length === 1 ? '' : 's'}…`
-        : `Assessing checklist items ${from}–${to} of ${items.length}…`,
-    )
-
-    const content = buildChecklistAssessmentContent({ dealName, stage: dealStage, checklist: batch, perDoc })
-
-    let rawText = ''
-    let truncated = false
-    try {
-      const { text, usage, truncated: cut } = await provider.createMessage({
-        model,
-        maxTokens: ASSESSMENT_MAX_TOKENS,
-        system,
-        content,
-      })
-      logAIUsage(admin, {
-        fundId,
-        provider: providerType,
-        model,
-        feature: 'memo_agent_checklist_assessment',
-        usage,
-      })
-      rawText = text
-      truncated = !!cut
-    } catch (err) {
-      batchErrors.push(`batch ${b + 1}/${batches.length}: ${err instanceof Error ? err.message : String(err)}`)
-      continue
-    }
-
-    let batchAssessments: AssessmentEntry[]
-    try {
-      batchAssessments = parseAssessmentResponse(rawText)
-    } catch (err) {
-      // Whole-response parse failed — almost always a mid-array truncation.
-      // Salvage every item the model finished before the cut.
-      batchAssessments = recoverArrayItems(rawText, 'items')
-        .map(toAssessmentEntry)
-        .filter((e): e is AssessmentEntry => e !== null)
-      if (batchAssessments.length === 0) {
-        batchErrors.push(
-          truncated
-            ? `batch ${b + 1}/${batches.length}: truncated at the ${ASSESSMENT_MAX_TOKENS}-token output limit before any item could be recovered`
-            : `batch ${b + 1}/${batches.length}: unparseable response (${err instanceof Error ? err.message : String(err)})`,
-        )
-      } else {
-        warnings.push(
-          truncated
-            ? `Batch ${b + 1} hit the ${ASSESSMENT_MAX_TOKENS}-token output limit; recovered ${batchAssessments.length} item(s) completed before the cut and left the rest unchanged.`
-            : `Batch ${b + 1} response was partially malformed; recovered ${batchAssessments.length} item assessment(s) and skipped the rest.`,
-        )
-      }
-    }
-    assessments.push(...batchAssessments)
-  }
+  // Assess in batches so each call's JSON output stays under the token cap.
+  // The shared runner parallelizes the batches, detects truncation, and
+  // salvages every item completed before a cut. A batch failing transiently
+  // degrades to a warning; only if *every* batch yields nothing do we throw
+  // (below), so the worker marks the job failed rather than success-with-nothing.
+  const { rows: assessments, warnings: batchWarnings, batchErrors, batchCount } =
+    await runBatchedExtraction<(typeof items)[number], AssessmentEntry>({
+      units: items,
+      batchSize: ASSESSMENT_BATCH_SIZE,
+      arrayKey: 'items',
+      label: (_batch, idx, total) => total === 1
+        ? `${items.length} item${items.length === 1 ? '' : 's'} vs ${docs.length} doc${docs.length === 1 ? '' : 's'}`
+        : `items batch ${idx + 1}/${total}`,
+      note,
+      call: async (batch) => {
+        const res = await provider.createMessage({
+          model,
+          maxTokens: ASSESSMENT_MAX_TOKENS,
+          system,
+          content: buildChecklistAssessmentContent({ dealName, stage: dealStage, checklist: batch, perDoc }),
+        })
+        logAIUsage(admin, { fundId, provider: providerType, model, feature: 'memo_agent_checklist_assessment', usage: res.usage })
+        return res
+      },
+      coerce: toAssessmentEntry,
+    })
+  warnings.push(...batchWarnings)
 
   if (assessments.length === 0) {
     throw new Error(
@@ -210,7 +165,7 @@ export async function runChecklistAssessment(params: {
     )
   }
   if (batchErrors.length > 0) {
-    warnings.push(`${batchErrors.length} of ${batches.length} batch(es) failed: ${batchErrors.join('; ')}.`)
+    warnings.push(`${batchErrors.length} of ${batchCount} batch(es) failed: ${batchErrors.join('; ')}.`)
   }
 
   await note('Writing checklist assessments…')
@@ -240,14 +195,6 @@ export async function runChecklistAssessment(params: {
   }
 
   return { items_assessed: assessed, items_found: found, items_partial: partial, items_missing: missing, warnings }
-}
-
-function parseAssessmentResponse(raw: string): AssessmentEntry[] {
-  const parsed = extractJsonObject(raw)
-  if (!parsed || typeof parsed !== 'object') return []
-  const obj = parsed as { items?: unknown }
-  const items = Array.isArray(obj.items) ? obj.items : []
-  return items.map(toAssessmentEntry).filter((e): e is AssessmentEntry => e !== null)
 }
 
 /** Normalize one raw item object into an AssessmentEntry, or null if unusable. */

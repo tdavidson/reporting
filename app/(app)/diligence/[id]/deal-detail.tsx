@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Loader2, Trash2, Upload, FolderInput, Check, Play, RefreshCw, AlertCircle, Lock, ChevronDown } from 'lucide-react'
+import { ArrowLeft, Loader2, Trash2, Upload, FolderInput, Check, Play, RefreshCw, AlertCircle, Lock, ChevronDown, GripVertical } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -399,6 +399,35 @@ function ChecklistTab({ deal, documentCount, isAdmin, onJumpToDoc }: {
     setItems(prev => (prev ? [...prev, item] : [item]))
   }
 
+  // Persist a drag-and-drop reorder of sibling items. `orderedIds` is the new
+  // order of a set of items that share a parent. We permute their own
+  // order_index slots, then re-sort, so the change is local to that group.
+  async function reorderItems(orderedIds: string[]) {
+    if (orderedIds.length < 2) return
+    setItems(prev => {
+      if (!prev) return prev
+      const slots = prev
+        .filter(i => orderedIds.includes(i.id))
+        .map(i => i.order_index)
+        .sort((a, b) => a - b)
+      const newOrder: Record<string, number> = {}
+      orderedIds.forEach((id, i) => { newOrder[id] = slots[i] })
+      return prev
+        .map(i => (i.id in newOrder ? { ...i, order_index: newOrder[i.id] } : i))
+        .sort((a, b) => a.order_index - b.order_index)
+    })
+    const res = await fetch(`/api/diligence/${deal.id}/checklist`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mode: 'reorder', itemIds: orderedIds }),
+    })
+    if (!res.ok) {
+      // Resync from the server if the persist failed.
+      const reload = await fetch(`/api/diligence/${deal.id}/checklist`)
+      if (reload.ok) setItems((await reload.json()).items as ChecklistItem[])
+    }
+  }
+
   async function promote() {
     const ok = await confirm({
       title: 'Promote to portfolio',
@@ -516,7 +545,7 @@ function ChecklistTab({ deal, documentCount, isAdmin, onJumpToDoc }: {
                 Hide completed
               </label>
               <Button size="sm" onClick={runAssessment} disabled={busy}>
-                Run AI assessment
+                Run Assessment
               </Button>
             </>
           )}
@@ -604,6 +633,7 @@ function ChecklistTab({ deal, documentCount, isAdmin, onJumpToDoc }: {
           onDelete={deleteItem}
           onPatch={patchItem}
           onAdd={(label) => addItem(label, sec.label)}
+          onReorder={reorderItems}
           onJumpToDoc={onJumpToDoc}
         />
       ))}
@@ -619,6 +649,7 @@ function ChecklistTab({ deal, documentCount, isAdmin, onJumpToDoc }: {
           onDelete={deleteItem}
           onPatch={patchItem}
           onAdd={(label) => addItem(label, '')}
+          onReorder={reorderItems}
           onJumpToDoc={onJumpToDoc}
         />
       )}
@@ -658,7 +689,7 @@ function ChecklistTab({ deal, documentCount, isAdmin, onJumpToDoc }: {
   )
 }
 
-function ChecklistSection({ section, items, findingsByItem, hideCompleted, collapsed, onToggleCollapsed, onDelete, onPatch, onAdd, onJumpToDoc }: {
+function ChecklistSection({ section, items, findingsByItem, hideCompleted, collapsed, onToggleCollapsed, onDelete, onPatch, onAdd, onReorder, onJumpToDoc }: {
   section: ChecklistItem | null
   items: ChecklistItem[]
   findingsByItem: Record<string, Array<{ doc_id: string; doc_name: string; field: string; value: string; criticality: string }>>
@@ -668,9 +699,12 @@ function ChecklistSection({ section, items, findingsByItem, hideCompleted, colla
   onDelete: (itemId: string) => void
   onPatch: (itemId: string, patch: Partial<Pick<ChecklistItem, 'label' | 'status'>>) => void
   onAdd: (label: string) => void
+  onReorder: (orderedIds: string[]) => void
   onJumpToDoc: (docId: string) => void
 }) {
   const [adding, setAdding] = useState('')
+  const [dragId, setDragId] = useState<string | null>(null)
+  const [overId, setOverId] = useState<string | null>(null)
   const visibleItems = hideCompleted
     ? items.filter(it => it.status !== 'found' && it.status !== 'not_applicable')
     : items
@@ -684,6 +718,18 @@ function ChecklistSection({ section, items, findingsByItem, hideCompleted, colla
   const [editingSection, setEditingSection] = useState(false)
   const [sectionDraft, setSectionDraft] = useState(section?.label ?? '')
   useEffect(() => { setSectionDraft(section?.label ?? '') }, [section?.label])
+
+  function handleDrop(targetId: string) {
+    const from = visibleItems.findIndex(i => i.id === dragId)
+    const to = visibleItems.findIndex(i => i.id === targetId)
+    setDragId(null)
+    setOverId(null)
+    if (from === -1 || to === -1 || from === to) return
+    const next = visibleItems.map(i => i.id)
+    const [moved] = next.splice(from, 1)
+    next.splice(to, 0, moved)
+    onReorder(next)
+  }
 
   return (
     <div className="border rounded-md">
@@ -746,7 +792,32 @@ function ChecklistSection({ section, items, findingsByItem, hideCompleted, colla
       {!collapsed && (
       <div className="divide-y">
         {visibleItems.map(it => (
-          <ChecklistRow key={it.id} item={it} findings={findingsByItem[it.id] ?? []} onDelete={onDelete} onPatch={onPatch} onJumpToDoc={onJumpToDoc} />
+          <div
+            key={it.id}
+            onDragOver={dragId ? (e) => { e.preventDefault(); if (overId !== it.id) setOverId(it.id) } : undefined}
+            onDrop={dragId ? (e) => { e.preventDefault(); handleDrop(it.id) } : undefined}
+            className={dragId && dragId !== it.id && overId === it.id ? 'border-t-2 border-primary' : ''}
+          >
+            <ChecklistRow
+              item={it}
+              findings={findingsByItem[it.id] ?? []}
+              onDelete={onDelete}
+              onPatch={onPatch}
+              onJumpToDoc={onJumpToDoc}
+              dragHandle={
+                <span
+                  draggable
+                  onDragStart={(e) => { setDragId(it.id); e.dataTransfer.effectAllowed = 'move' }}
+                  onDragEnd={() => { setDragId(null); setOverId(null) }}
+                  className="mt-0.5 shrink-0 cursor-grab active:cursor-grabbing text-muted-foreground/40 hover:text-foreground"
+                  title="Drag to reorder"
+                  aria-label="Drag to reorder"
+                >
+                  <GripVertical className="h-4 w-4" />
+                </span>
+              }
+            />
+          </div>
         ))}
         {visibleItems.length === 0 && items.length === 0 && (
           <div className="px-3 py-2 text-xs text-muted-foreground">No items in this section yet.</div>
@@ -810,12 +881,13 @@ function AddSectionRow({ onAdd }: { onAdd: (label: string) => void }) {
   )
 }
 
-function ChecklistRow({ item, findings, onDelete, onPatch, onJumpToDoc }: {
+function ChecklistRow({ item, findings, onDelete, onPatch, onJumpToDoc, dragHandle }: {
   item: ChecklistItem
   findings: Array<{ doc_id: string; doc_name: string; field: string; value: string; criticality: string }>
   onDelete: (itemId: string) => void
   onPatch: (itemId: string, patch: Partial<Pick<ChecklistItem, 'label' | 'status'>>) => void
   onJumpToDoc: (docId: string) => void
+  dragHandle?: React.ReactNode
 }) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(item.label)
@@ -823,6 +895,7 @@ function ChecklistRow({ item, findings, onDelete, onPatch, onJumpToDoc }: {
   const pill = STATUS_PILL[item.status]
   return (
     <div className="flex items-start gap-2 px-3 py-2">
+      {dragHandle}
       <div className="flex-1 min-w-0">
         {editing ? (
           <Input
@@ -1896,6 +1969,10 @@ function DiligenceTab({ dealId }: { dealId: string }) {
         </div>
       )}
 
+      <Accordion title="Q&A" subtitle={`${draft?.qa_answers?.length ?? 0} entries`} defaultOpen>
+        <QALibraryPanel dealId={dealId} qaAnswers={draft?.qa_answers ?? []} onAdded={() => refresh()} />
+      </Accordion>
+
       <Accordion title="Internal diligence" subtitle={internalCounts} defaultOpen>
         {!research ? (
           <p className="text-xs text-muted-foreground italic py-2">No research output yet. Run external research below to populate.</p>
@@ -1928,10 +2005,6 @@ function DiligenceTab({ dealId }: { dealId: string }) {
           <JobStatusLine job={job ?? null} kind="research" error={error} />
           {research && !isResearchInFlight && <ExternalResearchView research={research} />}
         </div>
-      </Accordion>
-
-      <Accordion title="Q&A library" subtitle={`${draft?.qa_answers?.length ?? 0} entries`}>
-        <QALibraryPanel dealId={dealId} qaAnswers={draft?.qa_answers ?? []} onAdded={() => refresh()} />
       </Accordion>
     </div>
   )

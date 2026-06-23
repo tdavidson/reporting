@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import type { MemoTemplateConfig } from '@/lib/memo-agent/prompts/memo-config'
 
 const VALID_STYLES = new Set(['pre_seed', 'seed', 'series_a', 'series_b', 'growth'])
+const VALID_COMPLEXITY = new Set(['brief', 'standard', 'detailed', 'comprehensive'])
 
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
   const guard = await ensureMember()
@@ -49,6 +50,10 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
     if (typeof raw.analyst_persona === 'string') {
       clean.analyst_persona = raw.analyst_persona
+    }
+
+    if (typeof raw.complexity === 'string' && VALID_COMPLEXITY.has(raw.complexity)) {
+      clean.complexity = raw.complexity as MemoTemplateConfig['complexity']
     }
 
     if (Array.isArray(raw.emphasis)) {

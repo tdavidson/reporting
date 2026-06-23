@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Loader2, FileDown, FileText, ExternalLink, Lock, AlertTriangle, AlertCircle, ChevronRight, Save } from 'lucide-react'
+import { ArrowLeft, Loader2, FileDown, FileText, ExternalLink, Lock, AlertTriangle, AlertCircle, ChevronRight, Save, GripVertical } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useConfirm } from '@/components/confirm-dialog'
@@ -94,6 +94,8 @@ export function MemoEditor({ dealId, dealName, draft: initial, initialAttention,
   const [draft, setDraft] = useState(initial)
   const [attention, setAttention] = useState(initialAttention)
   const [selected, setSelected] = useState<string | null>(null)
+  const [dragId, setDragId] = useState<string | null>(null)
+  const [overId, setOverId] = useState<string | null>(null)
   const [proseDraft, setProseDraft] = useState<string>('')
   const [showAttention, setShowAttention] = useState(true)
   const [savingPara, setSavingPara] = useState(false)
@@ -190,6 +192,28 @@ export function MemoEditor({ dealId, dealName, draft: initial, initialAttention,
     ;[reordered[idx], reordered[swapWith]] = [reordered[swapWith], reordered[idx]]
     await patchDraft({
       paragraph_order: reordered.map((p, i) => ({ id: p.id, section_id: p.section_id, order: i })),
+    })
+  }
+
+  // Drag-and-drop reorder within a section. Paragraphs cannot cross sections,
+  // mirroring moveParagraph — drops onto a different section are ignored.
+  async function dropParagraphOnto(dragId: string, targetId: string) {
+    if (dragId === targetId) return
+    const all = memo.paragraphs ?? []
+    const dragPara = all.find(p => p.id === dragId)
+    const targetPara = all.find(p => p.id === targetId)
+    if (!dragPara || !targetPara || dragPara.section_id !== targetPara.section_id) return
+    const inSection = all
+      .filter(p => p.section_id === dragPara.section_id)
+      .slice()
+      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+    const from = inSection.findIndex(p => p.id === dragId)
+    const to = inSection.findIndex(p => p.id === targetId)
+    if (from === -1 || to === -1) return
+    const [moved] = inSection.splice(from, 1)
+    inSection.splice(to, 0, moved)
+    await patchDraft({
+      paragraph_order: inSection.map((p, i) => ({ id: p.id, section_id: p.section_id, order: i })),
     })
   }
 
@@ -334,18 +358,37 @@ export function MemoEditor({ dealId, dealName, draft: initial, initialAttention,
                   <p className="text-sm text-muted-foreground italic">[No content yet for this section.]</p>
                 ) : (
                   paragraphs.map((p, i) => (
-                    <ParagraphView
+                    <div
                       key={p.id}
-                      paragraph={p}
-                      isSelected={selected === p.id}
-                      onSelect={() => setSelected(p.id)}
-                      readOnly={isReadOnly}
-                      canMoveUp={i > 0}
-                      canMoveDown={i < paragraphs.length - 1}
-                      onMoveUp={() => moveParagraph(p.id, 'up')}
-                      onMoveDown={() => moveParagraph(p.id, 'down')}
-                      onToggleHidden={() => toggleHidden(p.id)}
-                    />
+                      onDragOver={dragId && dragId !== p.id ? (e) => { e.preventDefault(); if (overId !== p.id) setOverId(p.id) } : undefined}
+                      onDrop={dragId ? (e) => { e.preventDefault(); const d = dragId; setDragId(null); setOverId(null); if (d) dropParagraphOnto(d, p.id) } : undefined}
+                      className={dragId && dragId !== p.id && overId === p.id ? 'border-t-2 border-primary' : ''}
+                    >
+                      <ParagraphView
+                        paragraph={p}
+                        isSelected={selected === p.id}
+                        onSelect={() => setSelected(p.id)}
+                        readOnly={isReadOnly}
+                        canMoveUp={i > 0}
+                        canMoveDown={i < paragraphs.length - 1}
+                        onMoveUp={() => moveParagraph(p.id, 'up')}
+                        onMoveDown={() => moveParagraph(p.id, 'down')}
+                        onToggleHidden={() => toggleHidden(p.id)}
+                        dragHandle={!isReadOnly ? (
+                          <span
+                            draggable
+                            onClick={e => e.stopPropagation()}
+                            onDragStart={(e) => { e.stopPropagation(); setDragId(p.id); e.dataTransfer.effectAllowed = 'move' }}
+                            onDragEnd={() => { setDragId(null); setOverId(null) }}
+                            className="cursor-grab active:cursor-grabbing text-muted-foreground/40 hover:text-foreground"
+                            title="Drag to reorder"
+                            aria-label="Drag to reorder"
+                          >
+                            <GripVertical className="h-3.5 w-3.5" />
+                          </span>
+                        ) : null}
+                      />
+                    </div>
                   ))
                 )}
                 {!isReadOnly && (
@@ -496,7 +539,7 @@ export function MemoEditor({ dealId, dealName, draft: initial, initialAttention,
 }
 
 function ParagraphView({
-  paragraph, isSelected, onSelect, readOnly, canMoveUp, canMoveDown, onMoveUp, onMoveDown, onToggleHidden,
+  paragraph, isSelected, onSelect, readOnly, canMoveUp, canMoveDown, onMoveUp, onMoveDown, onToggleHidden, dragHandle,
 }: {
   paragraph: Paragraph
   isSelected: boolean
@@ -507,6 +550,7 @@ function ParagraphView({
   onMoveUp: () => void
   onMoveDown: () => void
   onToggleHidden: () => void
+  dragHandle?: React.ReactNode
 }) {
   const isPlaceholder = paragraph.origin === 'partner_only_placeholder'
   const stop = (e: React.MouseEvent, fn: () => void) => { e.stopPropagation(); fn() }
@@ -524,6 +568,7 @@ function ParagraphView({
         )}
       </p>
       <div className="flex flex-wrap items-center gap-1 mt-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+        {dragHandle}
         <Badge tone="muted">{paragraph.origin.replace(/_/g, ' ')}</Badge>
         {paragraph.hidden && <Badge tone="amber">hidden — excluded from export</Badge>}
         {paragraph.contains_projection && <Badge tone="amber">projection</Badge>}

@@ -138,6 +138,12 @@ export interface ScorePromptInput {
   research: ResearchOutput | null
   qa_answers: QARecord[]
   memo_draft_output_summary: string
+  /**
+   * When set, the model scores ONLY these rubric dimension_ids in this pass.
+   * Used to batch scoring across several calls so no single response runs past
+   * the output-token limit. The full rubric is still provided for context.
+   */
+  onlyDimensionIds?: string[]
 }
 
 export function buildScoreUserContent(params: ScorePromptInput): ContentBlock[] {
@@ -149,6 +155,9 @@ export function buildScoreUserContent(params: ScorePromptInput): ContentBlock[] 
     `=== STAGE 5 — RUBRIC SCORING ===`,
     'Score every machine and hybrid dimension per the active rubric.yaml. Partner-only dimensions (e.g. team) get score=null and rationale containing supporting material.',
     'Score against stage-appropriate expectations (see calibration above) — do NOT mark a dimension down for lacking data a company at this stage would not have.',
+    params.onlyDimensionIds && params.onlyDimensionIds.length > 0
+      ? `IMPORTANT — for THIS pass, score ONLY these dimension_ids and omit all others from "scores" (they are scored in separate passes): ${params.onlyDimensionIds.join(', ')}.`
+      : '',
     '',
     `--- DRAFT MEMO (high-level) ---`,
     params.memo_draft_output_summary,

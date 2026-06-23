@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import type { MemoTemplateConfig } from '@/lib/memo-agent/prompts/memo-config'
 
 const VALID_STYLES = new Set(['pre_seed', 'seed', 'series_a', 'series_b', 'growth'])
+const VALID_COMPLEXITY = new Set(['brief', 'standard', 'detailed', 'comprehensive'])
 
 interface PresetRow {
   id: string
@@ -88,6 +89,9 @@ function sanitizeConfig(raw: unknown): MemoTemplateConfig {
     clean.style_override = null
   }
   if (typeof r.analyst_persona === 'string') clean.analyst_persona = r.analyst_persona
+  if (typeof r.complexity === 'string' && VALID_COMPLEXITY.has(r.complexity)) {
+    clean.complexity = r.complexity as MemoTemplateConfig['complexity']
+  }
   if (Array.isArray(r.emphasis)) {
     clean.emphasis = r.emphasis.filter((e): e is string => typeof e === 'string').map(e => e.trim()).filter(Boolean).slice(0, 20)
   }
