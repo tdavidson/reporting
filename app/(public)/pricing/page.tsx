@@ -24,7 +24,7 @@ export default function PricingPage() {
           <Link href="/license" className="text-foreground underline underline-offset-4 hover:text-foreground/80">
             Apache License 2.0
           </Link>
-          . Free to use, modify, and deploy — for your own fund or commercially. Paid options below are for setup, support, and hosting if you&apos;d rather not run it yourself.
+          . Free to use, modify, and deploy. Paid options below are for setup, support, and hosting if you want support in launching and running it yourself.
         </p>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
