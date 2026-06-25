@@ -20,11 +20,17 @@ interface ChecklistAssessmentJob {
  * also be triggered directly from the Checklist tab.
  */
 export async function runChecklistAssessmentJob(admin: Admin, job: ChecklistAssessmentJob): Promise<unknown> {
+  const itemIds = Array.isArray(job.payload?.item_ids)
+    ? (job.payload.item_ids as unknown[]).filter((x): x is string => typeof x === 'string')
+    : undefined
+  const all = job.payload?.all === true
   const result = await runChecklistAssessment({
     admin,
     fundId: job.fund_id,
     dealId: job.deal_id,
     draftId: job.draft_id ?? undefined,
+    itemIds,
+    all,
     progressCb: async (msg) => {
       await admin
         .from('memo_agent_jobs')

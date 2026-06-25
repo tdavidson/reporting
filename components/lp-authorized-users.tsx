@@ -78,7 +78,7 @@ export function LpAuthorizedUsers() {
           ) : (
             <>
               <div className="flex flex-wrap gap-2 items-center">
-                <select value={investorId} onChange={e => setInvestorId(e.target.value)} className="h-8 rounded-md border border-input bg-background px-2 text-sm">
+                <select value={investorId} onChange={e => setInvestorId(e.target.value)} className="h-8 w-full sm:w-auto sm:max-w-[280px] truncate rounded-md border border-input bg-background px-2 text-sm">
                   <option value="">Select investor…</option>
                   {investors.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
                 </select>

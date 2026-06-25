@@ -20,6 +20,9 @@ interface IngestSynthesisJob {
  * trigger it directly.
  */
 export async function runIngestSynthesisJob(admin: Admin, job: IngestSynthesisJob): Promise<unknown> {
+  // A full re-analyze flows through ingest → synthesis → checklist; carry the
+  // flag so the checklist re-assesses every item, not just the open ones.
+  const full = job.payload?.full === true
   const result = await runIngestSynthesis({
     admin,
     fundId: job.fund_id,
@@ -58,7 +61,7 @@ export async function runIngestSynthesisJob(admin: Admin, job: IngestSynthesisJo
         deal_id: job.deal_id,
         draft_id: result.draft_id,
         kind: 'checklist_assessment',
-        payload: {},
+        payload: full ? { all: true } : {},
       } as any)
       .select('id')
       .single()

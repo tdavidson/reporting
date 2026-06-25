@@ -31,6 +31,10 @@ export async function runIngestJob(admin: Admin, job: IngestJob): Promise<unknow
   const explicitIds = Array.isArray(job.payload?.document_ids)
     ? (job.payload.document_ids as unknown[]).filter((x): x is string => typeof x === 'string')
     : null
+  // "Re-analyze everything": re-ingest the whole data room (replacing stale
+  // results) and re-assess every checklist item. Carried through continuation
+  // batches and into the synthesis follow-up.
+  const full = job.payload?.full === true
 
   // A fresh full run (no document_ids) resolves the whole data room and
   // replaces prior results. Continuation batches and failed-doc re-runs carry
@@ -86,7 +90,7 @@ export async function runIngestJob(admin: Admin, job: IngestJob): Promise<unknow
         deal_id: job.deal_id,
         draft_id: result.draft_id,
         kind: 'ingest',
-        payload: { document_ids: remaining, continuation: true },
+        payload: { document_ids: remaining, continuation: true, ...(full ? { full: true } : {}) },
         enqueued_by: job.enqueued_by ?? null,
       } as any)
       .select('id')
@@ -124,7 +128,7 @@ export async function runIngestJob(admin: Admin, job: IngestJob): Promise<unknow
         deal_id: job.deal_id,
         draft_id: result.draft_id,
         kind: 'ingest_synthesis',
-        payload: {},
+        payload: full ? { full: true } : {},
         enqueued_by: job.enqueued_by ?? null,
       } as any)
       .select('id')

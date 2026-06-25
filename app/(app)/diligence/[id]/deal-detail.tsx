@@ -174,6 +174,7 @@ type ChecklistItem = {
   evidence: Array<{ document_id?: string; summary?: string }>
   agent_notes: string | null
   partner_notes: string | null
+  partner_facts: Array<{ id: string; text: string }> | null
   order_index: number
   source: 'template' | 'partner_added' | 'imported' | 'agent_added'
 }
@@ -388,7 +389,7 @@ function ChecklistTab({ deal, documentCount, isAdmin, onJumpToDoc }: {
     setItems(prev => (prev ? [...prev, item] : [item]))
   }
 
-  async function patchItem(itemId: string, patch: Partial<Pick<ChecklistItem, 'label' | 'status' | 'partner_notes'>>) {
+  async function patchItem(itemId: string, patch: Partial<Pick<ChecklistItem, 'label' | 'status' | 'partner_notes' | 'partner_facts'>>) {
     const res = await fetch(`/api/diligence/${deal.id}/checklist`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
@@ -680,7 +681,7 @@ function ChecklistSection({ section, items, findingsByItem, hideCompleted, colla
   collapsed: boolean
   onToggleCollapsed: () => void
   onDelete: (itemId: string) => void
-  onPatch: (itemId: string, patch: Partial<Pick<ChecklistItem, 'label' | 'status' | 'partner_notes'>>) => void
+  onPatch: (itemId: string, patch: Partial<Pick<ChecklistItem, 'label' | 'status' | 'partner_notes' | 'partner_facts'>>) => void
   onAdd: (label: string) => void
   onReorder: (orderedIds: string[]) => void
   onJumpToDoc: (docId: string) => void
@@ -868,17 +869,46 @@ function ChecklistRow({ item, findings, onDelete, onPatch, onJumpToDoc, dragHand
   item: ChecklistItem
   findings: Array<{ doc_id: string; doc_name: string; field: string; value: string; criticality: string }>
   onDelete: (itemId: string) => void
-  onPatch: (itemId: string, patch: Partial<Pick<ChecklistItem, 'label' | 'status' | 'partner_notes'>>) => void
+  onPatch: (itemId: string, patch: Partial<Pick<ChecklistItem, 'label' | 'status' | 'partner_notes' | 'partner_facts'>>) => void
   onJumpToDoc: (docId: string) => void
   dragHandle?: React.ReactNode
 }) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(item.label)
   const [findingsOpen, setFindingsOpen] = useState(false)
-  const [notesOpen, setNotesOpen] = useState(false)
-  const [notesDraft, setNotesDraft] = useState(item.partner_notes ?? '')
-  useEffect(() => { setNotesDraft(item.partner_notes ?? '') }, [item.partner_notes])
+  const [addingFact, setAddingFact] = useState(false)
+  const [factDraft, setFactDraft] = useState('')
+  const [editingFactId, setEditingFactId] = useState<string | null>(null)
+  const [editDraft, setEditDraft] = useState('')
   const pill = STATUS_PILL[item.status]
+
+  // Partner-entered data points, rendered in the same format as analysis
+  // evidence. Fall back to the legacy single `partner_notes` value until the
+  // first edit folds it into the list (and clears the old column).
+  const storedFacts = Array.isArray(item.partner_facts) ? item.partner_facts : []
+  const partnerFacts: Array<{ id: string; text: string }> = storedFacts.length > 0
+    ? storedFacts
+    : (item.partner_notes ? [{ id: 'legacy', text: item.partner_notes }] : [])
+
+  // Give every entry a stable id (legacy/blank → fresh) before persisting, and
+  // clear the deprecated partner_notes column once we've written the list.
+  const commitFacts = (next: Array<{ id: string; text: string }>) => {
+    const normalized = next
+      .map(f => ({ id: f.id && f.id !== 'legacy' ? f.id : `fact_${Math.random().toString(36).slice(2, 9)}`, text: f.text.trim() }))
+      .filter(f => f.text.length > 0)
+    onPatch(item.id, { partner_facts: normalized, ...(item.partner_notes ? { partner_notes: '' } : {}) })
+  }
+  const addFact = () => {
+    const text = factDraft.trim()
+    if (!text) { setAddingFact(false); return }
+    commitFacts([...partnerFacts, { id: '', text }])
+    setFactDraft(''); setAddingFact(false)
+  }
+  const saveFactEdit = (id: string) => {
+    commitFacts(partnerFacts.map(f => (f.id === id ? { ...f, text: editDraft } : f)))
+    setEditingFactId(null); setEditDraft('')
+  }
+  const deleteFact = (id: string) => commitFacts(partnerFacts.filter(f => f.id !== id))
   return (
     <div className="flex items-start gap-2 px-3 py-2">
       {dragHandle}
@@ -910,22 +940,64 @@ function ChecklistRow({ item, findings, onDelete, onPatch, onJumpToDoc, dragHand
         {item.agent_notes && (
           <div className="text-xs text-muted-foreground mt-1">{item.agent_notes}</div>
         )}
-        {(notesOpen || item.partner_notes) ? (
-          <Input
-            value={notesDraft}
-            onChange={e => setNotesDraft(e.target.value)}
-            onBlur={() => { if (notesDraft !== (item.partner_notes ?? '')) onPatch(item.id, { partner_notes: notesDraft }) }}
-            placeholder="Your note — a fact or person not in the data room"
-            className="h-7 text-xs mt-1"
-            autoFocus={notesOpen && !item.partner_notes}
-          />
-        ) : (
+        {/* Partner data points — manually-entered facts, same format as the
+            analysis evidence below. These survive re-analysis. */}
+        {(partnerFacts.length > 0 || addingFact) && (
+          <div className="text-xs text-muted-foreground mt-1 space-y-0.5">
+            {partnerFacts.map(f => (
+              <div key={f.id} className="group flex items-start gap-1">
+                {editingFactId === f.id ? (
+                  <div className="flex-1 flex items-center gap-1">
+                    <Input
+                      value={editDraft}
+                      onChange={e => setEditDraft(e.target.value)}
+                      autoFocus
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') { e.preventDefault(); saveFactEdit(f.id) }
+                        if (e.key === 'Escape') { setEditingFactId(null); setEditDraft('') }
+                      }}
+                      className="h-6 text-xs flex-1"
+                    />
+                    <button type="button" onClick={() => saveFactEdit(f.id)} className="text-[11px] text-foreground hover:underline">Save</button>
+                    <button type="button" onClick={() => { setEditingFactId(null); setEditDraft('') }} className="text-[11px] hover:underline">Cancel</button>
+                  </div>
+                ) : (
+                  <>
+                    <span className="flex-1">
+                      <span className="text-foreground/70">↳</span> {f.text} <span className="text-foreground/40">· you</span>
+                    </span>
+                    <button type="button" onClick={() => { setEditingFactId(f.id); setEditDraft(f.text) }} className="opacity-0 group-hover:opacity-100 text-[11px] hover:text-foreground">Edit</button>
+                    <button type="button" onClick={() => deleteFact(f.id)} className="opacity-0 group-hover:opacity-100 text-[11px] hover:text-destructive">Delete</button>
+                  </>
+                )}
+              </div>
+            ))}
+            {addingFact && (
+              <div className="flex items-center gap-1">
+                <Input
+                  value={factDraft}
+                  onChange={e => setFactDraft(e.target.value)}
+                  autoFocus
+                  placeholder="A fact or data point you know — e.g. 'Reference call with CTO confirmed 18-mo runway'"
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') { e.preventDefault(); addFact() }
+                    if (e.key === 'Escape') { setAddingFact(false); setFactDraft('') }
+                  }}
+                  className="h-6 text-xs flex-1"
+                />
+                <button type="button" onClick={addFact} className="text-[11px] text-foreground hover:underline">Save</button>
+                <button type="button" onClick={() => { setAddingFact(false); setFactDraft('') }} className="text-[11px] hover:underline">Cancel</button>
+              </div>
+            )}
+          </div>
+        )}
+        {!addingFact && (
           <button
             type="button"
-            onClick={() => setNotesOpen(true)}
+            onClick={() => setAddingFact(true)}
             className="text-[11px] text-muted-foreground hover:text-foreground mt-1"
           >
-            + Add note
+            + Add data point
           </button>
         )}
         {item.evidence?.length > 0 && (
@@ -1784,6 +1856,8 @@ function IngestionPanel({ dealId, documentCount }: { dealId: string; documentCou
   const { status, refresh } = useAgentStatus(dealId)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
+  const [menuOpen, setMenuOpen] = useState(false)
   const [failedDocIds, setFailedDocIds] = useState<string[]>([])
 
   // Refresh the failed-doc list, which drives the "Reprocess failed" button,
@@ -1803,20 +1877,28 @@ function IngestionPanel({ dealId, documentCount }: { dealId: string; documentCou
   // Treat the auto-enqueued synthesis job as part of the ingest workflow for
   // status display + button disabling, so the user sees continuous feedback
   // across the two-job pipeline rather than a misleading "complete" gap.
-  const isIngestWorkflowJob = job?.kind === 'ingest' || job?.kind === 'ingest_synthesis'
+  const isIngestWorkflowJob = job?.kind === 'ingest' || job?.kind === 'ingest_synthesis' || job?.kind === 'checklist_assessment'
   const isInFlight = job && (job.status === 'pending' || job.status === 'running') && isIngestWorkflowJob
 
-  async function runIngest(documentIds?: string[]) {
+  async function runIngest(documentIds?: string[], opts?: { full?: boolean }) {
     setSubmitting(true)
     setError(null)
+    setNotice(null)
     try {
+      const payload: Record<string, unknown> = {}
+      if (documentIds) payload.document_ids = documentIds
+      if (opts?.full) payload.full = true
+      const hasBody = Object.keys(payload).length > 0
       const res = await fetch(`/api/diligence/${dealId}/agent/ingest`, {
         method: 'POST',
-        headers: documentIds ? { 'content-type': 'application/json' } : {},
-        body: documentIds ? JSON.stringify({ document_ids: documentIds }) : undefined,
+        headers: hasBody ? { 'content-type': 'application/json' } : {},
+        body: hasBody ? JSON.stringify(payload) : undefined,
       })
       const body = await res.json()
       if (!res.ok) throw new Error(body.error ?? 'Failed to enqueue ingest')
+      // Incremental re-analyze may skip ingestion entirely (nothing new) or run
+      // just the checklist checks — surface that so the user isn't left wondering.
+      if (body.skipped || body.message) setNotice(body.message ?? null)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to enqueue ingest')
     } finally {
@@ -1832,7 +1914,8 @@ function IngestionPanel({ dealId, documentCount }: { dealId: string; documentCou
           <h3 className="text-sm font-medium">Data room analysis</h3>
           <p className="text-xs text-muted-foreground mt-1 max-w-xl">
             Reads your uploaded documents, checks them against this checklist (marking items found / partial / missing),
-            and surfaces gaps and cross-document inconsistencies. Re-run after adding files.
+            and surfaces gaps and cross-document inconsistencies. Re-analyzing only processes new or unparsed
+            files and re-checks open checklist items — already-analyzed files and settled items are skipped.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -1848,16 +1931,54 @@ function IngestionPanel({ dealId, documentCount }: { dealId: string; documentCou
               Reprocess failed ({failedDocIds.length})
             </Button>
           )}
-          <Button variant="outline" size="sm" onClick={() => runIngest()} disabled={submitting || !!isInFlight || documentCount === 0}>
-            {isInFlight || submitting ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : status?.latest_draft?.has_ingestion ? <RefreshCw className="h-3.5 w-3.5 mr-1" /> : <Play className="h-3.5 w-3.5 mr-1" />}
-            {status?.latest_draft?.has_ingestion ? 'Re-analyze data room' : 'Analyze data room'}
-          </Button>
+          {status?.latest_draft?.has_ingestion ? (
+            // Split button: incremental re-analyze by default, with a menu for a
+            // full re-analysis (re-ingest every file + re-check every item).
+            <div className="flex items-center">
+              <Button variant="outline" size="sm" className="rounded-r-none" onClick={() => runIngest()} disabled={submitting || !!isInFlight || documentCount === 0}>
+                {isInFlight || submitting ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5 mr-1" />}
+                Re-analyze data room
+              </Button>
+              <Popover open={menuOpen} onOpenChange={setMenuOpen}>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="sm" className="rounded-l-none border-l-0 px-1.5" disabled={submitting || !!isInFlight || documentCount === 0} aria-label="Re-analyze options">
+                    <ChevronDown className="h-3.5 w-3.5" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent align="end" className="w-72 p-1">
+                  <button
+                    type="button"
+                    onClick={() => { setMenuOpen(false); runIngest() }}
+                    className="w-full text-left px-2 py-1.5 text-sm rounded hover:bg-muted"
+                  >
+                    <div className="font-medium">Re-analyze new &amp; open</div>
+                    <div className="text-[11px] text-muted-foreground">Default — only new/unparsed files and open checklist items.</div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setMenuOpen(false); runIngest(undefined, { full: true }) }}
+                    className="w-full text-left px-2 py-1.5 text-sm rounded hover:bg-muted"
+                  >
+                    <div className="font-medium">Re-analyze everything</div>
+                    <div className="text-[11px] text-muted-foreground">Re-ingest all files and re-check every item — slower, costs more.</div>
+                  </button>
+                </PopoverContent>
+              </Popover>
+            </div>
+          ) : (
+            <Button variant="outline" size="sm" onClick={() => runIngest()} disabled={submitting || !!isInFlight || documentCount === 0}>
+              {isInFlight || submitting ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Play className="h-3.5 w-3.5 mr-1" />}
+              Analyze data room
+            </Button>
+          )}
         </div>
       </div>
 
       {documentCount === 0 && (
         <p className="text-xs text-muted-foreground italic">Upload at least one document to enable ingestion.</p>
       )}
+
+      {notice && <p className="text-xs text-muted-foreground mt-2">{notice}</p>}
 
       <JobStatusLine job={job ?? null} kind={['ingest', 'ingest_synthesis', 'checklist_assessment']} error={error} />
     </div>

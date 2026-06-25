@@ -12,6 +12,8 @@ interface ChecklistRow {
   status: 'unknown' | 'found' | 'partial' | 'missing' | 'not_applicable'
   evidence: Array<{ document_id?: string; summary?: string }>
   agent_notes: string | null
+  partner_notes: string | null
+  partner_facts: Array<{ id: string; text: string }>
   order_index: number
   source: 'template' | 'partner_added' | 'imported' | 'agent_added'
   created_at: string
@@ -268,6 +270,16 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   if (typeof body.status === 'string') patch.status = body.status
   if (typeof body.agent_notes === 'string') patch.agent_notes = body.agent_notes
   if (typeof body.partner_notes === 'string') patch.partner_notes = body.partner_notes
+  if (Array.isArray(body.partner_facts)) {
+    patch.partner_facts = (body.partner_facts as unknown[])
+      .filter((f): f is Record<string, unknown> => !!f && typeof f === 'object' && typeof (f as any).text === 'string')
+      .map((f) => ({
+        id: typeof f.id === 'string' && f.id ? (f.id as string) : `fact_${Math.random().toString(36).slice(2, 9)}`,
+        text: (f.text as string).trim().slice(0, 1000),
+      }))
+      .filter((f) => f.text.length > 0)
+      .slice(0, 50)
+  }
 
   const { data, error } = await (admin as any)
     .from('diligence_checklist_items')

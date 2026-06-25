@@ -2,10 +2,17 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { enforceCapsForStage } from '@/lib/memo-agent/cost'
+import { AUDIO_VIDEO_FORMATS } from '@/lib/memo-agent/ingestion/sources'
+
+// Checklist statuses that still warrant (re)assessment — mirrors the stage's
+// default scope. 'found' and 'not_applicable' are settled and skipped.
+const ASSESSABLE_STATUSES = new Set(['unknown', 'partial', 'missing'])
 
 /**
- * Enqueue an ingest job. The cron worker picks it up within ~1 minute.
- * Returns the job_id immediately so the UI can poll for status.
+ * Enqueue a data-room analysis. Re-analyze is incremental: it only ingests
+ * documents that haven't been parsed yet (new + previously-failed) and, when
+ * there's nothing new to ingest, runs just the checklist checks against the
+ * existing ingest output. The cron worker picks the job up within ~1 minute.
  */
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   const supabase = createClient()
@@ -47,11 +54,127 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   }
 
   const body = await req.json().catch(() => ({}))
-  const documentIds = Array.isArray(body.document_ids)
+  const explicitIds: string[] | undefined = Array.isArray(body.document_ids)
     ? body.document_ids.filter((x: unknown): x is string => typeof x === 'string')
     : undefined
+  const full = body.full === true
 
-  // Cost cap enforcement.
+  // "Re-analyze everything": re-ingest the whole data room (replacing stale
+  // results) and re-assess every checklist item. The ingest job resolves the
+  // full document set itself when no document_ids are passed.
+  if (full && (!explicitIds || explicitIds.length === 0)) {
+    const { data: docRows } = await admin
+      .from('diligence_documents')
+      .select('id, file_format, detected_type')
+      .eq('deal_id', params.id)
+      .eq('fund_id', fundId)
+      .neq('parse_status', 'skipped')
+      .neq('detected_type', 'call_recording')
+    const hasDocs = ((docRows ?? []) as Array<{ id: string; file_format: string | null }>)
+      .some(r => !AUDIO_VIDEO_FORMATS.has((r.file_format ?? '').toLowerCase()))
+
+    if (hasDocs) {
+      const enforced = await enforceCapsForStage({ admin, fundId, dealId: params.id, stage: 'ingest' })
+      if (!enforced.ok) {
+        return NextResponse.json({ error: enforced.reason, estimate: enforced.estimate, caps: enforced.caps }, { status: 422 })
+      }
+      const { data: created, error } = await admin
+        .from('memo_agent_jobs')
+        .insert({ fund_id: fundId, deal_id: params.id, kind: 'ingest', payload: { full: true }, enqueued_by: user.id } as any)
+        .select('id, kind, status')
+        .single()
+      if (error || !created) return NextResponse.json({ error: error?.message ?? 'enqueue failed' }, { status: 500 })
+      await admin.from('diligence_deals').update({ current_memo_stage: 'ingest' }).eq('id', params.id).eq('fund_id', fundId)
+      return NextResponse.json({
+        job_id: (created as any).id,
+        kind: 'ingest',
+        status: (created as any).status,
+        full: true,
+        estimate: enforced.estimate,
+        caps: enforced.caps,
+        message: 'Re-analyzing everything — re-ingesting all files and re-checking every checklist item.',
+      })
+    }
+
+    // No documents to ingest — re-assess the full checklist if there is one.
+    const { count: itemCount } = await (admin as any)
+      .from('diligence_checklist_items')
+      .select('id', { count: 'exact', head: true })
+      .eq('deal_id', params.id)
+      .eq('fund_id', fundId)
+      .eq('kind', 'item')
+    if (itemCount && itemCount > 0) {
+      const { data: clJob, error: clErr } = await admin
+        .from('memo_agent_jobs')
+        .insert({ fund_id: fundId, deal_id: params.id, kind: 'checklist_assessment', payload: { all: true }, enqueued_by: user.id } as any)
+        .select('id, kind, status')
+        .single()
+      if (clErr || !clJob) return NextResponse.json({ error: clErr?.message ?? 'enqueue failed' }, { status: 500 })
+      return NextResponse.json({ job_id: (clJob as any).id, kind: 'checklist_assessment', status: (clJob as any).status, full: true })
+    }
+    return NextResponse.json({ skipped: true, message: 'No documents or checklist to analyze.' })
+  }
+
+  // Determine what actually needs work. An explicit document_ids list (e.g. the
+  // "Reprocess failed" button) is honored as-is. Otherwise compute the delta:
+  // documents not yet parsed need ingestion; if none do, fall back to running
+  // just the checklist checks for items that aren't already settled.
+  let docsToIngest: string[] | undefined = explicitIds
+  if (!explicitIds || explicitIds.length === 0) {
+    const { data: docRows } = await admin
+      .from('diligence_documents')
+      .select('id, parse_status, file_format, detected_type')
+      .eq('deal_id', params.id)
+      .eq('fund_id', fundId)
+      .neq('parse_status', 'skipped')
+      .neq('detected_type', 'call_recording')
+    docsToIngest = ((docRows ?? []) as Array<{ id: string; parse_status: string; file_format: string | null }>)
+      .filter(r => !AUDIO_VIDEO_FORMATS.has((r.file_format ?? '').toLowerCase()))
+      .filter(r => r.parse_status !== 'parsed')
+      .map(r => r.id)
+  }
+
+  // Nothing new to ingest — run just the checklist assessment (covers newly
+  // added checklist items + still-open ones), or no-op if it's all settled.
+  if (docsToIngest && docsToIngest.length === 0) {
+    const { count: pendingItems } = await (admin as any)
+      .from('diligence_checklist_items')
+      .select('id', { count: 'exact', head: true })
+      .eq('deal_id', params.id)
+      .eq('fund_id', fundId)
+      .eq('kind', 'item')
+      .in('status', Array.from(ASSESSABLE_STATUSES))
+
+    if (!pendingItems || pendingItems === 0) {
+      return NextResponse.json({
+        skipped: true,
+        up_to_date: true,
+        message: 'Data room and checklist are already up to date — nothing new to analyze.',
+      })
+    }
+
+    const { data: clJob, error: clErr } = await admin
+      .from('memo_agent_jobs')
+      .insert({
+        fund_id: fundId,
+        deal_id: params.id,
+        kind: 'checklist_assessment',
+        payload: {},
+        enqueued_by: user.id,
+      } as any)
+      .select('id, kind, status')
+      .single()
+    if (clErr || !clJob) return NextResponse.json({ error: clErr?.message ?? 'enqueue failed' }, { status: 500 })
+    return NextResponse.json({
+      job_id: (clJob as any).id,
+      kind: 'checklist_assessment',
+      status: (clJob as any).status,
+      skipped_ingestion: true,
+      message: 'Data room unchanged — re-checking the checklist against the existing analysis.',
+    })
+  }
+
+  // Cost cap enforcement (ingest path only).
   const enforced = await enforceCapsForStage({ admin, fundId, dealId: params.id, stage: 'ingest' })
   if (!enforced.ok) {
     return NextResponse.json({ error: enforced.reason, estimate: enforced.estimate, caps: enforced.caps }, { status: 422 })
@@ -63,7 +186,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       fund_id: fundId,
       deal_id: params.id,
       kind: 'ingest',
-      payload: documentIds && documentIds.length > 0 ? { document_ids: documentIds } : {},
+      payload: docsToIngest && docsToIngest.length > 0 ? { document_ids: docsToIngest } : {},
       enqueued_by: user.id,
     } as any)
     .select('id, kind, status, enqueued_at')
@@ -82,6 +205,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     job_id: (created as any).id,
     kind: 'ingest',
     status: (created as any).status,
+    analyzing_documents: docsToIngest?.length ?? null,
     estimate: enforced.estimate,
     caps: enforced.caps,
   })

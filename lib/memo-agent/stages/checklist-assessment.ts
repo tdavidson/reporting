@@ -41,38 +41,68 @@ interface AssessmentEntry {
  * Runs after `ingest_synthesis` — uses the per-doc summaries + claims already
  * on the draft (no re-parsing of files).
  */
+// Items already satisfied ('found') or explicitly N/A are skipped on a
+// re-assessment — only these statuses are (re)scored by default. Keeps
+// re-analyze incremental: new items (always 'unknown') and still-open items
+// get assessed; settled ones are left untouched.
+const ASSESSABLE_STATUSES = new Set(['unknown', 'partial', 'missing'])
+
 export async function runChecklistAssessment(params: {
   admin: Admin
   fundId: string
   dealId: string
   draftId?: string
+  /** Explicit item subset to assess. When omitted, defaults to every item not
+   *  already 'found' or 'not_applicable' (see ASSESSABLE_STATUSES). */
+  itemIds?: string[]
+  /** Force a full re-assessment of every item, including already-found ones.
+   *  Used by the "re-analyze everything" path. Ignored when itemIds is given. */
+  all?: boolean
   progressCb?: (msg: string) => Promise<void>
 }): Promise<ChecklistAssessmentResult> {
-  const { admin, fundId, dealId, progressCb } = params
+  const { admin, fundId, dealId, itemIds, all, progressCb } = params
   const note = async (msg: string) => { if (progressCb) await progressCb(msg) }
   const warnings: string[] = []
 
   await note('Loading checklist…')
   const { data: itemRows, error: itemErr } = await (admin as any)
     .from('diligence_checklist_items')
-    .select('id, parent_id, kind, label')
+    .select('id, parent_id, kind, label, status')
     .eq('deal_id', dealId)
     .eq('fund_id', fundId)
     .order('order_index', { ascending: true })
   if (itemErr) throw new Error(`Failed to load checklist: ${itemErr.message}`)
 
-  const allRows = (itemRows ?? []) as Array<{ id: string; parent_id: string | null; kind: 'section' | 'item'; label: string }>
+  const allRows = (itemRows ?? []) as Array<{ id: string; parent_id: string | null; kind: 'section' | 'item'; label: string; status: string }>
   const sectionLabelById = new Map<string, string>()
   for (const r of allRows) if (r.kind === 'section') sectionLabelById.set(r.id, r.label)
 
-  const items = allRows.filter(r => r.kind === 'item').map(r => ({
+  const allItems = allRows.filter(r => r.kind === 'item').map(r => ({
     id: r.id,
     section: r.parent_id ? (sectionLabelById.get(r.parent_id) ?? null) : null,
     label: r.label,
+    status: r.status,
   }))
 
-  if (items.length === 0) {
+  if (allItems.length === 0) {
     return { items_assessed: 0, items_found: 0, items_partial: 0, items_missing: 0, warnings: ['No checklist items to assess.'] }
+  }
+
+  // Scope to the requested subset (itemIds), every item (all), or — by default —
+  // the not-yet-settled items.
+  const explicit = Array.isArray(itemIds) && itemIds.length > 0
+  const idFilter = explicit ? new Set(itemIds) : null
+  const items = idFilter
+    ? allItems.filter(i => idFilter.has(i.id))
+    : all
+      ? allItems
+      : allItems.filter(i => ASSESSABLE_STATUSES.has(i.status))
+
+  if (items.length === 0) {
+    return {
+      items_assessed: 0, items_found: 0, items_partial: 0, items_missing: 0,
+      warnings: ['All checklist items are already assessed or marked N/A; nothing to re-check.'],
+    }
   }
 
   await note('Loading data-room ingest output…')

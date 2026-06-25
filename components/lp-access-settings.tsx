@@ -148,7 +148,7 @@ export function LpAccessSettings() {
       <div>
         <h4 className="text-sm font-medium mb-1">Invite one LP</h4>
         <div className="flex flex-wrap gap-2 items-center">
-          <select value={singleInvestor} onChange={e => setSingleInvestor(e.target.value)} className="h-8 rounded-md border border-input bg-background px-2 text-sm">
+          <select value={singleInvestor} onChange={e => setSingleInvestor(e.target.value)} className="h-8 w-full sm:w-auto sm:max-w-[280px] truncate rounded-md border border-input bg-background px-2 text-sm">
             <option value="">Select investor…</option>
             {investors.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
           </select>
