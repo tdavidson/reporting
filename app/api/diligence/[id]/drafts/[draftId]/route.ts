@@ -39,7 +39,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
   const { data: row } = await admin
     .from('diligence_memo_drafts')
-    .select('id, memo_draft_output, ingestion_output, is_draft')
+    .select('id, memo_draft_output, ingestion_output, research_output, is_draft')
     .eq('id', params.draftId)
     .eq('deal_id', params.id)
     .eq('fund_id', fundId)
@@ -50,7 +50,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   const body = await req.json().catch(() => ({}))
   const memoOutput = ((row as any).memo_draft_output as any) ?? { paragraphs: [], scores: [], partner_attention: [] }
   const ingestionOutput = ((row as any).ingestion_output as any) ?? null
+  const researchOutput = ((row as any).research_output as any) ?? null
   let ingestionChanged = false
+  let researchChanged = false
 
   if (Array.isArray(body.paragraph_edits)) {
     const editsById = new Map<string, { prose?: string; origin?: string }>()
@@ -134,6 +136,21 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     ingestionChanged = true
   }
 
+  // Partner edits to research_output — founder-dossier edits and `dismissed`
+  // flags on findings / contradictions / gaps / competitors. The client sends
+  // the full updated array(s)/object under `research_output`; we replace only
+  // whitelisted keys so nothing else is clobbered.
+  if (body.research_output && typeof body.research_output === 'object' && researchOutput) {
+    const r = body.research_output as Record<string, unknown>
+    for (const key of ['findings', 'contradictions', 'research_gaps', 'founder_dossiers'] as const) {
+      if (Array.isArray(r[key])) { researchOutput[key] = r[key]; researchChanged = true }
+    }
+    if (r.competitive_map && typeof r.competitive_map === 'object') {
+      researchOutput.competitive_map = r.competitive_map
+      researchChanged = true
+    }
+  }
+
   if (Array.isArray(body.score_edits)) {
     const editsById = new Map<string, { score?: number | null; confidence?: string | null; rationale?: string }>()
     for (const e of body.score_edits) {
@@ -159,6 +176,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
   const update: Record<string, unknown> = { memo_draft_output: memoOutput }
   if (ingestionChanged) update.ingestion_output = ingestionOutput
+  if (researchChanged) update.research_output = researchOutput
 
   const { error } = await admin
     .from('diligence_memo_drafts')
@@ -168,7 +186,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   // Return the updated output so the editor can re-sync without a second
   // round-trip (needed for inserts — the new paragraph id is server-generated).
-  return NextResponse.json({ ok: true, memo_draft_output: memoOutput, ingestion_output: ingestionOutput })
+  return NextResponse.json({ ok: true, memo_draft_output: memoOutput, ingestion_output: ingestionOutput, research_output: researchOutput })
 }
 
 async function ensureMember() {

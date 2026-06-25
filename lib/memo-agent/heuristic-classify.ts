@@ -15,10 +15,12 @@ export type DocumentType =
   | 'memo'
   | 'product_overview'
   | 'customer_references'
+  | 'sales'
   | 'legal'
   | 'market_research'
   | 'team_bio'
   | 'press'
+  | 'industry_expert'
   | 'call_recording'
   | 'call_transcript'
   | 'other'
@@ -40,6 +42,15 @@ const TEAM_KEYWORDS = ['bio', 'biography', 'resume', 'cv', 'team', 'founder']
 const PRESS_KEYWORDS = ['press', 'announcement', 'launch', 'feature', 'article']
 const PRODUCT_KEYWORDS = ['product', 'overview', 'spec', 'roadmap']
 const REFERENCES_KEYWORDS = ['reference', 'testimonial', 'case study', 'casestudy']
+// Sales: customer contracts and commercial/GTM material. Kept distinct from
+// `customer_references` (proof points) and `legal` (corporate/financing docs).
+const SALES_KEYWORDS = [
+  'sales', 'contract', 'customer contract', 'order form', 'orderform', 'msa',
+  'master service', 'master services', 'sow', 'statement of work', 'purchase order',
+  'pricing', 'price list', 'quote', 'quotation', 'invoice', 'loi', 'letter of intent',
+  'subscription agreement', 'customer agreement', 'sales agreement', 'pipeline', 'bookings',
+]
+const EXPERT_KEYWORDS = ['expert call', 'expert network', 'industry expert', 'tegus', 'alphasights', 'glg']
 
 function hasKeyword(name: string, words: string[]): boolean {
   const lower = name.toLowerCase()
@@ -87,6 +98,10 @@ export function classifyDocumentHeuristic(filename: string, contentType?: string
     if (hasKeyword(lower, CAP_TABLE_KEYWORDS)) return { detected_type: 'cap_table', confidence: 'low' }
     if (hasKeyword(lower, MODEL_KEYWORDS)) return { detected_type: 'financial_model', confidence: 'low' }
     if (hasKeyword(lower, MEMO_KEYWORDS)) return { detected_type: 'memo', confidence: 'medium' }
+    // Sales before legal: a "customer contract"/"order form" is commercial, not
+    // a corporate/financing legal doc (which match the distinct LEGAL keywords).
+    if (hasKeyword(lower, SALES_KEYWORDS)) return { detected_type: 'sales', confidence: 'low' }
+    if (hasKeyword(lower, EXPERT_KEYWORDS)) return { detected_type: 'industry_expert', confidence: 'low' }
     if (hasKeyword(lower, LEGAL_KEYWORDS)) return { detected_type: 'legal', confidence: 'low' }
     if (hasKeyword(lower, REFERENCES_KEYWORDS)) return { detected_type: 'customer_references', confidence: 'low' }
     if (hasKeyword(lower, TEAM_KEYWORDS)) return { detected_type: 'team_bio', confidence: 'low' }

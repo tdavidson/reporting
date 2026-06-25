@@ -20,16 +20,19 @@ export interface ResearchOutput {
     verification_status: 'verified' | 'contradicted' | 'company_stated' | 'inconclusive'
     evidence: string
     sources: Array<{ title: string; url: string | null; tier: 'tier_1' | 'tier_2' | 'tier_3' }>
+    /** Partner-dismissed: hidden from the main list, kept for the record. */
+    dismissed?: boolean
   }>
   contradictions: Array<{
     topic: string
     claim_ref: string | null
     description: string
     severity: 'material' | 'minor'
+    dismissed?: boolean
   }>
   competitive_map: {
-    named_by_company: Array<{ name: string; note: string }>
-    named_by_research: Array<{ name: string; rationale: string; sources: Array<{ title: string; url: string | null }> }>
+    named_by_company: Array<{ name: string; note: string; dismissed?: boolean }>
+    named_by_research: Array<{ name: string; rationale: string; sources: Array<{ title: string; url: string | null }>; dismissed?: boolean }>
   }
   founder_dossiers: Array<{
     founder_name: string
@@ -37,8 +40,9 @@ export interface ResearchOutput {
     background_summary: string
     sources: Array<{ title: string; url: string | null }>
     open_questions: string[]
+    dismissed?: boolean
   }>
-  research_gaps: Array<{ topic: string; rationale: string; criticality: 'blocker' | 'important' | 'nice_to_have' }>
+  research_gaps: Array<{ topic: string; rationale: string; criticality: 'blocker' | 'important' | 'nice_to_have'; dismissed?: boolean }>
   research_mode: 'with_web_search' | 'no_web_search'
   /** URLs the agent cited via the web_search tool, across all sub-calls. Deduped.
    *  These come from Anthropic's text-block citation metadata, which the model

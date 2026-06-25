@@ -116,6 +116,24 @@ document_types:
     extraction_priority: low
     note: "Useful as signal, not as fact."
 
+  - id: sales
+    name: "Sales / customer contracts"
+    typical_formats: [pdf, docx, gdocs, xlsx]
+    typical_content: [signed_contracts, order_forms, pricing, msa_sow, sales_pipeline, bookings]
+    extraction_priority: high
+    note: |
+      Customer contracts, order forms, MSAs/SOWs, pricing sheets, quotes, and
+      sales pipeline/bookings. Distinct from customer_reference (a proof point)
+      and prior_round_terms (financing/legal). Extract committed vs. signed
+      revenue, customer names, contract terms, start/end dates, and churn signals.
+
+  - id: industry_expert
+    name: "Industry expert call / network"
+    typical_formats: [pdf, docx, gdocs, audio, video]
+    typical_content: [expert_views, market_dynamics, competitive_intel]
+    extraction_priority: medium
+    note: "Third-party expert perspective (e.g. Tegus/GLG/AlphaSights). Weigh independence; attribute claims."
+
   - id: other
     name: "Other / unclassified"
     typical_formats: [any]

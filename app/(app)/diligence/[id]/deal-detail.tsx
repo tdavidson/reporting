@@ -3,14 +3,13 @@
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Loader2, Trash2, Upload, FolderInput, Check, Play, RefreshCw, AlertCircle, Lock, ChevronDown, GripVertical } from 'lucide-react'
+import { ArrowLeft, Loader2, Trash2, Upload, FolderInput, Check, Play, RefreshCw, AlertCircle, Lock, ChevronDown, GripVertical, Pencil, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { DiligenceNotesProvider, DiligenceNotesButton, DiligenceNotesPanel } from '@/components/diligence/diligence-notes'
 import { useConfirm } from '@/components/confirm-dialog'
-import { IngestionSummary, InconsistenciesList } from '@/components/diligence/ingestion-summary'
+import { IngestionSummary } from '@/components/diligence/ingestion-summary'
 import type { IngestionOutput } from '@/lib/memo-agent/stages/ingest'
 import type { ResearchOutput } from '@/lib/memo-agent/stages/research'
 import { uploadDiligenceDocument } from '@/lib/diligence/upload-document'
@@ -58,7 +57,7 @@ type LatestDraft = {
 // (DDP status, details, finalize/promote), then the pipeline goes Data Room →
 // Diligence (external research) → Partner Q&A → Memo. Notes live in a
 // right-side slide-in panel, mirroring the Companies notes UX.
-const TABS = ['Checklist', 'Data Room', 'Diligence', 'Q&A', 'Scoring', 'Memo'] as const
+const TABS = ['Checklist', 'Data Room', 'Diligence', 'Founders', 'Notes', 'Scoring', 'Memo'] as const
 type Tab = typeof TABS[number]
 
 // Deal stages: Invested, Active, Passed. No color accents — the label alone
@@ -91,6 +90,11 @@ export function DealDetail({ deal: initial, initialDocuments, latestDraft, isAdm
   const [focusDocId, setFocusDocId] = useState<string | null>(null)
   const jumpToDoc = (docId: string) => { setActiveTab('Data Room'); setFocusDocId(docId) }
 
+  const confirm = useConfirm()
+  const [editingName, setEditingName] = useState(false)
+  const [nameDraft, setNameDraft] = useState(deal.name)
+  const [deleting, setDeleting] = useState(false)
+
   async function updateStatus(deal_status: Deal['deal_status']) {
     setDeal(d => ({ ...d, deal_status }))
     await fetch(`/api/diligence/${deal.id}`, {
@@ -101,8 +105,34 @@ export function DealDetail({ deal: initial, initialDocuments, latestDraft, isAdm
     router.refresh()
   }
 
+  async function saveName() {
+    setEditingName(false)
+    const name = nameDraft.trim()
+    if (!name || name === deal.name) { setNameDraft(deal.name); return }
+    setDeal(d => ({ ...d, name }))
+    await fetch(`/api/diligence/${deal.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name }),
+    })
+    router.refresh()
+  }
+
+  async function deleteDeal() {
+    const ok = await confirm({
+      title: 'Delete deal?',
+      description: `Permanently deletes "${deal.name}" and all of its analysis — documents, drafts, checklist, notes, and Q&A. This cannot be undone.`,
+      confirmLabel: 'Delete deal',
+      variant: 'destructive',
+    })
+    if (!ok) return
+    setDeleting(true)
+    const res = await fetch(`/api/diligence/${deal.id}`, { method: 'DELETE' })
+    if (res.ok) { router.push('/diligence') }
+    else { setDeleting(false) }
+  }
+
   return (
-    <DiligenceNotesProvider dealId={deal.id} userId={currentUserId} isAdmin={isAdmin}>
     <div className="p-4 md:py-8 md:pl-8 md:pr-4">
       <Link href="/diligence" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mb-4">
         <ArrowLeft className="h-3.5 w-3.5" /> Back to diligence
@@ -110,7 +140,32 @@ export function DealDetail({ deal: initial, initialDocuments, latestDraft, isAdm
 
       <div className="flex items-start justify-between gap-4 mb-4">
         <div className="min-w-0">
-          <h1 className="text-2xl font-semibold tracking-tight truncate">{deal.name}</h1>
+          {editingName ? (
+            <Input
+              autoFocus
+              value={nameDraft}
+              onChange={e => setNameDraft(e.target.value)}
+              onBlur={saveName}
+              onKeyDown={e => {
+                if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
+                if (e.key === 'Escape') { setNameDraft(deal.name); setEditingName(false) }
+              }}
+              className="text-2xl font-semibold h-10 max-w-xl"
+            />
+          ) : (
+            <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2 group min-w-0">
+              <span className="truncate">{deal.name}</span>
+              <button
+                type="button"
+                onClick={() => { setNameDraft(deal.name); setEditingName(true) }}
+                className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-foreground shrink-0"
+                title="Rename deal"
+                aria-label="Rename deal"
+              >
+                <Pencil className="h-4 w-4" />
+              </button>
+            </h1>
+          )}
           <div className="text-sm text-muted-foreground mt-1">
             {[
               deal.sector,
@@ -120,8 +175,19 @@ export function DealDetail({ deal: initial, initialDocuments, latestDraft, isAdm
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          <DiligenceNotesButton />
           <StatusDropdown value={deal.deal_status} onPick={updateStatus} />
+          {isAdmin && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={deleteDeal}
+              disabled={deleting}
+              className="text-muted-foreground hover:text-destructive"
+              title="Delete deal and all its analysis"
+            >
+              {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+            </Button>
+          )}
         </div>
       </div>
 
@@ -148,14 +214,13 @@ export function DealDetail({ deal: initial, initialDocuments, latestDraft, isAdm
             <DealRoomTab dealId={deal.id} initialDocuments={initialDocuments} initialDriveFolderUrl={deal.drive_folder_url} focusDocId={focusDocId} onFocusConsumed={() => setFocusDocId(null)} />
           )}
           {activeTab === 'Diligence' && <DiligenceTab dealId={deal.id} />}
-          {activeTab === 'Q&A' && <QATab dealId={deal.id} />}
+          {activeTab === 'Founders' && <FoundersTab dealId={deal.id} />}
+          {activeTab === 'Notes' && <NotesTab dealId={deal.id} userId={currentUserId} isAdmin={isAdmin} />}
           {activeTab === 'Scoring' && <ScoringTab dealId={deal.id} />}
           {activeTab === 'Memo' && <MemoTab dealId={deal.id} dealName={deal.name} isAdmin={isAdmin} />}
         </div>
-        <DiligenceNotesPanel />
       </div>
     </div>
-    </DiligenceNotesProvider>
   )
 }
 
@@ -520,6 +585,12 @@ function ChecklistTab({ deal, documentCount, isAdmin, onJumpToDoc }: {
           the gaps + inconsistencies it finds render here, above the checklist
           they inform. */}
       <IngestionPanel dealId={deal.id} documentCount={documentCount} />
+
+      <SchemaViewer
+        schemaName="data_room_ingestion"
+        title="How the analysis reads your data room"
+        description="The document types, extraction rules, and claim-provenance the agent uses when checking files against this checklist."
+      />
 
       {/* Action bar */}
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -1306,13 +1377,24 @@ function DealRoomTab({ dealId, initialDocuments, initialDriveFolderUrl, focusDoc
             onChange={e => handleFiles(e.target.files)}
           />
         </label>
-        <Button variant="outline" size="sm" onClick={() => setDriveOpen(true)}>
-          <FolderInput className="h-3.5 w-3.5 mr-1" /> Import from Drive
-        </Button>
-        {initialDriveFolderUrl && (
-          <Button variant="outline" size="sm" onClick={() => setPickerOpen(true)}>
-            <FolderInput className="h-3.5 w-3.5 mr-1" /> Add specific file
+        {!initialDriveFolderUrl ? (
+          <Button variant="outline" size="sm" onClick={() => setDriveOpen(true)}>
+            <FolderInput className="h-3.5 w-3.5 mr-1" /> Import from Drive
           </Button>
+        ) : (
+          <>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setDriveOpen(true)}
+              title="Re-walk the linked Drive folder and import any files not already in the data room"
+            >
+              <RefreshCw className="h-3.5 w-3.5 mr-1" /> Pull new files from Drive
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => setPickerOpen(true)}>
+              <FolderInput className="h-3.5 w-3.5 mr-1" /> Add specific file
+            </Button>
+          </>
         )}
       </div>
 
@@ -1919,18 +2001,6 @@ function IngestionPanel({ dealId, documentCount }: { dealId: string; documentCou
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {failedDocIds.length > 0 && !isInFlight && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => runIngest(failedDocIds)}
-              disabled={submitting}
-              title="Re-run the agent only on documents that failed in the previous ingest"
-            >
-              <RefreshCw className="h-3.5 w-3.5 mr-1" />
-              Reprocess failed ({failedDocIds.length})
-            </Button>
-          )}
           {status?.latest_draft?.has_ingestion ? (
             // Split button: incremental re-analyze by default, with a menu for a
             // full re-analysis (re-ingest every file + re-check every item).
@@ -1979,6 +2049,12 @@ function IngestionPanel({ dealId, documentCount }: { dealId: string; documentCou
       )}
 
       {notice && <p className="text-xs text-muted-foreground mt-2">{notice}</p>}
+
+      {failedDocIds.length > 0 && !isInFlight && (
+        <p className="text-xs text-muted-foreground mt-2">
+          {failedDocIds.length} file{failedDocIds.length === 1 ? '' : 's'} failed to parse in the last run — Re-analyze to retry {failedDocIds.length === 1 ? 'it' : 'them'} (already-analyzed files are skipped).
+        </p>
+      )}
 
       <JobStatusLine job={job ?? null} kind={['ingest', 'ingest_synthesis', 'checklist_assessment']} error={error} />
     </div>
@@ -2037,8 +2113,52 @@ function DiligenceTab({ dealId }: { dealId: string }) {
   const isResearchInFlight = job && (job.status === 'pending' || job.status === 'running') && job.kind === 'research'
   const ingestReady = !!status?.latest_draft?.has_ingestion
   const research: ResearchOutput | null = draft?.research_output ?? null
+  const draftId: string | undefined = draft?.id
+  const editable = draft?.is_draft !== false
   const crossDocFlags: IngestionOutput['cross_doc_flags'] = draft?.ingestion_output?.cross_doc_flags ?? []
-  const activeInconsistencies = (research?.contradictions.length ?? 0) + crossDocFlags.filter(f => !f.dismissed).length
+
+  // Persist a research_output edit (dismiss flags), optimistically.
+  async function patchResearch(partial: Record<string, unknown>) {
+    if (!draftId) return
+    setDraft((d: any) => (d ? { ...d, research_output: { ...d.research_output, ...partial } } : d))
+    try {
+      const res = await fetch(`/api/diligence/${dealId}/drafts/${draftId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ research_output: partial }),
+      })
+      if (res.ok) {
+        const body = await res.json()
+        if (body.research_output) setDraft((d: any) => (d ? { ...d, research_output: body.research_output } : d))
+      }
+    } catch { /* keep optimistic value */ }
+  }
+
+  async function patchCrossFlags(next: IngestionOutput['cross_doc_flags']) {
+    if (!draftId) return
+    setDraft((d: any) => (d ? { ...d, ingestion_output: { ...d.ingestion_output, cross_doc_flags: next } } : d))
+    try {
+      await fetch(`/api/diligence/${dealId}/drafts/${draftId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ingestion_cross_doc_flags: next }),
+      })
+    } catch { /* keep optimistic value */ }
+  }
+
+  function toggleResearchDismiss(field: 'findings' | 'contradictions' | 'research_gaps', index: number) {
+    if (!research) return
+    const arr = (research[field] as any[]).map((it, i) => (i === index ? { ...it, dismissed: !it.dismissed } : it))
+    patchResearch({ [field]: arr })
+  }
+  function toggleCompetitorDismiss(group: 'named_by_company' | 'named_by_research', index: number) {
+    if (!research) return
+    const cm = research.competitive_map
+    patchResearch({ competitive_map: { ...cm, [group]: (cm[group] as any[]).map((it, i) => (i === index ? { ...it, dismissed: !it.dismissed } : it)) } })
+  }
+  function toggleCrossFlagDismiss(index: number) {
+    patchCrossFlags(crossDocFlags.map((f, i) => (i === index ? { ...f, dismissed: !f.dismissed } : f)))
+  }
 
   async function runResearch() {
     setSubmitting(true)
@@ -2055,13 +2175,31 @@ function DiligenceTab({ dealId }: { dealId: string }) {
     }
   }
 
-  const internalCounts = `${activeInconsistencies} inconsistenc${activeInconsistencies === 1 ? 'y' : 'ies'} · ${research?.founder_dossiers.length ?? 0} founder${(research?.founder_dossiers.length ?? 0) === 1 ? '' : 's'}`
-  const externalCounts = research
-    ? `${research.findings.length} finding${research.findings.length === 1 ? '' : 's'} · ${research.research_gaps.length} gap${research.research_gaps.length === 1 ? '' : 's'}`
-    : 'Not run'
+  const contradictions = research?.contradictions ?? []
+  const findings = research?.findings ?? []
+  const gaps = research?.research_gaps ?? []
+  const cm = research?.competitive_map ?? { named_by_company: [], named_by_research: [] }
+  const activeInconsistencies = contradictions.filter(c => !c.dismissed).length + crossDocFlags.filter(f => !f.dismissed).length
+  const activeGaps = gaps.filter(g => !g.dismissed).length
+  const activeFindings = findings.filter(f => !f.dismissed).length
+  const activeCompetitors = cm.named_by_company.filter(c => !c.dismissed).length + cm.named_by_research.filter(c => !c.dismissed).length
+  const internalCounts = `${activeInconsistencies} inconsistenc${activeInconsistencies === 1 ? 'y' : 'ies'} · ${activeGaps} gap${activeGaps === 1 ? '' : 's'}`
+  const externalCounts = research ? `${activeFindings} finding${activeFindings === 1 ? '' : 's'}` : 'Not run'
+
+  // Everything currently dismissed, aggregated for the hidden accordion.
+  const dismissedItems: Array<{ key: string; kind: string; title: string; detail?: string; restore: () => void }> = []
+  contradictions.forEach((c, i) => { if (c.dismissed) dismissedItems.push({ key: `con-${i}`, kind: 'Contradiction', title: c.topic, detail: c.description, restore: () => toggleResearchDismiss('contradictions', i) }) })
+  crossDocFlags.forEach((f, i) => { if (f.dismissed) dismissedItems.push({ key: `xdf-${i}`, kind: 'Cross-doc flag', title: f.description, restore: () => toggleCrossFlagDismiss(i) }) })
+  gaps.forEach((g, i) => { if (g.dismissed) dismissedItems.push({ key: `gap-${i}`, kind: 'Research gap', title: g.topic, detail: g.rationale, restore: () => toggleResearchDismiss('research_gaps', i) }) })
+  findings.forEach((f, i) => { if (f.dismissed) dismissedItems.push({ key: `fnd-${i}`, kind: 'Finding', title: f.topic, detail: f.evidence, restore: () => toggleResearchDismiss('findings', i) }) })
+  cm.named_by_company.forEach((c, i) => { if (c.dismissed) dismissedItems.push({ key: `cmc-${i}`, kind: 'Competitor', title: c.name, detail: c.note, restore: () => toggleCompetitorDismiss('named_by_company', i) }) })
+  cm.named_by_research.forEach((c, i) => { if (c.dismissed) dismissedItems.push({ key: `cmr-${i}`, kind: 'Competitor', title: c.name, detail: c.rationale, restore: () => toggleCompetitorDismiss('named_by_research', i) }) })
 
   return (
     <div className="space-y-3">
+      {/* Ask anything — moved here from its own tab so questions sit alongside the evidence. */}
+      <QATab dealId={dealId} />
+
       {!ingestReady && (
         <div className="rounded-md border border-amber-500/40 bg-amber-50/50 dark:bg-amber-900/10 p-3 text-sm">
           <AlertCircle className="h-4 w-4 inline mr-1" />
@@ -2069,23 +2207,16 @@ function DiligenceTab({ dealId }: { dealId: string }) {
         </div>
       )}
 
-      <Accordion title="Q&A" subtitle={`${draft?.qa_answers?.length ?? 0} entries`} defaultOpen>
-        <QALibraryPanel dealId={dealId} qaAnswers={draft?.qa_answers ?? []} onAdded={() => refresh()} />
-      </Accordion>
-
       <Accordion title="Internal diligence" subtitle={internalCounts} defaultOpen>
-        {!research && crossDocFlags.length === 0 ? (
-          <p className="text-xs text-muted-foreground italic py-2">No findings yet. Run data-room analysis (Checklist tab) and external research below to populate.</p>
-        ) : (
-          <InternalDiligenceView
-            research={research}
-            crossDocFlags={crossDocFlags}
-            fileNamesById={fileNamesById}
-            dealId={dealId}
-            draftId={draft?.id}
-            editable={draft?.is_draft !== false}
-          />
-        )}
+        <InternalDiligenceView
+          research={research}
+          crossDocFlags={crossDocFlags}
+          fileNamesById={fileNamesById}
+          editable={editable}
+          onToggleContradiction={(i) => toggleResearchDismiss('contradictions', i)}
+          onToggleCrossFlag={toggleCrossFlagDismiss}
+          onToggleGap={(i) => toggleResearchDismiss('research_gaps', i)}
+        />
       </Accordion>
 
       <Accordion title="External research" subtitle={externalCounts} defaultOpen={!research}>
@@ -2110,66 +2241,142 @@ function DiligenceTab({ dealId }: { dealId: string }) {
             </Button>
           </div>
           <JobStatusLine job={job ?? null} kind="research" error={error} />
-          {research && !isResearchInFlight && <ExternalResearchView research={research} />}
+          {research && !isResearchInFlight && (
+            <ExternalResearchView
+              research={research}
+              editable={editable}
+              onToggleFinding={(i) => toggleResearchDismiss('findings', i)}
+              onToggleGap={(i) => toggleResearchDismiss('research_gaps', i)}
+            />
+          )}
         </div>
       </Accordion>
-    </div>
-  )
-}
 
-function InternalDiligenceView({ research, crossDocFlags, fileNamesById, dealId, draftId, editable }: {
-  research: ResearchOutput | null
-  crossDocFlags: IngestionOutput['cross_doc_flags']
-  fileNamesById: Record<string, string>
-  dealId?: string
-  draftId?: string
-  editable?: boolean
-}) {
-  const founderDossiers = research?.founder_dossiers ?? []
-  return (
-    <div className="space-y-4 pt-2">
-      <section>
-        <h4 className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-2">Inconsistencies &amp; contradictions</h4>
-        <InconsistenciesList
-          contradictions={research?.contradictions ?? []}
-          crossDocFlags={crossDocFlags}
-          fileNamesById={fileNamesById}
-          dealId={dealId}
-          draftId={draftId}
-          editable={editable}
-        />
-      </section>
+      <Accordion title="Competitive landscape" subtitle={`${activeCompetitors} competitor${activeCompetitors === 1 ? '' : 's'}`} defaultOpen={activeCompetitors > 0}>
+        <CompetitiveLandscape competitiveMap={cm} editable={editable} onToggle={toggleCompetitorDismiss} />
+      </Accordion>
 
-      {founderDossiers.length > 0 && (
-        <section>
-          <h4 className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-2">Founder dossiers</h4>
-          <div className="space-y-3">
-            {founderDossiers.map((f, i) => (
-              <div key={i} className="rounded-md border p-3">
-                <div className="font-medium">{f.founder_name}</div>
-                <div className="text-xs text-muted-foreground mb-2">{f.role}</div>
-                <p className="text-sm">{f.background_summary}</p>
-                {f.open_questions.length > 0 && (
-                  <div className="mt-2">
-                    <div className="text-xs font-medium text-muted-foreground">Open questions</div>
-                    <ul className="text-xs list-disc list-inside mt-0.5 space-y-0.5">
-                      {f.open_questions.map((q, j) => <li key={j}>{q}</li>)}
-                    </ul>
-                  </div>
+      {dismissedItems.length > 0 && (
+        <Accordion title="Dismissed" subtitle={`${dismissedItems.length} hidden`} defaultOpen={false}>
+          <div className="rounded-md border divide-y pt-1">
+            {dismissedItems.map(d => (
+              <div key={d.key} className="p-3 text-sm flex items-start gap-2 opacity-70">
+                <span className="shrink-0 text-[10px] uppercase tracking-wide text-muted-foreground mt-0.5">{d.kind}</span>
+                <div className="flex-1 min-w-0">
+                  <div className="font-medium line-through">{d.title}</div>
+                  {d.detail && <div className="text-xs text-muted-foreground mt-0.5">{d.detail}</div>}
+                </div>
+                {editable && (
+                  <button onClick={d.restore} className="shrink-0 text-[11px] text-muted-foreground hover:text-foreground">Restore</button>
                 )}
               </div>
             ))}
           </div>
-        </section>
+        </Accordion>
+      )}
+
+      <SchemaViewer
+        schemaName="research_dossier"
+        title="Research schema"
+        description="What the external-research stage sources, verifies, and how it rates evidence quality."
+      />
+      <SchemaViewer
+        schemaName="data_room_ingestion"
+        title="Data-room ingestion schema"
+        description="How the agent reads documents, classifies them, and extracts claims from the data room."
+      />
+    </div>
+  )
+}
+
+// Small severity badge spanning the contradiction (material/minor), cross-doc
+// (high/medium/low), and gap (blocker/important/nice_to_have) scales.
+function SevBadge({ level }: { level: string }) {
+  const cls = level === 'blocker' || level === 'high' || level === 'material'
+    ? 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200'
+    : level === 'important' || level === 'medium' || level === 'minor'
+      ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200'
+      : 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300'
+  return <span className={`shrink-0 inline-block px-1.5 py-0.5 rounded text-[10px] font-medium ${cls}`}>{level.replace(/_/g, ' ')}</span>
+}
+
+// One dismissable diligence row (contradiction, cross-doc flag, or gap).
+function DiligenceRow({ badge, title, detail, editable, onDismiss }: { badge?: string; title: string; detail?: string; editable?: boolean; onDismiss: () => void }) {
+  return (
+    <div className="p-3 text-sm flex items-start gap-2">
+      {badge && <SevBadge level={badge} />}
+      <div className="flex-1 min-w-0">
+        <div className="font-medium">{title}</div>
+        {detail && <div className="text-xs text-muted-foreground mt-0.5">{detail}</div>}
+      </div>
+      {editable && (
+        <button onClick={onDismiss} className="shrink-0 text-[11px] text-muted-foreground hover:text-foreground">Dismiss</button>
       )}
     </div>
   )
 }
 
-function ExternalResearchView({ research }: { research: ResearchOutput }) {
+// Internal diligence — inconsistencies (contradictions + cross-doc flags) and
+// the material/important research gaps. Founder dossiers moved to the Founders
+// tab; nice-to-have gaps live under External research.
+function InternalDiligenceView({ research, crossDocFlags, fileNamesById, editable, onToggleContradiction, onToggleCrossFlag, onToggleGap }: {
+  research: ResearchOutput | null
+  crossDocFlags: IngestionOutput['cross_doc_flags']
+  fileNamesById: Record<string, string>
+  editable?: boolean
+  onToggleContradiction: (index: number) => void
+  onToggleCrossFlag: (index: number) => void
+  onToggleGap: (index: number) => void
+}) {
+  const activeContradictions = (research?.contradictions ?? []).map((c, i) => ({ c, i })).filter(x => !x.c.dismissed)
+  const activeFlags = crossDocFlags.map((f, i) => ({ f, i })).filter(x => !x.f.dismissed)
+  const internalGaps = (research?.research_gaps ?? []).map((g, i) => ({ g, i })).filter(x => !x.g.dismissed && x.g.criticality !== 'nice_to_have')
+  const noInconsistencies = activeContradictions.length === 0 && activeFlags.length === 0
+  return (
+    <div className="space-y-4 pt-2">
+      <section>
+        <h4 className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-2">Inconsistencies &amp; contradictions</h4>
+        {noInconsistencies ? (
+          <p className="text-xs text-muted-foreground italic">No contradictions or cross-document inconsistencies found.</p>
+        ) : (
+          <div className="rounded-md border bg-card divide-y">
+            {activeContradictions.map(({ c, i }) => (
+              <DiligenceRow key={`c-${i}`} badge={c.severity} title={c.topic} detail={c.description} editable={editable} onDismiss={() => onToggleContradiction(i)} />
+            ))}
+            {activeFlags.map(({ f, i }) => (
+              <DiligenceRow key={`f-${i}`} badge={f.severity ?? 'medium'} title={f.description} detail={`Across: ${f.doc_ids.map(id => fileNamesById[id] ?? id).join(', ')}`} editable={editable} onDismiss={() => onToggleCrossFlag(i)} />
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section>
+        <h4 className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-2">Research gaps &amp; open questions</h4>
+        {internalGaps.length === 0 ? (
+          <p className="text-xs text-muted-foreground italic">No material gaps. Nice-to-have follow-ups, if any, are under External research.</p>
+        ) : (
+          <div className="rounded-md border divide-y">
+            {internalGaps.map(({ g, i }) => (
+              <DiligenceRow key={`g-${i}`} badge={g.criticality} title={g.topic} detail={g.rationale} editable={editable} onDismiss={() => onToggleGap(i)} />
+            ))}
+          </div>
+        )}
+      </section>
+    </div>
+  )
+}
+
+function ExternalResearchView({ research, editable, onToggleFinding, onToggleGap }: {
+  research: ResearchOutput
+  editable?: boolean
+  onToggleFinding: (index: number) => void
+  onToggleGap: (index: number) => void
+}) {
   const sourcedFindings = research.findings.filter(f => f.sources.some(s => !!s.url)).length
   const searchCount = research.web_search_count ?? null
   const webSources = research.web_sources ?? []
+  const activeFindings = research.findings.map((f, i) => ({ f, i })).filter(x => !x.f.dismissed).slice(0, 50)
+  const followUpGaps = research.research_gaps.map((g, i) => ({ g, i })).filter(x => !x.g.dismissed && x.g.criticality === 'nice_to_have')
   return (
     <div className="space-y-4 pt-2">
       {research.research_mode === 'with_web_search' && (
@@ -2196,11 +2403,11 @@ function ExternalResearchView({ research }: { research: ResearchOutput }) {
         </div>
       )}
 
-      {research.findings.length > 0 && (
+      {activeFindings.length > 0 && (
         <section>
           <h4 className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-2">Findings</h4>
           <div className="rounded-md border divide-y">
-            {research.findings.slice(0, 50).map(f => (
+            {activeFindings.map(({ f, i }) => (
               <div key={f.id} className="p-3 text-sm">
                 <div className="flex items-start gap-2">
                   <span className={`shrink-0 inline-block px-1.5 py-0.5 rounded text-[10px] font-medium ${f.verification_status === 'verified' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200' : f.verification_status === 'contradicted' ? 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200' : f.verification_status === 'company_stated' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-200' : 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200'}`}>
@@ -2211,8 +2418,8 @@ function ExternalResearchView({ research }: { research: ResearchOutput }) {
                     <div className="text-xs mt-0.5">{f.evidence}</div>
                     {f.sources.length > 0 && (
                       <div className="text-[11px] text-muted-foreground mt-1 space-y-0.5">
-                        {f.sources.map((s, i) => (
-                          <div key={i} className="truncate">
+                        {f.sources.map((s, j) => (
+                          <div key={j} className="truncate">
                             <span className="mr-1">[{s.tier.replace('tier_', 'T')}]</span>
                             {s.url ? <a href={s.url} target="_blank" rel="noreferrer" className="hover:underline">{s.title}</a> : <span>{s.title}</span>}
                           </div>
@@ -2220,6 +2427,9 @@ function ExternalResearchView({ research }: { research: ResearchOutput }) {
                       </div>
                     )}
                   </div>
+                  {editable && (
+                    <button onClick={() => onToggleFinding(i)} className="shrink-0 text-[11px] text-muted-foreground hover:text-foreground">Dismiss</button>
+                  )}
                 </div>
               </div>
             ))}
@@ -2227,56 +2437,71 @@ function ExternalResearchView({ research }: { research: ResearchOutput }) {
         </section>
       )}
 
-      {(research.competitive_map.named_by_company.length > 0 || research.competitive_map.named_by_research.length > 0) && (
+      {followUpGaps.length > 0 && (
         <section>
-          <h4 className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-2">Competitive map</h4>
-          <div className="grid gap-3 md:grid-cols-2">
-            <div className="rounded-md border p-3">
-              <div className="text-xs font-medium text-muted-foreground mb-2">Named by company</div>
-              {research.competitive_map.named_by_company.length === 0 ? (
-                <p className="text-xs text-muted-foreground italic">None.</p>
-              ) : (
-                <ul className="space-y-1.5 text-sm">
-                  {research.competitive_map.named_by_company.map((c, i) => (
-                    <li key={i}><span className="font-medium">{c.name}</span>{c.note && <span className="text-xs text-muted-foreground ml-2">{c.note}</span>}</li>
-                  ))}
-                </ul>
-              )}
-            </div>
-            <div className="rounded-md border p-3">
-              <div className="text-xs font-medium text-muted-foreground mb-2">Identified by research</div>
-              {research.competitive_map.named_by_research.length === 0 ? (
-                <p className="text-xs text-muted-foreground italic">None.</p>
-              ) : (
-                <ul className="space-y-2 text-sm">
-                  {research.competitive_map.named_by_research.map((c, i) => (
-                    <li key={i}>
-                      <div className="font-medium">{c.name}</div>
-                      <div className="text-xs text-muted-foreground">{c.rationale}</div>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          </div>
-        </section>
-      )}
-
-      {research.research_gaps.length > 0 && (
-        <section>
-          <h4 className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-2">Research gaps</h4>
+          <h4 className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-2">Follow-up research gaps</h4>
           <div className="rounded-md border divide-y">
-            {research.research_gaps.map((g, i) => (
-              <div key={i} className="p-3 text-sm flex items-start gap-2">
-                <span className={`shrink-0 inline-block px-1.5 py-0.5 rounded text-[10px] font-medium ${g.criticality === 'blocker' ? 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200' : g.criticality === 'important' ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200' : 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300'}`}>{g.criticality.replace(/_/g, ' ')}</span>
-                <div className="flex-1 min-w-0">
-                  <div className="font-medium">{g.topic}</div>
-                  <div className="text-xs text-muted-foreground mt-0.5">{g.rationale}</div>
-                </div>
-              </div>
+            {followUpGaps.map(({ g, i }) => (
+              <DiligenceRow key={`g-${i}`} badge={g.criticality} title={g.topic} detail={g.rationale} editable={editable} onDismiss={() => onToggleGap(i)} />
             ))}
           </div>
         </section>
+      )}
+    </div>
+  )
+}
+
+// Competitive landscape — pulled up to a top-level accordion and rendered as a
+// single column (company-named and research-found competitors stacked, each
+// tagged by source) instead of the old two-column grid.
+function CompetitiveLandscape({ competitiveMap, editable, onToggle }: {
+  competitiveMap: ResearchOutput['competitive_map']
+  editable?: boolean
+  onToggle: (group: 'named_by_company' | 'named_by_research', index: number) => void
+}) {
+  const byCompany = competitiveMap.named_by_company.map((c, i) => ({ c, i })).filter(x => !x.c.dismissed)
+  const byResearch = competitiveMap.named_by_research.map((c, i) => ({ c, i })).filter(x => !x.c.dismissed)
+  if (byCompany.length === 0 && byResearch.length === 0) {
+    return <p className="text-xs text-muted-foreground italic py-2">No competitors mapped yet. Run external research to populate.</p>
+  }
+  return (
+    <div className="space-y-2 pt-1">
+      {byCompany.map(({ c, i }) => (
+        <CompetitorRow key={`co-${i}`} name={c.name} detail={c.note} tag="named by company" editable={editable} onDismiss={() => onToggle('named_by_company', i)} />
+      ))}
+      {byResearch.map(({ c, i }) => (
+        <CompetitorRow key={`re-${i}`} name={c.name} detail={c.rationale} tag="found by research" sources={c.sources} editable={editable} onDismiss={() => onToggle('named_by_research', i)} />
+      ))}
+    </div>
+  )
+}
+
+function CompetitorRow({ name, detail, tag, sources, editable, onDismiss }: {
+  name: string
+  detail?: string
+  tag: string
+  sources?: Array<{ title: string; url: string | null }>
+  editable?: boolean
+  onDismiss: () => void
+}) {
+  return (
+    <div className="rounded-md border p-3 text-sm flex items-start gap-2">
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+          <span className="font-medium">{name}</span>
+          <span className="text-[10px] uppercase tracking-wide text-muted-foreground">{tag}</span>
+        </div>
+        {detail && <div className="text-xs text-muted-foreground mt-0.5">{detail}</div>}
+        {sources && sources.length > 0 && (
+          <div className="text-[11px] text-muted-foreground mt-1 space-y-0.5">
+            {sources.map((s, i) => (
+              <div key={i} className="truncate">{s.url ? <a href={s.url} target="_blank" rel="noreferrer" className="hover:underline">{s.title}</a> : <span>{s.title}</span>}</div>
+            ))}
+          </div>
+        )}
+      </div>
+      {editable && (
+        <button onClick={onDismiss} className="shrink-0 text-[11px] text-muted-foreground hover:text-foreground">Dismiss</button>
       )}
     </div>
   )
@@ -2636,6 +2861,294 @@ function QAChatBubble({ message }: { message: QAChatMessage }) {
 }
 
 // ---------------------------------------------------------------------------
+// Founders tab — founder dossiers from research, editable like the Scoring tab.
+// ---------------------------------------------------------------------------
+function FoundersTab({ dealId }: { dealId: string }) {
+  const { status } = useAgentStatus(dealId)
+  const [draft, setDraft] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    setLoading(true)
+    fetch(`/api/diligence/${dealId}/drafts`).then(r => r.ok ? r.json() : []).then(rows => {
+      setDraft((rows ?? [])[0] ?? null)
+    }).catch(() => {}).finally(() => setLoading(false))
+  }, [dealId, status?.latest_draft?.id, status?.latest_job?.status])
+
+  const research: ResearchOutput | null = draft?.research_output ?? null
+  const draftId: string | undefined = draft?.id
+  const editable = draft?.is_draft !== false
+  const dossiers: ResearchOutput['founder_dossiers'] = research?.founder_dossiers ?? []
+
+  async function persist(next: ResearchOutput['founder_dossiers']) {
+    if (!draftId) return
+    setDraft((d: any) => (d ? { ...d, research_output: { ...(d.research_output ?? {}), founder_dossiers: next } } : d))
+    try {
+      const res = await fetch(`/api/diligence/${dealId}/drafts/${draftId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ research_output: { founder_dossiers: next } }),
+      })
+      if (res.ok) {
+        const body = await res.json()
+        if (body.research_output) setDraft((d: any) => (d ? { ...d, research_output: body.research_output } : d))
+      }
+    } catch { /* keep optimistic value */ }
+  }
+
+  const saveDossier = (index: number, patch: Partial<ResearchOutput['founder_dossiers'][number]>) =>
+    persist(dossiers.map((d, i) => (i === index ? { ...d, ...patch } : d)))
+  const addFounder = () => persist([...dossiers, { founder_name: 'New founder', role: '', background_summary: '', sources: [], open_questions: [] }])
+  const removeFounder = (index: number) => persist(dossiers.filter((_, i) => i !== index))
+
+  if (loading) return <div className="text-sm text-muted-foreground"><Loader2 className="h-4 w-4 inline animate-spin mr-1" /> Loading…</div>
+
+  return (
+    <div className="space-y-4">
+      <div className="rounded-md border bg-card p-4 flex items-start justify-between gap-3">
+        <div>
+          <h3 className="text-sm font-medium">Founders</h3>
+          <p className="text-xs text-muted-foreground mt-1 max-w-xl">
+            Founder dossiers from external research. Edit any field, add founders, or capture open questions — changes save to the deal.
+          </p>
+        </div>
+        {editable && draftId && (
+          <Button variant="outline" size="sm" onClick={addFounder}><Plus className="h-3.5 w-3.5 mr-1" /> Add founder</Button>
+        )}
+      </div>
+      {!draftId ? (
+        <div className="rounded-md border bg-card p-8 text-center text-sm text-muted-foreground">
+          No research draft yet. Run external research from the Diligence tab to build founder dossiers.
+        </div>
+      ) : dossiers.length === 0 ? (
+        <div className="rounded-md border bg-card p-8 text-center text-sm text-muted-foreground">
+          No founder dossiers yet.{editable ? ' Click “Add founder” to create one.' : ''}
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {dossiers.map((f, i) => (
+            <FounderCard key={i} founder={f} editable={editable} onSave={(patch) => saveDossier(i, patch)} onRemove={() => removeFounder(i)} />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function FounderCard({ founder, editable, onSave, onRemove }: {
+  founder: ResearchOutput['founder_dossiers'][number]
+  editable?: boolean
+  onSave: (patch: Partial<ResearchOutput['founder_dossiers'][number]>) => void
+  onRemove: () => void
+}) {
+  const [editing, setEditing] = useState(false)
+  const [name, setName] = useState(founder.founder_name)
+  const [role, setRole] = useState(founder.role)
+  const [bg, setBg] = useState(founder.background_summary)
+  const [questions, setQuestions] = useState((founder.open_questions ?? []).join('\n'))
+  useEffect(() => {
+    if (editing) return
+    setName(founder.founder_name); setRole(founder.role); setBg(founder.background_summary)
+    setQuestions((founder.open_questions ?? []).join('\n'))
+  }, [founder.founder_name, founder.role, founder.background_summary, founder.open_questions, editing])
+
+  function save() {
+    onSave({
+      founder_name: name.trim() || 'Unnamed',
+      role: role.trim(),
+      background_summary: bg.trim(),
+      open_questions: questions.split('\n').map(q => q.trim()).filter(Boolean),
+    })
+    setEditing(false)
+  }
+  function cancel() {
+    setName(founder.founder_name); setRole(founder.role); setBg(founder.background_summary)
+    setQuestions((founder.open_questions ?? []).join('\n')); setEditing(false)
+  }
+
+  if (!editing) {
+    return (
+      <div className="rounded-md border p-3">
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <div className="font-medium">{founder.founder_name}</div>
+            {founder.role && <div className="text-xs text-muted-foreground">{founder.role}</div>}
+          </div>
+          {editable && <Button variant="ghost" size="sm" className="h-7 shrink-0" onClick={() => setEditing(true)}>Edit</Button>}
+        </div>
+        {founder.background_summary && <p className="text-sm mt-2 whitespace-pre-wrap">{founder.background_summary}</p>}
+        {founder.open_questions.length > 0 && (
+          <div className="mt-2">
+            <div className="text-xs font-medium text-muted-foreground">Open questions</div>
+            <ul className="text-xs list-disc list-inside mt-0.5 space-y-0.5">
+              {founder.open_questions.map((q, j) => <li key={j}>{q}</li>)}
+            </ul>
+          </div>
+        )}
+        {founder.sources?.length > 0 && (
+          <div className="text-[11px] text-muted-foreground mt-2 space-y-0.5">
+            {founder.sources.map((s, j) => <div key={j} className="truncate">{s.url ? <a href={s.url} target="_blank" rel="noreferrer" className="hover:underline">{s.title}</a> : <span>{s.title}</span>}</div>)}
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  return (
+    <div className="rounded-md border p-3 space-y-2">
+      <div className="flex gap-2">
+        <Input value={name} onChange={e => setName(e.target.value)} placeholder="Founder name" className="h-8 text-sm flex-1" />
+        <Input value={role} onChange={e => setRole(e.target.value)} placeholder="Role" className="h-8 text-sm w-44" />
+      </div>
+      <textarea value={bg} onChange={e => setBg(e.target.value)} rows={4} placeholder="Background summary…" className="w-full resize-y rounded-md border border-input bg-transparent px-2 py-1.5 text-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring" />
+      <div>
+        <div className="text-xs font-medium text-muted-foreground mb-1">Open questions (one per line)</div>
+        <textarea value={questions} onChange={e => setQuestions(e.target.value)} rows={3} placeholder="One question per line…" className="w-full resize-y rounded-md border border-input bg-transparent px-2 py-1.5 text-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring" />
+      </div>
+      <div className="flex items-center justify-between">
+        <Button variant="ghost" size="sm" className="h-7 text-muted-foreground hover:text-destructive" onClick={onRemove}>Remove</Button>
+        <div className="flex gap-2">
+          <Button variant="ghost" size="sm" className="h-7" onClick={cancel}>Cancel</Button>
+          <Button size="sm" className="h-7" onClick={save}>Save</Button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Notes tab — partner-authored notes/research, independent of the data-room
+// analysis. Replaces the old Q&A tab (the Q&A chat moved to the Diligence tab).
+// ---------------------------------------------------------------------------
+interface DealNote { id: string; body: string; authorId: string | null; authorName: string | null; authorEmail: string | null; createdAt: string }
+
+function NotesTab({ dealId, userId, isAdmin }: { dealId: string; userId: string; isAdmin: boolean }) {
+  const [notes, setNotes] = useState<DealNote[]>([])
+  const [loading, setLoading] = useState(true)
+  const [content, setContent] = useState('')
+  const [posting, setPosting] = useState(false)
+
+  useEffect(() => {
+    setLoading(true)
+    fetch(`/api/diligence/${dealId}/notes`).then(r => r.ok ? r.json() : []).then(d => setNotes(Array.isArray(d) ? d : [])).catch(() => {}).finally(() => setLoading(false))
+  }, [dealId])
+
+  async function post() {
+    if (!content.trim() || posting) return
+    setPosting(true)
+    try {
+      const res = await fetch(`/api/diligence/${dealId}/notes`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ body: content.trim() }) })
+      if (res.ok) { const row: DealNote = await res.json(); setNotes(prev => [...prev, row]); setContent('') }
+    } finally { setPosting(false) }
+  }
+  async function remove(id: string) {
+    const res = await fetch(`/api/diligence/${dealId}/notes/${id}`, { method: 'DELETE' })
+    if (res.ok) setNotes(prev => prev.filter(n => n.id !== id))
+  }
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <h3 className="text-sm font-medium">Notes</h3>
+        <p className="text-xs text-muted-foreground mt-1 max-w-xl">
+          Your own notes and research on this deal — anything outside the data-room analysis. Shared with your fund.
+        </p>
+      </div>
+      <div className="flex gap-2">
+        <textarea
+          value={content}
+          onChange={e => setContent(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); post() } }}
+          placeholder="Write a note — ⏎ to save, ⇧⏎ for newline"
+          rows={2}
+          className="flex-1 resize-none rounded-md border border-input bg-transparent px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+        />
+        <Button onClick={post} disabled={!content.trim() || posting} className="self-end">
+          {posting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Add note'}
+        </Button>
+      </div>
+      {loading ? (
+        <div className="text-sm text-muted-foreground"><Loader2 className="h-3.5 w-3.5 inline animate-spin mr-1" /> Loading notes…</div>
+      ) : notes.length === 0 ? (
+        <div className="rounded-md border bg-card p-8 text-center text-sm text-muted-foreground">No notes yet.</div>
+      ) : (
+        <div className="rounded-md border bg-card divide-y">
+          {notes.map(n => {
+            const canDelete = n.authorId === userId || isAdmin
+            const name = n.authorName || n.authorEmail?.split('@')[0] || 'Unknown'
+            return (
+              <div key={n.id} className="p-3 group">
+                <div className="flex items-center gap-2 mb-0.5">
+                  <span className="text-xs font-medium">{name}</span>
+                  <span className="text-xs text-muted-foreground">{new Date(n.createdAt).toLocaleString()}</span>
+                  {canDelete && (
+                    <button onClick={() => remove(n.id)} className="ml-auto opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive" aria-label="Delete note">
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
+                <p className="text-sm whitespace-pre-wrap">{n.body}</p>
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Read-only viewer for the active memo-agent schemas/prompts (rubric, memo
+// output, ingestion, research, etc.). Lets any member see what's configured in
+// Settings without being able to change it — editing stays admin-only. Source
+// is the member-open GET /api/firm/schemas (resolved fund override or default).
+// ---------------------------------------------------------------------------
+function SchemaViewer({ schemaName, title, description }: { schemaName: string; title: string; description?: string }) {
+  const [open, setOpen] = useState(false)
+  const [content, setContent] = useState<string | null>(null)
+  const [version, setVersion] = useState<string | null>(null)
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    if (!open || content !== null || loading) return
+    setLoading(true)
+    fetch('/api/firm/schemas')
+      .then(r => (r.ok ? r.json() : Promise.reject(new Error('failed'))))
+      .then(b => {
+        const s = b.schemas?.[schemaName]
+        setContent(typeof s?.yaml_content === 'string' ? s.yaml_content : 'No content found for this schema.')
+        setVersion(s?.schema_version ?? null)
+      })
+      .catch(() => setContent('Failed to load the schema.'))
+      .finally(() => setLoading(false))
+  }, [open, schemaName, content, loading])
+
+  return (
+    <div className="rounded-md border bg-card">
+      <button type="button" onClick={() => setOpen(o => !o)} className="w-full flex items-center justify-between gap-2 px-4 py-3 text-left hover:bg-muted/40 transition-colors">
+        <span className="flex items-center gap-2 min-w-0">
+          <ChevronDown className={`h-4 w-4 shrink-0 transition-transform ${open ? '' : '-rotate-90'}`} />
+          <span className="font-medium text-sm truncate">{title}</span>
+          {version && <span className="text-[10px] uppercase tracking-wide text-muted-foreground shrink-0">{version}</span>}
+        </span>
+        <span className="text-xs text-muted-foreground shrink-0">Read-only</span>
+      </button>
+      {open && (
+        <div className="px-4 pb-4 pt-1 border-t">
+          {description && <p className="text-xs text-muted-foreground mb-2">{description}</p>}
+          {loading ? (
+            <div className="text-xs text-muted-foreground"><Loader2 className="h-3.5 w-3.5 inline animate-spin mr-1" /> Loading…</div>
+          ) : (
+            <pre className="text-[11px] leading-relaxed bg-muted/40 rounded-md p-3 overflow-auto whitespace-pre-wrap max-h-[440px]">{content}</pre>
+          )}
+          <p className="text-[10px] text-muted-foreground mt-2">This is the active configuration from Settings → Memo agent. Changing it is admin-only.</p>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Scoring tab — surfaces rubric scoring derived from the latest memo draft.
 // Run-scoring button stays in the Memo tab; this tab is the read-out.
 // ---------------------------------------------------------------------------
@@ -2716,6 +3229,12 @@ function ScoringTab({ dealId }: { dealId: string }) {
       </div>
 
       <JobStatusLine job={job ?? null} kind="score" error={error} />
+
+      <SchemaViewer
+        schemaName="rubric"
+        title="Scoring rubric"
+        description="The dimensions, 1–5 criteria, and confidence signals the agent scores against."
+      />
 
       {!hasMemo ? (
         <div className="rounded-md border bg-card p-8 text-center text-sm text-muted-foreground">
@@ -2896,6 +3415,12 @@ function MemoTab({ dealId, dealName, isAdmin }: { dealId: string; dealName: stri
       </div>
 
       <MemoConfigPanel dealId={dealId} />
+
+      <SchemaViewer
+        schemaName="memo_output"
+        title="Base memo schema"
+        description="The section structure, guidance, and sourcing rules the draft is built from. Your memo settings above layer on top of this."
+      />
 
       {error && <div className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">{error}</div>}
 
