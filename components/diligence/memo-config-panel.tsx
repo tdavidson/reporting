@@ -5,6 +5,7 @@ import { ChevronDown, Loader2, Save, Trash2, GripVertical, Plus } from 'lucide-r
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useConfirm } from '@/components/confirm-dialog'
+import { SchemaViewer } from '@/components/diligence/schema-viewer'
 
 export type MemoComplexity = 'brief' | 'standard' | 'detailed' | 'comprehensive'
 
@@ -530,6 +531,13 @@ export function MemoConfigPanel({ dealId }: { dealId: string }) {
               className="w-full resize-y rounded-md border border-input bg-transparent px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
             />
           </div>
+
+          {/* The base memo schema these settings layer on top of — read-only. */}
+          <SchemaViewer
+            schemaName="memo_output"
+            title="Base memo schema"
+            description="The section structure, guidance, and sourcing rules the draft is built from. The settings above layer on top of this."
+          />
 
           <div className="flex justify-end">
             <Button size="sm" onClick={save} disabled={saving}>

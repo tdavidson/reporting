@@ -164,6 +164,7 @@ export async function runResearch(params: {
       await note(`Sub-call "${s.name}" done in ${dur}s${searchesNote} · ${completedSubCalls} of ${TOTAL_SUBCALLS} complete`)
       logAIUsage(admin, {
         fundId,
+        dealId,
         provider: providerType,
         model,
         feature: `memo_agent_research_${s.name}`,

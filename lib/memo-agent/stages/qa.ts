@@ -256,7 +256,7 @@ export async function getNextBatch(params: {
     system,
     content: userContent,
   })
-  logAIUsage(admin, { fundId, provider: providerType, model, feature: 'memo_agent_qa_batch', usage })
+  logAIUsage(admin, { fundId, dealId, provider: providerType, model, feature: 'memo_agent_qa_batch', usage })
 
   const parsed = parseQAResponse(text, candidatePool)
 

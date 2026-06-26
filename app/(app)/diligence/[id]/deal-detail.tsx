@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { useConfirm } from '@/components/confirm-dialog'
 import { IngestionSummary } from '@/components/diligence/ingestion-summary'
+import { SchemaViewer } from '@/components/diligence/schema-viewer'
 import type { IngestionOutput } from '@/lib/memo-agent/stages/ingest'
 import type { ResearchOutput } from '@/lib/memo-agent/stages/research'
 import { uploadDiligenceDocument } from '@/lib/diligence/upload-document'
@@ -57,7 +58,7 @@ type LatestDraft = {
 // (DDP status, details, finalize/promote), then the pipeline goes Data Room →
 // Diligence (external research) → Partner Q&A → Memo. Notes live in a
 // right-side slide-in panel, mirroring the Companies notes UX.
-const TABS = ['Checklist', 'Data Room', 'Diligence', 'Founders', 'Notes', 'Scoring', 'Memo'] as const
+const TABS = ['Checklist', 'Data Room', 'Diligence', 'Founders', 'Scoring', 'Memo', 'Settings'] as const
 type Tab = typeof TABS[number]
 
 // Deal stages: Invested, Active, Passed. No color accents — the label alone
@@ -90,10 +91,8 @@ export function DealDetail({ deal: initial, initialDocuments, latestDraft, isAdm
   const [focusDocId, setFocusDocId] = useState<string | null>(null)
   const jumpToDoc = (docId: string) => { setActiveTab('Data Room'); setFocusDocId(docId) }
 
-  const confirm = useConfirm()
   const [editingName, setEditingName] = useState(false)
   const [nameDraft, setNameDraft] = useState(deal.name)
-  const [deleting, setDeleting] = useState(false)
 
   async function updateStatus(deal_status: Deal['deal_status']) {
     setDeal(d => ({ ...d, deal_status }))
@@ -116,20 +115,6 @@ export function DealDetail({ deal: initial, initialDocuments, latestDraft, isAdm
       body: JSON.stringify({ name }),
     })
     router.refresh()
-  }
-
-  async function deleteDeal() {
-    const ok = await confirm({
-      title: 'Delete deal?',
-      description: `Permanently deletes "${deal.name}" and all of its analysis — documents, drafts, checklist, notes, and Q&A. This cannot be undone.`,
-      confirmLabel: 'Delete deal',
-      variant: 'destructive',
-    })
-    if (!ok) return
-    setDeleting(true)
-    const res = await fetch(`/api/diligence/${deal.id}`, { method: 'DELETE' })
-    if (res.ok) { router.push('/diligence') }
-    else { setDeleting(false) }
   }
 
   return (
@@ -176,18 +161,6 @@ export function DealDetail({ deal: initial, initialDocuments, latestDraft, isAdm
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <StatusDropdown value={deal.deal_status} onPick={updateStatus} />
-          {isAdmin && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={deleteDeal}
-              disabled={deleting}
-              className="text-muted-foreground hover:text-destructive"
-              title="Delete deal and all its analysis"
-            >
-              {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-            </Button>
-          )}
         </div>
       </div>
 
@@ -213,11 +186,11 @@ export function DealDetail({ deal: initial, initialDocuments, latestDraft, isAdm
           {activeTab === 'Data Room' && (
             <DealRoomTab dealId={deal.id} initialDocuments={initialDocuments} initialDriveFolderUrl={deal.drive_folder_url} focusDocId={focusDocId} onFocusConsumed={() => setFocusDocId(null)} />
           )}
-          {activeTab === 'Diligence' && <DiligenceTab dealId={deal.id} />}
+          {activeTab === 'Diligence' && <DiligenceTab dealId={deal.id} userId={currentUserId} isAdmin={isAdmin} />}
           {activeTab === 'Founders' && <FoundersTab dealId={deal.id} />}
-          {activeTab === 'Notes' && <NotesTab dealId={deal.id} userId={currentUserId} isAdmin={isAdmin} />}
           {activeTab === 'Scoring' && <ScoringTab dealId={deal.id} />}
           {activeTab === 'Memo' && <MemoTab dealId={deal.id} dealName={deal.name} isAdmin={isAdmin} />}
+          {activeTab === 'Settings' && <SettingsTab dealId={deal.id} dealName={deal.name} isAdmin={isAdmin} />}
         </div>
       </div>
     </div>
@@ -2090,7 +2063,7 @@ function Accordion({ title, subtitle, defaultOpen, children }: { title: string; 
 // Diligence tab — Internal (contradictions, founders), External (web research),
 // and the Q&A library, all in accordions for easier scanning.
 // ---------------------------------------------------------------------------
-function DiligenceTab({ dealId }: { dealId: string }) {
+function DiligenceTab({ dealId, userId, isAdmin }: { dealId: string; userId: string; isAdmin: boolean }) {
   const { status, refresh } = useAgentStatus(dealId)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -2199,6 +2172,10 @@ function DiligenceTab({ dealId }: { dealId: string }) {
     <div className="space-y-3">
       {/* Ask anything — moved here from its own tab so questions sit alongside the evidence. */}
       <QATab dealId={dealId} />
+
+      <Accordion title="Notes" subtitle="Your notes & research" defaultOpen={false}>
+        <NotesPanel dealId={dealId} userId={userId} isAdmin={isAdmin} />
+      </Accordion>
 
       {!ingestReady && (
         <div className="rounded-md border border-amber-500/40 bg-amber-50/50 dark:bg-amber-900/10 p-3 text-sm">
@@ -3017,12 +2994,13 @@ function FounderCard({ founder, editable, onSave, onRemove }: {
 }
 
 // ---------------------------------------------------------------------------
-// Notes tab — partner-authored notes/research, independent of the data-room
-// analysis. Replaces the old Q&A tab (the Q&A chat moved to the Diligence tab).
+// Notes panel — partner-authored notes/research, independent of the data-room
+// analysis. Lives in the Diligence tab as an accordion below the "ask anything"
+// chat (replacing the old standalone Q&A tab).
 // ---------------------------------------------------------------------------
 interface DealNote { id: string; body: string; authorId: string | null; authorName: string | null; authorEmail: string | null; createdAt: string }
 
-function NotesTab({ dealId, userId, isAdmin }: { dealId: string; userId: string; isAdmin: boolean }) {
+function NotesPanel({ dealId, userId, isAdmin }: { dealId: string; userId: string; isAdmin: boolean }) {
   const [notes, setNotes] = useState<DealNote[]>([])
   const [loading, setLoading] = useState(true)
   const [content, setContent] = useState('')
@@ -3047,10 +3025,9 @@ function NotesTab({ dealId, userId, isAdmin }: { dealId: string; userId: string;
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 pt-2">
       <div>
-        <h3 className="text-sm font-medium">Notes</h3>
-        <p className="text-xs text-muted-foreground mt-1 max-w-xl">
+        <p className="text-xs text-muted-foreground max-w-xl">
           Your own notes and research on this deal — anything outside the data-room analysis. Shared with your fund.
         </p>
       </div>
@@ -3098,51 +3075,141 @@ function NotesTab({ dealId, userId, isAdmin }: { dealId: string; userId: string;
 }
 
 // ---------------------------------------------------------------------------
-// Read-only viewer for the active memo-agent schemas/prompts (rubric, memo
-// output, ingestion, research, etc.). Lets any member see what's configured in
-// Settings without being able to change it — editing stays admin-only. Source
-// is the member-open GET /api/firm/schemas (resolved fund override or default).
+// Settings tab — deal-level config: AI usage (time/tokens/cost) and the
+// delete-deal action (moved here from the header).
 // ---------------------------------------------------------------------------
-function SchemaViewer({ schemaName, title, description }: { schemaName: string; title: string; description?: string }) {
-  const [open, setOpen] = useState(false)
-  const [content, setContent] = useState<string | null>(null)
-  const [version, setVersion] = useState<string | null>(null)
-  const [loading, setLoading] = useState(false)
+interface UsageReport {
+  total: { input_tokens: number; output_tokens: number; total_tokens: number; cost_usd: number; calls: number; processing_ms: number; jobs: number }
+  by_feature: Array<{ feature: string; calls: number; input_tokens: number; output_tokens: number; cost_usd: number }>
+  by_stage: Array<{ kind: string; runs: number; processing_ms: number }>
+}
+
+function formatProcessingMs(ms: number): string {
+  if (ms <= 0) return '0s'
+  const s = Math.round(ms / 1000)
+  if (s < 60) return `${s}s`
+  const m = Math.floor(s / 60)
+  if (m < 60) return `${m}m ${s % 60}s`
+  const h = Math.floor(m / 60)
+  return `${h}h ${m % 60}m`
+}
+const usageFeatureLabel = (f: string) => f.replace(/^memo_agent_/, '').replace(/_/g, ' ')
+
+function UsageStat({ label, value, sub }: { label: string; value: string; sub?: string }) {
+  return (
+    <div className="rounded-md border bg-card p-3">
+      <div className="text-xl font-semibold tracking-tight tabular-nums">{value}</div>
+      <div className="text-xs text-muted-foreground mt-0.5">{label}</div>
+      {sub && <div className="text-[10px] text-muted-foreground mt-0.5">{sub}</div>}
+    </div>
+  )
+}
+
+function SettingsTab({ dealId, dealName, isAdmin }: { dealId: string; dealName: string; isAdmin: boolean }) {
+  const router = useRouter()
+  const confirm = useConfirm()
+  const [days, setDays] = useState<number | 'all'>('all')
+  const [report, setReport] = useState<UsageReport | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [deleting, setDeleting] = useState(false)
 
   useEffect(() => {
-    if (!open || content !== null || loading) return
     setLoading(true)
-    fetch('/api/firm/schemas')
-      .then(r => (r.ok ? r.json() : Promise.reject(new Error('failed'))))
-      .then(b => {
-        const s = b.schemas?.[schemaName]
-        setContent(typeof s?.yaml_content === 'string' ? s.yaml_content : 'No content found for this schema.')
-        setVersion(s?.schema_version ?? null)
-      })
-      .catch(() => setContent('Failed to load the schema.'))
-      .finally(() => setLoading(false))
-  }, [open, schemaName, content, loading])
+    const qs = days === 'all' ? '' : `?days=${days}`
+    fetch(`/api/diligence/${dealId}/usage${qs}`).then(r => (r.ok ? r.json() : null)).then(setReport).catch(() => setReport(null)).finally(() => setLoading(false))
+  }, [dealId, days])
+
+  async function deleteDeal() {
+    const ok = await confirm({
+      title: 'Delete deal?',
+      description: `Permanently deletes "${dealName}" and all of its analysis — documents, drafts, checklist, notes, and Q&A. This cannot be undone.`,
+      confirmLabel: 'Delete deal',
+      variant: 'destructive',
+    })
+    if (!ok) return
+    setDeleting(true)
+    const res = await fetch(`/api/diligence/${dealId}`, { method: 'DELETE' })
+    if (res.ok) router.push('/diligence')
+    else setDeleting(false)
+  }
+
+  const t = report?.total
+  const RANGES: Array<{ key: number | 'all'; label: string }> = [
+    { key: 'all', label: 'All time' },
+    { key: 90, label: '90d' },
+    { key: 30, label: '30d' },
+    { key: 7, label: '7d' },
+  ]
 
   return (
-    <div className="rounded-md border bg-card">
-      <button type="button" onClick={() => setOpen(o => !o)} className="w-full flex items-center justify-between gap-2 px-4 py-3 text-left hover:bg-muted/40 transition-colors">
-        <span className="flex items-center gap-2 min-w-0">
-          <ChevronDown className={`h-4 w-4 shrink-0 transition-transform ${open ? '' : '-rotate-90'}`} />
-          <span className="font-medium text-sm truncate">{title}</span>
-          {version && <span className="text-[10px] uppercase tracking-wide text-muted-foreground shrink-0">{version}</span>}
-        </span>
-        <span className="text-xs text-muted-foreground shrink-0">Read-only</span>
-      </button>
-      {open && (
-        <div className="px-4 pb-4 pt-1 border-t">
-          {description && <p className="text-xs text-muted-foreground mb-2">{description}</p>}
-          {loading ? (
-            <div className="text-xs text-muted-foreground"><Loader2 className="h-3.5 w-3.5 inline animate-spin mr-1" /> Loading…</div>
-          ) : (
-            <pre className="text-[11px] leading-relaxed bg-muted/40 rounded-md p-3 overflow-auto whitespace-pre-wrap max-h-[440px]">{content}</pre>
-          )}
-          <p className="text-[10px] text-muted-foreground mt-2">This is the active configuration from Settings → Memo agent. Changing it is admin-only.</p>
+    <div className="space-y-6">
+      <section className="space-y-3">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h3 className="text-sm font-medium">AI usage</h3>
+            <p className="text-xs text-muted-foreground mt-1 max-w-xl">Processing time, tokens, and estimated cost the memo agent has spent on this deal. Cost is indicative (list pricing).</p>
+          </div>
+          <div className="flex rounded-md border overflow-hidden shrink-0">
+            {RANGES.map(r => (
+              <button key={String(r.key)} type="button" onClick={() => setDays(r.key)} className={`px-2.5 py-1 text-xs ${days === r.key ? 'bg-muted font-medium' : 'hover:bg-muted/50'}`}>{r.label}</button>
+            ))}
+          </div>
         </div>
+
+        {loading ? (
+          <div className="text-sm text-muted-foreground"><Loader2 className="h-3.5 w-3.5 inline animate-spin mr-1" /> Loading usage…</div>
+        ) : !t || (t.calls === 0 && t.jobs === 0) ? (
+          <div className="rounded-md border bg-card p-8 text-center text-sm text-muted-foreground">No AI usage recorded for this deal in this window.</div>
+        ) : (
+          <>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <UsageStat label="Est. cost" value={`$${t.cost_usd.toFixed(2)}`} />
+              <UsageStat label="Total tokens" value={t.total_tokens.toLocaleString()} sub={`${t.input_tokens.toLocaleString()} in · ${t.output_tokens.toLocaleString()} out`} />
+              <UsageStat label="Processing time" value={formatProcessingMs(t.processing_ms)} sub={`${t.jobs} run${t.jobs === 1 ? '' : 's'}`} />
+              <UsageStat label="AI calls" value={t.calls.toLocaleString()} />
+            </div>
+
+            {report!.by_feature.length > 0 && (
+              <div className="rounded-md border bg-card overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead className="bg-muted/50 text-left text-xs uppercase text-muted-foreground">
+                    <tr>
+                      <th className="px-3 py-2 font-medium">Stage</th>
+                      <th className="px-3 py-2 font-medium text-right">Calls</th>
+                      <th className="px-3 py-2 font-medium text-right">Tokens</th>
+                      <th className="px-3 py-2 font-medium text-right">Cost</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {report!.by_feature.map(f => (
+                      <tr key={f.feature} className="border-t">
+                        <td className="px-3 py-2 capitalize">{usageFeatureLabel(f.feature)}</td>
+                        <td className="px-3 py-2 text-right tabular-nums">{f.calls}</td>
+                        <td className="px-3 py-2 text-right tabular-nums">{(f.input_tokens + f.output_tokens).toLocaleString()}</td>
+                        <td className="px-3 py-2 text-right tabular-nums">${f.cost_usd.toFixed(2)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </>
+        )}
+      </section>
+
+      {isAdmin && (
+        <section>
+          <h3 className="text-sm font-medium text-destructive">Danger zone</h3>
+          <div className="mt-2 rounded-md border border-destructive/40 p-4 flex items-start justify-between gap-3">
+            <div>
+              <div className="text-sm font-medium">Delete this deal</div>
+              <p className="text-xs text-muted-foreground mt-1 max-w-md">Permanently removes the deal and all of its analysis — documents, drafts, checklist, notes, and Q&A. This cannot be undone.</p>
+            </div>
+            <Button variant="outline" size="sm" onClick={deleteDeal} disabled={deleting} className="shrink-0 border-destructive/40 text-destructive hover:bg-destructive/10">
+              {deleting ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Trash2 className="h-3.5 w-3.5 mr-1" />} Delete deal
+            </Button>
+          </div>
+        </section>
       )}
     </div>
   )
@@ -3415,12 +3482,6 @@ function MemoTab({ dealId, dealName, isAdmin }: { dealId: string; dealName: stri
       </div>
 
       <MemoConfigPanel dealId={dealId} />
-
-      <SchemaViewer
-        schemaName="memo_output"
-        title="Base memo schema"
-        description="The section structure, guidance, and sourcing rules the draft is built from. Your memo settings above layer on top of this."
-      />
 
       {error && <div className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">{error}</div>}
 

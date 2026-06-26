@@ -182,7 +182,7 @@ export async function runChecklistAssessment(params: {
           system,
           content: buildChecklistAssessmentContent({ dealName, stage: dealStage, checklist: batch, perDoc }),
         })
-        logAIUsage(admin, { fundId, provider: providerType, model, feature: 'memo_agent_checklist_assessment', usage: res.usage })
+        logAIUsage(admin, { fundId, dealId, provider: providerType, model, feature: 'memo_agent_checklist_assessment', usage: res.usage })
         return res
       },
       coerce: toAssessmentEntry,

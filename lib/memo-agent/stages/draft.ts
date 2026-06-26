@@ -177,7 +177,7 @@ export async function runDraft(params: {
     system,
     content: outlineContent,
   })
-  logAIUsage(admin, { fundId, provider: providerType, model, feature: 'memo_agent_draft_outline', usage: outlineRes.usage })
+  logAIUsage(admin, { fundId, dealId, provider: providerType, model, feature: 'memo_agent_draft_outline', usage: outlineRes.usage })
   if (outlineRes.truncated) {
     warnings.push('Memo outline was truncated — later sections may be missing from the plan.')
   }
@@ -214,7 +214,7 @@ export async function runDraft(params: {
           qa_answers,
         }),
       })
-      logAIUsage(admin, { fundId, provider: providerType, model, feature: 'memo_agent_draft_fill', usage: res.usage })
+      logAIUsage(admin, { fundId, dealId, provider: providerType, model, feature: 'memo_agent_draft_fill', usage: res.usage })
       if (res.truncated) {
         warnings.push(`Section batch "${batchLabel}" was truncated (max_tokens) — some paragraphs may be missing.`)
       }
@@ -375,7 +375,7 @@ export async function runDraftReview(params: {
           qa_answers,
         }),
       })
-      logAIUsage(admin, { fundId, provider: providerType, model, feature: 'memo_agent_draft_review', usage: res.usage })
+      logAIUsage(admin, { fundId, dealId, provider: providerType, model, feature: 'memo_agent_draft_review', usage: res.usage })
       if (res.truncated) {
         warnings.push(`Review chunk ${idx + 1} was truncated — some edits may not have been applied.`)
       }

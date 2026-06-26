@@ -5,6 +5,9 @@ type SupabaseAdmin = { from: (table: string) => any }
 export async function logAIUsage(admin: SupabaseAdmin, params: {
   fundId: string
   userId?: string
+  /** Diligence deal this spend belongs to, when applicable — enables per-deal
+   *  token/cost reporting. Left null for non-deal usage. */
+  dealId?: string
   provider: string
   model: string
   feature: string
@@ -14,6 +17,7 @@ export async function logAIUsage(admin: SupabaseAdmin, params: {
     await admin.from('ai_usage_logs').insert({
       fund_id: params.fundId,
       user_id: params.userId ?? null,
+      deal_id: params.dealId ?? null,
       provider: params.provider,
       model: params.model,
       feature: params.feature,

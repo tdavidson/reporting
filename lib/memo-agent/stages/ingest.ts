@@ -180,6 +180,7 @@ export async function runIngestDocs(params: {
       })
       logAIUsage(admin, {
         fundId,
+        dealId,
         provider: providerType,
         model,
         feature: 'memo_agent_ingest',
@@ -386,6 +387,7 @@ export async function runIngestSynthesis(params: {
     })
     logAIUsage(admin, {
       fundId,
+      dealId,
       provider: providerType,
       model,
       feature: 'memo_agent_ingest_synthesis',

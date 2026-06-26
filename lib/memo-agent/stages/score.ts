@@ -122,7 +122,7 @@ export async function runScore(params: {
           onlyDimensionIds: batch.map(d => d.id),
         }),
       })
-      logAIUsage(admin, { fundId, provider: providerType, model, feature: 'memo_agent_score', usage: res.usage })
+      logAIUsage(admin, { fundId, dealId, provider: providerType, model, feature: 'memo_agent_score', usage: res.usage })
       return res
     },
     coerce: (raw) => coerceScoreRow(raw, dimensionMode, validIds),
