@@ -19,7 +19,8 @@ export interface ProcessDealParams {
 
 export interface ProcessDealResult {
   dealId: string | null
-  archivedOutOfThesis: boolean
+  /** out_of_thesis or spam — a low-fit deal that shouldn't trigger active alerts. */
+  lowFit: boolean
   reviewFlagged: boolean
 }
 
@@ -70,9 +71,10 @@ export async function processDeal(params: ProcessDealParams): Promise<ProcessDea
   // Dedupe: find a prior deal from the same founder/company.
   const priorDealId = await findPriorDeal(supabase, fundId, analysis)
 
-  // out_of_thesis auto-archives. Other rows start as 'new'.
-  const status = analysis.thesis_fit_score === 'out_of_thesis' ? 'archived' : 'new'
-  const archivedOutOfThesis = status === 'archived'
+  // No auto-archiving — every deal starts as 'new' and carries its fit tag
+  // (Out / Spam), so junk surfaces and stays filterable instead of being hidden.
+  const status = 'new'
+  const lowFit = analysis.thesis_fit_score === 'out_of_thesis' || analysis.thesis_fit_score === 'spam'
 
   const senderEmail = (payload.FromFull?.Email ?? payload.From ?? '').trim().toLowerCase() || null
   const founderEmail = analysis.founder_email ?? senderEmail
@@ -106,7 +108,7 @@ export async function processDeal(params: ProcessDealParams): Promise<ProcessDea
 
   if (insertResult.error || !insertResult.data) {
     console.error('[processDeal] insert failed:', insertResult.error)
-    return { dealId: null, archivedOutOfThesis: false, reviewFlagged: false }
+    return { dealId: null, lowFit: false, reviewFlagged: false }
   }
 
   const dealId = (insertResult.data as { id: string }).id
@@ -114,7 +116,7 @@ export async function processDeal(params: ProcessDealParams): Promise<ProcessDea
   // Flag missing critical fields for human review.
   const reviewFlagged = await maybeFlagForReview(supabase, fundId, emailId, dealId, analysis)
 
-  return { dealId, archivedOutOfThesis, reviewFlagged }
+  return { dealId, lowFit, reviewFlagged }
 }
 
 // ---------------------------------------------------------------------------

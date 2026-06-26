@@ -86,13 +86,51 @@ export function DealDetail({ deal: initial, initialDocuments, latestDraft, isAdm
   const router = useRouter()
   const [deal, setDeal] = useState(initial)
   const [activeTab, setActiveTab] = useState<Tab>('Checklist')
+  // Documents live here (not inside Data Room) so the Checklist tab's
+  // doc-count gate and the Data Room list stay in sync after an import/upload.
+  const [documents, setDocuments] = useState(initialDocuments)
   // Cross-tab doc focus: clicking evidence on the Checklist tab sets this id,
   // switches to Data Room, and the room scrolls/highlights the matching row.
   const [focusDocId, setFocusDocId] = useState<string | null>(null)
   const jumpToDoc = (docId: string) => { setActiveTab('Data Room'); setFocusDocId(docId) }
 
+  // Refresh the doc list whenever the Checklist or Data Room tab is shown, so a
+  // Drive import / upload made on one tab is reflected on the other without a
+  // manual page refresh (fixes the stale "nothing uploaded yet" gate).
+  useEffect(() => {
+    if (activeTab !== 'Checklist' && activeTab !== 'Data Room') return
+    let cancelled = false
+    fetch(`/api/diligence/${deal.id}/documents`)
+      .then(r => (r.ok ? r.json() : null))
+      .then(rows => { if (!cancelled && Array.isArray(rows)) setDocuments(rows) })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [activeTab, deal.id])
+
   const [editingName, setEditingName] = useState(false)
   const [nameDraft, setNameDraft] = useState(deal.name)
+  const [editingMeta, setEditingMeta] = useState(false)
+  const [sectorDraft, setSectorDraft] = useState(deal.sector ?? '')
+  const [stageDraft, setStageDraft] = useState(deal.stage_at_consideration ?? '')
+
+  function cancelMeta() {
+    setEditingMeta(false)
+    setSectorDraft(deal.sector ?? '')
+    setStageDraft(deal.stage_at_consideration ?? '')
+  }
+  async function saveMeta() {
+    setEditingMeta(false)
+    const sector = sectorDraft.trim()
+    const stage = stageDraft.trim()
+    if (sector === (deal.sector ?? '') && stage === (deal.stage_at_consideration ?? '')) return
+    setDeal(d => ({ ...d, sector: sector || null, stage_at_consideration: stage || null }))
+    await fetch(`/api/diligence/${deal.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sector, stage_at_consideration: stage }),
+    })
+    router.refresh()
+  }
 
   async function updateStatus(deal_status: Deal['deal_status']) {
     setDeal(d => ({ ...d, deal_status }))
@@ -151,13 +189,44 @@ export function DealDetail({ deal: initial, initialDocuments, latestDraft, isAdm
               </button>
             </h1>
           )}
-          <div className="text-sm text-muted-foreground mt-1">
-            {[
-              deal.sector,
-              deal.stage_at_consideration,
-              `Created ${new Date(deal.created_at).toLocaleDateString()}`,
-            ].filter(Boolean).join(' · ')}
-          </div>
+          {editingMeta ? (
+            <div className="flex flex-wrap items-center gap-2 mt-1.5">
+              <Input
+                autoFocus
+                value={sectorDraft}
+                onChange={e => setSectorDraft(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') saveMeta(); if (e.key === 'Escape') cancelMeta() }}
+                placeholder="Sector / type"
+                className="h-7 text-sm w-44"
+              />
+              <Input
+                value={stageDraft}
+                onChange={e => setStageDraft(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') saveMeta(); if (e.key === 'Escape') cancelMeta() }}
+                placeholder="Stage"
+                className="h-7 text-sm w-44"
+              />
+              <Button size="sm" variant="outline" className="h-7" onClick={saveMeta}>Save</Button>
+              <button type="button" onClick={cancelMeta} className="text-xs text-muted-foreground hover:text-foreground">Cancel</button>
+            </div>
+          ) : (
+            <div className="text-sm text-muted-foreground mt-1 flex items-center gap-2 group/meta">
+              <span>{[
+                deal.sector,
+                deal.stage_at_consideration,
+                `Created ${new Date(deal.created_at).toLocaleDateString()}`,
+              ].filter(Boolean).join(' · ')}</span>
+              <button
+                type="button"
+                onClick={() => { setSectorDraft(deal.sector ?? ''); setStageDraft(deal.stage_at_consideration ?? ''); setEditingMeta(true) }}
+                className="opacity-0 group-hover/meta:opacity-100 text-muted-foreground hover:text-foreground shrink-0"
+                title="Edit sector & stage"
+                aria-label="Edit sector and stage"
+              >
+                <Pencil className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          )}
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <StatusDropdown value={deal.deal_status} onPick={updateStatus} />
@@ -181,10 +250,10 @@ export function DealDetail({ deal: initial, initialDocuments, latestDraft, isAdm
       <div className="flex flex-col lg:flex-row gap-6 items-start">
         <div className="flex-1 min-w-0 max-w-5xl w-full">
           {activeTab === 'Checklist' && (
-            <ChecklistTab deal={deal} documentCount={initialDocuments.length} latestDraft={latestDraft} isAdmin={isAdmin} onJumpToTab={setActiveTab} onJumpToDoc={jumpToDoc} />
+            <ChecklistTab deal={deal} documentCount={documents.length} latestDraft={latestDraft} isAdmin={isAdmin} onJumpToTab={setActiveTab} onJumpToDoc={jumpToDoc} />
           )}
           {activeTab === 'Data Room' && (
-            <DealRoomTab dealId={deal.id} initialDocuments={initialDocuments} initialDriveFolderUrl={deal.drive_folder_url} focusDocId={focusDocId} onFocusConsumed={() => setFocusDocId(null)} />
+            <DealRoomTab dealId={deal.id} documents={documents} setDocuments={setDocuments} initialDriveFolderUrl={deal.drive_folder_url} focusDocId={focusDocId} onFocusConsumed={() => setFocusDocId(null)} />
           )}
           {activeTab === 'Diligence' && <DiligenceTab dealId={deal.id} userId={currentUserId} isAdmin={isAdmin} />}
           {activeTab === 'Founders' && <FoundersTab dealId={deal.id} />}
@@ -1191,9 +1260,8 @@ const DOC_TYPE_OPTIONS = [
   { value: 'other', label: 'Other' },
 ]
 
-function DealRoomTab({ dealId, initialDocuments, initialDriveFolderUrl, focusDocId, onFocusConsumed }: { dealId: string; initialDocuments: DiligenceDocument[]; initialDriveFolderUrl: string | null; focusDocId: string | null; onFocusConsumed: () => void }) {
+function DealRoomTab({ dealId, documents, setDocuments, initialDriveFolderUrl, focusDocId, onFocusConsumed }: { dealId: string; documents: DiligenceDocument[]; setDocuments: React.Dispatch<React.SetStateAction<DiligenceDocument[]>>; initialDriveFolderUrl: string | null; focusDocId: string | null; onFocusConsumed: () => void }) {
   const confirm = useConfirm()
-  const [documents, setDocuments] = useState(initialDocuments)
   // When the partner jumps from a checklist evidence row, scroll to and
   // briefly highlight the target document so the connection is obvious.
   const [highlightedDocId, setHighlightedDocId] = useState<string | null>(null)
@@ -2258,7 +2326,7 @@ function DiligenceTab({ dealId, userId, isAdmin }: { dealId: string; userId: str
       {!ingestReady && (
         <div className="rounded-md border border-amber-500/40 bg-amber-50/50 dark:bg-amber-900/10 p-3 text-sm">
           <AlertCircle className="h-4 w-4 inline mr-1" />
-          Run data-room ingestion first (Checklist tab). Research depends on it.
+          Run the data analysis on Checklist first.
         </div>
       )}
 

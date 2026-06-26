@@ -28,8 +28,8 @@ interface InboundDealDef {
   raise_amount: string
   company_summary: string
   thesis_fit_analysis: string
-  thesis_fit_score: 'strong' | 'moderate' | 'weak' | 'out_of_thesis'
-  status: 'new' | 'reviewing' | 'passed' | 'advancing' | 'met' | 'archived'
+  thesis_fit_score: 'strong' | 'moderate' | 'weak' | 'out_of_thesis' | 'spam'
+  status: 'new' | 'reviewing' | 'passed' | 'advancing' | 'met'
 }
 
 const INBOUND_DEALS: InboundDealDef[] = [
@@ -124,7 +124,7 @@ Pillar 3 — Capital efficient: Out of thesis. $20M Series A on a single pilot i
 
 Disqualifiers: capital intensity, hardware risk, regulatory dependency. Nothing wrong with the company, just not for us.`,
     thesis_fit_score: 'out_of_thesis',
-    status: 'archived',
+    status: 'passed',
   },
   {
     from_email: 'partner@hemrock.com',
@@ -239,7 +239,7 @@ Please reply if interested.
     company_summary: '',
     thesis_fit_analysis: '',
     thesis_fit_score: 'out_of_thesis',
-    status: 'archived',
+    status: 'passed',
   },
   {
     from_email: 'kai@haptiq.dev',

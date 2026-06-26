@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 
-interface AuditEmail {
+export interface AuditEmail {
   id: string
   from_address: string
   subject: string | null
@@ -43,7 +43,7 @@ export function EmailAuditList({ emails: initial }: { emails: AuditEmail[] }) {
   if (emails.length === 0) {
     return (
       <div className="rounded-md border bg-card p-12 text-center text-sm text-muted-foreground">
-        No emails in audit. The classifier hasn't dropped anything yet.
+        No emails in audit. The classifier hasn&apos;t dropped anything yet.
       </div>
     )
   }
@@ -62,7 +62,7 @@ export function EmailAuditList({ emails: initial }: { emails: AuditEmail[] }) {
               <div className="font-medium truncate">{e.subject ?? '(no subject)'}</div>
               <div className="text-xs text-muted-foreground truncate">{e.from_address}</div>
               {e.routing_reasoning && (
-                <div className="text-xs text-muted-foreground italic mt-1">"{e.routing_reasoning}"</div>
+                <div className="text-xs text-muted-foreground italic mt-1">&ldquo;{e.routing_reasoning}&rdquo;</div>
               )}
             </div>
             <div className="flex flex-wrap gap-1 shrink-0">

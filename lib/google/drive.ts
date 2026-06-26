@@ -182,6 +182,45 @@ export async function downloadFile(accessToken: string, fileId: string): Promise
 }
 
 /**
+ * Google Workspace native files (Docs/Slides/Sheets) can't be downloaded with
+ * alt=media — they must be exported to a binary format. Maps each native type
+ * to a parseable export MIME + extension. Returns null for native types we
+ * don't import (Forms, Drawings, Sites, etc.).
+ */
+export function googleExportTarget(mimeType: string): { exportMime: string; ext: string } | null {
+  switch (mimeType) {
+    case 'application/vnd.google-apps.document':
+      return { exportMime: 'application/pdf', ext: 'pdf' }
+    case 'application/vnd.google-apps.presentation':
+      return { exportMime: 'application/pdf', ext: 'pdf' }
+    case 'application/vnd.google-apps.spreadsheet':
+      return { exportMime: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', ext: 'xlsx' }
+    default:
+      return null
+  }
+}
+
+/**
+ * Export a Google Workspace file to a binary format the ingestion pipeline can
+ * parse (Docs/Slides → PDF, Sheets → xlsx). The simple export endpoint caps at
+ * ~10 MB; larger native files throw and are surfaced as a skip by the caller.
+ */
+export async function exportFile(accessToken: string, fileId: string, exportMime: string): Promise<Buffer> {
+  if (!fileId || !/^[a-zA-Z0-9_-]+$/.test(fileId)) {
+    throw new Error('Invalid file ID')
+  }
+  const url = new URL(`${DRIVE_API}/files/${fileId}/export`)
+  url.searchParams.set('mimeType', exportMime)
+  const res = await fetch(url.toString(), { headers: { Authorization: `Bearer ${accessToken}` } })
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(`Failed to export file: ${text}`)
+  }
+  const arr = await res.arrayBuffer()
+  return Buffer.from(arr)
+}
+
+/**
  * Extract a Google Drive folder ID from a URL like
  *   https://drive.google.com/drive/folders/<id>
  *   https://drive.google.com/drive/u/0/folders/<id>

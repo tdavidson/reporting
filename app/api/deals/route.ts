@@ -17,10 +17,9 @@ export async function GET(req: NextRequest) {
   if (!membership) return NextResponse.json({ error: 'No fund found' }, { status: 403 })
 
   const status = req.nextUrl.searchParams.get('status')          // comma-separated, e.g. "new,reviewing"
-  const fitScore = req.nextUrl.searchParams.get('fit_score')      // strong | moderate | weak | out_of_thesis
+  const fitScore = req.nextUrl.searchParams.get('fit_score')      // strong | moderate | weak | out_of_thesis | spam
   const introSource = req.nextUrl.searchParams.get('intro_source')
   const search = req.nextUrl.searchParams.get('q')                // company or founder name
-  const includeArchived = req.nextUrl.searchParams.get('archived') === 'true'
   const limit = Math.min(parseInt(req.nextUrl.searchParams.get('limit') || '100', 10), 500)
 
   let query = admin
@@ -33,8 +32,6 @@ export async function GET(req: NextRequest) {
   if (status) {
     const statuses = status.split(',').map(s => s.trim()).filter(Boolean)
     if (statuses.length) query = query.in('status', statuses)
-  } else if (!includeArchived) {
-    query = query.neq('status', 'archived')
   }
 
   if (fitScore) query = query.eq('thesis_fit_score', fitScore)

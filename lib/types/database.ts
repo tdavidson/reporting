@@ -2925,8 +2925,8 @@ export type IssueType          =
 
 export type RoutingLabel       = 'reporting' | 'interactions' | 'deals' | 'other'
 export type RoutedTo           = 'reporting' | 'interactions' | 'deals' | 'audit' | 'review'
-export type ThesisFitScore     = 'strong' | 'moderate' | 'weak' | 'out_of_thesis'
-export type DealStatus         = 'new' | 'reviewing' | 'advancing' | 'met' | 'diligence' | 'invested' | 'passed' | 'archived'
+export type ThesisFitScore     = 'strong' | 'moderate' | 'weak' | 'out_of_thesis' | 'spam'
+export type DealStatus         = 'new' | 'reviewing' | 'advancing' | 'met' | 'diligence' | 'invested' | 'passed'
 export type IntroSource        = 'referral' | 'cold' | 'warm_intro' | 'accelerator' | 'demo_day' | 'event' | 'other'
 export type ReviewResolution   = 'accepted' | 'rejected' | 'manually_corrected'
 export type EmailRequestStatus = 'draft' | 'sent' | 'failed'

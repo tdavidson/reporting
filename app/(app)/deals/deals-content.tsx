@@ -19,11 +19,11 @@ interface Deal {
   founder_email: string | null
   intro_source: string | null
   referrer_name: string | null
-  thesis_fit_score: 'strong' | 'moderate' | 'weak' | 'out_of_thesis' | null
+  thesis_fit_score: 'strong' | 'moderate' | 'weak' | 'out_of_thesis' | 'spam' | null
   stage: string | null
   industry: string | null
   raise_amount: string | null
-  status: 'new' | 'reviewing' | 'advancing' | 'met' | 'diligence' | 'invested' | 'passed' | 'archived'
+  status: 'new' | 'reviewing' | 'advancing' | 'met' | 'diligence' | 'invested' | 'passed'
   prior_deal_id: string | null
   created_at: string
 }
@@ -33,10 +33,11 @@ const FIT_BADGE: Record<string, { label: string; cls: string }> = {
   moderate: { label: 'Moderate', cls: 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400' },
   weak: { label: 'Weak', cls: 'bg-muted text-muted-foreground' },
   out_of_thesis: { label: 'Out', cls: 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400' },
+  spam: { label: 'Spam', cls: 'bg-zinc-200 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 line-through' },
 }
 
-const STATUS_OPTIONS: Deal['status'][] = ['new', 'reviewing', 'advancing', 'met', 'diligence', 'invested', 'passed', 'archived']
-const FIT_OPTIONS = ['strong', 'moderate', 'weak', 'out_of_thesis']
+const STATUS_OPTIONS: Deal['status'][] = ['new', 'reviewing', 'advancing', 'met', 'diligence', 'invested', 'passed']
+const FIT_OPTIONS = ['strong', 'moderate', 'weak', 'out_of_thesis', 'spam']
 const SOURCE_OPTIONS = ['referral', 'cold', 'warm_intro', 'accelerator', 'demo_day', 'event', 'other']
 
 type ViewMode = 'table' | 'board'
@@ -44,10 +45,11 @@ type SortKey = 'date' | 'company' | 'founder' | 'source' | 'fit' | 'status'
 interface SortState { key: SortKey; dir: 'asc' | 'desc' }
 
 const FIT_ORDER: Record<NonNullable<Deal['thesis_fit_score']>, number> = {
-  out_of_thesis: 0,
-  weak: 1,
-  moderate: 2,
-  strong: 3,
+  spam: 0,
+  out_of_thesis: 1,
+  weak: 2,
+  moderate: 3,
+  strong: 4,
 }
 const STATUS_ORDER: Record<Deal['status'], number> = {
   new: 0,
@@ -57,14 +59,12 @@ const STATUS_ORDER: Record<Deal['status'], number> = {
   diligence: 4,
   invested: 5,
   passed: 6,
-  archived: 7,
 }
 
 export function DealsContent({ initialDeals }: { initialDeals: Deal[] }) {
   const fv = useFeatureVisibility()
   const [deals, setDeals] = useState<Deal[]>(initialDeals)
   const [search, setSearch] = useState('')
-  const [showArchived, setShowArchived] = useState(false)
   const [fitFilter, setFitFilter] = useState<string>('')
   const [sourceFilter, setSourceFilter] = useState<string>('')
   const [view, setView] = useState<ViewMode>('table')
@@ -91,14 +91,13 @@ export function DealsContent({ initialDeals }: { initialDeals: Deal[] }) {
   // Refetch when filters change
   useEffect(() => {
     const params = new URLSearchParams()
-    if (showArchived) params.set('archived', 'true')
     if (fitFilter) params.set('fit_score', fitFilter)
     if (sourceFilter) params.set('intro_source', sourceFilter)
     fetch(`/api/deals?${params.toString()}`)
       .then(r => r.ok ? r.json() : [])
       .then((data: Deal[]) => setDeals(data))
       .catch(() => {})
-  }, [showArchived, fitFilter, sourceFilter])
+  }, [fitFilter, sourceFilter])
 
   const filtered = useMemo(() => {
     if (!search.trim()) return deals
@@ -196,15 +195,6 @@ export function DealsContent({ initialDeals }: { initialDeals: Deal[] }) {
           <option value="">All sources</option>
           {SOURCE_OPTIONS.map(o => <option key={o} value={o}>{labelFor(o)}</option>)}
         </select>
-        <label className="flex items-center gap-2 text-sm cursor-pointer">
-          <input
-            type="checkbox"
-            checked={showArchived}
-            onChange={e => setShowArchived(e.target.checked)}
-            className="h-4 w-4"
-          />
-          Show archived
-        </label>
         {inboundAddress && (
           <div className="ml-auto flex items-center gap-1.5">
             <Input

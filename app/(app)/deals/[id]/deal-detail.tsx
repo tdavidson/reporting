@@ -12,7 +12,7 @@ import { AnalystPanel } from '@/components/analyst-panel'
 import { useAnalystContext } from '@/components/analyst-context'
 import { PortfolioNotesProvider, PortfolioNotesButton, PortfolioNotesPanel } from '@/components/portfolio-notes'
 
-type DealStatus = 'new' | 'reviewing' | 'advancing' | 'met' | 'diligence' | 'invested' | 'passed' | 'archived'
+type DealStatus = 'new' | 'reviewing' | 'advancing' | 'met' | 'diligence' | 'invested' | 'passed'
 
 interface Deal {
   id: string
@@ -29,7 +29,7 @@ interface Deal {
   referrer_email: string | null
   company_summary: string | null
   thesis_fit_analysis: string | null
-  thesis_fit_score: 'strong' | 'moderate' | 'weak' | 'out_of_thesis' | null
+  thesis_fit_score: 'strong' | 'moderate' | 'weak' | 'out_of_thesis' | 'spam' | null
   stage: string | null
   industry: string | null
   raise_amount: string | null
@@ -55,9 +55,10 @@ const FIT_BADGE: Record<string, { label: string; cls: string }> = {
   moderate: { label: 'Moderate fit', cls: 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400' },
   weak: { label: 'Weak fit', cls: 'bg-muted text-muted-foreground' },
   out_of_thesis: { label: 'Out of thesis', cls: 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400' },
+  spam: { label: 'Spam', cls: 'bg-zinc-200 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 line-through' },
 }
 
-const STATUS_OPTIONS: DealStatus[] = ['new', 'reviewing', 'advancing', 'met', 'diligence', 'invested', 'passed', 'archived']
+const STATUS_OPTIONS: DealStatus[] = ['new', 'reviewing', 'advancing', 'met', 'diligence', 'invested', 'passed']
 
 export function DealDetail({ deal: initial, email, priorDeal }: { deal: Deal; email: EmailRow | null; priorDeal: { id: string; company_name: string | null; created_at: string | null } | null }) {
   const router = useRouter()

@@ -3,8 +3,12 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { decrypt } from '@/lib/crypto'
 import { getGoogleCredentials } from '@/lib/google/credentials'
-import { getAccessToken, listFilesRecursive, downloadFile, parseDriveFolderUrl } from '@/lib/google/drive'
+import { getAccessToken, listFilesRecursive, downloadFile, exportFile, googleExportTarget, parseDriveFolderUrl } from '@/lib/google/drive'
 import { classifyDocumentHeuristic } from '@/lib/memo-agent/heuristic-classify'
+
+// The diligence-documents bucket caps each object at 100 MB. Skip larger files
+// up front with a clear reason instead of a cryptic storage error mid-upload.
+const MAX_IMPORT_BYTES = 100 * 1024 * 1024
 
 /**
  * Walk a Google Drive folder and ingest every file into the deal's deal room.
@@ -146,35 +150,57 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
             continue
           }
 
-          if (f.mimeType.startsWith('application/vnd.google-apps')) {
-            errorCount++
-            emit({ type: 'file_error', file: displayName, error: 'Google-native file (export not supported)' })
+          // Google-native files (Docs/Slides/Sheets) must be exported, not
+          // downloaded; other native types (Forms, Drawings) aren't importable.
+          const isNative = f.mimeType.startsWith('application/vnd.google-apps')
+          const exportTarget = isNative ? googleExportTarget(f.mimeType) : null
+          if (isNative && !exportTarget) {
+            skipped++
+            emit({ type: 'file_skipped', file: displayName, reason: 'Google file type not importable' })
+            continue
+          }
+
+          // Pre-skip oversized binaries (bucket caps at 100 MB) with a clear reason.
+          if (!isNative && typeof f.size === 'number' && f.size > MAX_IMPORT_BYTES) {
+            skipped++
+            emit({ type: 'file_skipped', file: displayName, reason: `too large (${Math.round(f.size / 1024 / 1024)} MB, 100 MB max) — add it directly if needed` })
             continue
           }
 
           try {
-            const buffer = await downloadFile(accessToken, f.id)
+            const buffer = exportTarget
+              ? await exportFile(accessToken, f.id, exportTarget.exportMime)
+              : await downloadFile(accessToken, f.id)
+            const effectiveMime = exportTarget ? exportTarget.exportMime : f.mimeType
+
             // Strip control characters (NUL, tab, CR, LF, etc.) in addition
             // to the path-traversal and reserved characters. Drive permits
             // newlines and other control chars in folder/file names; left
             // unstripped they could later forge CRLF in HTTP headers (e.g.
             // Content-Disposition when serving downloads).
             const sanitizedPath = (f.relativePath ?? '').replace(/[\x00-\x1f\x7f\\:*?"<>|]/g, '_').replace(/\.\./g, '_').slice(0, 150)
-            const baseName = f.name.replace(/[\x00-\x1f\x7f\/\\:*?"<>|]/g, '_').replace(/\.\./g, '_').slice(0, 200)
+            let baseName = f.name.replace(/[\x00-\x1f\x7f\/\\:*?"<>|]/g, '_').replace(/\.\./g, '_').slice(0, 200)
+            // Exported Google files get the exported extension (a Doc "Pitch" → "Pitch.pdf").
+            if (exportTarget && !baseName.toLowerCase().endsWith(`.${exportTarget.ext}`)) {
+              baseName = `${baseName}.${exportTarget.ext}`
+            }
             const safeName = sanitizedPath ? `${sanitizedPath}/${baseName}` : baseName
-            const ext = (baseName.match(/\.([a-z0-9]+)$/i)?.[1] ?? 'bin').toLowerCase()
-            const storagePath = `${dealId}/${Date.now()}_${f.id.slice(0, 8)}_${baseName}`
+            const ext = exportTarget ? exportTarget.ext : (baseName.match(/\.([a-z0-9]+)$/i)?.[1] ?? 'bin').toLowerCase()
+            // The storage KEY must be ASCII-safe — Supabase Storage rejects
+            // spaces, brackets and other chars that are fine in a display name.
+            const keySafe = baseName.replace(/[^a-zA-Z0-9._-]/g, '_')
+            const storagePath = `${dealId}/${Date.now()}_${f.id.slice(0, 8)}_${keySafe}`
 
             const { error: uploadErr } = await admin.storage
               .from('diligence-documents')
-              .upload(storagePath, buffer, { contentType: f.mimeType, upsert: false })
+              .upload(storagePath, buffer, { contentType: effectiveMime, upsert: false })
             if (uploadErr) {
               errorCount++
               emit({ type: 'file_error', file: displayName, error: uploadErr.message })
               continue
             }
 
-            const { detected_type, confidence } = classifyDocumentHeuristic(safeName, f.mimeType)
+            const { detected_type, confidence } = classifyDocumentHeuristic(safeName, effectiveMime)
 
             const { error: insertErr } = await admin
               .from('diligence_documents')

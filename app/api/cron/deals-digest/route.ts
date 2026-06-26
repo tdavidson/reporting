@@ -45,8 +45,7 @@ export async function GET(req: NextRequest) {
       .from('inbound_deals')
       .select('id, company_name, founder_name, founder_email, thesis_fit_analysis, created_at')
       .eq('fund_id', fundId)
-      .eq('status', 'archived')
-      .eq('thesis_fit_score', 'out_of_thesis')
+      .in('thesis_fit_score', ['out_of_thesis', 'spam'])
       .gte('created_at', since.toISOString())
       .order('created_at', { ascending: false })
 
@@ -118,7 +117,7 @@ function renderDigest(deals: Array<{ id: string; company_name: string | null; fo
 
   return `
     <div style="font-family: -apple-system, BlinkMacSystemFont, sans-serif; max-width: 640px;">
-      <p>The classifier auto-archived ${deals.length} pitch${deals.length === 1 ? '' : 'es'} as out-of-thesis this week. Skim them for any misclassifications, open the deal page and use the status dropdown to recover.</p>
+      <p>The classifier flagged ${deals.length} pitch${deals.length === 1 ? '' : 'es'} as out-of-thesis or spam this week. Skim them for any misclassifications, open the deal page and use the status or fit controls to recover one.</p>
       <ul style="list-style: none; padding: 0;">${items}</ul>
       <p style="font-size: 12px; color: #888;">— Sent automatically by your deal screening pipeline.</p>
     </div>

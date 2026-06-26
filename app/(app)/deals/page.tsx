@@ -23,7 +23,6 @@ export default async function DealsPage() {
     .from('inbound_deals')
     .select('id, email_id, company_name, company_url, company_domain, founder_name, founder_email, intro_source, referrer_name, thesis_fit_score, stage, industry, raise_amount, status, prior_deal_id, created_at')
     .eq('fund_id', membership.fund_id)
-    .neq('status', 'archived')
     .order('created_at', { ascending: false })
     .limit(200)
 

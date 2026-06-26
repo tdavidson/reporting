@@ -18,7 +18,10 @@ For the inbound email and any attached materials, return structured output conta
    - Alignment with each pillar of the thesis (cite specific evidence).
    - Disqualifiers, if any.
    - Open questions a partner would ask before a first meeting.
-- A single thesis_fit_score: strong | moderate | weak | out_of_thesis.
+- A single thesis_fit_score: strong | moderate | weak | out_of_thesis | spam.
+  Use "spam" only for non-pitches: newsletters, vendor/sales solicitations,
+  recruiting spam, or anything that isn't a genuine company raising money. Use
+  "out_of_thesis" for real companies that simply don't fit the thesis.
 
 Be specific. Avoid hedging adjectives. If a key fact is not in the materials, say so
 explicitly rather than inferring.`
@@ -151,7 +154,7 @@ Return a JSON object with these fields. Use null when the materials don't suppor
   "raise_amount": string|null,          // freeform, e.g. "$2M SAFE @ $20M"
   "company_summary": string,            // 100-150 words; what they do, traction, team
   "thesis_fit_analysis": string,        // 250-400 words; pillar-by-pillar alignment, disqualifiers, open questions
-  "thesis_fit_score": "strong" | "moderate" | "weak" | "out_of_thesis"
+  "thesis_fit_score": "strong" | "moderate" | "weak" | "out_of_thesis" | "spam"
 }`
 
   const userContent: ContentBlock[] = [{ type: 'text', text: textPrompt }]
@@ -207,7 +210,7 @@ async function call(
   return text
 }
 
-const VALID_FIT_SCORES: ThesisFitScore[] = ['strong', 'moderate', 'weak', 'out_of_thesis']
+const VALID_FIT_SCORES: ThesisFitScore[] = ['strong', 'moderate', 'weak', 'out_of_thesis', 'spam']
 const VALID_INTRO_SOURCES: IntroSource[] = ['referral', 'cold', 'warm_intro', 'accelerator', 'demo_day', 'event', 'other']
 
 function tryParse(raw: string): DealAnalysis | null {

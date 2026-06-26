@@ -4217,7 +4217,7 @@ For the inbound email and any attached materials, return structured output conta
    - Alignment with each pillar of the thesis (cite specific evidence).
    - Disqualifiers, if any.
    - Open questions a partner would ask before a first meeting.
-- A single thesis_fit_score: strong | moderate | weak | out_of_thesis.
+- A single thesis_fit_score: strong | moderate | weak | out_of_thesis | spam (spam = non-pitches like newsletters or vendor solicitations).
 
 Be specific. Avoid hedging adjectives. If a key fact is not in the materials, say so
 explicitly rather than inferring.`
@@ -4551,8 +4551,7 @@ function RoutingSection({ threshold, model, onSaved }: {
       </div>
 
       <div className="flex flex-wrap gap-3 text-xs">
-        <Link href="/settings/email-audit" className="text-muted-foreground hover:underline">Email audit log →</Link>
-        <Link href="/settings/routing-accuracy" className="text-muted-foreground hover:underline">Routing accuracy dashboard →</Link>
+        <Link href="/settings/email-routing" className="text-muted-foreground hover:underline">Email routing →</Link>
       </div>
     </Section>
   )
