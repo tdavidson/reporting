@@ -3,9 +3,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Loader2, FileDown, FileText, ExternalLink, Lock, AlertTriangle, AlertCircle, ChevronRight, Save, GripVertical } from 'lucide-react'
+import { ArrowLeft, Loader2, FileDown, FileText, ExternalLink, Lock, AlertTriangle, AlertCircle, ChevronRight, Save, GripVertical, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useConfirm } from '@/components/confirm-dialog'
 
 interface Paragraph {
@@ -79,12 +78,6 @@ function humanizeSectionId(id: string): string {
   return id.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
 }
 
-const URGENCY_BADGE: Record<string, string> = {
-  must_address: 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400',
-  should_address: 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400',
-  fyi: 'bg-muted text-muted-foreground',
-}
-
 export function MemoEditor({ dealId, dealName, draft: initial, initialAttention, isAdmin, embedded }: {
   dealId: string
   dealName: string
@@ -103,7 +96,7 @@ export function MemoEditor({ dealId, dealName, draft: initial, initialAttention,
   const [dragId, setDragId] = useState<string | null>(null)
   const [overId, setOverId] = useState<string | null>(null)
   const [proseDraft, setProseDraft] = useState<string>('')
-  const [showAttention, setShowAttention] = useState(true)
+  const [showAttention, setShowAttention] = useState(false)
   const [savingPara, setSavingPara] = useState(false)
   const [exporting, setExporting] = useState<null | 'docx' | 'gdoc'>(null)
   const [finalizing, setFinalizing] = useState(false)
@@ -331,6 +324,7 @@ export function MemoEditor({ dealId, dealName, draft: initial, initialAttention,
   }
 
   const openAttention = attention.filter(a => a.status === 'open')
+  const dismissedAttention = attention.filter(a => a.status !== 'open')
 
   return (
     <div className={embedded ? '' : 'p-4 md:py-8 md:pl-8 md:pr-4 max-w-[1400px]'}>
@@ -352,10 +346,11 @@ export function MemoEditor({ dealId, dealName, draft: initial, initialAttention,
           <div className="text-xs text-muted-foreground mt-0.5 font-mono">{draft.draft_version} · {draft.agent_version}</div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          <Button variant="outline" size="sm" onClick={() => setShowAttention(s => !s)}>
-            <AlertTriangle className="h-3.5 w-3.5 mr-1" />
-            Attention {openAttention.length > 0 && <span className="ml-1 px-1.5 py-0.5 rounded text-[10px] bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400">{openAttention.length}</span>}
-          </Button>
+          {dismissedAttention.length > 0 && (
+            <Button variant="outline" size="sm" onClick={() => setShowAttention(s => !s)}>
+              {showAttention ? 'Hide dismissed' : `Dismissed (${dismissedAttention.length})`}
+            </Button>
+          )}
           <Button variant="outline" size="sm" onClick={() => exportTo('docx')} disabled={exporting !== null}>
             {exporting === 'docx' ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <FileDown className="h-3.5 w-3.5 mr-1" />}
             Word Doc
@@ -383,7 +378,45 @@ export function MemoEditor({ dealId, dealName, draft: initial, initialAttention,
         </div>
       )}
 
-      <div className="grid gap-4 lg:grid-cols-[1fr_360px]">
+      <div className="max-w-3xl">
+        {/* Warnings surfaced inline at the top of the memo; dismiss to clear. */}
+        {openAttention.length > 0 && (
+          <div className="space-y-2 mb-6">
+            {openAttention.map(item => (
+              <div
+                key={item.id}
+                className={`rounded-md border p-3 text-sm flex items-start gap-2 ${item.urgency === 'must_address' ? 'border-destructive/40 bg-destructive/5' : item.urgency === 'should_address' ? 'border-amber-500/40 bg-amber-50/50 dark:bg-amber-900/10' : 'bg-muted/30'}`}
+              >
+                <AlertTriangle className={`h-4 w-4 shrink-0 mt-0.5 ${item.urgency === 'must_address' ? 'text-destructive' : item.urgency === 'should_address' ? 'text-amber-600 dark:text-amber-400' : 'text-muted-foreground'}`} />
+                <div className="flex-1 min-w-0">
+                  <div className="text-xs font-medium capitalize">
+                    {item.kind.replace(/_/g, ' ')}
+                    <span className="text-[10px] font-normal text-muted-foreground"> · {item.urgency.replace(/_/g, ' ')}</span>
+                  </div>
+                  <div className="text-xs text-muted-foreground mt-0.5">{item.body}</div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button onClick={() => updateAttentionStatus(item.id, 'done')} className="text-[11px] text-muted-foreground hover:text-foreground">Mark done</button>
+                  <button onClick={() => updateAttentionStatus(item.id, 'ignore')} className="text-muted-foreground hover:text-foreground" title="Dismiss" aria-label="Dismiss"><X className="h-3.5 w-3.5" /></button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+        {showAttention && dismissedAttention.length > 0 && (
+          <div className="space-y-2 mb-6">
+            <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Dismissed warnings</div>
+            {dismissedAttention.map(item => (
+              <div key={item.id} className="rounded-md border p-3 text-sm flex items-start gap-2 opacity-60">
+                <div className="flex-1 min-w-0">
+                  <div className="text-xs font-medium capitalize">{item.kind.replace(/_/g, ' ')}</div>
+                  <div className="text-xs text-muted-foreground mt-0.5 line-through">{item.body}</div>
+                </div>
+                <button onClick={() => updateAttentionStatus(item.id, 'open')} className="text-[11px] text-muted-foreground hover:text-foreground shrink-0">Reopen ({item.status})</button>
+              </div>
+            ))}
+          </div>
+        )}
         <div>
           {renderSections.map(section => {
             const paragraphs = (paragraphsBySection.get(section.id) ?? []).slice().sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
@@ -408,6 +441,12 @@ export function MemoEditor({ dealId, dealName, draft: initial, initialAttention,
                         paragraph={p}
                         isSelected={selected === p.id}
                         onSelect={() => setSelected(p.id)}
+                        editing={selected === p.id && !isReadOnly}
+                        proseDraft={proseDraft}
+                        onProseChange={setProseDraft}
+                        onSave={saveParagraph}
+                        onCancel={() => setSelected(null)}
+                        saving={savingPara}
                         readOnly={isReadOnly}
                         canMoveUp={i > 0}
                         canMoveDown={i < paragraphs.length - 1}
@@ -446,112 +485,21 @@ export function MemoEditor({ dealId, dealName, draft: initial, initialAttention,
           {/* Scoring lives on the Scoring tab (and in the exported memo output) —
               not duplicated inline here. */}
         </div>
-
-        <aside className="space-y-4">
-          {selectedPara ? (
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base">Paragraph inspector</CardTitle>
-              </CardHeader>
-              <CardContent className="text-sm space-y-3">
-                <div className="flex flex-wrap items-center gap-1.5">
-                  <span className="text-[10px] font-mono text-muted-foreground">{selectedPara.id}</span>
-                  <Badge>{selectedPara.origin}</Badge>
-                  <Badge>{selectedPara.confidence}</Badge>
-                  {selectedPara.contains_projection && <Badge tone="amber">projection</Badge>}
-                  {selectedPara.contains_unverified_claim && <Badge tone="amber">unverified</Badge>}
-                  {selectedPara.contains_contradiction && <Badge tone="red">contradiction</Badge>}
-                </div>
-                {!isReadOnly && selectedPara.origin !== 'partner_only_placeholder' && (
-                  <>
-                    <textarea
-                      value={proseDraft}
-                      onChange={e => setProseDraft(e.target.value)}
-                      rows={6}
-                      className="w-full resize-y rounded-md border border-input bg-transparent px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                    />
-                    <Button variant="outline" size="sm" onClick={saveParagraph} disabled={savingPara || proseDraft === selectedPara.prose}>
-                      {savingPara ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Save className="h-3.5 w-3.5 mr-1" />}
-                      Save edit
-                    </Button>
-                  </>
-                )}
-                {selectedPara.origin === 'partner_only_placeholder' && (
-                  <div className="rounded-md border border-amber-500/40 bg-amber-50/50 dark:bg-amber-900/10 p-2 text-xs">
-                    Partner-only section. Edit the prose above (set to a partner-drafted state) before finalizing.
-                  </div>
-                )}
-                <div>
-                  <div className="text-xs font-medium text-muted-foreground mb-1">Sources</div>
-                  {selectedPara.sources.length === 0 ? (
-                    <p className="text-xs italic text-muted-foreground">None.</p>
-                  ) : (
-                    <ul className="text-xs space-y-1">
-                      {selectedPara.sources.map((s, i) => (
-                        <li key={i}>
-                          <span className="font-mono">{s.source_type}</span>: <span className="font-mono">{s.source_id}</span>
-                          {s.span && <span className="text-muted-foreground"> · "{s.span}"</span>}
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          ) : (
-            <Card>
-              <CardContent className="py-6 text-sm text-muted-foreground">
-                Click a paragraph to inspect or edit it.
-              </CardContent>
-            </Card>
-          )}
-
-          {showAttention && (
-            <Card>
-              <CardHeader className="pb-3 flex flex-row items-center justify-between">
-                <CardTitle className="text-base">Partner attention</CardTitle>
-                <span className="text-xs text-muted-foreground">{openAttention.length} open</span>
-              </CardHeader>
-              <CardContent className="text-sm space-y-2">
-                {attention.length === 0 ? (
-                  <p className="text-xs text-muted-foreground italic">No items.</p>
-                ) : attention.map(item => (
-                  <div key={item.id} className="rounded-md border bg-background p-2 text-xs">
-                    <div className="flex items-start justify-between gap-2">
-                      <span className={`shrink-0 inline-block px-1.5 py-0.5 rounded text-[10px] font-medium ${URGENCY_BADGE[item.urgency] ?? ''}`}>
-                        {item.urgency.replace(/_/g, ' ')}
-                      </span>
-                      <div className="flex-1 min-w-0">
-                        <div className="font-medium">{item.kind.replace(/_/g, ' ')}</div>
-                        <div className="text-[11px] mt-0.5">{item.body}</div>
-                      </div>
-                    </div>
-                    {item.status === 'open' && (
-                      <div className="flex gap-1 mt-2">
-                        <button onClick={() => updateAttentionStatus(item.id, 'done')} className="text-[10px] underline text-muted-foreground hover:text-foreground">Done</button>
-                        <button onClick={() => updateAttentionStatus(item.id, 'ignore')} className="text-[10px] underline text-muted-foreground hover:text-foreground">Ignore</button>
-                      </div>
-                    )}
-                    {item.status !== 'open' && (
-                      <button onClick={() => updateAttentionStatus(item.id, 'open')} className="text-[10px] underline text-muted-foreground hover:text-foreground mt-2">
-                        Reopen ({item.status})
-                      </button>
-                    )}
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-          )}
-        </aside>
       </div>
     </div>
   )
 }
 
 function ParagraphView({
-  paragraph, isSelected, onSelect, readOnly, canMoveUp, canMoveDown, onMoveUp, onMoveDown, onToggleHidden, dragHandle,
+  paragraph, editing, proseDraft, onProseChange, onSave, onCancel, saving, onSelect, readOnly, canMoveUp, canMoveDown, onMoveUp, onMoveDown, onToggleHidden, dragHandle,
 }: {
   paragraph: Paragraph
+  editing: boolean
+  proseDraft: string
+  onProseChange: (v: string) => void
+  onSave: () => void
+  onCancel: () => void
+  saving: boolean
   isSelected: boolean
   onSelect: () => void
   readOnly: boolean
@@ -564,21 +512,73 @@ function ParagraphView({
 }) {
   const isPlaceholder = paragraph.origin === 'partner_only_placeholder'
   const stop = (e: React.MouseEvent, fn: () => void) => { e.stopPropagation(); fn() }
+  const realSources = paragraph.sources.filter(s => s.source_type !== 'partner_only')
+
+  // Inline edit — the prose becomes an editable field in place; no sidebar.
+  if (editing) {
+    return (
+      <div className="rounded-md p-3 mb-2 text-sm bg-muted/30 ring-1 ring-primary/30">
+        {isPlaceholder ? (
+          <div className="rounded-md border border-amber-500/40 bg-amber-50/50 dark:bg-amber-900/10 p-2 text-xs">
+            Partner-only section. Use “+ Add paragraph” to write the partner-drafted content for this section.
+          </div>
+        ) : (
+          <textarea
+            value={proseDraft}
+            onChange={e => onProseChange(e.target.value)}
+            rows={6}
+            autoFocus
+            onKeyDown={e => {
+              if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') onSave()
+              if (e.key === 'Escape') onCancel()
+            }}
+            className="w-full resize-y rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          />
+        )}
+        <div className="flex items-center gap-2 mt-2">
+          {!isPlaceholder && (
+            <Button variant="outline" size="sm" onClick={onSave} disabled={saving || proseDraft === paragraph.prose}>
+              {saving ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Save className="h-3.5 w-3.5 mr-1" />}
+              Save
+            </Button>
+          )}
+          <Button variant="ghost" size="sm" onClick={onCancel}>Done</Button>
+          <span className="ml-auto flex flex-wrap items-center gap-1.5">
+            <Badge tone="muted">{paragraph.origin.replace(/_/g, ' ')}</Badge>
+            {paragraph.contains_projection && <Badge tone="amber">projection</Badge>}
+            {paragraph.contains_unverified_claim && <Badge tone="amber">⚠ unverified</Badge>}
+            {paragraph.contains_contradiction && <Badge tone="red">contradiction</Badge>}
+          </span>
+        </div>
+        {realSources.length > 0 && (
+          <div className="text-[11px] text-muted-foreground mt-2">
+            <span className="font-medium">Sources: </span>
+            {realSources.slice(0, 8).map((s, i) => (
+              <span key={i} className="font-mono">{i > 0 ? '  ·  ' : ''}[{i + 1}] {s.source_type}:{s.source_id}</span>
+            ))}
+          </div>
+        )}
+      </div>
+    )
+  }
+
   return (
     <div
-      onClick={onSelect}
-      className={`group rounded-md p-3 mb-2 cursor-pointer transition-colors text-sm ${isSelected ? 'bg-muted ring-1 ring-primary/30' : 'hover:bg-muted/30'} ${paragraph.hidden ? 'opacity-50' : ''}`}
+      className={`group rounded-md p-3 mb-2 transition-colors text-sm ${readOnly ? '' : 'hover:bg-muted/30'} ${paragraph.hidden ? 'opacity-50' : ''}`}
     >
       <p className={isPlaceholder ? 'italic text-muted-foreground' : ''}>
         {paragraph.prose}
-        {!paragraph.hidden && paragraph.sources.filter(s => s.source_type !== 'partner_only').length > 0 && (
+        {!paragraph.hidden && realSources.length > 0 && (
           <sup className="ml-1 text-[10px] text-muted-foreground">
-            {paragraph.sources.filter(s => s.source_type !== 'partner_only').slice(0, 5).map((_, i) => `[${i + 1}]`).join('')}
+            {realSources.slice(0, 5).map((_, i) => `[${i + 1}]`).join('')}
           </sup>
         )}
       </p>
-      <div className="flex flex-wrap items-center gap-1 mt-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+      <div className="flex flex-wrap items-center gap-1.5 mt-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
         {dragHandle}
+        {!readOnly && !isPlaceholder && (
+          <button onClick={e => stop(e, onSelect)} className="text-[11px] text-muted-foreground hover:text-foreground">Edit</button>
+        )}
         <Badge tone="muted">{paragraph.origin.replace(/_/g, ' ')}</Badge>
         {paragraph.hidden && <Badge tone="amber">hidden — excluded from export</Badge>}
         {paragraph.contains_projection && <Badge tone="amber">projection</Badge>}

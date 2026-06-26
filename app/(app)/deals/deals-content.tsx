@@ -206,17 +206,15 @@ export function DealsContent({ initialDeals }: { initialDeals: Deal[] }) {
           Show archived
         </label>
         {inboundAddress && (
-          <div className="ml-auto flex items-end gap-1.5">
-            <div>
-              <label className="block text-xs text-muted-foreground mb-1">Send pitches to</label>
-              <Input
-                type="text"
-                readOnly
-                value={inboundAddress}
-                className="h-9 w-64 text-sm bg-muted text-muted-foreground cursor-default"
-                tabIndex={-1}
-              />
-            </div>
+          <div className="ml-auto flex items-center gap-1.5">
+            <Input
+              type="text"
+              readOnly
+              value={inboundAddress}
+              title="Forward inbound pitches to this address"
+              className="h-9 w-64 text-sm bg-muted text-muted-foreground cursor-default"
+              tabIndex={-1}
+            />
             <button
               onClick={() => {
                 navigator.clipboard.writeText(inboundAddress)

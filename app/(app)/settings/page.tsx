@@ -20,6 +20,7 @@ import Link from 'next/link'
 import { DefaultsEditor } from './memo-agent/defaults/editor'
 import { StyleAnchorsInline } from './memo-agent/style-anchors/style-anchors-inline'
 import { SchemasInline } from './memo-agent/schemas/schemas-inline'
+import { MemoGuidanceEditor } from './memo-agent/guidance/editor'
 import { LpAccessSettings } from '@/components/lp-access-settings'
 import { LpDocumentsSettings } from '@/components/lp-documents-settings'
 import { AlertCircle, Check, ChevronDown, ChevronRight, Loader2, Plus, Trash2, Copy, FolderOpen, Unlink, Shield, ImagePlus, X, Lock, ArrowDownCircle, Eye } from 'lucide-react'
@@ -4598,6 +4599,12 @@ function MemoAgentSection() {
           desc="Per-stage AI provider overrides, per-deal and monthly token caps, and the web-search toggle for the research stage."
         >
           <DefaultsEditor embedded />
+        </MemoAgentSubsection>
+        <MemoAgentSubsection
+          title="Per-stage guidance"
+          desc="Voice, depth, and approach the agent applies at each stage (ingest, research, Q&A, draft, score). The highest-leverage place to shape how memos read."
+        >
+          <MemoGuidanceEditor />
         </MemoAgentSubsection>
       </div>
     </Section>

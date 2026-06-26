@@ -111,16 +111,24 @@ export function MemoConfigPanel({ dealId }: { dealId: string }) {
   const [presetName, setPresetName] = useState('')
   const [presetDefaultFor, setPresetDefaultFor] = useState<'' | NonNullable<MemoTemplateConfig['style_override']>>('')
 
+  // First-page template — fund-level: which example memo's first page the agent
+  // models new memos on. Moved here from the (removed) Diligence Settings page.
+  const [anchors, setAnchors] = useState<Array<{ id: string; label: string }>>([])
+  const [firstPageAnchorId, setFirstPageAnchorId] = useState<string>('')
+
   useEffect(() => {
     let cancelled = false
     Promise.all([
       fetch(`/api/diligence/${dealId}/memo-config`).then(r => r.ok ? r.json() : Promise.reject(new Error('config'))),
       fetch('/api/diligence/memo-presets').then(r => r.ok ? r.json() : Promise.reject(new Error('presets'))),
+      fetch('/api/diligence/prompts').then(r => r.ok ? r.json() : { anchors: [], first_page_anchor_id: null }),
     ])
-      .then(([cfgBody, presetBody]) => {
+      .then(([cfgBody, presetBody, promptsBody]) => {
         if (cancelled) return
         applyConfigToForm(cfgBody.partner_memo_guidance ?? '', (cfgBody.memo_template_config ?? {}) as MemoTemplateConfig)
         setPresets((presetBody.presets ?? []) as MemoPreset[])
+        setAnchors(Array.isArray(promptsBody.anchors) ? promptsBody.anchors : [])
+        setFirstPageAnchorId(promptsBody.first_page_anchor_id ?? '')
         setLoaded(true)
       })
       .catch(() => { setError('Failed to load memo settings.'); setLoaded(true) })
@@ -228,14 +236,22 @@ export function MemoConfigPanel({ dealId }: { dealId: string }) {
     setSaving(true); setError(null)
     try {
       const config = currentConfig()
-      const res = await fetch(`/api/diligence/${dealId}/memo-config`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          partner_memo_guidance: partnerGuidance,
-          memo_template_config: config,
+      const [res] = await Promise.all([
+        fetch(`/api/diligence/${dealId}/memo-config`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            partner_memo_guidance: partnerGuidance,
+            memo_template_config: config,
+          }),
         }),
-      })
+        // First-page template is fund-level (applies to all memos).
+        fetch('/api/diligence/prompts', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ first_page_anchor_id: firstPageAnchorId || null }),
+        }),
+      ])
       if (!res.ok) {
         const body = await res.json().catch(() => ({}))
         throw new Error(body.error ?? 'Save failed')
@@ -311,6 +327,13 @@ export function MemoConfigPanel({ dealId }: { dealId: string }) {
       {open && (
         <div className="px-4 pb-4 pt-1 border-t space-y-4">
           {error && <div className="text-xs text-destructive">{error}</div>}
+
+          {/* The base memo schema these settings layer on top of — read-only. */}
+          <SchemaViewer
+            schemaName="memo_output"
+            title="Base memo schema"
+            description="The section structure, guidance, and sourcing rules the draft is built from. The settings below layer on top of this."
+          />
 
           {/* Preset toolbar — load a saved fund preset into the form, or save
               the current form state as a new preset. The form below is still
@@ -429,6 +452,23 @@ export function MemoConfigPanel({ dealId }: { dealId: string }) {
           </div>
 
           <div>
+            <label className="block text-xs font-medium mb-1">Memo first-page template</label>
+            {anchors.length === 0 ? (
+              <p className="text-[10px] text-muted-foreground">No example memos uploaded yet — add them in Settings → Memo agent → Style anchors.</p>
+            ) : (
+              <select
+                value={firstPageAnchorId}
+                onChange={e => setFirstPageAnchorId(e.target.value)}
+                className="h-8 w-full rounded-md border border-input bg-background px-2 text-sm"
+              >
+                <option value="">— no first-page exemplar —</option>
+                {anchors.map(a => <option key={a.id} value={a.id}>{a.label}</option>)}
+              </select>
+            )}
+            <p className="text-[10px] text-muted-foreground mt-1">An example memo whose first page (title block, framing, opening) the agent models new memos on. Fund-wide.</p>
+          </div>
+
+          <div>
             <label className="block text-xs font-medium mb-1">Points to emphasize</label>
             <div className="flex gap-2 mb-2">
               <Input
@@ -531,13 +571,6 @@ export function MemoConfigPanel({ dealId }: { dealId: string }) {
               className="w-full resize-y rounded-md border border-input bg-transparent px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
             />
           </div>
-
-          {/* The base memo schema these settings layer on top of — read-only. */}
-          <SchemaViewer
-            schemaName="memo_output"
-            title="Base memo schema"
-            description="The section structure, guidance, and sourcing rules the draft is built from. The settings above layer on top of this."
-          />
 
           <div className="flex justify-end">
             <Button size="sm" onClick={save} disabled={saving}>
