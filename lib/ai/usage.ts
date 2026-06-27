@@ -23,6 +23,8 @@ export async function logAIUsage(admin: SupabaseAdmin, params: {
       feature: params.feature,
       input_tokens: params.usage.inputTokens,
       output_tokens: params.usage.outputTokens,
+      cache_read_tokens: params.usage.cacheReadTokens ?? 0,
+      cache_creation_tokens: params.usage.cacheCreationTokens ?? 0,
     })
   } catch (err) {
     console.error('[ai-usage] Failed to log usage:', err)

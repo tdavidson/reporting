@@ -3217,8 +3217,9 @@ function NotesPanel({ dealId, userId, isAdmin }: { dealId: string; userId: strin
 // delete-deal action (moved here from the header).
 // ---------------------------------------------------------------------------
 interface UsageReport {
-  total: { input_tokens: number; output_tokens: number; total_tokens: number; cost_usd: number; calls: number; processing_ms: number; jobs: number }
+  total: { input_tokens: number; output_tokens: number; total_tokens: number; cost_usd: number; calls: number; processing_ms: number; jobs: number; cache_read_tokens: number; cache_creation_tokens: number; cache_saved_usd: number }
   by_feature: Array<{ feature: string; calls: number; input_tokens: number; output_tokens: number; cost_usd: number }>
+  by_model: Array<{ model: string; calls: number; input_tokens: number; output_tokens: number; cache_read_tokens: number; cost_usd: number }>
   by_stage: Array<{ kind: string; runs: number; processing_ms: number }>
 }
 
@@ -3301,10 +3302,10 @@ function SettingsTab({ dealId, dealName, isAdmin }: { dealId: string; dealName: 
         ) : (
           <>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <UsageStat label="Est. cost" value={`$${t.cost_usd.toFixed(2)}`} />
+              <UsageStat label="Est. cost" value={`$${t.cost_usd.toFixed(2)}`} sub={t.cache_saved_usd > 0 ? `cache saved ~$${t.cache_saved_usd.toFixed(2)}` : undefined} />
               <UsageStat label="Total tokens" value={t.total_tokens.toLocaleString()} sub={`${t.input_tokens.toLocaleString()} in · ${t.output_tokens.toLocaleString()} out`} />
               <UsageStat label="Processing time" value={formatProcessingMs(t.processing_ms)} sub={`${t.jobs} run${t.jobs === 1 ? '' : 's'}`} />
-              <UsageStat label="AI calls" value={t.calls.toLocaleString()} />
+              <UsageStat label="AI calls" value={t.calls.toLocaleString()} sub={t.cache_read_tokens > 0 ? `${t.cache_read_tokens.toLocaleString()} cached` : undefined} />
             </div>
 
             {report!.by_feature.length > 0 && (
@@ -3325,6 +3326,31 @@ function SettingsTab({ dealId, dealName, isAdmin }: { dealId: string; dealName: 
                         <td className="px-3 py-2 text-right tabular-nums">{f.calls}</td>
                         <td className="px-3 py-2 text-right tabular-nums">{(f.input_tokens + f.output_tokens).toLocaleString()}</td>
                         <td className="px-3 py-2 text-right tabular-nums">${f.cost_usd.toFixed(2)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {report!.by_model.length > 0 && (
+              <div className="rounded-md border bg-card overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead className="bg-muted/50 text-left text-xs uppercase text-muted-foreground">
+                    <tr>
+                      <th className="px-3 py-2 font-medium">Model</th>
+                      <th className="px-3 py-2 font-medium text-right">Calls</th>
+                      <th className="px-3 py-2 font-medium text-right">In / out</th>
+                      <th className="px-3 py-2 font-medium text-right">Cost</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {report!.by_model.map(m => (
+                      <tr key={m.model} className="border-t">
+                        <td className="px-3 py-2 font-mono text-xs">{m.model}</td>
+                        <td className="px-3 py-2 text-right tabular-nums">{m.calls}</td>
+                        <td className="px-3 py-2 text-right tabular-nums text-xs text-muted-foreground">{m.input_tokens.toLocaleString()} / {m.output_tokens.toLocaleString()}</td>
+                        <td className="px-3 py-2 text-right tabular-nums">${m.cost_usd.toFixed(2)}</td>
                       </tr>
                     ))}
                   </tbody>

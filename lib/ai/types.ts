@@ -30,8 +30,13 @@ export interface CreateMessageParams {
 export interface AIModel { id: string; name: string }
 
 export interface TokenUsage {
+  /** Non-cached input tokens (Anthropic reports cached input separately). */
   inputTokens: number
   outputTokens: number
+  /** Tokens served from the prompt cache (billed ~0.1x input). */
+  cacheReadTokens?: number
+  /** Tokens written to the prompt cache (billed ~1.25x input). */
+  cacheCreationTokens?: number
 }
 
 export interface AIResult {
