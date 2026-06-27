@@ -150,7 +150,7 @@ export async function runChecklistAssessment(params: {
   await note('Building system prompt…')
   const { prompt: system } = await buildSystemPrompt({ admin, fundId, stage: 'ingest' })
 
-  const { provider, model, providerType } = await getStageProvider(admin, fundId, 'ingest')
+  const { provider, model, providerType } = await getStageProvider(admin, fundId, 'checklist_assessment')
 
   // Shared data-room context — resent with every batch.
   const perDoc = docs.map(d => ({

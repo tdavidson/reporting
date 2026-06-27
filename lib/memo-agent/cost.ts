@@ -2,7 +2,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 
 type Admin = ReturnType<typeof createAdminClient>
 
-export type AgentStage = 'ingest' | 'ingest_synthesis' | 'research' | 'qa' | 'draft' | 'draft_review' | 'score' | 'render'
+export type AgentStage = 'ingest' | 'ingest_synthesis' | 'checklist_assessment' | 'research' | 'qa' | 'draft' | 'draft_review' | 'score' | 'render'
 
 export interface CostEstimate {
   /** Estimated input tokens — based on character count / 4 (rough) plus per-stage fixed budgets. */
@@ -40,6 +40,8 @@ const STAGE_OUTPUT_BUDGET: Record<AgentStage, number> = {
   // than the per-doc claims. Its tokens are counted at enqueue time when the
   // original 'ingest' cap check runs, so this budget is for the standalone case.
   ingest_synthesis: 4_000,
+  // Checklist assessment emits per-item verdicts in batches — modest output.
+  checklist_assessment: 6_000,
   research: 12_000,
   qa: 1_500,
   draft: 14_000,

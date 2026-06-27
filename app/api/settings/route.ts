@@ -62,7 +62,7 @@ export async function GET() {
     postmarkInboundAddress: settings?.postmark_inbound_address ?? '',
     postmarkWebhookToken: webhookToken,
     hasClaudeKey: !!settings?.claude_api_key_encrypted,
-    claudeModel: settings?.claude_model ?? 'claude-sonnet-4-5',
+    claudeModel: settings?.claude_model ?? 'claude-sonnet-4-6',
     hasOpenAIKey: !!settings?.openai_api_key_encrypted,
     openaiModel: settings?.openai_model ?? 'gpt-4o',
     defaultAIProvider: settings?.default_ai_provider ?? 'anthropic',
@@ -208,7 +208,7 @@ export async function PATCH(req: NextRequest) {
   }
 
   if (claudeModel !== undefined) {
-    settingsUpdates.claude_model = claudeModel.trim() || 'claude-sonnet-4-5'
+    settingsUpdates.claude_model = claudeModel.trim() || 'claude-sonnet-4-6'
   }
 
   if (aiSummaryPrompt !== undefined) {

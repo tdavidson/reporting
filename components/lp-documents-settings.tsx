@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -8,8 +8,15 @@ import { Loader2, Upload, Trash2, FileText } from 'lucide-react'
 
 interface Investor { id: string; name: string }
 interface Doc {
-  id: string; title: string; file_name: string; scope: string; size_bytes: number | null; uploaded_at: string
+  id: string; title: string; file_name: string; scope: string; size_bytes: number | null
+  category: string | null; doc_date: string | null; uploaded_at: string
   lp_document_shares?: { lp_investor_id: string }[]
+}
+
+function fmtDate(d: string | null): string {
+  if (!d) return ''
+  const date = new Date(d.length <= 10 ? `${d}T00:00:00` : d)
+  return isNaN(date.getTime()) ? '' : date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
 export function LpDocumentsSettings() {
@@ -17,12 +24,19 @@ export function LpDocumentsSettings() {
   const [investors, setInvestors] = useState<Investor[]>([])
   const [loading, setLoading] = useState(true)
   const [title, setTitle] = useState('')
+  const [category, setCategory] = useState('')
+  const [docDate, setDocDate] = useState('')
   const [file, setFile] = useState<File | null>(null)
   const [scope, setScope] = useState<'fund' | 'investor'>('fund')
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const supabase = createClient()
+
+  const knownCategories = useMemo(
+    () => Array.from(new Set(docs.map(d => d.category).filter((c): c is string => !!c))).sort(),
+    [docs],
+  )
 
   function load() {
     setLoading(true)
@@ -50,10 +64,15 @@ export function LpDocumentsSettings() {
       if (upErr) throw upErr
       const res = await fetch('/api/lps/documents', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: title.trim(), file_name: file.name, storage_path, mime_type: file.type || null, size_bytes: file.size, scope, lp_investor_ids: scope === 'investor' ? Array.from(selected) : [] }),
+        body: JSON.stringify({
+          title: title.trim(), file_name: file.name, storage_path,
+          mime_type: file.type || null, size_bytes: file.size, scope,
+          category: category.trim() || null, doc_date: docDate || null,
+          lp_investor_ids: scope === 'investor' ? Array.from(selected) : [],
+        }),
       })
       if (!res.ok) { const b = await res.json().catch(() => ({})); throw new Error(b.error ?? 'Save failed') }
-      setTitle(''); setFile(null); setSelected(new Set()); setScope('fund')
+      setTitle(''); setCategory(''); setDocDate(''); setFile(null); setSelected(new Set()); setScope('fund')
       const input = document.getElementById('lp-doc-file') as HTMLInputElement | null
       if (input) input.value = ''
       load()
@@ -72,7 +91,7 @@ export function LpDocumentsSettings() {
   return (
     <div className="space-y-4">
       <p className="text-xs text-muted-foreground">
-        Upload files for your LPs (fund financials, statements, …). Fund-wide files are visible to all your LPs; investor-scoped files only to the investors you choose. They appear in the LP portal&apos;s Documents tab.
+        Upload files for your LPs (fund financials, statements, …). Fund-wide files are visible to all your LPs; investor-scoped files only to the investors you choose. They appear in the LP portal&apos;s Documents tab, grouped by category.
       </p>
 
       <div className="rounded-md border p-3 space-y-3">
@@ -81,6 +100,11 @@ export function LpDocumentsSettings() {
           <input id="lp-doc-file" type="file" onChange={e => setFile(e.target.files?.[0] ?? null)} className="text-xs" />
         </div>
         <div className="flex flex-wrap gap-2 items-center">
+          <Input list="lp-doc-categories" value={category} onChange={e => setCategory(e.target.value)} placeholder="Category (e.g. Financials)" className="h-8 text-sm w-44" />
+          <datalist id="lp-doc-categories">
+            {knownCategories.map(c => <option key={c} value={c} />)}
+          </datalist>
+          <Input type="date" value={docDate} onChange={e => setDocDate(e.target.value)} className="h-8 text-sm w-40" title="Effective document date (optional)" />
           <select value={scope} onChange={e => setScope(e.target.value as 'fund' | 'investor')} className="h-8 rounded-md border border-input bg-background px-2 text-sm">
             <option value="fund">All LPs (fund-wide)</option>
             <option value="investor">Specific investors</option>
@@ -114,9 +138,13 @@ export function LpDocumentsSettings() {
             <div key={d.id} className="flex items-center gap-3 px-3 py-2 text-sm">
               <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
               <div className="flex-1 min-w-0">
-                <div className="font-medium truncate">{d.title}</div>
+                <div className="font-medium truncate">
+                  {d.title}
+                  {d.category && <span className="ml-2 text-[10px] uppercase tracking-wide text-muted-foreground">{d.category}</span>}
+                </div>
                 <div className="text-xs text-muted-foreground truncate">
                   {d.scope === 'fund' ? 'All LPs' : `${d.lp_document_shares?.length ?? 0} investor(s)`} · {d.file_name}
+                  {(d.doc_date || d.uploaded_at) && ` · ${fmtDate(d.doc_date) || fmtDate(d.uploaded_at)}`}
                 </div>
               </div>
               <button onClick={() => remove(d.id)} className="text-muted-foreground hover:text-destructive shrink-0" title="Delete">

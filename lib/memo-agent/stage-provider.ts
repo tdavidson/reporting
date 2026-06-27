@@ -1,5 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createFundAIProvider, createFundAIProviderWithOverride } from '@/lib/ai'
+import { recommendedModel } from '@/lib/ai/recommended'
 import type { AIProvider } from '@/lib/ai/types'
 import type { AgentStage } from './cost'
 
@@ -30,6 +31,14 @@ interface StageOverride {
   model?: string
 }
 
+// Sub-stages of data-room ingestion inherit the 'ingest' override when they
+// don't have one of their own, so an existing Ingest setting keeps governing
+// the whole ingestion pass (per-doc + synthesis + checklist).
+const STAGE_OVERRIDE_FALLBACK: Partial<Record<AgentStage, AgentStage>> = {
+  ingest_synthesis: 'ingest',
+  checklist_assessment: 'ingest',
+}
+
 /**
  * Resolve the AI provider + model for a given stage, honoring the fund's
  * per-stage overrides if set. Falls back to the fund default.
@@ -43,7 +52,8 @@ export async function getStageProvider(admin: Admin, fundId: string, stage: Agen
 
   const overrides = ((settings as any)?.memo_agent_stage_models as Record<string, StageOverride | null> | null) ?? {}
   const webSearchOptIn = !!(settings as any)?.memo_agent_web_search_enabled
-  const override = overrides[stage] ?? null
+  const fallbackStage = STAGE_OVERRIDE_FALLBACK[stage]
+  const override = overrides[stage] ?? (fallbackStage ? overrides[fallbackStage] : null) ?? null
 
   let resolved: { provider: AIProvider; model: string; providerType: string }
   if (override?.provider) {
@@ -55,7 +65,10 @@ export async function getStageProvider(admin: Admin, fundId: string, stage: Agen
       providerType: result.providerType,
     }
   } else {
-    resolved = await createFundAIProvider(admin, fundId)
+    // No override — use the fund default provider, but pick the recommended
+    // model tier for this stage (fast for ingestion, strong for draft review).
+    const def = await createFundAIProvider(admin, fundId)
+    resolved = { ...def, model: recommendedModel(stage, def.providerType, def.model) }
   }
 
   return {

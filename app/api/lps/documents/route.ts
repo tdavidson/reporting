@@ -25,7 +25,7 @@ export async function GET() {
 
   const { data: docs, error } = await (admin as any)
     .from('lp_documents')
-    .select('id, title, file_name, mime_type, size_bytes, scope, uploaded_at, lp_document_shares(lp_investor_id, lp_investors(name))')
+    .select('id, title, file_name, mime_type, size_bytes, scope, category, doc_date, uploaded_at, lp_document_shares(lp_investor_id, lp_investors(name))')
     .eq('fund_id', writeCheck.fundId)
     .order('uploaded_at', { ascending: false })
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
@@ -65,7 +65,7 @@ export async function POST(req: NextRequest) {
 
   const { data: doc, error } = await (admin as any)
     .from('lp_documents')
-    .insert({ fund_id: fundId, title, file_name: fileName, storage_path: storagePath, mime_type: body.mime_type ?? null, size_bytes: body.size_bytes ?? null, scope, uploaded_by: user.id })
+    .insert({ fund_id: fundId, title, file_name: fileName, storage_path: storagePath, mime_type: body.mime_type ?? null, size_bytes: body.size_bytes ?? null, scope, category: (typeof body.category === 'string' && body.category.trim()) ? body.category.trim() : null, doc_date: body.doc_date || null, uploaded_by: user.id })
     .select('id').single()
   if (error || !doc) return NextResponse.json({ error: error?.message ?? 'Insert failed' }, { status: 500 })
 

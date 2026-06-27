@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Loader2, Upload, Mail } from 'lucide-react'
+import { Loader2, Upload, Mail, Eye } from 'lucide-react'
 import { LpAuthorizedUsers } from '@/components/lp-authorized-users'
 
 interface Investor { id: string; name: string }
@@ -97,6 +97,10 @@ export function LpAccessSettings() {
 
   return (
     <div className="space-y-6">
+      <a href="/lps/preview" className="inline-flex items-center gap-1.5 text-sm text-primary hover:underline">
+        <Eye className="h-4 w-4" /> Preview the LP portal as an LP
+      </a>
+
       {/* Bulk */}
       <div>
         <h4 className="text-sm font-medium mb-1">Bulk invite (paste a sheet)</h4>

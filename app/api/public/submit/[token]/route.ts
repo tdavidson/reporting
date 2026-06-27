@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import crypto from 'crypto'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { createFundAIProvider } from '@/lib/ai'
+import { getFeatureProvider } from '@/lib/ai/feature-provider'
 import { extractAttachmentText, type PostmarkPayload } from '@/lib/parsing/extractAttachmentText'
 import { processDeal } from '@/lib/pipeline/processDeal'
 import type { PostmarkPayload as PipelinePayload } from '@/lib/pipeline/processEmail'
@@ -181,7 +181,7 @@ export async function POST(req: NextRequest, { params }: { params: { token: stri
   // Run the deals pipeline. Failures don't roll back the email row — they're
   // recorded as processing_status='failed' so admins can retry from the email page.
   try {
-    const { provider, model, providerType } = await createFundAIProvider(admin, fundId)
+    const { provider, model, providerType } = await getFeatureProvider(admin, fundId, 'deal_analysis')
     const extracted = await extractAttachmentText(payload)
     await processDeal({
       supabase: admin,

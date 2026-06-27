@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Loader2, Plus, ChevronRight, Trash2, Lock, X, Check, Pencil } from 'lucide-react'
+import { Loader2, Plus, ChevronRight, Trash2, Lock, X, Check, Pencil, Eye } from 'lucide-react'
 import { useFeatureVisibility } from '@/components/feature-visibility-context'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
@@ -176,11 +176,17 @@ export default function LPsPage() {
           </div>
         </div>
         <p className="text-sm text-muted-foreground">Track investments and returns for LPs across portfolios</p>
-        <div className="pt-2">
+        <div className="pt-2 flex items-center gap-2">
           <Button size="sm" variant="outline" className="text-muted-foreground" onClick={() => setCreateOpen(true)}>
             <Plus className="h-4 w-4 mr-1" />
             New Snapshot
           </Button>
+          {isAdmin && (fv.lp_portal_access === 'everyone' || fv.lp_portal_access === 'admin') && (
+            <Button size="sm" variant="outline" className="text-muted-foreground" onClick={() => router.push('/lps/preview')}>
+              <Eye className="h-4 w-4 mr-1" />
+              Preview portal
+            </Button>
+          )}
         </div>
       </div>
 

@@ -4,7 +4,19 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { getCapState } from '@/lib/memo-agent/cost'
 
 const VALID_PROVIDERS = ['anthropic', 'openai', 'gemini', 'ollama'] as const
-const VALID_STAGES = ['ingest', 'ingest_synthesis', 'research', 'qa', 'draft', 'score', 'render'] as const
+// The real stages that make AI calls (must match getStageProvider keys + the UI).
+const VALID_STAGES = ['ingest', 'ingest_synthesis', 'checklist_assessment', 'research', 'qa', 'draft', 'draft_review', 'score'] as const
+// Standalone (non-memo-agent) features with their own model selector.
+const VALID_FEATURES = ['deal_classify', 'deal_analysis', 'portfolio'] as const
+
+// Hardcoded model fallbacks, mirroring lib/pipeline/processEmail.ts, so the UI
+// can show the effective model when a fund hasn't set one explicitly.
+const DEFAULT_MODELS: Record<string, string> = {
+  anthropic: 'claude-sonnet-4-6',
+  openai: 'gpt-4o',
+  gemini: 'gemini-2.0-flash',
+  ollama: 'llama3.2',
+}
 
 export async function GET() {
   const guard = await ensureAdmin()
@@ -13,20 +25,31 @@ export async function GET() {
 
   const { data: settings } = await admin
     .from('fund_settings')
-    .select('memo_agent_per_deal_token_cap, memo_agent_monthly_token_cap, memo_agent_stage_models, memo_agent_web_search_enabled, default_ai_provider, memo_export_font_family, memo_export_font_size')
+    .select('memo_agent_per_deal_token_cap, memo_agent_monthly_token_cap, memo_agent_stage_models, ai_feature_models, memo_agent_web_search_enabled, default_ai_provider, claude_model, openai_model, gemini_model, ollama_model, memo_export_font_family, memo_export_font_size')
     .eq('fund_id', fundId)
     .maybeSingle()
 
   const caps = await getCapState(admin, fundId)
 
+  const s = settings as any
   return NextResponse.json({
-    per_deal_token_cap: (settings as any)?.memo_agent_per_deal_token_cap ?? null,
-    monthly_token_cap: (settings as any)?.memo_agent_monthly_token_cap ?? null,
-    stage_models: ((settings as any)?.memo_agent_stage_models as Record<string, any> | null) ?? {},
-    web_search_enabled: !!(settings as any)?.memo_agent_web_search_enabled,
-    default_ai_provider: (settings as any)?.default_ai_provider ?? null,
-    export_font_family: (settings as any)?.memo_export_font_family ?? 'DM Sans',
-    export_font_size: (settings as any)?.memo_export_font_size ?? 11,
+    per_deal_token_cap: s?.memo_agent_per_deal_token_cap ?? null,
+    monthly_token_cap: s?.memo_agent_monthly_token_cap ?? null,
+    stage_models: (s?.memo_agent_stage_models as Record<string, any> | null) ?? {},
+    feature_models: (s?.ai_feature_models as Record<string, any> | null) ?? {},
+    web_search_enabled: !!s?.memo_agent_web_search_enabled,
+    // Fund default provider — fall back to the same default the pipeline uses,
+    // so the UI never shows a blank for "what's actually running".
+    default_ai_provider: s?.default_ai_provider ?? 'anthropic',
+    // Effective model per provider (fund value or the hardcoded fallback).
+    default_models: {
+      anthropic: s?.claude_model ?? DEFAULT_MODELS.anthropic,
+      openai: s?.openai_model ?? DEFAULT_MODELS.openai,
+      gemini: s?.gemini_model ?? DEFAULT_MODELS.gemini,
+      ollama: s?.ollama_model ?? DEFAULT_MODELS.ollama,
+    },
+    export_font_family: s?.memo_export_font_family ?? 'DM Sans',
+    export_font_size: s?.memo_export_font_size ?? 11,
     monthly_used: caps.monthly_used,
     month_window: caps.month_window,
   })
@@ -68,6 +91,22 @@ export async function PATCH(req: NextRequest) {
       }
     }
     updates.memo_agent_stage_models = cleaned as any
+  }
+  if (body.feature_models !== undefined && body.feature_models !== null) {
+    if (typeof body.feature_models !== 'object') {
+      return NextResponse.json({ error: 'feature_models must be an object' }, { status: 400 })
+    }
+    const cleaned: Record<string, { provider?: string; model?: string } | null> = {}
+    for (const [feature, value] of Object.entries(body.feature_models)) {
+      if (!VALID_FEATURES.includes(feature as any)) continue
+      if (value === null) { cleaned[feature] = null; continue }
+      if (typeof value !== 'object') continue
+      const v = value as Record<string, unknown>
+      const provider = typeof v.provider === 'string' && VALID_PROVIDERS.includes(v.provider as any) ? v.provider : undefined
+      const model = typeof v.model === 'string' && v.model.trim() ? v.model.trim() : undefined
+      cleaned[feature] = provider ? { provider, ...(model ? { model } : {}) } : null
+    }
+    updates.ai_feature_models = cleaned as any
   }
   if (body.web_search_enabled !== undefined) {
     updates.memo_agent_web_search_enabled = !!body.web_search_enabled

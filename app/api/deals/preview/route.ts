@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { createFundAIProvider } from '@/lib/ai'
+import { getFeatureProvider } from '@/lib/ai/feature-provider'
 import { analyzeDeal, DEFAULT_SCREENING_PROMPT } from '@/lib/claude/analyzeDeal'
 
 const SAMPLE_EMAIL = {
@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
     ? body.screeningPrompt
     : DEFAULT_SCREENING_PROMPT
 
-  const { provider, model, providerType } = await createFundAIProvider(admin, membership.fund_id)
+  const { provider, model, providerType } = await getFeatureProvider(admin, membership.fund_id, 'deal_analysis')
 
   const analysis = await analyzeDeal({
     emailSubject: SAMPLE_EMAIL.subject,

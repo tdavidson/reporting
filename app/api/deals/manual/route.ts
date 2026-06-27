@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import crypto from 'crypto'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { createFundAIProvider } from '@/lib/ai'
+import { getFeatureProvider } from '@/lib/ai/feature-provider'
 import { extractAttachmentText, type PostmarkPayload } from '@/lib/parsing/extractAttachmentText'
 import { processDeal } from '@/lib/pipeline/processDeal'
 import type { PostmarkPayload as PipelinePayload } from '@/lib/pipeline/processEmail'
@@ -192,7 +192,7 @@ export async function POST(req: NextRequest) {
   // we still return the email_id so the admin can see it in /audit and retry.
   let dealId: string | null = null
   try {
-    const { provider, model, providerType } = await createFundAIProvider(admin, fundId)
+    const { provider, model, providerType } = await getFeatureProvider(admin, fundId, 'deal_analysis')
     const extracted = await extractAttachmentText(payload)
     const result = await processDeal({
       supabase: admin,

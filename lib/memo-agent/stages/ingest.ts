@@ -350,7 +350,7 @@ export async function runIngestSynthesis(params: {
     nameById.set(row.id, row.file_name)
   }
 
-  const { provider, model, providerType } = await getStageProvider(admin, fundId, 'ingest')
+  const { provider, model, providerType } = await getStageProvider(admin, fundId, 'ingest_synthesis')
 
   // Repair previously-stored detected_types that the model returned in
   // freeform shape (e.g. "Pitch Deck" instead of "pitch_deck"). Without this

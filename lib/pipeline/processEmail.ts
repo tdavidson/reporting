@@ -9,7 +9,7 @@ import {
   type MetricDef,
   type ExtractMetricsResult,
 } from '@/lib/claude/extractMetrics'
-import { createFundAIProvider } from '@/lib/ai'
+import { getFeatureProvider } from '@/lib/ai/feature-provider'
 import { decryptApiKey, decrypt } from '@/lib/crypto'
 import { getAccessToken as getGoogleAccessToken, findOrCreateFolder as findOrCreateGoogleFolder, uploadFile as uploadGoogleFile } from '@/lib/google/drive'
 import { getGoogleCredentials } from '@/lib/google/credentials'
@@ -61,9 +61,6 @@ export async function runPipeline(
   // Step 4: Extract text from email body and attachments
   const extracted = await extractAttachmentText(payload)
 
-  // Fetch the fund's AI provider based on default_ai_provider setting
-  const { provider, model, providerType } = await createFundAIProvider(supabase, fundId)
-
   // Step 4.5: Routing classifier. Settings determine whether the result is
   // acted on (active routing) or merely recorded (shadow mode — when
   // deal_intake_enabled is false). A classifier failure must never break the
@@ -72,9 +69,12 @@ export async function runPipeline(
   let routingDecision: RoutingDecision = 'shadow'
   let classification: ClassificationResultStored | null = null
   try {
+    // Classifier runs on the deal_classify feature model (defaults to a fast
+    // model; honors a per-feature override and the legacy routing_model field).
+    const cls = await getFeatureProvider(supabase, fundId, 'deal_classify')
     classification = await classifyAndStore(
       supabase, emailId, fundId, payload, extracted.emailBody, fundMember,
-      provider, providerType, model, dealsSettings.routing_model
+      cls.provider, cls.providerType, cls.model, null
     )
     if (classification) {
       routingDecision = decideRoute(classification, dealsSettings)
@@ -87,7 +87,8 @@ export async function runPipeline(
   if (routingDecision === 'deals') {
     try {
       const { processDeal } = await import('@/lib/pipeline/processDeal')
-      await processDeal({ supabase, emailId, fundId, payload, extracted, provider, providerType, model })
+      const da = await getFeatureProvider(supabase, fundId, 'deal_analysis')
+      await processDeal({ supabase, emailId, fundId, payload, extracted, provider: da.provider, providerType: da.providerType, model: da.model })
       await supabase.from('inbound_emails').update({ routed_to: 'deals' }).eq('id', emailId)
       await finalizeEmail(supabase, emailId, { status: 'success' })
     } catch (err) {
@@ -122,6 +123,10 @@ export async function runPipeline(
   // Persist routed_to so /emails UI can show the active destination.
   const fallbackRouted = routingDecision === 'shadow' ? 'reporting' : routingDecision
   await supabase.from('inbound_emails').update({ routed_to: fallbackRouted }).eq('id', emailId)
+
+  // Inbound analysis / portfolio tracking runs on the 'portfolio' feature model
+  // (company identification, metric extraction, interaction extraction).
+  const { provider, model, providerType } = await getFeatureProvider(supabase, fundId, 'portfolio')
 
   // Step 5: Identify the company (skip if already assigned, e.g. from manual assignment)
   const { data: existingEmail } = await supabase
@@ -429,7 +434,7 @@ export async function getClaudeModel(supabase: Supabase, fundId: string): Promis
     .eq('fund_id', fundId)
     .single()
 
-  return data?.claude_model || 'claude-sonnet-4-5'
+  return data?.claude_model || 'claude-sonnet-4-6'
 }
 
 export async function getOpenAIApiKey(supabase: Supabase, fundId: string): Promise<string> {
