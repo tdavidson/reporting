@@ -23,6 +23,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   const { data: doc } = await (admin as any)
     .from('lp_documents').select('id, fund_id, scope, storage_path, file_name').eq('id', params.id).maybeSingle()
   if (!doc) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  if (String(doc.storage_path).startsWith('sample/')) return NextResponse.json({ error: 'This is a sample document.' }, { status: 404 })
 
   // Fund portal must be on.
   const { data: ef } = await (admin as any).from('fund_settings').select('lp_portal_enabled').eq('fund_id', doc.fund_id).maybeSingle()

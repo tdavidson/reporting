@@ -12,6 +12,7 @@ interface Doc {
   doc_date: string | null
   category: string | null
   scope: string
+  sample: boolean
 }
 
 const SCOPE_ORDER: { key: string; label: string; hint: string }[] = [
@@ -83,8 +84,8 @@ export default function PortalDocumentsPage() {
   const orderedCats = (catMap: Map<string, Doc[]>) =>
     Array.from(catMap.keys()).sort((a, b) => (a === 'Other' ? 1 : b === 'Other' ? -1 : a.localeCompare(b)))
 
-  const row = (d: Doc) => (
-    <button key={d.id} onClick={() => download(d.id)} disabled={downloading === d.id} className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-muted/40 transition-colors">
+  const docInner = (d: Doc) => (
+    <>
       <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
       <div className="flex-1 min-w-0">
         <div className="font-medium text-sm truncate">{d.title}</div>
@@ -92,9 +93,21 @@ export default function PortalDocumentsPage() {
           {d.file_name}{d.size_bytes ? ` · ${fmtSize(d.size_bytes)}` : ''}{effective(d) ? ` · ${fmtDate(effective(d))}` : ''}
         </div>
       </div>
-      {downloading === d.id ? <Loader2 className="h-4 w-4 animate-spin text-muted-foreground shrink-0" /> : <Download className="h-4 w-4 text-muted-foreground shrink-0" />}
-    </button>
+    </>
   )
+
+  const row = (d: Doc) =>
+    d.sample ? (
+      <div key={d.id} className="w-full flex items-center gap-3 px-4 py-3" title="Sample document">
+        {docInner(d)}
+        <span className="text-[10px] uppercase tracking-wide text-muted-foreground shrink-0">Sample</span>
+      </div>
+    ) : (
+      <button key={d.id} onClick={() => download(d.id)} disabled={downloading === d.id} className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-muted/40 transition-colors">
+        {docInner(d)}
+        {downloading === d.id ? <Loader2 className="h-4 w-4 animate-spin text-muted-foreground shrink-0" /> : <Download className="h-4 w-4 text-muted-foreground shrink-0" />}
+      </button>
+    )
 
   return (
     <div className="space-y-6">

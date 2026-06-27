@@ -193,6 +193,9 @@ const LP_INVESTMENTS: LpInvestmentDef[] = [
 ]
 
 export async function seedLpSnapshot(admin: Admin, fundId: string): Promise<void> {
+  // Clear prior demo LP documents (re-seed idempotency; shares cascade).
+  await (admin as any).from('lp_documents').delete().eq('fund_id', fundId)
+
   // Snapshot row.
   const { data: snapshot } = await admin
     .from('lp_snapshots')
@@ -275,6 +278,34 @@ export async function seedLpSnapshot(admin: Admin, fundId: string): Promise<void
     for (const l of (letters ?? [])) {
       await (admin as any).from('lp_letter_shares').insert(
         investorIds.map(id => ({ letter_id: l.id, lp_investor_id: id, fund_id: fundId })),
+      )
+    }
+  }
+
+  // Sample LP documents — display-only. storage_path uses a 'sample/' sentinel
+  // (no real file), so the portal recognizes them and blocks download.
+  // Showcases the Documents tab + both scopes (fund-wide and per-investor).
+  const sampleFundDocs: Array<{ title: string; file: string; category: string; doc_date: string | null; size: number }> = [
+    { title: 'Fund I Annual Report 2025', file: 'Fund-I-Annual-Report-2025.pdf', category: 'Financials', doc_date: '2025-12-31', size: 2_400_000 },
+    { title: 'Audited Financial Statements 2025', file: 'Audited-Financials-2025.pdf', category: 'Financials', doc_date: '2026-03-15', size: 1_100_000 },
+    { title: '2025 K-1 Tax Package', file: 'K-1-Package-2025.pdf', category: 'Tax', doc_date: '2026-03-15', size: 480_000 },
+    { title: 'Limited Partnership Agreement', file: 'LPA.pdf', category: 'Legal', doc_date: null, size: 3_200_000 },
+  ]
+  for (const d of sampleFundDocs) {
+    await (admin as any).from('lp_documents').insert({
+      fund_id: fundId, title: d.title, file_name: d.file, storage_path: `sample/${fundId}/${d.file}`,
+      mime_type: 'application/pdf', size_bytes: d.size, scope: 'fund', category: d.category, doc_date: d.doc_date,
+    })
+  }
+  if (investorIds.length > 0) {
+    const { data: capDoc } = await (admin as any).from('lp_documents').insert({
+      fund_id: fundId, title: 'Q4 2025 Capital Account Statement', file_name: 'Capital-Account-Q4-2025.pdf',
+      storage_path: `sample/${fundId}/Capital-Account-Q4-2025.pdf`, mime_type: 'application/pdf', size_bytes: 320_000,
+      scope: 'investor', category: 'Capital Accounts', doc_date: '2025-12-31',
+    }).select('id').single()
+    if (capDoc) {
+      await (admin as any).from('lp_document_shares').insert(
+        investorIds.map(id => ({ document_id: capDoc.id, lp_investor_id: id, fund_id: fundId })),
       )
     }
   }

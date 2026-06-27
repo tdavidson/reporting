@@ -29,12 +29,12 @@ export async function GET() {
   const enabledFundIds = Array.from(enabledFunds)
 
   const byId = new Map<string, any>()
-  const add = (d: any, scope: string) => { if (d && !byId.has(d.id)) byId.set(d.id, { id: d.id, title: d.title, file_name: d.file_name, mime_type: d.mime_type, size_bytes: d.size_bytes, uploaded_at: d.uploaded_at, category: d.category ?? null, doc_date: d.doc_date ?? null, scope }) }
+  const add = (d: any, scope: string) => { if (d && !byId.has(d.id)) byId.set(d.id, { id: d.id, title: d.title, file_name: d.file_name, mime_type: d.mime_type, size_bytes: d.size_bytes, uploaded_at: d.uploaded_at, category: d.category ?? null, doc_date: d.doc_date ?? null, scope, sample: String(d.storage_path ?? '').startsWith('sample/') }) }
 
   // Fund-wide docs for the LP's enabled funds.
   const { data: fundDocs } = await (admin as any)
     .from('lp_documents')
-    .select('id, title, file_name, mime_type, size_bytes, uploaded_at, category, doc_date')
+    .select('id, title, file_name, mime_type, size_bytes, uploaded_at, category, doc_date, storage_path')
     .eq('scope', 'fund')
     .in('fund_id', enabledFundIds)
   for (const d of (fundDocs ?? [])) add(d, 'fund')
@@ -42,7 +42,7 @@ export async function GET() {
   // Investor-scoped docs shared with the LP's investors.
   const { data: shares } = await (admin as any)
     .from('lp_document_shares')
-    .select('lp_documents(id, title, file_name, mime_type, size_bytes, uploaded_at, scope, fund_id, category, doc_date)')
+    .select('lp_documents(id, title, file_name, mime_type, size_bytes, uploaded_at, scope, fund_id, category, doc_date, storage_path)')
     .in('lp_investor_id', investorIds)
   for (const s of (shares ?? [])) {
     const d = (s as any).lp_documents

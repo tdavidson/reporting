@@ -34,8 +34,8 @@ export async function GET(req: NextRequest) {
   const [{ data: snapShares }, { data: letterShares }, { data: fundDocs }, { data: invDocShares }] = await Promise.all([
     (admin as any).from('lp_snapshot_shares').select('lp_snapshots(id, name, as_of_date)').eq('lp_investor_id', investorId).eq('fund_id', fundId),
     (admin as any).from('lp_letter_shares').select('lp_letters(id, period_label, period_year, period_quarter, status)').eq('lp_investor_id', investorId).eq('fund_id', fundId),
-    (admin as any).from('lp_documents').select('id, title, file_name, size_bytes, category, doc_date, uploaded_at, scope').eq('fund_id', fundId).eq('scope', 'fund'),
-    (admin as any).from('lp_document_shares').select('lp_documents(id, title, file_name, size_bytes, category, doc_date, uploaded_at, scope)').eq('lp_investor_id', investorId),
+    (admin as any).from('lp_documents').select('id, title, file_name, size_bytes, category, doc_date, uploaded_at, scope, storage_path').eq('fund_id', fundId).eq('scope', 'fund'),
+    (admin as any).from('lp_document_shares').select('lp_documents(id, title, file_name, size_bytes, category, doc_date, uploaded_at, scope, storage_path)').eq('lp_investor_id', investorId),
   ])
 
   const snapshots = (snapShares ?? [])
@@ -51,7 +51,7 @@ export async function GET(req: NextRequest) {
   const documents = [
     ...(fundDocs ?? []),
     ...(invDocShares ?? []).map((s: any) => s.lp_documents).filter((d: any) => d && d.scope === 'investor'),
-  ]
+  ].map((d: any) => ({ ...d, sample: String(d.storage_path ?? '').startsWith('sample/'), storage_path: undefined }))
 
   return NextResponse.json({
     investor: { id: investor.id, name: investor.name },

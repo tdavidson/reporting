@@ -1,5 +1,6 @@
 'use client'
 
+import { usePathname } from 'next/navigation'
 import { SidebarProvider, useSidebar } from '@/components/sidebar-context'
 import { CurrencyProvider } from '@/components/currency-context'
 import { AnalystProvider } from '@/components/analyst-context'
@@ -55,6 +56,13 @@ export function AppShell({ fundName, fundLogo, userEmail, reviewBadge, settingsB
 
 function AppShellInner({ fundName, fundLogo, userEmail, reviewBadge, settingsBadge, notesBadge, isAdmin, updateAvailable, featureVisibility, children }: AppShellProps) {
   const { collapsed } = useSidebar()
+  const pathname = usePathname()
+
+  // The LP-portal preview renders full-screen (no GP header/sidebar) so it looks
+  // like the real /portal an LP logs into.
+  if (pathname === '/lps/preview') {
+    return <>{children}</>
+  }
 
   return (
     <>

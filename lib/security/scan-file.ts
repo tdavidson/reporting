@@ -5,7 +5,10 @@ export interface ScanResult {
   reason?: string
 }
 
-const MAX_FILE_SIZE = 20 * 1024 * 1024 // 20 MB
+// Aligned with the diligence-documents storage bucket (100 MB) so anything that
+// can be uploaded can also be scanned + parsed; below this the scan is not the
+// bottleneck. Zip-bomb expansion is bounded separately (MAX_ZIP_UNCOMPRESSED).
+const MAX_FILE_SIZE = 100 * 1024 * 1024 // 100 MB
 
 const DANGEROUS_EXTENSIONS = new Set([
   'exe', 'bat', 'cmd', 'sh', 'ps1', 'dll', 'so', 'msi',
@@ -53,7 +56,7 @@ const MAX_ZIP_ENTRIES = 1000
 export function scanFile(buffer: Buffer, filename: string, contentType: string): ScanResult {
   // 1. File size check
   if (buffer.length > MAX_FILE_SIZE) {
-    return { safe: false, reason: `File too large: ${Math.round(buffer.length / 1024 / 1024)}MB exceeds 50MB limit` }
+    return { safe: false, reason: `File too large: ${Math.round(buffer.length / 1024 / 1024)}MB exceeds ${Math.round(MAX_FILE_SIZE / 1024 / 1024)}MB limit` }
   }
 
   // 2. Dangerous extensions (including double-extension like report.pdf.exe)
