@@ -99,7 +99,11 @@ export function buildDraftSectionFillContent(params: {
     .map(s => `  - ${s.section_id}: ${s.topics.join(' | ')}`)
     .join('\n')
 
-  const text = [
+  // Shared, cacheable block: the deal context, full memo shape, ingestion /
+  // research / Q&A, and instructions are identical across every section-fill
+  // batch in this draft run, so cache them. Only the per-batch section plan
+  // (planLines) varies — it goes in the trailing block.
+  const sharedText = [
     `Deal: ${params.dealName}`,
     '',
     stageCalibrationBlock(params.stage),
@@ -107,15 +111,12 @@ export function buildDraftSectionFillContent(params: {
     ...(params.memoConfigBlock ? ['', params.memoConfigBlock] : []),
     '',
     `=== STAGE 4B — WRITE MEMO SECTIONS ===`,
-    `Write the prose for ONLY the sections planned below. Other sections are`,
-    `written separately — the full memo shape is listed so you avoid repeating`,
+    `Write the prose for ONLY the sections listed under "SECTIONS TO WRITE IN THIS CALL" at the end.`,
+    `Other sections are written separately — the full memo shape is listed so you avoid repeating`,
     `content that belongs elsewhere.`,
     '',
     `--- FULL MEMO SHAPE (for context — do NOT write these) ---`,
     fullMemoShape,
-    '',
-    `--- SECTIONS TO WRITE IN THIS CALL ---`,
-    planLines.join('\n'),
     '',
     `--- INGESTION OUTPUT (claims with verification_status) ---`,
     summarizeIngestion(params.ingestion),
@@ -129,7 +130,15 @@ export function buildDraftSectionFillContent(params: {
     SECTION_FILL_INSTRUCTIONS,
   ].join('\n')
 
-  return [{ type: 'text', text }]
+  const variableText = [
+    `--- SECTIONS TO WRITE IN THIS CALL ---`,
+    planLines.join('\n'),
+  ].join('\n')
+
+  return [
+    { type: 'text', text: sharedText, cacheControl: true },
+    { type: 'text', text: variableText },
+  ]
 }
 
 export interface ScorePromptInput {
@@ -323,7 +332,7 @@ WRITING STANDARDS — this is what the partner feedback is about. Follow closely
     normal; do not write as though missing late-stage data is a red flag.
 
 Hard rules:
-  • Write a paragraph for every planned paragraph in the sections above — match the planned id, section_id, order.
+  • Write a paragraph for every planned paragraph in the sections to write — match the planned id, section_id, order.
   • If the plan includes the "recommendation" section: emit it as origin="partner_only_placeholder", prose="[Partner to complete]", sources=[], confidence="n/a", contains_*=false. Do NOT draft a recommendation.
   • Team placeholder paragraphs (character_assessment, founder_market_fit_judgment) get origin="partner_only_placeholder", prose="[Partner to complete]". Do NOT interpret character or fit. Do NOT score the team.
   • Every agent_drafted paragraph MUST have at least one source.

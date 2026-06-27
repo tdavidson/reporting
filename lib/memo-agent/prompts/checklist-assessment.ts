@@ -21,42 +21,51 @@ export function buildChecklistAssessmentContent(params: {
     claims: Array<{ field: string; value: string }>
   }>
 }): ContentBlock[] {
-  const lines: string[] = [
+  // Shared, cacheable block: the data-room evidence + task instructions are
+  // byte-identical across every checklist batch for this deal, so marking it as
+  // a cache breakpoint turns the repeated batches into cache reads. The checklist
+  // items (which differ per batch) go in a separate trailing block.
+  const sharedLines: string[] = [
     `Deal: ${params.dealName}`,
     '',
     stageCalibrationBlock(params.stage),
     '',
-    'Partner-defined diligence checklist (assess each item):',
+    'Data-room evidence (per-document summaries + claims):',
     '',
   ]
 
-  for (const item of params.checklist) {
-    const prefix = item.section ? `[${item.section}] ` : ''
-    lines.push(`- id=${item.id} ${prefix}${item.label}`)
-  }
-
-  lines.push('', 'Data-room evidence (per-document summaries + claims):', '')
-
   for (const doc of params.perDoc) {
-    lines.push(`### ${doc.file_name} (doc_id=${doc.document_id}, type=${doc.detected_type})`)
-    lines.push(doc.summary || '(no summary)')
+    sharedLines.push(`### ${doc.file_name} (doc_id=${doc.document_id}, type=${doc.detected_type})`)
+    sharedLines.push(doc.summary || '(no summary)')
     if (doc.claims.length > 0) {
-      lines.push('Claims:')
+      sharedLines.push('Claims:')
       for (const c of doc.claims.slice(0, 25)) {
-        lines.push(`  - ${c.field}: ${c.value}`)
+        sharedLines.push(`  - ${c.field}: ${c.value}`)
       }
     }
-    lines.push('')
+    sharedLines.push('')
   }
 
-  lines.push(CHECKLIST_INSTRUCTIONS)
+  sharedLines.push(CHECKLIST_INSTRUCTIONS)
 
-  return [{ type: 'text', text: lines.join('\n') }]
+  const batchLines: string[] = [
+    'Partner-defined diligence checklist — assess each item below against the evidence above:',
+    '',
+  ]
+  for (const item of params.checklist) {
+    const prefix = item.section ? `[${item.section}] ` : ''
+    batchLines.push(`- id=${item.id} ${prefix}${item.label}`)
+  }
+
+  return [
+    { type: 'text', text: sharedLines.join('\n'), cacheControl: true },
+    { type: 'text', text: batchLines.join('\n') },
+  ]
 }
 
 const CHECKLIST_INSTRUCTIONS = `CHECKLIST ASSESSMENT
 
-For every checklist item above, decide whether the data room satisfies it. Be calibrated to the company's stage: at pre-seed/seed almost nothing should be marked "missing" simply because a polished artifact is absent — only mark "missing" if the item is genuinely a stage-appropriate ask the data room does not address.
+For every checklist item provided below, decide whether the data room satisfies it. Be calibrated to the company's stage: at pre-seed/seed almost nothing should be marked "missing" simply because a polished artifact is absent — only mark "missing" if the item is genuinely a stage-appropriate ask the data room does not address.
 
 Status options:
   - "found"   — the data room clearly contains what this item asks for.
@@ -81,4 +90,4 @@ Return JSON ONLY:
   ]
 }
 
-Do NOT add items. Do NOT change labels. Only return entries for ids that appear in the checklist above.`
+Do NOT add items. Do NOT change labels. Only return entries for ids that appear in the checklist below.`

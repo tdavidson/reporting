@@ -50,8 +50,7 @@ export function StageGuidance({ stage }: { stage: string }) {
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-between gap-2">
-        <span className="text-xs font-medium">Your guidance for this stage</span>
-        <span className="text-[10px] text-muted-foreground">Applies to all deals</span>
+        <span className="text-xs font-medium">Your guidance for this analysis, additive to the base prompt.</span>
       </div>
       <textarea
         value={value}

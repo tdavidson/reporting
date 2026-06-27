@@ -21,6 +21,15 @@ export class AnthropicProvider implements AIProvider {
         }]
       : undefined
 
+    // Prompt caching: mark the (large, reused) system prompt as ephemeral. The
+    // same system prompt — schemas, guidance, instructions — is resent across
+    // every batched call within a stage (per-doc ingest, draft fills, checklist,
+    // scoring), so caching it turns those into cache reads (~5 min TTL) instead
+    // of re-billing the full prefix each time. One breakpoint on system also
+    // caches the tools block ahead of it. Below the model's min cacheable size
+    // the marker is simply ignored, so it's always safe to set.
+    const systemBlocks = cacheableSystem(params.system)
+
     // Use the streaming endpoint via the SDK's `.stream()` helper. Anthropic
     // requires streaming for any request that may take longer than 10 minutes
     // (large max_tokens + slow models like Opus, or long web-search runs).
@@ -29,7 +38,7 @@ export class AnthropicProvider implements AIProvider {
     const stream = this.client.messages.stream({
       model: params.model,
       max_tokens: params.maxTokens,
-      ...(params.system ? { system: params.system } : {}),
+      ...(systemBlocks ? { system: systemBlocks } : {}),
       ...(tools ? { tools: tools as any } : {}),
       messages: [{ role: 'user', content }],
     })
@@ -89,11 +98,13 @@ export class AnthropicProvider implements AIProvider {
       content: m.content,
     }))
 
+    const systemBlocks = cacheableSystem(params.system)
+
     // Same streaming-required reason as createMessage above.
     const stream = this.client.messages.stream({
       model: params.model,
       max_tokens: params.maxTokens,
-      ...(params.system ? { system: params.system } : {}),
+      ...(systemBlocks ? { system: systemBlocks } : {}),
       messages,
     })
     const response = await stream.finalMessage()
@@ -131,11 +142,22 @@ export class AnthropicProvider implements AIProvider {
   }
 }
 
+// Turn a system-prompt string into a single cached text block. Returns
+// undefined for empty/missing prompts so we don't send an empty system param.
+function cacheableSystem(system: string | undefined): Anthropic.TextBlockParam[] | undefined {
+  if (!system) return undefined
+  return [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }]
+}
+
 function toAnthropicContent(blocks: ContentBlock[]): Anthropic.ContentBlockParam[] {
   return blocks.map(block => {
     switch (block.type) {
       case 'text':
-        return { type: 'text' as const, text: block.text }
+        return {
+          type: 'text' as const,
+          text: block.text,
+          ...(block.cacheControl ? { cache_control: { type: 'ephemeral' as const } } : {}),
+        }
       case 'document':
         return {
           type: 'document' as const,

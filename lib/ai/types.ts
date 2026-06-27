@@ -1,4 +1,8 @@
-export interface TextBlock { type: 'text'; text: string }
+// cacheControl marks a block as a prompt-cache breakpoint (Anthropic ephemeral
+// cache). Set it on a large, byte-identical leading block that's re-sent across
+// many calls (e.g. shared data-room evidence across checklist batches) so those
+// calls become cache reads. Ignored by providers without prompt caching.
+export interface TextBlock { type: 'text'; text: string; cacheControl?: boolean }
 export interface DocumentBlock { type: 'document'; mediaType: string; data: string }
 export interface ImageBlock { type: 'image'; mediaType: string; data: string }
 
