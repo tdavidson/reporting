@@ -22,6 +22,7 @@ import { StyleAnchorsInline } from './memo-agent/style-anchors/style-anchors-inl
 import { SchemasInline } from './memo-agent/schemas/schemas-inline'
 import { AppearanceEditor } from './appearance/editor'
 import { LpAccessSettings } from '@/components/lp-access-settings'
+import { LpMessagesSection } from '@/components/lp-messages-section'
 import { LpDocumentsSettings } from '@/components/lp-documents-settings'
 import { AlertCircle, Check, ChevronDown, ChevronRight, Loader2, Plus, Trash2, Copy, FolderOpen, Unlink, Shield, ImagePlus, X, Lock, ArrowDownCircle, Eye } from 'lucide-react'
 import { DEFAULT_FEATURE_VISIBILITY, FEATURES_WITH_OFF } from '@/lib/types/features'
@@ -269,6 +270,9 @@ export default function SettingsPage() {
           </Section>
           <Section title="LP documents">
             <LpDocumentsSettings />
+          </Section>
+          <Section title="LP messages">
+            <LpMessagesSection />
           </Section>
 
           <GroupHeader label="Storage" />

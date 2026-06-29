@@ -73,19 +73,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invite this investor's LP before adding an authorized user." }, { status: 409 })
   }
 
-  // Email an OTP invite (binds the auth user when possible).
-  let invitedAuthUserId: string | null = null
-  try {
-    const { data: invited, error: inviteErr } = await admin.auth.admin.inviteUserByEmail(email)
-    if (inviteErr) console.warn('[authorized-user invite] inviteUserByEmail:', inviteErr.message)
-    else invitedAuthUserId = invited?.user?.id ?? null
-  } catch (e) {
-    console.warn('[authorized-user invite] threw:', e instanceof Error ? e.message : e)
-  }
-
-  // Find or create the authorized user's lp_account (reuses an existing account
-  // for this email — the same login may be an LP for some investors and an
-  // authorized user for others; the delegation row is what grants access).
+  // lp_accounts is the LP-access whitelist the auth hook checks, so the account
+  // must exist BEFORE we invite. Find or create it first (reuses an existing
+  // account for this email — the same login may be an LP for some investors and
+  // an authorized user for others; the delegation row is what grants access).
   const { data: existing } = await (admin as any)
     .from('lp_accounts')
     .select('id, auth_user_id')
@@ -95,17 +86,25 @@ export async function POST(req: NextRequest) {
   let accountId: string
   if (existing) {
     accountId = existing.id
-    if (!existing.auth_user_id && invitedAuthUserId) {
-      await (admin as any).from('lp_accounts').update({ auth_user_id: invitedAuthUserId, updated_at: new Date().toISOString() }).eq('id', accountId)
-    }
   } else {
     const { data: created, error: createErr } = await (admin as any)
       .from('lp_accounts')
-      .insert({ auth_user_id: invitedAuthUserId, kind: 'authorized_user', email, display_name: displayName || null, status: 'invited' })
+      .insert({ kind: 'authorized_user', email, display_name: displayName || null, status: 'invited' })
       .select('id')
       .single()
     if (createErr) return NextResponse.json({ error: createErr.message }, { status: 500 })
     accountId = created.id
+  }
+
+  // Email the OTP invite — the hook now recognizes this email as an invited LP user.
+  try {
+    const { data: invited, error: inviteErr } = await admin.auth.admin.inviteUserByEmail(email)
+    if (inviteErr) console.warn('[authorized-user invite] inviteUserByEmail:', inviteErr.message)
+    else if (invited?.user?.id && !existing?.auth_user_id) {
+      await (admin as any).from('lp_accounts').update({ auth_user_id: invited.user.id, updated_at: new Date().toISOString() }).eq('id', accountId)
+    }
+  } catch (e) {
+    console.warn('[authorized-user invite] threw:', e instanceof Error ? e.message : e)
   }
 
   const { error: linkErr } = await (admin as any)

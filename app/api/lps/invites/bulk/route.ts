@@ -120,17 +120,18 @@ export async function POST(req: NextRequest) {
   }
 
   await runPool(tasks.filter(t => t.investorId), INVITE_CONCURRENCY, async (t) => {
-    const authId = await sendInvite(t.email)
-    const lpAccountId = await ensureAccount(t.email, 'lp', t.displayName, authId)
+    // Create the lp_account first (the LP-access whitelist the hook checks), then invite.
+    const lpAccountId = await ensureAccount(t.email, 'lp', t.displayName, null)
     if (!lpAccountId) { summary.errors.push({ row: t.rowNum, message: `Could not set up ${t.email}` }); summary.failed.push(t.email); return }
+    await sendInvite(t.email)
     const { error: linkErr } = await (admin as any)
       .from('lp_account_links').insert({ lp_account_id: lpAccountId, fund_id: fundId, lp_investor_id: t.investorId, created_by: user.id })
     if (linkErr && linkErr.code !== '23505') summary.errors.push({ row: t.rowNum, message: `Link failed for ${t.email}` })
 
     for (const ae of t.authorizedEmails) {
-      const aAuthId = await sendInvite(ae)
-      const aAccountId = await ensureAccount(ae, 'authorized_user', null, aAuthId)
+      const aAccountId = await ensureAccount(ae, 'authorized_user', null, null)
       if (!aAccountId) { summary.errors.push({ row: t.rowNum, message: `Could not set up authorized user ${ae}` }); summary.failed.push(ae); continue }
+      await sendInvite(ae)
       const { error: auErr } = await (admin as any)
         .from('lp_authorized_users').insert({ authorized_user_account_id: aAccountId, principal_lp_account_id: lpAccountId, lp_investor_id: t.investorId, created_by: user.id })
       if (auErr && auErr.code !== '23505') summary.errors.push({ row: t.rowNum, message: `Delegation failed for ${ae}` })
