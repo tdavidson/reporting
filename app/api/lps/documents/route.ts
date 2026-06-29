@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { assertWriteAccess } from '@/lib/api-helpers'
+import { extractFromBuffer } from '@/lib/parsing/extractAttachmentText'
 
 /**
  * Admin-only LP document management (gap 2).
@@ -72,6 +73,20 @@ export async function POST(req: NextRequest) {
   if (scope === 'investor' && investorIds.length) {
     const rows = investorIds.map(id => ({ document_id: doc.id, lp_investor_id: id, fund_id: fundId }))
     await (admin as any).from('lp_document_shares').insert(rows)
+  }
+
+  // Best-effort: cache extracted text so the LP-portal analyst can read this
+  // document. Failure never blocks the upload — the analyst just skips it.
+  try {
+    const { data: file } = await admin.storage.from('lp-documents').download(storagePath)
+    if (file) {
+      const buffer = Buffer.from(await file.arrayBuffer())
+      const result = await extractFromBuffer(buffer, fileName, typeof body.mime_type === 'string' ? body.mime_type : '')
+      const text = (result?.extractedText ?? '').trim()
+      if (text) await (admin as any).from('lp_documents').update({ extracted_text: text }).eq('id', doc.id)
+    }
+  } catch (e) {
+    console.warn('[lp document] text extraction failed:', e instanceof Error ? e.message : e)
   }
 
   return NextResponse.json({ ok: true, id: doc.id })

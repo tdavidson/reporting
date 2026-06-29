@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { Loader2, FileText, Download, Mail, ChevronRight } from 'lucide-react'
+import { LpAnalyst } from '@/components/portal/lp-analyst'
 
 interface Snapshot { id: string; name: string; as_of_date: string | null }
 interface Letter { id: string; period_label: string }
@@ -133,9 +134,12 @@ export default function PortalLibraryPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight">Your documents</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">Reports, letters, and documents your fund has shared with you.</p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight">Your documents</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">Reports, letters, and documents your fund has shared with you.</p>
+        </div>
+        <LpAnalyst />
       </div>
 
       {loading ? (
