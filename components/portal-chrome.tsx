@@ -26,8 +26,8 @@ export function PortalChrome({ fundName, logoUrl, userEmail, children }: { fundN
 
   return (
     <>
-      <header className="border-b bg-card">
-        <div className="max-w-5xl mx-auto px-4">
+      <header>
+        <div className="max-w-5xl mx-auto px-4 border-b">
           <div className="pt-3 pb-2 flex items-center justify-between gap-3">
             <Link href="/portal/snapshots" className="flex items-center gap-2 min-w-0">
               {logoUrl ? (
@@ -46,7 +46,7 @@ export function PortalChrome({ fundName, logoUrl, userEmail, children }: { fundN
               </form>
             </div>
           </div>
-          <nav className="flex items-center gap-4 -mb-px pt-1 overflow-x-auto">
+          <nav className="flex items-center gap-4 -mb-px pt-2 overflow-x-auto">
             {TABS.map(t => {
               const active = (t.match ?? [t.href]).some(m => pathname === m || pathname.startsWith(m + '/'))
               return (

@@ -6,7 +6,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { MfaSettings } from '@/components/account/mfa-settings'
-import { Loader2, Check, UserCheck, Trash2 } from 'lucide-react'
+import { useTheme } from 'next-themes'
+import { Loader2, Check, UserCheck, Trash2, Monitor, Sun, Moon } from 'lucide-react'
 
 function SettingsCard({ title, description, children }: { title: string; description?: string; children: React.ReactNode }) {
   return (
@@ -24,6 +25,12 @@ const one = (v: any) => (Array.isArray(v) ? v[0] : v) ?? null
 
 export default function PortalSettingsPage() {
   const supabase = createClient()
+
+  // ── Appearance ──
+  const { theme, setTheme } = useTheme()
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => setMounted(true), [])
+  const currentTheme = mounted && theme && ['system', 'light', 'dark'].includes(theme) ? theme : 'system'
 
   // ── Change password ──
   const [pw, setPw] = useState('')
@@ -66,8 +73,23 @@ export default function PortalSettingsPage() {
     <div className="space-y-4">
       <div>
         <h1 className="text-xl font-semibold tracking-tight">Settings</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">Manage your sign-in security and who can access your account.</p>
+        <p className="text-sm text-muted-foreground mt-0.5">Manage how the portal looks, your sign-in security, and who can access your account.</p>
       </div>
+
+      <SettingsCard title="Appearance" description="Choose how the portal looks on this device.">
+        <div className="inline-flex rounded-md border p-0.5 gap-0.5">
+          {([['system', Monitor, 'System'], ['light', Sun, 'Light'], ['dark', Moon, 'Dark']] as const).map(([val, Icon, label]) => (
+            <button
+              key={val}
+              onClick={() => setTheme(val)}
+              disabled={!mounted}
+              className={`inline-flex items-center gap-1.5 px-3 h-8 rounded text-sm transition-colors ${currentTheme === val ? 'bg-muted font-medium text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+            >
+              <Icon className="h-3.5 w-3.5" /> {label}
+            </button>
+          ))}
+        </div>
+      </SettingsCard>
 
       <SettingsCard title="Change password">
         <div className="space-y-3 max-w-sm">
