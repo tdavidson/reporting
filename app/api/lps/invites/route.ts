@@ -85,8 +85,10 @@ export async function POST(req: NextRequest) {
 
   // Email the OTP invite — the hook now recognizes this email as an invited LP.
   // Bind the auth user when available; otherwise onboarding binds it by email.
+  // Pass the fund name as metadata so the invite email can name the fund.
+  const { data: fund } = await admin.from('funds').select('name').eq('id', writeCheck.fundId).maybeSingle()
   try {
-    const { data: invited, error: inviteErr } = await admin.auth.admin.inviteUserByEmail(email)
+    const { data: invited, error: inviteErr } = await admin.auth.admin.inviteUserByEmail(email, { data: { fund_name: fund?.name ?? null } })
     if (inviteErr) console.warn('[lp invite] inviteUserByEmail:', inviteErr.message)
     else if (invited?.user?.id && !existing?.auth_user_id) {
       await (admin as any)

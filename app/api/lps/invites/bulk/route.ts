@@ -44,6 +44,8 @@ export async function POST(req: NextRequest) {
   if (writeCheck instanceof NextResponse) return writeCheck
   if (writeCheck.role !== 'admin') return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
   const fundId = writeCheck.fundId
+  const { data: fund } = await admin.from('funds').select('name').eq('id', fundId).maybeSingle()
+  const fundName = fund?.name ?? null
 
   const body = await req.json().catch(() => ({}))
   const commit = !!body.commit
@@ -102,7 +104,7 @@ export async function POST(req: NextRequest) {
   // ── Phase 2b: invite + account + link + authorized users, concurrency-limited ─
   async function sendInvite(email: string): Promise<string | null> {
     try {
-      const { data, error } = await admin.auth.admin.inviteUserByEmail(email)
+      const { data, error } = await admin.auth.admin.inviteUserByEmail(email, { data: { fund_name: fundName } })
       return error ? null : (data?.user?.id ?? null)
     } catch { return null }
   }
