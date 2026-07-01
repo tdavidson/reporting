@@ -44,7 +44,7 @@ export default function PortalWelcomePage() {
   async function directActivate() {
     setError(null); setActivating(true)
     const res = await fetch('/api/portal/activate', { method: 'POST' })
-    if (res.ok) { window.location.href = '/portal/snapshots'; return }
+    if (res.ok) { window.location.href = '/portal/overview'; return }
     const b = await res.json().catch(() => ({}))
     setError(b.error ?? 'Could not activate your portal access.')
     setActivating(false)
@@ -83,7 +83,7 @@ export default function PortalWelcomePage() {
       setBusy(false)
       return
     }
-    window.location.href = '/portal/snapshots'
+    window.location.href = '/portal/overview'
   }
 
   if (checking) {

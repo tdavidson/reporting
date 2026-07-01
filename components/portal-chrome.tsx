@@ -7,6 +7,7 @@ import { AppFooter } from '@/components/app-footer'
 import { LogOut } from 'lucide-react'
 
 const TABS: { href: string; label: string; match?: string[] }[] = [
+  { href: '/portal/overview', label: 'Overview' },
   // "Library" is the combined reports + letters + documents page at /portal/snapshots.
   { href: '/portal/snapshots', label: 'Library', match: ['/portal/snapshots', '/portal/letters', '/portal/documents'] },
   { href: '/portal/settings', label: 'Settings' },
@@ -27,10 +28,10 @@ export function PortalChrome({ fundName, logoUrl, userEmail, children }: { fundN
 
   return (
     <div className="flex flex-col min-h-screen">
-      <header>
-        <div className="max-w-5xl mx-auto px-4 border-b">
+      <header className="border-b">
+        <div className="max-w-5xl mx-auto px-4">
           <div className="pt-3 pb-2 flex items-center justify-between gap-3">
-            <Link href="/portal/snapshots" className="flex items-center gap-2 min-w-0">
+            <Link href="/portal/overview" className="flex items-center gap-2 min-w-0">
               {logoUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={logoUrl} alt="" className="h-7 w-auto max-w-[140px] object-contain rounded shrink-0" />

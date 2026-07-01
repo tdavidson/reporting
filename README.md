@@ -1,17 +1,21 @@
 ![Next.js](https://img.shields.io/badge/Next.js-14-black?logo=next.js) ![Supabase](https://img.shields.io/badge/Supabase-PostgreSQL-3ECF8E?logo=supabase&logoColor=white) ![TypeScript](https://img.shields.io/badge/TypeScript-97.6%25-3178C6?logo=typescript&logoColor=white) ![GitHub Stars](https://img.shields.io/github/stars/tdavidson/reporting?style=flat) ![License](https://img.shields.io/badge/license-Apache_2.0-blue)
 
-# Portfolio Reporting Stack for Fund Managers
+# AI-native fund reporting and analysis platform for Venture Capital Fund Managers
 
-From founder emails to LP reports automatically. Every quarter you spend 20 hours building LP reports by copying metrics from PowerPoint slides and Excel files that founders send you. Your LPs expect institutional-grade reporting but you're doing data entry by hand. I built a system that processes investor updates automatically — forward emails in any format, AI extracts the metrics, and you get real-time portfolio dashboards plus formatted reports ready for your next LP meeting.
+AI-native venture capital investor reporting and analysis platform. Inbound deal screening, due diligence and investment memo drafting, portfolio KPI collection and reporting, fund performance reporting, and limited partner portal, powered by your AI. Pick and choose which features you want to use, run on your own infrastructure and use your own AI.
 
 ![Public Home Page](public/screenshots/homepage.png)
 
 ## What it does
 
-Forward investor updates in any format — PDF, Excel, PowerPoint, plain text — and AI identifies the company, extracts metrics, and builds portfolio dashboards. Track and report investment performance metrics at company, fund, and portfolio levels. Generate institutional-grade LP reports without manual data entry.
+The core of the platform is portfolio KPI collection. From founder emails to LP reports automatically. Every quarter you spend 20 hours building LP reports by copying metrics from PowerPoint slides and Excel files that founders send you. Your LPs expect institutional-grade reporting but you're doing data entry by hand. I built a system that processes investor updates automatically — forward emails in any format, AI extracts the metrics, and you get real-time portfolio dashboards plus formatted reports ready for your next LP meeting.
+
+Turn on the additional features for inbound deal screening, due diligence agent, and investment memo drafting to create a deal pipeline and bring AI into your screening and diligence workflows. Utilize the limited partner reporting features to provide portfolio-company and/or fund-level reporting and document delivery to your limited partners.
 
 ## How it works
 
+- **Inbound deal screening** — Cold pitches and partner-forwarded intros sent to your inbound address get classified, fit-scored against your thesis, and queued in a Deals pipeline. Optional public submission form for founders.
+- **Diligence** — Pre-investment record-keeping with a schema-driven AI agent that ingests the data room, runs external research, asks partner Q&A, drafts a structured memo with paragraph-level provenance, and renders to Word or Google Docs. Schemas (rubric, Q&A library, memo structure) are partner-editable per fund.
 - **Email forwarding** — Give founders an inbound address, system processes everything automatically
 - **AI extraction** — Identifies companies and pulls metrics like MRR, burn rate, headcount, and any custom KPIs you set from any format
 - **Portfolio dashboard** — Real-time view of company health with key metrics and trend analysis
@@ -19,8 +23,6 @@ Forward investor updates in any format — PDF, Excel, PowerPoint, plain text �
 - **LP reporting** — Export clean data or use built-in templates for professional presentation
 - **LP portal** — Give your LPs a private, fund-branded login to view and download their capital account statements, quarterly letters, and fund documents — each as a web page or a PDF. Send any item by email to one LP, several, or your whole list as a secure portal link, a PDF attachment, or both. Authorized users (advisors, accountants) are included automatically, and an AI analyst answers LP questions from only their own materials.
 - **Lightweight CRM** - Track intros, strategy, qualitative value-adds to demonstrate how you work with your portfolio
-- **Inbound deal screening** — Cold pitches and partner-forwarded intros sent to your inbound address get classified, fit-scored against your thesis, and queued in a Deals pipeline. Optional public submission form for founders.
-- **Diligence** — Pre-investment record-keeping with a schema-driven AI agent that ingests the data room, runs external research, asks partner Q&A, drafts a structured memo with paragraph-level provenance, and renders to Word or Google Docs. Schemas (rubric, Q&A library, memo structure) are partner-editable per fund.
 
 > Detailed feature descriptions at [FEATURES](./FEATURES.md)
 

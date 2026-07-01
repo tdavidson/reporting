@@ -90,7 +90,7 @@ export async function middleware(request: NextRequest) {
       // An already-active LP has no business on the onboarding page.
       if (isActiveLp && isPortalWelcome) {
         const url = request.nextUrl.clone()
-        url.pathname = '/portal/snapshots'
+        url.pathname = '/portal/overview'
         return NextResponse.redirect(url)
       }
       // Only active LPs (incl. active LPs who are also GPs) belong in the portal.
@@ -102,7 +102,7 @@ export async function middleware(request: NextRequest) {
     } else if (isActiveLp && !isGp) {
       // LP-only user on a GP route → their portal.
       const url = request.nextUrl.clone()
-      url.pathname = '/portal/snapshots'
+      url.pathname = '/portal/overview'
       return NextResponse.redirect(url)
     }
   }

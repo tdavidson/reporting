@@ -5,12 +5,14 @@ import Link from 'next/link'
 import { Loader2, FileText, Mail, Download, ArrowLeft, Eye, ChevronRight, ExternalLink, ShieldCheck, MessageSquare, LogOut } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { AppFooter } from '@/components/app-footer'
+import { OverviewView } from '@/components/portal/overview-view'
+import type { OverviewMetrics } from '@/lib/lp-overview'
 
 interface Investor { id: string; name: string }
 interface Snapshot { id: string; name: string; as_of_date: string | null }
 interface Letter { id: string; period_label: string; period_year: number; period_quarter: number }
 interface Doc { id: string; title: string; file_name: string; size_bytes: number | null; category: string | null; doc_date: string | null; uploaded_at: string; scope: string; sample: boolean }
-interface Preview { investor: { id: string; name: string }; fund: { name: string; logo_url: string | null }; portal_enabled: boolean; snapshots: Snapshot[]; letters: Letter[]; documents: Doc[] }
+interface Preview { investor: { id: string; name: string }; fund: { name: string; logo_url: string | null }; currency?: string; overview?: OverviewMetrics | null; portal_enabled: boolean; snapshots: Snapshot[]; letters: Letter[]; documents: Doc[] }
 
 const SCOPE_ORDER: { key: string; label: string }[] = [
   { key: 'fund', label: 'Fund documents' },
@@ -47,7 +49,7 @@ export default function LpPortalPreviewPage() {
   const [investorId, setInvestorId] = useState('sample')
   const [data, setData] = useState<Preview | null>(null)
   const [loading, setLoading] = useState(false)
-  const [tab, setTab] = useState<'library' | 'settings' | 'contact'>('library')
+  const [tab, setTab] = useState<'overview' | 'library' | 'settings' | 'contact'>('overview')
   const [downloading, setDownloading] = useState<string | null>(null)
 
   useEffect(() => {
@@ -103,8 +105,6 @@ export default function LpPortalPreviewPage() {
     return byScope
   }, [data])
 
-  const isSample = investorId === 'sample'
-
   const docRow = (d: Doc) => {
     const meta = [d.category?.trim(), d.file_name, d.size_bytes ? fmtSize(d.size_bytes) : null, effective(d) ? fmtDate(effective(d)) : null].filter(Boolean).join(' · ')
     const inner = (
@@ -116,10 +116,10 @@ export default function LpPortalPreviewPage() {
         </div>
       </>
     )
-    return (d.sample || isSample) ? (
-      <div key={d.id} className="w-full flex items-center gap-3 px-4 py-3" title="Preview only">
+    return d.sample ? (
+      <div key={d.id} className="w-full flex items-center gap-3 px-4 py-3" title="Sample document — no file to download">
         {inner}
-        <span className="text-[10px] uppercase tracking-wide text-muted-foreground shrink-0">{d.sample ? 'Sample' : 'Preview'}</span>
+        <span className="text-[10px] uppercase tracking-wide text-muted-foreground shrink-0">Sample</span>
       </div>
     ) : (
       <button key={d.id} onClick={() => download(d.id)} disabled={downloading === d.id} className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-muted/40 transition-colors">
@@ -130,6 +130,7 @@ export default function LpPortalPreviewPage() {
   }
 
   const TABS = [
+    { key: 'overview' as const, label: 'Overview' },
     { key: 'library' as const, label: 'Library' },
     { key: 'settings' as const, label: 'Settings' },
     { key: 'contact' as const, label: 'Contact' },
@@ -138,14 +139,17 @@ export default function LpPortalPreviewPage() {
   const isEmpty = !!data && data.snapshots.length === 0 && data.letters.length === 0 && data.documents.length === 0
 
   return (
-    <div className="min-h-screen flex flex-col bg-muted/20">
+    // Full-bleed: break out of the GP layout's max-w-screen-xl wrapper so the
+    // preview fills the window like a real standalone portal (banner + header
+    // lines span edge-to-edge; content stays centered below).
+    <div className="min-h-screen flex flex-col bg-muted/20 w-screen ml-[calc(50%-50vw)]">
       {/* Admin preview bar — NOT part of the real portal an LP sees */}
       <div className="sticky top-0 z-20 border-b bg-amber-50 dark:bg-amber-950/40 text-amber-900 dark:text-amber-200">
         <div className="max-w-5xl mx-auto px-4 py-2 flex items-center gap-3 text-sm">
           <span className="inline-flex items-center gap-1.5 font-medium shrink-0 whitespace-nowrap"><Eye className="h-4 w-4" /> LP portal preview — viewing as</span>
           <select
             value={investorId}
-            onChange={e => { setInvestorId(e.target.value); setTab('library') }}
+            onChange={e => { setInvestorId(e.target.value); setTab('overview') }}
             className="h-7 w-56 shrink-0 rounded border border-amber-300 dark:border-amber-700 bg-white dark:bg-amber-950 px-2 text-sm text-foreground"
           >
             <option value="sample">Sample investor (example)</option>
@@ -159,7 +163,7 @@ export default function LpPortalPreviewPage() {
       </div>
 
       {/* Portal chrome — mirrors the real /portal layout (components/portal-chrome) */}
-      <header className="border-b bg-card">
+      <header className="border-b">
         <div className="max-w-5xl mx-auto px-4">
           <div className="pt-3 pb-2 flex items-center justify-between gap-3">
             <div className="flex items-center gap-2 min-w-0">
@@ -190,7 +194,15 @@ export default function LpPortalPreviewPage() {
       </header>
 
       <main className="flex-1 w-full max-w-5xl mx-auto px-4 py-6">
-        {tab === 'settings' ? (
+        {tab === 'overview' ? (
+          loading ? (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground py-8"><Loader2 className="h-4 w-4 animate-spin" /> Loading…</div>
+          ) : data ? (
+            <OverviewView data={{ investorName: data.investor.name, currency: data.currency, hasData: !!data.overview, ...(data.overview ?? {}) }} />
+          ) : (
+            <div className="text-sm text-muted-foreground">Select an LP in the bar above to preview their overview.</div>
+          )
+        ) : tab === 'settings' ? (
           <div className="space-y-4">
             <div>
               <h1 className="text-xl font-semibold tracking-tight">Settings</h1>
@@ -242,9 +254,7 @@ export default function LpPortalPreviewPage() {
                             </div>
                           </>
                         )
-                        return isSample ? (
-                          <div key={s.id} className="w-full flex items-center gap-3 px-4 py-3" title="Preview only">{inner}<span className="text-[10px] uppercase tracking-wide text-muted-foreground shrink-0">Preview</span></div>
-                        ) : (
+                        return (
                           <button key={s.id} onClick={() => downloadReport(s)} disabled={downloading === s.id} className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-muted/40 transition-colors">
                             {inner}
                             {downloading === s.id ? <Loader2 className="h-4 w-4 animate-spin text-muted-foreground shrink-0" /> : <Download className="h-4 w-4 text-muted-foreground shrink-0" />}
@@ -265,9 +275,7 @@ export default function LpPortalPreviewPage() {
                             <div className="flex-1 min-w-0"><div className="font-medium text-sm truncate">{l.period_label}</div></div>
                           </>
                         )
-                        return isSample ? (
-                          <div key={l.id} className="flex items-center gap-3 px-4 py-3">{inner}<span className="text-[10px] uppercase tracking-wide text-muted-foreground shrink-0">Preview</span></div>
-                        ) : (
+                        return (
                           <Link key={l.id} href={`/letters/${l.id}`} target="_blank" className="flex items-center gap-3 px-4 py-3 hover:bg-muted/40 transition-colors">
                             {inner}
                             <ExternalLink className="h-3.5 w-3.5 text-muted-foreground shrink-0" />

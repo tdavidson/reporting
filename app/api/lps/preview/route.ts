@@ -1,6 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { buildOverview } from '@/lib/lp-overview'
+
+/** Portfolio overview for one investor in the admin's fund (for the preview). */
+async function computeOverview(admin: any, fundId: string, investorId: string) {
+  const { data: entities } = await admin
+    .from('lp_entities').select('id').eq('fund_id', fundId).eq('investor_id', investorId)
+  const entityIds = ((entities ?? []) as any[]).map(e => e.id as string)
+  if (entityIds.length === 0) return null
+  const { data: rows } = await admin
+    .from('lp_investments')
+    .select('portfolio_group, commitment, paid_in_capital, called_capital, distributions, nav, total_value, snapshot_id, lp_snapshots(id, name, as_of_date)')
+    .eq('fund_id', fundId)
+    .in('entity_id', entityIds)
+  return buildOverview((rows ?? []) as any[])
+}
 
 /**
  * Admin-only "view as LP" preview (read-only). Given an investor in the admin's
@@ -32,16 +47,22 @@ export async function GET(req: NextRequest) {
   // can preview the layout before any LPs are added: the fund's most recent
   // reports + letters and its fund-wide documents, as examples.
   if (!investorId || investorId === 'sample') {
-    const { data: ef } = await (admin as any).from('fund_settings').select('lp_portal_enabled').eq('fund_id', fundId).maybeSingle()
-    const [{ data: snaps }, { data: lets }, { data: fundDocs }] = await Promise.all([
+    const { data: ef } = await (admin as any).from('fund_settings').select('lp_portal_enabled, currency').eq('fund_id', fundId).maybeSingle()
+    const [{ data: snaps }, { data: lets }, { data: fundDocs }, { data: rep }] = await Promise.all([
       (admin as any).from('lp_snapshots').select('id, name, as_of_date').eq('fund_id', fundId).order('as_of_date', { ascending: false }).limit(10),
       (admin as any).from('lp_letters').select('id, period_label, period_year, period_quarter, status').eq('fund_id', fundId).order('period_year', { ascending: false }).limit(10),
       (admin as any).from('lp_documents').select('id, title, file_name, size_bytes, category, doc_date, uploaded_at, scope, storage_path').eq('fund_id', fundId).eq('scope', 'fund'),
+      // A representative investor with real positions, so the sample overview isn't empty.
+      (admin as any).from('lp_investments').select('lp_entities!inner(investor_id)').eq('fund_id', fundId).limit(1),
     ])
+    const repId = (rep ?? [])[0]?.lp_entities?.investor_id as string | undefined
+    const overview = repId ? await computeOverview(admin, fundId, repId) : null
     return NextResponse.json({
       investor: { id: 'sample', name: 'Sample investor' },
       fund,
+      currency: ef?.currency ?? 'USD',
       portal_enabled: !!ef?.lp_portal_enabled,
+      overview,
       snapshots: snaps ?? [],
       letters: (lets ?? []).filter((l: any) => l && l.status !== 'generating'),
       documents: (fundDocs ?? []).map((d: any) => ({ ...d, sample: String(d.storage_path ?? '').startsWith('sample/'), storage_path: undefined })),
@@ -52,7 +73,8 @@ export async function GET(req: NextRequest) {
     .from('lp_investors').select('id, name').eq('id', investorId).eq('fund_id', fundId).maybeSingle()
   if (!investor) return NextResponse.json({ error: 'Investor not found in your fund' }, { status: 404 })
 
-  const { data: ef } = await (admin as any).from('fund_settings').select('lp_portal_enabled').eq('fund_id', fundId).maybeSingle()
+  const { data: ef } = await (admin as any).from('fund_settings').select('lp_portal_enabled, currency').eq('fund_id', fundId).maybeSingle()
+  const overview = await computeOverview(admin, fundId, investorId)
 
   const [{ data: snapShares }, { data: letterShares }, { data: fundDocs }, { data: invDocShares }] = await Promise.all([
     (admin as any).from('lp_snapshot_shares').select('lp_snapshots(id, name, as_of_date)').eq('lp_investor_id', investorId).eq('fund_id', fundId),
@@ -79,7 +101,9 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({
     investor: { id: investor.id, name: investor.name },
     fund,
+    currency: ef?.currency ?? 'USD',
     portal_enabled: !!ef?.lp_portal_enabled,
+    overview,
     snapshots,
     letters,
     documents,
