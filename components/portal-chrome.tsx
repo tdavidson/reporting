@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { Button } from '@/components/ui/button'
+import { AppFooter } from '@/components/app-footer'
 import { LogOut } from 'lucide-react'
 
 const TABS: { href: string; label: string; match?: string[] }[] = [
@@ -25,7 +26,7 @@ export function PortalChrome({ fundName, logoUrl, userEmail, children }: { fundN
   }
 
   return (
-    <>
+    <div className="flex flex-col min-h-screen">
       <header>
         <div className="max-w-5xl mx-auto px-4 border-b">
           <div className="pt-3 pb-2 flex items-center justify-between gap-3">
@@ -62,7 +63,10 @@ export function PortalChrome({ fundName, logoUrl, userEmail, children }: { fundN
           </nav>
         </div>
       </header>
-      <main className="max-w-5xl mx-auto px-4 py-6">{children}</main>
-    </>
+      <main className="flex-1 w-full max-w-5xl mx-auto px-4 py-6">{children}</main>
+      <div className="w-full max-w-5xl mx-auto">
+        <AppFooter />
+      </div>
+    </div>
   )
 }

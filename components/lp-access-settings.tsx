@@ -97,9 +97,9 @@ export function LpAccessSettings() {
 
   return (
     <div className="space-y-6">
-      <a href="/lps/preview" className="inline-flex items-center gap-1.5 text-sm text-primary hover:underline">
-        <Eye className="h-4 w-4" /> Preview the LP portal as an LP
-      </a>
+      <Button asChild variant="outline" size="sm" className="text-muted-foreground">
+        <a href="/lps/preview"><Eye className="h-4 w-4 mr-1.5" /> Preview the LP portal as an LP</a>
+      </Button>
 
       {/* Bulk */}
       <div>

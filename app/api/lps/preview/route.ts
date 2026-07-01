@@ -22,6 +22,10 @@ export async function GET(req: NextRequest) {
   if (!membership) return NextResponse.json({ error: 'No fund found' }, { status: 403 })
   const fundId = membership.fund_id
 
+  // Fund branding, so the preview header mirrors the real portal chrome.
+  const { data: fundRow } = await (admin as any).from('funds').select('name, logo_url').eq('id', fundId).maybeSingle()
+  const fund = { name: (fundRow?.name as string) ?? 'Investor Portal', logo_url: (fundRow?.logo_url as string | null) ?? null }
+
   const investorId = new URL(req.url).searchParams.get('investor_id') ?? ''
 
   // Sample mode — no real LP needed. Renders a representative portal so admins
@@ -36,6 +40,7 @@ export async function GET(req: NextRequest) {
     ])
     return NextResponse.json({
       investor: { id: 'sample', name: 'Sample investor' },
+      fund,
       portal_enabled: !!ef?.lp_portal_enabled,
       snapshots: snaps ?? [],
       letters: (lets ?? []).filter((l: any) => l && l.status !== 'generating'),
@@ -73,6 +78,7 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json({
     investor: { id: investor.id, name: investor.name },
+    fund,
     portal_enabled: !!ef?.lp_portal_enabled,
     snapshots,
     letters,

@@ -2,13 +2,15 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { Loader2, FileText, Mail, Download, ArrowLeft, Eye, ChevronRight, ExternalLink, ShieldCheck, MessageSquare } from 'lucide-react'
+import { Loader2, FileText, Mail, Download, ArrowLeft, Eye, ChevronRight, ExternalLink, ShieldCheck, MessageSquare, LogOut } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { AppFooter } from '@/components/app-footer'
 
 interface Investor { id: string; name: string }
 interface Snapshot { id: string; name: string; as_of_date: string | null }
 interface Letter { id: string; period_label: string; period_year: number; period_quarter: number }
 interface Doc { id: string; title: string; file_name: string; size_bytes: number | null; category: string | null; doc_date: string | null; uploaded_at: string; scope: string; sample: boolean }
-interface Preview { investor: { id: string; name: string }; portal_enabled: boolean; snapshots: Snapshot[]; letters: Letter[]; documents: Doc[] }
+interface Preview { investor: { id: string; name: string }; fund: { name: string; logo_url: string | null }; portal_enabled: boolean; snapshots: Snapshot[]; letters: Letter[]; documents: Doc[] }
 
 const SCOPE_ORDER: { key: string; label: string }[] = [
   { key: 'fund', label: 'Fund documents' },
@@ -136,31 +138,43 @@ export default function LpPortalPreviewPage() {
   const isEmpty = !!data && data.snapshots.length === 0 && data.letters.length === 0 && data.documents.length === 0
 
   return (
-    <div className="min-h-screen bg-muted/20">
+    <div className="min-h-screen flex flex-col bg-muted/20">
       {/* Admin preview bar — NOT part of the real portal an LP sees */}
       <div className="sticky top-0 z-20 border-b bg-amber-50 dark:bg-amber-950/40 text-amber-900 dark:text-amber-200">
-        <div className="max-w-5xl mx-auto px-4 py-2 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-sm">
-          <span className="inline-flex items-center gap-1.5 font-medium"><Eye className="h-4 w-4" /> LP portal preview — viewing as</span>
+        <div className="max-w-5xl mx-auto px-4 py-2 flex items-center gap-3 text-sm">
+          <span className="inline-flex items-center gap-1.5 font-medium shrink-0 whitespace-nowrap"><Eye className="h-4 w-4" /> LP portal preview — viewing as</span>
           <select
             value={investorId}
             onChange={e => { setInvestorId(e.target.value); setTab('library') }}
-            className="h-7 rounded border border-amber-300 dark:border-amber-700 bg-white dark:bg-amber-950 px-2 text-sm text-foreground"
+            className="h-7 w-56 shrink-0 rounded border border-amber-300 dark:border-amber-700 bg-white dark:bg-amber-950 px-2 text-sm text-foreground"
           >
             <option value="sample">Sample investor (example)</option>
             {investors.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
           </select>
-          {investorId && data && !data.portal_enabled && <span className="text-xs">Portal is OFF — LPs can’t see this yet</span>}
-          <Link href="/lps" className="ml-auto inline-flex items-center gap-1 opacity-80 hover:opacity-100">
+          {investorId && data && !data.portal_enabled && <span className="text-xs shrink-0 truncate hidden md:inline">Portal is OFF — LPs can’t see this yet</span>}
+          <Link href="/lps" className="ml-auto shrink-0 inline-flex items-center gap-1 whitespace-nowrap opacity-80 hover:opacity-100">
             <ArrowLeft className="h-3.5 w-3.5" /> Exit preview
           </Link>
         </div>
       </div>
 
-      {/* Portal chrome — mirrors the real /portal layout */}
+      {/* Portal chrome — mirrors the real /portal layout (components/portal-chrome) */}
       <header className="border-b bg-card">
         <div className="max-w-5xl mx-auto px-4">
-          <div className="pt-3 pb-2 font-medium text-sm text-muted-foreground tracking-tight">Investor Portal</div>
-          <nav className="flex items-center gap-4 -mb-px pt-1">
+          <div className="pt-3 pb-2 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2 min-w-0">
+              {data?.fund?.logo_url ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={data.fund.logo_url} alt="" className="h-7 w-auto max-w-[140px] object-contain rounded shrink-0" />
+              ) : null}
+              <span className="font-medium text-sm text-muted-foreground tracking-tight truncate">{data?.fund?.name ?? 'Investor Portal'}</span>
+            </div>
+            <Button variant="outline" size="sm" disabled className="text-muted-foreground gap-2" title="Sign out (disabled in preview)">
+              <LogOut className="h-4 w-4" />
+              <span className="hidden sm:inline">Sign out</span>
+            </Button>
+          </div>
+          <nav className="flex items-center gap-4 -mb-px pt-2 overflow-x-auto">
             {TABS.map(t => (
               <button
                 key={t.key}
@@ -175,7 +189,7 @@ export default function LpPortalPreviewPage() {
         </div>
       </header>
 
-      <main className="max-w-5xl mx-auto px-4 py-6">
+      <main className="flex-1 w-full max-w-5xl mx-auto px-4 py-6">
         {tab === 'settings' ? (
           <div className="space-y-4">
             <div>
@@ -191,7 +205,7 @@ export default function LpPortalPreviewPage() {
           <div className="space-y-4">
             <div>
               <h1 className="text-xl font-semibold tracking-tight">Contact your fund</h1>
-              <p className="text-sm text-muted-foreground mt-0.5">Investors send your team a message here; it arrives by email.</p>
+              <p className="text-sm text-muted-foreground mt-0.5">Send an email to your fund&apos;s team.</p>
             </div>
             <div className="rounded-md border bg-card p-4 text-sm text-muted-foreground flex items-start gap-2">
               <MessageSquare className="h-4 w-4 mt-0.5 shrink-0" />
@@ -285,6 +299,10 @@ export default function LpPortalPreviewPage() {
           </div>
         )}
       </main>
+
+      <div className="w-full max-w-5xl mx-auto">
+        <AppFooter />
+      </div>
     </div>
   )
 }
