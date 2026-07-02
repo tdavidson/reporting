@@ -14,6 +14,8 @@ import { reconcileCapital, type AdminCapitalAccount } from './reconcile'
 import { runWaterfall } from './waterfall'
 import { buildAllocationEntry, type AllocationBody } from './allocation-actions'
 import { importBankTransactions } from './bank-import'
+import { runCategorization } from './categorize-run'
+import { bookCapitalCallFromInflow } from './bank-match'
 import { summarizeBankRec, type BankTxnState } from './bank'
 import { accountBalances } from './ledger'
 import type { JournalEntry, Posting } from './types'
@@ -105,6 +107,18 @@ const HANDLERS: Record<string, AgentToolHandler> = {
 
   import_bank_transactions: async ({ admin, fundId, userId }, input) => {
     const result = await importBankTransactions(admin, fundId, userId, String(input.csv ?? ''), String(input.source ?? 'csv'))
+    if ('error' in result) throw new Error(result.error)
+    return result
+  },
+
+  categorize_bank_transactions: async ({ admin, fundId }, input) => {
+    const result = await runCategorization(admin, fundId, Array.isArray(input?.ids) ? input.ids : undefined)
+    if ('error' in result) throw new Error(result.error)
+    return result
+  },
+
+  book_capital_call: async ({ admin, fundId, userId }, input) => {
+    const result = await bookCapitalCallFromInflow(admin, fundId, userId, String(input.bankTransactionId))
     if ('error' in result) throw new Error(result.error)
     return result
   },

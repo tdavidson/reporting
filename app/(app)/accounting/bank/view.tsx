@@ -1,12 +1,13 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import { Loader2, Check, AlertTriangle, Upload } from 'lucide-react'
+import { Loader2, Check, AlertTriangle, Upload, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useCurrency, formatCurrencyFull } from '@/components/currency-context'
 
 interface Txn { id: string; txn_date: string; amount: number; description: string; counterparty: string | null; status: string; suggested_account_code: string | null }
 interface Rec { bankEndingBalance: number; ledgerCashBalance: number; difference: number; matchedCount: number; unmatchedCount: number; unmatchedTotal: number; tiesOut: boolean }
+interface Candidate { entryId: string; amount: number; entryDate: string; memo: string | null }
 
 const STATUS_STYLE: Record<string, string> = {
   drafted: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
@@ -21,8 +22,10 @@ export function BankView() {
   const [csv, setCsv] = useState('')
   const [txns, setTxns] = useState<Txn[]>([])
   const [rec, setRec] = useState<Rec | null>(null)
+  const [candidates, setCandidates] = useState<Candidate[]>([])
   const [loading, setLoading] = useState(true)
   const [importing, setImporting] = useState(false)
+  const [categorizing, setCategorizing] = useState(false)
   const [result, setResult] = useState<{ imported: number; skipped: number; errors: string[] } | null>(null)
 
   const load = useCallback(() => {
@@ -30,10 +33,25 @@ export function BankView() {
     Promise.all([
       fetch('/api/accounting/bank').then(r => (r.ok ? r.json() : [])),
       fetch('/api/accounting/bank/reconcile').then(r => (r.ok ? r.json() : null)),
-    ]).then(([t, r]) => { setTxns(Array.isArray(t) ? t : []); setRec(r) }).finally(() => setLoading(false))
+      fetch('/api/accounting/bank/match').then(r => (r.ok ? r.json() : [])),
+    ]).then(([t, r, c]) => { setTxns(Array.isArray(t) ? t : []); setRec(r); setCandidates(Array.isArray(c) ? c : []) }).finally(() => setLoading(false))
   }, [])
 
   useEffect(() => { load() }, [load])
+
+  async function categorize() {
+    setCategorizing(true)
+    await fetch('/api/accounting/bank/categorize', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) })
+    setCategorizing(false)
+    load()
+  }
+
+  async function match(id: string, mode: 'allocate' | 'link', entryId?: string) {
+    await fetch('/api/accounting/bank/match', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, mode, entryId }) })
+    load()
+  }
+
+  const candidateFor = (amount: number) => candidates.find(c => Math.abs(c.amount - amount) < 0.01)
 
   async function doImport() {
     setImporting(true); setResult(null)
@@ -82,6 +100,15 @@ export function BankView() {
       )}
 
       {/* Transactions */}
+      {txns.some(t => t.status === 'drafted') && (
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant="outline" onClick={categorize} disabled={categorizing}>
+            {categorizing ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Sparkles className="h-4 w-4 mr-1" />}
+            Categorize with AI
+          </Button>
+          <span className="text-xs text-muted-foreground">Re-classifies drafted rows against your chart of accounts.</span>
+        </div>
+      )}
       {loading ? (
         <div className="flex items-center gap-2 text-muted-foreground text-sm"><Loader2 className="h-4 w-4 animate-spin" />Loading…</div>
       ) : txns.length === 0 ? (
@@ -110,6 +137,10 @@ export function BankView() {
                   <td className="px-3 py-2 text-right">
                     {t.status === 'drafted' && (
                       <span className="flex items-center gap-1 justify-end">
+                        {t.amount > 0 && (candidateFor(t.amount)
+                          ? <><button onClick={() => match(t.id, 'link', candidateFor(t.amount)!.entryId)} className="text-xs text-blue-600 hover:underline" title="Link to the capital call you already recorded">Match call</button><span className="text-muted-foreground">·</span></>
+                          : <><button onClick={() => match(t.id, 'allocate')} className="text-xs text-blue-600 hover:underline" title="Allocate this inflow across LPs as a capital call">Book as call</button><span className="text-muted-foreground">·</span></>
+                        )}
                         <button onClick={() => act(t.id, 'post')} className="text-xs text-green-600 hover:underline">Post</button>
                         <span className="text-muted-foreground">·</span>
                         <button onClick={() => act(t.id, 'ignore')} className="text-xs text-muted-foreground hover:underline">Ignore</button>

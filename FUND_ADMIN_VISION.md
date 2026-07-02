@@ -363,10 +363,16 @@ The foundation and a working vertical slice are built, all behind the `accountin
   (`import_bank_transactions`, `list_bank_transactions`, `bank_reconciliation`). Plaid/Ramp/QuickBooks
   connectors normalize into the same staging shape.
 
+- **AI categorization** — batch-classify staged transactions against the fund's chart via the LLM,
+  re-pointing each draft entry (`categorize_bank_transactions` agent tool + Bank page button).
+- **Inflow → capital-call matching** — turn a bank inflow into a per-LP allocated capital call
+  (pro-rata by commitment), or link it to a call the GP already recorded from a notice; the Bank page
+  offers "Book as call" / "Match call" on inflow rows (`book_capital_call` agent tool).
+
 **Not yet built (the remaining plan):**
 
 - Live connectors (Plaid bank feed, Ramp API + webhooks, QuickBooks/Intuit) on top of the staging layer;
-  AI-batch categorization and agent-orchestrated pull-and-post.
+  agent-orchestrated pull-and-post on a schedule.
 - Re-sourcing the existing pages (funds, LP report cards, letters) from the ledger via the
   shadow → internal-reconcile → cut-over strategy; LP-portal roll-forward drilldown.
 - Schedule of investments (page stubbed); statement of changes in partners' capital and cash flows.

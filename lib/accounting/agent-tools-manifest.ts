@@ -99,6 +99,25 @@ export const AGENT_TOOL_MANIFEST: AgentToolMeta[] = [
     },
   },
   {
+    name: 'categorize_bank_transactions',
+    description: 'AI-categorize staged (drafted) bank transactions against the chart of accounts and re-point their draft entries.',
+    scope: 'write',
+    inputSchema: {
+      type: 'object',
+      properties: { ids: { type: 'array', items: { type: 'string' }, description: 'specific transaction ids; omit for all drafted' } },
+    },
+  },
+  {
+    name: 'book_capital_call',
+    description: 'Turn a bank inflow into a per-LP allocated capital call (pro-rata by commitment), replacing its two-line draft.',
+    scope: 'write',
+    inputSchema: {
+      type: 'object',
+      required: ['bankTransactionId'],
+      properties: { bankTransactionId: { type: 'string' } },
+    },
+  },
+  {
     name: 'list_bank_transactions',
     description: 'List staged bank transactions and their status (drafted / reconciled / ignored).',
     scope: 'read',
