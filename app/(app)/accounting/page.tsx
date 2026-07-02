@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { BookOpen, Users, GitCompareArrows, ScrollText, Layers, FileText } from 'lucide-react'
 import { requireAccountingAdmin } from './guard'
+import { AccountingSetup } from './setup'
 
 export const metadata: Metadata = { title: 'Accounting' }
 
@@ -54,6 +55,8 @@ export default async function AccountingPage() {
           reconciling against a real fund&rsquo;s existing admin statements.
         </p>
       </div>
+
+      <AccountingSetup />
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         {SECTIONS.map(({ href, label, icon: Icon, desc }) => (
