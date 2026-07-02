@@ -70,6 +70,16 @@ Most line items are allocated **pro-rata by ownership %** (commitment- or contri
 depending on the item and the LPA). Start every item as simple pro-rata; the complications in the
 checklist below are the exceptions that break it.
 
+### 4b. Derived outputs beyond capital accounts
+Once the ledger holds per-investment cost and fair value, two more artifacts fall out for free:
+- **Schedule of investments (SOI)** — each portfolio investment with cost, fair value, and % of
+  net assets. Sourced from `investment_transactions` / `investment_valuations` + investment accounts.
+- **Financial statements** — balance sheet, income statement, statement of changes in partners'
+  capital, statement of cash flows, and notes — all derived from the trial balance.
+
+These aren't part of the first tie-out, but they're the reason the ledger is worth building: they
+become *derived*, not separately maintained.
+
 ### 5. The metrics (already in the codebase)
 - **Paid-in capital (PIC)** = cumulative contributions
 - **DPI** = cumulative distributions ÷ PIC
@@ -108,10 +118,15 @@ For each event, write the balanced entry, then allocate per-LP:
 Roll each partner forward (Step 1 balance + Step 2 activity). Ending capital per LP; sum = NAV.
 - *Concept:* the roll-forward as a query over postings, not a stored number.
 
-### Step 4 — Reconcile against the admin (the deliverable)
-Side-by-side, **per LP**, your ending capital vs the admin's, with a **per-line delta**
-(contributions, distributions, fees, gains) so you can localize any discrepancy.
-- *Concept:* reconciliation — the core fund-admin discipline.
+### Step 4 — Reconcile (the deliverable)
+Two reconciles, in order:
+- **Internal** — where a ledger-sourced copy of an existing page (e.g. a report card) is compared
+  against the current page. Proves the new source reproduces what the app already shows.
+- **External** — side-by-side, **per LP**, your ending capital vs the admin's, with a **per-line
+  delta** (contributions, distributions, fees, gains) to localize any discrepancy. Proves the
+  numbers are actually right.
+- *Concept:* reconciliation — the core fund-admin discipline. See "Build strategy" in
+  `FUND_ADMIN_VISION.md` for how this scales page-by-page (shadow → internal reconcile → cut over).
 
 ---
 

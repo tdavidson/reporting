@@ -170,6 +170,89 @@ by `lp_entity_id`) rather than stored figures — the existing `lp_snapshots` / 
 reads from the derived balances. Invariant to enforce in code and as a check:
 `SUM(amount) = 0` per `journal_entry`, per currency.
 
+Because the ledger holds cost and fair value per investment (via the existing
+`investment_transactions` / `investment_valuations` tables), the **schedule of investments** and
+the full **financial statements** become *derived outputs* of the ledger — not separately
+maintained artifacts.
+
+---
+
+## App surface area
+
+The ledger is a spine, so the surface splits three ways: one new nav section that exposes the
+ledger itself, existing pages that get **re-sourced** from it (same UI, numbers now trace to
+entries), and the AI/pipeline plumbing.
+
+### A. New top-level **Accounting** section — `app/(app)/accounting/`
+
+Accounting is its own top-level nav section (distinct mental mode from IR/LP-management: "the
+books" vs. "the investors"). Pages:
+
+- **`accounting/reconciliation`** — side-by-side vs. the admin, per LP, per line. The hero page;
+  the test deliverable and the sales artifact.
+- **`accounting/capital-accounts`** — per-LP capital-account roll-forward (beginning → contributions
+  → distributions → fees → gains → ending). The CFO's core working view.
+- **`accounting/schedule-of-investments`** — the SOI: each portfolio investment with cost, fair
+  value, and % of net assets. Derived from `investment_transactions` / `investment_valuations` +
+  the ledger's investment accounts.
+- **`accounting/statements`** — balance sheet, income statement, statement of changes in partners'
+  capital, statement of cash flows, and notes. Derived from the trial balance.
+- **`accounting/journal`** — journal entries list; drill into postings; filter by period/source/status.
+- **`accounting/accounts`** — chart-of-accounts editor.
+- **`accounting/periods`** — fiscal periods + period-close workflow (lock a period, generate the
+  text serialization, snapshot balances).
+- **`accounting/review`** — AI-drafted entries awaiting approval (reuses the `parsing_reviews`
+  review-queue pattern).
+
+### B. Existing pages re-sourced from the ledger
+
+Same UI, data now derived and traceable:
+
+- **`app/(app)/funds/page.tsx`** — NAV, cash position, uncalled capital from the ledger.
+- **`app/(app)/lps/[snapshotId]` / `[investorId]` / `batch` / `preview`** — report cards;
+  `lib/lp-overview.ts` + `lib/lp-report-pdf.ts` change source from `lp_investments` /
+  `fund_cash_flows` to derived capital-account balances. `lib/xirr.ts` unchanged.
+- **`app/(app)/letters/`** — quarterly letters pull fund financials from the ledger.
+- **`app/(app)/import/`** — extended to the onboarding entry point: opening balances / trial
+  balance / period cash flows.
+- **`app/(app)/emails` + `review` + `requests`** — inbound pipeline extends: capital-call notices,
+  bank statements, invoices → AI-drafted journal entries → review queue.
+- **`app/(app)/dashboard/`** — optional cash / uncalled / NAV tiles.
+- **`fund_settings` / `app/(app)/settings`** — fiscal year, chart-of-accounts config,
+  admin-of-record, reconciliation source.
+
+### C. LP portal — `app/portal/`
+
+- **`portal/overview`** — consolidated position, now derived and drillable into the roll-forward.
+- **`portal/snapshots/[snapshotId]`** — capital account statements, traceable to entries.
+- **LP analyst** (`lib/ai/lp-analyst-context.ts`) — biggest qualitative upgrade: can answer "why
+  did my NAV change this quarter?" by walking the roll-forward and citing entries.
+
+### D. Data + engine (no page)
+
+New tables (`chart_of_accounts`, `journal_entries`, `journal_postings`, `fiscal_periods`,
+`allocation_runs`, `allocation_results`), `lib/accounting/`, and the text-serialization export
+(download on `accounting/periods`).
+
+---
+
+## Build strategy: shadow pages → internal reconcile → cut over
+
+Roll out page-by-page with the same reconcile discipline, applied *internally*:
+
+1. **Copy the existing page with the ledger as its new source.** For each re-sourced page in
+   section B, build a ledger-backed duplicate rather than editing the live page.
+2. **Run both in parallel and reconcile the copy against the original.** The ledger-sourced page
+   must reproduce the current page's output. This is the *internal* reconcile — it proves the new
+   source is wired correctly before anything user-facing changes.
+3. **Then reconcile against the admin** (external — the test plan). The internal reconcile proves
+   "the ledger reproduces what we show today"; the external reconcile proves "the numbers are
+   actually right." Existing figures are typed in, so both checks matter and run in this order.
+4. **Cut over** once a page ties out on both, and retire the old data path.
+
+This makes the migration safe and incremental: no page changes for users until its ledger-sourced
+copy has tied out against both the original and the admin.
+
 ---
 
 ## Sequencing
