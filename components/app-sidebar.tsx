@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Building2, ClipboardCheck, Mail, Upload, Send, Settings, LifeBuoy, PanelLeftClose, PanelLeftOpen, Monitor, Sun, Moon, BarChart3, TrendingUp, StickyNote, Lock, Users, Handshake, ArrowDownCircle, FileText, Briefcase, Crown, ShieldCheck, Lightbulb, Microscope } from 'lucide-react'
+import { Building2, ClipboardCheck, Mail, Upload, Send, Settings, LifeBuoy, PanelLeftClose, PanelLeftOpen, Monitor, Sun, Moon, BarChart3, TrendingUp, StickyNote, Lock, Users, Handshake, ArrowDownCircle, FileText, Briefcase, Crown, ShieldCheck, Lightbulb, Microscope, BookOpen } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { useTheme } from 'next-themes'
@@ -66,6 +66,14 @@ const NAV_ITEMS: NavItem[] = [
     children: [
       { href: '/lp-portal',  label: 'Documents', featureKey: 'lp_portal' },
       { href: '/lp-activity', label: 'Activity',  featureKey: 'lp_activity' },
+    ],
+  },
+  {
+    href: '/accounting', label: 'Accounting', icon: BookOpen, featureKey: 'accounting', adminOnly: true,
+    children: [
+      { href: '/accounting/capital-accounts', label: 'Capital accounts' },
+      { href: '/accounting/reconciliation',   label: 'Reconciliation' },
+      { href: '/accounting/journal',          label: 'Journal' },
     ],
   },
   { href: '/usage', label: 'Usage', icon: Users, adminOnly: true },

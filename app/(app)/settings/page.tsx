@@ -669,6 +669,7 @@ const FEATURE_META: Record<FeatureKey, { label: string; description: string; hre
   compliance: { label: 'Compliance', description: 'Track regulatory deadlines, filings, and compliance workflows', href: '/support#compliance' },
   deals: { label: 'Deals', description: 'Inbound deal pitches screened against your fund thesis', href: '/support#deals' },
   diligence: { label: 'Diligence', description: 'Pre-investment record-keeping and AI-assisted memo drafting', href: '/support#diligence' },
+  accounting: { label: 'Accounting', description: 'Double-entry ledger, capital accounts, schedule of investments, and financial statements (in development)', href: '/support#accounting' },
 }
 
 const VISIBILITY_OPTIONS: { value: FeatureVisibility; label: string; description: string }[] = [
