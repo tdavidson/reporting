@@ -343,15 +343,21 @@ The foundation and a working vertical slice are built, all behind the `accountin
   invariant, and saves a draft for review.
 - **API** (`/api/accounting/*`, admin-gated via `assertAdminAccess`): chart, journal, capital-accounts,
   reconciliation, statements, opening-balances, entities, allocations (preview/post), draft-entry.
+- **P&L / undistributed-earnings bridge** — fees, expenses, and gains post compound entries hitting
+  both the P&L account (income statement correct) and each LP's capital (capital accounts current),
+  offset through a `3200 Undistributed earnings` bridge; a `close_period` action zeroes the P&L into
+  the bridge, netting it to zero. Both statements are right at once.
+- **Agent access (AI-native surface)** — `fund_api_keys` (sha256-hashed, scoped), a tool registry
+  covering every ledger operation, an **MCP server** (`/api/accounting/mcp`, JSON-RPC over HTTP) and a
+  **REST** equivalent (`/api/accounting/agent`), both Bearer-key authenticated and scope-enforced, plus
+  an admin key-management page. Agents can post entries, run allocations, reconcile, and read
+  statements — the same code path humans use.
 - **UI** (top-level admin-only Accounting section): home + first-run setup, opening-balances import,
-  capital accounts, allocations, the reconciliation hero page, journal, financial statements, and
-  draft-from-document.
+  capital accounts, allocations (incl. gain + period close), the reconciliation hero page, journal,
+  financial statements, draft-from-document, and agent access.
 
 **Not yet built (the remaining plan):**
 
-- Period-close / statement-of-operations integration: Step 3 allocations post directly to LP capital
-  (so capital accounts + reconciliation are exact); routing fees/expenses through P&L accounts with a
-  year-end close to capital (undistributed-earnings bridge) is a documented refinement.
 - Re-sourcing the existing pages (funds, LP report cards, letters) from the ledger via the
   shadow → internal-reconcile → cut-over strategy; LP-portal roll-forward drilldown.
 - Schedule of investments (page stubbed); statement of changes in partners' capital and cash flows.
