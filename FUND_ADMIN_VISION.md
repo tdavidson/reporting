@@ -255,6 +255,36 @@ copy has tied out against both the original and the admin.
 
 ---
 
+## Rollout gating (admin-only while building)
+
+Ship the Accounting section behind the **existing feature-visibility mechanism** — the same
+`admin`-level option the app already uses — so it can bake in production without exposing
+half-validated numbers. No new gating system needed; follow the `diligence` precedent (currently
+shipped as `'off'`).
+
+Mechanism (`lib/types/features.ts`, stored as `feature_visibility` JSON on `fund_settings`,
+toggled in `app/(app)/settings`, levels `everyone | admin | hidden | off`):
+
+1. Add `'accounting'` to the `FeatureKey` union; default it to `'off'` in
+   `DEFAULT_FEATURE_VISIBILITY`; add it to `FEATURES_WITH_OFF`.
+2. Add the nav entry in `components/app-sidebar.tsx` (and `app-header.tsx`) with both
+   `adminOnly: true` and `featureKey: 'accounting'`.
+3. Add an `accounting` row to `FEATURE_META` in the settings page so the toggle renders.
+
+Visibility progression:
+
+- **`off`** — during development; hidden from everyone, including admins.
+- **`admin`** — admin-only for a while: you (and any co-admins) validate against real funds in
+  production; LPs and non-admin members never see it.
+- **`everyone`** — only after pages tie out on both internal and external reconciles.
+
+**Critical:** the nav/visibility gate is cosmetic — hidden features "still work if accessed
+directly." Real protection must live on the page and API route: gate `app/(app)/accounting/*`
+pages and every `/api/accounting/*` route server-side on `membership.role === 'admin'` (mirror
+`assertReadAccess` in `lib/api-helpers.ts`). Never rely on the sidebar filter alone.
+
+---
+
 ## Sequencing
 
 > First concrete step is scoped in **`FUND_ACCOUNTING_TEST_PLAN.md`** — a shadow-reconcile test
