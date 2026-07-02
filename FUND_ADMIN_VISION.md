@@ -317,3 +317,40 @@ pages and every `/api/accounting/*` route server-side on `membership.role === 'a
    entries and reconciliations; the human approves and advises.
 
 The open-source platform, the content, and the fractional-CFO practice are the same flywheel.
+
+---
+
+## Build status (as of this branch)
+
+The foundation and a working vertical slice are built, all behind the `accounting` feature flag
+(default `off`, admin-only). Typecheck clean, production build compiles, 41 unit tests pass.
+
+**Done — steps 1 & 2 (the wedge):**
+
+- **Ledger schema** — `chart_of_accounts`, `fiscal_periods`, `journal_entries`, `journal_postings`,
+  `allocation_runs`, `allocation_results`, with grants/RLS/policies per `CLAUDE.md`
+  (`supabase/migrations/20260702000000_fund_accounting_ledger.sql` — created locally, not applied).
+- **Engine** (`lib/accounting/`, fully unit-tested): double-entry balance invariant; largest-remainder
+  pro-rata allocation (sums exactly to the fund total); per-LP capital-account roll-forward;
+  ledger-vs-admin reconciliation; trial balance / balance sheet / income statement; default chart.
+- **API** (`/api/accounting/*`, admin-gated via `assertAdminAccess`): chart (list + seed), journal
+  (list + create balanced entry), capital-accounts (derived), reconciliation (compute diff),
+  statements (derived), opening-balances (cutover import), entities (LP list).
+- **UI** (top-level admin-only Accounting section): home + first-run setup, opening-balances import,
+  capital accounts, the reconciliation hero page, journal, and financial statements.
+
+**Not yet built (the remaining plan):**
+
+- Step 3 — management-fee, carried-interest, and expense-allocation engines (the allocation
+  primitives exist; the fee/carry/waterfall rules on top don't). Where Hemrock plugs in.
+- Step 4 — AI entry-drafting from source docs + agentic reconciliation.
+- Re-sourcing the existing pages (funds, LP report cards, letters) from the ledger via the
+  shadow → internal-reconcile → cut-over strategy; LP-portal roll-forward drilldown.
+- Schedule of investments (page stubbed); statement of changes in partners' capital and cash flows.
+- A DB trigger enforcing `SUM(postings)=0` per entry (currently enforced in `lib/accounting`).
+- The real-world allocation complications (side letters, blended fees, mid-period closes, GP/employee
+  vehicles, excused investors) — to be discovered and prioritized by reconciling a real fund
+  (see `FUND_ACCOUNTING_TEST_PLAN.md`).
+
+**To try it:** flip `accounting` from `off` → `admin` in Settings → Feature visibility, seed the
+chart from the Accounting home page, import opening balances, then reconcile.
