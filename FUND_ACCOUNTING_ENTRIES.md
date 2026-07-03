@@ -53,21 +53,24 @@ Each type below shows the debits/credits, the `source` (which drives the capital
 line), and the text you'd author. `Dr` = positive, `Cr` = negative.
 
 ### 1. Opening balances (cutover) — `source: opening_balance`
-Take over at a date with each LP's capital from their last statement. Roll-forward line: **beginning**.
+Take over at a date with each LP's capital from their last statement. **Capital in nets against
+cash** — the opening credits each LP's capital and debits Cash; the investment purchase is booked
+separately (entry 3), which moves that cash into the investment. Roll-forward line: **beginning**.
 
 | Account | Dr / Cr |
 |---|---|
-| 1100 Investments at cost | Dr total |
+| 1000 Cash | Dr total |
 | 3100-`<id>` each LP capital | Cr their opening balance |
 
 ```beancount
-2021-06-30 * "Opening balances (cutover)"
+2021-06-30 * "Opening capital (cutover)"
   source: "opening_balance"
-  Assets:Investments-At-Cost:1100          3000000.00 USD
+  Assets:Cash:1000                         3000000.00 USD
   Equity:Partners-Capital-John-Smith:3100-aaaa    -1800000.00 USD
   Equity:Partners-Capital-Acme-LLC:3100-bbbb      -1200000.00 USD
 ```
-*(1100 is a placeholder for net assets at cutover; reclassify to real cash/investment as history is added.)*
+*After this, book the investment purchase (entry 3) to move cash into the investment, so ending
+cash = paid-in − investment cost.*
 
 ### 2. Capital call — `source: capital_call`
 Cash comes in; each LP's capital increases pro-rata by commitment. Line: **contributions**.

@@ -8,7 +8,8 @@ import { roundCents } from '@/lib/accounting/ledger'
 import type { Posting, JournalEntry } from '@/lib/accounting/types'
 
 // POST — book per-LP opening capital balances as a posted opening entry (cutover).
-// Body: { entryDate, offsetAccountCode?, group?, balances: [{ lpEntityId, amount }] }
+// Capital in nets against cash (offset defaults to 1000); the investment purchase
+// is booked separately. Body: { entryDate, offsetAccountCode?, group?, balances }
 export async function POST(req: NextRequest) {
   const supabase = createClient()
   const admin = createAdminClient()
@@ -22,7 +23,7 @@ export async function POST(req: NextRequest) {
   if (group instanceof NextResponse) return group
 
   const entryDate: string = body?.entryDate
-  const offsetCode: string = body?.offsetAccountCode ?? '1100'
+  const offsetCode: string = body?.offsetAccountCode ?? '1000'
   const balances = (body?.balances ?? []) as { lpEntityId: string; amount: number }[]
   if (!entryDate || !Array.isArray(balances) || balances.length === 0) {
     return NextResponse.json({ error: 'entryDate and at least one balance are required' }, { status: 400 })

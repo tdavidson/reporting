@@ -42,8 +42,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'No LP paid-in capital found for this vehicle — nothing to bootstrap' }, { status: 400 })
   }
 
-  const offsetId = codes.get('1100') // investments at cost, the opening asset placeholder
-  if (!offsetId) return NextResponse.json({ error: 'Chart missing account 1100' }, { status: 400 })
+  // Capital in nets against cash: the opening credits each LP's capital and debits
+  // Cash. The investment purchase is booked separately (Dr Investments / Cr Cash).
+  const offsetId = codes.get('1000')
+  if (!offsetId) return NextResponse.json({ error: 'Chart missing account 1000 (Cash)' }, { status: 400 })
   const capMap = await ensureCapitalAccounts(admin, gate.fundId, group, balances.map(b => b.lpEntityId))
 
   let total = 0
@@ -54,7 +56,7 @@ export async function POST(req: NextRequest) {
   }
   postings.push({ accountId: offsetId, amount: total, currency: 'USD', lpEntityId: null })
 
-  const entry: JournalEntry = { fundId: gate.fundId, entryDate, memo: 'Opening balances bootstrapped from LP data', sourceType: 'opening_balance', postings }
+  const entry: JournalEntry = { fundId: gate.fundId, entryDate, memo: 'Opening capital bootstrapped from LP data', sourceType: 'opening_balance', postings }
   const result = await persistEntry(admin, gate.fundId, group, user.id, entry, 'posted')
   if ('error' in result) return NextResponse.json({ error: result.error }, { status: 400 })
 
