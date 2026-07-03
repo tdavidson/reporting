@@ -4,6 +4,7 @@
 
 import type { Account, AccountType, Posting } from './types'
 import { NORMAL_SIDE } from './types'
+import type { CapitalAccount } from './capital-account'
 
 function r(n: number): number {
   return Math.round((n + Number.EPSILON) * 100) / 100
@@ -97,4 +98,83 @@ export function incomeStatement(accounts: Account[], postings: Posting[]): Incom
   const income = section('Income', tb, 'income')
   const expenses = section('Expenses', tb, 'expense')
   return { income, expenses, netIncome: r(income.total - expenses.total) }
+}
+
+// ---------------------------------------------------------------------------
+// Schedule of investments
+// ---------------------------------------------------------------------------
+
+export interface SoiRow {
+  name: string
+  cost: number
+  fairValue: number
+  /** Fair value as a fraction of net assets (0..1). */
+  pctOfNetAssets: number
+}
+export interface ScheduleOfInvestments {
+  rows: SoiRow[]
+  totalCost: number
+  totalFairValue: number
+  netAssets: number
+}
+
+/**
+ * Schedule of investments derived from the ledger: cost from investment-cost
+ * accounts, fair value = cost + the unrealized-appreciation accounts. Aggregated
+ * to a portfolio line today (per-investment tagging is a later refinement); for
+ * an SPV that single line is exactly right.
+ */
+export function scheduleOfInvestments(accounts: Account[], postings: Posting[], netAssets: number): ScheduleOfInvestments {
+  const tb = trialBalance(accounts, postings)
+  const balOf = (subtype: string) => r(
+    tb.rows.filter(row => accounts.find(a => a.id === row.accountId)?.subtype === subtype).reduce((s, row) => s + row.balance, 0)
+  )
+  const cost = balOf('investment')
+  const unrealized = balOf('unrealized')
+  const fairValue = r(cost + unrealized)
+  const rows: SoiRow[] = fairValue === 0 && cost === 0 ? [] : [{
+    name: 'Portfolio investments',
+    cost,
+    fairValue,
+    pctOfNetAssets: netAssets ? r(fairValue / netAssets) : 0,
+  }]
+  return { rows, totalCost: cost, totalFairValue: fairValue, netAssets: r(netAssets) }
+}
+
+// ---------------------------------------------------------------------------
+// Statement of changes in partners' capital
+// ---------------------------------------------------------------------------
+
+export interface PartnerCapitalRow extends CapitalAccount {
+  id: string
+  name: string
+}
+export interface ChangesInPartnersCapital {
+  partners: PartnerCapitalRow[]
+  totals: CapitalAccount
+}
+
+const CAP_FIELDS: (keyof CapitalAccount)[] = ['beginning', 'contributions', 'distributions', 'managementFees', 'expenses', 'gains', 'other', 'ending']
+
+/**
+ * Statement of changes in partners' capital: each LP's roll-forward plus a GP
+ * row, with a totals column. `gpEnding` is the GP capital balance (carry + GP
+ * commitment); the GP's activity lines aren't tracked per-source, so it carries
+ * as `other`.
+ */
+export function changesInPartnersCapital(
+  capitalAccounts: Map<string, CapitalAccount>,
+  names: Map<string, string>,
+  gpEnding = 0
+): ChangesInPartnersCapital {
+  const partners: PartnerCapitalRow[] = Array.from(capitalAccounts.entries())
+    .map(([id, acct]) => ({ id, name: names.get(id) ?? id, ...acct }))
+    .sort((a, b) => a.name.localeCompare(b.name))
+
+  if (gpEnding !== 0) {
+    partners.push({ id: 'gp', name: 'General Partner', beginning: 0, contributions: 0, distributions: 0, managementFees: 0, expenses: 0, gains: 0, other: r(gpEnding), ending: r(gpEnding) })
+  }
+
+  const totals = CAP_FIELDS.reduce((acc, f) => { acc[f] = r(partners.reduce((s, p) => s + (p[f] as number), 0)); return acc }, {} as CapitalAccount)
+  return { partners, totals }
 }

@@ -1,19 +1,26 @@
 import type { Metadata } from 'next'
-import { Layers } from 'lucide-react'
+import Link from 'next/link'
+import { ArrowLeft, Layers } from 'lucide-react'
 import { requireAccountingAdmin } from '../guard'
-import { AccountingPlaceholder } from '../placeholder'
+import { ScheduleOfInvestmentsView } from './view'
 
 export const metadata: Metadata = { title: 'Schedule of investments' }
 
 export default async function ScheduleOfInvestmentsPage() {
   await requireAccountingAdmin()
   return (
-    <AccountingPlaceholder
-      title="Schedule of investments"
-      icon={Layers}
-      intro="The SOI: each portfolio investment with cost, fair value, and % of net assets — a derived output of the ledger and the existing investment/valuation records."
-    >
-      Coming soon. This will derive from investment cost, valuations, and the ledger&rsquo;s net assets.
-    </AccountingPlaceholder>
+    <div className="p-4 md:py-8 md:pl-8 md:pr-4 w-full">
+      <Link href="/accounting" className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground mb-4">
+        <ArrowLeft className="h-3.5 w-3.5" />Accounting
+      </Link>
+      <div className="mb-6 space-y-1">
+        <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2"><Layers className="h-6 w-6" />Schedule of investments</h1>
+        <p className="text-sm text-muted-foreground">
+          Each investment at cost and fair value, with its share of net assets — derived from the
+          ledger (investment cost + unrealized appreciation).
+        </p>
+      </div>
+      <ScheduleOfInvestmentsView />
+    </div>
   )
 }

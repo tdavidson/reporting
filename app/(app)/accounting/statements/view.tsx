@@ -6,11 +6,23 @@ import { useCurrency, formatCurrencyFull } from '@/components/currency-context'
 import { useLedgerFetch } from '@/components/accounting-vehicle'
 
 interface Section { label: string; rows: { code: string; name: string; amount: number }[]; total: number }
+interface PartnerRow { id: string; name: string; beginning: number; contributions: number; distributions: number; managementFees: number; expenses: number; gains: number; other: number; ending: number }
 interface Data {
   trialBalance: { rows: { code: string; name: string; debit: number; credit: number }[]; totalDebits: number; totalCredits: number; balanced: boolean }
   balanceSheet: { assets: Section; liabilities: Section; equity: Section; check: number }
   incomeStatement: { income: Section; expenses: Section; netIncome: number }
+  changesInPartnersCapital: { partners: PartnerRow[]; totals: PartnerRow }
 }
+
+const CAP_COLS: { key: keyof PartnerRow; label: string }[] = [
+  { key: 'beginning', label: 'Beginning' },
+  { key: 'contributions', label: 'Contributions' },
+  { key: 'distributions', label: 'Distributions' },
+  { key: 'managementFees', label: 'Mgmt fees' },
+  { key: 'expenses', label: 'Expenses' },
+  { key: 'gains', label: 'Gains' },
+  { key: 'ending', label: 'Ending' },
+]
 
 export function StatementsView() {
   const currency = useCurrency()
@@ -52,6 +64,7 @@ export function StatementsView() {
   )
 
   return (
+    <div className="space-y-6">
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
       <div>
         <h2 className="text-sm font-semibold mb-2">Balance sheet</h2>
@@ -87,6 +100,35 @@ export function StatementsView() {
           {data.trialBalance.balanced ? 'Balanced — debits equal credits.' : 'Out of balance.'}
         </p>
       </div>
+    </div>
+
+    <div>
+      <h2 className="text-sm font-semibold mb-2">Statement of changes in partners&rsquo; capital</h2>
+      <div className="border rounded-lg overflow-x-auto">
+        <table className="w-full text-sm whitespace-nowrap">
+          <thead>
+            <tr className="border-b bg-muted/50">
+              <th className="text-left px-3 py-2 font-medium">Partner</th>
+              {CAP_COLS.map(c => <th key={c.key} className="text-right px-3 py-2 font-medium">{c.label}</th>)}
+            </tr>
+          </thead>
+          <tbody>
+            {data.changesInPartnersCapital.partners.map(p => (
+              <tr key={p.id} className="border-b last:border-b-0">
+                <td className="px-3 py-2">{p.name}</td>
+                {CAP_COLS.map(c => <td key={c.key} className={`px-3 py-2 text-right font-mono ${c.key === 'ending' ? 'font-semibold' : ''}`}>{fmt(p[c.key] as number)}</td>)}
+              </tr>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr className="border-t bg-muted/30 font-semibold">
+              <td className="px-3 py-2">Total</td>
+              {CAP_COLS.map(c => <td key={c.key} className="px-3 py-2 text-right font-mono">{fmt(data.changesInPartnersCapital.totals[c.key] as number)}</td>)}
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
     </div>
   )
 }

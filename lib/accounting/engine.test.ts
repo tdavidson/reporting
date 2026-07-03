@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { apportionCents, allocateAmount, ownershipFractions } from './allocation'
 import { computeCapitalAccounts, totalNav, bucketForSourceType } from './capital-account'
 import { reconcileCapital } from './reconcile'
-import { trialBalance, balanceSheet, incomeStatement } from './statements'
+import { trialBalance, balanceSheet, incomeStatement, scheduleOfInvestments, changesInPartnersCapital } from './statements'
 import type { Account, Posting } from './types'
 
 describe('apportionCents', () => {
@@ -179,5 +179,38 @@ describe('statements', () => {
     // check is assets - liabilities - equity; equity here excludes retained income,
     // so the 8k net income is the residual (unbooked to capital yet).
     expect(bs.check).toBe(8_000)
+  })
+})
+
+describe('schedule of investments', () => {
+  const accts: Account[] = [
+    { id: 'cost', fundId: 'f', code: '1100', name: 'Investments at cost', type: 'asset', subtype: 'investment' },
+    { id: 'unrl', fundId: 'f', code: '1200', name: 'Unrealized', type: 'asset', subtype: 'unrealized' },
+  ]
+  it('fair value = cost + unrealized, with % of net assets', () => {
+    const p: Posting[] = [
+      { accountId: 'cost', amount: 4_800_000, currency: 'USD' },
+      { accountId: 'unrl', amount: 1_000_000, currency: 'USD' },
+    ]
+    const soi = scheduleOfInvestments(accts, p, 5_800_000)
+    expect(soi.totalCost).toBe(4_800_000)
+    expect(soi.totalFairValue).toBe(5_800_000)
+    expect(soi.rows[0].pctOfNetAssets).toBe(1)
+  })
+})
+
+describe('statement of changes in partners capital', () => {
+  it('lists each LP plus a GP row with a totals column', () => {
+    const caps = computeCapitalAccounts([
+      { lpEntityId: 'a', amount: -100_000, sourceType: 'opening_balance' },
+      { lpEntityId: 'a', amount: -50_000, sourceType: 'capital_call' },
+      { lpEntityId: 'b', amount: -40_000, sourceType: 'opening_balance' },
+    ])
+    const names = new Map([['a', 'Smith'], ['b', 'Acme']])
+    const st = changesInPartnersCapital(caps, names, 25_000)
+    expect(st.partners).toHaveLength(3) // 2 LPs + GP
+    expect(st.partners.find(p => p.id === 'gp')!.ending).toBe(25_000)
+    expect(st.totals.ending).toBe(215_000) // 150k + 40k + 25k
+    expect(st.totals.contributions).toBe(50_000)
   })
 })
