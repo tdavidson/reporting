@@ -1,6 +1,13 @@
 # Multi-vehicle accounting + vehicle onboarding — build plan
 
-*Status: plan + in-progress build. Pairs with `FUND_ADMIN_VISION.md`.*
+*Status: **built**. Pairs with `FUND_ADMIN_VISION.md`.*
+
+> **Done:** all six items below are built behind the `accounting` flag. Ledger tables are scoped by
+> `(fund_id, portfolio_group)`; the data layer, every API route, and the agent tools thread a
+> vehicle; the Accounting section has a vehicle selector. Bootstrap, revaluation, XLS/PDF ingestion,
+> snapshot reconcile, and a full-history-vs-cutover onboarding checklist all ship. Typecheck clean,
+> 86 unit tests pass, production build compiles. Migrations were updated in place (unapplied) to add
+> `portfolio_group` — if you already ran `supabase db push`, switch them to an additive ALTER.
 
 ## Why
 
