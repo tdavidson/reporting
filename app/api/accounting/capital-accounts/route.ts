@@ -17,9 +17,10 @@ export async function GET(req: NextRequest) {
   if (gate instanceof NextResponse) return gate
   const group = await resolveGroupOr400(admin, gate.fundId, req.nextUrl.searchParams.get('group'))
   if (group instanceof NextResponse) return group
+  const asOf = req.nextUrl.searchParams.get('asOf') || undefined
 
   const [{ capitalPostings }, names] = await Promise.all([
-    loadPostedLedger(admin, gate.fundId, group),
+    loadPostedLedger(admin, gate.fundId, group, asOf),
     loadEntityNames(admin, gate.fundId, group),
   ])
 

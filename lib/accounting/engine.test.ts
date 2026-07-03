@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { apportionCents, allocateAmount, ownershipFractions } from './allocation'
 import { computeCapitalAccounts, totalNav, bucketForSourceType } from './capital-account'
 import { reconcileCapital } from './reconcile'
-import { trialBalance, balanceSheet, incomeStatement, scheduleOfInvestments, changesInPartnersCapital } from './statements'
+import { trialBalance, balanceSheet, incomeStatement, scheduleOfInvestments, changesInPartnersCapital, statementOfCashFlows } from './statements'
 import type { Account, Posting } from './types'
 
 describe('apportionCents', () => {
@@ -212,5 +212,22 @@ describe('statement of changes in partners capital', () => {
     expect(st.partners.find(p => p.id === 'gp')!.ending).toBe(25_000)
     expect(st.totals.ending).toBe(215_000) // 150k + 40k + 25k
     expect(st.totals.contributions).toBe(50_000)
+  })
+})
+
+describe('statement of cash flows', () => {
+  it('splits financing (contributions/distributions) from operating and ties to net change', () => {
+    const cash = [
+      { accountId: 'cash', amount: 5_000_000, sourceType: 'capital_call' },
+      { accountId: 'cash', amount: -4_800_000, sourceType: 'manual' },   // investment purchase
+      { accountId: 'cash', amount: -12_000, sourceType: 'partnership_expense' },
+      { accountId: 'cash', amount: -500_000, sourceType: 'distribution' },
+      { accountId: 'other', amount: 999, sourceType: 'capital_call' },   // non-cash line ignored
+    ]
+    const scf = statementOfCashFlows('cash', cash, 0)
+    expect(scf.financing.total).toBe(4_500_000) // 5M in - 500k out
+    expect(scf.operating.total).toBe(-4_812_000) // -4.8M - 12k
+    expect(scf.netChange).toBe(-312_000)
+    expect(scf.endingCash).toBe(-312_000)
   })
 })

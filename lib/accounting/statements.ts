@@ -178,3 +178,64 @@ export function changesInPartnersCapital(
   const totals = CAP_FIELDS.reduce((acc, f) => { acc[f] = r(partners.reduce((s, p) => s + (p[f] as number), 0)); return acc }, {} as CapitalAccount)
   return { partners, totals }
 }
+
+// ---------------------------------------------------------------------------
+// Statement of cash flows
+// ---------------------------------------------------------------------------
+
+export interface CashPosting {
+  accountId: string
+  amount: number
+  sourceType: string | null
+}
+export interface CashFlowLine { sourceType: string; label: string; amount: number }
+export interface CashFlowSection { label: string; lines: CashFlowLine[]; total: number }
+export interface StatementOfCashFlows {
+  operating: CashFlowSection
+  financing: CashFlowSection
+  netChange: number
+  openingCash: number
+  endingCash: number
+}
+
+// Contributions and distributions are financing; everything else that moves cash
+// (fees, expenses, realized proceeds, investment purchases) is operating —
+// investment-company style, where investment activity runs through operating.
+const FINANCING_SOURCES = new Set(['capital_call', 'opening_balance', 'distribution'])
+const CASH_LINE_LABELS: Record<string, string> = {
+  capital_call: 'Capital contributions',
+  opening_balance: 'Opening capital',
+  distribution: 'Distributions to partners',
+  management_fee: 'Management fees paid',
+  partnership_expense: 'Partnership expenses paid',
+  organizational_expense: 'Organizational expenses paid',
+  realized_gain: 'Investment proceeds / realizations',
+  income: 'Interest and dividends received',
+  manual: 'Investment purchases / other',
+}
+
+/**
+ * Statement of cash flows for the vehicle, built from postings to the cash
+ * account grouped by source type. `netChange` reconciles to ending − opening cash.
+ */
+export function statementOfCashFlows(cashAccountId: string, postings: CashPosting[], openingCash = 0): StatementOfCashFlows {
+  const cash = postings.filter(p => p.accountId === cashAccountId)
+  const bySource = new Map<string, number>()
+  for (const p of cash) {
+    const key = p.sourceType ?? 'manual'
+    bySource.set(key, r((bySource.get(key) ?? 0) + p.amount))
+  }
+
+  const build = (label: string, keys: string[]): CashFlowSection => {
+    const lines = keys
+      .filter(k => bySource.get(k) !== undefined && bySource.get(k) !== 0)
+      .map(k => ({ sourceType: k, label: CASH_LINE_LABELS[k] ?? k, amount: bySource.get(k)! }))
+    return { label, lines, total: r(lines.reduce((s, l) => s + l.amount, 0)) }
+  }
+
+  const allKeys = Array.from(bySource.keys())
+  const financing = build('Financing activities', allKeys.filter(k => FINANCING_SOURCES.has(k)))
+  const operating = build('Operating activities', allKeys.filter(k => !FINANCING_SOURCES.has(k)))
+  const netChange = r(operating.total + financing.total)
+  return { operating, financing, netChange, openingCash: r(openingCash), endingCash: r(openingCash + netChange) }
+}

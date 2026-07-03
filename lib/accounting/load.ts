@@ -7,24 +7,33 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Account, AccountType, Posting } from './types'
 import type { CapitalPosting } from './capital-account'
 
+export type SourcedPosting = Posting & { sourceType: string | null }
+
 export interface LoadedLedger {
   accounts: Account[]
   postings: Posting[]
   capitalPostings: CapitalPosting[]
+  /** Every posting tagged with its entry's source_type (for the cash-flow statement). */
+  sourcedPostings: SourcedPosting[]
 }
 
 /**
  * Load a vehicle's chart of accounts and every posting on a POSTED journal entry
- * (drafts and voids excluded — they never affect derived statements).
+ * (drafts and voids excluded). Pass `asOf` (ISO date) to include only entries on
+ * or before that date — the basis for viewing statements as of any date.
  */
 export async function loadPostedLedger(
   admin: SupabaseClient,
   fundId: string,
-  group: string
+  group: string,
+  asOf?: string
 ): Promise<LoadedLedger> {
+  let entriesQ = admin.from('journal_entries' as any).select('id, source_type, status').eq('fund_id', fundId).eq('portfolio_group', group).eq('status', 'posted')
+  if (asOf) entriesQ = entriesQ.lte('entry_date', asOf)
+
   const [{ data: acctRows }, { data: entryRows }, { data: postingRows }] = await Promise.all([
     admin.from('chart_of_accounts' as any).select('id, code, name, type, subtype, lp_entity_id').eq('fund_id', fundId).eq('portfolio_group', group),
-    admin.from('journal_entries' as any).select('id, source_type, status').eq('fund_id', fundId).eq('portfolio_group', group).eq('status', 'posted'),
+    entriesQ,
     admin.from('journal_postings' as any).select('journal_entry_id, account_id, amount, currency, lp_entity_id').eq('fund_id', fundId).eq('portfolio_group', group),
   ])
 
@@ -44,16 +53,19 @@ export async function loadPostedLedger(
 
   const postings: Posting[] = []
   const capitalPostings: CapitalPosting[] = []
+  const sourcedPostings: SourcedPosting[] = []
   for (const p of ((postingRows as any[]) ?? [])) {
     if (!sourceByEntry.has(p.journal_entry_id)) continue
     const amount = Number(p.amount)
+    const sourceType = sourceByEntry.get(p.journal_entry_id) ?? null
     postings.push({ accountId: p.account_id, amount, currency: p.currency ?? 'USD', lpEntityId: p.lp_entity_id ?? null })
+    sourcedPostings.push({ accountId: p.account_id, amount, currency: p.currency ?? 'USD', lpEntityId: p.lp_entity_id ?? null, sourceType })
     if (p.lp_entity_id) {
-      capitalPostings.push({ lpEntityId: p.lp_entity_id, amount, sourceType: sourceByEntry.get(p.journal_entry_id) ?? null })
+      capitalPostings.push({ lpEntityId: p.lp_entity_id, amount, sourceType })
     }
   }
 
-  return { accounts, postings, capitalPostings }
+  return { accounts, postings, capitalPostings, sourcedPostings }
 }
 
 /** Names for the vehicle's LP entities (those with a commitment in this group). */

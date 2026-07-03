@@ -7,11 +7,13 @@ import { useLedgerFetch } from '@/components/accounting-vehicle'
 
 interface Section { label: string; rows: { code: string; name: string; amount: number }[]; total: number }
 interface PartnerRow { id: string; name: string; beginning: number; contributions: number; distributions: number; managementFees: number; expenses: number; gains: number; other: number; ending: number }
+interface CFSection { label: string; lines: { sourceType: string; label: string; amount: number }[]; total: number }
 interface Data {
   trialBalance: { rows: { code: string; name: string; debit: number; credit: number }[]; totalDebits: number; totalCredits: number; balanced: boolean }
   balanceSheet: { assets: Section; liabilities: Section; equity: Section; check: number }
   incomeStatement: { income: Section; expenses: Section; netIncome: number }
   changesInPartnersCapital: { partners: PartnerRow[]; totals: PartnerRow }
+  cashFlows: { operating: CFSection; financing: CFSection; netChange: number; openingCash: number; endingCash: number } | null
 }
 
 const CAP_COLS: { key: keyof PartnerRow; label: string }[] = [
@@ -29,26 +31,16 @@ export function StatementsView() {
   const fmt = (v: number) => formatCurrencyFull(v, currency)
   const [data, setData] = useState<Data | null>(null)
   const [loading, setLoading] = useState(true)
+  const [asOf, setAsOf] = useState('')
   const lf = useLedgerFetch()
 
   useEffect(() => {
     setLoading(true)
-    lf('/api/accounting/statements')
+    lf('/api/accounting/statements' + (asOf ? `?asOf=${asOf}` : ''))
       .then(r => (r.ok ? r.json() : null))
       .then(setData)
       .finally(() => setLoading(false))
-  }, [lf])
-
-  if (loading) {
-    return <div className="flex items-center gap-2 text-muted-foreground text-sm"><Loader2 className="h-4 w-4 animate-spin" />Loading…</div>
-  }
-  if (!data || data.trialBalance.rows.length === 0) {
-    return (
-      <div className="border border-dashed rounded-lg p-8 text-center text-sm text-muted-foreground">
-        No statements yet — the ledger has no posted entries.
-      </div>
-    )
-  }
+  }, [lf, asOf])
 
   const Sec = ({ s }: { s: Section }) => (
     <>
@@ -63,7 +55,29 @@ export function StatementsView() {
     </>
   )
 
+  const CFSec = ({ sec }: { sec: CFSection }) => (
+    <>
+      <tr className="border-t bg-muted/30"><td className="px-3 py-1.5 font-medium" colSpan={2}>{sec.label}</td></tr>
+      {sec.lines.map(l => (
+        <tr key={l.sourceType} className="border-t"><td className="px-3 py-1.5 text-muted-foreground">{l.label}</td><td className="px-3 py-1.5 text-right font-mono">{fmt(l.amount)}</td></tr>
+      ))}
+      <tr className="border-t font-semibold"><td className="px-3 py-1.5">Total {sec.label}</td><td className="px-3 py-1.5 text-right font-mono">{fmt(sec.total)}</td></tr>
+    </>
+  )
+
   return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-2 text-sm">
+        <span className="text-muted-foreground">As of</span>
+        <input type="date" value={asOf} onChange={e => setAsOf(e.target.value)} className="border rounded px-2 py-1 text-sm bg-transparent" />
+        {asOf && <button onClick={() => setAsOf('')} className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground">clear (today)</button>}
+      </div>
+
+      {loading ? (
+        <div className="flex items-center gap-2 text-muted-foreground text-sm"><Loader2 className="h-4 w-4 animate-spin" />Loading…</div>
+      ) : !data || data.trialBalance.rows.length === 0 ? (
+        <div className="border border-dashed rounded-lg p-8 text-center text-sm text-muted-foreground">No statements yet — the ledger has no posted entries{asOf ? ` as of ${asOf}` : ''}.</div>
+      ) : (
     <div className="space-y-6">
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
       <div>
@@ -129,6 +143,28 @@ export function StatementsView() {
         </table>
       </div>
     </div>
+
+    {data.cashFlows && (
+      <div>
+        <h2 className="text-sm font-semibold mb-2">Statement of cash flows</h2>
+        <table className="w-full max-w-lg text-sm border rounded-lg overflow-hidden">
+          <tbody>
+            <CFSec sec={data.cashFlows.operating} />
+            <CFSec sec={data.cashFlows.financing} />
+            <tr className="border-t font-semibold bg-muted/30">
+              <td className="px-3 py-1.5">Net change in cash</td>
+              <td className="px-3 py-1.5 text-right font-mono">{fmt(data.cashFlows.netChange)}</td>
+            </tr>
+            <tr className="border-t">
+              <td className="px-3 py-1.5 text-muted-foreground">Ending cash</td>
+              <td className="px-3 py-1.5 text-right font-mono">{fmt(data.cashFlows.endingCash)}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    )}
+    </div>
+      )}
     </div>
   )
 }
