@@ -18,13 +18,30 @@ export function DraftEntryView() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [saved, setSaved] = useState(false)
+  const [pdfBase64, setPdfBase64] = useState<string | null>(null)
+  const [pdfName, setPdfName] = useState<string | null>(null)
   const lf = useLedgerFetch()
+
+  async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (/\.pdf$/i.test(file.name)) {
+      const buf = await file.arrayBuffer()
+      let binary = ''
+      const bytes = new Uint8Array(buf)
+      for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i])
+      setPdfBase64(btoa(binary)); setPdfName(file.name)
+    } else {
+      setText(await file.text()); setPdfBase64(null); setPdfName(null)
+    }
+    e.target.value = ''
+  }
 
   async function draft(post: boolean) {
     setBusy(true); setError(null); if (!post) setSaved(false)
     const res = await lf('/api/accounting/draft-entry', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text, post }),
+      body: JSON.stringify({ text, pdfBase64, post }),
     })
     const data = await res.json()
     if (!res.ok) { setError(data.error ?? 'Failed'); setBusy(false); return }
@@ -43,10 +60,14 @@ export function DraftEntryView() {
         className="w-full border border-input rounded p-2 text-sm font-mono bg-transparent"
       />
       <div className="flex items-center gap-2">
-        <Button onClick={() => draft(false)} disabled={busy || text.trim().length < 10}>
+        <Button onClick={() => draft(false)} disabled={busy || (text.trim().length < 10 && !pdfBase64)}>
           {busy ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Sparkles className="h-4 w-4 mr-2" />}
           Draft entry
         </Button>
+        <label className="text-xs text-muted-foreground cursor-pointer border rounded px-2 py-1.5 hover:bg-accent">
+          {pdfName ? pdfName : 'Upload PDF / text'}
+          <input type="file" accept=".pdf,.txt,.md" onChange={onFile} className="hidden" />
+        </label>
         {result?.balanced && (
           <Button variant="outline" onClick={() => draft(true)} disabled={busy}>Save as draft entry</Button>
         )}

@@ -69,6 +69,21 @@ export function BankView() {
     load()
   }
 
+  async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (/\.xlsx?$/i.test(file.name)) {
+      const XLSX = await import('xlsx')
+      const buf = await file.arrayBuffer()
+      const wb = XLSX.read(buf, { type: 'array' })
+      const sheet = wb.Sheets[wb.SheetNames[0]]
+      setCsv(XLSX.utils.sheet_to_csv(sheet))
+    } else {
+      setCsv(await file.text())
+    }
+    e.target.value = ''
+  }
+
   return (
     <div className="space-y-6">
       {/* Import */}
@@ -78,6 +93,10 @@ export function BankView() {
         <textarea value={csv} onChange={e => setCsv(e.target.value)} rows={5} placeholder="Date,Description,Amount&#10;2026-06-01,Capital call Fund II,5000000&#10;2026-06-15,Audit fee,-12000" className="w-full border border-input rounded p-2 text-sm font-mono bg-transparent" />
         <div className="flex items-center gap-2">
           <Button size="sm" onClick={doImport} disabled={importing || csv.trim().length < 5}>{importing ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Upload className="h-4 w-4 mr-1" />}Import</Button>
+          <label className="text-xs text-muted-foreground cursor-pointer border rounded px-2 py-1.5 hover:bg-accent">
+            Upload CSV/XLS
+            <input type="file" accept=".csv,.tsv,.txt,.xlsx,.xls" onChange={onFile} className="hidden" />
+          </label>
           {result && (
             <span className="text-sm text-muted-foreground">
               {result.imported} imported{result.skipped ? `, ${result.skipped} duplicate(s) skipped` : ''}{result.errors.length ? `, ${result.errors.length} error(s)` : ''}.

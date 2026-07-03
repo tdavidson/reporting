@@ -6,12 +6,13 @@ import { Button } from '@/components/ui/button'
 import { useCurrency, formatCurrencyFull } from '@/components/currency-context'
 import { useLedgerFetch } from '@/components/accounting-vehicle'
 
-type Action = 'management_fee' | 'expense' | 'gain' | 'close_period'
+type Action = 'management_fee' | 'expense' | 'gain' | 'revalue' | 'close_period'
 
 const ACTION_LABELS: Record<Action, string> = {
   management_fee: 'Management fee',
   expense: 'Partnership expense',
   gain: 'Realized gain',
+  revalue: 'Revalue investment',
   close_period: 'Close period',
 }
 
@@ -26,6 +27,7 @@ export function AllocationsView() {
   const [annualRate, setAnnualRate] = useState('2')
   const [periodFraction, setPeriodFraction] = useState('0.25')
   const [amount, setAmount] = useState('')
+  const [fairValue, setFairValue] = useState('')
   const [preview, setPreview] = useState<Preview | null>(null)
   const [busy, setBusy] = useState(false)
   const [posted, setPosted] = useState<string | null>(null)
@@ -39,6 +41,8 @@ export function AllocationsView() {
       b.periodFraction = parseFloat(periodFraction)
     } else if (action === 'expense' || action === 'gain') {
       b.amount = parseFloat(amount)
+    } else if (action === 'revalue') {
+      b.fairValue = parseFloat(fairValue)
     }
     return b
   }
@@ -93,11 +97,18 @@ export function AllocationsView() {
             <input type="number" step="0.01" value={amount} onChange={e => setAmount(e.target.value)} className="border rounded px-2 py-1.5 text-sm w-full font-mono" />
           </div>
         )}
+        {action === 'revalue' && (
+          <div>
+            <label className="text-xs text-muted-foreground mb-1 block">New fair value</label>
+            <input type="number" step="0.01" value={fairValue} onChange={e => setFairValue(e.target.value)} className="border rounded px-2 py-1.5 text-sm w-full font-mono" />
+          </div>
+        )}
       </div>
       <p className="text-xs text-muted-foreground">
         {action === 'management_fee' && 'Charged on committed capital, allocated per LP (side letters/exemptions supported via the API). Booked to the expense account and each LP’s capital via the undistributed-earnings bridge.'}
         {action === 'expense' && 'Allocated pro-rata by commitment; booked to the expense account and each LP’s capital via the bridge.'}
         {action === 'gain' && 'Allocated pro-rata by commitment; increases each LP’s capital and books income via the bridge.'}
+        {action === 'revalue' && 'Marks the investment to a new fair value; the unrealized change is allocated per LP and moves NAV.'}
         {action === 'close_period' && 'Zeroes every income/expense account into the undistributed-earnings bridge, closing the period. Capital accounts are already current.'}
       </p>
 

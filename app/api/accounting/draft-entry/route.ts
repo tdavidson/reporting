@@ -25,9 +25,20 @@ export async function POST(req: NextRequest) {
   const group = await resolveGroupOr400(admin, gate.fundId, body?.group ?? req.nextUrl.searchParams.get('group'))
   if (group instanceof NextResponse) return group
 
-  const text: string = (body?.text ?? '').toString()
+  let text: string = (body?.text ?? '').toString()
+  if (body?.pdfBase64) {
+    try {
+      const { getDocumentProxy, extractText } = await import('unpdf')
+      const bytes = new Uint8Array(Buffer.from(String(body.pdfBase64), 'base64'))
+      const pdf = await getDocumentProxy(bytes)
+      const extracted = await extractText(pdf, { mergePages: true })
+      text = Array.isArray(extracted.text) ? extracted.text.join('\n') : extracted.text
+    } catch (e) {
+      return NextResponse.json({ error: `Could not read the PDF: ${(e as Error).message}` }, { status: 400 })
+    }
+  }
   if (text.trim().length < 10) {
-    return NextResponse.json({ error: 'Paste a source document to draft from' }, { status: 400 })
+    return NextResponse.json({ error: 'Paste or upload a source document to draft from' }, { status: 400 })
   }
 
   const { accounts } = await loadPostedLedger(admin, gate.fundId, group)

@@ -158,6 +158,34 @@ export function buildGainEntry(
 }
 
 /**
+ * Investment revaluation: mark the portfolio to a new fair value. `delta` is the
+ * change vs the current carrying value (positive = mark up). Books the unrealized
+ * change to the unrealized-appreciation asset and income, and allocates it per LP
+ * through the bridge — the same shape as a gain, tagged `valuation`.
+ *   Dr Unrealized appreciation (delta)   Cr Change in unrealized income (delta)
+ *   Dr Undistributed earnings (delta)    Cr each LP capital (share)
+ */
+export function buildRevaluationEntry(
+  base: Base,
+  delta: number,
+  owners: LpOwnership[],
+  capMap: CapitalAccountMap,
+  accts: { unrealizedAssetId: string; incomeId: string; bridgeId: string },
+  currency = 'USD'
+): JournalEntry {
+  const alloc = allocateAmount(delta, owners)
+  const postings: Posting[] = [
+    { accountId: accts.unrealizedAssetId, amount: roundCents(delta), currency, lpEntityId: null },
+    { accountId: accts.incomeId, amount: roundCents(-delta), currency, lpEntityId: null },
+    { accountId: accts.bridgeId, amount: roundCents(delta), currency, lpEntityId: null },
+  ]
+  for (const [lpEntityId, share] of Array.from(alloc.entries())) {
+    postings.push(lpDebit(capMap, lpEntityId, -share, currency))
+  }
+  return finalize(base, 'valuation', postings)
+}
+
+/**
  * Period close: zero every P&L account into the bridge. Given each P&L account's
  * debit-side balance, post the negation to flatten it and offset the sum to the
  * bridge — which, because the compound entries already parked the allocation

@@ -11,7 +11,7 @@ export interface AgentToolMeta {
 }
 
 const EMPTY_SCHEMA = { type: 'object', properties: {}, additionalProperties: false }
-const ALLOCATION_ACTIONS = ['management_fee', 'expense', 'gain', 'distribution', 'carry', 'close_period']
+const ALLOCATION_ACTIONS = ['management_fee', 'expense', 'gain', 'distribution', 'carry', 'revalue', 'close_period']
 
 export const AGENT_TOOL_MANIFEST: AgentToolMeta[] = [
   { name: 'list_accounts', description: "List the fund's chart of accounts (code, name, type).", scope: 'read', inputSchema: EMPTY_SCHEMA },
@@ -67,6 +67,7 @@ export const AGENT_TOOL_MANIFEST: AgentToolMeta[] = [
         annualRate: { type: 'number', description: 'management_fee: decimal, e.g. 0.02' },
         periodFraction: { type: 'number', description: 'management_fee: e.g. 0.25 for a quarter' },
         amount: { type: 'number', description: 'expense / gain total' },
+        fairValue: { type: 'number', description: 'revalue: the new investment fair value' },
         overrides: { type: 'object', description: 'management_fee: per-LP { rateOverride, exempt }' },
         perLp: { type: 'object', description: 'distribution / carry: { lpEntityId: amount }' },
         post: { type: 'boolean', description: 'default true; false returns a preview' },

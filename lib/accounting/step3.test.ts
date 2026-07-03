@@ -6,6 +6,7 @@ import {
   buildManagementFeeEntry,
   buildExpenseEntry,
   buildGainEntry,
+  buildRevaluationEntry,
   buildPeriodCloseEntry,
   buildDistributionEntry,
   buildCarryEntry,
@@ -129,6 +130,19 @@ describe('entry builders', () => {
     )
     expect(caps.get('a')!.gains).toBe(30_000)
     expect(caps.get('b')!.gains).toBe(20_000)
+  })
+
+  it('revaluation allocates the mark per LP (up and down) and balances', () => {
+    const up = buildRevaluationEntry(base, 100_000, owners, capMap, { unrealizedAssetId: 'unrl', incomeId: 'inc', bridgeId: 'bridge' })
+    expect(isBalanced(up)).toBe(true)
+    const capsUp = computeCapitalAccounts(up.postings.filter(p => p.lpEntityId).map(p => ({ lpEntityId: p.lpEntityId!, amount: p.amount, sourceType: up.sourceType })))
+    expect(capsUp.get('a')!.gains).toBe(60_000)
+    expect(capsUp.get('b')!.gains).toBe(40_000)
+
+    const down = buildRevaluationEntry(base, -50_000, owners, capMap, { unrealizedAssetId: 'unrl', incomeId: 'inc', bridgeId: 'bridge' })
+    expect(isBalanced(down)).toBe(true)
+    const capsDown = computeCapitalAccounts(down.postings.filter(p => p.lpEntityId).map(p => ({ lpEntityId: p.lpEntityId!, amount: p.amount, sourceType: down.sourceType })))
+    expect(capsDown.get('a')!.gains).toBe(-30_000)
   })
 
   it('period close zeroes P&L and nets the bridge to zero', () => {
