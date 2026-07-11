@@ -94,12 +94,8 @@ export function McpAccess({
   const cliSnippet = `{
   "mcpServers": {
     "reporting": {
-      "command": "npx",
-      "args": ["-y", "reporting-cli", "mcp"],
-      "env": {
-        "REPORTING_URL": "${origin || 'https://your-platform.example.com'}",
-        "REPORTING_API_KEY": "lk_your_key_here"
-      }
+      "command": "reporting-cli",
+      "args": ["mcp"]
     }
   }
 }`
@@ -194,12 +190,17 @@ export function McpAccess({
 
           {/* CLI setup */}
           <div className="space-y-2">
+            <p className="text-xs font-medium">Connect a client (e.g. Claude Desktop)</p>
+            <p className="text-[11px] text-muted-foreground">
+              Install the CLI, then log in once with a key:
+            </p>
+            <pre className="bg-muted rounded p-3 text-[11px] font-mono overflow-x-auto">{`curl -fsSL https://raw.githubusercontent.com/tdavidson/reporting/main/cli/install.sh | sh
+reporting-cli auth login --url ${origin || 'https://your-domain'} --key lk_…`}</pre>
             <div className="flex items-center justify-between">
-              <p className="text-xs font-medium">Connect a client (e.g. Claude Desktop)</p>
+              <p className="text-[11px] text-muted-foreground">Then point your MCP client at it:</p>
               <button onClick={() => copy(cliSnippet, 'cli')} className="text-muted-foreground hover:text-foreground text-xs flex items-center gap-1">{copied === 'cli' ? <Check className="h-3.5 w-3.5 text-green-600" /> : <Copy className="h-3.5 w-3.5" />}copy</button>
             </div>
             <pre className="bg-muted rounded p-3 text-[11px] font-mono overflow-x-auto">{cliSnippet}</pre>
-            <p className="text-[11px] text-muted-foreground">Or from a shell: <code className="font-mono">npx reporting-cli tools</code> after <code className="font-mono">reporting-cli config --url {origin || '…'} --key lk_…</code></p>
           </div>
 
           {/* Tools */}

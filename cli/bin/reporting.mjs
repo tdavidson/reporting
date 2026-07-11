@@ -1,24 +1,19 @@
 #!/usr/bin/env node
-// reporting-cli — connect any MCP client (Claude Desktop, Claude Code, Cursor)
-// or your own scripts to a self-hosted fund reporting platform's MCP server.
+// reporting-cli — connect AI agents to a self-hosted fund reporting platform's
+// MCP server. Built for agents first: `reporting-cli mcp` is a thin stdio<->HTTP
+// bridge that any MCP client (Claude Desktop, Claude Code, Cursor) launches to
+// reach the deployment's HTTP MCP endpoint. `tools` / `call` are there for quick
+// scripting. It holds no state and applies no logic of its own — the server owns
+// the tool surface, auth, and the mcp_enabled gate.
 //
-// The platform speaks MCP over Streamable HTTP in stateless JSON mode at
-// POST {url}/api/mcp, authenticated with a fund API key as a Bearer token.
-// MCP clients, however, usually launch a local process and talk MCP over stdio.
-// This CLI is that local process: `reporting-cli mcp` is a thin stdio<->HTTP
-// bridge that forwards each JSON-RPC message to the remote endpoint. It holds no
-// state and applies no logic of its own — the server owns the tool surface, auth,
-// and the mcp_enabled gate — so it stays correct as the platform's tools evolve.
-//
-// It also exposes `tools` and `call` for quick shell/script use without an agent.
-//
-// Config resolution (first match wins), for both --url and the API key:
+// A person authenticates once with `reporting-cli auth login` (validates the key
+// and stores it); the agent then reuses the stored credential. Config resolution
+// (first match wins), for both the URL and the key:
 //   1. flags:   --url <u>   --key <k>
 //   2. env:     REPORTING_URL          REPORTING_API_KEY
 //   3. file:    ~/.config/reporting-cli/config.json  { "url": ..., "apiKey": ... }
-// Save step 3 with:  reporting-cli config --url <u> --key <k>
 
-import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs'
+import { readFileSync, writeFileSync, mkdirSync, rmSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join, dirname } from 'node:path'
 import { createInterface } from 'node:readline'
@@ -35,6 +30,11 @@ function readConfigFile() {
   }
 }
 
+function writeConfigFile(url, apiKey) {
+  mkdirSync(dirname(CONFIG_PATH), { recursive: true })
+  writeFileSync(CONFIG_PATH, JSON.stringify({ url, apiKey }, null, 2) + '\n', { mode: 0o600 })
+}
+
 /** Resolve { url, apiKey } from flags > env > config file. */
 function resolveConfig(flags) {
   const file = readConfigFile()
@@ -47,9 +47,8 @@ function resolveConfig(flags) {
 function requireConfig(cfg) {
   if (!cfg.url || !cfg.apiKey) {
     fail(
-      'Missing platform URL or API key.\n' +
-      'Pass --url and --key, set REPORTING_URL / REPORTING_API_KEY, or run:\n' +
-      '  reporting-cli config --url https://your-platform.example.com --key lk_...'
+      'Not authenticated. Run `reporting-cli auth login`, or pass --url/--key,\n' +
+      'or set REPORTING_URL / REPORTING_API_KEY.'
     )
   }
   return cfg
@@ -82,13 +81,85 @@ async function postRpc(cfg, message) {
     throw new Error(`Non-JSON response (HTTP ${res.status}): ${text.slice(0, 300)}`)
   }
   if (!res.ok && !json?.error && !Array.isArray(json)) {
-    // Surface auth/gate failures (401 mcp disabled, etc.) as a JSON-RPC error.
     throw new Error(json?.error?.message || json?.error || `HTTP ${res.status}`)
   }
   return json
 }
 
-// ---- commands -----------------------------------------------------------
+/**
+ * Check a credential against the server. Returns:
+ *   { status, tools }  on 200 (key valid, MCP enabled)
+ *   { status, error }  otherwise (401 = bad key; 403 = key valid but MCP off)
+ */
+async function probe(cfg) {
+  let res
+  try {
+    res = await fetch(`${cfg.url}/api/mcp`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${cfg.apiKey}` },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' }),
+    })
+  } catch (e) {
+    return { status: 0, error: `Could not reach ${cfg.url} (${e.message})` }
+  }
+  let json = null
+  try { json = await res.json() } catch { /* ignore */ }
+  if (res.status === 200 && json?.result) return { status: 200, tools: json.result.tools?.length ?? 0 }
+  return { status: res.status, error: json?.error?.message || json?.error || `HTTP ${res.status}` }
+}
+
+// ---- auth commands ------------------------------------------------------
+
+async function cmdAuthLogin(flags, positional) {
+  let url = flags.url ?? process.env.REPORTING_URL ?? readConfigFile().url ?? ''
+  let key = flags.key ?? process.env.REPORTING_API_KEY ?? ''
+
+  // `--with-token` reads the key from stdin (for CI / non-interactive setup).
+  if (flags.withToken) key = (await readStdin()).trim()
+
+  const interactive = process.stdin.isTTY && !flags.withToken
+  if (!url) url = interactive ? await ask('Platform URL: ') : url
+  if (!key) key = interactive ? await ask('Fund API key (lk_...): ') : key
+
+  url = String(url).trim().replace(/\/+$/, '')
+  key = String(key).trim()
+  if (!url || !key) {
+    fail('Need a platform URL and an API key. Pass --url/--key, pipe --with-token, or run interactively.')
+  }
+
+  const r = await probe({ url, apiKey: key })
+  if (r.status === 401) fail(`That key was rejected by ${url}. Check the key and try again.`)
+  writeConfigFile(url, key)
+  if (r.status === 200) console.log(`Logged in to ${url}. ${r.tools} tool(s) available. Saved ${CONFIG_PATH}`)
+  else if (r.status === 403) console.log(`Key saved for ${url}, but the MCP server is turned off — an admin can enable it in Settings. Saved ${CONFIG_PATH}`)
+  else console.log(`Key saved for ${url} (server said: ${r.error}). Saved ${CONFIG_PATH}`)
+}
+
+async function cmdAuthStatus(flags) {
+  const cfg = resolveConfig(flags)
+  if (!cfg.url || !cfg.apiKey) {
+    console.log('Not authenticated. Run `reporting-cli auth login`.')
+    return
+  }
+  console.log(`URL:  ${cfg.url}`)
+  console.log(`Key:  ${redact(cfg.apiKey)}`)
+  const r = await probe(cfg)
+  if (r.status === 200) console.log(`State: ok — ${r.tools} tool(s) available.`)
+  else if (r.status === 401) console.log('State: key rejected (401). Re-run `auth login`.')
+  else if (r.status === 403) console.log('State: key valid, but the MCP server is off for this fund.')
+  else console.log(`State: ${r.error}`)
+}
+
+function cmdAuthLogout() {
+  try {
+    rmSync(CONFIG_PATH)
+    console.log(`Removed ${CONFIG_PATH}`)
+  } catch {
+    console.log('Nothing to remove.')
+  }
+}
+
+// ---- mcp / tools / call -------------------------------------------------
 
 // `mcp` — stdio<->HTTP bridge. Reads newline-delimited JSON-RPC from stdin,
 // forwards each to the platform, writes each response to stdout as one line.
@@ -102,16 +173,12 @@ async function cmdMcp(cfg) {
     try {
       message = JSON.parse(trimmed)
     } catch {
-      // Not valid JSON — can't recover an id, so drop it (matches JSON-RPC
-      // parse-error handling for framed transports).
-      continue
+      continue // unrecoverable (no id) — drop, matching framed-transport parse handling
     }
     try {
       const response = await postRpc(cfg, message)
       if (response !== null) process.stdout.write(JSON.stringify(response) + '\n')
     } catch (e) {
-      // Reply with a JSON-RPC error for requests (those with an id) so the
-      // client isn't left waiting; stay silent for notifications.
       const id = !Array.isArray(message) && message?.id != null ? message.id : null
       if (id !== null) {
         process.stdout.write(
@@ -129,7 +196,6 @@ async function rpc(cfg, method, params) {
   return response?.result
 }
 
-// `tools` — list the tools the connected key can see.
 async function cmdTools(cfg) {
   requireConfig(cfg)
   const result = await rpc(cfg, 'tools/list', {})
@@ -138,13 +204,10 @@ async function cmdTools(cfg) {
     console.log('No tools available (is the MCP server enabled for this fund?).')
     return
   }
-  for (const t of tools) {
-    console.log(`${t.name}\n    ${t.description ?? ''}\n`)
-  }
+  for (const t of tools) console.log(`${t.name}\n    ${t.description ?? ''}\n`)
   console.log(`${tools.length} tool(s).`)
 }
 
-// `call <tool> [jsonArgs]` — invoke one tool and print its result.
 async function cmdCall(cfg, argv) {
   requireConfig(cfg)
   const name = argv[0]
@@ -160,7 +223,6 @@ async function cmdCall(cfg, argv) {
   const result = await rpc(cfg, 'tools/call', { name, arguments: args })
   const content = result?.content ?? []
   const text = content.map((c) => (c.type === 'text' ? c.text : JSON.stringify(c))).join('\n')
-  // Tool results are JSON strings; pretty-print when possible.
   try {
     console.log(JSON.stringify(JSON.parse(text), null, 2))
   } catch {
@@ -169,23 +231,18 @@ async function cmdCall(cfg, argv) {
   if (result?.isError) process.exitCode = 1
 }
 
-// `config` — save url/key to the config file, or --show the resolved config.
-function cmdConfig(flags) {
-  if (flags.show) {
-    const cfg = resolveConfig(flags)
-    console.log(JSON.stringify({ url: cfg.url || '(unset)', apiKey: cfg.apiKey ? redact(cfg.apiKey) : '(unset)' }, null, 2))
-    return
-  }
-  const existing = readConfigFile()
-  const url = (flags.url ?? existing.url ?? '').replace(/\/+$/, '')
-  const apiKey = flags.key ?? existing.apiKey ?? ''
-  if (!url || !apiKey) fail('Provide both --url and --key to save a config.')
-  mkdirSync(dirname(CONFIG_PATH), { recursive: true })
-  writeFileSync(CONFIG_PATH, JSON.stringify({ url, apiKey }, null, 2) + '\n', { mode: 0o600 })
-  console.log(`Saved ${CONFIG_PATH}`)
+// ---- helpers ------------------------------------------------------------
+
+function ask(question) {
+  const rl = createInterface({ input: process.stdin, output: process.stdout })
+  return new Promise((resolve) => rl.question(question, (a) => { rl.close(); resolve(a) }))
 }
 
-// ---- helpers ------------------------------------------------------------
+async function readStdin() {
+  let data = ''
+  for await (const chunk of process.stdin) data += chunk
+  return data
+}
 
 function redact(key) {
   return key.length <= 12 ? key : `${key.slice(0, 11)}…`
@@ -201,7 +258,7 @@ function parseArgs(argv) {
   const positional = []
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i]
-    if (a === '--show') flags.show = true
+    if (a === '--with-token') flags.withToken = true
     else if (a === '--url') flags.url = argv[++i]
     else if (a === '--key') flags.key = argv[++i]
     else if (a === '-h' || a === '--help') flags.help = true
@@ -216,30 +273,27 @@ USAGE
   reporting-cli <command> [options]
 
 COMMANDS
+  auth login              Validate a fund API key and store it (interactive,
+                          or --url/--key, or --with-token to read the key from stdin)
+  auth status             Show the stored credential and check it against the server
+  auth logout             Remove the stored credential
   mcp                     Run the stdio<->HTTP MCP bridge (for MCP clients)
   tools                   List the tools your API key can see
   call <tool> [jsonArgs]  Invoke one tool, e.g. call list_companies '{"limit":10}'
-  config [--show]         Save --url/--key to ~/.config/reporting-cli/config.json
 
 OPTIONS
   --url <url>   Platform base URL     (or env REPORTING_URL)
   --key <key>   Fund API key (lk_...) (or env REPORTING_API_KEY)
 
-MCP CLIENT SETUP (e.g. Claude Desktop)
+MCP CLIENT SETUP (e.g. Claude Desktop) — after \`reporting-cli auth login\`:
   {
     "mcpServers": {
-      "reporting": {
-        "command": "npx",
-        "args": ["-y", "reporting-cli", "mcp"],
-        "env": {
-          "REPORTING_URL": "https://your-platform.example.com",
-          "REPORTING_API_KEY": "lk_your_key_here"
-        }
-      }
+      "reporting": { "command": "reporting-cli", "args": ["mcp"] }
     }
   }
 
-Create a key in the platform under Settings, after an admin enables the MCP server.
+Create a key in the platform under Settings → Agent access (an admin enables the
+MCP server there first).
 `
 
 async function main() {
@@ -249,6 +303,14 @@ async function main() {
     console.log(HELP)
     return
   }
+  // auth subcommands
+  if (command === 'auth') {
+    const sub = positional[1] ?? 'status'
+    if (sub === 'login') return cmdAuthLogin(flags, positional.slice(2))
+    if (sub === 'status') return cmdAuthStatus(flags)
+    if (sub === 'logout') return cmdAuthLogout()
+    fail(`Unknown auth subcommand: ${sub} (login | status | logout)`)
+  }
   const cfg = resolveConfig(flags)
   switch (command) {
     case 'mcp':
@@ -257,8 +319,6 @@ async function main() {
       return cmdTools(cfg)
     case 'call':
       return cmdCall(cfg, positional.slice(1))
-    case 'config':
-      return cmdConfig(flags)
     default:
       fail(`Unknown command: ${command}\nRun \`reporting-cli help\` for usage.`)
   }

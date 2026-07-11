@@ -6,7 +6,7 @@ Agent access (MCP & CLI)
 - Add a single built-in **MCP server** at `/api/mcp` — one fund API key exposes the whole platform to any MCP client (Claude Desktop, Claude Code, Cursor) or the bundled CLI: portfolio, KPI metrics and history, fund performance, deals, LP commitments, notes, interactions, and the accounting ledger
 - **Off by default, read-only when on.** An admin enables the server in **Settings → Agent access**; write access is opt-in per capability (add companies, record KPI values, add notes, log interactions, ledger writes), and a write requires the capability enabled + an admin owner + a write-scoped key
 - Unify the former ledger-only MCP into this endpoint; per-user API keys are now managed under Settings → Agent access (`/api/settings/api-keys`)
-- Add **`reporting-cli`** (`cli/`) — a zero-dependency stdio↔HTTP MCP bridge plus `tools` / `call` helpers for shell and agent use
+- Add **`reporting-cli`** (`cli/`) — a single zero-dependency Node script: a stdio↔HTTP MCP bridge plus `tools` / `call` helpers, with `auth login` / `status` / `logout` (validates and stores a key) and a `curl … | sh` installer. Built for agents; not published to npm
 
 ## 0.9.5
 

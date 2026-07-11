@@ -301,19 +301,19 @@ metrics, deals, LPs, notes, and ledger.
 - **Keys act as their owner.** Any member's key can read; each user manages their
   own keys and can revoke them anytime. Only the SHA-256 hash is stored; the
   token is shown once.
-- **CLI.** `cli/` is a zero-dependency stdio↔HTTP bridge (`reporting-cli mcp`)
-  plus `tools` / `call` helpers. Point an MCP client at it:
+- **CLI.** `cli/` is a single zero-dependency Node script (a stdio↔HTTP bridge,
+  `reporting-cli mcp`, plus `tools` / `call` helpers). It is not on npm; install
+  it from the repo, then authenticate once:
+
+  ```bash
+  curl -fsSL https://raw.githubusercontent.com/tdavidson/reporting/main/cli/install.sh | sh
+  reporting-cli auth login --url https://your-domain --key lk_...
+  ```
+
+  Then point any MCP client at it:
 
   ```json
-  {
-    "mcpServers": {
-      "reporting": {
-        "command": "npx",
-        "args": ["-y", "reporting-cli", "mcp"],
-        "env": { "REPORTING_URL": "https://your-domain", "REPORTING_API_KEY": "lk_..." }
-      }
-    }
-  }
+  { "mcpServers": { "reporting": { "command": "reporting-cli", "args": ["mcp"] } } }
   ```
 
   See [`cli/README.md`](./cli/README.md) for details.
