@@ -24,14 +24,18 @@ to npm**; install it from this repo.
 
 ## Install
 
+Every deployment serves its own installer and its own copy of the CLI, so this
+works against any instance (including your own fork) with nothing hardcoded:
+
 ```bash
-curl -fsSL https://raw.githubusercontent.com/tdavidson/reporting/main/cli/install.sh | sh
+curl -fsSL https://YOUR-DEPLOYMENT/install.sh | sh
 ```
 
-Installs to `~/.local/bin/reporting-cli`. Override with `PREFIX=/usr/local` or pin
-a tag with `REPORTING_CLI_REF=v0.1.0`. Prefer to inspect first? Download
-`cli/bin/reporting.mjs`, `chmod +x`, and put it on your PATH — that's all the
-installer does.
+Installs to `~/.local/bin/reporting-cli` (override with `PREFIX=/usr/local`).
+Prefer to inspect first? The installer just downloads
+`https://YOUR-DEPLOYMENT/cli/reporting.mjs`, `chmod +x`, and drops it on your
+PATH — you can do that by hand. (`YOUR-DEPLOYMENT` is wherever the platform is
+hosted, e.g. `https://portfolio.acme.com`.)
 
 ## Authenticate
 

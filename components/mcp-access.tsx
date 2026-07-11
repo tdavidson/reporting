@@ -194,7 +194,7 @@ export function McpAccess({
             <p className="text-[11px] text-muted-foreground">
               Install the CLI, then log in once with a key:
             </p>
-            <pre className="bg-muted rounded p-3 text-[11px] font-mono overflow-x-auto">{`curl -fsSL https://raw.githubusercontent.com/tdavidson/reporting/main/cli/install.sh | sh
+            <pre className="bg-muted rounded p-3 text-[11px] font-mono overflow-x-auto">{`curl -fsSL ${origin || 'https://your-domain'}/install.sh | sh
 reporting-cli auth login --url ${origin || 'https://your-domain'} --key lk_…`}</pre>
             <div className="flex items-center justify-between">
               <p className="text-[11px] text-muted-foreground">Then point your MCP client at it:</p>

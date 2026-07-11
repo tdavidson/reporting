@@ -302,11 +302,13 @@ metrics, deals, LPs, notes, and ledger.
   own keys and can revoke them anytime. Only the SHA-256 hash is stored; the
   token is shown once.
 - **CLI.** `cli/` is a single zero-dependency Node script (a stdio↔HTTP bridge,
-  `reporting-cli mcp`, plus `tools` / `call` helpers). It is not on npm; install
-  it from the repo, then authenticate once:
+  `reporting-cli mcp`, plus `tools` / `call` helpers). It's not on npm — instead,
+  **every deployment serves its own installer and CLI** (`/install.sh` and
+  `/cli/reporting.mjs`), so your instance (or any fork) is self-contained with
+  nothing hardcoded to an upstream repo. Install, then authenticate once:
 
   ```bash
-  curl -fsSL https://raw.githubusercontent.com/tdavidson/reporting/main/cli/install.sh | sh
+  curl -fsSL https://your-domain/install.sh | sh
   reporting-cli auth login --url https://your-domain --key lk_...
   ```
 

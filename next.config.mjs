@@ -15,6 +15,9 @@ const nextConfig = {
     // top-level config key in Next 15 — move it out when upgrading.
     outputFileTracingIncludes: {
       '/**': ['./lib/memo-agent/defaults/**/*'],
+      // Bundle the CLI source so /cli/reporting.mjs can serve it (the installer
+      // at /install.sh downloads from there). Single source of truth — no copy.
+      '/cli/reporting.mjs': ['./cli/bin/reporting.mjs'],
     },
   },
   async headers() {
