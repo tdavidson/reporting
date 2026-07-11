@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { Loader2 } from 'lucide-react'
-import { useCurrency, formatCurrencyFull } from '@/components/currency-context'
+import { useCurrency, formatCurrencyPrice } from '@/components/currency-context'
 import { useLedgerFetch } from '@/components/accounting-vehicle'
 
 interface Section { label: string; rows: { code: string; name: string; amount: number }[]; total: number }
@@ -28,7 +28,7 @@ const CAP_COLS: { key: keyof PartnerRow; label: string }[] = [
 
 export function StatementsView() {
   const currency = useCurrency()
-  const fmt = (v: number) => formatCurrencyFull(v, currency)
+  const fmt = (v: number) => formatCurrencyPrice(v, currency)
   const [data, setData] = useState<Data | null>(null)
   const [loading, setLoading] = useState(true)
   const [asOf, setAsOf] = useState('')

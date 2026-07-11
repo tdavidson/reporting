@@ -1,11 +1,11 @@
 // Server glue for the text authoring surface: export the vehicle's ledger to
 // text, and post authored text back as entries. Shared by the REST route and the
-// agent tools. Account names are resolved by exact beancount name or by the
+// agent tools. Account names are resolved by exact name or by the
 // chart code embedded as the last component; unknown accounts are reported.
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Account, AccountType, JournalEntry, Posting } from './types'
-import { serializeLedger, parseLedgerText, beancountAccount, codeFromAccountName, type TextEntryInput } from './text-ledger'
+import { serializeLedger, parseLedgerText, textAccountName, codeFromAccountName, type TextEntryInput } from './text-ledger'
 import { persistEntry } from './persist'
 import { vehicleIdByName } from './vehicle-id'
 import { isBalanced } from './ledger'
@@ -16,7 +16,7 @@ async function loadAccounts(admin: SupabaseClient, fundId: string, group: string
   return ((data as any[]) ?? []).map(a => ({ id: a.id, fundId, code: a.code, name: a.name, type: a.type as AccountType, subtype: a.subtype ?? null, lpEntityId: a.lp_entity_id ?? null }))
 }
 
-/** Serialize a vehicle's ledger (excluding void entries) to beancount text. Pass
+/** Serialize a vehicle's books (excluding void entries) to plain text. Pass
  *  `asOf` to snapshot only entries on or before that date. */
 export async function exportLedgerText(admin: SupabaseClient, fundId: string, group: string, asOf?: string): Promise<string> {
   const accounts = await loadAccounts(admin, fundId, group)
@@ -61,7 +61,7 @@ export async function postLedgerText(
   const { entries, errors } = parseLedgerText(text)
   const accounts = await loadAccounts(admin, fundId, group)
 
-  const byName = new Map(accounts.map(a => [beancountAccount(a), a.id]))
+  const byName = new Map(accounts.map(a => [textAccountName(a), a.id]))
   const byCode = new Map(accounts.map(a => [a.code, a.id]))
   const resolve = (name: string): string | null => byName.get(name) ?? byCode.get(codeFromAccountName(name)) ?? null
 

@@ -39,7 +39,7 @@ Best when volume is low and you want a complete, auditable trail.
 2. **Categorize with AI** to classify the fuzzy rows against the chart.
 3. For each inflow that's a capital call, **Book as call** (allocates per LP by commitment) or
    **Match call** if you already recorded it. Post the drafts.
-4. **Book the investment purchase** on the **Ledger text** page (rare, so it's a text entry):
+4. **Book the investment purchase** on the **Plain text** page (rare, so it's a text entry):
    `Dr Assets:Investments-At-Cost:1100 / Cr Assets:Cash:1000`.
 5. Record each periodic mark: **Allocations → Revalue investment** (enter the new fair value; the
    unrealized change allocates per LP and moves NAV).
@@ -55,7 +55,7 @@ Best for other vehicles where reconstructing history isn't worth it.
 1. Accounting → home → choose **Cutover opening balance** → pick the cutover date → **Bootstrap
    opening balances**. This reads the vehicle's `lp_investments` and books, as of that date,
    `Dr Cash / Cr each LP's capital` for paid-in − distributions. (Capital in nets against cash.)
-2. **Book the investment purchase** in Ledger text so cash moves into the investment
+2. **Book the investment purchase** in Plain text so cash moves into the investment
    (`Dr 1100 / Cr 1000`), leaving ending cash = paid-in − cost.
 3. Run forward from the cutover: book new calls/distributions/fees/marks as they happen.
 
@@ -72,7 +72,7 @@ Greenfield: no history to reconstruct — you're the book of record from first c
 3. Book from **first close forward**:
    - **Capital call**: import the wire from the bank feed and *Book as call*, or use
      **Allocations → (record the call)** — either way it's `Dr Cash / Cr each LP capital`.
-   - **Investment purchase**: Ledger text (`Dr 1100 / Cr 1000`).
+   - **Investment purchase**: Plain text (`Dr 1100 / Cr 1000`).
    - **Management fee / expenses / gains**: Allocations actions as they occur.
    - **Revalue** at each reporting date.
 4. Reconcile cash against the bank feed; close & lock each period.
@@ -96,8 +96,8 @@ Everything is per-vehicle from there, so the same company can run an SPV and a f
 - **Period close (P&L):** Allocations → **Close period** zeroes income/expense into the
   undistributed-earnings bridge. (Capital accounts are already current.)
 - **Lock the period:** **Periods** → *Close & lock* the date range. This snapshots the whole ledger
-  as beancount text (the audit record) and **blocks any new posting dated inside the range** until you
-  reopen it.
+  as plain-text double-entry (the audit record) and **blocks any new posting dated inside the range**
+  until you reopen it.
 - **Amend a closed period:** Periods → *Reopen*, post the fix, close & lock again.
 - **Statements at any date:** the **Financial statements** page has an *As of* control so every
   statement can be viewed at a chosen date.

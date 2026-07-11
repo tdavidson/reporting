@@ -36,7 +36,7 @@ export function LedgerTextView() {
   return (
     <div className="space-y-3">
       <p className="text-xs text-muted-foreground">
-        Author entries as plain-text double-entry (beancount syntax). Reference accounts by name
+        Author entries as plain-text double-entry. Reference accounts by name
         (<code>Assets:Cash:1000</code>) or by chart code. Each entry must balance; one posting per
         entry may omit its amount and be inferred. <code>*</code> posts, <code>!</code> saves a draft.
       </p>
@@ -53,7 +53,7 @@ export function LedgerTextView() {
         <Button onClick={post} disabled={posting || text.trim().length < 10}>
           {posting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}Post from text
         </Button>
-        <Button variant="outline" onClick={load}><RefreshCw className="h-4 w-4 mr-1" />Reload from ledger</Button>
+        <Button variant="outline" onClick={load}><RefreshCw className="h-4 w-4 mr-1" />Reload</Button>
         {result && (
           <span className={`text-sm flex items-center gap-1 ${result.errors.length || result.unknownAccounts.length ? 'text-amber-600' : 'text-green-600'}`}>
             {result.errors.length || result.unknownAccounts.length ? <AlertTriangle className="h-4 w-4" /> : <Check className="h-4 w-4" />}

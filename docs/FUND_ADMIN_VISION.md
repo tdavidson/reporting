@@ -62,7 +62,7 @@ Goals: **(1) get actual usage**, and **(2) showcase CFO capability → fractiona
    funds pay a fund admin (or a CFO) for.
 
 2. **Plain-text accounting is the genuine AI-native differentiator.** A text-backed, double-entry
-   ledger (beancount/hledger applied to a fund) is:
+   ledger (plain-text double-entry applied to a fund) is:
    - **Diffable and git-versioned** — every change to the books is a reviewable commit.
    - **LLM-readable and writable** — an agent can *draft* journal entries from a capital-call
      notice or a bank statement, propose reconciliations, and explain any balance in English.
@@ -96,7 +96,7 @@ operate on directly**:
 
 Two viable models:
 
-- **A. Text is the source of truth.** The ledger literally lives as beancount/hledger-style text
+- **A. Text is the source of truth.** The ledger literally lives as plain-text double-entry
   files; Postgres is an index/cache derived from them. Maximally git-native and auditable.
 - **B. Postgres is the source of truth; text is a view.** Double-entry lives in tables; text is a
   human/LLM-readable serialization you can export, diff, and re-import.

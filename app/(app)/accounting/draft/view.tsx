@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { Loader2, Check, AlertTriangle, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { useCurrency, formatCurrencyFull } from '@/components/currency-context'
+import { useCurrency, formatCurrencyPrice } from '@/components/currency-context'
 import { useLedgerFetch } from '@/components/accounting-vehicle'
 
 interface DraftPosting { accountId: string; amount: number; currency: string; lpEntityId: string | null }
@@ -12,7 +12,7 @@ interface Result { draft: Draft; balanced: boolean; imbalance: Record<string, nu
 
 export function DraftEntryView() {
   const currency = useCurrency()
-  const fmt = (v: number) => formatCurrencyFull(v, currency)
+  const fmt = (v: number) => formatCurrencyPrice(v, currency)
   const [text, setText] = useState('')
   const [result, setResult] = useState<Result | null>(null)
   const [busy, setBusy] = useState(false)

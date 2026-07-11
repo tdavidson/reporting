@@ -6,10 +6,13 @@
 //              entry, drop the auto-draft, and mark the transaction reconciled.
 
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { loadOwnership } from './load'
+import { loadOwnership, loadEntityNames } from './load'
 import { accountIdByCode, ensureCapitalAccounts, persistEntry } from './persist'
 import { vehicleIdByName } from './vehicle-id'
-import { buildCapitalCallEntry } from './entries'
+import { buildCapitalCallEntry, buildFundingEntry } from './entries'
+import { lpReceivableBalances, RECEIVABLE_CODE } from './capital-calls'
+import { roundCents } from './ledger'
+import type { JournalEntry } from './types'
 
 async function getTxn(admin: SupabaseClient, fundId: string, group: string, txnId: string) {
   const vehicleId = await vehicleIdByName(admin, fundId, group)
@@ -23,41 +26,88 @@ async function getTxn(admin: SupabaseClient, fundId: string, group: string, txnI
   return data as any
 }
 
-/** Replace an inflow's draft with a per-LP allocated capital-call entry. */
+/**
+ * Turn an inflow into a capital-call entry. With `lpEntityId`, the whole inflow
+ * is attributed to one LP: if that LP has an open (called-but-unfunded) balance
+ * it FUNDS the call — Dr Cash / Cr the receivable, clearing it — otherwise there's
+ * no open call, so it recognizes AND funds one in a single step (Dr Cash / Cr the
+ * LP's capital). Without `lpEntityId`, the amount is split across every LP
+ * pro-rata by commitment and recognized-and-funded together.
+ */
 export async function bookCapitalCallFromInflow(
   admin: SupabaseClient,
   fundId: string,
   group: string,
   userId: string | null,
-  txnId: string
+  txnId: string,
+  lpEntityId?: string | null
 ): Promise<{ entryId: string } | { error: string }> {
   const txn = await getTxn(admin, fundId, group, txnId)
   if (!txn) return { error: 'Transaction not found' }
   const total = Number(txn.amount)
   if (total <= 0) return { error: 'Only an inflow (deposit) can be booked as a capital call' }
 
-  const owners = await loadOwnership(admin, fundId, group)
-  if (owners.length === 0 || owners.every(o => o.commitment <= 0)) {
-    return { error: 'No LP commitments found — add investors/commitments before allocating a call' }
-  }
   const codes = await accountIdByCode(admin, fundId, group)
   const cashId = codes.get('1000')
   if (!cashId) return { error: 'Seed the chart of accounts first' }
-  const capMap = await ensureCapitalAccounts(admin, fundId, group, owners.map(o => o.lpEntityId))
 
-  const entry = buildCapitalCallEntry(
-    { fundId, entryDate: txn.txn_date, memo: `Capital call — ${txn.description || ''}`.trim() },
-    total,
-    owners,
-    capMap,
-    cashId
-  )
+  let entry: JournalEntry
+  let suggestedCode = '3100'
+  if (lpEntityId) {
+    const names = await loadEntityNames(admin, fundId, group)
+    if (!names.has(lpEntityId)) return { error: 'That LP has no position in this vehicle' }
+    const lpName = names.get(lpEntityId)
+    const openReceivable = (await lpReceivableBalances(admin, fundId, group)).get(lpEntityId) ?? 0
+    const receivableId = codes.get(RECEIVABLE_CODE)
+
+    if (openReceivable > 0.005 && receivableId) {
+      // There's an open call — fund it: Dr Cash / Cr the receivable (no new capital).
+      entry = buildFundingEntry(
+        { fundId, entryDate: txn.txn_date, memo: `Funding — ${lpName}${txn.description ? ` — ${txn.description}` : ''}` },
+        lpEntityId,
+        total,
+        cashId,
+        receivableId
+      )
+      suggestedCode = RECEIVABLE_CODE
+    } else {
+      // No open call — recognize and fund it at once: Dr Cash / Cr LP capital.
+      const capMap = await ensureCapitalAccounts(admin, fundId, group, [lpEntityId])
+      const capId = capMap.get(lpEntityId)
+      if (!capId) return { error: 'Could not resolve the LP capital account' }
+      entry = {
+        fundId,
+        entryDate: txn.txn_date,
+        memo: `Capital call — ${lpName}${txn.description ? ` — ${txn.description}` : ''}`,
+        sourceType: 'capital_call',
+        postings: [
+          { accountId: cashId, amount: roundCents(total), currency: 'USD', lpEntityId: null },
+          { accountId: capId, amount: roundCents(-total), currency: 'USD', lpEntityId },
+        ],
+      }
+    }
+  } else {
+    // Pro-rata across all LPs by commitment — recognized and funded together.
+    const owners = await loadOwnership(admin, fundId, group)
+    if (owners.length === 0 || owners.every(o => o.commitment <= 0)) {
+      return { error: 'No LP commitments found — add investors/commitments before allocating a call' }
+    }
+    const capMap = await ensureCapitalAccounts(admin, fundId, group, owners.map(o => o.lpEntityId))
+    entry = buildCapitalCallEntry(
+      { fundId, entryDate: txn.txn_date, memo: `Capital call — ${txn.description || ''}`.trim() },
+      total,
+      owners,
+      capMap,
+      cashId
+    )
+  }
+
   const result = await persistEntry(admin, fundId, group, userId, entry, 'draft')
   if ('error' in result) return { error: result.error }
 
   // Point the transaction at the new entry, then drop the old two-line draft.
   const oldEntryId = txn.journal_entry_id
-  await admin.from('bank_transactions' as any).update({ journal_entry_id: result.entryId, suggested_account_code: '3100' }).eq('id', txnId).eq('fund_id', fundId)
+  await admin.from('bank_transactions' as any).update({ journal_entry_id: result.entryId, suggested_account_code: suggestedCode }).eq('id', txnId).eq('fund_id', fundId)
   if (oldEntryId && oldEntryId !== result.entryId) {
     await admin.from('journal_entries' as any).delete().eq('id', oldEntryId).eq('fund_id', fundId)
   }

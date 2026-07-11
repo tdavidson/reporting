@@ -48,6 +48,46 @@ export function buildCapitalCallEntry(
   return finalize(base, 'capital_call', postings)
 }
 
+/**
+ * Capital-call issuance (recognize-at-call): for each LP, debit the capital-call
+ * receivable (Due from LPs) and credit their capital. Funding later clears the
+ * receivable. `perLp` holds each LP's called amount. The receivable posting
+ * carries the LP id so per-LP receivable balances derive from the ledger.
+ */
+export function buildCapitalCallIssuanceEntry(
+  base: Base,
+  perLp: Map<string, number>,
+  capMap: CapitalAccountMap,
+  receivableAccountId: string,
+  currency = 'USD'
+): JournalEntry {
+  const postings: Posting[] = []
+  for (const [lpEntityId, amt] of Array.from(perLp.entries())) {
+    if (!amt) continue
+    postings.push({ accountId: receivableAccountId, amount: roundCents(amt), currency, lpEntityId }) // Dr receivable
+    postings.push(lpDebit(capMap, lpEntityId, -amt, currency)) // Cr LP capital
+  }
+  return finalize(base, 'capital_call', postings)
+}
+
+/**
+ * Record an LP's funding against an open call: debit cash, credit the capital-call
+ * receivable for that LP (no capital effect — capital was recognized at the call).
+ */
+export function buildFundingEntry(
+  base: Base,
+  lpEntityId: string,
+  amount: number,
+  cashAccountId: string,
+  receivableAccountId: string,
+  currency = 'USD'
+): JournalEntry {
+  return finalize(base, 'contribution_funding', [
+    { accountId: cashAccountId, amount: roundCents(amount), currency, lpEntityId: null },
+    { accountId: receivableAccountId, amount: roundCents(-amount), currency, lpEntityId }, // Cr receivable
+  ])
+}
+
 /** Distribution: debit each LP's capital, credit cash. `perLp` amounts per LP. */
 export function buildDistributionEntry(
   base: Base,

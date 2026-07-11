@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { Loader2, X, Plus, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { useCurrency, formatCurrencyFull } from '@/components/currency-context'
+import { useCurrency, formatCurrencyPrice } from '@/components/currency-context'
 import { useLedgerFetch } from '@/components/accounting-vehicle'
 
 interface Acct { id: string; code: string; name: string; lp_entity_id: string | null }
@@ -22,7 +22,7 @@ const num = (s: string) => { const n = parseFloat(s); return Number.isFinite(n) 
 export function EntryModal({ txnId, entryId, onClose, onSaved }: { txnId: string; entryId: string; onClose: () => void; onSaved: () => void }) {
   const lf = useLedgerFetch()
   const currency = useCurrency()
-  const fmt = (v: number) => formatCurrencyFull(v, currency)
+  const fmt = (v: number) => formatCurrencyPrice(v, currency)
 
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)

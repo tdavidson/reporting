@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { Loader2 } from 'lucide-react'
-import { useCurrency, formatCurrencyFull } from '@/components/currency-context'
+import { useCurrency, formatCurrencyPrice } from '@/components/currency-context'
 import { useLedgerFetch } from '@/components/accounting-vehicle'
 
 interface SoiRow { name: string; cost: number; fairValue: number; pctOfNetAssets: number }
@@ -10,7 +10,7 @@ interface Soi { rows: SoiRow[]; totalCost: number; totalFairValue: number; netAs
 
 export function ScheduleOfInvestmentsView() {
   const currency = useCurrency()
-  const fmt = (v: number) => formatCurrencyFull(v, currency)
+  const fmt = (v: number) => formatCurrencyPrice(v, currency)
   const pct = (v: number) => `${(v * 100).toFixed(1)}%`
   const [soi, setSoi] = useState<Soi | null>(null)
   const [loading, setLoading] = useState(true)

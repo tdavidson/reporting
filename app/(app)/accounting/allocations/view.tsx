@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { Loader2, Check } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { useCurrency, formatCurrencyFull } from '@/components/currency-context'
+import { useCurrency, formatCurrencyPrice } from '@/components/currency-context'
 import { useLedgerFetch } from '@/components/accounting-vehicle'
 
 type Action = 'management_fee' | 'expense' | 'gain' | 'revalue' | 'close_period'
@@ -21,7 +21,7 @@ interface Preview { entryDate: string; sourceType: string; postings: PreviewPost
 
 export function AllocationsView() {
   const currency = useCurrency()
-  const fmt = (v: number) => formatCurrencyFull(v, currency)
+  const fmt = (v: number) => formatCurrencyPrice(v, currency)
   const [action, setAction] = useState<Action>('management_fee')
   const [entryDate, setEntryDate] = useState('')
   const [annualRate, setAnnualRate] = useState('2')

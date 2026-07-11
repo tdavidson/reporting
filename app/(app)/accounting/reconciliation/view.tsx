@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { Loader2, Check, AlertTriangle } from 'lucide-react'
-import { useCurrency, formatCurrencyFull } from '@/components/currency-context'
+import { useCurrency, formatCurrencyPrice } from '@/components/currency-context'
 import { useLedgerFetch } from '@/components/accounting-vehicle'
 import { Button } from '@/components/ui/button'
 
@@ -20,7 +20,7 @@ interface ReconResult {
 
 export function ReconciliationView() {
   const currency = useCurrency()
-  const fmt = (v: number) => formatCurrencyFull(v, currency)
+  const fmt = (v: number) => formatCurrencyPrice(v, currency)
   const [rows, setRows] = useState<LedgerRow[]>([])
   const [adminInput, setAdminInput] = useState<Record<string, string>>({})
   const [result, setResult] = useState<ReconResult | null>(null)

@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { BookOpen, Users, GitCompareArrows, ScrollText, Layers, FileText, Calculator, Sparkles, Landmark, FileCode, Lock } from 'lucide-react'
+import { BookOpen, Users, GitCompareArrows, ScrollText, Layers, FileText, Calculator, Sparkles, Landmark, FileCode, Lock, PhoneCall } from 'lucide-react'
 import { requireAccountingAdmin } from './guard'
 import { AccountingSetup } from './setup'
 
@@ -18,6 +18,12 @@ const SECTIONS = [
     label: 'Capital accounts',
     icon: Users,
     desc: 'Per-LP roll-forward: beginning → contributions → distributions → fees → gains → ending.',
+  },
+  {
+    href: '/accounting/capital-calls',
+    label: 'Capital calls',
+    icon: PhoneCall,
+    desc: 'Issue calls against commitments (fund-wide pro-rata or per-LP) and track called vs funded vs outstanding.',
   },
   {
     href: '/accounting/allocations',
@@ -45,9 +51,9 @@ const SECTIONS = [
   },
   {
     href: '/accounting/ledger-text',
-    label: 'Ledger text',
+    label: 'Plain text',
     icon: FileCode,
-    desc: 'Author entries as plain-text double-entry (beancount syntax) and post them back — the DB is just the store.',
+    desc: 'Author entries as plain-text double-entry and post them back — the DB is just the store.',
   },
   {
     href: '/accounting/periods',
@@ -59,13 +65,13 @@ const SECTIONS = [
     href: '/accounting/schedule-of-investments',
     label: 'Schedule of investments',
     icon: Layers,
-    desc: 'Each investment with cost, fair value, and % of net assets. Derived output (coming soon).',
+    desc: 'Each investment at cost and fair value, with its share of net assets — derived from the ledger.',
   },
   {
     href: '/accounting/statements',
     label: 'Financial statements',
     icon: FileText,
-    desc: 'Balance sheet, income statement, and statement of changes in partners’ capital (coming soon).',
+    desc: 'Balance sheet, income statement, and statement of changes in partners’ capital.',
   },
 ]
 

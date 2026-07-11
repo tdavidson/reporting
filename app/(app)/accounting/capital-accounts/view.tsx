@@ -1,8 +1,9 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
 import { Loader2 } from 'lucide-react'
-import { useCurrency, formatCurrencyFull } from '@/components/currency-context'
+import { useCurrency, formatCurrencyPrice } from '@/components/currency-context'
 import { useLedgerFetch } from '@/components/accounting-vehicle'
 
 interface Row {
@@ -30,7 +31,7 @@ const COLUMNS: { key: keyof Row; label: string }[] = [
 
 export function CapitalAccountsView() {
   const currency = useCurrency()
-  const fmt = (v: number) => formatCurrencyFull(v, currency)
+  const fmt = (v: number) => formatCurrencyPrice(v, currency)
   const [rows, setRows] = useState<Row[]>([])
   const [nav, setNav] = useState(0)
   const [loading, setLoading] = useState(true)
@@ -74,7 +75,9 @@ export function CapitalAccountsView() {
         <tbody>
           {rows.map(r => (
             <tr key={r.lpEntityId} className="border-b last:border-b-0 hover:bg-muted/30">
-              <td className="px-3 py-2">{r.name}</td>
+              <td className="px-3 py-2">
+                <Link href={`/accounting/capital-accounts/${r.lpEntityId}`} className="hover:underline">{r.name}</Link>
+              </td>
               {COLUMNS.map(c => (
                 <td key={c.key} className={`px-3 py-2 text-right font-mono ${c.key === 'ending' ? 'font-semibold' : ''}`}>
                   {fmt(r[c.key] as number)}

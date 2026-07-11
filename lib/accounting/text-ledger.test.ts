@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { serializeLedger, parseLedgerText, beancountAccount, codeFromAccountName } from './text-ledger'
+import { serializeLedger, parseLedgerText, textAccountName, codeFromAccountName } from './text-ledger'
 import type { Account } from './types'
 
 const accounts: Account[] = [
@@ -8,10 +8,10 @@ const accounts: Account[] = [
   { id: 'lpB', fundId: 'f', code: '3100-bbbb2222', name: "Partners' capital — Acme LLC", type: 'equity', lpEntityId: 'b' },
 ]
 
-describe('beancount account names', () => {
+describe('plain-text account names', () => {
   it('builds a Root:Slug:Code name and recovers the code', () => {
-    expect(beancountAccount(accounts[0])).toBe('Assets:Cash:1000')
-    const lp = beancountAccount(accounts[1])
+    expect(textAccountName(accounts[0])).toBe('Assets:Cash:1000')
+    const lp = textAccountName(accounts[1])
     expect(lp.startsWith('Equity:')).toBe(true)
     expect(codeFromAccountName(lp)).toBe('3100-aaaa1111')
   })

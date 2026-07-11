@@ -1,10 +1,10 @@
 // Plain-text double-entry — the authoring surface. Entries are written and read
-// as beancount-style text; Postgres is just the implementation store. This module
-// is the round-trip: serialize the ledger to text, and parse authored text back
-// into balanced entries (the API resolves account names → chart accounts and
-// persists). Amounts follow beancount's own convention — the signed change to the
-// account — which is exactly our debit-positive/credit-negative posting sign, so
-// no sign flipping is needed either direction.
+// as plain text; Postgres is just the implementation store. This module is the
+// round-trip: serialize the books to text, and parse authored text back into
+// balanced entries (the API resolves account names → chart accounts and
+// persists). A posting's amount is simply the signed change to the account —
+// which is exactly our debit-positive/credit-negative posting sign, so no sign
+// flipping is needed either direction.
 
 import { roundCents } from './ledger'
 import type { Account, AccountType } from './types'
@@ -17,7 +17,7 @@ const ROOT: Record<AccountType, string> = {
   expense: 'Expenses',
 }
 
-/** A beancount account component: capitalized words joined by dashes. */
+/** An account-name component: capitalized words joined by dashes. */
 function slug(name: string): string {
   const s = (name || '')
     .replace(/[^A-Za-z0-9]+/g, ' ')
@@ -29,15 +29,15 @@ function slug(name: string): string {
 }
 
 /**
- * Beancount account name for a chart account: `Root:Slug:Code`. The last
+ * Hierarchical account name for a chart account: `Root:Slug:Code`. The last
  * component is the chart code, so the parser can resolve it back unambiguously;
  * the middle slug keeps it human-readable.
  */
-export function beancountAccount(account: Account): string {
+export function textAccountName(account: Account): string {
   return `${ROOT[account.type]}:${slug(account.name)}:${account.code}`
 }
 
-/** The chart code encoded as the last component of a beancount account name. */
+/** The chart code encoded as the last component of an account name. */
 export function codeFromAccountName(name: string): string {
   const parts = name.split(':')
   return parts[parts.length - 1]
@@ -56,17 +56,17 @@ export interface TextEntryInput {
   postings: TextPostingInput[]
 }
 
-/** Serialize a vehicle's ledger to beancount text (open directives + entries). */
+/** Serialize a vehicle's books to plain text (open directives + entries). */
 export function serializeLedger(accounts: Account[], entries: TextEntryInput[]): string {
   const byId = new Map(accounts.map(a => [a.id, a]))
-  const lines: string[] = ['; -*- mode: beancount -*-', '; Ledger export — edit and re-post from the Ledger text page.', '']
+  const lines: string[] = ['; Plain-text export — edit and re-post from the Plain text page.', '']
 
   const dated = entries.filter(e => e.entryDate).sort((a, b) => a.entryDate.localeCompare(b.entryDate))
   const firstDate = dated[0]?.entryDate
   const used = new Set<string>()
   for (const e of dated) for (const p of e.postings) if (byId.has(p.accountId)) used.add(p.accountId)
   if (firstDate && used.size) {
-    for (const id of Array.from(used)) lines.push(`${firstDate} open ${beancountAccount(byId.get(id)!)}`)
+    for (const id of Array.from(used)) lines.push(`${firstDate} open ${textAccountName(byId.get(id)!)}`)
     lines.push('')
   }
 
@@ -77,7 +77,7 @@ export function serializeLedger(accounts: Account[], entries: TextEntryInput[]):
     if (e.sourceType) lines.push(`  source: "${e.sourceType}"`)
     for (const p of e.postings) {
       const acct = byId.get(p.accountId)
-      const name = acct ? beancountAccount(acct) : `Equity:Unknown:${p.accountId.slice(0, 8)}`
+      const name = acct ? textAccountName(acct) : `Equity:Unknown:${p.accountId.slice(0, 8)}`
       lines.push(`  ${name}  ${roundCents(p.amount).toFixed(2)} ${p.currency}`)
     }
     lines.push('')
@@ -114,7 +114,7 @@ function narrationOf(rest: string): string {
 }
 
 /**
- * Parse beancount-style text into balanced entries. Supports amount elision (one
+ * Parse plain-text double-entry into balanced entries. Supports amount elision (one
  * posting per entry may omit its amount; it's inferred as the negation of the
  * rest). Comments (`;`) and directives (open/close/etc.) are ignored. Malformed
  * or unbalanced entries are reported, not silently dropped.

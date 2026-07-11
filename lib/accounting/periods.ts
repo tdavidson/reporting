@@ -1,6 +1,6 @@
 // Period close & locking. A closed fiscal period freezes the books for its date
 // range: persistEntry refuses to post entries dated inside it (reopen to amend).
-// Closing snapshots the ledger as beancount text — the immutable audit record.
+// Closing snapshots the ledger as plain-text double-entry — the immutable audit record.
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { exportLedgerText } from './text-ledger-run'

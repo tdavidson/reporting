@@ -3,14 +3,14 @@
 import { useEffect, useState } from 'react'
 import { Loader2, Check } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { useCurrency, formatCurrencyFull } from '@/components/currency-context'
+import { useCurrency, formatCurrencyPrice } from '@/components/currency-context'
 import { useLedgerFetch } from '@/components/accounting-vehicle'
 
 interface Entity { lpEntityId: string; name: string; commitment: number }
 
 export function OpeningBalancesView() {
   const currency = useCurrency()
-  const fmt = (v: number) => formatCurrencyFull(v, currency)
+  const fmt = (v: number) => formatCurrencyPrice(v, currency)
   const [entities, setEntities] = useState<Entity[]>([])
   const [amounts, setAmounts] = useState<Record<string, string>>({})
   const [entryDate, setEntryDate] = useState('')

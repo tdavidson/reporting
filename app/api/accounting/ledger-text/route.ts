@@ -5,7 +5,7 @@ import { assertAdminAccess } from '@/lib/api-helpers'
 import { resolveGroupOr400 } from '@/lib/accounting/http-vehicle'
 import { exportLedgerText, postLedgerText } from '@/lib/accounting/text-ledger-run'
 
-// GET — the vehicle's ledger serialized to beancount-style text.
+// GET — the vehicle's ledger serialized to plain-text double-entry.
 export async function GET(req: NextRequest) {
   const supabase = createClient()
   const admin = createAdminClient()

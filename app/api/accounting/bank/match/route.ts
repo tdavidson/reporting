@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
   const gate = await assertAdminAccess(admin, user.id)
   if (gate instanceof NextResponse) return gate
 
-  const { id, mode, entryId, group: bodyGroup } = await req.json().catch(() => ({}))
+  const { id, mode, entryId, lpEntityId, group: bodyGroup } = await req.json().catch(() => ({}))
   const group = await resolveGroupOr400(admin, gate.fundId, bodyGroup ?? req.nextUrl.searchParams.get('group'))
   if (group instanceof NextResponse) return group
   if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 })
@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(result)
   }
 
-  const result = await bookCapitalCallFromInflow(admin, gate.fundId, group, user.id, id)
+  const result = await bookCapitalCallFromInflow(admin, gate.fundId, group, user.id, id, lpEntityId ?? null)
   if ('error' in result) return NextResponse.json({ error: result.error }, { status: 400 })
   return NextResponse.json({ ok: true, ...result })
 }

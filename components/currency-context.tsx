@@ -40,8 +40,10 @@ export function formatCurrencyFull(value: number, currency: string): string {
   return noNegZero(value).toLocaleString('en-US', { style: 'currency', currency, maximumFractionDigits: 0 })
 }
 
-/** Full-precision currency with decimals: $12.50 */
+/** Full-precision currency with cents, always two decimals: $12.50, $1,234.00 */
 export function formatCurrencyPrice(value: number, currency: string): string {
-  return noNegZero(value).toLocaleString('en-US', { style: 'currency', currency, maximumFractionDigits: 2 })
+  // Only normalize -0 → 0 here; keep real sub-dollar amounts (cents matter).
+  const v = Object.is(value, -0) ? 0 : value
+  return v.toLocaleString('en-US', { style: 'currency', currency, minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 

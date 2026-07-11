@@ -53,6 +53,12 @@ export async function loadPostedLedger(
     ((entryRows as any[]) ?? []).map(e => [e.id as string, (e.source_type ?? null) as string | null])
   )
 
+  // LP capital accounts carry lp_entity_id on the account itself. Only postings to
+  // THOSE accounts belong in the capital-account roll-forward — a posting can also
+  // carry an lp_entity_id on a non-capital account (e.g. the per-LP capital-call
+  // receivable), which must not be mistaken for a capital movement.
+  const lpCapitalAccountIds = new Set(accounts.filter(a => a.lpEntityId).map(a => a.id))
+
   const postings: Posting[] = []
   const capitalPostings: CapitalPosting[] = []
   const sourcedPostings: SourcedPosting[] = []
@@ -62,7 +68,7 @@ export async function loadPostedLedger(
     const sourceType = sourceByEntry.get(p.journal_entry_id) ?? null
     postings.push({ accountId: p.account_id, amount, currency: p.currency ?? 'USD', lpEntityId: p.lp_entity_id ?? null })
     sourcedPostings.push({ accountId: p.account_id, amount, currency: p.currency ?? 'USD', lpEntityId: p.lp_entity_id ?? null, sourceType })
-    if (p.lp_entity_id) {
+    if (p.lp_entity_id && lpCapitalAccountIds.has(p.account_id)) {
       capitalPostings.push({ lpEntityId: p.lp_entity_id, amount, sourceType })
     }
   }

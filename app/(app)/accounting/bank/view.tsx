@@ -3,13 +3,14 @@
 import { useEffect, useState, useCallback } from 'react'
 import { Loader2, Check, AlertTriangle, Upload, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { useCurrency, formatCurrencyFull } from '@/components/currency-context'
+import { useCurrency, formatCurrencyPrice } from '@/components/currency-context'
 import { useLedgerFetch } from '@/components/accounting-vehicle'
 import { EntryModal } from './entry-modal'
 
 interface Txn { id: string; txn_date: string; amount: number; description: string; counterparty: string | null; status: string; suggested_account_code: string | null; journal_entry_id: string | null }
 interface Rec { bankEndingBalance: number; ledgerCashBalance: number; difference: number; matchedCount: number; unmatchedCount: number; unmatchedTotal: number; tiesOut: boolean }
 interface Candidate { entryId: string; amount: number; entryDate: string; memo: string | null }
+interface Lp { lpEntityId: string; name: string; commitment: number }
 
 const STATUS_STYLE: Record<string, string> = {
   drafted: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
@@ -20,11 +21,12 @@ const STATUS_STYLE: Record<string, string> = {
 
 export function BankView() {
   const currency = useCurrency()
-  const fmt = (v: number) => formatCurrencyFull(v, currency)
+  const fmt = (v: number) => formatCurrencyPrice(v, currency)
   const [csv, setCsv] = useState('')
   const [txns, setTxns] = useState<Txn[]>([])
   const [rec, setRec] = useState<Rec | null>(null)
   const [candidates, setCandidates] = useState<Candidate[]>([])
+  const [lps, setLps] = useState<Lp[]>([])
   const [acctNames, setAcctNames] = useState<Record<string, string>>({})
   const [accounts, setAccounts] = useState<{ code: string; name: string }[]>([])
   const [loading, setLoading] = useState(true)
@@ -41,7 +43,9 @@ export function BankView() {
       lf('/api/accounting/bank/reconcile').then(r => (r.ok ? r.json() : null)),
       lf('/api/accounting/bank/match').then(r => (r.ok ? r.json() : [])),
       lf('/api/accounting/chart').then(r => (r.ok ? r.json() : [])),
-    ]).then(([t, r, c, ch]) => {
+      lf('/api/accounting/entities').then(r => (r.ok ? r.json() : [])),
+    ]).then(([t, r, c, ch, lpRows]) => {
+      setLps(Array.isArray(lpRows) ? lpRows : [])
       setTxns(Array.isArray(t) ? t : [])
       setRec(r)
       setCandidates(Array.isArray(c) ? c : [])
@@ -60,8 +64,8 @@ export function BankView() {
     load()
   }
 
-  async function match(id: string, mode: 'allocate' | 'link', entryId?: string) {
-    await lf('/api/accounting/bank/match', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, mode, entryId }) })
+  async function match(id: string, mode: 'allocate' | 'link', entryId?: string, lpEntityId?: string) {
+    await lf('/api/accounting/bank/match', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, mode, entryId, lpEntityId }) })
     load()
   }
 
@@ -196,7 +200,18 @@ export function BankView() {
                       <span className="flex items-center gap-1 justify-end">
                         {t.amount > 0 && (candidateFor(t.amount)
                           ? <><button onClick={() => match(t.id, 'link', candidateFor(t.amount)!.entryId)} className="text-xs text-muted-foreground hover:text-foreground transition-colors" title="Link to the capital call you already recorded">Match call</button><span className="text-muted-foreground/50">·</span></>
-                          : <><button onClick={() => match(t.id, 'allocate')} className="text-xs text-muted-foreground hover:text-foreground transition-colors" title="Allocate this inflow across LPs as a capital call">Book as call</button><span className="text-muted-foreground/50">·</span></>
+                          : lps.length > 0
+                            ? <><select
+                                  value=""
+                                  onChange={e => { const v = e.target.value; if (v === '__prorata__') match(t.id, 'allocate'); else if (v) match(t.id, 'allocate', undefined, v) }}
+                                  title="Book this inflow as a capital call — pick the LP who funded it"
+                                  className="border border-input rounded bg-transparent px-1.5 py-1 text-xs max-w-[170px] text-muted-foreground hover:bg-accent/50"
+                                >
+                                  <option value="">Book as call…</option>
+                                  {lps.map(l => <option key={l.lpEntityId} value={l.lpEntityId}>{l.name}</option>)}
+                                  <option value="__prorata__">All LPs (pro-rata)</option>
+                                </select><span className="text-muted-foreground/50">·</span></>
+                            : <><button onClick={() => match(t.id, 'allocate')} className="text-xs text-muted-foreground hover:text-foreground transition-colors" title="Allocate this inflow across LPs as a capital call">Book as call</button><span className="text-muted-foreground/50">·</span></>
                         )}
                         {t.journal_entry_id && <><button onClick={() => setEditing({ txnId: t.id, entryId: t.journal_entry_id! })} className="text-xs text-muted-foreground hover:text-foreground transition-colors">Edit</button><span className="text-muted-foreground/50">·</span></>}
                         <button onClick={() => act(t.id, 'post')} className="text-xs text-muted-foreground hover:text-foreground transition-colors">Post</button>

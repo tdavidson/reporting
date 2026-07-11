@@ -1,7 +1,7 @@
 # Fund accounting — double-entry reference
 
-How every entry type is booked, in both T-account form and the plain-text (beancount) syntax you
-author in. Use this to write entries on the **Ledger text** page and to verify the books are set up
+How every entry type is booked, in both T-account form and the plain-text double-entry format you
+author in. Use this to write entries on the **Plain text** page and to verify the books are set up
 correctly. Everything here matches what the entry builders in `lib/accounting/entries.ts` produce.
 
 ## The two rules that make it all work
@@ -10,8 +10,8 @@ correctly. Everything here matches what the entry builders in `lib/accounting/en
    a **credit is negative**.
 2. **Every entry sums to zero** (per currency). If it doesn't balance, it can't be posted.
 
-This is exactly beancount's own convention, so the plain text and the ledger agree with no sign
-flipping: a posting amount is simply the signed change to that account.
+By convention, a posting's amount is simply the signed change to that account, so the plain text and
+the ledger agree with no sign flipping.
 
 ## Chart of accounts (the default seed)
 
@@ -62,7 +62,7 @@ separately (entry 3), which moves that cash into the investment. Roll-forward li
 | 1000 Cash | Dr total |
 | 3100-`<id>` each LP capital | Cr their opening balance |
 
-```beancount
+```text
 2021-06-30 * "Opening capital (cutover)"
   source: "opening_balance"
   Assets:Cash:1000                         3000000.00 USD
@@ -80,7 +80,7 @@ Cash comes in; each LP's capital increases pro-rata by commitment. Line: **contr
 | 1000 Cash | Dr total |
 | 3100-`<id>` each LP capital | Cr their share |
 
-```beancount
+```text
 2021-07-01 * "Capital call — Q3"
   source: "capital_call"
   Assets:Cash:1000                         5000000.00 USD
@@ -97,7 +97,7 @@ action; book it here in text (or via a bank outflow re-categorized to 1100).
 | 1100 Investments at cost | Dr cost |
 | 1000 Cash | Cr cost |
 
-```beancount
+```text
 2021-07-15 * "Investment — purchase"
   Assets:Investments-At-Cost:1100          4800000.00 USD
   Assets:Cash:1000                        -4800000.00 USD
@@ -113,7 +113,7 @@ Expense hits the income statement; each LP's capital is reduced. Line: **managem
 | 3100-`<id>` each LP capital | Dr their fee |
 | 3200 Undistributed earnings | Cr total |
 
-```beancount
+```text
 2021-09-30 * "Management fee — Q3"
   source: "management_fee"
   Expenses:Management-Fee:5000             50000.00 USD
@@ -134,7 +134,7 @@ Same shape as the fee, but paid from cash and allocated pro-rata. Line: **expens
 | 3100-`<id>` each LP capital | Dr their share |
 | 3200 Undistributed earnings | Cr total |
 
-```beancount
+```text
 2021-10-05 * "Audit fee"
   source: "partnership_expense"
   Expenses:Partnership-Expenses:5100      12000.00 USD
@@ -154,7 +154,7 @@ Cash/income in; each LP's capital increases. Line: **gains**.
 | 3200 Undistributed earnings | Dr total |
 | 3100-`<id>` each LP capital | Cr their share |
 
-```beancount
+```text
 2023-03-01 * "Partial realization"
   source: "realized_gain"
   Assets:Cash:1000                         500000.00 USD
@@ -175,7 +175,7 @@ Mark the investment to a new fair value. You enter the **new fair value**; the s
 | 3200 Undistributed earnings | Dr delta |
 | 3100-`<id>` each LP capital | Cr their share |
 
-```beancount
+```text
 2022-12-31 * "Year-end mark"
   source: "valuation"
   Assets:Unrealized-Appreciation:1200      1000000.00 USD
@@ -193,7 +193,7 @@ Cash out to LPs; each LP's capital decreases. Line: **distributions**.
 | 3100-`<id>` each LP capital | Dr their distribution |
 | 1000 Cash | Cr total |
 
-```beancount
+```text
 2023-03-15 * "Distribution"
   source: "distribution"
   Equity:Partners-Capital-John-Smith:3100-aaaa    300000.00 USD
@@ -209,7 +209,7 @@ Move profit from LPs to the GP. Line: **other** (on the LP roll-forward).
 | 3100-`<id>` each LP capital | Dr their carry |
 | 3000 Partners' capital — GP | Cr total |
 
-```beancount
+```text
 2023-03-15 * "Carried interest"
   source: "carried_interest"
   Equity:Partners-Capital-John-Smith:3100-aaaa    60000.00 USD
@@ -225,7 +225,7 @@ Zero every income/expense account into the bridge. No LP postings — capital is
 | each income/expense account | the negation of its balance |
 | 3200 Undistributed earnings | the net |
 
-```beancount
+```text
 2022-12-31 * "Period close"
   source: "period_close"
   Income:Realized-Gains:4000               500000.00 USD   ; was a -500000 credit balance
@@ -259,7 +259,7 @@ ledger regardless of how lines are labeled. **Fund NAV = sum of every LP's endin
 
 Checks that should always hold — use these to confirm the books:
 
-- **Every entry balances.** The Journal and Ledger text pages reject unbalanced entries; the trial
+- **Every entry balances.** The Journal and Plain text pages reject unbalanced entries; the trial
   balance (Financial statements) shows equal total debits and credits.
 - **Balance sheet identity.** Assets = Liabilities + Partners' capital. On the Financial statements
   page the balance-sheet `check` is 0 once the period is closed (before close, the residual equals
