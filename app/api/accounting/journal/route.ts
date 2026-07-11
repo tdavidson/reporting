@@ -125,3 +125,52 @@ export async function POST(req: NextRequest) {
   const { data: full } = await admin.from('journal_entries' as any).select('*, journal_postings(*)').eq('id', result.entryId).single()
   return NextResponse.json(full ?? { id: result.entryId })
 }
+
+// PATCH — change a POSTED entry's state:
+//   unpost → back to draft so it can be edited and re-posted
+//   void   → keep it on the ledger but reverse its effect (audit-safe correction)
+// Both are refused if the entry falls in a closed period (reopen it first).
+export async function PATCH(req: NextRequest) {
+  const supabase = createClient()
+  const admin = createAdminClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const gate = await assertAdminAccess(admin, user.id)
+  if (gate instanceof NextResponse) return gate
+
+  const body = await req.json().catch(() => ({}))
+  const group = await resolveGroupOr400(admin, gate.fundId, body?.group ?? req.nextUrl.searchParams.get('group'))
+  if (group instanceof NextResponse) return group
+  const vehicleId = await vehicleIdByName(admin, gate.fundId, group)
+
+  const { id, action } = body
+  if (!id || !['unpost', 'void'].includes(action)) {
+    return NextResponse.json({ error: "id and action ('unpost'|'void') are required" }, { status: 400 })
+  }
+
+  const { data: existing } = await admin
+    .from('journal_entries' as any)
+    .select('id, status, entry_date')
+    .eq('id', id).eq('fund_id', gate.fundId).eq('vehicle_id', vehicleId)
+    .maybeSingle()
+  if (!existing) return NextResponse.json({ error: 'Entry not found' }, { status: 404 })
+  if ((existing as any).status !== 'posted') return NextResponse.json({ error: 'Only a posted entry can be unposted or voided' }, { status: 400 })
+
+  const closed = await closedPeriodRanges(admin, gate.fundId, group)
+  if (dateInAnyClosedPeriod(closed, (existing as any).entry_date)) {
+    return NextResponse.json({ error: 'That entry is in a closed period — reopen it first.' }, { status: 400 })
+  }
+
+  if (action === 'unpost') {
+    const { error } = await admin.from('journal_entries' as any).update({ status: 'draft', posted_at: null }).eq('id', id).eq('fund_id', gate.fundId)
+    if (error) return dbError(error, 'journal-unpost')
+    // Keep any bank transaction that points at this entry in step.
+    await admin.from('bank_transactions' as any).update({ status: 'drafted' }).eq('journal_entry_id', id).eq('fund_id', gate.fundId)
+    return NextResponse.json({ ok: true, status: 'draft' })
+  }
+
+  const { error } = await admin.from('journal_entries' as any).update({ status: 'void' }).eq('id', id).eq('fund_id', gate.fundId)
+  if (error) return dbError(error, 'journal-void')
+  await admin.from('bank_transactions' as any).update({ status: 'ignored' }).eq('journal_entry_id', id).eq('fund_id', gate.fundId)
+  return NextResponse.json({ ok: true, status: 'void' })
+}

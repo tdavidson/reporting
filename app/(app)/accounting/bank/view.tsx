@@ -34,6 +34,7 @@ export function BankView() {
   const [categorizing, setCategorizing] = useState(false)
   const [result, setResult] = useState<{ imported: number; skipped: number; errors: string[] } | null>(null)
   const [editing, setEditing] = useState<{ txnId: string; entryId: string } | null>(null)
+  const [selected, setSelected] = useState<Set<string>>(new Set())
   const lf = useLedgerFetch()
 
   const load = useCallback(() => {
@@ -47,6 +48,7 @@ export function BankView() {
     ]).then(([t, r, c, ch, lpRows]) => {
       setLps(Array.isArray(lpRows) ? lpRows : [])
       setTxns(Array.isArray(t) ? t : [])
+      setSelected(new Set())
       setRec(r)
       setCandidates(Array.isArray(c) ? c : [])
       const chart = (Array.isArray(ch) ? ch : []).map((a: any) => ({ code: a.code, name: a.name }))
@@ -80,8 +82,23 @@ export function BankView() {
     setImporting(false)
   }
 
-  async function act(id: string, action: 'post' | 'ignore') {
+  async function act(id: string, action: 'post' | 'ignore' | 'unpost') {
     await lf('/api/accounting/bank', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action, id }) })
+    load()
+  }
+
+  const draftedIds = txns.filter(t => t.status === 'drafted').map(t => t.id)
+  const allDraftedSelected = draftedIds.length > 0 && draftedIds.every(id => selected.has(id))
+  const selectedCount = draftedIds.filter(id => selected.has(id)).length
+  function toggleRow(id: string) {
+    setSelected(prev => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n })
+  }
+  function toggleAll() {
+    setSelected(allDraftedSelected ? new Set<string>() : new Set(draftedIds))
+  }
+  async function bulkPost() {
+    if (selectedCount === 0) return
+    await lf('/api/accounting/bank', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'postMany', ids: draftedIds.filter(id => selected.has(id)) }) })
     load()
   }
 
@@ -150,6 +167,7 @@ export function BankView() {
             Categorize with AI
           </Button>
           <span className="text-xs text-muted-foreground">Re-classifies drafted rows against your chart of accounts.</span>
+          {selectedCount > 0 && <Button size="sm" onClick={bulkPost}>Post {selectedCount} selected</Button>}
         </div>
       )}
       {loading ? (
@@ -161,6 +179,7 @@ export function BankView() {
           <table className="w-full text-sm whitespace-nowrap">
             <thead>
               <tr className="border-b bg-muted/50">
+                <th className="px-2 py-2 w-8"><input type="checkbox" aria-label="Select all drafted" checked={allDraftedSelected} onChange={toggleAll} disabled={draftedIds.length === 0} /></th>
                 <th className="text-left px-3 py-2 font-medium">Date</th>
                 <th className="text-left px-3 py-2 font-medium">Description</th>
                 <th className="text-right px-3 py-2 font-medium">Amount</th>
@@ -172,6 +191,7 @@ export function BankView() {
             <tbody>
               {txns.map(t => (
                 <tr key={t.id} className="border-b last:border-b-0 hover:bg-muted/30">
+                  <td className="px-2 py-2">{t.status === 'drafted' && <input type="checkbox" checked={selected.has(t.id)} onChange={() => toggleRow(t.id)} aria-label="Select transaction" />}</td>
                   <td className="px-3 py-2 font-mono text-xs">{t.txn_date}</td>
                   <td className="px-3 py-2">{t.description}</td>
                   <td className={`px-3 py-2 text-right font-mono ${t.amount < 0 ? 'text-muted-foreground' : ''}`}>{fmt(t.amount)}</td>
@@ -218,6 +238,9 @@ export function BankView() {
                         <span className="text-muted-foreground/50">·</span>
                         <button onClick={() => act(t.id, 'ignore')} className="text-xs text-muted-foreground hover:text-foreground transition-colors">Ignore</button>
                       </span>
+                    )}
+                    {t.status === 'reconciled' && (
+                      <button onClick={() => act(t.id, 'unpost')} title="Revert to draft so you can edit it" className="text-xs text-muted-foreground hover:text-foreground transition-colors">Unpost</button>
                     )}
                   </td>
                 </tr>

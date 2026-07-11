@@ -5,6 +5,7 @@ import { assertAdminAccess } from '@/lib/api-helpers'
 import { resolveGroupOr400 } from '@/lib/accounting/http-vehicle'
 import { vehicleIdByName } from '@/lib/accounting/vehicle-id'
 import { accountIdByCode } from '@/lib/accounting/persist'
+import { closedPeriodRanges, dateInAnyClosedPeriod } from '@/lib/accounting/periods'
 import { dbError } from '@/lib/api-error'
 
 // GET — list a vehicle's staged bank transactions.
@@ -31,7 +32,8 @@ export async function GET(req: NextRequest) {
 }
 
 // POST — act on a staged transaction.
-// { action: 'post' | 'ignore' | 'setAccount', id, accountCode?, group? }
+// { action: 'post' | 'ignore' | 'setAccount' | 'unpost', id, accountCode?, group? }
+// or bulk: { action: 'postMany', ids: string[], group? }
 export async function POST(req: NextRequest) {
   const supabase = createClient()
   const admin = createAdminClient()
@@ -40,13 +42,36 @@ export async function POST(req: NextRequest) {
   const gate = await assertAdminAccess(admin, user.id)
   if (gate instanceof NextResponse) return gate
 
-  const { action, id, accountCode, group: bodyGroup } = await req.json().catch(() => ({}))
+  const { action, id, ids, accountCode, group: bodyGroup } = await req.json().catch(() => ({}))
   const group = await resolveGroupOr400(admin, gate.fundId, bodyGroup ?? req.nextUrl.searchParams.get('group'))
   if (group instanceof NextResponse) return group
-  if (!id || !['post', 'ignore', 'setAccount'].includes(action)) {
-    return NextResponse.json({ error: 'action (post|ignore|setAccount) and id are required' }, { status: 400 })
-  }
   const vehicleId = await vehicleIdByName(admin, gate.fundId, group)
+
+  // Bulk post: flip a set of drafted transactions (and their draft entries) to
+  // posted in one call.
+  if (action === 'postMany') {
+    const list = (Array.isArray(ids) ? ids : []).filter(Boolean)
+    if (list.length === 0) return NextResponse.json({ error: 'ids (array) is required for postMany' }, { status: 400 })
+    const { data: rows } = await admin
+      .from('bank_transactions' as any)
+      .select('id, journal_entry_id')
+      .eq('fund_id', gate.fundId)
+      .eq('vehicle_id', vehicleId)
+      .in('id', list)
+      .eq('status', 'drafted')
+    const txnIds = ((rows as any[]) ?? []).map(r => r.id)
+    const entryIds = ((rows as any[]) ?? []).map(r => r.journal_entry_id).filter(Boolean)
+    if (entryIds.length) {
+      const { error } = await admin.from('journal_entries' as any).update({ status: 'posted', posted_at: new Date().toISOString() }).in('id', entryIds).eq('fund_id', gate.fundId)
+      if (error) return dbError(error, 'bank-post-many')
+    }
+    if (txnIds.length) await admin.from('bank_transactions' as any).update({ status: 'reconciled' }).in('id', txnIds).eq('fund_id', gate.fundId)
+    return NextResponse.json({ ok: true, posted: txnIds.length })
+  }
+
+  if (!id || !['post', 'ignore', 'setAccount', 'unpost'].includes(action)) {
+    return NextResponse.json({ error: 'action (post|ignore|setAccount|unpost) and id are required' }, { status: 400 })
+  }
 
   const { data: txn } = await admin
     .from('bank_transactions' as any)
@@ -89,6 +114,24 @@ export async function POST(req: NextRequest) {
     }
     await admin.from('bank_transactions' as any).update({ status: 'reconciled' }).eq('id', id).eq('fund_id', gate.fundId)
     return NextResponse.json({ ok: true, status: 'reconciled' })
+  }
+
+  // Unpost: revert a posted transaction to draft so it can be edited, then
+  // re-posted. Refused if the entry falls in a closed period (reopen it first).
+  if (action === 'unpost') {
+    if ((txn as any).status !== 'reconciled') return NextResponse.json({ error: 'Only a posted transaction can be unposted' }, { status: 400 })
+    if (entryId) {
+      const { data: entry } = await admin.from('journal_entries' as any).select('entry_date').eq('id', entryId).eq('fund_id', gate.fundId).maybeSingle()
+      const date = (entry as any)?.entry_date
+      if (date) {
+        const closed = await closedPeriodRanges(admin, gate.fundId, group)
+        if (dateInAnyClosedPeriod(closed, date)) return NextResponse.json({ error: 'That entry is in a closed period — reopen it to edit.' }, { status: 400 })
+      }
+      const { error } = await admin.from('journal_entries' as any).update({ status: 'draft', posted_at: null }).eq('id', entryId).eq('fund_id', gate.fundId)
+      if (error) return dbError(error, 'bank-unpost-entry')
+    }
+    await admin.from('bank_transactions' as any).update({ status: 'drafted' }).eq('id', id).eq('fund_id', gate.fundId)
+    return NextResponse.json({ ok: true, status: 'drafted' })
   }
 
   if (entryId) await admin.from('journal_entries' as any).update({ status: 'void' }).eq('id', entryId).eq('fund_id', gate.fundId)

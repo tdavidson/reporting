@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { useCurrency, formatCurrencyPrice } from '@/components/currency-context'
 import { useLedgerFetch } from '@/components/accounting-vehicle'
@@ -22,13 +22,19 @@ export function JournalView() {
   const [loading, setLoading] = useState(true)
   const lf = useLedgerFetch()
 
-  useEffect(() => {
+  const load = useCallback(() => {
     setLoading(true)
     lf('/api/accounting/journal')
       .then(r => (r.ok ? r.json() : []))
       .then(d => setEntries(Array.isArray(d) ? d : []))
       .finally(() => setLoading(false))
   }, [lf])
+  useEffect(() => { load() }, [load])
+
+  async function act(id: string, action: 'unpost' | 'void') {
+    await lf('/api/accounting/journal', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, action }) })
+    load()
+  }
 
   if (loading) {
     return <div className="flex items-center gap-2 text-muted-foreground text-sm"><Loader2 className="h-4 w-4 animate-spin" />Loading…</div>
@@ -51,11 +57,19 @@ export function JournalView() {
               <span className="font-mono">{e.entry_date}</span>
               <span className="text-muted-foreground">{e.memo ?? e.source_type ?? 'Entry'}</span>
             </div>
-            <span className={`text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded ${
-              e.status === 'posted' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-              : e.status === 'void' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
-              : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
-            }`}>{e.status}</span>
+            <div className="flex items-center gap-2">
+              {e.status === 'posted' && (
+                <>
+                  <button onClick={() => act(e.id, 'unpost')} title="Revert to draft so you can edit it" className="text-xs text-muted-foreground hover:text-foreground transition-colors">Unpost</button>
+                  <button onClick={() => act(e.id, 'void')} title="Void — keep it on the ledger but reverse its effect" className="text-xs text-muted-foreground hover:text-foreground transition-colors">Void</button>
+                </>
+              )}
+              <span className={`text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded ${
+                e.status === 'posted' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                : e.status === 'void' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+              }`}>{e.status}</span>
+            </div>
           </div>
           <table className="w-full text-sm">
             <tbody>
