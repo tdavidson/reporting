@@ -19,14 +19,23 @@ export async function GET() {
   const gate = await assertAdminAccess(admin, user.id)
   if (gate instanceof NextResponse) return gate
 
-  const { data, error } = await (admin as any)
+  // serves_vehicle_id may not exist until its migration is pushed — fall back.
+  let rows = await (admin as any)
     .from('fund_vehicles')
-    .select('id, name, kind, aliases, active')
+    .select('id, name, kind, aliases, active, serves_vehicle_id')
     .eq('fund_id', gate.fundId)
     .order('active', { ascending: false })
     .order('name')
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json(data ?? [])
+  if (rows.error) {
+    rows = await (admin as any)
+      .from('fund_vehicles')
+      .select('id, name, kind, aliases, active')
+      .eq('fund_id', gate.fundId)
+      .order('active', { ascending: false })
+      .order('name')
+  }
+  if (rows.error) return NextResponse.json({ error: rows.error.message }, { status: 500 })
+  return NextResponse.json(rows.data ?? [])
 }
 
 // POST — create a vehicle. { name, kind? }
@@ -79,6 +88,8 @@ export async function PATCH(req: NextRequest) {
     update.kind = body.kind
   }
   if (body.active !== undefined) update.active = !!body.active
+  // Link a GP/associate entity to the fund vehicle it serves (or clear it).
+  if (body.servesVehicleId !== undefined) update.serves_vehicle_id = body.servesVehicleId || null
 
   if (typeof body.name === 'string' && body.name.trim() && body.name.trim() !== (current as any).name) {
     const newName = body.name.trim()

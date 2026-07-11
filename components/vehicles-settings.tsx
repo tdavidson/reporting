@@ -5,7 +5,7 @@ import { Loader2, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 
-interface Vehicle { id: string; name: string; kind: string; aliases: string[]; active: boolean }
+interface Vehicle { id: string; name: string; kind: string; aliases: string[]; active: boolean; serves_vehicle_id?: string | null }
 
 const KINDS = ['fund', 'spv', 'direct', 'associate', 'other'] as const
 const KIND_LABEL: Record<string, string> = { fund: 'Fund', spv: 'SPV', direct: 'Direct', associate: 'Associate', other: 'Other' }
@@ -40,6 +40,12 @@ export function VehiclesSettings() {
   async function patch(id: string, changes: Partial<Vehicle>) {
     setVehicles(prev => prev.map(v => (v.id === id ? { ...v, ...changes } : v))) // optimistic
     await fetch('/api/vehicles', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, ...changes }) })
+  }
+
+  // Link a GP/associate entity to the fund vehicle it serves.
+  async function setServes(id: string, servesVehicleId: string | null) {
+    setVehicles(prev => prev.map(v => (v.id === id ? { ...v, serves_vehicle_id: servesVehicleId } : v)))
+    await fetch('/api/vehicles', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, servesVehicleId }) })
   }
 
   // Rename cascades the string across all the data server-side, so reload after.
@@ -84,6 +90,12 @@ export function VehiclesSettings() {
                   <select value={v.kind} onChange={e => patch(v.id, { kind: e.target.value })} className="h-7 rounded border border-input bg-transparent px-1.5 text-xs">
                     {KINDS.map(k => <option key={k} value={k}>{KIND_LABEL[k]}</option>)}
                   </select>
+                  {v.kind === 'associate' && (
+                    <select value={v.serves_vehicle_id ?? ''} onChange={e => setServes(v.id, e.target.value || null)} title="The fund vehicle this GP/associate entity serves — links their books for the assistant" className="h-7 rounded border border-input bg-transparent px-1.5 text-xs max-w-[160px]">
+                      <option value="">GP of… (unset)</option>
+                      {vehicles.filter(o => o.kind !== 'associate' && o.id !== v.id).map(o => <option key={o.id} value={o.id}>GP of {o.name}</option>)}
+                    </select>
+                  )}
                   <button onClick={() => { setEditingId(v.id); setEditName(v.name) }} className="text-xs text-muted-foreground hover:text-foreground">Rename</button>
                   <button onClick={() => patch(v.id, { active: !v.active })} className="w-20 text-right text-xs text-muted-foreground hover:text-foreground">
                     {v.active ? 'Deactivate' : 'Reactivate'}

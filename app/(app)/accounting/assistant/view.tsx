@@ -68,7 +68,7 @@ export function AssistantView() {
           value={message}
           onChange={e => setMessage(e.target.value)}
           rows={3}
-          placeholder="e.g. Draft the entry to buy 45,000 shares of Apogee for $3,750,000 funded by the loan. Or: Review my books for anything off."
+          placeholder="Ask anything about this vehicle's accounting — e.g. “Explain my income statement,” “Does the GP entity reconcile to the fund?”, “Draft the entry to buy Apogee for $3.75M funded by the loan,” or “Review my books.”"
           className="w-full border border-input rounded p-2 text-sm bg-transparent"
         />
         <div className="flex items-center gap-2">
@@ -84,7 +84,7 @@ export function AssistantView() {
 
       {result && (
         <div className="space-y-5">
-          {result.summary && <p className="text-sm">{result.summary}</p>}
+          {result.summary && <p className="text-sm whitespace-pre-wrap">{result.summary}</p>}
 
           {result.findings.length > 0 && (
             <div className="space-y-2">
