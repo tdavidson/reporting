@@ -1,0 +1,25 @@
+{
+  "name": "reporting-cli",
+  "version": "0.1.0",
+  "description": "Command-line bridge to a self-hosted AI-native fund reporting platform's MCP server. Connect Claude Desktop, Claude Code, Cursor, or any MCP client — or your own scripts — to your fund's data with a fund API key.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "bin": {
+    "reporting-cli": "bin/reporting.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "files": [
+    "bin",
+    "README.md"
+  ],
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "cli",
+    "venture-capital",
+    "fund-reporting",
+    "portfolio"
+  ]
+}

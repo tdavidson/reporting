@@ -225,4 +225,15 @@ Settings is where the platform is configured. Most settings are admin-only, but 
 
 For admins, Settings covers: AI provider keys and model selection (Anthropic, OpenAI, Google Gemini, and/or Ollama for local models), fund currency, feature visibility (control which features are visible to everyone, admin-only, hidden, or off), inbound email setup (Postmark or Mailgun), outbound email providers (Gmail, Resend, Postmark, or Mailgun), file storage connections (Google Drive or Dropbox), the AI summary prompt, email templates for reporting asks, analytics (Fathom, Google Analytics, and custom scripts), authorized senders, team members and roles, and the signup allow-list. The **Deals** group configures the inbound-pitch screening flow: investment thesis, screening prompt, intake toggle, public submission URL, known referrers, routing confidence threshold, and optional per-stage routing-model override. The **Diligence** group has three sub-pages: Schemas (the seven YAML editors with version history), Style Anchors (reference memo library with text extraction), and Defaults (per-deal and monthly token caps, per-stage AI provider overrides). The current app version is shown at the bottom of Settings, with a link to the Updates page when a newer version is available.
 
+The **Agent access** group turns on the built-in MCP server and command-line interface so you can point your own AI agents at your fund's data. It is off by default and read-only when enabled; admins opt specific write capabilities in one at a time. See "Agent access (MCP & CLI)" below.
+
 ![Settings](public/screenshots/settings.png)
+
+## Agent access (MCP & CLI)
+
+Use your own AI against your own data. The platform ships a single Model Context Protocol (MCP) server and a matching command-line interface, both authenticated with a per-user fund API key — so an agent never gets more access than the person who created the key.
+
+- **One endpoint, one key.** `/api/mcp` exposes the whole tool surface: portfolio companies, KPI metrics and history, fund performance, the deal pipeline, LP commitments, notes and interactions, and the accounting ledger (when that feature is on). Connect Claude Desktop, Claude Code, Cursor, or any MCP client — or drive it from scripts with the CLI.
+- **Admin-controlled, off by default.** Nothing is exposed until an admin enables the server. It is read-only until an admin turns on specific write capabilities (add companies, record KPI values, add notes, log interactions, ledger writes) — each an independent toggle. A write requires the capability to be enabled, an admin owner, and a write-scoped key.
+- **Your keys, your control.** Each user mints and revokes their own keys; only the hash is stored and the token is shown once. Revoking a key, or losing admin, cuts its access on the next call.
+- **Bundled CLI.** `reporting-cli` bridges local MCP clients to a deployment (`reporting-cli mcp`) and offers `tools` / `call` for quick shell use.

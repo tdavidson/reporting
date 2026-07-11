@@ -2,19 +2,22 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { dbError } from '@/lib/api-error'
-import { generateApiKey } from '@/lib/accounting/api-keys'
+import { generateApiKey } from '@/lib/mcp/auth'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
 export const runtime = 'nodejs'
 
-// Resolve the caller's fund membership. Any real member may manage their own
-// keys; the read-only demo (viewer) may not mint credentials.
+// Fund API keys for agent / MCP / CLI access. Keys are per-user and act as their
+// owner: any member's key can read; write tools additionally require an admin
+// owner, a write-scoped key, and the fund's per-category write opt-in. Only the
+// SHA-256 hash is stored — the plaintext token is shown once at creation.
+
 async function member(admin: SupabaseClient, userId: string) {
   const { data } = await admin.from('fund_members').select('fund_id, role').eq('user_id', userId).maybeSingle()
   return (data as { fund_id: string; role: string } | null) ?? null
 }
 
-// GET — list the CALLER'S OWN API keys (never returns the hash or the token).
+// GET — list the CALLER'S OWN keys (never returns the hash or the token).
 export async function GET() {
   const supabase = createClient()
   const admin = createAdminClient()
@@ -29,7 +32,7 @@ export async function GET() {
     .eq('fund_id', m.fund_id)
     .eq('user_id', user.id)
     .order('created_at', { ascending: false })
-  if (error) return dbError(error, 'accounting-keys')
+  if (error) return dbError(error, 'api-keys')
   return NextResponse.json(data ?? [])
 }
 
@@ -57,7 +60,7 @@ export async function POST(req: NextRequest) {
     .insert({ fund_id: m.fund_id, user_id: user.id, name, key_prefix: key.prefix, key_hash: key.hash, scopes })
     .select('id, name, key_prefix, scopes, created_at')
     .single()
-  if (error) return dbError(error, 'accounting-keys-create')
+  if (error) return dbError(error, 'api-keys-create')
 
   // The token is shown once and never stored in plaintext.
   return NextResponse.json({ token: key.token, key: data })
@@ -81,6 +84,6 @@ export async function DELETE(req: NextRequest) {
     .eq('id', id)
     .eq('fund_id', m.fund_id)
     .eq('user_id', user.id)
-  if (error) return dbError(error, 'accounting-keys-revoke')
+  if (error) return dbError(error, 'api-keys-revoke')
   return NextResponse.json({ ok: true })
 }

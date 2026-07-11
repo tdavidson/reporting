@@ -282,6 +282,42 @@ Admins can control which optional features are visible in the sidebar and access
 
 The features that can be configured are: **Interactions** (CRM-style email logging), **Investments** (fund transaction tracking), **Funds** (fund-level cash flows and LP metrics), **Notes** (team discussion and observations), **Letters** (quarterly LP update generation), **LPs** (LP position tracking and reporting), **Compliance** (regulatory filing calendar and tracking), **Imports** (bulk data import), and **Asks** (portfolio company reporting requests).
 
+### Agent access (MCP & CLI)
+
+Bring your own AI agents to your fund's data. The platform can expose a single
+[Model Context Protocol](https://modelcontextprotocol.io) server at
+`POST /api/mcp`, authenticated with a per-user **fund API key** (Bearer token).
+Any MCP client — Claude Desktop, Claude Code, Cursor — or the bundled
+`reporting-cli` can then read (and, if you allow it, write) your portfolio,
+metrics, deals, LPs, notes, and ledger.
+
+- **Off by default.** Nothing is exposed until an admin enables it under
+  **Settings → Agent access**. When off, `/api/mcp` rejects every request.
+- **Read-only by default.** With the server on, the tool surface is read-only.
+  An admin turns on **specific** write capabilities one at a time (add companies,
+  record KPI values, add notes, log interactions, ledger writes). A write only
+  runs when its category is enabled **and** the key belongs to an admin **and**
+  the key was minted with the write scope.
+- **Keys act as their owner.** Any member's key can read; each user manages their
+  own keys and can revoke them anytime. Only the SHA-256 hash is stored; the
+  token is shown once.
+- **CLI.** `cli/` is a zero-dependency stdio↔HTTP bridge (`reporting-cli mcp`)
+  plus `tools` / `call` helpers. Point an MCP client at it:
+
+  ```json
+  {
+    "mcpServers": {
+      "reporting": {
+        "command": "npx",
+        "args": ["-y", "reporting-cli", "mcp"],
+        "env": { "REPORTING_URL": "https://your-domain", "REPORTING_API_KEY": "lk_..." }
+      }
+    }
+  }
+  ```
+
+  See [`cli/README.md`](./cli/README.md) for details.
+
 ### Tech stack
 
 | Layer | Technology |

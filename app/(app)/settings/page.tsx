@@ -18,7 +18,7 @@ import {
 } from '@/components/ui/dialog'
 import Link from 'next/link'
 import { DefaultsEditor } from './memo-agent/defaults/editor'
-import { LedgerAgentAccess } from '@/components/ledger-agent-access'
+import { McpAccess } from '@/components/mcp-access'
 import { VehiclesSettings } from '@/components/vehicles-settings'
 import { StyleAnchorsInline } from './memo-agent/style-anchors/style-anchors-inline'
 import { SchemasInline } from './memo-agent/schemas/schemas-inline'
@@ -101,6 +101,8 @@ interface Settings {
   routingConfidenceThreshold: number | null
   routingModel: string | null
   lpPortalEnabled: boolean
+  mcpEnabled: boolean
+  mcpWriteScopes: Record<string, boolean>
 }
 
 export default function SettingsPage() {
@@ -186,14 +188,15 @@ export default function SettingsPage() {
       )}
       <GroupHeader label="Notes" />
       <NotificationPreferencesSection />
-      {settings.featureVisibility?.accounting !== 'off' && (
-        <>
-          <GroupHeader label="Ledger" />
-          <Section title="Agent access (API keys)">
-            <LedgerAgentAccess isAdmin={settings.isAdmin} />
-          </Section>
-        </>
-      )}
+      <GroupHeader label="Agent access" />
+      <Section title="MCP server &amp; CLI">
+        <McpAccess
+          isAdmin={settings.isAdmin}
+          mcpEnabled={settings.mcpEnabled}
+          writeScopes={settings.mcpWriteScopes ?? {}}
+          accountingEnabled={settings.featureVisibility?.accounting !== 'off'}
+        />
+      </Section>
       {!settings.isAdmin && (
         <AiSummaryPromptReadOnly prompt={settings.aiSummaryPrompt} />
       )}
