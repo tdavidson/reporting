@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { kickWorker } from '@/lib/memo-agent/kick'
 import { enforceCapsForStage } from '@/lib/memo-agent/cost'
 import { AUDIO_VIDEO_FORMATS } from '@/lib/memo-agent/ingestion/sources'
 
@@ -84,6 +85,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         .select('id, kind, status')
         .single()
       if (error || !created) return NextResponse.json({ error: error?.message ?? 'enqueue failed' }, { status: 500 })
+      await kickWorker()
       await admin.from('diligence_deals').update({ current_memo_stage: 'ingest' }).eq('id', params.id).eq('fund_id', fundId)
       return NextResponse.json({
         job_id: (created as any).id,
@@ -110,6 +112,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         .select('id, kind, status')
         .single()
       if (clErr || !clJob) return NextResponse.json({ error: clErr?.message ?? 'enqueue failed' }, { status: 500 })
+      await kickWorker()
       return NextResponse.json({ job_id: (clJob as any).id, kind: 'checklist_assessment', status: (clJob as any).status, full: true })
     }
     return NextResponse.json({ skipped: true, message: 'No documents or checklist to analyze.' })
@@ -165,6 +168,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       .select('id, kind, status')
       .single()
     if (clErr || !clJob) return NextResponse.json({ error: clErr?.message ?? 'enqueue failed' }, { status: 500 })
+    await kickWorker()
     return NextResponse.json({
       job_id: (clJob as any).id,
       kind: 'checklist_assessment',
@@ -193,6 +197,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     .single()
 
   if (error || !created) return NextResponse.json({ error: error?.message ?? 'enqueue failed' }, { status: 500 })
+  await kickWorker()
 
   // Bump deal's current_memo_stage to 'ingest' so the UI shows progress.
   await admin

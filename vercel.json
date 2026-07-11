@@ -33,7 +33,7 @@
     },
     {
       "path": "/api/cron/memo-agent-worker",
-      "schedule": "* * * * *"
+      "schedule": "*/3 * * * *"
     }
   ]
 }

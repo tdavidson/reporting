@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { kickWorker } from '@/lib/memo-agent/kick'
 import { enforceCapsForStage } from '@/lib/memo-agent/cost'
 
 export async function POST(_req: NextRequest, { params }: { params: { id: string } }) {
@@ -72,6 +73,7 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
     .select('id, kind, status')
     .single()
   if (error || !created) return NextResponse.json({ error: error?.message ?? 'enqueue failed' }, { status: 500 })
+  await kickWorker() // start the worker now instead of waiting for the cron
 
   await admin
     .from('diligence_deals')

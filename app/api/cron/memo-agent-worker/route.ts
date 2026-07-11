@@ -9,6 +9,7 @@ import { runScoreJob } from '@/lib/memo-agent/jobs/score-job'
 import { runRenderJob } from '@/lib/memo-agent/jobs/render-job'
 import { runTranscribeJob, isAwaitingCallback } from '@/lib/memo-agent/jobs/transcribe-job'
 import { runChecklistAssessmentJob } from '@/lib/memo-agent/jobs/checklist-assessment-job'
+import { kickWorker } from '@/lib/memo-agent/kick'
 
 /**
  * Memo Agent worker. Triggered by Vercel cron every minute (per
@@ -74,75 +75,74 @@ export async function GET(req: NextRequest) {
     .not('external_job_id', 'is', null)
     .lt('started_at', callbackCutoff)
 
-  // Atomically claim the next pending job using the SQL helper.
-  const { data: claimed, error: claimErr } = await (admin as any)
-    .rpc('memo_agent_claim_next_job') as { data: any; error: any }
+  // Drain the queue: process jobs back-to-back until it's empty or we approach
+  // the function's time ceiling. Because each stage enqueues the next, this
+  // chains a whole memo pipeline in one invocation instead of one stage per cron
+  // tick. The budget leaves headroom below the 300s maxDuration for one more
+  // in-flight job; if we stop with jobs still pending, we hand off to a fresh
+  // invocation so the queue keeps draining without waiting for the cron.
+  const DRAIN_BUDGET_MS = 120_000
+  const startedAt = Date.now()
+  let processed = 0
 
-  if (claimErr) {
-    console.error('[memo-agent-worker] claim error:', claimErr)
-    return NextResponse.json({ error: claimErr.message }, { status: 500 })
-  }
-  if (!claimed || !claimed.id) {
-    return NextResponse.json({ ok: true, idle: true })
-  }
-
-  const job = claimed as {
-    id: string
-    fund_id: string
-    deal_id: string
-    draft_id: string | null
-    kind: 'ingest' | 'ingest_synthesis' | 'research' | 'qa' | 'draft' | 'draft_review' | 'score' | 'render' | 'transcribe' | 'checklist_assessment'
-    payload: Record<string, unknown>
-    enqueued_by: string | null
+  while (Date.now() - startedAt < DRAIN_BUDGET_MS) {
+    const { data: claimed, error: claimErr } = await (admin as any)
+      .rpc('memo_agent_claim_next_job') as { data: any; error: any }
+    if (claimErr) {
+      console.error('[memo-agent-worker] claim error:', claimErr)
+      return NextResponse.json({ error: claimErr.message, processed }, { status: 500 })
+    }
+    if (!claimed || !claimed.id) {
+      // Queue empty — nothing left to do.
+      return NextResponse.json({ ok: true, idle: processed === 0, processed })
+    }
+    await processJob(admin, claimed as Job)
+    processed++
   }
 
+  // Time budget hit with jobs likely still pending — kick a fresh invocation to
+  // continue the drain immediately rather than waiting for the next cron tick.
+  await kickWorker()
+  return NextResponse.json({ ok: true, processed, handedOff: true })
+}
+
+interface Job {
+  id: string
+  fund_id: string
+  deal_id: string
+  draft_id: string | null
+  kind: 'ingest' | 'ingest_synthesis' | 'research' | 'qa' | 'draft' | 'draft_review' | 'score' | 'render' | 'transcribe' | 'checklist_assessment'
+  payload: Record<string, unknown>
+  enqueued_by: string | null
+}
+
+/** Run one claimed job and write its outcome back. Never throws. */
+async function processJob(admin: ReturnType<typeof createAdminClient>, job: Job): Promise<void> {
   console.log(`[memo-agent-worker] claimed ${job.kind} job ${job.id} (deal ${job.deal_id})`)
-
   try {
     let result: unknown
     switch (job.kind) {
-      case 'ingest':
-        result = await runIngestJob(admin, job)
-        break
-      case 'ingest_synthesis':
-        result = await runIngestSynthesisJob(admin, job)
-        break
-      case 'research':
-        result = await runResearchJob(admin, job)
-        break
-      case 'draft':
-        result = await runDraftJob(admin, job)
-        break
-      case 'draft_review':
-        result = await runDraftReviewJob(admin, job)
-        break
-      case 'score':
-        result = await runScoreJob(admin, job)
-        break
-      case 'render':
-        result = await runRenderJob(admin, job)
-        break
-      case 'transcribe':
-        result = await runTranscribeJob(admin, job)
-        break
-      case 'checklist_assessment':
-        result = await runChecklistAssessmentJob(admin, job)
-        break
+      case 'ingest': result = await runIngestJob(admin, job); break
+      case 'ingest_synthesis': result = await runIngestSynthesisJob(admin, job); break
+      case 'research': result = await runResearchJob(admin, job); break
+      case 'draft': result = await runDraftJob(admin, job); break
+      case 'draft_review': result = await runDraftReviewJob(admin, job); break
+      case 'score': result = await runScoreJob(admin, job); break
+      case 'render': result = await runRenderJob(admin, job); break
+      case 'transcribe': result = await runTranscribeJob(admin, job); break
+      case 'checklist_assessment': result = await runChecklistAssessmentJob(admin, job); break
       case 'qa':
-        // Q&A is a synchronous interactive flow rather than a worker job —
-        // it shouldn't appear here, but we mark it as failed if it does.
+        // Q&A is a synchronous interactive flow, not a worker job — fail if seen.
         await markFailed(admin, job.id, 'Q&A is run interactively; no worker job needed.')
-        return NextResponse.json({ ok: true, jobId: job.id, status: 'failed', reason: 'qa is interactive' })
+        return
       default:
         await markFailed(admin, job.id, `Unknown job kind: ${job.kind}`)
-        return NextResponse.json({ ok: true, jobId: job.id, status: 'failed', reason: 'unknown kind' })
+        return
     }
 
-    // Async jobs that submitted work to an external provider stay in
-    // `running` until the provider's webhook finishes the job.
-    if (isAwaitingCallback(result)) {
-      return NextResponse.json({ ok: true, jobId: job.id, status: 'awaiting_callback' })
-    }
+    // Async jobs that handed work to an external provider stay `running` until
+    // the provider's webhook finishes them — leave their status untouched.
+    if (isAwaitingCallback(result)) return
 
     await admin
       .from('memo_agent_jobs')
@@ -153,13 +153,10 @@ export async function GET(req: NextRequest) {
         progress_message: 'completed',
       })
       .eq('id', job.id)
-
-    return NextResponse.json({ ok: true, jobId: job.id, status: 'success' })
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
     console.error(`[memo-agent-worker] ${job.kind} job ${job.id} failed:`, err)
     await markFailed(admin, job.id, message)
-    return NextResponse.json({ ok: true, jobId: job.id, status: 'failed', error: message })
   }
 }
 

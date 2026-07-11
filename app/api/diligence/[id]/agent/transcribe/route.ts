@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { kickWorker } from '@/lib/memo-agent/kick'
 
 /**
  * Enqueue a transcription job for a single call recording. Standalone —
@@ -70,6 +71,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   if (error || !created) {
     return NextResponse.json({ error: error?.message ?? 'enqueue failed' }, { status: 500 })
   }
+  await kickWorker() // start the worker now instead of waiting for the cron
 
   return NextResponse.json({
     job_id: (created as any).id,
