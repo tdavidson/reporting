@@ -3,10 +3,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Lock, Search, ExternalLink, Table as TableIcon, Columns3, ChevronUp, ChevronDown, Copy, Check, Plus, Loader2 } from 'lucide-react'
+import { Lock, Search, ExternalLink, Table as TableIcon, Columns3, ChevronUp, ChevronDown, Copy, Check, Plus, Loader2, ChevronsUpDown } from 'lucide-react'
 import { useFeatureVisibility } from '@/components/feature-visibility-context'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 
 interface Deal {
@@ -37,6 +38,17 @@ const FIT_BADGE: Record<string, { label: string; cls: string }> = {
 }
 
 const STATUS_OPTIONS: Deal['status'][] = ['new', 'reviewing', 'advancing', 'met', 'diligence', 'invested', 'passed']
+
+/**
+ * What the pipeline shows before you touch anything: the deals still needing a
+ * decision. `diligence` is already a whole section of its own, and `invested` /
+ * `passed` are settled — they'd otherwise pile up and bury the live pitches.
+ *
+ * The server component applies this same default, so the first paint matches what
+ * the filter says rather than flashing every deal and then hiding half of them.
+ */
+export const DEFAULT_STATUSES: Deal['status'][] = ['new', 'reviewing', 'advancing', 'met']
+
 const FIT_OPTIONS = ['strong', 'moderate', 'weak', 'out_of_thesis', 'spam']
 const SOURCE_OPTIONS = ['referral', 'cold', 'warm_intro', 'accelerator', 'demo_day', 'event', 'other']
 
@@ -65,6 +77,7 @@ export function DealsContent({ initialDeals }: { initialDeals: Deal[] }) {
   const fv = useFeatureVisibility()
   const [deals, setDeals] = useState<Deal[]>(initialDeals)
   const [search, setSearch] = useState('')
+  const [statusFilter, setStatusFilter] = useState<Deal['status'][]>(DEFAULT_STATUSES)
   const [fitFilter, setFitFilter] = useState<string>('')
   const [sourceFilter, setSourceFilter] = useState<string>('')
   const [view, setView] = useState<ViewMode>('table')
@@ -88,16 +101,21 @@ export function DealsContent({ initialDeals }: { initialDeals: Deal[] }) {
     })
   }
 
-  // Refetch when filters change
+  // Refetch when filters change. Selecting nothing means nothing matches, so don't
+  // bother the server — an empty `status` param would be read as "no filter" and
+  // return every deal, which is the opposite of what was asked for.
   useEffect(() => {
+    if (statusFilter.length === 0) { setDeals([]); return }
     const params = new URLSearchParams()
+    if (statusFilter.length < STATUS_OPTIONS.length) params.set('status', statusFilter.join(','))
     if (fitFilter) params.set('fit_score', fitFilter)
     if (sourceFilter) params.set('intro_source', sourceFilter)
+    params.set('limit', '500')
     fetch(`/api/deals?${params.toString()}`)
       .then(r => r.ok ? r.json() : [])
       .then((data: Deal[]) => setDeals(data))
       .catch(() => {})
-  }, [fitFilter, sourceFilter])
+  }, [statusFilter, fitFilter, sourceFilter])
 
   const filtered = useMemo(() => {
     if (!search.trim()) return deals
@@ -123,7 +141,11 @@ export function DealsContent({ initialDeals }: { initialDeals: Deal[] }) {
 
   async function updateStatus(id: string, status: Deal['status']) {
     const prev = deals
-    setDeals(d => d.map(x => x.id === id ? { ...x, status } : x))
+    // Optimistic — and if the new status isn't in the filter, the deal leaves the view.
+    // Anything else would show a "Passed" row under a filter that excludes Passed.
+    setDeals(d => d
+      .map(x => x.id === id ? { ...x, status } : x)
+      .filter(x => statusFilter.includes(x.status)))
     const res = await fetch(`/api/deals/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
@@ -179,6 +201,7 @@ export function DealsContent({ initialDeals }: { initialDeals: Deal[] }) {
             className="pl-8 h-9 w-72"
           />
         </div>
+        <StatusFilter value={statusFilter} onChange={setStatusFilter} />
         <select
           value={fitFilter}
           onChange={e => setFitFilter(e.target.value)}
@@ -240,7 +263,11 @@ export function DealsContent({ initialDeals }: { initialDeals: Deal[] }) {
             {sorted.length === 0 ? (
               <tr>
                 <td colSpan={7} className="px-3 py-12 text-center text-muted-foreground">
-                  No deals yet. When inbound pitches arrive, they'll appear here.
+                  {statusFilter.length === 0
+                    ? 'No statuses selected — pick at least one to see deals.'
+                    : statusFilter.length < STATUS_OPTIONS.length
+                      ? <>No deals match this filter. <button onClick={() => setStatusFilter([...STATUS_OPTIONS])} className="underline underline-offset-2 hover:text-foreground">Show all statuses</button>.</>
+                      : "No deals yet. When inbound pitches arrive, they'll appear here."}
                 </td>
               </tr>
             ) : sorted.map(d => (
@@ -302,6 +329,65 @@ export function DealsContent({ initialDeals }: { initialDeals: Deal[] }) {
         </div>
       )}
     </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Status filter — any set of statuses, not one or all. A native <select multiple>
+// can technically do this but needs ctrl-click to add a second option, which nobody
+// discovers; checkboxes make "and also show passed" a single click.
+// ---------------------------------------------------------------------------
+
+function StatusFilter({ value, onChange }: {
+  value: Deal['status'][]
+  onChange: (v: Deal['status'][]) => void
+}) {
+  const [open, setOpen] = useState(false)
+
+  const isDefault = value.length === DEFAULT_STATUSES.length && DEFAULT_STATUSES.every(s => value.includes(s))
+  const label =
+    value.length === 0 ? 'No statuses'
+    : value.length === STATUS_OPTIONS.length ? 'All statuses'
+    : isDefault ? 'Active deals'
+    : value.length === 1 ? labelFor(value[0])
+    : `${value.length} statuses`
+
+  function toggle(s: Deal['status']) {
+    onChange(value.includes(s) ? value.filter(x => x !== s) : [...value, s])
+  }
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          className={`h-9 px-3 rounded-md border bg-background text-sm inline-flex items-center gap-1.5 hover:bg-muted/50 ${isDefault ? 'border-input' : 'border-foreground/30'}`}
+        >
+          {label}
+          <ChevronsUpDown className="h-3.5 w-3.5 text-muted-foreground" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-56 p-1.5">
+        <div className="flex items-center gap-1 px-1 pb-1.5 mb-1 border-b text-xs">
+          <button onClick={() => onChange(DEFAULT_STATUSES)} className="px-1.5 py-0.5 rounded text-muted-foreground hover:bg-muted hover:text-foreground">Active</button>
+          <button onClick={() => onChange([...STATUS_OPTIONS])} className="px-1.5 py-0.5 rounded text-muted-foreground hover:bg-muted hover:text-foreground">All</button>
+          <button onClick={() => onChange([])} className="px-1.5 py-0.5 rounded text-muted-foreground hover:bg-muted hover:text-foreground">None</button>
+        </div>
+        {STATUS_OPTIONS.map(s => (
+          <label
+            key={s}
+            className="flex items-center gap-2 px-2 py-1.5 rounded text-sm cursor-pointer hover:bg-muted"
+          >
+            <input
+              type="checkbox"
+              checked={value.includes(s)}
+              onChange={() => toggle(s)}
+              className="h-3.5 w-3.5 rounded border-input accent-foreground"
+            />
+            <span>{labelFor(s)}</span>
+          </label>
+        ))}
+      </PopoverContent>
+    </Popover>
   )
 }
 
