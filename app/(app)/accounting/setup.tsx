@@ -7,21 +7,37 @@ import { Button } from '@/components/ui/button'
 import { useLedgerFetch } from '@/components/accounting-vehicle'
 
 /** Vehicle-scoped onboarding: seed chart, choose full-history or cutover, reconcile. */
-export function AccountingSetup() {
+export function AccountingSetup({ alwaysShow = false }: { alwaysShow?: boolean } = {}) {
   const [accountCount, setAccountCount] = useState<number | null>(null)
+  const [onboarded, setOnboarded] = useState(false)
   const [seeding, setSeeding] = useState(false)
-  const [path, setPath] = useState<'full' | 'cutover' | null>(null)
+  // Persisted per vehicle — this used to be local state, so the choice was lost on
+  // every refresh and nothing downstream (like opening balances) could act on it.
+  const [path, setPath] = useState<'full_history' | 'cutover' | null>(null)
   const [cutoverDate, setCutoverDate] = useState('')
   const [bootstrapping, setBootstrapping] = useState(false)
   const [bootstrapMsg, setBootstrapMsg] = useState<string | null>(null)
   const lf = useLedgerFetch()
 
-  const refresh = useCallback(() =>
-    lf('/api/accounting/chart')
-      .then(r => (r.ok ? r.json() : []))
-      .then(d => setAccountCount(Array.isArray(d) ? d.length : 0)), [lf])
+  const refresh = useCallback(async () => {
+    const [chart, status] = await Promise.all([
+      lf('/api/accounting/chart').then(r => (r.ok ? r.json() : [])),
+      lf('/api/accounting/status').then(r => (r.ok ? r.json() : null)),
+    ])
+    setAccountCount(Array.isArray(chart) ? chart.length : 0)
+    setPath(status?.setup?.historyMode ?? null)
+    setOnboarded(!!status?.onboarded)
+  }, [lf])
 
   useEffect(() => { refresh() }, [refresh])
+
+  async function choosePath(mode: 'full_history' | 'cutover') {
+    setPath(mode)
+    await lf('/api/accounting/allocation-terms', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'historyMode', historyMode: mode }),
+    })
+  }
 
   async function seed() {
     setSeeding(true)
@@ -41,6 +57,11 @@ export function AccountingSetup() {
 
   if (accountCount === null) return null
 
+  // Once the vehicle is onboarded this card has nothing left to say — the Status page
+  // takes over. `alwaysShow` keeps it rendered on Status itself, where it IS the
+  // remaining-setup surface.
+  if (!alwaysShow && onboarded) return null
+
   return (
     <div className="border rounded-lg p-4 mb-6 bg-muted/20 space-y-3">
       <p className="text-sm font-medium">Onboarding this vehicle</p>
@@ -57,22 +78,31 @@ export function AccountingSetup() {
       <div className="text-sm">
         <p className="text-muted-foreground mb-1.5">2. How are you starting this vehicle?</p>
         <div className="flex flex-wrap gap-1.5">
-          {(['full', 'cutover'] as const).map(p => (
-            <button key={p} onClick={() => setPath(p)}
+          {(['full_history', 'cutover'] as const).map(p => (
+            <button key={p} onClick={() => choosePath(p)}
               className={`px-3 py-1.5 text-xs rounded-md border transition-colors ${path === p ? 'border-foreground/30 bg-accent font-medium' : 'border-border text-muted-foreground hover:text-foreground'}`}>
-              {p === 'full' ? 'Full history (reconstruct)' : 'Cutover opening balance'}
+              {p === 'full_history' ? 'Full history (reconstruct)' : 'Cutover opening balance'}
             </button>
           ))}
         </div>
       </div>
 
-      {path === 'full' && (
-        <ol className="text-sm text-muted-foreground space-y-1 list-decimal ml-4">
-          <li><Link href="/accounting/bank" className="underline underline-offset-2 hover:text-foreground">Import the bank history</Link> (CSV/XLS) — dated cash back to inception.</li>
-          <li>Categorize, and match inflows to capital calls / the investment purchase.</li>
-          <li>Mark investments to fair value with the <Link href="/accounting/assistant" className="underline underline-offset-2 hover:text-foreground">assistant</Link> to walk NAV forward.</li>
-          <li>Reconcile capital accounts against the LP snapshot (Reconciliation → Load from LP snapshot).</li>
-        </ol>
+      {/* Full history: opening balances are DERIVED from the reconstructed ledger.
+          Entering them would double-count the fund's entire contributed capital, so
+          the step isn't offered at all. */}
+      {path === 'full_history' && (
+        <>
+          <ol className="text-sm text-muted-foreground space-y-1 list-decimal ml-4">
+            <li><Link href="/accounting/bank" className="underline underline-offset-2 hover:text-foreground">Import the bank history</Link> (CSV/XLS) — dated cash back to inception.</li>
+            <li>Categorize, and match inflows to capital calls / the investment purchase.</li>
+            <li>Mark investments to fair value with the <Link href="/accounting/assistant" className="underline underline-offset-2 hover:text-foreground">assistant</Link> to walk NAV forward.</li>
+            <li><Link href="/accounting/allocation-terms" className="underline underline-offset-2 hover:text-foreground">Set the allocation terms</Link>, then <Link href="/accounting/periods" className="underline underline-offset-2 hover:text-foreground">close each period</Link> to allocate P&amp;L to partners.</li>
+            <li>Reconcile capital accounts against the LP snapshot (Reconciliation → Load from LP snapshot).</li>
+          </ol>
+          <p className="text-xs text-muted-foreground">
+            No opening balances to enter — the ledger starts at inception, so they come from the history itself.
+          </p>
+        </>
       )}
 
       {path === 'cutover' && (
@@ -83,6 +113,10 @@ export function AccountingSetup() {
             <Button size="sm" onClick={bootstrap} disabled={bootstrapping || !cutoverDate || accountCount === 0}>{bootstrapping && <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />}Bootstrap opening balances</Button>
           </div>
           {bootstrapMsg && <p className="text-xs text-muted-foreground">{bootstrapMsg}</p>}
+          <p className="text-xs text-muted-foreground">
+            Prefer to type each LP&rsquo;s balance from their statement instead?{' '}
+            <Link href="/accounting/opening-balances" className="underline underline-offset-2 hover:text-foreground">Enter opening balances manually</Link>.
+          </p>
         </div>
       )}
     </div>

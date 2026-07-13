@@ -59,7 +59,7 @@ export interface TextEntryInput {
 /** Serialize a vehicle's books to plain text (open directives + entries). */
 export function serializeLedger(accounts: Account[], entries: TextEntryInput[]): string {
   const byId = new Map(accounts.map(a => [a.id, a]))
-  const lines: string[] = ['; Plain-text export — edit and re-post from the Plain text page.', '']
+  const lines: string[] = []
 
   const dated = entries.filter(e => e.entryDate).sort((a, b) => a.entryDate.localeCompare(b.entryDate))
   const firstDate = dated[0]?.entryDate

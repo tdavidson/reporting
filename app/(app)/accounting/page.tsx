@@ -1,6 +1,5 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { BookOpen } from 'lucide-react'
 import { ACCOUNTING_SECTIONS } from '@/lib/accounting/nav'
 import { requireAccountingAdmin } from './guard'
 import { AccountingSetup } from './setup'
@@ -11,12 +10,9 @@ export default async function AccountingPage() {
   await requireAccountingAdmin()
 
   return (
-    <div className="p-4 md:py-8 md:pl-8 md:pr-4 w-full">
+    <div className="px-4 md:pl-8 md:pr-4 pt-3 pb-8 w-full">
       <div className="mb-6 space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2">
-          <BookOpen className="h-6 w-6" />
-          Accounting
-        </h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Accounting</h1>
         <p className="text-sm text-muted-foreground">
           Double-entry ledger and the capital accounts, schedule of investments, and financial
           statements derived from it.

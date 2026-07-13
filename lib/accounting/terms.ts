@@ -9,6 +9,14 @@ import { roundCents } from './ledger'
 
 export type AllocationBasis = 'commitment' | 'capital_balance'
 
+/**
+ * How this vehicle's books were started.
+ *   full_history — rebuilt from inception; opening balances are DERIVED from the
+ *                  reconstructed history, so entering them would double-count capital.
+ *   cutover      — books begin at a date with an explicit opening-balance entry.
+ */
+export type HistoryMode = 'full_history' | 'cutover' | null
+
 export type AllocationCategory =
   | 'management_fee'
   | 'partnership_expense'
@@ -106,6 +114,40 @@ export async function loadAllocationBasis(
     .maybeSingle()
   const basis = (data as any)?.allocation_basis
   return basis === 'capital_balance' ? 'capital_balance' : 'commitment'
+}
+
+/** How the vehicle's books were started. Null until the user chooses. */
+export async function loadHistoryMode(
+  admin: SupabaseClient,
+  fundId: string,
+  group: string
+): Promise<HistoryMode> {
+  const vehicleId = await vehicleIdByName(admin, fundId, group)
+  const { data } = await admin
+    .from('vehicle_accounting_settings' as any)
+    .select('history_mode')
+    .eq('fund_id', fundId)
+    .eq('vehicle_id', vehicleId)
+    .maybeSingle()
+  const mode = (data as any)?.history_mode
+  return mode === 'full_history' || mode === 'cutover' ? mode : null
+}
+
+export async function saveHistoryMode(
+  admin: SupabaseClient,
+  fundId: string,
+  group: string,
+  mode: HistoryMode
+): Promise<{ ok: true } | { error: string }> {
+  const vehicleId = await vehicleIdByName(admin, fundId, group)
+  const { error } = await admin
+    .from('vehicle_accounting_settings' as any)
+    .upsert(
+      { fund_id: fundId, vehicle_id: vehicleId, history_mode: mode, updated_at: new Date().toISOString() },
+      { onConflict: 'fund_id,vehicle_id' }
+    )
+  if (error) return { error: error.message }
+  return { ok: true }
 }
 
 export async function saveAllocationBasis(

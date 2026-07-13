@@ -4,7 +4,7 @@
 
 import {
   Landmark, Users, PhoneCall, GitCompareArrows, Bot, ScrollText,
-  FileCode, Upload, Lock, Layers, FileText, SlidersHorizontal,
+  Lock, Layers, FileText, SlidersHorizontal,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 
@@ -16,6 +16,12 @@ export interface AccountingSection {
 }
 
 export const ACCOUNTING_SECTIONS: AccountingSection[] = [
+  {
+    href: '/accounting/status',
+    label: 'Status',
+    icon: GitCompareArrows,
+    desc: 'Where the books stand: onboarding, how far the close has got, what needs attention, and reconciliation against an admin statement.',
+  },
   {
     href: '/accounting/bank',
     label: 'Bank transactions',
@@ -35,12 +41,6 @@ export const ACCOUNTING_SECTIONS: AccountingSection[] = [
     desc: 'Issue calls against commitments (fund-wide pro-rata or per-LP) and track called vs funded vs outstanding.',
   },
   {
-    href: '/accounting/reconciliation',
-    label: 'Reconciliation',
-    icon: GitCompareArrows,
-    desc: "Shadow-reconcile the ledger's capital accounts against the existing admin statement, per LP.",
-  },
-  {
     href: '/accounting/assistant',
     label: 'Assistant',
     icon: Bot,
@@ -50,20 +50,12 @@ export const ACCOUNTING_SECTIONS: AccountingSection[] = [
     href: '/accounting/journal',
     label: 'Journal',
     icon: ScrollText,
-    desc: 'Double-entry journal entries and postings — the book of record everything derives from.',
+    desc: 'The book of record, as plain-text double-entry. Create entries, and click any entry to view, unpost, or edit it.',
   },
-  {
-    href: '/accounting/ledger-text',
-    label: 'Plain text',
-    icon: FileCode,
-    desc: 'Author entries as plain-text double-entry and post them back — the DB is just the store.',
-  },
-  {
-    href: '/accounting/opening-balances',
-    label: 'Opening balances',
-    icon: Upload,
-    desc: "Take over at a cutover date: enter each LP's capital balance from their latest admin statement as one posted opening entry.",
-  },
+  // NOTE: /accounting/opening-balances is deliberately NOT listed. It only applies to
+  // the "cutover" onboarding path, and is linked from the setup card there. On a
+  // full-history vehicle, opening balances are derived from the reconstructed ledger —
+  // entering them would double-count contributed capital.
   {
     href: '/accounting/allocation-terms',
     label: 'Allocation terms',
@@ -72,7 +64,7 @@ export const ACCOUNTING_SECTIONS: AccountingSection[] = [
   },
   {
     href: '/accounting/periods',
-    label: 'Periods & close',
+    label: 'Close',
     icon: Lock,
     desc: "Close a period: allocate its income and expenses to each partner's capital account, snapshot the ledger, and lock the books. Reopen to reverse.",
   },

@@ -15,17 +15,35 @@ const newLine = (): Line => ({ key: `l${seq++}`, accountId: '', debit: '', credi
 const num = (s: string) => { const n = parseFloat(s); return Number.isFinite(n) ? n : 0 }
 
 /**
- * The double-entry lines behind a bank transaction. Opens read-only for posted
- * entries (`readOnly`) so you can see what was booked without reverting it, and
- * editable for drafts — change accounts/amounts, add or remove lines, and save
- * (or save and post) without the two-step suggest-then-post flow. Unposting from
- * the read-only view flips the same modal into edit mode.
+ * The one editor for a journal entry, wherever it came from.
+ *
+ * - From the Bank page: pass `txnId` so posting/unposting also keeps the bank
+ *   transaction's status in step.
+ * - From the Journal page: omit `txnId`; it posts/unposts through the journal API.
+ * - With no `entryId` at all: a blank NEW entry.
+ *
+ * `readOnly` opens a posted entry for viewing without reverting it; unposting from
+ * there flips this same modal into edit mode.
  */
-export function EntryModal({ txnId, entryId, readOnly = false, onClose, onSaved }: { txnId: string; entryId: string; readOnly?: boolean; onClose: () => void; onSaved: () => void }) {
+export function EntryModal({
+  txnId,
+  entryId,
+  readOnly = false,
+  onClose,
+  onSaved,
+}: {
+  txnId?: string
+  entryId?: string | null
+  readOnly?: boolean
+  onClose: () => void
+  onSaved: () => void
+}) {
   const lf = useLedgerFetch()
   const currency = useCurrency()
   const fmt = (v: number) => formatCurrencyPrice(v, currency)
 
+  const isNew = !entryId
+  const [id, setId] = useState<string | null>(entryId ?? null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -37,7 +55,7 @@ export function EntryModal({ txnId, entryId, readOnly = false, onClose, onSaved 
 
   useEffect(() => {
     Promise.all([
-      lf(`/api/accounting/journal?id=${entryId}`).then(r => (r.ok ? r.json() : null)),
+      entryId ? lf(`/api/accounting/journal?id=${entryId}`).then(r => (r.ok ? r.json() : null)) : Promise.resolve(null),
       lf('/api/accounting/chart').then(r => (r.ok ? r.json() : [])),
     ]).then(([entry, chart]) => {
       setAccounts(Array.isArray(chart) ? chart : [])
@@ -48,6 +66,10 @@ export function EntryModal({ txnId, entryId, readOnly = false, onClose, onSaved 
           const amt = Number(p.amount)
           return { key: `l${seq++}`, accountId: p.account_id, debit: amt > 0 ? String(amt) : '', credit: amt < 0 ? String(-amt) : '', lpEntityId: p.lp_entity_id }
         }))
+      } else {
+        // New entry: today's date and the two lines every entry needs at minimum.
+        setDate(new Date().toISOString().slice(0, 10))
+        setLines([newLine(), newLine()])
       }
     }).finally(() => setLoading(false))
   }, [lf, entryId])
@@ -65,14 +87,41 @@ export function EntryModal({ txnId, entryId, readOnly = false, onClose, onSaved 
 
   const update = (key: string, patch: Partial<Line>) => setLines(prev => prev.map(l => (l.key === key ? { ...l, ...patch } : l)))
 
+  const json = (body: object) => ({ method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+  const errOf = async (r: Response, fallback: string) => (await r.json().catch(() => ({}))).error ?? fallback
+
+  /**
+   * Post or unpost. A bank-sourced entry goes through the bank API so the
+   * transaction's status stays in step with the entry; a standalone journal entry
+   * goes straight to the journal API. Both end in the same ledger state.
+   */
+  async function setPosted(action: 'post' | 'unpost', targetId: string): Promise<string | null> {
+    const res = txnId
+      ? await lf('/api/accounting/bank', json({ action, id: txnId }))
+      : await lf('/api/accounting/journal', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action, id: targetId }) })
+    return res.ok ? null : await errOf(res, `${action} failed`)
+  }
+
   async function save(thenPost: boolean) {
     setSaving(true); setError(null)
     const postings = lines.map(l => ({ accountId: l.accountId, amount: num(l.debit) > 0 ? num(l.debit) : -num(l.credit), lpEntityId: l.lpEntityId }))
-    const res = await lf('/api/accounting/journal', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: entryId, entryDate: date, memo, postings }) })
-    if (!res.ok) { setError((await res.json().catch(() => ({}))).error ?? 'Save failed'); setSaving(false); return }
-    if (thenPost) {
-      const p = await lf('/api/accounting/bank', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'post', id: txnId }) })
-      if (!p.ok) { setError((await p.json().catch(() => ({}))).error ?? 'Saved, but posting failed'); setSaving(false); return }
+
+    // Create on first save; update thereafter. Always saved as a DRAFT first, so
+    // posting is a separate, explicit step — same as every other path.
+    let targetId = id
+    if (!targetId) {
+      const res = await lf('/api/accounting/journal', json({ entryDate: date, memo, sourceType: 'manual', status: 'draft', postings }))
+      if (!res.ok) { setError(await errOf(res, 'Could not create the entry')); setSaving(false); return }
+      targetId = (await res.json()).id
+      setId(targetId)
+    } else {
+      const res = await lf('/api/accounting/journal', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: targetId, entryDate: date, memo, postings }) })
+      if (!res.ok) { setError(await errOf(res, 'Save failed')); setSaving(false); return }
+    }
+
+    if (thenPost && targetId) {
+      const err = await setPosted('post', targetId)
+      if (err) { setError(`Saved as a draft, but posting failed: ${err}`); setSaving(false); return }
     }
     setSaving(false); onSaved(); onClose()
   }
@@ -80,9 +129,10 @@ export function EntryModal({ txnId, entryId, readOnly = false, onClose, onSaved 
   // Revert the entry to draft and stay open in edit mode — the read-only view's
   // way in. Refuses on a closed period, which surfaces as the API error.
   async function unpostAndEdit() {
+    if (!id) return
     setSaving(true); setError(null)
-    const res = await lf('/api/accounting/bank', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'unpost', id: txnId }) })
-    if (!res.ok) { setError((await res.json().catch(() => ({}))).error ?? 'Unpost failed'); setSaving(false); return }
+    const err = await setPosted('unpost', id)
+    if (err) { setError(err); setSaving(false); return }
     setSaving(false); setEditable(true); onSaved()
   }
 
@@ -90,7 +140,7 @@ export function EntryModal({ txnId, entryId, readOnly = false, onClose, onSaved 
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
       <div className="w-full max-w-2xl rounded-lg border bg-card shadow-xl" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between border-b px-4 py-3">
-          <h2 className="text-sm font-medium">{editable ? 'Edit journal entry' : 'Journal entry'}</h2>
+          <h2 className="text-sm font-medium">{isNew ? 'New journal entry' : editable ? 'Edit journal entry' : 'Journal entry'}</h2>
           <div className="flex items-center gap-2">
             {!editable && <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">Posted</span>}
             <button onClick={onClose} className="text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>

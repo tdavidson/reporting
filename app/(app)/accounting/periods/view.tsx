@@ -15,26 +15,42 @@ interface CloseCategory {
   accounts: { code: string; name: string; amount: number }[]
   lines: CloseLine[]
 }
-interface Preview {
+interface MonthPreview {
   periodStart: string
   periodEnd: string
   netIncome: number
   categories: CloseCategory[]
+  warnings: string[]
+}
+interface Readiness {
+  draftEntries: { count: number; earliest: string | null }
+  unpostedBankTxns: { count: number; total: number }
+  blockers: string[]
+  warnings: string[]
+}
+interface Preview {
+  start: string
+  end: string
+  months: MonthPreview[]
+  totalNetIncome: number
   basis: string
+  readiness: Readiness
   warnings: string[]
 }
 
-/** Default the close to the month just ended — the common case. */
-function lastMonth(): { start: string; end: string; label: string } {
+const iso = (d: Date) => d.toISOString().slice(0, 10)
+
+/** Common close-through dates. Any date works; these just save typing. */
+function quickEnds(): { key: string; label: string; end: string }[] {
   const now = new Date()
-  const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1))
-  const end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 0))
-  const iso = (d: Date) => d.toISOString().slice(0, 10)
-  return {
-    start: iso(start),
-    end: iso(end),
-    label: start.toLocaleString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' }),
-  }
+  const y = now.getUTCFullYear()
+  const m = now.getUTCMonth()
+  const q = Math.floor(m / 3)
+  return [
+    { key: 'last_month', label: 'End of last month', end: iso(new Date(Date.UTC(y, m, 0))) },
+    { key: 'last_quarter', label: 'End of last quarter', end: iso(new Date(Date.UTC(y, q * 3, 0))) },
+    { key: 'prior_year', label: 'End of prior year', end: `${y - 1}-12-31` },
+  ]
 }
 
 export function PeriodsView() {
@@ -42,9 +58,7 @@ export function PeriodsView() {
   const fmt = (v: number) => formatCurrencyPrice(v, currency)
   const [periods, setPeriods] = useState<Period[]>([])
   const [loading, setLoading] = useState(true)
-  const [start, setStart] = useState(lastMonth().start)
-  const [end, setEnd] = useState(lastMonth().end)
-  const [label, setLabel] = useState(lastMonth().label)
+  const [endDate, setEndDate] = useState(quickEnds()[0].end)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [preview, setPreview] = useState<Preview | null>(null)
@@ -63,17 +77,18 @@ export function PeriodsView() {
     return { ok: res.ok, data: await res.json() }
   }
 
-  async function runPreview() {
+  async function previewThrough(through: string) {
     setBusy(true); setError(null); setPreview(null)
-    const { ok, data } = await post({ action: 'preview', periodStart: start, periodEnd: end })
+    const { ok, data } = await post({ action: 'preview', endDate: through })
     setBusy(false)
     if (!ok) { setError(data.error ?? 'Could not preview'); return }
     setPreview(data)
   }
+  const runPreview = () => previewThrough(endDate)
 
   async function confirmClose() {
     setBusy(true); setError(null)
-    const { ok, data } = await post({ action: 'close', periodStart: start, periodEnd: end, label })
+    const { ok, data } = await post({ action: 'close', endDate })
     setBusy(false)
     if (!ok) { setError(data.error ?? 'Could not close'); return }
     setPreview(null)
@@ -91,30 +106,39 @@ export function PeriodsView() {
   return (
     <div className="space-y-6 max-w-3xl">
       <div className="border rounded-lg p-4 space-y-3">
-        <p className="text-sm font-medium">Close a period</p>
+        <p className="text-sm font-medium">Close through a date</p>
         <p className="text-xs text-muted-foreground">
-          Closing allocates the period&rsquo;s income and expenses to each partner&rsquo;s capital account
-          (pro-rata by commitment), snapshots the ledger, and blocks new postings dated in the range.
-          This is the only place allocation happens — expense and mark entries never touch capital
-          accounts on their own. Reopening reverses the allocation.
+          You pick the end date; the start is wherever the last close left off, so no period can be
+          skipped. The span is closed <strong>month by month</strong> — closing a quarter closes its three
+          months — because the allocation basis is measured at each month end, and a commitment that
+          changes mid-quarter would otherwise misallocate the earlier months.
         </p>
-        <div className="grid grid-cols-3 gap-2">
-          <div>
-            <label className="text-xs text-muted-foreground mb-1 block">Start</label>
-            <input type="date" value={start} onChange={e => { setStart(e.target.value); setPreview(null) }} className="border rounded px-2 py-1.5 text-sm w-full bg-transparent" />
-          </div>
-          <div>
-            <label className="text-xs text-muted-foreground mb-1 block">End</label>
-            <input type="date" value={end} onChange={e => { setEnd(e.target.value); setPreview(null) }} className="border rounded px-2 py-1.5 text-sm w-full bg-transparent" />
-          </div>
-          <div>
-            <label className="text-xs text-muted-foreground mb-1 block">Label (optional)</label>
-            <input value={label} onChange={e => setLabel(e.target.value)} placeholder="June 2026" className="border rounded px-2 py-1.5 text-sm w-full bg-transparent" />
-          </div>
+
+        <div className="flex flex-wrap gap-1.5">
+          {quickEnds().map(q => (
+            <button
+              key={q.key}
+              onClick={() => { setEndDate(q.end); setPreview(null) }}
+              className={`px-2.5 py-1 text-xs rounded-md border transition-colors ${q.end === endDate ? 'border-foreground/30 bg-accent font-medium' : 'border-border text-muted-foreground hover:text-foreground'}`}
+            >
+              {q.label}
+            </button>
+          ))}
         </div>
-        <Button size="sm" variant="outline" onClick={runPreview} disabled={busy || !start || !end}>
-          {busy && !preview && <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />}Preview close
-        </Button>
+
+        <div className="flex flex-wrap items-end gap-3">
+          <label className="text-xs text-muted-foreground">Close through
+            <input
+              type="date"
+              value={endDate}
+              onChange={e => { setEndDate(e.target.value); setPreview(null) }}
+              className="mt-1 block border rounded px-2 py-1.5 text-sm bg-transparent"
+            />
+          </label>
+          <Button size="sm" variant="outline" onClick={runPreview} disabled={busy || !endDate}>
+            {busy && !preview && <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />}Preview close
+          </Button>
+        </div>
         {error && <p className="text-xs text-red-600">{error}</p>}
       </div>
 
@@ -123,44 +147,61 @@ export function PeriodsView() {
         <div className="border rounded-lg overflow-hidden">
           <div className="px-4 py-3 border-b bg-muted/30">
             <p className="text-sm font-medium">
-              Closing {preview.periodStart} → {preview.periodEnd} will allocate {fmt(preview.netIncome)} of net income
+              Closing {preview.start} → {preview.end} will allocate {fmt(preview.totalNetIncome)} of net income
+              across {preview.months.length} month{preview.months.length === 1 ? '' : 's'}
             </p>
-            <p className="text-xs text-muted-foreground mt-0.5">Split across partners pro-rata by commitment. Nothing is posted until you confirm.</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Split pro-rata by {preview.basis === 'capital_balance' ? 'capital-account balance' : 'commitment'} as of each month end.
+              Nothing is posted until you confirm.
+            </p>
           </div>
 
-          {preview.warnings.map((w, i) => (
-            <p key={i} className="px-4 py-2 text-xs text-amber-600 flex items-center gap-1.5 border-b">
-              <AlertTriangle className="h-3.5 w-3.5 shrink-0" />{w}
+          {/* Blockers, not warnings: closing over unposted work silently strands its
+              P&L, and the lock then prevents posting it into the period. */}
+          {preview.readiness.blockers.map((b, i) => (
+            <p key={`b${i}`} className="px-4 py-2 text-xs text-red-600 flex items-start gap-1.5 border-b bg-red-500/5">
+              <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />{b}
             </p>
           ))}
 
-          {preview.categories.map(cat => (
-            <div key={cat.sourceType} className="border-b last:border-b-0">
-              <div className="px-4 py-2 flex items-center justify-between bg-muted/10">
-                <span className="text-sm font-medium">{cat.label}</span>
-                <span className={`font-mono text-sm ${cat.capitalEffect < 0 ? 'text-muted-foreground' : ''}`}>{fmt(cat.capitalEffect)}</span>
+          {[...preview.readiness.warnings, ...preview.warnings].map((w, i) => (
+            <p key={`w${i}`} className="px-4 py-2 text-xs text-amber-600 flex items-start gap-1.5 border-b">
+              <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />{w}
+            </p>
+          ))}
+
+          {preview.months.map(m => (
+            <div key={m.periodStart} className="border-b last:border-b-0">
+              <div className="px-4 py-2 flex items-center justify-between bg-muted/20">
+                <span className="text-sm font-medium">
+                  {m.periodStart} → {m.periodEnd}
+                  {m.categories.length === 0 && <span className="ml-2 text-xs font-normal text-muted-foreground">no activity</span>}
+                </span>
+                <span className="font-mono text-sm">{fmt(m.netIncome)}</span>
               </div>
-              <p className="px-4 pb-1 text-[11px] text-muted-foreground">
-                From {cat.accounts.map(a => `${a.code} ${a.name}`).join(', ')}
-              </p>
-              <table className="w-full text-xs">
-                <tbody>
-                  {cat.lines.filter(l => l.amount !== 0).map(l => (
-                    <tr key={l.lpEntityId} className="border-t">
-                      <td className="px-4 py-1 text-muted-foreground">{l.name}</td>
-                      <td className="px-4 py-1 text-right font-mono">{fmt(l.amount)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+
+              {m.categories.map(cat => (
+                <div key={cat.sourceType} className="px-4 py-2 border-t">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-medium">{cat.label}</span>
+                    <span className="font-mono text-xs">{fmt(cat.capitalEffect)}</span>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                    {cat.accounts.map(a => `${a.code} ${a.name}`).join(', ')} · {cat.lines.filter(l => l.amount !== 0).length} partners
+                  </p>
+                </div>
+              ))}
             </div>
           ))}
 
           <div className="px-4 py-3 flex items-center gap-2 border-t bg-muted/30">
-            <Button size="sm" onClick={confirmClose} disabled={busy}>
+            <Button size="sm" onClick={confirmClose} disabled={busy || preview.readiness.blockers.length > 0}>
               {busy && <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />}<Lock className="h-3.5 w-3.5 mr-1" />Close &amp; lock
             </Button>
             <Button size="sm" variant="outline" onClick={() => setPreview(null)} disabled={busy}>Cancel</Button>
+            {preview.readiness.blockers.length > 0 && (
+              <span className="text-xs text-muted-foreground">Resolve the items above before closing.</span>
+            )}
           </div>
         </div>
       )}
@@ -191,14 +232,26 @@ export function PeriodsView() {
                     </span>
                   </td>
                   <td className="px-3 py-2 text-right">
-                    {p.status === 'closed' && (
+                    {p.status === 'closed' ? (
                       <button
                         onClick={() => reopen(p.id)}
                         disabled={busy}
-                        title="Void this period's allocation entries and unlock the range"
+                        title="Void this period's allocation entries and unlock it. Periods reopen newest-first."
                         className="text-xs text-muted-foreground hover:underline disabled:opacity-50"
                       >
                         Reopen &amp; reverse
+                      </button>
+                    ) : (
+                      // Closing runs THROUGH a date, so this previews everything from the
+                      // last close up to this period's end — which, for the oldest open
+                      // period, is exactly this period alone.
+                      <button
+                        onClick={() => { setEndDate(p.period_end); setPreview(null); previewThrough(p.period_end) }}
+                        disabled={busy}
+                        title={`Preview closing through ${p.period_end}`}
+                        className="text-xs text-muted-foreground hover:underline disabled:opacity-50"
+                      >
+                        Close through {p.period_end}
                       </button>
                     )}
                   </td>

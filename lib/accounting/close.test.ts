@@ -2,7 +2,52 @@ import { describe, it, expect } from 'vitest'
 import { balanceSheet } from './statements'
 import { computeCapitalAccounts, rollForwardTies } from './capital-account'
 import { allocateAmount } from './allocation'
+import { monthWindows } from './close'
 import type { Account, Posting } from './types'
+
+describe('monthWindows', () => {
+  it('splits a quarter into its three months', () => {
+    expect(monthWindows('2026-01-01', '2026-03-31')).toEqual([
+      { start: '2026-01-01', end: '2026-01-31', label: 'January 2026' },
+      { start: '2026-02-01', end: '2026-02-28', label: 'February 2026' },
+      { start: '2026-03-01', end: '2026-03-31', label: 'March 2026' },
+    ])
+  })
+
+  it('keeps a partial first month (the ledger starts mid-month)', () => {
+    const w = monthWindows('2026-02-19', '2026-03-31')
+    expect(w).toHaveLength(2)
+    expect(w[0]).toEqual({ start: '2026-02-19', end: '2026-02-28', label: 'February 2026' })
+    expect(w[1].start).toBe('2026-03-01')
+  })
+
+  it('keeps a partial last month (closing mid-month)', () => {
+    const w = monthWindows('2026-01-01', '2026-02-14')
+    expect(w).toHaveLength(2)
+    expect(w[1]).toEqual({ start: '2026-02-01', end: '2026-02-14', label: 'February 2026' })
+  })
+
+  it('handles a single month and crosses a year boundary', () => {
+    expect(monthWindows('2026-05-01', '2026-05-31')).toHaveLength(1)
+    const w = monthWindows('2025-11-01', '2026-01-31')
+    expect(w.map(x => x.label)).toEqual(['November 2025', 'December 2025', 'January 2026'])
+  })
+
+  it('covers the span with no gaps and no overlaps', () => {
+    const w = monthWindows('2026-01-15', '2026-04-10')
+    for (let i = 1; i < w.length; i++) {
+      const prevEnd = new Date(`${w[i - 1].end}T00:00:00Z`)
+      const thisStart = new Date(`${w[i].start}T00:00:00Z`)
+      expect(thisStart.getTime() - prevEnd.getTime()).toBe(86_400_000) // exactly one day
+    }
+    expect(w[0].start).toBe('2026-01-15')
+    expect(w[w.length - 1].end).toBe('2026-04-10')
+  })
+
+  it('returns nothing when the range is inverted', () => {
+    expect(monthWindows('2026-03-01', '2026-01-01')).toEqual([])
+  })
+})
 
 // Mirrors what closePeriodWithAllocation posts, so the arithmetic is locked down
 // without needing a database. The real function does exactly this per category.

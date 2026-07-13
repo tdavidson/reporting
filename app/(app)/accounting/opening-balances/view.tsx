@@ -1,7 +1,8 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Loader2, Check } from 'lucide-react'
+import Link from 'next/link'
+import { Loader2, Check, AlertTriangle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useCurrency, formatCurrencyPrice } from '@/components/currency-context'
 import { useLedgerFetch } from '@/components/accounting-vehicle'
@@ -18,13 +19,20 @@ export function OpeningBalancesView() {
   const [saving, setSaving] = useState(false)
   const [done, setDone] = useState<{ lpCount: number; total: number } | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [historyMode, setHistoryMode] = useState<string | null>(null)
+  const [override, setOverride] = useState(false)
   const lf = useLedgerFetch()
 
   useEffect(() => {
     setLoading(true)
-    lf('/api/accounting/entities')
-      .then(r => (r.ok ? r.json() : []))
-      .then(d => setEntities(Array.isArray(d) ? d : []))
+    Promise.all([
+      lf('/api/accounting/entities').then(r => (r.ok ? r.json() : [])),
+      lf('/api/accounting/allocation-terms').then(r => (r.ok ? r.json() : null)),
+    ])
+      .then(([ents, settings]) => {
+        setEntities(Array.isArray(ents) ? ents : [])
+        setHistoryMode(settings?.historyMode ?? null)
+      })
       .finally(() => setLoading(false))
   }, [lf])
 
@@ -64,6 +72,32 @@ export function OpeningBalancesView() {
     return (
       <div className="border border-dashed rounded-lg p-8 text-center text-sm text-muted-foreground">
         No LP entities found. Add investors and entities first (LPs section).
+      </div>
+    )
+  }
+
+  // On a full-history vehicle the ledger already starts at inception, so opening
+  // balances are DERIVED from it. Booking them here would credit every LP's capital a
+  // second time — double-counting the fund's entire contributed capital. Block it
+  // behind an explicit override rather than letting a stray visit corrupt the books.
+  if (historyMode === 'full_history' && !override) {
+    return (
+      <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-4 text-sm space-y-2">
+        <p className="flex items-center gap-2 font-medium text-amber-700 dark:text-amber-400">
+          <AlertTriangle className="h-4 w-4" />This vehicle doesn&rsquo;t need opening balances.
+        </p>
+        <p className="text-muted-foreground">
+          It&rsquo;s set to <strong>full history</strong> — the ledger is reconstructed from inception, so opening
+          balances come from the history itself. Booking them here would credit every partner&rsquo;s capital a
+          second time and double-count the fund&rsquo;s contributed capital.
+        </p>
+        <p className="text-muted-foreground">
+          Continue on the <Link href="/accounting" className="underline underline-offset-2 hover:text-foreground">Accounting</Link> page, or{' '}
+          <Link href="/accounting/bank" className="underline underline-offset-2 hover:text-foreground">import the bank history</Link>.
+        </p>
+        <button onClick={() => setOverride(true)} className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground">
+          I know what I&rsquo;m doing — enter them anyway
+        </button>
       </div>
     )
   }

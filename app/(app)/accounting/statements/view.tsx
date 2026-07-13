@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
 import { Loader2 } from 'lucide-react'
 import { useCurrency, formatCurrencyPrice } from '@/components/currency-context'
 import { useLedgerFetch } from '@/components/accounting-vehicle'
@@ -23,7 +24,7 @@ interface PartnerRow {
   unclassified: number
   ending: number
 }
-interface CFSection { label: string; lines: { sourceType: string; label: string; amount: number }[]; total: number }
+interface CFSection { label: string; lines: { code: string; name: string; amount: number }[]; total: number }
 interface Period { preset: PeriodPreset; start: string | null; end: string | null; label: string }
 interface Data {
   period: Period
@@ -111,11 +112,15 @@ export function StatementsView() {
     </>
   )
 
+  // Coded like every other statement — `1000 · Cash` — rather than a bare name.
   const CFSec = ({ sec }: { sec: CFSection }) => (
     <>
       <tr className="border-t bg-muted/30"><td className="px-3 py-1.5 font-medium" colSpan={2}>{sec.label}</td></tr>
       {sec.lines.map(l => (
-        <tr key={l.sourceType} className="border-t"><td className="px-3 py-1.5 text-muted-foreground">{l.label}</td><td className="px-3 py-1.5 text-right font-mono">{fmt(l.amount)}</td></tr>
+        <tr key={`${l.code}|${l.name}`} className="border-t">
+          <td className="px-3 py-1.5 text-muted-foreground">{l.code} · {l.name}</td>
+          <td className="px-3 py-1.5 text-right font-mono">{fmt(l.amount)}</td>
+        </tr>
       ))}
       <tr className="border-t font-semibold"><td className="px-3 py-1.5">Total {sec.label}</td><td className="px-3 py-1.5 text-right font-mono">{fmt(sec.total)}</td></tr>
     </>
@@ -277,8 +282,14 @@ export function StatementsView() {
             </thead>
             <tbody>
               {data.changesInPartnersCapital.partners.map(p => (
-                <tr key={p.id} className="border-b last:border-b-0">
-                  <td className="px-3 py-2">{p.name}</td>
+                <tr key={p.id} className="border-b last:border-b-0 hover:bg-muted/30">
+                  {/* p.id is the lpEntityId — link through to that partner's capital
+                      account. The synthetic GP row has no entity to link to. */}
+                  <td className="px-3 py-2">
+                    {p.id === 'gp'
+                      ? p.name
+                      : <Link href={`/accounting/capital-accounts/${p.id}`} className="hover:underline">{p.name}</Link>}
+                  </td>
                   {CAP_COLS.map(c => <td key={c.key} className={`px-3 py-2 text-right font-mono ${c.key === 'ending' ? 'font-semibold' : ''}`}>{fmt(p[c.key] as number)}</td>)}
                 </tr>
               ))}

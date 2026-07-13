@@ -258,8 +258,16 @@ export function scheduleOfInvestments(
   positions: Omit<SoiRow, 'pctOfNetAssets'>[] = []
 ): ScheduleOfInvestments {
   const tb = trialBalance(accounts, postings)
+  // ASSET accounts only. `unrealized` is also the subtype of the INCOME account
+  // (4200 Change in unrealized appreciation), and summing both double-counts every
+  // mark — the carrying value is the asset, not the P&L that produced it.
   const balOf = (subtype: string) => r(
-    tb.rows.filter(row => accounts.find(a => a.id === row.accountId)?.subtype === subtype).reduce((s, row) => s + row.balance, 0)
+    tb.rows
+      .filter(row => {
+        const a = accounts.find(x => x.id === row.accountId)
+        return a?.type === 'asset' && a.subtype === subtype
+      })
+      .reduce((s, row) => s + row.balance, 0)
   )
   const ledgerCost = balOf('investment')
   const ledgerFairValue = r(ledgerCost + balOf('unrealized'))
@@ -350,7 +358,8 @@ export interface CashPosting {
   entryDate?: string | null
   memo?: string | null
 }
-export interface CashFlowLine { sourceType: string; label: string; amount: number }
+/** Coded and named like every other statement line — `1000 · Cash`. */
+export interface CashFlowLine { code: string; name: string; amount: number }
 export interface CashFlowSection { label: string; lines: CashFlowLine[]; total: number }
 /** A disclosable non-cash investing/financing transaction (ASC 230-10-50-3). */
 export interface NonCashItem {
@@ -395,6 +404,21 @@ function isFinancing(account: Account): boolean {
 }
 
 /**
+ * How an account presents on the cash-flow statement.
+ *
+ * Per-LP capital accounts (`3100-<lpEntityId>`) collapse into the single parent
+ * `3100 Partners' capital` line — a cash-flow statement reports "capital
+ * contributions", not nineteen separate contribution lines. The per-partner detail
+ * is the statement of changes in partners' capital.
+ */
+function cashFlowLineFor(account: Account): { code: string; name: string } {
+  if (account.lpEntityId) {
+    return { code: account.code.split('-')[0], name: "Partners' capital" }
+  }
+  return { code: account.code, name: account.name }
+}
+
+/**
  * Accounts whose movement makes a non-cash entry DISCLOSABLE — i.e. it was an
  * investing or financing transaction that simply bypassed the bank account.
  * A revaluation (unrealized ↔ income) is non-cash but is neither, so it is not
@@ -434,8 +458,9 @@ export function statementOfCashFlows(
     byEntry.get(p.entryId)!.push(p)
   }
 
-  // accountId → net cash attributed to it.
+  // Presentation line ("code|name") → net cash attributed to it, plus its metadata.
   const byCounterAccount = new Map<string, number>()
+  const lineMeta = new Map<string, { code: string; name: string; financing: boolean }>()
   const nonCash: NonCashItem[] = []
 
   for (const legs of Array.from(byEntry.values())) {
@@ -478,28 +503,31 @@ export function statementOfCashFlows(
     )
     counter.forEach((leg, i) => {
       const amount = shares[i] / 100
-      byCounterAccount.set(leg.accountId, r((byCounterAccount.get(leg.accountId) ?? 0) + amount))
+      const a = acctById.get(leg.accountId)
+      // Key by the PRESENTATION line, so nineteen per-LP capital accounts collapse
+      // into one "3100 Partners' capital".
+      const line = a ? cashFlowLineFor(a) : { code: leg.accountId.slice(0, 8), name: 'Unclassified' }
+      const key = `${line.code}|${line.name}`
+      lineMeta.set(key, { ...line, financing: a ? isFinancing(a) : false })
+      byCounterAccount.set(key, r((byCounterAccount.get(key) ?? 0) + amount))
     })
   }
 
-  const build = (label: string, ids: string[]): CashFlowSection => {
-    const lines: CashFlowLine[] = ids
-      .filter(id => (byCounterAccount.get(id) ?? 0) !== 0)
-      .map(id => {
-        const a = acctById.get(id)
-        return {
-          sourceType: a?.code ?? id,
-          label: a ? a.name : 'Unclassified',
-          amount: byCounterAccount.get(id)!,
-        }
-      })
-      .sort((x, y) => Math.abs(y.amount) - Math.abs(x.amount))
+  const build = (label: string, keys: string[]): CashFlowSection => {
+    const lines: CashFlowLine[] = keys
+      .filter(k => (byCounterAccount.get(k) ?? 0) !== 0)
+      .map(k => ({
+        code: lineMeta.get(k)!.code,
+        name: lineMeta.get(k)!.name,
+        amount: byCounterAccount.get(k)!,
+      }))
+      .sort((x, y) => x.code.localeCompare(y.code))
     return { label, lines, total: r(lines.reduce((s, l) => s + l.amount, 0)) }
   }
 
-  const ids = Array.from(byCounterAccount.keys())
-  const financingIds = ids.filter(id => { const a = acctById.get(id); return a ? isFinancing(a) : false })
-  const operatingIds = ids.filter(id => !financingIds.includes(id))
+  const keys = Array.from(byCounterAccount.keys())
+  const financingIds = keys.filter(k => lineMeta.get(k)?.financing)
+  const operatingIds = keys.filter(k => !lineMeta.get(k)?.financing)
 
   const financing = build('Financing activities', financingIds)
   const operating = build('Operating activities', operatingIds)

@@ -4,7 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { assertAdminAccess } from '@/lib/api-helpers'
 import { resolveGroupOr400 } from '@/lib/accounting/http-vehicle'
 import { listPeriods } from '@/lib/accounting/periods'
-import { previewClose, closePeriodWithAllocation, reopenPeriodWithReversal } from '@/lib/accounting/close'
+import { previewCloseThrough, closeThrough, reopenPeriodWithReversal } from '@/lib/accounting/close'
 
 // GET — list a vehicle's fiscal periods.
 export async function GET(req: NextRequest) {
@@ -20,9 +20,10 @@ export async function GET(req: NextRequest) {
 }
 
 // POST
-//   { action: 'preview', periodStart, periodEnd }        → what closing would allocate
-//   { action: 'close',   periodStart, periodEnd, label } → allocate, snapshot, lock
-//   { action: 'reopen',  id }                            → void the allocation, unlock
+//   { action: 'preview', endDate } → what closing THROUGH this date would allocate,
+//                                     month by month (start is derived — no gaps)
+//   { action: 'close',   endDate } → close every month through it, in order
+//   { action: 'reopen',  id }      → void that period's allocation, unlock (newest first)
 export async function POST(req: NextRequest) {
   const supabase = createClient()
   const admin = createAdminClient()
@@ -36,7 +37,7 @@ export async function POST(req: NextRequest) {
   if (group instanceof NextResponse) return group
 
   if (body?.action === 'preview') {
-    const result = await previewClose(admin, gate.fundId, group, body?.periodStart, body?.periodEnd)
+    const result = await previewCloseThrough(admin, gate.fundId, group, body?.endDate)
     if ('error' in result) return NextResponse.json({ error: result.error }, { status: 400 })
     return NextResponse.json(result)
   }
@@ -48,9 +49,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(result)
   }
 
-  const result = await closePeriodWithAllocation(
-    admin, gate.fundId, group, user.id, body?.periodStart, body?.periodEnd, body?.label
-  )
+  const result = await closeThrough(admin, gate.fundId, group, user.id, body?.endDate)
   if ('error' in result) return NextResponse.json({ error: result.error }, { status: 400 })
   return NextResponse.json({ ok: true, ...result })
 }

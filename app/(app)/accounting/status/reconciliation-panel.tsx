@@ -18,7 +18,7 @@ interface ReconResult {
   names: Record<string, string>
 }
 
-export function ReconciliationView() {
+export function ReconciliationPanel() {
   const currency = useCurrency()
   const fmt = (v: number) => formatCurrencyPrice(v, currency)
   const [rows, setRows] = useState<LedgerRow[]>([])

@@ -239,7 +239,21 @@ describe('schedule of investments', () => {
   const accts: Account[] = [
     { id: 'cost', fundId: 'f', code: '1100', name: 'Investments at cost', type: 'asset', subtype: 'investment' },
     { id: 'unrl', fundId: 'f', code: '1200', name: 'Unrealized', type: 'asset', subtype: 'unrealized' },
+    // The INCOME side of a mark shares the 'unrealized' subtype. Counting it as part
+    // of the carrying value would double every markup.
+    { id: 'unrlInc', fundId: 'f', code: '4200', name: 'Change in unrealized', type: 'income', subtype: 'unrealized' },
   ]
+
+  it('fair value counts the unrealized ASSET, not the unrealized income account', () => {
+    const p: Posting[] = [
+      { accountId: 'cost', amount: 2_749_992.64, currency: 'USD' },
+      { accountId: 'unrl', amount: 1_178_583.08, currency: 'USD' },
+      { accountId: 'unrlInc', amount: -1_178_583.08, currency: 'USD' }, // the credit side of the mark
+    ]
+    const soi = scheduleOfInvestments(accts, p, 3_992_163.79)
+    expect(soi.ledgerCost).toBe(2_749_992.64)
+    expect(soi.ledgerFairValue).toBe(3_928_575.72) // NOT 5,107,158.80
+  })
   it('fair value = cost + unrealized, with % of net assets', () => {
     const p: Posting[] = [
       { accountId: 'cost', amount: 4_800_000, currency: 'USD' },
@@ -307,13 +321,31 @@ describe('statement of cash flows', () => {
     const scf = statementOfCashFlows('cash', cash, accts, 100_000)
 
     expect(scf.financing.total).toBe(-14_992.64)
-    expect(scf.financing.lines[0].label).toBe('Note payable')
+    expect(scf.financing.lines[0]).toMatchObject({ code: '2200', name: 'Note payable' })
 
     expect(scf.operating.total).toBe(-5_697.31)
-    expect(scf.operating.lines[0].label).toBe('Interest expense')
+    expect(scf.operating.lines[0]).toMatchObject({ code: '5300', name: 'Interest expense' })
 
     expect(scf.netChange).toBe(-20_689.95) // still ties to the actual cash moved
     expect(scf.endingCash).toBe(79_310.05)
+  })
+
+  it('collapses per-LP capital accounts into one 3100 Partners’ capital line', () => {
+    // A cash-flow statement reports "capital contributions", not one line per partner.
+    const withLps: Account[] = [
+      ...accts,
+      { id: 'capA', fundId: 'f', code: '3100-aaaa', name: 'Partners’ capital — A', type: 'equity', subtype: 'lp_capital', lpEntityId: 'a' },
+      { id: 'capB', fundId: 'f', code: '3100-bbbb', name: 'Partners’ capital — B', type: 'equity', subtype: 'lp_capital', lpEntityId: 'b' },
+    ]
+    const cash: CashPosting[] = [
+      { entryId: 'c1', accountId: 'cash', amount: 600_000, sourceType: 'capital_call' },
+      { entryId: 'c1', accountId: 'capA', amount: -600_000, sourceType: 'capital_call' },
+      { entryId: 'c2', accountId: 'cash', amount: 400_000, sourceType: 'capital_call' },
+      { entryId: 'c2', accountId: 'capB', amount: -400_000, sourceType: 'capital_call' },
+    ]
+    const scf = statementOfCashFlows('cash', cash, withLps, 0)
+    expect(scf.financing.lines).toHaveLength(1)
+    expect(scf.financing.lines[0]).toMatchObject({ code: '3100', name: "Partners' capital", amount: 1_000_000 })
   })
 
   it('ignores non-cash entries in the cash sections', () => {
