@@ -1,8 +1,11 @@
 'use client'
 
 import { useState } from 'react'
-import { Loader2 } from 'lucide-react'
+import { Loader2, ShieldCheck, PencilLine } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { AuthShell } from '@/components/auth-shell'
 
 /**
  * The approve/deny screen. Deliberately blunt about what is being handed over:
@@ -55,56 +58,85 @@ export function ConsentForm({ clientName, fundName, willWrite, downgraded, param
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-6">
-      <div className="max-w-md w-full rounded-lg border bg-card p-6 space-y-5">
-        <div className="space-y-1">
-          <h1 className="text-lg font-semibold">Connect {clientName}?</h1>
-          <p className="text-sm text-muted-foreground">
-            It is asking to act on <span className="font-medium text-foreground">{fundName}</span> as you.
-          </p>
-        </div>
-
-        <div className="rounded-md border bg-muted/30 p-3 space-y-2">
-          <p className="text-xs font-medium">This will let it:</p>
-          <ul className="text-xs text-muted-foreground space-y-1 list-disc ml-4">
-            <li>Read your portfolio, companies, investments, LP positions and fund performance.</li>
-            <li>Read the ledger — chart of accounts, journal entries, capital accounts and financial statements.</li>
-            {willWrite && (
-              <li className="text-amber-600">
-                <strong>Make changes:</strong> record investments, post journal entries, run allocations,
-                import bank transactions, and close accounting periods.
-              </li>
-            )}
-          </ul>
-          {!willWrite && (
-            <p className="text-xs text-muted-foreground">
-              Read-only. It cannot change anything.
-            </p>
-          )}
-        </div>
-
-        {downgraded && (
-          <p className="text-xs text-amber-600">
-            It asked for write access, but only fund admins can grant that — so it will get read-only.
-          </p>
-        )}
-
-        <p className="text-xs text-muted-foreground">
+    <AuthShell
+      wide
+      footer={
+        <p className="text-center text-xs text-muted-foreground">
           It can only ever see {fundName}, never another fund. You can revoke this at any time in
           Settings, and access ends automatically if you leave the fund.
         </p>
+      }
+    >
+      <Card>
+        <CardHeader className="pb-4">
+          <CardTitle className="text-lg">Connect {clientName}?</CardTitle>
+          <CardDescription>
+            It is asking to act on <span className="font-medium text-foreground">{fundName}</span> as you.
+          </CardDescription>
+        </CardHeader>
 
-        {error && <p className="text-sm text-destructive">{error}</p>}
+        <CardContent className="space-y-4">
+          {/* The permissions, split read vs write. The write block is the one that matters,
+              so it gets its own visual weight rather than being a third bullet in a list —
+              "post journal entries and close periods" is not a detail. */}
+          <div className="rounded-md border bg-muted/30 p-3 space-y-3">
+            <div className="flex gap-2.5">
+              <ShieldCheck className="h-4 w-4 shrink-0 mt-0.5 text-muted-foreground" />
+              <div className="space-y-1">
+                <p className="text-xs font-medium">Read your fund</p>
+                <p className="text-xs text-muted-foreground">
+                  Deal flow and diligence, the portfolio, companies and investments, LP positions and
+                  fund performance, and the ledger — chart of accounts, journal entries, capital
+                  accounts and financial statements.
+                </p>
+              </div>
+            </div>
 
-        <div className="flex gap-2">
-          <Button onClick={() => decide(true)} disabled={busy !== null} className="flex-1">
-            {busy === 'approve' ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Allow'}
-          </Button>
-          <Button variant="outline" onClick={() => decide(false)} disabled={busy !== null} className="flex-1">
-            {busy === 'deny' ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Deny'}
-          </Button>
-        </div>
-      </div>
-    </div>
+            {willWrite ? (
+              <div className="flex gap-2.5 border-t pt-3">
+                <PencilLine className="h-4 w-4 shrink-0 mt-0.5 text-amber-600 dark:text-amber-500" />
+                <div className="space-y-1">
+                  <p className="text-xs font-medium text-amber-700 dark:text-amber-400">Make changes</p>
+                  <p className="text-xs text-muted-foreground">
+                    Record investments, post journal entries, run allocations, import bank transactions,
+                    and close accounting periods.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="flex gap-2.5 border-t pt-3">
+                <PencilLine className="h-4 w-4 shrink-0 mt-0.5 text-muted-foreground/40" />
+                <p className="text-xs text-muted-foreground">
+                  <span className="font-medium text-foreground">Read-only.</span> It cannot change anything.
+                </p>
+              </div>
+            )}
+          </div>
+
+          {downgraded && (
+            <Alert className="border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950">
+              <AlertDescription className="text-amber-800 dark:text-amber-200 text-xs">
+                It asked for write access, but only fund admins can grant that — so it will get read-only.
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {error && (
+            <Alert variant="destructive">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+
+          <div className="flex gap-2 pt-1">
+            <Button onClick={() => decide(true)} disabled={busy !== null} className="flex-1">
+              {busy === 'approve' ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Allow'}
+            </Button>
+            <Button variant="outline" onClick={() => decide(false)} disabled={busy !== null} className="flex-1">
+              {busy === 'deny' ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Deny'}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    </AuthShell>
   )
 }

@@ -27,6 +27,12 @@ import type { SupabaseClient as _Sb } from '@supabase/supabase-js'
 import type { JournalEntry, Posting } from './types'
 import { PORTFOLIO_TOOL_MANIFEST } from '@/lib/agent/portfolio-tools-manifest'
 import { PORTFOLIO_HANDLERS } from '@/lib/agent/portfolio-tools'
+import { DILIGENCE_TOOL_MANIFEST } from '@/lib/agent/diligence-tools-manifest'
+import { DILIGENCE_HANDLERS } from '@/lib/agent/diligence-tools'
+import { DEALS_TOOL_MANIFEST } from '@/lib/agent/deals-tools-manifest'
+import { DEALS_HANDLERS } from '@/lib/agent/deals-tools'
+import { LP_TOOL_MANIFEST } from '@/lib/agent/lp-tools-manifest'
+import { LP_HANDLERS } from '@/lib/agent/lp-tools'
 
 export interface AgentToolContext {
   admin: SupabaseClient
@@ -189,16 +195,27 @@ const HANDLERS: Record<string, AgentToolHandler> = {
 
 const VEHICLE_PROP = { type: 'string', description: 'vehicle (portfolio_group); optional when the fund has a single vehicle' }
 
+/** Bind a domain's manifest to its handlers, failing loudly if either side is missing one. */
+function bind(manifest: AgentToolMeta[], handlers: Record<string, AgentToolHandler>): AgentTool[] {
+  return manifest.map(meta => {
+    const handler = handlers[meta.name]
+    if (!handler) throw new Error(`No handler for agent tool ${meta.name}`)
+    return { ...meta, handler }
+  })
+}
+
 /**
- * The whole tool surface: the ledger tools plus the portfolio tools. One registry, so
- * MCP and REST expose the same thing and an agent can move between "what does the fund
- * own" and "what do the books say" without changing endpoints.
+ * The whole tool surface, across every domain the firm has. One registry, so MCP and REST
+ * expose the same thing and an agent can move between "what is in the pipeline", "what
+ * does the fund own", "what do the LPs hold" and "what do the books say" without changing
+ * endpoints or keys.
  *
- * The two domains are dispatched differently. A ledger tool operates on ONE set of
- * books, so the caller must land on exactly one vehicle and we advertise `vehicle` as
- * that scope. A portfolio tool is fund-wide — a company can sit in several vehicles —
- * so `vehicle` is an optional filter it declares itself, and forcing it to pick one
- * would make "list every company" impossible on a multi-vehicle fund.
+ * LEDGER TOOLS ARE THE ODD ONE OUT, and that is the only thing `domain` changes at
+ * dispatch. A ledger tool operates on ONE set of books, so the caller must land on exactly
+ * one vehicle and we inject `vehicle` as that scope. Every other domain is fund-wide — a
+ * company can sit in several vehicles, a deal sits in none — so `vehicle` is at most an
+ * optional filter they declare themselves. Forcing them to pick one would make "list every
+ * company" (or every deal) impossible on a multi-vehicle fund.
  */
 export const AGENT_TOOLS: AgentTool[] = [
   ...AGENT_TOOL_MANIFEST.map(meta => {
@@ -207,11 +224,10 @@ export const AGENT_TOOLS: AgentTool[] = [
     const inputSchema = { ...meta.inputSchema, properties: { ...(meta.inputSchema.properties ?? {}), vehicle: VEHICLE_PROP } }
     return { ...meta, domain: 'ledger' as const, inputSchema, handler }
   }),
-  ...PORTFOLIO_TOOL_MANIFEST.map(meta => {
-    const handler = PORTFOLIO_HANDLERS[meta.name]
-    if (!handler) throw new Error(`No handler for agent tool ${meta.name}`)
-    return { ...meta, domain: 'portfolio' as const, handler }
-  }),
+  ...bind(PORTFOLIO_TOOL_MANIFEST, PORTFOLIO_HANDLERS),
+  ...bind(DILIGENCE_TOOL_MANIFEST, DILIGENCE_HANDLERS),
+  ...bind(DEALS_TOOL_MANIFEST, DEALS_HANDLERS),
+  ...bind(LP_TOOL_MANIFEST, LP_HANDLERS),
 ]
 
 export function getTool(name: string): AgentTool | undefined {

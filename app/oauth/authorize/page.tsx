@@ -1,8 +1,11 @@
 import { redirect } from 'next/navigation'
+import { AlertTriangle } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getClient, redirectUriAllowed, grantableScope } from '@/lib/oauth/store'
 import { agentApiEnabled } from '@/lib/oauth/enabled'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { AuthShell } from '@/components/auth-shell'
 import { ConsentForm } from './consent-form'
 
 /**
@@ -120,13 +123,29 @@ export default async function AuthorizePage({ searchParams }: Props) {
   )
 }
 
+/**
+ * Every dead end in this flow — bad client, bad redirect, agent access switched off.
+ *
+ * It wears the same chrome as the consent screen and the sign-in page on purpose: the
+ * person seeing this was midway through connecting an agent to their fund, and an
+ * unstyled error page at that moment reads as "something is broken" or, worse, as a
+ * phishing page. Note there is deliberately no way onward from here except home — we must
+ * never offer a link back to a redirect_uri we just refused to trust.
+ */
 function Problem({ title, detail }: { title: string; detail: string }) {
   return (
-    <div className="min-h-screen flex items-center justify-center p-6">
-      <div className="max-w-md w-full rounded-lg border bg-card p-6 space-y-2">
-        <h1 className="text-lg font-semibold">{title}</h1>
-        <p className="text-sm text-muted-foreground">{detail}</p>
-      </div>
-    </div>
+    <AuthShell>
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-500" />
+            <CardTitle className="text-lg">{title}</CardTitle>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground">{detail}</p>
+        </CardContent>
+      </Card>
+    </AuthShell>
   )
 }

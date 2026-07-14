@@ -9,13 +9,19 @@ export interface AgentToolMeta {
   scope: 'read' | 'write'
   /**
    * `ledger` tools operate on ONE set of books, so the dispatcher resolves a vehicle for
-   * them and injects a `vehicle` argument. `portfolio` tools are fund-scoped — a company
-   * can sit in several vehicles, and "how is the fund doing" spans all of them — so they
-   * take an optional vehicle FILTER instead and must not be forced to pick one.
+   * them and injects a `vehicle` argument. EVERY OTHER DOMAIN IS FUND-SCOPED — a company
+   * can sit in several vehicles, a deal belongs to no vehicle at all, and "how is the
+   * fund doing" spans all of them — so they take an optional vehicle FILTER where it
+   * makes sense and must never be forced to pick one.
+   *
+   * That is the only thing `domain` controls at dispatch (see `isLedgerTool`); the rest
+   * is grouping for the settings UI. Adding a domain therefore costs a manifest, a
+   * handler map, and one line in the registry — MCP, REST, scopes and rate limiting all
+   * pick it up for free.
    *
    * Defaults to `ledger` when omitted, which is what every tool in this file is.
    */
-  domain?: 'ledger' | 'portfolio'
+  domain?: 'ledger' | 'portfolio' | 'diligence' | 'deals' | 'lp'
   inputSchema: Record<string, any>
 }
 

@@ -348,8 +348,8 @@ The foundation and a working vertical slice are built, all behind the `accountin
   offset through a `3200 Undistributed earnings` bridge; a `close_period` action zeroes the P&L into
   the bridge, netting it to zero. Both statements are right at once.
 - **Agent access (AI-native surface)** — `fund_api_keys` (sha256-hashed, scoped), a tool registry
-  covering every ledger operation, an **MCP server** (`/api/accounting/mcp`, JSON-RPC over HTTP) and a
-  **REST** equivalent (`/api/accounting/agent`), both Bearer-key authenticated and scope-enforced, plus
+  covering every ledger operation, an **MCP server** (`/api/mcp`, JSON-RPC over HTTP) and a
+  **REST** equivalent (`/api/agent`), both Bearer-key authenticated and scope-enforced, plus
   an admin key-management page. Agents can post entries, run allocations, reconcile, and read
   statements — the same code path humans use.
 - **UI** (top-level admin-only Accounting section): home + first-run setup, opening-balances import,

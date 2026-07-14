@@ -63,6 +63,20 @@ export async function middleware(request: NextRequest) {
   if (!user && !isAuthRoute && !isApiRoute && !isPublicMarketingRoute && !isPublicTokenRoute && !isSetupRoute && !isPortalWelcome && !isOAuthDiscovery) {
     const url = request.nextUrl.clone()
     url.pathname = '/auth'
+    // Carry where they were headed, so signing in RESUMES it.
+    //
+    // This used to clone the URL and only swap the pathname, which left the original
+    // query string dangling on /auth as junk and set no `next` at all. That silently
+    // broke the OAuth consent flow: /oauth/authorize builds its own `?next=` for exactly
+    // this case, but it never gets to run — middleware intercepts first — so a signed-out
+    // user connecting an agent landed on the dashboard afterwards and the app that sent
+    // them never received its code.
+    //
+    // /auth validates this through safeNextPath (a redirect fired straight after login is
+    // a phishing primitive), so an origin-relative path is all we may pass.
+    const target = pathname + request.nextUrl.search
+    url.search = ''
+    url.searchParams.set('next', target)
     return NextResponse.redirect(url)
   }
 

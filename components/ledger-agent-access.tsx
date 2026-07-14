@@ -5,15 +5,22 @@ import { Loader2, Copy, Check, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { AGENT_TOOL_MANIFEST } from '@/lib/accounting/agent-tools-manifest'
 import { PORTFOLIO_TOOL_MANIFEST } from '@/lib/agent/portfolio-tools-manifest'
+import { DILIGENCE_TOOL_MANIFEST } from '@/lib/agent/diligence-tools-manifest'
+import { DEALS_TOOL_MANIFEST } from '@/lib/agent/deals-tools-manifest'
+import { LP_TOOL_MANIFEST } from '@/lib/agent/lp-tools-manifest'
 
-// One surface, two domains: the portfolio (what the fund owns and how it's doing) and
-// the ledger (what the books say). Grouped so the list reads as capability, not a
-// flat wall of 28 names.
+// One surface, one key, the whole firm — deal flow at the top of the funnel, the deals
+// under diligence, what the fund ended up owning, what the LPs hold, and what the books
+// say. Grouped so the list reads as capability rather than a flat wall of names, and
+// ordered the way the money actually travels.
 const TOOL_GROUPS = [
+  { label: 'Deal flow (inbound screening)', tools: DEALS_TOOL_MANIFEST },
+  { label: 'Diligence (data room, checklist, memo)', tools: DILIGENCE_TOOL_MANIFEST },
   { label: 'Portfolio, companies and performance', tools: PORTFOLIO_TOOL_MANIFEST },
+  { label: 'LP reporting and capital accounts', tools: LP_TOOL_MANIFEST },
   { label: 'Ledger and accounting', tools: AGENT_TOOL_MANIFEST },
 ]
-const TOOL_COUNT = PORTFOLIO_TOOL_MANIFEST.length + AGENT_TOOL_MANIFEST.length
+const TOOL_COUNT = TOOL_GROUPS.reduce((n, g) => n + g.tools.length, 0)
 
 interface Key { id: string; name: string; key_prefix: string; scopes: string; last_used_at: string | null; revoked_at: string | null; created_at: string }
 
@@ -37,11 +44,12 @@ export function LedgerAgentAccess({ isAdmin }: { isAdmin: boolean }) {
   const [savingEnabled, setSavingEnabled] = useState(false)
 
   useEffect(() => {
-    // The canonical MCP address. The legacy /api/accounting/mcp still works, but
-    // the server long outgrew the "accounting" name — it serves the whole
-    // portfolio too — so this is the one we hand out.
+    // The canonical addresses. Both surfaces long outgrew the "accounting" name —
+    // they serve the whole portfolio too — so neither is under /api/accounting any
+    // more. The legacy /api/accounting/mcp still works for keys and configs already
+    // pointed at it; the REST endpoint moved outright, since nothing used it yet.
     setMcpUrl(`${window.location.origin}/api/mcp`)
-    setRestUrl(`${window.location.origin}/api/accounting/agent`)
+    setRestUrl(`${window.location.origin}/api/agent`)
 
     fetch('/api/settings')
       .then(r => (r.ok ? r.json() : null))

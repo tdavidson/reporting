@@ -11,7 +11,7 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Separator } from '@/components/ui/separator'
-import { Building2 } from 'lucide-react'
+import { AuthShell } from '@/components/auth-shell'
 
 export default function AuthPage() {
   return (
@@ -107,17 +107,29 @@ function AuthForm() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-muted/40 p-4">
-      <div className="w-full max-w-md space-y-6">
-        <div className="text-center">
-          <Link href="/" className="inline-block group">
-            <div className="h-10 w-10 rounded bg-muted flex items-center justify-center mx-auto mb-2 transition-colors group-hover:bg-muted-foreground/20">
-              <Building2 className="h-5 w-5 text-muted-foreground" />
-            </div>
-            <h1 className="text-lg font-semibold tracking-tight">Portfolio Reporting</h1>
-          </Link>
-        </div>
+    <AuthShell
+      footer={
+        <>
+          <p className="text-center text-sm text-muted-foreground">
+            <Link href="/" className="hover:text-foreground underline underline-offset-4">
+              ← Back to home
+            </Link>
+          </p>
 
+          <p className="text-center text-xs text-muted-foreground">
+            <a href="/license" target="_blank" rel="noopener noreferrer" className="hover:text-foreground underline underline-offset-4">License</a>
+            {isHemrock && (
+              <>
+                {' · '}
+                <a href="https://www.hemrock.com/terms" target="_blank" rel="noopener noreferrer" className="hover:text-foreground underline underline-offset-4">Terms</a>
+                {' · '}
+                <a href="https://www.hemrock.com/privacy" target="_blank" rel="noopener noreferrer" className="hover:text-foreground underline underline-offset-4">Privacy</a>
+              </>
+            )}
+          </p>
+        </>
+      }
+    >
         <Card>
           <CardHeader className="pb-4">
             <CardTitle className="text-lg">Sign in with your account</CardTitle>
@@ -191,25 +203,6 @@ function AuthForm() {
             </p>
           </CardContent>
         </Card>
-
-        <p className="text-center text-sm text-muted-foreground">
-          <Link href="/" className="hover:text-foreground underline underline-offset-4">
-            ← Back to home
-          </Link>
-        </p>
-
-        <p className="text-center text-xs text-muted-foreground">
-          <a href="/license" target="_blank" rel="noopener noreferrer" className="hover:text-foreground underline underline-offset-4">License</a>
-          {isHemrock && (
-            <>
-              {' · '}
-              <a href="https://www.hemrock.com/terms" target="_blank" rel="noopener noreferrer" className="hover:text-foreground underline underline-offset-4">Terms</a>
-              {' · '}
-              <a href="https://www.hemrock.com/privacy" target="_blank" rel="noopener noreferrer" className="hover:text-foreground underline underline-offset-4">Privacy</a>
-            </>
-          )}
-        </p>
-      </div>
-    </div>
+    </AuthShell>
   )
 }

@@ -271,18 +271,19 @@ describe('checklistCoverage', () => {
 })
 
 describe('countAttention', () => {
+  // Statuses are open | done | ignore (renamed from addressed/deferred).
   it('only open must/should items count against the memo; fyi never gates', () => {
     const a = countAttention([
       { urgency: 'must_address', status: 'open' },
-      { urgency: 'must_address', status: 'addressed' },
+      { urgency: 'must_address', status: 'done' },
       { urgency: 'should_address', status: 'open' },
       { urgency: 'fyi', status: 'open' },          // informational — excluded entirely
     ])
     expect(a).toEqual({ blocking: 1, open: 2, total: 3 })
   })
 
-  it('deferred counts as handled — setting an item aside is a decision', () => {
-    const a = countAttention([{ urgency: 'must_address', status: 'deferred' }])
+  it('ignore counts as handled — setting an item aside is a decision', () => {
+    const a = countAttention([{ urgency: 'must_address', status: 'ignore' }])
     expect(a).toEqual({ blocking: 0, open: 0, total: 1 })
   })
 })

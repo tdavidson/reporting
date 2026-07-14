@@ -179,9 +179,12 @@ export interface AttentionCounts {
 /**
  * Bucket the partner-attention queue for the memo stage.
  *
- * `fyi` is excluded entirely — it is informational and gates nothing. `deferred` and
- * `addressed` both count as HANDLED: a partner deliberately setting an item aside is
- * a decision, not an outstanding gap. Only `open` items count against the memo.
+ * `fyi` is excluded entirely — it is informational and gates nothing. Statuses are
+ * `open | done | ignore` (renamed from `addressed`/`deferred` in
+ * 20260610000000_diligence_attention_status_rename.sql). Anything that is not `open`
+ * counts as HANDLED — a partner deliberately setting an item aside is a decision, not
+ * an outstanding gap — so the test is on `open` rather than on the settled names, and
+ * a future rename of those cannot silently break it.
  */
 export function countAttention(items: { urgency: string | null; status: string | null }[]): AttentionCounts {
   let blocking = 0, open = 0, total = 0

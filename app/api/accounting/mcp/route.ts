@@ -135,7 +135,7 @@ export async function POST(req: NextRequest) {
  * The same rate limit the REST agent route enforces.
  *
  * This endpoint dispatches the IDENTICAL tool registry with identical write authority, and had
- * no limiter at all — so a leaked write key simply posted here instead of /api/accounting/agent
+ * no limiter at all — so a leaked write key simply posted here instead of /api/agent
  * and got unbounded ledger writes, period closes and AI-credit burn.
  *
  * `cost` counts each call in a batch, so batching cannot be used to amplify past the limit.

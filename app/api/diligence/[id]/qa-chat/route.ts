@@ -1,14 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { logAIUsage } from '@/lib/ai/usage'
-import { withTopicalGuardrail } from '@/lib/ai/topical-guard'
-import { getStageProvider } from '@/lib/memo-agent/stage-provider'
-import { extractJsonObject } from '@/lib/memo-agent/parse-ai-json'
-import { buildQAChatContext } from '@/lib/diligence/qa-chat-context'
-import { getAffinityKey } from '@/lib/affinity/credentials'
-import { AFFINITY_TOOLS, makeAffinityExecutor, affinityMcpServer } from '@/lib/affinity/tools'
-import type { AIResult } from '@/lib/ai/types'
+import { answerDealQuestion } from '@/lib/diligence/qa-answer'
 
 // The POST handler makes a synchronous, user-facing LLM call plus several DB
 // round-trips. Netlify functions default to a 10s timeout, which the model
@@ -88,129 +81,28 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     .filter(m => m.content !== question || m.role !== 'user')
     .slice(-12)  // keep prompt size in check, last ~6 user/assistant pairs
 
-  // Build the evidence context.
-  const ctx = await buildQAChatContext({ admin, fundId, dealId: params.id })
-
-  // Use the Q&A stage's provider for cost-tracking consistency.
-  const { provider, model, providerType } = await getStageProvider(admin, fundId, 'qa')
-
-  // Affinity is attached only when THIS user has connected their own Affinity
-  // key. The key carries their permissions, so the assistant can never surface
-  // CRM records the asking partner couldn't open themselves.
-  const affinityKey = await getAffinityKey(admin, userId)
-  const { data: fundSettings } = await (admin as any)
-    .from('fund_settings')
-    .select('affinity_mcp_enabled')
-    .eq('fund_id', fundId)
-    .maybeSingle()
-  const useMcp = !!(fundSettings as any)?.affinity_mcp_enabled
-
-  const linkedOrgId = (deal as any).affinity_organization_id as number | null
-  // Tool use is Anthropic-only in this codebase. On any other provider we fall
-  // back to the plain evidence-only answer rather than silently pretending the
-  // assistant has CRM access it doesn't have.
-  const affinityAvailable = !!affinityKey && provider.supportsToolLoop === true
-
-  const affinityBlock = affinityAvailable
-    ? `
-
-AFFINITY CRM ACCESS
-You can query the fund's Affinity CRM with the affinity_* tools to answer questions about the
-RELATIONSHIP history — past meetings, call notes, who introduced us, what was discussed and when.
-${linkedOrgId
-    ? `This deal is already linked to Affinity organization_id ${linkedOrgId}. Use that id directly; you do not need to search for it.`
-    : `This deal is not linked to an Affinity company yet, so use affinity_search_companies first to find it by name.`}
-
-When to reach for Affinity:
-- The question is about history, relationships, or what was said in a meeting — the data room holds
-  documents, but the CRM holds the conversation record.
-- The data-room evidence below does not answer the question and the CRM plausibly might.
-
-Do NOT use Affinity for questions the data room already answers — it costs a round-trip and the
-documents are the primary evidence. Content you take from Affinity should be attributed in your
-answer as coming from an Affinity note (with its date), not cited as a data-room document.`
-    : ''
-
-  const systemPrompt = `You answer partner questions about an active diligence deal using the evidence below${affinityAvailable ? ', plus the fund\'s Affinity CRM when the question is about relationship history' : ''}. If the evidence does not contain the answer, say so plainly and suggest where the partner could look (a missing document, a research gap, a question to ask the founders).
-
-Rules:
-- Be concise and direct. No throat-clearing.
-- Never fabricate numbers, names, or sources.
-- When you cite a document, reference it by its file name as listed in DATA-ROOM EVIDENCE.
-- If multiple sources agree, say so. If they contradict, surface the contradiction.
-- Stage-aware: ${ctx.stage ? `this is a ${ctx.stage} company, calibrate expectations accordingly` : 'no stage on record, ask the partner if it matters'}.${affinityBlock}
-
-Output format: return JSON ONLY of the form:
-{
-  "answer": "<your answer in plain text, 1–5 short paragraphs>",
-  "citations": [{ "document_id": "<doc_id from the evidence>", "summary": "<one-line note about what you took from this doc>" }]
-}
-
-Cite up to 5 documents. Only cite document_ids that actually appear in DATA-ROOM EVIDENCE.
-
-=== EVIDENCE ===
-${ctx.text}`
-
-  const userTurn = prior.length > 0
-    ? prior.map(m => `${m.role.toUpperCase()}: ${m.content}`).join('\n\n') + `\n\nUSER: ${question}`
-    : question
-
-  let answerText = ''
-  let citations: Array<{ document_id: string; summary: string }> = []
-  let affinityLookups: string[] = []
+  // The answer itself — prompt, provider, Affinity tool loop and citation validation all
+  // live in lib/diligence/qa-answer.ts, so the agent/MCP `diligence_ask` tool gives the
+  // same answer to the same question. What stays HERE is everything that writes: the
+  // conversation rows and the evidence-base promotion below. An agent must not do either.
+  let answerText: string
+  let citations: Array<{ document_id: string; summary: string }>
+  let affinityLookups: string[]
+  let model: string
   try {
-    let result: AIResult
-
-    if (affinityAvailable && provider.createToolLoop) {
-      const loop = await provider.createToolLoop({
-        model,
-        maxTokens: 1500,
-        system: withTopicalGuardrail(systemPrompt),
-        content: userTurn,
-        // Either our read-only tools, or Affinity's hosted MCP server if the
-        // fund opted into it (which also grants the model write access — see
-        // lib/affinity/tools.ts).
-        ...(useMcp
-          ? { mcpServers: [affinityMcpServer(affinityKey!)] }
-          : { tools: AFFINITY_TOOLS, executeTool: makeAffinityExecutor(affinityKey!) }),
-        maxIterations: 5,
-      })
-      result = loop
-      // Surfaced to the UI so the partner can see the assistant actually looked
-      // something up, rather than wondering where a claim came from.
-      affinityLookups = loop.toolCalls.filter(c => !c.isError).map(c => c.name)
-    } else {
-      result = await provider.createMessage({
-        model,
-        maxTokens: 1500,
-        system: withTopicalGuardrail(systemPrompt),
-        content: userTurn,
-      })
-    }
-
-    const { text, usage } = result
-    logAIUsage(admin, {
+    const result = await answerDealQuestion({
+      admin,
       fundId,
-      provider: providerType,
-      model,
+      dealId: params.id,
+      question,
+      history: prior,
+      userId,
       feature: 'diligence_qa_chat',
-      usage,
     })
-    const parsed = extractJsonObject(text)
-    if (parsed && typeof parsed === 'object') {
-      const obj = parsed as { answer?: unknown; citations?: unknown }
-      answerText = typeof obj.answer === 'string' ? obj.answer : text
-      if (Array.isArray(obj.citations)) {
-        const validIds = new Set(ctx.citableDocs.map(d => d.id))
-        citations = (obj.citations as any[])
-          .filter(c => c && typeof c === 'object' && typeof c.document_id === 'string' && validIds.has(c.document_id))
-          .slice(0, 5)
-          .map(c => ({ document_id: c.document_id, summary: typeof c.summary === 'string' ? c.summary : '' }))
-      }
-    } else {
-      // Model returned non-JSON — fall back to raw text rather than failing the turn.
-      answerText = text
-    }
+    answerText = result.answer
+    citations = result.citations
+    affinityLookups = result.affinityLookups
+    model = result.model
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
     return NextResponse.json({
@@ -218,6 +110,7 @@ ${ctx.text}`
       user_message: userMsg,
     }, { status: 500 })
   }
+
 
   const { data: assistantMsg, error: assistantErr } = await (admin as any)
     .from('diligence_qa_chats')

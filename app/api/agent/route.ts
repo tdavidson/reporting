@@ -12,6 +12,13 @@ export const dynamic = 'force-dynamic'
 // registry as the MCP server. Auth via a fund API key Bearer token.
 //   GET  → tool manifest (names, descriptions, input schemas)
 //   POST { tool, input } → run one tool
+//
+// Lives at /api/agent, alongside /api/mcp. It was originally /api/accounting/agent,
+// from when the tool registry exposed only ledger tools; it has since grown a whole
+// portfolio domain (companies, investments, LP positions, fund performance), so
+// `/accounting/` was a misnomer for a good third of what it does. Unlike the MCP
+// endpoint — which kept its old path working for already-issued keys and configs —
+// this one moved outright: nothing was pointed at it yet.
 
 export async function GET(req: NextRequest) {
   const admin = createAdminClient()

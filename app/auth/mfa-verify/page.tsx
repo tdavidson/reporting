@@ -6,11 +6,12 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { safeNextPath } from '@/lib/safe-redirect'
 import { Button } from '@/components/ui/button'
+import { AuthShell } from '@/components/auth-shell'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Building2, Loader2 } from 'lucide-react'
+import { Loader2 } from 'lucide-react'
 
 export default function MfaVerifyPage() {
   return (
@@ -115,16 +116,7 @@ function MfaVerifyForm() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-muted/40 p-4">
-      <div className="w-full max-w-md space-y-6">
-        <div className="text-center">
-          <Link href="/" className="inline-block group">
-            <div className="h-10 w-10 rounded bg-muted flex items-center justify-center mx-auto mb-2 transition-colors group-hover:bg-muted-foreground/20">
-              <Building2 className="h-5 w-5 text-muted-foreground" />
-            </div>
-            <h1 className="text-lg font-semibold tracking-tight">Portfolio Reporting</h1>
-          </Link>
-        </div>
+    <AuthShell>
 
         <Card>
           <CardHeader className="pb-4">
@@ -171,7 +163,6 @@ function MfaVerifyForm() {
             </p>
           </CardContent>
         </Card>
-      </div>
-    </div>
+    </AuthShell>
   )
 }
