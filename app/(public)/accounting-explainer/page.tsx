@@ -12,7 +12,7 @@ export default function AccountingExplainerPage() {
     <ExplainerContent
       title="Accounting"
       icon={Calculator}
-      screenshotSrc="/screenshots/accounting.png"
+      screenshotSrc="/screenshots/funds.png"
       screenshotLabel="Accounting — financial statements: balance sheet and statement of operations derived from the ledger"
     >
       <p className="text-muted-foreground">

@@ -102,17 +102,23 @@ describe('deriveMetrics', () => {
     expect(m.tvpi).toBe(1.5) // (50k + 700k) / 500k
   })
 
-  it('splits called from paid-in by the unpaid receivable', () => {
+  // PAID-IN IS CALLED CAPITAL, and an unpaid call does not change it.
+  //
+  // This test used to assert the opposite — paid_in = called − receivable — which meant
+  // `paid_in_capital` here denoted FUNDED, while the identically-named column on the
+  // `lp_investments` rows these are deliberately shaped like denotes CALLED. Every LP with an
+  // outstanding call therefore showed as a difference in the live-vs-snapshot reconciliation
+  // that was purely definitional, and their DPI/TVPI disagreed with their own snapshot.
+  it('an unpaid call does not reduce paid-in — capital is recognized when CALLED', () => {
     // 500k called, but 200k of it has not been wired yet.
     const a = acct({ contributions: 500_000, ending: 500_000 })
     const m = deriveMetrics(a, 1_000_000, 200_000)
 
     expect(m.called_capital).toBe(500_000)
-    expect(m.paid_in_capital).toBe(300_000) // called - receivable
-    // Unfunded is measured against CASH received, not against what was called.
-    expect(m.outstanding_balance).toBe(700_000)
-    // Ratios use paid-in, so an unpaid call must not deflate them.
-    expect(m.rvpi).toBeCloseTo(500_000 / 300_000, 4)
+    expect(m.paid_in_capital).toBe(500_000)      // = called. The 200k is unfunded, not un-paid-in.
+    expect(m.outstanding_balance).toBe(500_000)  // commitment − called: what is left to CALL.
+    // Ratios run off recognized capital, so they do not jump when the wire lands.
+    expect(m.rvpi).toBeCloseTo(1.0, 4)
   })
 
   it('treats an events vehicle (no receivable) as called === paid in', () => {

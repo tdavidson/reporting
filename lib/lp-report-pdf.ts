@@ -1,4 +1,5 @@
 import puppeteer from 'puppeteer-core'
+import { PDF_FONT_CSS, PDF_SANS, PDF_MONO } from '@/lib/pdf-fonts'
 import { sanitizeBasicHtml } from '@/lib/sanitize'
 
 // Shared LP investor-report rendering: HTML template + PDF rendering, used by the
@@ -178,22 +179,22 @@ export function buildReportHtml(opts: {
     <tr style="border-bottom:1px solid #e5e5e5;">
       <td style="padding:5px 8px 5px 5px;max-width:0;overflow:hidden;text-overflow:ellipsis;">${esc(r.entityName)}</td>
       <td style="padding:5px 5px 5px 8px;">${esc(r.portfolioGroup)}</td>
-      <td style="padding:5px;text-align:right;font-family:monospace;">${fmt(r.commitment)}</td>
-      <td style="padding:5px;text-align:right;font-family:monospace;">${fmt(r.paidInCapital)}</td>
-      <td style="padding:5px;text-align:right;font-family:monospace;">${fmt(r.distributions)}</td>
-      <td style="padding:5px;text-align:right;font-family:monospace;">${fmt(r.nav)}</td>
-      <td style="padding:5px;text-align:right;font-family:monospace;">${fmt(r.totalValue)}</td>
+      <td style="padding:5px;text-align:right;font-family:${PDF_MONO};">${fmt(r.commitment)}</td>
+      <td style="padding:5px;text-align:right;font-family:${PDF_MONO};">${fmt(r.paidInCapital)}</td>
+      <td style="padding:5px;text-align:right;font-family:${PDF_MONO};">${fmt(r.distributions)}</td>
+      <td style="padding:5px;text-align:right;font-family:${PDF_MONO};">${fmt(r.nav)}</td>
+      <td style="padding:5px;text-align:right;font-family:${PDF_MONO};">${fmt(r.totalValue)}</td>
     </tr>`).join('')
 
   const perfRows = rows.map(r => `
     <tr style="border-bottom:1px solid #e5e5e5;">
       <td style="padding:5px 8px 5px 5px;max-width:0;overflow:hidden;text-overflow:ellipsis;">${esc(r.entityName)}</td>
       <td style="padding:5px 5px 5px 8px;">${esc(r.portfolioGroup)}</td>
-      <td style="padding:5px;text-align:right;font-family:monospace;">${esc(fmtPct(r.pctFunded))}</td>
-      <td style="padding:5px;text-align:right;font-family:monospace;">${esc(fmtMoic(r.dpi))}</td>
-      <td style="padding:5px;text-align:right;font-family:monospace;">${esc(fmtMoic(r.rvpi))}</td>
-      <td style="padding:5px;text-align:right;font-family:monospace;">${esc(fmtMoic(r.tvpi))}</td>
-      <td style="padding:5px;text-align:right;font-family:monospace;">${esc(fmtPct(r.irr))}</td>
+      <td style="padding:5px;text-align:right;font-family:${PDF_MONO};">${esc(fmtPct(r.pctFunded))}</td>
+      <td style="padding:5px;text-align:right;font-family:${PDF_MONO};">${esc(fmtMoic(r.dpi))}</td>
+      <td style="padding:5px;text-align:right;font-family:${PDF_MONO};">${esc(fmtMoic(r.rvpi))}</td>
+      <td style="padding:5px;text-align:right;font-family:${PDF_MONO};">${esc(fmtMoic(r.tvpi))}</td>
+      <td style="padding:5px;text-align:right;font-family:${PDF_MONO};">${esc(fmtPct(r.irr))}</td>
     </tr>`).join('')
 
   const excludedNote = excludedGroupNames.length > 0
@@ -209,9 +210,9 @@ export function buildReportHtml(opts: {
   </colgroup>`
 
   return `<!DOCTYPE html>
-<html><head><meta charset="utf-8"><style>
+<html><head><meta charset="utf-8"><style>${PDF_FONT_CSS}
   * { margin:0; padding:0; box-sizing:border-box; }
-  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size:12px; color:#111; line-height:1.4; }
+  body { font-family: ${PDF_SANS}; font-size:12px; color:#111; line-height:1.4; }
   table { width:100%; border-collapse:collapse; table-layout:fixed; font-size:11px; }
   th { font-weight:600; }
   strong { font-weight:600; }
@@ -255,11 +256,11 @@ export function buildReportHtml(opts: {
       <tfoot>
         <tr style="border-top:2px solid #ccc;font-weight:600;">
           <td style="padding:5px;" colspan="2">Total</td>
-          <td style="padding:5px;text-align:right;font-family:monospace;">${fmt(totals.commitment)}</td>
-          <td style="padding:5px;text-align:right;font-family:monospace;">${fmt(totals.paidInCapital)}</td>
-          <td style="padding:5px;text-align:right;font-family:monospace;">${fmt(totals.distributions)}</td>
-          <td style="padding:5px;text-align:right;font-family:monospace;">${fmt(totals.nav)}</td>
-          <td style="padding:5px;text-align:right;font-family:monospace;">${fmt(totals.totalValue)}</td>
+          <td style="padding:5px;text-align:right;font-family:${PDF_MONO};">${fmt(totals.commitment)}</td>
+          <td style="padding:5px;text-align:right;font-family:${PDF_MONO};">${fmt(totals.paidInCapital)}</td>
+          <td style="padding:5px;text-align:right;font-family:${PDF_MONO};">${fmt(totals.distributions)}</td>
+          <td style="padding:5px;text-align:right;font-family:${PDF_MONO};">${fmt(totals.nav)}</td>
+          <td style="padding:5px;text-align:right;font-family:${PDF_MONO};">${fmt(totals.totalValue)}</td>
         </tr>
       </tfoot>
     </table>
@@ -283,10 +284,10 @@ export function buildReportHtml(opts: {
       <tfoot>
         <tr style="border-top:2px solid #ccc;font-weight:600;">
           <td style="padding:5px;" colspan="2">Total</td>
-          <td style="padding:5px;text-align:right;font-family:monospace;">${esc(fmtPct(totals.pctFunded))}</td>
-          <td style="padding:5px;text-align:right;font-family:monospace;">${esc(fmtMoic(totals.dpi))}</td>
-          <td style="padding:5px;text-align:right;font-family:monospace;">${esc(fmtMoic(totals.rvpi))}</td>
-          <td style="padding:5px;text-align:right;font-family:monospace;">${esc(fmtMoic(totals.tvpi))}</td>
+          <td style="padding:5px;text-align:right;font-family:${PDF_MONO};">${esc(fmtPct(totals.pctFunded))}</td>
+          <td style="padding:5px;text-align:right;font-family:${PDF_MONO};">${esc(fmtMoic(totals.dpi))}</td>
+          <td style="padding:5px;text-align:right;font-family:${PDF_MONO};">${esc(fmtMoic(totals.rvpi))}</td>
+          <td style="padding:5px;text-align:right;font-family:${PDF_MONO};">${esc(fmtMoic(totals.tvpi))}</td>
           <td style="padding:5px;"></td>
         </tr>
       </tfoot>
@@ -445,9 +446,9 @@ export function buildLetterHtml(opts: {
   const footer = `${asOfFormatted ? `As of ${esc(asOfFormatted)}. ` : ''}This letter is provided to limited partners for informational purposes. All figures are reported net of expenses, including estimated carried interest.`
 
   return `<!DOCTYPE html>
-<html><head><meta charset="utf-8"><style>
+<html><head><meta charset="utf-8"><style>${PDF_FONT_CSS}
   * { margin:0; padding:0; box-sizing:border-box; }
-  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size:12px; color:#111; line-height:1.4; }
+  body { font-family: ${PDF_SANS}; font-size:12px; color:#111; line-height:1.4; }
   table { width:100%; border-collapse:collapse; font-size:11px; }
   th { font-weight:600; text-align:left; padding:5px 8px; border-bottom:2px solid #ccc; }
   td { padding:5px 8px; border-top:1px solid #e5e5e5; }

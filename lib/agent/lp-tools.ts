@@ -296,7 +296,7 @@ export const LP_HANDLERS: Record<string, AgentToolHandler> = {
         commitment: r.commitment,
         called: r.called,
         funded: r.funded,
-        outstanding: r.outstanding,   // commitment - funded (uncalled)
+        outstanding: r.outstanding,   // remaining to be called (commitment - called)
         receivable: r.receivable,     // called but not yet funded
         ending_balance: r.ending,
       })),

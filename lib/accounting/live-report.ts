@@ -79,10 +79,15 @@ const ratio = (num: number, den: number): number | null =>
  * `contributions` arrives positive and `distributions` arrives NEGATIVE. `lp_investments`
  * stores distributions as a positive cumulative figure, hence the negation.
  *
- * called vs paid-in: `called` is capital recognised by a call; `paid_in` is cash actually
- * received. They differ by the LP's unpaid receivable balance. On an events vehicle the
- * receivable is always 0, so the two coincide — correct, because an event is only recorded
- * when money moves.
+ * called vs paid-in: they are THE SAME NUMBER. Capital is recognised when it is CALLED, and
+ * an LP snapshot's `paid_in_capital` means exactly that — recognised, and possibly still
+ * unfunded. What differs from both is FUNDED (`called − receivable`): the cash that has
+ * actually arrived. On an events vehicle there is no receivable, so all three coincide.
+ *
+ * This block used to claim paid-in was "cash actually received", and the code agreed — which
+ * put a different meaning behind `paid_in_capital` here than in the `lp_investments` rows
+ * these are deliberately shaped like, and turned every outstanding call into a phantom
+ * reconciliation break.
  */
 /**
  * One LP's IRR from their dated capital movements.
@@ -128,8 +133,20 @@ export function deriveMetrics(
   receivable: number,
   irr: number | null = null
 ): LiveMetrics {
+  // PAID-IN IS CALLED CAPITAL. Capital is recognized when it is CALLED, not when the cash
+  // lands, and an LP snapshot uses `paid_in_capital` to mean exactly that — recognized, and
+  // possibly still unfunded.
+  //
+  // This used to be `called − receivable` (i.e. FUNDED) while emitting it under the name
+  // `paid_in_capital`, in rows shaped deliberately like `lp_investments`. So the same field
+  // name meant two different things on the two sides of the live-vs-snapshot reconciliation,
+  // and any LP with an outstanding call showed as a break that wasn't one. It also made DPI
+  // and TVPI here disagree with the same LP's snapshot for no reason a reader could see.
+  //
+  // `funded` is still available — it is `called − receivable` — but it is not the
+  // denominator and it is not "paid in".
   const called = roundCents(account.contributions)
-  const paidIn = roundCents(called - receivable)
+  const paidIn = called
   const distributions = roundCents(-account.distributions)
   const nav = roundCents(account.ending)
   const totalValue = roundCents(nav + distributions)

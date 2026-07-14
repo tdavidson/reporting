@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
+import { useLpPortalEnabled } from '@/components/feature-visibility-context'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Loader2, Send, CheckCircle2 } from 'lucide-react'
 
@@ -31,6 +32,7 @@ const KIND_LABEL: Record<'snapshot' | 'letter' | 'document', string> = {
 export function LpSendControl({ kind, id, itemTitle }: {
   kind: 'snapshot' | 'letter' | 'document'; id: string; itemTitle?: string
 }) {
+  const lpPortalEnabled = useLpPortalEnabled()
   const [open, setOpen] = useState(false)
   const [eligible, setEligible] = useState<Investor[]>([])
   const [selected, setSelected] = useState<Set<string>>(new Set())
@@ -96,6 +98,12 @@ export function LpSendControl({ kind, id, itemTitle }: {
     setMessage('')
     setDelivery('link')
   }
+
+  // With the portal off there is nobody to send to: for a snapshot or a letter the eligible
+  // recipients ARE the investors the item is shared with (app/api/lps/send/route.ts), and
+  // sharing is a portal action. So the dialog would open onto an empty list. Hooks run
+  // first, then bail, so the hook order never changes.
+  if (!lpPortalEnabled) return null
 
   return (
     <>

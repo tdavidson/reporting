@@ -1,8 +1,9 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useLpPortalEnabled, useIsAdmin } from '@/components/feature-visibility-context'
 import Link from 'next/link'
-import { Loader2, Plus, FileText, Check, AlertTriangle, PhoneCall, ChevronRight } from 'lucide-react'
+import { Loader2, Plus, FileText, Check, AlertTriangle, Landmark, ChevronRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useCurrency, formatCurrencyPrice } from '@/components/currency-context'
@@ -11,6 +12,7 @@ import { PERIOD_PRESETS, type PeriodPreset } from '@/lib/accounting/statement-pe
 import { ReconciliationPanel } from './reconciliation-panel'
 import { CapitalSourceCard, type CapitalSource } from './capital-source-card'
 import { EventsPanel } from './events-panel'
+import { GpPanel } from './gp-panel'
 
 interface Account {
   beginning: number
@@ -43,12 +45,30 @@ interface CallLine { lpEntityId: string; name: string; amount: number }
 interface CallRow { id: string; callDate: string; description: string | null; scope: string; total: number; lines: CallLine[] }
 interface Period { preset: PeriodPreset; start: string | null; end: string | null; label: string }
 
-/** Commitment / unfunded come from the call register; the rest is the roll-forward.
+/** Commitment / called / funded come from the call register; the rest is the roll-forward.
  *  They live on one table because "funded vs outstanding" is just the capital account
- *  seen from the commitment side — it was the duplicated half of the Capital calls page. */
-const COMMITMENT_COLUMNS: { key: 'commitment' | 'outstanding' | 'receivable'; label: string }[] = [
-  { key: 'commitment', label: 'Commitment' },
-  { key: 'outstanding', label: 'Unfunded' },
+ *  seen from the commitment side — it was the duplicated half of the Capital calls page.
+ *
+ *  COMMITTED and CALLED are separate columns on purpose. They are different facts and the
+ *  table used to show neither directly — you got Commitment and Unfunded and had to infer
+ *  what had actually been called from the gap between them. The four now read left to
+ *  right as the life of a commitment:
+ *
+ *    Committed              — what the LP signed up for
+ *    Called                 — what has been asked for so far (capital is recognized here)
+ *    Funded                 — what actually arrived (called − receivable)
+ *    Remaining to be called — commitment − called
+ *    Called, unpaid         — the receivable: called, not yet in the bank
+ *
+ *  The last two are DISJOINT. `outstanding` used to be commitment − funded, which silently
+ *  included the receivable, so those two columns double-counted. Total cash the LP still
+ *  owes is the sum of them. `Called, unpaid` only appears when a vehicle has a receivable,
+ *  because an events-tracked vehicle never does. */
+const COMMITMENT_COLUMNS: { key: 'commitment' | 'called' | 'funded' | 'outstanding' | 'receivable'; label: string }[] = [
+  { key: 'commitment', label: 'Committed' },
+  { key: 'called', label: 'Called' },
+  { key: 'funded', label: 'Funded' },
+  { key: 'outstanding', label: 'Remaining to be called' },
   { key: 'receivable', label: 'Called, unpaid' },
 ]
 
@@ -71,6 +91,8 @@ const COLUMNS: { key: keyof Account; label: string }[] = [
 ]
 
 export function CapitalAccountsView() {
+  const lpPortalEnabled = useLpPortalEnabled()
+  const isAdmin = useIsAdmin()
   const currency = useCurrency()
   const fmt = (v: number) => formatCurrencyPrice(v, currency)
   const lf = useLedgerFetch()
@@ -265,13 +287,18 @@ export function CapitalAccountsView() {
         <Button size="sm" variant="outline" onClick={() => setShowAdd(v => !v)}><Plus className="h-4 w-4 mr-1" />Add LP</Button>
         {!isEvents && (
           <Button size="sm" variant="outline" onClick={() => setShowCall(v => !v)} disabled={rows.length === 0}>
-            <PhoneCall className="h-4 w-4 mr-1" />Issue a capital call
+            <Landmark className="h-4 w-4 mr-1" />Issue a capital call
           </Button>
         )}
-        <Button size="sm" variant="outline" onClick={publishStatements} disabled={publishing || rows.length === 0}>
-          {publishing ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <FileText className="h-4 w-4 mr-1" />}
-          Publish statements to LP portal
-        </Button>
+        {/* Only offer to publish into a portal the LPs can actually open. With the portal
+            off, this button used to sit here and "work" — writing statements nobody could
+            reach, and telling the GP they'd been sent. */}
+        {lpPortalEnabled && (
+          <Button size="sm" variant="outline" onClick={publishStatements} disabled={publishing || rows.length === 0}>
+            {publishing ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <FileText className="h-4 w-4 mr-1" />}
+            Publish statements to LP portal
+          </Button>
+        )}
         {err && <span className="text-xs text-amber-600">{err}</span>}
       </div>
 
@@ -300,6 +327,23 @@ export function CapitalAccountsView() {
             </select>
           </label>
           <Button size="sm" onClick={addLp} disabled={adding}>{adding && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}Add</Button>
+          {/* A way out. The panel could only be dismissed by adding an LP or navigating away,
+              which is a bad trade for a mis-click. Clears the fields on the way, so reopening
+              doesn't resurrect a half-typed name. */}
+          <Button
+            size="sm"
+            variant="ghost"
+            disabled={adding}
+            onClick={() => {
+              setShowAdd(false)
+              setName('')
+              setCommitment('')
+              setPartnerClass('lp')
+              setErr(null)
+            }}
+          >
+            Cancel
+          </Button>
         </div>
       )}
 
@@ -409,7 +453,7 @@ export function CapitalAccountsView() {
                 return (
                   <tr key={r.lpEntityId} className="border-b last:border-b-0 hover:bg-muted/30">
                     <td className="px-3 py-2">
-                      <Link href={`/accounting/capital-accounts/${r.lpEntityId}`} className="hover:underline">{r.name}</Link>
+                      <Link href={`/funds/capital-accounts/${r.lpEntityId}`} className="hover:underline">{r.name}</Link>
                       {r.partnerClass === 'gp' && <span className="ml-1.5 text-[10px] uppercase tracking-wider px-1 py-0.5 rounded bg-muted text-muted-foreground">GP</span>}
                     </td>
                     {commitmentCols.map(c => (
@@ -465,6 +509,14 @@ export function CapitalAccountsView() {
           <EventsPanel onChange={load} />
         </div>
       )}
+
+      {/* GP / associate entity economics. Renders itself to nothing on an ordinary vehicle,
+          so there is no condition to keep in sync here. It sits with the capital accounts
+          because ownership and carry points are what SPLIT those accounts — the numbers
+          above are the ones it explains. */}
+      <div className="pt-6">
+        <GpPanel isAdmin={isAdmin} />
+      </div>
 
       {/* Reconciling against the incumbent administrator's statement compares one
           partner's capital account, line by line — so it belongs with the capital

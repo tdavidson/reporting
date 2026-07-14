@@ -5,7 +5,18 @@
 //   called      = Σ capital_call_lines.amount for the LP (the register)
 //   receivable  = the LP's balance in account 1300 (from the posted ledger)
 //   funded      = called − receivable   (cash actually received)
-//   outstanding = commitment − funded   (commitment still to be paid in)
+//   outstanding = commitment − called   (commitment REMAINING TO BE CALLED)
+//
+// `outstanding` used to be `commitment − funded`, which is uncalled capital PLUS the
+// receivable — so it overlapped with `receivable` and the two double-counted anywhere both
+// were shown (the capital-accounts table and the LP statement PDF both show both). It also
+// disagreed with `live-report.ts`, where `outstanding_balance = commitment − paidIn`, and
+// with the LP snapshot's `outstanding_balance` ("remaining uncalled commitment") — so the
+// same LP could read a different number on their statement than on their snapshot.
+//
+// The four are now disjoint and read left to right as the life of a commitment:
+//   committed → called → funded, with `outstanding` still to be called and `receivable`
+//   called but not yet in the bank. Total cash the LP still owes = outstanding + receivable.
 //
 // The reporting functions here go through `loadCapitalPostings`, NOT `loadPostedLedger`,
 // so they serve a capital-tracking-only vehicle (capital_source='events') as well as a
@@ -199,11 +210,17 @@ export interface LpCapitalRow {
   lpEntityId: string
   name: string
   partnerClass: string
+  /** What the LP signed up for. */
   commitment: number
+  /** What has been asked for so far. Capital is recognized here, not at funding. */
   called: number
+  /** What actually arrived: called − receivable. */
   funded: number
+  /** Remaining to be CALLED: commitment − called. Disjoint from `receivable`. */
   outstanding: number
+  /** Called but not yet in the bank (acct 1300). Always 0 on an events vehicle. */
   receivable: number
+  /** Capital-account ending balance (the LP's NAV). */
   ending: number
 }
 
@@ -233,24 +250,48 @@ export async function lpCapitalSummary(
 
   const rows: LpCapitalRow[] = Array.from(ids).map(lpEntityId => {
     const acct = accountByLp.get(lpEntityId)
-    const commitment = roundCents(commitmentByLp.get(lpEntityId) ?? 0)
-    // Called = capital recognized via call entries (the contributions bucket).
-    const called = roundCents(acct?.contributions ?? 0)
-    const receivable = roundCents(receivableByLp.get(lpEntityId) ?? 0)
-    const funded = roundCents(called - receivable) // cash actually received
     return {
       lpEntityId,
       name: names.get(lpEntityId) ?? lpEntityId,
       partnerClass: classes.get(lpEntityId) ?? 'lp',
-      commitment,
-      called,
-      funded,
-      outstanding: roundCents(commitment - funded),
-      receivable,
+      ...commitmentFigures(
+        commitmentByLp.get(lpEntityId) ?? 0,
+        // Called = capital recognized via call entries (the contributions bucket).
+        acct?.contributions ?? 0,
+        receivableByLp.get(lpEntityId) ?? 0,
+      ),
       ending: roundCents(acct?.ending ?? 0),
     }
   })
   return rows.sort((a, b) => a.name.localeCompare(b.name))
+}
+
+/**
+ * The commitment-side arithmetic, pulled out so it can be pinned by a test.
+ *
+ * It is four numbers and it silently changed meaning once already, so it gets to be a
+ * function rather than four expressions buried in a `.map`.
+ *
+ * The invariant that matters: `outstanding` and `receivable` are DISJOINT. One is capital
+ * not yet asked for, the other is capital asked for and not yet received. Total cash the
+ * LP still owes is the sum of them — which is what `outstanding` used to be on its own,
+ * which is why it double-counted against `receivable` wherever both were displayed.
+ */
+export function commitmentFigures(
+  commitmentRaw: number,
+  calledRaw: number,
+  receivableRaw: number,
+): { commitment: number; called: number; funded: number; outstanding: number; receivable: number } {
+  const commitment = roundCents(commitmentRaw)
+  const called = roundCents(calledRaw)
+  const receivable = roundCents(receivableRaw)
+  return {
+    commitment,
+    called,
+    funded: roundCents(called - receivable),      // cash actually received
+    outstanding: roundCents(commitment - called), // remaining to be called
+    receivable,
+  }
 }
 
 export interface LpStatementTxn {

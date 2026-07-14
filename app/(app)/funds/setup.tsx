@@ -111,10 +111,10 @@ export function AccountingSetup({ alwaysShow = false }: { alwaysShow?: boolean }
       {path === 'full_history' && (
         <>
           <ol className="text-sm text-muted-foreground space-y-1 list-decimal ml-4">
-            <li><Link href="/accounting/bank" className="underline underline-offset-2 hover:text-foreground">Import the bank history</Link> (CSV/XLS) — dated cash back to inception.</li>
+            <li><Link href="/funds/bank" className="underline underline-offset-2 hover:text-foreground">Import the bank history</Link> (CSV/XLS) — dated cash back to inception.</li>
             <li>Categorize, and match inflows to capital calls / the investment purchase.</li>
-            <li><Link href="/accounting/schedule-of-investments" className="underline underline-offset-2 hover:text-foreground">Replay the investment history</Link> — each purchase and mark posts on the date it happened, so gains land in the period they were earned.</li>
-            <li><Link href="/accounting/allocation-terms" className="underline underline-offset-2 hover:text-foreground">Set the allocation terms</Link>, then <Link href="/accounting/periods" className="underline underline-offset-2 hover:text-foreground">close each period</Link> to allocate P&amp;L to partners.</li>
+            <li><Link href="/funds/schedule-of-investments" className="underline underline-offset-2 hover:text-foreground">Replay the investment history</Link> — each purchase and mark posts on the date it happened, so gains land in the period they were earned.</li>
+            <li><Link href="/funds/allocation-terms" className="underline underline-offset-2 hover:text-foreground">Set the allocation terms</Link>, then <Link href="/funds/periods" className="underline underline-offset-2 hover:text-foreground">close each period</Link> to allocate P&amp;L to partners.</li>
             <li>Reconcile capital accounts against the LP snapshot (Reconciliation → Load from LP snapshot).</li>
           </ol>
           <p className="text-xs text-muted-foreground">
@@ -133,7 +133,7 @@ export function AccountingSetup({ alwaysShow = false }: { alwaysShow?: boolean }
           {bootstrapMsg && <p className="text-xs text-muted-foreground">{bootstrapMsg}</p>}
           <p className="text-xs text-muted-foreground">
             Prefer to type each LP&rsquo;s balance from their statement instead?{' '}
-            <Link href="/accounting/opening-balances" className="underline underline-offset-2 hover:text-foreground">Enter opening balances manually</Link>.
+            <Link href="/funds/opening-balances" className="underline underline-offset-2 hover:text-foreground">Enter opening balances manually</Link>.
           </p>
         </div>
       )}
@@ -150,7 +150,7 @@ export function AccountingSetup({ alwaysShow = false }: { alwaysShow?: boolean }
               <span className="text-muted-foreground">
                 Investments are on the ledger ({inv.positions} {inv.positions === 1 ? 'position' : 'positions'}).
               </span>
-              <Link href="/accounting/schedule-of-investments" className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2">
+              <Link href="/funds/schedule-of-investments" className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2">
                 Schedule of investments
               </Link>
             </>
@@ -163,7 +163,7 @@ export function AccountingSetup({ alwaysShow = false }: { alwaysShow?: boolean }
                   : ' — one snapshot at the cutover date.'}
               </span>
               <Button size="sm" variant="outline" asChild>
-                <Link href="/accounting/schedule-of-investments">
+                <Link href="/funds/schedule-of-investments">
                   {path === 'full_history' ? 'Replay investment history' : 'Book investments'}
                 </Link>
               </Button>

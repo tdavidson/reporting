@@ -13,6 +13,7 @@
 // moment you publish.
 
 import { renderHtmlToPdf } from '@/lib/lp-report-pdf'
+import { PDF_FONT_CSS, PDF_SANS, PDF_MONO } from '@/lib/pdf-fonts'
 import { getCurrencySymbol } from '@/lib/currency'
 import { lpStatement } from './capital-calls'
 import { CAPITAL_ACCOUNT_LABELS, ACTIVITY_FIELDS, type CapitalAccount } from './capital-account'
@@ -56,7 +57,7 @@ export interface StatementPdfData {
   vehicle: string
   partnerName: string
   period: StatementPeriod
-  row: { commitment: number; funded: number; outstanding: number; receivable: number; ending: number }
+  row: { commitment: number; called: number; funded: number; outstanding: number; receivable: number; ending: number }
   periodRollForward: CapitalAccount
   rollForward: CapitalAccount
   transactions: { date: string; memo: string | null; sourceType: string | null; amount: number }[]
@@ -75,8 +76,8 @@ export function buildStatementHtml(d: StatementPdfData): string {
   const row = (label: string, period: number, itd: number, bold = false) => `
     <tr${bold ? ' style="font-weight:600;background:#fafafa;"' : ''}>
       <td style="padding:6px 8px;border-top:1px solid #e5e5e5;">${esc(label)}</td>
-      <td style="padding:6px 8px;border-top:1px solid #e5e5e5;text-align:right;font-family:monospace;">${m(period)}</td>
-      <td style="padding:6px 8px;border-top:1px solid #e5e5e5;text-align:right;font-family:monospace;">${m(itd)}</td>
+      <td style="padding:6px 8px;border-top:1px solid #e5e5e5;text-align:right;font-family:${PDF_MONO};">${m(period)}</td>
+      <td style="padding:6px 8px;border-top:1px solid #e5e5e5;text-align:right;font-family:${PDF_MONO};">${m(itd)}</td>
     </tr>`
 
   const rollForwardRows = [
@@ -104,23 +105,26 @@ export function buildStatementHtml(d: StatementPdfData): string {
       <tbody>
         ${txns.map(t => `
           <tr>
-            <td style="padding:5px 8px;border-top:1px solid #e5e5e5;font-family:monospace;">${esc(t.date)}</td>
+            <td style="padding:5px 8px;border-top:1px solid #e5e5e5;font-family:${PDF_MONO};">${esc(t.date)}</td>
             <td style="padding:5px 8px;border-top:1px solid #e5e5e5;">${esc(TXN_LABELS[t.sourceType ?? ''] ?? t.memo ?? 'Capital movement')}</td>
-            <td style="padding:5px 8px;border-top:1px solid #e5e5e5;text-align:right;font-family:monospace;">${m(t.amount)}</td>
+            <td style="padding:5px 8px;border-top:1px solid #e5e5e5;text-align:right;font-family:${PDF_MONO};">${m(t.amount)}</td>
           </tr>`).join('')}
       </tbody>
     </table>`
 
+  // Capital is recognized when it is CALLED, not when the cash lands — which is why
+  // "Called capital" is the headline and matches the contributions line in the
+  // roll-forward above. This used to print `funded` as "Contributed capital", so the
+  // summary and the roll-forward disagreed by exactly the receivable whenever a call was
+  // outstanding. The receivable now gets its own line whenever there is one, rather than
+  // being suppressed by a comparison against a figure it used to be double-counted in.
   const summary = [
     ['Commitment', m(d.row.commitment)],
-    ['Contributed capital', m(d.row.funded)],
-    ['Unfunded commitment', m(d.row.outstanding)],
-    // Only worth a line when it differs from the unfunded commitment. Once the whole
-    // commitment has been called they're the same number, and printing both reads as
-    // a duplicate rather than a distinction.
-    ...(Math.abs(d.row.receivable - d.row.outstanding) > 0.004
-      ? [['Called, not yet funded', m(d.row.receivable)]]
+    ['Called capital', m(d.row.called)],
+    ...(Math.abs(d.row.receivable) > 0.004
+      ? [['— of which not yet funded', m(d.row.receivable)]]
       : []),
+    ['Remaining to be called', m(d.row.outstanding)],
     ['Ownership', pct(d.ownership)],
     ['Ending capital (NAV)', m(d.row.ending)],
   ]
@@ -130,9 +134,9 @@ export function buildStatementHtml(d: StatementPdfData): string {
     : d.period.label
 
   return `<!DOCTYPE html>
-<html><head><meta charset="utf-8"><style>
+<html><head><meta charset="utf-8"><style>${PDF_FONT_CSS}
   * { margin:0; padding:0; box-sizing:border-box; }
-  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size:12px; color:#111; line-height:1.4; }
+  body { font-family: ${PDF_SANS}; font-size:12px; color:#111; line-height:1.4; }
   table { width:100%; border-collapse:collapse; font-size:11px; }
   th { font-weight:600; text-align:left; padding:5px 8px; border-bottom:2px solid #ccc; color:#555; }
 </style></head><body>
@@ -171,7 +175,7 @@ export function buildStatementHtml(d: StatementPdfData): string {
         ${summary.map(([k, v]) => `
           <tr>
             <td style="padding:5px 8px;border-top:1px solid #e5e5e5;">${esc(k)}</td>
-            <td style="padding:5px 8px;border-top:1px solid #e5e5e5;text-align:right;font-family:monospace;">${v}</td>
+            <td style="padding:5px 8px;border-top:1px solid #e5e5e5;text-align:right;font-family:${PDF_MONO};">${v}</td>
           </tr>`).join('')}
       </tbody>
     </table>

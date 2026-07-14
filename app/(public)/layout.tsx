@@ -50,7 +50,7 @@ const PRODUCT_ITEMS: { href: string; label: string; icon: LucideIcon }[] = [
   { href: '/diligence-explainer', label: 'Diligence', icon: Microscope },
   { href: '/letters-explainer', label: 'Letters', icon: FileText },
   { href: '/lps-explainer', label: 'LPs', icon: Crown },
-  { href: '/accounting-explainer', label: 'Accounting', icon: Calculator },
+  { href: '/funds-explainer', label: 'Accounting', icon: Calculator },
   { href: '/lp-portal-explainer', label: 'LP Portal', icon: Lock },
   { href: '/compliance-explainer', label: 'Compliance', icon: ShieldCheck },
   { href: '/settings-explainer', label: 'Settings', icon: Settings },

@@ -436,7 +436,7 @@ export function CompanyInvestments({ companyId, companyStatus, portfolioGroups, 
             <strong>{ledger.vehicle}</strong>&rsquo;s ledger. It is <strong>not posted</strong> until you review it.
           </span>
           <Link
-            href="/accounting/journal"
+            href="/funds/journal"
             className="ml-auto text-xs underline underline-offset-2 hover:text-foreground"
           >
             Review the entry

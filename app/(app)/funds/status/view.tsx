@@ -131,7 +131,7 @@ export function StatusView() {
           come to this page to find out. Amber when income is sitting unallocated,
           because until it's closed every partner's capital account understates. */}
       <Link
-        href="/accounting/periods"
+        href="/funds/periods"
         className={`flex items-center gap-3 rounded-lg border p-3 transition-colors hover:bg-muted/30 ${unallocated ? 'border-amber-500/40 bg-amber-500/5' : ''}`}
       >
         <Lock className={`h-4 w-4 shrink-0 ${unallocated ? 'text-amber-600' : 'text-muted-foreground'}`} />
@@ -155,7 +155,7 @@ export function StatusView() {
       {/* Allocation terms is configuration, not a workspace — it lives here rather than
           in the nav, next to the health check that surfaces when it's set wrong. */}
       <Link
-        href="/accounting/allocation-terms"
+        href="/funds/allocation-terms"
         className="flex items-center gap-3 rounded-lg border p-3 transition-colors hover:bg-muted/30"
       >
         <SlidersHorizontal className="h-4 w-4 shrink-0 text-muted-foreground" />

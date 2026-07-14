@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Loader2, Share2 } from 'lucide-react'
+import { useLpPortalEnabled } from '@/components/feature-visibility-context'
 
 interface Investor { id: string; name: string }
 
@@ -12,8 +13,14 @@ interface Investor { id: string; name: string }
  * see this item (snapshot or letter) in their portal. Share-only — inviting LPs
  * lives in Settings → LP access. `shareEndpoint` is the item's share route
  * (GET/POST { lp_investor_ids }). Render it inside an action-button row.
+ *
+ * Renders NOTHING when the LP portal is off. Sharing an item into a portal no LP can open
+ * is not a partial success, it is a no-op that looks like one — and the button used to sit
+ * there regardless, on the snapshot and letter pages, offering exactly that. Gated here
+ * rather than at each call site so no future caller can forget.
  */
 export function LpShareControl({ shareEndpoint }: { shareEndpoint: string }) {
+  const lpPortalEnabled = useLpPortalEnabled()
   const [open, setOpen] = useState(false)
   const [investors, setInvestors] = useState<Investor[]>([])
   const [shared, setShared] = useState<Set<string>>(new Set())
@@ -68,6 +75,9 @@ export function LpShareControl({ shareEndpoint }: { shareEndpoint: string }) {
   }
 
   const allShared = investors.length > 0 && investors.every(i => shared.has(i.id))
+
+  // Hooks first, then bail — the portal being off must not change the hook order.
+  if (!lpPortalEnabled) return null
 
   return (
     <>

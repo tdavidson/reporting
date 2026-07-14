@@ -92,8 +92,8 @@ export function OpeningBalancesView() {
           second time and double-count the fund&rsquo;s contributed capital.
         </p>
         <p className="text-muted-foreground">
-          Continue on the <Link href="/accounting" className="underline underline-offset-2 hover:text-foreground">Accounting</Link> page, or{' '}
-          <Link href="/accounting/bank" className="underline underline-offset-2 hover:text-foreground">import the bank history</Link>.
+          Continue on the <Link href="/funds" className="underline underline-offset-2 hover:text-foreground">Accounting</Link> page, or{' '}
+          <Link href="/funds/bank" className="underline underline-offset-2 hover:text-foreground">import the bank history</Link>.
         </p>
         <button onClick={() => setOverride(true)} className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground">
           I know what I&rsquo;m doing — enter them anyway

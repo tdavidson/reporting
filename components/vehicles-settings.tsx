@@ -5,7 +5,7 @@ import { Loader2, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 
-interface Vehicle { id: string; name: string; kind: string; aliases: string[]; active: boolean; serves_vehicle_id?: string | null; lp_entity_id?: string | null }
+interface Vehicle { id: string; name: string; kind: string; aliases: string[]; active: boolean; serves_vehicle_id?: string | null; lp_entity_id?: string | null; vintage_year?: number | null }
 interface LpEntity { id: string; entity_name: string }
 
 const KINDS = ['fund', 'spv', 'direct', 'associate', 'other'] as const
@@ -50,6 +50,13 @@ export function VehiclesSettings() {
   async function patch(id: string, changes: Partial<Vehicle>) {
     setVehicles(prev => prev.map(v => (v.id === id ? { ...v, ...changes } : v))) // optimistic
     await fetch('/api/vehicles', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, ...changes }) })
+  }
+
+  // The row holds snake_case (as the DB returns it) while the API takes camelCase, so this
+  // gets its own setter rather than going through `patch`, which passes keys straight through.
+  async function setVintage(id: string, vintageYear: number | null) {
+    setVehicles(prev => prev.map(v => (v.id === id ? { ...v, vintage_year: vintageYear } : v)))
+    await fetch('/api/vehicles', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, vintageYear }) })
   }
 
   // Link a GP/associate entity to the fund vehicle it serves.
@@ -108,6 +115,13 @@ export function VehiclesSettings() {
                   <select value={v.kind} onChange={e => patch(v.id, { kind: e.target.value })} className="h-7 rounded border border-input bg-transparent px-1.5 text-xs">
                     {KINDS.map(k => <option key={k} value={k}>{KIND_LABEL[k]}</option>)}
                   </select>
+                  {/* Vintage year. Nothing derives it, so it has to be stated — unlike carry
+                      rate and GP-commit %, which used to sit beside it on fund_group_config and
+                      are now obsolete (real waterfall terms; real accrued carry). */}
+                  <VintageInput
+                    value={v.vintage_year ?? null}
+                    onSave={y => setVintage(v.id, y)}
+                  />
                   {v.kind === 'associate' && (
                     <>
                       <select value={v.serves_vehicle_id ?? ''} onChange={e => setServes(v.id, e.target.value || null)} title="The fund vehicle this GP/associate entity serves — links their books for the assistant" className="h-7 rounded border border-input bg-transparent px-1.5 text-xs max-w-[160px]">
@@ -152,5 +166,27 @@ export function VehiclesSettings() {
         {error && <span className="text-xs text-destructive">{error}</span>}
       </div>
     </>
+  )
+}
+
+/** Vintage year — saves on blur, clears when emptied. */
+function VintageInput({ value, onSave }: { value: number | null; onSave: (y: number | null) => void }) {
+  const [draft, setDraft] = useState(value == null ? '' : String(value))
+  useEffect(() => { setDraft(value == null ? '' : String(value)) }, [value])
+
+  return (
+    <Input
+      value={draft}
+      onChange={e => setDraft(e.target.value.replace(/[^0-9]/g, '').slice(0, 4))}
+      onBlur={() => {
+        const next = draft === '' ? null : Number(draft)
+        if (next !== value) onSave(next)
+      }}
+      onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
+      placeholder="Vintage"
+      title="Vintage year"
+      inputMode="numeric"
+      className="h-7 w-[72px] text-xs"
+    />
   )
 }

@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { requireAccountingAccess } from '../guard'
 import { OpeningBalancesView } from './view'
+import { SnapshotCutover } from './snapshot-cutover'
 
 export const metadata: Metadata = { title: 'Opening balances' }
 
@@ -16,6 +17,13 @@ export default async function OpeningBalancesPage() {
           reconstruct history from inception.
         </p>
       </div>
+      {/* The bulk route in: copy an existing LP snapshot into every vehicle at once, rather
+          than typing each LP's balance by hand below. Fund-wide, so it sits above the
+          vehicle-scoped form. */}
+      <div className="mb-8">
+        <SnapshotCutover />
+      </div>
+
       <OpeningBalancesView />
     </div>
   )

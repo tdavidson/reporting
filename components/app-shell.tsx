@@ -25,12 +25,14 @@ interface AppShellProps {
   defaultAIProvider?: string
   updateAvailable?: boolean
   featureVisibility?: FeatureVisibilityMap
+  /** LP portal switched on for this fund. Gates every 'publish/share to LPs' button. */
+  lpPortalEnabled?: boolean
   children: React.ReactNode
 }
 
-export function AppShell({ fundName, fundLogo, userEmail, reviewBadge, settingsBadge, notesBadge, isAdmin, currency, hasAIKey, configuredProviders, defaultAIProvider, updateAvailable, featureVisibility, children }: AppShellProps) {
+export function AppShell({ fundName, fundLogo, userEmail, reviewBadge, settingsBadge, notesBadge, isAdmin, currency, hasAIKey, configuredProviders, defaultAIProvider, updateAvailable, featureVisibility, lpPortalEnabled, children }: AppShellProps) {
   return (
-    <FeatureVisibilityProvider value={featureVisibility ?? DEFAULT_FEATURE_VISIBILITY} isAdmin={isAdmin}>
+    <FeatureVisibilityProvider value={featureVisibility ?? DEFAULT_FEATURE_VISIBILITY} isAdmin={isAdmin} lpPortalEnabled={lpPortalEnabled ?? false}>
     <CurrencyProvider currency={currency ?? 'USD'}>
       <SidebarProvider>
         <AnalystProvider hasAIKey={hasAIKey ?? false} configuredProviders={configuredProviders ?? []} defaultAIProvider={defaultAIProvider ?? 'anthropic'} fundName={fundName}>

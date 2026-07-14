@@ -10,7 +10,7 @@ export default async function LpStatementPage({ params }: { params: { lpEntityId
   await requireAccountingAccess()
   return (
     <div className="px-4 md:pl-8 md:pr-4 pt-3 pb-8 w-full">
-      <Link href="/accounting/capital-accounts" className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground mb-4">
+      <Link href="/funds/capital-accounts" className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground mb-4">
         <ArrowLeft className="h-3.5 w-3.5" />Capital accounts
       </Link>
       <div className="mb-6 space-y-1">

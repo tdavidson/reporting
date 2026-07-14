@@ -8,5 +8,5 @@ import { redirect } from 'next/navigation'
 //
 // The route is kept as a redirect so existing links and bookmarks land somewhere useful.
 export default function LpEventsPage() {
-  redirect('/accounting/capital-accounts')
+  redirect('/funds/capital-accounts')
 }

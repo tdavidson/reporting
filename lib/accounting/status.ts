@@ -133,14 +133,14 @@ export async function vehicleStatus(
   const issues: StatusIssue[] = []
 
   if (!chartSeeded) {
-    issues.push({ level: 'blocker', title: 'Chart of accounts not seeded', detail: 'Nothing can be booked until the chart exists.', href: '/accounting', action: 'Seed the chart' })
+    issues.push({ level: 'blocker', title: 'Chart of accounts not seeded', detail: 'Nothing can be booked until the chart exists.', href: '/funds', action: 'Seed the chart' })
   }
   if (chartSeeded && !historyMode) {
-    issues.push({ level: 'blocker', title: 'Onboarding path not chosen', detail: 'Pick full history (rebuild from inception) or cutover (start at a date with opening balances).', href: '/accounting', action: 'Choose a path' })
+    issues.push({ level: 'blocker', title: 'Onboarding path not chosen', detail: 'Pick full history (rebuild from inception) or cutover (start at a date with opening balances).', href: '/funds', action: 'Choose a path' })
   }
   if (!bs.check || Math.abs(bs.check) > 0.004) {
     if (Math.abs(bs.check) > 0.004) {
-      issues.push({ level: 'blocker', title: 'Balance sheet does not balance', detail: `Assets less liabilities and partners' capital leaves ${bs.check.toFixed(2)}. Something is booked wrong.`, href: '/accounting/statements', action: 'Open the statements' })
+      issues.push({ level: 'blocker', title: 'Balance sheet does not balance', detail: `Assets less liabilities and partners' capital leaves ${bs.check.toFixed(2)}. Something is booked wrong.`, href: '/funds/statements', action: 'Open the statements' })
     }
   }
 
@@ -149,7 +149,7 @@ export async function vehicleStatus(
       level: 'blocker',
       title: `${bankNeedsAttention} bank transaction${bankNeedsAttention === 1 ? '' : 's'} not posted`,
       detail: 'Their income and expense is not in the ledger, so a close would allocate nothing for them — and then lock the period.',
-      href: '/accounting/bank',
+      href: '/funds/bank',
       action: 'Categorize and post',
     })
   }
@@ -158,7 +158,7 @@ export async function vehicleStatus(
       level: 'blocker',
       title: `${draftCount} journal entr${draftCount === 1 ? 'y is' : 'ies are'} still in draft`,
       detail: 'A draft has no effect on the ledger. Post or void it before closing the period it falls in.',
-      href: '/accounting/journal',
+      href: '/funds/journal',
       action: 'Review the journal',
     })
   }
@@ -173,7 +173,7 @@ export async function vehicleStatus(
       level: 'blocker',
       title: 'Investments are not on the ledger',
       detail: `The portfolio tracker holds ${positions.length} ${positions.length === 1 ? 'position' : 'positions'} in this vehicle (${trackerCost.toFixed(2)} at cost, ${trackerFv.toFixed(2)} at fair value), but the ledger carries no investment balance. The balance sheet and the schedule of investments are both wrong until they're booked.`,
-      href: '/accounting/schedule-of-investments',
+      href: '/funds/schedule-of-investments',
       action: 'Bootstrap investments',
     })
   } else if (soi.source === 'tracker' && (soi.costVariance !== 0 || soi.fairValueVariance !== 0)) {
@@ -181,7 +181,7 @@ export async function vehicleStatus(
       level: 'warning',
       title: 'Schedule of investments does not tie to the ledger',
       detail: `Cost is off by ${soi.costVariance.toFixed(2)} and fair value by ${soi.fairValueVariance.toFixed(2)}. A mark or purchase was recorded in one system and not the other.`,
-      href: '/accounting/schedule-of-investments',
+      href: '/funds/schedule-of-investments',
       action: 'Open the schedule',
     })
   }
@@ -193,7 +193,7 @@ export async function vehicleStatus(
       level: 'warning',
       title: `${offRows.length} ${offRows.length === 1 ? 'investment does' : 'investments do'} not tie to the ledger`,
       detail: `${offRows.slice(0, 3).map(r => r.name).join(', ')}${offRows.length > 3 ? `, and ${offRows.length - 3} more` : ''}. The tracker and the ledger disagree on cost or fair value for these positions.`,
-      href: '/accounting/schedule-of-investments',
+      href: '/funds/schedule-of-investments',
       action: 'Open the schedule',
     })
   }
@@ -203,7 +203,7 @@ export async function vehicleStatus(
       level: 'warning',
       title: `${bs.partnersCapital.unallocatedEarnings.toFixed(2)} of net income not allocated`,
       detail: "Fund-level statements are right, but each partner's capital account understates their NAV until the period is closed.",
-      href: '/accounting/periods',
+      href: '/funds/periods',
       action: 'Close the period',
     })
   }
@@ -230,16 +230,16 @@ export async function vehicleStatus(
         `plus unallocated earnings come to ${reconciled.toFixed(2)} — a gap of ${capitalGap.toFixed(2)}. ` +
         `Something is booked to partners' capital without being attributed to a partner, so every LP statement understates or overstates. ` +
         `Look for postings to the pooled capital account (3100/3000) that carry no partner.`,
-      href: '/accounting/journal',
+      href: '/funds/journal',
       action: 'Open the journal',
     })
   }
 
   if (partnersWithCommitment === 0 && owners.length > 0) {
-    issues.push({ level: 'warning', title: 'No partner has a commitment', detail: 'The close allocates pro-rata by commitment; with none set there is nothing to allocate on.', href: '/accounting/allocation-terms', action: 'Set commitments' })
+    issues.push({ level: 'warning', title: 'No partner has a commitment', detail: 'The close allocates pro-rata by commitment; with none set there is nothing to allocate on.', href: '/funds/allocation-terms', action: 'Set commitments' })
   }
   if (owners.length === 0) {
-    issues.push({ level: 'warning', title: 'No partners yet', detail: 'Add the LPs and GP entity that hold capital in this vehicle.', href: '/accounting/capital-accounts', action: 'Add partners' })
+    issues.push({ level: 'warning', title: 'No partners yet', detail: 'Add the LPs and GP entity that hold capital in this vehicle.', href: '/funds/capital-accounts', action: 'Add partners' })
   }
 
   return {

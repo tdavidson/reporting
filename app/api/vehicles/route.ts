@@ -22,7 +22,7 @@ export async function GET() {
   // serves_vehicle_id / lp_entity_id may not exist until their migrations are pushed — fall back.
   let rows = await (admin as any)
     .from('fund_vehicles')
-    .select('id, name, kind, aliases, active, serves_vehicle_id, lp_entity_id')
+    .select('id, name, kind, aliases, active, serves_vehicle_id, lp_entity_id, vintage_year')
     .eq('fund_id', gate.fundId)
     .order('active', { ascending: false })
     .order('name')
@@ -88,6 +88,22 @@ export async function PATCH(req: NextRequest) {
     update.kind = body.kind
   }
   if (body.active !== undefined) update.active = !!body.active
+
+  // Vintage year. A FACT about the vehicle, not a parameter of a calculation — it used to
+  // live on fund_group_config next to carry_rate and gp_commit_pct, both of which are now
+  // obsolete (real carry terms, real accrued carry). It is not, so it moved here.
+  if (body.vintageYear !== undefined) {
+    const raw = body.vintageYear
+    if (raw === null || raw === '') {
+      update.vintage_year = null
+    } else {
+      const y = Number(raw)
+      if (!Number.isInteger(y) || y < 1900 || y > 2200) {
+        return NextResponse.json({ error: 'Vintage year must be a year like 2021.' }, { status: 400 })
+      }
+      update.vintage_year = y
+    }
+  }
   // Link a GP/associate entity to the fund vehicle it serves (or clear it).
   if (body.servesVehicleId !== undefined) update.serves_vehicle_id = body.servesVehicleId || null
 

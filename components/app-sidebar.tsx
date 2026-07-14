@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Building2, ClipboardCheck, Mail, Upload, Send, Settings, LifeBuoy, PanelLeftClose, PanelLeftOpen, Monitor, Sun, Moon, BarChart3, TrendingUp, StickyNote, Lock, Users, Handshake, ArrowDownCircle, FileText, Briefcase, Crown, ShieldCheck, Lightbulb, Microscope, BookOpen } from 'lucide-react'
+import { Building2, ClipboardCheck, Mail, Upload, Send, Settings, LifeBuoy, PanelLeftClose, PanelLeftOpen, Monitor, Sun, Moon, BarChart3, TrendingUp, Lock, Users, Handshake, ArrowDownCircle, FileText, Briefcase, Crown, ShieldCheck, Lightbulb, Microscope, BookOpen } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { useTheme } from 'next-themes'
@@ -20,6 +20,8 @@ interface NavChild {
   label: string
   adminOnly?: boolean
   featureKey?: FeatureKey
+  /** Notes moved from a top-level item into Portfolio, and its unread count moved with it. */
+  badgeKey?: 'notes'
 }
 interface NavItem {
   href: string
@@ -56,24 +58,31 @@ const NAV_ITEMS: NavItem[] = [
       { href: '/investments',  label: 'Investments',  featureKey: 'investments' },
       { href: '/requests',     label: 'Asks',         featureKey: 'asks' },
       { href: '/interactions', label: 'Interactions', featureKey: 'interactions' },
-      { href: '/letters',      label: 'Letters',      featureKey: 'lp_letters' },
+      // Notes are about companies, so they belong under the portfolio rather than as a
+      // top-level peer of it.
+      { href: '/notes',        label: 'Notes',        featureKey: 'notes', badgeKey: 'notes' },
       { href: '/compliance',   label: 'Compliance',   featureKey: 'compliance' },
-      { href: '/funds',        label: 'Funds',        featureKey: 'funds' },
     ],
   },
-  { href: '/notes', label: 'Notes', icon: StickyNote, badgeKey: 'notes', featureKey: 'notes' },
   {
     href: '/lps', label: 'LPs', icon: Crown, featureKey: 'lps',
     children: [
-      { href: '/lp-portal',  label: 'Documents', featureKey: 'lp_portal' },
+      // Letters are written TO LPs — they sat under Portfolio, next to the companies they
+      // are about rather than the people they are for.
+      { href: '/letters',     label: 'Letters',   featureKey: 'lp_letters' },
+      { href: '/lp-portal',   label: 'Documents', featureKey: 'lp_portal' },
       { href: '/lp-activity', label: 'Activity',  featureKey: 'lp_activity' },
     ],
   },
   {
+    // Relabelled from "Accounting" to "Funds": the landing page is now the fund overview —
+    // performance per vehicle, derived from the ledger — and the ledger pages are what you
+    // click into. The old /funds page (typed-in numbers, estimated carry) redirects here.
+    //
     // No `adminOnly` — the featureKey already gates it (defaults to 'off', and a fund
     // that turns it on to 'admin' still only shows it to admins). Hard-coding adminOnly
     // on top of that also hid it from the read-only demo viewer, who should see the books.
-    href: '/accounting', label: 'Accounting', icon: BookOpen, featureKey: 'accounting',
+    href: '/funds', label: 'Funds', icon: BookOpen, featureKey: 'accounting',
     children: ACCOUNTING_SECTIONS.map(({ href, label }) => ({ href, label })),
   },
   { href: '/usage', label: 'Usage', icon: Users, adminOnly: true },
@@ -206,6 +215,11 @@ export function AppSidebar({ reviewBadge, settingsBadge, notesBadge, isAdmin, up
                       >
                         <span>{child.label}</span>
                         {childShowLock && <Lock className="h-3 w-3 text-amber-500 shrink-0" />}
+                        {child.badgeKey === 'notes' && (notesBadge ?? 0) > 0 && (
+                          <span className="ml-auto text-[10px] font-medium rounded-full bg-muted-foreground/15 px-1.5 py-0.5 tabular-nums">
+                            {notesBadge}
+                          </span>
+                        )}
                       </Link>
                     )
                   })}

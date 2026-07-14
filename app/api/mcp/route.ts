@@ -3,7 +3,7 @@
  *
  * The original path was /api/accounting/mcp, from when the server exposed only
  * ledger tools. It has since grown a whole portfolio domain (companies,
- * investments, LP positions, fund performance), so `/accounting/` is now a
+ * investments, LP positions, fund performance), so `/funds/` is now a
  * misnomer for roughly a third of what it does.
  *
  * This is the address to give people. /api/accounting/mcp still works and is not

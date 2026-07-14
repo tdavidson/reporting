@@ -84,7 +84,7 @@ export function LpStatementView({ lpEntityId }: { lpEntityId: string }) {
     { label: 'Commitment', value: row.commitment },
     { label: 'Called', value: row.called },
     { label: 'Funded', value: row.funded },
-    { label: 'Outstanding', value: row.outstanding },
+    { label: 'Remaining to be called', value: row.outstanding },
     { label: 'Unfunded call', value: row.receivable },
     { label: 'Ending NAV', value: row.ending },
   ]

@@ -288,7 +288,7 @@ export function StatementsView() {
                   <td className="px-3 py-2">
                     {p.id === 'gp'
                       ? p.name
-                      : <Link href={`/accounting/capital-accounts/${p.id}`} className="hover:underline">{p.name}</Link>}
+                      : <Link href={`/funds/capital-accounts/${p.id}`} className="hover:underline">{p.name}</Link>}
                   </td>
                   {CAP_COLS.map(c => <td key={c.key} className={`px-3 py-2 text-right font-mono ${c.key === 'ending' ? 'font-semibold' : ''}`}>{fmt(p[c.key] as number)}</td>)}
                 </tr>
