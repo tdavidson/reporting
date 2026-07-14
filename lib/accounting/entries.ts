@@ -235,13 +235,29 @@ export function buildTransferEntry(
   ])
 }
 
-/** Carried interest: debit each LP's capital by their carry share, credit GP capital. */
+/**
+ * Carried interest: debit each LP's capital by their carry share, credit the GP.
+ *
+ * `gpEntityId` names the PARTNER receiving the carry. Pass it and the credit lands in that
+ * partner's own capital account, carrying its `lp_entity_id` — which is what puts the amount
+ * into their `carriedInterest` roll-forward bucket, and what the associates look-through
+ * splits by carry points.
+ *
+ * Without it the credit goes to the pooled GP capital account (3000) with no partner attached.
+ * That still balances, but the carry then belongs to nobody in particular: it never appears in
+ * any partner's capital account, and it cannot be looked through. Only do that when the GP
+ * genuinely isn't modelled as a partner.
+ *
+ * Amounts may be NEGATIVE — an accrual reverses when NAV falls, and the entry simply runs the
+ * other way.
+ */
 export function buildCarryEntry(
   base: Base,
   perLpCarry: Map<string, number>,
   capMap: CapitalAccountMap,
   gpCapitalAccountId: string,
-  currency = 'USD'
+  currency = 'USD',
+  gpEntityId?: string | null
 ): JournalEntry {
   let total = 0
   const postings: Posting[] = []
@@ -250,6 +266,10 @@ export function buildCarryEntry(
     total = roundCents(total + amt)
     postings.push(lpDebit(capMap, lpEntityId, amt, currency))
   }
-  postings.push({ accountId: gpCapitalAccountId, amount: roundCents(-total), currency, lpEntityId: null })
+  postings.push(
+    gpEntityId
+      ? lpDebit(capMap, gpEntityId, roundCents(-total), currency)
+      : { accountId: gpCapitalAccountId, amount: roundCents(-total), currency, lpEntityId: null }
+  )
   return finalize(base, 'carried_interest', postings)
 }

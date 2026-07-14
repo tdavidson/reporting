@@ -18,7 +18,8 @@ import { importBankTransactions } from './bank-import'
 import { runCategorization } from './categorize-run'
 import { bookCapitalCallFromInflow } from './bank-match'
 import { exportLedgerText, postLedgerText } from './text-ledger-run'
-import { listPeriods, closePeriod } from './periods'
+import { listPeriods } from './periods'
+import { closeThrough } from './close'
 import { summarizeBankRec, type BankTxnState } from './bank'
 import { accountBalances } from './ledger'
 import { listVehicles } from './load'
@@ -88,8 +89,13 @@ const HANDLERS: Record<string, AgentToolHandler> = {
   post_entry: async ({ admin, fundId, portfolioGroup, userId }, input) => {
     const codes = await accountIdByCode(admin, fundId, portfolioGroup)
     const postings: Posting[] = (input.postings ?? []).map((p: any) => {
-      const accountId = p.accountId ?? codes.get(p.accountCode)
-      if (!accountId) throw new Error(`Unknown account code ${p.accountCode}`)
+      // BY CODE ONLY. A raw `accountId` used to be accepted and passed straight through, which
+      // let a caller name an account from a DIFFERENT vehicle — the entry still balanced, but the
+      // foreign leg was dropped from every statement built on this vehicle's chart. Resolving
+      // from the code means the account can only ever be one this vehicle owns.
+      // (persistEntry now re-checks this too; both belt and braces are cheap.)
+      const accountId = codes.get(String(p.accountCode))
+      if (!accountId) throw new Error(`Unknown account code ${p.accountCode} for ${portfolioGroup}`)
       return { accountId, amount: Number(p.amount), currency: p.currency ?? 'USD', lpEntityId: p.lpEntityId ?? null }
     })
     const entry: JournalEntry = { fundId, entryDate: input.entryDate, memo: input.memo ?? null, sourceType: input.sourceType ?? 'manual', postings }
@@ -118,8 +124,18 @@ const HANDLERS: Record<string, AgentToolHandler> = {
 
   list_periods: async ({ admin, fundId, portfolioGroup }) => listPeriods(admin, fundId, portfolioGroup),
 
+  // Closes THROUGH a date, allocating as it goes — the same single path the UI uses.
+  //
+  // This used to call the legacy `closePeriod`, which locked an arbitrary range and allocated
+  // NOTHING. Any P&L inside that range was then stranded permanently: never allocated to a
+  // partner, and unreachable by a real close, because `closeThrough` refuses to overlap an
+  // existing period. An external agent could silently and irreversibly break the books.
+  //
+  // The close is the only allocation path. There is no second one.
   close_period: async ({ admin, fundId, portfolioGroup, userId }, input) => {
-    const result = await closePeriod(admin, fundId, portfolioGroup, userId, String(input.periodStart), String(input.periodEnd), input.label)
+    const through = String(input.periodEnd ?? input.through ?? '')
+    if (!through) throw new Error('periodEnd (the date to close through) is required')
+    const result = await closeThrough(admin, fundId, portfolioGroup, userId, through)
     if ('error' in result) throw new Error(result.error)
     return result
   },
@@ -208,13 +224,36 @@ export function isLedgerTool(tool: AgentToolMeta): boolean {
 }
 
 /**
- * Resolve the vehicle (portfolio_group) an agent call targets: the explicit
- * `vehicle` argument, or the sole vehicle if the fund has exactly one. Throws
- * (with the list) when it's ambiguous.
+ * Resolve the vehicle (portfolio_group) a call targets: the explicit `vehicle` argument, or the
+ * sole vehicle if the fund has exactly one. Throws (with the list) when it's ambiguous.
+ *
+ * THE REQUESTED NAME IS VALIDATED AGAINST THE REGISTRY. It used to be returned verbatim — and
+ * since every accounting route funnels through here (via `resolveGroupOr400`), an arbitrary
+ * string reached the whole module. Most callees survived because `vehicleIdByName` returns null
+ * and they refuse; the chart-seed path did not, and would happily insert ~40 chart rows with
+ * `vehicle_id = NULL` and the caller's made-up name, repeatable with a fresh string every time.
+ * Those rows are invisible to every read (all of which filter on `vehicle_id`), which is exactly
+ * the orphan class the rest of the module works hard to prevent.
+ *
+ * Validating once, here, closes it everywhere instead of per-callee.
  */
 export async function resolveVehicle(admin: _Sb, fundId: string, requested?: string): Promise<string> {
-  if (requested) return requested
   const vehicles = await listVehicles(admin, fundId)
+
+  if (requested) {
+    const match = vehicles.find(v => v === requested)
+      // Tolerate case/whitespace, since these names come from URLs and hand-typed args.
+      ?? vehicles.find(v => v.trim().toLowerCase() === requested.trim().toLowerCase())
+    if (!match) {
+      throw new Error(
+        vehicles.length > 0
+          ? `Unknown vehicle "${requested}". This fund has: ${vehicles.join(', ')}`
+          : `Unknown vehicle "${requested}" — this fund has no vehicles yet.`
+      )
+    }
+    return match
+  }
+
   if (vehicles.length === 1) return vehicles[0]
   if (vehicles.length === 0) throw new Error('No vehicles found for this fund')
   throw new Error(`Specify a vehicle — this fund has several: ${vehicles.join(', ')}`)

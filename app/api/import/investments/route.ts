@@ -6,6 +6,7 @@ import { createFundAIProvider } from '@/lib/ai'
 import { logAIUsage } from '@/lib/ai/usage'
 import { logActivity } from '@/lib/activity'
 import { rateLimit } from '@/lib/rate-limit'
+import { draftEntryForTransaction } from '@/lib/accounting/from-portfolio'
 
 interface ParsedTransaction {
   company_name: string
@@ -28,6 +29,13 @@ interface ParsedTransaction {
   postmoney_valuation?: number
   latest_postmoney_valuation?: number
   exit_valuation?: number
+  /** Common / preferred / SAFE / note … — feeds the SOI's by-asset-type breakout. */
+  security_type?: string
+  /** 'mark' | 'fx' — keeps a currency move out of investment performance. */
+  valuation_change_source?: string
+  fx_value_change?: number
+  fx_rate?: number
+  prior_fx_rate?: number
   original_currency?: string
   original_investment_cost?: number
   original_share_price?: number
@@ -238,9 +246,15 @@ ${text}`,
     unrealizedCreated: 0,
     companiesMatched: 0,
     companiesCreated: 0,
+    /** Journal entries drafted from the imported rows. */
+    entriesDrafted: 0,
     errors: [] as string[],
+    /** Rows that were imported but implied no ledger entry, and why. Reported, not swallowed —
+     *  "10 imported, 0 booked" is something the user must be told, not left to discover. */
+    ledgerSkips: [] as string[],
   }
 
+  const ledgerSkips = results.ledgerSkips
   const matchedCompanies = new Set<string>()
 
   for (const pt of parsed.transactions) {
@@ -293,7 +307,7 @@ ${text}`,
       continue
     }
 
-    const { error: insertError } = await admin
+    const { data: inserted, error: insertError } = await admin
       .from('investment_transactions' as any)
       .insert({
         company_id: companyId,
@@ -327,7 +341,18 @@ ${text}`,
         original_current_share_price: pt.original_current_share_price ?? null,
         original_latest_postmoney_valuation: pt.original_latest_postmoney_valuation ?? null,
         portfolio_group: pt.portfolio_group ?? null,
+        // These three were silently dropped by the importer even though the single-create
+        // route writes them. `security_type` feeds the SOI's by-asset-type breakout;
+        // `valuation_change_source` + `fx_value_change` are what keep a currency move out of
+        // investment performance (1250/4300 rather than 1200/4200).
+        security_type: pt.security_type ?? null,
+        valuation_change_source: pt.valuation_change_source ?? null,
+        fx_value_change: pt.fx_value_change ?? null,
+        fx_rate: pt.fx_rate ?? null,
+        prior_fx_rate: pt.prior_fx_rate ?? null,
       })
+      .select('*')
+      .single()
 
     if (insertError) {
       results.errors.push(`Failed to insert ${txnType} for "${companyName}": ${insertError.message}`)
@@ -337,6 +362,18 @@ ${text}`,
     if (txnType === 'investment') results.investmentsCreated++
     else if (txnType === 'proceeds') results.proceedsCreated++
     else if (txnType === 'unrealized_gain_change') results.unrealizedCreated++
+
+    // Mirror to the ledger, exactly as the single-create route does. Without this an imported
+    // portfolio silently diverged from the books — every position present in the tracker and
+    // absent from the ledger — until someone happened to run a bootstrap or replay.
+    //
+    // Non-fatal by design: the import must not fail because a vehicle has no chart of
+    // accounts. Reasons are collected and reported, never swallowed.
+    if (inserted) {
+      const draft = await draftEntryForTransaction(admin, fundId, user.id, inserted, companyName)
+      if (draft.drafted) results.entriesDrafted++
+      else if (draft.reason) ledgerSkips.push(`${companyName} (${txnType}): ${draft.reason}`)
+    }
   }
 
   logActivity(admin, fundId, user.id, 'import.investments', {

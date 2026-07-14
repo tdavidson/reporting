@@ -19,10 +19,10 @@ export async function GET() {
   const gate = await assertAdminAccess(admin, user.id)
   if (gate instanceof NextResponse) return gate
 
-  // serves_vehicle_id may not exist until its migration is pushed — fall back.
+  // serves_vehicle_id / lp_entity_id may not exist until their migrations are pushed — fall back.
   let rows = await (admin as any)
     .from('fund_vehicles')
-    .select('id, name, kind, aliases, active, serves_vehicle_id')
+    .select('id, name, kind, aliases, active, serves_vehicle_id, lp_entity_id')
     .eq('fund_id', gate.fundId)
     .order('active', { ascending: false })
     .order('name')
@@ -90,6 +90,19 @@ export async function PATCH(req: NextRequest) {
   if (body.active !== undefined) update.active = !!body.active
   // Link a GP/associate entity to the fund vehicle it serves (or clear it).
   if (body.servesVehicleId !== undefined) update.serves_vehicle_id = body.servesVehicleId || null
+
+  // AND as WHOM it holds that position. The associates look-through needs both: which fund the
+  // associate invests in, and which lp_entity on that fund's books represents it. Together
+  // these replace the old free-text name matching, which broke silently on any rename.
+  if (body.lpEntityId !== undefined) {
+    const id = body.lpEntityId || null
+    if (id) {
+      const { data: ent } = await (admin as any)
+        .from('lp_entities').select('id').eq('id', id).eq('fund_id', gate.fundId).maybeSingle()
+      if (!ent) return NextResponse.json({ error: 'That partner is not in this fund.' }, { status: 400 })
+    }
+    update.lp_entity_id = id
+  }
 
   if (typeof body.name === 'string' && body.name.trim() && body.name.trim() !== (current as any).name) {
     const newName = body.name.trim()

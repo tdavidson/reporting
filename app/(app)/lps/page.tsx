@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Loader2, Plus, ChevronRight, Trash2, Lock, X, Check, Pencil } from 'lucide-react'
+import { Loader2, Plus, ChevronRight, Trash2, Lock, X, Check, Pencil, Activity } from 'lucide-react'
 import { useFeatureVisibility } from '@/components/feature-visibility-context'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
@@ -180,6 +180,14 @@ export default function LPsPage() {
           <Button size="sm" variant="outline" className="text-muted-foreground" onClick={() => setCreateOpen(true)}>
             <Plus className="h-4 w-4 mr-1" />
             New Snapshot
+          </Button>
+          {/* The other way to produce this report: derived from the books, as of any date,
+              instead of frozen at import time. */}
+          <Button size="sm" variant="outline" className="text-muted-foreground" asChild>
+            <a href="/lps/live">
+              <Activity className="h-4 w-4 mr-1" />
+              Live capital report
+            </a>
           </Button>
         </div>
       </div>

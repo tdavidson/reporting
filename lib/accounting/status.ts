@@ -51,6 +51,8 @@ export interface VehicleStatus {
     trialBalanced: boolean
     nav: number
     netAssets: number
+    capitalTies: boolean
+    capitalGap: number
   }
   close: {
     basis: AllocationBasis
@@ -206,6 +208,33 @@ export async function vehicleStatus(
     })
   }
 
+  // DOES THE SUM OF THE PARTNERS EQUAL THE FUND?
+  //
+  // Both halves were already computed here and never compared. The balance sheet can balance
+  // perfectly while the per-partner capital accounts do NOT add up to partners' capital —
+  // a posting to the pooled 3100/3000 with no lp_entity_id, or an LP entity deleted out from
+  // under its postings, does exactly that. Fund-level statements stay right; every LP's
+  // statement is then wrong, and nothing said so.
+  //
+  // The reconciling items are legitimate and expected: earnings not yet allocated to partners
+  // (they sit in the bridge until the close), and GP capital held outside the LP accounts.
+  const reconciled = roundCents(nav + bs.partnersCapital.unallocatedEarnings)
+  const capitalGap = roundCents(bs.partnersCapital.total - reconciled)
+
+  if (Math.abs(capitalGap) > 0.004) {
+    issues.push({
+      level: 'blocker',
+      title: "Partners' capital doesn't tie to the sum of the partners",
+      detail:
+        `Partners' capital is ${bs.partnersCapital.total.toFixed(2)}, but the individual capital accounts ` +
+        `plus unallocated earnings come to ${reconciled.toFixed(2)} — a gap of ${capitalGap.toFixed(2)}. ` +
+        `Something is booked to partners' capital without being attributed to a partner, so every LP statement understates or overstates. ` +
+        `Look for postings to the pooled capital account (3100/3000) that carry no partner.`,
+      href: '/accounting/journal',
+      action: 'Open the journal',
+    })
+  }
+
   if (partnersWithCommitment === 0 && owners.length > 0) {
     issues.push({ level: 'warning', title: 'No partner has a commitment', detail: 'The close allocates pro-rata by commitment; with none set there is nothing to allocate on.', href: '/accounting/allocation-terms', action: 'Set commitments' })
   }
@@ -239,6 +268,10 @@ export async function vehicleStatus(
       trialBalanced: Math.abs(bs.check) < 0.005,
       nav: roundCents(nav),
       netAssets: bs.partnersCapital.total,
+      /** Does Σ per-partner capital (+ unallocated earnings) equal partners' capital?
+       *  The books can balance while this does not — see the blocker above. */
+      capitalTies: Math.abs(capitalGap) < 0.005,
+      capitalGap,
     },
     close: {
       basis,

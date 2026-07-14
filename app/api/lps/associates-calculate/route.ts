@@ -219,13 +219,25 @@ export async function POST(req: NextRequest) {
         }
 
         if (existing) {
-          // Preserve original imported values in input_* columns for auditing
+          // Preserve original imported values in input_* columns for auditing.
+          //
+          // NEVER do this for a calc_generated row: those rows have no originals — they
+          // ARE calc output — so snapshotting them would record run N-1's numbers as the
+          // "imported" baseline and destroy the real audit trail on every re-run.
+          //
+          // `?? null` rather than `|| null`: a genuine 0 must be preserved as 0. The old
+          // `||` stored it as null, which left the row looking un-snapshotted and made
+          // the next run overwrite it with calc output — the same corruption by another
+          // door.
+          const keep = (v: any) => (v == null ? null : Number(v))
           const inputSnapshot: Record<string, any> = {}
-          if (existing.input_commitment == null) inputSnapshot.input_commitment = Number(existing.commitment) || null
-          if (existing.input_paid_in_capital == null) inputSnapshot.input_paid_in_capital = Number(existing.paid_in_capital) || null
-          if (existing.input_distributions == null) inputSnapshot.input_distributions = Number(existing.distributions) || null
-          if (existing.input_nav == null) inputSnapshot.input_nav = Number(existing.nav) || null
-          if (existing.input_total_value == null) inputSnapshot.input_total_value = Number(existing.total_value) || null
+          if (!existing.calc_generated) {
+            if (existing.input_commitment == null) inputSnapshot.input_commitment = keep(existing.commitment)
+            if (existing.input_paid_in_capital == null) inputSnapshot.input_paid_in_capital = keep(existing.paid_in_capital)
+            if (existing.input_distributions == null) inputSnapshot.input_distributions = keep(existing.distributions)
+            if (existing.input_nav == null) inputSnapshot.input_nav = keep(existing.nav)
+            if (existing.input_total_value == null) inputSnapshot.input_total_value = keep(existing.total_value)
+          }
 
           const { error } = await admin
             .from('lp_investments' as any)
@@ -239,7 +251,9 @@ export async function POST(req: NextRequest) {
             updated++
           }
         } else {
-          // Create new investment row — no input values since this is a new calc-generated row
+          // Create new investment row — no input values since this is a new calc-generated
+          // row. `calc_generated` marks it so a later run never mistakes this output for
+          // original imported data and snapshots it into input_*.
           const { error } = await admin
             .from('lp_investments' as any)
             .insert({
@@ -247,6 +261,7 @@ export async function POST(req: NextRequest) {
               entity_id: investorEntity.id,
               portfolio_group: targetGroup,
               snapshot_id: snapshotId,
+              calc_generated: true,
               ...metricData,
             })
 

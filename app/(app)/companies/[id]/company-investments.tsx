@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, useMemo, Fragment } from 'react'
 import Link from 'next/link'
-import { DollarSign, Plus, Trash2, Pencil, Loader2, ChevronDown, ChevronRight, Lock, FileText, X } from 'lucide-react'
+import { DollarSign, Plus, Trash2, Pencil, Loader2, ChevronDown, ChevronRight, Lock, FileText, X, AlertTriangle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -57,6 +57,12 @@ const EMPTY_FORM: Record<string, string> = {
   notes: '',
   investment_cost: '',
   interest_converted: '',
+  // Convertible-note terms. `interest_rate` is the only rate the ledger accrues on;
+  // `dividend_rate` (preferred) accrues to the liquidation preference and never hits the books.
+  security_type: '',
+  interest_rate: '',
+  maturity_date: '',
+  dividend_rate: '',
   shares_acquired: '',
   share_price: '',
   postmoney_valuation: '',
@@ -104,8 +110,18 @@ export function CompanyInvestments({ companyId, companyStatus, portfolioGroups, 
   const [saving, setSaving] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
-  // Set when saving a transaction also drafted a journal entry in the ledger.
-  const [ledger, setLedger] = useState<{ kind: string; amount: number; vehicle: string } | null>(null)
+  // Set when saving a transaction touched the ledger — EITHER a draft was created, or one
+  // deliberately wasn't. The skip reason used to be dropped on the floor, so a transaction
+  // that never reached the books looked identical to one that did: a success banner or
+  // silence. Silence is exactly the wrong answer when the tracker and the ledger have just
+  // diverged.
+  const [ledger, setLedger] = useState<{
+    drafted: boolean
+    kind?: string
+    amount?: number
+    vehicle?: string
+    reason?: string
+  } | null>(null)
   const [showOrigCurrency, setShowOrigCurrency] = useState(false)
   const [asOfDate, setAsOfDate] = useState(() => new Date().toISOString().slice(0, 10))
 
@@ -143,6 +159,11 @@ export function CompanyInvestments({ companyId, companyStatus, portfolioGroups, 
       notes: txn.notes ?? '',
       investment_cost: txn.investment_cost?.toString() ?? '',
       interest_converted: txn.interest_converted?.toString() ?? '',
+      security_type: (txn as any).security_type ?? '',
+      // Stored as fractions, shown as percentages — nobody thinks in 0.08.
+      interest_rate: (txn as any).interest_rate != null ? String(Number((txn as any).interest_rate) * 100) : '',
+      maturity_date: (txn as any).maturity_date ?? '',
+      dividend_rate: (txn as any).dividend_rate != null ? String(Number((txn as any).dividend_rate) * 100) : '',
       shares_acquired: txn.shares_acquired?.toString() ?? '',
       share_price: txn.share_price?.toString() ?? '',
       postmoney_valuation: txn.postmoney_valuation?.toString() ?? '',
@@ -272,6 +293,12 @@ export function CompanyInvestments({ companyId, companyStatus, portfolioGroups, 
     setError(null)
 
     const numOrNull = (v: string) => v.trim() ? parseFloat(v) : null
+    // Rates are entered as percentages and stored as fractions. The conversion happens here and
+    // nowhere else.
+    const rateOrNull = (v: string) => {
+      const n = numOrNull(v)
+      return n == null ? null : n / 100
+    }
 
     const payload: Record<string, unknown> = {
       transaction_type: form.transaction_type,
@@ -280,6 +307,10 @@ export function CompanyInvestments({ companyId, companyStatus, portfolioGroups, 
       notes: form.notes || null,
       investment_cost: numOrNull(form.investment_cost),
       interest_converted: numOrNull(form.interest_converted) ?? 0,
+      security_type: form.security_type || null,
+      interest_rate: rateOrNull(form.interest_rate),
+      maturity_date: form.maturity_date || null,
+      dividend_rate: rateOrNull(form.dividend_rate),
       shares_acquired: numOrNull(form.shares_acquired),
       share_price: numOrNull(form.share_price),
       postmoney_valuation: numOrNull(form.postmoney_valuation),
@@ -341,9 +372,11 @@ export function CompanyInvestments({ companyId, companyStatus, portfolioGroups, 
 
       // The transaction is saved. If the vehicle keeps books, the API also drafted the
       // journal entry it implies — say so and link to it, because a draft nobody knows
-      // about is worse than no draft at all.
+      // about is worse than no draft at all. And when it DIDN'T draft one, say that too:
+      // the reason ("no accounting vehicle named X", "that period is closed") is precisely
+      // what the user needs, and it was being discarded.
       const saved = await res.json().catch(() => null)
-      setLedger(saved?.ledger?.drafted ? saved.ledger : null)
+      setLedger(saved?.ledger ?? null)
 
       setDialogOpen(false)
       load()
@@ -395,11 +428,11 @@ export function CompanyInvestments({ companyId, companyStatus, portfolioGroups, 
     <div className="mt-6">
       {/* A draft entry nobody knows about is worse than none — it sits in the journal
           silently changing nothing while the books drift. So say it, and link to it. */}
-      {ledger && (
+      {ledger?.drafted && (
         <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-blue-500/40 bg-blue-500/10 px-3 py-2 text-sm">
           <FileText className="h-4 w-4 shrink-0 text-blue-700 dark:text-blue-400" />
           <span>
-            Drafted {LEDGER_KIND_LABEL[ledger.kind] ?? 'a journal entry'} in{' '}
+            Drafted {LEDGER_KIND_LABEL[ledger.kind ?? ''] ?? 'a journal entry'} in{' '}
             <strong>{ledger.vehicle}</strong>&rsquo;s ledger. It is <strong>not posted</strong> until you review it.
           </span>
           <Link
@@ -409,6 +442,26 @@ export function CompanyInvestments({ companyId, companyStatus, portfolioGroups, 
             Review the entry
           </Link>
           <button onClick={() => setLedger(null)} className="text-muted-foreground hover:text-foreground" aria-label="Dismiss">
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      )}
+
+      {/* Nothing was booked. Amber, not red: it is usually correct (the vehicle keeps no
+          books, the row is company-wide pricing). But the user has to KNOW, because the
+          tracker and the ledger now say different things and only this message explains why. */}
+      {ledger && !ledger.drafted && ledger.reason && (
+        <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm">
+          <AlertTriangle className="h-4 w-4 shrink-0 text-amber-700 dark:text-amber-400" />
+          <span>
+            Saved to the tracker, but <strong>nothing was booked</strong> to the ledger.{' '}
+            {ledger.reason}
+          </span>
+          <button
+            onClick={() => setLedger(null)}
+            className="ml-auto text-muted-foreground hover:text-foreground"
+            aria-label="Dismiss"
+          >
             <X className="h-3.5 w-3.5" />
           </button>
         </div>
@@ -606,6 +659,59 @@ export function CompanyInvestments({ companyId, companyStatus, portfolioGroups, 
                     value={form.interest_converted}
                     onChange={e => setForm(f => ({ ...f, interest_converted: e.target.value }))}
                   />
+                </div>
+                <div>
+                  <Label>Security Type</Label>
+                  <Input
+                    className="mt-1"
+                    placeholder="Preferred, Convertible note, SAFE…"
+                    value={form.security_type}
+                    onChange={e => setForm(f => ({ ...f, security_type: e.target.value }))}
+                  />
+                  <p className="text-[11px] text-muted-foreground mt-1">Feeds the Schedule of Investments breakout.</p>
+                </div>
+                <div>
+                  <Label>Note Interest Rate (%)</Label>
+                  <Input
+                    className="mt-1"
+                    type="number"
+                    step="any"
+                    placeholder="8"
+                    value={form.interest_rate}
+                    onChange={e => setForm(f => ({ ...f, interest_rate: e.target.value }))}
+                  />
+                  {/* This is the ONLY rate the ledger accrues on. Say so plainly, or someone will
+                      type a preferred dividend rate here and the close will book it as income. */}
+                  <p className="text-[11px] text-muted-foreground mt-1">
+                    Convertible notes only. The close accrues interest on this, simple actual/365,
+                    until conversion or maturity.
+                  </p>
+                </div>
+                <div>
+                  <Label>Note Maturity</Label>
+                  <Input
+                    className="mt-1"
+                    type="date"
+                    value={form.maturity_date}
+                    onChange={e => setForm(f => ({ ...f, maturity_date: e.target.value }))}
+                  />
+                  <p className="text-[11px] text-muted-foreground mt-1">Interest stops here. Leave blank to accrue until conversion.</p>
+                </div>
+                <div>
+                  <Label>Preferred Dividend Rate (%)</Label>
+                  <Input
+                    className="mt-1"
+                    type="number"
+                    step="any"
+                    placeholder="8"
+                    value={form.dividend_rate}
+                    onChange={e => setForm(f => ({ ...f, dividend_rate: e.target.value }))}
+                  />
+                  <p className="text-[11px] text-muted-foreground mt-1">
+                    Accrues to the liquidation preference. <strong>Does not hit the books</strong> —
+                    an undeclared preferred dividend is not income; its effect reaches the
+                    statements through the valuation.
+                  </p>
                 </div>
                 <div>
                   <Label>Shares Acquired</Label>

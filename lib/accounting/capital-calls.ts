@@ -286,6 +286,13 @@ export async function lpStatement(
     .eq('lp_entity_id', lpEntityId)
     .maybeSingle()
 
+  // The statement lists activity IN THE PERIOD, under exactly that heading. This used to
+  // return every posting since inception with no date filter at all, so a Q3 statement listed
+  // the LP's entire history labelled as one quarter's activity.
+  //
+  // The running balance still accumulates from INCEPTION — a period statement's closing
+  // balance is the LP's real capital, not the sum of three months. So we walk everything, and
+  // only emit the rows that fall inside the window.
   const transactions: LpStatementTxn[] = []
   if (acct) {
     const { data: rows } = await admin
@@ -297,9 +304,17 @@ export async function lpStatement(
       .filter(r => r.journal_entries?.status === 'posted')
       .map(r => ({ e: r.journal_entries, delta: roundCents(-Number(r.amount)) }))
       .sort((a, b) => String(a.e.entry_date).localeCompare(String(b.e.entry_date)))
+
     let balance = 0
     for (const p of posted) {
+      const date = String(p.e.entry_date ?? '')
+      // Anything after the statement date isn't on this statement — it hasn't happened yet as
+      // far as this document is concerned, and must not move the closing balance either.
+      if (period?.end && date > period.end) continue
+
       balance = roundCents(balance + p.delta)
+
+      if (period?.start && date < period.start) continue // carried into `beginning`, not listed
       transactions.push({ date: p.e.entry_date, memo: p.e.memo ?? null, sourceType: p.e.source_type ?? null, amount: p.delta, balance })
     }
   }

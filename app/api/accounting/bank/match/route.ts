@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { assertAdminAccess, assertReadAccess } from '@/lib/api-helpers'
 import { resolveGroupOr400 } from '@/lib/accounting/http-vehicle'
-import { bookCapitalCallFromInflow, linkInflowToEntry, capitalCallCandidates } from '@/lib/accounting/bank-match'
+import { bookCapitalCallFromInflow, bookDistributionFromOutflow, linkInflowToEntry, capitalCallCandidates } from '@/lib/accounting/bank-match'
 
 // GET — capital-call entries an inflow can be matched to (unlinked, with amount).
 export async function GET(req: NextRequest) {
@@ -18,7 +18,13 @@ export async function GET(req: NextRequest) {
   return NextResponse.json(await capitalCallCandidates(admin, gate.fundId, group))
 }
 
-// POST — match an inflow to a capital call. { id, mode: 'allocate'|'link', entryId?, group? }
+// POST — match a bank transaction to LP capital.
+//   { id, mode: 'allocate' | 'link' | 'distribute', entryId?, lpEntityId?, perLp?, group? }
+//
+// 'distribute' is the outflow counterpart to 'allocate'. Without it, the only way to book a
+// distribution was the bank categorizer's rule, which posts to the POOLED capital account
+// with no lp_entity_id — money leaves the fund and no LP's capital account, statement, or
+// roll-forward ever records receiving it.
 export async function POST(req: NextRequest) {
   const supabase = createClient()
   const admin = createAdminClient()
@@ -27,7 +33,7 @@ export async function POST(req: NextRequest) {
   const gate = await assertAdminAccess(admin, user.id)
   if (gate instanceof NextResponse) return gate
 
-  const { id, mode, entryId, lpEntityId, group: bodyGroup } = await req.json().catch(() => ({}))
+  const { id, mode, entryId, lpEntityId, perLp, group: bodyGroup } = await req.json().catch(() => ({}))
   const group = await resolveGroupOr400(admin, gate.fundId, bodyGroup ?? req.nextUrl.searchParams.get('group'))
   if (group instanceof NextResponse) return group
   if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 })
@@ -37,6 +43,17 @@ export async function POST(req: NextRequest) {
     const result = await linkInflowToEntry(admin, gate.fundId, group, id, entryId)
     if ('error' in result) return NextResponse.json({ error: result.error }, { status: 400 })
     return NextResponse.json(result)
+  }
+
+  if (mode === 'distribute') {
+    // `perLp` is an optional { lpEntityId: amount } map — what a waterfall would hand us.
+    // Omitted, the outflow splits by ending capital balance.
+    const override = perLp && typeof perLp === 'object'
+      ? new Map<string, number>(Object.entries(perLp).map(([k, v]) => [k, Number(v)]))
+      : null
+    const result = await bookDistributionFromOutflow(admin, gate.fundId, group, user.id, id, override)
+    if ('error' in result) return NextResponse.json({ error: result.error }, { status: 400 })
+    return NextResponse.json({ ok: true, ...result })
   }
 
   const result = await bookCapitalCallFromInflow(admin, gate.fundId, group, user.id, id, lpEntityId ?? null)

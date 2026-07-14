@@ -11,6 +11,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { loadOwnership, loadPostedLedger } from './load'
 import { accountIdByCode, ensureCapitalAccounts } from './persist'
 import { computeManagementFee } from './fees'
+import { loadPartnerTerms } from './terms'
 import { accountBalances, roundCents } from './ledger'
 import {
   buildManagementFeeEntry,
@@ -69,25 +70,54 @@ export async function buildAllocationEntry(
 
   try {
     if (action === 'close_period') {
-      const { accounts, postings } = await loadPostedLedger(admin, fundId, group)
-      const balances = accountBalances(postings)
-      const pnl = accounts
-        .filter(a => a.type === 'income' || a.type === 'expense')
-        .map(a => ({ accountId: a.id, balance: balances.get(a.id) ?? 0 }))
-        .filter(b => b.balance !== 0)
-      if (pnl.length === 0) return { error: 'Nothing to close — no P&L activity' }
-      return { entry: buildPeriodCloseEntry(base, pnl, need(CODE.bridge)) }
+      // REMOVED, deliberately — it was incompatible with the close model and silently broke it.
+      //
+      // It zeroed INCEPTION-TO-DATE P&L into the 3200 bridge. But the current model requires
+      // P&L accounts to stay open (close.ts), because the close measures each period's activity
+      // from them. Once an agent ran this, `previewClose` for the window containing the zeroing
+      // entry saw P&L netting to ~0, so the real close allocated nothing at all — and
+      // `unallocatedEarnings` went nonsensical.
+      //
+      // The close is the only allocation path. Point callers at it rather than leaving a
+      // loaded gun on the table.
+      return {
+        error:
+          'close_period is not an allocation action. Use the `close_period` tool (or POST /api/accounting/close), ' +
+          'which closes through a date and allocates each month to the partners. This action zeroed P&L ' +
+          'inception-to-date and prevented the real close from allocating anything.',
+      }
     }
 
     if (action === 'management_fee') {
-      const owners = await loadOwnership(admin, fundId, group)
+      const [owners, terms] = await Promise.all([
+        loadOwnership(admin, fundId, group),
+        loadPartnerTerms(admin, fundId, group),
+      ])
+
+      // SIDE LETTERS COME FROM THE TERMS TABLE, not just the request body.
+      //
+      // `partner_allocation_terms.rate_override` and `participates` are what the Allocation
+      // terms page writes — a GP configuring "this LP pays 1.5%, the GP entity pays nothing"
+      // sets them there. But this function only ever read overrides handed to it in the
+      // request body (which in practice only the external agent supplies), so a configured
+      // side letter changed absolutely nothing. It does now.
+      //
+      // An explicit body override still wins: a caller asking for a specific rate on a
+      // specific run is being deliberate, and shouldn't be silently overruled by config.
+      const feeTerms = new Map(
+        terms.filter(t => t.category === 'management_fee').map(t => [t.lpEntityId, t])
+      )
       const overrides = body.overrides ?? {}
-      const feeOwners = owners.map(o => ({
-        lpEntityId: o.lpEntityId,
-        basisAmount: o.commitment,
-        rateOverride: overrides[o.lpEntityId]?.rateOverride ?? null,
-        exempt: overrides[o.lpEntityId]?.exempt ?? false,
-      }))
+
+      const feeOwners = owners.map(o => {
+        const configured = feeTerms.get(o.lpEntityId)
+        return {
+          lpEntityId: o.lpEntityId,
+          basisAmount: o.commitment,
+          rateOverride: overrides[o.lpEntityId]?.rateOverride ?? configured?.rateOverride ?? null,
+          exempt: overrides[o.lpEntityId]?.exempt ?? (configured ? !configured.participates : false),
+        }
+      })
       const fee = computeManagementFee(
         { annualRate: Number(body.annualRate), basis: 'committed', periodFraction: Number(body.periodFraction) },
         feeOwners

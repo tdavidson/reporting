@@ -8,6 +8,7 @@ import { dbError } from '@/lib/api-error'
 import { persistEntry } from '@/lib/accounting/persist'
 import { assertBalanced } from '@/lib/accounting/ledger'
 import { closedPeriodRanges, dateInAnyClosedPeriod } from '@/lib/accounting/periods'
+import { fundCurrency } from '@/lib/accounting/currency'
 import type { JournalEntry, Posting } from '@/lib/accounting/types'
 
 // GET — the vehicle's journal entries with postings, or a single entry via ?id=.
@@ -68,7 +69,11 @@ export async function PUT(req: NextRequest) {
   if (!existing) return NextResponse.json({ error: 'Entry not found' }, { status: 404 })
   if ((existing as any).status !== 'draft') return NextResponse.json({ error: 'Only draft entries can be edited — reverse or void a posted entry.' }, { status: 400 })
 
-  const normalized: Posting[] = postings.map((p: any) => ({ accountId: p.accountId, amount: Number(p.amount), currency: p.currency ?? 'USD', lpEntityId: p.lpEntityId ?? null }))
+  // The fund's currency, never a client-supplied one. The ledger is denominated in a single
+  // currency by design (see lib/accounting/currency.ts); accepting `p.currency` from the body
+  // would let a posting balance against the wrong denomination.
+  const currency = await fundCurrency(admin, gate.fundId)
+  const normalized: Posting[] = postings.map((p: any) => ({ accountId: p.accountId, amount: Number(p.amount), currency, lpEntityId: p.lpEntityId ?? null }))
   if (normalized.some(p => !p.accountId || !Number.isFinite(p.amount))) {
     return NextResponse.json({ error: 'Each posting needs an accountId and a numeric amount' }, { status: 400 })
   }
@@ -113,7 +118,11 @@ export async function POST(req: NextRequest) {
   if (!entryDate || !Array.isArray(postings) || postings.length === 0) {
     return NextResponse.json({ error: 'entryDate and at least one posting are required' }, { status: 400 })
   }
-  const normalized: Posting[] = postings.map((p: any) => ({ accountId: p.accountId, amount: Number(p.amount), currency: p.currency ?? 'USD', lpEntityId: p.lpEntityId ?? null }))
+  // The fund's currency, never a client-supplied one. The ledger is denominated in a single
+  // currency by design (see lib/accounting/currency.ts); accepting `p.currency` from the body
+  // would let a posting balance against the wrong denomination.
+  const currency = await fundCurrency(admin, gate.fundId)
+  const normalized: Posting[] = postings.map((p: any) => ({ accountId: p.accountId, amount: Number(p.amount), currency, lpEntityId: p.lpEntityId ?? null }))
   if (normalized.some(p => !p.accountId || !Number.isFinite(p.amount))) {
     return NextResponse.json({ error: 'Each posting needs an accountId and a numeric amount' }, { status: 400 })
   }

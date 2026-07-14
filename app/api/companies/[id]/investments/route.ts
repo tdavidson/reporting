@@ -160,6 +160,15 @@ export async function POST(
       fx_value_change: body.fx_value_change ?? null,
       original_position_value: body.original_position_value ?? null,
       portfolio_group: body.portfolio_group ?? null,
+      // Feeds the SOI's by-asset-type breakout. The column existed and soi.ts read it, but no
+      // route ever wrote it, so the breakout fell back to a derived two-bucket guess forever.
+      security_type: body.security_type ?? null,
+      // Convertible-note terms. The close accrues interest on `interest_rate` only.
+      // `dividend_rate` (preferred dividends) accrues to the liquidation preference and is
+      // deliberately invisible to the ledger — an undeclared preferred dividend is not income.
+      interest_rate: body.interest_rate ?? null,
+      maturity_date: body.maturity_date ?? null,
+      dividend_rate: body.dividend_rate ?? null,
     })
     .select('*')
     .single() as { data: InvestmentTransaction | null; error: { message: string } | null }

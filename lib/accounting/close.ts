@@ -27,8 +27,18 @@ import { loadPostedLedger, loadOwnership, loadEntityNames } from './load'
 import { accountIdByCode, ensureCapitalAccounts, persistEntry } from './persist'
 import { allocateAmount } from './allocation'
 import { postingsInPeriod } from './statements'
-import { computeCapitalAccounts } from './capital-account'
+import { computeCapitalAccounts, bucketForSourceType } from './capital-account'
 import { closedPeriodRanges } from './periods'
+import { buildCarryEntry } from './entries'
+import {
+  loadCarryTerms, carryAccrual,
+  type LpEconomics, type DatedContribution,
+} from './carry'
+import { loadNotes, noteAccruals } from './note-interest'
+import { ensureInvestmentAccounts } from './investments'
+import { accountBalances } from './ledger'
+
+const NOTE_INTEREST_INCOME = '4110'
 import {
   loadAllocationBasis, loadPartnerTerms, loadCommitmentEvents,
   commitmentsAsOf, allocationWeights,
@@ -375,19 +385,60 @@ async function checkReadiness(
 }
 
 /** What closing through `endDate` would allocate, month by month. Writes nothing. */
+/** The furthest ahead a close may reach. A close is a period-END activity; closing into the
+ *  distant future is never legitimate, and letting it happen is a denial-of-service. */
+const MAX_MONTHS_PER_CLOSE = 120
+
+export function validateCloseDate(endDate: string): { endDate: string } | { error: string } {
+  if (!endDate) return { error: 'An end date is required' }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(endDate)) {
+    return { error: 'The end date must be YYYY-MM-DD.' }
+  }
+  const parsed = new Date(`${endDate}T00:00:00Z`)
+  if (Number.isNaN(parsed.getTime())) return { error: `"${endDate}" is not a real date.` }
+
+  // A close reaches THROUGH a date, splitting the span into calendar months and locking each
+  // one. An unbounded date is therefore a weapon: `endDate: "9999-12-31"` creates ~95,000
+  // closed periods, and the period-lock trigger (20260714000004) then refuses every future
+  // write to any date they cover. Undoing it means one reopen call per period, newest-first.
+  //
+  // Nothing legitimate closes into next year, let alone the next millennium.
+  const horizon = new Date()
+  horizon.setUTCMonth(horizon.getUTCMonth() + 1)
+  if (parsed > horizon) {
+    return { error: `Can't close through ${endDate} — it is in the future.` }
+  }
+
+  return { endDate }
+}
+
 export async function previewCloseThrough(
   admin: SupabaseClient,
   fundId: string,
   group: string,
   endDate: string
 ): Promise<CloseThroughPreview | { error: string }> {
-  if (!endDate) return { error: 'An end date is required' }
+  const valid = validateCloseDate(endDate)
+  if ('error' in valid) return valid
 
   const start = await nextCloseStart(admin, fundId, group)
   if (!start) return { error: 'Nothing to close — the ledger has no posted entries' }
   if (start > endDate) return { error: `Already closed through ${start} — pick a later date` }
 
   const windows = monthWindows(start, endDate)
+
+  // Belt to the date guard's braces. The start is DERIVED from the ledger, so a vehicle whose
+  // first entry is mis-dated (1970, say) could still generate hundreds of windows from a
+  // perfectly reasonable end date — each one a DB round-trip, an insert and a snapshot.
+  if (windows.length > MAX_MONTHS_PER_CLOSE) {
+    return {
+      error:
+        `That would close ${windows.length} months in one go, starting from ${start}. ` +
+        `Close in smaller spans (at most ${MAX_MONTHS_PER_CLOSE} months at a time), or check whether ` +
+        `an entry is mis-dated — the start date is derived from the earliest unclosed entry in the ledger.`,
+    }
+  }
+
   const months: ClosePreview[] = []
   const warnings: string[] = []
 
@@ -503,6 +554,14 @@ export async function closePeriodWithAllocation(
     await admin.from('fiscal_periods' as any)
       .update({ status: 'open', label: label ?? null, closed_at: null, closed_by: userId })
       .eq('id', periodId).eq('fund_id', fundId)
+
+    // Void anything a PREVIOUS attempt at this period already posted, before we post a new
+    // set. Without this, a close that died between posting its entries (step 2) and locking
+    // the period (step 3) leaves the row 'open' with live `close:<periodId>` entries — and
+    // re-running would post a SECOND full set against the same source_ref, silently doubling
+    // every partner's allocation. Voiding first makes a re-close idempotent.
+    const cleared = await voidCloseEntries(admin, fundId, vehicleId, periodId)
+    if ('error' in cleared) return { error: `Couldn't clear the previous close attempt: ${cleared.error}` }
   } else {
     const { data: periodRow, error: periodErr } = await admin
       .from('fiscal_periods' as any)
@@ -556,6 +615,37 @@ export async function closePeriodWithAllocation(
     entryIds.push(result.entryId)
   }
 
+  // 2b. ACCRUE NOTE INTEREST — before carry, because it is income, and carry is computed on the
+  // NAV that income produces. A note earns its coupon whether or not anyone books it; not
+  // accruing understates the fund's income and the position's carrying value, and then at
+  // conversion the interest appears inside the equity's cost basis with no record of where it
+  // came from.
+  const interestResult = await accrueNoteInterest(admin, fundId, group, userId, periodEnd, sourceRef)
+  if ('error' in interestResult) {
+    await reopenPeriodWithReversal(admin, fundId, group, periodId)
+    await admin.from('fiscal_periods' as any).delete().eq('id', periodId).eq('fund_id', fundId)
+    return { error: `Note interest accrual failed: ${interestResult.error}` }
+  }
+  entryIds.push(...interestResult.entryIds)
+
+  // 2c. ACCRUE CARRIED INTEREST — last, and only after every other category has landed.
+  //
+  // Carry is computed on the NAV those allocations produce, so it cannot be just another
+  // category in the loop above: it depends on their result. Ask "if the fund liquidated at
+  // today's NAV, what would the GP be owed?", compare that to what is already accrued, and post
+  // the difference. Because the TARGET is recomputed from scratch every period, a fall in NAV
+  // reverses the accrual on its own — there is no clawback special case.
+  //
+  // Without this, every LP's NAV overstates what they would actually receive by the GP's share
+  // of the unrealized gain.
+  const carryResult = await accrueCarry(admin, fundId, group, userId, periodEnd, sourceRef)
+  if ('error' in carryResult) {
+    await reopenPeriodWithReversal(admin, fundId, group, periodId)
+    await admin.from('fiscal_periods' as any).delete().eq('id', periodId).eq('fund_id', fundId)
+    return { error: `Carry accrual failed: ${carryResult.error}` }
+  }
+  if (carryResult.entryId) entryIds.push(carryResult.entryId)
+
   // 3. Snapshot and lock.
   const snapshot = await exportLedgerText(admin, fundId, group, periodEnd)
   const { error: closeErr } = await admin
@@ -566,6 +656,166 @@ export async function closePeriodWithAllocation(
   if (closeErr) return { error: closeErr.message }
 
   return { id: periodId, entryIds, netIncome: preview.netIncome }
+}
+
+/**
+ * Accrue interest earned on convertible notes, as at `periodEnd`.
+ *
+ *   Dr 1150-<company>  Accrued interest   (asset, per company)
+ *   Cr 4110            Note interest income
+ *
+ * Kept apart from 4100 (bank interest) on purpose: an LP reading the income statement should be
+ * able to tell yield the PORTFOLIO produced from yield the BANK ACCOUNT produced. Both roll into
+ * `operatingIncome` on a capital account, but they are different lines, because they are
+ * different businesses.
+ *
+ * Preferred dividends are NOT accrued here. A cumulative dividend accrues to the liquidation
+ * preference, not to income — it is not earned until declared, and its effect reaches the
+ * statements through the fair-value mark. `loadNotes` reads `interest_rate` and never
+ * `dividend_rate`.
+ *
+ * Self-correcting: the target is recomputed from the note terms every close, so fixing a wrong
+ * rate repairs the balance at the next close rather than compounding.
+ */
+async function accrueNoteInterest(
+  admin: SupabaseClient,
+  fundId: string,
+  group: string,
+  userId: string | null,
+  periodEnd: string,
+  sourceRef: string
+): Promise<{ entryIds: string[] } | { error: string }> {
+  const notes = await loadNotes(admin, fundId, group, periodEnd)
+  if (notes.length === 0) return { entryIds: [] }
+
+  const codes = await accountIdByCode(admin, fundId, group)
+  const incomeId = codes.get(NOTE_INTEREST_INCOME)
+  if (!incomeId) {
+    // The chart predates note support. Say so rather than silently skipping the accrual —
+    // a fund holding notes that books no interest is understating its income every period.
+    return { error: `${group} is missing account ${NOTE_INTEREST_INCOME} (Note interest income). Re-sync the chart of accounts.` }
+  }
+
+  const companies = Array.from(
+    new Map(notes.map(n => [n.companyId, { id: n.companyId, name: n.companyName }])).values()
+  )
+  const accts = await ensureInvestmentAccounts(admin, fundId, group, companies)
+
+  // What's already accrued, per company, straight from the ledger.
+  const { postings } = await loadPostedLedger(admin, fundId, group, periodEnd)
+  const balances = accountBalances(postings)
+  const accruedByCompany = new Map<string, number>()
+  for (const c of companies) {
+    const id = accts.get(c.id)?.accruedInterestId
+    if (id) accruedByCompany.set(c.id, roundCents(balances.get(id) ?? 0))
+  }
+
+  const accruals = noteAccruals(notes, accruedByCompany, periodEnd)
+  const entryIds: string[] = []
+
+  for (const a of accruals) {
+    const accruedId = accts.get(a.companyId)?.accruedInterestId
+    if (!accruedId) continue
+
+    const entry: JournalEntry = {
+      fundId,
+      entryDate: periodEnd,
+      sourceType: 'income',
+      memo: a.delta > 0
+        ? `Note interest accrued — ${a.companyName}`
+        : `Note interest accrual adjusted — ${a.companyName}`,
+      sourceRef, // reopening the period voids this with everything else the close posted
+      postings: [
+        { accountId: accruedId, amount: a.delta, currency: 'USD', lpEntityId: null },
+        { accountId: incomeId, amount: roundCents(-a.delta), currency: 'USD', lpEntityId: null },
+      ],
+    }
+    const result = await persistEntry(admin, fundId, group, userId, entry, 'posted')
+    if ('error' in result) return { error: `${a.companyName}: ${result.error}` }
+    entryIds.push(result.entryId)
+  }
+
+  return { entryIds }
+}
+
+/**
+ * Post this period's carried-interest accrual, if the vehicle has carry terms.
+ *
+ * Everything it needs comes from the ledger as at `periodEnd`:
+ *   - each LP's contributions, distributions and current capital (the roll-forward buckets)
+ *   - how much carry is ALREADY accrued (the GP partner's `carriedInterest` bucket)
+ *   - dated contributions, for the preferred-return hurdle
+ *
+ * The GP partner is excluded from the LP economics — it is receiving the carry, not paying it.
+ */
+async function accrueCarry(
+  admin: SupabaseClient,
+  fundId: string,
+  group: string,
+  userId: string | null,
+  periodEnd: string,
+  sourceRef: string
+): Promise<{ entryId?: string } | { error: string }> {
+  const terms = await loadCarryTerms(admin, fundId, group)
+  if (terms.kind === 'none' || terms.carryRate <= 0) return {}
+  if (!terms.gpEntityId) {
+    return { error: `${group} has carry terms but no GP partner set to receive the carry.` }
+  }
+
+  // The books as they now stand, INCLUDING the allocation entries we just posted.
+  const { capitalPostings } = await loadPostedLedger(admin, fundId, group, periodEnd)
+  const accounts = computeCapitalAccounts(capitalPostings)
+
+  const gpAccount = accounts.get(terms.gpEntityId)
+  const alreadyAccrued = roundCents(gpAccount?.carriedInterest ?? 0)
+
+  const lps: LpEconomics[] = Array.from(accounts.entries())
+    .filter(([id]) => id !== terms.gpEntityId) // the GP receives carry; it doesn't pay it
+    .map(([lpEntityId, a]) => ({
+      lpEntityId,
+      contributed: roundCents(a.contributions),
+      distributed: roundCents(-a.distributions), // stored negative on the account
+      nav: roundCents(a.ending),
+    }))
+
+  if (lps.length === 0) return {}
+
+  // Dated contributions, for the hurdle. The pref accrues from when cash actually arrived.
+  const contributions: DatedContribution[] = capitalPostings
+    .filter(p => p.lpEntityId !== terms.gpEntityId && bucketForSourceType(p.sourceType) === 'contributions')
+    .map(p => ({ date: p.entryDate ?? periodEnd, amount: roundCents(-p.amount) }))
+    .filter(c => c.amount > 0)
+
+  const accrual = carryAccrual({ lps, contributions, asOf: periodEnd }, terms, alreadyAccrued)
+  if (accrual.delta === 0 || accrual.perLp.size === 0) return {}
+
+  const capMap = await ensureCapitalAccounts(admin, fundId, group, [
+    ...Array.from(accrual.perLp.keys()),
+    terms.gpEntityId,
+  ])
+  const codes = await accountIdByCode(admin, fundId, group)
+  const gpCapitalId = codes.get('3000') ?? ''
+
+  const entry = buildCarryEntry(
+    {
+      fundId,
+      entryDate: periodEnd,
+      memo:
+        accrual.delta > 0
+          ? `Carried interest accrued at ${periodEnd} NAV`
+          : `Carried interest accrual reversed — NAV fell at ${periodEnd}`,
+    },
+    accrual.perLp,
+    capMap,
+    gpCapitalId,
+    undefined,
+    terms.gpEntityId,
+  )
+  entry.sourceRef = sourceRef // so reopening the period voids the accrual with everything else
+
+  const result = await persistEntry(admin, fundId, group, userId, entry, 'posted')
+  if ('error' in result) return { error: result.error }
+  return { entryId: result.entryId }
 }
 
 /**
@@ -611,6 +861,44 @@ export async function reopenPeriodWithReversal(
     }
   }
 
+  // UNLOCK FIRST, then void. The order matters: the database now refuses any write to an
+  // entry dated inside a CLOSED period (migration 20260714000004), so voiding before
+  // unlocking would have the reopen refuse itself.
+  //
+  // The failure mode is also better this way round. If the void half fails, the period is
+  // open with its allocation entries still posted — which the next close repairs, because
+  // `closePeriodWithAllocation` voids any pre-existing `close:<periodId>` entries before it
+  // posts. The old order could leave a period LOCKED with its allocation already reversed:
+  // capital accounts wrong, and no way to fix them without reopening again.
+  const { error: openErr } = await admin
+    .from('fiscal_periods' as any)
+    .update({ status: 'open', closed_at: null, snapshot_text: null })
+    .eq('id', periodId)
+    .eq('fund_id', fundId)
+    .eq('vehicle_id', vehicleId)
+  if (openErr) return { error: openErr.message }
+
+  const voided = await voidCloseEntries(admin, fundId, vehicleId, periodId)
+  if ('error' in voided) return voided
+
+  return { ok: true, voided: voided.count }
+}
+
+/**
+ * Void every entry a close posted for this period, found by `source_ref`.
+ *
+ * Void rather than delete: the allocation is derived and can be recomputed, but the audit
+ * trail of having closed and reopened is not.
+ *
+ * Shared by reopen and by close itself — close calls it BEFORE posting, which is what makes
+ * a re-close idempotent instead of doubling every partner's allocation.
+ */
+async function voidCloseEntries(
+  admin: SupabaseClient,
+  fundId: string,
+  vehicleId: string | null,
+  periodId: string
+): Promise<{ count: number } | { error: string }> {
   const { data: entries, error: findErr } = await admin
     .from('journal_entries' as any)
     .select('id')
@@ -621,24 +909,14 @@ export async function reopenPeriodWithReversal(
   if (findErr) return { error: findErr.message }
 
   const ids = ((entries as any[]) ?? []).map(e => e.id)
-  if (ids.length > 0) {
-    // Void rather than delete: the allocation is derived, but the audit trail of
-    // having closed and reopened is not.
-    const { error: voidErr } = await admin
-      .from('journal_entries' as any)
-      .update({ status: 'void', posted_at: null })
-      .in('id', ids)
-      .eq('fund_id', fundId)
-    if (voidErr) return { error: voidErr.message }
-  }
+  if (ids.length === 0) return { count: 0 }
 
-  const { error: openErr } = await admin
-    .from('fiscal_periods' as any)
-    .update({ status: 'open', closed_at: null, snapshot_text: null })
-    .eq('id', periodId)
+  const { error: voidErr } = await admin
+    .from('journal_entries' as any)
+    .update({ status: 'void', posted_at: null })
+    .in('id', ids)
     .eq('fund_id', fundId)
-    .eq('vehicle_id', vehicleId)
-  if (openErr) return { error: openErr.message }
+  if (voidErr) return { error: voidErr.message }
 
-  return { ok: true, voided: ids.length }
+  return { count: ids.length }
 }

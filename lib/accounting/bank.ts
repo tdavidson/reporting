@@ -19,7 +19,7 @@ export interface ParsedTxn {
 // ---------------------------------------------------------------------------
 
 /** Split one delimited line, honoring double-quoted fields. */
-function splitLine(line: string, delim: string): string[] {
+export function splitLine(line: string, delim: string): string[] {
   const out: string[] = []
   let cur = ''
   let inQuotes = false
@@ -42,7 +42,7 @@ function splitLine(line: string, delim: string): string[] {
  * fields (common in brokerage exports, e.g. a multi-line Description). A newline
  * only ends a record when it's outside quotes.
  */
-function splitRecords(text: string): string[] {
+export function splitRecords(text: string): string[] {
   const records: string[] = []
   let cur = ''
   let inQuotes = false
@@ -77,7 +77,7 @@ export function normalizeDate(s: string): string | null {
   return null
 }
 
-function parseAmount(s: string): number | null {
+export function parseAmount(s: string): number | null {
   if (s == null) return null
   const neg = /^\(.*\)$/.test(s.trim()) // (123.45) accounting negative
   const cleaned = s.replace(/[(),$\s]/g, '')
@@ -108,7 +108,7 @@ function matchHeader(cell: string): string | null {
 }
 
 /** Most likely delimiter for a line: tab, comma, or semicolon (EU exports). */
-function pickDelim(line: string): string {
+export function pickDelim(line: string): string {
   const candidates: [string, number][] = [
     ['\t', (line.match(/\t/g) ?? []).length],
     [',', (line.match(/,/g) ?? []).length],
@@ -185,15 +185,47 @@ export function parseTransactionsCsv(text: string): ParseResult {
 // Dedup
 // ---------------------------------------------------------------------------
 
-/** Stable non-crypto hash (FNV-1a) for import idempotency. */
-export function dedupHash(t: ParsedTxn): string {
-  const s = `${t.date}|${t.amount.toFixed(2)}|${(t.description || '').toLowerCase().trim()}`
-  let h = 0x811c9dc5
+function fnv1a(s: string, seed: number): number {
+  let h = seed
   for (let i = 0; i < s.length; i++) {
     h ^= s.charCodeAt(i)
     h = Math.imul(h, 0x01000193)
   }
-  return (h >>> 0).toString(16).padStart(8, '0')
+  return h >>> 0
+}
+
+const dedupKey = (t: ParsedTxn) =>
+  `${t.date}|${t.amount.toFixed(2)}|${(t.description || '').toLowerCase().trim()}`
+
+/**
+ * The ORIGINAL 32-bit hash. Kept only so re-importing a file that was imported before this
+ * change is still recognised as a duplicate — existing `bank_transactions` rows carry these.
+ * Never write one.
+ */
+export function legacyDedupHash(t: ParsedTxn): string {
+  return fnv1a(dedupKey(t), 0x811c9dc5).toString(16).padStart(8, '0')
+}
+
+/**
+ * Stable non-crypto hash for import idempotency.
+ *
+ * Two changes from the original:
+ *
+ * 1. 64-BIT, not 32. A 32-bit hash has a ~50% chance of at least one collision by ~77k rows —
+ *    entirely reachable on a multi-year feed — and a collision here means a real transaction
+ *    is silently skipped as a "duplicate".
+ *
+ * 2. `occurrence` DISAMBIGUATES GENUINE DUPLICATES. Two identical wire fees on the same day,
+ *    same amount, same description are two real transactions, and the old hash collapsed them
+ *    into one and dropped the second without a word. Numbering them within the file keeps them
+ *    distinct — while a RE-import of that same file reproduces the same numbering, so it is
+ *    still correctly skipped. Idempotency is preserved; the false positive is not.
+ */
+export function dedupHash(t: ParsedTxn, occurrence = 0): string {
+  const s = occurrence > 0 ? `${dedupKey(t)}|#${occurrence}` : dedupKey(t)
+  const a = fnv1a(s, 0x811c9dc5)
+  const b = fnv1a(s, 0x9e3779b9)
+  return a.toString(16).padStart(8, '0') + b.toString(16).padStart(8, '0')
 }
 
 // ---------------------------------------------------------------------------
@@ -211,6 +243,10 @@ export interface Category {
 const RULES: { re: RegExp; accountCode: string; sourceType: string; label: string }[] = [
   { re: /capital call|drawdown|contribution|subscription/i, accountCode: '3100', sourceType: 'capital_call', label: 'Capital call' },
   { re: /distribution|redemption/i, accountCode: '3100', sourceType: 'distribution', label: 'Distribution' },
+  // An escrow release CLEARS the receivable booked at exit — it is not new income. Booking it
+  // as a realized gain would count the same money twice: once at the exit (when the fund
+  // earned it) and again when it finally arrived.
+  { re: /escrow|holdback/i, accountCode: '1350', sourceType: 'realized_gain', label: 'Escrow release' },
   { re: /management fee|mgmt fee/i, accountCode: '5000', sourceType: 'management_fee', label: 'Management fee' },
   { re: /audit|legal|tax|accounting|admin|filing|fund expense|organization/i, accountCode: '5100', sourceType: 'partnership_expense', label: 'Partnership expense' },
   // Interest/dividend is handled before this list (direction-aware: income on an

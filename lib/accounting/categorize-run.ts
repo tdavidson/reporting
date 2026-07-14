@@ -9,6 +9,7 @@ import { loadPostedLedger } from './load'
 import { accountIdByCode } from './persist'
 import { vehicleIdByName } from './vehicle-id'
 import { buildCategorizePrompt, parseCategorizations, type TxnToCategorize } from './categorize-ai'
+import { ENTRY_SOURCE_TYPES } from './source-types'
 
 export interface CategorizeResult {
   considered: number
@@ -66,6 +67,30 @@ export async function runCategorization(
     if (!cat) continue
     const newAccountId = codes.get(cat.accountCode)
     if (!newAccountId) { errors.push(`${t.id}: unknown account ${cat.accountCode}`); continue }
+
+    // VALIDATE THE MODEL'S source_type. It was written through verbatim, but `source_type`
+    // drives which line of the capital-account roll-forward a posting lands on — so a
+    // hallucinated value ("capital_contribution", "misc") silently fell into `unclassified`
+    // and distorted every LP statement it touched.
+    if (!ENTRY_SOURCE_TYPES.includes(cat.sourceType)) {
+      errors.push(`${t.id}: the model returned an unknown source type "${cat.sourceType}"`)
+      continue
+    }
+
+    // Re-read the entry and confirm it is STILL a draft. The categorization ran against a
+    // snapshot taken before the (slow) model call — in the meantime a user may have posted
+    // this transaction, and re-pointing a POSTED entry's account behind their back is exactly
+    // the kind of thing that makes books untrustworthy.
+    const { data: entry } = await admin
+      .from('journal_entries' as any)
+      .select('status')
+      .eq('id', t.journal_entry_id)
+      .eq('fund_id', fundId)
+      .maybeSingle()
+    if ((entry as any)?.status !== 'draft') {
+      errors.push(`${t.id}: skipped — its entry is no longer a draft`)
+      continue
+    }
 
     // Only re-point simple two-line drafts (exactly one non-cash posting).
     const { data: postings } = await admin

@@ -12,6 +12,8 @@ The core of the platform is portfolio KPI collection. From founder emails to LP 
 
 Turn on the additional features for inbound deal screening, due diligence agent, and investment memo drafting to create a deal pipeline and bring AI into your screening and diligence workflows. Utilize the limited partner reporting features to provide portfolio-company and/or fund-level reporting and document delivery to your limited partners.
 
+Turn on fund accounting when you want the LP numbers to come from a real ledger rather than a spreadsheet — a double-entry set of books per vehicle, a monthly close that allocates to each partner's capital account, and capital account statements that tie to it. It works alongside your fund administrator, or in place of one for the vehicles you run yourself.
+
 ## How it works
 
 - **Inbound deal screening** — Cold pitches and partner-forwarded intros sent to your inbound address get classified, fit-scored against your thesis, and queued in a Deals pipeline. Optional public submission form for founders.
@@ -20,6 +22,7 @@ Turn on the additional features for inbound deal screening, due diligence agent,
 - **AI extraction** — Identifies companies and pulls metrics like MRR, burn rate, headcount, and any custom KPIs you set from any format
 - **Portfolio dashboard** — Real-time view of company health with key metrics and trend analysis
 - **Review queue** — Flags uncertain extractions for human verification before saving
+- **Fund accounting** — An optional double-entry ledger per vehicle (fund, SPV, direct deal, GP entity). Import a bank feed, book capital calls and distributions, and close a period to allocate income and expenses to each partner's capital account — accruing note interest and carried interest as you go. Produces per-partner capital account statements, a schedule of investments, full financial statements, and an LP report derived live from the books rather than frozen at import. Vehicles you don't keep books on can record LP capital movements directly and still produce the same statements.
 - **LP reporting** — Export clean data or use built-in templates for professional presentation
 - **LP portal** — Give your LPs a private, fund-branded login to view and download their capital account statements, quarterly letters, and fund documents — each as a web page or a PDF. Send any item by email to one LP, several, or your whole list as a secure portal link, a PDF attachment, or both. Authorized users (advisors, accountants) are included automatically, and an AI analyst answers LP questions from only their own materials.
 - **Lightweight CRM** - Track intros, strategy, qualitative value-adds to demonstrate how you work with your portfolio

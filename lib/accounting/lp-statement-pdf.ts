@@ -13,6 +13,7 @@
 // moment you publish.
 
 import { renderHtmlToPdf } from '@/lib/lp-report-pdf'
+import { getCurrencySymbol } from '@/lib/currency'
 import { lpStatement } from './capital-calls'
 import { CAPITAL_ACCOUNT_LABELS, ACTIVITY_FIELDS, type CapitalAccount } from './capital-account'
 import type { CapitalPeriod } from './capital-account'
@@ -29,7 +30,9 @@ function esc(s: string): string {
 function money(v: number, currency: string): string {
   if (Math.abs(v) < 0.005) return '—'
   const n = Math.abs(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-  const sym = currency === 'USD' ? '$' : ''
+  // Was `currency === 'USD' ? '$' : ''` — so a EUR fund's LP statement showed bare numbers with
+  // no unit at all, on the one document an LP is most likely to file with their accountant.
+  const sym = getCurrencySymbol(currency)
   return v < 0 ? `(${sym}${n})` : `${sym}${n}`
 }
 

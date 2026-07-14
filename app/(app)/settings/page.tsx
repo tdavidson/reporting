@@ -187,9 +187,8 @@ export default function SettingsPage() {
         </AdminSectionContext.Provider>
       )}
       {/* Per-USER, not per-fund: the Affinity key is the caller's own personal access
-          token and every user needs their own. It sat inside the admin-only block, so
-          non-admins had no way to connect their CRM at all. */}
-      <GroupHeader label="CRM" />
+          token and every user needs their own. This section used for all external data integrations. */}
+      <GroupHeader label="External Data" />
       <AffinityConnect />
 
       <GroupHeader label="Notes" />

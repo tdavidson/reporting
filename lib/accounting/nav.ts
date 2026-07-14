@@ -4,7 +4,7 @@
 
 import {
   Landmark, Users, ScrollText, Gauge,
-  Lock, Layers, FileText,
+  Lock, Layers, FileText, ListTree,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 
@@ -33,6 +33,12 @@ export const ACCOUNTING_SECTIONS: AccountingSection[] = [
     label: 'Capital accounts',
     icon: Users,
     desc: "Per-partner roll-forward and commitments, plus called and unfunded. Issue capital calls and publish LP capital statements.",
+  },
+  {
+    href: '/accounting/lp-events',
+    label: 'LP capital events',
+    icon: ListTree,
+    desc: "Capital movements for a vehicle you don't keep books on — an SPV, a direct investment, a fund whose administrator sends you a statement. They feed the same capital accounts and LP report as a full ledger.",
   },
   {
     href: '/accounting/journal',

@@ -85,7 +85,24 @@ export function allocationWeights(
     if (t.category === category) byPartner.set(t.lpEntityId, t)
   }
 
-  return partners
+  // A CARRY PARTICIPANT NEED NOT BE AN INVESTOR.
+  //
+  // Carry points and committed capital are different things: a partner can hold 15% of the
+  // carry while committing nothing at all (a founding partner, an advisor with points). This
+  // used to map only over `partners` — which is built from commitments — so anyone with a
+  // weight override and no commitment simply never entered the list, and their points silently
+  // redistributed to everyone else.
+  //
+  // An explicit `weightOverride` IS the partner's participation. Include them.
+  const all: WeightInput[] = [...partners]
+  const known = new Set(partners.map(p => p.lpEntityId))
+  for (const t of Array.from(byPartner.values())) {
+    if (!known.has(t.lpEntityId) && t.participates && t.weightOverride != null && t.weightOverride > 0) {
+      all.push({ lpEntityId: t.lpEntityId, basisAmount: 0 })
+    }
+  }
+
+  return all
     .map(p => {
       const t = byPartner.get(p.lpEntityId)
       if (t && !t.participates) return { lpEntityId: p.lpEntityId, commitment: 0 }

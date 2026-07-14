@@ -47,6 +47,42 @@ export async function POST(req: NextRequest) {
   if (group instanceof NextResponse) return group
   const vehicleId = await vehicleIdByName(admin, gate.fundId, group)
 
+  /**
+   * The entry-state guard the bank routes used to be missing.
+   *
+   * `unpost` and `restore` checked the closed period; `post`, `postMany` and `ignore` did
+   * not, and none of them checked the entry's STATUS. So bank-posting a draft dated inside a
+   * closed month injected P&L into locked books, and posting a transaction whose entry had
+   * been voided (by `ignore`) resurrected that entry straight to `posted` — a transition the
+   * journal route explicitly forbids.
+   *
+   * Returns an error string, or null when the transition is allowed.
+   */
+  const guardEntry = async (
+    entryIds: string[],
+    allowed: ('draft' | 'posted')[]
+  ): Promise<string | null> => {
+    if (entryIds.length === 0) return null
+    const { data: entries } = await admin
+      .from('journal_entries' as any)
+      .select('id, status, entry_date')
+      .eq('fund_id', gate.fundId)
+      .in('id', entryIds)
+
+    const closed = await closedPeriodRanges(admin, gate.fundId, group as string)
+    for (const e of ((entries as any[]) ?? [])) {
+      if (!allowed.includes(e.status)) {
+        return e.status === 'void'
+          ? 'That entry was voided. Restore the transaction to draft it again.'
+          : `That entry is already ${e.status}.`
+      }
+      if (e.entry_date && dateInAnyClosedPeriod(closed, e.entry_date)) {
+        return `That entry is dated ${e.entry_date}, inside a closed period — reopen it first.`
+      }
+    }
+    return null
+  }
+
   // Bulk post: flip a set of drafted transactions (and their draft entries) to
   // posted in one call.
   if (action === 'postMany') {
@@ -61,6 +97,10 @@ export async function POST(req: NextRequest) {
       .eq('status', 'drafted')
     const txnIds = ((rows as any[]) ?? []).map(r => r.id)
     const entryIds = ((rows as any[]) ?? []).map(r => r.journal_entry_id).filter(Boolean)
+
+    const problem = await guardEntry(entryIds, ['draft'])
+    if (problem) return NextResponse.json({ error: problem }, { status: 400 })
+
     if (entryIds.length) {
       const { error } = await admin.from('journal_entries' as any).update({ status: 'posted', posted_at: new Date().toISOString() }).in('id', entryIds).eq('fund_id', gate.fundId)
       if (error) return dbError(error, 'bank-post-many')
@@ -108,7 +148,13 @@ export async function POST(req: NextRequest) {
   }
 
   if (action === 'post') {
+    if ((txn as any).status !== 'drafted') {
+      return NextResponse.json({ error: 'Only a drafted transaction can be posted.' }, { status: 400 })
+    }
     if (entryId) {
+      const problem = await guardEntry([entryId], ['draft'])
+      if (problem) return NextResponse.json({ error: problem }, { status: 400 })
+
       const { error } = await admin.from('journal_entries' as any).update({ status: 'posted', posted_at: new Date().toISOString() }).eq('id', entryId).eq('fund_id', gate.fundId)
       if (error) return dbError(error, 'bank-post-entry')
     }
@@ -152,7 +198,20 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, status: 'drafted' })
   }
 
-  if (entryId) await admin.from('journal_entries' as any).update({ status: 'void' }).eq('id', entryId).eq('fund_id', gate.fundId)
+  // Ignore. Voiding the entry is a real ledger change, so it gets the same guards as any
+  // other: an already-ignored transaction has nothing to do, and an entry sitting inside a
+  // closed period cannot be voided without reopening it — that used to silently change
+  // already-closed financials.
+  if ((txn as any).status === 'ignored') {
+    return NextResponse.json({ error: 'That transaction is already ignored.' }, { status: 400 })
+  }
+  if (entryId) {
+    const problem = await guardEntry([entryId], ['draft', 'posted'])
+    if (problem) return NextResponse.json({ error: problem }, { status: 400 })
+
+    const { error } = await admin.from('journal_entries' as any).update({ status: 'void', posted_at: null }).eq('id', entryId).eq('fund_id', gate.fundId)
+    if (error) return dbError(error, 'bank-ignore-entry')
+  }
   await admin.from('bank_transactions' as any).update({ status: 'ignored' }).eq('id', id).eq('fund_id', gate.fundId)
   return NextResponse.json({ ok: true, status: 'ignored' })
 }

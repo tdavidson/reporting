@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { assertWriteAccess } from '@/lib/api-helpers'
 import { dbError } from '@/lib/api-error'
 import { logActivity } from '@/lib/activity'
+import { redraftEntryForTransaction, retractEntriesForTransaction } from '@/lib/accounting/from-portfolio'
 
 // ---------------------------------------------------------------------------
 // PATCH — update a transaction
@@ -55,6 +56,14 @@ export async function PATCH(
     'valuation_change_source', 'fx_rate', 'prior_fx_rate', 'fx_value_change',
     'original_position_value',
     'portfolio_group',
+    // The Schedule of Investments reads `security_type` for its by-asset-type breakout, but
+    // it was in no create route, no allowlist and no import — so nothing in the app could
+    // ever set it, and the breakout fell back to a two-bucket guess forever.
+    'security_type',
+    // Convertible-note terms. `interest_rate` is the ONLY rate the ledger accrues on.
+    // `dividend_rate` is preferred-equity dividends: they accrue to the liquidation preference,
+    // not to income, and never touch the books.
+    'interest_rate', 'maturity_date', 'dividend_rate',
   ]
 
   const updates: Record<string, unknown> = { updated_at: new Date().toISOString() }
@@ -76,7 +85,20 @@ export async function PATCH(
     transactionId: params.txnId,
   })
 
-  return NextResponse.json(txn)
+  // Re-mirror the ledger. Creating a transaction drafted a journal entry, but editing one
+  // used to change nothing on the books — so correcting a fat-fingered cost left the ledger
+  // permanently wrong, with only a passive variance warning to notice, and no way to tell why.
+  const { data: company } = await admin
+    .from('companies' as any)
+    .select('name')
+    .eq('id', params.id)
+    .maybeSingle() as { data: { name: string } | null }
+
+  const ledger = await redraftEntryForTransaction(
+    admin, existing.fund_id, user.id, txn, company?.name ?? 'Investment'
+  )
+
+  return NextResponse.json({ ...(txn as object), ledger })
 }
 
 // ---------------------------------------------------------------------------
@@ -111,6 +133,15 @@ export async function DELETE(
     return NextResponse.json({ error: 'Transaction not found' }, { status: 404 })
   }
 
+  // Retract the ledger side FIRST. If its journal entry sits in a closed period we refuse the
+  // whole delete — otherwise the tracker would lose a transaction the books still carry, and
+  // the two would disagree with nothing to explain why. Deleting the tracker row first and
+  // then failing here would leave exactly that mess.
+  const ledger = await retractEntriesForTransaction(admin, existing.fund_id, params.txnId)
+  if (ledger.reason) {
+    return NextResponse.json({ error: `Can't delete this transaction. ${ledger.reason}` }, { status: 400 })
+  }
+
   const { error } = await admin
     .from('investment_transactions' as any)
     .delete()
@@ -123,5 +154,5 @@ export async function DELETE(
     transactionId: params.txnId,
   })
 
-  return NextResponse.json({ success: true })
+  return NextResponse.json({ success: true, ledger })
 }

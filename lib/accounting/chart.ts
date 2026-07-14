@@ -25,6 +25,13 @@ export const DEFAULT_CHART: ChartAccountSeed[] = [
   // position is therefore 1100 + 1200 + 1250.
   { code: '1250', name: 'Foreign currency translation', type: 'asset', subtype: 'fx_translation' },
   { code: '1300', name: 'Due from LPs', type: 'asset', subtype: 'receivable' },
+  // An exit's holdback. The tracker counts escrow in proceeds the moment the deal closes
+  // (lib/investments.ts computeSummary), because economically the fund has earned it — but
+  // the cash hasn't arrived. Booking only the cash received made the ledger's realized gain
+  // differ from the tracker's by exactly the escrow, by construction, on every exit with a
+  // holdback. Recognizing it as a RECEIVABLE at exit puts the two back in agreement, and the
+  // receivable clears when the money actually lands.
+  { code: '1350', name: 'Escrow receivable', type: 'asset', subtype: 'escrow_receivable' },
 
   // Liabilities
   { code: '2000', name: 'Accrued expenses', type: 'liability', subtype: 'accrued' },
@@ -43,7 +50,18 @@ export const DEFAULT_CHART: ChartAccountSeed[] = [
 
   // Income
   { code: '4000', name: 'Realized gains', type: 'income', subtype: 'realized_gain' },
+  // Cash sitting in the bank, and dividends actually received. TREASURY income — it says
+  // nothing about how the portfolio is doing.
   { code: '4100', name: 'Interest and dividend income', type: 'income', subtype: 'interest_income' },
+  // Interest EARNED BY A PORTFOLIO POSITION — a convertible note accruing at its coupon. This is
+  // investment income, and keeping it apart from 4100 is the whole point: an LP reading the
+  // income statement can then tell yield the portfolio produced from yield the bank account
+  // produced. Both roll into `operatingIncome` on a capital account, but they are different
+  // lines on the statement of operations, because they are different businesses.
+  //
+  // NOT for preferred dividends: those accrue to the liquidation preference and reach the
+  // statements through the fair-value mark, never as income. See migration 20260714000007.
+  { code: '4110', name: 'Note interest income', type: 'income', subtype: 'note_interest_income' },
   { code: '4200', name: 'Change in unrealized appreciation', type: 'income', subtype: 'unrealized' },
   // The counterpart to 1250. Kept out of 4200 so the income statement can say how much
   // of the period's gain was the portfolio and how much was the dollar.

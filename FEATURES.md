@@ -124,6 +124,32 @@ The snapshot detail page shows all investors with aggregated metrics. Expand an 
 
 Configure a header and footer for the snapshot's PDF reports via the Settings button. Click the document icon on any investor row to view their individual report, or use "Batch PDFs" to generate all investor reports at once. PDFs include the header, a metrics summary table, and the footer. You can also export the full snapshot dataset to an Excel file with all investors, entities, portfolio groups, and metrics.
 
+## Accounting
+
+Accounting gives each of your vehicles — a fund, an SPV, a direct deal, a GP entity — a real double-entry ledger, and turns it into the numbers your LPs actually see. It is optional: turn it on for one vehicle, or none, and the rest of the platform works exactly as before.
+
+**Onboarding a vehicle.** Seed the chart of accounts, then choose how the books start: *full history*, rebuilding the ledger from inception out of your existing portfolio and LP data, or *cutover*, starting at a date with opening balances. GP and associate entities get their own chart (Investment in Fund, members' capital, carried interest income) rather than the fund chart, because they keep different books.
+
+**Bank transactions.** Paste or upload a CSV/TSV export from your bank, Ramp, or QuickBooks. Columns are matched automatically, rows are de-duplicated, and each becomes a balanced draft entry for review. AI categorization suggests the account and entry type for a whole batch at once. An inflow can be booked as a **capital call** — funding an LP's open call, or splitting across every LP pro-rata by commitment — and an outflow as a **distribution**, split by capital balance so it lands in each partner's capital account rather than a pooled one. Nothing posts itself; every entry waits as a draft.
+
+**Journal.** Every entry, in plain double-entry form. Create, edit, post, unpost, and void. A posted entry is never silently deleted, and an entry inside a closed period cannot be changed at all until the period is reopened — enforced in the database, not just in the app.
+
+**Capital accounts.** A per-partner roll-forward — beginning capital, contributions, distributions, fees, expenses, income, realized and unrealized gains, FX translation, carried interest, ending capital — derived entirely from the ledger, so it always ties. Issue capital calls (recognized at the call, with the receivable cleared when the wire arrives), track called / funded / unfunded per LP, and publish per-partner **capital account statements** as PDFs straight to the LP portal.
+
+**LP capital events.** Not every vehicle needs full books. An SPV, a direct investment, or a fund whose administrator sends you a statement can instead record LP capital movements directly — contributions, distributions, fees, marks — by hand or by pasting a spreadsheet. Those vehicles produce the same capital accounts, the same statements, and the same LP report as a fully-booked one. You can promote a vehicle to a full ledger later.
+
+**Allocation terms.** How the close splits each category across partners: the allocation basis, each partner's commitment over time (effective-dated, including transfers between LPs), and who bears which category — a GP entity that pays no management fee, a side letter with a negotiated rate. Carry terms are set per vehicle: none, a straight split, or a European waterfall with a preferred return and catch-up.
+
+**Period close.** The single place allocation happens. Close *through* a date; the span is split into calendar months and each is allocated and locked in turn, so gaps are impossible. The close allocates income and expenses to each partner's capital account, accrues **interest on convertible notes**, and accrues **carried interest** on unrealized gains — as if the fund liquidated at that period's NAV, which is what keeps every LP's reported NAV net of what the GP would actually take. Reopening a period reverses its allocation exactly, voiding rather than deleting, and periods must be reopened newest-first.
+
+**Schedule of investments.** Each position at cost and fair value, with its unrealized gain and its share of net assets, broken out by country, industry, and asset type. Rows come from your portfolio tracker; the ledger is the control total, and any variance between them is surfaced rather than hidden.
+
+**Financial statements.** Balance sheet (statement of assets, liabilities and partners' capital), income statement, statement of cash flows, and statement of changes in partners' capital. Out-of-balance books are reported as a blocker, not buried.
+
+**Live capital report.** The LP report, derived from the books as of any date rather than frozen at import time — across every vehicle, with each LP's commitment, paid-in, distributions, NAV, DPI, TVPI and IRR. A member who invests through your GP or associate entity is **looked through** to their share of what that entity holds: capital follows their ownership, carried interest follows their carry points, and the two are allowed to differ (a partner can hold carry points and no commitment at all). You can compare a live report against any stored snapshot, line by line, to see exactly where the two disagree.
+
+**AI assistant.** An assistant scoped to the accounting section — read the books, interpret a statement, reconcile an account, draft an entry. It proposes; it never posts. Everything it produces lands as a draft for you to review. There is also an API-key-authenticated agent endpoint (REST and MCP) so an external agent can work against your books.
+
 ## Compliance
 
 Compliance helps fund managers stay on top of regulatory filings, tax deadlines, internal compliance requirements, and fund reporting obligations. It provides a calendar-based view of everything due throughout the year, tailored to your fund's specific profile and registration status.

@@ -1,5 +1,5 @@
 /**
- * Affinity CRM REST client (API v1).
+ * Affinity REST client (API v1).
  *
  * Why v1 and not v2: v2 is the newer surface but is not at feature parity — it
  * has no company-scoped notes listing and no file download. v1 has exactly what
@@ -209,7 +209,7 @@ export function renderNoteAsMarkdown(
   return [
     `# Affinity ${kind} — ${opts.organizationName ?? 'company'} — ${date}`,
     '',
-    `- **Source:** Affinity CRM (note #${note.id})`,
+    `- **Source:** Affinity (note #${note.id})`,
     `- **Author:** ${author}`,
     `- **Created:** ${note.created_at}`,
     '',

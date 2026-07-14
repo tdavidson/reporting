@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useCurrency, formatCurrencyPrice } from '@/components/currency-context'
 import { useLedgerFetch } from '@/components/accounting-vehicle'
+import { CarryTerms } from './carry-terms'
 
 type Category = 'management_fee' | 'partnership_expense' | 'organizational_expense' | 'realized_gain' | 'valuation' | 'income' | 'carried_interest'
 
@@ -93,6 +94,10 @@ export function AllocationTermsView() {
   return (
     <div className="space-y-6">
       {error && <p className="text-sm text-amber-600">{error}</p>}
+
+      {/* Carry terms. Sits above the per-partner grid because the grid's "Carried interest"
+          column only means anything once carry is switched on here. */}
+      <CarryTerms />
 
       {/* 1. Basis --------------------------------------------------------- */}
       <div className="border rounded-lg p-4 space-y-2">

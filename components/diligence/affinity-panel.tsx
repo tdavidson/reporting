@@ -282,7 +282,7 @@ export function AffinityPanel({
           <div className="w-full max-w-lg rounded-lg border bg-card p-5" onClick={e => e.stopPropagation()}>
             <h3 className="text-base font-semibold mb-1">Link to Affinity</h3>
             <p className="text-sm text-muted-foreground mb-3">
-              Find this company in your Affinity CRM. Once linked, its notes and attached files are
+              Find this company in your Affinity. Once linked, its notes and attached files are
               pulled into the data room, and new notes keep syncing hourly.
             </p>
 

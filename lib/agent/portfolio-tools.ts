@@ -285,7 +285,14 @@ export const PORTFOLIO_HANDLERS: Record<string, AgentToolHandler> = {
         original_currency: input.original_currency ?? null,
         fx_rate: num(input.fx_rate),
         prior_fx_rate: num(input.prior_fx_rate),
-        fx_value_change: num(input.unrealized_value_change),
+        // ONLY on an FX row. This used to copy `unrealized_value_change` into `fx_value_change`
+        // unconditionally, stamping an FX delta onto every ordinary mark. Downstream filters on
+        // `valuation_change_source === 'fx'` masked it, but the data was wrong at rest — and the
+        // whole point of separating 1250/4300 from 1200/4200 is that a currency move is not
+        // investment performance.
+        fx_value_change: input.valuation_change_source === 'fx'
+          ? num(input.fx_value_change ?? input.unrealized_value_change)
+          : null,
         original_position_value: num(input.original_position_value),
       })
       .select('*')

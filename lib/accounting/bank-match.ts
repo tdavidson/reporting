@@ -6,12 +6,15 @@
 //              entry, drop the auto-draft, and mark the transaction reconciled.
 
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { loadOwnership, loadEntityNames } from './load'
+import { loadOwnership, loadEntityNames, loadPostedLedger } from './load'
 import { accountIdByCode, ensureCapitalAccounts, persistEntry } from './persist'
 import { vehicleIdByName } from './vehicle-id'
-import { buildCapitalCallEntry, buildFundingEntry } from './entries'
+import { buildCapitalCallEntry, buildFundingEntry, buildDistributionEntry } from './entries'
+import { computeCapitalAccounts } from './capital-account'
+import { allocateAmount } from './allocation'
 import { lpReceivableBalances, RECEIVABLE_CODE } from './capital-calls'
 import { roundCents } from './ledger'
+import { closedPeriodRanges, dateInAnyClosedPeriod } from './periods'
 import type { JournalEntry } from './types'
 
 async function getTxn(admin: SupabaseClient, fundId: string, group: string, txnId: string) {
@@ -105,11 +108,128 @@ export async function bookCapitalCallFromInflow(
   const result = await persistEntry(admin, fundId, group, userId, entry, 'draft')
   if ('error' in result) return { error: result.error }
 
-  // Point the transaction at the new entry, then drop the old two-line draft.
+  // Point the transaction at the new entry, then retire the old two-line draft.
   const oldEntryId = txn.journal_entry_id
   await admin.from('bank_transactions' as any).update({ journal_entry_id: result.entryId, suggested_account_code: suggestedCode }).eq('id', txnId).eq('fund_id', fundId)
   if (oldEntryId && oldEntryId !== result.entryId) {
-    await admin.from('journal_entries' as any).delete().eq('id', oldEntryId).eq('fund_id', fundId)
+    const retired = await retireEntry(admin, fundId, oldEntryId)
+    if ('error' in retired) return { error: retired.error }
+  }
+  return { entryId: result.entryId }
+}
+
+/**
+ * Retire the entry a bank transaction used to point at.
+ *
+ * A DRAFT is deleted — it was never part of the books, so there is nothing to preserve.
+ * A POSTED entry is VOIDED, never deleted. This used to `delete()` unconditionally, which
+ * meant re-running "book as call" on an already-reconciled inflow silently erased a posted
+ * ledger entry with no audit trail — the exact immutability the journal route enforces
+ * everywhere else.
+ */
+async function retireEntry(
+  admin: SupabaseClient,
+  fundId: string,
+  entryId: string
+): Promise<{ ok: true } | { error: string }> {
+  const { data: entry } = await admin
+    .from('journal_entries' as any)
+    .select('status')
+    .eq('id', entryId)
+    .eq('fund_id', fundId)
+    .maybeSingle()
+  if (!entry) return { ok: true } // already gone
+
+  const status = (entry as any).status
+  if (status === 'draft') {
+    const { error } = await admin.from('journal_entries' as any).delete().eq('id', entryId).eq('fund_id', fundId)
+    if (error) return { error: error.message }
+    return { ok: true }
+  }
+
+  // Posted or already void — void it (idempotent) and keep the record.
+  const { error } = await admin
+    .from('journal_entries' as any)
+    .update({ status: 'void', posted_at: null })
+    .eq('id', entryId)
+    .eq('fund_id', fundId)
+  if (error) return { error: error.message }
+  return { ok: true }
+}
+
+/**
+ * Turn an outflow into a DISTRIBUTION entry: Dr each LP's capital, Cr cash.
+ *
+ * The counterpart to `bookCapitalCallFromInflow`, and the fix for a real hole: the bank
+ * categorizer's distribution rule posts to the pooled `3100 Partners' capital (unallocated)`
+ * with `lp_entity_id = null`. But `loadPostedLedger` only counts a posting as a capital
+ * movement when BOTH the account and the posting carry an lp_entity_id — so a
+ * bank-categorized distribution reduced fund NAV while appearing in NOBODY's capital account,
+ * statement, or roll-forward. The money left and no LP was recorded as having received it.
+ *
+ * SPLIT BASIS: capital balance, not commitment. You distribute what a partner OWNS, not what
+ * they promised — an LP who has funded 10% of the capital but committed 20% is owed a share
+ * of the proceeds proportional to the former. (A capital CALL is the mirror image, and
+ * correctly splits by commitment.) Pass `perLp` to override with explicit amounts, which is
+ * what a waterfall would supply.
+ */
+export async function bookDistributionFromOutflow(
+  admin: SupabaseClient,
+  fundId: string,
+  group: string,
+  userId: string | null,
+  txnId: string,
+  perLpOverride?: Map<string, number> | null
+): Promise<{ entryId: string } | { error: string }> {
+  const txn = await getTxn(admin, fundId, group, txnId)
+  if (!txn) return { error: 'Transaction not found' }
+  const amount = Number(txn.amount)
+  if (amount >= 0) return { error: 'Only an outflow (withdrawal) can be booked as a distribution' }
+  const total = Math.abs(amount)
+
+  const codes = await accountIdByCode(admin, fundId, group)
+  const cashId = codes.get('1000')
+  if (!cashId) return { error: 'Seed the chart of accounts first' }
+
+  let perLp: Map<string, number>
+  if (perLpOverride && perLpOverride.size > 0) {
+    const sum = roundCents(Array.from(perLpOverride.values()).reduce((s, v) => s + v, 0))
+    if (Math.abs(sum - total) > 0.01) {
+      return { error: `The per-LP amounts total ${sum}, but the transaction is ${total}.` }
+    }
+    perLp = perLpOverride
+  } else {
+    // Split by ending capital balance.
+    const { capitalPostings } = await loadPostedLedger(admin, fundId, group)
+    const accounts = computeCapitalAccounts(capitalPostings)
+    const basis = Array.from(accounts.entries())
+      .map(([lpEntityId, a]) => ({ lpEntityId, commitment: a.ending }))
+      .filter(o => o.commitment > 0)
+
+    if (basis.length === 0) {
+      return { error: 'No partner has a positive capital balance to distribute against. Book the contributions first, or enter the per-LP amounts.' }
+    }
+    perLp = allocateAmount(total, basis)
+  }
+
+  const capMap = await ensureCapitalAccounts(admin, fundId, group, Array.from(perLp.keys()))
+  const entry = buildDistributionEntry(
+    { fundId, entryDate: txn.txn_date, memo: `Distribution${txn.description ? ` — ${txn.description}` : ''}` },
+    perLp,
+    capMap,
+    cashId
+  )
+
+  const result = await persistEntry(admin, fundId, group, userId, entry, 'draft')
+  if ('error' in result) return { error: result.error }
+
+  const oldEntryId = txn.journal_entry_id
+  await admin.from('bank_transactions' as any)
+    .update({ journal_entry_id: result.entryId, suggested_account_code: '3100' })
+    .eq('id', txnId).eq('fund_id', fundId)
+  if (oldEntryId && oldEntryId !== result.entryId) {
+    const retired = await retireEntry(admin, fundId, oldEntryId)
+    if ('error' in retired) return { error: retired.error }
   }
   return { entryId: result.entryId }
 }
@@ -126,13 +246,42 @@ export async function linkInflowToEntry(
   if (!txn) return { error: 'Transaction not found' }
 
   const vehicleId = await vehicleIdByName(admin, fundId, group)
-  const { data: target } = await admin.from('journal_entries' as any).select('id').eq('id', entryId).eq('fund_id', fundId).eq('vehicle_id', vehicleId).maybeSingle()
+  const { data: target } = await admin
+    .from('journal_entries' as any)
+    .select('id, status, entry_date')
+    .eq('id', entryId).eq('fund_id', fundId).eq('vehicle_id', vehicleId)
+    .maybeSingle()
   if (!target) return { error: 'Entry not found' }
 
-  // Drop the auto-drafted entry (if any), then link + post the target.
+  // Only a draft may be posted. Without this, linking to a VOIDED entry resurrected it
+  // straight to `posted` — a transition the journal route explicitly forbids — and linking to
+  // an already-posted entry let two bank transactions both claim it, each reading
+  // "reconciled" while the ledger was short one deposit.
+  const status = (target as any).status
+  if (status === 'void') return { error: 'That entry was voided. Pick another, or create a new one.' }
+  if (status === 'posted') {
+    const { data: claimed } = await admin
+      .from('bank_transactions' as any)
+      .select('id')
+      .eq('fund_id', fundId)
+      .eq('journal_entry_id', entryId)
+      .neq('id', txnId)
+      .maybeSingle()
+    if (claimed) return { error: 'Another bank transaction is already reconciled against that entry.' }
+  }
+
+  // Refuse to post into a closed period. The database now refuses this too
+  // (20260714000004), but a clear message beats a constraint violation.
+  const closed = await closedPeriodRanges(admin, fundId, group)
+  if (dateInAnyClosedPeriod(closed, (target as any).entry_date)) {
+    return { error: `That entry is dated ${(target as any).entry_date}, inside a closed period — reopen it first.` }
+  }
+
+  // Retire the auto-drafted entry (if any), then link + post the target.
   const oldEntryId = txn.journal_entry_id
   if (oldEntryId && oldEntryId !== entryId) {
-    await admin.from('journal_entries' as any).delete().eq('id', oldEntryId).eq('fund_id', fundId)
+    const retired = await retireEntry(admin, fundId, oldEntryId)
+    if ('error' in retired) return { error: retired.error }
   }
   await admin.from('journal_entries' as any).update({ status: 'posted', posted_at: new Date().toISOString() }).eq('id', entryId).eq('fund_id', fundId)
   await admin.from('bank_transactions' as any).update({ journal_entry_id: entryId, status: 'reconciled' }).eq('id', txnId).eq('fund_id', fundId)

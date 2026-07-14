@@ -10,6 +10,7 @@ import { randomBytes } from 'crypto'
 import { dbError } from '@/lib/api-error'
 import { logActivity } from '@/lib/activity'
 import { DEFAULT_FEATURE_VISIBILITY, FEATURES_WITH_OFF } from '@/lib/types/features'
+import { forgetFundCurrency } from '@/lib/accounting/currency'
 import { validateOllamaUrl } from '@/lib/validate-url'
 import type { FeatureKey, FeatureVisibility, FeatureVisibilityMap } from '@/lib/types/features'
 
@@ -562,6 +563,9 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: 'Unsupported currency code' }, { status: 400 })
     }
     settingsUpdates.currency = currency
+    // The ledger denominates every posting in the fund's currency and memoizes it. Drop the
+    // memo, or entries written for the rest of this process's life would carry the old one.
+    forgetFundCurrency(membership.fund_id)
   }
 
   if (disableUserTracking !== undefined) {

@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { assertAdminAccess } from '@/lib/api-helpers'
 import { resolveGroupOr400 } from '@/lib/accounting/http-vehicle'
+import { loadCommitmentEvents, recordCommitmentChange, savePartnerTerm } from '@/lib/accounting/terms'
 
 // POST — the "strict" accounting-side add of a partner (LP or GP) to the vehicle
 // being viewed. Reuses the investor/entity if they already exist (names are
@@ -67,6 +68,48 @@ export async function POST(req: NextRequest) {
       snapshot_id: snapshotId,
     })
     if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+  }
+
+  // ALSO RECORD THE COMMITMENT AS AN EVENT.
+  //
+  // Commitment has two readers: capital calls / fees / statements read the
+  // `lp_investments.commitment` scalar, while the CLOSE allocates on `commitment_events`
+  // (whenever any exist). This route only ever wrote the scalar — so a partner added here was
+  // called pro-rata like everyone else, but the close allocated them nothing at all, because
+  // as far as `commitmentsAsOf()` was concerned they had no commitment. Writing both keeps the
+  // two readers agreeing.
+  //
+  // Only when the vehicle already uses events: seeding the very first event on a vehicle that
+  // has none would flip the close from its scalar fallback onto an event history containing
+  // this one partner and nobody else.
+  if (commitment > 0) {
+    const existingEvents = await loadCommitmentEvents(admin, gate.fundId, group)
+    const alreadyHas = existingEvents.some(e => e.lpEntityId === entityId)
+    if (existingEvents.length > 0 && !alreadyHas) {
+      const res = await recordCommitmentChange(admin, gate.fundId, group, user.id, {
+        lpEntityId: entityId,
+        // Dated today: this partner is being admitted now, and must not retroactively pick up
+        // allocations from periods before they existed.
+        effectiveDate: new Date().toISOString().slice(0, 10),
+        amount: commitment,
+        memo: 'Initial commitment — added via Accounting',
+      })
+      if ('error' in res) return NextResponse.json({ error: res.error }, { status: 400 })
+    }
+  }
+
+  // A GP entity does not bear the management fee or carried interest. Those defaults were
+  // seeded ONCE, by migration, for the GPs that existed then — so any GP added afterwards was
+  // silently charged both at the next close unless somebody remembered the terms page.
+  if (partnerClass === 'gp') {
+    for (const category of ['management_fee', 'carried_interest'] as const) {
+      await savePartnerTerm(admin, gate.fundId, group, {
+        lpEntityId: entityId,
+        category,
+        participates: false,
+        memo: 'GP entity — set automatically on creation',
+      })
+    }
   }
 
   return NextResponse.json({ ok: true, entityId, partnerClass })

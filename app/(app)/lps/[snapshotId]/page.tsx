@@ -2,7 +2,7 @@
 
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
-import { Loader2, Upload, Download, ChevronDown, ChevronRight, Trash2, Users, X, Check, Pencil, FileText, Settings, Search, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react'
+import { Loader2, Upload, Download, ChevronDown, ChevronRight, Trash2, Users, X, Check, Pencil, FileText, Settings, Search, ArrowUpDown, ArrowUp, ArrowDown, Scale } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
@@ -772,6 +772,14 @@ export default function SnapshotDetailPage() {
             Batch PDFs
           </a>
         </Button>
+        {isAdmin && (
+          <Button variant="outline" size="sm" className="text-muted-foreground" asChild>
+            <a href={`/lps/${snapshotId}/compare`}>
+              <Scale className="h-4 w-4 mr-1" />
+              Compare to ledger
+            </a>
+          </Button>
+        )}
         <Button variant="outline" size="sm" className="text-muted-foreground" onClick={() => setReportSettingsOpen(true)}>
           <Settings className="h-4 w-4 mr-1" />
           Settings

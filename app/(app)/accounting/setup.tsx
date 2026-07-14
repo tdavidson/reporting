@@ -11,6 +11,7 @@ export function AccountingSetup({ alwaysShow = false }: { alwaysShow?: boolean }
   const [accountCount, setAccountCount] = useState<number | null>(null)
   const [onboarded, setOnboarded] = useState(false)
   const [seeding, setSeeding] = useState(false)
+  const [seedMsg, setSeedMsg] = useState<string | null>(null)
   // Persisted per vehicle — this used to be local state, so the choice was lost on
   // every refresh and nothing downstream (like opening balances) could act on it.
   const [path, setPath] = useState<'full_history' | 'cutover' | null>(null)
@@ -46,8 +47,18 @@ export function AccountingSetup({ alwaysShow = false }: { alwaysShow?: boolean }
   }
 
   async function seed() {
-    setSeeding(true)
-    await lf('/api/accounting/chart', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
+    setSeeding(true); setSeedMsg(null)
+    const res = await lf('/api/accounting/chart', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
+    const data = await res.json().catch(() => ({}))
+    // Say WHAT it did. A sync that silently reports nothing leaves you unable to tell "already
+    // up to date" from "it didn't run" — and the accruals depend on specific accounts existing.
+    setSeedMsg(
+      res.ok
+        ? (data.seeded > 0
+            ? `Added ${data.seeded} account${data.seeded === 1 ? '' : 's'}: ${(data.accounts ?? []).map((a: any) => a.code).join(', ')}`
+            : 'Chart already up to date — nothing to add.')
+        : (data.error ?? 'Sync failed')
+    )
     await refresh()
     setSeeding(false)
   }
@@ -79,6 +90,7 @@ export function AccountingSetup({ alwaysShow = false }: { alwaysShow?: boolean }
               <button onClick={seed} disabled={seeding} className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2">{seeding ? 'Syncing…' : 'Sync accounts'}</button></>
           : <><span className="text-muted-foreground">1. Seed the chart of accounts.</span><Button size="sm" variant="outline" onClick={seed} disabled={seeding}>{seeding && <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />}Seed chart</Button></>}
       </div>
+      {seedMsg && <p className="text-xs text-muted-foreground pl-6">{seedMsg}</p>}
 
       {/* Step 2 — choose path */}
       <div className="text-sm">

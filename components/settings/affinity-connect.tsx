@@ -103,7 +103,7 @@ export function AffinityConnect() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">Affinity CRM</CardTitle>
+        <CardTitle className="text-base">Affinity</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
         <p className="text-sm text-muted-foreground">

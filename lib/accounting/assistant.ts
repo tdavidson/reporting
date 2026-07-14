@@ -8,8 +8,10 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { createFundAIProviderWithOverride } from '@/lib/ai'
 import { withTopicalGuardrail } from '@/lib/ai/topical-guard'
 import { loadPostedLedger, loadEntityNames } from './load'
-import { accountBalances } from './ledger'
+import { accountBalances, assertBalanced } from './ledger'
 import { accountIdByCode, persistEntry } from './persist'
+import { closedPeriodRanges, dateInAnyClosedPeriod } from './periods'
+import { fundCurrency } from './currency'
 import { vehicleIdByName } from './vehicle-id'
 import { lpCapitalSummary } from './capital-calls'
 import { ENTRY_SOURCE_TYPES } from './source-types'
@@ -222,15 +224,43 @@ export async function applyProposal(
     const accountId = codes.get(String(p.accountCode))
     if (!accountId) return { error: `Unknown account code ${p.accountCode}` }
     const lpEntityId = p.lpEntity ? entityByName.get(String(p.lpEntity).toLowerCase()) ?? null : null
-    postings.push({ accountId, amount: Number(p.amount), currency: 'USD', lpEntityId })
+    // Denominated in the fund's currency, not assumed dollars. The create path gets this from
+    // persistEntry; the edit path inserts postings directly, so it has to stamp them itself.
+    postings.push({ accountId, amount: Number(p.amount), currency: await fundCurrency(admin, fundId), lpEntityId })
   }
   if (postings.length === 0) return { error: 'The proposal has no postings' }
 
   if (proposal.type === 'edit' && proposal.entryId) {
     const vehicleId = await vehicleIdByName(admin, fundId, group)
+    if (!vehicleId) return { error: `Unknown vehicle "${group}".` }
+
     const { data: existing } = await admin.from('journal_entries' as any)
-      .select('id, status').eq('id', proposal.entryId).eq('fund_id', fundId).eq('vehicle_id', vehicleId).maybeSingle()
+      .select('id, status, entry_date').eq('id', proposal.entryId).eq('fund_id', fundId).eq('vehicle_id', vehicleId).maybeSingle()
     if (!existing) return { error: 'Entry to edit not found' }
+
+    // THE GUARDS THE CREATE PATH GETS FOR FREE FROM persistEntry, AND THIS PATH USED TO SKIP.
+    //
+    // These postings came out of an LLM's JSON. Without the balance check, a hallucinated
+    // edit saved an unbalanced entry as a draft — and the journal's Post action checks the
+    // period lock but NOT balance, so one click later it was posted and the trial balance
+    // was silently off. Without the period check, the edit could rewrite `entry_date` INTO a
+    // closed month, or amend an entry already sitting in one.
+    try {
+      assertBalanced({ fundId, entryDate: proposal.entryDate, postings } as JournalEntry)
+    } catch (e) {
+      return { error: `The proposed edit doesn't balance: ${(e as Error).message}` }
+    }
+
+    const closed = await closedPeriodRanges(admin, fundId, group)
+    // Check the date it's moving TO and the date it's moving FROM — an entry may neither be
+    // smuggled into a locked period nor out of one.
+    if (dateInAnyClosedPeriod(closed, proposal.entryDate)) {
+      return { error: `The period covering ${proposal.entryDate} is closed — reopen it to post there.` }
+    }
+    const currentDate = (existing as any).entry_date
+    if (currentDate && dateInAnyClosedPeriod(closed, currentDate)) {
+      return { error: `That entry is dated ${currentDate}, inside a closed period — reopen it to amend it.` }
+    }
 
     // Bring a posted entry back to draft first (and any bank txn that points at it).
     if ((existing as any).status !== 'draft') {

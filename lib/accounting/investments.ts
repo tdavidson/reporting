@@ -28,6 +28,10 @@ import type { JournalEntry, Posting } from './types'
 const COST_CODE = '1100'
 const UNREALIZED_CODE = '1200'
 const FX_CODE = '1250'
+// Interest a convertible note has EARNED but not been paid. Its own asset, per company, so it
+// converts into that company's cost basis when the note converts — and so it never contaminates
+// the 1100 cost tie-out against the tracker in the meantime.
+const ACCRUED_INTEREST_CODE = '1150'
 const CASH_CODE = '1000'
 const UNREALIZED_INCOME_CODE = '4200'
 const FX_INCOME_CODE = '4300'
@@ -36,11 +40,14 @@ const short = (id: string) => id.slice(0, 8)
 export const investmentCostCode = (companyId: string) => `${COST_CODE}-${short(companyId)}`
 export const investmentUnrealizedCode = (companyId: string) => `${UNREALIZED_CODE}-${short(companyId)}`
 export const investmentFxCode = (companyId: string) => `${FX_CODE}-${short(companyId)}`
+export const investmentAccruedInterestCode = (companyId: string) => `${ACCRUED_INTEREST_CODE}-${short(companyId)}`
 
 export interface InvestmentAccounts {
   costId: string
   unrealizedId: string
   fxId: string
+  /** Accrued but unpaid note interest. Absent on a chart seeded before notes were supported. */
+  accruedInterestId?: string
 }
 
 /**
@@ -66,6 +73,7 @@ export async function ensureInvestmentAccounts(
     if (subtype === 'investment') cur.costId = id
     if (subtype === 'unrealized') cur.unrealizedId = id
     if (subtype === 'fx_translation') cur.fxId = id
+    if (subtype === 'accrued_interest') cur.accruedInterestId = id
   }
 
   const byCompany = new Map<string, Partial<InvestmentAccounts>>()
@@ -99,6 +107,13 @@ export async function ensureInvestmentAccounts(
         fund_id: fundId, portfolio_group: group, vehicle_id: vehicleId,
         code: investmentFxCode(c.id), name: `FX translation — ${c.name}`,
         type: 'asset', subtype: 'fx_translation', company_id: c.id,
+      })
+    }
+    if (!cur.accruedInterestId) {
+      rows.push({
+        fund_id: fundId, portfolio_group: group, vehicle_id: vehicleId,
+        code: investmentAccruedInterestCode(c.id), name: `Accrued interest — ${c.name}`,
+        type: 'asset', subtype: 'accrued_interest', company_id: c.id,
       })
     }
   }

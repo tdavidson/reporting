@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { resolveFundFromApiKey, authorizeToolUse, type ResolvedKey } from '@/lib/accounting/api-keys'
 import { AGENT_TOOLS, getTool, resolveVehicleForTool, type AgentToolContext } from '@/lib/accounting/agent-tools'
+import { rateLimit } from '@/lib/rate-limit'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -55,6 +56,9 @@ async function handle(rpc: RpcRequest, ctx: BaseCtx, auth: ResolvedKey): Promise
   }
 }
 
+/** A JSON-RPC batch may not be used to amplify past the rate limit. */
+const MAX_BATCH = 20
+
 export async function POST(req: NextRequest) {
   const admin = createAdminClient()
   const auth = await resolveFundFromApiKey(admin, req)
@@ -66,13 +70,73 @@ export async function POST(req: NextRequest) {
 
   // Support JSON-RPC batches.
   if (Array.isArray(body)) {
-    const responses = (await Promise.all(body.map(r => handle(r, ctx, auth)))).filter(Boolean)
+    // A batch is N tool calls in one HTTP request. Unbounded, and fanned out with Promise.all,
+    // it was an amplification primitive: 10,000 `post_entry` calls executing concurrently
+    // against the database from a single request — and, because the REST agent's rate limiter
+    // was never called here, entirely unmetered.
+    if (body.length > MAX_BATCH) {
+      return NextResponse.json(
+        err(null, -32600, `Batch too large: ${body.length} calls. The limit is ${MAX_BATCH}.`),
+        { status: 400 }
+      )
+    }
+
+    // Meter EVERY call in the batch, not the request. Otherwise the limit is trivially
+    // side-stepped by packing calls into batches.
+    const limited = await meter(auth, body, body.length)
+    if (limited) return limited
+
+    // Sequential, not Promise.all — these are ledger writes.
+    const responses = []
+    for (const rpc of body) {
+      const r = await handle(rpc, ctx, auth)
+      if (r) responses.push(r)
+    }
     return responses.length ? NextResponse.json(responses) : new NextResponse(null, { status: 202 })
   }
+
+  const limited = await meter(auth, [body], 1)
+  if (limited) return limited
 
   const response = await handle(body, ctx, auth)
   if (response === null) return new NextResponse(null, { status: 202 })
   return NextResponse.json(response)
+}
+
+/**
+ * The same rate limit the REST agent route enforces.
+ *
+ * This endpoint dispatches the IDENTICAL tool registry with identical write authority, and had
+ * no limiter at all — so a leaked write key simply posted here instead of /api/accounting/agent
+ * and got unbounded ledger writes, period closes and AI-credit burn.
+ *
+ * `cost` counts each call in a batch, so batching cannot be used to amplify past the limit.
+ */
+async function meter(
+  auth: { fundId: string },
+  calls: any[],
+  cost: number
+): Promise<NextResponse | null> {
+  const isWrite = calls.some(c => {
+    if (c?.method !== 'tools/call') return false
+    const tool = getTool(c?.params?.name)
+    return tool?.scope === 'write'
+  })
+
+  for (let i = 0; i < cost; i++) {
+    const limited = await rateLimit({
+      key: `accounting-agent:${isWrite ? 'w' : 'r'}:${auth.fundId}`,
+      limit: isWrite ? 60 : 300,
+      windowSeconds: 60,
+    })
+    if (limited) {
+      return NextResponse.json(
+        err(null, -32000, 'Rate limit exceeded. Slow down.'),
+        { status: 429 }
+      )
+    }
+  }
+  return null
 }
 
 export async function GET() {

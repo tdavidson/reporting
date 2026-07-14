@@ -211,6 +211,25 @@ To automatically archive processed emails and attachments:
 2. Add `https://your-app.com/api/auth/dropbox/callback` as a redirect URI
 3. In the app, go to **Settings** and connect Dropbox
 
+### Optional: Fund accounting
+
+Accounting is off until you onboard a vehicle to it, and it is onboarded **one vehicle at a time** — a fund, an SPV, a direct deal, or a GP/associate entity. Nothing else in the platform changes if you never turn it on.
+
+Before you start, define your vehicles in **Settings > Investment vehicles**. Every accounting page is scoped to one of them.
+
+For each vehicle you want books on, go to **Accounting > Admin** and:
+
+1. **Seed the chart of accounts.** A fund, SPV or direct vehicle gets the standard fund chart; a vehicle classified as an *associate* gets the GP-entity chart instead (investment in fund, members' capital, carried interest income), because it keeps different books. The seed is additive and idempotent — re-running it later backfills any account added by a newer release without touching your existing or custom accounts. Use **Sync accounts** after an upgrade.
+2. **Choose how the books start.** *Full history* rebuilds the ledger from inception out of your existing portfolio and LP data. *Cutover* starts at a date, and you enter opening balances for that date. Pick one; the choice determines what the rest of the setup asks for.
+3. **Set the allocation terms.** Under **Accounting > Allocation terms**: the allocation basis, each partner's commitment, who bears which category, and — if the vehicle pays carry — the carry terms (none, a straight split, or a European waterfall with a preferred return and catch-up). Carry accrues at each close only if you set terms here; the default is no carry.
+
+Then work the vehicle: import a bank feed under **Bank transactions**, review the drafted entries in the **Journal**, and run a **Period close** to allocate to each partner's capital account.
+
+Two things worth knowing:
+
+- **A vehicle does not need a ledger to appear in LP reporting.** If you don't keep books on an SPV, record its LP capital movements directly under **Accounting > LP capital events** — by hand or by pasting a spreadsheet — and it produces the same capital accounts, statements and LP report as a fully-booked vehicle. You can promote it to a full ledger later.
+- **Associates and GP entities.** If a GP/associate vehicle invests in one of your funds, set both halves of its link in **Settings > Investment vehicles**: which fund it is *GP of*, and which partner on that fund's books it *invests as*. Without both, its members won't appear in the LP report.
+
 ### Optional: Two-factor authentication
 
 Admins and team members can enable TOTP-based two-factor authentication from the Settings page. Once enabled, MFA is enforced on every login. Use any authenticator app (1Password, Authy, Google Authenticator, etc.).

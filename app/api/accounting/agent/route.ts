@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { resolveFundFromApiKey, authorizeToolUse } from '@/lib/accounting/api-keys'
 import { AGENT_TOOLS, getTool, resolveVehicleForTool } from '@/lib/accounting/agent-tools'
+import { rateLimit } from '@/lib/rate-limit'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -31,12 +32,26 @@ export async function POST(req: NextRequest) {
   const denied = authorizeToolUse(tool.scope, auth)
   if (denied) return NextResponse.json({ error: denied }, { status: 403 })
 
+  // RATE LIMIT. This endpoint can post directly to the ledger and close periods, with no human
+  // in the loop — strictly more powerful than the in-app assistant sitting beside it, which is
+  // draft-only. It had no rate limit at all, so a leaked key allowed unbounded automated
+  // posting. Writes are held far tighter than reads.
+  const isWrite = tool.scope === 'write'
+  const limited = await rateLimit({
+    key: `accounting-agent:${isWrite ? 'w' : 'r'}:${auth.fundId}`,
+    limit: isWrite ? 60 : 300,
+    windowSeconds: 60,
+  })
+  if (limited) return limited
+
   try {
     const input = body?.input ?? {}
     const portfolioGroup = await resolveVehicleForTool(tool, admin, auth.fundId, input.vehicle)
     const result = await tool.handler({ admin, fundId: auth.fundId, portfolioGroup, userId: auth.userId }, input)
     return NextResponse.json({ ok: true, result })
   } catch (e) {
+    // Don't leak internals to an API-key caller — log the detail, return the message only.
+    console.error('[accounting-agent]', body?.tool, e)
     return NextResponse.json({ error: (e as Error).message }, { status: 400 })
   }
 }

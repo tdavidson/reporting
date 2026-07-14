@@ -1,0 +1,123 @@
+// Associates look-through: attributing a GP/associate vehicle's position in the fund back to
+// its own members.
+//
+// WHAT THIS REPLACES. `lp_associates_overrides` stored, per (investor, associates entity), an
+// `ownership_pct` and a `carried_interest_pct` — as FREE TEXT names that had to match an
+// investor's name AND a portfolio_group string simultaneously. Rename anything and the
+// look-through silently stopped matching. It pro-rated everything by ownership and then netted
+// carry off NAV, which conflates two different economics.
+//
+// WHAT THIS DOES INSTEAD. An associate vehicle keeps its own books. Its members' commitments
+// and capital accounts are IN THE LEDGER, so ownership is derived, not maintained. And carry is
+// treated as what it is — a separate entitlement:
+//
+//   ownership  — each member's share of the associate's CAPITAL. Derived from their commitments
+//                (or capital balances) in the associate vehicle.
+//   carry      — each member's share of the associate's CARRIED INTEREST. A separate allocation
+//                (partner_allocation_terms, category 'carried_interest'), because carry points
+//                routinely diverge from committed capital — and a member can hold carry points
+//                while committing NOTHING at all.
+//
+// The split is possible because the close now accrues carry into the GP partner's
+// `carriedInterest` roll-forward bucket (see carry.ts). The associate's position in the fund is
+// therefore already separated into "capital I contributed and its returns" and "carry I earned",
+// and each half goes to the people entitled to it.
+
+import { emptyAccount, ACTIVITY_FIELDS, type CapitalAccount } from './capital-account'
+import { roundCents } from './ledger'
+
+export interface AssociateMember {
+  lpEntityId: string
+  /** Share of the associate's capital. Weights are normalized, so these need not sum to 1. */
+  ownershipWeight: number
+  /** Share of the associate's carried interest. Independent of ownership; may be nonzero when
+   *  ownershipWeight is 0 (a carry participant who committed no capital). */
+  carryWeight: number
+}
+
+const normalize = (weights: number[]): number[] => {
+  const total = weights.reduce((s, w) => s + Math.max(0, w), 0)
+  if (total <= 0) return weights.map(() => 0)
+  return weights.map(w => Math.max(0, w) / total)
+}
+
+/**
+ * Explode one associate's capital account into its members'.
+ *
+ * Every line EXCEPT `carriedInterest` is split by ownership; `carriedInterest` is split by carry
+ * points. `ending` is recomputed as the sum of the parts, so a member's account ties by
+ * construction.
+ *
+ * The members' accounts sum back to the associate's exactly — nothing is created or lost.
+ */
+export function lookThroughAccount(
+  associate: CapitalAccount,
+  members: AssociateMember[]
+): Map<string, CapitalAccount> {
+  const out = new Map<string, CapitalAccount>()
+  if (members.length === 0) return out
+
+  const ownership = normalize(members.map(m => m.ownershipWeight))
+  const carry = normalize(members.map(m => m.carryWeight))
+
+  // The lines that follow capital. `carriedInterest` is deliberately absent — it follows points.
+  const capitalFields = (['beginning', ...ACTIVITY_FIELDS] as (keyof CapitalAccount)[])
+    .filter(f => f !== 'carriedInterest')
+
+  members.forEach((m, i) => {
+    const acct = emptyAccount()
+    let ending = 0
+
+    for (const f of capitalFields) {
+      const share = roundCents(associate[f] * ownership[i])
+      acct[f] = share
+      ending += share
+    }
+
+    const carryShare = roundCents(associate.carriedInterest * carry[i])
+    acct.carriedInterest = carryShare
+    ending += carryShare
+
+    acct.ending = roundCents(ending)
+    out.set(m.lpEntityId, acct)
+  })
+
+  // Largest-remainder on `ending` so the members sum EXACTLY to the associate. Rounding each
+  // line independently can otherwise leave a cent adrift, and a capital account that doesn't
+  // tie is a capital account nobody can trust.
+  const summed = roundCents(Array.from(out.values()).reduce((s, a) => s + a.ending, 0))
+  const drift = roundCents(associate.ending - summed)
+  if (drift !== 0 && out.size > 0) {
+    const biggest = Array.from(out.entries()).reduce((a, b) => (Math.abs(b[1].ending) > Math.abs(a[1].ending) ? b : a))
+    biggest[1].ending = roundCents(biggest[1].ending + drift)
+    biggest[1].unclassified = roundCents(biggest[1].unclassified + drift)
+  }
+
+  return out
+}
+
+/**
+ * Build the member list for an associate vehicle.
+ *
+ * `basis` is each member's ownership weight — their commitment to (or capital in) the associate
+ * vehicle, straight from its own books. `carryWeights` is the carry allocation from
+ * `partner_allocation_terms`.
+ *
+ * A member appears if they have EITHER. Someone with carry points and no commitment is a real
+ * and common arrangement — a founding partner, an advisor with points — and dropping them
+ * because they never wired money is how their carry silently redistributes to everyone else.
+ */
+export function associateMembers(
+  basis: Map<string, number>,
+  carryWeights: Map<string, number>
+): AssociateMember[] {
+  const ids = new Set<string>([...Array.from(basis.keys()), ...Array.from(carryWeights.keys())])
+  return Array.from(ids).map(lpEntityId => ({
+    lpEntityId,
+    ownershipWeight: Math.max(0, basis.get(lpEntityId) ?? 0),
+    // No explicit carry allocation → carry follows ownership, which is the usual default.
+    carryWeight: carryWeights.has(lpEntityId)
+      ? Math.max(0, carryWeights.get(lpEntityId)!)
+      : Math.max(0, basis.get(lpEntityId) ?? 0),
+  }))
+}

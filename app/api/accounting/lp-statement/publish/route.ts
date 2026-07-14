@@ -38,6 +38,34 @@ export async function POST(req: NextRequest) {
     ? resolvePeriod(preset)
     : customPeriod(body?.start ?? null, body?.end ?? null)
 
+  // REFUSE TO PUBLISH AN UNCLOSED PERIOD.
+  //
+  // P&L only reaches capital accounts at the close. Publish a month that hasn't been closed
+  // and every statement goes out with zeroed management-fee, expense and gain lines — quietly
+  // wrong, and worse, PERMANENTLY so: these PDFs are stored rather than re-rendered (that is
+  // the whole point of them), so an LP files a document that can never be corrected in place.
+  //
+  // `force: true` is the escape hatch for a deliberate interim statement, but it has to be
+  // asked for.
+  if (period.end && !body?.force) {
+    const { data: covering } = await admin
+      .from('fiscal_periods' as any)
+      .select('id, status')
+      .eq('fund_id', gate.fundId)
+      .eq('status', 'closed')
+      .lte('period_start', period.end)
+      .gte('period_end', period.end)
+      .maybeSingle()
+
+    if (!covering) {
+      return NextResponse.json({
+        error:
+          `The period ending ${period.end} is not closed, so no fees, expenses or gains have reached the partners' capital accounts yet — ` +
+          `every statement would show them as zero. Close the period first, or re-send with { "force": true } if you really want an interim statement.`,
+      }, { status: 400 })
+    }
+  }
+
   // Default to every partner in the vehicle.
   const summary = await lpCapitalSummary(admin, gate.fundId, group)
   const requested: string[] = Array.isArray(body?.lpEntityIds) ? body.lpEntityIds : []

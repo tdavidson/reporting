@@ -24,6 +24,8 @@ export function BankView() {
   const [candidates, setCandidates] = useState<Candidate[]>([])
   const [lps, setLps] = useState<Lp[]>([])
   const [acctNames, setAcctNames] = useState<Record<string, string>>({})
+  /** Why a match/book action was refused. Shown rather than swallowed. */
+  const [matchError, setMatchError] = useState<string | null>(null)
   const [accounts, setAccounts] = useState<{ code: string; name: string }[]>([])
   const [loading, setLoading] = useState(true)
   const [importing, setImporting] = useState(false)
@@ -66,8 +68,17 @@ export function BankView() {
     load()
   }
 
-  async function match(id: string, mode: 'allocate' | 'link', entryId?: string, lpEntityId?: string) {
-    await lf('/api/accounting/bank/match', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, mode, entryId, lpEntityId }) })
+  async function match(id: string, mode: 'allocate' | 'link' | 'distribute', entryId?: string, lpEntityId?: string) {
+    setMatchError(null)
+    const res = await lf('/api/accounting/bank/match', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, mode, entryId, lpEntityId }) })
+    // These can legitimately refuse — a distribution against partners with no capital balance,
+    // a closed period, an entry already claimed. The result was being discarded, so a refusal
+    // looked exactly like a success that changed nothing.
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}))
+      setMatchError(body.error || 'That could not be booked.')
+      return
+    }
     load()
   }
 
@@ -141,6 +152,13 @@ export function BankView() {
 
   return (
     <div className="space-y-6">
+      {matchError && (
+        <div className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm">
+          <span className="flex-1">{matchError}</span>
+          <button onClick={() => setMatchError(null)} className="text-muted-foreground hover:text-foreground" aria-label="Dismiss">×</button>
+        </div>
+      )}
+
       {/* Import */}
       <div className="border rounded-lg p-4 space-y-2">
         <p className="text-sm font-medium">Import transactions</p>
@@ -268,6 +286,20 @@ export function BankView() {
                                 <option value="__prorata__">All LPs (pro-rata)</option>
                               </select>
                             : <button onClick={() => match(t.id, 'allocate')} className={actionBtn} title="Allocate this inflow across LPs as a capital call">Book as call</button>
+                        )}
+
+                        {/* The outflow counterpart. Without it, the only way to book a
+                            distribution was the bank categorizer's rule, which posts to the
+                            POOLED capital account with no partner attached — money leaves the
+                            fund and no LP's capital account or statement ever records it. */}
+                        {t.amount < 0 && (
+                          <button
+                            onClick={() => match(t.id, 'distribute')}
+                            className={actionBtn}
+                            title="Book this outflow as a distribution — split across LPs by their capital balance, so it lands in each partner's capital account"
+                          >
+                            Book as distribution
+                          </button>
                         )}
                         {t.journal_entry_id && <button onClick={() => setEditing({ txnId: t.id, entryId: t.journal_entry_id! })} className={actionBtn}>Edit</button>}
                         <button onClick={() => act(t.id, 'post')} className={actionBtn}>Post</button>

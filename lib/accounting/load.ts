@@ -128,26 +128,84 @@ export async function loadEntityClasses(
 /**
  * Committed capital per LP entity in this vehicle — the pro-rata basis for the
  * allocation engine and opening balances.
+ *
+ * `lp_investments` is unique per (fund, entity, group, SNAPSHOT) — one row per LP per
+ * snapshot, each carrying that snapshot's cumulative-to-date figures. So these rows
+ * must be DEDUPED to a single snapshot, never summed: summing multiplies every
+ * commitment by the snapshot count, and paid-in/distributions (already cumulative)
+ * even more obviously. We take the row from the latest snapshot by `as_of_date`,
+ * matching how the LP portal picks a snapshot (lib/lp-overview.ts).
+ *
+ * Rows with no snapshot (the manual /api/lps/investments POST path, and the accounting
+ * Add-LP path when the fund has no snapshots yet) are a fallback: used only for an
+ * entity that has no snapshotted row at all, most-recently-updated first.
  */
 export async function loadOwnership(
   admin: SupabaseClient,
   fundId: string,
   group: string
-): Promise<{ lpEntityId: string; commitment: number; paidIn: number; distributions: number }[]> {
+): Promise<Ownership[]> {
   const { data } = await admin
     .from('lp_investments' as any)
-    .select('entity_id, commitment, paid_in_capital, distributions')
+    .select('entity_id, commitment, paid_in_capital, distributions, snapshot_id, updated_at, lp_snapshots(as_of_date, created_at)')
     .eq('fund_id', fundId)
     .eq('portfolio_group', group)
-  const byEntity = new Map<string, { commitment: number; paidIn: number; distributions: number }>()
-  for (const row of ((data as any[]) ?? [])) {
-    const cur = byEntity.get(row.entity_id) ?? { commitment: 0, paidIn: 0, distributions: 0 }
-    cur.commitment += Number(row.commitment ?? 0)
-    cur.paidIn += Number(row.paid_in_capital ?? 0)
-    cur.distributions += Number(row.distributions ?? 0)
-    byEntity.set(row.entity_id, cur)
+  return currentOwnership((data as InvestmentRow[]) ?? [])
+}
+
+export interface Ownership {
+  lpEntityId: string
+  commitment: number
+  paidIn: number
+  distributions: number
+}
+
+/** The `lp_investments` shape `currentOwnership` needs. Supabase nests the joined
+ *  snapshot as either an object or a single-element array depending on the query. */
+export interface InvestmentRow {
+  entity_id: string
+  commitment?: number | null
+  paid_in_capital?: number | null
+  distributions?: number | null
+  snapshot_id?: string | null
+  updated_at?: string | null
+  lp_snapshots?: { as_of_date?: string | null; created_at?: string | null } | { as_of_date?: string | null; created_at?: string | null }[] | null
+}
+
+/**
+ * Collapse many `lp_investments` rows (one per snapshot) to one row per LP entity.
+ *
+ * Pure, and exported for the tests: picking the wrong row here misstates every
+ * commitment-weighted number in the module, so it earns direct coverage.
+ */
+export function currentOwnership(rows: InvestmentRow[]): Ownership[] {
+  // A snapshotted row always beats an unsnapshotted one; among snapshotted rows the
+  // greatest as_of_date wins, with created_at breaking ties on same-dated snapshots.
+  const rank = (row: InvestmentRow): [number, string, string] => {
+    const s = row.lp_snapshots
+    const snap = Array.isArray(s) ? s[0] : s
+    if (!row.snapshot_id || !snap) return [0, '', String(row.updated_at ?? '')]
+    return [1, String(snap.as_of_date ?? ''), String(snap.created_at ?? '')]
   }
-  return Array.from(byEntity.entries()).map(([lpEntityId, v]) => ({ lpEntityId, ...v }))
+  const beats = (a: InvestmentRow, b: InvestmentRow): boolean => {
+    const [ax, ay, az] = rank(a)
+    const [bx, by, bz] = rank(b)
+    if (ax !== bx) return ax > bx
+    if (ay !== by) return ay > by
+    return az > bz
+  }
+
+  const byEntity = new Map<string, InvestmentRow>()
+  for (const row of rows) {
+    const cur = byEntity.get(row.entity_id)
+    if (!cur || beats(row, cur)) byEntity.set(row.entity_id, row)
+  }
+  return Array.from(byEntity.entries()).map(([lpEntityId, row]) => ({
+    lpEntityId,
+    commitment: Number(row.commitment ?? 0),
+    paidIn: Number(row.paid_in_capital ?? 0),
+    distributions: Number(row.distributions ?? 0),
+  }))
 }
 
 /** Distinct vehicles (portfolio_groups) for a fund, from LP + cash-flow data. */
