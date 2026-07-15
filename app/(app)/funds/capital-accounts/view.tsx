@@ -572,7 +572,7 @@ export function CapitalAccountsView() {
           <div className="rounded-lg border p-4 text-sm text-muted-foreground">
             This vehicle is capital-tracked. Add or edit its LP positions on the{' '}
             <Link href="/lps/capital" className="text-foreground underline underline-offset-4">LP capital accounts</Link>{' '}
-            page — its capital here is derived from those dated positions.
+            page.
           </div>
         </div>
       )}

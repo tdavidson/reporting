@@ -96,13 +96,12 @@ export function GpPanel({ isAdmin }: { isAdmin: boolean }) {
     <div className="rounded-lg border p-4 space-y-4">
       <div className="space-y-1">
         <h2 className="text-sm font-medium">
-          {gp.link.vehicle} — partner economics
+          {gp.link.vehicle}
           <span className="ml-2 text-xs font-normal text-muted-foreground">GP of {gp.link.servesVehicle}</span>
         </h2>
         <p className="text-xs text-muted-foreground max-w-3xl">
           Ownership splits the capital this entity holds in {gp.link.servesVehicle} and everything that follows
-          capital. <strong>Carry points are separate</strong> and split only the carried interest it earns — they
-          routinely diverge from committed capital, and a partner can hold carry while committing nothing.
+          capital, by default carry ownership is equal to capital ownership but can be set independently.
         </p>
       </div>
 
@@ -215,13 +214,6 @@ export function GpPanel({ isAdmin }: { isAdmin: boolean }) {
           <Button size="sm" variant="ghost" onClick={() => setPayFor(null)}>Cancel</Button>
         </div>
       )}
-
-      {/* The sentence that stops a GP thinking they're owed money they aren't. */}
-      <p className="text-xs text-muted-foreground max-w-3xl">
-        Accrued carry is a <strong>mark, not a debt</strong>. The close recomputes it from NAV each period and posts
-        only the change, so it reverses on its own if NAV falls. &ldquo;Accrued, unpaid&rdquo; is what this partner would
-        be owed if {gp.link.servesVehicle} liquidated at today&rsquo;s NAV — it is not a receivable.
-      </p>
     </div>
   )
 }
