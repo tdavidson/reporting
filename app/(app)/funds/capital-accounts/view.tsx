@@ -3,9 +3,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useLpPortalEnabled, useIsAdmin } from '@/components/feature-visibility-context'
 import Link from 'next/link'
-import { Loader2, Plus, FileText, Check, AlertTriangle, Landmark, ChevronRight } from 'lucide-react'
+import { Loader2, Plus, Check, AlertTriangle, Landmark, ChevronRight, Share2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 import { useCurrency, formatCurrencyPrice } from '@/components/currency-context'
 import { useLedgerFetch } from '@/components/accounting-vehicle'
 import { PERIOD_PRESETS, type PeriodPreset } from '@/lib/accounting/statement-period'
@@ -108,6 +109,7 @@ export function CapitalAccountsView() {
   const [preset, setPreset] = useState<PeriodPreset>('itd')
   const [start, setStart] = useState('')
   const [end, setEnd] = useState('')
+  const [asOf, setAsOf] = useState('') // report/period-end date; '' = Latest (today)
 
   const [showAdd, setShowAdd] = useState(false)
   const [name, setName] = useState('')
@@ -118,6 +120,9 @@ export function CapitalAccountsView() {
 
   const [publishing, setPublishing] = useState(false)
   const [publishResult, setPublishResult] = useState<{ count: number; errors: string[] } | null>(null)
+  // Share-with-LPs dialog: which LPs' statements to publish to the portal.
+  const [showShare, setShowShare] = useState(false)
+  const [shareSel, setShareSel] = useState<Set<string>>(new Set())
 
   // Issue-a-call (folded in from the old Capital calls page).
   const [showCall, setShowCall] = useState(false)
@@ -138,6 +143,7 @@ export function CapitalAccountsView() {
       qs.set('preset', 'custom')
     } else {
       qs.set('preset', preset)
+      if (asOf) qs.set('asOf', asOf)
     }
     lf(`/api/accounting/capital-accounts?${qs}`)
       .then(r => (r.ok ? r.json() : { rows: [], nav: 0, calls: [] }))
@@ -146,7 +152,7 @@ export function CapitalAccountsView() {
         setCalls(d.calls ?? []); setSource(d.source ?? null)
       })
       .finally(() => setLoading(false))
-  }, [lf, preset, start, end])
+  }, [lf, preset, start, end, asOf])
   useEffect(() => { load() }, [load])
 
   // A capital-tracking-only vehicle keeps no double-entry books, so the affordances that
@@ -170,14 +176,20 @@ export function CapitalAccountsView() {
     load()
   }
 
+  // Open the share dialog with every LP selected by default.
+  function openShare() {
+    setShareSel(new Set(rows.map(r => r.lpEntityId)))
+    setPublishResult(null); setErr(null)
+    setShowShare(true)
+  }
+
   async function publishStatements() {
     if (!period) return
     setPublishing(true); setErr(null); setPublishResult(null)
+    const periodBody = period.preset === 'custom' ? { start: period.start, end: period.end } : { preset: period.preset }
     const res = await lf('/api/accounting/lp-statement/publish', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(
-        period.preset === 'custom' ? { start: period.start, end: period.end } : { preset: period.preset }
-      ),
+      body: JSON.stringify({ ...periodBody, lpEntityIds: Array.from(shareSel) }),
     })
     const data = await res.json()
     setPublishing(false)
@@ -261,18 +273,27 @@ export function CapitalAccountsView() {
             <Landmark className="h-4 w-4 mr-1" />Issue a capital call
           </Button>
         )}
-        {/* Only offer to publish into a portal the LPs can actually open. With the portal
-            off, this button used to sit here and "work" — writing statements nobody could
-            reach, and telling the GP they'd been sent. */}
+        {/* Same "Share with LPs" action as the LPs report page: pick which LPs, publish to the
+            portal, no email. Only offered when the portal is on — publishing statements nobody
+            can open is a no-op that looks like success. */}
         {lpPortalEnabled && (
-          <Button size="sm" variant="outline" onClick={publishStatements} disabled={publishing || rows.length === 0}>
-            {publishing ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <FileText className="h-4 w-4 mr-1" />}
-            Publish statements to LP portal
+          <Button size="sm" variant="outline" onClick={openShare} disabled={rows.length === 0}>
+            <Share2 className="h-4 w-4 mr-1" />
+            Share with LPs
           </Button>
         )}
-        {err && <span className="text-xs text-amber-600">{err}</span>}
+        {err && !showShare && <span className="text-xs text-amber-600">{err}</span>}
 
         <div className="ml-auto flex flex-wrap items-center gap-2">
+          {/* "As of" report date + Latest — same control and placement as /lps. The preset
+              chooses the window ENDING at this date; custom mode uses its own from/to instead. */}
+          {preset !== 'custom' && (
+            <>
+              <label className="text-xs text-muted-foreground">As of</label>
+              <Input type="date" value={asOf} onChange={e => setAsOf(e.target.value)} className="h-9 w-40" aria-label="As of" />
+              {asOf && <Button size="sm" variant="ghost" onClick={() => setAsOf('')}>Latest</Button>}
+            </>
+          )}
           {preset === 'custom' && (
             <>
               <Input type="date" value={start} onChange={e => setStart(e.target.value)} className="h-9 w-36" aria-label="From" />
@@ -291,15 +312,63 @@ export function CapitalAccountsView() {
         </div>
       </div>
 
-      {publishResult && (
-        <div className="rounded-lg border p-3 text-sm space-y-1">
-          <p className="flex items-center gap-1.5 text-green-700 dark:text-green-400">
-            <Check className="h-4 w-4" />
-            Published {publishResult.count} capital account statement{publishResult.count === 1 ? '' : 's'} for {period?.label} to the LP portal.
-          </p>
-          {publishResult.errors.map((e, i) => <p key={i} className="text-xs text-amber-600">{e}</p>)}
-        </div>
-      )}
+      {/* Share statements with LPs — the same pick-then-publish, no-email flow as the LPs report
+          page. Each selected LP's statement is generated and published to their portal. */}
+      <Dialog open={showShare} onOpenChange={o => { if (!o) setShowShare(false) }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Share statements with LPs</DialogTitle>
+            <DialogDescription>
+              Publish each selected LP&rsquo;s capital-account statement for {period?.label ?? 'this period'} to their
+              portal. No email is sent — LPs see it when they sign in.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3 min-w-0">
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-muted-foreground">{shareSel.size} of {rows.length} selected</span>
+              <button
+                onClick={() => setShareSel(shareSel.size === rows.length ? new Set() : new Set(rows.map(r => r.lpEntityId)))}
+                className="text-[11px] text-primary hover:underline"
+              >
+                {shareSel.size === rows.length ? 'Deselect all' : 'Select all'}
+              </button>
+            </div>
+            <div className="rounded-md border divide-y max-h-[45vh] overflow-y-auto min-w-0">
+              {rows.map(r => (
+                <label key={r.lpEntityId} className="flex items-center gap-2 px-3 py-2 text-sm cursor-pointer hover:bg-muted/30 min-w-0">
+                  <input
+                    type="checkbox"
+                    checked={shareSel.has(r.lpEntityId)}
+                    onChange={() => setShareSel(prev => { const n = new Set(prev); n.has(r.lpEntityId) ? n.delete(r.lpEntityId) : n.add(r.lpEntityId); return n })}
+                    className="h-3.5 w-3.5 shrink-0"
+                  />
+                  <span className="flex-1 min-w-0 truncate">{r.name}</span>
+                </label>
+              ))}
+            </div>
+
+            {err && <p className="text-xs text-amber-600">{err}</p>}
+            {publishResult && (
+              <div className="rounded-md border p-2.5 text-sm space-y-1">
+                <p className="flex items-center gap-1.5 text-green-700 dark:text-green-400">
+                  <Check className="h-4 w-4" />
+                  Published {publishResult.count} statement{publishResult.count === 1 ? '' : 's'} for {period?.label} to the LP portal.
+                </p>
+                {publishResult.errors.map((e, i) => <p key={i} className="text-xs text-amber-600">{e}</p>)}
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setShowShare(false)}>Close</Button>
+            <Button size="sm" onClick={publishStatements} disabled={publishing || shareSel.size === 0}>
+              {publishing && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
+              Publish {shareSel.size > 0 ? `${shareSel.size} ` : ''}statement{shareSel.size === 1 ? '' : 's'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {showAdd && (
         <div className="border rounded-lg p-3 flex flex-wrap items-end gap-3">

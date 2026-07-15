@@ -12,6 +12,7 @@ import { AssistantPanel } from './assistant-panel'
 interface Issue { level: 'blocker' | 'warning' | 'info'; title: string; detail: string; href?: string; action?: string }
 interface Status {
   vehicle: string
+  source: 'ledger' | 'events'
   onboarded: boolean
   setup: {
     chartSeeded: boolean
@@ -50,6 +51,35 @@ export function StatusView() {
 
   if (loading) return <div className="flex items-center gap-2 text-muted-foreground text-sm"><Loader2 className="h-4 w-4 animate-spin" />Loading…</div>
   if (!s) return <div className="border border-dashed rounded-lg p-8 text-center text-sm text-muted-foreground">Could not load status for this vehicle.</div>
+
+  // LP-only tracking: the whole ledger apparatus — trial balance, bank, partners, net assets,
+  // onboarding, the seed-the-chart prompts, the close, allocation terms, and the entry-drafting
+  // assistant — is meaningless without double-entry books. Show only the source switch and a
+  // pointer to where this vehicle's capital IS maintained.
+  if (s.source === 'events') {
+    return (
+      <div className="space-y-6">
+        <CapitalSourceCard />
+        <Link
+          href="/lps/capital"
+          className="flex items-center gap-3 rounded-lg border p-3 transition-colors hover:bg-muted/30"
+        >
+          <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-medium">LP capital tracking</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              This vehicle tracks limited-partner capital only. Maintain its positions — commitment,
+              paid-in, distributions, NAV — on the LP capital tracking page.
+            </p>
+          </div>
+        </Link>
+        <p className="text-xs text-muted-foreground">
+          Switch to <strong>Fund Accounting</strong> above to keep double-entry books and produce full
+          financial statements for this vehicle.
+        </p>
+      </div>
+    )
+  }
 
   // The close gets its own summary card below, so it isn't duplicated up here.
   const cards: { label: string; value: string; hint?: string }[] = [

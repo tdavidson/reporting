@@ -70,6 +70,7 @@ export async function PUT(req: NextRequest) {
     called_capital: num(body?.calledCapital),
     distributions: num(body?.distributions),
     nav: num(body?.nav),
+    irr: num(body?.irr),
     source: 'manual',
     imported_by: user.id,
     imported_at: new Date().toISOString(),

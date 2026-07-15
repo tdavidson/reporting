@@ -21,6 +21,8 @@ export interface ParsedLpRow {
   paid_in_capital?: number | null
   distributions?: number | null
   outstanding_balance?: number | null
+  /** Reported IRR as a fraction (0.185 for 18.5%). DPI/RVPI/TVPI/% funded are derived, not parsed. */
+  irr?: number | null
 }
 
 export function toSafeNumber(val: unknown): number | null {
@@ -49,7 +51,8 @@ Output format:
       "called_capital": 750000,
       "paid_in_capital": 750000,
       "distributions": 200000,
-      "outstanding_balance": 250000
+      "outstanding_balance": 250000,
+      "irr": 0.185
     }
   ]
 }
@@ -66,6 +69,7 @@ Rules:
 - paid_in_capital: paid-in capital, contributions, or capital contributed (same as called for LP positions)
 - distributions: distributed capital, distributions received
 - outstanding_balance: remaining uncalled commitment, unfunded balance
+- irr: reported IRR / net IRR, as a DECIMAL FRACTION (18.5% or "18.5" → 0.185). Omit if absent. Do NOT parse DPI, RVPI, TVPI, or % funded — those are derived downstream, so ignore those columns.
 - All monetary values are plain numbers (no currency symbols, commas, or formatting)
 - If a value is not present, omit it or set to null
 - Match columns by MEANING, not exact header text; parse %, "x" multiples, and currency correctly

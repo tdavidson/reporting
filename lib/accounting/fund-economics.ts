@@ -152,6 +152,14 @@ export async function vehicleEconomics(
 
   const asOfDate = asOf ? new Date(asOf) : new Date()
 
+  // The IRR terminal (when the NAV is valued) must be dated when the NAV was actually STATED.
+  // A ledger vehicle's NAV persists to the report date, so asOf is right. A tracking vehicle's
+  // NAV is stated as of its latest position date — using the report date instead spreads a large
+  // TVPI over the months since and annualizes it to nonsense (a single cutover then has no time
+  // spread and derives no IRR, which is the honest answer).
+  const lastPostingDate = postings.reduce((m, p) => (p.entryDate && p.entryDate > m ? p.entryDate : m), '')
+  const terminalDate = source === 'events' && lastPostingDate ? new Date(lastPostingDate) : asOfDate
+
   // Dated flows, from the LP's point of view: a contribution is money out (negative), a
   // distribution is money back (positive).
   const flowsFor = (ids: Set<string> | null): CashFlow[] => {
@@ -192,9 +200,9 @@ export async function vehicleEconomics(
     vintageYear: vintage,
     source,
     lpCount: lpIds.size,
-    fund: rollUp(pick(null), sumCommit(null), flowsFor(null), asOfDate),
-    lp: rollUp(pick(lpIds), sumCommit(lpIds), flowsFor(lpIds), asOfDate),
-    gp: rollUp(pick(gpIds), sumCommit(gpIds), flowsFor(gpIds), asOfDate),
+    fund: rollUp(pick(null), sumCommit(null), flowsFor(null), terminalDate),
+    lp: rollUp(pick(lpIds), sumCommit(lpIds), flowsFor(lpIds), terminalDate),
+    gp: rollUp(pick(gpIds), sumCommit(gpIds), flowsFor(gpIds), terminalDate),
     carryAccrued,
   }
 }

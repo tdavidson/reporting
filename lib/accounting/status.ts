@@ -8,6 +8,7 @@ import { balanceSheet, scheduleOfInvestments, postingsAsOf } from './statements'
 import { buildSoiPositions, type SoiCompany } from './soi'
 import { computeCapitalAccounts, totalNav } from './capital-account'
 import { loadHistoryMode, loadAllocationBasis, type HistoryMode, type AllocationBasis } from './terms'
+import { loadCapitalSource, type CapitalSource } from './capital-source'
 import { nextCloseStart } from './close'
 import { vehicleIdByName } from './vehicle-id'
 import { roundCents } from './ledger'
@@ -25,6 +26,9 @@ export interface StatusIssue {
 
 export interface VehicleStatus {
   vehicle: string
+  /** 'ledger' = full Fund Accounting (double-entry books). 'events' = LP-only capital tracking,
+   *  where the ledger apparatus (trial balance, bank, close, onboarding) does not apply. */
+  source: CapitalSource
   onboarded: boolean
   setup: {
     chartSeeded: boolean
@@ -75,6 +79,7 @@ export async function vehicleStatus(
   group: string
 ): Promise<VehicleStatus> {
   const vehicleId = await vehicleIdByName(admin, fundId, group)
+  const source = await loadCapitalSource(admin, fundId, group)
 
   const [
     { accounts, postings, capitalPostings },
@@ -244,6 +249,7 @@ export async function vehicleStatus(
 
   return {
     vehicle: group,
+    source,
     onboarded,
     setup: {
       chartSeeded,

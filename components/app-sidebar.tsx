@@ -74,6 +74,9 @@ const NAV_ITEMS: NavItem[] = [
       // The snapshot archive: frozen historical position sets + bulk PDF printing. Admin-only.
       { href: '/lps/snapshots', label: 'Snapshots',        adminOnly: true },
       { href: '/lp-portal',     label: 'Documents',        featureKey: 'lp_portal' },
+      // See the portal exactly as an LP does ("viewing as …"). Admin-only, and only where a
+      // portal exists to preview.
+      { href: '/lps/preview',   label: 'Preview portal',   featureKey: 'lp_portal', adminOnly: true },
       { href: '/lp-activity',   label: 'Activity',         featureKey: 'lp_activity' },
     ],
   },

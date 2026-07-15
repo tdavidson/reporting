@@ -68,19 +68,19 @@ export function CapitalSourceCard({
           <div className="space-y-1">
             <div className="flex items-center gap-2 text-sm font-medium">
               {isLedger ? <BookOpen className="h-4 w-4" /> : <ListTree className="h-4 w-4" />}
-              Capital accounts come from{' '}
+              This vehicle uses{' '}
               <Badge variant={isLedger ? 'default' : 'secondary'}>
-                {isLedger ? 'the ledger' : 'capital events'}
+                {isLedger ? 'Fund Accounting' : 'LP only tracking'}
               </Badge>
             </div>
             <p className="max-w-2xl text-sm text-muted-foreground">
               {isLedger
                 ? 'Double-entry books to produce full financial statements.'
-                : 'Limited partner capital tracking only.'}
+                : 'Limited partner capital tracking only — no ledger, close, or statements.'}
             </p>
           </div>
           <Button variant="outline" size="sm" disabled={busy} onClick={() => switchTo(isLedger ? 'events' : 'ledger')}>
-            Switch to {isLedger ? 'capital tracking only' : 'full books'}
+            Switch to {isLedger ? 'LP only tracking' : 'Fund Accounting'}
           </Button>
         </div>
         {error && <p className="mt-2 text-sm text-destructive">{error}</p>}

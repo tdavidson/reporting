@@ -2,8 +2,10 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { Loader2, Landmark, ClipboardList, ArrowRight } from 'lucide-react'
 import { useCurrency, formatCurrency, formatCurrencyFull } from '@/components/currency-context'
+import { useVehicle } from '@/components/accounting-vehicle'
 import { Card, CardContent } from '@/components/ui/card'
 
 // The fund overview: performance per vehicle, DERIVED FROM THE LEDGER.
@@ -46,6 +48,12 @@ export function FundOverview() {
   const currency = useCurrency()
   const fmt = (v: number) => formatCurrency(v, currency)
   const fmtFull = (v: number) => formatCurrencyFull(v, currency)
+  const router = useRouter()
+  const { setGroup } = useVehicle()
+
+  // Clicking a vehicle selects it (localStorage-backed context the whole section reads) and
+  // jumps to its status page — which then loads scoped to that vehicle.
+  const openVehicle = (vehicle: string) => { setGroup(vehicle); router.push('/funds/status') }
 
   const [vehicles, setVehicles] = useState<Vehicle[]>([])
   const [loading, setLoading] = useState(true)
@@ -78,7 +86,13 @@ export function FundOverview() {
   )
   if (live.length === 0) return <OnboardingEmptyState />
 
-  const m = (v: Vehicle) => (lens === 'lp' ? v.lp : v.fund)
+  // The Net-to-LP / Whole-fund toggle only means something when there IS a GP class to carve
+  // out. Tracking vehicles cut over from an LP snapshot have only LP-class partners, so net-to-LP
+  // and whole-fund are identical and the toggle would look dead. Show it only when it changes a
+  // number.
+  const hasGpSplit = live.some(v => v.gp.paidIn !== 0 || v.gp.nav !== 0 || v.carryAccrued !== 0)
+  const effectiveLens: Lens = hasGpSplit ? lens : 'fund'
+  const m = (v: Vehicle) => (effectiveLens === 'lp' ? v.lp : v.fund)
 
   const totals = live.reduce((acc, v) => {
     const x = m(v)
@@ -97,18 +111,21 @@ export function FundOverview() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           {/* Net to LP is the honest default: it is what an LP would actually receive, and
-              it is now exact rather than a carry estimate. */}
-          <div className="inline-flex rounded-md border p-0.5 text-xs">
-            {(['lp', 'fund'] as Lens[]).map(l => (
-              <button
-                key={l}
-                onClick={() => setLens(l)}
-                className={`px-2 py-1 rounded ${lens === l ? 'bg-muted font-medium' : 'text-muted-foreground'}`}
-              >
-                {l === 'lp' ? 'Net to LP' : 'Whole fund'}
-              </button>
-            ))}
-          </div>
+              it is now exact rather than a carry estimate. Only shown when a GP class exists to
+              carve out — otherwise the two lenses are identical and the control looks dead. */}
+          {hasGpSplit && (
+            <div className="inline-flex rounded-md border p-0.5 text-xs">
+              {(['lp', 'fund'] as Lens[]).map(l => (
+                <button
+                  key={l}
+                  onClick={() => setLens(l)}
+                  className={`px-2 py-1 rounded ${lens === l ? 'bg-muted font-medium' : 'text-muted-foreground'}`}
+                >
+                  {l === 'lp' ? 'Net to LP' : 'Whole fund'}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Label to the LEFT of the input, on one line. */}
@@ -155,7 +172,11 @@ export function FundOverview() {
               const x = m(v)
               return (
                 <tr key={v.vehicle} className="border-t hover:bg-muted/30">
-                  <td className="px-3 py-2 font-medium">{v.vehicle}</td>
+                  <td className="px-3 py-2 font-medium">
+                    <button onClick={() => openVehicle(v.vehicle)} className="text-left hover:underline hover:text-foreground">
+                      {v.vehicle}
+                    </button>
+                  </td>
                   <td className="px-3 py-2 text-muted-foreground tabular-nums">{v.vintageYear ?? '—'}</td>
                   <td className="px-3 py-2 text-right font-mono">{fmtFull(x.committed)}</td>
                   <td className="px-3 py-2 text-right font-mono">{fmtFull(x.paidIn)}</td>
@@ -175,7 +196,7 @@ export function FundOverview() {
 
       <p className="text-xs text-muted-foreground max-w-3xl">
         Every figure is derived from the capital accounts — nothing here is typed in.{' '}
-        {lens === 'lp' ? (
+        {effectiveLens === 'lp' ? (
           <>
             <strong>Net to LP</strong> is the LP-class partners&rsquo; own accounts, so the GP&rsquo;s carry
             {totals.carry !== 0 && <> ({fmtFull(totals.carry)} accrued)</>} is already deducted — this is not an

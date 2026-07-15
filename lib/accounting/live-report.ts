@@ -24,6 +24,7 @@ import { loadCapitalPostings, type CapitalSource } from './capital-source'
 import { loadCommitmentEvents, commitmentsAsOf, loadPartnerTerms } from './terms'
 import { listVehicles, loadOwnership, loadEntityNames } from './load'
 import { lookThroughAccount, associateMembers } from './look-through'
+import { latestPositionIrr } from './lp-positions'
 import { roundCents } from './ledger'
 
 /** The metric half of an `lp_investments` row — same names, same units. */
@@ -209,8 +210,27 @@ export async function liveRowsForVehicle(
 
   const irrDate = asOf ?? new Date().toISOString().slice(0, 10)
 
+  // A tracking vehicle's positions can carry a REPORTED IRR (pasted from a statement). Prefer it:
+  // a single cutover date has no time spread for a derived IRR to be meaningful, and the statement
+  // figure is what the LP was actually shown. Falls back to the derived IRR when none was stored.
+  const storedIrr = source === 'events'
+    ? await latestPositionIrr(admin, fundId, group, asOf)
+    : new Map<string, number>()
+
   const rows = Array.from(ids).map(entityId => {
     const account = accountByLp.get(entityId) ?? emptyAccount()
+    const lpPostings = postingsByLp.get(entityId) ?? []
+    // The NAV terminal for IRR must be dated when the NAV was actually STATED. For a ledger
+    // vehicle that's the report date (NAV persists to asOf). For a tracking vehicle the NAV is
+    // stated as of the position date, so the terminal is that LP's last posting date — using the
+    // report date instead would spread a large TVPI over a few months and annualize to nonsense.
+    // (A single cutover date then has no time spread and derives no IRR — the stored/pasted IRR
+    // above is what fills it.)
+    const lastPostingDate = lpPostings.reduce((m, p) => (p.entryDate && p.entryDate > m ? p.entryDate : m), '')
+    const terminalDate = source === 'events' && lastPostingDate ? lastPostingDate : irrDate
+    const irr = storedIrr.has(entityId)
+      ? storedIrr.get(entityId)!
+      : lpIrr(lpPostings, account.ending, terminalDate)
     return {
       entity_id: entityId,
       portfolio_group: group,
@@ -219,7 +239,7 @@ export async function liveRowsForVehicle(
         account,
         commitmentByLp.get(entityId) ?? 0,
         receivableByLp.get(entityId) ?? 0,
-        lpIrr(postingsByLp.get(entityId) ?? [], account.ending, irrDate),
+        irr,
       ),
     }
   })

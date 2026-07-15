@@ -19,18 +19,20 @@ interface Investor { id: string; name: string }
  * there regardless, on the snapshot and letter pages, offering exactly that. Gated here
  * rather than at each call site so no future caller can forget.
  */
-export function LpShareControl({ shareEndpoint }: { shareEndpoint: string }) {
-  const lpPortalEnabled = useLpPortalEnabled()
-  const [open, setOpen] = useState(false)
+/**
+ * The investor picker itself, WITHOUT its own button/dialog chrome — so it can be dropped
+ * straight into a dialog a caller already owns (e.g. the /lps "Share with LPs" flow), or wrapped
+ * by LpShareControl below. Checking an investor persists immediately to `shareEndpoint`.
+ */
+export function LpSharePanel({ shareEndpoint }: { shareEndpoint: string }) {
   const [investors, setInvestors] = useState<Investor[]>([])
   const [shared, setShared] = useState<Set<string>>(new Set())
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [portalEnabled, setPortalEnabled] = useState<boolean | null>(null)
   const [groups, setGroups] = useState<{ name: string; investor_ids: string[] }[]>([])
 
   useEffect(() => {
-    if (!open || investors.length) return
     setLoading(true)
     Promise.all([
       fetch('/api/lps/investors').then(r => (r.ok ? r.json() : [])),
@@ -45,7 +47,7 @@ export function LpShareControl({ shareEndpoint }: { shareEndpoint: string }) {
         setGroups(Array.isArray(grp?.groups) ? grp.groups : [])
       })
       .finally(() => setLoading(false))
-  }, [open, shareEndpoint, investors.length])
+  }, [shareEndpoint])
 
   async function persist(next: Set<string>) {
     setShared(new Set(next))
@@ -76,7 +78,61 @@ export function LpShareControl({ shareEndpoint }: { shareEndpoint: string }) {
 
   const allShared = investors.length > 0 && investors.every(i => shared.has(i.id))
 
-  // Hooks first, then bail — the portal being off must not change the hook order.
+  return (
+    <div className="space-y-3 min-w-0">
+      {portalEnabled === false && (
+        <div className="text-xs rounded-md border border-amber-300/50 bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400 px-2.5 py-2">
+          The LP portal is off for this fund, shares won&apos;t reach LPs until you enable it in{' '}
+          <a href="/settings" className="underline">Settings → LP Portal</a>.
+        </div>
+      )}
+
+      {loading ? (
+        <div className="text-xs text-muted-foreground py-4"><Loader2 className="h-3.5 w-3.5 inline animate-spin mr-1" /> Loading…</div>
+      ) : investors.length === 0 ? (
+        <div className="text-xs text-muted-foreground py-4">No LP investors yet, add them from Settings → LP access.</div>
+      ) : (
+        <>
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-muted-foreground flex items-center gap-1.5">
+              {shared.size} of {investors.length} shared
+              {saving && <Loader2 className="h-3 w-3 animate-spin" />}
+            </span>
+            <button onClick={() => persist(allShared ? new Set() : new Set(investors.map(i => i.id)))} className="text-[11px] text-primary hover:underline">
+              {allShared ? 'Deselect all' : 'Select all'}
+            </button>
+          </div>
+          {groups.length > 0 && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground shrink-0">Select all in fund/SPV:</span>
+              <select
+                defaultValue=""
+                onChange={e => { if (e.target.value) selectGroup(e.target.value); e.currentTarget.value = '' }}
+                className="h-7 rounded-md border border-input bg-background px-2 text-xs flex-1 min-w-0"
+              >
+                <option value="">Choose…</option>
+                {groups.map(g => <option key={g.name} value={g.name}>{g.name} ({g.investor_ids.length})</option>)}
+              </select>
+            </div>
+          )}
+          <div className="rounded-md border divide-y max-h-[55vh] overflow-y-auto min-w-0">
+            {investors.map(inv => (
+              <label key={inv.id} className="flex items-center gap-2 px-3 py-2 text-sm cursor-pointer hover:bg-muted/30 min-w-0">
+                <input type="checkbox" checked={shared.has(inv.id)} onChange={() => toggle(inv.id)} className="h-3.5 w-3.5 shrink-0" />
+                <span className="flex-1 min-w-0 truncate">{inv.name}</span>
+              </label>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+export function LpShareControl({ shareEndpoint }: { shareEndpoint: string }) {
+  const lpPortalEnabled = useLpPortalEnabled()
+  const [open, setOpen] = useState(false)
+
   if (!lpPortalEnabled) return null
 
   return (
@@ -88,57 +144,10 @@ export function LpShareControl({ shareEndpoint }: { shareEndpoint: string }) {
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              Share with LPs
-              {saving && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
-            </DialogTitle>
+            <DialogTitle>Share with LPs</DialogTitle>
             <DialogDescription>Check an investor to make this visible in their portal. Invite LPs from Settings → LP access.</DialogDescription>
           </DialogHeader>
-
-          <div className="space-y-3 min-w-0">
-            {portalEnabled === false && (
-              <div className="text-xs rounded-md border border-amber-300/50 bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400 px-2.5 py-2">
-                The LP portal is off for this fund, shares won&apos;t reach LPs until you enable it in{' '}
-                <a href="/settings" className="underline">Settings → LP Portal</a>.
-              </div>
-            )}
-
-            {loading ? (
-              <div className="text-xs text-muted-foreground py-4"><Loader2 className="h-3.5 w-3.5 inline animate-spin mr-1" /> Loading…</div>
-            ) : investors.length === 0 ? (
-              <div className="text-xs text-muted-foreground py-4">No LP investors yet, add them from Settings → LP access.</div>
-            ) : (
-              <>
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-muted-foreground">{shared.size} of {investors.length} shared</span>
-                  <button onClick={() => persist(allShared ? new Set() : new Set(investors.map(i => i.id)))} className="text-[11px] text-primary hover:underline">
-                    {allShared ? 'Deselect all' : 'Select all'}
-                  </button>
-                </div>
-                {groups.length > 0 && (
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-muted-foreground shrink-0">Select all in fund/SPV:</span>
-                    <select
-                      defaultValue=""
-                      onChange={e => { if (e.target.value) selectGroup(e.target.value); e.currentTarget.value = '' }}
-                      className="h-7 rounded-md border border-input bg-background px-2 text-xs flex-1 min-w-0"
-                    >
-                      <option value="">Choose…</option>
-                      {groups.map(g => <option key={g.name} value={g.name}>{g.name} ({g.investor_ids.length})</option>)}
-                    </select>
-                  </div>
-                )}
-                <div className="rounded-md border divide-y max-h-[55vh] overflow-y-auto min-w-0">
-                  {investors.map(inv => (
-                    <label key={inv.id} className="flex items-center gap-2 px-3 py-2 text-sm cursor-pointer hover:bg-muted/30 min-w-0">
-                      <input type="checkbox" checked={shared.has(inv.id)} onChange={() => toggle(inv.id)} className="h-3.5 w-3.5 shrink-0" />
-                      <span className="flex-1 min-w-0 truncate">{inv.name}</span>
-                    </label>
-                  ))}
-                </div>
-              </>
-            )}
-          </div>
+          {open && <LpSharePanel shareEndpoint={shareEndpoint} />}
         </DialogContent>
       </Dialog>
     </>

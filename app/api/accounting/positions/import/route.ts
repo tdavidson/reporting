@@ -85,6 +85,7 @@ export async function POST(req: NextRequest) {
       // total_value when NAV itself wasn't given.
       nav: r.nav != null ? toSafeNumber(r.nav)
         : (r.total_value != null ? toSafeNumber(Number(r.total_value) - (Number(r.distributions) || 0)) : null),
+      irr: toSafeNumber(r.irr),
       source: 'paste',
       imported_by: user.id,
       imported_at: new Date().toISOString(),

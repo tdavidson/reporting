@@ -37,7 +37,11 @@ export async function GET(req: NextRequest) {
   const preset = sp.get('preset') as PeriodPreset | null
   const start = sp.get('start')
   const end = sp.get('end')
-  const period = preset && preset !== 'custom' ? resolvePeriod(preset) : customPeriod(start, end)
+  // "As of" sets the report date the preset window ends at — resolvePeriod computes the window
+  // relative to it (ITD ends there, this-quarter is the quarter containing it, etc.). Absent = today.
+  const asOfRaw = sp.get('asOf')
+  const asOf = asOfRaw && /^\d{4}-\d{2}-\d{2}$/.test(asOfRaw) ? new Date(`${asOfRaw}T00:00:00`) : undefined
+  const period = preset && preset !== 'custom' ? resolvePeriod(preset, asOf) : customPeriod(start, end)
 
   // One load, unfiltered by date: both roll-forwards are computed from it, and the
   // period one needs the pre-period history anyway to open with a carried-in balance.

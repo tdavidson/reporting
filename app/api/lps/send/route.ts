@@ -201,6 +201,25 @@ export async function POST(req: NextRequest) {
   const wantsAttachment = delivery === 'attachment' || delivery === 'both'
   const emailLink = delivery === 'attachment' ? null : link
 
+  // Preview mode: return exactly who would be emailed (To + auto-Cc addresses) and the rendered
+  // email, WITHOUT sending. This is the review step the GP confirms before anything goes out.
+  if (body.preview === true) {
+    return NextResponse.json({
+      preview: true,
+      subject,
+      itemTitle,
+      fromName: fundName,
+      html: buildHtml({ fundName, message, link: emailLink, itemTitle }),
+      attachment: wantsAttachment,
+      recipients: groups.map(g => ({
+        to: g.primaryEmail,
+        name: g.primaryName,
+        cc: g.ccEmails,
+        investorCount: g.investorIds.length,
+      })),
+    })
+  }
+
   // Letter / document attachments are identical for everyone — build once.
   // (Snapshot attachments are built per-recipient inside the loop, scoped to
   // that recipient's investors.) Failures here would otherwise 500 the whole

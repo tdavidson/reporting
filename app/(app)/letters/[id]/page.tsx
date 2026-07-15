@@ -9,7 +9,6 @@ import { Textarea } from '@/components/ui/textarea'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useFeatureVisibility, useIsAdmin } from '@/components/feature-visibility-context'
 import { LpShareControl } from '@/components/lp-share-control'
-import { LpSendControl } from '@/components/lp-send-control'
 import { sanitizeBasicHtml } from '@/lib/sanitize'
 
 const DEFAULT_PROMPT_PLACEHOLDER = `## LP Letter Style Guide (Default)
@@ -418,10 +417,7 @@ export default function LetterEditorPage() {
             </Button>
           )}
           {isAdmin && (fv.lp_portal_access === 'everyone' || fv.lp_portal_access === 'admin') && (
-            <>
-              <LpShareControl shareEndpoint={`/api/lp-letters/${letterId}/share`} />
-              <LpSendControl kind="letter" id={letterId} />
-            </>
+            <LpShareControl shareEndpoint={`/api/lp-letters/${letterId}/share`} />
           )}
         </div>
       </div>

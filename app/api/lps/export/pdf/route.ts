@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import puppeteer from 'puppeteer-core'
 import JSZip from 'jszip'
 import { getChromeConfig, buildReportHtml, computeRow, computeTotals, runPool, type InvestmentRow } from '@/lib/lp-report-pdf'
+import { generateLiveReport } from '@/lib/accounting/live-report'
 
 export const maxDuration = 300
 
@@ -29,26 +30,30 @@ export async function POST(req: NextRequest) {
   const fundId = membership.fund_id
 
   const body = await req.json()
-  const { snapshotId, investorIds, excludedGroups, snapshotName } = body as {
-    snapshotId: string
+  const { snapshotId, investorIds, excludedGroups, snapshotName, live, asOf } = body as {
+    snapshotId?: string
     investorIds: string[]
     excludedGroups: string[]
     snapshotName: string
+    live?: boolean
+    asOf?: string
   }
 
   // --- Input validation ---
-  if (!snapshotId || !Array.isArray(investorIds) || investorIds.length === 0) {
-    return NextResponse.json({ error: 'snapshotId and investorIds required' }, { status: 400 })
+  if (!Array.isArray(investorIds) || investorIds.length === 0) {
+    return NextResponse.json({ error: 'investorIds required' }, { status: 400 })
   }
   if (investorIds.length > 500) {
     return NextResponse.json({ error: 'Maximum 500 investors per request' }, { status: 400 })
   }
-  if (!UUID_RE.test(snapshotId)) {
-    return NextResponse.json({ error: 'Invalid snapshotId' }, { status: 400 })
-  }
   if (!investorIds.every(id => UUID_RE.test(id))) {
     return NextResponse.json({ error: 'Invalid investorId' }, { status: 400 })
   }
+  // Live mode builds from the current ledger-derived report; snapshot mode reads a frozen row.
+  if (!live && (!snapshotId || !UUID_RE.test(snapshotId))) {
+    return NextResponse.json({ error: 'Invalid snapshotId' }, { status: 400 })
+  }
+  const safeAsOf = (typeof asOf === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(asOf)) ? asOf : undefined
 
   const safeExcludedGroups = new Set(
     (Array.isArray(excludedGroups) ? excludedGroups : [])
@@ -57,31 +62,71 @@ export async function POST(req: NextRequest) {
       .slice(0, 50)
   )
 
-  // --- Fetch all data server-side in parallel ---
-  const [snapshotResult, investorsResult, investmentsResult, fundResult, settingsResult] = await Promise.all([
-    (admin.from('lp_snapshots') as any)
-      .select('id, name, as_of_date, description, footer_note')
-      .eq('id', snapshotId)
-      .eq('fund_id', fundId)
-      .maybeSingle() as Promise<{ data: any; error: any }>,
-    admin.from('lp_investors')
-      .select('id, name, parent_id')
-      .eq('fund_id', fundId),
-    admin.from('lp_investments')
-      .select('id, entity_id, portfolio_group, commitment, total_value, nav, called_capital, paid_in_capital, distributions, irr, lp_entities(id, entity_name, investor_id, lp_investors(id, name))')
-      .eq('snapshot_id', snapshotId),
-    admin.from('funds')
-      .select('name, logo_url, address')
-      .eq('id', fundId)
-      .maybeSingle(),
-    admin.from('fund_settings' as any)
-      .select('currency')
-      .eq('fund_id', fundId)
-      .maybeSingle(),
+  // --- Fund-level data (needed either way) ---
+  const [investorsResult, fundResult, settingsResult] = await Promise.all([
+    admin.from('lp_investors').select('id, name, parent_id').eq('fund_id', fundId),
+    admin.from('funds').select('name, logo_url, address').eq('id', fundId).maybeSingle(),
+    admin.from('fund_settings' as any).select('currency, lp_report_description, lp_report_footer').eq('fund_id', fundId).maybeSingle(),
   ])
 
-  const snapshot = snapshotResult.data
-  if (!snapshot) return NextResponse.json({ error: 'Snapshot not found' }, { status: 404 })
+  // --- Report data: live (derived) vs snapshot (frozen). Both produce the same shapes:
+  //     allInvestments (InvestmentRow[]) + description/footer/asOfDate for the header/footer. ---
+  let allInvestments: InvestmentRow[]
+  let description: string | null
+  let footerNote: string | null
+  let asOfDate: string | null
+
+  if (live) {
+    const [report, entsRes] = await Promise.all([
+      generateLiveReport(admin, fundId, safeAsOf),
+      admin.from('lp_entities' as any).select('id, entity_name, investor_id, lp_investors(id, name)').eq('fund_id', fundId),
+    ])
+    const entInfo = new Map<string, { entity_name: string; investor_id: string; investor_name: string }>()
+    for (const e of ((entsRes.data as any[]) ?? [])) {
+      const inv = Array.isArray(e.lp_investors) ? e.lp_investors[0] : e.lp_investors
+      entInfo.set(e.id, { entity_name: e.entity_name, investor_id: e.investor_id ?? e.id, investor_name: inv?.name ?? e.entity_name })
+    }
+    allInvestments = report.rows.map((r, i) => {
+      const info = entInfo.get(r.entity_id)
+      return {
+        id: `${r.entity_id}-${r.portfolio_group}-${i}`,
+        entity_id: r.entity_id,
+        portfolio_group: r.portfolio_group,
+        commitment: r.commitment,
+        total_value: r.total_value,
+        nav: r.nav,
+        called_capital: r.called_capital,
+        paid_in_capital: r.paid_in_capital,
+        distributions: r.distributions,
+        irr: r.irr,
+        lp_entities: {
+          id: r.entity_id,
+          entity_name: info?.entity_name ?? r.entity_id,
+          investor_id: info?.investor_id ?? r.entity_id,
+          lp_investors: { id: info?.investor_id ?? r.entity_id, name: info?.investor_name ?? r.entity_id },
+        },
+      } as InvestmentRow
+    })
+    const s = settingsResult.data as any
+    description = s?.lp_report_description ?? null
+    footerNote = s?.lp_report_footer ?? null
+    asOfDate = report.asOf
+  } else {
+    const [snapshotResult, investmentsResult] = await Promise.all([
+      (admin.from('lp_snapshots') as any)
+        .select('id, name, as_of_date, description, footer_note')
+        .eq('id', snapshotId).eq('fund_id', fundId).maybeSingle() as Promise<{ data: any; error: any }>,
+      admin.from('lp_investments')
+        .select('id, entity_id, portfolio_group, commitment, total_value, nav, called_capital, paid_in_capital, distributions, irr, lp_entities(id, entity_name, investor_id, lp_investors(id, name))')
+        .eq('snapshot_id', snapshotId!),
+    ])
+    const snapshot = snapshotResult.data
+    if (!snapshot) return NextResponse.json({ error: 'Snapshot not found' }, { status: 404 })
+    allInvestments = (investmentsResult.data ?? []) as unknown as InvestmentRow[]
+    description = snapshot.description
+    footerNote = snapshot.footer_note
+    asOfDate = snapshot.as_of_date
+  }
 
   const verifiedInvestors = investorsResult.data ?? []
   const verifiedIds = new Set(verifiedInvestors.map(i => i.id))
@@ -103,7 +148,6 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  const allInvestments = (investmentsResult.data ?? []) as unknown as InvestmentRow[]
   const fund = fundResult.data as any
   const settings = settingsResult.data as any
   const fundName = fund?.name || ''
@@ -111,8 +155,8 @@ export async function POST(req: NextRequest) {
   const fundAddress = fund?.address || null
   const currency = settings?.currency || 'USD'
 
-  const asOfFormatted = snapshot.as_of_date
-    ? new Date(snapshot.as_of_date + 'T00:00:00').toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+  const asOfFormatted = asOfDate
+    ? new Date(asOfDate + 'T00:00:00').toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
     : null
 
   // Group investments by investor
@@ -164,8 +208,8 @@ export async function POST(req: NextRequest) {
       fundName,
       fundLogo,
       fundAddress,
-      description: snapshot.description,
-      footerNote: snapshot.footer_note,
+      description,
+      footerNote,
       asOfFormatted,
       currency,
     })

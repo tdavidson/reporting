@@ -20,8 +20,7 @@ import { useCurrency, formatCurrencyFull } from '@/components/currency-context'
 import { useConfirm } from '@/components/confirm-dialog'
 import { useFeatureVisibility, useIsAdmin } from '@/components/feature-visibility-context'
 import { PortfolioGroupFilter } from '@/components/lp-portfolio-group-filter'
-import { LpShareControl } from '@/components/lp-share-control'
-import { LpSendControl } from '@/components/lp-send-control'
+import { LpSharePanel } from '@/components/lp-share-control'
 import { AnalystToggleButton } from '@/components/analyst-button'
 import { AnalystPanel } from '@/components/analyst-panel'
 import { PortfolioNotesProvider, PortfolioNotesButton, PortfolioNotesPanel } from '@/components/portfolio-notes'
@@ -41,6 +40,10 @@ interface LiveRow {
   nav: number
   total_value: number
   outstanding_balance: number
+  dpi: number | null
+  rvpi: number | null
+  tvpi: number | null
+  irr: number | null
 }
 interface Payload {
   asOf: string | null
@@ -50,8 +53,12 @@ interface InvestorMeta { id: string; name: string; parent_id: string | null }
 
 interface Totals {
   commitment: number; paid_in_capital: number; distributions: number; nav: number
-  total_value: number; outstanding_balance: number; dpi: number | null; tvpi: number | null
+  total_value: number; outstanding_balance: number
+  pctFunded: number | null; dpi: number | null; rvpi: number | null; tvpi: number | null; irr: number | null
 }
+
+const moicX = (v: number | null | undefined) => (v == null ? '—' : `${v.toFixed(2)}x`)
+const pctX = (v: number | null | undefined) => (v == null ? '—' : `${(v * 100).toFixed(1)}%`)
 
 function total(rows: LiveRow[]): Totals {
   const t = rows.reduce((a, r) => ({
@@ -62,8 +69,13 @@ function total(rows: LiveRow[]): Totals {
   const paid = t.paid_in_capital
   return {
     ...t,
+    pctFunded: t.commitment > 0 ? t.paid_in_capital / t.commitment : null,
     dpi: paid > 0 ? Math.round((t.distributions / paid) * 10000) / 10000 : null,
+    rvpi: paid > 0 ? Math.round((t.nav / paid) * 10000) / 10000 : null,
     tvpi: paid > 0 ? Math.round(((t.distributions + t.nav) / paid) * 10000) / 10000 : null,
+    // IRR is not additive across vehicles, so it is only shown when an investor has a single
+    // vehicle position (then it is exactly that row's IRR). Multi-vehicle investors show "—".
+    irr: rows.length === 1 ? rows[0].irr : null,
   }
 }
 
@@ -181,14 +193,20 @@ function LpsInner() {
   async function shareWithLps() {
     // Freeze the current live report into a snapshot, then share THAT — the portal shares
     // fixed statements, not a live view.
-    setFreezing(true)
-    const res = await fetch('/api/lps/snapshots/from-live', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ asOfDate: applied || undefined }),
-    })
-    const d = await res.json()
-    setFreezing(false)
-    if (res.ok) setShareSnapshotId(d.snapshotId)
+    setFreezing(true); setError(null)
+    try {
+      const res = await fetch('/api/lps/snapshots/from-live', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ asOfDate: applied || undefined }),
+      })
+      const d = await res.json().catch(() => ({}))
+      if (!res.ok || !d.snapshotId) { setError(d.error ?? 'Could not prepare the report to share.'); return }
+      setShareSnapshotId(d.snapshotId)
+    } catch {
+      setError('Could not prepare the report to share.')
+    } finally {
+      setFreezing(false)
+    }
   }
 
   return (
@@ -229,9 +247,10 @@ function LpsInner() {
           />
         )}
         <label className="text-xs text-muted-foreground flex items-center gap-1 ml-1"><Calendar className="h-3 w-3" /> As of</label>
-        <Input type="date" value={asOf} onChange={e => setAsOf(e.target.value)} className="h-9 w-40" />
-        <Button size="sm" variant="outline" onClick={() => setApplied(asOf)} disabled={loading}>{asOf ? 'Rebuild' : 'Latest'}</Button>
-        {applied && <Button size="sm" variant="ghost" onClick={() => { setAsOf(''); setApplied('') }}>Clear</Button>}
+        {/* Changing the date rebuilds immediately — no separate apply button. Default (empty)
+            is the latest data; "Latest" resets back to it. */}
+        <Input type="date" value={asOf} onChange={e => { setAsOf(e.target.value); setApplied(e.target.value) }} className="h-9 w-40" />
+        {applied && <Button size="sm" variant="ghost" onClick={() => { setAsOf(''); setApplied('') }}>Latest</Button>}
 
         <span className="flex-1" />
 
@@ -276,10 +295,13 @@ function LpsInner() {
                     <th className="text-right font-medium px-3 py-2">Commitment</th>
                     <th className="text-right font-medium px-3 py-2">Paid in</th>
                     <th className="text-right font-medium px-3 py-2">Unfunded</th>
+                    <th className="text-right font-medium px-3 py-2">% Funded</th>
                     <th className="text-right font-medium px-3 py-2">Distributions</th>
                     <th className="text-right font-medium px-3 py-2">NAV</th>
                     <th className="text-right font-medium px-3 py-2">DPI</th>
+                    <th className="text-right font-medium px-3 py-2">RVPI</th>
                     <th className="text-right font-medium px-3 py-2">TVPI</th>
+                    <th className="text-right font-medium px-3 py-2">IRR</th>
                     {isAdmin && <th className="px-3 py-2 w-0" />}
                   </tr>
                 </thead>
@@ -290,21 +312,24 @@ function LpsInner() {
                     return (
                       <Fragment key={inv.id}>
                         <tr className={`border-b group ${multi ? 'cursor-pointer hover:bg-muted/20' : 'hover:bg-muted/10'}`} onClick={() => multi && toggle(inv.id)}>
-                          <td className="px-3 py-1.5 font-medium max-w-0">
-                            <span className="flex items-center gap-1 min-w-0">
+                          <td className="px-3 py-1.5 font-medium">
+                            <span className="flex items-center gap-1">
                               {multi ? (open ? <ChevronDown className="h-3.5 w-3.5 shrink-0" /> : <ChevronRight className="h-3.5 w-3.5 shrink-0" />) : <span className="w-3.5 shrink-0" />}
-                              {/* Long names truncate rather than wrap and steal column space. */}
-                              <span className="truncate" title={inv.name}>{inv.name}</span>
+                              {/* Long names truncate at a fixed cap rather than wrapping or collapsing the column. */}
+                              <span className="truncate max-w-[240px]" title={inv.name}>{inv.name}</span>
                               {multi && <span className="text-xs text-muted-foreground font-normal ml-1 shrink-0">({inv.rows.length})</span>}
                             </span>
                           </td>
                           <Money v={inv.totals.commitment} fmt={fmt} />
                           <Money v={inv.totals.paid_in_capital} fmt={fmt} />
                           <Money v={inv.totals.outstanding_balance} fmt={fmt} />
+                          <td className="px-3 py-1.5 text-right tabular-nums text-muted-foreground">{pctX(inv.totals.pctFunded)}</td>
                           <Money v={inv.totals.distributions} fmt={fmt} />
                           <Money v={inv.totals.nav} fmt={fmt} />
-                          <td className="px-3 py-1.5 text-right tabular-nums text-muted-foreground">{inv.totals.dpi != null ? `${inv.totals.dpi.toFixed(2)}x` : '—'}</td>
-                          <td className="px-3 py-1.5 text-right tabular-nums">{inv.totals.tvpi != null ? `${inv.totals.tvpi.toFixed(2)}x` : '—'}</td>
+                          <td className="px-3 py-1.5 text-right tabular-nums text-muted-foreground">{moicX(inv.totals.dpi)}</td>
+                          <td className="px-3 py-1.5 text-right tabular-nums text-muted-foreground">{moicX(inv.totals.rvpi)}</td>
+                          <td className="px-3 py-1.5 text-right tabular-nums">{moicX(inv.totals.tvpi)}</td>
+                          <td className="px-3 py-1.5 text-right tabular-nums text-muted-foreground">{pctX(inv.totals.irr)}</td>
                           {isAdmin && (
                             <td className="px-2 py-1.5 whitespace-nowrap text-muted-foreground" onClick={e => e.stopPropagation()}>
                               <span className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -317,8 +342,8 @@ function LpsInner() {
                         </tr>
                         {open && inv.rows.map(r => (
                           <tr key={`${inv.id}-${r.entity_id}-${r.portfolio_group}`} className="border-b bg-muted/10 text-muted-foreground">
-                            <td className="px-3 py-1.5 pl-10 text-xs max-w-0">
-                              <span className="truncate block" title={`${r.portfolio_group}${r.entity_name !== inv.name ? ` · ${r.entity_name}` : ''}`}>
+                            <td className="px-3 py-1.5 pl-10 text-xs">
+                              <span className="truncate block max-w-[320px]" title={`${r.portfolio_group}${r.entity_name !== inv.name ? ` · ${r.entity_name}` : ''}`}>
                                 {r.portfolio_group}
                                 {r.entity_name !== inv.name && <span className="ml-1">· {r.entity_name}</span>}
                                 {r.lookThroughVia && <Badge variant="secondary" className="ml-1 text-[10px] py-0 px-1">via {r.lookThroughVia}</Badge>}
@@ -327,16 +352,21 @@ function LpsInner() {
                             <Money v={r.commitment} fmt={fmt} small />
                             <Money v={r.paid_in_capital} fmt={fmt} small />
                             <Money v={r.outstanding_balance} fmt={fmt} small />
+                            <td className="px-3 py-1.5 text-right tabular-nums text-xs">{pctX(r.commitment > 0 ? r.paid_in_capital / r.commitment : null)}</td>
                             <Money v={r.distributions} fmt={fmt} small />
                             <Money v={r.nav} fmt={fmt} small />
-                            <td colSpan={isAdmin ? 3 : 2} />
+                            <td className="px-3 py-1.5 text-right tabular-nums text-xs">{moicX(r.dpi)}</td>
+                            <td className="px-3 py-1.5 text-right tabular-nums text-xs">{moicX(r.rvpi)}</td>
+                            <td className="px-3 py-1.5 text-right tabular-nums text-xs">{moicX(r.tvpi)}</td>
+                            <td className="px-3 py-1.5 text-right tabular-nums text-xs">{pctX(r.irr)}</td>
+                            {isAdmin && <td />}
                           </tr>
                         ))}
                       </Fragment>
                     )
                   })}
                   {investors.length === 0 && (
-                    <tr><td colSpan={isAdmin ? 9 : 8} className="p-8 text-center text-muted-foreground">
+                    <tr><td colSpan={isAdmin ? 12 : 11} className="p-8 text-center text-muted-foreground">
                       {search ? 'No investors match your search.' : 'No LP capital found. Track a vehicle’s positions or book its history.'}
                     </td></tr>
                   )}
@@ -348,10 +378,13 @@ function LpsInner() {
                       <Money v={grand.commitment} fmt={fmt} />
                       <Money v={grand.paid_in_capital} fmt={fmt} />
                       <Money v={grand.outstanding_balance} fmt={fmt} />
+                      <td className="px-3 py-1.5 text-right tabular-nums">{pctX(grand.pctFunded)}</td>
                       <Money v={grand.distributions} fmt={fmt} />
                       <Money v={grand.nav} fmt={fmt} />
-                      <td className="px-3 py-1.5 text-right tabular-nums">{grand.dpi != null ? `${grand.dpi.toFixed(2)}x` : '—'}</td>
-                      <td className="px-3 py-1.5 text-right tabular-nums">{grand.tvpi != null ? `${grand.tvpi.toFixed(2)}x` : '—'}</td>
+                      <td className="px-3 py-1.5 text-right tabular-nums">{moicX(grand.dpi)}</td>
+                      <td className="px-3 py-1.5 text-right tabular-nums">{moicX(grand.rvpi)}</td>
+                      <td className="px-3 py-1.5 text-right tabular-nums">{moicX(grand.tvpi)}</td>
+                      <td className="px-3 py-1.5 text-right tabular-nums">{grand.irr != null ? pctX(grand.irr) : '—'}</td>
                       {isAdmin && <td />}
                     </tr>
                   </tfoot>
@@ -363,25 +396,28 @@ function LpsInner() {
       ) : null}
 
       {settingsOpen && <ReportSettingsDialog onClose={() => setSettingsOpen(false)} />}
-      {rename && <RenameDialog investor={rename} onClose={() => setRename(null)} onSaved={() => { setRename(null); load(applied) }} />}
+      {rename && <RenameDialog investor={rename} allInvestors={investors.map(i => ({ id: i.id, name: i.name }))} onClose={() => setRename(null)} onSaved={() => { setRename(null); load(applied) }} />}
       {grouping && <GroupDialog investor={grouping} candidates={investors.map(i => ({ id: i.id, name: i.name }))} onClose={() => setGrouping(null)} onSaved={() => { setGrouping(null); load(applied) }} />}
 
-      {/* Share freezes a snapshot, then shares it through the normal snapshot controls. */}
+      {/* Share freezes the current live report into a fixed snapshot, then lets you pick which
+          LPs can see it in their portal — the same picker the capital-accounts publish uses.
+          No email is sent; LPs see it when they sign in. */}
       <Dialog open={!!shareSnapshotId} onOpenChange={o => { if (!o) setShareSnapshotId(null) }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Share this report with LPs</DialogTitle>
             <DialogDescription>
-              A snapshot was frozen from the current live data — LPs see a fixed statement, not a moving view. Choose who
-              can see it, and optionally email it.
+              A snapshot was frozen from the current live data ({applied || 'latest'}), so LPs see a fixed statement
+              rather than a moving view. Check the LPs who should see it in their portal.
             </DialogDescription>
           </DialogHeader>
           {shareSnapshotId && (
-            <div className="flex flex-wrap gap-2">
-              <LpShareControl shareEndpoint={`/api/lps/snapshots/${shareSnapshotId}/share`} />
-              <LpSendControl kind="snapshot" id={shareSnapshotId} />
-              <Button variant="ghost" size="sm" asChild><Link href="/lps/snapshots">Open in archive</Link></Button>
-            </div>
+            <>
+              <LpSharePanel shareEndpoint={`/api/lps/snapshots/${shareSnapshotId}/share`} />
+              <div className="flex justify-end pt-1">
+                <Button variant="ghost" size="sm" asChild><Link href="/lps/snapshots">Open in archive</Link></Button>
+              </div>
+            </>
           )}
         </DialogContent>
       </Dialog>
@@ -457,14 +493,22 @@ function ReportSettingsDialog({ onClose }: { onClose: () => void }) {
   )
 }
 
-function RenameDialog({ investor, onClose, onSaved }: { investor: { id: string; name: string }; onClose: () => void; onSaved: () => void }) {
+function RenameDialog({ investor, allInvestors, onClose, onSaved }: { investor: { id: string; name: string }; allInvestors: { id: string; name: string }[]; onClose: () => void; onSaved: () => void }) {
   const [name, setName] = useState(investor.name)
   const [saving, setSaving] = useState(false)
   const [err, setErr] = useState<string | null>(null)
+
+  // Renaming to a name that already exists is how you consolidate the same LP that came in
+  // slightly misnamed across different vehicles: instead of erroring on the duplicate, we merge
+  // this investor into the existing one (reassign its entities, delete this row).
+  const match = allInvestors.find(i => i.id !== investor.id && i.name.trim().toLowerCase() === name.trim().toLowerCase())
+
   async function save() {
     if (!name.trim()) return
     setSaving(true); setErr(null)
-    const res = await fetch('/api/lps/investors', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: investor.id, name: name.trim() }) })
+    const res = match
+      ? await fetch('/api/lps/investors', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sourceId: investor.id, targetId: match.id }) })
+      : await fetch('/api/lps/investors', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: investor.id, name: name.trim() }) })
     setSaving(false)
     if (!res.ok) { const d = await res.json().catch(() => ({})); setErr(d.error === 'duplicate_name' ? 'An investor with that name already exists.' : (d.error ?? 'Could not rename')); return }
     onSaved()
@@ -474,10 +518,11 @@ function RenameDialog({ investor, onClose, onSaved }: { investor: { id: string; 
       <DialogContent className="sm:max-w-sm">
         <DialogHeader><DialogTitle>Rename investor</DialogTitle></DialogHeader>
         <Input value={name} onChange={e => setName(e.target.value)} onKeyDown={e => e.key === 'Enter' && save()} autoFocus />
+        {match && <p className="text-xs text-muted-foreground">&ldquo;{match.name}&rdquo; already exists — saving will <strong>merge</strong> this investor into it, combining their positions across vehicles.</p>}
         {err && <p className="text-xs text-destructive">{err}</p>}
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancel</Button>
-          <Button onClick={save} disabled={saving || !name.trim()}>{saving ? 'Saving…' : 'Save'}</Button>
+          <Button onClick={save} disabled={saving || !name.trim()}>{saving ? 'Saving…' : match ? 'Merge' : 'Save'}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

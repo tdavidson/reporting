@@ -9,7 +9,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { useCurrency, formatCurrency } from '@/components/currency-context'
 import { PortfolioGroupFilter } from '@/components/lp-portfolio-group-filter'
 import { LpShareControl } from '@/components/lp-share-control'
-import { LpSendControl } from '@/components/lp-send-control'
 import { useFeatureVisibility, useIsAdmin } from '@/components/feature-visibility-context'
 import { AnalystToggleButton } from '@/components/analyst-button'
 import { AnalystPanel } from '@/components/analyst-panel'
@@ -785,10 +784,7 @@ export default function SnapshotDetailPage() {
           Settings
         </Button>
         {isAdmin && (fv.lp_portal_access === 'everyone' || fv.lp_portal_access === 'admin') && (
-          <>
-            <LpShareControl shareEndpoint={`/api/lps/snapshots/${snapshotId}/share`} />
-            <LpSendControl kind="snapshot" id={snapshotId} />
-          </>
+          <LpShareControl shareEndpoint={`/api/lps/snapshots/${snapshotId}/share`} />
         )}
       </div>
 

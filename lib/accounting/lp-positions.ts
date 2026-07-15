@@ -35,6 +35,8 @@ export interface LpPosition {
   distributions: number | null
   /** Reliable primitive; 0 is valid (fully realized). Null = unstated. */
   nav: number | null
+  /** Reported IRR (fraction) as of this date, if stated. Not used to derive postings. */
+  irr?: number | null
 }
 
 /** One entity's cumulative figures at a point, normalized to numbers. */
@@ -101,7 +103,7 @@ export async function loadPositions(
   if (!vehicleId) return []
   let q = admin
     .from('lp_positions' as any)
-    .select('lp_entity_id, as_of_date, commitment, called_capital, distributions, nav')
+    .select('lp_entity_id, as_of_date, commitment, called_capital, distributions, nav, irr')
     .eq('fund_id', fundId)
     .eq('vehicle_id', vehicleId)
   if (asOf) q = q.lte('as_of_date', asOf)
@@ -113,7 +115,32 @@ export async function loadPositions(
     calledCapital: r.called_capital == null ? null : Number(r.called_capital),
     distributions: r.distributions == null ? null : Number(r.distributions),
     nav: r.nav == null ? null : Number(r.nav),
+    irr: r.irr == null ? null : Number(r.irr),
   }))
+}
+
+/**
+ * Each entity's stored IRR from its most recent position on-or-before `asOf`. Only entities that
+ * actually have a stored IRR appear. Read paths prefer this over the derived IRR — a single-date
+ * cutover has no time spread to imply one, so the pasted figure is what we can show.
+ */
+export async function latestPositionIrr(
+  admin: SupabaseClient,
+  fundId: string,
+  group: string,
+  asOf?: string
+): Promise<Map<string, number>> {
+  const positions = await loadPositions(admin, fundId, group, asOf)
+  const latest = new Map<string, LpPosition>()
+  for (const p of positions) {
+    const cur = latest.get(p.lpEntityId)
+    if (!cur || p.asOfDate.localeCompare(cur.asOfDate) > 0) latest.set(p.lpEntityId, p)
+  }
+  const out = new Map<string, number>()
+  for (const [id, p] of Array.from(latest.entries())) {
+    if (p.irr != null) out.set(id, p.irr)
+  }
+  return out
 }
 
 /** The tracking producer: dated positions → CapitalPosting[]. Wired into loadCapitalPostings. */
