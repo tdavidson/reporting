@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Loader2, Landmark, ClipboardList, ArrowRight } from 'lucide-react'
+import { Loader2, Landmark, ClipboardList, ArrowRight, Search, X } from 'lucide-react'
 import { useCurrency, formatCurrency, formatCurrencyFull } from '@/components/currency-context'
 import { useVehicle } from '@/components/accounting-vehicle'
 import { Card, CardContent } from '@/components/ui/card'
@@ -59,6 +59,8 @@ export function FundOverview() {
   const [loading, setLoading] = useState(true)
   const [asOf, setAsOf] = useState('')
   const [lens, setLens] = useState<Lens>('lp')
+  const [search, setSearch] = useState('')
+  const [sourceFilter, setSourceFilter] = useState<'all' | 'ledger' | 'events'>('all')
 
   const load = useCallback(() => {
     setLoading(true)
@@ -94,7 +96,15 @@ export function FundOverview() {
   const effectiveLens: Lens = hasGpSplit ? lens : 'fund'
   const m = (v: Vehicle) => (effectiveLens === 'lp' ? v.lp : v.fund)
 
-  const totals = live.reduce((acc, v) => {
+  // Search + source filters apply to both the table and the metric boxes, so the totals always
+  // describe exactly what's shown.
+  const q = search.trim().toLowerCase()
+  const filtered = live.filter(v =>
+    (sourceFilter === 'all' || v.source === sourceFilter) &&
+    (!q || v.vehicle.toLowerCase().includes(q))
+  )
+
+  const totals = filtered.reduce((acc, v) => {
     const x = m(v)
     acc.committed += x.committed; acc.paidIn += x.paidIn; acc.uncalled += x.uncalled
     acc.distributions += x.distributions; acc.nav += x.nav; acc.totalValue += x.totalValue
@@ -109,10 +119,34 @@ export function FundOverview() {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          {/* Net to LP is the honest default: it is what an LP would actually receive, and
-              it is now exact rather than a carry estimate. Only shown when a GP class exists to
-              carve out — otherwise the two lenses are identical and the control looks dead. */}
+        {/* Left: filters, to balance the "As of" control on the right. */}
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+            <input
+              type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search vehicles…"
+              className="h-8 w-48 pl-8 pr-8 rounded-md border border-input bg-background text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+            />
+            {search && (
+              <button onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
+          <select
+            value={sourceFilter}
+            onChange={e => setSourceFilter(e.target.value as 'all' | 'ledger' | 'events')}
+            aria-label="Filter by accounting source"
+            className="h-8 px-2 rounded-md border border-input bg-background text-sm text-muted-foreground"
+          >
+            <option value="all">All vehicles</option>
+            <option value="ledger">Fund Accounting</option>
+            <option value="events">LP tracking</option>
+          </select>
+
+          {/* Net to LP is the honest default: what an LP would actually receive, now exact rather
+              than a carry estimate. Only shown when a GP class exists to carve out — otherwise the
+              two lenses are identical and the control looks dead. */}
           {hasGpSplit && (
             <div className="inline-flex rounded-md border p-0.5 text-xs">
               {(['lp', 'fund'] as Lens[]).map(l => (
@@ -168,12 +202,15 @@ export function FundOverview() {
             </tr>
           </thead>
           <tbody>
-            {live.map(v => {
+            {filtered.length === 0 && (
+              <tr><td colSpan={11} className="px-3 py-8 text-center text-muted-foreground">No vehicles match your filters.</td></tr>
+            )}
+            {filtered.map(v => {
               const x = m(v)
               return (
                 <tr key={v.vehicle} className="border-t hover:bg-muted/30">
                   <td className="px-3 py-2 font-medium">
-                    <button onClick={() => openVehicle(v.vehicle)} className="text-left hover:underline hover:text-foreground">
+                    <button onClick={() => openVehicle(v.vehicle)} title={v.vehicle} className="text-left hover:underline hover:text-foreground truncate max-w-[220px] block">
                       {v.vehicle}
                     </button>
                   </td>

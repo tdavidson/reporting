@@ -71,6 +71,12 @@ export function bucketForSourceType(sourceType: string | null | undefined): Roll
     case 'carried_interest':
     case 'carry':
       return 'carriedInterest'
+    case 'carry_distribution':
+      // Carried interest PAID out — a cash distribution of carry, kept separate from
+      // return-of-capital distributions and from the accrual mark. It nets against the accrual
+      // on the carriedInterest line (which then reads as carry accrued-but-unpaid), and the GP
+      // panel reads it back by source_type to show carry paid on its own.
+      return 'carriedInterest'
     default:
       // Catch-all for `manual` and any source_type we don't recognize. It should be
       // zero on clean books, and the UI only shows the line when it isn't — but the

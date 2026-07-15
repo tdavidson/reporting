@@ -10,6 +10,7 @@ import {
   buildPeriodCloseEntry,
   buildDistributionEntry,
   buildCarryEntry,
+  buildAssociateCarryAccrualEntry,
   type CapitalAccountMap,
 } from './entries'
 import { isBalanced, accountBalances } from './ledger'
@@ -164,5 +165,30 @@ describe('entry builders', () => {
     expect(isBalanced(dist)).toBe(true)
     const carry = buildCarryEntry(base, new Map([['a', 60_000], ['b', 40_000]]), capMap, 'cap-gp')
     expect(isBalanced(carry)).toBe(true)
+  })
+
+  it('associate carry accrual credits members and debits Investment in Fund, balanced', () => {
+    // The GP entity earns 100k of carry, split 60/40 to its two members.
+    const e = buildAssociateCarryAccrualEntry(base, new Map([['a', 60_000], ['b', 40_000]]), capMap, 'inv-1500')
+    expect(isBalanced(e)).toBe(true)
+    expect(e.sourceType).toBe('carried_interest')
+    // Investment in Fund (asset) debited by the full 100k.
+    expect(accountBalances(e.postings).get('inv-1500')).toBe(100_000)
+    // Members' capital CREDITED (carriedInterest bucket increases) by their share.
+    const caps = computeCapitalAccounts(
+      e.postings.filter(p => p.lpEntityId).map(p => ({ lpEntityId: p.lpEntityId!, amount: p.amount, sourceType: e.sourceType }))
+    )
+    expect(caps.get('a')!.carriedInterest).toBe(60_000)
+    expect(caps.get('b')!.carriedInterest).toBe(40_000)
+  })
+
+  it('associate carry accrual reverses when carry falls (negative shares)', () => {
+    const e = buildAssociateCarryAccrualEntry(base, new Map([['a', -30_000], ['b', -20_000]]), capMap, 'inv-1500')
+    expect(isBalanced(e)).toBe(true)
+    expect(accountBalances(e.postings).get('inv-1500')).toBe(-50_000)
+    const caps = computeCapitalAccounts(
+      e.postings.filter(p => p.lpEntityId).map(p => ({ lpEntityId: p.lpEntityId!, amount: p.amount, sourceType: e.sourceType }))
+    )
+    expect(caps.get('a')!.carriedInterest).toBe(-30_000)
   })
 })

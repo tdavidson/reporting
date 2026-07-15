@@ -29,7 +29,9 @@ import { allocateAmount } from './allocation'
 import { postingsInPeriod } from './statements'
 import { computeCapitalAccounts, bucketForSourceType } from './capital-account'
 import { closedPeriodRanges } from './periods'
-import { buildCarryEntry } from './entries'
+import { buildCarryEntry, buildAssociateCarryAccrualEntry } from './entries'
+import { associateMembers } from './look-through'
+import { loadCapitalSource } from './capital-source'
 import {
   loadCarryTerms, carryAccrual,
   type LpEconomics, type DatedContribution,
@@ -815,7 +817,107 @@ async function accrueCarry(
 
   const result = await persistEntry(admin, fundId, group, userId, entry, 'posted')
   if ('error' in result) return { error: result.error }
+
+  // Cascade: book the same carry accrual on the GP/associate entity's OWN books (allocated to
+  // its members by carry ownership), so its financial statements reflect the accrued carry.
+  // Best-effort — a failure here (e.g. the associate has no chart, or its period is closed) must
+  // not fail the fund's close; the entry is atomic, so there is never a partial post.
+  try {
+    await cascadeCarryToAssociate(admin, fundId, group, terms.gpEntityId, accrual.delta, userId, periodEnd, sourceRef)
+  } catch (e) {
+    console.error('[close] carry cascade to associate failed:', (e as Error)?.message)
+  }
+
   return { entryId: result.entryId }
+}
+
+/**
+ * Book, on the GP/associate entity's OWN ledger, the carry the fund just accrued to it —
+ * marking up its Investment in Fund (1500) and allocating it to members by carry ownership.
+ *
+ * Carries the fund close's `source_ref`, so reopening or re-closing the fund period reverses it
+ * along with everything else (voidCloseEntries voids by source_ref fund-wide, and the ref is
+ * period-unique). No-op unless the entity is a linked, LEDGER associate with a 1500 account and
+ * some carry ownership to split on.
+ */
+async function cascadeCarryToAssociate(
+  admin: SupabaseClient,
+  fundId: string,
+  servedGroup: string,
+  gpEntityId: string,
+  delta: number,
+  userId: string | null,
+  periodEnd: string,
+  sourceRef: string,
+): Promise<void> {
+  if (!gpEntityId || delta === 0) return
+  const servedVehicleId = await vehicleIdByName(admin, fundId, servedGroup)
+  if (!servedVehicleId) return
+
+  const { data: rows } = await (admin as any)
+    .from('fund_vehicles')
+    .select('id, name')
+    .eq('fund_id', fundId)
+    .eq('serves_vehicle_id', servedVehicleId)
+    .eq('lp_entity_id', gpEntityId)
+    .in('kind', ['associate', 'gp'])
+    .eq('active', true)
+  const assoc = ((rows as any[]) ?? [])[0]
+  if (!assoc) return
+  const assocGroup = assoc.name as string
+
+  // Only a ledger associate has own books to post to.
+  if ((await loadCapitalSource(admin, fundId, assocGroup)) !== 'ledger') return
+
+  const assocCodes = await accountIdByCode(admin, fundId, assocGroup)
+  const investmentId = assocCodes.get('1500')
+  if (!investmentId) return
+
+  // Split delta among members by carry ownership (explicit carry points, else capital ownership).
+  const events = await loadCommitmentEvents(admin, fundId, assocGroup)
+  const basis = commitmentsAsOf(events, periodEnd)
+  const terms = await loadPartnerTerms(admin, fundId, assocGroup)
+  const carryWeights = new Map<string, number>(
+    terms
+      .filter(t => t.category === 'carried_interest' && t.participates && t.weightOverride != null)
+      .map(t => [t.lpEntityId, Number(t.weightOverride)])
+  )
+  const members = associateMembers(basis, carryWeights)
+  const totalW = members.reduce((s, m) => s + Math.max(0, m.carryWeight), 0)
+  if (totalW <= 0) return
+
+  const perMember = new Map<string, number>()
+  let allocated = 0
+  for (const m of members) {
+    const w = Math.max(0, m.carryWeight)
+    if (w === 0) continue
+    const share = roundCents(delta * (w / totalW))
+    perMember.set(m.lpEntityId, share)
+    allocated = roundCents(allocated + share)
+  }
+  if (perMember.size === 0) return
+  // Rounding drift lands on the largest share, so the entry ties to delta exactly.
+  const drift = roundCents(delta - allocated)
+  if (drift !== 0) {
+    const biggest = Array.from(perMember.entries()).sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]))[0][0]
+    perMember.set(biggest, roundCents(perMember.get(biggest)! + drift))
+  }
+
+  const capMap = await ensureCapitalAccounts(admin, fundId, assocGroup, Array.from(perMember.keys()))
+  const entry = buildAssociateCarryAccrualEntry(
+    {
+      fundId,
+      entryDate: periodEnd,
+      memo: delta > 0
+        ? `Carried interest earned from ${servedGroup} at ${periodEnd} NAV`
+        : `Carried interest reversed — ${servedGroup} NAV fell at ${periodEnd}`,
+    },
+    perMember,
+    capMap,
+    investmentId,
+  )
+  entry.sourceRef = sourceRef
+  await persistEntry(admin, fundId, assocGroup, userId, entry, 'posted')
 }
 
 /**
@@ -899,11 +1001,16 @@ async function voidCloseEntries(
   vehicleId: string | null,
   periodId: string
 ): Promise<{ count: number } | { error: string }> {
+  // Void by source_ref FUND-WIDE, not just this vehicle. `close:<periodId>` is period-unique
+  // (periodId is a global uuid), so the only entries carrying it are this close's own entries
+  // PLUS any it cascaded onto another vehicle — the GP/associate carry accrual. Scoping to a
+  // single vehicle would strand that cascaded entry on reopen and double it on re-close.
+  // (vehicleId is kept in the signature for callers but intentionally not filtered on.)
+  void vehicleId
   const { data: entries, error: findErr } = await admin
     .from('journal_entries' as any)
     .select('id')
     .eq('fund_id', fundId)
-    .eq('vehicle_id', vehicleId)
     .eq('source_ref', `close:${periodId}`)
     .neq('status', 'void')
   if (findErr) return { error: findErr.message }

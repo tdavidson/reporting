@@ -11,8 +11,7 @@ export default async function CapitalAccountsPage() {
       <div className="mb-6 space-y-1">
         <h1 className="text-2xl font-semibold tracking-tight">Capital accounts</h1>
         <p className="text-sm text-muted-foreground">
-          Per-LP roll-forward derived from the ledger: beginning → contributions → distributions →
-          fees → gains → ending.
+          Limited Partner roll-forward derived from the ledger or LP position tracking.
         </p>
       </div>
       <CapitalAccountsView />

@@ -67,13 +67,26 @@ export interface GpPartnerRow {
   carryUnpaid: number
 }
 
+export interface CarryPayment {
+  id: string
+  lpEntityId: string
+  date: string
+  amount: number
+  memo: string | null
+}
+
 export interface GpEconomics {
   link: GpVehicleLink
   /** Where the ownership split came from. */
   basis: OwnershipBasis
+  /** How carry paid is sourced: 'ledger' = derived from the associate's own books;
+   *  'events' = the editable carry_payments table (LP tracking). */
+  source: 'ledger' | 'events'
   /** The vehicle's own position on the fund's books, before the split. */
   associate: CapitalAccount
   partners: GpPartnerRow[]
+  /** The carry-payment register — only for an LP-tracking ('events') vehicle; empty for ledger. */
+  payments: CarryPayment[]
   totals: { carryAccrued: number; carryPaid: number; carryUnpaid: number; ending: number }
 }
 
@@ -178,22 +191,22 @@ export async function loadGpEconomics(
   const link = await gpLinkFor(admin, fundId, group)
   if (!link) return null
 
-  const [{ basis, weights }, terms, names, { postings }, { data: payments }] = await Promise.all([
+  const [{ basis, weights }, terms, names, served, own] = await Promise.all([
     loadOwnershipBasis(admin, fundId, link, asOf),
     loadPartnerTerms(admin, fundId, link.vehicle),
     loadEntityNames(admin, fundId, link.vehicle),
     // The vehicle's position is on the SERVED FUND's books, not its own — it is an LP of
-    // the fund. That is where its carriedInterest bucket lives, because that is where the
-    // close credits it.
+    // the fund. That is where its carriedInterest bucket lives (carry ACCRUED), because that
+    // is where the close credits it.
     loadCapitalPostings(admin, fundId, link.servesVehicle, asOf),
-    (admin as any)
-      .from('carry_payments')
-      .select('lp_entity_id, amount')
-      .eq('fund_id', fundId)
-      .eq('vehicle_id', link.vehicleId),
+    // Carry PAID comes from the associate's OWN books. The ledger separates a member's
+    // distributions into return-of-capital (source_type 'distribution') and carried-interest
+    // paid (source_type 'carried_interest') — they are different economics and post to different
+    // buckets. Only the carried-interest portion is carry paid.
+    loadCapitalPostings(admin, fundId, link.vehicle, asOf),
   ])
 
-  const associate = computeCapitalAccounts(postings).get(link.lpEntityId) ?? emptyAccount()
+  const associate = computeCapitalAccounts(served.postings).get(link.lpEntityId) ?? emptyAccount()
 
   // Carry points: only rows that PARTICIPATE and carry an explicit weight. The
   // 20260713000000 backfill inserted `participates = false` rows for every gp-class partner
@@ -207,9 +220,33 @@ export async function loadGpEconomics(
   const members = associateMembers(weights, carryWeights)
   const split = lookThroughAccount(associate, members)
 
+  // Carry PAID is sourced from whichever books this vehicle keeps:
+  //   • Fund Accounting (ledger): each member's distributions on the associate's OWN ledger,
+  //     rolled up per partner straight from the books — no separate register to maintain.
+  //   • LP tracking (events): an explicit table of (partner, date, amount) in carry_payments,
+  //     edited on the panel — the tracking equivalent of the ledger's distribution postings.
+  const source = own.source
+  const payments: CarryPayment[] = []
   const paidByLp = new Map<string, number>()
-  for (const p of ((payments as any[]) ?? [])) {
-    paidByLp.set(p.lp_entity_id, (paidByLp.get(p.lp_entity_id) ?? 0) + Number(p.amount))
+  if (source === 'ledger') {
+    // Carry paid = the carried-interest DISTRIBUTIONS on the associate's own books, tagged
+    // source_type 'carry_distribution' — kept distinct from return-of-capital distributions AND
+    // from the accrual marks (which post as 'carried_interest'). A payment debits the member's
+    // capital (positive posting amount); its magnitude is the carry paid. Unpaid = accrued − paid.
+    for (const p of own.postings) {
+      if (!p.lpEntityId || p.sourceType !== 'carry_distribution') continue
+      paidByLp.set(p.lpEntityId, roundCents((paidByLp.get(p.lpEntityId) ?? 0) + p.amount))
+    }
+  } else {
+    const { data: rows } = await (admin as any)
+      .from('carry_payments')
+      .select('id, lp_entity_id, paid_date, amount, memo')
+      .eq('fund_id', fundId).eq('vehicle_id', link.vehicleId)
+      .order('paid_date', { ascending: false })
+    for (const r of ((rows as any[]) ?? [])) {
+      paidByLp.set(r.lp_entity_id, (paidByLp.get(r.lp_entity_id) ?? 0) + Number(r.amount))
+      payments.push({ id: r.id as string, lpEntityId: r.lp_entity_id as string, date: r.paid_date as string, amount: Number(r.amount), memo: (r.memo ?? null) as string | null })
+    }
   }
 
   const totalOwn = members.reduce((s, m) => s + Math.max(0, m.ownershipWeight), 0)
@@ -242,8 +279,10 @@ export async function loadGpEconomics(
   return {
     link,
     basis,
+    source,
     associate,
     partners,
+    payments,
     totals: {
       carryAccrued: roundCents(partners.reduce((s, p) => s + p.carryAccrued, 0)),
       carryPaid: roundCents(partners.reduce((s, p) => s + p.carryPaid, 0)),

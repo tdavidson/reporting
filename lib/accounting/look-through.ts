@@ -112,12 +112,19 @@ export function associateMembers(
   carryWeights: Map<string, number>
 ): AssociateMember[] {
   const ids = new Set<string>([...Array.from(basis.keys()), ...Array.from(carryWeights.keys())])
+  // "Carry follows ownership" is the default ONLY when nobody has explicit carry points. The
+  // moment any member has explicit points, a member left blank holds 0 carry — NOT their
+  // ownership weight. Ownership weight is a capital figure (dollars); carry points are a small
+  // abstract scale (e.g. 40, 14, 5). Falling an unset member back onto their ownership dollars
+  // and normalizing it against everyone else's points lets the dollar figure swamp the split —
+  // a blank member with a large commitment would show ~100% of the carry. If you set points for
+  // some, set them for all who hold carry; a blank means none.
+  const anyExplicitCarry = carryWeights.size > 0
   return Array.from(ids).map(lpEntityId => ({
     lpEntityId,
     ownershipWeight: Math.max(0, basis.get(lpEntityId) ?? 0),
-    // No explicit carry allocation → carry follows ownership, which is the usual default.
     carryWeight: carryWeights.has(lpEntityId)
       ? Math.max(0, carryWeights.get(lpEntityId)!)
-      : Math.max(0, basis.get(lpEntityId) ?? 0),
+      : (anyExplicitCarry ? 0 : Math.max(0, basis.get(lpEntityId) ?? 0)),
   }))
 }

@@ -98,50 +98,62 @@ export function LpCapitalView({ isAdmin }: { isAdmin: boolean }) {
   }, [selectedDate, dates])
 
   return (
-    <div className="space-y-6">
-      {/* Vehicle + date selectors — the LPs section has no accounting vehicle bar, so they're local. */}
-      <div className="flex flex-wrap items-center gap-3">
-        <label className="text-sm text-muted-foreground">Vehicle</label>
-        <select
-          value={group}
-          onChange={e => setGroup(e.target.value)}
-          className="h-9 px-3 rounded-md border border-input bg-background text-sm"
-        >
-          {vehicles.map(v => <option key={v} value={v}>{v}</option>)}
-        </select>
-
-        {isTracking && dates.length > 0 && (
-          <>
-            {/* Free "as of" picker + Latest — same control and placement as /lps. */}
-            <label className="text-sm text-muted-foreground ml-1">As of</label>
-            <Input type="date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)} className="h-9 w-40" />
-            {selectedDate && <Button size="sm" variant="ghost" onClick={() => setSelectedDate('')}>Latest</Button>}
-            {selectedDate && resolvedDate && resolvedDate !== selectedDate && (
-              <span className="text-xs text-muted-foreground">showing {resolvedDate}</span>
-            )}
-          </>
+    <div className="space-y-4">
+      {/* Vehicle bar — above the title, matching the Funds sub-pages. */}
+      <div className="text-sm flex flex-wrap items-center gap-2">
+        <span className="text-muted-foreground">Vehicle</span>
+        {vehicles.length <= 1 ? (
+          <span className="font-medium">{group || '—'}</span>
+        ) : (
+          <select
+            value={group}
+            onChange={e => setGroup(e.target.value)}
+            className="rounded border bg-transparent px-2 py-1 text-sm"
+          >
+            {vehicles.map(v => <option key={v} value={v}>{v}</option>)}
+          </select>
         )}
-
         {acct && (
-          <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+          <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground ml-1">
             {acct.source === 'ledger' ? <BookOpen className="h-3.5 w-3.5" /> : <ListTree className="h-3.5 w-3.5" />}
             {acct.source === 'ledger' ? 'from the ledger' : 'from tracked positions'}
           </span>
         )}
       </div>
 
-      {/* Search — mirrors the /lps investor search. */}
+      {/* Title */}
+      <div className="space-y-1">
+        <h1 className="text-2xl font-semibold tracking-tight">LP capital accounts</h1>
+        <p className="text-sm text-muted-foreground">
+          Per-vehicle LP capital, from the ledger where you keep books, or from pasted positions where you don&rsquo;t.
+        </p>
+      </div>
+
+      {/* Action bar — search on the left, the "As of" date select right-aligned. */}
       {isTracking && (
-        <div className="relative max-w-xs">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-          <input
-            type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search LPs…"
-            className="w-full pl-8 pr-8 py-1.5 text-sm border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-ring"
-          />
-          {search && (
-            <button onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
-              <X className="h-3.5 w-3.5" />
-            </button>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="relative max-w-xs w-full sm:w-64">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+            <input
+              type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search LPs…"
+              className="w-full pl-8 pr-8 py-1.5 text-sm border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-ring"
+            />
+            {search && (
+              <button onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
+
+          {dates.length > 0 && (
+            <div className="flex items-center gap-2">
+              <label className="text-xs text-muted-foreground">As of</label>
+              <Input type="date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)} className="h-9 w-40" />
+              {selectedDate && <Button size="sm" variant="ghost" onClick={() => setSelectedDate('')}>Latest</Button>}
+              {selectedDate && resolvedDate && resolvedDate !== selectedDate && (
+                <span className="text-xs text-muted-foreground">showing {resolvedDate}</span>
+              )}
+            </div>
           )}
         </div>
       )}

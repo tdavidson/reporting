@@ -273,3 +273,35 @@ export function buildCarryEntry(
   )
   return finalize(base, 'carried_interest', postings)
 }
+
+/**
+ * The GP/associate side of a carry accrual: book, on the associate's OWN books, the carry the
+ * fund just accrued to it — allocated to its members by carry ownership.
+ *
+ * The fund's `buildCarryEntry` is a zero-sum reallocation between the fund's partners (LPs pay,
+ * the GP entity receives). For the associate this same event is INCOME: its stake in the fund
+ * (Investment in Fund, 1500) marks up, and that markup is allocated to its members' capital as
+ * carried interest earned. So this debits the investment asset and credits each member's capital.
+ *
+ * `perMemberCarry` is each member's share of the accrual (already split by carry ownership).
+ * Amounts may be negative — the accrual reverses when NAV falls, and the entry runs the other way.
+ */
+export function buildAssociateCarryAccrualEntry(
+  base: Base,
+  perMemberCarry: Map<string, number>,
+  capMap: CapitalAccountMap,
+  investmentAccountId: string,
+  currency = 'USD',
+): JournalEntry {
+  let total = 0
+  const postings: Posting[] = []
+  for (const [lpEntityId, amt] of Array.from(perMemberCarry.entries())) {
+    if (amt === 0) continue
+    total = roundCents(total + amt)
+    // Credit the member's capital by the carry they earned (a credit is a negative debit-amount).
+    postings.push(lpDebit(capMap, lpEntityId, roundCents(-amt), currency))
+  }
+  // Debit Investment in Fund by the same total — the associate's stake marked up by the carry.
+  postings.push({ accountId: investmentAccountId, amount: roundCents(total), currency, lpEntityId: null })
+  return finalize(base, 'carried_interest', postings)
+}

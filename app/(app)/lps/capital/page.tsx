@@ -32,13 +32,7 @@ export default async function LpCapitalPage() {
   if (!isFeatureVisible(fv, 'lp_tracking', membership.role === 'admin')) redirect('/dashboard')
 
   return (
-    <div className="px-4 md:pl-8 md:pr-4 pt-3 pb-8 w-full">
-      <div className="mb-6 space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight">LP capital accounts</h1>
-        <p className="text-sm text-muted-foreground">
-          Per-vehicle LP capital, from the ledger where you keep books, or from pasted positions where you don&rsquo;t.
-        </p>
-      </div>
+    <div className="px-4 md:pl-8 md:pr-4 pt-4 md:pt-6 pb-8 w-full">
       <LpCapitalView isAdmin={membership.role === 'admin'} />
     </div>
   )
