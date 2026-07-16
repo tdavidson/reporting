@@ -5,13 +5,13 @@
 // Rates are entered as PERCENTAGES here and stored as fractions. Nobody thinks in 0.2; they
 // think in 20%. The conversion happens at this boundary and nowhere else.
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Loader2, Check, AlertTriangle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useLedgerFetch } from '@/components/accounting-vehicle'
 
-type Kind = 'none' | 'straight' | 'european'
+type Kind = 'none' | 'straight' | 'american' | 'european'
 
 interface Candidate { lpEntityId: string; name: string; partnerClass: string }
 
@@ -24,8 +24,11 @@ interface Terms {
   gpEntityId: string | null
 }
 
-const pct = (fraction: number) => (fraction ? String(Math.round(fraction * 10000) / 100) : '')
+// Percent <-> fraction at the UI boundary. 0 renders as '0' (a real, editable value) rather than
+// blank — a blank field reads as "unset", and for a rate that is a meaningful, different claim.
+const pct = (fraction: number) => String(Math.round((fraction || 0) * 10000) / 100)
 const frac = (percent: string) => {
+  if (percent.trim() === '') return 0
   const n = Number(percent)
   return Number.isFinite(n) ? n / 100 : 0
 }
@@ -35,34 +38,47 @@ export function CarryTerms() {
 
   const [kind, setKind] = useState<Kind>('none')
   const [carry, setCarry] = useState('')
-  const [pref, setPref] = useState('')
-  const [catchup, setCatchup] = useState('100')
-  const [compounds, setCompounds] = useState(true)
+  // Defaults: no preferred return, no GP catch-up, simple (non-compounding) pref. Funds add these
+  // deliberately; starting them at zero means a saved term only carries what was actually entered.
+  const [pref, setPref] = useState('0')
+  const [catchup, setCatchup] = useState('0')
+  const [compounds, setCompounds] = useState(false)
   const [gpEntityId, setGpEntityId] = useState('')
   const [candidates, setCandidates] = useState<Candidate[]>([])
+  const [vehicleName, setVehicleName] = useState('')
 
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [saved, setSaved] = useState(false)
 
+  const applyTerms = useCallback((d: any) => {
+    const t: Terms = d.terms
+    setKind(t.kind)
+    setCarry(t.carryRate ? pct(t.carryRate) : '')
+    setPref(pct(t.prefRate))
+    setCatchup(pct(t.catchupRate))
+    setCompounds(t.prefCompounds)
+    setGpEntityId(t.gpEntityId ?? '')
+    setCandidates(d.candidates ?? [])
+    setVehicleName(d.group ?? '')
+  }, [])
+
   const load = useCallback(async () => {
-    setLoading(true)
     const res = await lf('/api/accounting/waterfall-terms')
-    if (res.ok) {
-      const d = await res.json()
-      const t: Terms = d.terms
-      setKind(t.kind)
-      setCarry(pct(t.carryRate))
-      setPref(pct(t.prefRate))
-      setCatchup(pct(t.catchupRate) || '100')
-      setCompounds(t.prefCompounds)
-      setGpEntityId(t.gpEntityId ?? '')
-      setCandidates(d.candidates ?? [])
-    }
+    if (res.ok) applyTerms(await res.json())
     setLoading(false)
-  }, [lf])
-  useEffect(() => { load() }, [load])
+  }, [lf, applyTerms])
+
+  // Load once per vehicle. A ref guards against the fetch re-firing (e.g. when the vehicle context
+  // hydrates) and OVERWRITING what the user has typed but not yet saved — the bug that made carry
+  // silently save as 0. A genuine vehicle switch changes `lf` and re-arms the guard below.
+  const loadedForLf = useRef<unknown>(null)
+  useEffect(() => {
+    if (loadedForLf.current === lf) return
+    loadedForLf.current = lf
+    void load()
+  }, [lf, load])
 
   const save = async () => {
     setBusy(true); setError(null); setSaved(false)
@@ -79,8 +95,12 @@ export function CarryTerms() {
       }),
     })
     const d = await res.json().catch(() => ({}))
+    if (!res.ok) { setBusy(false); setError(d.error ?? 'Could not save'); return }
+    // Reload from the server so the form shows exactly what PERSISTED — no more "save, navigate
+    // away, and the old value reappears". If a field didn't take, you see it immediately.
+    const reread = await lf('/api/accounting/waterfall-terms')
+    if (reread.ok) applyTerms(await reread.json())
     setBusy(false)
-    if (!res.ok) { setError(d.error ?? 'Could not save'); return }
     setSaved(true)
     setTimeout(() => setSaved(false), 2500)
   }
@@ -92,27 +112,33 @@ export function CarryTerms() {
   }
 
   const carryOn = kind !== 'none'
+  const hasHurdle = kind === 'european' // pref + catch-up only apply to the whole-fund waterfall
+  const carryMissing = carryOn && frac(carry) <= 0
 
   return (
     <div className="border rounded-lg p-4 space-y-3">
-      <p className="text-sm font-medium">Carried interest</p>
+      <div className="flex items-baseline justify-between gap-2">
+        <p className="text-sm font-medium">Carried interest</p>
+        {vehicleName && <span className="text-xs text-muted-foreground">{vehicleName}</span>}
+      </div>
       <p className="text-xs text-muted-foreground max-w-3xl">
         The close accrues carry on <strong>unrealized</strong> gains, as if the fund liquidated at
         that period&rsquo;s NAV. Without it every LP&rsquo;s reported NAV overstates what they would
         actually receive by the GP&rsquo;s share of the gain. It reverses on its own if NAV falls.
       </p>
 
-      <div className="flex flex-wrap gap-2 pt-1">
+      <div className="flex flex-wrap gap-1.5 pt-1">
         {([
           ['none', 'No carry'],
           ['straight', 'Straight split'],
+          ['american', 'American (deal-by-deal)'],
           ['european', 'European (pref + catch-up)'],
         ] as [Kind, string][]).map(([k, label]) => (
           <button
             key={k}
             onClick={() => setKind(k)}
-            className={`text-xs rounded-md border px-3 py-1.5 ${
-              kind === k ? 'bg-foreground text-background border-foreground' : 'hover:bg-accent text-muted-foreground'
+            className={`px-2.5 py-1 text-xs rounded-md border transition-colors ${
+              kind === k ? 'border-foreground/30 bg-accent font-medium' : 'border-border text-muted-foreground hover:text-foreground'
             }`}
           >
             {label}
@@ -127,25 +153,35 @@ export function CarryTerms() {
         </p>
       )}
 
+      {kind === 'american' && (
+        <p className="text-xs text-muted-foreground max-w-3xl">
+          Deal-by-deal: the GP is paid carry as individual deals realize, before the whole fund is
+          made whole — with a clawback that pulls back any carry later deals prove was overpaid.
+          <strong> Total carry is the same as European; only the timing differs.</strong> The
+          accrued mark here is the whole-fund figure (the ultimate entitlement); the earlier
+          deal-by-deal <em>distribution</em> of realized carry is handled at payout, not in the accrual.
+        </p>
+      )}
+
       {carryOn && (
         <div className="space-y-3 pt-1">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <Field label="Carry" hint="GP's share of profit">
               <Suffix suffix="%">
-                <Input value={carry} onChange={e => setCarry(e.target.value)} placeholder="20" />
+                <Input value={carry} onChange={e => setCarry(e.target.value)} placeholder="e.g. 20" />
               </Suffix>
             </Field>
 
-            {kind === 'european' && (
+            {hasHurdle && (
               <>
-                <Field label="Preferred return" hint="Annual hurdle">
+                <Field label="Preferred return" hint="Annual hurdle (0 = none)">
                   <Suffix suffix="%">
-                    <Input value={pref} onChange={e => setPref(e.target.value)} placeholder="8" />
+                    <Input value={pref} onChange={e => setPref(e.target.value)} />
                   </Suffix>
                 </Field>
-                <Field label="Catch-up" hint="100% = full catch-up">
+                <Field label="Catch-up" hint="100% = full catch-up (0 = none)">
                   <Suffix suffix="%">
-                    <Input value={catchup} onChange={e => setCatchup(e.target.value)} placeholder="100" />
+                    <Input value={catchup} onChange={e => setCatchup(e.target.value)} />
                   </Suffix>
                 </Field>
               </>
@@ -167,11 +203,20 @@ export function CarryTerms() {
             </Field>
           </div>
 
-          {kind === 'european' && (
+          {hasHurdle && (
             <label className="flex items-center gap-2 text-xs text-muted-foreground">
               <input type="checkbox" checked={compounds} onChange={e => setCompounds(e.target.checked)} />
               The preferred return compounds annually
             </label>
+          )}
+
+          {/* Carry of 0% accrues nothing — the single most common reason "carry isn't showing up".
+              Warn in place rather than silently saving a term that does nothing. */}
+          {carryMissing && (
+            <p className="text-xs text-amber-600 flex items-center gap-1.5">
+              <AlertTriangle className="h-3.5 w-3.5" />
+              Carry is 0% — nothing will accrue. Enter the GP&rsquo;s share (e.g. 20).
+            </p>
           )}
 
           {/* The carry has to land in a real partner's capital account, or it belongs to nobody
@@ -195,7 +240,7 @@ export function CarryTerms() {
       {error && <p className="text-sm text-amber-600">{error}</p>}
 
       <div className="flex items-center gap-2 pt-1">
-        <Button size="sm" onClick={save} disabled={busy}>
+        <Button size="sm" variant="outline" className="text-muted-foreground" onClick={save} disabled={busy}>
           {busy ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Check className="h-4 w-4 mr-1" />}
           Save carry terms
         </Button>

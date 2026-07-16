@@ -28,6 +28,10 @@ import type { JournalEntry, Posting } from './types'
 const COST_CODE = '1100'
 const UNREALIZED_CODE = '1200'
 const FX_CODE = '1250'
+// Realized gain PER COMPANY (income), mirroring the per-company unrealized mark (1200). An exit
+// books its gain here rather than to the pooled 4000, so the ledger retains which deal produced
+// which realized gain — needed for deal-by-deal (American) carry and per-deal performance.
+const REALIZED_CODE = '4000'
 // Interest a convertible note has EARNED but not been paid. Its own asset, per company, so it
 // converts into that company's cost basis when the note converts — and so it never contaminates
 // the 1100 cost tie-out against the tracker in the meantime.
@@ -41,11 +45,15 @@ export const investmentCostCode = (companyId: string) => `${COST_CODE}-${short(c
 export const investmentUnrealizedCode = (companyId: string) => `${UNREALIZED_CODE}-${short(companyId)}`
 export const investmentFxCode = (companyId: string) => `${FX_CODE}-${short(companyId)}`
 export const investmentAccruedInterestCode = (companyId: string) => `${ACCRUED_INTEREST_CODE}-${short(companyId)}`
+export const investmentRealizedCode = (companyId: string) => `${REALIZED_CODE}-${short(companyId)}`
 
 export interface InvestmentAccounts {
   costId: string
   unrealizedId: string
   fxId: string
+  /** Realized gain for this company (income). Absent on a chart seeded before per-company
+   *  realized gains — exits then fall back to the pooled 4000. */
+  realizedId?: string
   /** Accrued but unpaid note interest. Absent on a chart seeded before notes were supported. */
   accruedInterestId?: string
 }
@@ -73,6 +81,7 @@ export async function ensureInvestmentAccounts(
     if (subtype === 'investment') cur.costId = id
     if (subtype === 'unrealized') cur.unrealizedId = id
     if (subtype === 'fx_translation') cur.fxId = id
+    if (subtype === 'realized_gain') cur.realizedId = id
     if (subtype === 'accrued_interest') cur.accruedInterestId = id
   }
 
@@ -116,6 +125,13 @@ export async function ensureInvestmentAccounts(
         type: 'asset', subtype: 'accrued_interest', company_id: c.id,
       })
     }
+    if (!cur.realizedId) {
+      rows.push({
+        fund_id: fundId, portfolio_group: group, vehicle_id: vehicleId,
+        code: investmentRealizedCode(c.id), name: `Realized gain — ${c.name}`,
+        type: 'income', subtype: 'realized_gain', company_id: c.id,
+      })
+    }
   }
 
   if (rows.length > 0) {
@@ -135,7 +151,7 @@ export async function ensureInvestmentAccounts(
   for (const c of companies) {
     const cur = byCompany.get(c.id)
     if (cur?.costId && cur?.unrealizedId && cur?.fxId) {
-      out.set(c.id, { costId: cur.costId, unrealizedId: cur.unrealizedId, fxId: cur.fxId })
+      out.set(c.id, { costId: cur.costId, unrealizedId: cur.unrealizedId, fxId: cur.fxId, realizedId: cur.realizedId, accruedInterestId: cur.accruedInterestId })
     }
   }
   return out

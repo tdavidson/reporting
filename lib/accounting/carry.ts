@@ -19,7 +19,7 @@ import { runWaterfall, type WaterfallTerms } from './waterfall'
 import { roundCents } from './ledger'
 import { vehicleIdByName } from './vehicle-id'
 
-export type CarryKind = 'none' | 'straight' | 'european'
+export type CarryKind = 'none' | 'straight' | 'american' | 'european'
 
 export interface VehicleCarryTerms {
   kind: CarryKind
@@ -91,9 +91,9 @@ export function preferredTarget(
 
 export interface CarryTargetInput {
   lps: LpEconomics[]
-  /** Dated LP contributions, for the preferred-return accrual. European only. */
+  /** Dated LP contributions, for the preferred-return accrual. European/American. */
   contributions?: DatedContribution[]
-  /** The date the accrual is measured at. European only. */
+  /** The date the accrual is measured at. European/American. */
   asOf?: string
 }
 
@@ -119,7 +119,17 @@ export function carryTarget(input: CarryTargetInput, terms: VehicleCarryTerms): 
     return roundCents(profit * terms.carryRate)
   }
 
-  // European / whole-fund. Run the real waterfall on the hypothetical liquidation proceeds.
+  // European (whole-fund) AND American (deal-by-deal) accrue the SAME target here.
+  //
+  // American doesn't earn the GP MORE carry than European — it earns the same total, just PAID
+  // earlier (as individual deals realize), with a clawback that pulls back any carry later deals
+  // prove was overpaid. Since this close accrues carry as-if-liquidated-at-today's-NAV — i.e. the
+  // GP's ULTIMATE entitlement — and the clawback makes that ultimate total identical to European,
+  // the prudent accrued MARK is the whole-fund result for both. (Accruing a deal-by-deal "winners
+  // only" figure would overstate the GP and understate LP NAV.) The genuine American difference —
+  // distributing realized carry cash per deal before the whole fund is made whole — is a
+  // distribution-timing concern, not an accrual one, and lives outside this mark. Run the real
+  // waterfall on the hypothetical liquidation proceeds.
   const pref = preferredTarget(
     input.contributions ?? [],
     input.asOf ?? new Date(0).toISOString().slice(0, 10),
@@ -160,7 +170,7 @@ export async function loadCarryTerms(
   if (!data) return NO_CARRY
   const d = data as any
   const kind: CarryKind =
-    d.kind === 'straight' || d.kind === 'european' ? d.kind : 'none'
+    d.kind === 'straight' || d.kind === 'american' || d.kind === 'european' ? d.kind : 'none'
 
   return {
     kind,

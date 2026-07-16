@@ -125,10 +125,7 @@ export function PeriodsView() {
       <div className="border rounded-lg p-4 space-y-3">
         <p className="text-sm font-medium">Close through a date</p>
         <p className="text-xs text-muted-foreground">
-          You pick the end date; the start is wherever the last close left off, so no period can be
-          skipped. The span is closed <strong>month by month</strong> — closing a quarter closes its three
-          months — because the allocation basis is measured at each month end, and a commitment that
-          changes mid-quarter would otherwise misallocate the earlier months.
+          You pick the end date and each month is closed in order. Preview the allocations per period, review and reopen if you need to make adjustments.
         </p>
 
         <div className="flex flex-wrap gap-1.5">

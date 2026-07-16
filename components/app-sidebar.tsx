@@ -153,7 +153,10 @@ export function AppSidebar({ reviewBadge, settingsBadge, notesBadge, isAdmin, up
             return true
           })
           const childActive = visibleChildren.some(c => pathname === c.href || pathname.startsWith(c.href + '/'))
-          const showChildren = !collapsed && visibleChildren.length > 0 && (isActive || childActive)
+          // Also keep the section open on any page UNDER its own path (e.g. /funds/allocation-terms,
+          // a Funds page that isn't a listed child) — it's still this section, just not in the nav.
+          const underSection = pathname.startsWith(href + '/')
+          const showChildren = !collapsed && visibleChildren.length > 0 && (isActive || childActive || underSection)
 
           return (
             <div key={href}>

@@ -350,7 +350,9 @@ export async function draftEntryForTransaction(
       const basis = Math.abs(num(txn.cost_basis_exited))
       if (proceeds === 0 && escrow === 0 && basis === 0) return skip('The exit has neither proceeds nor cost basis — nothing to book.')
 
-      const gainId = codes.get(REALIZED_GAIN)
+      // Prefer the company's OWN realized-gain account (4000-<company>) so the ledger keeps which
+      // deal produced the gain; fall back to the pooled 4000 for charts seeded before it existed.
+      const gainId = a.realizedId ?? codes.get(REALIZED_GAIN)
       if (!gainId) return skip(`${group} is missing account ${REALIZED_GAIN} (Realized gains).`)
 
       // REVERSE THE ACCUMULATED MARKS ON THE WAY OUT.

@@ -8,6 +8,7 @@ import { useLedgerFetch } from '@/components/accounting-vehicle'
 import { CapitalSourceCard } from '../capital-accounts/capital-source-card'
 import { AccountingSetup } from '../setup'
 import { AssistantPanel } from './assistant-panel'
+import { DealCarryCard } from './deal-carry-card'
 
 interface Issue { level: 'blocker' | 'warning' | 'info'; title: string; detail: string; href?: string; action?: string }
 interface Status {
@@ -205,6 +206,10 @@ export function StatusView() {
         </div>
         <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
       </Link>
+
+      {/* Deal-by-deal carry — a reference calculator for American vehicles. Renders to nothing
+          otherwise, so there's no condition to keep in sync here. */}
+      <DealCarryCard />
 
       {/* The assistant reads the books and drafts entries — it belongs with the health
           check that tells you what needs fixing, not as a separate destination. */}

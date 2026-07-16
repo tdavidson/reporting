@@ -7,6 +7,7 @@ const straight = (rate = 0.2): VehicleCarryTerms => ({
 const european = (over: Partial<VehicleCarryTerms> = {}): VehicleCarryTerms => ({
   ...NO_CARRY, kind: 'european', carryRate: 0.2, prefRate: 0.08, catchupRate: 1, prefCompounds: true, ...over,
 })
+const american = (rate = 0.2): VehicleCarryTerms => ({ ...NO_CARRY, kind: 'american', carryRate: rate })
 
 const lp = (id: string, contributed: number, nav: number, distributed = 0) =>
   ({ lpEntityId: id, contributed, distributed, nav })
@@ -60,6 +61,23 @@ describe('carryTarget', () => {
     // Total profit 2m; with a full catch-up the GP ends up with ~20% of profit.
     expect(target).toBeGreaterThan(350_000)
     expect(target).toBeLessThanOrEqual(400_000)
+  })
+
+  it('American accrues the SAME total as European (clawback equalizes; only timing differs)', () => {
+    // The accrual is the GP's as-if-liquidation entitlement, which is identical for the two —
+    // American just distributes it earlier during the fund's life. Same inputs, same target.
+    const input = { lps: [lp('a', 1_000_000, 3_000_000)], contributions: [{ date: '2020-01-01', amount: 1_000_000 }], asOf: '2026-01-01' }
+    const am = carryTarget(input, american(0.2))
+    const eu = carryTarget(input, european({ carryRate: 0.2, prefRate: 0.08 }))
+    expect(am).toBe(eu)
+    expect(am).toBeGreaterThan(0)
+  })
+
+  it('American: no carry until whole-fund capital (and pref) is covered, same as European', () => {
+    // Fund is under water on a whole-fund basis — neither accrues, even though a single deal
+    // inside it might be up (that only affects distribution timing, handled elsewhere).
+    const input = { lps: [lp('a', 1_000_000, 900_000)], contributions: [{ date: '2020-01-01', amount: 1_000_000 }], asOf: '2026-01-01' }
+    expect(carryTarget(input, american(0.2))).toBe(0)
   })
 
   it('a straight split ignores the pref entirely', () => {

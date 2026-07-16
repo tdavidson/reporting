@@ -67,8 +67,8 @@ export async function PUT(req: NextRequest) {
   if (!vehicleId) return NextResponse.json({ error: `Unknown vehicle "${group}".` }, { status: 400 })
 
   const kind = body?.kind
-  if (!['none', 'straight', 'european'].includes(kind)) {
-    return NextResponse.json({ error: 'kind must be none, straight, or european.' }, { status: 400 })
+  if (!['none', 'straight', 'american', 'european'].includes(kind)) {
+    return NextResponse.json({ error: 'kind must be none, straight, american, or european.' }, { status: 400 })
   }
 
   const num = (v: any, fallback = 0) => {
