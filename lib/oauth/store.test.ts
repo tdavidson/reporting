@@ -66,10 +66,32 @@ describe('scope ceiling', () => {
     expect(grantableScope('read write', 'admin')).toBe('read write')
   })
 
-  it('DOWNGRADES a non-admin who asks for write, rather than granting it', () => {
-    expect(grantableScope('read write', 'member')).toBe('read')
-    expect(grantableScope('write', 'member')).toBe('read')
+  it('grants write to a member who asks — their GRANTS decide what it reaches', () => {
+    // This used to downgrade every non-admin to read. It no longer needs to: the scope is only a
+    // ceiling, and authorizeToolUse re-reads the owner's live per-domain grants on every call, so
+    // a write token held by someone with read-only grants writes nothing. Downgrading here as
+    // well would mean a member who IS granted write in a domain couldn't drive it from a
+    // connector, though they can from the UI.
+    expect(grantableScope('read write', 'member')).toBe('read write')
+  })
+
+  it('DOWNGRADES the read-only demo, which may never hold a write token', () => {
     expect(grantableScope('read write', 'viewer')).toBe('read')
+    expect(grantableScope('write', 'viewer')).toBe('read')
+  })
+
+  it('DOWNGRADES a member whose grants let them write nowhere', () => {
+    // The consent screen tells the user what the app will be able to do. Handing a read-only
+    // member a write-scoped token would promise writes that every per-domain check then refuses —
+    // the refusal is right, the promise was the bug.
+    expect(grantableScope('read write', 'member', false)).toBe('read')
+    expect(grantableScope('read write', 'member', true)).toBe('read write')
+  })
+
+  it('still grants write to someone who can write SOMEWHERE', () => {
+    // Scope is global, grants are per-domain: write in one domain is enough to need the scope,
+    // and authorizeToolUse still refuses the domains they lack.
+    expect(grantableScope('read write', 'admin', true)).toBe('read write')
   })
 
   it('defaults to read when nothing is asked for', () => {

@@ -7,12 +7,19 @@ import {
   Lock, Layers, FileText,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
+import type { Domain } from '@/lib/access/domains'
 
 export interface AccountingSection {
   href: string
   label: string
   icon: LucideIcon
   desc: string
+  /**
+   * The access domain this page needs, where it isn't plain `accounting`. The section is one nav
+   * group but not one content area: capital accounts are LP identities and commitments, which a
+   * member who reconciles the bank isn't thereby entitled to. Omitted = accounting.
+   */
+  domain?: Domain
 }
 
 export const ACCOUNTING_SECTIONS: AccountingSection[] = [
@@ -33,6 +40,8 @@ export const ACCOUNTING_SECTIONS: AccountingSection[] = [
     label: 'Capital accounts',
     icon: Users,
     desc: "Per-partner roll-forward and commitments, plus called and unfunded. Issue capital calls and publish LP capital statements.",
+    // Named partners and their commitments — the same tier as the LPs section, reached from here.
+    domain: 'lp_capital',
   },
   // NOTE: /funds/lp-events is deliberately NOT listed — it now redirects here. LP
   // capital events are not a separate destination: they are one of the two producers a

@@ -1,4 +1,4 @@
-export type FeatureKey = 'interactions' | 'investments' | 'notes' | 'lp_letters' | 'imports' | 'asks' | 'lps' | 'lp_tracking' | 'lp_associates' | 'lp_portal_access' | 'lp_portal' | 'lp_activity' | 'compliance' | 'deals' | 'diligence' | 'accounting'
+export type FeatureKey = 'interactions' | 'investments' | 'notes' | 'lp_letters' | 'imports' | 'asks' | 'lps' | 'lp_tracking' | 'lp_associates' | 'lp_portal' | 'lp_activity' | 'compliance' | 'deals' | 'diligence' | 'accounting' | 'gp_economics'
 
 export type FeatureVisibility = 'everyone' | 'admin' | 'hidden' | 'off'
 
@@ -22,24 +22,39 @@ export const DEFAULT_FEATURE_VISIBILITY: FeatureVisibilityMap = {
   // tracking LP capital without committing to full fund accounting.
   lp_tracking: 'off',
   lp_associates: 'admin',
-  lp_portal_access: 'admin',
   lp_portal: 'admin',
   lp_activity: 'admin',
   compliance: 'admin',
   deals: 'admin',
   diligence: 'off',
   accounting: 'off',
+  // Carry terms, carry accrued/paid per partner, per-deal carry, GP ownership. Split out of
+  // `accounting` — a fund must be able to let someone reconcile the bank without showing them the
+  // partners' carry. Admin-only by default: opening it to members is a deliberate act, and even
+  // then each member needs the gp_economics grant (see lib/access/domains.ts).
+  gp_economics: 'admin',
 }
 
-/** Features that support the "off" level (functionally disabled) */
-export const FEATURES_WITH_OFF: FeatureKey[] = ['interactions', 'diligence', 'accounting', 'lp_tracking']
-
 /**
- * Returns true if the feature should be visible to the current user.
- * - "everyone": always visible
- * - "admin": visible only to admins
- * - "hidden": removed from navigation (feature still works if accessed directly)
- * - "off": functionally disabled, hidden from everyone
+ * Returns true if the feature is switched on for this user at the FUND level.
+ *
+ * This is the ceiling, not the answer: what a given member may actually read or write is
+ * `effectiveAccess` in lib/access/effective.ts, which consults this and then their per-user grant.
+ * Prefer that everywhere; this is exported for the nav and for the grant resolver itself.
+ *
+ * - "everyone": on; members reach it subject to their grant
+ * - "admin": on; admins only, whatever a member's grant says
+ * - "off": DENIED to everyone, admins included. The data is retained; nothing serves it. Turning
+ *   `interactions` off also stops the email pipeline extracting them (lib/pipeline/processEmail.ts)
+ *   — the only place `off` does anything beyond denying.
+ * - "hidden": LEGACY, identical to "off". Still accepted so stored rows keep working; no longer
+ *   offered in Settings.
+ *
+ * `off` and `hidden` deny rather than merely un-nav. `hidden` used to mean "removed from
+ * navigation (feature still works if accessed directly)" — which is not access control: the nav
+ * hid the panel while the API underneath happily served the data. Once that was fixed, `hidden`
+ * and `off` became the same thing, so Settings stopped offering both.
+ * See docs/plan-access-control.md.
  */
 export function isFeatureVisible(
   featureVisibility: FeatureVisibilityMap | null | undefined,

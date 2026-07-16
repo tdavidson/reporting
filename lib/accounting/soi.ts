@@ -14,8 +14,18 @@ import type { InvestmentTransaction, CompanyStatus } from '@/lib/types/database'
 
 const r = (n: number) => Math.round(n * 100) / 100
 
-/** Labels for `investment_transactions.security_type` (see migration 20260712000000). */
-const SECURITY_LABELS: Record<string, string> = {
+/**
+ * The instruments `investment_transactions.security_type` may hold, and what to call them.
+ *
+ * THESE KEYS ARE THE DATABASE'S CHECK CONSTRAINT (migration 20260712000000). Anything else is
+ * rejected on insert, so every surface that WRITES the column must offer exactly these — which is
+ * why this is exported rather than private to the Schedule of Investments. The investment form
+ * used to take free text under the placeholder "Preferred, Convertible note, SAFE…", none of which
+ * are valid values; typing what it suggested failed the constraint every time.
+ *
+ * Add an instrument here and you must add it to the constraint in a migration too.
+ */
+export const SECURITY_LABELS: Record<string, string> = {
   preferred: 'Preferred stock',
   common: 'Common stock',
   safe: 'SAFE',
@@ -24,6 +34,62 @@ const SECURITY_LABELS: Record<string, string> = {
   option: 'Option',
   llc_units: 'LLC units',
   other: 'Other',
+}
+
+/** The keys above, for callers that need to validate rather than label. */
+export const SECURITY_TYPES = Object.keys(SECURITY_LABELS)
+
+export function isSecurityType(value: string): boolean {
+  return Object.prototype.hasOwnProperty.call(SECURITY_LABELS, value)
+}
+
+/**
+ * Spellings that aren't the key or the label but mean one unambiguously.
+ *
+ * Deliberately short. A term that could mean two instruments ("equity", "shares", "stock") is NOT
+ * here: guessing wrong writes a plausible instrument onto a real position and the SOI's asset-type
+ * breakout then reports it with a straight face. Unmappable is a better answer than mismapped.
+ */
+const SECURITY_ALIASES: Record<string, string> = {
+  note: 'convertible_note',
+  notes: 'convertible_note',
+  convertible: 'convertible_note',
+  conv_note: 'convertible_note',
+  pref: 'preferred',
+  preferred_equity: 'preferred',
+  preferred_shares: 'preferred',
+  common_equity: 'common',
+  common_shares: 'common',
+  ordinary: 'common',
+  ordinary_shares: 'common',
+  warrants: 'warrant',
+  options: 'option',
+  units: 'llc_units',
+  membership_units: 'llc_units',
+  llc_interests: 'llc_units',
+  simple_agreement_for_future_equity: 'safe',
+}
+
+/**
+ * Best-effort read of an instrument written by a human or an LLM, into the DB's CHECK values.
+ *
+ * Returns null when it can't tell — including for empty input. Callers decide what null means:
+ * a rejection for an API caller, a dropped field plus a warning for an import (the instrument is
+ * a label on the SOI, not the money, so losing it must never cost you the transaction).
+ *
+ * `security_type` is CHECK-constrained, so an unmapped value isn't a cosmetic problem — it fails
+ * the insert. The form used to take free text under the placeholder "Preferred, Convertible note,
+ * SAFE…", none of which are valid values; every one of them 500ed.
+ */
+export function normalizeSecurityType(value: unknown): string | null {
+  if (typeof value !== 'string') return null
+  const key = value.trim().toLowerCase().replace(/[\s-]+/g, '_')
+  if (!key) return null
+  if (isSecurityType(key)) return key
+  if (SECURITY_ALIASES[key]) return SECURITY_ALIASES[key]
+  const byLabel = Object.entries(SECURITY_LABELS)
+    .find(([, label]) => label.toLowerCase().replace(/[\s-]+/g, '_') === key)
+  return byLabel?.[0] ?? null
 }
 
 export interface SoiPosition {

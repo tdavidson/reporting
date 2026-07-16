@@ -103,3 +103,40 @@ export const getMembership = unstable_cache(
   ['membership'],
   { tags: ['membership'], revalidate: 300 }
 )
+
+/**
+ * A user's per-domain grants, for the layout to resolve their effective access once and hand the
+ * result to the client (see components/access-context.tsx).
+ *
+ * Cached like the rest of the layout's reads, and tagged so revoking a grant can invalidate it.
+ * The cache is safe because it only drives WHAT THE NAV SHOWS: every API call re-resolves access
+ * live in the middleware, uncached, so a revoked grant stops working immediately even if a stale
+ * sidebar still offers the link.
+ */
+export const getDomainGrants = unstable_cache(
+  async (userId: string, fundId: string) => {
+    const admin = createAdminClient()
+    const [{ data: grants, error: grantsError }, { data: defaults, error: defaultsError }] = await Promise.all([
+      admin.from('fund_member_access' as any).select('domain, level').eq('fund_id', fundId).eq('user_id', userId),
+      admin.from('fund_domain_defaults' as any).select('domain, level').eq('fund_id', fundId),
+    ])
+
+    // THROW, don't return empty. An empty grant set is indistinguishable from "this user is
+    // allowed nothing", so swallowing the error would cache a transient blip AS A DENIAL for the
+    // full 300s — stripping the nav to two items for anyone whose request landed in that window,
+    // with no error anywhere to explain it. Failing loudly renders an error instead, and
+    // unstable_cache caches nothing.
+    const error = grantsError ?? defaultsError
+    if (error) {
+      console.error('[getDomainGrants] DB error:', error.message)
+      throw new Error(`Could not resolve access grants: ${error.message}`)
+    }
+
+    return {
+      grants: ((grants ?? []) as unknown) as { domain: string; level: string }[],
+      defaults: ((defaults ?? []) as unknown) as { domain: string; level: string }[],
+    }
+  },
+  ['domain-grants'],
+  { tags: ['membership', 'domain-grants'], revalidate: 300 }
+)

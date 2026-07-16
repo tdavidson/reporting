@@ -13,6 +13,7 @@ import { PERIOD_PRESETS, type PeriodPreset } from '@/lib/accounting/statement-pe
 import { ReconciliationPanel } from './reconciliation-panel'
 import { type CapitalSource } from './capital-source-card'
 import { GpPanel } from './gp-panel'
+import { useCanRead } from '@/components/access-context'
 import { SortTh, nextSort, compareVals, type SortState } from '@/components/sortable-th'
 
 interface Account {
@@ -94,6 +95,7 @@ const COLUMNS: { key: keyof Account; label: string }[] = [
 export function CapitalAccountsView() {
   const lpPortalEnabled = useLpPortalEnabled()
   const isAdmin = useIsAdmin()
+  const canReadGpEconomics = useCanRead('gp_economics')
   const currency = useCurrency()
   const fmt = (v: number) => formatCurrencyPrice(v, currency)
   const lf = useLedgerFetch()
@@ -592,13 +594,17 @@ export function CapitalAccountsView() {
         </div>
       )}
 
-      {/* GP / associate entity economics. Renders itself to nothing on an ordinary vehicle,
-          so there is no condition to keep in sync here. It sits with the capital accounts
-          because ownership and carry points are what SPLIT those accounts — the numbers
-          above are the ones it explains. */}
-      <div className="pt-6">
-        <GpPanel isAdmin={isAdmin} />
-      </div>
+      {/* GP / associate entity economics — a DIFFERENT access domain from the capital accounts
+          it sits beside. It carries the partners' carry points and carry accrued/paid, so a
+          member who can read capital accounts is not thereby entitled to it. Its own API is
+          gated to gp_economics too; this only spares them a panel that would fail to load.
+
+          It also renders itself to nothing on an ordinary vehicle. */}
+      {canReadGpEconomics && (
+        <div className="pt-6">
+          <GpPanel isAdmin={isAdmin} />
+        </div>
+      )}
 
       {/* Reconciling against the incumbent administrator's statement compares one
           partner's capital account, line by line — so it belongs with the capital

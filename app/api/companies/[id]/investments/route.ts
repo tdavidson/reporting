@@ -8,6 +8,7 @@ import type { InvestmentTransaction, CompanyStatus } from '@/lib/types/database'
 import type { CompanyInvestmentSummary } from '@/lib/types/investments'
 import { computeSummary } from '@/lib/investments'
 import { draftEntryForTransaction } from '@/lib/accounting/from-portfolio'
+import { normalizeSecurityType, SECURITY_TYPES } from '@/lib/accounting/soi'
 
 // ---------------------------------------------------------------------------
 // GET — all transactions for a company + computed summary
@@ -120,6 +121,17 @@ export async function POST(
     return NextResponse.json({ error: 'Invalid transaction_type' }, { status: 400 })
   }
 
+  // security_type is CHECK-constrained. Unvalidated, a bad value reached Postgres and came back as
+  // a raw constraint violation the user saw as "An unexpected error occurred" — so say what's wrong
+  // here instead. Normalizing first keeps "Convertible Note" from an API caller working.
+  const security_type = body.security_type ? normalizeSecurityType(body.security_type) : null
+  if (body.security_type && !security_type) {
+    return NextResponse.json(
+      { error: `Invalid security_type "${body.security_type}". Must be one of: ${SECURITY_TYPES.join(', ')}` },
+      { status: 400 },
+    )
+  }
+
   const { data: txn, error } = await admin
     .from('investment_transactions' as any)
     .insert({
@@ -162,7 +174,7 @@ export async function POST(
       portfolio_group: body.portfolio_group ?? null,
       // Feeds the SOI's by-asset-type breakout. The column existed and soi.ts read it, but no
       // route ever wrote it, so the breakout fell back to a derived two-bucket guess forever.
-      security_type: body.security_type ?? null,
+      security_type,
       // Convertible-note terms. The close accrues interest on `interest_rate` only.
       // `dividend_rate` (preferred dividends) accrues to the liquidation preference and is
       // deliberately invisible to the ledger — an undeclared preferred dividend is not income.

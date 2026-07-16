@@ -175,6 +175,16 @@ function LpsInner() {
 
   const grand = useMemo(() => total(visibleRows), [visibleRows])
 
+  // How many vehicles the filter currently admits. When it's more than one, an investor's row has
+  // to say WHICH vehicle it is — otherwise a single-vehicle LP is indistinguishable from any other
+  // and there's nothing to expand to find out. With one vehicle in scope the answer is the filter
+  // itself, so saying it on every row would just be noise.
+  const scopedGroups = useMemo(
+    () => allGroups.filter(g => !excludedGroups.has(g)),
+    [allGroups, excludedGroups],
+  )
+  const showVehicleOnRow = scopedGroups.length > 1
+
   const toggle = (id: string) => setExpanded(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n })
 
   async function exportExcel() {
@@ -199,7 +209,7 @@ function LpsInner() {
       {/* Row 1 — title, notes, analyst. */}
       <div className="flex items-start justify-between gap-3">
         <div className="space-y-1">
-          <h1 className="text-2xl font-semibold tracking-tight">LPs</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">Partners</h1>
           <p className="text-sm text-muted-foreground max-w-3xl">
             Partner capital across all vehicles.
           </p>
@@ -306,6 +316,17 @@ function LpsInner() {
                               {/* Long names truncate at a fixed cap rather than wrapping or collapsing the column. */}
                               <span className="truncate max-w-[240px]" title={inv.name}>{inv.name}</span>
                               {multi && <span className="text-xs text-muted-foreground font-normal ml-1 shrink-0">({inv.rows.length})</span>}
+                              {/* One vehicle, several in scope: there is no expander to open, so the
+                                  vehicle is named here. Otherwise the row is silent about the one
+                                  thing the filter makes ambiguous. */}
+                              {!multi && showVehicleOnRow && (
+                                <span
+                                  className="text-xs text-muted-foreground font-normal ml-1.5 truncate max-w-[160px]"
+                                  title={inv.rows[0]?.portfolio_group}
+                                >
+                                  &middot; {inv.rows[0]?.portfolio_group}
+                                </span>
+                              )}
                               {/* Edit actions sit right next to the name, revealed on row hover. */}
                               {isAdmin && (
                                 <span className="flex items-center gap-1.5 ml-2 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" onClick={e => e.stopPropagation()}>

@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { resolveAgentAuth, authorizeToolUse, type ResolvedKey } from '@/lib/accounting/api-keys'
-import { AGENT_TOOLS, getTool, resolveVehicleForTool, type AgentToolContext } from '@/lib/accounting/agent-tools'
+import { resolveAgentAuth, authorizeToolUse, loadCredentialAccess, type ResolvedKey } from '@/lib/accounting/api-keys'
+import { AGENT_TOOLS, getTool, resolveVehicleForTool, accessDomainFor, accessDomainForCall, accessFeatureFor, type AgentToolContext } from '@/lib/accounting/agent-tools'
+import { hasAccess, type AccessContext } from '@/lib/access/effective'
 import { rateLimit } from '@/lib/rate-limit'
 import { agentApiEnabled } from '@/lib/oauth/enabled'
 import { wwwAuthenticate } from '@/lib/oauth/metadata'
@@ -38,7 +39,7 @@ function err(id: any, code: number, message: string) {
 
 type BaseCtx = Omit<AgentToolContext, 'portfolioGroup'>
 
-async function handle(rpc: RpcRequest, ctx: BaseCtx, auth: ResolvedKey): Promise<any | null> {
+async function handle(rpc: RpcRequest, ctx: BaseCtx, auth: ResolvedKey, access: AccessContext): Promise<any | null> {
   switch (rpc.method) {
     case 'initialize':
       return ok(rpc.id, { protocolVersion: PROTOCOL_VERSION, capabilities: { tools: {} }, serverInfo: SERVER_INFO })
@@ -48,15 +49,24 @@ async function handle(rpc: RpcRequest, ctx: BaseCtx, auth: ResolvedKey): Promise
     case 'notifications/cancelled':
       return null // notification — no response
     case 'tools/list':
-      return ok(rpc.id, { tools: AGENT_TOOLS.map(t => ({ name: t.name, description: t.description, inputSchema: t.inputSchema })) })
+      // Filtered by what the credential's owner may actually reach, so an agent is never shown a
+      // tool it would be refused — and the tool list itself stops being a map of the fund's
+      // contents to someone who can't read them.
+      return ok(rpc.id, {
+        tools: AGENT_TOOLS
+          .filter(t => hasAccess(access, accessDomainFor(t), t.scope, accessFeatureFor(t)))
+          .map(t => ({ name: t.name, description: t.description, inputSchema: t.inputSchema })),
+      })
     case 'tools/call': {
       const name = rpc.params?.name
       const tool = getTool(name)
       if (!tool) return err(rpc.id, -32602, `Unknown tool: ${name}`)
-      const denied = authorizeToolUse(tool.scope, auth)
+      const args = rpc.params?.arguments ?? {}
+      // The CALL's domain, not just the tool's: `allocation` is ordinary accounting until its
+      // action is 'carry'.
+      const denied = authorizeToolUse(tool.scope, auth, access, accessDomainForCall(tool, args), accessFeatureFor(tool))
       if (denied) return ok(rpc.id, { content: [{ type: 'text', text: denied }], isError: true })
       try {
-        const args = rpc.params?.arguments ?? {}
         const portfolioGroup = await resolveVehicleForTool(tool, ctx.admin, ctx.fundId, args.vehicle)
         const result = await tool.handler({ ...ctx, portfolioGroup }, args)
         return ok(rpc.id, { content: [{ type: 'text', text: JSON.stringify(result) }] })
@@ -92,7 +102,10 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  const ctx: BaseCtx = { admin, fundId: auth.fundId, userId: auth.userId }
+  // The owner's grants, re-read live — a credential can never exceed the person who authorized it,
+  // and revoking their grant narrows every key and token they hold on the next call.
+  const access = await loadCredentialAccess(admin, auth)
+  const ctx: BaseCtx = { admin, fundId: auth.fundId, userId: auth.userId, access }
   const body = await req.json().catch(() => null)
   if (!body) return NextResponse.json(err(null, -32700, 'Parse error'), { status: 400 })
 
@@ -117,7 +130,7 @@ export async function POST(req: NextRequest) {
     // Sequential, not Promise.all — these are ledger writes.
     const responses = []
     for (const rpc of body) {
-      const r = await handle(rpc, ctx, auth)
+      const r = await handle(rpc, ctx, auth, access)
       if (r) responses.push(r)
     }
     return responses.length ? NextResponse.json(responses) : new NextResponse(null, { status: 202 })
@@ -126,7 +139,7 @@ export async function POST(req: NextRequest) {
   const limited = await meter(auth, [body], 1)
   if (limited) return limited
 
-  const response = await handle(body, ctx, auth)
+  const response = await handle(body, ctx, auth, access)
   if (response === null) return new NextResponse(null, { status: 202 })
   return NextResponse.json(response)
 }

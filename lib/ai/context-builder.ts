@@ -13,9 +13,21 @@ export interface PortfolioContext {
   teamNotesBlock: string
 }
 
+/**
+ * What of a context to build. `includeTeamNotes` is an ACCESS decision, not a preference: internal
+ * notes are the `relationships` domain, and the portfolio/company context they hang off is
+ * `portfolio`. A member granted portfolio but denied relationships must not receive the team's
+ * candid commentary through the Analyst — so the caller resolves it and says. Required, not
+ * defaulted, because a default here is a leak waiting for the next call site.
+ */
+export interface ContextOptions {
+  includeTeamNotes: boolean
+}
+
 export async function buildPortfolioContext(
   admin: Admin,
-  fundId: string
+  fundId: string,
+  options: ContextOptions
 ): Promise<PortfolioContext> {
   const { data: allCompanies } = await admin
     .from('companies')
@@ -68,13 +80,17 @@ export async function buildPortfolioContext(
     }
   }
 
-  // Fetch recent team notes (general/portfolio-wide + company-tagged)
-  const { data: portfolioNotes } = await admin
-    .from('company_notes')
-    .select('content, user_id, company_id, created_at')
-    .eq('fund_id', fundId)
-    .order('created_at', { ascending: false })
-    .limit(30) as { data: { content: string; user_id: string; company_id: string | null; created_at: string }[] | null }
+  // Fetch recent team notes (general/portfolio-wide + company-tagged) — only for a reader
+  // entitled to them. Not fetched rather than fetched-and-dropped: the rule is that a request is
+  // never GIVEN what it isn't entitled to.
+  const { data: portfolioNotes } = options.includeTeamNotes
+    ? await admin
+        .from('company_notes')
+        .select('content, user_id, company_id, created_at')
+        .eq('fund_id', fundId)
+        .order('created_at', { ascending: false })
+        .limit(30) as { data: { content: string; user_id: string; company_id: string | null; created_at: string }[] | null }
+    : { data: null }
 
   let teamNotesBlock = ''
   if (portfolioNotes && portfolioNotes.length > 0) {
@@ -136,7 +152,8 @@ export interface CompanyContext {
 
 export async function buildCompanyContext(
   admin: Admin,
-  companyId: string
+  companyId: string,
+  options: ContextOptions
 ): Promise<CompanyContext | null> {
   // --- Company ---
   const { data: company } = await admin
@@ -207,13 +224,15 @@ export async function buildCompanyContext(
     .select('company_id, transaction_type, investment_cost, proceeds_received, proceeds_escrow, current_share_price, shares_acquired, unrealized_value_change')
     .eq('fund_id', company.fund_id)
 
-  // --- Team discussion notes ---
-  const { data: teamNotes } = await admin
-    .from('company_notes')
-    .select('content, user_id, created_at')
-    .eq('company_id', companyId)
-    .order('created_at', { ascending: false })
-    .limit(20) as { data: { content: string; user_id: string; created_at: string }[] | null }
+  // --- Team discussion notes --- (relationships domain; see ContextOptions)
+  const { data: teamNotes } = options.includeTeamNotes
+    ? await admin
+        .from('company_notes')
+        .select('content, user_id, created_at')
+        .eq('company_id', companyId)
+        .order('created_at', { ascending: false })
+        .limit(20) as { data: { content: string; user_id: string; created_at: string }[] | null }
+    : { data: null }
 
   // Batch-load display names for note authors
   const noteAuthorIds = Array.from(new Set((teamNotes ?? []).map(n => n.user_id)))

@@ -26,8 +26,14 @@ export async function resolveFund(
 }
 
 /**
- * Returns the user's fund membership, or a 403 response if the user
- * has a read-only (viewer) role and cannot perform mutations.
+ * Resolve the caller's fund for a WRITE, refusing the read-only demo.
+ *
+ * The viewer block is the one role rule that survives in-route, because it isn't a stand-in for
+ * anything: the demo fund must never be mutated, whatever grants it holds. `effectiveAccess` caps
+ * a viewer at `read` for the same reason, so the middleware refuses these too — this is the cheap
+ * belt to that braces.
+ *
+ * WHAT this caller may write is decided by their per-domain grant at the boundary, not here.
  */
 export async function assertWriteAccess(
   admin: SupabaseClient,
@@ -57,37 +63,39 @@ export async function assertWriteAccess(
 }
 
 /**
- * Read-access gate for admin-only GP pages that the read-only demo should still
- * be able to view. Allows `admin` (full access) and `viewer` (the demo role);
- * blocks plain `member`, matching the prior admin-only posture for real funds
- * (where these pages default to admin-only visibility anyway). Writes stay
- * behind {@link assertWriteAccess} + an explicit admin check.
+ * Resolve the caller's fund for a READ. No role gate — the domain gate is the policy.
+ *
+ * IT USED TO BLOCK PLAIN MEMBERS (admin|viewer only). That check was a stand-in for "accounting is
+ * admin-only", written when there was no way to say so properly. There is now: the fund-level
+ * feature switch plus the caller's per-domain grant, resolved in one place
+ * (lib/access/effective.ts) and enforced on EVERY /api request by the middleware — which knows
+ * this route's domain, as this helper never could.
+ *
+ * Keeping the old check made nothing safer; it made the grants a LIE. An admin could set Fund
+ * accounting to "Members", grant someone read, and watch every route 403 them anyway — while that
+ * same person read the books through the Analyst and MCP, which had already moved to the real
+ * resolver. A second, coarser, contradictory policy is not defence in depth. It is a bug that
+ * only ever fires on the people you meant to let in.
+ *
+ * Retired only AFTER the domain gate's own leaks were closed — see docs/plan-access-control.md →
+ * Sequencing. Ordering mattered: removing this while the replacement still leaked would have left
+ * a window where neither policy was correct.
  */
 export async function assertReadAccess(
   admin: SupabaseClient,
   userId: string
 ): Promise<{ fundId: string; role: string } | NextResponse> {
-  const { data: membership, error } = await admin
-    .from('fund_members')
-    .select('fund_id, role')
-    .eq('user_id', userId)
-    .maybeSingle()
-
-  if (error) {
-    console.error('[assertReadAccess] DB error:', error.message)
-    return NextResponse.json({ error: 'Internal error' }, { status: 500 })
-  }
-  if (!membership) return NextResponse.json({ error: 'No fund found' }, { status: 403 })
-  if (membership.role !== 'admin' && membership.role !== 'viewer')
-    return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
-
-  return { fundId: membership.fund_id, role: membership.role }
+  return resolveFund(admin, userId)
 }
 
 /**
- * Admin-only gate for API routes (writes and sensitive reads). Resolves the
- * caller's fund and requires the `admin` role, returning a 403 otherwise. Used
- * by the Accounting routes, whose section is admin-only while in development.
+ * Admin-only gate. Resolves the caller's fund and requires the `admin` role.
+ *
+ * FOR THE `admin` DOMAIN ONLY — settings, keys, members, integrations. Everywhere else the
+ * question "may this person do this?" is answered by their grant in the route's domain, not by
+ * their role, and using this helper there would veto the grant (see {@link assertReadAccess}).
+ * If you're reaching for this on an accounting/LP/diligence route, you want
+ * {@link assertWriteAccess} — the middleware has already checked the domain.
  */
 export async function assertAdminAccess(
   admin: SupabaseClient,

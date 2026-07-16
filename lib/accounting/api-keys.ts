@@ -4,6 +4,9 @@
 
 import crypto from 'crypto'
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { hasAccess, loadAccessContext, type AccessContext } from '@/lib/access/effective'
+import { DOMAIN_META, type Domain } from '@/lib/access/domains'
+import type { FeatureKey } from '@/lib/types/features'
 
 const PREFIX = 'lk_' // "ledger key"
 
@@ -133,18 +136,39 @@ export async function resolveAgentAuth(admin: SupabaseClient, req: Request): Pro
 }
 
 /**
- * Authorization for a tool given a resolved credential: reads for any member,
- * writes for admins only — AND the credential must itself carry the write scope.
- * Returns null if allowed, or an error message.
+ * Authorization for a tool call: the credential's scope, AND the owner's grant in the domain the
+ * tool touches. Returns null if allowed, or an error message.
  *
- * The role check is the one that matters: it reflects the owner's CURRENT
- * membership, so a write-scoped credential held by someone who has since been
- * demoted is inert, even though its scope string still says 'write'.
+ * A CREDENTIAL CAN NEVER EXCEED ITS OWNER. Both halves are re-read live on every call — the
+ * owner's role and grants come from the database, not from the token — so demoting someone, or
+ * revoking their GP-economics grant, instantly narrows every key and token they hold without
+ * anyone hunting those tokens down. The scope string is a ceiling the owner chose at mint time;
+ * the grants are the ceiling the admin chose. The lower one wins.
+ *
+ * This used to be the ENTIRE authorization for MCP and the REST agent: "is this a write, and is
+ * the owner an admin". Any read credential from any member read the whole fund — LP capital,
+ * diligence memos, carry — because nothing narrower existed.
  */
-export function authorizeToolUse(scope: 'read' | 'write', auth: ResolvedKey): string | null {
-  if (scope === 'write') {
-    if (auth.role !== 'admin') return 'This credential belongs to a non-admin; writing to the ledger requires an admin.'
-    if (!auth.scopes.includes('write')) return 'This credential is read-only.'
+export async function loadCredentialAccess(admin: SupabaseClient, auth: ResolvedKey): Promise<AccessContext> {
+  return loadAccessContext(admin, auth.fundId, auth.userId, auth.role)
+}
+
+export function authorizeToolUse(
+  scope: 'read' | 'write',
+  auth: ResolvedKey,
+  access: AccessContext,
+  domain: Domain,
+  feature?: FeatureKey,
+): string | null {
+  if (scope === 'write' && !auth.scopes.includes('write')) return 'This credential is read-only.'
+
+  // `feature` matters for domains that span several switches: without it the ceiling reads as
+  // wide open, so a fund that HID a feature would still serve it over MCP — even to an admin.
+  if (!hasAccess(access, domain, scope, feature)) {
+    const label = DOMAIN_META[domain].label
+    return scope === 'write'
+      ? `This credential's owner does not have write access to ${label}.`
+      : `This credential's owner does not have access to ${label}.`
   }
   return null
 }

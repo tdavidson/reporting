@@ -8,8 +8,10 @@ import { useState, useEffect } from 'react'
 import { useTheme } from 'next-themes'
 import { useSidebar } from '@/components/sidebar-context'
 import { ACCOUNTING_SECTIONS } from '@/lib/accounting/nav'
-import { isFeatureVisible } from '@/lib/types/features'
 import type { FeatureKey, FeatureVisibilityMap } from '@/lib/types/features'
+import { domainForFeature, type Domain } from '@/lib/access/domains'
+import { useAccess } from '@/components/access-context'
+import type { AccessLevel } from '@/lib/access/effective'
 
 const THEME_CYCLE = ['system', 'light', 'dark'] as const
 const THEME_ICONS = { system: Monitor, light: Sun, dark: Moon }
@@ -20,6 +22,8 @@ interface NavChild {
   label: string
   adminOnly?: boolean
   featureKey?: FeatureKey
+  /** Only where the featureKey can't imply it (or there is no featureKey). */
+  domain?: Domain
   /** Notes moved from a top-level item into Portfolio, and its unread count moved with it. */
   badgeKey?: 'notes'
 }
@@ -30,13 +34,43 @@ interface NavItem {
   badgeKey?: 'review' | 'settings' | 'notes'
   adminOnly?: boolean
   featureKey?: FeatureKey
+  /** Only where the featureKey can't imply it (or there is no featureKey). */
+  domain?: Domain
   beta?: boolean
   children?: NavChild[]
 }
 
+/**
+ * Can this user reach this nav entry? Answered by the SAME resolver the middleware applies to the
+ * API behind it, given the entry's OWN feature key.
+ *
+ * That last part is the whole trick. This used to consult a precomputed level per domain — but
+ * that map had to pick one feature key per domain, and several span more than one. A fund with
+ * `lps: admin` + `lp_tracking: everyone` hid Capital accounts from a member who could open the
+ * page and whose API calls returned 200, because the map answered for `lps` and the entry meant
+ * `lp_tracking`.
+ *
+ * The nav is an affordance, not a boundary — but it must not LIE. A link to a page whose every
+ * request 403s is worse than no link, and a link to data the user shouldn't have is worse still.
+ */
+function canSee(
+  entry: { adminOnly?: boolean; featureKey?: FeatureKey; domain?: Domain },
+  isAdmin: boolean,
+  access: (domain: Domain, feature?: FeatureKey) => AccessLevel,
+): boolean {
+  if (entry.adminOnly && !isAdmin) return false
+
+  const domain = entry.domain ?? (entry.featureKey ? domainForFeature(entry.featureKey) : undefined)
+  // No domain and no feature: an always-available entry (Settings, Support).
+  if (!domain) return true
+
+  const level = access(domain, entry.featureKey)
+  return level === 'read' || level === 'write'
+}
+
 const NAV_ITEMS: NavItem[] = [
-  { href: '/review', label: 'Review', icon: ClipboardCheck, badgeKey: 'review' },
-  { href: '/emails', label: 'Inbound', icon: Mail },
+  { href: '/review', label: 'Review', icon: ClipboardCheck, badgeKey: 'review', domain: 'portfolio' },
+  { href: '/emails', label: 'Inbound', icon: Mail, domain: 'dealflow' },
   {
     href: '/deals', label: 'Deals', icon: Lightbulb, featureKey: 'deals',
     children: [
@@ -52,7 +86,7 @@ const NAV_ITEMS: NavItem[] = [
     ],
   },
   {
-    href: '/dashboard', label: 'Portfolio', icon: Building2,
+    href: '/dashboard', label: 'Portfolio', icon: Building2, domain: 'portfolio',
     children: [
       { href: '/import',       label: 'Import',       featureKey: 'imports' },
       { href: '/investments',  label: 'Investments',  featureKey: 'investments' },
@@ -87,9 +121,9 @@ const NAV_ITEMS: NavItem[] = [
     // that turns it on to 'admin' still only shows it to admins). Hard-coding adminOnly
     // on top of that also hid it from the read-only demo viewer, who should see the books.
     href: '/funds', label: 'Funds', icon: BookOpen, featureKey: 'accounting',
-    children: ACCOUNTING_SECTIONS.map(({ href, label }) => ({ href, label })),
+    children: ACCOUNTING_SECTIONS.map(({ href, label, domain }) => ({ href, label, domain })),
   },
-  { href: '/usage', label: 'Usage', icon: Users, adminOnly: true },
+  { href: '/usage', label: 'Usage', icon: Users, adminOnly: true, domain: 'admin' },
   { href: '/settings', label: 'Settings', icon: Settings, badgeKey: 'settings' },
   { href: '/support', label: 'Support', icon: LifeBuoy },
 ]
@@ -106,6 +140,7 @@ interface AppSidebarProps {
 
 export function AppSidebar({ reviewBadge, settingsBadge, notesBadge, isAdmin, updateAvailable, featureVisibility, onNavigate }: AppSidebarProps) {
   const pathname = usePathname()
+  const access = useAccess()
   const { collapsed, toggle } = useSidebar()
   const { theme, setTheme } = useTheme()
   const [mounted, setMounted] = useState(false)
@@ -124,8 +159,7 @@ export function AppSidebar({ reviewBadge, settingsBadge, notesBadge, isAdmin, up
     <div className="flex flex-col flex-1">
       <nav className={`flex-1 p-2 space-y-0.5 ${collapsed ? 'md:px-1' : ''}`}>
         {NAV_ITEMS.filter(item => {
-          if (item.adminOnly && !isAdmin) return false
-          if (item.featureKey && !isFeatureVisible(featureVisibility, item.featureKey, !!isAdmin)) return false
+          if (!canSee(item, !!isAdmin, access)) return false
           if (item.badgeKey === 'review' && reviewBadge === 0) return false
           return true
         }).map((item) => {
@@ -147,11 +181,7 @@ export function AppSidebar({ reviewBadge, settingsBadge, notesBadge, isAdmin, up
           // Children visibility — drop children that the user can't access (admin
           // gate or per-feature visibility), then show only when the parent or any
           // visible child route is active.
-          const visibleChildren = (children ?? []).filter(c => {
-            if (c.adminOnly && !isAdmin) return false
-            if (c.featureKey && !isFeatureVisible(featureVisibility, c.featureKey, !!isAdmin)) return false
-            return true
-          })
+          const visibleChildren = (children ?? []).filter(c => canSee(c, !!isAdmin, access))
           const childActive = visibleChildren.some(c => pathname === c.href || pathname.startsWith(c.href + '/'))
           // Also keep the section open on any page UNDER its own path (e.g. /funds/allocation-terms,
           // a Funds page that isn't a listed child) — it's still this section, just not in the nav.

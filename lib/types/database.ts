@@ -805,6 +805,73 @@ export type Database = {
           },
         ]
       }
+      fund_domain_defaults: {
+        Row: {
+          domain: string
+          fund_id: string
+          level: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          domain: string
+          fund_id: string
+          level: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          domain?: string
+          fund_id?: string
+          level?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fund_domain_defaults_fund_id_fkey"
+            columns: ["fund_id"]
+            isOneToOne: false
+            referencedRelation: "funds"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      fund_member_access: {
+        Row: {
+          domain: string
+          fund_id: string
+          level: string
+          updated_at: string
+          updated_by: string | null
+          user_id: string
+        }
+        Insert: {
+          domain: string
+          fund_id: string
+          level: string
+          updated_at?: string
+          updated_by?: string | null
+          user_id: string
+        }
+        Update: {
+          domain?: string
+          fund_id?: string
+          level?: string
+          updated_at?: string
+          updated_by?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fund_member_access_fund_id_fkey"
+            columns: ["fund_id"]
+            isOneToOne: false
+            referencedRelation: "funds"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       fund_members: {
         Row: {
           created_at: string | null

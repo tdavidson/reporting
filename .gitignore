@@ -42,3 +42,16 @@ supabase/.temp
 
 # local development plans
 /docs
+# Demo fixtures — local only, not part of the product.
+#
+# "Hemrock Ventures" is this install's marketing demo, not something another fund wants when they
+# install this app. The generator lives on the machine that runs it; the demo fund's rows live in
+# the database, which is the source of truth. `api/demo/seed` is listed in OPTIONAL_ROUTES
+# (lib/access/route-domains.ts) so the route-coverage test doesn't call its registry entry stale
+# when the file isn't here.
+#
+# NOTE: /api/demo/credentials is NOT ignored — it's the generic demo sign-in and has no Hemrock in
+# it. Nor is scripts/demo-agent-account.ts, which is deliberately decoupled from these fixtures.
+/lib/demo/
+/app/api/demo/seed/
+/scripts/run-demo-seed.ts

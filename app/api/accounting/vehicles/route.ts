@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { assertAdminAccess, assertReadAccess } from '@/lib/api-helpers'
+import { assertReadAccess } from '@/lib/api-helpers'
 import { listVehicles } from '@/lib/accounting/load'
 
 // GET — the fund's active vehicle names, for the Accounting picker. Vehicle

@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { assertAdminAccess } from '@/lib/api-helpers'
+// lp_relations domain (lib/access/route-domains.ts) — publishing is what goes OUT to an LP. The
+// middleware has already checked the caller's grant for this route + method.
+import { assertWriteAccess } from '@/lib/api-helpers'
 import { resolveGroupOr400 } from '@/lib/accounting/http-vehicle'
 import { generateLpStatementPdf } from '@/lib/accounting/lp-statement-pdf'
 import { resolvePeriod, customPeriod, type PeriodPreset } from '@/lib/accounting/statement-period'
@@ -26,7 +28,7 @@ export async function POST(req: NextRequest) {
   const admin = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  const gate = await assertAdminAccess(admin, user.id)
+  const gate = await assertWriteAccess(admin, user.id)
   if (gate instanceof NextResponse) return gate
 
   const body = await req.json().catch(() => ({}))

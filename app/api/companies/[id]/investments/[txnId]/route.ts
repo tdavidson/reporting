@@ -5,6 +5,7 @@ import { assertWriteAccess } from '@/lib/api-helpers'
 import { dbError } from '@/lib/api-error'
 import { logActivity } from '@/lib/activity'
 import { redraftEntryForTransaction, retractEntriesForTransaction } from '@/lib/accounting/from-portfolio'
+import { normalizeSecurityType, SECURITY_TYPES } from '@/lib/accounting/soi'
 
 // ---------------------------------------------------------------------------
 // PATCH — update a transaction
@@ -69,6 +70,21 @@ export async function PATCH(
   const updates: Record<string, unknown> = { updated_at: new Date().toISOString() }
   for (const key of allowedFields) {
     if (key in body) updates[key] = body[key]
+  }
+
+  // Same CHECK constraint as the create route: reject in words rather than let Postgres reject it
+  // in a 500. Null stays null — that's how you clear the instrument back to the derived fallback.
+  if (body.security_type != null && body.security_type !== '') {
+    const security_type = normalizeSecurityType(body.security_type)
+    if (!security_type) {
+      return NextResponse.json(
+        { error: `Invalid security_type "${body.security_type}". Must be one of: ${SECURITY_TYPES.join(', ')}` },
+        { status: 400 },
+      )
+    }
+    updates.security_type = security_type
+  } else if ('security_type' in body) {
+    updates.security_type = null
   }
 
   const { data: txn, error } = await admin

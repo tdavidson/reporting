@@ -65,9 +65,29 @@ async function vehicleBooks(admin: SupabaseClient, fundId: string, group: string
   return parts.join('\n')
 }
 
-/** The full context: the primary vehicle (chart, balances, entries, partner
- *  capital) plus any GP/associate entities related to it (compact). */
-async function gatherContext(admin: SupabaseClient, fundId: string, group: string): Promise<string> {
+/**
+ * What of a vehicle's books to include.
+ *
+ * Partner capital is NOT optional and deliberately isn't listed here: the chart has one named
+ * capital account per partner, so the balances and entries below carry them anyway. `accounting`
+ * implies `lp_capital` for exactly that reason (see DOMAIN_META.lp_capital.impliedBy), and an
+ * option that could never be false would only imply a protection that doesn't exist.
+ *
+ * The GP/associate entities ARE separable — carry isn't structurally part of this vehicle's
+ * ledger — so that one is a real choice the caller must make.
+ */
+export interface AccountingContextOptions {
+  includeRelatedEntities: boolean
+}
+
+/** The full context: the primary vehicle (chart, balances, entries, partner capital) plus the
+ *  related GP/associate entities if the caller is entitled to them. */
+async function gatherContext(
+  admin: SupabaseClient,
+  fundId: string,
+  group: string,
+  options: AccountingContextOptions,
+): Promise<string> {
   const vehicleId = await vehicleIdByName(admin, fundId, group)
 
   const primary = await vehicleBooks(admin, fundId, group, `PRIMARY VEHICLE: ${group}`, true)
@@ -80,6 +100,10 @@ async function gatherContext(admin: SupabaseClient, fundId: string, group: strin
         rows.map(r => `  ${r.name}${r.partnerClass === 'gp' ? ' [GP]' : ''}: commit ${r.commitment.toFixed(2)}, called ${r.called.toFixed(2)}, funded ${r.funded.toFixed(2)}, outstanding ${r.outstanding.toFixed(2)}, NAV ${r.ending.toFixed(2)}`).join('\n')
     }
   } catch { /* LP data may be absent */ }
+
+  if (!options.includeRelatedEntities) {
+    return primary + capText
+  }
 
   // Related GP/associate entities: those explicitly linked to this vehicle, else
   // (before any links are set) every associate entity in the fund.
@@ -115,16 +139,44 @@ async function gatherContext(admin: SupabaseClient, fundId: string, group: strin
  *  a user entitled to accounting, and only for such a user. */
 export { gatherContext as buildAccountingContext }
 
-/** What the unified Analyst needs to know to reason about a vehicle's books. */
-export const ACCOUNTING_ANALYST_GUIDE = `The user is in the Accounting section, viewing one vehicle. Its books are below. You can:
-- interpret and explain financial statements (statement of assets/liabilities & partners' capital i.e. balance sheet, statement of operations i.e. income statement, statement of changes in partners' capital, cash flows, schedule of investments) from the chart, balances, and entries provided;
-- explain capital accounts and capital calls (commitment / called / funded / outstanding / NAV per partner);
-- answer reconciliation questions — including between a fund and its GP/associate entity, whose own books reconcile to the fund (a GP entity's "Investment in Fund" should equal its capital-account balance on the fund's books);
-- review the books for problems: entries that don't balance, postings that debit and credit the SAME account (always wrong), mis-categorized postings, missing counterparts (e.g. a loan drawn but never repaid), fund-vs-GP reconciliation gaps, and unusual amounts.
+/**
+ * What the unified Analyst needs to know to reason about a vehicle's books.
+ *
+ * Built per request, because the guide must describe what was ACTUALLY included: a user without
+ * gp_economics gets no GP/associate section, and telling their Analyst it can reconcile the fund
+ * against the GP would only make it apologise for data it was never handed — or, worse, invent it.
+ */
+export function accountingAnalystGuide(options: AccountingContextOptions): string {
+  const abilities = [
+    "- interpret and explain financial statements (statement of assets/liabilities & partners' capital i.e. balance sheet, statement of operations i.e. income statement, statement of changes in partners' capital, cash flows, schedule of investments) from the chart, balances, and entries provided;",
+    '- explain capital accounts and capital calls (commitment / called / funded / outstanding / NAV per partner);',
+    ...(options.includeRelatedEntities
+      ? ['- answer reconciliation questions — including between a fund and its GP/associate entity, whose own books reconcile to the fund (a GP entity\'s "Investment in Fund" should equal its capital-account balance on the fund\'s books);']
+      : []),
+    '- review the books for problems: entries that don\'t balance, postings that debit and credit the SAME account (always wrong), mis-categorized postings, missing counterparts (e.g. a loan drawn but never repaid), and unusual amounts.',
+  ]
 
-You are given the PRIMARY vehicle being viewed (chart, balances, recent entries, partner capital) plus any RELATED GP/associate entities as read-only reference.
+  const given = [
+    'You are given the PRIMARY vehicle being viewed: its chart, balances, recent entries and partner capital',
+    options.includeRelatedEntities ? ', plus any RELATED GP/associate entities as read-only reference' : '',
+    '.',
+  ].join('')
+
+  // Said plainly, so it declines rather than guesses. This is a courtesy to the user, NOT the
+  // access control — the data simply isn't in the prompt.
+  const withheld: string[] = []
+  if (!options.includeRelatedEntities) withheld.push("the GP/associate entities' books and the fund-vs-GP reconciliation")
+  const withheldNote = withheld.length
+    ? `\n\nYou do NOT have ${withheld.join(', or ')} — this user's access does not include it. If asked, say it isn't part of what you can see here and suggest they ask an admin. Never estimate or reconstruct it from the ledger.`
+    : ''
+
+  return `The user is in the Accounting section, viewing one vehicle. Its books are below. You can:
+${abilities.join('\n')}
+
+${given}${withheldNote}
 
 Sign convention: every posting amount is the signed change to the account — DEBIT positive, CREDIT negative — and each entry's postings sum to exactly 0. Cite specific account codes, entry ids, dates, and amounts from the data below; never invent them.`
+}
 
 /** Framing for a source document the user attached. Appended only alongside the books. */
 export const ACCOUNTING_DOCUMENT_GUIDE = `The SOURCE DOCUMENT above was attached by the user — typically a capital-call notice, invoice, wire confirmation, or distribution notice. Unless they asked for something else, default to proposing ONE balanced entry that records it, and explain your reading of it in your prose: what it is, its date, its amount, and its counterparty. If the document is unreadable or isn't something you can record, say so plainly rather than guessing at an entry.`

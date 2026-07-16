@@ -71,7 +71,28 @@ function query(table: string): any {
   const proxy: any = new Proxy({}, handler)
   return proxy
 }
-const fakeAdmin: any = { from: (table: string) => query(table) }
+/**
+ * The `access_context` RPC — the single call the resolver makes (migration 20260716000009). Built
+ * from the same `tables` fixture, so a test sets grants the way it sets any other row.
+ */
+const fakeRpc = async (_name: string, _args: any) => {
+  const membership = tables.fund_members as { fund_id: string; role: string } | null
+  if (!membership) return { data: null, error: null }
+  const asRecord = (rows: any) =>
+    Object.fromEntries(((rows as { domain: string; level: string }[]) ?? []).map(r => [r.domain, r.level]))
+  return {
+    data: {
+      fund_id: membership.fund_id,
+      role: membership.role,
+      features: (tables.fund_settings as any)?.feature_visibility ?? {},
+      grants: asRecord(tables.fund_member_access),
+      defaults: asRecord(tables.fund_domain_defaults),
+    },
+    error: null,
+  }
+}
+
+const fakeAdmin: any = { from: (table: string) => query(table), rpc: fakeRpc }
 
 const REPLY_WITH_DRAFT = `Here's the entry for that purchase.
 
@@ -95,9 +116,20 @@ beforeEach(() => {
     companies: [],
     // Each of these defaults to 'off' or 'admin', so a fund has to switch them on deliberately.
     fund_settings: { feature_visibility: { accounting: 'admin', lps: 'admin', diligence: 'admin' } },
+    fund_member_access: [],
+    fund_domain_defaults: [],
     analyst_conversations: { id: 'conv1' },
   }
 })
+
+/** A member of a fund that has the areas open, holding exactly these grants. */
+function memberWith(grants: Record<string, string>) {
+  tables.fund_members = { fund_id: 'f1', role: 'member' }
+  tables.fund_settings = {
+    feature_visibility: { accounting: 'everyone', lps: 'everyone', diligence: 'everyone', deals: 'everyone', gp_economics: 'everyone' },
+  }
+  tables.fund_member_access = Object.entries(grants).map(([domain, level]) => ({ domain, level }))
+}
 
 const msgs = [{ role: 'user' as const, content: 'Draft the entry to buy Apogee for $3.75M' }]
 
@@ -109,7 +141,9 @@ describe('unified Analyst — accounting is access-scoped', () => {
     expect(system).toContain('=== ACCOUNTING: Fund IV ===')
     expect(system).toContain('PRIMARY VEHICLE BOOKS: cash 100')
     expect(system).toContain('DRAFTING ENTRIES')
-    expect(buildAccountingContext).toHaveBeenCalledWith(expect.anything(), 'f1', 'Fund IV')
+    expect(buildAccountingContext).toHaveBeenCalledWith(expect.anything(), 'f1', 'Fund IV', {
+      includeRelatedEntities: true,
+    })
 
     // The draft is lifted out of the prose and returned for the user to review + apply.
     expect(json.proposals).toHaveLength(1)
@@ -119,8 +153,8 @@ describe('unified Analyst — accounting is access-scoped', () => {
     expect(json.reply).toContain("Here's the entry")
   })
 
-  it('gives a viewer NOTHING, even though they asked for a vehicle', async () => {
-    tables.fund_members = { fund_id: 'f1', role: 'viewer' }
+  it('gives a member with no accounting grant NOTHING, even though they asked for a vehicle', async () => {
+    memberWith({})
 
     const { status, system, json } = await post({ messages: msgs, vehicle: 'Fund IV' })
 
@@ -133,6 +167,60 @@ describe('unified Analyst — accounting is access-scoped', () => {
     // it must not become an appliable draft.
     expect(json.proposals).toEqual([])
     expect(json.vehicle).toBeNull()
+  })
+
+  it('gives a read-granted member the books but NOT the ability to draft', async () => {
+    // Drafting is a write. Explaining the books is not.
+    memberWith({ accounting: 'read', lp_capital: 'read', gp_economics: 'read' })
+
+    const { system, json } = await post({ messages: msgs, vehicle: 'Fund IV' })
+
+    expect(system).toContain('PRIMARY VEHICLE BOOKS')
+    expect(system).not.toContain('DRAFTING ENTRIES')
+    // The model can still emit a fence from its own inclinations; without the grant it is prose.
+    expect(json.proposals).toEqual([])
+    expect(json.reply).toContain('```proposal')
+  })
+
+  it('gives a member with the books partner capital too — it IS the ledger', () => {
+    // This used to withhold it. That was theatre: the chart has one NAMED capital account per
+    // partner, so the balances and entries carry them regardless. `accounting` implies
+    // `lp_capital` now, and the guide says so rather than pretending otherwise.
+    memberWith({ accounting: 'write' })
+
+    return post({ messages: msgs, vehicle: 'Fund IV' }).then(({ system }) => {
+      expect(buildAccountingContext).toHaveBeenCalledWith(expect.anything(), 'f1', 'Fund IV', {
+        includeRelatedEntities: false,
+      })
+      expect(system).toContain('explain capital accounts and capital calls')
+      // The GP/associate books are still a real carve-out — carry is not part of this ledger.
+      expect(system).toContain("You do NOT have the GP/associate entities' books")
+    })
+  })
+
+  it('gives the GP/associate books only to a member who also holds gp_economics', async () => {
+    memberWith({ accounting: 'write', gp_economics: 'read' })
+
+    const { system } = await post({ messages: msgs, vehicle: 'Fund IV' })
+
+    expect(buildAccountingContext).toHaveBeenCalledWith(expect.anything(), 'f1', 'Fund IV', {
+      includeRelatedEntities: true,
+    })
+    expect(system).toContain('answer reconciliation questions')
+    expect(system).not.toContain('You do NOT have')
+  })
+
+  it('lets the read-only demo read the books, since the demo shows accounting off', async () => {
+    // A deliberate change: the Analyst's accounting used to be admin-only, so the demo's Analyst
+    // couldn't discuss the books its own pages display (assertReadAccess lets a viewer read them).
+    // Under grants, viewer reads everything switched on — and still cannot draft.
+    tables.fund_members = { fund_id: 'f1', role: 'viewer' }
+
+    const { system, json } = await post({ messages: msgs, vehicle: 'Fund IV' })
+
+    expect(system).toContain('PRIMARY VEHICLE BOOKS')
+    expect(system).not.toContain('DRAFTING ENTRIES')
+    expect(json.proposals).toEqual([])
   })
 
   it('gives an admin nothing when the fund has accounting switched off', async () => {
@@ -168,8 +256,8 @@ describe('unified Analyst — accounting is access-scoped', () => {
     expect(system).toContain('CAPITAL CALL NOTICE — $3,750,000')
   })
 
-  it('does not read an attached document for a viewer — it never reaches extraction', async () => {
-    tables.fund_members = { fund_id: 'f1', role: 'viewer' }
+  it('does not read an attached document for an ungranted member — it never reaches extraction', async () => {
+    memberWith({})
 
     const { status, system } = await post({
       messages: [{ role: 'user', content: 'Record this' }],
@@ -207,8 +295,8 @@ describe('unified Analyst — LP and diligence domains', () => {
     expect(json.scope).toBe('lps')
   })
 
-  it('withholds the LP block when the fund keeps LPs admin-only and the caller is a viewer', async () => {
-    tables.fund_members = { fund_id: 'f1', role: 'viewer' }
+  it('withholds the LP block from a member with no LP grant', async () => {
+    memberWith({ portfolio: 'write' })
 
     const { system, json } = await post({ messages: msgs, domain: 'lps' })
 
@@ -218,9 +306,18 @@ describe('unified Analyst — LP and diligence domains', () => {
     expect(json.scope).toBeNull()
   })
 
-  it("gives the LP block to a viewer when the fund has opened LPs to everyone", async () => {
-    tables.fund_members = { fund_id: 'f1', role: 'viewer' }
-    tables.fund_settings = { feature_visibility: { lps: 'everyone' } }
+  it('withholds the LP block from a member when the fund keeps LPs admin-only, grant or not', async () => {
+    memberWith({ lp_capital: 'write' })
+    tables.fund_settings = { feature_visibility: { lps: 'admin' } }
+
+    const { system } = await post({ messages: msgs, domain: 'lps' })
+
+    expect(system).not.toContain('LP ROLL-UP')
+    expect(buildLpContext).not.toHaveBeenCalled()
+  })
+
+  it('gives the LP block to a granted member once the fund opens LPs to members', async () => {
+    memberWith({ lp_capital: 'read' })
 
     const { system } = await post({ messages: msgs, domain: 'lps' })
 
@@ -246,9 +343,10 @@ describe('unified Analyst — LP and diligence domains', () => {
     expect(json.scope).toBeNull()
   })
 
-  it('403s the inbound-deal scope when the deals feature is not visible to the caller', async () => {
-    tables.fund_members = { fund_id: 'f1', role: 'viewer' }
-    tables.fund_settings = { feature_visibility: { deals: 'admin' } }
+  it('403s the inbound-deal scope for a member with no dealflow grant', async () => {
+    // This path used to answer for ANY fund member, checking only that the deal belonged to the
+    // fund — no role check, no feature check.
+    memberWith({ portfolio: 'write' })
 
     const { status } = await post({ messages: msgs, dealId: 'd1' })
 

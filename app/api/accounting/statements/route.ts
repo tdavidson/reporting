@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { assertAdminAccess, assertReadAccess } from '@/lib/api-helpers'
+import { assertReadAccess } from '@/lib/api-helpers'
 import { resolveGroupOr400 } from '@/lib/accounting/http-vehicle'
 import { loadPostedLedger, loadEntityNames } from '@/lib/accounting/load'
 import {
@@ -33,6 +33,12 @@ export async function GET(req: NextRequest) {
   if (gate instanceof NextResponse) return gate
   const group = await resolveGroupOr400(admin, gate.fundId, req.nextUrl.searchParams.get('group'))
   if (group instanceof NextResponse) return group
+
+  // The statement of changes in partners' capital used to be withheld here from a caller without
+  // lp_capital. It was theatre: the trial balance below ships the same partners and the same
+  // balances, because a fund's chart has one NAMED capital account per partner. Reading the books
+  // is reading partner capital — so `accounting` now implies `lp_capital` outright
+  // (see DOMAIN_META.lp_capital.impliedBy) and this package is whole again.
 
   const sp = req.nextUrl.searchParams
   const preset = sp.get('preset') as PeriodPreset | null

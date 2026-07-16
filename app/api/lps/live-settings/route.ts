@@ -2,7 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { dbError } from '@/lib/api-error'
-import { assertReadAccess, assertAdminAccess } from '@/lib/api-helpers'
+// lp_capital domain (lib/access/route-domains.ts). The middleware has already checked the caller's
+// grant for this route + method; these resolve identity and keep the demo out of writes.
+import { assertReadAccess, assertWriteAccess } from '@/lib/api-helpers'
 
 // Fund-level header + footer for the LIVE LP report cards (the snapshot equivalent lives on
 // the snapshot row). GET returns them; PUT saves them.
@@ -28,7 +30,7 @@ export async function PUT(req: NextRequest) {
   const admin = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  const gate = await assertAdminAccess(admin, user.id)
+  const gate = await assertWriteAccess(admin, user.id)
   if (gate instanceof NextResponse) return gate
 
   const body = await req.json().catch(() => ({}))

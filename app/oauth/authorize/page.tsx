@@ -3,6 +3,7 @@ import { AlertTriangle } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getClient, redirectUriAllowed, grantableScope } from '@/lib/oauth/store'
+import { canWriteAnywhere, loadAccessContext } from '@/lib/access/effective'
 import { agentApiEnabled } from '@/lib/oauth/enabled'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { AuthShell } from '@/components/auth-shell'
@@ -100,9 +101,11 @@ export default async function AuthorizePage({ searchParams }: Props) {
 
   const { data: fund } = await admin.from('funds').select('name').eq('id', fundId).maybeSingle()
 
-  // What they'd actually get — a non-admin asking for write is capped at read, and
-  // the screen must say so rather than promise something it won't deliver.
-  const granted = grantableScope(scope, role)
+  // What they'd actually get. The screen must say so rather than promise something it won't
+  // deliver — so this consults the same grants the tool calls will, not just the role. A member
+  // who is read-only everywhere sees "read", because that is what their token will do.
+  const access = await loadAccessContext(admin, fundId, user!.id, role)
+  const granted = grantableScope(scope, role, canWriteAnywhere(access))
   const willWrite = granted.includes('write')
 
   return (

@@ -7,6 +7,7 @@ import { logAIUsage } from '@/lib/ai/usage'
 import { logActivity } from '@/lib/activity'
 import { rateLimit } from '@/lib/rate-limit'
 import { draftEntryForTransaction } from '@/lib/accounting/from-portfolio'
+import { normalizeSecurityType, SECURITY_TYPES } from '@/lib/accounting/soi'
 
 interface ParsedTransaction {
   company_name: string
@@ -29,7 +30,11 @@ interface ParsedTransaction {
   postmoney_valuation?: number
   latest_postmoney_valuation?: number
   exit_valuation?: number
-  /** Common / preferred / SAFE / note … — feeds the SOI's by-asset-type breakout. */
+  /**
+   * The instrument, feeding the SOI's by-asset-type breakout. CHECK-constrained in the DB — see
+   * SECURITY_TYPES. Whatever the model returns goes through normalizeSecurityType(), because this
+   * arrives from an LLM reading someone's spreadsheet and "Series A Preferred" is not a valid value.
+   */
   security_type?: string
   /** 'mark' | 'fx' — keeps a currency move out of investment performance. */
   valuation_change_source?: string
@@ -165,6 +170,7 @@ Return ONLY valid JSON in this exact format (no markdown, no explanation):
 
 Rules:
 - transaction_type must be one of: "investment", "proceeds", "unrealized_gain_change", "round_info"
+- security_type is OPTIONAL and, if the source names the instrument, must be EXACTLY one of: ${SECURITY_TYPES.map(t => `"${t}"`).join(', ')}. Map what you read onto that list ("Series A Preferred" -> "preferred", "Convertible Promissory Note" -> "convertible_note"). If the instrument is unclear, OMIT the field rather than guessing
 - company_status must be one of: "active", "exited", "written-off". Infer from context: if there are proceeds/exit transactions, use "exited"; if marked as written off or loss, use "written-off"; otherwise default to "active"
 - Dates should be in YYYY-MM-DD format
 - All monetary values should be plain numbers (no currency symbols)
@@ -307,6 +313,19 @@ ${text}`,
       continue
     }
 
+    // Unlike transaction_type, an unrecognised instrument does NOT skip the row. security_type is a
+    // label on the Schedule of Investments; the cost, shares and proceeds on this row are the money.
+    // Dropping the transaction because a model wrote "Series A-1 Pfd" would lose the position to
+    // save the caption — so the caption goes, the position stays, and the import says so. Left null,
+    // the SOI falls back to its derived priced-equity/convertible proxy.
+    const security_type = pt.security_type ? normalizeSecurityType(pt.security_type) : null
+    if (pt.security_type && !security_type) {
+      results.errors.push(
+        `Unrecognised security type "${pt.security_type}" for "${companyName}" — imported without ` +
+        `an instrument. Set it on the transaction if the asset-type breakout matters.`,
+      )
+    }
+
     const { data: inserted, error: insertError } = await admin
       .from('investment_transactions' as any)
       .insert({
@@ -345,7 +364,7 @@ ${text}`,
         // route writes them. `security_type` feeds the SOI's by-asset-type breakout;
         // `valuation_change_source` + `fx_value_change` are what keep a currency move out of
         // investment performance (1250/4300 rather than 1200/4200).
-        security_type: pt.security_type ?? null,
+        security_type,
         valuation_change_source: pt.valuation_change_source ?? null,
         fx_value_change: pt.fx_value_change ?? null,
         fx_rate: pt.fx_rate ?? null,

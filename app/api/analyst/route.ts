@@ -9,7 +9,7 @@ import { logAIUsage } from '@/lib/ai/usage'
 import { buildCompanyContext, buildPortfolioContext, buildDealContext } from '@/lib/ai/context-builder'
 import {
   buildAccountingContext,
-  ACCOUNTING_ANALYST_GUIDE,
+  accountingAnalystGuide,
   ACCOUNTING_DOCUMENT_GUIDE,
   ACCOUNTING_DRAFTING_PROTOCOL,
   type AssistantProposal,
@@ -18,8 +18,7 @@ import { resolveVehicle } from '@/lib/accounting/agent-tools'
 import { buildLpContext, LP_ANALYST_GUIDE } from '@/lib/ai/lp-fund-context'
 import { buildDiligenceContext, DILIGENCE_ANALYST_GUIDE } from '@/lib/diligence/analyst-context'
 import { extractText } from '@/lib/memo-agent/extract-text'
-import { isFeatureVisible, DEFAULT_FEATURE_VISIBILITY } from '@/lib/types/features'
-import type { FeatureVisibilityMap } from '@/lib/types/features'
+import { hasAccess, loadAccessContext } from '@/lib/access/effective'
 import { rateLimit } from '@/lib/rate-limit'
 
 export async function POST(req: NextRequest) {
@@ -63,11 +62,10 @@ export async function POST(req: NextRequest) {
 
   if (!membership) return NextResponse.json({ error: 'No fund found' }, { status: 404 })
 
-  // Every domain gate below is decided against these two, resolved once: the caller's role and
-  // what their fund has each feature set to. `isFeatureVisible` is the same helper the nav and
-  // the domain APIs use, so the Analyst can't drift into showing what the app itself hides.
-  const isAdmin = membership.role === 'admin'
-  const features = await loadFeatureVisibility(admin, membership.fund_id)
+  // Every domain gate below resolves through this, loaded once: the caller's role, the fund's
+  // switches, and their per-user grants. It is the same context the nav, the API gate, and the
+  // MCP server use, so the Analyst cannot drift into answering from data the app itself refuses.
+  const access = await loadAccessContext(admin, membership.fund_id, user.id, membership.role)
 
   // Build a case-insensitive lookup map of company names/aliases → company IDs
   const { data: allFundCompanies } = await admin
@@ -93,12 +91,17 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // Internal notes are the `relationships` domain, not `portfolio` — a member granted the
+  // portfolio but denied relationships must not get the team's candid commentary through the
+  // Analyst's ordinary company/portfolio answer. Resolved once and passed to every builder.
+  const contextOptions = { includeTeamNotes: hasAccess(access, 'relationships', 'read', 'notes') }
+
   let systemPrompt: string
 
   if (body.dealId) {
     // Owning the fund isn't enough — the deals feature defaults to admin-only, and this path used
     // to answer for any member of the fund regardless of that setting.
-    if (!isFeatureVisible(features, 'deals', isAdmin)) {
+    if (!hasAccess(access, 'dealflow', 'read')) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
@@ -130,7 +133,7 @@ export async function POST(req: NextRequest) {
     if (!companyCheck) return NextResponse.json({ error: 'Not found' }, { status: 404 })
     if (companyCheck.fund_id !== membership.fund_id) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-    const ctx = await buildCompanyContext(admin, body.companyId)
+    const ctx = await buildCompanyContext(admin, body.companyId, contextOptions)
     if (!ctx) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
     systemPrompt = ctx.systemPrompt
@@ -144,7 +147,7 @@ export async function POST(req: NextRequest) {
     if (ctx.portfolioBlock) systemPrompt += `\n\n=== PORTFOLIO PEERS (for comparison) ===\n${ctx.portfolioBlock}`
     if (ctx.teamNotesBlock) systemPrompt += `\n\n=== TEAM DISCUSSION NOTES ===\nRecent internal team notes and discussions about this company:\n${ctx.teamNotesBlock}`
   } else {
-    const ctx = await buildPortfolioContext(admin, membership.fund_id)
+    const ctx = await buildPortfolioContext(admin, membership.fund_id, contextOptions)
     systemPrompt = ctx.systemPrompt
     if (ctx.portfolioBlock) systemPrompt += `\n\n=== PORTFOLIO DATA ===\n${ctx.portfolioBlock}`
     if (ctx.teamNotesBlock) systemPrompt += `\n\n=== TEAM DISCUSSION NOTES ===\nRecent internal team notes and discussions across the portfolio:\n${ctx.teamNotesBlock}`
@@ -160,17 +163,13 @@ export async function POST(req: NextRequest) {
   //
   // Every domain follows the same shape, and a new one must too:
   //   1. the scope comes from the body (`vehicle`, `domain`) — caller-controlled, proves nothing;
-  //   2. entitlement is checked against role + isFeatureVisible, never against the body;
+  //   2. entitlement is checked with hasAccess against the caller's grants, never against the body;
   //   3. only then is the block appended.
 
   // --- ACCOUNTING (scope: which vehicle's books) ---
   let accountingGroup: string | null = null
   if (body.vehicle) {
-    // Admin AND visible: every accounting API is behind assertAdminAccess, so the Analyst must
-    // not become a way to read the books a non-admin can't read directly — even if a fund set
-    // accounting to 'everyone'.
-    const entitled = isAdmin && isFeatureVisible(features, 'accounting', isAdmin)
-    if (entitled) {
+    if (hasAccess(access, 'accounting', 'read')) {
       // The books are a much heavier context than a portfolio answer — own rate limit, mirroring
       // the cross-company xref limit below.
       const acctLimit = await rateLimit({
@@ -189,14 +188,22 @@ export async function POST(req: NextRequest) {
         documentBlock = doc.text
       }
 
+      // Partner capital comes with the books whether we like it or not (accounting implies
+      // lp_capital — see DOMAIN_META). The GP/associate entities are a real, separable choice.
+      const options = { includeRelatedEntities: hasAccess(access, 'gp_economics', 'read') }
+
       try {
         const group = await resolveVehicle(admin, membership.fund_id, body.vehicle)
-        const books = await buildAccountingContext(admin, membership.fund_id, group)
-        systemPrompt += `\n\n=== ACCOUNTING: ${group} ===\n${ACCOUNTING_ANALYST_GUIDE}\n\n${books}`
+        const books = await buildAccountingContext(admin, membership.fund_id, group, options)
+        systemPrompt += `\n\n=== ACCOUNTING: ${group} ===\n${accountingAnalystGuide(options)}\n\n${books}`
         if (documentBlock) {
           systemPrompt += `\n\n=== SOURCE DOCUMENT: ${body.document?.name ?? 'attachment'} ===\n${documentBlock}\n\n${ACCOUNTING_DOCUMENT_GUIDE}`
         }
-        systemPrompt += `\n\n${ACCOUNTING_DRAFTING_PROTOCOL}`
+        // Drafting is a WRITE. A read-only accounting grant explains the books; it doesn't hand
+        // back entries to post. Without this text the model has no way to propose one.
+        if (hasAccess(access, 'accounting', 'write')) {
+          systemPrompt += `\n\n${ACCOUNTING_DRAFTING_PROTOCOL}`
+        }
         accountingGroup = group
       } catch (err) {
         // An unknown/ambiguous vehicle or a books-load failure is not fatal: answer without the
@@ -208,7 +215,7 @@ export async function POST(req: NextRequest) {
 
   // --- LPs (scope: the whole fund) ---
   let lpScoped = false
-  if (body.domain === 'lps' && isFeatureVisible(features, 'lps', isAdmin)) {
+  if (body.domain === 'lps' && hasAccess(access, 'lp_capital', 'read')) {
     // The live report derives every LP's position from the ledger — the heaviest block we build.
     const lpLimit = await rateLimit({ key: `ai-analyst-lps:${user.id}`, limit: 10, windowSeconds: 300 })
     if (lpLimit) return lpLimit
@@ -226,7 +233,7 @@ export async function POST(req: NextRequest) {
 
   // --- DILIGENCE (scope: the whole fund) ---
   let diligenceScoped = false
-  if (body.domain === 'diligence' && isFeatureVisible(features, 'diligence', isAdmin)) {
+  if (body.domain === 'diligence' && hasAccess(access, 'diligence', 'read')) {
     diligenceScoped = true
     try {
       const block = await buildDiligenceContext(admin, membership.fund_id)
@@ -264,7 +271,7 @@ export async function POST(req: NextRequest) {
     if (crossCompanyLimit) return crossCompanyLimit
 
     const refContexts = await Promise.all(
-      referencedCompanyIds.map(id => buildCompanyContext(admin, id))
+      referencedCompanyIds.map(id => buildCompanyContext(admin, id, contextOptions))
     )
     for (const refCtx of refContexts) {
       if (!refCtx) continue
@@ -359,7 +366,7 @@ export async function POST(req: NextRequest) {
     // Drafted entries come back as ```proposal fences alongside the prose. Only parse them when
     // accounting scope was actually granted — otherwise the protocol was never in the prompt and
     // any fence-shaped text is just prose the model wrote.
-    const { reply, proposals } = accountingGroup
+    const { reply, proposals } = accountingGroup && hasAccess(access, 'accounting', 'write')
       ? extractProposals(text)
       : { reply: text, proposals: [] as AssistantProposal[] }
 
@@ -459,22 +466,6 @@ async function extractAttachment(
     return { error: `No text could be read from ${doc.name ?? 'that file'} — a scanned image PDF won't work.` }
   }
   return { text: text.slice(0, MAX_DOCUMENT_CHARS) }
-}
-
-/** The fund's feature settings over the defaults — the same map the nav and the domain APIs gate on. */
-async function loadFeatureVisibility(
-  admin: ReturnType<typeof createAdminClient>,
-  fundId: string,
-): Promise<FeatureVisibilityMap> {
-  const { data } = await admin
-    .from('fund_settings')
-    .select('feature_visibility')
-    .eq('fund_id', fundId)
-    .maybeSingle()
-  return {
-    ...DEFAULT_FEATURE_VISIBILITY,
-    ...((data?.feature_visibility as Partial<FeatureVisibilityMap> | null) ?? {}),
-  }
 }
 
 /**

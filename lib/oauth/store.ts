@@ -32,21 +32,35 @@ function mint(prefix: string): { token: string; hash: string } {
  * Normalize a requested scope string down to what we actually support, and cap it
  * at what the user is allowed to have.
  *
- * `write` is admin-only. A non-admin who requests it is silently downgraded to
- * `read` rather than refused — OAuth's model is that the authorization server
- * grants a subset, and the client is told which scopes it actually got. Refusing
- * outright would just make Claude's connector look broken for ordinary members.
+ * A non-admin who requests more than they can have is silently downgraded rather than refused —
+ * OAuth's model is that the authorization server grants a subset and tells the client which
+ * scopes it actually got. Refusing outright would just make Claude's connector look broken.
  *
- * This is a ceiling, not the final word: every write tool re-checks the owner's
- * live `fund_members.role` on each call (see authorizeToolUse).
+ * The read-only demo can never hold a write token. Everyone else may, because THIS IS ONLY A
+ * CEILING: every call re-reads the owner's live grants and checks the domain the tool touches
+ * (see authorizeToolUse), so a write token held by someone with read-only grants writes nothing.
+ * That per-domain check is what makes it safe to stop asking about the role here — and it's why a
+ * member granted write in a domain can drive it from a connector, exactly as from the UI.
  */
-export function grantableScope(requested: string | null | undefined, role: string): string {
+export function grantableScope(
+  requested: string | null | undefined,
+  role: string,
+  /**
+   * Whether the caller's GRANTS let them write anywhere (lib/access/effective.ts:canWriteAnywhere).
+   * Defaults true so callers that genuinely only know the role still behave as before.
+   *
+   * Without it, a member whose grants are read-only would be handed a write-scoped token and a
+   * consent screen saying "this app can change your data" — while every write was then refused
+   * per-domain. The refusal is correct; the promise was the bug.
+   */
+  canWriteAnywhere: boolean = true,
+): string {
   const asked = (requested ?? 'read')
     .split(/[\s,]+/)
     .map(s => s.trim())
     .filter(s => (SCOPES_SUPPORTED as readonly string[]).includes(s))
 
-  const wantsWrite = asked.includes('write') && role === 'admin'
+  const wantsWrite = asked.includes('write') && role !== 'viewer' && canWriteAnywhere
   return wantsWrite ? 'read write' : 'read'
 }
 

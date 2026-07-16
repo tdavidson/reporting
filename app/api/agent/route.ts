@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { resolveFundFromApiKey, authorizeToolUse } from '@/lib/accounting/api-keys'
+import { resolveFundFromApiKey, authorizeToolUse, loadCredentialAccess } from '@/lib/accounting/api-keys'
 import { agentApiEnabled } from '@/lib/oauth/enabled'
-import { AGENT_TOOLS, getTool, resolveVehicleForTool } from '@/lib/accounting/agent-tools'
+import { AGENT_TOOLS, getTool, resolveVehicleForTool, accessDomainFor, accessDomainForCall, accessFeatureFor } from '@/lib/accounting/agent-tools'
+import { hasAccess } from '@/lib/access/effective'
 import { rateLimit } from '@/lib/rate-limit'
 
 export const runtime = 'nodejs'
@@ -34,8 +35,13 @@ export async function GET(req: NextRequest) {
       { status: 403 }
     )
   }
+  // Filtered to what this credential's owner may actually reach — the same rule tools/call
+  // enforces, so the list never advertises a tool that would be refused.
+  const access = await loadCredentialAccess(admin, auth)
   return NextResponse.json({
-    tools: AGENT_TOOLS.map(t => ({ name: t.name, description: t.description, scope: t.scope, inputSchema: t.inputSchema })),
+    tools: AGENT_TOOLS
+      .filter(t => hasAccess(access, accessDomainFor(t), t.scope, accessFeatureFor(t)))
+      .map(t => ({ name: t.name, description: t.description, scope: t.scope, inputSchema: t.inputSchema })),
   })
 }
 
@@ -57,7 +63,11 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}))
   const tool = getTool(body?.tool)
   if (!tool) return NextResponse.json({ error: `Unknown tool: ${body?.tool}` }, { status: 400 })
-  const denied = authorizeToolUse(tool.scope, auth)
+  // The owner's grants, re-read live: a credential can never exceed the person who authorized it.
+  // `accessDomainForCall` rather than the tool's own domain — an `allocation` call is ordinary
+  // accounting until its action is 'carry'.
+  const access = await loadCredentialAccess(admin, auth)
+  const denied = authorizeToolUse(tool.scope, auth, access, accessDomainForCall(tool, body?.input ?? {}), accessFeatureFor(tool))
   if (denied) return NextResponse.json({ error: denied }, { status: 403 })
 
   // RATE LIMIT. This endpoint can post directly to the ledger and close periods, with no human
@@ -75,7 +85,7 @@ export async function POST(req: NextRequest) {
   try {
     const input = body?.input ?? {}
     const portfolioGroup = await resolveVehicleForTool(tool, admin, auth.fundId, input.vehicle)
-    const result = await tool.handler({ admin, fundId: auth.fundId, portfolioGroup, userId: auth.userId }, input)
+    const result = await tool.handler({ admin, fundId: auth.fundId, portfolioGroup, userId: auth.userId, access }, input)
     return NextResponse.json({ ok: true, result })
   } catch (e) {
     // Don't leak internals to an API-key caller — log the detail, return the message only.

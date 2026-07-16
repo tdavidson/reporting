@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { assertAdminAccess, assertReadAccess } from '@/lib/api-helpers'
+// lp_capital domain (lib/access/route-domains.ts) — it returns per-LP capital with names. The
+// middleware has already checked the caller's grant for this route + method.
+import { assertWriteAccess, assertReadAccess } from '@/lib/api-helpers'
 import { resolveGroupOr400 } from '@/lib/accounting/http-vehicle'
 import { loadPostedLedger, loadEntityNames, loadOwnership } from '@/lib/accounting/load'
 import { computeCapitalAccounts } from '@/lib/accounting/capital-account'
@@ -34,7 +36,7 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const gate = await assertAdminAccess(admin, user.id)
+  const gate = await assertWriteAccess(admin, user.id)
   if (gate instanceof NextResponse) return gate
 
   const body = await req.json().catch(() => ({}))

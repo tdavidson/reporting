@@ -416,7 +416,9 @@ export default function LetterEditorPage() {
               Google Docs
             </Button>
           )}
-          {isAdmin && (fv.lp_portal_access === 'everyone' || fv.lp_portal_access === 'admin') && (
+          {/* Sharing into the portal is the portal's own switch — `lp_portal_access` was a second
+              key for the same idea and has been folded into `lp_portal`. */}
+          {isAdmin && (fv.lp_portal === 'everyone' || fv.lp_portal === 'admin') && (
             <LpShareControl shareEndpoint={`/api/lp-letters/${letterId}/share`} />
           )}
         </div>

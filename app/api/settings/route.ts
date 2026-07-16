@@ -9,7 +9,7 @@ import { encrypt } from '@/lib/crypto'
 import { randomBytes } from 'crypto'
 import { dbError } from '@/lib/api-error'
 import { logActivity } from '@/lib/activity'
-import { DEFAULT_FEATURE_VISIBILITY, FEATURES_WITH_OFF } from '@/lib/types/features'
+import { DEFAULT_FEATURE_VISIBILITY } from '@/lib/types/features'
 import { forgetFundCurrency } from '@/lib/accounting/currency'
 import { validateOllamaUrl } from '@/lib/validate-url'
 import type { FeatureKey, FeatureVisibility, FeatureVisibilityMap } from '@/lib/types/features'
@@ -666,13 +666,15 @@ export async function PATCH(req: NextRequest) {
 
   // Update feature visibility
   if (featureVisibility !== undefined) {
+    // `hidden` stays accepted so stored rows keep working — it resolves identically to `off` and
+    // is no longer offered in the UI. `off` is accepted for EVERY feature now: it used to be
+    // silently dropped for all but four, which meant the button appeared to work and didn't.
     const validLevels: FeatureVisibility[] = ['everyone', 'admin', 'hidden', 'off']
     const validKeys = Object.keys(DEFAULT_FEATURE_VISIBILITY) as FeatureKey[]
     const merged: FeatureVisibilityMap = { ...DEFAULT_FEATURE_VISIBILITY }
     for (const [k, v] of Object.entries(featureVisibility)) {
       if (!validKeys.includes(k as FeatureKey)) continue
       if (!validLevels.includes(v as FeatureVisibility)) continue
-      if (v === 'off' && !FEATURES_WITH_OFF.includes(k as FeatureKey)) continue
       merged[k as FeatureKey] = v as FeatureVisibility
     }
     settingsUpdates.feature_visibility = merged

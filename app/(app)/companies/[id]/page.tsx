@@ -22,7 +22,8 @@ import { AnalystPanel } from '@/components/analyst-panel'
 import { CompanyDocuments } from './company-documents'
 import { CompanyInvestments } from './company-investments'
 import { CompanyInteractions } from './company-interactions'
-import { isFeatureVisible, DEFAULT_FEATURE_VISIBILITY } from '@/lib/types/features'
+import { DEFAULT_FEATURE_VISIBILITY } from '@/lib/types/features'
+import { resolvePageAccess, canViewPage } from '@/lib/access/page-gate'
 import type { FeatureVisibilityMap } from '@/lib/types/features'
 
 function formatHighlightValue(value: number, metric: Metric, fundCurrency: string) {
@@ -83,6 +84,14 @@ export default async function CompanyDetailPage({
 
   const fundCurrency = fundSettings?.currency ?? 'USD'
   const featureVisibility = { ...DEFAULT_FEATURE_VISIBILITY, ...(fundSettings?.feature_visibility as Partial<FeatureVisibilityMap> | null) }
+
+  // These panels each belong to a domain, and their APIs are gated to it. Rendering one for a
+  // member without the grant would show an empty panel that 403s on load, so ask the resolver —
+  // the feature switch alone is only half the answer.
+  const page = await resolvePageAccess(user.id)
+  const showNotes = !!page && canViewPage(page, 'relationships', 'notes')
+  const showInvestments = !!page && canViewPage(page, 'portfolio', 'investments')
+  const showInteractions = !!page && canViewPage(page, 'relationships', 'interactions')
 
   const { data: metrics } = await supabase
     .from('metrics')
@@ -151,8 +160,8 @@ export default async function CompanyDetailPage({
           {(company.industry ?? []).map((ind) => (
             <Badge key={ind} variant="outline">{ind}</Badge>
           ))}
-          {isFeatureVisible(featureVisibility, 'notes', isAdmin) && <ChatButton />}
-          <AnalystButton companyId={company.id} pushRight={!isFeatureVisible(featureVisibility, 'notes', isAdmin)} />
+          {showNotes && <ChatButton />}
+          <AnalystButton companyId={company.id} pushRight={!showNotes} />
         </div>
 
         {(latestMrr || latestCash) && (
@@ -196,7 +205,7 @@ export default async function CompanyDetailPage({
             </>
           )}
 
-          {isFeatureVisible(featureVisibility, 'investments', isAdmin) && (
+          {showInvestments && (
             <CompanyInvestments companyId={company.id} companyStatus={company.status as CompanyStatus} portfolioGroups={company.portfolio_group ?? []} adminOnly={featureVisibility.investments === 'admin'} />
           )}
 
@@ -207,7 +216,7 @@ export default async function CompanyDetailPage({
             dropboxFolderPath={fundSettings?.dropbox_folder_path ?? null}
           />
 
-          {isFeatureVisible(featureVisibility, 'interactions', isAdmin) && (
+          {showInteractions && (
             <CompanyInteractions companyId={company.id} adminOnly={featureVisibility.interactions === 'admin'} />
           )}
 
@@ -259,7 +268,7 @@ export default async function CompanyDetailPage({
           )}
         </div>
 
-        {isFeatureVisible(featureVisibility, 'notes', isAdmin) && <CompanyNotesPanel />}
+        {showNotes && <CompanyNotesPanel />}
         <AnalystPanel />
       </div>
     </div>

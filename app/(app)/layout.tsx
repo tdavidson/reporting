@@ -10,8 +10,10 @@ import {
   getFundData,
   getFundSettings,
   getMembership,
+  getDomainGrants,
   getUpdateAvailable,
 } from '@/lib/cache/layout'
+import { accessContextFrom } from '@/lib/access/effective'
 import { DEFAULT_FEATURE_VISIBILITY } from '@/lib/types/features'
 import type { FeatureVisibilityMap } from '@/lib/types/features'
 import { themeCssVars, type FundTheme } from '@/lib/theme'
@@ -27,12 +29,13 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   if (!fund) redirect('/onboarding')
 
   // All cached queries in parallel
-  const [fundData, membership, fundSettings, reviewBadge, notesBadge] = await Promise.all([
+  const [fundData, membership, fundSettings, reviewBadge, notesBadge, domainGrants] = await Promise.all([
     getFundData(fund.id),
     getMembership(user.id, fund.id),
     getFundSettings(fund.id),
     getReviewBadge(fund.id),
     getNotesBadge(user.id),
+    getDomainGrants(user.id, fund.id),
   ])
 
   const isAdmin = membership?.role === 'admin'
@@ -50,6 +53,19 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     featureVisibility.lp_portal = 'hidden'
     featureVisibility.lp_activity = 'hidden'
   }
+  // The resolver's INPUTS go to the client, which runs the same effectiveAccess the server does.
+  // Not a precomputed answer per domain: that has to pick one feature key per domain, and several
+  // span more than one — which made the nav hide pages the user could actually open.
+  const { role, features, grants, defaults } = accessContextFrom({
+    fundId: fund.id,
+    userId: user.id,
+    role: membership?.role,
+    features: featureVisibility,
+    grants: domainGrants.grants,
+    defaults: domainGrants.defaults,
+  })
+  const domainAccess = { role, features, grants, defaults }
+
   const fundCurrency = fundSettings?.currency ?? 'USD'
   const configuredProviders = [
     fundSettings?.claude_api_key_encrypted ? 'anthropic' : null,
@@ -96,6 +112,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           defaultAIProvider={defaultAIProvider}
           updateAvailable={updateAvailable}
           featureVisibility={featureVisibility}
+          domainAccess={domainAccess}
         >
           {children}
         </AppShell>

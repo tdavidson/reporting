@@ -53,6 +53,34 @@ Migration files that have already shipped to production must not be edited. The 
 
 This repo's owner runs `supabase db push` themselves. AI assistants only create local migration files in `supabase/migrations/`; they do not apply them.
 
+## Access control
+
+### Every new API route needs an access decision
+
+`lib/access/route-domains.ts` maps every route under `app/api/**` to either a domain + level, or an
+explicit `UNGATED_ROUTES` entry with the reason it needs no grant. `lib/access/route-domains.test.ts`
+fails when a route is in neither, so a new route cannot ship without answering the question.
+
+The gate itself is `gateApiRequest` in `middleware.ts` — it resolves every `/api` request through
+`effectiveAccess` before the handler runs (one round trip, via the `access_context` RPC). **Do not**
+re-implement a role check in a route and consider it done: the reason this model exists is that 137
+of 263 routes checked only fund membership and never looked at role. Add the registry entry; the
+boundary does the rest.
+
+**But the registry maps ONE domain per route** — the minimum to call it, not a licence for
+everything in the response. A route whose payload straddles domains must gate the extra part in the
+handler (`hasAccess(access, 'lp_capital', 'read')`), as `/api/accounting/statements` does for the
+statement of changes in partners' capital. When adding a route, ask what its response *contains*,
+not just what it's called.
+
+Access resolves through ONE function, `effectiveAccess` (`lib/access/effective.ts`). Two axes:
+`fund_settings.feature_visibility` is the fund-level ceiling; per-user grants (`fund_member_access`,
+defaulting to `fund_domain_defaults`) narrow it and never widen it. **The order of its checks is the
+policy** — `lib/access/effective.test.ts` pins it; read that before changing the function.
+
+`hidden` and `off` deny every surface, admins included. `hidden` does NOT mean "gone from the nav but
+still reachable by URL" — that was the bug this replaced. See `docs/plan-access-control.md`.
+
 ## Data-access conventions
 
 ### Cross-tenant safety

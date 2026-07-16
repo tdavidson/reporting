@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { notFound, redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { resolvePageAccess, canViewPage } from '@/lib/access/page-gate'
 import { MemoEditor } from './memo-editor'
 import { buildSourceLabels } from '@/lib/memo-agent/render/source-labels'
 
@@ -11,6 +12,14 @@ export default async function DraftPage({ params }: { params: { id: string; draf
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/auth')
+
+  // A SERVER COMPONENT FETCHES ITS OWN DATA — the middleware never sees it, so being in the route
+  // registry does nothing here. Diligence is IC-grade material (memo drafts, call transcripts,
+  // evidence) and defaults to off; without this gate a member denied it still got the page
+  // server-rendered in full.
+  const page = await resolvePageAccess(user.id)
+  if (!page || !canViewPage(page, 'diligence')) redirect('/dashboard')
+
 
   const admin = createAdminClient()
   const { data: membership } = await admin

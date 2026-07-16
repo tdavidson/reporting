@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { assertAdminAccess, assertReadAccess } from '@/lib/api-helpers'
+// accounting domain (lib/access/route-domains.ts). The middleware has already checked the caller's
+// grant for this route + method; these resolve identity and keep the demo out of writes.
+import { assertWriteAccess, assertReadAccess } from '@/lib/api-helpers'
 import { resolveGroupOr400 } from '@/lib/accounting/http-vehicle'
 import { bookCapitalCallFromInflow, bookDistributionFromOutflow, linkInflowToEntry, capitalCallCandidates } from '@/lib/accounting/bank-match'
 
@@ -30,7 +32,7 @@ export async function POST(req: NextRequest) {
   const admin = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  const gate = await assertAdminAccess(admin, user.id)
+  const gate = await assertWriteAccess(admin, user.id)
   if (gate instanceof NextResponse) return gate
 
   const { id, mode, entryId, lpEntityId, perLp, group: bodyGroup } = await req.json().catch(() => ({}))

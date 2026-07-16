@@ -16,6 +16,7 @@ import {
   deriveOriginalCurrency, deriveOriginalPositionValue, formatFxRate,
 } from '@/lib/fx'
 import type { FxRevaluationResult } from '@/lib/fx'
+import { SECURITY_LABELS } from '@/lib/accounting/soi'
 import type { InvestmentTransaction, CompanyStatus } from '@/lib/types/database'
 import type { CompanyInvestmentSummary } from '@/lib/types/investments'
 
@@ -107,6 +108,45 @@ export function CompanyInvestments({ companyId, companyStatus, portfolioGroups, 
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [form, setForm] = useState(EMPTY_FORM)
+
+  // Which terms an instrument actually has. Blank security_type shows everything: rows predating
+  // the column never set it, and hiding their fields would look like data loss.
+  const t = form.security_type
+  const showNoteTerms = t === 'convertible_note'
+  const showDividend = t === 'preferred'
+  // An unpriced instrument has no shares and no per-share price — that is what makes it unpriced.
+  // computeSummary() already values SAFEs and notes as cost + value change rather than
+  // shares × price, so these inputs never reach the valuation for them anyway.
+  const showSharePricing = !(t === 'safe' || t === 'convertible_note')
+  // Ownership is a claim on the cap table. A note or a derivative doesn't hold one until it
+  // converts or is exercised; a number here would be a guess at a future round's arithmetic.
+  const showOwnership = !(t === 'convertible_note' || t === 'warrant' || t === 'option')
+
+  /**
+   * Change the instrument, and drop the terms that no longer belong to it.
+   *
+   * Every field above is hidden for some instrument, so without this a rate typed against a note
+   * would still be submitted after switching to common — saved, invisible, and accruing interest at
+   * the next close. A field you can't see must not still speak.
+   *
+   * This fires on the user changing the instrument, not on opening an existing row: a legacy row
+   * carrying a share price on a SAFE keeps it until someone actually re-picks the type, rather than
+   * being quietly rewritten by the act of opening the dialog.
+   */
+  const onSecurityTypeChange = (security_type: string) =>
+    setForm(f => ({
+      ...f,
+      security_type,
+      interest_rate: security_type === 'convertible_note' ? f.interest_rate : '',
+      maturity_date: security_type === 'convertible_note' ? f.maturity_date : '',
+      dividend_rate: security_type === 'preferred' ? f.dividend_rate : '',
+      shares_acquired: security_type === 'safe' || security_type === 'convertible_note' ? '' : f.shares_acquired,
+      share_price: security_type === 'safe' || security_type === 'convertible_note' ? '' : f.share_price,
+      ownership_pct:
+        security_type === 'convertible_note' || security_type === 'warrant' || security_type === 'option'
+          ? ''
+          : f.ownership_pct,
+    }))
   const [saving, setSaving] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -662,77 +702,100 @@ export function CompanyInvestments({ companyId, companyStatus, portfolioGroups, 
                 </div>
                 <div>
                   <Label>Security Type</Label>
-                  <Input
-                    className="mt-1"
-                    placeholder="Preferred, Convertible note, SAFE…"
+                  {/* A select, not free text: the column has a CHECK constraint, so anything but
+                      these exact values is rejected on insert. It used to be an Input whose
+                      placeholder ("Preferred, Convertible note, SAFE…") suggested three values
+                      that all fail — the form invited an error the database then refused. The
+                      options come from the same map the Schedule of Investments renders. */}
+                  <select
+                    className="mt-1 h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm"
                     value={form.security_type}
-                    onChange={e => setForm(f => ({ ...f, security_type: e.target.value }))}
-                  />
-                  <p className="text-[11px] text-muted-foreground mt-1">Feeds the Schedule of Investments breakout.</p>
+                    onChange={e => onSecurityTypeChange(e.target.value)}
+                  >
+                    <option value="">Not set</option>
+                    {Object.entries(SECURITY_LABELS).map(([value, label]) => (
+                      <option key={value} value={value}>{label}</option>
+                    ))}
+                  </select>
+                  <p className="text-[11px] text-muted-foreground mt-1">Feeds the Schedule of Investments breakout. Leave unset to let it derive one.</p>
                 </div>
-                <div>
-                  <Label>Note Interest Rate (%)</Label>
-                  <Input
-                    className="mt-1"
-                    type="number"
-                    step="any"
-                    placeholder="8"
-                    value={form.interest_rate}
-                    onChange={e => setForm(f => ({ ...f, interest_rate: e.target.value }))}
-                  />
-                  {/* This is the ONLY rate the ledger accrues on. Say so plainly, or someone will
-                      type a preferred dividend rate here and the close will book it as income. */}
-                  <p className="text-[11px] text-muted-foreground mt-1">
-                    Convertible notes only. The close accrues interest on this, simple actual/365,
-                    until conversion or maturity.
-                  </p>
-                </div>
-                <div>
-                  <Label>Note Maturity</Label>
-                  <Input
-                    className="mt-1"
-                    type="date"
-                    value={form.maturity_date}
-                    onChange={e => setForm(f => ({ ...f, maturity_date: e.target.value }))}
-                  />
-                  <p className="text-[11px] text-muted-foreground mt-1">Interest stops here. Leave blank to accrue until conversion.</p>
-                </div>
-                <div>
-                  <Label>Preferred Dividend Rate (%)</Label>
-                  <Input
-                    className="mt-1"
-                    type="number"
-                    step="any"
-                    placeholder="8"
-                    value={form.dividend_rate}
-                    onChange={e => setForm(f => ({ ...f, dividend_rate: e.target.value }))}
-                  />
-                  <p className="text-[11px] text-muted-foreground mt-1">
-                    Accrues to the liquidation preference. <strong>Does not hit the books</strong> —
-                    an undeclared preferred dividend is not income; its effect reaches the
-                    statements through the valuation.
-                  </p>
-                </div>
-                <div>
-                  <Label>Shares Acquired</Label>
-                  <Input
-                    className="mt-1"
-                    type="number"
-                    step="any"
-                    value={form.shares_acquired}
-                    onChange={e => setForm(f => ({ ...f, shares_acquired: e.target.value }))}
-                  />
-                </div>
-                <div>
-                  <Label>Share Price ({symbol.trim()})</Label>
-                  <Input
-                    className="mt-1"
-                    type="number"
-                    step="any"
-                    value={form.share_price}
-                    onChange={e => setForm(f => ({ ...f, share_price: e.target.value }))}
-                  />
-                </div>
+                {/* Note terms belong to a note. Shown only for one, so the form stops asking about
+                    an interest rate on common stock — and `onSecurityTypeChange` clears them when
+                    you switch away, because a hidden field that still submits is worse than a
+                    visible wrong one. */}
+                {showNoteTerms && (
+                  <>
+                    <div>
+                      <Label>Note Interest Rate (%)</Label>
+                      <Input
+                        className="mt-1"
+                        type="number"
+                        step="any"
+                        placeholder="0"
+                        value={form.interest_rate}
+                        onChange={e => setForm(f => ({ ...f, interest_rate: e.target.value }))}
+                      />
+                      {/* This is the ONLY rate the ledger accrues on. Say so plainly, or someone will
+                          type a preferred dividend rate here and the close will book it as income. */}
+                      <p className="text-[11px] text-muted-foreground mt-1">
+                        The close accrues interest on this, simple actual/365, until conversion or
+                        maturity.
+                      </p>
+                    </div>
+                    <div>
+                      <Label>Note Maturity</Label>
+                      <Input
+                        className="mt-1"
+                        type="date"
+                        value={form.maturity_date}
+                        onChange={e => setForm(f => ({ ...f, maturity_date: e.target.value }))}
+                      />
+                      <p className="text-[11px] text-muted-foreground mt-1">Interest stops here. Leave blank to accrue until conversion.</p>
+                    </div>
+                  </>
+                )}
+                {showDividend && (
+                  <div>
+                    <Label>Preferred Dividend Rate (%)</Label>
+                    <Input
+                      className="mt-1"
+                      type="number"
+                      step="any"
+                      placeholder="0"
+                      value={form.dividend_rate}
+                      onChange={e => setForm(f => ({ ...f, dividend_rate: e.target.value }))}
+                    />
+                    <p className="text-[11px] text-muted-foreground mt-1">
+                      Accrues to the liquidation preference. <strong>Does not hit the books</strong> —
+                      an undeclared preferred dividend is not income; its effect reaches the
+                      statements through the valuation.
+                    </p>
+                  </div>
+                )}
+                {showSharePricing && (
+                  <>
+                    <div>
+                      <Label>Shares Acquired</Label>
+                      <Input
+                        className="mt-1"
+                        type="number"
+                        step="any"
+                        value={form.shares_acquired}
+                        onChange={e => setForm(f => ({ ...f, shares_acquired: e.target.value }))}
+                      />
+                    </div>
+                    <div>
+                      <Label>Share Price ({symbol.trim()})</Label>
+                      <Input
+                        className="mt-1"
+                        type="number"
+                        step="any"
+                        value={form.share_price}
+                        onChange={e => setForm(f => ({ ...f, share_price: e.target.value }))}
+                      />
+                    </div>
+                  </>
+                )}
                 <div>
                   <Label>Post-Money Valuation ({symbol.trim()})</Label>
                   <Input
@@ -744,17 +807,19 @@ export function CompanyInvestments({ companyId, companyStatus, portfolioGroups, 
                     placeholder="Post-money valuation of the round"
                   />
                 </div>
-                <div>
-                  <Label>Ownership %</Label>
-                  <Input
-                    className="mt-1"
-                    type="number"
-                    step="any"
-                    value={form.ownership_pct}
-                    onChange={e => setForm(f => ({ ...f, ownership_pct: e.target.value }))}
-                    placeholder="e.g. 15.5"
-                  />
-                </div>
+                {showOwnership && (
+                  <div>
+                    <Label>Ownership %</Label>
+                    <Input
+                      className="mt-1"
+                      type="number"
+                      step="any"
+                      value={form.ownership_pct}
+                      onChange={e => setForm(f => ({ ...f, ownership_pct: e.target.value }))}
+                      placeholder="e.g. 15.5"
+                    />
+                  </div>
+                )}
               </div>
             )}
 

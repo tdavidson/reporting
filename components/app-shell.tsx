@@ -8,7 +8,11 @@ import { AppHeader } from '@/components/app-header'
 import { AppSidebar } from '@/components/app-sidebar'
 import { AppFooter } from '@/components/app-footer'
 import { FeatureVisibilityProvider } from '@/components/feature-visibility-context'
+import { AccessProvider, type ClientAccess } from '@/components/access-context'
 import { DEFAULT_FEATURE_VISIBILITY } from '@/lib/types/features'
+
+/** A member with no grants — the fail-closed default when the shell is rendered without access. */
+const EMPTY_ACCESS: ClientAccess = { role: 'member', features: DEFAULT_FEATURE_VISIBILITY, grants: {}, defaults: {} }
 import type { FeatureVisibilityMap } from '@/lib/types/features'
 
 interface AppShellProps {
@@ -25,14 +29,17 @@ interface AppShellProps {
   defaultAIProvider?: string
   updateAvailable?: boolean
   featureVisibility?: FeatureVisibilityMap
+  /** The access resolver's inputs for this user. Drives what the nav offers. */
+  domainAccess?: ClientAccess
   /** LP portal switched on for this fund. Gates every 'publish/share to LPs' button. */
   lpPortalEnabled?: boolean
   children: React.ReactNode
 }
 
-export function AppShell({ fundName, fundLogo, userEmail, reviewBadge, settingsBadge, notesBadge, isAdmin, currency, hasAIKey, configuredProviders, defaultAIProvider, updateAvailable, featureVisibility, lpPortalEnabled, children }: AppShellProps) {
+export function AppShell({ fundName, fundLogo, userEmail, reviewBadge, settingsBadge, notesBadge, isAdmin, currency, hasAIKey, configuredProviders, defaultAIProvider, updateAvailable, featureVisibility, domainAccess, lpPortalEnabled, children }: AppShellProps) {
   return (
     <FeatureVisibilityProvider value={featureVisibility ?? DEFAULT_FEATURE_VISIBILITY} isAdmin={isAdmin} lpPortalEnabled={lpPortalEnabled ?? false}>
+    <AccessProvider value={domainAccess ?? EMPTY_ACCESS}>
     <CurrencyProvider currency={currency ?? 'USD'}>
       <SidebarProvider>
         <AnalystProvider hasAIKey={hasAIKey ?? false} configuredProviders={configuredProviders ?? []} defaultAIProvider={defaultAIProvider ?? 'anthropic'} fundName={fundName}>
@@ -52,6 +59,7 @@ export function AppShell({ fundName, fundLogo, userEmail, reviewBadge, settingsB
         </AnalystProvider>
       </SidebarProvider>
     </CurrencyProvider>
+    </AccessProvider>
     </FeatureVisibilityProvider>
   )
 }

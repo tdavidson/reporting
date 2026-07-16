@@ -58,8 +58,13 @@ export async function POST(req: NextRequest) {
   const name = (body?.name ?? '').toString().trim()
   if (!name) return NextResponse.json({ error: 'A key name is required' }, { status: 400 })
 
-  // A key never exceeds its owner's role: only admins can mint write keys.
-  const scopes = m.role === 'admin' && !body?.readOnly ? 'read,write' : 'read'
+  // The scope is a CEILING the owner picks, not a grant: it can only ever narrow what they
+  // already have. Every call re-reads their live grants and checks the domain the tool touches
+  // (authorizeToolUse), so a write-scoped key held by someone with read-only grants writes
+  // nothing. That's why this no longer asks whether they're an admin — a member granted write in
+  // a domain can drive it from an agent, exactly as they can from the UI. The viewer check above
+  // still stands: the demo mints nothing.
+  const scopes = body?.readOnly ? 'read' : 'read,write'
 
   const key = generateApiKey()
   const { data, error } = await admin

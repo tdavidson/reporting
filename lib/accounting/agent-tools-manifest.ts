@@ -3,10 +3,36 @@
 // components (e.g. the Settings key-management UI). The handlers live in
 // agent-tools.ts, which merges these with server-side implementations.
 
+import type { Domain } from '@/lib/access/domains'
+import type { FeatureKey } from '@/lib/types/features'
+
 export interface AgentToolMeta {
   name: string
   description: string
   scope: 'read' | 'write'
+  /**
+   * WHICH CONTENT AREA THIS TOOL READS OR WRITES — the authorization answer, checked against the
+   * caller's grants before the tool runs and used to filter what `tools/list` even shows.
+   *
+   * Distinct from `domain` below, which is a DISPATCH concern (does this tool need a vehicle?) and
+   * cannot answer it: several `ledger` tools are really LP capital (capital_accounts) or GP
+   * economics (run_waterfall), and gating those as plain accounting would hand the partners' carry
+   * to anyone who can reconcile the bank.
+   *
+   * Omitted = derived from `domain` (see ACCESS_DOMAIN_BY_DISPATCH in agent-tools.ts). Set it
+   * explicitly wherever that derivation would be wrong.
+   */
+  accessDomain?: Domain
+  /**
+   * The fund-level switch this tool answers to, where its domain has no single one.
+   *
+   * `portfolio`, `relationships` and `lp_relations` each span several independently-switchable
+   * features, so their DOMAIN has no `primaryFeature` — and `effectiveAccess` with no feature
+   * treats the ceiling as wide open. Web routes avoid that by naming their own key
+   * (route-domains.ts); a tool must too, or `hidden`/`off` simply doesn't apply to it over MCP —
+   * not even for an admin.
+   */
+  accessFeature?: FeatureKey
   /**
    * `ledger` tools operate on ONE set of books, so the dispatcher resolves a vehicle for
    * them and injects a `vehicle` argument. EVERY OTHER DOMAIN IS FUND-SCOPED — a company
@@ -31,8 +57,9 @@ const ALLOCATION_ACTIONS = ['management_fee', 'expense', 'gain', 'distribution',
 export const AGENT_TOOL_MANIFEST: AgentToolMeta[] = [
   { name: 'list_accounts', description: "List the fund's chart of accounts (code, name, type).", scope: 'read', inputSchema: EMPTY_SCHEMA },
   { name: 'seed_chart', description: 'Seed the default venture-fund chart of accounts (no-op if any account exists).', scope: 'write', inputSchema: EMPTY_SCHEMA },
-  { name: 'list_entities', description: 'List LP entities with committed capital.', scope: 'read', inputSchema: EMPTY_SCHEMA },
-  { name: 'capital_accounts', description: 'Per-LP capital-account roll-forward (beginning, contributions, distributions, fees, gains, ending) plus fund NAV.', scope: 'read', inputSchema: EMPTY_SCHEMA },
+  // LP identities + commitments — the lp_capital tier, not plain bookkeeping.
+  { name: 'list_entities', description: 'List LP entities with committed capital.', scope: 'read', accessDomain: 'lp_capital', inputSchema: EMPTY_SCHEMA },
+  { name: 'capital_accounts', description: 'Per-LP capital-account roll-forward (beginning, contributions, distributions, fees, gains, ending) plus fund NAV.', scope: 'read', accessDomain: 'lp_capital', inputSchema: EMPTY_SCHEMA },
   { name: 'financial_statements', description: 'Trial balance, balance sheet, and income statement derived from posted entries.', scope: 'read', inputSchema: EMPTY_SCHEMA },
   {
     name: 'list_journal',
@@ -132,6 +159,8 @@ export const AGENT_TOOL_MANIFEST: AgentToolMeta[] = [
     name: 'reconcile',
     description: "Reconcile the ledger's capital accounts against admin figures. `admin` is { lpEntityId: { ending, ... } }.",
     scope: 'read',
+    // Returns per-LP capital figures, so it sits with the capital accounts it reconciles.
+    accessDomain: 'lp_capital',
     inputSchema: {
       type: 'object',
       properties: {
@@ -166,6 +195,8 @@ export const AGENT_TOOL_MANIFEST: AgentToolMeta[] = [
     name: 'book_capital_call',
     description: 'Turn a bank inflow into a per-LP allocated capital call (pro-rata by commitment), replacing its two-line draft.',
     scope: 'write',
+    // Allocates per LP by commitment — LP capital, not just a bank entry.
+    accessDomain: 'lp_capital',
     inputSchema: {
       type: 'object',
       required: ['bankTransactionId'],
@@ -188,6 +219,8 @@ export const AGENT_TOOL_MANIFEST: AgentToolMeta[] = [
     name: 'run_waterfall',
     description: 'Compute a European carried-interest waterfall for a distribution (pure calc; does not post).',
     scope: 'read',
+    // Carry. Pure calc or not, the answer IS the GP's economics.
+    accessDomain: 'gp_economics',
     inputSchema: {
       type: 'object',
       required: ['distributable', 'terms', 'state'],

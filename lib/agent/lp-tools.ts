@@ -12,6 +12,7 @@
 // at another fund's LPs. Every query below is still explicitly scoped to `fundId` anyway.
 
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { hasAccess, type AccessContext } from '@/lib/access/effective'
 import type { AgentToolContext, AgentToolHandler } from '@/lib/accounting/agent-tools'
 import { listVehicles } from '@/lib/accounting/load'
 import { generateLiveReport, type LiveInvestmentRow } from '@/lib/accounting/live-report'
@@ -126,6 +127,13 @@ function applyFilters<T extends { entity_id?: string; portfolio_group?: string }
   if (opts.entityIds) out = out.filter(r => r.entity_id && opts.entityIds!.has(r.entity_id))
   if (opts.vehicle) out = out.filter(r => r.portfolio_group === opts.vehicle)
   return out
+}
+
+/** Strip the carry line from a capital roll-forward unless the caller holds gp_economics. */
+function withoutCarry<T extends { carriedInterest?: number }>(rollForward: T, access: AccessContext): T {
+  if (!rollForward || hasAccess(access, 'gp_economics', 'read')) return rollForward
+  const { carriedInterest: _carry, ...rest } = rollForward
+  return rest as T
 }
 
 export const LP_HANDLERS: Record<string, AgentToolHandler> = {
@@ -319,7 +327,7 @@ export const LP_HANDLERS: Record<string, AgentToolHandler> = {
     }
   },
 
-  lp_statement: async ({ admin, fundId }: AgentToolContext, input: any) => {
+  lp_statement: async ({ admin, fundId, access }: AgentToolContext, input: any) => {
     const vehicle = await resolveVehicle(admin, fundId, String(input?.vehicle ?? ''))
     const identities = await loadIdentities(admin, fundId)
     const matches = resolveLp(identities, String(input?.lp ?? ''))
@@ -357,8 +365,11 @@ export const LP_HANDLERS: Record<string, AgentToolHandler> = {
         receivable: result.row.receivable,
         ending_balance: result.row.ending,
       },
-      roll_forward_itd: result.rollForward,
-      roll_forward_period: result.periodRollForward,
+      // The roll-forward carries a `carriedInterest` line — GP economics, not LP capital. On the
+      // GP's own statement that line IS the carry. Dropped rather than zeroed; 0 would read as
+      // "none accrued".
+      roll_forward_itd: withoutCarry(result.rollForward, access),
+      roll_forward_period: withoutCarry(result.periodRollForward, access),
       transactions: result.transactions.map(t => ({
         date: t.date,
         memo: t.memo,

@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { assertAdminAccess } from '@/lib/api-helpers'
+// accounting domain (see lib/access/route-domains.ts). The middleware has already checked the
+// caller's grant for this route + method; these resolve identity and keep the demo out of writes.
+import { assertWriteAccess, assertReadAccess } from '@/lib/api-helpers'
 import { retagPortfolioGroup } from '@/lib/vehicles'
 import { dbError } from '@/lib/api-error'
 
@@ -17,7 +19,8 @@ export async function GET() {
   const admin = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  const gate = await assertAdminAccess(admin, user.id)
+  // Listing vehicles reads. (Using the write helper here would newly refuse the read-only demo.)
+  const gate = await assertReadAccess(admin, user.id)
   if (gate instanceof NextResponse) return gate
 
   // serves_vehicle_id / lp_entity_id may not exist until their migrations are pushed — fall back.
@@ -45,7 +48,7 @@ export async function POST(req: NextRequest) {
   const admin = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  const gate = await assertAdminAccess(admin, user.id)
+  const gate = await assertWriteAccess(admin, user.id)
   if (gate instanceof NextResponse) return gate
 
   const body = await req.json().catch(() => ({}))
@@ -73,7 +76,7 @@ export async function PATCH(req: NextRequest) {
   const admin = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  const gate = await assertAdminAccess(admin, user.id)
+  const gate = await assertWriteAccess(admin, user.id)
   if (gate instanceof NextResponse) return gate
 
   const body = await req.json().catch(() => ({}))

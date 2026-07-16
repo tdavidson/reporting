@@ -24,9 +24,12 @@ import { StyleAnchorsInline } from './memo-agent/style-anchors/style-anchors-inl
 import { SchemasInline } from './memo-agent/schemas/schemas-inline'
 import { AppearanceEditor } from './appearance/editor'
 import { AlertCircle, Check, ChevronDown, ChevronRight, Loader2, Plus, Trash2, Copy, FolderOpen, Unlink, Shield, ImagePlus, X, Lock, ArrowDownCircle, Eye } from 'lucide-react'
-import { DEFAULT_FEATURE_VISIBILITY, FEATURES_WITH_OFF } from '@/lib/types/features'
-import type { FeatureKey, FeatureVisibility } from '@/lib/types/features'
+import { DEFAULT_FEATURE_VISIBILITY } from '@/lib/types/features'
+import type { FeatureKey, FeatureVisibility, FeatureVisibilityMap } from '@/lib/types/features'
+import { FEATURE_META } from '@/lib/types/feature-meta'
 import { AnalystToggleButton } from '@/components/analyst-button'
+import { AccessGrid } from '@/components/settings-access-grid'
+import { SettingsCard, SettingsCardGrid } from '@/components/settings-card'
 import { AnalystPanel } from '@/components/analyst-panel'
 import { AffinityConnect } from '@/components/settings/affinity-connect'
 import { HeartbeatConnect } from '@/components/settings/heartbeat-connect'
@@ -180,7 +183,7 @@ export default function SettingsPage() {
             <AppearanceEditor />
           </Section>
           <CurrencySection currency={settings.currency} onSaved={load} />
-          <FeatureVisibilitySection featureVisibility={settings.featureVisibility} onSaved={load} />
+          <FeatureVisibilitySection featureVisibility={settings.featureVisibility} lpPortalEnabled={settings.lpPortalEnabled} onSaved={load} />
           <Section title="Investment vehicles">
             <VehiclesSettings />
           </Section>
@@ -280,9 +283,6 @@ export default function SettingsPage() {
           <GroupHeader label="Diligence" />
           <MemoAgentSection />
 
-          <GroupHeader label="LP Portal" />
-          <LpPortalSection enabled={settings.lpPortalEnabled} onSaved={load} />
-
           <GroupHeader label="Storage" />
           <StorageSection
             fundId={settings.fundId}
@@ -311,7 +311,7 @@ export default function SettingsPage() {
           <GroupHeader label="Access Control" />
           <AuthEmailTemplatesSection />
           <WhitelistSection />
-          <TeamSection isAdmin={settings.isAdmin} />
+          <TeamSection isAdmin={settings.isAdmin} featureVisibility={settings.featureVisibility} />
           <DangerZone onDeleted={() => router.push('/auth')} />
         </AdminSectionContext.Provider>
       )}
@@ -676,33 +676,32 @@ function CurrencySection({ currency, onSaved }: { currency: string; onSaved: () 
 
 // ──────────────────────────── Feature Visibility ────────────────────────────
 
-const FEATURE_META: Record<FeatureKey, { label: string; description: string; href: string }> = {
-  interactions: { label: 'Interactions', description: 'Track emails, intros, and meetings with portfolio companies', href: '/support#interactions' },
-  investments: { label: 'Investments', description: 'Fund investments, ownership, and round details per company', href: '/support#investments' },
-  notes: { label: 'Notes', description: 'Internal team notes and comments on companies', href: '/support#notes' },
-  lp_letters: { label: 'LP Letters', description: 'Generate and manage quarterly LP update letters', href: '/support#lp-letters' },
-  imports: { label: 'Imports', description: 'Bulk import companies and metrics from CSV files', href: '/support#import' },
-  asks: { label: 'Asks', description: 'Track and send portfolio company requests to your network', href: '/support#asks' },
-  lps: { label: 'LPs', description: 'Investor-level report cards with consolidated performance across fund vehicles', href: '/support#lps' },
-  lp_tracking: { label: 'LP capital tracking', description: 'Per-vehicle LP capital accounts from pasted or manually-entered dated positions (or from the ledger when accounting is on). The input surface for capital tracking without full fund accounting.', href: '/support#lps' },
-  lp_associates: { label: 'GP Entities', description: 'Entity ownership mappings and pro-rata associates calculations for LP reporting', href: '/support#lps' },
-  lp_portal_access: { label: 'LP portal controls', description: 'Admin controls for the LP portal: the "Share with LPs" panels on snapshots and letters, and managing authorized users', href: '/support#lps' },
-  lp_portal: { label: 'LPs Documents', description: 'Who can see the LPs Documents page (invite LPs, upload documents, read LP messages). Only takes effect while the LP portal is enabled below.', href: '/support#lps' },
-  lp_activity: { label: 'LPs Activity', description: 'Who can see the LPs Activity page — the access log of which LPs and authorized users logged in, viewed, or downloaded documents. Only takes effect while the LP portal is enabled below.', href: '/support#lps' },
-  compliance: { label: 'Compliance', description: 'Track regulatory deadlines, filings, and compliance workflows', href: '/support#compliance' },
-  deals: { label: 'Deals', description: 'Inbound deal pitches screened against your fund thesis', href: '/support#deals' },
-  diligence: { label: 'Diligence', description: 'Pre-investment record-keeping and AI-assisted memo drafting', href: '/support#diligence' },
-  accounting: { label: 'Accounting', description: 'Double-entry ledger, capital accounts, schedule of investments, and financial statements (in development)', href: '/support#accounting' },
-}
 
+// These four set the fund-level CEILING, not the answer: a member also needs the matching per-user
+// grant (Team, below). "Members" therefore means "each member reaches it subject to their grant" —
+// hence labels that name the grant rather than promising blanket visibility.
+//
+// "Hidden" used to read "Removed from sidebar, still accessible via URL". That was accurate and it
+// was the bug: hiding a page while its API still served the data is not access control. Hidden now
+// denies every surface.
 const VISIBILITY_OPTIONS: { value: FeatureVisibility; label: string; description: string }[] = [
-  { value: 'everyone', label: 'Everyone', description: 'Visible to all team members' },
-  { value: 'admin', label: 'Admin only', description: 'Only visible to admins' },
-  { value: 'hidden', label: 'Hidden', description: 'Removed from sidebar, still accessible via URL' },
-  { value: 'off', label: 'Off', description: 'Functionally disabled' },
+  { value: 'everyone', label: 'Members', description: 'On — each member gets what you grant them below' },
+  { value: 'admin', label: 'Admins only', description: 'On — no member can be granted it' },
+  { value: 'off', label: 'Off', description: 'Nobody, admins included. Data is kept.' },
 ]
 
-function FeatureVisibilitySection({ featureVisibility, onSaved }: { featureVisibility: Record<string, string>; onSaved: () => void }) {
+/** Stored `hidden` is the same as `off` now — show it as Off rather than a fourth button. */
+const displayLevel = (level: FeatureVisibility): FeatureVisibility => (level === 'hidden' ? 'off' : level)
+
+function FeatureVisibilitySection({
+  featureVisibility,
+  lpPortalEnabled,
+  onSaved,
+}: {
+  featureVisibility: Record<string, string>
+  lpPortalEnabled: boolean
+  onSaved: () => void
+}) {
   const [values, setValues] = useState<Record<string, string>>(featureVisibility)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -729,27 +728,37 @@ function FeatureVisibilitySection({ featureVisibility, onSaved }: { featureVisib
   return (
     <Section title="Feature visibility">
       <p className="text-xs text-muted-foreground mb-4">
-        Control which features are visible to your team. Hidden features can still be accessed directly by URL. Only Interactions supports being fully turned off.
+        Whether each area is on for the fund, and the most anyone may have. This is only half the
+        answer for a member — set what each person gets under Team → Access below. Off denies
+        everyone, admins included.
       </p>
-      <div className="space-y-4">
-        {features.map(key => {
-          const current = (values[key] ?? DEFAULT_FEATURE_VISIBILITY[key]) as FeatureVisibility
-          const options = FEATURES_WITH_OFF.includes(key)
-            ? VISIBILITY_OPTIONS
-            : VISIBILITY_OPTIONS.filter(o => o.value !== 'off')
 
+      {/* The one switch here that isn't about your team. It decides whether your INVESTORS have a
+          portal at all — and the two LP cards below only mean anything while it's on, which is why
+          it sits with them rather than in a section of its own further down the page. */}
+      <div className="mb-3">
+        <LpPortalCard enabled={lpPortalEnabled} onSaved={onSaved} />
+      </div>
+
+      <SettingsCardGrid>
+        {features.map(key => {
+          const current = displayLevel((values[key] ?? DEFAULT_FEATURE_VISIBILITY[key]) as FeatureVisibility)
           const meta = FEATURE_META[key]
           return (
-            <div key={key}>
-              <div className="mb-1.5">
-                <p className="text-sm font-medium">{meta.label}</p>
-                <p className="text-xs text-muted-foreground">
+            <SettingsCard
+              key={key}
+              title={meta.label}
+              subtitle={
+                <>
                   {meta.description}{' '}
                   <Link href={meta.href} className="underline underline-offset-2 hover:text-foreground">Learn more</Link>
-                </p>
-              </div>
+                </>
+              }
+            >
+              {/* One button per level rather than a select: there are only three, and which one is
+                  active is the thing you scan a long list for. */}
               <div className="flex flex-wrap gap-1.5">
-                {options.map(opt => (
+                {VISIBILITY_OPTIONS.map(opt => (
                   <button
                     key={opt.value}
                     onClick={() => handleChange(key, opt.value)}
@@ -764,10 +773,10 @@ function FeatureVisibilitySection({ featureVisibility, onSaved }: { featureVisib
                   </button>
                 ))}
               </div>
-            </div>
+            </SettingsCard>
           )
         })}
-      </div>
+      </SettingsCardGrid>
       {saving && <p className="text-xs text-muted-foreground mt-3">Saving...</p>}
       {saved && <p className="text-xs text-green-600 mt-3">Saved</p>}
     </Section>
@@ -3941,7 +3950,9 @@ interface JoinRequest {
   createdAt: string
 }
 
-function TeamSection({ isAdmin }: { isAdmin: boolean }) {
+// `featureVisibility` is threaded through to the access grid so it re-derives what's grantable the
+// moment a switch above changes — see AccessGrid's note.
+function TeamSection({ isAdmin, featureVisibility }: { isAdmin: boolean; featureVisibility: Record<string, string> }) {
   const [members, setMembers] = useState<Member[]>([])
   const [pendingRequests, setPendingRequests] = useState<JoinRequest[]>([])
   const [loading, setLoading] = useState(true)
@@ -4073,6 +4084,16 @@ function TeamSection({ isAdmin }: { isAdmin: boolean }) {
                   </div>
                 ))}
               </div>
+            </div>
+          )}
+
+          {/* Who can reach what. Sits with the roster deliberately: "who is on the team" and
+              "what they can see" are one decision, and splitting them across two screens is how
+              you end up with a member nobody remembered to scope. */}
+          {isAdmin && (
+            <div className="pt-2 border-t">
+              <p className="text-xs font-medium mb-2 mt-3">Access</p>
+              <AccessGrid featureVisibility={featureVisibility as FeatureVisibilityMap} />
             </div>
           )}
         </div>
@@ -4265,7 +4286,18 @@ function UsageTrackingSection({
 
 // ──────────────────────────── LP Portal ────────────────────────────
 
-function LpPortalSection({ enabled, onSaved }: { enabled: boolean; onSaved: () => void }) {
+/**
+ * The LP portal's master switch, shown at the top of Feature visibility.
+ *
+ * It is NOT a visibility level, and deliberately doesn't look like one: everything else in that
+ * section decides what your TEAM sees, while this decides whether your INVESTORS have a portal at
+ * all. It used to sit in a section of its own much further down the page, which made it easy to
+ * configure "LP documents & sharing" for the team and wonder why nothing reached anyone.
+ *
+ * When off, the layout forces the LP cards to hidden and their pages redirect — so those cards
+ * mean nothing until this is on.
+ */
+function LpPortalCard({ enabled, onSaved }: { enabled: boolean; onSaved: () => void }) {
   const [on, setOn] = useState(enabled)
   const [saving, setSaving] = useState(false)
 
@@ -4282,16 +4314,16 @@ function LpPortalSection({ enabled, onSaved }: { enabled: boolean; onSaved: () =
   }
 
   return (
-    <Section title="LP Portal">
-      <p className="text-xs text-muted-foreground mb-4">
-        When on, snapshots you share with an investor become visible to them in their own LP portal, and the <strong>LPs → Documents</strong> and <strong>Activity</strong> pages become available (invite LPs, upload documents, read LP messages, and view LP activity). When off, the portal is disabled for this fund — nothing reaches LPs and those pages are hidden for everyone. Control who on your team can see them under &ldquo;Feature visibility&rdquo; above.
-      </p>
+    <SettingsCard
+      title="LP portal"
+      subtitle="For your investors, not your team: whether LPs can sign in and see what you’ve shared. While it’s off, “LP documents & sharing” and “LP activity log” are unavailable — to your team and to you. Everything else LP-related (letters, LP capital, GP entities) works either way."
+      aside={saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : undefined}
+    >
       <div className="flex items-center gap-3">
         <Switch checked={on} onCheckedChange={handleToggle} disabled={saving} />
-        <Label className="text-sm font-normal">Enable the LP portal for this fund</Label>
-        {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+        <Label className="text-sm font-normal">{on ? 'On — LPs can sign in' : 'Off — nothing reaches LPs'}</Label>
       </div>
-    </Section>
+    </SettingsCard>
   )
 }
 

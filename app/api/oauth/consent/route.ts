@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getClient, redirectUriAllowed, issueAuthorizationCode, grantableScope } from '@/lib/oauth/store'
+import { canWriteAnywhere, loadAccessContext } from '@/lib/access/effective'
 import { agentApiEnabled } from '@/lib/oauth/enabled'
 
 /**
@@ -74,9 +75,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Agent access is disabled for this fund' }, { status: 403 })
   }
 
-  // Cap the grant at what this person is actually allowed to hand out. A
-  // non-admin asking for `write` is downgraded to `read`, not refused.
-  const scope = grantableScope(requestedScope, role)
+  // Cap the grant at what this person can actually hand out — by ROLE (the demo may not authorize
+  // agents at all) and by their GRANTS (someone read-only everywhere gets a read-only token, not a
+  // write token whose every write is then refused). Asking for more is downgraded, not refused:
+  // OAuth's model is that the server grants a subset and tells the client what it got.
+  const access = await loadAccessContext(admin, fundId, user.id, role)
+  const scope = grantableScope(requestedScope, role, canWriteAnywhere(access))
 
   const code = await issueAuthorizationCode(admin, {
     clientId,

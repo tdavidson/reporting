@@ -5,6 +5,9 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { AGENT_TOOL_MANIFEST, type AgentToolMeta } from './agent-tools-manifest'
+import type { Domain } from '@/lib/access/domains'
+import { hasAccess, type AccessContext } from '@/lib/access/effective'
+import type { FeatureKey } from '@/lib/types/features'
 import { DEFAULT_CHART } from './chart'
 import { loadPostedLedger, loadEntityNames, loadOwnership } from './load'
 import { accountIdByCode, persistEntry } from './persist'
@@ -40,6 +43,12 @@ export interface AgentToolContext {
   /** The vehicle (portfolio_group) this call operates on. */
   portfolioGroup: string
   userId: string | null
+  /**
+   * The credential owner's live access. `authorizeToolUse` has already cleared the tool's own
+   * domain — this is for handlers whose RESPONSE straddles domains and must trim it, exactly as a
+   * route with a mixed payload does. Required, so a new tool can't quietly skip the question.
+   */
+  access: AccessContext
 }
 
 export type AgentToolHandler = (ctx: AgentToolContext, input: any) => Promise<any>
@@ -69,10 +78,17 @@ const HANDLERS: Record<string, AgentToolHandler> = {
     return Array.from(names.entries()).map(([lpEntityId, name]) => ({ lpEntityId, name, commitment: commitment.get(lpEntityId) ?? 0 }))
   },
 
-  capital_accounts: async ({ admin, fundId, portfolioGroup }) => {
+  capital_accounts: async ({ admin, fundId, portfolioGroup, access }) => {
     const [{ capitalPostings }, names] = await Promise.all([loadPostedLedger(admin, fundId, portfolioGroup), loadEntityNames(admin, fundId, portfolioGroup)])
     const accounts = computeCapitalAccounts(capitalPostings)
-    const rows = Array.from(accounts.entries()).map(([lpEntityId, account]) => ({ lpEntityId, name: names.get(lpEntityId) ?? lpEntityId, ...account }))
+    // Every roll-forward carries a `carriedInterest` line, and the GP's row IS the carry — so a
+    // capital-accounts read would hand over GP economics to anyone with lp_capital. Dropped
+    // rather than zeroed: 0 would read as "no carry accrued", which is a lie, not a redaction.
+    const showCarry = hasAccess(access, 'gp_economics', 'read')
+    const rows = Array.from(accounts.entries()).map(([lpEntityId, account]) => {
+      const { carriedInterest, ...rest } = account
+      return { lpEntityId, name: names.get(lpEntityId) ?? lpEntityId, ...(showCarry ? account : rest) }
+    })
     return { rows, nav: totalNav(accounts) }
   },
 
@@ -237,6 +253,52 @@ export function getTool(name: string): AgentTool | undefined {
 /** Ledger tools are scoped to a vehicle; portfolio tools are scoped to the fund. */
 export function isLedgerTool(tool: AgentToolMeta): boolean {
   return (tool.domain ?? 'ledger') === 'ledger'
+}
+
+/**
+ * The dispatch grouping's access domain, where a tool doesn't name its own. A default, not a
+ * synonym: `ledger` covers plain bookkeeping, but several ledger tools are really LP capital or GP
+ * economics and say so via `accessDomain`.
+ */
+const ACCESS_DOMAIN_BY_DISPATCH: Record<NonNullable<AgentToolMeta['domain']>, Domain> = {
+  ledger: 'accounting',
+  portfolio: 'portfolio',
+  diligence: 'diligence',
+  deals: 'dealflow',
+  lp: 'lp_capital',
+}
+
+/** Which content area a tool touches — the question `authorizeToolUse` answers against. */
+export function accessDomainFor(tool: AgentToolMeta): Domain {
+  return tool.accessDomain ?? ACCESS_DOMAIN_BY_DISPATCH[tool.domain ?? 'ledger']
+}
+
+/**
+ * The fund-level switch a tool answers to, if it named one.
+ *
+ * Domains that span several switches have no `primaryFeature`, and `effectiveAccess` with no
+ * feature treats the ceiling as open — so a tool under `portfolio`/`relationships`/`lp_relations`
+ * that doesn't name its key is NOT subject to hidden/off over MCP, admins included. Web routes
+ * name theirs in route-domains.ts; this is the same idea for tools.
+ */
+export function accessFeatureFor(tool: AgentToolMeta): FeatureKey | undefined {
+  return tool.accessFeature
+}
+
+/**
+ * Tools whose domain depends on their INPUT. Only one so far, and it earns its keep: `allocation`
+ * runs the whole period close — fees, expenses, gains — which is ordinary accounting work, but the
+ * same tool with `action: 'carry'` computes and returns each partner's carry. Gating the tool at
+ * gp_economics would lock ops staff out of the close; gating it at accounting would hand them the
+ * carry. So the action decides.
+ */
+const INPUT_ELEVATIONS: Record<string, (input: any) => Domain | null> = {
+  allocation: input => (input?.action === 'carry' ? 'gp_economics' : null),
+}
+
+/** The domain a specific CALL touches, accounting for input-dependent elevation. */
+export function accessDomainForCall(tool: AgentToolMeta, input: unknown): Domain {
+  return INPUT_ELEVATIONS[tool.name]?.(input) ?? accessDomainFor(tool)
 }
 
 /**

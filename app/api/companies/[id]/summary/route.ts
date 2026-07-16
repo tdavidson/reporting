@@ -7,6 +7,7 @@ import type { ContentBlock } from '@/lib/ai/types'
 import { logAIUsage } from '@/lib/ai/usage'
 import { logActivity } from '@/lib/activity'
 import { buildCompanyContext } from '@/lib/ai/context-builder'
+import { hasAccess, loadAccessContext } from '@/lib/access/effective'
 import {
   extractAttachmentText,
   hydrateAttachments,
@@ -19,7 +20,7 @@ import { rateLimit } from '@/lib/rate-limit'
 async function verifyCompanyAccess(supabase: ReturnType<typeof createClient>, admin: ReturnType<typeof createAdminClient>, userId: string, companyId: string) {
   const { data: membership } = await admin
     .from('fund_members')
-    .select('fund_id')
+    .select('fund_id, role')
     .eq('user_id', userId)
     .maybeSingle()
 
@@ -34,7 +35,7 @@ async function verifyCompanyAccess(supabase: ReturnType<typeof createClient>, ad
   if (!company) return { error: NextResponse.json({ error: 'Not found' }, { status: 404 }) }
   if (company.fund_id !== membership.fund_id) return { error: NextResponse.json({ error: 'Forbidden' }, { status: 403 }) }
 
-  return { fundId: membership.fund_id }
+  return { fundId: membership.fund_id, role: membership.role }
 }
 
 // ---------------------------------------------------------------------------
@@ -147,8 +148,13 @@ export async function POST(
   const access = await verifyCompanyAccess(supabase, admin, user.id, params.id)
   if ('error' in access) return access.error
 
-  // Build shared context
-  const ctx = await buildCompanyContext(admin, params.id)
+  // Build shared context. Team notes are the `relationships` domain — a member who can draft a
+  // company summary is not thereby entitled to the team's internal commentary about it, and an
+  // AI summary is a very effective way to launder that distinction away.
+  const ctxAccess = await loadAccessContext(admin, access.fundId, user.id, access.role)
+  const ctx = await buildCompanyContext(admin, params.id, {
+    includeTeamNotes: hasAccess(ctxAccess, 'relationships', 'read', 'notes'),
+  })
   if (!ctx) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   const { company, currentPeriodLabel, metricsBlock, reportContentBlock, previousSummariesBlock, documentsBlock } = ctx

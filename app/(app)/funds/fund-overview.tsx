@@ -32,8 +32,10 @@ interface Vehicle {
   lpCount: number
   fund: Metrics
   lp: Metrics
-  gp: Metrics
-  carryAccrued: number
+  // Absent when the viewer lacks gp_economics — the API omits them rather than zeroing them, so
+  // "no carry" and "not allowed to see the carry" stay distinguishable. `lp` is already net of it.
+  gp?: Metrics
+  carryAccrued?: number
 }
 
 type Lens = 'lp' | 'fund'
@@ -95,7 +97,7 @@ export function FundOverview() {
   // out. Tracking vehicles cut over from an LP snapshot have only LP-class partners, so net-to-LP
   // and whole-fund are identical and the toggle would look dead. Show it only when it changes a
   // number.
-  const hasGpSplit = live.some(v => v.gp.paidIn !== 0 || v.gp.nav !== 0 || v.carryAccrued !== 0)
+  const hasGpSplit = live.some(v => (v.gp?.paidIn ?? 0) !== 0 || (v.gp?.nav ?? 0) !== 0 || (v.carryAccrued ?? 0) !== 0)
   const effectiveLens: Lens = hasGpSplit ? lens : 'fund'
   const m = (v: Vehicle) => (effectiveLens === 'lp' ? v.lp : v.fund)
 
@@ -114,7 +116,7 @@ export function FundOverview() {
     const x = m(v)
     acc.committed += x.committed; acc.paidIn += x.paidIn; acc.uncalled += x.uncalled
     acc.distributions += x.distributions; acc.nav += x.nav; acc.totalValue += x.totalValue
-    acc.carry += v.carryAccrued
+    acc.carry += v.carryAccrued ?? 0
     return acc
   }, { committed: 0, paidIn: 0, uncalled: 0, distributions: 0, nav: 0, totalValue: 0, carry: 0 })
 

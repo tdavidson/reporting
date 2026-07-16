@@ -54,6 +54,9 @@ export const PORTFOLIO_TOOL_MANIFEST: AgentToolMeta[] = [
     description: 'The raw investment transactions (purchases, marks, FX revaluations, proceeds) for a company, or for a whole vehicle.',
     scope: 'read',
     domain: 'portfolio',
+    // Same switch its web equivalent (api/portfolio/investments) names. Without it, hiding the
+    // Investments feature wouldn't apply over MCP.
+    accessFeature: 'investments',
     inputSchema: {
       type: 'object',
       properties: {
@@ -80,6 +83,11 @@ export const PORTFOLIO_TOOL_MANIFEST: AgentToolMeta[] = [
     description: 'Fund-level performance per vehicle: committed, called, distributed, NAV, DPI, RVPI, TVPI, and gross MOIC on invested capital.',
     scope: 'read',
     domain: 'portfolio',
+    // Committed / called / distributed / NAV, read straight from the LP register — the fund's
+    // financial position, not the portfolio's. Its route sibling (/api/accounting/fund-economics)
+    // is gated `accounting`, and this must match: `portfolio` has no fund-level switch, so
+    // leaving it there served the books to any member even with accounting switched off.
+    accessDomain: 'accounting',
     inputSchema: {
       type: 'object',
       properties: { vehicle: VEHICLE_FILTER },
@@ -101,6 +109,10 @@ export const PORTFOLIO_TOOL_MANIFEST: AgentToolMeta[] = [
     description: 'LP positions per vehicle: commitment, paid-in, distributions, NAV and multiples for each partner.',
     scope: 'read',
     domain: 'portfolio',
+    // Named partners and their commitments. Dispatched as a portfolio tool (fund-scoped, no
+    // vehicle injection), but it is LP capital for access — the two fields answer different
+    // questions.
+    accessDomain: 'lp_capital',
     inputSchema: {
       type: 'object',
       properties: { vehicle: VEHICLE_FILTER },
@@ -114,6 +126,7 @@ export const PORTFOLIO_TOOL_MANIFEST: AgentToolMeta[] = [
       'For an FX revaluation set valuation_change_source="fx" and supply fx_rate/prior_fx_rate/original_position_value.',
     scope: 'write',
     domain: 'portfolio',
+    accessFeature: 'investments',
     inputSchema: {
       type: 'object',
       properties: {

@@ -1,5 +1,9 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import { matchRoute } from '@/lib/access/match-route'
+import { ROUTE_DOMAINS, UNGATED_ROUTES, requiredLevel } from '@/lib/access/route-domains'
+import { hasAccess, resolveAccessContext } from '@/lib/access/effective'
+import { DOMAIN_META } from '@/lib/access/domains'
 
 export async function middleware(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request })
@@ -93,6 +97,23 @@ export async function middleware(request: NextRequest) {
     }
   }
 
+  // ── Per-domain access gate for the API ───────────────────────────────────
+  //
+  // THE choke point. Every /api request resolves to a route in lib/access/route-domains.ts and is
+  // checked against the caller's grants before the handler runs.
+  //
+  // It lives here rather than in 263 route files because that is exactly what failed: 137 of them
+  // checked only "are you in this fund" and never looked at role — not by decision, but because
+  // nothing made them. A gate a route must remember to call is a gate that gets forgotten. Routes
+  // keep their own helpers as defence in depth; this is the boundary.
+  //
+  // Reads use the caller's own session (RLS-scoped), so the edge never holds a service-role key:
+  // fund_settings, fund_member_access, and fund_domain_defaults are all readable by their owner.
+  if (user && isApiRoute) {
+    const denial = await gateApiRequest(supabase, request, user.id)
+    if (denial) return denial
+  }
+
   // ── LP / GP route separation ─────────────────────────────────────────────
   // The GP (fund_members) and LP (lp_accounts) access graphs are independent;
   // route context decides which applies. /portal is LP-only; the GP app is for
@@ -129,6 +150,56 @@ export async function middleware(request: NextRequest) {
   }
 
   return supabaseResponse
+}
+
+/**
+ * Deny an API request the caller has no grant for; null lets it through.
+ *
+ * Fail-closed on an unrecognised /api path: an unmapped route is an unanswered question, not an
+ * open door. lib/access/route-domains.test.ts makes that safe by failing CI when a route has no
+ * entry, and match-route.test.ts round-trips every entry, so "unrecognised" means "not ours".
+ */
+async function gateApiRequest(
+  supabase: ReturnType<typeof createServerClient>,
+  request: NextRequest,
+  userId: string,
+): Promise<NextResponse | null> {
+  const key = matchRoute(request.nextUrl.pathname)
+
+  if (!key) {
+    console.error(`[access] unmapped API route: ${request.nextUrl.pathname} — denying`)
+    return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  }
+  // Authenticates by some other means (API key, cron secret, webhook token, LP portal account) or
+  // serves no fund data. Each entry carries its reason.
+  if (key in UNGATED_ROUTES) return null
+
+  const entry = ROUTE_DOMAINS[key]
+  const level = requiredLevel(entry, request.method)
+
+  // Membership is the whole test — the caller's own data, or a route that gates per domain itself.
+  // Checked before the query so those routes cost nothing here.
+  if (level === 'any') return null
+
+  // ONE round trip: fund, role, feature switches, grants and defaults together. This runs on every
+  // /api request, so it resolves live (a revoked grant bites on the next request, with no token to
+  // hunt down and no cache to wait out) — which is exactly why the one call has to be cheap.
+  const access = await resolveAccessContext(supabase as never, userId)
+
+  // Not a fund member: an LP-portal-only user, or a pending join request. The route's own
+  // membership lookup returns the right error; nothing here to gate.
+  if (!access) return null
+
+  if (hasAccess(access, entry.domain, level, entry.feature)) return null
+
+  if (access.role === 'viewer' && level === 'write') {
+    return NextResponse.json({ error: 'This is a read-only demo. Changes are not allowed.' }, { status: 403 })
+  }
+  const label = DOMAIN_META[entry.domain].label
+  return NextResponse.json(
+    { error: level === 'write' ? `You do not have write access to ${label}.` : `You do not have access to ${label}.` },
+    { status: 403 },
+  )
 }
 
 export const config = {

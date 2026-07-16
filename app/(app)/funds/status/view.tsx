@@ -9,6 +9,7 @@ import { CapitalSourceCard } from '../capital-accounts/capital-source-card'
 import { AccountingSetup } from '../setup'
 import { DealCarryCard } from './deal-carry-card'
 import { CarryTerms } from '../allocation-terms/carry-terms'
+import { useCanRead } from '@/components/access-context'
 import { AllocationTermsView } from '../allocation-terms/view'
 import { CollapsibleSection } from '@/components/collapsible-section'
 
@@ -41,6 +42,7 @@ export function StatusView() {
   const currency = useCurrency()
   const fmt = (v: number) => formatCurrencyPrice(v, currency)
   const lf = useLedgerFetch()
+  const canReadGpEconomics = useCanRead('gp_economics')
   const [s, setS] = useState<Status | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -196,9 +198,14 @@ export function StatusView() {
       <div className="pt-2 space-y-2">
         <p className="text-sm font-medium flex items-center gap-1.5"><SlidersHorizontal className="h-4 w-4 text-muted-foreground" />Settings</p>
 
-        <CollapsibleSection title="Carried interest" subtitle="The carry the close accrues, and who receives it">
-          <CarryTerms />
-        </CollapsibleSection>
+        {/* Carry rate, preferred return, catch-up, and the GP entity that receives it — the
+            gp_economics domain, not plain accounting. Someone who runs the close does not
+            thereby get to see (or set) the partners' carry terms. */}
+        {canReadGpEconomics && (
+          <CollapsibleSection title="Carried interest" subtitle="The carry the close accrues, and who receives it">
+            <CarryTerms />
+          </CollapsibleSection>
+        )}
 
         <CollapsibleSection
           title="Allocation & partners"
@@ -208,9 +215,9 @@ export function StatusView() {
         </CollapsibleSection>
       </div>
 
-      {/* Deal-by-deal carry — a reference calculator for American vehicles. Renders to nothing
-          otherwise, so there's no condition to keep in sync here. */}
-      <DealCarryCard />
+      {/* Deal-by-deal carry — a reference calculator for American vehicles. gp_economics, for the
+          same reason as the carry terms above. Renders to nothing on other vehicles anyway. */}
+      {canReadGpEconomics && <DealCarryCard />}
 
     </div>
   )

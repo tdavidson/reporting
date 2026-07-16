@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { assertAdminAccess } from '@/lib/api-helpers'
+// accounting domain (see lib/access/route-domains.ts). The middleware has already checked the
+// caller's grant for this route + method; these resolve identity and keep the demo out of writes.
+import { assertWriteAccess, assertReadAccess } from '@/lib/api-helpers'
 import { previewCutover, applyCutover, revertCutover } from '@/lib/accounting/snapshot-cutover'
 
 // The LP-snapshot → capital-events cutover.
@@ -22,7 +24,9 @@ export async function GET(req: NextRequest) {
   const admin = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  const gate = await assertAdminAccess(admin, user.id)
+  // A preview reads; it doesn't need write privilege. (Using the write helper here would newly
+  // refuse the read-only demo, which this GET never refused.)
+  const gate = await assertReadAccess(admin, user.id)
   if (gate instanceof NextResponse) return gate
 
   const snapshotId = req.nextUrl.searchParams.get('snapshot') ?? undefined
@@ -38,7 +42,7 @@ export async function POST(req: NextRequest) {
   const admin = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  const gate = await assertAdminAccess(admin, user.id)
+  const gate = await assertWriteAccess(admin, user.id)
   if (gate instanceof NextResponse) return gate
 
   const body = await req.json().catch(() => ({}))
@@ -55,7 +59,7 @@ export async function DELETE(req: NextRequest) {
   const admin = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  const gate = await assertAdminAccess(admin, user.id)
+  const gate = await assertWriteAccess(admin, user.id)
   if (gate instanceof NextResponse) return gate
 
   const snapshotId = req.nextUrl.searchParams.get('snapshot')

@@ -1,9 +1,7 @@
 import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import { createAdminClient } from '@/lib/supabase/admin'
-import { DEFAULT_FEATURE_VISIBILITY, isFeatureVisible } from '@/lib/types/features'
-import type { FeatureVisibilityMap } from '@/lib/types/features'
+import { resolvePageAccess, canViewPage } from '@/lib/access/page-gate'
 import { LpCapitalView } from './view'
 
 export const metadata: Metadata = { title: 'LP capital accounts' }
@@ -21,19 +19,15 @@ export default async function LpCapitalPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/auth')
 
-  const admin = createAdminClient()
-  const { data: membership } = await admin
-    .from('fund_members').select('fund_id, role').eq('user_id', user.id).maybeSingle() as { data: { fund_id: string; role: string } | null }
-  if (!membership) redirect('/dashboard')
-
-  const { data: fs } = await (admin as any)
-    .from('fund_settings').select('feature_visibility').eq('fund_id', membership.fund_id).maybeSingle()
-  const fv: FeatureVisibilityMap = { ...DEFAULT_FEATURE_VISIBILITY, ...(fs?.feature_visibility ?? {}) }
-  if (!isFeatureVisible(fv, 'lp_tracking', membership.role === 'admin')) redirect('/dashboard')
+  // Both axes, resolved by the same function the APIs on this page go through: the fund's
+  // lp_tracking switch, and this user's lp_capital grant. Checking only the switch would render
+  // a page whose every request 403s.
+  const page = await resolvePageAccess(user.id)
+  if (!page || !canViewPage(page, 'lp_capital', 'lp_tracking')) redirect('/dashboard')
 
   return (
     <div className="px-4 md:pl-8 md:pr-4 pt-4 md:pt-6 pb-8 w-full">
-      <LpCapitalView isAdmin={membership.role === 'admin'} />
+      <LpCapitalView isAdmin={page.isAdmin} />
     </div>
   )
 }
