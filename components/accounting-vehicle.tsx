@@ -31,6 +31,20 @@ export function useVehicle() {
   return useContext(VehicleContext)
 }
 
+// The static `/funds/*` subpages. Anything else of the shape `/funds/<segment>` is the fund
+// DETAIL page (`/funds/[id]`), which — like the `/funds` overview — owns its own header layout
+// and drives the vehicle from its URL rather than from the selector bar.
+const FUND_SUBPAGES = new Set([
+  'status', 'bank', 'journal', 'periods', 'statements', 'capital-accounts',
+  'schedule-of-investments', 'allocation-terms', 'opening-balances', 'lp-events',
+])
+
+/** True on `/funds/[id]` — the fund detail (lead) page. */
+export function isFundDetailPath(pathname: string): boolean {
+  const m = pathname.match(/^\/funds\/([^/]+)\/?$/)
+  return !!m && !FUND_SUBPAGES.has(m[1])
+}
+
 /**
  * A fetch wrapper that scopes every ledger request to the selected vehicle:
  * appends `?group=` to the URL and injects `group` into JSON POST bodies.

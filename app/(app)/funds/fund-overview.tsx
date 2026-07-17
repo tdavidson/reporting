@@ -54,9 +54,9 @@ export function FundOverview() {
   const router = useRouter()
   const { setGroup } = useVehicle()
 
-  // Clicking a vehicle selects it (localStorage-backed context the whole section reads) and
-  // jumps to its status page — which then loads scoped to that vehicle.
-  const openVehicle = (vehicle: string) => { setGroup(vehicle); router.push('/funds/status') }
+  // Clicking a vehicle selects it (localStorage-backed context the whole section reads) and opens
+  // its detail page — the lead page for the fund. Admin (/funds/status) is reached from there.
+  const openVehicle = (vehicle: string) => { setGroup(vehicle); router.push(`/funds/${encodeURIComponent(vehicle)}`) }
 
   const [vehicles, setVehicles] = useState<Vehicle[]>([])
   const [loading, setLoading] = useState(true)

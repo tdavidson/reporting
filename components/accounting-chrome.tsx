@@ -1,7 +1,7 @@
 'use client'
 
 import { usePathname } from 'next/navigation'
-import { VehicleBar } from '@/components/accounting-vehicle'
+import { VehicleBar, isFundDetailPath } from '@/components/accounting-vehicle'
 import { AnalystToggleButton } from '@/components/analyst-button'
 import { AnalystPanel } from '@/components/analyst-panel'
 
@@ -26,8 +26,10 @@ import { AnalystPanel } from '@/components/analyst-panel'
 export function AccountingChrome({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
 
-  // /funds owns its whole layout (see AccountingPageHeader + AccountingBody in its page).
-  if (pathname === '/funds') return <>{children}</>
+  // /funds and the fund detail page (/funds/[id]) own their whole layout — title all the way up,
+  // Analyst panel below (see AccountingPageHeader + AccountingBody in their pages). No vehicle bar:
+  // the overview spans every vehicle, and the detail page is pinned to one by its URL.
+  if (pathname === '/funds' || isFundDetailPath(pathname)) return <>{children}</>
 
   return (
     <>
