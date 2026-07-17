@@ -65,6 +65,9 @@ export async function PATCH(
     // `dividend_rate` is preferred-equity dividends: they accrue to the liquidation preference,
     // not to income, and never touch the books.
     'interest_rate', 'maturity_date', 'dividend_rate',
+    // The conversion link (which SAFE/note this priced round converted). Editing a conversion
+    // re-drafts its ledger entry from the new values, same as any other investment edit.
+    'converts_from_txn_id',
   ]
 
   const updates: Record<string, unknown> = { updated_at: new Date().toISOString() }

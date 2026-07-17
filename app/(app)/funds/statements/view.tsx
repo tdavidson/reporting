@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { Loader2 } from 'lucide-react'
+import { Loader2, Download } from 'lucide-react'
 import { useCurrency, formatCurrencyPrice } from '@/components/currency-context'
-import { useLedgerFetch } from '@/components/accounting-vehicle'
+import { useLedgerFetch, useVehicle } from '@/components/accounting-vehicle'
 import { PERIOD_PRESETS, type PeriodPreset } from '@/lib/accounting/statement-period'
 
 interface Section { label: string; rows: { code: string; name: string; amount: number }[]; total: number }
@@ -72,6 +72,18 @@ export function StatementsView() {
   const [start, setStart] = useState('')
   const [end, setEnd] = useState('')
   const lf = useLedgerFetch()
+  const { group } = useVehicle()
+
+  // Same period params as the on-screen fetch, plus the selected vehicle — the export
+  // route computes the identical package and serializes it to a multi-tab .xlsx.
+  const exportQs = new URLSearchParams({ preset })
+  if (preset === 'custom') {
+    if (start) exportQs.set('start', start)
+    if (end) exportQs.set('end', end)
+  }
+  if (group) exportQs.set('group', group)
+  const exportUrl = `/api/accounting/statements/export?${exportQs}`
+  const canExport = !loading && !!data && data.trialBalance.rows.length > 0
 
   useEffect(() => {
     setLoading(true)
@@ -151,6 +163,18 @@ export function StatementsView() {
         <span className="text-xs text-muted-foreground pb-2">
           Balance sheet is a snapshot <strong>{asOfLabel}</strong>; the income statement and cash flows cover the period <strong>{overLabel}</strong>.
         </span>
+        {canExport ? (
+          <a
+            href={exportUrl}
+            className="ml-auto inline-flex items-center gap-1.5 h-9 px-3 rounded-md border border-input bg-background text-sm hover:bg-muted"
+          >
+            <Download className="h-4 w-4" />Export workpapers (Excel)
+          </a>
+        ) : (
+          <span className="ml-auto inline-flex items-center gap-1.5 h-9 px-3 rounded-md border border-input text-sm text-muted-foreground opacity-50">
+            <Download className="h-4 w-4" />Export workpapers (Excel)
+          </span>
+        )}
       </div>
 
       {loading ? (

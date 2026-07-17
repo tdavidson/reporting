@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { assertWriteAccess } from '@/lib/api-helpers'
 import { dbError } from '@/lib/api-error'
 import { logActivity } from '@/lib/activity'
+import { seedCompanyFromDefaults } from '@/lib/metrics/seed-default-metrics'
 
 export async function GET() {
   const supabase = createClient()
@@ -106,6 +107,10 @@ export async function POST(req: NextRequest) {
     .single()
 
   if (error) return dbError(error, 'companies')
+
+  // Seed the fund's default metric profile into the new company (deduped by slug; no-op if
+  // the fund has no defaults configured).
+  await seedCompanyFromDefaults(admin, membership.fund_id, data.id)
 
   logActivity(admin, membership.fund_id, user.id, 'company.create', { companyName: name.trim() })
 

@@ -68,6 +68,9 @@ export const ROUTE_DOMAINS: Record<string, RouteAccess> = {
   'api/accounting/periods': { domain: 'accounting' },
 
   'api/accounting/statements': { domain: 'accounting' },
+  // The Excel workpaper export ships the exact same computed package as the statements
+  // route, so it carries the same domain (accounting implies lp_capital via DOMAIN_META).
+  'api/accounting/statements/export': { domain: 'accounting' },
   'api/accounting/status': { domain: 'accounting' },
   'api/accounting/vehicles': { domain: 'accounting' },
   'api/vehicles': { domain: 'accounting' },
@@ -144,6 +147,8 @@ export const ROUTE_DOMAINS: Record<string, RouteAccess> = {
   // ── Portfolio ─────────────────────────────────────────────────────────────
   'api/companies': { domain: 'portfolio' },
   'api/companies/[id]': { domain: 'portfolio' },
+  'api/companies/[id]/default-metrics': { domain: 'portfolio' },
+  'api/companies/[id]/default-metrics/[defaultId]': { domain: 'portfolio' },
   'api/companies/[id]/documents': { domain: 'portfolio' },
   'api/companies/[id]/documents/[docId]': { domain: 'portfolio' },
   'api/companies/[id]/investments': { domain: 'portfolio', feature: 'investments' },
@@ -152,6 +157,9 @@ export const ROUTE_DOMAINS: Record<string, RouteAccess> = {
   'api/companies/[id]/metrics/[metricId]/values': { domain: 'portfolio' },
   'api/companies/[id]/summary': { domain: 'portfolio' },
   'api/dashboard/table-data': { domain: 'portfolio' },
+  'api/default-metrics': { domain: 'portfolio' },
+  'api/default-metrics/[id]': { domain: 'portfolio' },
+  'api/default-metrics/apply': { domain: 'portfolio' },
   'api/import': { domain: 'portfolio', feature: 'imports' },
   'api/import/documents': { domain: 'portfolio', feature: 'imports' },
   'api/import/fund-cash-flows': { domain: 'portfolio', feature: 'imports' },

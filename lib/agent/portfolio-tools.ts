@@ -219,7 +219,10 @@ export const PORTFOLIO_HANDLERS: Record<string, AgentToolHandler> = {
     if (ids.length === 0) return { company: c.name, metrics: [] }
 
     const { data: values } = await (admin as any)
-      .from('metric_values').select('metric_id, period, value').in('metric_id', ids).order('period')
+      .from('metric_values')
+      .select('metric_id, period_label, period_year, period_quarter, period_month, value_number, value_text')
+      .in('metric_id', ids)
+      .order('period_year').order('period_quarter', { nullsFirst: true }).order('period_month', { nullsFirst: true })
 
     return {
       company: c.name,
@@ -228,7 +231,7 @@ export const PORTFOLIO_HANDLERS: Record<string, AgentToolHandler> = {
         unit: m.unit ?? null,
         values: ((values as any[]) ?? [])
           .filter(v => v.metric_id === m.id)
-          .map(v => ({ period: v.period, value: v.value })),
+          .map(v => ({ period: v.period_label, value: v.value_number ?? v.value_text })),
       })),
     }
   },

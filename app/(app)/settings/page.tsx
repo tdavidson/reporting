@@ -20,6 +20,7 @@ import Link from 'next/link'
 import { DefaultsEditor } from './memo-agent/defaults/editor'
 import { LedgerAgentAccess } from '@/components/ledger-agent-access'
 import { VehiclesSettings } from '@/components/vehicles-settings'
+import { DefaultMetricsSettings } from '@/components/settings/default-metrics-settings'
 import { StyleAnchorsInline } from './memo-agent/style-anchors/style-anchors-inline'
 import { SchemasInline } from './memo-agent/schemas/schemas-inline'
 import { AppearanceEditor } from './appearance/editor'
@@ -186,6 +187,9 @@ export default function SettingsPage() {
           <FeatureVisibilitySection featureVisibility={settings.featureVisibility} lpPortalEnabled={settings.lpPortalEnabled} onSaved={load} />
           <Section title="Investment vehicles">
             <VehiclesSettings />
+          </Section>
+          <Section title="Default metrics">
+            <DefaultMetricsSettings />
           </Section>
         </AdminSectionContext.Provider>
       )}

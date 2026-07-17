@@ -22,10 +22,39 @@ export function computeSummary(
   const roundCashFlows = new Map<string, CashFlow[]>()
   const cashFlows: CashFlow[] = []
 
+  // A conversion (a SAFE/note investment row carrying `converts_from_txn_id`) MOVES the source
+  // instrument's basis into the priced round it became. When source and target are different
+  // rounds we shift the basis for fair-value purposes: it leaves the source round (so the SAFE
+  // stops showing a live position) and lands in the target round (so its priced-equity value is
+  // computed on the full basis). The source row's cash outflow stays on its own date for IRR —
+  // only the FV attribution moves. Same-round conversions need no shift: the basis is already
+  // there; the conversion just makes the round priced.
+  const byId = new Map<string, InvestmentTransaction>()
+  for (const t of transactions) if (t.id) byId.set(t.id, t)
+  const carriedInByRound = new Map<string, number>()   // basis moved INTO a round from a conversion
+  const carriedOutByRound = new Map<string, number>()  // basis moved OUT of a source round
+  for (const t of transactions) {
+    const srcId = (t as { converts_from_txn_id?: string | null }).converts_from_txn_id
+    if (t.transaction_type !== 'investment' || !srcId) continue
+    const src = byId.get(srcId)
+    if (!src || src.transaction_type !== 'investment') continue
+    const targetRound = t.round_name ?? 'Unknown'
+    const sourceRound = src.round_name ?? 'Unknown'
+    if (targetRound === sourceRound) continue // nothing to move
+    const carried = src.investment_cost ?? 0
+    carriedInByRound.set(targetRound, (carriedInByRound.get(targetRound) ?? 0) + carried)
+    carriedOutByRound.set(sourceRound, (carriedOutByRound.get(sourceRound) ?? 0) + carried)
+  }
+
   for (const txn of transactions) {
     if (txn.transaction_type === 'investment') {
+      const isConversion = !!(txn as { converts_from_txn_id?: string | null }).converts_from_txn_id
       totalInvested += txn.investment_cost ?? 0
       totalShares += txn.shares_acquired ?? 0
+      // Interest that rolled into equity at conversion is real cost basis (it was recognized as
+      // income while accruing, and now capitalizes into the position). It is NOT cash, so it is
+      // added to basis here but never pushed as a cash flow. Only counted on the conversion row.
+      if (isConversion) totalInvested += txn.interest_converted ?? 0
 
       if (txn.transaction_date && txn.investment_cost) {
         const cf = { date: new Date(txn.transaction_date), amount: -(txn.investment_cost) }
@@ -35,10 +64,13 @@ export function computeSummary(
         roundCashFlows.get(rn)!.push({ ...cf })
       }
 
+      // On a conversion row, interest_converted capitalizes into the round's basis alongside any
+      // new cash; on an ordinary row it is tracked separately (interestConverted) but not as cost.
+      const rowBasis = (txn.investment_cost ?? 0) + (isConversion ? (txn.interest_converted ?? 0) : 0)
       const roundName = txn.round_name ?? 'Unknown'
       const existing = roundMap.get(roundName)
       if (existing) {
-        existing.investmentCost += txn.investment_cost ?? 0
+        existing.investmentCost += rowBasis
         existing.sharesAcquired += txn.shares_acquired ?? 0
         existing.interestConverted += txn.interest_converted ?? 0
         if (!existing.date && txn.transaction_date) existing.date = txn.transaction_date
@@ -47,7 +79,7 @@ export function computeSummary(
         roundMap.set(roundName, {
           roundName,
           date: txn.transaction_date,
-          investmentCost: txn.investment_cost ?? 0,
+          investmentCost: rowBasis,
           sharesAcquired: txn.shares_acquired ?? 0,
           sharePrice: (txn.share_price != null && txn.share_price > 0) ? txn.share_price : null,
           currentSharePrice: null,
@@ -132,14 +164,20 @@ export function computeSummary(
     // If none exists, fall back to the round's own share price from the investment.
     const effectiveSharePrice = latestSharePrice ?? round.sharePrice ?? null
     round.currentSharePrice = effectiveSharePrice
-    const isPricedEquity = round.sharesAcquired > 0 && ((round.sharePrice != null && round.sharePrice > 0) || round.investmentCost > 0)
-    // If all cost basis has been exited, there's no remaining unrealized position
-    const remainingBasis = round.investmentCost - round.costBasisExited
+    // Conversions move basis between rounds: a target round is valued on its own basis PLUS what
+    // converted into it; a source round has the converted basis removed (so a SAFE that has fully
+    // converted shows no live position). Both default to 0 when there are no conversions.
+    const carriedIn = carriedInByRound.get(round.roundName) ?? 0
+    const carriedOut = carriedOutByRound.get(round.roundName) ?? 0
+    const roundBasis = round.investmentCost + carriedIn
+    const isPricedEquity = round.sharesAcquired > 0 && ((round.sharePrice != null && round.sharePrice > 0) || roundBasis > 0)
+    // If all cost basis has been exited (or converted away), there's no remaining unrealized position
+    const remainingBasis = roundBasis - round.costBasisExited - carriedOut
     if (remainingBasis <= 0) {
       round.currentValue = 0
     } else if (isPricedEquity) {
       // Equity round: prorate shares by remaining basis fraction
-      const fraction = round.investmentCost > 0 ? remainingBasis / round.investmentCost : 0
+      const fraction = roundBasis > 0 ? remainingBasis / roundBasis : 0
       round.currentValue = effectiveSharePrice != null ? round.sharesAcquired * fraction * effectiveSharePrice : 0
     } else {
       // Convertible / warrant / no shares: remaining basis + unrealized changes

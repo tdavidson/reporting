@@ -1903,6 +1903,7 @@ export type Database = {
       investment_transactions: {
         Row: {
           company_id: string
+          converts_from_txn_id: string | null
           cost_basis_exited: number | null
           created_at: string | null
           current_share_price: number | null
@@ -1935,6 +1936,7 @@ export type Database = {
           proceeds_received: number | null
           proceeds_written_off: number | null
           round_name: string | null
+          security_type: string | null
           share_price: number | null
           shares_acquired: number | null
           transaction_date: string | null
@@ -1945,6 +1947,7 @@ export type Database = {
         }
         Insert: {
           company_id: string
+          converts_from_txn_id?: string | null
           cost_basis_exited?: number | null
           created_at?: string | null
           current_share_price?: number | null
@@ -1977,6 +1980,7 @@ export type Database = {
           proceeds_received?: number | null
           proceeds_written_off?: number | null
           round_name?: string | null
+          security_type?: string | null
           share_price?: number | null
           shares_acquired?: number | null
           transaction_date?: string | null
@@ -1987,6 +1991,7 @@ export type Database = {
         }
         Update: {
           company_id?: string
+          converts_from_txn_id?: string | null
           cost_basis_exited?: number | null
           created_at?: string | null
           current_share_price?: number | null
@@ -2019,6 +2024,7 @@ export type Database = {
           proceeds_received?: number | null
           proceeds_written_off?: number | null
           round_name?: string | null
+          security_type?: string | null
           share_price?: number | null
           shares_acquired?: number | null
           transaction_date?: string | null

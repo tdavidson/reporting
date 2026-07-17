@@ -39,7 +39,7 @@ export interface LedgerDraftResult {
   drafted: boolean
   entryId?: string
   /** What kind of entry, for the message shown back. */
-  kind?: 'investment' | 'valuation' | 'fx_revaluation' | 'proceeds'
+  kind?: 'investment' | 'valuation' | 'fx_revaluation' | 'proceeds' | 'conversion'
   amount?: number
   vehicle?: string
   /** Why nothing was drafted — always set when `drafted` is false. */
@@ -223,6 +223,58 @@ export function exitPostings(inputs: ExitInputs, acc: ExitAccounts, currency = '
   return postings
 }
 
+export interface ConversionInputs {
+  /** The source instrument's cost basis, already sitting in 1100 from its own purchase date. */
+  carriedPrincipal: number
+  /** Accrued interest capitalizing into equity basis at conversion (0 for a SAFE). */
+  interest: number
+  /** New cash written into the priced round, if any. */
+  newCash: number
+  shares: number
+  price: number
+}
+
+export interface ConversionAccounts {
+  costId: string
+  cashId: string
+  unrealizedId: string
+  /** Absent on a chart seeded before notes — the caller refuses interest conversion without it. */
+  accruedInterestId?: string
+  /** 4200. Absent on an unsynced chart — the caller refuses a step-up without it. */
+  unrealizedIncomeId?: string
+}
+
+/**
+ * The postings a SAFE/note conversion implies — pure, so the arithmetic can be tested directly.
+ *
+ * The source principal is ALREADY in 1100 (posted on its own purchase date) and is never
+ * re-posted. Three independently-balanced pieces, all dated on the conversion:
+ *   • interest capitalizes into basis     Dr 1100 / Cr 1150
+ *   • new cash at the round                Dr 1100 / Cr 1000
+ *   • step-up to the round price           Dr 1200 / Cr 4200   (negative = a down-round loss)
+ *
+ * With no round price we hold at carried cost (no step-up). No cash leg on a pure conversion, so
+ * it surfaces in the cash-flow statement's non-cash section rather than as an outflow.
+ */
+export function conversionPostings(inputs: ConversionInputs, acc: ConversionAccounts, currency = 'USD'): Posting[] {
+  const interest = roundCents(inputs.interest)
+  const newCash = roundCents(inputs.newCash)
+  const carriedBasis = roundCents(inputs.carriedPrincipal + interest + newCash)
+  const roundValue = inputs.shares > 0 && inputs.price > 0 ? roundCents(inputs.shares * inputs.price) : carriedBasis
+  const stepUp = roundCents(roundValue - carriedBasis)
+
+  const costDebit = roundCents(interest + newCash)
+  const postings: Posting[] = []
+  if (costDebit !== 0) postings.push({ accountId: acc.costId, amount: costDebit, currency, lpEntityId: null })
+  if (interest !== 0 && acc.accruedInterestId) postings.push({ accountId: acc.accruedInterestId, amount: roundCents(-interest), currency, lpEntityId: null })
+  if (newCash !== 0) postings.push({ accountId: acc.cashId, amount: roundCents(-newCash), currency, lpEntityId: null })
+  if (stepUp !== 0 && acc.unrealizedIncomeId) {
+    postings.push({ accountId: acc.unrealizedId, amount: stepUp, currency, lpEntityId: null })
+    postings.push({ accountId: acc.unrealizedIncomeId, amount: roundCents(-stepUp), currency, lpEntityId: null })
+  }
+  return postings
+}
+
 /**
  * What the LEDGER currently carries for one company: its cost, its accumulated unrealized
  * mark, and its accumulated FX translation.
@@ -306,8 +358,59 @@ export async function draftEntryForTransaction(
     let kind: LedgerDraftResult['kind']
     let amount = 0
 
+    // ---- A conversion: a SAFE/note becomes priced equity. -------------------
+    //
+    // The source instrument's principal already sits in 1100 from its own purchase date, so it is
+    // NOT re-posted here. What the conversion date DOES book, all in one entry:
+    //   • accrued interest capitalizing into basis   Dr 1100  / Cr 1150
+    //   • any new cash written at the priced round    Dr 1100  / Cr 1000
+    //   • the step-up to the round price (or a down-round loss)  Dr 1200 / Cr 4200
+    // No cash leg means a pure conversion lands in the cash-flow statement's non-cash section, and
+    // the valuation change is dated on the conversion, not the original SAFE/note date.
+    if (txn.transaction_type === 'investment' && txn.converts_from_txn_id) {
+      const { data: source } = await admin
+        .from('investment_transactions' as any)
+        .select('investment_cost')
+        .eq('id', txn.converts_from_txn_id)
+        .eq('fund_id', fundId)
+        .maybeSingle() as { data: { investment_cost: number | null } | null }
+      const carriedPrincipal = num(source?.investment_cost)
+      const interest = num(txn.interest_converted)
+      const newCash = num(txn.investment_cost)
+      const shares = num(txn.shares_acquired)
+      const price = num(txn.share_price)
+      const carriedBasis = roundCents(carriedPrincipal + interest + newCash)
+      const roundValue = shares > 0 && price > 0 ? roundCents(shares * price) : carriedBasis
+
+      if (interest !== 0 && !a.accruedInterestId) {
+        return skip(`${group} has no accrued-interest account for ${companyName} — re-sync the chart of accounts to convert note interest.`)
+      }
+      const unrealizedIncomeId = codes.get(UNREALIZED_INCOME)
+      if (roundCents(roundValue - carriedBasis) !== 0 && !unrealizedIncomeId) {
+        return skip(`${group} is missing account ${UNREALIZED_INCOME} — re-sync the chart of accounts.`)
+      }
+
+      const postings = conversionPostings(
+        { carriedPrincipal, interest, newCash, shares, price },
+        { costId: a.costId, cashId, unrealizedId: a.unrealizedId, accruedInterestId: a.accruedInterestId, unrealizedIncomeId },
+      )
+      if (postings.length === 0) {
+        return skip('This conversion carries no new cash, no converted interest, and no change in value — nothing to book.')
+      }
+
+      amount = roundValue
+      kind = 'conversion'
+      entry = {
+        fundId,
+        entryDate,
+        sourceType: 'investment',
+        memo: `Conversion to equity — ${companyName}${txn.round_name ? ` (${txn.round_name})` : ''}`,
+        postings,
+      }
+    }
+
     // ---- A purchase: cash out, cost on the books. --------------------------
-    if (txn.transaction_type === 'investment') {
+    else if (txn.transaction_type === 'investment') {
       const cost = num(txn.investment_cost)
       if (cost === 0) return skip('The investment has no cost — nothing to book.')
       amount = cost

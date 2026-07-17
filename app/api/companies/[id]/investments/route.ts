@@ -132,12 +132,33 @@ export async function POST(
     )
   }
 
+  // A conversion links to the SAFE/note it converts. Validate the link points at a real
+  // investment row IN THIS COMPANY — a dangling or cross-company id would silently break the
+  // basis carry-over in computeSummary and the ledger entry.
+  const convertsFrom: string | null = body.converts_from_txn_id ?? null
+  if (convertsFrom) {
+    if (transaction_type !== 'investment') {
+      return NextResponse.json({ error: 'Only an investment can be a conversion.' }, { status: 400 })
+    }
+    const { data: src } = await admin
+      .from('investment_transactions' as any)
+      .select('id, transaction_type')
+      .eq('id', convertsFrom)
+      .eq('company_id', params.id)
+      .maybeSingle() as { data: { id: string; transaction_type: string } | null }
+    if (!src || src.transaction_type !== 'investment') {
+      return NextResponse.json({ error: 'The instrument being converted was not found on this company.' }, { status: 400 })
+    }
+  }
+
   const { data: txn, error } = await admin
     .from('investment_transactions' as any)
     .insert({
       company_id: params.id,
       fund_id: company.fund_id,
       transaction_type: body.transaction_type,
+      // Non-null on a conversion: this investment row is the priced round a SAFE/note became.
+      converts_from_txn_id: convertsFrom,
       round_name: body.round_name ?? null,
       transaction_date: body.transaction_date ?? null,
       notes: body.notes ?? null,

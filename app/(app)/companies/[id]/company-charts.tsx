@@ -9,6 +9,7 @@ import { MetricForm } from '@/components/metric-form'
 import type { Metric } from '@/lib/types/database'
 import { MetricChart } from './metric-chart'
 import { AddDataPointDialog } from './add-data-point-dialog'
+import { CompanyDefaultMetricsDialog, type DefaultMetricStatus } from './default-metrics-dialog'
 
 interface MetricValueRow {
   id: string
@@ -40,6 +41,8 @@ export function CompanyCharts({ companyId, companyName, metrics }: Props) {
   const [valuesByMetric, setValuesByMetric] = useState<Record<string, MetricValueRow[]>>({})
   const [loading, setLoading] = useState(true)
   const [addMetricOpen, setAddMetricOpen] = useState(false)
+  const [defaultsOpen, setDefaultsOpen] = useState(false)
+  const [defaultStatus, setDefaultStatus] = useState<DefaultMetricStatus[] | null>(null)
   const [deletedIds, setDeletedIds] = useState<Set<string>>(new Set())
 
   // Stabilize metrics dependency to avoid refetching on every render
@@ -64,6 +67,27 @@ export function CompanyCharts({ companyId, companyName, metrics }: Props) {
   useEffect(() => {
     loadValues()
   }, [loadValues])
+
+  // Whether the fund has default metrics, and how many this company is still missing — drives the
+  // "Fund defaults" affordance. Cheap single request; re-fetched when the dialog reports a change.
+  const loadDefaultStatus = useCallback(async () => {
+    const res = await fetch(`/api/companies/${companyId}/default-metrics`)
+    if (res.ok) setDefaultStatus(await res.json())
+  }, [companyId])
+
+  useEffect(() => { loadDefaultStatus() }, [loadDefaultStatus])
+
+  const fundHasDefaults = (defaultStatus?.length ?? 0) > 0
+  const availableDefaults = (defaultStatus ?? []).filter(d => d.status === 'available').length
+
+  const defaultsDialog = (
+    <CompanyDefaultMetricsDialog
+      companyId={companyId}
+      open={defaultsOpen}
+      onOpenChange={setDefaultsOpen}
+      onChanged={() => { loadDefaultStatus(); router.refresh() }}
+    />
+  )
 
   const exportCsv = () => {
     const rows: string[][] = [
@@ -125,12 +149,20 @@ export function CompanyCharts({ companyId, companyName, metrics }: Props) {
           <p className="text-muted-foreground">
             No metrics configured yet. Add metrics to this company to start tracking data.
           </p>
-          <Button size="sm" onClick={() => setAddMetricOpen(true)}>
-            <Plus className="h-4 w-4 mr-1.5" />
-            Add metric
-          </Button>
+          <div className="flex items-center justify-center gap-2">
+            <Button size="sm" onClick={() => setAddMetricOpen(true)}>
+              <Plus className="h-4 w-4 mr-1.5" />
+              Add metric
+            </Button>
+            {fundHasDefaults && (
+              <Button size="sm" variant="outline" onClick={() => setDefaultsOpen(true)}>
+                Use fund defaults{availableDefaults > 0 ? ` (${availableDefaults})` : ''}
+              </Button>
+            )}
+          </div>
         </div>
         {addMetricDialog}
+        {defaultsDialog}
       </>
     )
   }
@@ -173,6 +205,11 @@ export function CompanyCharts({ companyId, companyName, metrics }: Props) {
               Export CSV
             </button>
           )}
+          {fundHasDefaults && (
+            <Button size="sm" variant="ghost" onClick={() => setDefaultsOpen(true)} className="text-muted-foreground">
+              Fund defaults{availableDefaults > 0 ? ` (${availableDefaults})` : ''}
+            </Button>
+          )}
           <Button size="sm" variant="outline" onClick={() => setAddMetricOpen(true)} className="text-muted-foreground">
             <Plus className="h-4 w-4 mr-1.5" />
             Add metric
@@ -194,6 +231,7 @@ export function CompanyCharts({ companyId, companyName, metrics }: Props) {
       </div>
 
       {addMetricDialog}
+      {defaultsDialog}
     </div>
   )
 }

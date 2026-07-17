@@ -25,8 +25,13 @@ interface MetricWithValues {
 }
 
 interface Props {
-  companyId: string
+  /** Company these metrics belong to. Omit when using the form against a non-company endpoint
+   *  (e.g. the fund-wide default metric profile), in which case `endpoints` must be supplied. */
+  companyId?: string
   metric?: MetricWithValues
+  /** Override the create/update URLs. Defaults to the per-company metric endpoints. */
+  endpoints?: { create: string; update: (id: string) => string }
+  submitLabel?: string
   onSuccess: (metric: MetricWithValues) => void
   onCancel: () => void
 }
@@ -59,7 +64,7 @@ const CURRENCIES = [
   { code: 'KRW', label: 'KRW (₩)' },
 ]
 
-export function MetricForm({ companyId, metric, onSuccess, onCancel }: Props) {
+export function MetricForm({ companyId, metric, endpoints, submitLabel, onSuccess, onCancel }: Props) {
   const isEdit = !!metric
   const fundCurrency = useCurrency()
   const currencySymbol = getCurrencySymbol(fundCurrency).trim()
@@ -95,7 +100,11 @@ export function MetricForm({ companyId, metric, onSuccess, onCancel }: Props) {
     setSaving(true)
 
     try {
-      const url = isEdit ? `/api/metrics/${metric.id}` : `/api/companies/${companyId}/metrics`
+      const ep = endpoints ?? {
+        create: `/api/companies/${companyId}/metrics`,
+        update: (id: string) => `/api/metrics/${id}`,
+      }
+      const url = isEdit ? ep.update(metric.id) : ep.create
       const method = isEdit ? 'PATCH' : 'POST'
 
       const res = await fetch(url, {
@@ -279,7 +288,7 @@ export function MetricForm({ companyId, metric, onSuccess, onCancel }: Props) {
           Cancel
         </Button>
         <Button onClick={submit} disabled={saving}>
-          {saving ? 'Saving…' : isEdit ? 'Save changes' : 'Add metric'}
+          {saving ? 'Saving…' : isEdit ? 'Save changes' : (submitLabel ?? 'Add metric')}
         </Button>
       </div>
     </div>

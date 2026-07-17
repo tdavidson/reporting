@@ -28,10 +28,13 @@ interface Props {
   adminOnly?: boolean
 }
 
-type TransactionType = 'investment' | 'proceeds' | 'unrealized_gain_change' | 'round_info'
+// 'conversion' is a UI-only mode: it is stored as an `investment` row carrying
+// `converts_from_txn_id` (the SAFE/note it converted). See handleSave.
+type TransactionType = 'investment' | 'conversion' | 'proceeds' | 'unrealized_gain_change' | 'round_info'
 
 const TYPE_LABELS: Record<TransactionType, string> = {
   investment: 'Investment',
+  conversion: 'Conversion',
   proceeds: 'Proceeds',
   unrealized_gain_change: 'Valuation Update',
   round_info: 'Round',
@@ -54,6 +57,8 @@ const CURRENCY_OPTIONS = [
 
 const EMPTY_FORM: Record<string, string> = {
   transaction_type: 'investment',
+  // Set only in 'conversion' mode: the SAFE/note transaction this priced round converts.
+  converts_from_txn_id: '',
   round_name: '',
   transaction_date: '',
   notes: '',
@@ -122,6 +127,17 @@ export function CompanyInvestments({ companyId, companyStatus, portfolioGroups, 
   // Ownership is a claim on the cap table. A note or a derivative doesn't hold one until it
   // converts or is exercised; a number here would be a guess at a future round's arithmetic.
   const showOwnership = !(t === 'convertible_note' || t === 'warrant' || t === 'option')
+
+  // SAFEs / notes that can still be converted: an investment in an unpriced instrument that
+  // nothing has converted yet. Feeds the "Converts from" picker in conversion mode.
+  const convertibleSources = useMemo(
+    () => transactions.filter(tx =>
+      tx.transaction_type === 'investment' &&
+      (tx.security_type === 'safe' || tx.security_type === 'convertible_note') &&
+      !transactions.some(x => x.converts_from_txn_id === tx.id)
+    ),
+    [transactions]
+  )
 
   /**
    * Change the instrument, and drop the terms that no longer belong to it.
@@ -343,6 +359,11 @@ export function CompanyInvestments({ companyId, companyStatus, portfolioGroups, 
       setError('Enter a position value, a prior rate, and a new rate to compute the change.')
       return
     }
+    const isConversion = form.transaction_type === 'conversion'
+    if (isConversion && !form.converts_from_txn_id) {
+      setError('Select the SAFE or note being converted.')
+      return
+    }
 
     setSaving(true)
     setError(null)
@@ -356,7 +377,9 @@ export function CompanyInvestments({ companyId, companyStatus, portfolioGroups, 
     }
 
     const payload: Record<string, unknown> = {
-      transaction_type: form.transaction_type,
+      // A conversion is stored as the priced-round investment it becomes, linked to its source.
+      transaction_type: isConversion ? 'investment' : form.transaction_type,
+      converts_from_txn_id: isConversion ? (form.converts_from_txn_id || null) : null,
       round_name: form.round_name || null,
       transaction_date: form.transaction_date || null,
       notes: form.notes || null,
@@ -474,6 +497,7 @@ export function CompanyInvestments({ companyId, companyStatus, portfolioGroups, 
 
   const LEDGER_KIND_LABEL: Record<string, string> = {
     investment: 'an investment purchase',
+    conversion: 'a conversion to equity',
     valuation: 'a mark to fair value',
     fx_revaluation: 'a foreign currency revaluation',
     proceeds: 'an exit',
@@ -647,11 +671,18 @@ export function CompanyInvestments({ companyId, companyStatus, portfolioGroups, 
                 <Label>Transaction Type</Label>
                 <Select
                   value={form.transaction_type}
-                  onValueChange={v => setForm(f => ({ ...f, transaction_type: v }))}
+                  onValueChange={v => setForm(f => ({
+                    ...f,
+                    transaction_type: v,
+                    // Entering conversion mode: default the resulting security to preferred (the
+                    // usual priced-round instrument) unless one is already chosen.
+                    security_type: v === 'conversion' && !f.security_type ? 'preferred' : f.security_type,
+                  }))}
                 >
                   <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="investment">Investment</SelectItem>
+                    <SelectItem value="conversion">Conversion (SAFE / note → equity)</SelectItem>
                     <SelectItem value="proceeds">Proceeds</SelectItem>
                     <SelectItem value="unrealized_gain_change">Valuation Update</SelectItem>
                     <SelectItem value="round_info">Round</SelectItem>
@@ -663,7 +694,7 @@ export function CompanyInvestments({ companyId, companyStatus, portfolioGroups, 
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label>Round Name</Label>
-                {txnType === 'investment' ? (
+                {txnType === 'investment' || txnType === 'conversion' ? (
                   <Input
                     className="mt-1"
                     value={form.round_name}
@@ -856,6 +887,97 @@ export function CompanyInvestments({ companyId, companyStatus, portfolioGroups, 
                 )}
               </div>
             )}
+
+            {txnType === 'conversion' && (() => {
+              const src = transactions.find(t => t.id === form.converts_from_txn_id)
+              const carriedPrincipal = Number(src?.investment_cost ?? 0)
+              const interest = parseFloat(form.interest_converted) || 0
+              const newCash = parseFloat(form.investment_cost) || 0
+              const shares = parseFloat(form.shares_acquired) || 0
+              const price = parseFloat(form.share_price) || 0
+              const carriedBasis = carriedPrincipal + interest + newCash
+              const roundValue = shares > 0 && price > 0 ? shares * price : carriedBasis
+              const stepUp = roundValue - carriedBasis
+              return (
+                <div className="space-y-3">
+                  <div>
+                    <Label>Converts From</Label>
+                    <select
+                      className="mt-1 h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm"
+                      value={form.converts_from_txn_id}
+                      onChange={e => setForm(f => ({ ...f, converts_from_txn_id: e.target.value }))}
+                    >
+                      <option value="">Select the SAFE or note being converted…</option>
+                      {convertibleSources.map(s => (
+                        <option key={s.id} value={s.id}>
+                          {(s.round_name || (s.security_type === 'convertible_note' ? 'Note' : 'SAFE'))} · {symbol.trim()}{fmtNum(s.investment_cost)}{s.transaction_date ? ` · ${s.transaction_date}` : ''}
+                        </option>
+                      ))}
+                    </select>
+                    {convertibleSources.length === 0 && (
+                      <p className="text-[11px] text-amber-600 dark:text-amber-400 mt-1">
+                        No open SAFE or note on this company. Record the SAFE/note as an Investment first.
+                      </p>
+                    )}
+                    <p className="text-[11px] text-muted-foreground mt-1">
+                      The instrument&rsquo;s basis carries into this round. Its original cash outflow stays on its own date.
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label>Shares Acquired</Label>
+                      <Input className="mt-1" type="number" step="any" value={form.shares_acquired}
+                        onChange={e => setForm(f => ({ ...f, shares_acquired: e.target.value }))} />
+                    </div>
+                    <div>
+                      <Label>Share Price ({symbol.trim()})</Label>
+                      <Input className="mt-1" type="number" step="any" value={form.share_price}
+                        onChange={e => setForm(f => ({ ...f, share_price: e.target.value }))} />
+                    </div>
+                    <div>
+                      <Label>Interest Converted ({symbol.trim()})</Label>
+                      <Input className="mt-1" type="number" step="any" value={form.interest_converted}
+                        onChange={e => setForm(f => ({ ...f, interest_converted: e.target.value }))} />
+                      <p className="text-[11px] text-muted-foreground mt-1">Accrued note interest capitalizing into basis at this date. 0 for a SAFE.</p>
+                    </div>
+                    <div>
+                      <Label>New Cash at This Round ({symbol.trim()})</Label>
+                      <Input className="mt-1" type="number" step="any" value={form.investment_cost}
+                        onChange={e => setForm(f => ({ ...f, investment_cost: e.target.value }))} placeholder="0" />
+                      <p className="text-[11px] text-muted-foreground mt-1">Any additional check written into this round. Leave 0 for a pure conversion.</p>
+                    </div>
+                    <div>
+                      <Label>Security Type</Label>
+                      <select
+                        className="mt-1 h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm"
+                        value={form.security_type}
+                        onChange={e => onSecurityTypeChange(e.target.value)}
+                      >
+                        <option value="">Not set</option>
+                        {Object.entries(SECURITY_LABELS).map(([value, label]) => (
+                          <option key={value} value={value}>{label}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <Label>Post-Money Valuation ({symbol.trim()})</Label>
+                      <Input className="mt-1" type="number" step="any" value={form.postmoney_valuation}
+                        onChange={e => setForm(f => ({ ...f, postmoney_valuation: e.target.value }))} />
+                    </div>
+                  </div>
+
+                  {/* Live preview so the arithmetic of the conversion is obvious before saving. */}
+                  {form.converts_from_txn_id && (
+                    <div className="rounded-md border bg-muted/30 p-3 text-xs space-y-1">
+                      <div className="flex justify-between"><span className="text-muted-foreground">Carried basis (principal + interest + new cash)</span><span className="font-mono">{symbol.trim()}{fmtNum(carriedBasis)}</span></div>
+                      <div className="flex justify-between"><span className="text-muted-foreground">Round value ({shares > 0 && price > 0 ? `${fmtNum(shares)} × ${symbol.trim()}${fmtNum(price)}` : 'held at cost'})</span><span className="font-mono">{symbol.trim()}{fmtNum(roundValue)}</span></div>
+                      <div className="flex justify-between font-medium"><span>{stepUp >= 0 ? 'Step-up recognized' : 'Down-round loss'} at {form.transaction_date || 'conversion date'}</span><span className={`font-mono ${stepUp >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>{stepUp >= 0 ? '+' : ''}{symbol.trim()}{fmtNum(stepUp)}</span></div>
+                    </div>
+                  )}
+                </div>
+              )
+            })()}
 
             {txnType === 'proceeds' && (
               <div className="grid grid-cols-2 gap-3">
