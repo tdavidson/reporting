@@ -19,7 +19,7 @@ const r2 = (n: number) => Math.round(n * 100) / 100
  * a name would make every tool unusable in practice — but a name that matches two
  * companies must not silently pick one.
  */
-async function resolveCompany(admin: SupabaseClient, fundId: string, ref: string): Promise<any> {
+export async function resolveCompany(admin: SupabaseClient, fundId: string, ref: string): Promise<any> {
   if (!ref) throw new Error('A company id or name is required')
 
   const { data: byId } = await (admin as any)
@@ -258,59 +258,97 @@ export const PORTFOLIO_HANDLERS: Record<string, AgentToolHandler> = {
     }))
   },
 
-  record_investment: async ({ admin, fundId, userId }: AgentToolContext, input: any) => {
-    const c = await resolveCompany(admin, fundId, input?.company)
+  record_investment: async ({ admin, fundId, userId }: AgentToolContext, input: any) =>
+    executeRecordInvestment({ admin, fundId, userId }, input),
+}
 
-    const VALID = ['investment', 'unrealized_gain_change', 'proceeds', 'round_info']
-    if (!VALID.includes(input?.transaction_type)) {
-      throw new Error(`transaction_type must be one of: ${VALID.join(', ')}`)
-    }
-    if (!input?.transaction_date) throw new Error('transaction_date is required (YYYY-MM-DD)')
+export interface RecordInvestmentInput {
+  company: string
+  vehicle?: string
+  transaction_type: string
+  transaction_date: string
+  round_name?: string
+  notes?: string
+  investment_cost?: number | string | null
+  shares_acquired?: number | string | null
+  share_price?: number | string | null
+  unrealized_value_change?: number | string | null
+  current_share_price?: number | string | null
+  cost_basis_exited?: number | string | null
+  proceeds_received?: number | string | null
+  valuation_change_source?: string
+  original_currency?: string
+  fx_rate?: number | string | null
+  prior_fx_rate?: number | string | null
+  fx_value_change?: number | string | null
+  original_position_value?: number | string | null
+  /** When set, this priced round CONVERTS a prior SAFE/note transaction — links the two. */
+  converts_from_txn_id?: string
+}
 
-    const num = (v: any) => (v == null || v === '' ? null : Number(v))
+/**
+ * The one write path for recording a portfolio transaction: insert the row AND draft (never post)
+ * the journal entry it implies. Shared by the MCP/REST `record_investment` handler and the
+ * Analyst's pending-action approval, so both behave identically. `userId` may be null (MCP
+ * credential contexts); it flows through to the draft's author field.
+ */
+export async function executeRecordInvestment(
+  deps: { admin: SupabaseClient; fundId: string; userId: string | null },
+  input: RecordInvestmentInput,
+): Promise<{ transaction: any; ledger: any }> {
+  const { admin, fundId, userId } = deps
+  const c = await resolveCompany(admin, fundId, input?.company)
 
-    const { data: txn, error } = await (admin as any)
-      .from('investment_transactions')
-      .insert({
-        company_id: c.id,
-        fund_id: fundId,
-        portfolio_group: input.vehicle ?? null,
-        transaction_type: input.transaction_type,
-        transaction_date: input.transaction_date,
-        round_name: input.round_name ?? null,
-        notes: input.notes ?? null,
-        investment_cost: num(input.investment_cost),
-        shares_acquired: num(input.shares_acquired),
-        share_price: num(input.share_price),
-        unrealized_value_change: num(input.unrealized_value_change),
-        current_share_price: num(input.current_share_price),
-        cost_basis_exited: num(input.cost_basis_exited),
-        proceeds_received: num(input.proceeds_received),
-        valuation_change_source: input.valuation_change_source ?? null,
-        original_currency: input.original_currency ?? null,
-        fx_rate: num(input.fx_rate),
-        prior_fx_rate: num(input.prior_fx_rate),
-        // ONLY on an FX row. This used to copy `unrealized_value_change` into `fx_value_change`
-        // unconditionally, stamping an FX delta onto every ordinary mark. Downstream filters on
-        // `valuation_change_source === 'fx'` masked it, but the data was wrong at rest — and the
-        // whole point of separating 1250/4300 from 1200/4200 is that a currency move is not
-        // investment performance.
-        fx_value_change: input.valuation_change_source === 'fx'
-          ? num(input.fx_value_change ?? input.unrealized_value_change)
-          : null,
-        original_position_value: num(input.original_position_value),
-      })
-      .select('*')
-      .single()
+  const VALID = ['investment', 'unrealized_gain_change', 'proceeds', 'round_info']
+  if (!VALID.includes(input?.transaction_type)) {
+    throw new Error(`transaction_type must be one of: ${VALID.join(', ')}`)
+  }
+  if (!input?.transaction_date) throw new Error('transaction_date is required (YYYY-MM-DD)')
 
-    if (error) throw new Error(error.message)
+  const num = (v: any) => (v == null || v === '' ? null : Number(v))
 
-    // The point of routing an agent's write through here rather than straight at the
-    // table: the ledger hears about it. As a DRAFT — an agent may not post to the books.
-    const ledger = await draftEntryForTransaction(admin, fundId, userId, txn, c.name)
+  const { data: txn, error } = await (admin as any)
+    .from('investment_transactions')
+    .insert({
+      company_id: c.id,
+      fund_id: fundId,
+      portfolio_group: input.vehicle ?? null,
+      transaction_type: input.transaction_type,
+      transaction_date: input.transaction_date,
+      round_name: input.round_name ?? null,
+      notes: input.notes ?? null,
+      investment_cost: num(input.investment_cost),
+      shares_acquired: num(input.shares_acquired),
+      share_price: num(input.share_price),
+      unrealized_value_change: num(input.unrealized_value_change),
+      current_share_price: num(input.current_share_price),
+      cost_basis_exited: num(input.cost_basis_exited),
+      proceeds_received: num(input.proceeds_received),
+      valuation_change_source: input.valuation_change_source ?? null,
+      original_currency: input.original_currency ?? null,
+      fx_rate: num(input.fx_rate),
+      prior_fx_rate: num(input.prior_fx_rate),
+      // ONLY on an FX row. This used to copy `unrealized_value_change` into `fx_value_change`
+      // unconditionally, stamping an FX delta onto every ordinary mark. Downstream filters on
+      // `valuation_change_source === 'fx'` masked it, but the data was wrong at rest — and the
+      // whole point of separating 1250/4300 from 1200/4200 is that a currency move is not
+      // investment performance.
+      fx_value_change: input.valuation_change_source === 'fx'
+        ? num(input.fx_value_change ?? input.unrealized_value_change)
+        : null,
+      original_position_value: num(input.original_position_value),
+      converts_from_txn_id: input.converts_from_txn_id ?? null,
+    })
+    .select('*')
+    .single()
 
-    return { transaction: txn, ledger }
-  },
+  if (error) throw new Error(error.message)
+
+  // The point of routing an agent's write through here rather than straight at the
+  // table: the ledger hears about it. As a DRAFT — an agent may not post to the books.
+  const ledger = await draftEntryForTransaction(admin, fundId, userId, txn, c.name)
+
+  return { transaction: txn, ledger }
 }
 
 export const PORTFOLIO_TOOLS = PORTFOLIO_TOOL_MANIFEST
