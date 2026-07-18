@@ -25,12 +25,10 @@ const VehicleContext = createContext<VehicleCtx>({
 const NAME_KEY = 'acct_vehicle'
 const ID_KEY = 'acct_vehicle_id'
 
-/** The static subpage slugs under a fund — anything else in the `/funds/<x>` slot is a
- *  vehicle id (the detail page). Kept so the detail page can bounce an old bare link. */
-export const FUND_SUBPAGE_SLUGS = new Set([
-  'status', 'bank', 'journal', 'periods', 'statements', 'capital-accounts',
-  'schedule-of-investments', 'allocation-terms', 'opening-balances', 'lp-events',
-])
+// FUND_SUBPAGE_SLUGS lives in a plain module (see ./fund-subpages) so the server-side fund
+// detail page can call `.has()` on it — a Set exported from this 'use client' module becomes a
+// client-reference proxy on the server. Re-exported here for existing client-side importers.
+export { FUND_SUBPAGE_SLUGS } from './fund-subpages'
 
 /**
  * Holds the selected vehicle for the whole app (name + id), persisted to localStorage so

@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { ArrowLeft } from 'lucide-react'
 import { requireAccountingAccess } from '../guard'
-import { FUND_SUBPAGE_SLUGS } from '@/components/accounting-vehicle'
+import { FUND_SUBPAGE_SLUGS } from '@/components/fund-subpages'
 import { resolveVehicleParam } from './resolve'
 import { FundDetailView } from './fund-detail-view'
 
