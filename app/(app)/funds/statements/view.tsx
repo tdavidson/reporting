@@ -140,41 +140,39 @@ export function StatementsView() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-end gap-3 border rounded-lg p-3">
-        <label className="text-xs text-muted-foreground">Statement period
-          <select
-            value={preset}
-            onChange={e => setPreset(e.target.value as PeriodPreset)}
-            className="mt-1 block h-9 px-3 rounded-md border border-input bg-background text-sm"
-          >
-            {PERIOD_PRESETS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
-          </select>
-        </label>
-        {preset === 'custom' && (
-          <>
-            <label className="text-xs text-muted-foreground">From
-              <input type="date" value={start} onChange={e => setStart(e.target.value)} className="mt-1 block h-9 px-2 rounded-md border border-input bg-transparent text-sm" />
-            </label>
-            <label className="text-xs text-muted-foreground">To
-              <input type="date" value={end} onChange={e => setEnd(e.target.value)} className="mt-1 block h-9 px-2 rounded-md border border-input bg-transparent text-sm" />
-            </label>
-          </>
-        )}
-        <span className="text-xs text-muted-foreground pb-2">
-          Balance sheet is a snapshot <strong>{asOfLabel}</strong>; the income statement and cash flows cover the period <strong>{overLabel}</strong>.
-        </span>
+      {/* Action bar — export on the LEFT, the statement-period select (and custom from/to)
+          pushed RIGHT via ml-auto, matching /funds/capital-accounts. Each statement's subheader
+          below already states its as-of / covering dates, so there is no explainer line here. */}
+      <div className="flex flex-wrap items-center gap-2">
         {canExport ? (
           <a
             href={exportUrl}
-            className="ml-auto inline-flex items-center gap-1.5 h-9 px-3 rounded-md border border-input bg-background text-sm hover:bg-muted"
+            className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md border border-input bg-background text-sm hover:bg-muted"
           >
             <Download className="h-4 w-4" />Export workpapers (Excel)
           </a>
         ) : (
-          <span className="ml-auto inline-flex items-center gap-1.5 h-9 px-3 rounded-md border border-input text-sm text-muted-foreground opacity-50">
+          <span className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md border border-input text-sm text-muted-foreground opacity-50">
             <Download className="h-4 w-4" />Export workpapers (Excel)
           </span>
         )}
+
+        <div className="ml-auto flex flex-wrap items-center gap-2">
+          {preset === 'custom' && (
+            <>
+              <input type="date" value={start} onChange={e => setStart(e.target.value)} aria-label="From" className="h-9 w-36 px-2 rounded-md border border-input bg-transparent text-sm" />
+              <input type="date" value={end} onChange={e => setEnd(e.target.value)} aria-label="To" className="h-9 w-36 px-2 rounded-md border border-input bg-transparent text-sm" />
+            </>
+          )}
+          <select
+            value={preset}
+            onChange={e => setPreset(e.target.value as PeriodPreset)}
+            aria-label="Statement period"
+            className="h-9 px-3 rounded-md border border-input bg-background text-sm"
+          >
+            {PERIOD_PRESETS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
+          </select>
+        </div>
       </div>
 
       {loading ? (

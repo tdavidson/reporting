@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import {
-  ResponsiveContainer, ComposedChart, BarChart, Bar, Line, XAxis, YAxis,
+  ResponsiveContainer, BarChart, Bar, XAxis, YAxis,
   CartesianGrid, Tooltip, Legend, PieChart, Pie, Cell,
 } from 'recharts'
 import { Loader2, Gauge, ArrowRight } from 'lucide-react'
@@ -26,7 +26,12 @@ interface VehicleEconomics {
   fund: Metrics; lp: Metrics; gp?: Metrics; carryAccrued?: number
 }
 interface SoiGroup { name: string; cost: number; fairValue: number; pctOfNetAssets: number }
-interface SoiRow { name: string; cost: number; fairValue: number; pctOfNetAssets: number; moic?: number | null; industry?: string | null }
+interface SoiRow {
+  name: string; cost: number; fairValue: number; pctOfNetAssets: number; moic?: number | null; industry?: string | null
+  // Per-company value breakdown (tracker rows). invested = gross deployed; distributions = realized
+  // proceeds; totalValue = distributions + fairValue (residual).
+  invested?: number; distributions?: number; totalValue?: number
+}
 interface Soi {
   rows: SoiRow[]; totalCost: number; totalFairValue: number; netAssets: number
   source: 'tracker' | 'ledger'; byIndustry: SoiGroup[]; byGeography: SoiGroup[]; byAssetType: SoiGroup[]
@@ -168,14 +173,18 @@ export function FundDetailView({ vehicle }: { vehicle: string }) {
         <MetricBox label="IRR" value={irrPct(m.irr)} />
       </div>
 
-      {/* Growth over time — two full-width charts. */}
-      <div className="grid gap-4 lg:grid-cols-2">
-        <FundGrowthChart points={ts?.points ?? []} hasGross={!!ts?.hasGross} fmt={fmt} fmtFull={fmtFull} />
-        <NavCompositionChart points={ts?.points ?? []} fmt={fmt} fmtFull={fmtFull} />
-      </div>
+      {/* Growth over time — two charts. Hidden entirely (rather than shown as an empty box) when the
+          vehicle has no dated ledger activity — e.g. it isn't kept on fund accounting. */}
+      {(ts?.points.length ?? 0) > 0 && (
+        <div className="grid gap-4 lg:grid-cols-2">
+          <FundGrowthChart points={ts!.points} hasGross={!!ts?.hasGross} fmt={fmt} fmtFull={fmtFull} />
+          <NavCompositionChart points={ts!.points} fmt={fmt} fmtFull={fmtFull} />
+        </div>
+      )}
 
-      {/* Investment breakdown — from the schedule of investments (tracker rows). */}
-      {soi && soi.source === 'tracker' && soi.rows.length > 0 ? (
+      {/* Investment breakdown — from the schedule of investments (tracker rows). Hidden entirely
+          when the vehicle tracks no per-company detail, rather than showing an empty placeholder. */}
+      {soi && soi.source === 'tracker' && soi.rows.length > 0 && (
         <div className="grid gap-4 lg:grid-cols-2">
           <BreakdownChart title="By industry" groups={soi.byIndustry} fmt={fmt} fmtFull={fmtFull} />
           <BreakdownChart
@@ -185,25 +194,13 @@ export function FundDetailView({ vehicle }: { vehicle: string }) {
             fmtFull={fmtFull}
           />
           <div className="lg:col-span-2">
-            <TopHoldings rows={soi.rows} totalFairValue={soi.totalFairValue} fmt={fmt} fmtFull={fmtFull} />
+            <TopHoldings rows={soi.rows} fmt={fmt} fmtFull={fmtFull} />
           </div>
         </div>
-      ) : (
-        <ChartCard title="Investments">
-          <div className="flex h-[220px] items-center justify-center text-center text-sm text-muted-foreground px-6">
-            No per-company investment detail is tracked for this vehicle yet. Record holdings on the{' '}
-            <Link href="/funds/schedule-of-investments" className="underline underline-offset-2 hover:text-foreground mx-1">
-              schedule of investments
-            </Link>{' '}
-            and they&rsquo;ll break down here.
-          </div>
-        </ChartCard>
       )}
 
       <p className="text-xs text-muted-foreground max-w-3xl">
-        Every figure is derived — the metrics from the capital accounts (the same numbers as the funds overview),
-        the breakdown from the schedule of investments, and the growth charts from the dated ledger and portfolio
-        history. The growth charts are whole-fund; the metric lens above scopes only the boxes.
+        Metrics and charts are reported through the last closed accounting period.
       </p>
     </div>
   )
@@ -254,12 +251,15 @@ function EmptyPlot({ label }: { label: string }) {
 function FundGrowthChart({
   points, hasGross, fmt, fmtFull,
 }: { points: TsPoint[]; hasGross: boolean; fmt: (v: number) => string; fmtFull: (v: number) => string }) {
-  const [mode, setMode] = useState<'net' | 'gross'>('net')
+  // Default to the gross (deal-level) view — invested capital & proceeds — with the net LP-cash
+  // view (called & distributed) one click away. Gross is only offered when the vehicle tracks it;
+  // otherwise the net view is all there is and the toggle is hidden.
+  const [mode, setMode] = useState<'net' | 'gross'>('gross')
   const view = hasGross ? mode : 'net'
 
   const toggle = hasGross ? (
     <div className="inline-flex rounded-md border p-0.5 text-xs">
-      {(['net', 'gross'] as const).map(mo => (
+      {(['gross', 'net'] as const).map(mo => (
         <button
           key={mo}
           onClick={() => setMode(mo)}
@@ -342,18 +342,17 @@ function NavCompositionChart({
         <EmptyPlot label="No dated activity yet." />
       ) : (
         <ResponsiveContainer width="100%" height={260}>
-          <ComposedChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 8 }} stackOffset="sign">
+          <BarChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 8 }} stackOffset="sign">
             <CartesianGrid strokeDasharray="3 3" vertical={false} className="stroke-border" />
             <XAxis dataKey="label" tick={AXIS} tickLine={false} axisLine={false} interval="equidistantPreserveStart" className="text-muted-foreground" />
             <YAxis tick={AXIS} tickLine={false} axisLine={false} width={52} tickFormatter={fmt} className="text-muted-foreground" />
             <Tooltip cursor={{ fill: 'hsl(var(--muted) / 0.4)' }} contentStyle={tooltipStyle} formatter={(v: any, n: any) => [fmtFull(v as number), n]} />
             <Legend wrapperStyle={{ fontSize: 12 }} iconType="circle" />
+            {/* The signed deltas already sum to NAV, so the stack IS the NAV — no separate line. */}
             {shown.map(s => (
               <Bar key={s.key} dataKey={s.key} name={s.name} stackId="nav" fill={s.color} stroke={HUE.surface} strokeWidth={1} />
             ))}
-            {/* Total NAV traced in ink, not a series colour — it's a reference, not a category. */}
-            <Line type="monotone" dataKey="nav" name="NAV" stroke={HUE.ink} strokeWidth={2} dot={false} />
-          </ComposedChart>
+          </BarChart>
         </ResponsiveContainer>
       )}
     </ChartCard>
@@ -408,33 +407,92 @@ function BreakdownChart({
   )
 }
 
-// ── Top holdings — horizontal magnitude bars ──────────────────────────────────
+// ── Largest holdings — horizontal bars, with a toggle for the value dimension ──
+
+type HoldingMetric = 'total' | 'invested' | 'residual' | 'distributions'
+
+const HOLDING_METRICS: { key: HoldingMetric; label: string }[] = [
+  { key: 'total', label: 'Total value' },
+  { key: 'invested', label: 'Invested' },
+  { key: 'residual', label: 'Residual value' },
+  { key: 'distributions', label: 'Distributions' },
+]
+
+// Reuse the fixed hues the other charts use, so "total value" reads as its two parts stacked:
+// distributed cash keeps its "Distributed" colour, residual its "Unrealized" colour.
+const HOLDING_HUE = { invested: HUE.chart3, distributions: HUE.chart2, residual: HUE.chart1 } as const
+
+function holdingParts(r: SoiRow) {
+  const distributions = r.distributions ?? 0
+  const residual = r.fairValue
+  return {
+    invested: r.invested ?? r.cost,
+    distributions,
+    residual,
+    total: r.totalValue ?? distributions + residual,
+  }
+}
 
 function TopHoldings({
-  rows, totalFairValue, fmt, fmtFull,
-}: { rows: SoiRow[]; totalFairValue: number; fmt: (v: number) => string; fmtFull: (v: number) => string }) {
-  const top = [...rows].filter(r => r.fairValue > 0).sort((a, b) => b.fairValue - a.fairValue).slice(0, 8)
-  const max = top.reduce((mx, r) => Math.max(mx, r.fairValue), 0)
-  if (top.length === 0) return null
+  rows, fmt, fmtFull,
+}: { rows: SoiRow[]; fmt: (v: number) => string; fmtFull: (v: number) => string }) {
+  const [metric, setMetric] = useState<HoldingMetric>('total')
+
+  // "Largest holdings by X": rank on the selected metric, keep the top 8.
+  const ranked = useMemo(() => {
+    const parts = rows.map(r => ({ name: r.name, ...holdingParts(r) }))
+    return parts.sort((a, b) => b[metric] - a[metric]).slice(0, 8)
+  }, [rows, metric])
+  const max = ranked.reduce((mx, h) => Math.max(mx, h[metric]), 0)
+  const fundTotal = rows.reduce((s, r) => s + holdingParts(r)[metric], 0)
+  if (ranked.length === 0) return null
+
+  const toggle = (
+    <div className="inline-flex rounded-md border p-0.5 text-xs">
+      {HOLDING_METRICS.map(mo => (
+        <button
+          key={mo.key}
+          onClick={() => setMetric(mo.key)}
+          className={`px-2 py-1 rounded ${metric === mo.key ? 'bg-muted font-medium' : 'text-muted-foreground'}`}
+        >
+          {mo.label}
+        </button>
+      ))}
+    </div>
+  )
 
   return (
-    <ChartCard title="Largest holdings">
+    <ChartCard title="Largest holdings" action={toggle}>
+      {/* Total value is the one stacked bar — distributions (realized) + residual (unrealized).
+          The other three isolate a single dimension in its own colour. */}
+      {metric === 'total' && (
+        <div className="mb-3 flex items-center gap-4 text-xs text-muted-foreground">
+          <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full" style={{ background: HOLDING_HUE.distributions }} /> Distributions</span>
+          <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full" style={{ background: HOLDING_HUE.residual }} /> Residual value</span>
+        </div>
+      )}
       <div className="space-y-2">
-        {top.map(r => (
-          <div key={r.name} className="flex items-center gap-3 text-sm">
-            <div className="w-40 shrink-0 truncate" title={r.name}>{r.name}</div>
+        {ranked.map(h => (
+          <div key={h.name} className="flex items-center gap-3 text-sm">
+            <div className="w-40 shrink-0 truncate" title={h.name}>{h.name}</div>
             <div className="flex-1 min-w-0">
-              <div className="h-4 rounded-sm bg-muted/50 overflow-hidden">
-                <div
-                  className="h-full rounded-sm"
-                  style={{ width: max ? `${Math.max(2, (r.fairValue / max) * 100)}%` : '0%', background: HUE.chart2 }}
-                />
+              <div className="h-4 rounded-sm bg-muted/50 overflow-hidden flex">
+                {metric === 'total' ? (
+                  <>
+                    <div className="h-full" style={{ width: max ? `${(h.distributions / max) * 100}%` : '0%', background: HOLDING_HUE.distributions }} />
+                    <div className="h-full" style={{ width: max ? `${(h.residual / max) * 100}%` : '0%', background: HOLDING_HUE.residual }} />
+                  </>
+                ) : (
+                  <div
+                    className="h-full rounded-sm"
+                    style={{ width: max ? `${Math.max(2, (h[metric] / max) * 100)}%` : '0%', background: HOLDING_HUE[metric] }}
+                  />
+                )}
               </div>
             </div>
-            <div className="w-20 shrink-0 text-right font-mono" title={fmtFull(r.fairValue)}>{fmt(r.fairValue)}</div>
-            <div className="w-12 shrink-0 text-right font-mono text-muted-foreground">{r.moic == null ? '—' : `${r.moic.toFixed(1)}x`}</div>
+            <div className="w-24 shrink-0 text-right font-mono" title={fmtFull(h[metric])}>{fmt(h[metric])}</div>
             <div className="w-12 shrink-0 text-right font-mono text-muted-foreground/70">
-              {totalFairValue ? `${Math.round((r.fairValue / totalFairValue) * 100)}%` : '—'}
+              {fundTotal ? `${Math.round((h[metric] / fundTotal) * 100)}%` : '—'}
             </div>
           </div>
         ))}

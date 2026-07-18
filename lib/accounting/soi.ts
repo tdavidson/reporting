@@ -107,6 +107,12 @@ export interface SoiPosition {
   /** Remaining cost basis (cost less any basis exited). */
   cost: number
   fairValue: number
+  /** Gross capital deployed into the company, before exits (computeSummary.totalInvested). */
+  invested: number
+  /** Realized proceeds returned to the fund (computeSummary.totalRealized). */
+  distributions: number
+  /** Total value = distributions + fairValue (residual). The TVPI numerator per holding. */
+  totalValue: number
   unrealized: number
   moic: number | null
 }
@@ -200,6 +206,9 @@ export function buildSoiPositions(
       sharePrice: s.latestSharePrice,
       cost,
       fairValue,
+      invested: r(s.totalInvested),
+      distributions: r(s.totalRealized),
+      totalValue: r(s.totalRealized + s.unrealizedValue),
       unrealized: r(fairValue - cost),
       moic: s.moic,
     })

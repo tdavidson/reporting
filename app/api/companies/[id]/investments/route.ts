@@ -8,6 +8,7 @@ import type { InvestmentTransaction, CompanyStatus } from '@/lib/types/database'
 import type { CompanyInvestmentSummary } from '@/lib/types/investments'
 import { computeSummary } from '@/lib/investments'
 import { draftEntryForTransaction } from '@/lib/accounting/from-portfolio'
+import { validateConversionLink } from '@/lib/accounting/conversion-link'
 import { normalizeSecurityType, SECURITY_TYPES } from '@/lib/accounting/soi'
 
 // ---------------------------------------------------------------------------
@@ -132,23 +133,12 @@ export async function POST(
     )
   }
 
-  // A conversion links to the SAFE/note it converts. Validate the link points at a real
-  // investment row IN THIS COMPANY — a dangling or cross-company id would silently break the
-  // basis carry-over in computeSummary and the ledger entry.
+  // A conversion links to the SAFE/note it converts. Validate the link the same way here and in
+  // PATCH — a dangling or cross-company id would silently break the basis carry and the ledger entry.
   const convertsFrom: string | null = body.converts_from_txn_id ?? null
   if (convertsFrom) {
-    if (transaction_type !== 'investment') {
-      return NextResponse.json({ error: 'Only an investment can be a conversion.' }, { status: 400 })
-    }
-    const { data: src } = await admin
-      .from('investment_transactions' as any)
-      .select('id, transaction_type')
-      .eq('id', convertsFrom)
-      .eq('company_id', params.id)
-      .maybeSingle() as { data: { id: string; transaction_type: string } | null }
-    if (!src || src.transaction_type !== 'investment') {
-      return NextResponse.json({ error: 'The instrument being converted was not found on this company.' }, { status: 400 })
-    }
+    const linkError = await validateConversionLink(admin, params.id, convertsFrom, transaction_type)
+    if (linkError) return NextResponse.json({ error: linkError }, { status: 400 })
   }
 
   const { data: txn, error } = await admin

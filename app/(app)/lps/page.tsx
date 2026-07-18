@@ -205,9 +205,10 @@ function LpsInner() {
 
 
   return (
-    <div className="px-4 md:pl-8 md:pr-4 pt-3 pb-8 w-full space-y-6">
-      {/* Row 1 — title, notes, analyst. */}
-      <div className="flex items-start justify-between gap-3">
+    <div className="px-4 md:pl-8 md:pr-4 pt-4 md:pt-8 pb-8 w-full">
+      {/* Row 1 — title, notes, analyst. Full width above the body; the Analyst panel opens
+          beside the body below, matching /dashboard and the accounting pages. */}
+      <div className="flex items-start justify-between gap-3 mb-6">
         <div className="space-y-1">
           <h1 className="text-2xl font-semibold tracking-tight">Partners</h1>
           <p className="text-sm text-muted-foreground max-w-3xl">
@@ -220,217 +221,221 @@ function LpsInner() {
         </div>
       </div>
 
-      {/* Row 2 — search, filter, as-of, actions. */}
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="relative">
-          <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-          <input
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="Search investors..."
-            className="w-40 md:w-56 border border-input rounded pl-7 pr-6 py-1.5 text-sm bg-transparent placeholder:text-muted-foreground"
-          />
-          {search && <button onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"><X className="h-3 w-3" /></button>}
-        </div>
-        {allGroups.length > 1 && (
-          <PortfolioGroupFilter
-            allGroups={allGroups}
-            excludedGroups={excludedGroups}
-            onToggle={g => setExcludedGroups(prev => { const n = new Set(prev); n.has(g) ? n.delete(g) : n.add(g); return n })}
-            onToggleAll={() => setExcludedGroups(prev => prev.size === 0 ? new Set(allGroups) : new Set())}
-          />
-        )}
-        {/* Action buttons sit on the LEFT; the As-of date is pushed to the RIGHT to match the
-            other LP capital pages. */}
-        <Button size="sm" variant="outline" className="text-muted-foreground" onClick={exportExcel} disabled={exporting || investors.length === 0}>
-          <Download className="h-4 w-4 mr-1" />{exporting ? 'Exporting…' : 'Export'}
-        </Button>
-        <Button size="sm" variant="outline" className="text-muted-foreground" asChild>
-          <Link href="/lps/cards"><FileText className="h-4 w-4 mr-1" /> PDFs</Link>
-        </Button>
-        {isAdmin && (
-          <Button size="sm" variant="outline" className="text-muted-foreground" onClick={() => setSettingsOpen(true)}>
-            <Settings className="h-4 w-4 mr-1" /> Settings
-          </Button>
-        )}
-        {/* Gate on the portal MASTER switch (like every other share/publish affordance), not on
-            lp_portal_access — sharing into a portal that's off is a no-op that mints an orphan
-            snapshot before the "portal is off" notice ever shows. */}
-        {isAdmin && lpPortalEnabled && (
-          <Button size="sm" variant="outline" className="text-muted-foreground" onClick={() => setShareOpen(true)} disabled={investors.length === 0}>
-            <Users className="h-4 w-4 mr-1" /> Share
-          </Button>
-        )}
+      <div className="flex flex-col lg:flex-row gap-6 items-start">
+        <div className="flex-1 min-w-0 w-full space-y-6">
+          {/* Row 2 — search, filter, as-of, actions. */}
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="relative">
+              <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              <input
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Search investors..."
+                className="w-40 md:w-56 border border-input rounded pl-7 pr-6 py-1.5 text-sm bg-transparent placeholder:text-muted-foreground"
+              />
+              {search && <button onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"><X className="h-3 w-3" /></button>}
+            </div>
+            {allGroups.length > 1 && (
+              <PortfolioGroupFilter
+                allGroups={allGroups}
+                excludedGroups={excludedGroups}
+                onToggle={g => setExcludedGroups(prev => { const n = new Set(prev); n.has(g) ? n.delete(g) : n.add(g); return n })}
+                onToggleAll={() => setExcludedGroups(prev => prev.size === 0 ? new Set(allGroups) : new Set())}
+              />
+            )}
+            {/* Action buttons sit on the LEFT; the As-of date is pushed to the RIGHT to match the
+                other LP capital pages. */}
+            <Button size="sm" variant="outline" className="text-muted-foreground" onClick={exportExcel} disabled={exporting || investors.length === 0}>
+              <Download className="h-4 w-4 mr-1" />{exporting ? 'Exporting…' : 'Export'}
+            </Button>
+            <Button size="sm" variant="outline" className="text-muted-foreground" asChild>
+              <Link href="/lps/cards"><FileText className="h-4 w-4 mr-1" /> PDFs</Link>
+            </Button>
+            {isAdmin && (
+              <Button size="sm" variant="outline" className="text-muted-foreground" onClick={() => setSettingsOpen(true)}>
+                <Settings className="h-4 w-4 mr-1" /> Settings
+              </Button>
+            )}
+            {/* Gate on the portal MASTER switch (like every other share/publish affordance), not on
+                lp_portal_access — sharing into a portal that's off is a no-op that mints an orphan
+                snapshot before the "portal is off" notice ever shows. */}
+            {isAdmin && lpPortalEnabled && (
+              <Button size="sm" variant="outline" className="text-muted-foreground" onClick={() => setShareOpen(true)} disabled={investors.length === 0}>
+                <Users className="h-4 w-4 mr-1" /> Share
+              </Button>
+            )}
 
-        <span className="flex-1" />
+            <span className="flex-1" />
 
-        <label className="text-xs text-muted-foreground flex items-center gap-1"><Calendar className="h-3 w-3" /> As of</label>
-        {/* Changing the date rebuilds immediately — no separate apply button. Default (empty)
-            is the latest data; "Latest" resets back to it. */}
-        <Input type="date" value={asOf} onChange={e => { setAsOf(e.target.value); setApplied(e.target.value) }} className="h-9 w-40" />
-        {applied && <Button size="sm" variant="ghost" onClick={() => { setAsOf(''); setApplied('') }}>Latest</Button>}
-      </div>
-
-      {error && <Card><CardContent className="p-4 text-red-600 text-sm">{error}</CardContent></Card>}
-
-      {loading && !data ? (
-        <div className="flex items-center py-16 text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin mr-2" /> Deriving from the ledger…</div>
-      ) : data ? (
-        <>
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-            <Stat label="Commitment" value={fmt(grand.commitment)} />
-            <Stat label="Called" value={fmt(grand.paid_in_capital)} />
-            <Stat label="Distributions" value={fmt(grand.distributions)} />
-            <Stat label="NAV" value={fmt(grand.nav)} />
-            <Stat label="TVPI" value={grand.tvpi != null ? `${grand.tvpi.toFixed(2)}x` : '—'} />
+            <label className="text-xs text-muted-foreground flex items-center gap-1"><Calendar className="h-3 w-3" /> As of</label>
+            {/* Changing the date rebuilds immediately — no separate apply button. Default (empty)
+                is the latest data; "Latest" resets back to it. */}
+            <Input type="date" value={asOf} onChange={e => { setAsOf(e.target.value); setApplied(e.target.value) }} className="h-9 w-40" />
+            {applied && <Button size="sm" variant="ghost" onClick={() => { setAsOf(''); setApplied('') }}>Latest</Button>}
           </div>
 
-          <Card>
-            <CardContent className="p-0 overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="text-xs text-muted-foreground">
-                  <tr className="border-b bg-muted/40">
-                    <SortTh label="Investor" sortKey="name" sort={sort} onSort={onSort} />
-                    <SortTh label="Commitment" sortKey="commitment" sort={sort} onSort={onSort} align="right" />
-                    <SortTh label="Called" sortKey="paid_in_capital" sort={sort} onSort={onSort} align="right" />
-                    <SortTh label="Unfunded" sortKey="outstanding_balance" sort={sort} onSort={onSort} align="right" />
-                    <SortTh label="% Funded" sortKey="pctFunded" sort={sort} onSort={onSort} align="right" />
-                    <SortTh label="Distributions" sortKey="distributions" sort={sort} onSort={onSort} align="right" />
-                    <SortTh label="NAV" sortKey="nav" sort={sort} onSort={onSort} align="right" />
-                    <SortTh label="DPI" sortKey="dpi" sort={sort} onSort={onSort} align="right" />
-                    <SortTh label="RVPI" sortKey="rvpi" sort={sort} onSort={onSort} align="right" />
-                    <SortTh label="TVPI" sortKey="tvpi" sort={sort} onSort={onSort} align="right" />
-                    <SortTh label="IRR" sortKey="irr" sort={sort} onSort={onSort} align="right" />
-                  </tr>
-                </thead>
-                <tbody>
-                  {investors.map(inv => {
-                    const open = expanded.has(inv.id)
-                    const multi = inv.rows.length > 1
-                    return (
-                      <Fragment key={inv.id}>
-                        <tr className={`border-b group ${multi ? 'cursor-pointer hover:bg-muted/20' : 'hover:bg-muted/10'}`} onClick={() => multi && toggle(inv.id)}>
-                          <td className="px-3 py-1.5 font-medium">
-                            <span className="flex items-center gap-1">
-                              {multi ? (open ? <ChevronDown className="h-3.5 w-3.5 shrink-0" /> : <ChevronRight className="h-3.5 w-3.5 shrink-0" />) : <span className="w-3.5 shrink-0" />}
-                              {/* Long names truncate at a fixed cap rather than wrapping or collapsing the column. */}
-                              <span className="truncate max-w-[240px]" title={inv.name}>{inv.name}</span>
-                              {multi && <span className="text-xs text-muted-foreground font-normal ml-1 shrink-0">({inv.rows.length})</span>}
-                              {/* One vehicle, several in scope: there is no expander to open, so the
-                                  vehicle is named here. Otherwise the row is silent about the one
-                                  thing the filter makes ambiguous. */}
-                              {!multi && showVehicleOnRow && (
-                                <span
-                                  className="text-xs text-muted-foreground font-normal ml-1.5 truncate max-w-[160px]"
-                                  title={inv.rows[0]?.portfolio_group}
-                                >
-                                  &middot; {inv.rows[0]?.portfolio_group}
+          {error && <Card><CardContent className="p-4 text-red-600 text-sm">{error}</CardContent></Card>}
+
+          {loading && !data ? (
+            <div className="flex items-center py-16 text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin mr-2" /> Deriving from the ledger…</div>
+          ) : data ? (
+            <>
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                <Stat label="Commitment" value={fmt(grand.commitment)} />
+                <Stat label="Called" value={fmt(grand.paid_in_capital)} />
+                <Stat label="Distributions" value={fmt(grand.distributions)} />
+                <Stat label="NAV" value={fmt(grand.nav)} />
+                <Stat label="TVPI" value={grand.tvpi != null ? `${grand.tvpi.toFixed(2)}x` : '—'} />
+              </div>
+
+              <Card>
+                <CardContent className="p-0 overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="text-xs text-muted-foreground">
+                      <tr className="border-b bg-muted/40">
+                        <SortTh label="Investor" sortKey="name" sort={sort} onSort={onSort} />
+                        <SortTh label="Commitment" sortKey="commitment" sort={sort} onSort={onSort} align="right" />
+                        <SortTh label="Called" sortKey="paid_in_capital" sort={sort} onSort={onSort} align="right" />
+                        <SortTh label="Unfunded" sortKey="outstanding_balance" sort={sort} onSort={onSort} align="right" />
+                        <SortTh label="% Funded" sortKey="pctFunded" sort={sort} onSort={onSort} align="right" />
+                        <SortTh label="Distributions" sortKey="distributions" sort={sort} onSort={onSort} align="right" />
+                        <SortTh label="NAV" sortKey="nav" sort={sort} onSort={onSort} align="right" />
+                        <SortTh label="DPI" sortKey="dpi" sort={sort} onSort={onSort} align="right" />
+                        <SortTh label="RVPI" sortKey="rvpi" sort={sort} onSort={onSort} align="right" />
+                        <SortTh label="TVPI" sortKey="tvpi" sort={sort} onSort={onSort} align="right" />
+                        <SortTh label="IRR" sortKey="irr" sort={sort} onSort={onSort} align="right" />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {investors.map(inv => {
+                        const open = expanded.has(inv.id)
+                        const multi = inv.rows.length > 1
+                        return (
+                          <Fragment key={inv.id}>
+                            <tr className={`border-b group ${multi ? 'cursor-pointer hover:bg-muted/20' : 'hover:bg-muted/10'}`} onClick={() => multi && toggle(inv.id)}>
+                              <td className="px-3 py-1.5 font-medium">
+                                <span className="flex items-center gap-1">
+                                  {multi ? (open ? <ChevronDown className="h-3.5 w-3.5 shrink-0" /> : <ChevronRight className="h-3.5 w-3.5 shrink-0" />) : <span className="w-3.5 shrink-0" />}
+                                  {/* Long names truncate at a fixed cap rather than wrapping or collapsing the column. */}
+                                  <span className="truncate max-w-[240px]" title={inv.name}>{inv.name}</span>
+                                  {multi && <span className="text-xs text-muted-foreground font-normal ml-1 shrink-0">({inv.rows.length})</span>}
+                                  {/* One vehicle, several in scope: there is no expander to open, so the
+                                      vehicle is named here. Otherwise the row is silent about the one
+                                      thing the filter makes ambiguous. */}
+                                  {!multi && showVehicleOnRow && (
+                                    <span
+                                      className="text-xs text-muted-foreground font-normal ml-1.5 truncate max-w-[160px]"
+                                      title={inv.rows[0]?.portfolio_group}
+                                    >
+                                      &middot; {inv.rows[0]?.portfolio_group}
+                                    </span>
+                                  )}
+                                  {/* Edit actions sit right next to the name, revealed on row hover. */}
+                                  {isAdmin && (
+                                    <span className="flex items-center gap-1.5 ml-2 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" onClick={e => e.stopPropagation()}>
+                                      <Link href={`/lps/cards/${inv.id}`} title="Report card" className="hover:text-foreground"><FileText className="h-3.5 w-3.5" /></Link>
+                                      <button onClick={() => setRename({ id: inv.id, name: inv.name })} title="Rename" className="hover:text-foreground"><Pencil className="h-3.5 w-3.5" /></button>
+                                      <button onClick={() => setGrouping({ id: inv.id, name: inv.name })} title="Group under another investor" className="hover:text-foreground"><Users className="h-3.5 w-3.5" /></button>
+                                    </span>
+                                  )}
                                 </span>
-                              )}
-                              {/* Edit actions sit right next to the name, revealed on row hover. */}
-                              {isAdmin && (
-                                <span className="flex items-center gap-1.5 ml-2 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" onClick={e => e.stopPropagation()}>
-                                  <Link href={`/lps/cards/${inv.id}`} title="Report card" className="hover:text-foreground"><FileText className="h-3.5 w-3.5" /></Link>
-                                  <button onClick={() => setRename({ id: inv.id, name: inv.name })} title="Rename" className="hover:text-foreground"><Pencil className="h-3.5 w-3.5" /></button>
-                                  <button onClick={() => setGrouping({ id: inv.id, name: inv.name })} title="Group under another investor" className="hover:text-foreground"><Users className="h-3.5 w-3.5" /></button>
-                                </span>
-                              )}
-                            </span>
-                          </td>
-                          <Money v={inv.totals.commitment} fmt={fmt} />
-                          <Money v={inv.totals.paid_in_capital} fmt={fmt} />
-                          <Money v={inv.totals.outstanding_balance} fmt={fmt} />
-                          <td className="px-3 py-1.5 text-right tabular-nums text-muted-foreground">{pctX(inv.totals.pctFunded)}</td>
-                          <Money v={inv.totals.distributions} fmt={fmt} />
-                          <Money v={inv.totals.nav} fmt={fmt} />
-                          <td className="px-3 py-1.5 text-right tabular-nums text-muted-foreground">{moicX(inv.totals.dpi)}</td>
-                          <td className="px-3 py-1.5 text-right tabular-nums text-muted-foreground">{moicX(inv.totals.rvpi)}</td>
-                          <td className="px-3 py-1.5 text-right tabular-nums">{moicX(inv.totals.tvpi)}</td>
-                          <td className="px-3 py-1.5 text-right tabular-nums text-muted-foreground">{pctX(inv.totals.irr)}</td>
+                              </td>
+                              <Money v={inv.totals.commitment} fmt={fmt} />
+                              <Money v={inv.totals.paid_in_capital} fmt={fmt} />
+                              <Money v={inv.totals.outstanding_balance} fmt={fmt} />
+                              <td className="px-3 py-1.5 text-right tabular-nums text-muted-foreground">{pctX(inv.totals.pctFunded)}</td>
+                              <Money v={inv.totals.distributions} fmt={fmt} />
+                              <Money v={inv.totals.nav} fmt={fmt} />
+                              <td className="px-3 py-1.5 text-right tabular-nums text-muted-foreground">{moicX(inv.totals.dpi)}</td>
+                              <td className="px-3 py-1.5 text-right tabular-nums text-muted-foreground">{moicX(inv.totals.rvpi)}</td>
+                              <td className="px-3 py-1.5 text-right tabular-nums">{moicX(inv.totals.tvpi)}</td>
+                              <td className="px-3 py-1.5 text-right tabular-nums text-muted-foreground">{pctX(inv.totals.irr)}</td>
+                            </tr>
+                            {open && inv.rows.map(r => (
+                              <tr key={`${inv.id}-${r.entity_id}-${r.portfolio_group}`} className="border-b bg-muted/10 text-muted-foreground">
+                                <td className="px-3 py-1.5 pl-10 text-xs">
+                                  {/* The `via [associate]` badge sits OUTSIDE the truncating span (shrink-0) so it
+                                      is never clipped — otherwise a long "group · entity" label eats the width and
+                                      the attribution disappears, making a look-through row read as a direct LP. */}
+                                  <span className="flex items-center gap-1 min-w-0">
+                                    <span className="truncate max-w-[300px]" title={`${r.portfolio_group}${r.entity_name !== inv.name ? ` · ${r.entity_name}` : ''}`}>
+                                      {r.portfolio_group}
+                                      {r.entity_name !== inv.name && <span className="ml-1">· {r.entity_name}</span>}
+                                    </span>
+                                    {r.lookThroughVia && <Badge variant="secondary" className="shrink-0 text-[10px] py-0 px-1">via {r.lookThroughVia}</Badge>}
+                                  </span>
+                                </td>
+                                <Money v={r.commitment} fmt={fmt} small />
+                                <Money v={r.paid_in_capital} fmt={fmt} small />
+                                <Money v={r.outstanding_balance} fmt={fmt} small />
+                                <td className="px-3 py-1.5 text-right tabular-nums text-xs">{pctX(r.commitment > 0 ? r.paid_in_capital / r.commitment : null)}</td>
+                                <Money v={r.distributions} fmt={fmt} small />
+                                <Money v={r.nav} fmt={fmt} small />
+                                <td className="px-3 py-1.5 text-right tabular-nums text-xs">{moicX(r.dpi)}</td>
+                                <td className="px-3 py-1.5 text-right tabular-nums text-xs">{moicX(r.rvpi)}</td>
+                                <td className="px-3 py-1.5 text-right tabular-nums text-xs">{moicX(r.tvpi)}</td>
+                                <td className="px-3 py-1.5 text-right tabular-nums text-xs">{pctX(r.irr)}</td>
+                              </tr>
+                            ))}
+                          </Fragment>
+                        )
+                      })}
+                      {investors.length === 0 && (
+                        <tr><td colSpan={11} className="p-8 text-center text-muted-foreground">
+                          {search ? 'No investors match your search.' : 'No LP capital found. Track a vehicle’s positions or book its history.'}
+                        </td></tr>
+                      )}
+                    </tbody>
+                    {investors.length > 0 && (
+                      <tfoot>
+                        <tr className="border-t-2 font-medium bg-muted/30">
+                          <td className="px-3 py-1.5">Total</td>
+                          <Money v={grand.commitment} fmt={fmt} />
+                          <Money v={grand.paid_in_capital} fmt={fmt} />
+                          <Money v={grand.outstanding_balance} fmt={fmt} />
+                          <td className="px-3 py-1.5 text-right tabular-nums">{pctX(grand.pctFunded)}</td>
+                          <Money v={grand.distributions} fmt={fmt} />
+                          <Money v={grand.nav} fmt={fmt} />
+                          <td className="px-3 py-1.5 text-right tabular-nums">{moicX(grand.dpi)}</td>
+                          <td className="px-3 py-1.5 text-right tabular-nums">{moicX(grand.rvpi)}</td>
+                          <td className="px-3 py-1.5 text-right tabular-nums">{moicX(grand.tvpi)}</td>
+                          <td className="px-3 py-1.5 text-right tabular-nums">{grand.irr != null ? pctX(grand.irr) : '—'}</td>
                         </tr>
-                        {open && inv.rows.map(r => (
-                          <tr key={`${inv.id}-${r.entity_id}-${r.portfolio_group}`} className="border-b bg-muted/10 text-muted-foreground">
-                            <td className="px-3 py-1.5 pl-10 text-xs">
-                              {/* The `via [associate]` badge sits OUTSIDE the truncating span (shrink-0) so it
-                                  is never clipped — otherwise a long "group · entity" label eats the width and
-                                  the attribution disappears, making a look-through row read as a direct LP. */}
-                              <span className="flex items-center gap-1 min-w-0">
-                                <span className="truncate max-w-[300px]" title={`${r.portfolio_group}${r.entity_name !== inv.name ? ` · ${r.entity_name}` : ''}`}>
-                                  {r.portfolio_group}
-                                  {r.entity_name !== inv.name && <span className="ml-1">· {r.entity_name}</span>}
-                                </span>
-                                {r.lookThroughVia && <Badge variant="secondary" className="shrink-0 text-[10px] py-0 px-1">via {r.lookThroughVia}</Badge>}
-                              </span>
-                            </td>
-                            <Money v={r.commitment} fmt={fmt} small />
-                            <Money v={r.paid_in_capital} fmt={fmt} small />
-                            <Money v={r.outstanding_balance} fmt={fmt} small />
-                            <td className="px-3 py-1.5 text-right tabular-nums text-xs">{pctX(r.commitment > 0 ? r.paid_in_capital / r.commitment : null)}</td>
-                            <Money v={r.distributions} fmt={fmt} small />
-                            <Money v={r.nav} fmt={fmt} small />
-                            <td className="px-3 py-1.5 text-right tabular-nums text-xs">{moicX(r.dpi)}</td>
-                            <td className="px-3 py-1.5 text-right tabular-nums text-xs">{moicX(r.rvpi)}</td>
-                            <td className="px-3 py-1.5 text-right tabular-nums text-xs">{moicX(r.tvpi)}</td>
-                            <td className="px-3 py-1.5 text-right tabular-nums text-xs">{pctX(r.irr)}</td>
-                          </tr>
-                        ))}
-                      </Fragment>
-                    )
-                  })}
-                  {investors.length === 0 && (
-                    <tr><td colSpan={11} className="p-8 text-center text-muted-foreground">
-                      {search ? 'No investors match your search.' : 'No LP capital found. Track a vehicle’s positions or book its history.'}
-                    </td></tr>
-                  )}
-                </tbody>
-                {investors.length > 0 && (
-                  <tfoot>
-                    <tr className="border-t-2 font-medium bg-muted/30">
-                      <td className="px-3 py-1.5">Total</td>
-                      <Money v={grand.commitment} fmt={fmt} />
-                      <Money v={grand.paid_in_capital} fmt={fmt} />
-                      <Money v={grand.outstanding_balance} fmt={fmt} />
-                      <td className="px-3 py-1.5 text-right tabular-nums">{pctX(grand.pctFunded)}</td>
-                      <Money v={grand.distributions} fmt={fmt} />
-                      <Money v={grand.nav} fmt={fmt} />
-                      <td className="px-3 py-1.5 text-right tabular-nums">{moicX(grand.dpi)}</td>
-                      <td className="px-3 py-1.5 text-right tabular-nums">{moicX(grand.rvpi)}</td>
-                      <td className="px-3 py-1.5 text-right tabular-nums">{moicX(grand.tvpi)}</td>
-                      <td className="px-3 py-1.5 text-right tabular-nums">{grand.irr != null ? pctX(grand.irr) : '—'}</td>
-                    </tr>
-                  </tfoot>
-                )}
-              </table>
-            </CardContent>
-          </Card>
-        </>
-      ) : null}
+                      </tfoot>
+                    )}
+                  </table>
+                </CardContent>
+              </Card>
+            </>
+          ) : null}
 
-      {settingsOpen && <ReportSettingsDialog onClose={() => setSettingsOpen(false)} />}
-      {rename && <RenameDialog investor={rename} allInvestors={investors.map(i => ({ id: i.id, name: i.name }))} onClose={() => setRename(null)} onSaved={() => { setRename(null); load(applied) }} />}
-      {grouping && <GroupDialog investor={grouping} candidates={investors.map(i => ({ id: i.id, name: i.name }))} onClose={() => setGrouping(null)} onSaved={() => { setGrouping(null); load(applied) }} />}
+          {settingsOpen && <ReportSettingsDialog onClose={() => setSettingsOpen(false)} />}
+          {rename && <RenameDialog investor={rename} allInvestors={investors.map(i => ({ id: i.id, name: i.name }))} onClose={() => setRename(null)} onSaved={() => { setRename(null); load(applied) }} />}
+          {grouping && <GroupDialog investor={grouping} candidates={investors.map(i => ({ id: i.id, name: i.name }))} onClose={() => setGrouping(null)} onSaved={() => { setGrouping(null); load(applied) }} />}
 
-      {/* Share freezes the current live report into a fixed snapshot, then lets you pick which
-          LPs can see it in their portal — the same picker the capital-accounts publish uses.
-          No email is sent; LPs see it when they sign in. */}
-      {/* Live publish: each checked LP sees their own slice of the LIVE report in their portal —
-          always current, no frozen snapshot. */}
-      <Dialog open={shareOpen} onOpenChange={setShareOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Publish the live report to LPs</DialogTitle>
-            <DialogDescription>
-              Check the LPs who should see their position in their portal. They see the live data — the same as this
-              page, always current — not a frozen statement.
-            </DialogDescription>
-          </DialogHeader>
-          {shareOpen && <LpSharePanel shareEndpoint="/api/lps/live-report/share" />}
-        </DialogContent>
-      </Dialog>
+          {/* Share freezes the current live report into a fixed snapshot, then lets you pick which
+              LPs can see it in their portal — the same picker the capital-accounts publish uses.
+              No email is sent; LPs see it when they sign in. */}
+          {/* Live publish: each checked LP sees their own slice of the LIVE report in their portal —
+              always current, no frozen snapshot. */}
+          <Dialog open={shareOpen} onOpenChange={setShareOpen}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Publish the live report to LPs</DialogTitle>
+                <DialogDescription>
+                  Check the LPs who should see their position in their portal. They see the live data — the same as this
+                  page, always current — not a frozen statement.
+                </DialogDescription>
+              </DialogHeader>
+              {shareOpen && <LpSharePanel shareEndpoint="/api/lps/live-report/share" />}
+            </DialogContent>
+          </Dialog>
+        </div>
 
-      <PortfolioNotesPanel />
-      <AnalystDomainScope domain="lps" />
-      <AnalystPanel />
+        <PortfolioNotesPanel />
+        <AnalystDomainScope domain="lps" />
+        <AnalystPanel />
+      </div>
     </div>
   )
 }

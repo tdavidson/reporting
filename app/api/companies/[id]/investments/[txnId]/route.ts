@@ -5,6 +5,7 @@ import { assertWriteAccess } from '@/lib/api-helpers'
 import { dbError } from '@/lib/api-error'
 import { logActivity } from '@/lib/activity'
 import { redraftEntryForTransaction, retractEntriesForTransaction } from '@/lib/accounting/from-portfolio'
+import { validateConversionLink } from '@/lib/accounting/conversion-link'
 import { normalizeSecurityType, SECURITY_TYPES } from '@/lib/accounting/soi'
 
 // ---------------------------------------------------------------------------
@@ -27,10 +28,10 @@ export async function PATCH(
   // Verify transaction exists and belongs to this company
   const { data: existing } = await admin
     .from('investment_transactions' as any)
-    .select('id, company_id, fund_id')
+    .select('id, company_id, fund_id, transaction_type')
     .eq('id', params.txnId)
     .eq('company_id', params.id)
-    .maybeSingle() as { data: { id: string; company_id: string; fund_id: string } | null }
+    .maybeSingle() as { data: { id: string; company_id: string; fund_id: string; transaction_type: string } | null }
 
   if (!existing) return NextResponse.json({ error: 'Transaction not found' }, { status: 404 })
 
@@ -41,8 +42,42 @@ export async function PATCH(
 
   const body = await req.json()
 
+  // A mis-typed row can be reclassified on edit (e.g. a "Round" that should be a "Valuation
+  // Update"). Only the four DB types are valid; the UI's "conversion" is already translated to
+  // 'investment' + converts_from before it reaches here.
+  const VALID_TYPES = ['investment', 'proceeds', 'unrealized_gain_change', 'round_info']
+  if ('transaction_type' in body && !VALID_TYPES.includes(body.transaction_type)) {
+    return NextResponse.json({ error: 'Invalid transaction_type' }, { status: 400 })
+  }
+  const nextType: string = ('transaction_type' in body ? body.transaction_type : existing.transaction_type)
+
+  // Rows whose conversion depends on THIS row (this row is their SAFE/note source).
+  const { data: dependents } = await admin
+    .from('investment_transactions' as any)
+    .select('id')
+    .eq('converts_from_txn_id', params.txnId) as { data: { id: string }[] | null }
+  const dependentCount = (dependents ?? []).length
+
+  // #5 — A conversion source must stay an `investment`. Reclassifying it to anything else would
+  // silently drop the dependent conversion's carried basis (computeSummary skips non-investment
+  // sources). Block it rather than let the numbers shrink with no warning.
+  if (dependentCount > 0 && nextType !== 'investment') {
+    return NextResponse.json(
+      { error: `Can't change this to a ${nextType}: ${dependentCount} conversion${dependentCount > 1 ? 's' : ''} on this company convert${dependentCount > 1 ? '' : 's'} from it. Re-point or remove those conversions first.` },
+      { status: 400 },
+    )
+  }
+
+  // #2 — Validate the conversion link the same way create does (dangling / cross-company / self /
+  // non-investment). Without this, an edit could set a link the create path would have rejected.
+  if (body.converts_from_txn_id) {
+    const linkError = await validateConversionLink(admin, params.id, body.converts_from_txn_id, nextType, params.txnId)
+    if (linkError) return NextResponse.json({ error: linkError }, { status: 400 })
+  }
+
   // Only allow updating known fields
   const allowedFields = [
+    'transaction_type',
     'round_name', 'transaction_date', 'notes',
     'investment_cost', 'interest_converted', 'shares_acquired', 'share_price',
     'cost_basis_exited', 'proceeds_received', 'proceeds_escrow',
@@ -150,6 +185,21 @@ export async function DELETE(
   // Verify the transaction's fund matches the user's fund
   if (existing.fund_id !== writeCheck.fundId) {
     return NextResponse.json({ error: 'Transaction not found' }, { status: 404 })
+  }
+
+  // #3 — Refuse to delete an instrument that a conversion depends on. The FK is ON DELETE SET
+  // NULL, so deleting it would silently orphan the conversion into a $0-cost investment (its basis
+  // gone, its shares now valued at nothing). Make the dependency explicit instead of destroying it.
+  const { data: dependents } = await admin
+    .from('investment_transactions' as any)
+    .select('id')
+    .eq('converts_from_txn_id', params.txnId) as { data: { id: string }[] | null }
+  if ((dependents ?? []).length > 0) {
+    const n = (dependents ?? []).length
+    return NextResponse.json(
+      { error: `Can't delete this: ${n} conversion${n > 1 ? 's' : ''} on this company convert${n > 1 ? '' : 's'} from it. Delete or re-point ${n > 1 ? 'those' : 'that'} first.` },
+      { status: 400 },
+    )
   }
 
   // Retract the ledger side FIRST. If its journal entry sits in a closed period we refuse the

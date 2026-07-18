@@ -134,6 +134,8 @@ export function CompanyInvestments({ companyId, companyStatus, portfolioGroups, 
     () => transactions.filter(tx =>
       tx.transaction_type === 'investment' &&
       (tx.security_type === 'safe' || tx.security_type === 'convertible_note') &&
+      // A row can never convert from itself.
+      tx.id !== editingId &&
       // Exclude instruments already converted by SOME OTHER row — but keep the one this row (when
       // editing a conversion) already points to, so it stays selectable.
       !transactions.some(x => x.id !== editingId && (x as any).converts_from_txn_id === tx.id)
@@ -165,6 +167,32 @@ export function CompanyInvestments({ companyId, companyStatus, portfolioGroups, 
         security_type === 'convertible_note' || security_type === 'warrant' || security_type === 'option'
           ? ''
           : f.ownership_pct,
+    }))
+
+  /**
+   * Change the transaction type — on create OR on edit (a "Round" mis-entered as such can be
+   * reclassified to a "Valuation Update", and vice-versa). The type-specific value fields are
+   * cleared so a number entered for one type can't linger invisibly on another, exactly as
+   * onSecurityTypeChange does. Common fields (round, date, vehicle, notes) are kept.
+   */
+  const changeTransactionType = (transaction_type: string) =>
+    setForm(f => ({
+      ...f,
+      transaction_type,
+      // Clear every type-specific amount; the new type's fields start blank for re-entry.
+      investment_cost: '', interest_converted: '', converts_from_txn_id: '',
+      shares_acquired: '', share_price: '', postmoney_valuation: '', ownership_pct: '',
+      cost_basis_exited: '', proceeds_received: '', proceeds_escrow: '', proceeds_written_off: '',
+      proceeds_per_share: '', exit_valuation: '',
+      unrealized_value_change: '',
+      fx_rate: '', prior_fx_rate: '', original_position_value: '',
+      // Sensible defaults for the destination type.
+      valuation_change_source: transaction_type === 'unrealized_gain_change' ? 'mark' : f.valuation_change_source,
+      security_type: transaction_type === 'conversion' && !f.security_type ? 'preferred' : f.security_type,
+      // Round → Valuation Update: carry the round's price/post-money across so the mark preserves
+      // the valuation instead of blanking it (the common reclassification). Cleared otherwise.
+      current_share_price: transaction_type === 'unrealized_gain_change' ? f.share_price : '',
+      latest_postmoney_valuation: transaction_type === 'unrealized_gain_change' ? f.postmoney_valuation : '',
     }))
   const [saving, setSaving] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
@@ -675,58 +703,43 @@ export function CompanyInvestments({ companyId, companyStatus, portfolioGroups, 
           </DialogHeader>
 
           <div className="space-y-4">
-            {/* On create, the full type list. On edit, an investment/conversion row can still toggle
-                between Investment and Conversion (both store as an `investment` row — the only
-                difference is the converts_from link), so an existing round can be marked as a
-                conversion. Other types stay locked on edit. */}
-            {(!editingId || form.transaction_type === 'investment' || form.transaction_type === 'conversion') && (
-              <div>
-                <Label>Transaction Type</Label>
-                <Select
-                  value={form.transaction_type}
-                  onValueChange={v => setForm(f => ({
-                    ...f,
-                    transaction_type: v,
-                    // Entering conversion mode: default the resulting security to preferred (the
-                    // usual priced-round instrument) unless one is already chosen.
-                    security_type: v === 'conversion' && !f.security_type ? 'preferred' : f.security_type,
-                  }))}
-                >
+            {/* The type is editable on create AND on edit — a row entered as the wrong type (e.g. a
+                "Round" that should be a "Valuation Update") can be reclassified. changeTransactionType
+                clears the previous type's amounts so nothing lingers. */}
+            <div>
+              <Label>Transaction Type</Label>
+              <Select value={form.transaction_type} onValueChange={changeTransactionType}>
                   <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="investment">Investment</SelectItem>
                     <SelectItem value="conversion">Conversion (SAFE / note → equity)</SelectItem>
-                    {!editingId && <SelectItem value="proceeds">Proceeds</SelectItem>}
-                    {!editingId && <SelectItem value="unrealized_gain_change">Valuation Update</SelectItem>}
-                    {!editingId && <SelectItem value="round_info">Round</SelectItem>}
+                    <SelectItem value="proceeds">Proceeds</SelectItem>
+                    <SelectItem value="unrealized_gain_change">Valuation Update</SelectItem>
+                    <SelectItem value="round_info">Round</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
-            )}
 
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label>Round Name</Label>
-                {txnType === 'investment' || txnType === 'conversion' ? (
-                  <Input
-                    className="mt-1"
-                    value={form.round_name}
-                    onChange={e => setForm(f => ({ ...f, round_name: e.target.value }))}
-                    placeholder="e.g. Series A"
-                  />
-                ) : (
-                  <Select
-                    value={form.round_name || undefined}
-                    onValueChange={v => setForm(f => ({ ...f, round_name: v }))}
-                  >
-                    <SelectTrigger className="mt-1"><SelectValue placeholder="Select round" /></SelectTrigger>
-                    <SelectContent>
-                      {Array.from(new Set(transactions.filter(t => t.transaction_type === 'investment' && t.round_name).map(t => t.round_name!))).map(name => (
-                        <SelectItem key={name} value={name}>{name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
+                {/* Free text for every type, with existing rounds as autocomplete suggestions. It
+                    used to be a dropdown of INVESTMENT round names for non-investment types, so a
+                    Valuation Update / Round whose round the fund never invested in (e.g. an
+                    external mark) showed a blank name. Free text always shows the value and lets a
+                    mark reference any round; the suggestions still make it easy to match a real one. */}
+                <Input
+                  className="mt-1"
+                  value={form.round_name}
+                  onChange={e => setForm(f => ({ ...f, round_name: e.target.value }))}
+                  placeholder="e.g. Series A"
+                  list="round-name-suggestions"
+                />
+                <datalist id="round-name-suggestions">
+                  {Array.from(new Set(transactions.filter(t => t.round_name).map(t => t.round_name!))).map(name => (
+                    <option key={name} value={name} />
+                  ))}
+                </datalist>
               </div>
               <div>
                 <Label>Date</Label>
@@ -1709,8 +1722,15 @@ function TransactionTable({
                       {txn.transaction_type === 'investment' && round
                         ? (() => {
                             const isPricedEquity = (txn.shares_acquired ?? 0) > 0 && ((txn.share_price != null && txn.share_price > 0) || (txn.investment_cost ?? 0) > 0)
+                            // A priced row's FMV is its share of the round's total value, prorated by
+                            // shares. This ties the per-row number to the company/round total — a
+                            // round with no remaining cost basis (free shares, or a $0-cost row with
+                            // no conversion link) has currentValue 0, so the row reads $0 too, rather
+                            // than showing a phantom shares × price the totals don't count.
                             if (isPricedEquity) {
-                              return fmt((txn.shares_acquired ?? 0) * (round.currentSharePrice ?? txn.share_price ?? 0))
+                              return fmt(round.sharesAcquired > 0
+                                ? round.currentValue * ((txn.shares_acquired ?? 0) / round.sharesAcquired)
+                                : 0)
                             }
                             return fmt(
                               round.investmentCost > 0

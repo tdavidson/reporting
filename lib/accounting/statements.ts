@@ -195,6 +195,13 @@ export interface SoiRow {
   sharePrice?: number | null
   unrealized?: number
   moic?: number | null
+  // Per-company value breakdown from the tracker (source: 'tracker' rows only).
+  /** Gross capital deployed, before exits. */
+  invested?: number
+  /** Realized proceeds returned to the fund. */
+  distributions?: number
+  /** distributions + fairValue (residual). */
+  totalValue?: number
   /**
    * What the LEDGER carries for this company, from its own 1100-<id> / 1200-<id>
    * accounts. Present only once per-investment accounts exist. Without them the
