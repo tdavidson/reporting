@@ -418,13 +418,12 @@ function PositionRow({
   const dist = pos.distributions ?? 0
   const nav = pos.nav ?? 0
 
-  // Open this LP's capital-account detail (under /funds). That page reads the selected vehicle
-  // from the shared `acct_vehicle` localStorage key, so set it here before navigating — the LPs
-  // section has no accounting VehicleProvider of its own.
+  // Open this LP's capital-account detail under the fund. The fund pages route on the vehicle,
+  // so put the vehicle in the path — its name is enough (the /funds/[id] route resolves a name
+  // the same way it resolves an id). `from=lps` returns the back link here, not to Funds.
   function openLp() {
     try { localStorage.setItem('acct_vehicle', group) } catch { /* ignore */ }
-    // `from=lps` so the statement's back link returns here, not to Funds → Capital accounts.
-    router.push(`/funds/capital-accounts/${pos.lpEntityId}?from=lps`)
+    router.push(`/funds/${encodeURIComponent(group)}/capital-accounts/${pos.lpEntityId}?from=lps`)
   }
 
   async function save() {

@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Loader2, Check, AlertTriangle, Ban, Info, ChevronRight, SlidersHorizontal, Lock } from 'lucide-react'
 import { useCurrency, formatCurrencyPrice } from '@/components/currency-context'
-import { useLedgerFetch } from '@/components/accounting-vehicle'
+import { useLedgerFetch, useFundSeg } from '@/components/accounting-vehicle'
 import { CapitalSourceCard } from '../capital-accounts/capital-source-card'
 import { AccountingSetup } from '../setup'
 import { DealCarryCard } from './deal-carry-card'
@@ -42,6 +42,14 @@ export function StatusView() {
   const currency = useCurrency()
   const fmt = (v: number) => formatCurrencyPrice(v, currency)
   const lf = useLedgerFetch()
+  const fundSeg = useFundSeg()
+  // The status issues carry bare /funds/<page> hrefs (built server-side, where the URL's
+  // vehicle id isn't known); rewrite them fund-first for the current vehicle.
+  const fundHref = (href: string) => {
+    if (!fundSeg) return href
+    const m = href.match(/^\/funds\/(.+)$/)
+    return m ? `/funds/${fundSeg}/${m[1]}` : href
+  }
   const canReadGpEconomics = useCanRead('gp_economics')
   const [s, setS] = useState<Status | null>(null)
   const [loading, setLoading] = useState(true)
@@ -157,7 +165,7 @@ export function StatusView() {
                     <p className="text-xs text-muted-foreground mt-0.5">{i.detail}</p>
                   </div>
                   {i.href && (
-                    <Link href={i.href} className="shrink-0 rounded border border-input px-2 py-1 text-xs text-muted-foreground hover:bg-accent hover:text-foreground">
+                    <Link href={fundHref(i.href)} className="shrink-0 rounded border border-input px-2 py-1 text-xs text-muted-foreground hover:bg-accent hover:text-foreground">
                       {i.action ?? 'Open'}
                     </Link>
                   )}
@@ -172,7 +180,7 @@ export function StatusView() {
           come to this page to find out. Amber when income is sitting unallocated,
           because until it's closed every partner's capital account understates. */}
       <Link
-        href="/funds/periods"
+        href={fundHref('/funds/periods')}
         className={`flex items-center gap-3 rounded-lg border p-3 transition-colors hover:bg-muted/30 ${unallocated ? 'border-amber-500/40 bg-amber-500/5' : ''}`}
       >
         <Lock className={`h-4 w-4 shrink-0 ${unallocated ? 'text-amber-600' : 'text-muted-foreground'}`} />

@@ -5,13 +5,14 @@ import Link from 'next/link'
 import { Loader2, Check, AlertTriangle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useCurrency, formatCurrencyPrice } from '@/components/currency-context'
-import { useLedgerFetch } from '@/components/accounting-vehicle'
+import { useLedgerFetch, useFundSeg } from '@/components/accounting-vehicle'
 
 interface Entity { lpEntityId: string; name: string; commitment: number }
 
 export function OpeningBalancesView() {
   const currency = useCurrency()
   const fmt = (v: number) => formatCurrencyPrice(v, currency)
+  const fundSeg = useFundSeg()
   const [entities, setEntities] = useState<Entity[]>([])
   const [amounts, setAmounts] = useState<Record<string, string>>({})
   const [entryDate, setEntryDate] = useState('')
@@ -93,7 +94,7 @@ export function OpeningBalancesView() {
         </p>
         <p className="text-muted-foreground">
           Continue on the <Link href="/funds" className="underline underline-offset-2 hover:text-foreground">Accounting</Link> page, or{' '}
-          <Link href="/funds/bank" className="underline underline-offset-2 hover:text-foreground">import the bank history</Link>.
+          <Link href={fundSeg ? `/funds/${fundSeg}/bank` : '/funds'} className="underline underline-offset-2 hover:text-foreground">import the bank history</Link>.
         </p>
         <button onClick={() => setOverride(true)} className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground">
           I know what I&rsquo;m doing — enter them anyway

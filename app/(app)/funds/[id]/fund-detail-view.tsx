@@ -7,10 +7,11 @@ import {
   CartesianGrid, Tooltip, Legend, PieChart, Pie, Cell,
   LineChart, Line, ReferenceLine,
 } from 'recharts'
-import { Loader2, Gauge, ArrowRight } from 'lucide-react'
+import { Loader2, ArrowRight } from 'lucide-react'
 import { useCurrency, formatCurrency, formatCurrencyFull } from '@/components/currency-context'
-import { useVehicle } from '@/components/accounting-vehicle'
+import { useVehicle, FundSwitcher } from '@/components/accounting-vehicle'
 import { AnalystToggleButton } from '@/components/analyst-button'
+import { AccountingBody } from '@/components/accounting-chrome'
 import { Card, CardContent } from '@/components/ui/card'
 
 // The fund detail (lead) page. Everything here is READ-ONLY and derived — the same numbers as the
@@ -78,11 +79,11 @@ const irrPct = (v: number | null | undefined) => {
   return `${(Object.is(p, -0) ? 0 : p).toFixed(1)}%`
 }
 
-export function FundDetailView({ vehicle }: { vehicle: string }) {
+export function FundDetailView({ vehicle, vehicleId }: { vehicle: string; vehicleId: string | null }) {
   const currency = useCurrency()
   const fmt = (v: number) => formatCurrency(v, currency)
   const fmtFull = (v: number) => formatCurrencyFull(v, currency)
-  const { setGroup } = useVehicle()
+  const { setVehicle } = useVehicle()
 
   const [econ, setEcon] = useState<VehicleEconomics | null>(null)
   const [soi, setSoi] = useState<Soi | null>(null)
@@ -93,7 +94,7 @@ export function FundDetailView({ vehicle }: { vehicle: string }) {
 
   // Pin the section's vehicle context to this URL, so the Analyst and any subpage the user opens
   // from here (Admin, capital accounts, …) inherit the fund they're looking at.
-  useEffect(() => { setGroup(vehicle) }, [vehicle, setGroup])
+  useEffect(() => { setVehicle(vehicle, vehicleId) }, [vehicle, vehicleId, setVehicle])
 
   const g = `group=${encodeURIComponent(vehicle)}`
   const load = useCallback(() => {
@@ -119,62 +120,24 @@ export function FundDetailView({ vehicle }: { vehicle: string }) {
   // so its charts stay on the gross (deal-level) view only. This is the switch for that everywhere.
   const isAccounting = econ?.source === 'ledger'
 
-  if (loading) {
-    return (
-      <div className="rounded-lg border p-6 flex items-center gap-2 text-sm text-muted-foreground">
-        <Loader2 className="h-4 w-4 animate-spin" /> Loading fund detail…
-      </div>
-    )
-  }
-  if (notFound || !econ || !m) {
-    return (
-      <div className="rounded-lg border p-6 space-y-3 max-w-lg">
-        <p className="text-sm">No vehicle named <strong>{vehicle}</strong> was found, or it carries no capital yet.</p>
-        <Link href="/funds" className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm hover:bg-accent transition-colors">
-          Back to all funds <ArrowRight className="h-3.5 w-3.5" />
-        </Link>
-      </div>
-    )
-  }
-
-  return (
+  // The page body — loading, not-found, or the metrics + charts. Rendered inside
+  // <AccountingBody> below, so the Analyst panel slides in beside it while the header above
+  // stays full width.
+  const body = loading ? (
+    <div className="rounded-lg border p-6 flex items-center gap-2 text-sm text-muted-foreground">
+      <Loader2 className="h-4 w-4 animate-spin" /> Loading fund detail…
+    </div>
+  ) : (notFound || !econ || !m) ? (
+    <div className="rounded-lg border p-6 space-y-3 max-w-lg">
+      <p className="text-sm">No vehicle named <strong>{vehicle}</strong> was found, or it carries no capital yet.</p>
+      <Link href="/funds" className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm hover:bg-accent transition-colors">
+        Back to all funds <ArrowRight className="h-3.5 w-3.5" />
+      </Link>
+    </div>
+  ) : (
     <div className="space-y-6">
-      {/* Header — name, provenance, and the jump to the admin page. */}
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div className="space-y-1 min-w-0">
-          <h1 className="text-2xl font-semibold tracking-tight truncate" title={vehicle}>{vehicle}</h1>
-          <p className="text-sm text-muted-foreground">
-            {econ.vintageYear ? <>Vintage {econ.vintageYear} · </> : null}
-            {econ.source === 'ledger' ? 'Fund accounting' : 'LP capital tracking'} · {econ.lpCount} {econ.lpCount === 1 ? 'partner' : 'partners'}
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          {hasGpSplit && (
-            <div className="inline-flex rounded-md border p-0.5 text-xs">
-              {(['lp', 'fund'] as Lens[]).map(l => (
-                <button
-                  key={l}
-                  onClick={() => setLens(l)}
-                  className={`px-2 py-1 rounded ${lens === l ? 'bg-muted font-medium' : 'text-muted-foreground'}`}
-                >
-                  {l === 'lp' ? 'Net to LP' : 'Whole fund'}
-                </button>
-              ))}
-            </div>
-          )}
-          <Link
-            href="/funds/status"
-            className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm hover:bg-accent transition-colors"
-          >
-            <Gauge className="h-3.5 w-3.5" /> Admin
-          </Link>
-          {/* The chrome's Analyst toggle steps aside for the detail route (it owns its layout), so
-              the toggle rides here instead — same top-right placement as every accounting page. */}
-          <AnalystToggleButton />
-        </div>
-      </div>
-
-      {/* Key metrics — same Card treatment as the /funds overview and the LP snapshot. */}
+      {/* Key metrics — same Card treatment as the /funds overview and the LP snapshot.
+          These are the ONLY surface the Net-to-LP / Whole-fund lens drives. */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <MetricBox label="Committed" value={fmt(m.committed)} />
         <MetricBox label="Called" value={fmt(m.paidIn)} />
@@ -212,11 +175,12 @@ export function FundDetailView({ vehicle }: { vehicle: string }) {
         </div>
       )}
 
-      {/* Fourth row — the new-vs-follow-on split and IRR over time, side by side. */}
+      {/* Fourth row — the new-vs-follow-on split and IRR over time, side by side. The IRR chart
+          shows whole-fund net IRR regardless of the header lens (charts stay whole-fund). */}
       {(ts?.points.length ?? 0) > 0 && (ts!.hasGross || isAccounting) && (
         <div className="grid gap-4 lg:grid-cols-2">
           {ts!.hasGross && <NewVsFollowOnPie point={ts!.points[ts!.points.length - 1]} fmt={fmt} fmtFull={fmtFull} />}
-          <IrrOverTimeChart points={ts!.points} isAccounting={isAccounting} lens={effectiveLens} />
+          <IrrOverTimeChart points={ts!.points} isAccounting={isAccounting} />
         </div>
       )}
 
@@ -224,6 +188,43 @@ export function FundDetailView({ vehicle }: { vehicle: string }) {
         Metrics and charts are reported through the last closed accounting period.
       </p>
     </div>
+  )
+
+  return (
+    <>
+      {/* Header — full width, ABOVE the body/panel row, so the Analyst panel slides in
+          underneath it. The action group is lowered (items-end) to sit near the boxes, and
+          the fund switcher + lens toggle are styled to sit beside the Analyst button. */}
+      <div className="flex flex-wrap items-end justify-between gap-3 mb-6">
+        <div className="space-y-1 min-w-0">
+          <h1 className="text-2xl font-semibold tracking-tight truncate" title={vehicle}>{vehicle}</h1>
+          {econ && (
+            <p className="text-sm text-muted-foreground">
+              {econ.vintageYear ? <>Vintage {econ.vintageYear} · </> : null}
+              {econ.source === 'ledger' ? 'Fund accounting' : 'LP capital tracking'} · {econ.lpCount} {econ.lpCount === 1 ? 'partner' : 'partners'}
+            </p>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          {hasGpSplit && (
+            <div className="inline-flex rounded-md border p-0.5 text-xs">
+              {(['lp', 'fund'] as Lens[]).map(l => (
+                <button
+                  key={l}
+                  onClick={() => setLens(l)}
+                  className={`px-2 py-1 rounded ${lens === l ? 'bg-muted font-medium' : 'text-muted-foreground'}`}
+                >
+                  {l === 'lp' ? 'Net to LP' : 'Whole fund'}
+                </button>
+              ))}
+            </div>
+          )}
+          <FundSwitcher />
+          <AnalystToggleButton />
+        </div>
+      </div>
+      <AccountingBody>{body}</AccountingBody>
+    </>
   )
 }
 
@@ -454,8 +455,8 @@ function NewVsFollowOnPie({
 // ── IRR over time: gross always; net (whole-fund vs LP by the page lens) on accounting ──
 
 function IrrOverTimeChart({
-  points, isAccounting, lens,
-}: { points: TsPoint[]; isAccounting: boolean; lens: Lens }) {
+  points, isAccounting,
+}: { points: TsPoint[]; isAccounting: boolean }) {
   const [mode, setMode] = useState<'net' | 'gross'>('net')
   const view: 'net' | 'gross' = isAccounting ? mode : 'gross'
 
@@ -473,11 +474,11 @@ function IrrOverTimeChart({
     </div>
   ) : undefined
 
-  // Net follows the page's Net-to-LP / Whole-fund lens; gross is the deal-level IRR.
-  const seriesName = view === 'gross' ? 'Gross IRR' : lens === 'lp' ? 'Net IRR — LP' : 'Net IRR — whole fund'
+  // Net is always the whole-fund net IRR (the header lens drives only the metric boxes);
+  // gross is the deal-level IRR.
+  const seriesName = view === 'gross' ? 'Gross IRR' : 'Net IRR — whole fund'
   const data = points.map(p => {
-    const net = lens === 'lp' ? p.netIrrLp : p.netIrrFund
-    const v = view === 'net' ? net : p.grossIrr
+    const v = view === 'net' ? p.netIrrFund : p.grossIrr
     return { label: p.label, irr: v == null ? null : Math.round(v * 1000) / 10 }
   })
   const hasAny = data.some(d => d.irr != null)
@@ -552,39 +553,43 @@ function BreakdownChart({
 
 // ── Largest holdings — horizontal bars, with a toggle for the value dimension ──
 
-type HoldingMetric = 'total' | 'invested' | 'residual' | 'distributions'
+// At the holding (deal) level, realized cash is PROCEEDS. "Distributions" is a net/LP concept that
+// only appears under the net-metrics toggle — and an LP-tracking vehicle has no net metrics at all —
+// so this gross, per-company chart always says proceeds.
+type HoldingMetric = 'total' | 'invested' | 'residual' | 'proceeds'
 
 const HOLDING_METRICS: { key: HoldingMetric; label: string }[] = [
   { key: 'total', label: 'Total value' },
   { key: 'invested', label: 'Invested' },
   { key: 'residual', label: 'Residual value' },
-  { key: 'distributions', label: 'Distributions' },
+  { key: 'proceeds', label: 'Proceeds' },
 ]
 
-// Reuse the fixed hues the other charts use, so "total value" reads as its two parts stacked:
-// distributed cash keeps its "Distributed" colour, residual its "Unrealized" colour.
-const HOLDING_HUE = { invested: HUE.chart3, distributions: HUE.chart2, residual: HUE.chart1 } as const
+// Reuse the fixed hues the other charts use, so "total value" reads as its parts stacked:
+// proceeds keep the teal they use elsewhere, residual its "Unrealized" colour.
+const HOLDING_HUE = { invested: HUE.chart3, proceeds: HUE.chart2, residual: HUE.chart1 } as const
 
 function holdingParts(r: SoiRow) {
-  const distributions = r.distributions ?? 0
+  // `r.distributions` is the tracker's realized-proceeds field (deal-level), surfaced here as proceeds.
+  const proceeds = r.distributions ?? 0
   const residual = r.fairValue
   const invested = r.invested ?? r.cost
   return {
     invested,
-    distributions,
+    proceeds,
     residual,
     // Unrealized gain on the still-held position: residual value above invested cost. Can be
     // negative (underwater), which the stacked bars clamp to a zero gain segment.
     unrealized: residual - invested,
-    total: r.totalValue ?? distributions + residual,
+    total: r.totalValue ?? proceeds + residual,
   }
 }
 
 type Holding = { name: string } & ReturnType<typeof holdingParts>
 
 // The coloured segments that make up one bar. "Residual value" stacks invested capital + unrealized
-// gains (blue); "Total value" stacks the same two, then adds realized distributions so the bar still
-// sums to total value. "Invested" and "Distributions" are a single dimension in their own colour.
+// gains (blue); "Total value" stacks the same two, then adds realized proceeds so the bar still
+// sums to total value. "Invested" and "Proceeds" are a single dimension in their own colour.
 function holdingSegments(h: Holding, metric: HoldingMetric): { label: string; value: number; color: string }[] {
   if (metric === 'total' || metric === 'residual') {
     // residual = invested + unrealized gain; if underwater, show it all as invested (no gain segment).
@@ -593,10 +598,10 @@ function holdingSegments(h: Holding, metric: HoldingMetric): { label: string; va
       { label: 'Invested capital', value: investedSeg, color: HOLDING_HUE.invested },
       { label: 'Unrealized gains', value: Math.max(0, h.unrealized), color: HOLDING_HUE.residual },
     ]
-    if (metric === 'total') segs.push({ label: 'Distributions', value: h.distributions, color: HOLDING_HUE.distributions })
+    if (metric === 'total') segs.push({ label: 'Proceeds', value: h.proceeds, color: HOLDING_HUE.proceeds })
     return segs
   }
-  const color = metric === 'invested' ? HOLDING_HUE.invested : HOLDING_HUE.distributions
+  const color = metric === 'invested' ? HOLDING_HUE.invested : HOLDING_HUE.proceeds
   return [{ label: metric, value: h[metric], color }]
 }
 
@@ -630,13 +635,13 @@ function TopHoldings({
   )
 
   // Legend for the stacked tabs. "Total value" and "Residual value" both stack invested capital +
-  // unrealized gains (blue); "Total value" adds realized distributions on the end.
+  // unrealized gains (blue); "Total value" adds realized proceeds on the end.
   const legendItems: { label: string; color: string }[] =
     metric === 'total'
       ? [
           { label: 'Invested capital', color: HOLDING_HUE.invested },
           { label: 'Unrealized gains', color: HOLDING_HUE.residual },
-          { label: 'Distributions', color: HOLDING_HUE.distributions },
+          { label: 'Proceeds', color: HOLDING_HUE.proceeds },
         ]
       : metric === 'residual'
         ? [

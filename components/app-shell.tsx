@@ -4,6 +4,7 @@ import { usePathname } from 'next/navigation'
 import { SidebarProvider, useSidebar } from '@/components/sidebar-context'
 import { CurrencyProvider } from '@/components/currency-context'
 import { AnalystProvider } from '@/components/analyst-context'
+import { VehicleProvider } from '@/components/accounting-vehicle'
 import { AppHeader } from '@/components/app-header'
 import { AppSidebar } from '@/components/app-sidebar'
 import { AppFooter } from '@/components/app-footer'
@@ -43,19 +44,23 @@ export function AppShell({ fundName, fundLogo, userEmail, reviewBadge, settingsB
     <CurrencyProvider currency={currency ?? 'USD'}>
       <SidebarProvider>
         <AnalystProvider hasAIKey={hasAIKey ?? false} configuredProviders={configuredProviders ?? []} defaultAIProvider={defaultAIProvider ?? 'anthropic'} fundName={fundName}>
-          <AppShellInner
-            fundName={fundName}
-            fundLogo={fundLogo}
-            userEmail={userEmail}
-            reviewBadge={reviewBadge}
-            settingsBadge={settingsBadge}
-            notesBadge={notesBadge}
-            isAdmin={isAdmin}
-            updateAvailable={updateAvailable}
-            featureVisibility={featureVisibility}
-          >
-            {children}
-          </AppShellInner>
+          {/* The selected fund lives here, above the sidebar, so the Funds subnav can build
+              fund-first hrefs (/funds/<id>/...) from the current vehicle's id. */}
+          <VehicleProvider>
+            <AppShellInner
+              fundName={fundName}
+              fundLogo={fundLogo}
+              userEmail={userEmail}
+              reviewBadge={reviewBadge}
+              settingsBadge={settingsBadge}
+              notesBadge={notesBadge}
+              isAdmin={isAdmin}
+              updateAvailable={updateAvailable}
+              featureVisibility={featureVisibility}
+            >
+              {children}
+            </AppShellInner>
+          </VehicleProvider>
         </AnalystProvider>
       </SidebarProvider>
     </CurrencyProvider>

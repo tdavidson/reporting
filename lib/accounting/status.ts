@@ -241,7 +241,7 @@ export async function vehicleStatus(
   }
 
   if (partnersWithCommitment === 0 && owners.length > 0) {
-    issues.push({ level: 'warning', title: 'No partner has a commitment', detail: 'The close allocates pro-rata by commitment; with none set there is nothing to allocate on.', href: '/funds/allocation-terms', action: 'Set commitments' })
+    issues.push({ level: 'warning', title: 'No partner has a commitment', detail: 'The close allocates pro-rata by commitment; with none set there is nothing to allocate on.', href: '/funds/status', action: 'Set commitments' })
   }
   if (owners.length === 0) {
     issues.push({ level: 'warning', title: 'No partners yet', detail: 'Add the LPs and GP entity that hold capital in this vehicle.', href: '/funds/capital-accounts', action: 'Add partners' })

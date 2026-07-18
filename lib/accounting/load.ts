@@ -309,3 +309,22 @@ export async function listVehicles(admin: SupabaseClient, fundId: string): Promi
   for (const rows of [inv, cfg, cf]) for (const r of ((rows as any[]) ?? [])) if (r.portfolio_group) set.add(r.portfolio_group)
   return Array.from(set).sort()
 }
+
+/**
+ * Distinct vehicles WITH their registry id, for the fund switcher and the sidebar's
+ * fund-first links. Same source and ordering as `listVehicles`, but each entry carries
+ * `id` (null for a legacy portfolio_group-only vehicle, which the URL routes on by name).
+ */
+export async function listVehiclesWithId(admin: SupabaseClient, fundId: string): Promise<{ name: string; id: string | null }[]> {
+  const { data: vrows } = await admin
+    .from('fund_vehicles' as any)
+    .select('id, name')
+    .eq('fund_id', fundId)
+    .eq('active', true)
+    .order('name')
+  const rows = ((vrows as any[]) ?? []).filter(r => r.name)
+  if (rows.length > 0) return rows.map(r => ({ name: r.name as string, id: (r.id as string) ?? null }))
+
+  // Legacy funds not yet in the registry — names only, no id.
+  return (await listVehicles(admin, fundId)).map(name => ({ name, id: null }))
+}

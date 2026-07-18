@@ -8,6 +8,7 @@ import { useState, useEffect } from 'react'
 import { useTheme } from 'next-themes'
 import { useSidebar } from '@/components/sidebar-context'
 import { ACCOUNTING_SECTIONS } from '@/lib/accounting/nav'
+import { useVehicle, FUND_SUBPAGE_SLUGS } from '@/components/accounting-vehicle'
 import type { FeatureKey, FeatureVisibilityMap } from '@/lib/types/features'
 import { domainForFeature, type Domain } from '@/lib/access/domains'
 import { useAccess } from '@/components/access-context'
@@ -26,6 +27,9 @@ interface NavChild {
   domain?: Domain
   /** Notes moved from a top-level item into Portfolio, and its unread count moved with it. */
   badgeKey?: 'notes'
+  /** Highlight only on the exact path, never on descendants. The Funds "Overview" child
+   *  (/funds/<id>) is a prefix of every sibling, so a prefix match would light it everywhere. */
+  exact?: boolean
 }
 interface NavItem {
   href: string
@@ -146,6 +150,25 @@ export function AppSidebar({ reviewBadge, settingsBadge, notesBadge, isAdmin, up
   const [mounted, setMounted] = useState(false)
   useEffect(() => setMounted(true), [])
 
+  // The Funds subnav is fund-first: every child points at /funds/<id>/<page>, with an
+  // "Overview" entry for the fund's lead page. Which fund? The one in the URL when we're
+  // under a fund, else the selected vehicle from context (its id, or its name for a legacy
+  // vehicle with no registry id). Null until a fund is known — then the children are empty.
+  const { vehicleId, group } = useVehicle()
+  const fundMatch = pathname.match(/^\/funds\/([^/]+)/)
+  const pathFundSeg = fundMatch && !FUND_SUBPAGE_SLUGS.has(fundMatch[1]) ? fundMatch[1] : null
+  const fundSeg = pathFundSeg ?? vehicleId ?? (group ? encodeURIComponent(group) : null)
+  const fundsChildren: NavChild[] = fundSeg
+    ? [
+        { href: `/funds/${fundSeg}`, label: 'Overview', exact: true },
+        ...ACCOUNTING_SECTIONS.map(s => ({
+          href: `/funds/${fundSeg}/${s.href.slice('/funds/'.length)}`,
+          label: s.label,
+          domain: s.domain,
+        })),
+      ]
+    : []
+
   const currentTheme = (THEME_CYCLE.includes(theme as typeof THEME_CYCLE[number]) ? theme : 'system') as typeof THEME_CYCLE[number]
   const ThemeIcon = mounted ? THEME_ICONS[currentTheme] : Monitor
   const themeLabel = mounted ? THEME_LABELS[currentTheme] : 'System'
@@ -163,7 +186,10 @@ export function AppSidebar({ reviewBadge, settingsBadge, notesBadge, isAdmin, up
           if (item.badgeKey === 'review' && reviewBadge === 0) return false
           return true
         }).map((item) => {
-          const { href, label, icon: Icon, badgeKey, adminOnly, featureKey, beta, children } = item
+          const { href, label, icon: Icon, badgeKey, adminOnly, featureKey, beta } = item
+          // The Funds children are computed per-render from the current fund (fund-first hrefs);
+          // every other section uses its static children.
+          const children = item.href === '/funds' ? fundsChildren : item.children
           // The parent row is highlighted ONLY when it is the exact current page — never
           // merely because a child is open. Otherwise the highlight was inconsistent: Funds
           // (/funds) and Diligence (/diligence) nest their children under their own path, so a
@@ -244,7 +270,9 @@ export function AppSidebar({ reviewBadge, settingsBadge, notesBadge, isAdmin, up
               {showChildren && (
                 <div className="ml-5 border-l border-border pl-2 mt-0.5 space-y-0.5">
                   {visibleChildren.map(child => {
-                    const childIsActive = pathname === child.href || pathname.startsWith(child.href + '/')
+                    const childIsActive = child.exact
+                      ? pathname === child.href
+                      : pathname === child.href || pathname.startsWith(child.href + '/')
                     const childShowLock = child.adminOnly || (child.featureKey && featureVisibility?.[child.featureKey] === 'admin')
                     return (
                       <Link

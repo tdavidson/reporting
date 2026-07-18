@@ -74,6 +74,7 @@ export const ROUTE_DOMAINS: Record<string, RouteAccess> = {
   'api/accounting/statements/export': { domain: 'accounting' },
   'api/accounting/status': { domain: 'accounting' },
   'api/accounting/vehicles': { domain: 'accounting' },
+  'api/accounting/vehicle-index': { domain: 'accounting' },
   'api/vehicles': { domain: 'accounting' },
 
   // ── GP economics — the carve-out. These used to sit behind the single `accounting` key,

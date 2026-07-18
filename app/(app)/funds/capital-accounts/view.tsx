@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 import { useCurrency, formatCurrencyPrice } from '@/components/currency-context'
-import { useLedgerFetch } from '@/components/accounting-vehicle'
+import { useLedgerFetch, useFundSeg } from '@/components/accounting-vehicle'
 import { PERIOD_PRESETS, type PeriodPreset } from '@/lib/accounting/statement-period'
 import { ReconciliationPanel } from './reconciliation-panel'
 import { type CapitalSource } from './capital-source-card'
@@ -99,6 +99,7 @@ export function CapitalAccountsView() {
   const currency = useCurrency()
   const fmt = (v: number) => formatCurrencyPrice(v, currency)
   const lf = useLedgerFetch()
+  const fundSeg = useFundSeg()
 
   const [rows, setRows] = useState<Row[]>([])
   const [calls, setCalls] = useState<CallRow[]>([])
@@ -528,7 +529,7 @@ export function CapitalAccountsView() {
                 return (
                   <tr key={r.lpEntityId} className="border-b last:border-b-0 hover:bg-muted/30">
                     <td className="px-3 py-2 max-w-[200px]">
-                      <Link href={`/funds/capital-accounts/${r.lpEntityId}`} className="hover:underline truncate block" title={r.name}>{r.name}</Link>
+                      <Link href={fundSeg ? `/funds/${fundSeg}/capital-accounts/${r.lpEntityId}` : '/funds'} className="hover:underline truncate block" title={r.name}>{r.name}</Link>
                       {r.partnerClass === 'gp' && <span className="ml-1.5 text-[10px] uppercase tracking-wider px-1 py-0.5 rounded bg-muted text-muted-foreground">GP</span>}
                     </td>
                     {commitmentCols.map(c => (

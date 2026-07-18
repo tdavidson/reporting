@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Loader2, Landmark, ClipboardList, ArrowRight, Search, X } from 'lucide-react'
 import { useCurrency, formatCurrency, formatCurrencyFull } from '@/components/currency-context'
-import { useVehicle } from '@/components/accounting-vehicle'
+import { useVehicle, useFundSeg } from '@/components/accounting-vehicle'
 import { Card, CardContent } from '@/components/ui/card'
 import { SortTh, nextSort, compareVals, type SortState } from '@/components/sortable-th'
 
@@ -54,14 +54,15 @@ export function FundOverview() {
   const fmt = (v: number) => formatCurrency(v, currency)
   const fmtFull = (v: number) => formatCurrencyFull(v, currency)
   const router = useRouter()
-  const { setGroup } = useVehicle()
+  const { setVehicle } = useVehicle()
+  const fundSeg = useFundSeg()
 
   // Clicking a vehicle selects it (localStorage-backed context the whole section reads) and opens
   // its detail page — the lead page for the fund. Admin (/funds/status) is reached from there.
   // Route on the stable id (like companies and LPs); a legacy vehicle without one falls back to
   // its name, which the detail page resolves the same way.
   const openVehicle = (v: Vehicle) => {
-    setGroup(v.vehicle)
+    setVehicle(v.vehicle, v.id)
     router.push(`/funds/${v.id ?? encodeURIComponent(v.vehicle)}`)
   }
 
@@ -282,6 +283,7 @@ function MetricBox({ label, value }: { label: string; value: string }) {
  * accounts and feed this overview identically.
  */
 function OnboardingEmptyState() {
+  const fundSeg = useFundSeg()
   return (
     <div className="rounded-lg border p-6 max-w-2xl space-y-5">
       <div className="space-y-1">
@@ -327,14 +329,14 @@ function OnboardingEmptyState() {
             <ArrowRight className="h-3.5 w-3.5" />
           </Link>
           <Link
-            href="/funds/capital-accounts"
+            href={fundSeg ? `/funds/${fundSeg}/capital-accounts` : '/funds'}
             className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm hover:bg-accent transition-colors"
           >
             Add LPs &amp; capital
             <ArrowRight className="h-3.5 w-3.5" />
           </Link>
           <Link
-            href="/funds/opening-balances"
+            href={fundSeg ? `/funds/${fundSeg}/opening-balances` : '/funds'}
             className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm hover:bg-accent transition-colors"
           >
             Import an existing snapshot

@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Loader2, Download } from 'lucide-react'
 import { useCurrency, formatCurrencyPrice } from '@/components/currency-context'
-import { useLedgerFetch, useVehicle } from '@/components/accounting-vehicle'
+import { useLedgerFetch, useVehicle, useFundSeg } from '@/components/accounting-vehicle'
 import { PERIOD_PRESETS, type PeriodPreset } from '@/lib/accounting/statement-period'
 
 interface Section { label: string; rows: { code: string; name: string; amount: number }[]; total: number }
@@ -73,6 +73,7 @@ export function StatementsView() {
   const [end, setEnd] = useState('')
   const lf = useLedgerFetch()
   const { group } = useVehicle()
+  const fundSeg = useFundSeg()
 
   // Same period params as the on-screen fetch, plus the selected vehicle — the export
   // route computes the identical package and serializes it to a multi-tab .xlsx.
@@ -310,7 +311,7 @@ export function StatementsView() {
                   <td className="px-3 py-2">
                     {p.id === 'gp'
                       ? p.name
-                      : <Link href={`/funds/capital-accounts/${p.id}`} className="hover:underline">{p.name}</Link>}
+                      : <Link href={fundSeg ? `/funds/${fundSeg}/capital-accounts/${p.id}` : '/funds'} className="hover:underline">{p.name}</Link>}
                   </td>
                   {CAP_COLS.map(c => <td key={c.key} className={`px-3 py-2 text-right font-mono ${c.key === 'ending' ? 'font-semibold' : ''}`}>{fmt(p[c.key] as number)}</td>)}
                 </tr>
