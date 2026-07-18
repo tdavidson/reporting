@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useAnalystContext, type AnalystDomain } from '@/components/analyst-context'
 import { MobileDrawerPanel } from '@/components/mobile-drawer-panel'
 import { AnalystProposals, type Proposal } from '@/components/analyst-proposals'
+import { AnalystPendingActions, type StagedAction } from '@/components/analyst-pending-actions'
 
 interface Scope {
   dealId: string | null
@@ -69,6 +70,7 @@ export function AnalystPanel() {
   // persisted with the conversation — a stale draft from a reloaded thread shouldn't be
   // applicable against books that have moved on since.
   const [proposals, setProposals] = useState<Record<number, Proposal[]>>({})
+  const [stagedActions, setStagedActions] = useState<Record<number, StagedAction[]>>({})
   // An attached source document (accounting scope only) — a capital-call notice, invoice, or wire
   // confirmation the Analyst drafts an entry from. It stays attached until removed, so follow-ups
   // ("now attribute it to Cranmore") still see it; the server re-extracts it each turn.
@@ -85,7 +87,10 @@ export function AnalystPanel() {
   // The thread was reset (new conversation, or a scope change cleared it) — the drafts that went
   // with those messages go too, since they're keyed by message index.
   useEffect(() => {
-    if (messages.length === 0) setProposals({})
+    if (messages.length === 0) {
+      setProposals({})
+      setStagedActions({})
+    }
   }, [messages.length])
 
   useEffect(() => {
@@ -146,6 +151,9 @@ export function AnalystPanel() {
       setMessages(prev => [...prev, { role: 'assistant', content: data.reply }])
       if (Array.isArray(data.proposals) && data.proposals.length > 0) {
         setProposals(prev => ({ ...prev, [newMessages.length]: data.proposals }))
+      }
+      if (Array.isArray(data.stagedActions) && data.stagedActions.length > 0) {
+        setStagedActions(prev => ({ ...prev, [newMessages.length]: data.stagedActions }))
       }
       // Capture conversationId from response
       if (data.conversationId && !conversationId) {
@@ -324,6 +332,9 @@ export function AnalystPanel() {
                   )}
                   {msg.role === 'assistant' && proposals[i] && (
                     <AnalystProposals proposals={proposals[i]} vehicle={vehicle} />
+                  )}
+                  {msg.role === 'assistant' && stagedActions[i] && (
+                    <AnalystPendingActions actions={stagedActions[i]} />
                   )}
                   {msg.role === 'assistant' && companyId && (
                     <button
