@@ -5,6 +5,7 @@ import Link from 'next/link'
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis,
   CartesianGrid, Tooltip, Legend, PieChart, Pie, Cell,
+  LineChart, Line, ReferenceLine,
 } from 'recharts'
 import { Loader2, Gauge, ArrowRight } from 'lucide-react'
 import { useCurrency, formatCurrency, formatCurrencyFull } from '@/components/currency-context'
@@ -41,7 +42,8 @@ interface TsPoint {
   calledCapital: number; distributed: number
   contributions: number; distributions: number; operatingIncome: number
   realizedGains: number; unrealizedGains: number; expenses: number; other: number; nav: number
-  investedCapital: number; proceeds: number; portfolioValue: number
+  investedCapital: number; newInvested: number; followOnInvested: number; proceeds: number; portfolioValue: number
+  grossIrr: number | null; netIrrFund: number | null; netIrrLp: number | null
 }
 interface Timeseries { points: TsPoint[]; hasGross: boolean }
 
@@ -60,6 +62,14 @@ const HUE = {
 }
 // A fixed palette for the SOI breakdown slices, so a slice keeps its colour as the mix changes.
 const SLICE = [HUE.chart2, HUE.chart1, HUE.chart3, HUE.chart4, HUE.chart5, HUE.muted]
+
+// Invested capital reads as one blue family split by intensity: new = solid, follow-on = a lighter
+// tint of the same slot (so the pairing holds in either theme). Gains keep the orange "unrealized"
+// hue; proceeds keep the teal they use elsewhere.
+const INVEST_NEW = HUE.chart3
+const INVEST_FOLLOW = 'hsl(var(--chart-3) / 0.5)'
+const GAINS_HUE = HUE.chart1
+const PROCEEDS_HUE = HUE.chart2
 
 const moic = (v: number | null | undefined) => (v == null ? '—' : `${v.toFixed(2)}x`)
 const irrPct = (v: number | null | undefined) => {
@@ -105,6 +115,9 @@ export function FundDetailView({ vehicle }: { vehicle: string }) {
   const hasGpSplit = !!econ && ((econ.gp?.paidIn ?? 0) !== 0 || (econ.gp?.nav ?? 0) !== 0 || (econ.carryAccrued ?? 0) !== 0)
   const effectiveLens: Lens = hasGpSplit ? lens : 'fund'
   const m = econ ? (effectiveLens === 'lp' ? econ.lp : econ.fund) : null
+  // Fund accounting carries called capital and a partners'-capital NAV; capital tracking has neither,
+  // so its charts stay on the gross (deal-level) view only. This is the switch for that everywhere.
+  const isAccounting = econ?.source === 'ledger'
 
   if (loading) {
     return (
@@ -177,8 +190,8 @@ export function FundDetailView({ vehicle }: { vehicle: string }) {
           vehicle has no dated ledger activity — e.g. it isn't kept on fund accounting. */}
       {(ts?.points.length ?? 0) > 0 && (
         <div className="grid gap-4 lg:grid-cols-2">
-          <FundGrowthChart points={ts!.points} hasGross={!!ts?.hasGross} fmt={fmt} fmtFull={fmtFull} />
-          <NavCompositionChart points={ts!.points} fmt={fmt} fmtFull={fmtFull} />
+          <CashFlowsChart points={ts!.points} hasGross={!!ts?.hasGross} isAccounting={isAccounting} fmt={fmt} fmtFull={fmtFull} />
+          <AssetsChart points={ts!.points} isAccounting={isAccounting} fmt={fmt} fmtFull={fmtFull} />
         </div>
       )}
 
@@ -196,6 +209,14 @@ export function FundDetailView({ vehicle }: { vehicle: string }) {
           <div className="lg:col-span-2">
             <TopHoldings rows={soi.rows} fmt={fmt} fmtFull={fmtFull} />
           </div>
+        </div>
+      )}
+
+      {/* Fourth row — the new-vs-follow-on split and IRR over time, side by side. */}
+      {(ts?.points.length ?? 0) > 0 && (ts!.hasGross || isAccounting) && (
+        <div className="grid gap-4 lg:grid-cols-2">
+          {ts!.hasGross && <NewVsFollowOnPie point={ts!.points[ts!.points.length - 1]} fmt={fmt} fmtFull={fmtFull} />}
+          <IrrOverTimeChart points={ts!.points} isAccounting={isAccounting} lens={effectiveLens} />
         </div>
       )}
 
@@ -246,24 +267,26 @@ function EmptyPlot({ label }: { label: string }) {
   return <div className="flex h-[240px] items-center justify-center text-sm text-muted-foreground">{label}</div>
 }
 
-// ── Fund growth over time: stacked bars, toggle gross ⇄ net ───────────────────
+// ── Fund cash flows per period: signed bars, proceeds up / capital deployed down ──
 
-function FundGrowthChart({
-  points, hasGross, fmt, fmtFull,
-}: { points: TsPoint[]; hasGross: boolean; fmt: (v: number) => string; fmtFull: (v: number) => string }) {
-  // Default to the gross (deal-level) view — invested capital & proceeds — with the net LP-cash
-  // view (called & distributed) one click away. Gross is only offered when the vehicle tracks it;
-  // otherwise the net view is all there is and the toggle is hidden.
-  const [mode, setMode] = useState<'net' | 'gross'>('gross')
-  const view = hasGross ? mode : 'net'
+function CashFlowsChart({
+  points, hasGross, isAccounting, fmt, fmtFull,
+}: { points: TsPoint[]; hasGross: boolean; isAccounting: boolean; fmt: (v: number) => string; fmtFull: (v: number) => string }) {
+  // Net metrics (called capital, distributed) only mean something on a fund with accounting; a
+  // capital-tracking vehicle has no called capital, so it shows the gross (deal-level) view only.
+  const canNet = isAccounting
+  const canGross = hasGross
+  const [mode, setMode] = useState<'net' | 'gross'>(isAccounting ? 'net' : 'gross')
+  const view: 'net' | 'gross' =
+    mode === 'net' && canNet ? 'net' : mode === 'gross' && canGross ? 'gross' : canGross ? 'gross' : 'net'
 
-  const toggle = hasGross ? (
+  const toggle = canNet && canGross ? (
     <div className="inline-flex rounded-md border p-0.5 text-xs">
       {(['gross', 'net'] as const).map(mo => (
         <button
           key={mo}
           onClick={() => setMode(mo)}
-          className={`px-2 py-1 rounded ${mode === mo ? 'bg-muted font-medium' : 'text-muted-foreground'}`}
+          className={`px-2 py-1 rounded ${view === mo ? 'bg-muted font-medium' : 'text-muted-foreground'}`}
         >
           {mo === 'net' ? 'Called & distributed' : 'Invested & proceeds'}
         </button>
@@ -271,41 +294,47 @@ function FundGrowthChart({
     </div>
   ) : undefined
 
-  // Called capital and distributions are the LP-cash view; invested capital and proceeds are the
-  // deal-level (gross) view of the same fund. Distinct series → distinct fixed hues.
+  // Convert the cumulative series to per-period flows. Capital deployed is an outflow (drawn DOWN,
+  // negative); capital returned is an inflow (drawn UP, positive). stackOffset="sign" splits them.
+  const data = useMemo(() => points.map((p, i) => {
+    const prev = i > 0 ? points[i - 1] : null
+    const d = (k: keyof TsPoint) => (Number(p[k]) || 0) - (prev ? Number(prev[k]) || 0 : 0)
+    return {
+      label: p.label,
+      newInvested: -d('newInvested'),
+      followOnInvested: -d('followOnInvested'),
+      proceeds: d('proceeds'),
+      calledCapital: -d('calledCapital'),
+      distributed: d('distributed'),
+    }
+  }), [points])
+
   const series = view === 'net'
     ? [
-        { key: 'calledCapital', name: 'Called capital', color: HUE.chart3 },
-        { key: 'distributed', name: 'Distributed', color: HUE.chart2 },
+        { key: 'calledCapital', name: 'Called capital', color: INVEST_NEW },
+        { key: 'distributed', name: 'Distributed', color: PROCEEDS_HUE },
       ]
     : [
-        { key: 'investedCapital', name: 'Invested capital', color: HUE.chart1 },
-        { key: 'proceeds', name: 'Proceeds', color: HUE.chart4 },
+        { key: 'newInvested', name: 'New capital', color: INVEST_NEW },
+        { key: 'followOnInvested', name: 'Follow-on capital', color: INVEST_FOLLOW },
+        { key: 'proceeds', name: 'Proceeds', color: PROCEEDS_HUE },
       ]
 
   return (
-    <ChartCard title="Fund growth over time" action={toggle}>
+    <ChartCard title="Fund cash flows per period" action={toggle}>
       {points.length === 0 ? (
         <EmptyPlot label="No dated activity yet." />
       ) : (
         <ResponsiveContainer width="100%" height={260}>
-          <BarChart data={points} margin={{ top: 8, right: 8, bottom: 0, left: 8 }}>
+          <BarChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 8 }} stackOffset="sign">
             <CartesianGrid strokeDasharray="3 3" vertical={false} className="stroke-border" />
             <XAxis dataKey="label" tick={AXIS} tickLine={false} axisLine={false} interval="equidistantPreserveStart" className="text-muted-foreground" />
             <YAxis tick={AXIS} tickLine={false} axisLine={false} width={52} tickFormatter={fmt} className="text-muted-foreground" />
-            <Tooltip cursor={{ fill: 'hsl(var(--muted) / 0.4)' }} contentStyle={tooltipStyle} formatter={(v: any, n: any) => [fmtFull(v as number), n]} />
+            <Tooltip cursor={{ fill: 'hsl(var(--muted) / 0.4)' }} contentStyle={tooltipStyle} formatter={(v: any, n: any) => [fmtFull(Math.abs(v as number)), n]} />
             <Legend wrapperStyle={{ fontSize: 12 }} iconType="circle" />
-            {series.map((s, i) => (
-              <Bar
-                key={s.key}
-                dataKey={s.key}
-                name={s.name}
-                stackId="a"
-                fill={s.color}
-                stroke={HUE.surface}
-                strokeWidth={1}
-                radius={i === series.length - 1 ? [3, 3, 0, 0] : undefined}
-              />
+            <ReferenceLine y={0} stroke="hsl(var(--border))" />
+            {series.map(s => (
+              <Bar key={s.key} dataKey={s.key} name={s.name} stackId="a" fill={s.color} stroke={HUE.surface} strokeWidth={1} />
             ))}
           </BarChart>
         </ResponsiveContainer>
@@ -314,8 +343,9 @@ function FundGrowthChart({
   )
 }
 
-// ── NAV growth over time: stacked composition + NAV total line ────────────────
+// ── Fund assets end of period: cumulative composition ─────────────────────────
 
+// The accounting (partners'-capital) composition, signed so the segments sum to NAV.
 const NAV_SERIES = [
   { key: 'netPaidIn', name: 'Net paid-in capital', color: HUE.chart3 },
   { key: 'realizedGains', name: 'Realized gains', color: HUE.chart2 },
@@ -325,19 +355,39 @@ const NAV_SERIES = [
   { key: 'other', name: 'Other', color: HUE.muted },
 ] as const
 
-function NavCompositionChart({
-  points, fmt, fmtFull,
-}: { points: TsPoint[]; fmt: (v: number) => string; fmtFull: (v: number) => string }) {
-  // Net paid-in = contributions net of capital returned. The rest of the composition (gains,
-  // income, expenses) is already signed so the stack sums to NAV, which the overlaid line traces.
-  const data = useMemo(
-    () => points.map(p => ({ ...p, netPaidIn: Math.round((p.contributions + p.distributions) * 100) / 100 })),
-    [points],
-  )
-  const shown = NAV_SERIES.filter(s => data.some(d => Math.abs(Number((d as any)[s.key])) > 0.5))
+// Capital-tracking assets: portfolio carrying value split into cost (new + follow-on) and gain.
+const GROSS_ASSET_SERIES = [
+  { key: 'newInvested', name: 'New invested', color: INVEST_NEW },
+  { key: 'followOnInvested', name: 'Follow-on invested', color: INVEST_FOLLOW },
+  { key: 'unrealizedGains', name: 'Unrealized gains', color: GAINS_HUE },
+] as const
+
+function AssetsChart({
+  points, isAccounting, fmt, fmtFull,
+}: { points: TsPoint[]; isAccounting: boolean; fmt: (v: number) => string; fmtFull: (v: number) => string }) {
+  const { data, series } = useMemo(() => {
+    if (isAccounting) {
+      // Net paid-in = contributions net of capital returned; the rest is already signed so the
+      // stack sums to NAV (partners' capital), which is the fund's assets under accounting.
+      const d = points.map(p => ({ ...p, netPaidIn: Math.round((p.contributions + p.distributions) * 100) / 100 }))
+      const s = NAV_SERIES.filter(se => d.some(x => Math.abs(Number((x as any)[se.key])) > 0.5))
+      return { data: d as any[], series: s as readonly { key: string; name: string; color: string }[] }
+    }
+    // Assets = portfolio carrying value = invested cost + unrealized gain. Underwater (gain < 0)
+    // scales the cost segments down so the stack still totals the carrying value rather than
+    // painting a negative slice.
+    const d = points.map(p => {
+      const invested = p.newInvested + p.followOnInvested
+      const gain = p.portfolioValue - invested
+      if (gain >= 0) return { label: p.label, newInvested: p.newInvested, followOnInvested: p.followOnInvested, unrealizedGains: gain }
+      const f = invested > 0 ? p.portfolioValue / invested : 0
+      return { label: p.label, newInvested: p.newInvested * f, followOnInvested: p.followOnInvested * f, unrealizedGains: 0 }
+    })
+    return { data: d as any[], series: GROSS_ASSET_SERIES as readonly { key: string; name: string; color: string }[] }
+  }, [points, isAccounting])
 
   return (
-    <ChartCard title="NAV growth over time">
+    <ChartCard title="Fund assets end of period">
       {points.length === 0 ? (
         <EmptyPlot label="No dated activity yet." />
       ) : (
@@ -348,11 +398,104 @@ function NavCompositionChart({
             <YAxis tick={AXIS} tickLine={false} axisLine={false} width={52} tickFormatter={fmt} className="text-muted-foreground" />
             <Tooltip cursor={{ fill: 'hsl(var(--muted) / 0.4)' }} contentStyle={tooltipStyle} formatter={(v: any, n: any) => [fmtFull(v as number), n]} />
             <Legend wrapperStyle={{ fontSize: 12 }} iconType="circle" />
-            {/* The signed deltas already sum to NAV, so the stack IS the NAV — no separate line. */}
-            {shown.map(s => (
-              <Bar key={s.key} dataKey={s.key} name={s.name} stackId="nav" fill={s.color} stroke={HUE.surface} strokeWidth={1} />
+            {series.map(s => (
+              <Bar key={s.key} dataKey={s.key} name={s.name} stackId="assets" fill={s.color} stroke={HUE.surface} strokeWidth={1} />
             ))}
           </BarChart>
+        </ResponsiveContainer>
+      )}
+    </ChartCard>
+  )
+}
+
+// ── New vs follow-on capital: a donut of the invested cost at the latest period ──
+
+function NewVsFollowOnPie({
+  point, fmt, fmtFull,
+}: { point: TsPoint; fmt: (v: number) => string; fmtFull: (v: number) => string }) {
+  const data = [
+    { name: 'New capital', value: Math.max(0, point.newInvested), color: INVEST_NEW },
+    { name: 'Follow-on capital', value: Math.max(0, point.followOnInvested), color: INVEST_FOLLOW },
+  ].filter(d => d.value > 0)
+  const total = data.reduce((s, d) => s + d.value, 0)
+
+  return (
+    <ChartCard title="New vs follow-on capital">
+      {total === 0 ? (
+        <EmptyPlot label="No invested capital yet." />
+      ) : (
+        <div className="flex items-center gap-4">
+          <ResponsiveContainer width="55%" height={220}>
+            <PieChart>
+              <Pie data={data} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={48} outerRadius={80} paddingAngle={2} stroke={HUE.surface} strokeWidth={2}>
+                {data.map((d, i) => <Cell key={i} fill={d.color} />)}
+              </Pie>
+              <Tooltip contentStyle={tooltipStyle} formatter={(v: any, n: any) => [fmtFull(v as number), n]} />
+            </PieChart>
+          </ResponsiveContainer>
+          <ul className="flex-1 space-y-1.5 text-xs min-w-0">
+            {data.map(d => (
+              <li key={d.name} className="flex items-center gap-2">
+                <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: d.color }} />
+                <span className="truncate flex-1">{d.name}</span>
+                <span className="font-mono text-muted-foreground shrink-0">{fmt(d.value)}</span>
+                <span className="font-mono text-muted-foreground/70 shrink-0 w-10 text-right">
+                  {total ? `${Math.round((d.value / total) * 100)}%` : '—'}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </ChartCard>
+  )
+}
+
+// ── IRR over time: gross always; net (whole-fund vs LP by the page lens) on accounting ──
+
+function IrrOverTimeChart({
+  points, isAccounting, lens,
+}: { points: TsPoint[]; isAccounting: boolean; lens: Lens }) {
+  const [mode, setMode] = useState<'net' | 'gross'>('net')
+  const view: 'net' | 'gross' = isAccounting ? mode : 'gross'
+
+  const toggle = isAccounting ? (
+    <div className="inline-flex rounded-md border p-0.5 text-xs">
+      {(['net', 'gross'] as const).map(mo => (
+        <button
+          key={mo}
+          onClick={() => setMode(mo)}
+          className={`px-2 py-1 rounded ${mode === mo ? 'bg-muted font-medium' : 'text-muted-foreground'}`}
+        >
+          {mo === 'net' ? 'Net IRR' : 'Gross IRR'}
+        </button>
+      ))}
+    </div>
+  ) : undefined
+
+  // Net follows the page's Net-to-LP / Whole-fund lens; gross is the deal-level IRR.
+  const seriesName = view === 'gross' ? 'Gross IRR' : lens === 'lp' ? 'Net IRR — LP' : 'Net IRR — whole fund'
+  const data = points.map(p => {
+    const net = lens === 'lp' ? p.netIrrLp : p.netIrrFund
+    const v = view === 'net' ? net : p.grossIrr
+    return { label: p.label, irr: v == null ? null : Math.round(v * 1000) / 10 }
+  })
+  const hasAny = data.some(d => d.irr != null)
+
+  return (
+    <ChartCard title="IRR over time" action={toggle}>
+      {!hasAny ? (
+        <EmptyPlot label="Not enough dated activity to compute IRR." />
+      ) : (
+        <ResponsiveContainer width="100%" height={260}>
+          <LineChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 8 }}>
+            <CartesianGrid strokeDasharray="3 3" vertical={false} className="stroke-border" />
+            <XAxis dataKey="label" tick={AXIS} tickLine={false} axisLine={false} interval="equidistantPreserveStart" className="text-muted-foreground" />
+            <YAxis tick={AXIS} tickLine={false} axisLine={false} width={44} tickFormatter={(v: number) => `${Math.round(v)}%`} className="text-muted-foreground" />
+            <Tooltip contentStyle={tooltipStyle} formatter={(v: any) => [`${Number(v).toFixed(1)}%`, seriesName]} />
+            <ReferenceLine y={0} stroke="hsl(var(--border))" />
+            <Line type="monotone" dataKey="irr" name={seriesName} stroke={INVEST_NEW} strokeWidth={2} dot={{ r: 2 }} activeDot={{ r: 4 }} connectNulls isAnimationActive={false} />
+          </LineChart>
         </ResponsiveContainer>
       )}
     </ChartCard>

@@ -22,9 +22,11 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { roundCents } from './ledger'
 import { loadCapitalPostings } from './capital-source'
-import { bucketForSourceType } from './capital-account'
+import { bucketForSourceType, computeCapitalAccounts } from './capital-account'
+import { loadEntityClasses } from './load'
 import { txnsForVehicle } from './soi'
 import { computeSummary } from '@/lib/investments'
+import { xirr, type CashFlow } from '@/lib/xirr'
 import type { InvestmentTransaction, CompanyStatus } from '@/lib/types/database'
 
 export interface FundTimeseriesPoint {
@@ -56,10 +58,54 @@ export interface FundTimeseriesPoint {
   // ── Gross, from the portfolio tracker (cumulative, as of the period) ───────
   /** Capital deployed into companies to date. */
   investedCapital: number
+  /** New capital: the first (initial) investment into each company. */
+  newInvested: number
+  /** Follow-on capital: every investment into a company after the first. */
+  followOnInvested: number
   /** Proceeds realized from companies to date. */
   proceeds: number
   /** Carrying value of the portfolio at the period end. */
   portfolioValue: number
+
+  // ── IRR as of the period end (nullable until there are ≥2 dated flows) ─────
+  /** Gross (deal-level) IRR: portfolio cash flows + terminal carrying value. */
+  grossIrr: number | null
+  /** Net IRR to all partners (whole fund). Ledger vehicles only; null otherwise. */
+  netIrrFund: number | null
+  /** Net IRR to LP-class partners only. Ledger vehicles only; null otherwise. */
+  netIrrLp: number | null
+}
+
+/** One company's investment rows, narrowed for the new/follow-on split. */
+export interface InvTxnLite { date: string | null; cost: number }
+
+/**
+ * Cumulative new vs follow-on capital at each quarter end. The first (earliest-dated) investment
+ * into a company is NEW capital; every later investment into that same company is FOLLOW-ON.
+ * Pure and deterministic so the classification can be pinned by a test. `cost` must be defined the
+ * same way `computeSummary` defines `totalInvested`, so new + follow-on ties to invested capital.
+ */
+export function buildNewFollowOnSeries(
+  companies: InvTxnLite[][],
+  quarters: string[],
+): { newInvested: number; followOnInvested: number }[] {
+  const classified = companies.map(txns =>
+    // Stable sort by date; the first row is the initial (new) check, the rest are follow-ons.
+    [...txns]
+      .sort((a, b) => (a.date ?? '').localeCompare(b.date ?? ''))
+      .map((t, i) => ({ ...t, isNew: i === 0 })),
+  )
+  return quarters.map(q => {
+    let newInvested = 0, followOnInvested = 0
+    for (const txns of classified) {
+      for (const t of txns) {
+        if (t.date && t.date > q) continue // not yet deployed as of this quarter
+        if (t.isNew) newInvested += t.cost
+        else followOnInvested += t.cost
+      }
+    }
+    return { newInvested: r(newInvested), followOnInvested: r(followOnInvested) }
+  })
 }
 
 export interface FundTimeseries {
@@ -102,7 +148,10 @@ export function quarterEndsThrough(start: string, end: string): string[] {
 }
 
 /** The capital-account half of a point — everything derivable from LP postings alone. */
-export type CapitalSeriesPoint = Omit<FundTimeseriesPoint, 'investedCapital' | 'proceeds' | 'portfolioValue'>
+export type CapitalSeriesPoint = Omit<
+  FundTimeseriesPoint,
+  'investedCapital' | 'newInvested' | 'followOnInvested' | 'proceeds' | 'portfolioValue' | 'grossIrr' | 'netIrrFund' | 'netIrrLp'
+>
 
 /** A capital posting, narrowed to what the series needs. */
 interface SeriesPosting { entryDate?: string | null; sourceType?: string | null; amount: number }
@@ -191,11 +240,15 @@ export async function fundTimeseries(
 ): Promise<FundTimeseries> {
   const endDate = asOf && /^\d{4}-\d{2}-\d{2}$/.test(asOf) ? asOf : new Date().toISOString().slice(0, 10)
 
-  const [{ postings }, { data: txnRows }, { data: companyRows }] = await Promise.all([
+  const [{ postings, source }, { data: txnRows }, { data: companyRows }] = await Promise.all([
     loadCapitalPostings(admin, fundId, group, endDate),
     admin.from('investment_transactions' as any).select('*').eq('fund_id', fundId),
     admin.from('companies' as any).select('*').eq('fund_id', fundId),
   ])
+
+  // Net IRR splits by partner class, so we need the LP/GP map — but only ledger vehicles carry a
+  // meaningful net view (a tracking vehicle has no called capital), so skip the read otherwise.
+  const classes = source === 'ledger' ? await loadEntityClasses(admin, fundId, group) : new Map<string, string>()
 
   const txns = ((txnRows as InvestmentTransaction[]) ?? [])
   const companies = ((companyRows as any[]) ?? [])
@@ -219,22 +272,78 @@ export async function fundTimeseries(
   const quarters = quarterEndsThrough(allDates[0], endDate)
   const capital = buildCapitalSeries(postings, quarters)
 
-  // Layer the gross (deal-level) view on: re-value the tracker AS OF each quarter end.
-  // computeSummary is the canonical valuation — deliberately not re-derived here.
-  const points: FundTimeseriesPoint[] = capital.map(pt => {
+  // New vs follow-on: cost defined exactly as computeSummary's totalInvested (cash + any interest
+  // capitalized on a conversion row) so new + follow-on ties to invested capital at every quarter.
+  const invCost = (t: InvestmentTransaction) =>
+    (t.investment_cost ?? 0) + ((t as { converts_from_txn_id?: string | null }).converts_from_txn_id ? (t.interest_converted ?? 0) : 0)
+  const invLite: InvTxnLite[][] = held.map(c =>
+    c.relevant
+      .filter(t => t.transaction_type === 'investment')
+      .map(t => ({ date: t.transaction_date ?? null, cost: invCost(t) })),
+  )
+  const nfo = buildNewFollowOnSeries(invLite, quarters)
+
+  // Net-IRR flows from the LP's point of view: a contribution is money out (negative), a
+  // distribution money back (positive). Mirrors fund-economics.flowsFor so the two agree.
+  const netFlowsUpTo = (until: string, ids: Set<string> | null): CashFlow[] => {
+    const out: CashFlow[] = []
+    for (const p of postings) {
+      if (p.entryDate && p.entryDate > until) continue
+      if (ids && (!p.lpEntityId || !ids.has(p.lpEntityId))) continue
+      const bucket = bucketForSourceType(p.sourceType)
+      if (bucket !== 'contributions' && bucket !== 'distributions') continue
+      const delta = -p.amount // credit increases capital
+      if (Math.abs(delta) < 0.005) continue
+      out.push({ date: new Date((p.entryDate ?? until) + 'T00:00:00Z'), amount: -delta })
+    }
+    return out
+  }
+
+  const entityIds = Array.from(new Set(postings.map(p => p.lpEntityId).filter(Boolean) as string[]))
+  const lpIds = source === 'ledger' ? new Set(entityIds.filter(id => (classes.get(id) ?? 'lp') !== 'gp')) : null
+
+  const netIrrFor = (until: string, terminalDate: Date, ids: Set<string> | null): number | null => {
+    if (source !== 'ledger') return null
+    const accounts = computeCapitalAccounts(postings, { end: until })
+    let nav = 0
+    for (const [id, a] of Array.from(accounts.entries())) if (!ids || ids.has(id)) nav += a.ending
+    const flows = netFlowsUpTo(until, ids)
+    if (Math.abs(nav) > 0.005) flows.push({ date: terminalDate, amount: r(nav) })
+    return flows.length >= 2 ? xirr(flows) : null
+  }
+
+  // Layer the gross (deal-level) view on: re-value the tracker AS OF each quarter end. Only txns
+  // dated on or before the quarter count, so the series is a real growth curve (computeSummary
+  // itself does not date-scope cost/proceeds). computeSummary stays the canonical valuation.
+  const points: FundTimeseriesPoint[] = capital.map((pt, i) => {
     const asOfDate = new Date(pt.period + 'T00:00:00Z')
     let investedCapital = 0, proceeds = 0, portfolioValue = 0
+    const grossFlows: CashFlow[] = []
     for (const c of held) {
-      const s = computeSummary(c.relevant, c.status, asOfDate)
+      const asOfTxns = c.relevant.filter(t => !t.transaction_date || t.transaction_date <= pt.period)
+      const s = computeSummary(asOfTxns, c.status, asOfDate)
       investedCapital += s.totalInvested
       proceeds += s.totalRealized
       portfolioValue += s.unrealizedValue
+      for (const t of asOfTxns) {
+        if (!t.transaction_date) continue
+        const d = new Date(t.transaction_date + 'T00:00:00Z')
+        if (t.transaction_type === 'investment' && t.investment_cost) grossFlows.push({ date: d, amount: -t.investment_cost })
+        else if (t.transaction_type === 'proceeds' && t.proceeds_received) grossFlows.push({ date: d, amount: t.proceeds_received })
+      }
     }
+    if (Math.abs(portfolioValue) > 0.005) grossFlows.push({ date: asOfDate, amount: r(portfolioValue) })
+
     return {
       ...pt,
       investedCapital: r(investedCapital),
+      newInvested: nfo[i].newInvested,
+      followOnInvested: nfo[i].followOnInvested,
       proceeds: r(proceeds),
       portfolioValue: r(portfolioValue),
+      grossIrr: grossFlows.length >= 2 ? xirr(grossFlows) : null,
+      netIrrFund: netIrrFor(pt.period, asOfDate, null),
+      netIrrLp: netIrrFor(pt.period, asOfDate, lpIds),
     }
   })
 

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildCapitalSeries, quarterEndsThrough, type CapitalSeriesPoint } from './fund-timeseries'
+import { buildCapitalSeries, buildNewFollowOnSeries, quarterEndsThrough, type CapitalSeriesPoint } from './fund-timeseries'
 
 // Postings are DEBIT-POSITIVE deltas to LP equity (credit-normal), so a contribution — which
 // increases capital — arrives as a NEGATIVE amount, and `capitalDelta = -amount` flips it back
@@ -84,5 +84,38 @@ describe('buildCapitalSeries', () => {
 
   it('is empty when there are no quarters', () => {
     expect(buildCapitalSeries([p('2024-01-01', 'capital_call', 1)], [])).toEqual([])
+  })
+})
+
+describe('buildNewFollowOnSeries', () => {
+  const quarters = quarterEndsThrough('2024-01-01', '2024-12-31')
+
+  it('classifies the first investment as new and later ones as follow-on, cumulatively', () => {
+    // One company: an initial check in Q1, a follow-on in Q3.
+    const s = buildNewFollowOnSeries(
+      [[{ date: '2024-02-01', cost: 100 }, { date: '2024-08-01', cost: 40 }]],
+      quarters,
+    )
+    // Q1 (index 0): only the new check has landed.
+    expect(s[0]).toEqual({ newInvested: 100, followOnInvested: 0 })
+    // Q2 (index 1): still just the new check — follow-on not yet deployed.
+    expect(s[1]).toEqual({ newInvested: 100, followOnInvested: 0 })
+    // Q3 (index 2): follow-on now counts.
+    expect(s[2]).toEqual({ newInvested: 100, followOnInvested: 40 })
+    // new + follow-on ties to total invested at the end.
+    expect(s[3].newInvested + s[3].followOnInvested).toBe(140)
+  })
+
+  it('treats the earliest check per company as new regardless of input order', () => {
+    // Two companies; rows given out of date order. Each company's first-by-date row is its new check.
+    const s = buildNewFollowOnSeries(
+      [
+        [{ date: '2024-08-01', cost: 30 }, { date: '2024-02-01', cost: 70 }], // A: new=70, follow=30
+        [{ date: '2024-05-01', cost: 50 }],                                    // B: new=50
+      ],
+      quarters,
+    )
+    // By year end: new = 70 + 50 = 120, follow-on = 30.
+    expect(s[3]).toEqual({ newInvested: 120, followOnInvested: 30 })
   })
 })
