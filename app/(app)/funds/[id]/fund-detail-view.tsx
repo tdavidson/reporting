@@ -425,12 +425,36 @@ const HOLDING_HUE = { invested: HUE.chart3, distributions: HUE.chart2, residual:
 function holdingParts(r: SoiRow) {
   const distributions = r.distributions ?? 0
   const residual = r.fairValue
+  const invested = r.invested ?? r.cost
   return {
-    invested: r.invested ?? r.cost,
+    invested,
     distributions,
     residual,
+    // Unrealized gain on the still-held position: residual value above invested cost. Can be
+    // negative (underwater), which the stacked bars clamp to a zero gain segment.
+    unrealized: residual - invested,
     total: r.totalValue ?? distributions + residual,
   }
+}
+
+type Holding = { name: string } & ReturnType<typeof holdingParts>
+
+// The coloured segments that make up one bar. "Residual value" stacks invested capital + unrealized
+// gains (blue); "Total value" stacks the same two, then adds realized distributions so the bar still
+// sums to total value. "Invested" and "Distributions" are a single dimension in their own colour.
+function holdingSegments(h: Holding, metric: HoldingMetric): { label: string; value: number; color: string }[] {
+  if (metric === 'total' || metric === 'residual') {
+    // residual = invested + unrealized gain; if underwater, show it all as invested (no gain segment).
+    const investedSeg = h.unrealized >= 0 ? h.invested : h.residual
+    const segs = [
+      { label: 'Invested capital', value: investedSeg, color: HOLDING_HUE.invested },
+      { label: 'Unrealized gains', value: Math.max(0, h.unrealized), color: HOLDING_HUE.residual },
+    ]
+    if (metric === 'total') segs.push({ label: 'Distributions', value: h.distributions, color: HOLDING_HUE.distributions })
+    return segs
+  }
+  const color = metric === 'invested' ? HOLDING_HUE.invested : HOLDING_HUE.distributions
+  return [{ label: metric, value: h[metric], color }]
 }
 
 function TopHoldings({
@@ -438,10 +462,11 @@ function TopHoldings({
 }: { rows: SoiRow[]; fmt: (v: number) => string; fmtFull: (v: number) => string }) {
   const [metric, setMetric] = useState<HoldingMetric>('total')
 
-  // "Largest holdings by X": rank on the selected metric, keep the top 8.
+  // "Largest holdings by X": rank every company on the selected metric, largest first. No cap —
+  // the whole portfolio is shown.
   const ranked = useMemo(() => {
     const parts = rows.map(r => ({ name: r.name, ...holdingParts(r) }))
-    return parts.sort((a, b) => b[metric] - a[metric]).slice(0, 8)
+    return parts.sort((a, b) => b[metric] - a[metric])
   }, [rows, metric])
   const max = ranked.reduce((mx, h) => Math.max(mx, h[metric]), 0)
   const fundTotal = rows.reduce((s, r) => s + holdingParts(r)[metric], 0)
@@ -461,14 +486,31 @@ function TopHoldings({
     </div>
   )
 
+  // Legend for the stacked tabs. "Total value" and "Residual value" both stack invested capital +
+  // unrealized gains (blue); "Total value" adds realized distributions on the end.
+  const legendItems: { label: string; color: string }[] =
+    metric === 'total'
+      ? [
+          { label: 'Invested capital', color: HOLDING_HUE.invested },
+          { label: 'Unrealized gains', color: HOLDING_HUE.residual },
+          { label: 'Distributions', color: HOLDING_HUE.distributions },
+        ]
+      : metric === 'residual'
+        ? [
+            { label: 'Invested capital', color: HOLDING_HUE.invested },
+            { label: 'Unrealized gains', color: HOLDING_HUE.residual },
+          ]
+        : []
+
   return (
     <ChartCard title="Largest holdings" action={toggle}>
-      {/* Total value is the one stacked bar — distributions (realized) + residual (unrealized).
-          The other three isolate a single dimension in its own colour. */}
-      {metric === 'total' && (
+      {legendItems.length > 0 && (
         <div className="mb-3 flex items-center gap-4 text-xs text-muted-foreground">
-          <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full" style={{ background: HOLDING_HUE.distributions }} /> Distributions</span>
-          <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full" style={{ background: HOLDING_HUE.residual }} /> Residual value</span>
+          {legendItems.map(item => (
+            <span key={item.label} className="flex items-center gap-1.5">
+              <span className="h-2.5 w-2.5 rounded-full" style={{ background: item.color }} /> {item.label}
+            </span>
+          ))}
         </div>
       )}
       <div className="space-y-2">
@@ -477,17 +519,9 @@ function TopHoldings({
             <div className="w-40 shrink-0 truncate" title={h.name}>{h.name}</div>
             <div className="flex-1 min-w-0">
               <div className="h-4 rounded-sm bg-muted/50 overflow-hidden flex">
-                {metric === 'total' ? (
-                  <>
-                    <div className="h-full" style={{ width: max ? `${(h.distributions / max) * 100}%` : '0%', background: HOLDING_HUE.distributions }} />
-                    <div className="h-full" style={{ width: max ? `${(h.residual / max) * 100}%` : '0%', background: HOLDING_HUE.residual }} />
-                  </>
-                ) : (
-                  <div
-                    className="h-full rounded-sm"
-                    style={{ width: max ? `${Math.max(2, (h[metric] / max) * 100)}%` : '0%', background: HOLDING_HUE[metric] }}
-                  />
-                )}
+                {holdingSegments(h, metric).map(seg => (
+                  <div key={seg.label} className="h-full" style={{ width: max && seg.value > 0 ? `${(seg.value / max) * 100}%` : '0%', background: seg.color }} />
+                ))}
               </div>
             </div>
             <div className="w-24 shrink-0 text-right font-mono" title={fmtFull(h[metric])}>{fmt(h[metric])}</div>
