@@ -13,7 +13,7 @@ export default async function ScheduleOfInvestmentsPage({ params }: { params: { 
     <div className="pt-4 md:pt-8 pb-8 w-full">
       <FundSubpageChrome
         title="Schedule of investments"
-        description="Each investment at cost and fair value, with its share of net assets — derived from the ledger (investment cost + unrealized appreciation)."
+        description="Each investment at cost and fair value, with its share of net assets — derived from the ledger."
         vehicle={vehicle}
         vehicleId={vehicleId}
       >

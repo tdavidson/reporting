@@ -195,8 +195,8 @@ export function FundDetailView({ vehicle, vehicleId }: { vehicle: string; vehicl
       {/* Header — full width, ABOVE the body/panel row, so the Analyst panel slides in
           underneath it. The action group is lowered (items-end) to sit near the boxes, and
           the fund switcher + lens toggle are styled to sit beside the Analyst button. */}
-      <div className="flex flex-wrap items-end justify-between gap-3 mb-6">
-        <div className="space-y-1 min-w-0">
+      <div className="flex items-end justify-between gap-3 mb-6">
+        <div className="space-y-1 min-w-0 flex-1">
           <h1 className="text-2xl font-semibold tracking-tight truncate" title={vehicle}>{vehicle}</h1>
           {econ && (
             <p className="text-sm text-muted-foreground">
@@ -205,7 +205,7 @@ export function FundDetailView({ vehicle, vehicleId }: { vehicle: string; vehicl
             </p>
           )}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           {hasGpSplit && (
             <div className="inline-flex rounded-md border p-0.5 text-xs">
               {(['lp', 'fund'] as Lens[]).map(l => (

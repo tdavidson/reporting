@@ -13,7 +13,7 @@ export default async function StatementsPage({ params }: { params: { id: string 
     <div className="pt-4 md:pt-8 pb-8 w-full">
       <FundSubpageChrome
         title="Financial statements"
-        description="Statement of assets, liabilities and partners’ capital; statement of operations; statement of cash flows; and statement of changes in partners’ capital — all derived from the ledger. The balance sheet is a snapshot at the period end; the others cover the period."
+        description="The four ASC 946 statements — assets & partners’ capital, operations, cash flows, and changes in partners’ capital — derived from the ledger."
         vehicle={vehicle}
         vehicleId={vehicleId}
       >

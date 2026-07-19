@@ -13,7 +13,7 @@ export default async function StatusPage({ params }: { params: { id: string } })
     <div className="pt-4 md:pt-8 pb-8 w-full">
       <FundSubpageChrome
         title="Admin"
-        description="Where this vehicle’s books stand — onboarding, how far the close has got, and anything that needs attention — plus the assistant and reconciliation against an admin statement."
+        description="Where this vehicle’s books stand — onboarding, close progress, and anything needing attention."
         vehicle={vehicle}
         vehicleId={vehicleId}
       >
