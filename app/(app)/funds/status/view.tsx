@@ -86,10 +86,17 @@ export function StatusView() {
             </p>
           </div>
         </Link>
-        <p className="text-xs text-muted-foreground">
-          Switch to <strong>Fund Accounting</strong> above to keep double-entry books and produce full
-          financial statements for this vehicle.
-        </p>
+        {/* Promoting to Fund Accounting refuses a vehicle with an empty ledger (see the
+            /api/accounting/lp-events PATCH guard), and the seed-the-chart onboarding is
+            otherwise hidden in this mode — which left no way to set the books up. Surface it
+            here: seed the chart and book opening balances first, then flip with the switch above. */}
+        <div className="space-y-2">
+          <p className="text-xs text-muted-foreground">
+            To move this vehicle to <strong>Fund Accounting</strong>, seed its chart of accounts and
+            book opening balances below, then use <strong>Switch to Fund Accounting</strong> above.
+          </p>
+          <AccountingSetup alwaysShow />
+        </div>
       </div>
     )
   }

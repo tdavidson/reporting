@@ -14,7 +14,7 @@ export default async function OpeningBalancesPage({ params }: { params: { id: st
     <div className="pt-4 md:pt-8 pb-8 w-full">
       <FundSubpageChrome
         title="Opening balances"
-        description="Take over at a cutover date the way a fund admin does: enter each LP’s capital balance from their most recent statement. This books one posted opening entry — no need to reconstruct history from inception."
+        description="Take over at a cutover date: enter each LP’s capital balance from their latest statement. Books one opening entry — no history to reconstruct."
         vehicle={vehicle}
         vehicleId={vehicleId}
       >

@@ -11,13 +11,17 @@ import { AnalystPanel } from '@/components/analyst-panel'
  * the Analyst panel, so a header inside it would be squeezed left when the panel opens.
  */
 export function AccountingPageHeader({ title, children }: { title: string; children: React.ReactNode }) {
+  // items-end lowers the Analyst toggle to sit near the subtitle row, matching the fund
+  // detail/subpage headers, rather than aligning it to the title.
   return (
-    <div className="mb-6 space-y-1">
-      <div className="flex items-center justify-between gap-2">
+    <div className="flex items-end justify-between gap-3 mb-6">
+      <div className="space-y-1 min-w-0 flex-1">
         <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
+        <p className="text-sm text-muted-foreground">{children}</p>
+      </div>
+      <div className="flex items-center gap-2 shrink-0">
         <AnalystToggleButton />
       </div>
-      <p className="text-sm text-muted-foreground">{children}</p>
     </div>
   )
 }

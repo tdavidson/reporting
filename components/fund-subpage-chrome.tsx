@@ -37,12 +37,15 @@ export function FundSubpageChrome({
   return (
     <>
       <FundScopeSync vehicle={vehicle} vehicleId={vehicleId} />
-      <div className="flex flex-wrap items-end justify-between gap-3 mb-6">
-        <div className="space-y-1 min-w-0">
+      {/* items-end lowers the action group to sit near the subtitle. The left column takes
+          flex-1 + min-w-0 so a long description wraps INSIDE its column, and the action group
+          is shrink-0 so it never drops to a new row. */}
+      <div className="flex items-end justify-between gap-3 mb-6">
+        <div className="space-y-1 min-w-0 flex-1">
           <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
           {description && <p className="text-sm text-muted-foreground">{description}</p>}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           <FundSwitcher />
           <AnalystToggleButton />
         </div>

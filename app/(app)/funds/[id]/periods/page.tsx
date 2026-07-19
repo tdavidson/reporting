@@ -13,7 +13,7 @@ export default async function PeriodsPage({ params }: { params: { id: string } }
     <div className="pt-4 md:pt-8 pb-8 w-full">
       <FundSubpageChrome
         title="Period close"
-        description="Closing a period allocates its income and expenses to each partner’s capital account, snapshots the ledger, and freezes the books for that date range. New postings dated inside it are blocked until you reopen."
+        description="Closing a period allocates its income and expenses to each partner, snapshots the ledger, and freezes those dates until you reopen."
         vehicle={vehicle}
         vehicleId={vehicleId}
       >
