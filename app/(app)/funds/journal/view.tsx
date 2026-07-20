@@ -11,7 +11,7 @@ import { PeriodPicker } from '@/components/accounting/period-picker'
 import type { PeriodPreset } from '@/lib/accounting/statement-period'
 import { EntryModal } from '../entry-modal'
 
-interface Posting { id: string; account_id: string; amount: number; currency: string | null; lp_entity_id: string | null }
+interface Posting { id: string; account_id: string; account_code: string | null; account_name: string | null; account_type: string | null; amount: number; currency: string | null; lp_entity_id: string | null }
 interface Entry {
   id: string
   entry_date: string
@@ -20,7 +20,6 @@ interface Entry {
   status: string
   journal_postings: Posting[]
 }
-interface AcctRow { id: string; code: string; name: string; type: string }
 
 // Same action-button style as the bank transactions table.
 const actionBtn = 'shrink-0 rounded border border-input px-2 py-1 font-sans text-xs text-muted-foreground hover:bg-accent hover:text-foreground transition-colors'
@@ -32,7 +31,6 @@ export function JournalView() {
 
   const [entries, setEntries] = useState<Entry[]>([])
   const [total, setTotal] = useState(0)
-  const [accounts, setAccounts] = useState<AcctRow[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
@@ -40,9 +38,12 @@ export function JournalView() {
   const [preset, setPreset] = useState<PeriodPreset>('ytd')
   const [start, setStart] = useState('')
   const [end, setEnd] = useState('')
+  const [status, setStatus] = useState<'all' | 'draft' | 'posted'>('all')
   const [page, setPage] = useState(0)
   // `{ entryId: null }` = a new entry; readOnly = view a posted one without reverting it.
   const [editing, setEditing] = useState<{ entryId: string | null; readOnly?: boolean } | null>(null)
+  const [posting, setPosting] = useState(false)
+  const [postMsg, setPostMsg] = useState<string | null>(null)
 
   // Debounce the search box → server query. Reset page in the same state
   // transition so the fetch effect (below) recomputes and fires exactly once.
@@ -51,30 +52,49 @@ export function JournalView() {
     return () => clearTimeout(t)
   }, [search])
 
-  // Load the chart once (for account-name display).
-  useEffect(() => {
-    lf('/api/accounting/chart').then(r => (r.ok ? r.json() : [])).then(c => setAccounts(Array.isArray(c) ? c : [])).catch(() => {})
-  }, [lf])
-
   const loadPage = useCallback(() => {
     setError(null)
     setLoading(true)
     const qs = new URLSearchParams({ preset, limit: String(PAGE), offset: String(page * PAGE) })
     if (preset === 'custom') { if (start) qs.set('start', start); if (end) qs.set('end', end) }
     if (debounced) qs.set('q', debounced)
+    if (status !== 'all') qs.set('status', status)
     lf(`/api/accounting/journal?${qs}`)
       .then(r => (r.ok ? r.json() : { entries: [], total: 0 }))
       .then(d => { setEntries(Array.isArray(d.entries) ? d.entries : []); setTotal(d.total ?? 0) })
       .catch(() => setError('Could not load entries'))
       .finally(() => setLoading(false))
-  }, [lf, preset, start, end, debounced, page])
+  }, [lf, preset, start, end, debounced, status, page])
   useEffect(() => { loadPage() }, [loadPage])
 
-  // The same names the plain-text ledger uses (Assets:Cash:1000), so an entry reads
-  // exactly as it serializes.
-  const acctById = new Map(
-    accounts.map(a => [a.id, textAccountName({ id: a.id, fundId: '', code: a.code, name: a.name, type: a.type as AccountType } as Account)])
-  )
+  // Post every draft entry for this vehicle, one page at a time (the endpoint caps a
+  // single call at 500 rows and returns `remaining` so we know whether to loop).
+  const postAllDrafts = useCallback(() => {
+    if (!window.confirm('Post all draft entries for this vehicle to the ledger? This cannot be bulk-undone.')) return
+    setPosting(true)
+    setPostMsg(null)
+    let totalPosted = 0
+    const skippedAll: { id: string; reason: string }[] = []
+    let failed = false
+    const step = (iter: number): Promise<void> => {
+      if (iter >= 50) return Promise.resolve()
+      return lf('/api/accounting/journal/bulk-post', { method: 'POST', body: JSON.stringify({}) })
+        .then(r => (r.ok ? r.json() : { posted: 0, skipped: [], remaining: 0 }))
+        .then(d => {
+          totalPosted += d.posted ?? 0
+          if (Array.isArray(d.skipped)) skippedAll.push(...d.skipped)
+          if ((d.remaining ?? 0) > 0) return step(iter + 1)
+        })
+        .catch(() => { failed = true })
+    }
+    step(0).finally(() => {
+      setPostMsg(failed
+        ? 'Could not post draft entries.'
+        : `Posted ${totalPosted} entries.${skippedAll.length ? ` ${skippedAll.length} skipped (closed period or out of balance).` : ''}`)
+      setPosting(false)
+      loadPage()
+    })
+  }, [lf, loadPage])
 
   return (
     <div className="space-y-4">
@@ -91,6 +111,20 @@ export function JournalView() {
           placeholder="Search memo, source, date, account, or amount…"
           className="h-9 max-w-xs"
         />
+        <select
+          value={status}
+          onChange={e => { setStatus(e.target.value as 'all' | 'draft' | 'posted'); setPage(0) }}
+          className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+        >
+          <option value="all">All entries</option>
+          <option value="draft">Draft</option>
+          <option value="posted">Posted</option>
+        </select>
+        <Button size="sm" variant="outline" disabled={posting} onClick={postAllDrafts}>
+          {posting ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : null}
+          Post all drafts
+        </Button>
+        {postMsg && <span className="text-xs text-muted-foreground">{postMsg}</span>}
         {error && <span className="text-xs text-amber-600">{error}</span>}
         <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
           <PeriodPicker
@@ -138,7 +172,9 @@ export function JournalView() {
                         in the chart — the per-LP capital accounts are long enough to push
                         the amounts clean out of the container. */}
                     {e.journal_postings.map(p => {
-                      const name = acctById.get(p.account_id) ?? `Equity:Unknown:${p.account_id.slice(0, 8)}`
+                      const name = p.account_code
+                        ? textAccountName({ id: p.account_id, fundId: '', code: p.account_code, name: p.account_name ?? '', type: (p.account_type as AccountType) } as Account)
+                        : `Unknown:${p.account_id.slice(0, 8)}`
                       const amt = Number(p.amount)
                       return (
                         <div key={p.id} className="flex items-baseline gap-3 pl-4">
