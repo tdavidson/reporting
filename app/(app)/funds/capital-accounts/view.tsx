@@ -9,7 +9,8 @@ import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 import { useCurrency, formatCurrencyPrice } from '@/components/currency-context'
 import { useLedgerFetch, useFundSeg } from '@/components/accounting-vehicle'
-import { PERIOD_PRESETS, type PeriodPreset } from '@/lib/accounting/statement-period'
+import { type PeriodPreset } from '@/lib/accounting/statement-period'
+import { PeriodPicker } from '@/components/accounting/period-picker'
 import { ReconciliationPanel } from './reconciliation-panel'
 import { type CapitalSource } from './capital-source-card'
 import { GpPanel } from './gp-panel'
@@ -305,28 +306,13 @@ export function CapitalAccountsView() {
         <div className="ml-auto flex flex-wrap items-center gap-2">
           {/* "As of" report date + Latest — same control and placement as /lps. The preset
               chooses the window ENDING at this date; custom mode uses its own from/to instead. */}
-          {preset !== 'custom' && (
-            <>
-              <label className="text-xs text-muted-foreground">As of</label>
-              <Input type="date" value={asOf} onChange={e => setAsOf(e.target.value)} className="h-9 w-40" aria-label="As of" />
-              {asOf && <Button size="sm" variant="ghost" onClick={() => setAsOf('')}>Latest</Button>}
-            </>
-          )}
-          {preset === 'custom' && (
-            <>
-              <Input type="date" value={start} onChange={e => setStart(e.target.value)} className="h-9 w-36" aria-label="From" />
-              <Input type="date" value={end} onChange={e => setEnd(e.target.value)} className="h-9 w-36" aria-label="To" />
-            </>
-          )}
-          <select
-            value={preset}
-            onChange={e => setPreset(e.target.value as PeriodPreset)}
-            aria-label="Statement period"
-            className="h-9 px-3 rounded-md border border-input bg-background text-sm"
+          <PeriodPicker
+            preset={preset} onPreset={setPreset}
+            start={start} end={end} onStart={setStart} onEnd={setEnd}
+            asOf={asOf} onAsOf={setAsOf}
+            allowAsOf
             title={period && period.preset !== 'itd' && period.start ? `Beginning capital is the balance carried in before ${period.start}` : 'All activity since inception'}
-          >
-            {PERIOD_PRESETS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
-          </select>
+          />
         </div>
       </div>
 
