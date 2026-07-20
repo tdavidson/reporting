@@ -6,9 +6,12 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { assertWriteAccess, assertReadAccess } from '@/lib/api-helpers'
 import { resolveGroupOr400 } from '@/lib/accounting/http-vehicle'
 import { loadEntityNames } from '@/lib/accounting/load'
-import { loadCommitmentEvents, commitmentsAsOf, recordCommitmentChange } from '@/lib/accounting/terms'
+import { vehicleIdByName } from '@/lib/accounting/vehicle-id'
+import { commitmentsAsOf, recordCommitmentChange } from '@/lib/accounting/terms'
 
 // GET ?asOf=YYYY-MM-DD — commitment history, plus each partner's commitment as of a date.
+// Queries commitment_events directly (rather than the loadCommitmentEvents loader) because the
+// UI needs `id`/`transferId` to edit and delete events, which the loader's pure-logic shape omits.
 export async function GET(req: NextRequest) {
   const supabase = createClient()
   const admin = createAdminClient()
@@ -19,20 +22,42 @@ export async function GET(req: NextRequest) {
   const group = await resolveGroupOr400(admin, gate.fundId, req.nextUrl.searchParams.get('group'))
   if (group instanceof NextResponse) return group
 
+  const vehicleId = await vehicleIdByName(admin, gate.fundId, group)
   const asOf = req.nextUrl.searchParams.get('asOf')
-  const [events, names] = await Promise.all([
-    loadCommitmentEvents(admin, gate.fundId, group),
+  const [{ data: rows, error: rowsError }, names] = await Promise.all([
+    admin
+      .from('commitment_events' as any)
+      .select('id, lp_entity_id, effective_date, amount, kind, transfer_id, counterparty_entity_id, memo')
+      .eq('fund_id', gate.fundId)
+      .eq('vehicle_id', vehicleId)
+      .order('effective_date', { ascending: true }),
     loadEntityNames(admin, gate.fundId, group),
   ])
+  if (rowsError) return NextResponse.json({ error: rowsError.message }, { status: 500 })
 
-  const commitments = commitmentsAsOf(events, asOf)
+  const eventRows = (rows as any[]) ?? []
+  const commitments = commitmentsAsOf(
+    eventRows.map(e => ({ lpEntityId: e.lp_entity_id, effectiveDate: e.effective_date, amount: Number(e.amount), kind: e.kind })),
+    asOf
+  )
+
   return NextResponse.json({
     asOf: asOf ?? null,
     partners: Array.from(commitments.entries())
       .map(([lpEntityId, commitment]) => ({ lpEntityId, name: names.get(lpEntityId) ?? lpEntityId, commitment }))
       .sort((a, b) => a.name.localeCompare(b.name)),
-    events: events
-      .map(e => ({ ...e, name: names.get(e.lpEntityId) ?? e.lpEntityId }))
+    events: eventRows
+      .map(e => ({
+        id: e.id,
+        lpEntityId: e.lp_entity_id,
+        name: names.get(e.lp_entity_id) ?? e.lp_entity_id,
+        effectiveDate: e.effective_date,
+        amount: Number(e.amount),
+        kind: e.kind,
+        transferId: e.transfer_id ?? null,
+        counterpartyEntityId: e.counterparty_entity_id ?? null,
+        memo: e.memo ?? null,
+      }))
       .sort((a, b) => b.effectiveDate.localeCompare(a.effectiveDate)),
   })
 }
@@ -61,5 +86,122 @@ export async function POST(req: NextRequest) {
     memo: body?.memo ?? null,
   })
   if ('error' in result) return NextResponse.json({ error: result.error }, { status: 400 })
+  return NextResponse.json({ ok: true })
+}
+
+// PATCH { id, effectiveDate?, amount?, memo? } — correct a wrong effective date/amount/memo on an
+// already-recorded event. A transfer leg refuses an amount change (delete + re-enter instead) but
+// allows date/memo, applied to BOTH legs so the pair stays consistent.
+export async function PATCH(req: NextRequest) {
+  const supabase = createClient()
+  const admin = createAdminClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const gate = await assertWriteAccess(admin, user.id)
+  if (gate instanceof NextResponse) return gate
+
+  const body = await req.json().catch(() => ({}))
+  const group = await resolveGroupOr400(admin, gate.fundId, body?.group ?? req.nextUrl.searchParams.get('group'))
+  if (group instanceof NextResponse) return group
+
+  const id = body?.id
+  if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 })
+
+  const vehicleId = await vehicleIdByName(admin, gate.fundId, group)
+  const { data: existing, error: fetchError } = await admin
+    .from('commitment_events' as any)
+    .select('id, transfer_id')
+    .eq('fund_id', gate.fundId)
+    .eq('vehicle_id', vehicleId)
+    .eq('id', id)
+    .maybeSingle()
+  if (fetchError) return NextResponse.json({ error: fetchError.message }, { status: 500 })
+  const row = existing as any
+  if (!row) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+  if (row.transfer_id) {
+    if (body?.amount !== undefined) {
+      return NextResponse.json({ error: 'To change a transfer amount, delete it and re-enter the transfer.' }, { status: 400 })
+    }
+    const update: Record<string, unknown> = {}
+    if (body?.effectiveDate !== undefined) update.effective_date = body.effectiveDate
+    if (body?.memo !== undefined) update.memo = body.memo
+    if (Object.keys(update).length > 0) {
+      const { error } = await admin
+        .from('commitment_events' as any)
+        .update(update)
+        .eq('fund_id', gate.fundId)
+        .eq('transfer_id', row.transfer_id)
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+    return NextResponse.json({ ok: true })
+  }
+
+  const update: Record<string, unknown> = {}
+  if (body?.effectiveDate !== undefined) update.effective_date = body.effectiveDate
+  if (body?.memo !== undefined) update.memo = body.memo
+  if (body?.amount !== undefined) {
+    const amt = Number(body.amount)
+    if (!Number.isFinite(amt) || amt === 0) return NextResponse.json({ error: 'Amount must be a non-zero number' }, { status: 400 })
+    update.amount = amt
+    update.kind = amt > 0 ? 'increase' : 'decrease'
+  }
+  if (Object.keys(update).length > 0) {
+    const { error } = await admin
+      .from('commitment_events' as any)
+      .update(update)
+      .eq('fund_id', gate.fundId)
+      .eq('vehicle_id', vehicleId)
+      .eq('id', id)
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+  return NextResponse.json({ ok: true })
+}
+
+// DELETE { id } — remove a wrongly-entered event. A transfer leg deletes BOTH legs sharing its
+// transfer_id, so the fund's total commitment can't drift.
+export async function DELETE(req: NextRequest) {
+  const supabase = createClient()
+  const admin = createAdminClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const gate = await assertWriteAccess(admin, user.id)
+  if (gate instanceof NextResponse) return gate
+
+  const body = await req.json().catch(() => ({}))
+  const group = await resolveGroupOr400(admin, gate.fundId, body?.group ?? req.nextUrl.searchParams.get('group'))
+  if (group instanceof NextResponse) return group
+
+  const id = body?.id
+  if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 })
+
+  const vehicleId = await vehicleIdByName(admin, gate.fundId, group)
+  const { data: existing, error: fetchError } = await admin
+    .from('commitment_events' as any)
+    .select('id, transfer_id')
+    .eq('fund_id', gate.fundId)
+    .eq('vehicle_id', vehicleId)
+    .eq('id', id)
+    .maybeSingle()
+  if (fetchError) return NextResponse.json({ error: fetchError.message }, { status: 500 })
+  const row = existing as any
+  if (!row) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+  if (row.transfer_id) {
+    const { error } = await admin
+      .from('commitment_events' as any)
+      .delete()
+      .eq('fund_id', gate.fundId)
+      .eq('transfer_id', row.transfer_id)
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  } else {
+    const { error } = await admin
+      .from('commitment_events' as any)
+      .delete()
+      .eq('id', id)
+      .eq('fund_id', gate.fundId)
+      .eq('vehicle_id', vehicleId)
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  }
   return NextResponse.json({ ok: true })
 }
