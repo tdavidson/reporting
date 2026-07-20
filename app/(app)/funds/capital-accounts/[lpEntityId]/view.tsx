@@ -51,6 +51,8 @@ export function LpStatementView({ lpEntityId }: { lpEntityId: string }) {
   const [preset, setPreset] = useState<PeriodPreset>('ytd')
   const [start, setStart] = useState('')
   const [end, setEnd] = useState('')
+  const [classBusy, setClassBusy] = useState(false)
+  const [classError, setClassError] = useState<string | null>(null)
 
   useEffect(() => {
     setLoading(true)
@@ -64,6 +66,33 @@ export function LpStatementView({ lpEntityId }: { lpEntityId: string }) {
       .then(d => setData(d && !d.error ? d : null))
       .finally(() => setLoading(false))
   }, [lf, lpEntityId, preset, start, end])
+
+  async function switchPartnerClass(next: 'lp' | 'gp') {
+    if (!data || next === data.row.partnerClass) return
+    if (!window.confirm('Change this partner to GP/LP? This updates fee & carry participation and how the close allocates to them.')) return
+    setClassBusy(true)
+    setClassError(null)
+    const res = await lf('/api/accounting/lps', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ entityId: lpEntityId, partnerClass: next }),
+    })
+    setClassBusy(false)
+    if (!res.ok) {
+      setClassError((await res.json().catch(() => ({}))).error ?? 'Could not change partner class')
+      return
+    }
+    // Re-run the loader by flipping partnerClass locally, then refetch the full statement so
+    // fee/carry-dependent figures (roll-forward, cards) reflect the switch immediately.
+    setData(d => (d ? { ...d, row: { ...d.row, partnerClass: next } } : d))
+    setLoading(true)
+    const qs = new URLSearchParams({ lp: lpEntityId, preset })
+    if (preset === 'custom') { if (start) qs.set('start', start); if (end) qs.set('end', end) }
+    lf(`/api/accounting/lp-statement?${qs}`)
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => setData(d && !d.error ? d : null))
+      .finally(() => setLoading(false))
+  }
 
   if (loading) return <div className="flex items-center gap-2 text-muted-foreground text-sm"><Loader2 className="h-4 w-4 animate-spin" />Loading…</div>
   if (!data) return <div className="border border-dashed rounded-lg p-8 text-center text-sm text-muted-foreground">No statement for this LP in the selected vehicle.</div>
@@ -92,7 +121,21 @@ export function LpStatementView({ lpEntityId }: { lpEntityId: string }) {
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-lg font-medium">{row.name}{row.partnerClass === 'gp' && <span className="ml-2 text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-muted text-muted-foreground align-middle">GP</span>}</h2>
+        <div className="flex items-center gap-2">
+          <h2 className="text-lg font-medium">{row.name}{row.partnerClass === 'gp' && <span className="ml-2 text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-muted text-muted-foreground align-middle">GP</span>}</h2>
+          <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            Type
+            <select
+              value={row.partnerClass === 'gp' ? 'gp' : 'lp'}
+              disabled={classBusy}
+              onChange={e => switchPartnerClass(e.target.value as 'lp' | 'gp')}
+              className="h-7 px-1.5 rounded-md border border-input bg-background text-xs disabled:opacity-50"
+            >
+              <option value="lp">LP</option>
+              <option value="gp">GP</option>
+            </select>
+          </label>
+        </div>
         {/* Preview only — renders the PDF without storing or sharing it. Publishing
             to the portal is the bulk action on the capital accounts page. */}
         <a
@@ -104,6 +147,7 @@ export function LpStatementView({ lpEntityId }: { lpEntityId: string }) {
           <FileText className="h-3.5 w-3.5" />Generate PDF
         </a>
       </div>
+      {classError && <p className="text-xs text-red-600">{classError}</p>}
 
       <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
         {cards.map(c => (
