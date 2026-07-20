@@ -56,12 +56,21 @@ export function AllocationTermsView() {
 
   const post = async (url: string, body: object) => {
     setBusy(true); setError(null)
-    const res = await lf(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
-    const data = await res.json()
-    setBusy(false)
-    if (!res.ok) { setError(data.error ?? 'Failed'); return false }
-    await load()
-    return true
+    try {
+      const res = await lf(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+      // Guard the parse: a 500 returns an HTML error page, not JSON, so a bare
+      // res.json() would throw BEFORE the !res.ok check and the failure would vanish
+      // (unhandled rejection, no error shown, busy stuck true).
+      const data = await res.json().catch(() => ({} as { error?: string }))
+      if (!res.ok) { setError(data.error ?? `Request failed (${res.status})`); return false }
+      await load()
+      return true
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'The request did not complete — check your connection and try again.')
+      return false
+    } finally {
+      setBusy(false)
+    }
   }
 
   const termFor = (p: Partner, c: Category) => p.terms.find(t => t.category === c)
