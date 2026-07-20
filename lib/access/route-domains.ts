@@ -65,6 +65,7 @@ export const ROUTE_DOMAINS: Record<string, RouteAccess> = {
   'api/accounting/investments': { domain: 'accounting' },
   'api/accounting/journal': { domain: 'accounting' },
   'api/accounting/journal/bulk-post': { domain: 'accounting' },
+  'api/accounting/attribute-lp-capital': { domain: 'accounting' },
   'api/accounting/ledger-text': { domain: 'accounting' },
   'api/accounting/opening-balances': { domain: 'accounting' },
   'api/accounting/periods': { domain: 'accounting' },

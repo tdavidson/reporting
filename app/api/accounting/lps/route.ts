@@ -7,6 +7,7 @@ import { dbError } from '@/lib/api-error'
 import { assertWriteAccess } from '@/lib/api-helpers'
 import { resolveGroupOr400 } from '@/lib/accounting/http-vehicle'
 import { loadCommitmentEvents, recordCommitmentChange, savePartnerTerm, loadPartnerTerms } from '@/lib/accounting/terms'
+import { ensureCapitalAccounts } from '@/lib/accounting/persist'
 
 // A GP entity does not bear the management fee or carried interest; an LP entity bears both.
 // Sets BOTH directions (not just gp->disable) so a gp->lp class switch re-enables participation —
@@ -75,6 +76,11 @@ export async function POST(req: NextRequest) {
     if (error) return dbError(error, 'accounting-lps')
     entityId = (ent as any).id
   }
+
+  // Every LP gets their own capital account (3100-<lp>) the moment they're entered, so
+  // contributions and commitment transfers post to the partner rather than the pooled
+  // "LP (unallocated)" bucket. The bulk onboarding action does the same for existing LPs.
+  await ensureCapitalAccounts(admin, gate.fundId, group, [entityId])
 
   // Commitment — attach to the fund's latest snapshot if there is one.
   const { data: snap } = await admin.from('lp_snapshots' as any).select('id').eq('fund_id', gate.fundId).order('created_at', { ascending: false }).limit(1).maybeSingle()
