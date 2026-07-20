@@ -483,7 +483,7 @@ export async function POST(req: NextRequest) {
 }
 
 /** Attachments a user can draft an entry from. Matches what lib/memo-agent/extract-text handles. */
-const DOCUMENT_FORMATS = ['pdf', 'docx', 'md', 'markdown', 'txt']
+const DOCUMENT_FORMATS = ['pdf', 'docx', 'xlsx', 'xls', 'md', 'markdown', 'txt']
 const MAX_DOCUMENT_BYTES = 10 * 1024 * 1024
 /** A capital-call notice is a couple of pages; anything past this is a mis-attached file. */
 const MAX_DOCUMENT_CHARS = 20_000
@@ -494,7 +494,7 @@ async function extractAttachment(
 ): Promise<{ text: string } | { error: string }> {
   const format = String(doc.format ?? '').toLowerCase().replace(/^\./, '')
   if (!DOCUMENT_FORMATS.includes(format)) {
-    return { error: `Can't read a .${format || '?'} file — attach a PDF, Word doc, or text file.` }
+    return { error: `Can't read a .${format || '?'} file — attach a PDF, Word doc, Excel file, or text file.` }
   }
 
   let buffer: Buffer

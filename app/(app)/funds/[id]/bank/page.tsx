@@ -13,7 +13,7 @@ export default async function BankPage({ params }: { params: { id: string } }) {
     <div className="pt-4 md:pt-8 pb-8 w-full">
       <FundSubpageChrome
         title="Bank transactions"
-        description="Import a transaction feed from any source, review the drafted entries, and reconcile the ledger’s cash against the bank."
+        description="Import bank transactions and post to the journal"
         vehicle={vehicle}
         vehicleId={vehicleId}
       >

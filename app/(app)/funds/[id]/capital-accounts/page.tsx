@@ -13,7 +13,7 @@ export default async function CapitalAccountsPage({ params }: { params: { id: st
     <div className="pt-4 md:pt-8 pb-8 w-full">
       <FundSubpageChrome
         title="Capital accounts"
-        description="Limited Partner roll-forward derived from the ledger or LP position tracking."
+        description="Limited partner roll-forward per period"
         vehicle={vehicle}
         vehicleId={vehicleId}
       >

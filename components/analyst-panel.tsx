@@ -378,7 +378,7 @@ export function AnalystPanel() {
                     <label className="inline-flex cursor-pointer items-center gap-1.5 rounded border px-2 py-1 text-[11px] text-muted-foreground hover:bg-accent">
                       <Paperclip className="h-3 w-3" />
                       Attach document
-                      <input type="file" accept=".pdf,.docx,.md,.txt" onChange={handleFile} className="hidden" />
+                      <input type="file" accept=".pdf,.docx,.xlsx,.xls,.md,.txt" onChange={handleFile} className="hidden" />
                     </label>
                   )}
                 </div>

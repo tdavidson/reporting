@@ -13,7 +13,7 @@ export default async function JournalPage({ params }: { params: { id: string } }
     <div className="pt-4 md:pt-8 pb-8 w-full">
       <FundSubpageChrome
         title="Journal"
-        description="Double-entry journal entries — every output is a query over these. Click one to view, unpost, or edit."
+        description="Plain-text journal entries. Click to view, unpost, or edit."
         vehicle={vehicle}
         vehicleId={vehicleId}
       >
