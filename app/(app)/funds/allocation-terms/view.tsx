@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { Loader2, Plus, ArrowLeftRight, Pencil, Trash2 } from 'lucide-react'
+import { Loader2, Plus, ArrowLeftRight, Pencil, Trash2, SlidersHorizontal } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useCurrency, formatCurrencyPrice } from '@/components/currency-context'
@@ -47,6 +47,7 @@ export function AllocationTermsView() {
   const [showHistory, setShowHistory] = useState(false)
 
   const [showAdd, setShowAdd] = useState(false)
+  const [showBasis, setShowBasis] = useState(false)
   const [addName, setAddName] = useState('')
   const [addCommitment, setAddCommitment] = useState('')
   const [addPartnerClass, setAddPartnerClass] = useState('lp')
@@ -151,47 +152,58 @@ export function AllocationTermsView() {
     <div className="space-y-6">
       {error && <p className="text-sm text-amber-600">{error}</p>}
 
-      {/* 1. Basis --------------------------------------------------------- */}
-      <div className="space-y-2">
-        <p className="text-sm font-medium">Allocation basis</p>
-        <p className="text-xs text-muted-foreground">
-          What the close splits each category on. Commitment is the common default; some LPAs
-          allocate on capital-account balance at period end.
-        </p>
-        <select
-          value={basis}
-          onChange={e => {
-            const v = e.target.value as 'commitment' | 'capital_balance'
-            setBasis(v)
-            post('/api/accounting/allocation-terms', { action: 'basis', basis: v })
-          }}
-          disabled={busy}
-          className="h-9 px-3 rounded-md border border-input bg-background text-sm"
-        >
-          <option value="commitment">Committed capital</option>
-          <option value="capital_balance">Capital-account balance (at period end)</option>
-        </select>
-      </div>
-
-      {/* 2. Per-partner terms --------------------------------------------- */}
+      {/* Per-partner terms — actions (Add LP / Change Commitment / Basis) share one panel */}
       <div>
         <p className="text-sm font-medium mb-1">Partners</p>
         <p className="text-xs text-muted-foreground mb-2">
           Add partners, change commitments, record transfers, and set expense allocations.
         </p>
 
-        <div className="flex items-center gap-2 mb-2">
-          <Button size="sm" variant="outline" onClick={() => { if (showAdd) { setShowAdd(false) } else { setShowAdd(true); setShowChange(false) } }}>
+        <div className="flex flex-wrap items-center gap-2 mb-2">
+          <Button size="sm" variant="outline" onClick={() => { setShowBasis(false); if (showAdd) { setShowAdd(false) } else { setShowAdd(true); setShowChange(false) } }}>
             <Plus className="h-3.5 w-3.5 mr-1" />Add LP
           </Button>
           <Button
             size="sm"
             variant="outline"
-            onClick={() => { if (showChange) resetChangeForm(); else { setShowChange(true); setShowAdd(false) } }}
+            onClick={() => { setShowBasis(false); if (showChange) resetChangeForm(); else { setShowChange(true); setShowAdd(false) } }}
           >
             <Plus className="h-3.5 w-3.5 mr-1" />Change Commitment
           </Button>
+          {/* Basis: a compact button showing the current setting; opens a small popup. */}
+          <Button
+            size="sm"
+            variant="outline"
+            className="text-muted-foreground"
+            onClick={() => { setShowBasis(v => !v); setShowAdd(false); setShowChange(false) }}
+            title="What the close splits each category on"
+          >
+            <SlidersHorizontal className="h-3.5 w-3.5 mr-1" />Basis: {basis === 'commitment' ? 'Committed' : 'Capital balance'}
+          </Button>
         </div>
+
+        {showBasis && (
+          <div className="border rounded-lg p-3 mb-3 max-w-md space-y-2">
+            <p className="text-xs text-muted-foreground">
+              What the close splits each category on. Commitment is the common default; some LPAs
+              allocate on capital-account balance at period end.
+            </p>
+            <select
+              value={basis}
+              onChange={e => {
+                const v = e.target.value as 'commitment' | 'capital_balance'
+                setBasis(v)
+                post('/api/accounting/allocation-terms', { action: 'basis', basis: v })
+                setShowBasis(false)
+              }}
+              disabled={busy}
+              className="h-9 px-3 rounded-md border border-input bg-background text-sm"
+            >
+              <option value="commitment">Committed capital</option>
+              <option value="capital_balance">Capital-account balance (at period end)</option>
+            </select>
+          </div>
+        )}
 
         {showAdd && (
           <div className="border rounded-lg p-3 mb-3 flex flex-wrap items-end gap-3">
