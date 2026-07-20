@@ -25,6 +25,7 @@ import { AnalystToggleButton } from '@/components/analyst-button'
 import { AnalystPanel } from '@/components/analyst-panel'
 import { AnalystDomainScope } from '@/components/analyst-scope'
 import { PortfolioNotesProvider, PortfolioNotesButton, PortfolioNotesPanel } from '@/components/portfolio-notes'
+import { RenameInvestorDialog } from '@/components/lp/rename-investor-dialog'
 import { lpRatios } from '@/lib/lp-metrics'
 import { SortTh, nextSort, compareVals, type SortState } from '@/components/sortable-th'
 
@@ -410,7 +411,7 @@ function LpsInner() {
           ) : null}
 
           {settingsOpen && <ReportSettingsDialog onClose={() => setSettingsOpen(false)} />}
-          {rename && <RenameDialog investor={rename} allInvestors={investors.map(i => ({ id: i.id, name: i.name }))} onClose={() => setRename(null)} onSaved={() => { setRename(null); load(applied) }} />}
+          {rename && <RenameInvestorDialog target={{ investorId: rename.id, name: rename.name }} onClose={() => setRename(null)} onSaved={() => { setRename(null); load(applied) }} />}
           {grouping && <GroupDialog investor={grouping} candidates={investors.map(i => ({ id: i.id, name: i.name }))} onClose={() => setGrouping(null)} onSaved={() => { setGrouping(null); load(applied) }} />}
 
           {/* Share freezes the current live report into a fixed snapshot, then lets you pick which
@@ -499,42 +500,6 @@ function ReportSettingsDialog({ onClose }: { onClose: () => void }) {
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancel</Button>
           <Button onClick={save} disabled={saving || !loaded}>{saving ? 'Saving…' : 'Save'}</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  )
-}
-
-function RenameDialog({ investor, allInvestors, onClose, onSaved }: { investor: { id: string; name: string }; allInvestors: { id: string; name: string }[]; onClose: () => void; onSaved: () => void }) {
-  const [name, setName] = useState(investor.name)
-  const [saving, setSaving] = useState(false)
-  const [err, setErr] = useState<string | null>(null)
-
-  // Renaming to a name that already exists is how you consolidate the same LP that came in
-  // slightly misnamed across different vehicles: instead of erroring on the duplicate, we merge
-  // this investor into the existing one (reassign its entities, delete this row).
-  const match = allInvestors.find(i => i.id !== investor.id && i.name.trim().toLowerCase() === name.trim().toLowerCase())
-
-  async function save() {
-    if (!name.trim()) return
-    setSaving(true); setErr(null)
-    const res = match
-      ? await fetch('/api/lps/investors', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sourceId: investor.id, targetId: match.id }) })
-      : await fetch('/api/lps/investors', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: investor.id, name: name.trim() }) })
-    setSaving(false)
-    if (!res.ok) { const d = await res.json().catch(() => ({})); setErr(d.error === 'duplicate_name' ? 'An investor with that name already exists.' : (d.error ?? 'Could not rename')); return }
-    onSaved()
-  }
-  return (
-    <Dialog open onOpenChange={o => { if (!o) onClose() }}>
-      <DialogContent className="sm:max-w-sm">
-        <DialogHeader><DialogTitle>Rename investor</DialogTitle></DialogHeader>
-        <Input value={name} onChange={e => setName(e.target.value)} onKeyDown={e => e.key === 'Enter' && save()} autoFocus />
-        {match && <p className="text-xs text-muted-foreground">&ldquo;{match.name}&rdquo; already exists — saving will <strong>merge</strong> this investor into it, combining their positions across vehicles.</p>}
-        {err && <p className="text-xs text-destructive">{err}</p>}
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Cancel</Button>
-          <Button onClick={save} disabled={saving || !name.trim()}>{saving ? 'Saving…' : match ? 'Merge' : 'Save'}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

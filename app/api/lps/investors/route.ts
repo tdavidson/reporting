@@ -84,9 +84,22 @@ export async function PUT(req: NextRequest) {
   if (writeCheck.role !== 'admin') return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
 
   const body = await req.json()
-  const { id, name, parentId } = body
+  const { id: bodyId, entityId, name, parentId } = body
 
-  if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 })
+  if (!bodyId && !entityId) return NextResponse.json({ error: 'id or entityId is required' }, { status: 400 })
+
+  let id: string = bodyId
+  if (!id && entityId) {
+    const { data: entity } = await admin
+      .from('lp_entities' as any)
+      .select('investor_id')
+      .eq('id', entityId)
+      .eq('fund_id', writeCheck.fundId)
+      .maybeSingle() as { data: { investor_id: string } | null }
+
+    if (!entity) return NextResponse.json({ error: 'Entity not found' }, { status: 404 })
+    id = entity.investor_id
+  }
 
   const updates: Record<string, any> = { updated_at: new Date().toISOString() }
   if (name !== undefined) {
@@ -109,7 +122,19 @@ export async function PUT(req: NextRequest) {
 
   if (error) {
     if (error.message?.includes('unique') || error.message?.includes('duplicate')) {
-      return NextResponse.json({ error: 'duplicate_name' }, { status: 409 })
+      // Look up the conflicting investor so the client can offer a merge instead of a hard error.
+      let conflictId: string | null = null
+      if (name !== undefined) {
+        const { data: conflict } = await admin
+          .from('lp_investors' as any)
+          .select('id')
+          .eq('fund_id', writeCheck.fundId)
+          .eq('name', name.trim())
+          .neq('id', id)
+          .maybeSingle() as { data: { id: string } | null }
+        conflictId = conflict?.id ?? null
+      }
+      return NextResponse.json({ error: 'duplicate_name', conflictId, sourceId: id }, { status: 409 })
     }
     return dbError(error, 'lp-investors-update')
   }
