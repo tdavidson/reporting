@@ -18,6 +18,7 @@ import { vehicleIdByName } from './vehicle-id'
 import { ensureCapitalAccounts } from './persist'
 import { closedPeriodRanges, dateInAnyClosedPeriod } from './periods'
 import { loadCommitmentEvents } from './terms'
+import { fetchAllRows } from './load'
 
 /**
  * Every LP that should have a per-LP capital account for this vehicle: anyone with a
@@ -81,12 +82,18 @@ async function scan(admin: SupabaseClient, fundId: string, group: string) {
   const pooledIds = ((pooled as any[]) ?? []).map(a => a.id as string)
   if (pooledIds.length === 0) return { vehicleId, postings: [] as PooledPosting[] }
 
-  const { data: posts } = await admin
-    .from('journal_postings' as any)
-    .select('id, amount, lp_entity_id, journal_entries!inner(entry_date)')
-    .eq('fund_id', fundId)
-    .in('account_id', pooledIds)
-  const postings: PooledPosting[] = ((posts as any[]) ?? []).map(p => ({
+  // Paginate: PostgREST caps a single response at max_rows (1000), and a full-history
+  // vehicle can have more than that many pooled postings — an unpaginated read would
+  // silently attribute only the first page.
+  const posts = await fetchAllRows<any>((f, t) =>
+    admin
+      .from('journal_postings' as any)
+      .select('id, amount, lp_entity_id, journal_entries!inner(entry_date)')
+      .eq('fund_id', fundId)
+      .in('account_id', pooledIds)
+      .range(f, t),
+  )
+  const postings: PooledPosting[] = (posts ?? []).map(p => ({
     id: p.id,
     amount: Number(p.amount),
     lpEntityId: p.lp_entity_id ?? null,
@@ -145,8 +152,8 @@ export async function attributeLpCapital(
   admin: SupabaseClient,
   fundId: string,
   group: string,
-): Promise<{ moved: number; accountsEnsured: number; closedSkipped: number; untagged: number }> {
-  const { postings } = await scan(admin, fundId, group)
+): Promise<{ moved: number; accountsEnsured: number; accountsCreated: number; closedSkipped: number; untagged: number }> {
+  const { vehicleId, postings } = await scan(admin, fundId, group)
   const closed = await closedPeriodRanges(admin, fundId, group)
 
   const untagged = postings.filter(p => !p.lpEntityId).length
@@ -157,8 +164,10 @@ export async function attributeLpCapital(
   const taggedLpIds = Array.from(new Set(movable.map(p => p.lpEntityId!)))
   const committed = await committedLpIds(admin, fundId, group)
   const allLpIds = Array.from(new Set([...taggedLpIds, ...committed]))
-  if (allLpIds.length === 0) return { moved: 0, accountsEnsured: 0, closedSkipped, untagged }
+  if (allLpIds.length === 0) return { moved: 0, accountsEnsured: 0, accountsCreated: 0, closedSkipped, untagged }
 
+  const existing = await existingLpAccountEntityIds(admin, fundId, vehicleId)
+  const accountsCreated = allLpIds.filter(id => !existing.has(id)).length
   const capMap = await ensureCapitalAccounts(admin, fundId, group, allLpIds)
 
   // Re-point the movable (tagged) postings, one update per target account (batched by id).
@@ -172,5 +181,5 @@ export async function attributeLpCapital(
     moved += postingIds.length
   }
 
-  return { moved, accountsEnsured: allLpIds.length, closedSkipped, untagged }
+  return { moved, accountsEnsured: allLpIds.length, accountsCreated, closedSkipped, untagged }
 }

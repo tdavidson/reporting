@@ -101,7 +101,7 @@ export function AccountingSetup({ alwaysShow = false }: { alwaysShow?: boolean }
       const data = await res.json().catch(() => ({}))
       if (!res.ok) { setAttrError(data.error ?? 'Apply failed'); return }
       setAttrMsg(
-        `Created ${data.accountsEnsured} accounts, attributed ${data.moved} postings.` +
+        `Created ${data.accountsCreated} accounts, attributed ${data.moved} postings.` +
         (data.untagged ? ` ${data.untagged} still need manual handling.` : '')
       )
       setAttrPreview(null)
