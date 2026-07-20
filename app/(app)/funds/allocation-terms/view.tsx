@@ -280,7 +280,7 @@ export function AllocationTermsView() {
             </thead>
             <tbody>
               {partners.map(p => (
-                <tr key={p.lpEntityId} className="border-b last:border-b-0 hover:bg-muted/30">
+                <tr key={p.lpEntityId} className="group border-b last:border-b-0 hover:bg-muted/30">
                   <td className="px-3 py-2">
                     <div className="flex items-center gap-1.5">
                       <span>{p.name}</span>
@@ -288,7 +288,7 @@ export function AllocationTermsView() {
                       <button
                         type="button"
                         onClick={() => setRenaming({ entityId: p.lpEntityId, name: p.name })}
-                        className="shrink-0 text-muted-foreground hover:text-foreground"
+                        className="shrink-0 text-muted-foreground opacity-0 transition-opacity hover:text-foreground focus:opacity-100 group-hover:opacity-100"
                         title="Rename"
                       >
                         <Pencil className="h-3.5 w-3.5" />
