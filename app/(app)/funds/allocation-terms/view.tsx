@@ -44,6 +44,13 @@ export function AllocationTermsView() {
   const [memo, setMemo] = useState('')
   const [editingId, setEditingId] = useState<string | null>(null)
   const [renaming, setRenaming] = useState<{ entityId: string; name: string } | null>(null)
+  const [showHistory, setShowHistory] = useState(false)
+
+  const [showAdd, setShowAdd] = useState(false)
+  const [addName, setAddName] = useState('')
+  const [addCommitment, setAddCommitment] = useState('')
+  const [addPartnerClass, setAddPartnerClass] = useState('lp')
+  const [adding, setAdding] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -77,6 +84,16 @@ export function AllocationTermsView() {
   }
 
   const termFor = (p: Partner, c: Category) => p.terms.find(t => t.category === c)
+
+  async function addLp() {
+    if (!addName.trim()) { setError('Enter a name'); return }
+    setAdding(true)
+    const ok = await post('/api/accounting/lps', {
+      name: addName.trim(), commitment: Number(addCommitment) || 0, partnerClass: addPartnerClass,
+    })
+    setAdding(false)
+    if (ok) { setAddName(''); setAddCommitment(''); setAddPartnerClass('lp'); setShowAdd(false) }
+  }
 
   async function toggle(p: Partner, c: Category, participates: boolean) {
     await post('/api/accounting/allocation-terms', {
@@ -135,7 +152,7 @@ export function AllocationTermsView() {
       {error && <p className="text-sm text-amber-600">{error}</p>}
 
       {/* 1. Basis --------------------------------------------------------- */}
-      <div className="border rounded-lg p-4 space-y-2">
+      <div className="space-y-2">
         <p className="text-sm font-medium">Allocation basis</p>
         <p className="text-xs text-muted-foreground">
           What the close splits each category on. Commitment is the common default; some LPAs
@@ -158,12 +175,100 @@ export function AllocationTermsView() {
 
       {/* 2. Per-partner terms --------------------------------------------- */}
       <div>
-        <p className="text-sm font-medium mb-1">Who bears what</p>
+        <p className="text-sm font-medium mb-1">Partners</p>
         <p className="text-xs text-muted-foreground mb-2">
-          Uncheck to exclude a partner from a category — their share redistributes across everyone
-          else, so excluding the GP from the management fee shifts it onto the LPs rather than
-          shrinking it.
+          Add partners, change commitments, record transfers, and set expense allocations.
         </p>
+
+        <div className="flex items-center gap-2 mb-2">
+          <Button size="sm" variant="outline" onClick={() => { if (showAdd) { setShowAdd(false) } else { setShowAdd(true); setShowChange(false) } }}>
+            <Plus className="h-3.5 w-3.5 mr-1" />Add LP
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => { if (showChange) resetChangeForm(); else { setShowChange(true); setShowAdd(false) } }}
+          >
+            <Plus className="h-3.5 w-3.5 mr-1" />Change Commitment
+          </Button>
+        </div>
+
+        {showAdd && (
+          <div className="border rounded-lg p-3 mb-3 flex flex-wrap items-end gap-3">
+            <label className="text-xs text-muted-foreground">Name
+              <Input value={addName} onChange={e => setAddName(e.target.value)} placeholder="e.g. Laconia Associates LLC" className="mt-1 h-9 w-64" />
+            </label>
+            <label className="text-xs text-muted-foreground">Commitment
+              <Input value={addCommitment} onChange={e => setAddCommitment(e.target.value)} inputMode="decimal" placeholder="0.00" className="mt-1 h-9 w-36 font-mono" />
+            </label>
+            <label className="text-xs text-muted-foreground">Type
+              <select value={addPartnerClass} onChange={e => setAddPartnerClass(e.target.value)} className="mt-1 block h-9 px-3 rounded-md border border-input bg-background text-sm">
+                <option value="lp">LP</option>
+                <option value="gp">GP</option>
+              </select>
+            </label>
+            <Button size="sm" onClick={addLp} disabled={adding}>{adding && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}Add</Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={adding}
+              onClick={() => { setShowAdd(false); setAddName(''); setAddCommitment(''); setAddPartnerClass('lp'); setError(null) }}
+            >
+              Cancel
+            </Button>
+          </div>
+        )}
+
+        {showChange && (
+          <div className="border rounded-lg p-3 mb-3 space-y-3">
+            {editingId && (
+              <p className="text-xs text-muted-foreground">Editing an existing event — partner and transfer type can&rsquo;t change; delete and re-enter to change either.</p>
+            )}
+            <label className="flex items-center gap-2 text-xs">
+              <input type="checkbox" checked={isTransfer} disabled={!!editingId} onChange={e => setIsTransfer(e.target.checked)} />
+              <ArrowLeftRight className="h-3.5 w-3.5 text-muted-foreground" />
+              Transfer between partners (rather than an increase or decrease)
+            </label>
+            <div className="flex flex-wrap items-end gap-3">
+              {isTransfer && (
+                <label className="text-xs text-muted-foreground">From
+                  <select value={from} disabled={!!editingId} onChange={e => setFrom(e.target.value)} className="mt-1 block h-9 px-2 rounded-md border border-input bg-background text-sm max-w-[200px]">
+                    <option value="">Select…</option>
+                    {partners.map(p => <option key={p.lpEntityId} value={p.lpEntityId}>{p.name}</option>)}
+                  </select>
+                </label>
+              )}
+              <label className="text-xs text-muted-foreground">{isTransfer ? 'To' : 'Partner'}
+                <select value={lp} disabled={!!editingId} onChange={e => setLp(e.target.value)} className="mt-1 block h-9 px-2 rounded-md border border-input bg-background text-sm max-w-[200px]">
+                  <option value="">Select…</option>
+                  {partners.map(p => <option key={p.lpEntityId} value={p.lpEntityId}>{p.name}</option>)}
+                </select>
+              </label>
+              <label className="text-xs text-muted-foreground">Amount
+                <Input
+                  value={amount}
+                  onChange={e => setAmount(e.target.value)}
+                  inputMode="decimal"
+                  placeholder={isTransfer ? '100000' : '100000 or -50000'}
+                  className="mt-1 h-9 w-36 font-mono"
+                />
+              </label>
+              <label className="text-xs text-muted-foreground">Effective
+                <Input type="date" value={effectiveDate} onChange={e => setEffectiveDate(e.target.value)} className="mt-1 h-9 w-40" />
+              </label>
+              <label className="text-xs text-muted-foreground flex-1 min-w-[160px]">Memo
+                <Input value={memo} onChange={e => setMemo(e.target.value)} placeholder="Secondary sale" className="mt-1 h-9 w-full" />
+              </label>
+              <Button size="sm" onClick={submitChange} disabled={busy}>
+                {busy && <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />}{editingId ? 'Save change' : 'Record'}
+              </Button>
+              {editingId && (
+                <Button size="sm" variant="ghost" onClick={resetChangeForm} disabled={busy}>Cancel</Button>
+              )}
+            </div>
+          </div>
+        )}
+
         <div className="border rounded-lg overflow-x-auto">
           <table className="w-full text-sm whitespace-nowrap">
             <thead>
@@ -220,125 +325,77 @@ export function AllocationTermsView() {
         </div>
       </div>
 
-      {/* 3. Commitment changes -------------------------------------------- */}
+      {/* 3. Commitment history --------------------------------------------- */}
       <div>
-        <div className="flex items-center gap-2 mb-2">
-          <p className="text-sm font-medium">Commitment history</p>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => { if (showChange) resetChangeForm(); else setShowChange(true) }}
-          >
-            <Plus className="h-3.5 w-3.5 mr-1" />Record a change
-          </Button>
-        </div>
-        <p className="text-xs text-muted-foreground mb-2">
-          Commitments are effective-dated, so closing an old period uses the commitments that were in
-          force then. A transfer writes both legs at once — the fund&rsquo;s total can&rsquo;t drift.
-        </p>
+        <button
+          type="button"
+          onClick={() => setShowHistory(v => !v)}
+          className="text-xs text-primary hover:underline"
+        >
+          {showHistory ? 'Hide commitment history' : 'Show commitment history'}
+        </button>
 
-        {showChange && (
-          <div className="border rounded-lg p-3 mb-3 space-y-3">
-            {editingId && (
-              <p className="text-xs text-muted-foreground">Editing an existing event — partner and transfer type can&rsquo;t change; delete and re-enter to change either.</p>
-            )}
-            <label className="flex items-center gap-2 text-xs">
-              <input type="checkbox" checked={isTransfer} disabled={!!editingId} onChange={e => setIsTransfer(e.target.checked)} />
-              <ArrowLeftRight className="h-3.5 w-3.5 text-muted-foreground" />
-              Transfer between partners (rather than an increase or decrease)
-            </label>
-            <div className="flex flex-wrap items-end gap-3">
-              {isTransfer && (
-                <label className="text-xs text-muted-foreground">From
-                  <select value={from} disabled={!!editingId} onChange={e => setFrom(e.target.value)} className="mt-1 block h-9 px-2 rounded-md border border-input bg-background text-sm max-w-[200px]">
-                    <option value="">Select…</option>
-                    {partners.map(p => <option key={p.lpEntityId} value={p.lpEntityId}>{p.name}</option>)}
-                  </select>
-                </label>
-              )}
-              <label className="text-xs text-muted-foreground">{isTransfer ? 'To' : 'Partner'}
-                <select value={lp} disabled={!!editingId} onChange={e => setLp(e.target.value)} className="mt-1 block h-9 px-2 rounded-md border border-input bg-background text-sm max-w-[200px]">
-                  <option value="">Select…</option>
-                  {partners.map(p => <option key={p.lpEntityId} value={p.lpEntityId}>{p.name}</option>)}
-                </select>
-              </label>
-              <label className="text-xs text-muted-foreground">Amount
-                <Input
-                  value={amount}
-                  onChange={e => setAmount(e.target.value)}
-                  inputMode="decimal"
-                  placeholder={isTransfer ? '100000' : '100000 or -50000'}
-                  className="mt-1 h-9 w-36 font-mono"
-                />
-              </label>
-              <label className="text-xs text-muted-foreground">Effective
-                <Input type="date" value={effectiveDate} onChange={e => setEffectiveDate(e.target.value)} className="mt-1 h-9 w-40" />
-              </label>
-              <label className="text-xs text-muted-foreground flex-1 min-w-[160px]">Memo
-                <Input value={memo} onChange={e => setMemo(e.target.value)} placeholder="Secondary sale" className="mt-1 h-9 w-full" />
-              </label>
-              <Button size="sm" onClick={submitChange} disabled={busy}>
-                {busy && <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />}{editingId ? 'Save change' : 'Record'}
-              </Button>
-              {editingId && (
-                <Button size="sm" variant="ghost" onClick={resetChangeForm} disabled={busy}>Cancel</Button>
-              )}
-            </div>
-          </div>
-        )}
+        {showHistory && (
+          <div className="mt-2">
+            <p className="text-xs text-muted-foreground mb-2">
+              Commitments are effective-dated, so closing an old period uses the commitments that were in
+              force then. A transfer writes both legs at once — the fund&rsquo;s total can&rsquo;t drift.
+            </p>
 
-        {events.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No commitment events yet.</p>
-        ) : (
-          <div className="border rounded-lg overflow-x-auto">
-            <table className="w-full text-sm whitespace-nowrap">
-              <thead>
-                <tr className="border-b bg-muted/50">
-                  <th className="text-left px-3 py-2 font-medium">Effective</th>
-                  <th className="text-left px-3 py-2 font-medium">Partner</th>
-                  <th className="text-left px-3 py-2 font-medium">Kind</th>
-                  <th className="text-right px-3 py-2 font-medium">Change</th>
-                  <th className="text-right px-3 py-2 font-medium">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {events.map(e => {
-                  const isXfer = e.kind.startsWith('transfer')
-                  return (
-                    <tr key={e.id} className="border-b last:border-b-0">
-                      <td className="px-3 py-2 font-mono text-xs">{e.effectiveDate}</td>
-                      <td className="px-3 py-2">{e.name}</td>
-                      <td className="px-3 py-2 text-xs text-muted-foreground">{e.kind.replace('_', ' ')}</td>
-                      <td className={`px-3 py-2 text-right font-mono ${e.amount < 0 ? 'text-muted-foreground' : ''}`}>{fmt(e.amount)}</td>
-                      <td className="px-3 py-2 text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-7 w-7"
-                            disabled={busy || isXfer}
-                            title={isXfer ? 'Transfers: delete and re-enter to correct' : 'Edit'}
-                            onClick={() => startEdit(e)}
-                          >
-                            <Pencil className="h-3.5 w-3.5" />
-                          </Button>
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-7 w-7 text-destructive hover:text-destructive"
-                            disabled={busy}
-                            title="Delete"
-                            onClick={() => deleteEvent(e.id)}
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
-                        </div>
-                      </td>
+            {events.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No commitment events yet.</p>
+            ) : (
+              <div className="border rounded-lg overflow-x-auto">
+                <table className="w-full text-sm whitespace-nowrap">
+                  <thead>
+                    <tr className="border-b bg-muted/50">
+                      <th className="text-left px-3 py-2 font-medium">Effective</th>
+                      <th className="text-left px-3 py-2 font-medium">Partner</th>
+                      <th className="text-left px-3 py-2 font-medium">Kind</th>
+                      <th className="text-right px-3 py-2 font-medium">Change</th>
+                      <th className="text-right px-3 py-2 font-medium">Actions</th>
                     </tr>
-                  )
-                })}
-              </tbody>
-            </table>
+                  </thead>
+                  <tbody>
+                    {events.map(e => {
+                      const isXfer = e.kind.startsWith('transfer')
+                      return (
+                        <tr key={e.id} className="border-b last:border-b-0">
+                          <td className="px-3 py-2 font-mono text-xs">{e.effectiveDate}</td>
+                          <td className="px-3 py-2">{e.name}</td>
+                          <td className="px-3 py-2 text-xs text-muted-foreground">{e.kind.replace('_', ' ')}</td>
+                          <td className={`px-3 py-2 text-right font-mono ${e.amount < 0 ? 'text-muted-foreground' : ''}`}>{fmt(e.amount)}</td>
+                          <td className="px-3 py-2 text-right">
+                            <div className="flex items-center justify-end gap-1">
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-7 w-7"
+                                disabled={busy || isXfer}
+                                title={isXfer ? 'Transfers: delete and re-enter to correct' : 'Edit'}
+                                onClick={() => startEdit(e)}
+                              >
+                                <Pencil className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-7 w-7 text-destructive hover:text-destructive"
+                                disabled={busy}
+                                title="Delete"
+                                onClick={() => deleteEvent(e.id)}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         )}
       </div>

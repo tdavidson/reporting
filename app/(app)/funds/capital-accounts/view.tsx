@@ -3,9 +3,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useLpPortalEnabled, useIsAdmin } from '@/components/feature-visibility-context'
 import Link from 'next/link'
-import { Loader2, Plus, Check, AlertTriangle, Landmark, ChevronRight, Share2, Pencil } from 'lucide-react'
+import { Loader2, Check, AlertTriangle, Landmark, ChevronRight, Share2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 import { useCurrency, formatCurrencyPrice } from '@/components/currency-context'
 import { useLedgerFetch, useFundSeg } from '@/components/accounting-vehicle'
@@ -16,7 +15,6 @@ import { type CapitalSource } from './capital-source-card'
 import { GpPanel } from './gp-panel'
 import { useCanRead } from '@/components/access-context'
 import { SortTh, nextSort, compareVals, type SortState } from '@/components/sortable-th'
-import { RenameInvestorDialog } from '@/components/lp/rename-investor-dialog'
 
 interface Account {
   beginning: number
@@ -117,13 +115,6 @@ export function CapitalAccountsView() {
   const [end, setEnd] = useState('')
   const [asOf, setAsOf] = useState('') // report/period-end date; '' = Latest (today)
 
-  const [renaming, setRenaming] = useState<{ entityId: string; name: string } | null>(null)
-
-  const [showAdd, setShowAdd] = useState(false)
-  const [name, setName] = useState('')
-  const [commitment, setCommitment] = useState('')
-  const [partnerClass, setPartnerClass] = useState('lp')
-  const [adding, setAdding] = useState(false)
   const [err, setErr] = useState<string | null>(null)
 
   const [publishing, setPublishing] = useState(false)
@@ -168,21 +159,6 @@ export function CapitalAccountsView() {
   // to the outgoing administrator's statement — are not shown for it. Its capital is
   // entered as events instead, below the roll-forward those events produce.
   const isEvents = source === 'events'
-
-  async function addLp() {
-    setErr(null)
-    if (!name.trim()) { setErr('Enter a name'); return }
-    setAdding(true)
-    const res = await lf('/api/accounting/lps', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: name.trim(), commitment: Number(commitment) || 0, partnerClass }),
-    })
-    const data = await res.json()
-    setAdding(false)
-    if (!res.ok) { setErr(data.error ?? 'Could not add'); return }
-    setName(''); setCommitment(''); setPartnerClass('lp'); setShowAdd(false)
-    load()
-  }
 
   // Open the share dialog with every LP selected by default.
   function openShare() {
@@ -289,7 +265,6 @@ export function CapitalAccountsView() {
           panels. Choosing the capital source (ledger vs capital tracking) lives on the Admin
           page now; it is a fund-setup decision, not something to re-confront on every visit. */}
       <div className="flex flex-wrap items-center gap-2">
-        <Button size="sm" variant="outline" className="text-muted-foreground" onClick={() => setShowAdd(v => !v)}><Plus className="h-4 w-4 mr-1" />Add LP</Button>
         {!isEvents && (
           <Button size="sm" variant="outline" className="text-muted-foreground" onClick={() => setShowCall(v => !v)} disabled={rows.length === 0}>
             <Landmark className="h-4 w-4 mr-1" />Issue a capital call
@@ -376,41 +351,6 @@ export function CapitalAccountsView() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      {showAdd && (
-        <div className="border rounded-lg p-3 flex flex-wrap items-end gap-3">
-          <label className="text-xs text-muted-foreground">Name
-            <Input value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Laconia Associates LLC" className="mt-1 h-9 w-64" />
-          </label>
-          <label className="text-xs text-muted-foreground">Commitment
-            <Input value={commitment} onChange={e => setCommitment(e.target.value)} inputMode="decimal" placeholder="0.00" className="mt-1 h-9 w-36 font-mono" />
-          </label>
-          <label className="text-xs text-muted-foreground">Type
-            <select value={partnerClass} onChange={e => setPartnerClass(e.target.value)} className="mt-1 block h-9 px-3 rounded-md border border-input bg-background text-sm">
-              <option value="lp">LP</option>
-              <option value="gp">GP</option>
-            </select>
-          </label>
-          <Button size="sm" onClick={addLp} disabled={adding}>{adding && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}Add</Button>
-          {/* A way out. The panel could only be dismissed by adding an LP or navigating away,
-              which is a bad trade for a mis-click. Clears the fields on the way, so reopening
-              doesn't resurrect a half-typed name. */}
-          <Button
-            size="sm"
-            variant="ghost"
-            disabled={adding}
-            onClick={() => {
-              setShowAdd(false)
-              setName('')
-              setCommitment('')
-              setPartnerClass('lp')
-              setErr(null)
-            }}
-          >
-            Cancel
-          </Button>
-        </div>
-      )}
 
       {/* Issue a call — folded in from the old Capital calls page. Gated on `!isEvents` as
           well as `showCall`: switching vehicle while the panel is open would otherwise leave
@@ -521,14 +461,6 @@ export function CapitalAccountsView() {
                       <div className="flex items-center gap-1.5 min-w-0">
                         <Link href={fundSeg ? `/funds/${fundSeg}/capital-accounts/${r.lpEntityId}` : '/funds'} className="hover:underline truncate" title={r.name}>{r.name}</Link>
                         {r.partnerClass === 'gp' && <span className="text-[10px] uppercase tracking-wider px-1 py-0.5 rounded bg-muted text-muted-foreground shrink-0">GP</span>}
-                        <button
-                          type="button"
-                          onClick={e => { e.stopPropagation(); e.preventDefault(); setRenaming({ entityId: r.lpEntityId, name: r.name }) }}
-                          className="shrink-0 text-muted-foreground hover:text-foreground"
-                          title="Rename"
-                        >
-                          <Pencil className="h-3.5 w-3.5" />
-                        </button>
                       </div>
                     </td>
                     {commitmentCols.map(c => (
@@ -628,14 +560,6 @@ export function CapitalAccountsView() {
           <ReconciliationPanel />
         </div>
       </details>
-      )}
-
-      {renaming && (
-        <RenameInvestorDialog
-          target={renaming}
-          onClose={() => setRenaming(null)}
-          onSaved={() => { setRenaming(null); load() }}
-        />
       )}
     </div>
   )

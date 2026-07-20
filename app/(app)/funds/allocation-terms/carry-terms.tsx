@@ -106,7 +106,7 @@ export function CarryTerms() {
   }
 
   if (loading) {
-    return <div className="border rounded-lg p-4 flex items-center gap-2 text-sm text-muted-foreground">
+    return <div className="flex items-center gap-2 text-sm text-muted-foreground">
       <Loader2 className="h-4 w-4 animate-spin" />Loading carry terms…
     </div>
   }
@@ -116,11 +116,8 @@ export function CarryTerms() {
   const carryMissing = carryOn && frac(carry) <= 0
 
   return (
-    <div className="border rounded-lg p-4 space-y-3">
-      <div className="flex items-baseline justify-between gap-2">
-        <p className="text-sm font-medium">Carried interest</p>
-        {vehicleName && <span className="text-xs text-muted-foreground">{vehicleName}</span>}
-      </div>
+    <div className="space-y-3">
+      {vehicleName && <p className="text-xs text-muted-foreground">{vehicleName}</p>}
       <p className="text-xs text-muted-foreground max-w-3xl">
         The close accrues carry on <strong>unrealized</strong> gains, as if the fund liquidated at
         that period&rsquo;s NAV. Without it every LP&rsquo;s reported NAV overstates what they would
