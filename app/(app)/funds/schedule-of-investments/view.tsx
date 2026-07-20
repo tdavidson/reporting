@@ -6,6 +6,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useCurrency, formatCurrencyPrice } from '@/components/currency-context'
 import { useLedgerFetch } from '@/components/accounting-vehicle'
+import { PeriodPicker } from '@/components/accounting/period-picker'
+import type { PeriodPreset } from '@/lib/accounting/statement-period'
 
 interface SoiRow {
   name: string
@@ -69,15 +71,19 @@ export function ScheduleOfInvestmentsView() {
   const [from, setFrom] = useState('')
   const [hist, setHist] = useState<HistoryPreview | null>(null)
   const [showEvents, setShowEvents] = useState(false)
+  const [preset, setPreset] = useState<PeriodPreset>('itd')
+  const [asOf, setAsOf] = useState('') // '' = latest
   const lf = useLedgerFetch()
 
   const load = useCallback(() => {
     setLoading(true)
-    lf('/api/accounting/statements')
+    const qs = new URLSearchParams({ preset })
+    if (asOf) qs.set('asOf', asOf)
+    lf(`/api/accounting/statements?${qs}`)
       .then(r => (r.ok ? r.json() : null))
       .then(d => setSoi(d?.scheduleOfInvestments ?? null))
       .finally(() => setLoading(false))
-  }, [lf])
+  }, [lf, preset, asOf])
   useEffect(() => { load() }, [load])
 
   const post = async (body: object, reload = true) => {
@@ -113,44 +119,41 @@ export function ScheduleOfInvestmentsView() {
     }
   }
 
-  if (loading) return <div className="flex items-center gap-2 text-muted-foreground text-sm"><Loader2 className="h-4 w-4 animate-spin" />Loading…</div>
-  if (!soi || soi.rows.length === 0) {
-    return <div className="border border-dashed rounded-lg p-8 text-center text-sm text-muted-foreground">No investments booked yet. Record the investment purchase (Dr 1100 / Cr 1000) and revalue it.</div>
-  }
+  const content = (() => {
+    if (!soi) return null
+    const tied = soi.costVariance === 0 && soi.fairValueVariance === 0
+    // Tracker has positions, ledger has nothing — the case the Status page blocks on.
+    const needsBootstrap = soi.source === 'tracker' && Math.abs(soi.ledgerCost) < 0.005 && soi.rows.length > 0
+    const num = (v: number | null | undefined, dp = 0) =>
+      v == null ? '—' : v.toLocaleString('en-US', { minimumFractionDigits: dp, maximumFractionDigits: dp })
 
-  const tied = soi.costVariance === 0 && soi.fairValueVariance === 0
-  // Tracker has positions, ledger has nothing — the case the Status page blocks on.
-  const needsBootstrap = soi.source === 'tracker' && Math.abs(soi.ledgerCost) < 0.005 && soi.rows.length > 0
-  const num = (v: number | null | undefined, dp = 0) =>
-    v == null ? '—' : v.toLocaleString('en-US', { minimumFractionDigits: dp, maximumFractionDigits: dp })
-
-  const groupTable = (title: string, groups: SoiGroup[]) => (
-    <div className="border rounded-lg overflow-x-auto">
-      <table className="w-full text-sm whitespace-nowrap">
-        <thead>
-          <tr className="border-b bg-muted/50">
-            <th className="text-left px-3 py-2 font-medium">{title}</th>
-            <th className="text-right px-3 py-2 font-medium">Cost</th>
-            <th className="text-right px-3 py-2 font-medium">Fair value</th>
-            <th className="text-right px-3 py-2 font-medium">% of net assets</th>
-          </tr>
-        </thead>
-        <tbody>
-          {groups.map(g => (
-            <tr key={g.name} className="border-b last:border-b-0">
-              <td className="px-3 py-2">{g.name}</td>
-              <td className="px-3 py-2 text-right font-mono">{fmt(g.cost)}</td>
-              <td className="px-3 py-2 text-right font-mono">{fmt(g.fairValue)}</td>
-              <td className="px-3 py-2 text-right font-mono text-muted-foreground">{pct(g.pctOfNetAssets)}</td>
+    const groupTable = (title: string, groups: SoiGroup[]) => (
+      <div className="border rounded-lg overflow-x-auto">
+        <table className="w-full text-sm whitespace-nowrap">
+          <thead>
+            <tr className="border-b bg-muted/50">
+              <th className="text-left px-3 py-2 font-medium">{title}</th>
+              <th className="text-right px-3 py-2 font-medium">Cost</th>
+              <th className="text-right px-3 py-2 font-medium">Fair value</th>
+              <th className="text-right px-3 py-2 font-medium">% of net assets</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  )
+          </thead>
+          <tbody>
+            {groups.map(g => (
+              <tr key={g.name} className="border-b last:border-b-0">
+                <td className="px-3 py-2">{g.name}</td>
+                <td className="px-3 py-2 text-right font-mono">{fmt(g.cost)}</td>
+                <td className="px-3 py-2 text-right font-mono">{fmt(g.fairValue)}</td>
+                <td className="px-3 py-2 text-right font-mono text-muted-foreground">{pct(g.pctOfNetAssets)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    )
 
-  return (
-    <div className="space-y-5">
+    return (
+      <>
       {/* The SOI's rows come from the portfolio tracker; the ledger is the control
           total. If they disagree, say so loudly rather than showing a tidy number. */}
       {error && <p className="text-sm text-destructive">{error}</p>}
@@ -372,6 +375,35 @@ export function ScheduleOfInvestmentsView() {
           {soi.byAssetType.length > 0 && groupTable('By asset type', soi.byAssetType)}
           {soi.byGeography.length > 0 && groupTable('By geography', soi.byGeography)}
         </div>
+      )}
+      </>
+    )
+  })()
+
+  return (
+    <div className="space-y-5">
+      <div className="flex flex-wrap items-center gap-2">
+        {/* As-of snapshot date — SOI is a point in time, so only the period END matters.
+            No custom range: the presets + As of cover every as-of date. */}
+        <span className="text-sm text-muted-foreground">Investments</span>
+        <div className="ml-auto flex flex-wrap items-center gap-2">
+          <PeriodPicker
+            preset={preset} onPreset={setPreset}
+            start="" end="" onStart={() => {}} onEnd={() => {}}
+            asOf={asOf} onAsOf={setAsOf}
+            allowAsOf allowCustom={false}
+            presets={['this_quarter', 'last_quarter', 'ytd', 'prior_year', 'itd']}
+            title="Investments as of this date"
+          />
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="flex items-center gap-2 text-muted-foreground text-sm"><Loader2 className="h-4 w-4 animate-spin" />Loading…</div>
+      ) : !soi || soi.rows.length === 0 ? (
+        <div className="border border-dashed rounded-lg p-8 text-center text-sm text-muted-foreground">No investments booked as of {asOf || 'today'}.</div>
+      ) : (
+        content
       )}
     </div>
   )
