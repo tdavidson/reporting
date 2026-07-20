@@ -18,6 +18,14 @@ export function AccountingSetup({ alwaysShow = false }: { alwaysShow?: boolean }
   const [cutoverDate, setCutoverDate] = useState('')
   const [bootstrapping, setBootstrapping] = useState(false)
   const [bootstrapMsg, setBootstrapMsg] = useState<string | null>(null)
+  // Attribute pooled LP capital (3100) onto per-LP accounts — preview then apply.
+  const [attrPreview, setAttrPreview] = useState<{
+    empty?: boolean; movable?: number; accountsToCreate?: number; closedSkipped?: number; untagged?: number
+  } | null>(null)
+  const [attrLoading, setAttrLoading] = useState(false)
+  const [attrApplying, setAttrApplying] = useState(false)
+  const [attrMsg, setAttrMsg] = useState<string | null>(null)
+  const [attrError, setAttrError] = useState<string | null>(null)
   // A vehicle could finish every step here and still carry no investments — the tracker
   // knew about them and the ledger didn't. That's a setup step, so it belongs on this card.
   const [inv, setInv] = useState<{ booked: boolean; positions: number } | null>(null)
@@ -65,6 +73,46 @@ export function AccountingSetup({ alwaysShow = false }: { alwaysShow?: boolean }
     setSeeding(false)
   }
 
+  async function previewAttribution() {
+    setAttrLoading(true); setAttrError(null); setAttrMsg(null)
+    try {
+      const res = await lf('/api/accounting/attribute-lp-capital', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dryRun: true }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) { setAttrError(data.error ?? 'Preview failed'); setAttrPreview(null); return }
+      setAttrPreview(data)
+    } catch (e: any) {
+      setAttrError(e?.message ?? 'Preview failed')
+    } finally {
+      setAttrLoading(false)
+    }
+  }
+
+  async function applyAttribution() {
+    if (!window.confirm('Create the per-LP accounts and move pooled LP capital onto them? This writes to the ledger.')) return
+    setAttrApplying(true); setAttrError(null)
+    try {
+      const res = await lf('/api/accounting/attribute-lp-capital', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) { setAttrError(data.error ?? 'Apply failed'); return }
+      setAttrMsg(
+        `Created ${data.accountsEnsured} accounts, attributed ${data.moved} postings.` +
+        (data.untagged ? ` ${data.untagged} still need manual handling.` : '')
+      )
+      setAttrPreview(null)
+      await refresh()
+    } catch (e: any) {
+      setAttrError(e?.message ?? 'Apply failed')
+    } finally {
+      setAttrApplying(false)
+    }
+  }
+
   async function bootstrap() {
     if (!cutoverDate) return
     setBootstrapping(true); setBootstrapMsg(null)
@@ -93,6 +141,40 @@ export function AccountingSetup({ alwaysShow = false }: { alwaysShow?: boolean }
           : <><span className="text-muted-foreground">1. Seed the chart of accounts.</span><Button size="sm" variant="outline" onClick={seed} disabled={seeding}>{seeding && <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />}Seed chart</Button></>}
       </div>
       {seedMsg && <p className="text-xs text-muted-foreground pl-6">{seedMsg}</p>}
+
+      {/* Attribute pooled LP capital (3100) onto per-LP accounts — optional, preview then apply. */}
+      <div className="text-sm">
+        <div className="flex items-center gap-2">
+          <span className="text-muted-foreground">Attribute LP capital to per-LP accounts</span>
+          <Button size="sm" variant="outline" onClick={previewAttribution} disabled={attrLoading || attrApplying}>
+            {attrLoading && <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />}Preview
+          </Button>
+        </div>
+        {attrError && <p className="text-xs text-destructive mt-1">{attrError}</p>}
+        {attrPreview && (
+          <div className="mt-1.5 space-y-1">
+            {attrPreview.empty ? (
+              <p className="text-xs text-muted-foreground">Nothing to attribute — capital is already on per-LP accounts.</p>
+            ) : (
+              <>
+                <p className="text-xs text-muted-foreground">
+                  {attrPreview.accountsToCreate} account{attrPreview.accountsToCreate === 1 ? '' : 's'} to create, {attrPreview.movable} posting{attrPreview.movable === 1 ? '' : 's'} to attribute
+                </p>
+                {!!attrPreview.untagged && attrPreview.untagged > 0 && (
+                  <p className="text-xs text-muted-foreground">{attrPreview.untagged} pooled posting{attrPreview.untagged === 1 ? '' : 's'} have no LP and need manual handling</p>
+                )}
+                {!!attrPreview.closedSkipped && attrPreview.closedSkipped > 0 && (
+                  <p className="text-xs text-muted-foreground">{attrPreview.closedSkipped} skipped (closed period)</p>
+                )}
+                <Button size="sm" onClick={applyAttribution} disabled={attrApplying}>
+                  {attrApplying && <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />}Apply
+                </Button>
+              </>
+            )}
+          </div>
+        )}
+        {attrMsg && <p className="text-xs text-muted-foreground mt-1">{attrMsg}</p>}
+      </div>
 
       {/* Step 2 — choose path */}
       <div className="text-sm">
