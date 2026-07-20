@@ -37,11 +37,14 @@ describe('comparisonPeriods', () => {
     ])
   })
 
-  it('steps custom back by the window length', () => {
-    const c = customPeriod('2026-04-01', '2026-06-30') // 91 days
-    const prev = comparisonPeriods(c, 1, '2000-01-01')
-    expect(prev[0].start).toBe('2026-01-01')
-    expect(prev[0].end).toBe('2026-03-31')
+  it('steps custom back by the window length — uniform and adjacent', () => {
+    const c = customPeriod('2026-04-01', '2026-06-30') // 91 days inclusive
+    const prev = comparisonPeriods(c, 2, '2000-01-01')
+    // Prior window is the same 91-day length, ending the day before the base start.
+    expect(prev[0].end).toBe('2026-03-31')   // base.start - 1
+    expect(prev[0].start).toBe('2025-12-31')  // 91-day window back from there
+    // k=2 is adjacent to k=1: its end is the day before prev[0].start.
+    expect(prev[1].end).toBe('2025-12-30')
   })
 
   it('returns [] for itd and for count<=0 and for null earliest', () => {

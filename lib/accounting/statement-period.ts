@@ -130,7 +130,7 @@ function priorPeriod(base: StatementPeriod, k: number): StatementPeriod | null {
   }
   if (kind === 'custom-length') {
     const len = daysInclusive(base.start, base.end)
-    const start = addDaysUTC(base.start, -(len - 1) * k)
+    const start = addDaysUTC(base.start, -len * k)
     const end = addDaysUTC(base.end, -len * k)
     return { preset: 'custom', start, end, label: `${start} → ${end}` }
   }
