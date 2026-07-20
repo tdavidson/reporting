@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useLpPortalEnabled, useIsAdmin } from '@/components/feature-visibility-context'
 import Link from 'next/link'
-import { Loader2, Plus, Check, AlertTriangle, Landmark, ChevronRight, Share2 } from 'lucide-react'
+import { Loader2, Plus, Check, AlertTriangle, Landmark, ChevronRight, Share2, Pencil } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
@@ -16,6 +16,7 @@ import { type CapitalSource } from './capital-source-card'
 import { GpPanel } from './gp-panel'
 import { useCanRead } from '@/components/access-context'
 import { SortTh, nextSort, compareVals, type SortState } from '@/components/sortable-th'
+import { RenameInvestorDialog } from '@/components/lp/rename-investor-dialog'
 
 interface Account {
   beginning: number
@@ -115,6 +116,8 @@ export function CapitalAccountsView() {
   const [start, setStart] = useState('')
   const [end, setEnd] = useState('')
   const [asOf, setAsOf] = useState('') // report/period-end date; '' = Latest (today)
+
+  const [renaming, setRenaming] = useState<{ entityId: string; name: string } | null>(null)
 
   const [showAdd, setShowAdd] = useState(false)
   const [name, setName] = useState('')
@@ -515,8 +518,18 @@ export function CapitalAccountsView() {
                 return (
                   <tr key={r.lpEntityId} className="border-b last:border-b-0 hover:bg-muted/30">
                     <td className="px-3 py-2 max-w-[200px]">
-                      <Link href={fundSeg ? `/funds/${fundSeg}/capital-accounts/${r.lpEntityId}` : '/funds'} className="hover:underline truncate block" title={r.name}>{r.name}</Link>
-                      {r.partnerClass === 'gp' && <span className="ml-1.5 text-[10px] uppercase tracking-wider px-1 py-0.5 rounded bg-muted text-muted-foreground">GP</span>}
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <Link href={fundSeg ? `/funds/${fundSeg}/capital-accounts/${r.lpEntityId}` : '/funds'} className="hover:underline truncate" title={r.name}>{r.name}</Link>
+                        {r.partnerClass === 'gp' && <span className="text-[10px] uppercase tracking-wider px-1 py-0.5 rounded bg-muted text-muted-foreground shrink-0">GP</span>}
+                        <button
+                          type="button"
+                          onClick={e => { e.stopPropagation(); e.preventDefault(); setRenaming({ entityId: r.lpEntityId, name: r.name }) }}
+                          className="shrink-0 text-muted-foreground hover:text-foreground"
+                          title="Rename"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
                     </td>
                     {commitmentCols.map(c => (
                       <td key={c.key} className={`px-3 py-2 text-right font-mono border-l ${Math.abs(r[c.key]) > 0.004 ? '' : 'text-muted-foreground'}`}>
@@ -615,6 +628,14 @@ export function CapitalAccountsView() {
           <ReconciliationPanel />
         </div>
       </details>
+      )}
+
+      {renaming && (
+        <RenameInvestorDialog
+          target={renaming}
+          onClose={() => setRenaming(null)}
+          onSaved={() => { setRenaming(null); load() }}
+        />
       )}
     </div>
   )

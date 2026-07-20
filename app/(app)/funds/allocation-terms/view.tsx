@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useCurrency, formatCurrencyPrice } from '@/components/currency-context'
 import { useLedgerFetch } from '@/components/accounting-vehicle'
+import { RenameInvestorDialog } from '@/components/lp/rename-investor-dialog'
 
 type Category = 'management_fee' | 'partnership_expense' | 'organizational_expense' | 'realized_gain' | 'valuation' | 'income' | 'carried_interest'
 
@@ -42,6 +43,7 @@ export function AllocationTermsView() {
   const [effectiveDate, setEffectiveDate] = useState('')
   const [memo, setMemo] = useState('')
   const [editingId, setEditingId] = useState<string | null>(null)
+  const [renaming, setRenaming] = useState<{ entityId: string; name: string } | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -175,8 +177,18 @@ export function AllocationTermsView() {
               {partners.map(p => (
                 <tr key={p.lpEntityId} className="border-b last:border-b-0 hover:bg-muted/30">
                   <td className="px-3 py-2">
-                    {p.name}
-                    {p.partnerClass === 'gp' && <span className="ml-1.5 text-[10px] uppercase tracking-wider px-1 py-0.5 rounded bg-muted text-muted-foreground">GP</span>}
+                    <div className="flex items-center gap-1.5">
+                      <span>{p.name}</span>
+                      {p.partnerClass === 'gp' && <span className="text-[10px] uppercase tracking-wider px-1 py-0.5 rounded bg-muted text-muted-foreground">GP</span>}
+                      <button
+                        type="button"
+                        onClick={() => setRenaming({ entityId: p.lpEntityId, name: p.name })}
+                        className="shrink-0 text-muted-foreground hover:text-foreground"
+                        title="Rename"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
                   </td>
                   <td className="px-3 py-2 text-right font-mono">{fmt(p.commitment)}</td>
                   {CATEGORIES.map(c => {
@@ -330,6 +342,14 @@ export function AllocationTermsView() {
           </div>
         )}
       </div>
+
+      {renaming && (
+        <RenameInvestorDialog
+          target={renaming}
+          onClose={() => setRenaming(null)}
+          onSaved={() => { setRenaming(null); load() }}
+        />
+      )}
     </div>
   )
 }
