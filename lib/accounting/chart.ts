@@ -54,7 +54,7 @@ export const DEFAULT_CHART: ChartAccountSeed[] = [
   { code: '3200', name: 'Undistributed earnings (bridge)', type: 'equity', subtype: 'undistributed_earnings' },
 
   // Income
-  { code: '4000', name: 'Realized gains', type: 'income', subtype: 'realized_gain' },
+  { code: '4000', name: 'Realized gain/(loss) on investments', type: 'income', subtype: 'realized_gain' },
   // Cash sitting in the bank, and dividends actually received. TREASURY income — it says
   // nothing about how the portfolio is doing.
   { code: '4100', name: 'Interest and dividend income', type: 'income', subtype: 'interest_income' },
