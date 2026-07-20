@@ -25,10 +25,11 @@ interface AcctRow { id: string; code: string; name: string; type: string }
 // Same action-button style as the bank transactions table.
 const actionBtn = 'shrink-0 rounded border border-input px-2 py-1 font-sans text-xs text-muted-foreground hover:bg-accent hover:text-foreground transition-colors'
 
+const PAGE = 50
+
 export function JournalView() {
   const lf = useLedgerFetch()
 
-  const PAGE = 50
   const [entries, setEntries] = useState<Entry[]>([])
   const [total, setTotal] = useState(0)
   const [accounts, setAccounts] = useState<AcctRow[]>([])
@@ -43,21 +44,20 @@ export function JournalView() {
   // `{ entryId: null }` = a new entry; readOnly = view a posted one without reverting it.
   const [editing, setEditing] = useState<{ entryId: string | null; readOnly?: boolean } | null>(null)
 
-  // Debounce the search box → server query.
+  // Debounce the search box → server query. Reset page in the same state
+  // transition so the fetch effect (below) recomputes and fires exactly once.
   useEffect(() => {
-    const t = setTimeout(() => setDebounced(search.trim()), 300)
+    const t = setTimeout(() => { setDebounced(search.trim()); setPage(0) }, 300)
     return () => clearTimeout(t)
   }, [search])
 
-  // Reset to page 0 whenever the filter changes.
-  useEffect(() => { setPage(0) }, [debounced, preset, start, end])
-
   // Load the chart once (for account-name display).
   useEffect(() => {
-    lf('/api/accounting/chart').then(r => (r.ok ? r.json() : [])).then(c => setAccounts(Array.isArray(c) ? c : []))
+    lf('/api/accounting/chart').then(r => (r.ok ? r.json() : [])).then(c => setAccounts(Array.isArray(c) ? c : [])).catch(() => {})
   }, [lf])
 
   const loadPage = useCallback(() => {
+    setError(null)
     setLoading(true)
     const qs = new URLSearchParams({ preset, limit: String(PAGE), offset: String(page * PAGE) })
     if (preset === 'custom') { if (start) qs.set('start', start); if (end) qs.set('end', end) }
@@ -83,8 +83,9 @@ export function JournalView() {
           <Plus className="h-4 w-4 mr-1" />New entry
         </Button>
         <PeriodPicker
-          preset={preset} onPreset={setPreset}
-          start={start} end={end} onStart={setStart} onEnd={setEnd}
+          preset={preset} onPreset={p => { setPreset(p); setPage(0) }}
+          start={start} end={end}
+          onStart={v => { setStart(v); setPage(0) }} onEnd={v => { setEnd(v); setPage(0) }}
         />
         <Input
           value={search}
