@@ -52,4 +52,11 @@ describe('comparisonPeriods', () => {
     expect(comparisonPeriods(resolvePeriod('ytd'), 0, '2000-01-01')).toEqual([])
     expect(comparisonPeriods(resolvePeriod('ytd'), 3, null)).toEqual([])
   })
+
+  it('clamps a Feb 29 as-of to the last day of Feb in non-leap prior years (ytd)', () => {
+    const ytd = resolvePeriod('ytd', new Date(Date.UTC(2028, 1, 29))) // 2028-01-01..2028-02-29 (2028 is leap)
+    const prev = comparisonPeriods(ytd, 2, '2000-01-01')
+    expect(prev[0].end).toBe('2027-02-28') // 2027 not leap → clamp, not 2027-03-01
+    expect(prev[1].end).toBe('2026-02-28') // 2026 not leap → clamp
+  })
 })

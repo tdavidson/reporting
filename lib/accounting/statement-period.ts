@@ -98,6 +98,14 @@ const addDaysUTC = (isoDate: string, days: number): string => {
   d.setUTCDate(d.getUTCDate() + days)
   return d.toISOString().slice(0, 10)
 }
+const addYearsClampUTC = (isoDate: string, years: number): string => {
+  const d = new Date(isoDate + 'T00:00:00Z')
+  const year = d.getUTCFullYear() + years
+  const month = d.getUTCMonth()
+  const lastDay = new Date(Date.UTC(year, month + 1, 0)).getUTCDate() // last day of that month/year
+  const day = Math.min(d.getUTCDate(), lastDay)                       // clamp Feb 29 → Feb 28 in non-leap years
+  return new Date(Date.UTC(year, month, day)).toISOString().slice(0, 10)
+}
 const daysInclusive = (start: string, end: string): number => {
   const a = new Date(start + 'T00:00:00Z').getTime()
   const b = new Date(end + 'T00:00:00Z').getTime()
@@ -124,8 +132,8 @@ function priorPeriod(base: StatementPeriod, k: number): StatementPeriod | null {
     return { preset: base.preset, start, end, label: `FY ${yearOf(start)}` }
   }
   if (kind === 'ytd') {
-    const start = addMonthsUTC(base.start, -12 * k)
-    const end = addMonthsUTC(base.end, -12 * k)
+    const start = addMonthsUTC(base.start, -12 * k) // base.start is Jan 1 → never overflows
+    const end = addYearsClampUTC(base.end, -k)
     return { preset: base.preset, start, end, label: `YTD ${yearOf(start)}` }
   }
   if (kind === 'custom-length') {
