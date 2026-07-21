@@ -28,6 +28,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { loadPostedLedger, loadOwnership, loadEntityNames, loadEntityClasses } from './load'
 import { loadCapitalPostings } from './capital-source'
 import { commitmentsFromPositions } from './lp-positions'
+import { loadCommitmentEvents, resolveCommitmentMap } from './terms'
 import { accountIdByCode, ensureCapitalAccounts, persistEntry } from './persist'
 import { computeCapitalAccounts, emptyAccount, type CapitalAccount, type CapitalPeriod, type CapitalPosting } from './capital-account'
 import { buildCapitalCallIssuanceEntry } from './entries'
@@ -234,20 +235,18 @@ export async function lpCapitalSummary(
   // One source-aware load: `postings` come from the ledger or from lp_capital_events
   // depending on the vehicle, and `receivableByLp` falls out of the same read (it is
   // always empty for an events vehicle).
-  const [{ source, postings: capitalPostings, receivableByLp }, owners, names, classes, posCommit] = await Promise.all([
+  const [{ source, postings: capitalPostings, receivableByLp }, owners, names, classes, posCommit, events] = await Promise.all([
     loadCapitalPostings(admin, fundId, group),
     loadOwnership(admin, fundId, group),
     loadEntityNames(admin, fundId, group),
     loadEntityClasses(admin, fundId, group),
     commitmentsFromPositions(admin, fundId, group),
+    loadCommitmentEvents(admin, fundId, group),
   ])
-  // For a tracking vehicle, commitment comes from its latest dated positions (so a paste that
-  // changes a commitment takes effect). For a ledger vehicle, from the snapshot-backed
-  // ownership. Positions win only when the vehicle actually uses them AND has a value.
-  const commitmentByLp = new Map(owners.map(o => [o.lpEntityId, o.commitment]))
-  if (source !== 'ledger') {
-    for (const [id, c] of Array.from(posCommit.entries())) commitmentByLp.set(id, c)
-  }
+  // ONE canonical commitment resolution (see resolveCommitmentMap): positions win for a tracking
+  // vehicle; otherwise the effective-dated event log, falling back to the scalar. This is what
+  // ended the old split where this page read the scalar while Allocation read the events.
+  const commitmentByLp = resolveCommitmentMap({ source, owners, events, positions: posCommit })
   const accountByLp = computeCapitalAccounts(capitalPostings)
 
   const ids = new Set<string>([
