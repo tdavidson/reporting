@@ -31,7 +31,11 @@ export async function loadVehicleGpLinks(admin: SupabaseClient, fundId: string):
     }))
   }
 
-  // Table absent (unapplied migration) → legacy single columns on fund_vehicles.
+  // Fall back to the legacy columns ONLY when the table doesn't exist yet (undefined_table).
+  // On any other error we must NOT read the frozen legacy columns — the write endpoint never
+  // updates them, so doing so would resurrect links the user has since deleted. Degrade to empty.
+  if ((error as any)?.code !== '42P01') return []
+
   const { data: veh } = await admin
     .from('fund_vehicles' as any)
     .select('id, serves_vehicle_id, lp_entity_id')

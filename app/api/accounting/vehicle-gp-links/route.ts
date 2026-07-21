@@ -95,6 +95,14 @@ export async function POST(req: NextRequest) {
   if (gpError) return NextResponse.json({ error: gpError.message }, { status: 500 })
   if (!gpVehicle) return NextResponse.json({ error: 'gpVehicleId is not a vehicle in this fund' }, { status: 400 })
 
+  // The "as which partner" id, if given, must belong to THIS fund — lp_entities is a cross-fund
+  // table, so an unvalidated id could plant a foreign entity on the link.
+  const lpEntityId = body?.lpEntityId ?? null
+  if (lpEntityId) {
+    const { data: ent } = await admin.from('lp_entities' as any).select('id').eq('fund_id', gate.fundId).eq('id', lpEntityId).maybeSingle()
+    if (!ent) return NextResponse.json({ error: 'That partner is not in this fund.' }, { status: 400 })
+  }
+
   const { error } = await admin
     .from('vehicle_gp_links' as any)
     .upsert(
@@ -102,7 +110,7 @@ export async function POST(req: NextRequest) {
         fund_id: gate.fundId,
         gp_vehicle_id: gpVehicleId,
         served_vehicle_id: servedVehicleId,
-        lp_entity_id: body?.lpEntityId ?? null,
+        lp_entity_id: lpEntityId,
       },
       { onConflict: 'gp_vehicle_id,served_vehicle_id' }
     )
