@@ -91,21 +91,39 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ error: 'Catch-up rate must be between 0 and 1.' }, { status: 400 })
   }
 
-  // Carry has to accrue TO somebody. Without a recipient the close would compute an accrual it
-  // cannot post — better to refuse here than to fail mid-close.
+  // Carry has to accrue TO somebody. A vehicle may have ONE recipient (legacy gpEntityId) or a
+  // split across several (carryRecipients: [{lpEntityId, pct}] summing to 100). Without any the
+  // close would compute an accrual it cannot post — refuse here rather than fail mid-close.
   const gpEntityId = body?.gpEntityId || null
-  if (kind !== 'none' && carryRate > 0 && !gpEntityId) {
-    return NextResponse.json({ error: 'Choose the partner who receives the carry.' }, { status: 400 })
+  const recipients: { lpEntityId: string; pct: number }[] = Array.isArray(body?.carryRecipients)
+    ? body.carryRecipients
+        .filter((r: any) => r && typeof r.lpEntityId === 'string')
+        .map((r: any) => ({ lpEntityId: r.lpEntityId, pct: Number(r.pct) }))
+        .filter((r: { pct: number }) => Number.isFinite(r.pct) && r.pct > 0)
+    : []
+  const carryOn = kind !== 'none' && carryRate > 0
+
+  if (carryOn && recipients.length === 0 && !gpEntityId) {
+    return NextResponse.json({ error: 'Choose who receives the carry.' }, { status: 400 })
   }
-  if (gpEntityId) {
-    const { data: ent } = await admin
-      .from('lp_entities' as any)
-      .select('id')
-      .eq('id', gpEntityId)
-      .eq('fund_id', gate.fundId)
-      .maybeSingle()
-    if (!ent) return NextResponse.json({ error: 'That partner is not in this fund.' }, { status: 400 })
+  if (recipients.length > 0) {
+    const sum = recipients.reduce((s, r) => s + r.pct, 0)
+    if (Math.abs(sum - 100) > 0.01) {
+      return NextResponse.json({ error: `Carry recipient percentages must total 100 (they total ${sum}).` }, { status: 400 })
+    }
   }
+  // Every named recipient (and the legacy single GP) must be a partner in this fund.
+  const idsToCheck = [...recipients.map(r => r.lpEntityId), ...(gpEntityId ? [gpEntityId] : [])]
+  if (idsToCheck.length > 0) {
+    const { data: ents } = await admin.from('lp_entities' as any).select('id').eq('fund_id', gate.fundId).in('id', idsToCheck)
+    const known = new Set(((ents as any[]) ?? []).map(e => e.id))
+    const foreign = idsToCheck.filter(id => !known.has(id))
+    if (foreign.length > 0) return NextResponse.json({ error: 'A carry recipient is not in this fund.' }, { status: 400 })
+  }
+
+  // Keep gp_entity_id meaningful as the single-recipient fallback: the sole recipient when there
+  // is exactly one, otherwise the explicit legacy value (or null).
+  const singleGp = recipients.length === 1 ? recipients[0].lpEntityId : recipients.length === 0 ? gpEntityId : null
 
   const { error } = await admin
     .from('vehicle_waterfall_terms' as any)
@@ -118,7 +136,8 @@ export async function PUT(req: NextRequest) {
         pref_rate: prefRate,
         catchup_rate: catchupRate,
         pref_compounds: body?.prefCompounds !== false,
-        gp_entity_id: gpEntityId,
+        gp_entity_id: singleGp,
+        carry_recipients: recipients.length > 0 ? recipients : null,
         updated_at: new Date().toISOString(),
       },
       { onConflict: 'fund_id,vehicle_id' }

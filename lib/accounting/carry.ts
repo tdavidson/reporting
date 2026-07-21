@@ -21,13 +21,23 @@ import { vehicleIdByName } from './vehicle-id'
 
 export type CarryKind = 'none' | 'straight' | 'american' | 'european'
 
+export interface CarryRecipient {
+  lpEntityId: string
+  /** Share of the accrued carry, 0–100. The set sums to 100. */
+  pct: number
+}
+
 export interface VehicleCarryTerms {
   kind: CarryKind
   carryRate: number
   prefRate: number
   catchupRate: number
   prefCompounds: boolean
+  /** Single-recipient legacy field; kept for back-compat and as the fallback source. */
   gpEntityId: string | null
+  /** Who receives the carry and in what split. Resolved from `carry_recipients`, or
+   *  `[{ gpEntityId, 100 }]` when only the legacy field is set, else []. */
+  recipients: CarryRecipient[]
 }
 
 export const NO_CARRY: VehicleCarryTerms = {
@@ -37,6 +47,19 @@ export const NO_CARRY: VehicleCarryTerms = {
   catchupRate: 1,
   prefCompounds: true,
   gpEntityId: null,
+  recipients: [],
+}
+
+/** Resolve the carry recipients: the explicit list if present, else the legacy single GP at 100%. */
+export function resolveCarryRecipients(carryRecipients: unknown, gpEntityId: string | null): CarryRecipient[] {
+  if (Array.isArray(carryRecipients)) {
+    const list = carryRecipients
+      .filter((r): r is { lpEntityId: string; pct: unknown } => !!r && typeof r.lpEntityId === 'string')
+      .map(r => ({ lpEntityId: r.lpEntityId, pct: Number(r.pct) }))
+      .filter(r => Number.isFinite(r.pct) && r.pct > 0)
+    if (list.length > 0) return list
+  }
+  return gpEntityId ? [{ lpEntityId: gpEntityId, pct: 100 }] : []
 }
 
 /** One LP's economics, as at the accrual date. All from the ledger. */
@@ -162,7 +185,7 @@ export async function loadCarryTerms(
 
   const { data } = await admin
     .from('vehicle_waterfall_terms' as any)
-    .select('kind, carry_rate, pref_rate, catchup_rate, pref_compounds, gp_entity_id')
+    .select('kind, carry_rate, pref_rate, catchup_rate, pref_compounds, gp_entity_id, carry_recipients')
     .eq('fund_id', fundId)
     .eq('vehicle_id', vehicleId)
     .maybeSingle()
@@ -179,6 +202,7 @@ export async function loadCarryTerms(
     catchupRate: Number(d.catchup_rate ?? 1),
     prefCompounds: d.pref_compounds !== false,
     gpEntityId: d.gp_entity_id ?? null,
+    recipients: resolveCarryRecipients(d.carry_recipients, d.gp_entity_id ?? null),
   }
 }
 

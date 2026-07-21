@@ -786,19 +786,22 @@ async function accrueCarry(
 ): Promise<{ entryId?: string } | { error: string }> {
   const terms = await loadCarryTerms(admin, fundId, group)
   if (terms.kind === 'none' || terms.carryRate <= 0) return {}
-  if (!terms.gpEntityId) {
-    return { error: `${group} has carry terms but no GP partner set to receive the carry.` }
+  if (terms.recipients.length === 0) {
+    return { error: `${group} has carry terms but no recipient set to receive the carry.` }
   }
+  const recipientIds = new Set(terms.recipients.map(r => r.lpEntityId))
 
   // The books as they now stand, INCLUDING the allocation entries we just posted.
   const { capitalPostings } = await loadPostedLedger(admin, fundId, group, periodEnd)
   const accounts = computeCapitalAccounts(capitalPostings)
 
-  const gpAccount = accounts.get(terms.gpEntityId)
-  const alreadyAccrued = roundCents(gpAccount?.carriedInterest ?? 0)
+  // Carry already sitting in the recipients' accounts — the accrual tops up (or reverses) to target.
+  const alreadyAccrued = roundCents(
+    terms.recipients.reduce((s, r) => s + (accounts.get(r.lpEntityId)?.carriedInterest ?? 0), 0)
+  )
 
   const lps: LpEconomics[] = Array.from(accounts.entries())
-    .filter(([id]) => id !== terms.gpEntityId) // the GP receives carry; it doesn't pay it
+    .filter(([id]) => !recipientIds.has(id)) // recipients receive carry; they don't pay it
     .map(([lpEntityId, a]) => ({
       lpEntityId,
       contributed: roundCents(a.contributions),
@@ -810,7 +813,7 @@ async function accrueCarry(
 
   // Dated contributions, for the hurdle. The pref accrues from when cash actually arrived.
   const contributions: DatedContribution[] = capitalPostings
-    .filter(p => p.lpEntityId !== terms.gpEntityId && bucketForSourceType(p.sourceType) === 'contributions')
+    .filter(p => !recipientIds.has(p.lpEntityId ?? '') && bucketForSourceType(p.sourceType) === 'contributions')
     .map(p => ({ date: p.entryDate ?? periodEnd, amount: roundCents(-p.amount) }))
     .filter(c => c.amount > 0)
 
@@ -819,7 +822,7 @@ async function accrueCarry(
 
   const capMap = await ensureCapitalAccounts(admin, fundId, group, [
     ...Array.from(accrual.perLp.keys()),
-    terms.gpEntityId,
+    ...Array.from(recipientIds),
   ])
   const codes = await accountIdByCode(admin, fundId, group)
   const gpCapitalId = codes.get('3000') ?? ''
@@ -837,7 +840,7 @@ async function accrueCarry(
     capMap,
     gpCapitalId,
     undefined,
-    terms.gpEntityId,
+    terms.recipients,
   )
   entry.sourceRef = sourceRef // so reopening the period voids the accrual with everything else
 
