@@ -796,6 +796,10 @@ async function accrueCarry(
   const accounts = computeCapitalAccounts(capitalPostings)
 
   // Carry already sitting in the recipients' accounts — the accrual tops up (or reverses) to target.
+  // NOTE: only the per-period DELTA is split by the current recipients/pcts. Changing the split (or
+  // removing a recipient) is PROSPECTIVE — it does not rebalance carry already accrued in prior
+  // periods. LP-side totals stay correct regardless; treat the recipient split as stable once carry
+  // has begun accruing.
   const alreadyAccrued = roundCents(
     terms.recipients.reduce((s, r) => s + (accounts.get(r.lpEntityId)?.carriedInterest ?? 0), 0)
   )

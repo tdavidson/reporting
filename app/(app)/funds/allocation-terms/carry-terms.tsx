@@ -122,9 +122,13 @@ export function CarryTerms() {
   const toggleRecipient = (lpEntityId: string) => {
     setRecipients(prev => {
       const exists = prev.some(r => r.lpEntityId === lpEntityId)
-      if (exists) return prev.filter(r => r.lpEntityId !== lpEntityId)
-      const share = Math.round(100 / (prev.length + 1))
-      return [...prev, { lpEntityId, pct: share }]
+      const ids = exists
+        ? prev.filter(r => r.lpEntityId !== lpEntityId).map(r => r.lpEntityId)
+        : [...prev.map(r => r.lpEntityId), lpEntityId]
+      // Even split that always totals 100 (last absorbs the remainder); fine-tune per row after.
+      const n = ids.length
+      const each = n > 0 ? Math.round(100 / n) : 0
+      return ids.map((id, i) => ({ lpEntityId: id, pct: i === n - 1 ? 100 - each * (n - 1) : each }))
     })
   }
 
