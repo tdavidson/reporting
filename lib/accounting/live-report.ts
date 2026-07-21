@@ -28,6 +28,7 @@ import { lookThroughAccount, associateMembers } from './look-through'
 import { latestPositionIrr } from './lp-positions'
 import { loadFundPreload, vehicleCapitalPreload, commitmentEventsForGroup, type FundPreload } from './fund-preload'
 import { roundCents } from './ledger'
+import { loadVehicleGpLinks } from './gp-links'
 
 /** The metric half of an `lp_investments` row — same names, same units. */
 export interface LiveMetrics {
@@ -277,35 +278,34 @@ interface AssociateLink {
  *
  * The old model matched free text (`lp_associates_overrides.associates_entity` had to match an
  * investor name AND a portfolio_group string), so renaming anything silently broke the
- * look-through and nobody found out until an LP's returns were wrong. `fund_vehicles` carries
- * both links as ids now: `serves_vehicle_id` (which fund) and `lp_entity_id` (as whom).
+ * look-through and nobody found out until an LP's returns were wrong. Links now come from
+ * `vehicle_gp_links` (many-to-many: one associate can be GP of several vehicles, one row per
+ * link), falling back to the legacy single `serves_vehicle_id` column only when that table is
+ * absent — see `loadVehicleGpLinks`.
  */
 async function loadAssociateLinks(admin: SupabaseClient, fundId: string): Promise<AssociateLink[]> {
-  const { data } = await admin
-    .from('fund_vehicles' as any)
-    .select('id, name, kind, active, serves_vehicle_id, lp_entity_id')
-    .eq('fund_id', fundId)
-    .eq('kind', 'associate')
-    .eq('active', true)
+  const [links, vehRes] = await Promise.all([
+    loadVehicleGpLinks(admin, fundId),
+    admin
+      .from('fund_vehicles' as any)
+      .select('id, name, kind, active')
+      .eq('fund_id', fundId),
+  ])
 
-  const rows = ((data as any[]) ?? []).filter(v => v.serves_vehicle_id && v.lp_entity_id)
-  if (rows.length === 0) return []
+  const vehById = new Map<string, { name: string; kind: string; active: boolean }>(
+    (((vehRes as any).data as any[]) ?? []).map(v => [v.id as string, { name: v.name as string, kind: v.kind as string, active: v.active as boolean }])
+  )
 
-  const { data: served } = await admin
-    .from('fund_vehicles' as any)
-    .select('id, name')
-    .eq('fund_id', fundId)
-    .in('id', rows.map(r => r.serves_vehicle_id))
-
-  const nameById = new Map(((served as any[]) ?? []).map(v => [v.id as string, v.name as string]))
-
-  return rows
-    .filter(r => nameById.has(r.serves_vehicle_id))
-    .map(r => ({
-      associateGroup: r.name as string,
-      servesGroup: nameById.get(r.serves_vehicle_id)!,
-      entityId: r.lp_entity_id as string,
-    }))
+  const out: AssociateLink[] = []
+  for (const l of links) {
+    if (!l.lpEntityId) continue
+    const gp = vehById.get(l.gpVehicleId)
+    if (!gp || gp.kind !== 'associate' || !gp.active) continue
+    const served = vehById.get(l.servedVehicleId)
+    if (!served) continue
+    out.push({ associateGroup: gp.name, servesGroup: served.name, entityId: l.lpEntityId })
+  }
+  return out
 }
 
 /**

@@ -15,6 +15,7 @@ import { fundCurrency } from './currency'
 import { vehicleIdByName } from './vehicle-id'
 import { lpCapitalSummary } from './capital-calls'
 import { ENTRY_SOURCE_TYPES } from './source-types'
+import { loadVehicleGpLinks } from './gp-links'
 import type { JournalEntry, Posting } from './types'
 
 export interface AssistantProposalPosting { accountCode: string; amount: number; lpEntity?: string | null }
@@ -105,26 +106,35 @@ async function gatherContext(
     return primary + capText
   }
 
-  // Related GP/associate entities: those explicitly linked to this vehicle, else
-  // (before any links are set) every associate entity in the fund.
+  // Related GP/associate entities: those explicitly linked to this vehicle (many-to-many, via
+  // vehicle_gp_links), else (before any links are set) every associate entity in the fund.
   let veh: any[] = []
   try {
-    const { data, error } = await admin.from('fund_vehicles' as any).select('id, name, kind, serves_vehicle_id').eq('fund_id', fundId)
+    const { data, error } = await admin.from('fund_vehicles' as any).select('id, name, kind').eq('fund_id', fundId)
     if (error) throw error
     veh = (data as any[]) ?? []
   } catch {
-    const { data } = await admin.from('fund_vehicles' as any).select('id, name, kind').eq('fund_id', fundId)
-    veh = (data as any[]) ?? []
+    veh = []
   }
-  const current = veh.find(v => v.id === vehicleId)
+  const vehById = new Map(veh.map(v => [v.id as string, v]))
+  const current = vehicleId ? vehById.get(vehicleId) : undefined
   const associates = veh.filter(v => v.kind === 'associate' && v.id !== vehicleId)
-  const linked = associates.filter(v => v.serves_vehicle_id && v.serves_vehicle_id === vehicleId)
+
+  const links = await loadVehicleGpLinks(admin, fundId)
+  // Associate vehicles that are a GP OF the current vehicle.
+  const linked = links
+    .filter(l => l.servedVehicleId === vehicleId)
+    .map(l => vehById.get(l.gpVehicleId))
+    .filter((v): v is any => !!v && v.kind === 'associate' && v.id !== vehicleId)
   let related = linked
-  // If the current vehicle is itself a GP/associate, include the fund it serves.
-  if (current?.serves_vehicle_id) {
-    const served = veh.find(v => v.id === current.serves_vehicle_id)
-    if (served) related = [...related, served]
-  }
+  // If the current vehicle is itself a GP/associate, include every vehicle it serves.
+  const servedByCurrent = links
+    .filter(l => l.gpVehicleId === vehicleId)
+    .map(l => vehById.get(l.servedVehicleId))
+    .filter((v): v is any => !!v)
+  if (servedByCurrent.length > 0) related = [...related, ...servedByCurrent]
+  // Dedupe (a vehicle could in principle appear via both directions).
+  related = Array.from(new Map(related.map(v => [v.id, v])).values())
   if (related.length === 0 && current?.kind !== 'associate') related = associates
 
   const relatedBlocks: string[] = []

@@ -33,6 +33,7 @@ import { computeCapitalAccounts, emptyAccount, type CapitalAccount } from './cap
 import { loadCommitmentEvents, commitmentsAsOf, loadPartnerTerms } from './terms'
 import { loadEntityNames, loadOwnership } from './load'
 import { associateMembers, lookThroughAccount } from './look-through'
+import { loadVehicleGpLinks } from './gp-links'
 
 export interface GpVehicleLink {
   /** The associate/GP vehicle. */
@@ -90,34 +91,39 @@ export interface GpEconomics {
   totals: { carryAccrued: number; carryPaid: number; carryUnpaid: number; ending: number }
 }
 
-/** The associate/GP vehicles in this fund that are properly linked to a fund. */
+/**
+ * The associate/GP vehicles in this fund that are properly linked to a fund — one row per
+ * (gpVehicle, servedVehicle) link, so an entity that is GP of 3 vehicles yields 3 rows.
+ */
 export async function loadGpLinks(admin: SupabaseClient, fundId: string): Promise<GpVehicleLink[]> {
-  const { data } = await (admin as any)
-    .from('fund_vehicles')
-    .select('id, name, kind, active, serves_vehicle_id, lp_entity_id')
-    .eq('fund_id', fundId)
-    .in('kind', ['associate', 'gp'])
-    .eq('active', true)
+  const [links, vehRes] = await Promise.all([
+    loadVehicleGpLinks(admin, fundId),
+    (admin as any)
+      .from('fund_vehicles')
+      .select('id, name, kind, active')
+      .eq('fund_id', fundId),
+  ])
 
-  const rows = ((data as any[]) ?? []).filter(v => v.serves_vehicle_id && v.lp_entity_id)
-  if (rows.length === 0) return []
+  const vehById = new Map<string, { name: string; kind: string; active: boolean }>(
+    (((vehRes as any).data as any[]) ?? []).map(v => [v.id as string, { name: v.name as string, kind: v.kind as string, active: v.active as boolean }])
+  )
 
-  const { data: served } = await (admin as any)
-    .from('fund_vehicles')
-    .select('id, name')
-    .eq('fund_id', fundId)
-    .in('id', rows.map(r => r.serves_vehicle_id))
-  const nameById = new Map(((served as any[]) ?? []).map(v => [v.id as string, v.name as string]))
-
+  const rows: GpVehicleLink[] = []
+  for (const l of links) {
+    if (!l.lpEntityId) continue
+    const gp = vehById.get(l.gpVehicleId)
+    if (!gp || !['associate', 'gp'].includes(gp.kind) || !gp.active) continue
+    const served = vehById.get(l.servedVehicleId)
+    if (!served) continue
+    rows.push({
+      vehicle: gp.name,
+      vehicleId: l.gpVehicleId,
+      servesVehicle: served.name,
+      servesVehicleId: l.servedVehicleId,
+      lpEntityId: l.lpEntityId,
+    })
+  }
   return rows
-    .filter(r => nameById.has(r.serves_vehicle_id))
-    .map(r => ({
-      vehicle: r.name as string,
-      vehicleId: r.id as string,
-      servesVehicle: nameById.get(r.serves_vehicle_id)!,
-      servesVehicleId: r.serves_vehicle_id as string,
-      lpEntityId: r.lp_entity_id as string,
-    }))
 }
 
 /** Is this vehicle a GP/associate entity with a fund behind it? */
