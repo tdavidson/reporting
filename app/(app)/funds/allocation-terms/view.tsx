@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { Loader2, Plus, ArrowLeftRight, Pencil, Trash2, SlidersHorizontal } from 'lucide-react'
+import { Loader2, Plus, ArrowLeftRight, Pencil, Trash2, SlidersHorizontal, Banknote } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useCurrency, formatCurrencyPrice } from '@/components/currency-context'
@@ -160,15 +160,16 @@ export function AllocationTermsView() {
         </p>
 
         <div className="flex flex-wrap items-center gap-2 mb-2">
-          <Button size="sm" variant="outline" onClick={() => { setShowBasis(false); if (showAdd) { setShowAdd(false) } else { setShowAdd(true); setShowChange(false) } }}>
+          <Button size="sm" variant="outline" className="text-muted-foreground" onClick={() => { setShowBasis(false); if (showAdd) { setShowAdd(false) } else { setShowAdd(true); setShowChange(false) } }}>
             <Plus className="h-3.5 w-3.5 mr-1" />Add LP
           </Button>
           <Button
             size="sm"
             variant="outline"
+            className="text-muted-foreground"
             onClick={() => { setShowBasis(false); if (showChange) resetChangeForm(); else { setShowChange(true); setShowAdd(false) } }}
           >
-            <Plus className="h-3.5 w-3.5 mr-1" />Change Commitment
+            <Banknote className="h-3.5 w-3.5 mr-1" />Change Commitment
           </Button>
           {/* Basis: a compact button showing the current setting; opens a small popup. */}
           <Button

@@ -133,11 +133,6 @@ export function StatusView() {
           the capital-accounts page every visit. Self-fetches its own source. */}
       <CapitalSourceCard />
 
-      {/* Which GP/associate entities are the GP of this vehicle (many-to-many via
-          vehicle_gp_links) — separate from the legacy single-GP panel on the capital-accounts
-          page, which still reads the old fund_vehicles columns. */}
-      <GeneralPartnersCard />
-
       {/* Onboarding only shows while it's actually unfinished. */}
       {!s.onboarded ? (
         <AccountingSetup alwaysShow />
@@ -223,13 +218,18 @@ export function StatusView() {
             gp_economics domain, not plain accounting. Someone who runs the close does not
             thereby get to see (or set) the partners' carry terms. */}
         {canReadGpEconomics && (
-          <CollapsibleSection title="Carried interest" subtitle="The carry the close accrues, and who receives it">
-            <CarryTerms />
+          <CollapsibleSection title="Carried interest" subtitle="The carry the close accrues, who receives it, and this vehicle's general partner(s)">
+            <div className="space-y-4">
+              <CarryTerms />
+              {/* GP-of links live here — a one-time set-and-done setting next to the carry it drives
+                  (many-to-many via vehicle_gp_links; separate from the legacy single-GP capital-accounts panel). */}
+              <GeneralPartnersCard />
+            </div>
           </CollapsibleSection>
         )}
 
         <CollapsibleSection
-          title="Allocation & partners"
+          title="Partners Detail"
           subtitle={`Splitting on ${s.close.basis === 'capital_balance' ? 'capital-account balance' : 'committed capital'} · who bears fees, expenses, and carry · commitment history`}
         >
           <AllocationTermsView />
