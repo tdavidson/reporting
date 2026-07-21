@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { Loader2, Plus, ArrowLeftRight, Pencil, Trash2, SlidersHorizontal, Banknote } from 'lucide-react'
+import { Loader2, Plus, ArrowLeftRight, Pencil, Trash2, SlidersHorizontal, Banknote, History } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useCurrency, formatCurrencyPrice } from '@/components/currency-context'
@@ -340,13 +340,14 @@ export function AllocationTermsView() {
 
       {/* 3. Commitment history --------------------------------------------- */}
       <div>
-        <button
-          type="button"
+        <Button
+          size="sm"
+          variant="outline"
+          className="text-muted-foreground"
           onClick={() => setShowHistory(v => !v)}
-          className="text-xs text-primary hover:underline"
         >
-          {showHistory ? 'Hide commitment history' : 'Show commitment history'}
-        </button>
+          <History className="h-3.5 w-3.5 mr-1" />{showHistory ? 'Hide commitment history' : 'Commitment history'}
+        </Button>
 
         {showHistory && (
           <div className="mt-2">
