@@ -121,7 +121,7 @@ export function LpCapitalView({ isAdmin }: { isAdmin: boolean }) {
         {acct && (
           <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground ml-1">
             {acct.source === 'ledger' ? <BookOpen className="h-3.5 w-3.5" /> : <ListTree className="h-3.5 w-3.5" />}
-            {acct.source === 'ledger' ? 'Fund Accounting' : 'LP only tracking'}
+            {acct.source === 'ledger' ? 'Derived from the ledger' : 'Pasted positions'}
           </span>
         )}
       </div>
@@ -130,7 +130,7 @@ export function LpCapitalView({ isAdmin }: { isAdmin: boolean }) {
       <div className="space-y-1">
         <h1 className="text-2xl font-semibold tracking-tight">LP capital accounts</h1>
         <p className="text-sm text-muted-foreground">
-          Per-vehicle LP capital — from <strong>Fund Accounting</strong> where you keep books, or <strong>LP only tracking</strong> (pasted positions) where you don&rsquo;t.
+          Per-vehicle LP capital — <strong>derived from the ledger</strong> where you keep books, or <strong>pasted as dated positions</strong> where you don&rsquo;t.
         </p>
       </div>
 

@@ -17,9 +17,10 @@ export const DEFAULT_FEATURE_VISIBILITY: FeatureVisibilityMap = {
   imports: 'everyone',
   asks: 'everyone',
   lps: 'admin',
-  // Capital tracking: per-vehicle LP capital accounts from pasted/manual dated positions
-  // (or the ledger when accounting is on). Off by default — a fund turns it on to start
-  // tracking LP capital without committing to full fund accounting.
+  // LP capital: per-vehicle LP capital. Its source is NOT a mode the user picks — capital is
+  // derived from the ledger for a vehicle that keeps books (accounting on + set up), and pasted
+  // as dated positions otherwise. This flag only decides whether the fund reports LP capital at
+  // ALL; it is independent of `accounting` and can be off even when the books are on.
   lp_tracking: 'off',
   lp_associates: 'admin',
   lp_portal: 'admin',
