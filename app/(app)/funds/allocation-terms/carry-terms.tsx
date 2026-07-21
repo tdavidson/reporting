@@ -14,6 +14,7 @@ import { useLedgerFetch } from '@/components/accounting-vehicle'
 type Kind = 'none' | 'straight' | 'american' | 'european'
 
 interface Candidate { lpEntityId: string; name: string; partnerClass: string }
+interface Recipient { lpEntityId: string; pct: number }
 
 interface Terms {
   kind: Kind
@@ -21,7 +22,7 @@ interface Terms {
   prefRate: number
   catchupRate: number
   prefCompounds: boolean
-  gpEntityId: string | null
+  recipients: Recipient[]
 }
 
 // Percent <-> fraction at the UI boundary. 0 renders as '0' (a real, editable value) rather than
@@ -43,7 +44,7 @@ export function CarryTerms() {
   const [pref, setPref] = useState('0')
   const [catchup, setCatchup] = useState('0')
   const [compounds, setCompounds] = useState(false)
-  const [gpEntityId, setGpEntityId] = useState('')
+  const [recipients, setRecipients] = useState<Recipient[]>([])
   const [candidates, setCandidates] = useState<Candidate[]>([])
   const [vehicleName, setVehicleName] = useState('')
 
@@ -59,7 +60,7 @@ export function CarryTerms() {
     setPref(pct(t.prefRate))
     setCatchup(pct(t.catchupRate))
     setCompounds(t.prefCompounds)
-    setGpEntityId(t.gpEntityId ?? '')
+    setRecipients(t.recipients ?? [])
     setCandidates(d.candidates ?? [])
     setVehicleName(d.group ?? '')
   }, [])
@@ -91,7 +92,7 @@ export function CarryTerms() {
         prefRate: frac(pref),
         catchupRate: frac(catchup),
         prefCompounds: compounds,
-        gpEntityId: gpEntityId || null,
+        carryRecipients: recipients,
       }),
     })
     const d = await res.json().catch(() => ({}))
@@ -114,6 +115,24 @@ export function CarryTerms() {
   const carryOn = kind !== 'none'
   const hasHurdle = kind === 'european' // pref + catch-up only apply to the whole-fund waterfall
   const carryMissing = carryOn && frac(carry) <= 0
+
+  const totalPct = recipients.reduce((sum, r) => sum + (r.pct || 0), 0)
+  const recipientsInvalid = carryOn && !carryMissing && (recipients.length === 0 || Math.abs(totalPct - 100) > 0.01)
+
+  const toggleRecipient = (lpEntityId: string) => {
+    setRecipients(prev => {
+      const exists = prev.some(r => r.lpEntityId === lpEntityId)
+      if (exists) return prev.filter(r => r.lpEntityId !== lpEntityId)
+      const share = Math.round(100 / (prev.length + 1))
+      return [...prev, { lpEntityId, pct: share }]
+    })
+  }
+
+  const setRecipientPct = (lpEntityId: string, pctStr: string) => {
+    const n = Number(pctStr)
+    const value = pctStr.trim() === '' ? 0 : (Number.isFinite(n) ? n : 0)
+    setRecipients(prev => prev.map(r => r.lpEntityId === lpEntityId ? { ...r, pct: value } : r))
+  }
 
   return (
     <div className="space-y-3">
@@ -184,21 +203,42 @@ export function CarryTerms() {
               </>
             )}
 
-            <Field label="Carry accrues to" hint="Which partner receives it">
-              <select
-                className="w-full h-9 rounded-md border bg-background px-2 text-sm"
-                value={gpEntityId}
-                onChange={e => setGpEntityId(e.target.value)}
-              >
-                <option value="">Select…</option>
-                {candidates.map(c => (
-                  <option key={c.lpEntityId} value={c.lpEntityId}>
-                    {c.name}{c.partnerClass === 'gp' ? ' (GP)' : ''}
-                  </option>
-                ))}
-              </select>
-            </Field>
           </div>
+
+          <Field label="Carry accrues to" hint="Which partner(s) receive it, and their share">
+            <div className="space-y-1.5">
+              {candidates.map(c => {
+                const r = recipients.find(x => x.lpEntityId === c.lpEntityId)
+                const checked = !!r
+                return (
+                  <div key={c.lpEntityId} className="flex items-center gap-2">
+                    <label className="flex items-center gap-2 text-sm flex-1">
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleRecipient(c.lpEntityId)}
+                      />
+                      {c.name}{c.partnerClass === 'gp' ? ' (GP)' : ''}
+                    </label>
+                    {checked && (
+                      <div className="w-20">
+                        <Suffix suffix="%">
+                          <Input
+                            value={String(r.pct)}
+                            onChange={e => setRecipientPct(c.lpEntityId, e.target.value)}
+                            className="h-8 text-sm"
+                          />
+                        </Suffix>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+              <p className={`text-xs ${Math.abs(totalPct - 100) > 0.01 && recipients.length > 0 ? 'text-amber-600' : 'text-muted-foreground'}`}>
+                Total: {totalPct}%
+              </p>
+            </div>
+          </Field>
 
           {hasHurdle && (
             <label className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -216,13 +256,13 @@ export function CarryTerms() {
             </p>
           )}
 
-          {/* The carry has to land in a real partner's capital account, or it belongs to nobody
+          {/* The carry has to land in real partners' capital accounts, or it belongs to nobody
               — it never shows in any capital account, and the associates look-through can't
               split it. Say so before they hit Save and get a 400. */}
-          {!gpEntityId && (
+          {recipientsInvalid && (
             <p className="text-xs text-amber-600 flex items-center gap-1.5">
               <AlertTriangle className="h-3.5 w-3.5" />
-              Choose the partner who receives the carry — otherwise the close has nowhere to post it.
+              Recipient shares must total 100%.
             </p>
           )}
 
@@ -237,7 +277,7 @@ export function CarryTerms() {
       {error && <p className="text-sm text-amber-600">{error}</p>}
 
       <div className="flex items-center gap-2 pt-1">
-        <Button size="sm" variant="outline" className="text-muted-foreground" onClick={save} disabled={busy}>
+        <Button size="sm" variant="outline" className="text-muted-foreground" onClick={save} disabled={busy || recipientsInvalid}>
           {busy ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Check className="h-4 w-4 mr-1" />}
           Save carry terms
         </Button>
