@@ -62,11 +62,8 @@ export function commitmentsAsOf(events: CommitmentEvent[], asOf?: string | null)
 /**
  * The standard commitment fallback ladder for a LEDGER-side read: effective-dated
  * commitment_events as of the report date, or — when a vehicle has no event history yet — the
- * legacy per-partner `lp_investments` commitment scalar (`owners`). One definition so the read
- * paths (live report, fund/GP economics) cannot drift on which source wins.
- *
- * (The close and capital-calls deliberately do NOT use this: the close adds a user-facing warning
- * and a capital-balance basis, and capital-calls is source-aware for positions-tracked vehicles.)
+ * legacy per-partner `lp_investments` commitment scalar (`owners`). The events-or-scalar core of
+ * `resolveCommitmentMap` — call THAT from readers so the positions case is handled uniformly too.
  */
 export function commitmentsFrom(
   events: CommitmentEvent[],
@@ -76,6 +73,34 @@ export function commitmentsFrom(
   const fromEvents = commitmentsAsOf(events, asOf)
   if (Array.from(fromEvents.values()).some(v => v > 0)) return fromEvents
   return new Map(owners.map(o => [o.lpEntityId, o.commitment]))
+}
+
+/**
+ * The ONE canonical commitment resolution, used by EVERY reader (allocation, capital accounts,
+ * capital calls, the LP-statement memo, the close) so they can't drift. Priority:
+ *   1. positions — a tracking (non-ledger) vehicle's dated positions win, so a pasted position
+ *      update takes effect (this is the only reason capital-calls was ever "source-aware");
+ *   2. commitment_events — the effective-dated log (what allocation and the close use);
+ *   3. lp_investments.commitment — the legacy scalar, when there are no events.
+ *
+ * The old split (capital-accounts/calls read the scalar, allocation read the events) meant a
+ * partner with a $X event but a $0 scalar showed $X on one page and $0 on the other. This ends it.
+ */
+export function resolveCommitmentMap(input: {
+  /** The vehicle's capital source ('ledger' | 'events'); positions only win when NOT 'ledger'. */
+  source?: string | null
+  owners: { lpEntityId: string; commitment: number }[]
+  events?: CommitmentEvent[]
+  positions?: Map<string, number> | null
+  asOf?: string | null
+}): Map<string, number> {
+  const base = commitmentsFrom(input.events ?? [], input.owners, input.asOf)
+  if (input.source && input.source !== 'ledger' && input.positions && input.positions.size > 0) {
+    const merged = new Map(base)
+    for (const [id, c] of Array.from(input.positions.entries())) merged.set(id, c)
+    return merged
+  }
+  return base
 }
 
 export interface WeightInput {

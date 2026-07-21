@@ -15,6 +15,11 @@ export function AccountingSetup({ alwaysShow = false }: { alwaysShow?: boolean }
   // Persisted per vehicle — this used to be local state, so the choice was lost on
   // every refresh and nothing downstream (like opening balances) could act on it.
   const [path, setPath] = useState<'full_history' | 'cutover' | null>(null)
+  // The vehicle's current producer. When it is still 'events', finishing setup means ACTIVATING
+  // fund accounting (flip to 'ledger') — the outcome of setup, not a separate mode switch.
+  const [source, setSource] = useState<'ledger' | 'events' | null>(null)
+  const [activating, setActivating] = useState(false)
+  const [activateErr, setActivateErr] = useState<string | null>(null)
   const [cutoverDate, setCutoverDate] = useState('')
   const [bootstrapping, setBootstrapping] = useState(false)
   const [bootstrapMsg, setBootstrapMsg] = useState<string | null>(null)
@@ -40,6 +45,7 @@ export function AccountingSetup({ alwaysShow = false }: { alwaysShow?: boolean }
     ])
     setAccountCount(Array.isArray(chart) ? chart.length : 0)
     setPath(status?.setup?.historyMode ?? null)
+    setSource(status?.source === 'ledger' ? 'ledger' : status?.source === 'events' ? 'events' : null)
     setOnboarded(!!status?.onboarded)
     setInv(status
       ? { booked: !!status.setup?.investmentsBooked, positions: status.investments?.trackerPositions ?? 0 }
@@ -120,6 +126,20 @@ export function AccountingSetup({ alwaysShow = false }: { alwaysShow?: boolean }
     const data = await res.json()
     setBootstrapMsg(res.ok ? `Booked opening balances for ${data.lpCount} LP(s).` : (data.error ?? 'Failed'))
     setBootstrapping(false)
+  }
+
+  // Finish adoption: flip the vehicle's producer to the ledger. Guarded server-side against an
+  // empty chart (LP capital would read zero). Full reload so the Status page re-renders in ledger
+  // mode — a one-time setup action, not a toggle.
+  async function activate() {
+    setActivating(true); setActivateErr(null)
+    const res = await lf('/api/accounting/lp-events', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ capitalSource: 'ledger' }),
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) { setActivateErr(data.error ?? 'Could not activate fund accounting'); setActivating(false); return }
+    window.location.reload()
   }
 
   if (accountCount === null) return null
@@ -253,6 +273,23 @@ export function AccountingSetup({ alwaysShow = false }: { alwaysShow?: boolean }
               </Button>
             </>
           )}
+        </div>
+      )}
+
+      {/* Activate — the LAST step. While this vehicle is still on LP tracking ('events'), finishing
+          setup means switching its capital to the ledger. This is the ONLY place that happens now:
+          there is no standalone mode toggle. Gated on a seeded chart (the server guard's hard floor);
+          the steps above guide booking the opening balances/history first. */}
+      {source === 'events' && accountCount > 0 && (
+        <div className="border-t pt-3 space-y-2">
+          <p className="text-sm text-muted-foreground">
+            When the books are ready, activate fund accounting. This vehicle&rsquo;s capital will then be
+            derived from the ledger, and the pasted-positions input is retired.
+          </p>
+          <Button size="sm" onClick={activate} disabled={activating}>
+            {activating && <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />}Activate fund accounting
+          </Button>
+          {activateErr && <p className="text-xs text-destructive">{activateErr}</p>}
         </div>
       )}
     </div>

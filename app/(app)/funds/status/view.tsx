@@ -5,7 +5,6 @@ import Link from 'next/link'
 import { Loader2, Check, AlertTriangle, Ban, Info, ChevronRight, SlidersHorizontal, Lock, Plus, X } from 'lucide-react'
 import { useCurrency, formatCurrencyPrice } from '@/components/currency-context'
 import { useLedgerFetch, useFundSeg } from '@/components/accounting-vehicle'
-import { CapitalSourceCard } from '../capital-accounts/capital-source-card'
 import { AccountingSetup } from '../setup'
 import { DealCarryCard } from './deal-carry-card'
 import { CarryTerms } from '../allocation-terms/carry-terms'
@@ -73,7 +72,6 @@ export function StatusView() {
   if (s.source === 'events') {
     return (
       <div className="space-y-6">
-        <CapitalSourceCard />
         <Link
           href="/lps/capital"
           className="flex items-center gap-3 rounded-lg border p-3 transition-colors hover:bg-muted/30"
@@ -87,14 +85,13 @@ export function StatusView() {
             </p>
           </div>
         </Link>
-        {/* Promoting to Fund Accounting refuses a vehicle with an empty ledger (see the
-            /api/accounting/lp-events PATCH guard), and the seed-the-chart onboarding is
-            otherwise hidden in this mode — which left no way to set the books up. Surface it
-            here: seed the chart and book opening balances first, then flip with the switch above. */}
+        {/* Adopting fund accounting is the setup flow itself — seed the chart, book opening
+            balances, then activate. The flip to the ledger is the LAST step of AccountingSetup
+            (guarded against an empty chart); there is no separate mode switch. */}
         <div className="space-y-2">
           <p className="text-xs text-muted-foreground">
             To move this vehicle to <strong>Fund Accounting</strong>, seed its chart of accounts and
-            book opening balances below, then use <strong>Switch to Fund Accounting</strong> above.
+            book opening balances below, then use <strong>Activate fund accounting</strong> at the end.
           </p>
           <AccountingSetup alwaysShow />
         </div>
@@ -128,11 +125,6 @@ export function StatusView() {
 
   return (
     <div className="space-y-6">
-      {/* Choosing whether this vehicle's capital comes from the ledger or from capital
-          tracking is a fund-setup decision, so it lives here rather than confronting you on
-          the capital-accounts page every visit. Self-fetches its own source. */}
-      <CapitalSourceCard />
-
       {/* Onboarding only shows while it's actually unfinished. */}
       {!s.onboarded ? (
         <AccountingSetup alwaysShow />
@@ -218,7 +210,7 @@ export function StatusView() {
             gp_economics domain, not plain accounting. Someone who runs the close does not
             thereby get to see (or set) the partners' carry terms. */}
         {canReadGpEconomics && (
-          <CollapsibleSection title="Carried interest" subtitle="The carry the close accrues, who receives it, and this vehicle's general partner(s)">
+          <CollapsibleSection title="General Partners and carried interest" subtitle="Carried interest and general partner settings">
             <div className="space-y-4">
               <CarryTerms />
               {/* GP-of links live here — a one-time set-and-done setting next to the carry it drives
