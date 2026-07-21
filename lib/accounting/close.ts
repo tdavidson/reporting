@@ -44,7 +44,7 @@ import { accountBalances } from './ledger'
 const NOTE_INTEREST_INCOME = '4110'
 import {
   loadAllocationBasis, loadPartnerTerms, loadCommitmentEvents,
-  commitmentsAsOf, allocationWeights,
+  resolveCommitmentMap, allocationWeights,
   type AllocationBasis, type AllocationCategory,
 } from './terms'
 import { exportLedgerText } from './text-ledger-run'
@@ -144,13 +144,17 @@ export async function previewClose(
   if (basis === 'capital_balance') {
     const balances = computeCapitalAccounts(capitalPostings, { end: periodEnd })
     basisAmounts = Array.from(balances.entries()).map(([lpEntityId, a]) => ({ lpEntityId, basisAmount: a.ending }))
-  } else if (commitmentEvents.length > 0) {
-    basisAmounts = Array.from(commitmentsAsOf(commitmentEvents, periodEnd).entries())
-      .map(([lpEntityId, commitment]) => ({ lpEntityId, basisAmount: commitment }))
   } else {
-    // No event history yet (migration not pushed): fall back to the scalar commitment.
-    warnings.push('No commitment history found — falling back to each partner’s current commitment. Push the commitment-events migration to allocate historical periods correctly.')
-    basisAmounts = owners.map(o => ({ lpEntityId: o.lpEntityId, basisAmount: o.commitment }))
+    // The close is ledger-only, so source is 'ledger' and positions never apply — this is
+    // resolveCommitmentMap's events-if-any-positive-else-scalar core, as of the period end.
+    // Old periods must use the commitments in force THEN. Warn only when there is no event
+    // history at all (migration not pushed), since we then silently rely on the scalar.
+    if (commitmentEvents.length === 0) {
+      warnings.push('No commitment history found — falling back to each partner’s current commitment. Push the commitment-events migration to allocate historical periods correctly.')
+    }
+    basisAmounts = Array.from(
+      resolveCommitmentMap({ source: 'ledger', owners, events: commitmentEvents, asOf: periodEnd }).entries()
+    ).map(([lpEntityId, commitment]) => ({ lpEntityId, basisAmount: commitment }))
   }
 
   const eligible = basisAmounts.filter(b => b.basisAmount > 0)
