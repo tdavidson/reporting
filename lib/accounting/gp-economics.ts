@@ -30,7 +30,7 @@ import { roundCents } from './ledger'
 import { vehicleIdByName } from './vehicle-id'
 import { loadCapitalPostings } from './capital-source'
 import { computeCapitalAccounts, emptyAccount, type CapitalAccount } from './capital-account'
-import { loadCommitmentEvents, commitmentsAsOf, loadPartnerTerms } from './terms'
+import { loadCommitmentEvents, resolveCommitmentMap, loadPartnerTerms } from './terms'
 import { loadEntityNames, loadOwnership } from './load'
 import { associateMembers, lookThroughAccount } from './look-through'
 import { loadVehicleGpLinks } from './gp-links'
@@ -167,16 +167,16 @@ export async function loadOwnershipBasis(
     }
   }
 
-  const events = await loadCommitmentEvents(admin, fundId, link.vehicle)
-  const fromEvents = commitmentsAsOf(events, asOf)
-  if (Array.from(fromEvents.values()).some(v => v > 0)) {
-    return { basis: 'commitments', weights: fromEvents }
-  }
-
-  const owners = await loadOwnership(admin, fundId, link.vehicle)
-  const fromOwnership = new Map(owners.map(o => [o.lpEntityId, o.commitment]))
-  if (Array.from(fromOwnership.values()).some(v => v > 0)) {
-    return { basis: 'commitments', weights: fromOwnership }
+  const [events, owners] = await Promise.all([
+    loadCommitmentEvents(admin, fundId, link.vehicle),
+    loadOwnership(admin, fundId, link.vehicle),
+  ])
+  // Same events-or-scalar resolution as every other commitment reader (resolveCommitmentMap).
+  // source:'ledger' — GP ownership weights follow commitments/events, not pasted positions
+  // (whether tracking-vehicle positions should feed GP ownership is a separate question).
+  const weights = resolveCommitmentMap({ source: 'ledger', owners, events, asOf })
+  if (Array.from(weights.values()).some(v => v > 0)) {
+    return { basis: 'commitments', weights }
   }
 
   return { basis: 'none', weights: new Map() }
