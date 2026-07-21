@@ -15,7 +15,7 @@
 import { renderHtmlToPdf } from '@/lib/lp-report-pdf'
 import { PDF_FONT_CSS, PDF_SANS, PDF_MONO } from '@/lib/pdf-fonts'
 import { getCurrencySymbol } from '@/lib/currency'
-import { lpStatement } from './capital-calls'
+import { lpStatement, lpCapitalSummary } from './capital-calls'
 import { lastDataDate } from './lp-positions'
 import { CAPITAL_ACCOUNT_LABELS, ACTIVITY_FIELDS, type CapitalAccount } from './capital-account'
 import type { CapitalPeriod } from './capital-account'
@@ -221,13 +221,11 @@ export async function generateLpStatementPdf(
     : null
   const currency = (settingsRes as any).data?.currency || 'USD'
 
-  // Ownership by commitment, which is the basis the close allocates on.
-  const { data: allInv } = await admin
-    .from('lp_investments' as any)
-    .select('commitment')
-    .eq('fund_id', fundId)
-    .eq('portfolio_group', group)
-  const totalCommitment = ((allInv as any[]) ?? []).reduce((s, r) => s + Number(r.commitment ?? 0), 0)
+  // Ownership by commitment, which is the basis the close allocates on. The total MUST use the
+  // same resolver as the per-LP row (resolveCommitmentMap, via lpCapitalSummary) — summing the
+  // raw lp_investments scalar here would disagree with the numerator for any event-only partner.
+  const summary = await lpCapitalSummary(admin, fundId, group)
+  const totalCommitment = summary.reduce((s, r) => s + r.commitment, 0)
   const ownership = totalCommitment > 0 ? statement.row.commitment / totalCommitment : 0
 
   const dataAsOf = await lastDataDate(admin, fundId, group)
