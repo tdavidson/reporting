@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { commitmentsAsOf, allocationWeights, type PartnerTerms } from './terms'
+import { commitmentsAsOf, allocationWeights, resolveCommitmentMap, type PartnerTerms } from './terms'
 import { allocateAmount } from './allocation'
 
 describe('commitmentsAsOf', () => {
@@ -91,5 +91,56 @@ describe('allocationWeights', () => {
   it('drops partners with no basis amount', () => {
     const w = allocationWeights([{ lpEntityId: 'z', basisAmount: 0 }], [], 'income')
     expect(w).toEqual([])
+  })
+})
+
+describe('resolveCommitmentMap', () => {
+  const owners = [
+    { lpEntityId: 'a', commitment: 1000 },
+    { lpEntityId: 'b', commitment: 0 },
+  ]
+  const events = [
+    { lpEntityId: 'a', effectiveDate: '2024-01-01', amount: 1000, kind: 'initial' },
+    { lpEntityId: 'b', effectiveDate: '2024-06-01', amount: 5750, kind: 'increase' },
+  ]
+
+  it('prefers events over the scalar (the $0-vs-$5,750 case)', () => {
+    // b has a $5,750 event but a $0 scalar — events must win.
+    const m = resolveCommitmentMap({ source: 'ledger', owners, events })
+    expect(m.get('a')).toBe(1000)
+    expect(m.get('b')).toBe(5750)
+  })
+
+  it('falls back to the scalar when there are no events', () => {
+    const m = resolveCommitmentMap({ source: 'ledger', owners, events: [] })
+    expect(m.get('a')).toBe(1000)
+    expect(m.get('b')).toBe(0)
+  })
+
+  it('honors asOf on the event ladder', () => {
+    // b's event is dated 2024-06-01; as of 2024-03-01 it has not happened, so events are
+    // a-only ($1000 > 0) and win — b resolves to 0 (no event yet, scalar not consulted
+    // because events already have a positive value).
+    const m = resolveCommitmentMap({ source: 'ledger', owners, events, asOf: '2024-03-01' })
+    expect(m.get('a')).toBe(1000)
+    expect(m.get('b') ?? 0).toBe(0)
+  })
+
+  it('lets positions override for a non-ledger (tracking) vehicle', () => {
+    const positions = new Map([['a', 2500], ['b', 5750]])
+    const m = resolveCommitmentMap({ source: 'events', owners, events, positions })
+    expect(m.get('a')).toBe(2500) // position overrides the $1000 event
+    expect(m.get('b')).toBe(5750)
+  })
+
+  it('ignores positions for a ledger vehicle', () => {
+    const positions = new Map([['a', 999999]])
+    const m = resolveCommitmentMap({ source: 'ledger', owners, events, positions })
+    expect(m.get('a')).toBe(1000) // ledger: positions never win
+  })
+
+  it('ignores an empty positions map even for a tracking vehicle', () => {
+    const m = resolveCommitmentMap({ source: 'events', owners, events, positions: new Map() })
+    expect(m.get('b')).toBe(5750) // empty positions → base ladder
   })
 })
