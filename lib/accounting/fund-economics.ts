@@ -26,7 +26,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { roundCents } from './ledger'
 import { loadCapitalPostings } from './capital-source'
 import { computeCapitalAccounts, bucketForSourceType, emptyAccount, type CapitalAccount } from './capital-account'
-import { loadCommitmentEvents, commitmentsFrom } from './terms'
+import { loadCommitmentEvents, resolveCommitmentMap } from './terms'
 import { commitmentsFromPositions } from './lp-positions'
 import { loadEntityNames, loadOwnership, listVehicles } from './load'
 import { vehicleIdByName } from './vehicle-id'
@@ -148,17 +148,13 @@ export async function vehicleEconomics(
 
   const accounts = computeCapitalAccounts(postings)
 
-  // Commitments. For a tracking vehicle, from its latest dated positions; otherwise from the
-  // effective-dated commitment events, falling back to the legacy scalar.
-  let commitmentByLp: Map<string, number>
-  if (source !== 'ledger') {
-    commitmentByLp = await commitmentsFromPositions(admin, fundId, group, asOf, preload?.idMap, preload ? (preload.positionsByVehicleId.get(preload.idMap.get(group) ?? '') ?? []) : undefined)
-    if (!Array.from(commitmentByLp.values()).some(v => v > 0)) {
-      commitmentByLp = new Map(owners.map(o => [o.lpEntityId, o.commitment]))
-    }
-  } else {
-    commitmentByLp = commitmentsFrom(commitmentEvents, owners, asOf)
-  }
+  // Commitments via the one canonical resolver (resolveCommitmentMap): positions win for a
+  // tracking vehicle, else the effective-dated events, else the legacy scalar. Only fetch
+  // positions on the non-ledger path — a ledger vehicle never consults them.
+  const positionCommitments = source !== 'ledger'
+    ? await commitmentsFromPositions(admin, fundId, group, asOf, preload?.idMap, preload ? (preload.positionsByVehicleId.get(preload.idMap.get(group) ?? '') ?? []) : undefined)
+    : null
+  const commitmentByLp = resolveCommitmentMap({ source, owners, events: commitmentEvents, positions: positionCommitments, asOf })
 
   const asOfDate = asOf ? new Date(asOf) : new Date()
 
