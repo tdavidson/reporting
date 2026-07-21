@@ -6,12 +6,14 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { assertWriteAccess, assertReadAccess } from '@/lib/api-helpers'
 import { hasAccess, loadAccessContext } from '@/lib/access/effective'
 import { resolveGroupOr400 } from '@/lib/accounting/http-vehicle'
-import { loadEntityNames, loadEntityClasses } from '@/lib/accounting/load'
+import { loadEntityNames, loadEntityClasses, loadOwnership } from '@/lib/accounting/load'
+import { loadCapitalSource } from '@/lib/accounting/capital-source'
+import { commitmentsFromPositions } from '@/lib/accounting/lp-positions'
 import {
   loadAllocationBasis, saveAllocationBasis,
   loadHistoryMode, saveHistoryMode,
   loadPartnerTerms, savePartnerTerm,
-  loadCommitmentEvents, commitmentsAsOf,
+  loadCommitmentEvents, resolveCommitmentMap,
   type AllocationBasis, type AllocationCategory, type HistoryMode,
 } from '@/lib/accounting/terms'
 
@@ -29,13 +31,16 @@ export async function GET(req: NextRequest) {
 
   const access = await loadAccessContext(admin, gate.fundId, user.id, gate.role)
 
-  const [basis, historyMode, terms, events, names, classes] = await Promise.all([
+  const [basis, historyMode, terms, events, names, classes, owners, source, posCommit] = await Promise.all([
     loadAllocationBasis(admin, gate.fundId, group),
     loadHistoryMode(admin, gate.fundId, group),
     loadPartnerTerms(admin, gate.fundId, group),
     loadCommitmentEvents(admin, gate.fundId, group),
     loadEntityNames(admin, gate.fundId, group),
     loadEntityClasses(admin, gate.fundId, group),
+    loadOwnership(admin, gate.fundId, group),
+    loadCapitalSource(admin, gate.fundId, group),
+    commitmentsFromPositions(admin, gate.fundId, group),
   ])
 
   // The carried-interest terms are each partner's CARRY RATE — gp_economics, not accounting, and
@@ -43,7 +48,7 @@ export async function GET(req: NextRequest) {
   // expenses, gains; commitments; names) is ordinary allocation config that comes with the books.
   const canReadCarry = hasAccess(access, 'gp_economics', 'read')
 
-  const commitments = commitmentsAsOf(events)
+  const commitments = resolveCommitmentMap({ source, owners, events, positions: posCommit })
   const partners = Array.from(names.entries())
     .map(([lpEntityId, name]) => ({
       lpEntityId,
