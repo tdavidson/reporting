@@ -34,6 +34,9 @@ import { loadCommitmentEvents, resolveCommitmentMap, loadPartnerTerms } from './
 import { loadEntityNames, loadOwnership } from './load'
 import { associateMembers, lookThroughAccount } from './look-through'
 import { loadVehicleGpLinks } from './gp-links'
+import { resolveCarryPaid, type CarryPayment } from './carry-paid'
+
+export type { CarryPayment }
 
 export interface GpVehicleLink {
   /** The associate/GP vehicle. */
@@ -68,13 +71,6 @@ export interface GpPartnerRow {
   carryUnpaid: number
 }
 
-export interface CarryPayment {
-  id: string
-  lpEntityId: string
-  date: string
-  amount: number
-  memo: string | null
-}
 
 export interface GpEconomics {
   link: GpVehicleLink
@@ -231,29 +227,15 @@ export async function loadGpEconomics(
   //     rolled up per partner straight from the books — no separate register to maintain.
   //   • LP tracking (events): an explicit table of (partner, date, amount) in carry_payments,
   //     edited on the panel — the tracking equivalent of the ledger's distribution postings.
-  const source = own.source
-  const payments: CarryPayment[] = []
-  const paidByLp = new Map<string, number>()
-  if (source === 'ledger') {
-    // Carry paid = the carried-interest DISTRIBUTIONS on the associate's own books, tagged
-    // source_type 'carry_distribution' — kept distinct from return-of-capital distributions AND
-    // from the accrual marks (which post as 'carried_interest'). A payment debits the member's
-    // capital (positive posting amount); its magnitude is the carry paid. Unpaid = accrued − paid.
-    for (const p of own.postings) {
-      if (!p.lpEntityId || p.sourceType !== 'carry_distribution') continue
-      paidByLp.set(p.lpEntityId, roundCents((paidByLp.get(p.lpEntityId) ?? 0) + p.amount))
-    }
-  } else {
-    const { data: rows } = await (admin as any)
-      .from('carry_payments')
-      .select('id, lp_entity_id, paid_date, amount, memo')
-      .eq('fund_id', fundId).eq('vehicle_id', link.vehicleId)
-      .order('paid_date', { ascending: false })
-    for (const r of ((rows as any[]) ?? [])) {
-      paidByLp.set(r.lp_entity_id, (paidByLp.get(r.lp_entity_id) ?? 0) + Number(r.amount))
-      payments.push({ id: r.id as string, lpEntityId: r.lp_entity_id as string, date: r.paid_date as string, amount: Number(r.amount), memo: (r.memo ?? null) as string | null })
-    }
-  }
+  // Carry PAID from whichever books this vehicle keeps (resolveCarryPaid, the carry seam):
+  // ledger → carry_distribution postings on the associate's own books; tracking → the
+  // carry_payments register. Unpaid = accrued − paid.
+  const { paidByLp, payments } = await resolveCarryPaid(admin, {
+    source: own.source,
+    ownPostings: own.postings,
+    fundId,
+    vehicleId: link.vehicleId,
+  })
 
   const totalOwn = members.reduce((s, m) => s + Math.max(0, m.ownershipWeight), 0)
   const totalCarry = members.reduce((s, m) => s + Math.max(0, m.carryWeight), 0)
@@ -285,7 +267,7 @@ export async function loadGpEconomics(
   return {
     link,
     basis,
-    source,
+    source: own.source,
     associate,
     partners,
     payments,
