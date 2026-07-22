@@ -2,13 +2,14 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { Loader2, ChevronUp, ChevronDown, Lock } from 'lucide-react'
+import { Loader2, ChevronUp, ChevronDown, Lock, Pencil } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { useCurrency, formatCurrency, formatCurrencyFull } from '@/components/currency-context'
 import type { CompanyStatus } from '@/lib/types/database'
 import { AnalystToggleButton } from '@/components/analyst-button'
 import { AddCompanyButton } from '@/components/add-company-button'
 import { AddVehicleButton } from '@/components/add-vehicle-button'
+import { VehicleEditModal, type EditableVehicle } from '@/components/vehicle-edit-modal'
 import { AnalystPanel } from '@/components/analyst-panel'
 import { PortfolioNotesProvider, PortfolioNotesButton, PortfolioNotesPanel } from '@/components/portfolio-notes'
 import { useFeatureVisibility } from '@/components/feature-visibility-context'
@@ -170,6 +171,9 @@ export default function InvestmentsPage() {
   // real accrual rather than a guess — which is also how the carry estimate stopped being a
   // problem on this page: it was deleted, not fixed.
   const [vintages, setVintages] = useState<Map<string, number | null>>(new Map())
+  // Full vehicle registry rows, so a group row can be edited in place (name/type/vintage/active).
+  const [vehicleList, setVehicleList] = useState<Array<{ id: string; name: string; aliases: string[] | null; kind: string; active: boolean; vintage_year: number | null }>>([])
+  const [editingVehicle, setEditingVehicle] = useState<EditableVehicle | null>(null)
 
   useEffect(() => {
     async function load() {
@@ -184,6 +188,7 @@ export default function InvestmentsPage() {
           const vs = await vehRes.json()
           // Key the vintage by the vehicle's name AND every alias: the portfolio_group on a
           // transaction is often an alias, not the canonical name, so a name-only map missed it.
+          setVehicleList(vs ?? [])
           const norm = (s: string) => s.trim().toLowerCase()
           const vmap = new Map<string, number | null>()
           for (const v of (vs ?? []) as Array<{ name: string; aliases?: string[] | null; vintage_year: number | null }>) {
@@ -199,6 +204,13 @@ export default function InvestmentsPage() {
     }
     load()
   }, [asOfDate, refreshKey])
+
+  // The registry vehicle behind a portfolio group (matched by name or alias), for in-place editing.
+  const vehicleForGroup = (group: string): EditableVehicle | null => {
+    const n = group.trim().toLowerCase()
+    const v = vehicleList.find(x => x.name.trim().toLowerCase() === n || (x.aliases ?? []).some(a => a.trim().toLowerCase() === n))
+    return v ? { id: v.id, name: v.name, kind: v.kind, vintage_year: v.vintage_year, active: v.active } : null
+  }
 
   // Derive unique portfolio groups from data
   const availableGroups = useMemo(() => {
@@ -514,9 +526,19 @@ export default function InvestmentsPage() {
               </thead>
               <tbody>
                 {sortedGroups.map(g => {
+                  const veh = vehicleForGroup(g.group)
                   return (
-                    <tr key={g.group} className="border-b last:border-b-0 hover:bg-muted/30">
-                      <td className="px-3 py-2 font-medium sticky left-0 bg-background z-10">{g.group || '(none)'}</td>
+                    <tr key={g.group} className="group border-b last:border-b-0 hover:bg-muted/30">
+                      <td className="px-3 py-2 font-medium sticky left-0 bg-background z-10">
+                        <span className="inline-flex items-center gap-1.5">
+                          {g.group || '(none)'}
+                          {veh && (
+                            <button onClick={() => setEditingVehicle(veh)} title="Edit vehicle" className="text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-foreground">
+                              <Pencil className="h-3 w-3" />
+                            </button>
+                          )}
+                        </span>
+                      </td>
                       <td className="px-3 py-2 text-center text-xs text-muted-foreground">{vintages.get(g.group.trim().toLowerCase()) ?? '-'}</td>
                       {numericColumns.map(col => (
                         <td key={col.sortKey} className="px-3 py-2 text-right font-mono">{fmtVal(col.getValue(g), col.format)}</td>
@@ -657,6 +679,13 @@ export default function InvestmentsPage() {
     <AnalystPanel />
     </div>
     </div>
+    {editingVehicle && (
+      <VehicleEditModal
+        vehicle={editingVehicle}
+        onClose={() => setEditingVehicle(null)}
+        onSaved={() => { setEditingVehicle(null); setRefreshKey(k => k + 1) }}
+      />
+    )}
     </PortfolioNotesProvider>
   )
 }
