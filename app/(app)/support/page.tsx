@@ -516,7 +516,7 @@ export default function SupportPage() {
           </p>
           <p className="text-muted-foreground mb-2">
             For admins, Settings covers the full platform configuration: <strong>AI provider keys</strong> and model
-            selection (Anthropic, OpenAI, Google Gemini, and/or Ollama for local models), the default AI provider
+            selection (Anthropic, OpenAI, and/or Ollama for local models), the default AI provider
             for the fund, <strong>feature visibility</strong> controls, inbound email setup (Postmark or Mailgun), outbound email
             providers (Gmail, Resend, Postmark, or Mailgun), file storage connections (Google Drive or Dropbox),
             the AI summary prompt, and email templates for reporting asks.
@@ -921,7 +921,7 @@ export default function SupportPage() {
           </p>
           <p className="text-muted-foreground mb-2">
             The top section displays <strong>AI token usage</strong> broken down by provider (Anthropic,
-            OpenAI, Gemini, and/or Ollama), with month-to-date totals for input tokens, output tokens, and estimated cost.
+            OpenAI and/or Ollama), with month-to-date totals for input tokens, output tokens, and estimated cost.
             Ollama usage is tracked but shown at zero cost since it runs locally.
             A daily breakdown table shows usage by model, so you can see exactly where tokens are being
             spent &mdash; email processing, metric extraction, company identification, summaries, or

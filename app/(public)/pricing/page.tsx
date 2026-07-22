@@ -90,8 +90,8 @@ export default function PricingPage() {
           <p className="text-muted-foreground mb-4">
             Most of the services used in the stack have fairly generous free pricing tiers that
             should handle normal usage of the product, but your costs may vary depending on your
-            portfolio size and usage patterns. The platform does require use of Anthropic, OpenAI,
-            or Gemini API keys for AI-powered features (metric extraction, summaries, and analysis),
+            portfolio size and usage patterns. The platform does require use of Anthropic or OpenAI
+            API keys for AI-powered features (metric extraction, summaries, and analysis),
             which will require paid accounts with those providers.
           </p>
           <p className="text-muted-foreground">

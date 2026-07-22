@@ -119,7 +119,7 @@ export async function GET() {
         supabase
           .from('fund_settings')
           .select(
-            'claude_api_key_encrypted, openai_api_key_encrypted, gemini_api_key_encrypted, default_ai_provider, ollama_base_url, ollama_model, inbound_email_provider, postmark_webhook_token, postmark_webhook_token_encrypted, mailgun_signing_key_encrypted, outbound_email_provider, postmark_server_token_encrypted, resend_api_key_encrypted, mailgun_api_key_encrypted, file_storage_provider, google_refresh_token_encrypted, dropbox_refresh_token_encrypted'
+            'claude_api_key_encrypted, openai_api_key_encrypted, default_ai_provider, ollama_base_url, ollama_model, inbound_email_provider, postmark_webhook_token, postmark_webhook_token_encrypted, mailgun_signing_key_encrypted, outbound_email_provider, postmark_server_token_encrypted, resend_api_key_encrypted, mailgun_api_key_encrypted, file_storage_provider, google_refresh_token_encrypted, dropbox_refresh_token_encrypted'
           )
           .limit(1)
           .maybeSingle(),
@@ -138,10 +138,9 @@ export async function GET() {
 
       const hasClaudeKey = !!s?.claude_api_key_encrypted
       const hasOpenAIKey = !!s?.openai_api_key_encrypted
-      const hasGeminiKey = !!s?.gemini_api_key_encrypted
       const hasOllama = !!s?.ollama_base_url && !!s?.ollama_model
       ai = {
-        hasProvider: hasClaudeKey || hasOpenAIKey || hasGeminiKey || hasOllama,
+        hasProvider: hasClaudeKey || hasOpenAIKey || hasOllama,
       }
 
       const hasInboundProvider = !!s?.inbound_email_provider

@@ -55,8 +55,6 @@ interface Settings {
   hasOpenAIKey: boolean
   openaiModel: string
   defaultAIProvider: string
-  hasGeminiKey: boolean
-  geminiModel: string
   ollamaBaseUrl: string
   ollamaModel: string
   hasOpenRouterKey: boolean
@@ -248,8 +246,6 @@ export default function SettingsPage() {
             claudeModel={settings.claudeModel}
             hasOpenAIKey={settings.hasOpenAIKey}
             openaiModel={settings.openaiModel}
-            hasGeminiKey={settings.hasGeminiKey}
-            geminiModel={settings.geminiModel}
             ollamaBaseUrl={settings.ollamaBaseUrl}
             ollamaModel={settings.ollamaModel}
             hasOpenRouterKey={settings.hasOpenRouterKey}
@@ -1087,14 +1083,12 @@ function FundNameSection({ name, logo, address, onSaved }: { name: string; logo:
 // ──────────────────────────── AI Providers ────────────────────────────
 
 function AIProvidersSection({
-  hasClaudeKey, claudeModel, hasOpenAIKey, openaiModel, hasGeminiKey, geminiModel, ollamaBaseUrl, ollamaModel, hasOpenRouterKey, openrouterModel, openrouterBaseUrl, defaultAIProvider, onSaved,
+  hasClaudeKey, claudeModel, hasOpenAIKey, openaiModel, ollamaBaseUrl, ollamaModel, hasOpenRouterKey, openrouterModel, openrouterBaseUrl, defaultAIProvider, onSaved,
 }: {
   hasClaudeKey: boolean
   claudeModel: string
   hasOpenAIKey: boolean
   openaiModel: string
-  hasGeminiKey: boolean
-  geminiModel: string
   ollamaBaseUrl: string
   ollamaModel: string
   hasOpenRouterKey: boolean
@@ -1152,9 +1146,6 @@ function AIProvidersSection({
           <option value="openai" disabled={!hasOpenAIKey}>
             OpenAI{!hasOpenAIKey ? ', no key configured' : ''}
           </option>
-          <option value="gemini" disabled={!hasGeminiKey}>
-            Google Gemini{!hasGeminiKey ? ', no key configured' : ''}
-          </option>
           <option value="ollama" disabled={!ollamaBaseUrl}>
             Ollama (Local){!ollamaBaseUrl ? ', not configured' : ''}
           </option>
@@ -1185,16 +1176,6 @@ function AIProvidersSection({
           hasKey={hasOpenAIKey}
         >
           <OpenAIKeyContent hasKey={hasOpenAIKey} currentModel={openaiModel} onSaved={onSaved} />
-        </AIProviderDisclosure>
-        <AIProviderDisclosure
-          label="Google Gemini"
-          providerKey="gemini"
-          isDefault={defaultProvider === 'gemini'}
-          isOpen={openSections.has('gemini')}
-          onToggle={() => toggleSection('gemini')}
-          hasKey={hasGeminiKey}
-        >
-          <GeminiKeyContent hasKey={hasGeminiKey} currentModel={geminiModel} onSaved={onSaved} />
         </AIProviderDisclosure>
         <AIProviderDisclosure
           label="Ollama (Local)"
@@ -1545,135 +1526,6 @@ function OpenAIKeyContent({ hasKey, currentModel, onSaved }: { hasKey: boolean; 
               <select className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring" value={selectedModel} onChange={(e) => saveModel(e.target.value)} disabled={modelSaving}>
                 {models.length === 0 && <option value={selectedModel}>{selectedModel}</option>}
                 {models.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
-              </select>
-              {modelSaving && <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" />}
-            </div>
-          )}
-        </div>
-      )}
-    </>
-  )
-}
-
-function GeminiKeyContent({ hasKey, currentModel, onSaved }: { hasKey: boolean; currentModel: string; onSaved: () => void }) {
-  const [newKey, setNewKey] = useState('')
-  const [testing, setTesting] = useState(false)
-  const [saving, setSaving] = useState(false)
-  const [status, setStatus] = useState<'idle' | 'valid' | 'invalid' | 'saved'>('idle')
-  const [errorMsg, setErrorMsg] = useState('')
-
-  const [models, setModels] = useState<{ id: string; name: string }[]>([])
-  const [modelsLoading, setModelsLoading] = useState(false)
-  const [modelsError, setModelsError] = useState<string | null>(null)
-  const [selectedModel, setSelectedModel] = useState(currentModel)
-  const [modelSaving, setModelSaving] = useState(false)
-  const [modelsFetched, setModelsFetched] = useState(false)
-
-  const fetchModels = useCallback(async () => {
-    if (modelsFetched) return
-    setModelsLoading(true)
-    setModelsError(null)
-    try {
-      const res = await fetch('/api/gemini-models')
-      const data = await res.json()
-      if (data.error) setModelsError(data.error)
-      setModels(data.models ?? [])
-      setModelsFetched(true)
-    } catch {
-      setModelsError('Failed to fetch models')
-    } finally {
-      setModelsLoading(false)
-    }
-  }, [modelsFetched])
-
-  useEffect(() => { if (hasKey) fetchModels() }, [hasKey, fetchModels])
-  useEffect(() => { setSelectedModel(currentModel) }, [currentModel])
-
-  const testKey = async () => {
-    setTesting(true)
-    setStatus('idle')
-    setErrorMsg('')
-    const res = await fetch('/api/test-gemini-key', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ apiKey: newKey }),
-    })
-    if (res.ok) {
-      setStatus('valid')
-    } else {
-      const data = await res.json().catch(() => ({}))
-      setErrorMsg(data.error || 'Key is invalid')
-      setStatus('invalid')
-    }
-    setTesting(false)
-  }
-
-  const saveKey = async () => {
-    setSaving(true)
-    const res = await fetch('/api/settings', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ geminiApiKey: newKey }),
-    })
-    setSaving(false)
-    if (res.ok) {
-      setStatus('saved')
-      setNewKey('')
-      setModelsFetched(false)
-      onSaved()
-    }
-  }
-
-  const saveModel = async (modelId: string) => {
-    setSelectedModel(modelId)
-    setModelSaving(true)
-    const res = await fetch('/api/settings', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ geminiModel: modelId }),
-    })
-    setModelSaving(false)
-    if (res.ok) onSaved()
-  }
-
-  return (
-    <>
-      <p className="text-xs text-muted-foreground mb-3">
-        {hasKey
-          ? 'A Gemini API key is configured. Enter a new key below to replace it.'
-          : 'No Gemini API key configured. Add one to enable Google Gemini as an AI provider.'}
-      </p>
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-end gap-2">
-        <div className="flex-1">
-          <Label>API key</Label>
-          <Input type="password" value={newKey} onChange={(e) => { setNewKey(e.target.value); setStatus('idle') }} placeholder="AIza..." />
-        </div>
-        <div className="flex gap-2">
-          <Button onClick={testKey} disabled={!newKey.trim() || testing} variant="outline" size="sm">
-            {testing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Test'}
-          </Button>
-          <Button onClick={saveKey} disabled={!newKey.trim() || saving} size="sm">
-            {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Update'}
-          </Button>
-        </div>
-      </div>
-      {status === 'valid' && <p className="text-xs text-emerald-600 mt-1 flex items-center gap-1"><Check className="h-3 w-3" /> Key is valid</p>}
-      {status === 'invalid' && <p className="text-xs text-destructive mt-1 flex items-center gap-1"><AlertCircle className="h-3 w-3" /> {errorMsg}</p>}
-      {status === 'saved' && <p className="text-xs text-emerald-600 mt-1 flex items-center gap-1"><Check className="h-3 w-3" /> Key updated</p>}
-
-      {hasKey && (
-        <div className="mt-4 pt-4 border-t">
-          <Label>Model</Label>
-          <p className="text-xs text-muted-foreground mb-2">Choose which Gemini model to use.</p>
-          {modelsLoading ? (
-            <div className="flex items-center gap-2 text-xs text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading models…</div>
-          ) : modelsError ? (
-            <p className="text-xs text-destructive">{modelsError}</p>
-          ) : (
-            <div className="flex items-center gap-2">
-              <select className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring" value={selectedModel} onChange={(e) => saveModel(e.target.value)} disabled={modelSaving}>
-                {models.length === 0 && <option value={selectedModel}>{selectedModel}</option>}
-                {models.map((m) => <option key={m.id} value={m.id}>{m.name} ({m.id})</option>)}
               </select>
               {modelSaving && <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" />}
             </div>

@@ -1,12 +1,11 @@
 import { AnthropicProvider } from './anthropic'
 import { OpenAIProvider } from './openai'
-import { GeminiProvider } from './gemini'
-import { getClaudeApiKey, getClaudeModel, getOpenAIApiKey, getOpenAIModel, getDefaultAIProvider, getGeminiApiKey, getGeminiModel, getOllamaConfig, getOpenRouterApiKey, getOpenRouterConfig } from '@/lib/pipeline/processEmail'
+import { getClaudeApiKey, getClaudeModel, getOpenAIApiKey, getOpenAIModel, getDefaultAIProvider, getOllamaConfig, getOpenRouterApiKey, getOpenRouterConfig } from '@/lib/pipeline/processEmail'
 import type { AIProvider } from './types'
 
 export type { AIProvider, AIModel, AIResult, TokenUsage, CreateMessageParams, CreateChatParams, ChatMessage, ContentBlock, TextBlock, DocumentBlock, ImageBlock, MessageContent } from './types'
 
-export type ProviderType = 'anthropic' | 'openai' | 'gemini' | 'ollama' | 'openrouter'
+export type ProviderType = 'anthropic' | 'openai' | 'ollama' | 'openrouter'
 
 type Supabase = Parameters<typeof getClaudeApiKey>[0]
 
@@ -18,7 +17,7 @@ export async function createFundAIProvider(
   return createProviderForType(supabase, fundId, defaultProvider)
 }
 
-const VALID_PROVIDERS: ProviderType[] = ['anthropic', 'openai', 'gemini', 'ollama', 'openrouter']
+const VALID_PROVIDERS: ProviderType[] = ['anthropic', 'openai', 'ollama', 'openrouter']
 
 export async function createFundAIProviderWithOverride(
   supabase: Supabase,
@@ -42,11 +41,6 @@ async function createProviderForType(
       const apiKey = await getOpenAIApiKey(supabase, fundId)
       const model = await getOpenAIModel(supabase, fundId)
       return { provider: new OpenAIProvider(apiKey), model, providerType: 'openai' }
-    }
-    case 'gemini': {
-      const apiKey = await getGeminiApiKey(supabase, fundId)
-      const model = await getGeminiModel(supabase, fundId)
-      return { provider: new GeminiProvider(apiKey), model, providerType: 'gemini' }
     }
     case 'ollama': {
       const config = await getOllamaConfig(supabase, fundId)
@@ -83,8 +77,6 @@ export function createProviderFromKey(apiKey: string, providerType?: ProviderTyp
   switch (providerType) {
     case 'openai':
       return new OpenAIProvider(apiKey)
-    case 'gemini':
-      return new GeminiProvider(apiKey)
     default:
       return new AnthropicProvider(apiKey)
   }

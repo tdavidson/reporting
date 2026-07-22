@@ -32,7 +32,7 @@ export async function GET() {
 
   const [{ data: fund }, { data: settings }, { data: senders }] = await Promise.all([
     admin.from('funds').select('id, name, logo_url, address').eq('id', membership.fund_id).single(),
-    (admin as any).from('fund_settings').select('postmark_inbound_address, postmark_webhook_token, postmark_webhook_token_encrypted, encryption_key_encrypted, retain_resolved_reviews, resolved_reviews_ttl_days, claude_api_key_encrypted, claude_model, ai_summary_prompt, google_refresh_token_encrypted, google_drive_folder_id, google_drive_folder_name, google_client_id, google_client_secret_encrypted, outbound_email_provider, asks_email_provider, approval_email_subject, approval_email_body, system_email_from_name, system_email_from_address, resend_api_key_encrypted, postmark_server_token_encrypted, inbound_email_provider, mailgun_inbound_domain, mailgun_signing_key_encrypted, mailgun_api_key_encrypted, mailgun_sending_domain, file_storage_provider, dropbox_app_key, dropbox_app_secret_encrypted, dropbox_refresh_token_encrypted, dropbox_folder_path, openai_api_key_encrypted, openai_model, default_ai_provider, gemini_api_key_encrypted, gemini_model, ollama_base_url, ollama_model, openrouter_api_key_encrypted, openrouter_model, openrouter_base_url, analytics_fathom_site_id, analytics_ga_measurement_id, currency, disable_user_tracking, feature_visibility, deal_thesis, deal_screening_prompt, deal_intake_enabled, deal_submission_token, routing_confidence_threshold, routing_model, lp_portal_enabled').eq('fund_id', membership.fund_id).single(),
+    (admin as any).from('fund_settings').select('postmark_inbound_address, postmark_webhook_token, postmark_webhook_token_encrypted, encryption_key_encrypted, retain_resolved_reviews, resolved_reviews_ttl_days, claude_api_key_encrypted, claude_model, ai_summary_prompt, google_refresh_token_encrypted, google_drive_folder_id, google_drive_folder_name, google_client_id, google_client_secret_encrypted, outbound_email_provider, asks_email_provider, approval_email_subject, approval_email_body, system_email_from_name, system_email_from_address, resend_api_key_encrypted, postmark_server_token_encrypted, inbound_email_provider, mailgun_inbound_domain, mailgun_signing_key_encrypted, mailgun_api_key_encrypted, mailgun_sending_domain, file_storage_provider, dropbox_app_key, dropbox_app_secret_encrypted, dropbox_refresh_token_encrypted, dropbox_folder_path, openai_api_key_encrypted, openai_model, default_ai_provider, ollama_base_url, ollama_model, openrouter_api_key_encrypted, openrouter_model, openrouter_base_url, analytics_fathom_site_id, analytics_ga_measurement_id, currency, disable_user_tracking, feature_visibility, deal_thesis, deal_screening_prompt, deal_intake_enabled, deal_submission_token, routing_confidence_threshold, routing_model, lp_portal_enabled').eq('fund_id', membership.fund_id).single(),
     admin.from('authorized_senders').select('id, email, label, created_at').eq('fund_id', membership.fund_id).order('email'),
   ])
 
@@ -124,8 +124,6 @@ export async function GET() {
     hasOpenAIKey: !!settings?.openai_api_key_encrypted,
     openaiModel: settings?.openai_model ?? 'gpt-4o',
     defaultAIProvider: settings?.default_ai_provider ?? 'anthropic',
-    hasGeminiKey: !!settings?.gemini_api_key_encrypted,
-    geminiModel: settings?.gemini_model ?? 'gemini-2.0-flash',
     ollamaBaseUrl: settings?.ollama_base_url ?? '',
     ollamaModel: settings?.ollama_model ?? 'llama3.2',
     hasOpenRouterKey: !!settings?.openrouter_api_key_encrypted,
@@ -201,7 +199,7 @@ export async function PATCH(req: NextRequest) {
   if (!membership) return NextResponse.json({ error: 'No fund found' }, { status: 404 })
 
   const body = await req.json()
-  const { fundName, fundLogo, fundAddress, postmarkInboundAddress, claudeApiKey, claudeModel, retainResolvedReviews, resolvedReviewsTtlDays, googleClientId, googleClientSecret, aiSummaryPrompt, displayName, outboundEmailProvider, asksEmailProvider, approvalEmailSubject, approvalEmailBody, systemEmailFromName, systemEmailFromAddress, resendApiKey, postmarkServerToken, inboundEmailProvider, mailgunInboundDomain, mailgunSigningKey, mailgunApiKey, mailgunSendingDomain, fileStorageProvider, dropboxAppKey, dropboxAppSecret, openaiApiKey, openaiModel, defaultAIProvider, geminiApiKey, geminiModel, ollamaBaseUrl, ollamaModel, openrouterApiKey, openrouterModel, openrouterBaseUrl, analyticsFathomSiteId, analyticsGaMeasurementId, analyticsCustomHeadScript, currency, disableUserTracking, featureVisibility, dealThesis, dealScreeningPrompt, dealIntakeEnabled, routingConfidenceThreshold, routingModel, lpPortalEnabled, affinityMcpEnabled, agentApiEnabled } = body
+  const { fundName, fundLogo, fundAddress, postmarkInboundAddress, claudeApiKey, claudeModel, retainResolvedReviews, resolvedReviewsTtlDays, googleClientId, googleClientSecret, aiSummaryPrompt, displayName, outboundEmailProvider, asksEmailProvider, approvalEmailSubject, approvalEmailBody, systemEmailFromName, systemEmailFromAddress, resendApiKey, postmarkServerToken, inboundEmailProvider, mailgunInboundDomain, mailgunSigningKey, mailgunApiKey, mailgunSendingDomain, fileStorageProvider, dropboxAppKey, dropboxAppSecret, openaiApiKey, openaiModel, defaultAIProvider, ollamaBaseUrl, ollamaModel, openrouterApiKey, openrouterModel, openrouterBaseUrl, analyticsFathomSiteId, analyticsGaMeasurementId, analyticsCustomHeadScript, currency, disableUserTracking, featureVisibility, dealThesis, dealScreeningPrompt, dealIntakeEnabled, routingConfidenceThreshold, routingModel, lpPortalEnabled, affinityMcpEnabled, agentApiEnabled } = body
 
   // Update display name on fund_members (any user can do this)
   if (displayName !== undefined) {
@@ -219,7 +217,6 @@ export async function PATCH(req: NextRequest) {
     mailgunSigningKey !== undefined || mailgunApiKey !== undefined || mailgunSendingDomain !== undefined ||
     fileStorageProvider !== undefined || dropboxAppKey !== undefined || dropboxAppSecret !== undefined ||
     openaiApiKey !== undefined || openaiModel !== undefined || defaultAIProvider !== undefined ||
-    geminiApiKey !== undefined || geminiModel !== undefined ||
     ollamaBaseUrl !== undefined || ollamaModel !== undefined ||
     openrouterApiKey !== undefined || openrouterModel !== undefined || openrouterBaseUrl !== undefined ||
     analyticsFathomSiteId !== undefined || analyticsGaMeasurementId !== undefined ||
@@ -510,33 +507,6 @@ export async function PATCH(req: NextRequest) {
     settingsUpdates.openai_model = openaiModel.trim() || 'gpt-4o'
   }
 
-  // Update Gemini API key with envelope encryption
-  if (geminiApiKey !== undefined && geminiApiKey.trim()) {
-    const kek = process.env.ENCRYPTION_KEY
-    if (!kek) return NextResponse.json({ error: 'Server misconfiguration: ENCRYPTION_KEY not set' }, { status: 500 })
-
-    const { data: existing } = await admin
-      .from('fund_settings')
-      .select('encryption_key_encrypted')
-      .eq('fund_id', membership.fund_id)
-      .single()
-
-    let dek: string
-    if (existing?.encryption_key_encrypted) {
-      const { decrypt } = await import('@/lib/crypto')
-      dek = decrypt(existing.encryption_key_encrypted, kek)
-    } else {
-      dek = randomBytes(32).toString('hex')
-      settingsUpdates.encryption_key_encrypted = encrypt(dek, kek)
-    }
-    settingsUpdates.gemini_api_key_encrypted = encrypt(geminiApiKey.trim(), dek)
-  }
-
-  // Update Gemini model
-  if (geminiModel !== undefined) {
-    settingsUpdates.gemini_model = geminiModel.trim() || 'gemini-2.0-flash'
-  }
-
   // Update Ollama settings
   if (ollamaBaseUrl !== undefined) {
     const trimmed = ollamaBaseUrl?.trim() || null
@@ -587,7 +557,7 @@ export async function PATCH(req: NextRequest) {
 
   // Update default AI provider
   if (defaultAIProvider !== undefined) {
-    const validProviders = ['anthropic', 'openai', 'gemini', 'ollama', 'openrouter']
+    const validProviders = ['anthropic', 'openai', 'ollama', 'openrouter']
     if (!validProviders.includes(defaultAIProvider)) {
       return NextResponse.json({ error: 'Invalid AI provider.' }, { status: 400 })
     }

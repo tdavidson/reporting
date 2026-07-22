@@ -54,7 +54,6 @@ const PROVIDER_LABEL: Record<string, string> = {
   '': 'Use fund default',
   anthropic: 'Anthropic (Claude)',
   openai: 'OpenAI',
-  gemini: 'Gemini',
   ollama: 'Ollama (self-hosted)',
   openrouter: 'OpenRouter',
 }
@@ -62,11 +61,10 @@ const PROVIDER_LABEL: Record<string, string> = {
 const PROVIDER_MODELS_ENDPOINT: Record<string, string> = {
   anthropic: '/api/claude-models',
   openai: '/api/openai-models',
-  gemini: '/api/gemini-models',
   ollama: '/api/ollama-models',
 }
 
-const PROVIDERS = ['anthropic', 'openai', 'gemini', 'ollama', 'openrouter'] as const
+const PROVIDERS = ['anthropic', 'openai', 'ollama', 'openrouter'] as const
 
 interface Defaults {
   per_deal_token_cap: number | null

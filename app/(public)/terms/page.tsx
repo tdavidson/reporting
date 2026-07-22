@@ -66,7 +66,7 @@ export default function TermsPage() {
               accelerators, and angel investors. It can be self-hosted on your own infrastructure or
               accessed through a managed hosting arrangement. The Platform integrates with third-party
               services including database providers (Supabase), hosting providers (Vercel, Netlify),
-              AI providers (Anthropic, OpenAI, Google Gemini, Ollama), email services (Postmark,
+              AI providers (Anthropic, OpenAI, Ollama), email services (Postmark,
               Mailgun, Gmail, Resend), and file storage providers (Google Drive, Dropbox).
             </p>
           </div>

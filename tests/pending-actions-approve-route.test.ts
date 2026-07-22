@@ -8,6 +8,7 @@ let accessCtx: AccessContext
 const executeMock = vi.fn()
 const updates: any[] = []
 
+vi.mock('next/cache', () => ({ revalidateTag: vi.fn() }))
 vi.mock('@/lib/supabase/server', () => ({
   createClient: () => ({ auth: { getUser: async () => ({ data: { user } }) } }),
 }))

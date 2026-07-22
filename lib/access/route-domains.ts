@@ -293,7 +293,6 @@ export const ROUTE_DOMAINS: Record<string, RouteAccess> = {
   'api/onboarding/senders': { domain: 'admin' },
   'api/usage': { domain: 'admin' },
   'api/test-claude-key': { domain: 'admin' },
-  'api/test-gemini-key': { domain: 'admin' },
   'api/test-ollama': { domain: 'admin' },
   'api/test-openai-key': { domain: 'admin' },
   'api/transcription/test': { domain: 'admin' },
@@ -417,7 +416,6 @@ export const UNGATED_ROUTES: Record<string, string> = {
 
   // No fund data: these list what models a configured provider offers, for the model picker.
   'api/claude-models': 'Model list; no fund data.',
-  'api/gemini-models': 'Model list; no fund data.',
   'api/ollama-models': 'Model list; no fund data.',
   'api/openai-models': 'Model list; no fund data.',
   'api/github-stars': 'Public repo star count.',

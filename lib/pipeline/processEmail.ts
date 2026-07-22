@@ -492,7 +492,7 @@ export async function getOpenAIModel(supabase: Supabase, fundId: string): Promis
   return data?.openai_model || 'gpt-4o'
 }
 
-export async function getDefaultAIProvider(supabase: Supabase, fundId: string): Promise<'anthropic' | 'openai' | 'gemini' | 'ollama' | 'openrouter'> {
+export async function getDefaultAIProvider(supabase: Supabase, fundId: string): Promise<'anthropic' | 'openai' | 'ollama' | 'openrouter'> {
   const { data } = await supabase
     .from('fund_settings')
     .select('default_ai_provider')
@@ -500,7 +500,8 @@ export async function getDefaultAIProvider(supabase: Supabase, fundId: string): 
     .single()
 
   const provider = data?.default_ai_provider
-  if (provider === 'openai' || provider === 'gemini' || provider === 'ollama' || provider === 'openrouter') return provider
+  // A fund still set to the removed 'gemini' provider falls through to the Claude default.
+  if (provider === 'openai' || provider === 'ollama' || provider === 'openrouter') return provider
   return 'anthropic'
 }
 
@@ -529,30 +530,6 @@ export async function getOpenRouterConfig(supabase: Supabase, fundId: string): P
     baseUrl: data?.openrouter_base_url || 'https://openrouter.ai/api/v1',
     model: data?.openrouter_model || 'openai/gpt-4o-mini',
   }
-}
-
-export async function getGeminiApiKey(supabase: Supabase, fundId: string): Promise<string> {
-  const { data, error } = await supabase
-    .from('fund_settings')
-    .select('gemini_api_key_encrypted, encryption_key_encrypted')
-    .eq('fund_id', fundId)
-    .single()
-
-  if (error || !data?.gemini_api_key_encrypted || !data?.encryption_key_encrypted) {
-    throw new Error(`Gemini API key not configured for fund ${fundId}`)
-  }
-
-  return decryptApiKey(data.gemini_api_key_encrypted, data.encryption_key_encrypted)
-}
-
-export async function getGeminiModel(supabase: Supabase, fundId: string): Promise<string> {
-  const { data } = await supabase
-    .from('fund_settings')
-    .select('gemini_model')
-    .eq('fund_id', fundId)
-    .single()
-
-  return data?.gemini_model || 'gemini-2.0-flash'
 }
 
 export async function getOllamaConfig(supabase: Supabase, fundId: string): Promise<{ baseUrl: string; model: string }> {
