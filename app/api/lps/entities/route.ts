@@ -95,30 +95,51 @@ export async function PUT(req: NextRequest) {
   if (writeCheck.role !== 'admin') return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
 
   const body = await req.json()
-  const { id, investorId } = body
+  const { id, investorId, entityName } = body
+  const rename = typeof entityName === 'string' ? entityName.trim() : ''
 
   if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 })
-  if (!investorId) return NextResponse.json({ error: 'investorId is required' }, { status: 400 })
+  if (!investorId && !rename) return NextResponse.json({ error: 'investorId or entityName is required' }, { status: 400 })
 
-  // Validate investor belongs to this fund
-  const { data: investorCheck } = await admin
-    .from('lp_investors' as any)
-    .select('id')
-    .eq('id', investorId)
-    .eq('fund_id', writeCheck.fundId)
-    .maybeSingle()
-  if (!investorCheck) return NextResponse.json({ error: 'Investor not found' }, { status: 404 })
+  // Reassign the entity to a different investor (grouping).
+  if (investorId) {
+    const { data: investorCheck } = await admin
+      .from('lp_investors' as any)
+      .select('id')
+      .eq('id', investorId)
+      .eq('fund_id', writeCheck.fundId)
+      .maybeSingle()
+    if (!investorCheck) return NextResponse.json({ error: 'Investor not found' }, { status: 404 })
+    const { error } = await admin
+      .from('lp_entities' as any)
+      .update({ investor_id: investorId })
+      .eq('id', id).eq('fund_id', writeCheck.fundId)
+    if (error) return dbError(error, 'lp-entities-reassign')
+  }
 
-  const { data, error } = await admin
-    .from('lp_entities' as any)
-    .update({ investor_id: investorId })
-    .eq('id', id)
-    .eq('fund_id', writeCheck.fundId)
-    .select('*')
-    .single() as { data: any; error: { message: string } | null }
+  // Rename: the entity label the accounting/capital pages show, plus the investor's canonical name
+  // when it doesn't collide (investor names are unique) so the LP report stays in sync.
+  if (rename) {
+    const { data: ent, error: renameErr } = await admin
+      .from('lp_entities' as any)
+      .update({ entity_name: rename })
+      .eq('id', id).eq('fund_id', writeCheck.fundId)
+      .select('id, investor_id').single() as { data: any; error: { message: string } | null }
+    if (renameErr) return dbError(renameErr, 'lp-entities-rename')
+    const invId = ent?.investor_id
+    if (invId) {
+      const { data: clash } = await admin
+        .from('lp_investors' as any)
+        .select('id').eq('fund_id', writeCheck.fundId).eq('name', rename).neq('id', invId).maybeSingle()
+      if (!clash) {
+        await admin.from('lp_investors' as any)
+          .update({ name: rename, updated_at: new Date().toISOString() })
+          .eq('id', invId).eq('fund_id', writeCheck.fundId)
+      }
+    }
+  }
 
-  if (error) return dbError(error, 'lp-entities-update')
-
+  const { data } = await admin.from('lp_entities' as any).select('*').eq('id', id).eq('fund_id', writeCheck.fundId).single()
   return NextResponse.json(data)
 }
 

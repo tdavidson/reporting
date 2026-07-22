@@ -9,6 +9,7 @@ import { useCurrency, formatCurrencyFull } from '@/components/currency-context'
 import { CapitalRollforwardTable, type Row, type CapitalEdit } from '@/components/accounting/capital-rollforward-table'
 import { PeriodPicker } from '@/components/accounting/period-picker'
 import { type PeriodPreset } from '@/lib/accounting/statement-period'
+import { AnalystToggleButton } from '@/components/analyst-button'
 
 // The capital-accounts API returns the full per-LP Row for BOTH producers (ledger and pasted
 // positions), so this surface renders the same table as /funds/[id]/capital-accounts.
@@ -42,6 +43,7 @@ export function LpCapitalView({ isAdmin }: { isAdmin: boolean }) {
   const [end, setEnd] = useState('')
   const [asOf, setAsOf] = useState('') // report date; '' = Latest
   const [search, setSearch] = useState('')
+  const [delErr, setDelErr] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -81,49 +83,82 @@ export function LpCapitalView({ isAdmin }: { isAdmin: boolean }) {
     return dates.find(d => d <= asOf) ?? ''
   }, [asOf, dates])
 
-  // Inline edit → write the LP's position for the shown date, then reload so the derived table refreshes.
+  // Inline edit → rename the LP (entity label + investor sync) and write its position for the shown
+  // date, then reload so the derived table refreshes. Throws so the row can surface an error.
   const savePosition = useCallback(async (lpEntityId: string, patch: CapitalEdit) => {
+    const origName = acct?.rows.find(r => r.lpEntityId === lpEntityId)?.name
+    if (patch.name && patch.name !== origName) {
+      const res = await fetch('/api/lps/entities', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: lpEntityId, entityName: patch.name }),
+      })
+      if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.error ?? 'Could not rename LP') }
+    }
     const asOfDate = resolvedDate || dates[0]
-    if (!asOfDate) return
-    await fetch('/api/accounting/positions', {
-      method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        group, asOfDate, lpEntityId,
-        commitment: patch.commitment, calledCapital: patch.calledCapital,
-        distributions: patch.distributions, nav: patch.nav, irr: patch.irr,
-      }),
-    })
+    if (asOfDate) {
+      const res = await fetch('/api/accounting/positions', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          group, asOfDate, lpEntityId,
+          commitment: patch.commitment, calledCapital: patch.calledCapital,
+          distributions: patch.distributions, nav: patch.nav, irr: patch.irr,
+        }),
+      })
+      if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.error ?? 'Could not save figures') }
+    }
     load()
-  }, [group, resolvedDate, dates, load])
+  }, [group, resolvedDate, dates, load, acct])
+
+  // Delete a ghost/duplicate LP from this vehicle. Guarded server-side (no ledger activity) + a
+  // confirm that surfaces the LP's figures, since a tracking LP has no ledger activity to block on.
+  const deleteLp = useCallback(async (lpEntityId: string, name: string) => {
+    setDelErr(null)
+    const row = acct?.rows.find(r => r.lpEntityId === lpEntityId)
+    const hasCapital = !!row && [row.commitment, row.called, row.itd.ending, -row.itd.distributions].some(v => Math.abs(v) > 0.5)
+    const ok = await confirm({
+      title: `Delete “${name}”?`,
+      description: hasCapital
+        ? `This LP shows commitment ${fmt(row!.commitment)}, called ${fmt(row!.called)}, NAV ${fmt(row!.itd.ending)}. Deleting removes it and its positions and can’t be undone — only for a duplicate/ghost.`
+        : `No capital on this LP. Deleting removes it and its positions. Can’t be undone.`,
+      confirmLabel: 'Delete LP', variant: 'destructive',
+    })
+    if (!ok) return
+    const res = await fetch(`/api/lps/entities?id=${encodeURIComponent(lpEntityId)}`, { method: 'DELETE' })
+    if (!res.ok) { const d = await res.json().catch(() => ({})); setDelErr(d.error ?? 'Could not delete LP') }
+    load()
+  }, [acct, confirm, fmt, load])
 
   return (
     <div className="space-y-4">
-      {/* Vehicle bar — above the title, matching the Funds sub-pages. */}
-      <div className="text-sm flex flex-wrap items-center gap-2">
-        <span className="text-muted-foreground">Vehicle</span>
-        {vehicles.length <= 1 ? (
-          <span className="font-medium">{group || '—'}</span>
-        ) : (
-          <select
-            value={group}
-            onChange={e => setGroup(e.target.value)}
-            className="rounded border bg-transparent px-2 py-1 text-sm"
-          >
-            {vehicles.map(v => <option key={v} value={v}>{v}</option>)}
-          </select>
-        )}
-        {acct && (
-          <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground ml-1">
-            {acct.source === 'ledger' ? <BookOpen className="h-3.5 w-3.5" /> : <ListTree className="h-3.5 w-3.5" />}
-            {acct.source === 'ledger' ? 'Derived from the ledger' : 'Pasted positions'}
-          </span>
-        )}
-      </div>
-
-      {/* Title — same as /funds/[id]/capital-accounts. */}
-      <div className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight">Capital accounts</h1>
-        <p className="text-sm text-muted-foreground">Limited partner roll-forward per period</p>
+      {/* Header — title on the left, the vehicle switcher + Analyst on the right, matching
+          /funds/[id]/capital-accounts (FundSubpageChrome). */}
+      <div className="flex items-end justify-between gap-3">
+        <div className="space-y-1 min-w-0 flex-1">
+          <h1 className="text-2xl font-semibold tracking-tight">Capital accounts</h1>
+          <p className="text-sm text-muted-foreground">
+            Limited partner roll-forward per period
+            {acct && (
+              <span className="ml-1.5 inline-flex items-center gap-1 align-middle">
+                · {acct.source === 'ledger' ? <BookOpen className="h-3.5 w-3.5" /> : <ListTree className="h-3.5 w-3.5" />}
+                {acct.source === 'ledger' ? 'Derived from the ledger' : 'Pasted positions'}
+              </span>
+            )}
+          </p>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          {vehicles.length <= 1 ? (
+            <span className="text-sm font-medium">{group || '—'}</span>
+          ) : (
+            <select
+              value={group}
+              onChange={e => setGroup(e.target.value)}
+              className="rounded border bg-transparent px-2 py-1 text-sm"
+            >
+              {vehicles.map(v => <option key={v} value={v}>{v}</option>)}
+            </select>
+          )}
+          <AnalystToggleButton />
+        </div>
       </div>
 
       {/* Action bar — search left; the "As of" date right-aligned. A tracking vehicle navigates its
@@ -159,13 +194,19 @@ export function LpCapitalView({ isAdmin }: { isAdmin: boolean }) {
         <>
           {/* One table for both producers — the roll-forward plus performance ratios. A pasted
               vehicle's amount columns are editable inputs; an accounting vehicle's are calculated. */}
+          {delErr && (
+            <div className="flex items-center justify-between gap-3 rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
+              <span>{delErr}</span>
+              <button onClick={() => setDelErr(null)} className="shrink-0 hover:opacity-70"><X className="h-3.5 w-3.5" /></button>
+            </div>
+          )}
           <CapitalRollforwardTable
             rows={acct?.rows ?? []}
             scope={{ preset, start }}
             fmt={fmt}
             search={search}
             metrics
-            editable={isTracking && isAdmin && preset === 'itd' ? { onSave: savePosition } : undefined}
+            editable={isTracking && isAdmin && preset === 'itd' ? { onSave: savePosition, onDelete: deleteLp } : undefined}
           />
           {isTracking && isAdmin && preset !== 'itd' && (
             <p className="text-xs text-muted-foreground">

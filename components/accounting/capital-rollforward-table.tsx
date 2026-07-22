@@ -11,7 +11,7 @@
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { Input } from '@/components/ui/input'
-import { Loader2, Check, X, Pencil } from 'lucide-react'
+import { Loader2, Check, X, Pencil, Trash2 } from 'lucide-react'
 import { SortTh, nextSort, compareVals, type SortState } from '@/components/sortable-th'
 import { type PeriodPreset } from '@/lib/accounting/statement-period'
 
@@ -46,8 +46,9 @@ export interface Row extends Account {
   itd: Account
 }
 
-/** What an inline edit writes — the LP's position fields. */
+/** What an inline edit writes — the LP's name plus its position fields. */
 export interface CapitalEdit {
+  name: string | null
   commitment: number | null
   calledCapital: number | null
   distributions: number | null
@@ -110,8 +111,9 @@ export function CapitalRollforwardTable({
   metrics?: boolean
   /** Per-LP drilldown link; omit to render the name as plain text. */
   lpHref?: (lpEntityId: string) => string
-  /** When set, the amount columns are inline-editable (hover pencil → inputs → onSave). */
-  editable?: { onSave: (lpEntityId: string, patch: CapitalEdit) => Promise<void> }
+  /** When set, the name + amount columns are inline-editable (hover pencil → inputs → onSave), and
+   *  a delete action appears when onDelete is provided. */
+  editable?: { onSave: (lpEntityId: string, patch: CapitalEdit) => Promise<void>; onDelete?: (lpEntityId: string, name: string) => void }
 }) {
   const acctOf = (r: Row): Account => (scope.preset === 'itd' ? r.itd : r.period ?? r.itd)
 
@@ -226,12 +228,14 @@ function RollforwardRow({
   metrics: boolean
   fmt: (v: number) => string
   lpHref?: (lpEntityId: string) => string
-  editable?: { onSave: (lpEntityId: string, patch: CapitalEdit) => Promise<void> }
+  editable?: { onSave: (lpEntityId: string, patch: CapitalEdit) => Promise<void>; onDelete?: (lpEntityId: string, name: string) => void }
 }) {
   const [editing, setEditing] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [rowErr, setRowErr] = useState<string | null>(null)
   const distPos = -a.distributions
   const [draft, setDraft] = useState({
+    name: r.name ?? '',
     commitment: String(r.commitment ?? ''),
     calledCapital: String(r.called ?? ''),
     distributions: distPos ? String(distPos) : '',
@@ -242,17 +246,24 @@ function RollforwardRow({
   const numOrNull = (s: string): number | null => (s.trim() === '' ? null : Number(s))
   async function save() {
     if (!editable) return
-    setSaving(true)
-    await editable.onSave(r.lpEntityId, {
-      commitment: numOrNull(draft.commitment),
-      calledCapital: numOrNull(draft.calledCapital),
-      distributions: numOrNull(draft.distributions),
-      nav: numOrNull(draft.nav),
-      irr: numOrNull(draft.irr),
-    })
-    setSaving(false); setEditing(false)
+    setSaving(true); setRowErr(null)
+    try {
+      await editable.onSave(r.lpEntityId, {
+        name: draft.name.trim() || null,
+        commitment: numOrNull(draft.commitment),
+        calledCapital: numOrNull(draft.calledCapital),
+        distributions: numOrNull(draft.distributions),
+        nav: numOrNull(draft.nav),
+        irr: numOrNull(draft.irr),
+      })
+      setEditing(false)
+    } catch (e: any) {
+      setRowErr(e?.message ?? 'Could not save')
+    } finally {
+      setSaving(false)
+    }
   }
-  const inp = (k: keyof typeof draft, w = 'w-24') => (
+  const inp = (k: 'commitment' | 'calledCapital' | 'distributions' | 'nav' | 'irr', w = 'w-24') => (
     <Input value={draft[k]} onChange={e => setDraft(d => ({ ...d, [k]: e.target.value }))} inputMode="decimal" className={`h-8 ${w} text-right font-mono ml-auto`} />
   )
 
@@ -272,12 +283,13 @@ function RollforwardRow({
       <tr className="border-b last:border-b-0 bg-muted/20">
         <td className="px-3 py-1.5 font-medium">
           <span className="flex items-center gap-2">
-            <span className="truncate max-w-[180px]" title={r.name}>{r.name}</span>
+            <Input value={draft.name} onChange={e => setDraft(d => ({ ...d, name: e.target.value }))} placeholder="LP name" className="h-8 w-44 text-sm" />
             <span className="flex items-center gap-1 shrink-0">
               <button onClick={save} disabled={saving} title="Save" className="text-green-600 hover:text-green-700">{saving ? <Loader2 className="h-3.5 w-3.5 animate-spin inline" /> : <Check className="h-3.5 w-3.5 inline" />}</button>
-              <button onClick={() => setEditing(false)} title="Cancel" className="text-muted-foreground hover:text-foreground"><X className="h-3.5 w-3.5 inline" /></button>
+              <button onClick={() => { setEditing(false); setRowErr(null) }} title="Cancel" className="text-muted-foreground hover:text-foreground"><X className="h-3.5 w-3.5 inline" /></button>
             </span>
           </span>
+          {rowErr && <p className="text-xs text-destructive mt-1">{rowErr}</p>}
         </td>
         {commitmentCols.map(c => (
           <td key={c.key} className="px-3 py-1.5 text-right font-mono border-l">
@@ -309,7 +321,10 @@ function RollforwardRow({
             : <span className="truncate" title={r.name}>{r.name}</span>}
           {r.partnerClass === 'gp' && <span className="text-[10px] uppercase tracking-wider px-1 py-0.5 rounded bg-muted text-muted-foreground shrink-0">GP</span>}
           {editable && (
-            <button onClick={() => setEditing(true)} title="Edit" className="text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-foreground shrink-0"><Pencil className="h-3.5 w-3.5" /></button>
+            <button onClick={() => setEditing(true)} title="Edit name & figures" className="text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-foreground shrink-0"><Pencil className="h-3.5 w-3.5" /></button>
+          )}
+          {editable?.onDelete && (
+            <button onClick={() => editable.onDelete!(r.lpEntityId, r.name)} title="Delete LP" className="text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-red-600 shrink-0"><Trash2 className="h-3.5 w-3.5" /></button>
           )}
         </div>
       </td>
