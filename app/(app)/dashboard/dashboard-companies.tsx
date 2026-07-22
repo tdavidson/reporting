@@ -111,19 +111,16 @@ export function DashboardCompanies({ companies, allGroups }: Props) {
       {/* Filter bar */}
       {filtered.length > 0 && (
         <div className="flex items-center gap-2 flex-wrap mb-4">
-          <div>
-            <label className="block text-xs text-muted-foreground mb-1">Status</label>
-            <select
-              value={statusFilter}
-              onChange={e => setStatusFilter(e.target.value)}
-              className="text-xs px-2 py-1 rounded-md border border-border bg-background"
-            >
+          <select
+            value={statusFilter}
+            onChange={e => setStatusFilter(e.target.value)}
+            className="text-xs px-2 py-1 rounded-md border border-border bg-background"
+          >
             <option value="">All Statuses</option>
             <option value="active">Active</option>
             <option value="exited">Exited</option>
             <option value="written-off">Written Off</option>
-            </select>
-          </div>
+          </select>
           <div className="ml-auto flex items-center gap-1">
             <Button
               variant={sortMode === 'alpha' ? 'secondary' : 'ghost'}
