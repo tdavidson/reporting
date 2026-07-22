@@ -20,6 +20,11 @@ export function AccountingSetup({ alwaysShow = false }: { alwaysShow?: boolean }
   const [source, setSource] = useState<'ledger' | 'events' | null>(null)
   const [activating, setActivating] = useState(false)
   const [activateErr, setActivateErr] = useState<string | null>(null)
+  // One-click turn-on is the DEFAULT for a tracking vehicle; the step-by-step setup is the manual
+  // alternative behind a disclosure.
+  const [turningOn, setTurningOn] = useState(false)
+  const [turnOnErr, setTurnOnErr] = useState<string | null>(null)
+  const [showManual, setShowManual] = useState(false)
   const [cutoverDate, setCutoverDate] = useState('')
   const [bootstrapping, setBootstrapping] = useState(false)
   const [bootstrapMsg, setBootstrapMsg] = useState<string | null>(null)
@@ -142,6 +147,16 @@ export function AccountingSetup({ alwaysShow = false }: { alwaysShow?: boolean }
     window.location.reload()
   }
 
+  // One action: seed the chart, carry the latest pasted snapshot in as opening balances (cutover),
+  // and flip to the ledger — all server-side. Full reload so Status re-renders in ledger mode.
+  async function turnOn() {
+    setTurningOn(true); setTurnOnErr(null)
+    const res = await lf('/api/accounting/turn-on', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) { setTurnOnErr(data.error ?? 'Could not turn on fund accounting'); setTurningOn(false); return }
+    window.location.reload()
+  }
+
   if (accountCount === null) return null
 
   // Once the vehicle is onboarded this card has nothing left to say — the Status page
@@ -153,6 +168,30 @@ export function AccountingSetup({ alwaysShow = false }: { alwaysShow?: boolean }
     <div className="border rounded-lg p-4 mb-6 bg-muted/20 space-y-3">
       <p className="text-sm font-medium">Onboarding this vehicle</p>
 
+      {/* PRIMARY path for a tracking vehicle: one click does the whole turn-on. */}
+      {source === 'events' && (
+        <div className="space-y-2">
+          <p className="text-sm text-muted-foreground">
+            Turn on fund accounting for this vehicle. This seeds the chart of accounts, carries your
+            latest pasted positions in as opening balances, and starts deriving capital from the
+            ledger. You can rebuild full history from inception later.
+          </p>
+          <Button size="sm" onClick={turnOn} disabled={turningOn}>
+            {turningOn && <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />}Turn on fund accounting
+          </Button>
+          {turnOnErr && <p className="text-xs text-destructive">{turnOnErr}</p>}
+          {!showManual && (
+            <button onClick={() => setShowManual(true)} className="block text-xs text-muted-foreground hover:text-foreground underline underline-offset-2">
+              Set up manually instead
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Manual, step-by-step setup — always shown for a ledger vehicle (post-turn-on deepening);
+          behind the "Set up manually" disclosure for a tracking vehicle. */}
+      {(source !== 'events' || showManual) && (
+      <>
       {/* Step 1 — chart */}
       <div className="flex items-center gap-2 text-sm">
         {accountCount > 0
@@ -291,6 +330,8 @@ export function AccountingSetup({ alwaysShow = false }: { alwaysShow?: boolean }
           </Button>
           {activateErr && <p className="text-xs text-destructive">{activateErr}</p>}
         </div>
+      )}
+      </>
       )}
     </div>
   )

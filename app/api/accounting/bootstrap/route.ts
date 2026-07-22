@@ -5,12 +5,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 // grant for this route + method; this resolves identity and keeps the demo out of writes.
 import { assertWriteAccess } from '@/lib/api-helpers'
 import { resolveGroupOr400 } from '@/lib/accounting/http-vehicle'
-import { vehicleIdByName } from '@/lib/accounting/vehicle-id'
-import { loadOwnership } from '@/lib/accounting/load'
-import { accountIdByCode, ensureCapitalAccounts, persistEntry } from '@/lib/accounting/persist'
-import { DEFAULT_CHART } from '@/lib/accounting/chart'
-import { roundCents } from '@/lib/accounting/ledger'
-import type { Posting, JournalEntry } from '@/lib/accounting/types'
+import { bootstrapOpeningBalances } from '@/lib/accounting/bootstrap'
 
 // POST — cutover bootstrap: generate the opening position for a vehicle from the
 // LP data already in the platform (paid-in − distributions per LP), as of a date.
@@ -29,40 +24,7 @@ export async function POST(req: NextRequest) {
   const entryDate: string = body?.entryDate
   if (!entryDate) return NextResponse.json({ error: 'entryDate is required' }, { status: 400 })
 
-  // Seed the default chart for this vehicle if it has none.
-  const vehicleId = await vehicleIdByName(admin, gate.fundId, group)
-  let codes = await accountIdByCode(admin, gate.fundId, group)
-  if (codes.size === 0) {
-    const rows = DEFAULT_CHART.map(a => ({ fund_id: gate.fundId, portfolio_group: group, vehicle_id: vehicleId, code: a.code, name: a.name, type: a.type, subtype: a.subtype ?? null }))
-    await admin.from('chart_of_accounts' as any).insert(rows)
-    codes = await accountIdByCode(admin, gate.fundId, group)
-  }
-
-  const ownership = await loadOwnership(admin, gate.fundId, group)
-  const balances = ownership
-    .map(o => ({ lpEntityId: o.lpEntityId, amount: roundCents(o.paidIn - o.distributions) }))
-    .filter(b => b.amount !== 0)
-  if (balances.length === 0) {
-    return NextResponse.json({ error: 'No LP paid-in capital found for this vehicle — nothing to bootstrap' }, { status: 400 })
-  }
-
-  // Capital in nets against cash: the opening credits each LP's capital and debits
-  // Cash. The investment purchase is booked separately (Dr Investments / Cr Cash).
-  const offsetId = codes.get('1000')
-  if (!offsetId) return NextResponse.json({ error: 'Chart missing account 1000 (Cash)' }, { status: 400 })
-  const capMap = await ensureCapitalAccounts(admin, gate.fundId, group, balances.map(b => b.lpEntityId))
-
-  let total = 0
-  const postings: Posting[] = []
-  for (const b of balances) {
-    total = roundCents(total + b.amount)
-    postings.push({ accountId: capMap.get(b.lpEntityId)!, amount: -b.amount, currency: 'USD', lpEntityId: b.lpEntityId })
-  }
-  postings.push({ accountId: offsetId, amount: total, currency: 'USD', lpEntityId: null })
-
-  const entry: JournalEntry = { fundId: gate.fundId, entryDate, memo: 'Opening capital bootstrapped from LP data', sourceType: 'opening_balance', postings }
-  const result = await persistEntry(admin, gate.fundId, group, user.id, entry, 'posted')
+  const result = await bootstrapOpeningBalances(admin, gate.fundId, group, user.id, entryDate)
   if ('error' in result) return NextResponse.json({ error: result.error }, { status: 400 })
-
-  return NextResponse.json({ ok: true, entryId: result.entryId, lpCount: balances.length, total })
+  return NextResponse.json(result)
 }
