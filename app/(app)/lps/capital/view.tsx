@@ -7,6 +7,8 @@ import { Input } from '@/components/ui/input'
 import { useConfirm } from '@/components/confirm-dialog'
 import { useCurrency, formatCurrencyFull } from '@/components/currency-context'
 import { CapitalRollforwardTable, type Row, type CapitalEdit } from '@/components/accounting/capital-rollforward-table'
+import { PeriodPicker } from '@/components/accounting/period-picker'
+import { type PeriodPreset } from '@/lib/accounting/statement-period'
 
 // The capital-accounts API returns the full per-LP Row for BOTH producers (ledger and pasted
 // positions), so this surface renders the same table as /funds/[id]/capital-accounts.
@@ -33,8 +35,12 @@ export function LpCapitalView({ isAdmin }: { isAdmin: boolean }) {
   const [acct, setAcct] = useState<AcctResp | null>(null)
   const [positions, setPositions] = useState<Position[]>([])
   const [dates, setDates] = useState<string[]>([]) // most-recent first
-  const [selectedDate, setSelectedDate] = useState<string>('') // '' = Latest (free 'as of' picker)
-  const [ledgerAsOf, setLedgerAsOf] = useState<string>('') // ledger view: arbitrary report date, '' = today
+  // Full period control — same as /funds. For a vehicle with paste history the presets capture the
+  // activity between snapshot dates; for a single snapshot they degenerate to that one balance.
+  const [preset, setPreset] = useState<PeriodPreset>('itd')
+  const [start, setStart] = useState('')
+  const [end, setEnd] = useState('')
+  const [asOf, setAsOf] = useState('') // report date; '' = Latest
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(true)
 
@@ -47,31 +53,33 @@ export function LpCapitalView({ isAdmin }: { isAdmin: boolean }) {
   const load = useCallback(() => {
     if (!group) return
     setLoading(true)
-    // One "as of" for both producers: the tracking date select or the ledger report date. The API
-    // re-derives the accounts to that date (resolving a tracking pick to the latest stored on-or-before).
-    const asOf = selectedDate || ledgerAsOf
-    const acctUrl = `/api/accounting/capital-accounts?group=${encodeURIComponent(group)}${asOf ? `&asOf=${asOf}` : ''}`
+    // Same period params as /funds: the API re-derives the roll-forward to the window, so a paste
+    // history yields real period activity (the deltas between snapshots).
+    const qs = new URLSearchParams({ group })
+    if (preset === 'custom') { if (start) qs.set('start', start); if (end) qs.set('end', end) }
+    else qs.set('preset', preset)
+    if (asOf) qs.set('asOf', asOf)
     Promise.all([
-      fetch(acctUrl).then(r => (r.ok ? r.json() : null)),
+      fetch(`/api/accounting/capital-accounts?${qs}`).then(r => (r.ok ? r.json() : null)),
       fetch(`/api/accounting/positions?group=${encodeURIComponent(group)}`).then(r => (r.ok ? r.json() : null)),
     ]).then(([a, p]) => {
       setAcct(a)
       setPositions(p?.positions ?? [])
       setDates(p?.dates ?? [])
     }).finally(() => setLoading(false))
-  }, [group, selectedDate, ledgerAsOf])
+  }, [group, preset, start, end, asOf])
   useEffect(() => { load() }, [load])
 
-  // Switching vehicles resets both date pickers back to Latest.
-  useEffect(() => { setSelectedDate(''); setLedgerAsOf('') }, [group])
+  // Switching vehicles resets the period back to inception-to-date.
+  useEffect(() => { setPreset('itd'); setStart(''); setEnd(''); setAsOf('') }, [group])
 
   const isTracking = acct?.source !== 'ledger'
-  // Free "as of" picker: resolve to the latest stored position on-or-before the picked date
-  // (dates is most-recent-first, so the first one ≤ the pick is the latest ≤). Empty = Latest.
+  // The snapshot an edit writes to: the latest stored position on-or-before the report date (or the
+  // latest overall when no date is picked). dates is most-recent-first.
   const resolvedDate = useMemo(() => {
-    if (!selectedDate) return dates[0] ?? ''
-    return dates.find(d => d <= selectedDate) ?? ''
-  }, [selectedDate, dates])
+    if (!asOf) return dates[0] ?? ''
+    return dates.find(d => d <= asOf) ?? ''
+  }, [asOf, dates])
 
   // Inline edit → write the LP's position for the shown date, then reload so the derived table refreshes.
   const savePosition = useCallback(async (lpEntityId: string, patch: CapitalEdit) => {
@@ -134,23 +142,15 @@ export function LpCapitalView({ isAdmin }: { isAdmin: boolean }) {
           )}
         </div>
 
-        {isTracking && dates.length > 0 && (
-          <div className="flex items-center gap-2">
-            <label className="text-xs text-muted-foreground">As of</label>
-            <Input type="date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)} className="h-9 w-40" />
-            {selectedDate && <Button size="sm" variant="ghost" onClick={() => setSelectedDate('')}>Latest</Button>}
-            {selectedDate && resolvedDate && resolvedDate !== selectedDate && (
-              <span className="text-xs text-muted-foreground">showing {resolvedDate}</span>
-            )}
-          </div>
-        )}
-        {!isTracking && (
-          <div className="flex items-center gap-2">
-            <label className="text-xs text-muted-foreground">As of</label>
-            <Input type="date" value={ledgerAsOf} onChange={e => setLedgerAsOf(e.target.value)} className="h-9 w-40" />
-            {ledgerAsOf && <Button size="sm" variant="ghost" onClick={() => setLedgerAsOf('')}>Latest</Button>}
-          </div>
-        )}
+        <div className="flex items-center gap-2">
+          <PeriodPicker
+            preset={preset} onPreset={setPreset}
+            start={start} end={end} onStart={setStart} onEnd={setEnd}
+            asOf={asOf} onAsOf={setAsOf}
+            allowAsOf
+            title={preset !== 'itd' ? 'Activity within the period, opening with the balance carried in' : 'All activity since inception'}
+          />
+        </div>
       </div>
 
       {loading ? (
@@ -161,12 +161,17 @@ export function LpCapitalView({ isAdmin }: { isAdmin: boolean }) {
               vehicle's amount columns are editable inputs; an accounting vehicle's are calculated. */}
           <CapitalRollforwardTable
             rows={acct?.rows ?? []}
-            scope={{ preset: 'itd' }}
+            scope={{ preset, start }}
             fmt={fmt}
             search={search}
             metrics
-            editable={isTracking && isAdmin ? { onSave: savePosition } : undefined}
+            editable={isTracking && isAdmin && preset === 'itd' ? { onSave: savePosition } : undefined}
           />
+          {isTracking && isAdmin && preset !== 'itd' && (
+            <p className="text-xs text-muted-foreground">
+              Viewing period activity — switch to <strong>Inception to date</strong> (or click a date in History) to edit a snapshot.
+            </p>
+          )}
 
           {isTracking ? (
             <>
@@ -176,7 +181,7 @@ export function LpCapitalView({ isAdmin }: { isAdmin: boolean }) {
                   positions={positions}
                   dates={dates}
                   activeDate={resolvedDate}
-                  onSelect={d => setSelectedDate(d)}
+                  onSelect={d => { setPreset('itd'); setStart(''); setEnd(''); setAsOf(d) }}
                   onDelete={isAdmin ? async (d) => {
                     const ok = await confirm({ title: `Delete the ${d} positions?`, description: 'Removes every LP position stored for this date on this vehicle.', confirmLabel: 'Delete', variant: 'destructive' })
                     if (!ok) return
