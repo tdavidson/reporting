@@ -10,6 +10,7 @@ import { DashboardCompanies } from './dashboard-companies'
 import { DashboardNotesLayout, DashboardChatButton, DashboardNotesPanel } from './dashboard-notes'
 import { AnalystToggleButton } from '@/components/analyst-button'
 import { AnalystPanel } from '@/components/analyst-panel'
+import { AddCompanyButton } from './add-company-button'
 
 export default async function DashboardPage() {
   const supabase = createClient()
@@ -185,6 +186,7 @@ export default async function DashboardPage() {
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-semibold tracking-tight">Portfolio</h1>
           <div className="flex items-center gap-2">
+            {membership?.role !== 'viewer' && <AddCompanyButton />}
             <DashboardChatButton />
             <AnalystToggleButton />
           </div>
