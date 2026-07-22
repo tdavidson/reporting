@@ -19,7 +19,6 @@ import {
 import Link from 'next/link'
 import { DefaultsEditor } from './memo-agent/defaults/editor'
 import { LedgerAgentAccess } from '@/components/ledger-agent-access'
-import { VehiclesSettings } from '@/components/vehicles-settings'
 import { DefaultMetricsSettings } from '@/components/settings/default-metrics-settings'
 import { StyleAnchorsInline } from './memo-agent/style-anchors/style-anchors-inline'
 import { SchemasInline } from './memo-agent/schemas/schemas-inline'
@@ -185,9 +184,8 @@ export default function SettingsPage() {
           </Section>
           <CurrencySection currency={settings.currency} onSaved={load} />
           <FeatureVisibilitySection featureVisibility={settings.featureVisibility} lpPortalEnabled={settings.lpPortalEnabled} onSaved={load} />
-          <Section title="Investment vehicles">
-            <VehiclesSettings />
-          </Section>
+          {/* Investment-vehicle management moved out of Settings: add/edit (name, type, vintage,
+              aliases, active) on /investments; GP linking on /funds/status. */}
           <Section title="Default metrics">
             <DefaultMetricsSettings />
           </Section>
