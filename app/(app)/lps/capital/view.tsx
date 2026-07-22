@@ -172,6 +172,12 @@ export function LpCapitalView({ isAdmin }: { isAdmin: boolean }) {
               Viewing period activity — switch to <strong>Inception to date</strong> (or click a date in History) to edit a snapshot.
             </p>
           )}
+          {isTracking && isAdmin && preset === 'itd' && resolvedDate && (
+            <p className="text-xs text-muted-foreground">
+              Editing the snapshot as of <strong>{resolvedDate}</strong>
+              {asOf && asOf !== resolvedDate ? ` (nearest paste on or before ${asOf})` : ''} — pick another date in History below to edit it at its root.
+            </p>
+          )}
 
           {isTracking ? (
             <>
