@@ -9,16 +9,12 @@ import { useConfirm } from '@/components/confirm-dialog'
 import { useCurrency, formatCurrencyFull } from '@/components/currency-context'
 import { xirr, type CashFlow } from '@/lib/xirr'
 import { SortTh, nextSort, compareVals, type SortState } from '@/components/sortable-th'
+import { CapitalRollforwardTable, type Row } from '@/components/accounting/capital-rollforward-table'
 
-interface AcctRow {
-  lpEntityId: string
-  name: string
-  commitment: number
-  called: number
-  funded: number
-  itd: { distributions: number; ending: number }
-}
-interface AcctResp { rows: AcctRow[]; nav: number; source: 'ledger' | 'events'; period?: unknown }
+// The capital-accounts API returns the full per-LP roll-forward Row for BOTH producers (ledger and
+// pasted positions), so a tracking vehicle can render the same statement of changes in partners'
+// capital as an accounting vehicle.
+interface AcctResp { rows: Row[]; nav: number; source: 'ledger' | 'events'; period?: unknown }
 
 interface Position {
   lpEntityId: string
@@ -182,6 +178,21 @@ export function LpCapitalView({ isAdmin }: { isAdmin: boolean }) {
         </>
       ) : (
         <>
+          {/* Capital accounts — the roll-forward statement, derived from the pasted positions below.
+              The SAME statement of changes in partners' capital an accounting vehicle shows; a pasting
+              vehicle populates only the columns snapshots can express (contributions, distributions,
+              change in value), so the fee/carry/realized columns simply don't appear. */}
+          {(acct?.rows?.length ?? 0) > 0 && (
+            <div className="space-y-1.5">
+              <h2 className="text-sm font-medium">Capital accounts</h2>
+              <CapitalRollforwardTable rows={acct?.rows ?? []} scope={{ preset: 'itd' }} fmt={fmt} />
+              <p className="text-xs text-muted-foreground">
+                Derived from the positions below — beginning, contributions, distributions, change in
+                value, and ending capital per partner, inception-to-date. Ending ties to each partner&rsquo;s NAV.
+              </p>
+            </div>
+          )}
+
           {/* Top table: the selected date's positions, with derived metrics and inline edit. */}
           <PositionsTable
             group={group}
@@ -224,7 +235,7 @@ export function LpCapitalView({ isAdmin }: { isAdmin: boolean }) {
 // Ledger view (read-only)
 // ---------------------------------------------------------------------------
 
-function LedgerTable({ rows, search, fmt }: { rows: AcctRow[]; search: string; fmt: (v: number) => string }) {
+function LedgerTable({ rows, search, fmt }: { rows: Row[]; search: string; fmt: (v: number) => string }) {
   const q = search.trim().toLowerCase()
   const shown = q ? rows.filter(r => r.name.toLowerCase().includes(q)) : rows
   return (
