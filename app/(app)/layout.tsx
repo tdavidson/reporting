@@ -7,6 +7,7 @@ import {
   getReviewBadge,
   getNotesBadge,
   getPendingRequests,
+  getPendingActionsBadge,
   getFundData,
   getFundSettings,
   getMembership,
@@ -40,9 +41,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   const isAdmin = membership?.role === 'admin'
   const isViewer = membership?.role === 'viewer'
-  const [pendingRequestCount, updateAvailable] = await Promise.all([
+  const [pendingRequestCount, updateAvailable, pendingActionsBadge] = await Promise.all([
     isAdmin ? getPendingRequests(fund.id) : Promise.resolve(0),
     isAdmin ? getUpdateAvailable() : Promise.resolve(false),
+    isAdmin ? getPendingActionsBadge(fund.id) : Promise.resolve(0),
   ])
 
   const featureVisibility = { ...DEFAULT_FEATURE_VISIBILITY, ...(fundSettings?.feature_visibility as Partial<FeatureVisibilityMap> | null) }
@@ -105,6 +107,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           reviewBadge={reviewBadge}
           settingsBadge={pendingRequestCount}
           notesBadge={notesBadge}
+          pendingActionsBadge={pendingActionsBadge}
           isAdmin={isAdmin}
           currency={fundCurrency}
           hasAIKey={hasAIKey}

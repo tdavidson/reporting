@@ -35,7 +35,7 @@ interface NavItem {
   href: string
   label: string
   icon: LucideIcon
-  badgeKey?: 'review' | 'settings' | 'notes'
+  badgeKey?: 'review' | 'settings' | 'notes' | 'pendingActions'
   adminOnly?: boolean
   featureKey?: FeatureKey
   /** Only where the featureKey can't imply it (or there is no featureKey). */
@@ -74,9 +74,9 @@ function canSee(
 
 const NAV_ITEMS: NavItem[] = [
   { href: '/review', label: 'Review', icon: ClipboardCheck, badgeKey: 'review', domain: 'portfolio' },
-  // The queue spans domains; the list still filters rows by per-domain access, but the nav entry
-  // is admin-only (shows the admin lock). Members reach their own domain's queue via the API/URL.
-  { href: '/pending-actions', label: 'Pending Actions', icon: ListChecks, domain: 'portfolio', adminOnly: true },
+  // Admin-only, and — like Review — only shown when there's something waiting (badgeKey hides it
+  // at zero). The list still filters rows by per-domain access; members reach theirs via the API/URL.
+  { href: '/pending-actions', label: 'Pending Actions', icon: ListChecks, domain: 'portfolio', adminOnly: true, badgeKey: 'pendingActions' },
   { href: '/emails', label: 'Inbound', icon: Mail, domain: 'dealflow' },
   {
     href: '/deals', label: 'Deals', icon: Lightbulb, featureKey: 'deals',
@@ -139,13 +139,14 @@ interface AppSidebarProps {
   reviewBadge: number
   settingsBadge?: number
   notesBadge?: number
+  pendingActionsBadge?: number
   isAdmin?: boolean
   updateAvailable?: boolean
   featureVisibility?: FeatureVisibilityMap
   onNavigate?: () => void
 }
 
-export function AppSidebar({ reviewBadge, settingsBadge, notesBadge, isAdmin, updateAvailable, featureVisibility, onNavigate }: AppSidebarProps) {
+export function AppSidebar({ reviewBadge, settingsBadge, notesBadge, pendingActionsBadge, isAdmin, updateAvailable, featureVisibility, onNavigate }: AppSidebarProps) {
   const pathname = usePathname()
   const access = useAccess()
   const { collapsed, toggle } = useSidebar()
@@ -187,6 +188,7 @@ export function AppSidebar({ reviewBadge, settingsBadge, notesBadge, isAdmin, up
         {NAV_ITEMS.filter(item => {
           if (!canSee(item, !!isAdmin, access)) return false
           if (item.badgeKey === 'review' && reviewBadge === 0) return false
+          if (item.badgeKey === 'pendingActions' && (pendingActionsBadge ?? 0) === 0) return false
           return true
         }).map((item) => {
           const { href, label, icon: Icon, badgeKey, adminOnly, featureKey, beta } = item
@@ -202,6 +204,7 @@ export function AppSidebar({ reviewBadge, settingsBadge, notesBadge, isAdmin, up
           // page you're actually on, with section context coming from the expanded children.
           const isActive = pathname === href
           const badgeCount = badgeKey === 'review' ? reviewBadge
+            : badgeKey === 'pendingActions' ? (pendingActionsBadge ?? 0)
             : badgeKey === 'settings' ? (settingsBadge ?? 0)
             : badgeKey === 'notes' ? (notesBadge ?? 0)
             : 0

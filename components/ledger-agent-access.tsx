@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Loader2, Copy, Check, Trash2 } from 'lucide-react'
+import { Loader2, Copy, Check, Trash2, Lock } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { AGENT_TOOL_MANIFEST } from '@/lib/accounting/agent-tools-manifest'
 import { PORTFOLIO_TOOL_MANIFEST } from '@/lib/agent/portfolio-tools-manifest'
@@ -115,7 +115,7 @@ export function LedgerAgentAccess({ isAdmin }: { isAdmin: boolean }) {
           first — and non-admins are told who can turn it on rather than being shown
           a control they can't use. */}
       {isAdmin ? (
-        <label className="flex items-start gap-2 text-sm cursor-pointer rounded-md border p-3">
+        <label className="flex items-start gap-2 text-sm cursor-pointer rounded-md border border-amber-500/40 bg-amber-500/5 p-3">
           <input
             type="checkbox"
             checked={!!enabled}
@@ -124,7 +124,12 @@ export function LedgerAgentAccess({ isAdmin }: { isAdmin: boolean }) {
             className="mt-1 h-3.5 w-3.5"
           />
           <span>
-            Allow agents to reach this fund
+            <span className="flex items-center gap-2 font-medium">
+              Allow agents to reach this fund
+              <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-wider text-amber-600 dark:text-amber-400">
+                <Lock className="h-3 w-3" />Admin only
+              </span>
+            </span>
             <span className="block text-xs text-muted-foreground">
               Turns the MCP endpoint, the REST API, and API keys on or off for the whole fund. Off by
               default. Turning it off makes every existing key and connected app inert immediately —

@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { assertReadAccess } from '@/lib/api-helpers'
 import { loadAccessContext, hasAccess } from '@/lib/access/effective'
 import { getWriteAction } from '@/lib/pending-actions/registry'
+import { revalidateTag } from 'next/cache'
 
 /**
  * Reject a staged action. Rejecting is a decision about a write, so it requires the row's domain
@@ -41,5 +42,6 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
     .update({ status: 'rejected', approved_by: user.id, approved_at: new Date().toISOString(), updated_at: new Date().toISOString() })
     .eq('id', typedRow.id)
 
+  revalidateTag('pending-actions-badge')
   return NextResponse.json({ ok: true })
 }

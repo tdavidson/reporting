@@ -23,6 +23,7 @@ interface AppShellProps {
   reviewBadge: number
   settingsBadge?: number
   notesBadge?: number
+  pendingActionsBadge?: number
   isAdmin?: boolean
   currency?: string
   hasAIKey?: boolean
@@ -37,7 +38,7 @@ interface AppShellProps {
   children: React.ReactNode
 }
 
-export function AppShell({ fundName, fundLogo, userEmail, reviewBadge, settingsBadge, notesBadge, isAdmin, currency, hasAIKey, configuredProviders, defaultAIProvider, updateAvailable, featureVisibility, domainAccess, lpPortalEnabled, children }: AppShellProps) {
+export function AppShell({ fundName, fundLogo, userEmail, reviewBadge, settingsBadge, notesBadge, pendingActionsBadge, isAdmin, currency, hasAIKey, configuredProviders, defaultAIProvider, updateAvailable, featureVisibility, domainAccess, lpPortalEnabled, children }: AppShellProps) {
   return (
     <FeatureVisibilityProvider value={featureVisibility ?? DEFAULT_FEATURE_VISIBILITY} isAdmin={isAdmin} lpPortalEnabled={lpPortalEnabled ?? false}>
     <AccessProvider value={domainAccess ?? EMPTY_ACCESS}>
@@ -54,6 +55,7 @@ export function AppShell({ fundName, fundLogo, userEmail, reviewBadge, settingsB
               reviewBadge={reviewBadge}
               settingsBadge={settingsBadge}
               notesBadge={notesBadge}
+              pendingActionsBadge={pendingActionsBadge}
               isAdmin={isAdmin}
               updateAvailable={updateAvailable}
               featureVisibility={featureVisibility}
@@ -69,7 +71,7 @@ export function AppShell({ fundName, fundLogo, userEmail, reviewBadge, settingsB
   )
 }
 
-function AppShellInner({ fundName, fundLogo, userEmail, reviewBadge, settingsBadge, notesBadge, isAdmin, updateAvailable, featureVisibility, children }: AppShellProps) {
+function AppShellInner({ fundName, fundLogo, userEmail, reviewBadge, settingsBadge, notesBadge, pendingActionsBadge, isAdmin, updateAvailable, featureVisibility, children }: AppShellProps) {
   const { collapsed } = useSidebar()
   const pathname = usePathname()
 
@@ -99,7 +101,7 @@ function AppShellInner({ fundName, fundLogo, userEmail, reviewBadge, settingsBad
             collapsed ? 'w-16' : 'w-56'
           }`}
         >
-          <AppSidebar reviewBadge={reviewBadge} settingsBadge={settingsBadge} notesBadge={notesBadge} isAdmin={isAdmin} updateAvailable={updateAvailable} featureVisibility={featureVisibility} />
+          <AppSidebar reviewBadge={reviewBadge} settingsBadge={settingsBadge} notesBadge={notesBadge} pendingActionsBadge={pendingActionsBadge} isAdmin={isAdmin} updateAvailable={updateAvailable} featureVisibility={featureVisibility} />
         </aside>
 
         {/* Page content */}

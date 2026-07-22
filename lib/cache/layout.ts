@@ -48,6 +48,20 @@ export const getPendingRequests = unstable_cache(
   { tags: ['pending-requests'], revalidate: 60 }
 )
 
+export const getPendingActionsBadge = unstable_cache(
+  async (fundId: string) => {
+    const admin = createAdminClient()
+    const { count } = await admin
+      .from('pending_actions' as any)
+      .select('id', { count: 'exact', head: true })
+      .eq('status', 'pending')
+      .eq('fund_id', fundId)
+    return count ?? 0
+  },
+  ['pending-actions-badge'],
+  { tags: ['pending-actions-badge'], revalidate: 60 }
+)
+
 // Fund data — longer TTL (rarely changes)
 export const getFundData = unstable_cache(
   async (fundId: string) => {

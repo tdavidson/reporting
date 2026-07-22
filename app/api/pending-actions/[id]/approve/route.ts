@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { assertReadAccess } from '@/lib/api-helpers'
 import { loadAccessContext, hasAccess } from '@/lib/access/effective'
 import { getWriteAction } from '@/lib/pending-actions/registry'
+import { revalidateTag } from 'next/cache'
 
 /**
  * Approve a staged action: the domain is resolved from the ROW and WRITE is required (drafting
@@ -50,6 +51,7 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
         updated_at: new Date().toISOString(),
       })
       .eq('id', typedRow.id)
+    revalidateTag('pending-actions-badge')
     return NextResponse.json({ ok: true, result })
   } catch (e) {
     const message = (e as Error).message
@@ -57,6 +59,7 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
       .from('pending_actions' as any)
       .update({ status: 'failed', error: message, updated_at: new Date().toISOString() })
       .eq('id', typedRow.id)
+    revalidateTag('pending-actions-badge')
     return NextResponse.json({ ok: false, error: message })
   }
 }
