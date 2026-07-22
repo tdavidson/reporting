@@ -5,7 +5,9 @@ import { assertReadAccess } from '@/lib/api-helpers'
 import { resolveGroupOr400 } from '@/lib/accounting/http-vehicle'
 import { loadEntityNames, loadEntityClasses } from '@/lib/accounting/load'
 import { loadCapitalPostings } from '@/lib/accounting/capital-source'
-import { computeCapitalAccounts, totalNav } from '@/lib/accounting/capital-account'
+import { computeCapitalAccounts, totalNav, type CapitalPosting } from '@/lib/accounting/capital-account'
+import { lpIrr } from '@/lib/accounting/live-report'
+import { latestPositionIrr } from '@/lib/accounting/lp-positions'
 import { lpCapitalSummary, listCapitalCalls } from '@/lib/accounting/capital-calls'
 import { resolvePeriod, customPeriod, type PeriodPreset } from '@/lib/accounting/statement-period'
 
@@ -59,6 +61,26 @@ export async function GET(req: NextRequest) {
   const itdAccounts = computeCapitalAccounts(capitalPostings, { end: period.end })
   const summaryByLp = new Map(summary.map(s => [s.lpEntityId, s]))
 
+  // Per-LP Net IRR. Ledger: derive from each LP's dated flows + terminal NAV at the report date.
+  // Events: the reported IRR pasted on the latest position.
+  const irrByLp = new Map<string, number>()
+  if (source === 'ledger') {
+    const byLp = new Map<string, CapitalPosting[]>()
+    for (const p of capitalPostings) {
+      if (!p.lpEntityId) continue
+      const arr = byLp.get(p.lpEntityId) ?? []
+      arr.push(p); byLp.set(p.lpEntityId, arr)
+    }
+    const terminal = period.end ?? new Date().toISOString().slice(0, 10)
+    for (const [lp, ps] of Array.from(byLp.entries())) {
+      const v = lpIrr(ps, itdAccounts.get(lp)?.ending ?? 0, terminal)
+      if (v != null) irrByLp.set(lp, v)
+    }
+  } else {
+    const m = await latestPositionIrr(admin, gate.fundId, group, asOfRaw ?? undefined)
+    for (const [lp, v] of Array.from(m.entries())) irrByLp.set(lp, v)
+  }
+
   // Every partner with a commitment OR a capital account — a partner who has committed
   // but never been called still belongs on the roll-forward.
   const lpIds = Array.from(new Set([...Array.from(itdAccounts.keys()), ...summary.map(s => s.lpEntityId)]))
@@ -79,6 +101,7 @@ export async function GET(req: NextRequest) {
         receivable: s?.receivable ?? 0,
         period: periodAccounts.get(lpEntityId) ?? null,
         itd: itd ?? zero,
+        irr: irrByLp.get(lpEntityId) ?? null,
         // The flat spread keeps the previous response shape working for existing
         // consumers (reconciliation view, agent tools) — it's the ITD roll-forward.
         ...(itd ?? zero),

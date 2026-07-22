@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useLpPortalEnabled, useIsAdmin } from '@/components/feature-visibility-context'
 import Link from 'next/link'
-import { Loader2, Check, AlertTriangle, Landmark, ChevronRight, Share2 } from 'lucide-react'
+import { Loader2, Check, AlertTriangle, Landmark, ChevronRight, Share2, Search, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 import { useCurrency, formatCurrencyPrice } from '@/components/currency-context'
@@ -42,6 +42,7 @@ export function CapitalAccountsView() {
   const [start, setStart] = useState('')
   const [end, setEnd] = useState('')
   const [asOf, setAsOf] = useState('') // report/period-end date; '' = Latest (today)
+  const [search, setSearch] = useState('')
 
   const [err, setErr] = useState<string | null>(null)
 
@@ -152,6 +153,18 @@ export function CapitalAccountsView() {
           panels. Choosing the capital source (ledger vs capital tracking) lives on the Admin
           page now; it is a fund-setup decision, not something to re-confront on every visit. */}
       <div className="flex flex-wrap items-center gap-2">
+        <div className="relative max-w-xs w-full sm:w-56">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+          <input
+            type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search LPs…"
+            className="w-full pl-8 pr-8 py-1.5 text-sm border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-ring"
+          />
+          {search && (
+            <button onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
         {!isEvents && (
           <Button size="sm" variant="outline" className="text-muted-foreground" onClick={() => setShowCall(v => !v)} disabled={rows.length === 0}>
             <Landmark className="h-4 w-4 mr-1" />Issue a capital call
@@ -333,6 +346,8 @@ export function CapitalAccountsView() {
           rows={rows}
           scope={period ? { preset: period.preset, start: period.start } : { preset: 'itd' }}
           fmt={fmt}
+          search={search}
+          metrics
           lpHref={fundSeg ? (id) => `/funds/${fundSeg}/capital-accounts/${id}` : undefined}
         />
       )}
