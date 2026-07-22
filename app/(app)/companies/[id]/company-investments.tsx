@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from '@/components/ui/dialog'
-import { useCurrency, formatCurrencyFull, formatCurrencyPrice, getCurrencySymbol } from '@/components/currency-context'
+import { useCurrency, formatCurrencyFull, formatCurrencyPrice, formatSharePrice, getCurrencySymbol } from '@/components/currency-context'
 import {
   computeFxRevaluation, buildFxRevaluationPayload, derivePriorFxRate, deriveLocalSharePrice,
   deriveOriginalCurrency, deriveOriginalPositionValue, formatFxRate,
@@ -104,7 +104,7 @@ export function CompanyInvestments({ companyId, companyStatus, portfolioGroups, 
   const currency = useCurrency()
   const symbol = getCurrencySymbol(currency)
   const fmt = (val: number | null | undefined) => val == null ? '-' : formatCurrencyFull(val, currency)
-  const fmtPrice = (val: number | null | undefined) => val == null ? '-' : formatCurrencyPrice(val, currency)
+  const fmtPrice = (val: number | null | undefined) => val == null ? '-' : formatSharePrice(val, currency)
 
   const [transactions, setTransactions] = useState<InvestmentTransaction[]>([])
   const [summary, setSummary] = useState<CompanyInvestmentSummary | null>(null)
@@ -1480,7 +1480,7 @@ function FxDetailPanel({
       {localSharePrice != null && (
         <PreviewLine
           label="Share price"
-          value={`${formatCurrencyPrice(localSharePrice, ccy)} → ${fmtPrice(txn.current_share_price)}`}
+          value={`${formatSharePrice(localSharePrice, ccy)} → ${fmtPrice(txn.current_share_price)}`}
         />
       )}
       <div className="border-t pt-1 mt-1 space-y-1">

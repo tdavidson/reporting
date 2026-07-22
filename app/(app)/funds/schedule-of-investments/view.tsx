@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Loader2, AlertTriangle, Check, Download, History } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { useCurrency, formatCurrencyPrice } from '@/components/currency-context'
+import { useCurrency, formatCurrencyPrice, formatSharePrice } from '@/components/currency-context'
 import { useLedgerFetch } from '@/components/accounting-vehicle'
 import { PeriodPicker } from '@/components/accounting/period-picker'
 import type { PeriodPreset } from '@/lib/accounting/statement-period'
@@ -349,7 +349,7 @@ export function ScheduleOfInvestmentsView() {
                 <td className="px-3 py-2 text-xs text-muted-foreground">{r.industry ?? '—'}</td>
                 <td className="px-3 py-2 text-xs text-muted-foreground">{r.assetType ?? '—'}</td>
                 <td className="px-3 py-2 text-right font-mono text-xs">{num(r.shares)}</td>
-                <td className="px-3 py-2 text-right font-mono text-xs">{r.sharePrice == null ? '—' : fmt(r.sharePrice)}</td>
+                <td className="px-3 py-2 text-right font-mono text-xs">{r.sharePrice == null ? '—' : formatSharePrice(r.sharePrice, currency)}</td>
                 <td className="px-3 py-2 text-right font-mono">{fmt(r.cost)}</td>
                 <td className="px-3 py-2 text-right font-mono">{fmt(r.fairValue)}</td>
                 <td className="px-3 py-2 text-right font-mono text-xs text-muted-foreground">{r.moic == null ? '—' : `${r.moic.toFixed(2)}×`}</td>

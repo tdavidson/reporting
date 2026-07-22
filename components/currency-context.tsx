@@ -47,3 +47,11 @@ export function formatCurrencyPrice(value: number, currency: string): string {
   return v.toLocaleString('en-US', { style: 'currency', currency, minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
+/** Per-SHARE price: shown to up to 4 decimals so sub-cent prices aren't lost ($1.20, $1.2345).
+ *  The stored value keeps full precision and the valuation math uses it — this only widens the
+ *  display so shares × price visibly ties out. */
+export function formatSharePrice(value: number, currency: string): string {
+  const v = Object.is(value, -0) ? 0 : value
+  return v.toLocaleString('en-US', { style: 'currency', currency, minimumFractionDigits: 2, maximumFractionDigits: 4 })
+}
+
