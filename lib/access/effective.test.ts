@@ -110,8 +110,10 @@ describe('effectiveAccess — accounting implies lp_capital', () => {
   // omit the statement of changes in partners' capital and the same numbers ship as trial-balance
   // rows. Saying it out loud beats a checkbox that lies.
   it('gives a member with the books LP capital too, with no lp_capital grant', () => {
+    // lps is off by default now, which would hard-deny lp_capital (see the 'switched off' test
+    // below); open the lp_capital ceiling explicitly so this exercises the accounting IMPLICATION.
     const c = ctx({
-      features: { ...DEFAULT_FEATURE_VISIBILITY, accounting: 'everyone' } as FeatureVisibilityMap,
+      features: { ...DEFAULT_FEATURE_VISIBILITY, accounting: 'everyone', lps: 'everyone' } as FeatureVisibilityMap,
       grants: { accounting: 'read' },
     })
     expect(effectiveAccess(c, 'lp_capital')).toBe('read')
@@ -121,7 +123,7 @@ describe('effectiveAccess — accounting implies lp_capital', () => {
     // A distribution debits cash and credits each partner's capital account. Someone who can post
     // one has write access to LP capital whether or not anyone ticked that box.
     const c = ctx({
-      features: { ...DEFAULT_FEATURE_VISIBILITY, accounting: 'everyone' } as FeatureVisibilityMap,
+      features: { ...DEFAULT_FEATURE_VISIBILITY, accounting: 'everyone', lps: 'everyone' } as FeatureVisibilityMap,
       grants: { accounting: 'write' },
     })
     expect(effectiveAccess(c, 'lp_capital')).toBe('write')
@@ -207,11 +209,11 @@ describe('hasAccess / readableDomains / normalizeRole', () => {
 
   it('lists only what the user can actually read — including what accounting implies', () => {
     const c = ctx({
-      features: { ...DEFAULT_FEATURE_VISIBILITY, accounting: 'everyone', deals: 'everyone' } as FeatureVisibilityMap,
+      features: { ...DEFAULT_FEATURE_VISIBILITY, accounting: 'everyone', deals: 'everyone', lps: 'everyone' } as FeatureVisibilityMap,
       grants: { accounting: 'read', dealflow: 'none', portfolio: 'write' },
     })
-    // lp_capital rides along on accounting even though `lps` is at its admin-only default — see
-    // the implication tests above, and the next test for why that's the honest answer.
+    // lp_capital rides along on accounting once its ceiling is open (lps/lp_tracking) — see the
+    // implication tests above, and the next test for why that's the honest answer.
     expect(readableDomains(c).sort()).toEqual(['accounting', 'lp_capital', 'portfolio'])
   })
 

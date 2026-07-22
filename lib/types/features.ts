@@ -5,28 +5,28 @@ export type FeatureVisibility = 'everyone' | 'admin' | 'hidden' | 'off'
 export type FeatureVisibilityMap = Record<FeatureKey, FeatureVisibility>
 
 export const DEFAULT_FEATURE_VISIBILITY: FeatureVisibilityMap = {
-  interactions: 'everyone',
+  interactions: 'off',
   investments: 'everyone',
   // NOTE: there is deliberately no `funds` key any more. The Funds page moved INTO the
   // accounting section (it is now /funds, the section's landing page) and its numbers are
   // derived from the ledger — so it is gated by `accounting`, and a fund with accounting off
   // has no books to derive them from. The old `funds` key gated a page that no longer exists;
   // leaving it would have been a settings toggle that silently controlled nothing.
-  notes: 'everyone',
-  lp_letters: 'everyone',
+  notes: 'off',
+  lp_letters: 'off',
   imports: 'everyone',
-  asks: 'everyone',
-  lps: 'admin',
+  asks: 'admin',
+  lps: 'off',
   // LP capital: per-vehicle LP capital. Its source is NOT a mode the user picks — capital is
   // derived from the ledger for a vehicle that keeps books (accounting on + set up), and pasted
   // as dated positions otherwise. This flag only decides whether the fund reports LP capital at
   // ALL; it is independent of `accounting` and can be off even when the books are on.
   lp_tracking: 'off',
   lp_associates: 'admin',
-  lp_portal: 'admin',
-  lp_activity: 'admin',
-  compliance: 'admin',
-  deals: 'admin',
+  lp_portal: 'off',
+  lp_activity: 'off',
+  compliance: 'off',
+  deals: 'off',
   diligence: 'off',
   accounting: 'off',
   // Carry terms, carry accrued/paid per partner, per-deal carry, GP ownership. Split out of
