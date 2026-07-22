@@ -134,6 +134,12 @@ export async function PATCH(req: NextRequest) {
     update.lp_entity_id = id
   }
 
+  // Explicit alias list (edited on the vehicle modal). Trimmed + de-duped; a rename below still
+  // appends the old name on top of whatever is set here.
+  if (Array.isArray(body.aliases)) {
+    update.aliases = Array.from(new Set((body.aliases as any[]).map(a => String(a).trim()).filter(Boolean)))
+  }
+
   if (typeof body.name === 'string' && body.name.trim() && body.name.trim() !== (current as any).name) {
     const newName = body.name.trim()
     const { data: clash } = await (admin as any)
@@ -143,7 +149,7 @@ export async function PATCH(req: NextRequest) {
     // Rewrite the vehicle string across all the data, then keep the old name as an alias.
     await retagPortfolioGroup(admin, gate.fundId, (current as any).name, newName)
     update.name = newName
-    update.aliases = Array.from(new Set([...(((current as any).aliases ?? []) as string[]), (current as any).name]))
+    update.aliases = Array.from(new Set([...((update.aliases ?? (current as any).aliases ?? []) as string[]), (current as any).name]))
   }
 
   const { data, error } = await (admin as any)

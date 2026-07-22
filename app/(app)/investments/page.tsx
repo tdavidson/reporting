@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { Loader2, ChevronUp, ChevronDown, Lock, Pencil } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
 import { useCurrency, formatCurrency, formatCurrencyFull } from '@/components/currency-context'
 import type { CompanyStatus } from '@/lib/types/database'
 import { AnalystToggleButton } from '@/components/analyst-button'
@@ -174,6 +175,7 @@ export default function InvestmentsPage() {
   // Full vehicle registry rows, so a group row can be edited in place (name/type/vintage/active).
   const [vehicleList, setVehicleList] = useState<Array<{ id: string; name: string; aliases: string[] | null; kind: string; active: boolean; vintage_year: number | null }>>([])
   const [editingVehicle, setEditingVehicle] = useState<EditableVehicle | null>(null)
+  const [showAllVehicles, setShowAllVehicles] = useState(false)
 
   useEffect(() => {
     async function load() {
@@ -209,7 +211,7 @@ export default function InvestmentsPage() {
   const vehicleForGroup = (group: string): EditableVehicle | null => {
     const n = group.trim().toLowerCase()
     const v = vehicleList.find(x => x.name.trim().toLowerCase() === n || (x.aliases ?? []).some(a => a.trim().toLowerCase() === n))
-    return v ? { id: v.id, name: v.name, kind: v.kind, vintage_year: v.vintage_year, active: v.active } : null
+    return v ? { id: v.id, name: v.name, kind: v.kind, vintage_year: v.vintage_year, active: v.active, aliases: v.aliases ?? [] } : null
   }
 
   // Derive unique portfolio groups from data
@@ -279,9 +281,24 @@ export default function InvestmentsPage() {
 
   // Sort groups
   const sortedGroups = useMemo(() => {
-    if (!data || !data.groups || data.groups.length === 0) return []
+    const base = data?.groups ?? []
+    // "Show all vehicles" adds a zero row for every registry vehicle that has no transactions yet
+    // (matched by name/alias), so it can still be edited from here.
+    let list: GroupSummary[] = base
+    if (showAllVehicles) {
+      const norm = (s: string) => s.trim().toLowerCase()
+      const groupKeys = new Set(base.map(g => norm(g.group)))
+      const isRep = (v: { name: string; aliases: string[] | null }) =>
+        groupKeys.has(norm(v.name)) || (v.aliases ?? []).some(a => groupKeys.has(norm(a)))
+      const extras: GroupSummary[] = vehicleList.filter(v => !isRep(v)).map(v => ({
+        group: v.name, totalInvested: 0, proceedsReceived: 0, proceedsEscrow: 0,
+        totalRealized: 0, unrealizedValue: 0, totalCostBasisExited: 0, moic: null, irr: null,
+      }))
+      list = [...base, ...extras]
+    }
+    if (list.length === 0) return []
     const dir = groupSortDir === 'asc' ? 1 : -1
-    return [...data.groups].sort((a, b) => {
+    return [...list].sort((a, b) => {
       if (groupSortKey === 'group') return dir * a.group.localeCompare(b.group)
       if (groupSortKey === 'vintage') {
         const av = vintages.get(a.group.trim().toLowerCase()) ?? 0
@@ -292,7 +309,7 @@ export default function InvestmentsPage() {
       const bv = getGroupDerivedValue(b, groupSortKey)
       return dir * (av - bv)
     })
-  }, [data, groupSortKey, groupSortDir, vintages])
+  }, [data, groupSortKey, groupSortDir, vintages, showAllVehicles, vehicleList])
 
   // Group totals for footer
   const groupTotals = useMemo(() => {
@@ -404,6 +421,9 @@ export default function InvestmentsPage() {
         <AddCompanyButton />
         <AddVehicleButton onCreated={() => setRefreshKey(k => k + 1)} />
         <div className="ml-auto flex items-center gap-2">
+          <Button size="sm" variant={showAllVehicles ? 'secondary' : 'outline'} onClick={() => setShowAllVehicles(v => !v)}>
+            {showAllVehicles ? 'Showing all vehicles' : 'Show all vehicles'}
+          </Button>
           <span className="text-sm text-muted-foreground">As of</span>
           <input
             type="date"

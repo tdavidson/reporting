@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Loader2 } from 'lucide-react'
+import { Loader2, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -20,6 +20,7 @@ export interface EditableVehicle {
   kind: string
   vintage_year: number | null
   active: boolean
+  aliases: string[]
 }
 
 /** Edit a single investment vehicle in place (name, type, vintage, active). Renaming cascades the
@@ -34,8 +35,16 @@ export function VehicleEditModal({ vehicle, onClose, onSaved }: {
   const [kind, setKind] = useState(vehicle.kind || 'fund')
   const [vintage, setVintage] = useState(vehicle.vintage_year != null ? String(vehicle.vintage_year) : '')
   const [active, setActive] = useState(vehicle.active)
+  const [aliases, setAliases] = useState<string[]>(vehicle.aliases ?? [])
+  const [aliasInput, setAliasInput] = useState('')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
+
+  function addAlias() {
+    const a = aliasInput.trim()
+    if (a && !aliases.includes(a)) setAliases(prev => [...prev, a])
+    setAliasInput('')
+  }
 
   async function save() {
     setBusy(true); setErr(null)
@@ -47,6 +56,7 @@ export function VehicleEditModal({ vehicle, onClose, onSaved }: {
         kind,
         vintageYear: vintage.trim() === '' ? null : Number(vintage),
         active,
+        aliases,
       }),
     })
     setBusy(false)
@@ -77,6 +87,24 @@ export function VehicleEditModal({ vehicle, onClose, onSaved }: {
           <div className="space-y-1">
             <label className="text-xs text-muted-foreground">Vintage year</label>
             <Input value={vintage} onChange={e => setVintage(e.target.value)} inputMode="numeric" placeholder="e.g. 2021" className="w-32" />
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs text-muted-foreground">Also known as (aliases)</label>
+            <p className="text-[11px] text-muted-foreground">Other names/portfolio-group strings that map to this vehicle (e.g. from imports).</p>
+            {aliases.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {aliases.map(a => (
+                  <span key={a} className="inline-flex items-center gap-1 rounded-md border bg-muted/40 px-2 py-0.5 text-xs">
+                    {a}
+                    <button onClick={() => setAliases(prev => prev.filter(x => x !== a))} className="text-muted-foreground hover:text-foreground"><X className="h-3 w-3" /></button>
+                  </span>
+                ))}
+              </div>
+            )}
+            <div className="flex gap-2">
+              <Input value={aliasInput} onChange={e => setAliasInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addAlias() } }} placeholder="Add an alias" className="h-8" />
+              <Button variant="outline" size="sm" onClick={addAlias} disabled={!aliasInput.trim()}>Add</Button>
+            </div>
           </div>
           <label className="flex items-center gap-2 text-sm">
             <input type="checkbox" checked={active} onChange={e => setActive(e.target.checked)} className="h-3.5 w-3.5" />
