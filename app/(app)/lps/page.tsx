@@ -10,7 +10,7 @@
 
 import Link from 'next/link'
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
-import { Loader2, ChevronRight, ChevronDown, Calendar, Search, X, Download, FileText, Settings, Pencil, Users } from 'lucide-react'
+import { Loader2, ChevronRight, ChevronDown, Calendar, Search, X, Download, FileText, Settings, Pencil, Users, Trash2 } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -111,6 +111,7 @@ function LpsInner() {
   const [exporting, setExporting] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [rename, setRename] = useState<{ id: string; name: string } | null>(null)
+  const [delErr, setDelErr] = useState<string | null>(null)
   const [grouping, setGrouping] = useState<{ id: string; name: string } | null>(null)
   const [shareOpen, setShareOpen] = useState(false)
 
@@ -175,6 +176,35 @@ function LpsInner() {
   }, [visibleRows, parentOf, nameOf, search, sort])
 
   const grand = useMemo(() => total(visibleRows), [visibleRows])
+
+  // Delete a ghost LP (from a rename/migration): removes the investor's entities. The endpoint
+  // refuses any entity with ledger activity, but a tracking LP has none — so we surface the LP's
+  // figures in the confirm and require an explicit destructive OK, to avoid deleting a real one.
+  async function deleteInvestor(inv: { id: string; name: string; rows: LiveRow[]; totals: Totals }) {
+    setDelErr(null)
+    const t = inv.totals
+    const hasCapital = [t.commitment, t.paid_in_capital, t.distributions, t.nav].some(v => Math.abs(v) > 0.5)
+    const ok = await confirm({
+      title: `Delete “${inv.name}”?`,
+      description: hasCapital
+        ? `This LP still shows commitment ${fmt(t.commitment)}, called ${fmt(t.paid_in_capital)}, distributions ${fmt(t.distributions)}, NAV ${fmt(t.nav)}. Deleting removes the investor and its ${inv.rows.length} position(s) and can’t be undone — only do this for a duplicate/ghost.`
+        : `No capital on this LP. Deleting removes the investor and its ${inv.rows.length} empty position(s). Can’t be undone.`,
+      confirmLabel: 'Delete LP',
+      variant: 'destructive',
+    })
+    if (!ok) return
+    const ids = Array.from(new Set(inv.rows.map(r => r.entity_id)))
+    let firstErr: string | null = null
+    for (const id of ids) {
+      const res = await fetch(`/api/lps/entities?id=${encodeURIComponent(id)}`, { method: 'DELETE' })
+      if (!res.ok && !firstErr) {
+        const d = await res.json().catch(() => ({} as any))
+        firstErr = d?.error ?? 'Could not delete'
+      }
+    }
+    if (firstErr) setDelErr(`Couldn’t fully delete “${inv.name}”: ${firstErr}`)
+    load(applied)
+  }
 
   // How many vehicles the filter currently admits. When it's more than one, an investor's row has
   // to say WHICH vehicle it is — otherwise a single-vehicle LP is indistinguishable from any other
@@ -289,6 +319,13 @@ function LpsInner() {
                 <Stat label="TVPI" value={grand.tvpi != null ? `${grand.tvpi.toFixed(2)}x` : '—'} />
               </div>
 
+              {delErr && (
+                <div className="mb-2 flex items-center justify-between gap-3 rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
+                  <span>{delErr}</span>
+                  <button onClick={() => setDelErr(null)} className="shrink-0 hover:opacity-70"><X className="h-3.5 w-3.5" /></button>
+                </div>
+              )}
+
               <Card>
                 <CardContent className="p-0 overflow-x-auto">
                   <table className="w-full text-sm">
@@ -337,6 +374,7 @@ function LpsInner() {
                                       <Link href={`/lps/cards/${inv.id}`} title="Report card" className="hover:text-foreground"><FileText className="h-3.5 w-3.5" /></Link>
                                       <button onClick={() => setRename({ id: inv.id, name: inv.name })} title="Rename" className="hover:text-foreground"><Pencil className="h-3.5 w-3.5" /></button>
                                       <button onClick={() => setGrouping({ id: inv.id, name: inv.name })} title="Group under another investor" className="hover:text-foreground"><Users className="h-3.5 w-3.5" /></button>
+                                      <button onClick={() => deleteInvestor(inv)} title="Delete this LP (for duplicates/ghosts)" className="hover:text-red-600"><Trash2 className="h-3.5 w-3.5" /></button>
                                     </span>
                                   )}
                                 </span>
