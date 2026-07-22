@@ -377,7 +377,7 @@ function PositionsTable({
             <SortTh label="DPI" sortKey="dpi" sort={sort} onSort={onSort} align="right" />
             <SortTh label="RVPI" sortKey="rvpi" sort={sort} onSort={onSort} align="right" />
             <SortTh label="TVPI" sortKey="tvpi" sort={sort} onSort={onSort} align="right" />
-            <SortTh label="IRR" sortKey="irr" sort={sort} onSort={onSort} align="right" />
+            <SortTh label="Net IRR" sortKey="irr" sort={sort} onSort={onSort} align="right" />
             {editable && <th className="px-3 py-2" />}
           </tr>
         </thead>
@@ -608,7 +608,7 @@ function ImportBox({ group, onImported }: { group: string; onImported: () => voi
         <h2 className="text-sm font-medium">Import</h2>
       </div>
       <p className="text-xs text-muted-foreground">
-        Paste a statement — the AI maps the columns (commitment, called/paid-in, distributions, NAV, and IRR if present).
+        Paste a statement — the AI maps the columns (commitment, called/paid-in, distributions, NAV, and Net IRR if present).
         Each import is the cumulative position as of a date; re-importing a date replaces it. The table above and the
         roll-forward are derived from the dates you keep.
       </p>
@@ -620,7 +620,7 @@ function ImportBox({ group, onImported }: { group: string; onImported: () => voi
         value={text}
         onChange={e => setText(e.target.value)}
         rows={8}
-        placeholder="Paste spreadsheet rows (with headers): investor, commitment, called/paid-in, distributions, NAV, IRR…"
+        placeholder="Paste spreadsheet rows (with headers): investor, commitment, called/paid-in, distributions, NAV, Net IRR…"
         className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono"
       />
       <div className="flex items-center gap-2">
