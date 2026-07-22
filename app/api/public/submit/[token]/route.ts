@@ -6,6 +6,8 @@ import { extractAttachmentText, type PostmarkPayload } from '@/lib/parsing/extra
 import { processDeal } from '@/lib/pipeline/processDeal'
 import type { PostmarkPayload as PipelinePayload } from '@/lib/pipeline/processEmail'
 import { rateLimit } from '@/lib/rate-limit'
+import { scanFileAsync } from '@/lib/security/scan-file'
+import { hashSubmissionToken } from '@/lib/deals/submission-token'
 
 import {
   MAX_NAME_LEN, MAX_EMAIL_LEN, MAX_URL_LEN, MAX_PITCH_LEN,
@@ -26,7 +28,7 @@ export async function POST(req: NextRequest, { params }: { params: { token: stri
   const { data: settings } = await admin
     .from('fund_settings')
     .select('fund_id, deal_intake_enabled, deal_submission_token')
-    .eq('deal_submission_token', params.token)
+    .eq('deal_submission_token', hashSubmissionToken(params.token))
     .maybeSingle()
 
   if (!settings || !(settings as any).deal_intake_enabled) {
@@ -160,6 +162,17 @@ export async function POST(req: NextRequest, { params }: { params: { token: stri
     const safeName = `0_${attachment.Name}`
     const storagePath = `${emailId}/${safeName}`
     const buf = Buffer.from(attachment.Content, 'base64')
+
+    // Full content validation on this untrusted, publicly-submitted file BEFORE it is stored or
+    // parsed: magic-byte/type match, dangerous-extension + executable-signature checks, and ZIP-bomb
+    // detection (the sync scan the extractor runs skips the ZIP checks). Reject rather than store.
+    const scan = await scanFileAsync(buf, attachment.Name, attachment.ContentType)
+    if (!scan.safe) {
+      console.error('[public-submit] rejected attachment:', scan.reason)
+      await admin.from('inbound_emails').update({ processing_status: 'failed', processing_error: `Attachment rejected: ${scan.reason}` }).eq('id', emailId)
+      return NextResponse.json({ error: 'That attachment could not be accepted.' }, { status: 400 })
+    }
+
     const { error: uploadErr } = await admin.storage
       .from('email-attachments')
       .upload(storagePath, buf, { contentType: attachment.ContentType, upsert: true })

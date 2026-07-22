@@ -164,7 +164,9 @@ export async function GET() {
     dealThesis: settings?.deal_thesis ?? null,
     dealScreeningPrompt: settings?.deal_screening_prompt ?? null,
     dealIntakeEnabled: settings?.deal_intake_enabled ?? false,
-    dealSubmissionToken: settings?.deal_submission_token ?? null,
+    // Only the hash is stored, so the token itself can't be shown after minting — expose whether
+    // one is active; the plaintext URL is surfaced once, from the mint response.
+    hasSubmissionToken: !!settings?.deal_submission_token,
     routingConfidenceThreshold: settings?.routing_confidence_threshold ?? null,
     routingModel: settings?.routing_model ?? null,
     lpPortalEnabled: settings?.lp_portal_enabled ?? false,

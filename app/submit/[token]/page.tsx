@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { hashSubmissionToken } from '@/lib/deals/submission-token'
 import { SubmitForm } from './submit-form'
 
 export const metadata: Metadata = { title: 'Submit a pitch' }
@@ -10,7 +11,7 @@ export default async function SubmitPage({ params }: { params: { token: string }
   const { data: settings } = await admin
     .from('fund_settings')
     .select('fund_id, deal_intake_enabled, deal_submission_token')
-    .eq('deal_submission_token', params.token)
+    .eq('deal_submission_token', hashSubmissionToken(params.token))
     .maybeSingle()
 
   if (!settings || !(settings as any).deal_intake_enabled) notFound()

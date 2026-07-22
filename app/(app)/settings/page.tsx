@@ -100,7 +100,7 @@ interface Settings {
   dealThesis: string | null
   dealScreeningPrompt: string | null
   dealIntakeEnabled: boolean
-  dealSubmissionToken: string | null
+  hasSubmissionToken: boolean
   routingConfidenceThreshold: number | null
   routingModel: string | null
   lpPortalEnabled: boolean
@@ -261,7 +261,7 @@ export default function SettingsPage() {
             thesis={settings.dealThesis}
             prompt={settings.dealScreeningPrompt}
             intakeEnabled={settings.dealIntakeEnabled}
-            submissionToken={settings.dealSubmissionToken}
+            hasSubmissionToken={settings.hasSubmissionToken}
             onSaved={load}
           />
           <DealResearchSettings />
@@ -4199,11 +4199,11 @@ For the inbound email and any attached materials, return structured output conta
 Be specific. Avoid hedging adjectives. If a key fact is not in the materials, say so
 explicitly rather than inferring.`
 
-function DealScreeningSection({ thesis, prompt, intakeEnabled, submissionToken, onSaved }: {
+function DealScreeningSection({ thesis, prompt, intakeEnabled, hasSubmissionToken, onSaved }: {
   thesis: string | null
   prompt: string | null
   intakeEnabled: boolean
-  submissionToken: string | null
+  hasSubmissionToken: boolean
   onSaved: () => void
 }) {
   const [thesisVal, setThesisVal] = useState(thesis ?? '')
@@ -4215,15 +4215,19 @@ function DealScreeningSection({ thesis, prompt, intakeEnabled, submissionToken, 
   const [previewResult, setPreviewResult] = useState<string | null>(null)
   const [tokenBusy, setTokenBusy] = useState(false)
   const [tokenCopied, setTokenCopied] = useState(false)
+  // The plaintext token is returned only when minted — only the hash is stored, so it can't be
+  // shown again on reload. `mintedToken` holds it for this one session so the URL is copyable now.
+  const [mintedToken, setMintedToken] = useState<string | null>(null)
 
   const isCustomized = prompt !== null
-  const submissionUrl = submissionToken ? `${typeof window !== 'undefined' ? window.location.origin : ''}/submit/${submissionToken}` : null
+  const submissionUrl = mintedToken ? `${typeof window !== 'undefined' ? window.location.origin : ''}/submit/${mintedToken}` : null
 
   async function generateToken() {
     setTokenBusy(true)
     const res = await fetch('/api/settings/deal-submission-token', { method: 'POST' })
+    const data = await res.json().catch(() => ({}))
     setTokenBusy(false)
-    if (res.ok) onSaved()
+    if (res.ok) { setMintedToken(data.token ?? null); onSaved() }
   }
 
   async function clearToken() {
@@ -4231,7 +4235,7 @@ function DealScreeningSection({ thesis, prompt, intakeEnabled, submissionToken, 
     setTokenBusy(true)
     const res = await fetch('/api/settings/deal-submission-token', { method: 'DELETE' })
     setTokenBusy(false)
-    if (res.ok) onSaved()
+    if (res.ok) { setMintedToken(null); onSaved() }
   }
 
   function copyUrl() {
@@ -4353,19 +4357,26 @@ function DealScreeningSection({ thesis, prompt, intakeEnabled, submissionToken, 
         </p>
         {submissionUrl ? (
           <div className="space-y-2">
+            <p className="text-xs text-amber-600 dark:text-amber-400">Copy this URL now — it won&rsquo;t be shown again. Only a hash is stored.</p>
             <div className="flex items-center gap-2">
               <Input readOnly value={submissionUrl} className="font-mono text-xs" />
               <Button onClick={copyUrl} variant="outline" size="sm">
                 {tokenCopied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
               </Button>
             </div>
+            <Button onClick={clearToken} disabled={tokenBusy} variant="outline" size="sm">Disable form</Button>
+            {!intake && (
+              <p className="text-xs text-amber-600 dark:text-amber-400">
+                Note: the form is currently inactive because deal intake is disabled above.
+              </p>
+            )}
+          </div>
+        ) : hasSubmissionToken ? (
+          <div className="space-y-2">
+            <p className="text-xs text-muted-foreground">A submission link is active. The URL isn&rsquo;t shown after minting — regenerate to get a new one (the old link stops working).</p>
             <div className="flex gap-2">
-              <Button onClick={generateToken} disabled={tokenBusy} variant="outline" size="sm">
-                Regenerate URL
-              </Button>
-              <Button onClick={clearToken} disabled={tokenBusy} variant="outline" size="sm">
-                Disable form
-              </Button>
+              <Button onClick={generateToken} disabled={tokenBusy} variant="outline" size="sm">Regenerate URL</Button>
+              <Button onClick={clearToken} disabled={tokenBusy} variant="outline" size="sm">Disable form</Button>
             </div>
             {!intake && (
               <p className="text-xs text-amber-600 dark:text-amber-400">
