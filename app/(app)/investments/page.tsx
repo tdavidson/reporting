@@ -4,13 +4,13 @@ import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { Loader2, ChevronUp, ChevronDown, Lock, Pencil } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
 import { useCurrency, formatCurrency, formatCurrencyFull } from '@/components/currency-context'
 import type { CompanyStatus } from '@/lib/types/database'
 import { AnalystToggleButton } from '@/components/analyst-button'
 import { AddCompanyButton } from '@/components/add-company-button'
 import { AddVehicleButton } from '@/components/add-vehicle-button'
 import { VehicleEditModal, type EditableVehicle } from '@/components/vehicle-edit-modal'
+import { InvestmentVehicleFilters } from '@/components/investments-vehicle-filters'
 import { AnalystPanel } from '@/components/analyst-panel'
 import { PortfolioNotesProvider, PortfolioNotesButton, PortfolioNotesPanel } from '@/components/portfolio-notes'
 import { useFeatureVisibility } from '@/components/feature-visibility-context'
@@ -175,7 +175,11 @@ export default function InvestmentsPage() {
   // Full vehicle registry rows, so a group row can be edited in place (name/type/vintage/active).
   const [vehicleList, setVehicleList] = useState<Array<{ id: string; name: string; aliases: string[] | null; kind: string; active: boolean; vintage_year: number | null }>>([])
   const [editingVehicle, setEditingVehicle] = useState<EditableVehicle | null>(null)
-  const [showAllVehicles, setShowAllVehicles] = useState(false)
+  // Filters. Default: hide empty (no-transaction) vehicles and hide GP/associate entities — the
+  // common view — but every combination is pickable.
+  const [selectedKinds, setSelectedKinds] = useState<Set<string>>(() => new Set(['fund', 'spv', 'direct', 'other']))
+  const [showEmpty, setShowEmpty] = useState(false)
+  const [excludedVehicles, setExcludedVehicles] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     async function load() {
@@ -213,6 +217,14 @@ export default function InvestmentsPage() {
     const v = vehicleList.find(x => x.name.trim().toLowerCase() === n || (x.aliases ?? []).some(a => a.trim().toLowerCase() === n))
     return v ? { id: v.id, name: v.name, kind: v.kind, vintage_year: v.vintage_year, active: v.active, aliases: v.aliases ?? [] } : null
   }
+
+  // Names available to the specific-vehicle picker: every group with data plus every registry vehicle.
+  const allVehicleNames = useMemo(() => {
+    const s = new Set<string>()
+    for (const g of (data?.groups ?? [])) s.add(g.group)
+    for (const v of vehicleList) s.add(v.name)
+    return Array.from(s).sort((a, b) => a.localeCompare(b))
+  }, [data, vehicleList])
 
   // Derive unique portfolio groups from data
   const availableGroups = useMemo(() => {
@@ -282,11 +294,11 @@ export default function InvestmentsPage() {
   // Sort groups
   const sortedGroups = useMemo(() => {
     const base = data?.groups ?? []
-    // "Show all vehicles" adds a zero row for every registry vehicle that has no transactions yet
-    // (matched by name/alias), so it can still be edited from here.
-    let list: GroupSummary[] = base
-    if (showAllVehicles) {
-      const norm = (s: string) => s.trim().toLowerCase()
+    const norm = (s: string) => s.trim().toLowerCase()
+    let list: GroupSummary[] = [...base]
+    // "Show empty" adds a zero row for every registry vehicle with no transactions (matched by
+    // name/alias), so it can still be edited from here.
+    if (showEmpty) {
       const groupKeys = new Set(base.map(g => norm(g.group)))
       const isRep = (v: { name: string; aliases: string[] | null }) =>
         groupKeys.has(norm(v.name)) || (v.aliases ?? []).some(a => groupKeys.has(norm(a)))
@@ -296,6 +308,14 @@ export default function InvestmentsPage() {
       }))
       list = [...base, ...extras]
     }
+    // Type filter (a group's vehicle kind must be selected; an unmapped group has no kind, so it
+    // always shows) + the specific-vehicle picker.
+    list = list.filter(g => {
+      if (excludedVehicles.has(g.group)) return false
+      const veh = vehicleForGroup(g.group)
+      if (veh && !selectedKinds.has(veh.kind)) return false
+      return true
+    })
     if (list.length === 0) return []
     const dir = groupSortDir === 'asc' ? 1 : -1
     return [...list].sort((a, b) => {
@@ -309,7 +329,7 @@ export default function InvestmentsPage() {
       const bv = getGroupDerivedValue(b, groupSortKey)
       return dir * (av - bv)
     })
-  }, [data, groupSortKey, groupSortDir, vintages, showAllVehicles, vehicleList])
+  }, [data, groupSortKey, groupSortDir, vintages, showEmpty, selectedKinds, excludedVehicles, vehicleList])
 
   // Group totals for footer
   const groupTotals = useMemo(() => {
@@ -421,9 +441,16 @@ export default function InvestmentsPage() {
         <AddCompanyButton />
         <AddVehicleButton onCreated={() => setRefreshKey(k => k + 1)} />
         <div className="ml-auto flex items-center gap-2">
-          <Button size="sm" variant={showAllVehicles ? 'secondary' : 'outline'} onClick={() => setShowAllVehicles(v => !v)}>
-            {showAllVehicles ? 'Showing all vehicles' : 'Show all vehicles'}
-          </Button>
+          <InvestmentVehicleFilters
+            selectedKinds={selectedKinds}
+            onToggleKind={k => setSelectedKinds(prev => { const n = new Set(prev); n.has(k) ? n.delete(k) : n.add(k); return n })}
+            showEmpty={showEmpty}
+            onToggleShowEmpty={() => setShowEmpty(v => !v)}
+            allVehicles={allVehicleNames}
+            excludedVehicles={excludedVehicles}
+            onToggleVehicle={v => setExcludedVehicles(prev => { const n = new Set(prev); n.has(v) ? n.delete(v) : n.add(v); return n })}
+            onToggleAllVehicles={() => setExcludedVehicles(prev => prev.size === 0 ? new Set(allVehicleNames) : new Set())}
+          />
           <span className="text-sm text-muted-foreground">As of</span>
           <input
             type="date"
