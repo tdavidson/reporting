@@ -278,7 +278,7 @@ describe('unified Analyst — accounting is access-scoped', () => {
     })
 
     expect(status).toBe(400)
-    expect(json.error).toMatch(/PDF, Word doc, or text file/)
+    expect(json.error).toMatch(/PDF, Word doc, Excel file, or text file/)
   })
 })
 
