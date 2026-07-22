@@ -14,83 +14,11 @@ import { ReconciliationPanel } from './reconciliation-panel'
 import { type CapitalSource } from '@/lib/accounting/capital-source'
 import { GpPanel } from './gp-panel'
 import { useCanRead } from '@/components/access-context'
-import { SortTh, nextSort, compareVals, type SortState } from '@/components/sortable-th'
+import { CapitalRollforwardTable, type Row } from '@/components/accounting/capital-rollforward-table'
 
-interface Account {
-  beginning: number
-  contributions: number
-  distributions: number
-  managementFees: number
-  expenses: number
-  operatingIncome: number
-  realizedGains: number
-  unrealizedGains: number
-  fxTranslation: number
-  transfers: number
-  carriedInterest: number
-  unclassified: number
-  ending: number
-}
-interface Row extends Account {
-  lpEntityId: string
-  name: string
-  partnerClass: string
-  commitment: number
-  called: number
-  funded: number
-  outstanding: number
-  receivable: number
-  period: Account | null
-  itd: Account
-}
 interface CallLine { lpEntityId: string; name: string; amount: number }
 interface CallRow { id: string; callDate: string; description: string | null; scope: string; total: number; lines: CallLine[] }
 interface Period { preset: PeriodPreset; start: string | null; end: string | null; label: string }
-
-/** Commitment / called / funded come from the call register; the rest is the roll-forward.
- *  They live on one table because "funded vs outstanding" is just the capital account
- *  seen from the commitment side — it was the duplicated half of the Capital calls page.
- *
- *  COMMITTED and CALLED are separate columns on purpose. They are different facts and the
- *  table used to show neither directly — you got Commitment and Unfunded and had to infer
- *  what had actually been called from the gap between them. The four now read left to
- *  right as the life of a commitment:
- *
- *    Committed              — what the LP signed up for
- *    Called                 — what has been asked for so far (capital is recognized here)
- *    Funded                 — what actually arrived (called − receivable)
- *    Remaining to be called — commitment − called
- *    Called, unpaid         — the receivable: called, not yet in the bank
- *
- *  The last two are DISJOINT. `outstanding` used to be commitment − funded, which silently
- *  included the receivable, so those two columns double-counted. Total cash the LP still
- *  owes is the sum of them. `Called, unpaid` only appears when a vehicle has a receivable,
- *  because an events-tracked vehicle never does. */
-const COMMITMENT_COLUMNS: { key: 'commitment' | 'called' | 'funded' | 'outstanding' | 'receivable'; label: string }[] = [
-  { key: 'commitment', label: 'Committed' },
-  { key: 'called', label: 'Called' },
-  { key: 'funded', label: 'Funded' },
-  { key: 'outstanding', label: 'Remaining to be called' },
-  { key: 'receivable', label: 'Called, unpaid' },
-]
-
-const COLUMNS: { key: keyof Account; label: string }[] = [
-  { key: 'beginning', label: 'Beginning' },
-  { key: 'contributions', label: 'Contributions' },
-  { key: 'distributions', label: 'Distributions' },
-  { key: 'managementFees', label: 'Mgmt fees' },
-  { key: 'expenses', label: 'Partnership exp.' },
-  { key: 'operatingIncome', label: 'Operating income' },
-  { key: 'realizedGains', label: 'Net realized G/(L)' },
-  { key: 'unrealizedGains', label: 'Net unrealized G/(L)' },
-  // A currency swing is not investment performance — its own column, so a partner can
-  // see how the portfolio did apart from what the exchange rate did to it.
-  { key: 'fxTranslation', label: 'FX translation' },
-  { key: 'transfers', label: 'Transfers' },
-  { key: 'carriedInterest', label: 'Carry accrued' },
-  { key: 'unclassified', label: 'Unclassified' },
-  { key: 'ending', label: 'Ending' },
-]
 
 export function CapitalAccountsView() {
   const lpPortalEnabled = useLpPortalEnabled()
@@ -216,47 +144,6 @@ export function CapitalAccountsView() {
     setAmounts({}); setCallTotal(''); setDescription('')
     load()
   }
-
-  // Values shown are scoped to the selected period; ITD is the whole history.
-  const acctOf = (r: Row): Account => (period?.preset === 'itd' ? r.itd : r.period ?? r.itd)
-
-  // Drop lines that are zero for every partner — a clean set of books should never
-  // show an "Unclassified" column, but it has to appear the moment something lands
-  // there, or a manual posting would be invisible while still inside Ending.
-  const columns = useMemo(
-    () => COLUMNS.filter(c =>
-      c.key === 'beginning' || c.key === 'ending' ||
-      rows.some(r => Math.abs(acctOf(r)[c.key]) > 0.004)
-    ),
-    [rows, period], // eslint-disable-line react-hooks/exhaustive-deps
-  )
-  const commitmentCols = useMemo(
-    () => COMMITMENT_COLUMNS.filter(c => c.key !== 'receivable' || rows.some(r => Math.abs(r.receivable) > 0.004)),
-    [rows],
-  )
-
-  // Sortable headers. The account columns are period-scoped (acctOf), the commitment columns
-  // are not; `name` sorts alphabetically. A single ACCOUNT_KEYS set tells the two apart.
-  const [sort, setSort] = useState<SortState>({ key: 'name', dir: 'asc' })
-  const onSort = (key: string) => setSort(s => nextSort(s, key, key === 'name' ? 'asc' : 'desc'))
-  const sortedRows = useMemo(() => {
-    const accountKeys = new Set<string>(COLUMNS.map(c => c.key))
-    const val = (r: Row): number | string => {
-      if (sort.key === 'name') return r.name
-      if (accountKeys.has(sort.key)) return acctOf(r)[sort.key as keyof Account]
-      return (r as any)[sort.key] ?? 0
-    }
-    return [...rows].sort((a, b) => compareVals(val(a), val(b), sort.dir))
-  }, [rows, sort, period]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  const totals = columns.reduce((acc, c) => {
-    acc[c.key] = rows.reduce((s, r) => s + acctOf(r)[c.key], 0)
-    return acc
-  }, {} as Record<string, number>)
-  const commitTotals = commitmentCols.reduce((acc, c) => {
-    acc[c.key] = rows.reduce((s, r) => s + r[c.key], 0)
-    return acc
-  }, {} as Record<string, number>)
 
   return (
     <div className="space-y-3">
@@ -442,52 +329,12 @@ export function CapitalAccountsView() {
           No capital accounts yet. Add a partner above, or import opening balances from the Accounting home page.
         </div>
       ) : (
-        <div className="border rounded-lg overflow-x-auto">
-          <table className="w-full text-sm whitespace-nowrap">
-            <thead>
-              <tr className="border-b bg-muted/50">
-                <SortTh label="Partner" sortKey="name" sort={sort} onSort={onSort} align="left" />
-                {/* Commitment side — was the Capital calls page. */}
-                {commitmentCols.map(c => <SortTh key={c.key} label={c.label} sortKey={c.key} sort={sort} onSort={onSort} align="right" className="border-l" />)}
-                {columns.map((c, i) => <SortTh key={c.key} label={c.label} sortKey={c.key} sort={sort} onSort={onSort} align="right" className={i === 0 ? 'border-l' : ''} />)}
-              </tr>
-            </thead>
-            <tbody>
-              {sortedRows.map(r => {
-                const a = acctOf(r)
-                return (
-                  <tr key={r.lpEntityId} className="border-b last:border-b-0 hover:bg-muted/30">
-                    <td className="px-3 py-2 max-w-[200px]">
-                      <div className="flex items-center gap-1.5 min-w-0">
-                        <Link href={fundSeg ? `/funds/${fundSeg}/capital-accounts/${r.lpEntityId}` : '/funds'} className="hover:underline truncate" title={r.name}>{r.name}</Link>
-                        {r.partnerClass === 'gp' && <span className="text-[10px] uppercase tracking-wider px-1 py-0.5 rounded bg-muted text-muted-foreground shrink-0">GP</span>}
-                      </div>
-                    </td>
-                    {commitmentCols.map(c => (
-                      <td key={c.key} className={`px-3 py-2 text-right font-mono border-l ${Math.abs(r[c.key]) > 0.004 ? '' : 'text-muted-foreground'}`}>
-                        {fmt(r[c.key])}
-                      </td>
-                    ))}
-                    {columns.map((c, i) => (
-                      <td key={c.key} className={`px-3 py-2 text-right font-mono ${i === 0 ? 'border-l' : ''} ${c.key === 'ending' ? 'font-semibold' : ''} ${c.key === 'unclassified' && Math.abs(a[c.key]) > 0.004 ? 'text-amber-600' : ''}`}>
-                        {/* Roll-forward deltas are signed so the columns tie to Ending: contributions
-                            add, distributions (withdrawals) and fees subtract. */}
-                        {fmt(a[c.key])}
-                      </td>
-                    ))}
-                  </tr>
-                )
-              })}
-            </tbody>
-            <tfoot>
-              <tr className="border-t bg-muted/30 font-semibold">
-                <td className="px-3 py-2">Total</td>
-                {commitmentCols.map(c => <td key={c.key} className="px-3 py-2 text-right font-mono border-l">{fmt(commitTotals[c.key])}</td>)}
-                {columns.map((c, i) => <td key={c.key} className={`px-3 py-2 text-right font-mono ${i === 0 ? 'border-l' : ''}`}>{fmt(totals[c.key])}</td>)}
-              </tr>
-            </tfoot>
-          </table>
-        </div>
+        <CapitalRollforwardTable
+          rows={rows}
+          scope={period ? { preset: period.preset, start: period.start } : { preset: 'itd' }}
+          fmt={fmt}
+          lpHref={fundSeg ? (id) => `/funds/${fundSeg}/capital-accounts/${id}` : undefined}
+        />
       )}
 
       {calls.length > 0 && (
