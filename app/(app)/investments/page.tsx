@@ -7,6 +7,8 @@ import { Card, CardContent } from '@/components/ui/card'
 import { useCurrency, formatCurrency, formatCurrencyFull } from '@/components/currency-context'
 import type { CompanyStatus } from '@/lib/types/database'
 import { AnalystToggleButton } from '@/components/analyst-button'
+import { AddCompanyButton } from '@/components/add-company-button'
+import { AddVehicleButton } from '@/components/add-vehicle-button'
 import { AnalystPanel } from '@/components/analyst-panel'
 import { PortfolioNotesProvider, PortfolioNotesButton, PortfolioNotesPanel } from '@/components/portfolio-notes'
 import { useFeatureVisibility } from '@/components/feature-visibility-context'
@@ -149,6 +151,7 @@ export default function InvestmentsPage() {
   const [data, setData] = useState<PortfolioData | null>(null)
   const [loading, setLoading] = useState(true)
   const [asOfDate, setAsOfDate] = useState(() => new Date().toISOString().split('T')[0])
+  const [refreshKey, setRefreshKey] = useState(0) // bumped after adding a vehicle to re-fetch
 
   const [sortKey, setSortKey] = useState<SortKey>('totalValue')
   const [sortDir, setSortDir] = useState<SortDir>('desc')
@@ -179,14 +182,23 @@ export default function InvestmentsPage() {
         if (invRes.ok) setData(await invRes.json())
         if (vehRes.ok) {
           const vs = await vehRes.json()
-          setVintages(new Map((vs ?? []).map((v: { name: string; vintage_year: number | null }) => [v.name, v.vintage_year ?? null])))
+          // Key the vintage by the vehicle's name AND every alias: the portfolio_group on a
+          // transaction is often an alias, not the canonical name, so a name-only map missed it.
+          const norm = (s: string) => s.trim().toLowerCase()
+          const vmap = new Map<string, number | null>()
+          for (const v of (vs ?? []) as Array<{ name: string; aliases?: string[] | null; vintage_year: number | null }>) {
+            const vint = v.vintage_year ?? null
+            vmap.set(norm(v.name), vint)
+            for (const alias of (v.aliases ?? [])) vmap.set(norm(alias), vint)
+          }
+          setVintages(vmap)
         }
       } finally {
         setLoading(false)
       }
     }
     load()
-  }, [asOfDate])
+  }, [asOfDate, refreshKey])
 
   // Derive unique portfolio groups from data
   const availableGroups = useMemo(() => {
@@ -260,8 +272,8 @@ export default function InvestmentsPage() {
     return [...data.groups].sort((a, b) => {
       if (groupSortKey === 'group') return dir * a.group.localeCompare(b.group)
       if (groupSortKey === 'vintage') {
-        const av = vintages.get(a.group) ?? 0
-        const bv = vintages.get(b.group) ?? 0
+        const av = vintages.get(a.group.trim().toLowerCase()) ?? 0
+        const bv = vintages.get(b.group.trim().toLowerCase()) ?? 0
         return dir * (av - bv)
       }
       const av = getGroupDerivedValue(a, groupSortKey)
@@ -377,13 +389,17 @@ export default function InvestmentsPage() {
       </div>
       <p className="text-sm text-muted-foreground">Portfolio-level investment positions and returns</p>
       <div className="flex items-center gap-2 pt-2">
-        <span className="text-sm text-muted-foreground">As of</span>
-        <input
-          type="date"
-          value={asOfDate}
-          onChange={e => setAsOfDate(e.target.value)}
-          className="border rounded px-2 py-1 text-sm"
-        />
+        <AddCompanyButton />
+        <AddVehicleButton onCreated={() => setRefreshKey(k => k + 1)} />
+        <div className="ml-auto flex items-center gap-2">
+          <span className="text-sm text-muted-foreground">As of</span>
+          <input
+            type="date"
+            value={asOfDate}
+            onChange={e => setAsOfDate(e.target.value)}
+            className="border rounded px-2 py-1 text-sm"
+          />
+        </div>
       </div>
     </div>
   )
@@ -501,7 +517,7 @@ export default function InvestmentsPage() {
                   return (
                     <tr key={g.group} className="border-b last:border-b-0 hover:bg-muted/30">
                       <td className="px-3 py-2 font-medium sticky left-0 bg-background z-10">{g.group || '(none)'}</td>
-                      <td className="px-3 py-2 text-center text-xs text-muted-foreground">{vintages.get(g.group) ?? '-'}</td>
+                      <td className="px-3 py-2 text-center text-xs text-muted-foreground">{vintages.get(g.group.trim().toLowerCase()) ?? '-'}</td>
                       {numericColumns.map(col => (
                         <td key={col.sortKey} className="px-3 py-2 text-right font-mono">{fmtVal(col.getValue(g), col.format)}</td>
                       ))}

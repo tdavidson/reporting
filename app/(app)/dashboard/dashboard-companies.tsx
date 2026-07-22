@@ -6,6 +6,7 @@ import { ArrowDownAZ, ArrowUpZA, ArrowDown, ArrowUp, LayoutGrid, Table2, Calenda
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { DashboardTable } from './dashboard-table'
+import { AddCompanyButton } from '@/components/add-company-button'
 import { useCurrency, getCurrencySymbol } from '@/components/currency-context'
 
 interface ActiveMetric {
@@ -40,6 +41,7 @@ interface Company {
 interface Props {
   companies: Company[]
   allGroups: string[]
+  canAdd?: boolean
 }
 
 type SortMode = 'alpha' | 'investDate' | null
@@ -69,7 +71,7 @@ function formatCurrency(v: number): string {
   return neg ? `-${str}` : str
 }
 
-export function DashboardCompanies({ companies, allGroups }: Props) {
+export function DashboardCompanies({ companies, allGroups, canAdd }: Props) {
   const [view, setView] = useState<'cards' | 'table'>('cards')
   const [statusFilter, setStatusFilter] = useState<string>('active')
   const [sortMode, setSortMode] = useState<SortMode>('investDate')
@@ -170,8 +172,15 @@ export function DashboardCompanies({ companies, allGroups }: Props) {
       )}
 
       {filtered.length === 0 ? (
-        <div className="rounded-lg border border-dashed p-12 text-center">
-          <p className="text-muted-foreground">No companies match the selected filters.</p>
+        <div className="rounded-lg border border-dashed p-12 text-center space-y-3">
+          {companies.length === 0 ? (
+            <>
+              <p className="text-muted-foreground">No portfolio companies yet.</p>
+              {canAdd && <div className="flex justify-center"><AddCompanyButton /></div>}
+            </>
+          ) : (
+            <p className="text-muted-foreground">No companies match the selected filters.</p>
+          )}
         </div>
       ) : view === 'table' ? (
         <DashboardTable

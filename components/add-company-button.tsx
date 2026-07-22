@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { CompanyForm } from '@/components/company-form'
 
-/** Header action on the dashboard: create a portfolio company, then open its page. */
+/** Create a portfolio company from a modal, then open its page. */
 export function AddCompanyButton() {
   const [open, setOpen] = useState(false)
   const router = useRouter()
