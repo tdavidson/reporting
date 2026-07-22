@@ -74,8 +74,9 @@ function canSee(
 
 const NAV_ITEMS: NavItem[] = [
   { href: '/review', label: 'Review', icon: ClipboardCheck, badgeKey: 'review', domain: 'portfolio' },
-  // The queue spans domains; gate the nav on portfolio (like Review) and let the list filter rows.
-  { href: '/pending-actions', label: 'Pending Actions', icon: ListChecks, domain: 'portfolio' },
+  // The queue spans domains; the list still filters rows by per-domain access, but the nav entry
+  // is admin-only (shows the admin lock). Members reach their own domain's queue via the API/URL.
+  { href: '/pending-actions', label: 'Pending Actions', icon: ListChecks, domain: 'portfolio', adminOnly: true },
   { href: '/emails', label: 'Inbound', icon: Mail, domain: 'dealflow' },
   {
     href: '/deals', label: 'Deals', icon: Lightbulb, featureKey: 'deals',
