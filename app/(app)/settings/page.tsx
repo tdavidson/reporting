@@ -28,25 +28,31 @@ import { AiSummaryPromptSection, AiSummaryPromptReadOnly } from './_sections/pro
 import { DealScreeningSection } from './_sections/products/investment/deal-screening-section'
 import { KnownReferrersSection } from './_sections/products/investment/known-referrers-section'
 import { MemoAgentSection } from './_sections/products/investment/memo-agent-section'
-import { FeatureVisibilitySection } from './_sections/access/feature-visibility-section'
+import { LpPortalCard } from './_sections/products/lp/lp-portal-card'
 import { ProductGroup } from './_sections/products/product-group'
-import { isProductActive } from '@/lib/access/products'
-import type { FeatureVisibilityMap } from '@/lib/types/features'
+import { SettingsGroup } from './_sections/settings-group'
+import type { FeatureKey, FeatureVisibility } from '@/lib/types/features'
 import { AnalystToggleButton } from '@/components/analyst-button'
 import { AnalystPanel } from '@/components/analyst-panel'
 import { AffinityConnect } from '@/components/settings/affinity-connect'
 import { DealResearchSettings } from '@/components/settings/deal-research-settings'
-import { AdminSectionContext, GroupHeader, Section } from '@/components/settings/section'
+import { AdminSectionContext, Section } from '@/components/settings/section'
 import type { SettingsData } from './_sections/types'
 
 export default function SettingsPage() {
   const router = useRouter()
   const [settings, setSettings] = useState<SettingsData | null>(null)
   const [loading, setLoading] = useState(true)
+  // Optimistic overlay for feature visibility: the per-feature access controls (now embedded
+  // in each ProductGroup) and the product on/off toggles both write here immediately, then
+  // PATCH /api/settings in the background. Cleared on the next successful load() so server
+  // state always wins after a refetch.
+  const [visOverride, setVisOverride] = useState<Record<string, string> | null>(null)
 
   const load = useCallback(async () => {
     const res = await fetch('/api/settings')
     if (res.ok) setSettings(await res.json())
+    setVisOverride(null)
     setLoading(false)
   }, [])
 
@@ -94,7 +100,17 @@ export default function SettingsPage() {
     )
   }
 
-  const fv = settings.featureVisibility as unknown as FeatureVisibilityMap
+  const visValues = visOverride ?? settings.featureVisibility
+
+  async function handleFeatureChange(key: FeatureKey, level: FeatureVisibility) {
+    const next = { ...visValues, [key]: level }
+    setVisOverride(next)
+    await fetch('/api/settings', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ featureVisibility: next }),
+    })
+  }
 
   return (
     <div className="p-4 md:p-8">
@@ -106,90 +122,112 @@ export default function SettingsPage() {
       <div className="flex flex-col lg:flex-row gap-6 items-start">
       <div className="flex-1 min-w-0 max-w-3xl w-full space-y-8">
 
-      <ProfileSection displayName={settings.displayName} onSaved={load} />
-      <MfaSection />
-      {settings.isAdmin && (
-        <AdminSectionContext.Provider value={true}>
-          <VersionSection appVersion={settings.appVersion} updateAvailable={settings.updateAvailable} />
-          <FundNameSection name={settings.fundName} logo={settings.fundLogo} address={settings.fundAddress} onSaved={load} />
-          <Section title="Appearance">
-            <AppearanceEditor />
-          </Section>
-          <CurrencySection currency={settings.currency} onSaved={load} />
-          <FeatureVisibilitySection featureVisibility={settings.featureVisibility} lpPortalEnabled={settings.lpPortalEnabled} onSaved={load} />
-          {/* Investment-vehicle management moved out of Settings: add/edit (name, type, vintage,
-              aliases, active) on /investments; GP linking on /funds/status. */}
-        </AdminSectionContext.Provider>
-      )}
-      {/* Per-USER, not per-fund: the Affinity key is the caller's own personal access
-          token and every user needs their own. This section used for all external data integrations. */}
-      <GroupHeader label="External Data" />
-      <AffinityConnect />
+      <SettingsGroup label="Account">
+        <ProfileSection displayName={settings.displayName} onSaved={load} />
+        <MfaSection />
+        <NotificationPreferencesSection />
+      </SettingsGroup>
 
-      <GroupHeader label="Notes" />
-      <NotificationPreferencesSection />
       {/* No longer gated on the accounting feature: the agent surface now covers the
           portfolio, companies, performance and LPs as well as the ledger, so a fund with
           accounting switched off still has most of it. */}
-      <GroupHeader label="AI agents" />
-      <Section title="Agent access (MCP + REST API keys)">
-        <LedgerAgentAccess isAdmin={settings.isAdmin} />
-      </Section>
+      <SettingsGroup label="Agent access">
+        <Section title="Agent access (MCP + REST API keys)">
+          <LedgerAgentAccess isAdmin={settings.isAdmin} />
+        </Section>
+      </SettingsGroup>
+
+      {/* Per-USER, not per-fund: the Affinity key is the caller's own personal access
+          token and every user needs their own. Admins get the same card inside Investment
+          Workflow, where it belongs alongside deal screening and diligence. */}
+      {!settings.isAdmin && <AffinityConnect />}
       {!settings.isAdmin && (
         <AiSummaryPromptReadOnly prompt={settings.aiSummaryPrompt} />
       )}
+
       {settings.isAdmin && (
         <AdminSectionContext.Provider value={true}>
-          <GroupHeader label="Inbound Email" />
-          <InboundEmailSection
-            provider={settings.inboundEmailProvider}
-            postmarkAddress={settings.postmarkInboundAddress}
-            postmarkToken={settings.postmarkWebhookToken}
-            mailgunInboundDomain={settings.mailgunInboundDomain}
-            hasMailgunSigningKey={settings.hasMailgunSigningKey}
-            onSaved={load}
-          />
-          <SendersSection senders={settings.senders} onChanged={load} />
+          <SettingsGroup label="Fund">
+            <FundNameSection name={settings.fundName} logo={settings.fundLogo} address={settings.fundAddress} onSaved={load} />
+            <Section title="Appearance">
+              <AppearanceEditor />
+            </Section>
+            <CurrencySection currency={settings.currency} onSaved={load} />
+            <AuthEmailTemplatesSection />
+            <AnalyticsSection
+              fathomSiteId={settings.analyticsFathomSiteId}
+              gaMeasurementId={settings.analyticsGaMeasurementId}
+              onSaved={load}
+            />
+            <UsageTrackingSection
+              disableUserTracking={settings.disableUserTracking}
+              onSaved={load}
+            />
+            <TeamSection isAdmin={settings.isAdmin} featureVisibility={settings.featureVisibility} />
+            <WhitelistSection />
+            <VersionSection appVersion={settings.appVersion} updateAvailable={settings.updateAvailable} />
+            <DangerZone onDeleted={() => router.push('/auth')} />
+            {/* Investment-vehicle management moved out of Settings: add/edit (name, type, vintage,
+                aliases, active) on /investments; GP linking on /funds/status. */}
+          </SettingsGroup>
 
-          <GroupHeader label="Outbound Email" />
-          <OutboundEmailSection
-            provider={settings.outboundEmailProvider}
-            asksProvider={settings.asksEmailProvider}
-            approvalEmailSubject={settings.approvalEmailSubject}
-            approvalEmailBody={settings.approvalEmailBody}
-            systemEmailFromName={settings.systemEmailFromName}
-            systemEmailFromAddress={settings.systemEmailFromAddress}
-            hasResendKey={settings.hasResendKey}
-            hasPostmarkServerToken={settings.hasPostmarkServerToken}
-            hasMailgunApiKey={settings.hasMailgunApiKey}
-            mailgunSendingDomain={settings.mailgunSendingDomain}
-            googleConnected={settings.googleDriveConnected}
-            hasGoogleCredentials={settings.hasGoogleCredentials}
-            googleClientId={settings.googleClientId}
-            onSaved={load}
-          />
+          <SettingsGroup label="Platform">
+            <AIProvidersSection
+              hasClaudeKey={settings.hasClaudeKey}
+              claudeModel={settings.claudeModel}
+              hasOpenAIKey={settings.hasOpenAIKey}
+              openaiModel={settings.openaiModel}
+              hasOpenRouterKey={settings.hasOpenRouterKey}
+              openrouterModel={settings.openrouterModel}
+              openrouterBaseUrl={settings.openrouterBaseUrl}
+              defaultAIProvider={settings.defaultAIProvider}
+              onSaved={load}
+            />
+            <InboundEmailSection
+              provider={settings.inboundEmailProvider}
+              postmarkAddress={settings.postmarkInboundAddress}
+              postmarkToken={settings.postmarkWebhookToken}
+              mailgunInboundDomain={settings.mailgunInboundDomain}
+              hasMailgunSigningKey={settings.hasMailgunSigningKey}
+              onSaved={load}
+            />
+            <SendersSection senders={settings.senders} onChanged={load} />
+            <OutboundEmailSection
+              provider={settings.outboundEmailProvider}
+              asksProvider={settings.asksEmailProvider}
+              approvalEmailSubject={settings.approvalEmailSubject}
+              approvalEmailBody={settings.approvalEmailBody}
+              systemEmailFromName={settings.systemEmailFromName}
+              systemEmailFromAddress={settings.systemEmailFromAddress}
+              hasResendKey={settings.hasResendKey}
+              hasPostmarkServerToken={settings.hasPostmarkServerToken}
+              hasMailgunApiKey={settings.hasMailgunApiKey}
+              mailgunSendingDomain={settings.mailgunSendingDomain}
+              googleConnected={settings.googleDriveConnected}
+              hasGoogleCredentials={settings.hasGoogleCredentials}
+              googleClientId={settings.googleClientId}
+              onSaved={load}
+            />
+            <StorageSection
+              fundId={settings.fundId}
+              fileStorageProvider={settings.fileStorageProvider}
+              googleDriveConnected={settings.googleDriveConnected}
+              googleDriveFolderId={settings.googleDriveFolderId}
+              googleDriveFolderName={settings.googleDriveFolderName}
+              hasGoogleCredentials={settings.hasGoogleCredentials}
+              googleClientId={settings.googleClientId}
+              onChanged={load}
+            />
+          </SettingsGroup>
 
-          <GroupHeader label="AI" />
-          <AIProvidersSection
-            hasClaudeKey={settings.hasClaudeKey}
-            claudeModel={settings.claudeModel}
-            hasOpenAIKey={settings.hasOpenAIKey}
-            openaiModel={settings.openaiModel}
-            hasOpenRouterKey={settings.hasOpenRouterKey}
-            openrouterModel={settings.openrouterModel}
-            openrouterBaseUrl={settings.openrouterBaseUrl}
-            defaultAIProvider={settings.defaultAIProvider}
-            onSaved={load}
-          />
-
-          <ProductGroup product="portfolio_reporting" active={isProductActive('portfolio_reporting', fv)} fv={fv} onToggled={load}>
+          <ProductGroup product="portfolio_reporting" values={visValues} onFeatureChange={handleFeatureChange} onToggled={load}>
             <Section title="Default metrics">
               <DefaultMetricsSettings />
             </Section>
             <AiSummaryPromptSection currentPrompt={settings.aiSummaryPrompt} onSaved={load} />
           </ProductGroup>
 
-          <ProductGroup product="investment_workflow" active={isProductActive('investment_workflow', fv)} fv={fv} onToggled={load}>
+          <ProductGroup product="investment_workflow" values={visValues} onFeatureChange={handleFeatureChange} onToggled={load}>
             <DealScreeningSection
               thesis={settings.dealThesis}
               prompt={settings.dealScreeningPrompt}
@@ -206,18 +244,14 @@ export default function SettingsPage() {
               <DefaultsEditor embedded section="features" />
             </Section>
             <MemoAgentSection />
+            <AffinityConnect />
           </ProductGroup>
 
-          <ProductGroup product="lp_reporting" active={isProductActive('lp_reporting', fv)} fv={fv} onToggled={load}>
-            <Section title="LP Reporting">
-              <p className="text-xs text-muted-foreground">
-                LP capital accounts, the LP portal, and shared documents are managed via Feature
-                visibility above and the LPs area — there are no additional settings here yet.
-              </p>
-            </Section>
+          <ProductGroup product="lp_reporting" values={visValues} onFeatureChange={handleFeatureChange} onToggled={load}>
+            <LpPortalCard enabled={settings.lpPortalEnabled} onSaved={load} />
           </ProductGroup>
 
-          <ProductGroup product="fund_operations" active={isProductActive('fund_operations', fv)} fv={fv} onToggled={load}>
+          <ProductGroup product="fund_operations" values={visValues} onFeatureChange={handleFeatureChange} onToggled={load}>
             <Section title="Fund Operations">
               <p className="text-xs text-muted-foreground mb-3">
                 Fund accounting, GP economics and carry, and compliance are configured on the fund
@@ -228,33 +262,6 @@ export default function SettingsPage() {
               </Link>
             </Section>
           </ProductGroup>
-
-          <GroupHeader label="Storage" />
-          <StorageSection
-            fundId={settings.fundId}
-            fileStorageProvider={settings.fileStorageProvider}
-            googleDriveConnected={settings.googleDriveConnected}
-            googleDriveFolderId={settings.googleDriveFolderId}
-            googleDriveFolderName={settings.googleDriveFolderName}
-            hasGoogleCredentials={settings.hasGoogleCredentials}
-            googleClientId={settings.googleClientId}
-            onChanged={load}
-          />
-          <GroupHeader label="Analytics" />
-          <AnalyticsSection
-            fathomSiteId={settings.analyticsFathomSiteId}
-            gaMeasurementId={settings.analyticsGaMeasurementId}
-            onSaved={load}
-          />
-          <UsageTrackingSection
-            disableUserTracking={settings.disableUserTracking}
-            onSaved={load}
-          />
-          <GroupHeader label="Access Control" />
-          <AuthEmailTemplatesSection />
-          <WhitelistSection />
-          <TeamSection isAdmin={settings.isAdmin} featureVisibility={settings.featureVisibility} />
-          <DangerZone onDeleted={() => router.push('/auth')} />
         </AdminSectionContext.Provider>
       )}
 

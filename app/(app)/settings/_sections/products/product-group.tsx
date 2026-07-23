@@ -2,23 +2,31 @@
 
 import { useState } from 'react'
 import { ChevronDown, ChevronRight, Loader2 } from 'lucide-react'
-import { PRODUCT_META, recommendedVisibilityForProduct, disabledVisibilityForProduct, type ProductKey } from '@/lib/access/products'
-import type { FeatureVisibilityMap } from '@/lib/types/features'
+import { PRODUCT_META, isProductActive, recommendedVisibilityForProduct, disabledVisibilityForProduct, type ProductKey } from '@/lib/access/products'
+import { FeatureAccessControls } from '../access/feature-access-controls'
+import { Section } from '@/components/settings/section'
+import type { FeatureKey, FeatureVisibility, FeatureVisibilityMap } from '@/lib/types/features'
 
 /**
  * Collapsible wrapper for one product's settings. Expanded by default when the product is active
  * (any of its features on); collapsed when off, so a fresh fund shows only Portfolio Reporting.
  * Includes a one-click Turn on/off control that bulk-updates feature visibility for every
  * feature the product owns via the existing partial-merge `/api/settings` PATCH.
+ *
+ * The expanded body always leads with the product's own "Access" panel — the everyone/admin/off
+ * controls for exactly this product's features — followed by the product's other settings
+ * (children). This is what replaced the standalone feature-visibility grid: each product now
+ * carries its own access controls instead of them living in one big grid elsewhere on the page.
  */
-export function ProductGroup({ product, active, fv, onToggled, children }: {
+export function ProductGroup({ product, values, onFeatureChange, onToggled, children }: {
   product: ProductKey
-  active: boolean
-  fv: FeatureVisibilityMap
+  values: Record<string, string>
+  onFeatureChange: (key: FeatureKey, level: FeatureVisibility) => void
   onToggled: () => void
   children?: React.ReactNode
 }) {
   const meta = PRODUCT_META[product]
+  const active = isProductActive(product, values as FeatureVisibilityMap)
   const [open, setOpen] = useState(active)
   const [busy, setBusy] = useState(false)
 
@@ -27,7 +35,7 @@ export function ProductGroup({ product, active, fv, onToggled, children }: {
     const res = await fetch('/api/settings', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ featureVisibility: { ...fv, ...map } }),
+      body: JSON.stringify({ featureVisibility: { ...values, ...map } }),
     })
     setBusy(false)
     if (res.ok) {
@@ -71,7 +79,14 @@ export function ProductGroup({ product, active, fv, onToggled, children }: {
           </button>
         )}
       </div>
-      {open && children != null && <div className="px-4 pb-4 space-y-6">{children}</div>}
+      {open && (
+        <div className="px-4 pb-4 space-y-6">
+          <Section title="Access">
+            <FeatureAccessControls features={meta.features} values={values} onChange={onFeatureChange} />
+          </Section>
+          {children}
+        </div>
+      )}
     </div>
   )
 }
