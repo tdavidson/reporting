@@ -1,4 +1,5 @@
 import type { FeatureKey, FeatureVisibility, FeatureVisibilityMap } from '@/lib/types/features'
+import { DEFAULT_FEATURE_VISIBILITY } from '@/lib/types/features'
 import { DOMAIN_META, type Domain } from '@/lib/access/domains'
 
 export type ProductKey = 'portfolio_reporting' | 'investment_workflow' | 'lp_reporting' | 'fund_operations'
@@ -72,9 +73,8 @@ export function productForDomain(d: Domain): ProductKey {
 /** A product is "active" (turned on for the fund) when at least one of its features is
  *  visible — i.e. not `off` and not `hidden`. Both deny every surface. */
 export function isProductActive(p: ProductKey, fv: FeatureVisibilityMap | null | undefined): boolean {
-  if (!fv) return false
   return PRODUCT_META[p].features.some(f => {
-    const v: FeatureVisibility | undefined = fv[f]
-    return v !== undefined && v !== 'off' && v !== 'hidden'
+    const v: FeatureVisibility = fv?.[f] ?? DEFAULT_FEATURE_VISIBILITY[f]
+    return v !== 'off' && v !== 'hidden'
   })
 }

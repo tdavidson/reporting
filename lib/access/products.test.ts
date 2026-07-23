@@ -20,10 +20,11 @@ describe('PRODUCT_META', () => {
   })
 
   it('maps every DOMAIN_META domain (except admin) to exactly one product', () => {
-    const domains = Object.keys(DOMAIN_META) as Domain[]
+    const domains = (Object.keys(DOMAIN_META) as Domain[]).filter(d => d !== 'admin')
     for (const d of domains) {
-      if (d === 'admin') continue
-      expect(() => productForDomain(d), `domain ${d}`).not.toThrow()
+      const owners = orderedProducts().filter(p => PRODUCT_META[p].domains.includes(d))
+      expect(owners, `domain ${d}`).toHaveLength(1)
+      expect(productForDomain(d)).toBe(owners[0])
     }
   })
 
@@ -54,5 +55,12 @@ describe('PRODUCT_META', () => {
   it('ship defaults have only Portfolio Reporting active', () => {
     const active = orderedProducts().filter(p => isProductActive(p, DEFAULT_FEATURE_VISIBILITY))
     expect(active).toEqual(['portfolio_reporting'])
+  })
+
+  it("each product's features equal the union of its domains' features", () => {
+    for (const p of orderedProducts()) {
+      const fromDomains = PRODUCT_META[p].domains.flatMap(d => DOMAIN_META[d].features)
+      expect(Array.from(new Set(PRODUCT_META[p].features)).sort()).toEqual(Array.from(new Set(fromDomains)).sort())
+    }
   })
 })
