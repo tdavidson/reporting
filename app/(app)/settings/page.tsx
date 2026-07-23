@@ -29,9 +29,11 @@ import { DealScreeningSection } from './_sections/products/investment/deal-scree
 import { KnownReferrersSection } from './_sections/products/investment/known-referrers-section'
 import { MemoAgentSection } from './_sections/products/investment/memo-agent-section'
 import { LpPortalCard } from './_sections/products/lp/lp-portal-card'
+import { ProductGroup } from './_sections/products/product-group'
+import { isProductActive } from '@/lib/access/products'
 import { Unlink, ArrowDownCircle, Eye } from 'lucide-react'
 import { DEFAULT_FEATURE_VISIBILITY } from '@/lib/types/features'
-import type { FeatureKey, FeatureVisibility } from '@/lib/types/features'
+import type { FeatureKey, FeatureVisibility, FeatureVisibilityMap } from '@/lib/types/features'
 import { FEATURE_META } from '@/lib/types/feature-meta'
 import { AnalystToggleButton } from '@/components/analyst-button'
 import { SettingsCard, SettingsCardGrid } from '@/components/settings-card'
@@ -97,6 +99,8 @@ export default function SettingsPage() {
     )
   }
 
+  const fv = settings.featureVisibility as unknown as FeatureVisibilityMap
+
   return (
     <div className="p-4 md:p-8">
       <div className="flex items-center justify-between mb-6">
@@ -120,9 +124,6 @@ export default function SettingsPage() {
           <FeatureVisibilitySection featureVisibility={settings.featureVisibility} lpPortalEnabled={settings.lpPortalEnabled} onSaved={load} />
           {/* Investment-vehicle management moved out of Settings: add/edit (name, type, vintage,
               aliases, active) on /investments; GP linking on /funds/status. */}
-          <Section title="Default metrics">
-            <DefaultMetricsSettings />
-          </Section>
         </AdminSectionContext.Provider>
       )}
       {/* Per-USER, not per-fund: the Affinity key is the caller's own personal access
@@ -188,27 +189,53 @@ export default function SettingsPage() {
             defaultAIProvider={settings.defaultAIProvider}
             onSaved={load}
           />
-          <AiSummaryPromptSection currentPrompt={settings.aiSummaryPrompt} onSaved={load} />
 
-          <GroupHeader label="Deals" />
-          <DealScreeningSection
-            thesis={settings.dealThesis}
-            prompt={settings.dealScreeningPrompt}
-            intakeEnabled={settings.dealIntakeEnabled}
-            hasSubmissionToken={settings.hasSubmissionToken}
-            onSaved={load}
-          />
-          <DealResearchSettings />
-          <KnownReferrersSection />
-          <Section title="AI">
-            <p className="text-xs text-muted-foreground mb-3">
-              AI provider and model for the key deal features: the inbound email classifier, deal screening, and inbound portfolio extraction.
-            </p>
-            <DefaultsEditor embedded section="features" />
-          </Section>
+          <ProductGroup product="portfolio_reporting" active={isProductActive('portfolio_reporting', fv)}>
+            <Section title="Default metrics">
+              <DefaultMetricsSettings />
+            </Section>
+            <AiSummaryPromptSection currentPrompt={settings.aiSummaryPrompt} onSaved={load} />
+          </ProductGroup>
 
-          <GroupHeader label="Diligence" />
-          <MemoAgentSection />
+          <ProductGroup product="investment_workflow" active={isProductActive('investment_workflow', fv)}>
+            <DealScreeningSection
+              thesis={settings.dealThesis}
+              prompt={settings.dealScreeningPrompt}
+              intakeEnabled={settings.dealIntakeEnabled}
+              hasSubmissionToken={settings.hasSubmissionToken}
+              onSaved={load}
+            />
+            <DealResearchSettings />
+            <KnownReferrersSection />
+            <Section title="AI">
+              <p className="text-xs text-muted-foreground mb-3">
+                AI provider and model for the key deal features: the inbound email classifier, deal screening, and inbound portfolio extraction.
+              </p>
+              <DefaultsEditor embedded section="features" />
+            </Section>
+            <MemoAgentSection />
+          </ProductGroup>
+
+          <ProductGroup product="lp_reporting" active={isProductActive('lp_reporting', fv)}>
+            <Section title="LP Reporting">
+              <p className="text-xs text-muted-foreground">
+                LP capital accounts, the LP portal, and shared documents are managed via Feature
+                visibility above and the LPs area — there are no additional settings here yet.
+              </p>
+            </Section>
+          </ProductGroup>
+
+          <ProductGroup product="fund_operations" active={isProductActive('fund_operations', fv)}>
+            <Section title="Fund Operations">
+              <p className="text-xs text-muted-foreground mb-3">
+                Fund accounting, GP economics and carry, and compliance are configured on the fund
+                status page, not here.
+              </p>
+              <Link href="/funds/status" className="text-xs underline underline-offset-2 hover:text-foreground">
+                Go to fund status
+              </Link>
+            </Section>
+          </ProductGroup>
 
           <GroupHeader label="Storage" />
           <StorageSection
