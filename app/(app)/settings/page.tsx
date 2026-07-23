@@ -186,14 +186,14 @@ export default function SettingsPage() {
             onSaved={load}
           />
 
-          <ProductGroup product="portfolio_reporting" active={isProductActive('portfolio_reporting', fv)} onToggled={load}>
+          <ProductGroup product="portfolio_reporting" active={isProductActive('portfolio_reporting', fv)} fv={fv} onToggled={load}>
             <Section title="Default metrics">
               <DefaultMetricsSettings />
             </Section>
             <AiSummaryPromptSection currentPrompt={settings.aiSummaryPrompt} onSaved={load} />
           </ProductGroup>
 
-          <ProductGroup product="investment_workflow" active={isProductActive('investment_workflow', fv)} onToggled={load}>
+          <ProductGroup product="investment_workflow" active={isProductActive('investment_workflow', fv)} fv={fv} onToggled={load}>
             <DealScreeningSection
               thesis={settings.dealThesis}
               prompt={settings.dealScreeningPrompt}
@@ -212,7 +212,7 @@ export default function SettingsPage() {
             <MemoAgentSection />
           </ProductGroup>
 
-          <ProductGroup product="lp_reporting" active={isProductActive('lp_reporting', fv)} onToggled={load}>
+          <ProductGroup product="lp_reporting" active={isProductActive('lp_reporting', fv)} fv={fv} onToggled={load}>
             <Section title="LP Reporting">
               <p className="text-xs text-muted-foreground">
                 LP capital accounts, the LP portal, and shared documents are managed via Feature
@@ -221,7 +221,7 @@ export default function SettingsPage() {
             </Section>
           </ProductGroup>
 
-          <ProductGroup product="fund_operations" active={isProductActive('fund_operations', fv)} onToggled={load}>
+          <ProductGroup product="fund_operations" active={isProductActive('fund_operations', fv)} fv={fv} onToggled={load}>
             <Section title="Fund Operations">
               <p className="text-xs text-muted-foreground mb-3">
                 Fund accounting, GP economics and carry, and compliance are configured on the fund

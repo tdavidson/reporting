@@ -11,9 +11,10 @@ import type { FeatureVisibilityMap } from '@/lib/types/features'
  * Includes a one-click Turn on/off control that bulk-updates feature visibility for every
  * feature the product owns via the existing partial-merge `/api/settings` PATCH.
  */
-export function ProductGroup({ product, active, onToggled, children }: {
+export function ProductGroup({ product, active, fv, onToggled, children }: {
   product: ProductKey
   active: boolean
+  fv: FeatureVisibilityMap
   onToggled: () => void
   children?: React.ReactNode
 }) {
@@ -26,7 +27,7 @@ export function ProductGroup({ product, active, onToggled, children }: {
     const res = await fetch('/api/settings', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ featureVisibility: map }),
+      body: JSON.stringify({ featureVisibility: { ...fv, ...map } }),
     })
     setBusy(false)
     if (res.ok) {

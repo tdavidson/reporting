@@ -30,8 +30,9 @@ export const DEFAULT_FEATURE_VISIBILITY: FeatureVisibilityMap = {
   accounting: 'off',
   // Carry terms, carry accrued/paid per partner, per-deal carry, GP ownership. Split out of
   // `accounting` — a fund must be able to let someone reconcile the bank without showing them the
-  // partners' carry. Admin-only by default: opening it to members is a deliberate act, and even
-  // then each member needs the gp_economics grant (see lib/access/domains.ts).
+  // partners' carry. Off by default: it is owned by the Fund Operations product, which ships off;
+  // turning that product on sets this to admin. Even then each member still needs the
+  // gp_economics grant (see lib/access/domains.ts).
   gp_economics: 'off',
 }
 
