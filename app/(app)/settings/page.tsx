@@ -126,15 +126,11 @@ export default function SettingsPage() {
         <ProfileSection displayName={settings.displayName} onSaved={load} />
         <MfaSection />
         <NotificationPreferencesSection />
-      </SettingsGroup>
-
-      {/* No longer gated on the accounting feature: the agent surface now covers the
-          portfolio, companies, performance and LPs as well as the ledger, so a fund with
-          accounting switched off still has most of it. */}
-      <SettingsGroup label="Agent access">
-        <Section title="Agent access (MCP + REST API keys)">
-          <LedgerAgentAccess isAdmin={settings.isAdmin} />
-        </Section>
+        {/* No longer gated on the accounting feature: the agent surface now covers the
+            portfolio, companies, performance and LPs as well as the ledger, so a fund with
+            accounting switched off still has most of it. Per-user keys, so this lives in
+            Account (all users); the admin on/off toggle lives in Organization below. */}
+        <LedgerAgentAccess isAdmin={settings.isAdmin} section="keys" />
       </SettingsGroup>
 
       {/* Per-USER, not per-fund: the Affinity key is the caller's own personal access
@@ -147,7 +143,7 @@ export default function SettingsPage() {
 
       {settings.isAdmin && (
         <AdminSectionContext.Provider value={true}>
-          <SettingsGroup label="Fund">
+          <SettingsGroup label="Organization">
             <FundNameSection name={settings.fundName} logo={settings.fundLogo} address={settings.fundAddress} onSaved={load} />
             <Section title="Appearance">
               <AppearanceEditor />
@@ -166,12 +162,8 @@ export default function SettingsPage() {
             <TeamSection isAdmin={settings.isAdmin} featureVisibility={settings.featureVisibility} />
             <WhitelistSection />
             <VersionSection appVersion={settings.appVersion} updateAvailable={settings.updateAvailable} />
-            <DangerZone onDeleted={() => router.push('/auth')} />
             {/* Investment-vehicle management moved out of Settings: add/edit (name, type, vintage,
                 aliases, active) on /investments; GP linking on /funds/status. */}
-          </SettingsGroup>
-
-          <SettingsGroup label="Platform">
             <AIProvidersSection
               hasClaudeKey={settings.hasClaudeKey}
               claudeModel={settings.claudeModel}
@@ -218,6 +210,10 @@ export default function SettingsPage() {
               googleClientId={settings.googleClientId}
               onChanged={load}
             />
+            <Section title="Agent access">
+              <LedgerAgentAccess isAdmin={settings.isAdmin} section="toggle" />
+            </Section>
+            <DangerZone onDeleted={() => router.push('/auth')} />
           </SettingsGroup>
 
           <ProductGroup product="portfolio_reporting" values={visValues} onFeatureChange={handleFeatureChange} onToggled={load}>
@@ -247,9 +243,13 @@ export default function SettingsPage() {
             <AffinityConnect />
           </ProductGroup>
 
-          <ProductGroup product="lp_reporting" values={visValues} onFeatureChange={handleFeatureChange} onToggled={load}>
-            <LpPortalCard enabled={settings.lpPortalEnabled} onSaved={load} />
-          </ProductGroup>
+          <ProductGroup
+            product="lp_reporting"
+            values={visValues}
+            onFeatureChange={handleFeatureChange}
+            onToggled={load}
+            accessExtra={<LpPortalCard enabled={settings.lpPortalEnabled} onSaved={load} />}
+          />
 
           <ProductGroup product="fund_operations" values={visValues} onFeatureChange={handleFeatureChange} onToggled={load}>
             <Section title="Fund Operations">

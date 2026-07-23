@@ -18,11 +18,12 @@ import type { FeatureKey, FeatureVisibility, FeatureVisibilityMap } from '@/lib/
  * (children). This is what replaced the standalone feature-visibility grid: each product now
  * carries its own access controls instead of them living in one big grid elsewhere on the page.
  */
-export function ProductGroup({ product, values, onFeatureChange, onToggled, children }: {
+export function ProductGroup({ product, values, onFeatureChange, onToggled, accessExtra, children }: {
   product: ProductKey
   values: Record<string, string>
   onFeatureChange: (key: FeatureKey, level: FeatureVisibility) => void
   onToggled: () => void
+  accessExtra?: React.ReactNode
   children?: React.ReactNode
 }) {
   const meta = PRODUCT_META[product]
@@ -83,6 +84,7 @@ export function ProductGroup({ product, values, onFeatureChange, onToggled, chil
         <div className="px-4 pb-4 space-y-6">
           <Section title="Access">
             <FeatureAccessControls features={meta.features} values={values} onChange={onFeatureChange} />
+            {accessExtra}
           </Section>
           {children}
         </div>

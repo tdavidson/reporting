@@ -29,7 +29,7 @@ interface Key { id: string; name: string; key_prefix: string; scopes: string; la
  * to. Keys act as their owner — any member's key can read; only an admin's key can
  * write. Non-admins can mint read-only keys only.
  */
-export function LedgerAgentAccess({ isAdmin }: { isAdmin: boolean }) {
+export function LedgerAgentAccess({ isAdmin, section = 'keys' }: { isAdmin: boolean; section?: 'toggle' | 'keys' }) {
   const [keys, setKeys] = useState<Key[]>([])
   const [loading, setLoading] = useState(true)
   const [name, setName] = useState('')
@@ -97,6 +97,40 @@ export function LedgerAgentAccess({ isAdmin }: { isAdmin: boolean }) {
 
   const active = keys.filter(k => !k.revoked_at)
 
+  // The master switch, shown only to admins. Split out so it can render on its own
+  // (in Organization settings) while the per-user keys UI below lives in Account.
+  if (section === 'toggle') {
+    if (!isAdmin) return null
+    return (
+      <label className="flex items-start gap-2 text-sm cursor-pointer rounded-md border border-amber-500/40 bg-amber-500/5 p-3">
+        <input
+          type="checkbox"
+          checked={!!enabled}
+          onChange={e => setAgentApi(e.target.checked)}
+          disabled={savingEnabled || enabled === null}
+          className="mt-1 h-3.5 w-3.5"
+        />
+        <span>
+          <span className="flex items-center gap-2 font-medium">
+            Allow agents to reach this fund
+            <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-wider text-amber-600 dark:text-amber-400">
+              <Lock className="h-3 w-3" />Admin only
+            </span>
+          </span>
+          <span className="block text-xs text-muted-foreground">
+            Turns the MCP endpoint, the REST API, and API keys on or off for the whole fund. Off by
+            default. Turning it off makes every existing key and connected app inert immediately —
+            nothing is deleted, and switching it back on restores them exactly as they were.
+          </span>
+        </span>
+        {savingEnabled && <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" />}
+      </label>
+    )
+  }
+
+  // section === 'keys': per-user API keys + endpoints. The admin toggle lives elsewhere
+  // (Organization settings); non-admins (and admins, before they flip it on) get a hint
+  // here instead of the control they can't use.
   return (
     <div className="space-y-4">
       <p className="text-xs text-muted-foreground">
@@ -111,38 +145,11 @@ export function LedgerAgentAccess({ isAdmin }: { isAdmin: boolean }) {
         investment drafts the journal entry it implies rather than posting it.
       </p>
 
-      {/* The master switch. Everything below is dead until this is on, so it comes
-          first — and non-admins are told who can turn it on rather than being shown
-          a control they can't use. */}
-      {isAdmin ? (
-        <label className="flex items-start gap-2 text-sm cursor-pointer rounded-md border border-amber-500/40 bg-amber-500/5 p-3">
-          <input
-            type="checkbox"
-            checked={!!enabled}
-            onChange={e => setAgentApi(e.target.checked)}
-            disabled={savingEnabled || enabled === null}
-            className="mt-1 h-3.5 w-3.5"
-          />
-          <span>
-            <span className="flex items-center gap-2 font-medium">
-              Allow agents to reach this fund
-              <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-wider text-amber-600 dark:text-amber-400">
-                <Lock className="h-3 w-3" />Admin only
-              </span>
-            </span>
-            <span className="block text-xs text-muted-foreground">
-              Turns the MCP endpoint, the REST API, and API keys on or off for the whole fund. Off by
-              default. Turning it off makes every existing key and connected app inert immediately —
-              nothing is deleted, and switching it back on restores them exactly as they were.
-            </span>
-          </span>
-          {savingEnabled && <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" />}
-        </label>
-      ) : enabled === false ? (
+      {enabled === false && (
         <div className="rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground">
           Agent access is turned off for this fund. An admin can enable it here in Settings.
         </div>
-      ) : null}
+      )}
 
       {enabled && (
       <>

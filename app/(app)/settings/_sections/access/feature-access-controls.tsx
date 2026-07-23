@@ -1,7 +1,6 @@
 'use client'
 
 import Link from 'next/link'
-import { SettingsCard, SettingsCardGrid } from '@/components/settings-card'
 import { FEATURE_META } from '@/lib/types/feature-meta'
 import { DEFAULT_FEATURE_VISIBILITY } from '@/lib/types/features'
 import type { FeatureKey, FeatureVisibility } from '@/lib/types/features'
@@ -32,25 +31,23 @@ export function FeatureAccessControls({ features, values, onChange }: {
   values: Record<string, string>
   onChange: (key: FeatureKey, level: FeatureVisibility) => void
 }) {
+  // Rows, not cards: the everyone/admin/off buttons line up in a fixed column on the right so
+  // access is scannable straight down the list.
   return (
-    <SettingsCardGrid>
+    <div className="rounded-lg border divide-y">
       {features.map(key => {
         const current = displayLevel((values[key] ?? DEFAULT_FEATURE_VISIBILITY[key]) as FeatureVisibility)
         const meta = FEATURE_META[key]
         return (
-          <SettingsCard
-            key={key}
-            title={meta.label}
-            subtitle={
-              <>
+          <div key={key} className="flex items-center justify-between gap-4 px-3 py-2.5">
+            <div className="min-w-0">
+              <div className="text-sm font-medium">{meta.label}</div>
+              <div className="text-xs text-muted-foreground">
                 {meta.description}{' '}
                 <Link href={meta.href} className="underline underline-offset-2 hover:text-foreground">Learn more</Link>
-              </>
-            }
-          >
-            {/* One button per level rather than a select: there are only three, and which one is
-                active is the thing you scan a long list for. */}
-            <div className="flex flex-wrap gap-1.5">
+              </div>
+            </div>
+            <div className="flex items-center gap-1.5 shrink-0">
               {VISIBILITY_OPTIONS.map(opt => (
                 <button
                   key={opt.value}
@@ -66,9 +63,9 @@ export function FeatureAccessControls({ features, values, onChange }: {
                 </button>
               ))}
             </div>
-          </SettingsCard>
+          </div>
         )
       })}
-    </SettingsCardGrid>
+    </div>
   )
 }
