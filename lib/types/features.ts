@@ -32,7 +32,7 @@ export const DEFAULT_FEATURE_VISIBILITY: FeatureVisibilityMap = {
   // `accounting` — a fund must be able to let someone reconcile the bank without showing them the
   // partners' carry. Admin-only by default: opening it to members is a deliberate act, and even
   // then each member needs the gp_economics grant (see lib/access/domains.ts).
-  gp_economics: 'admin',
+  gp_economics: 'off',
 }
 
 /**

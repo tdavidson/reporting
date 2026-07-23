@@ -115,7 +115,7 @@ beforeEach(() => {
     fund_members: { fund_id: 'f1', role: 'admin' },
     companies: [],
     // Each of these defaults to 'off' or 'admin', so a fund has to switch them on deliberately.
-    fund_settings: { feature_visibility: { accounting: 'admin', lps: 'admin', diligence: 'admin' } },
+    fund_settings: { feature_visibility: { accounting: 'admin', lps: 'admin', diligence: 'admin', gp_economics: 'admin' } },
     fund_member_access: [],
     fund_domain_defaults: [],
     analyst_conversations: { id: 'conv1' },
