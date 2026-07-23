@@ -9,15 +9,20 @@ export const KIND_LABELS: Record<string, string> = {
   fund: 'Funds', spv: 'SPVs', direct: 'Direct deals', associate: 'GP / associate entities', other: 'Other',
 }
 
+const STATUS_OPTIONS: { value: string; label: string }[] = [
+  { value: '', label: 'All' },
+  { value: 'active', label: 'Active' },
+  { value: 'exited', label: 'Exited' },
+  { value: 'written-off', label: 'Written Off' },
+]
+
 interface Props {
   selectedKinds: Set<string>
   onToggleKind: (k: string) => void
   showEmpty: boolean
   onToggleShowEmpty: () => void
-  allVehicles: string[]
-  excludedVehicles: Set<string>
-  onToggleVehicle: (v: string) => void
-  onToggleAllVehicles: () => void
+  status: string
+  onStatusChange: (s: string) => void
 }
 
 function CheckRow({ checked, label, onClick, muted }: { checked: boolean; label: string; onClick: () => void; muted?: boolean }) {
@@ -33,15 +38,19 @@ function CheckRow({ checked, label, onClick, muted }: { checked: boolean; label:
 
 export function InvestmentVehicleFilters({
   selectedKinds, onToggleKind, showEmpty, onToggleShowEmpty,
-  allVehicles, excludedVehicles, onToggleVehicle, onToggleAllVehicles,
+  status, onStatusChange,
 }: Props) {
-  const active = selectedKinds.size < VEHICLE_KINDS.length || showEmpty || excludedVehicles.size > 0
+  const active = selectedKinds.size < VEHICLE_KINDS.length || showEmpty || status !== ''
 
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <Button variant={active ? 'secondary' : 'outline'} size="sm" className="text-muted-foreground">
-          <Filter className="h-4 w-4 mr-1" />
+        <Button
+          variant="outline"
+          size="sm"
+          className={`gap-1.5 h-8 py-2 text-muted-foreground hover:text-foreground ${active ? 'bg-accent' : ''}`}
+        >
+          <Filter className="h-3.5 w-3.5" />
           Filters
         </Button>
       </PopoverTrigger>
@@ -55,19 +64,10 @@ export function InvestmentVehicleFilters({
           <CheckRow checked={showEmpty} label="Show empty vehicles (no transactions)" onClick={onToggleShowEmpty} muted />
         </div>
 
-        {allVehicles.length > 0 && (
-          <>
-            <div className="px-4 py-2 border-y bg-muted text-[11px] font-medium uppercase tracking-wider text-muted-foreground flex items-center justify-between">
-              <span>Vehicles</span>
-              <button onClick={onToggleAllVehicles} className="text-[11px] font-normal normal-case tracking-normal text-primary hover:underline">
-                {excludedVehicles.size === 0 ? 'Deselect all' : 'Select all'}
-              </button>
-            </div>
-            {allVehicles.map(v => (
-              <CheckRow key={v} checked={!excludedVehicles.has(v)} label={v} onClick={() => onToggleVehicle(v)} />
-            ))}
-          </>
-        )}
+        <div className="px-4 py-2 border-y bg-muted text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Status</div>
+        {STATUS_OPTIONS.map(opt => (
+          <CheckRow key={opt.value} checked={status === opt.value} label={opt.label} onClick={() => onStatusChange(opt.value)} />
+        ))}
       </PopoverContent>
     </Popover>
   )

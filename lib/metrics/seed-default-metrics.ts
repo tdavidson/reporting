@@ -47,11 +47,16 @@ function toMetricInsert(t: DefaultMetricTemplate, fundId: string, companyId: str
 /**
  * Seed every active default metric into ONE company, skipping any slug the company already has.
  * Returns the number of metrics inserted. Used at company creation and by the fund-wide apply.
+ *
+ * `onlyIds` narrows the seed to a chosen subset. The Add-company modal lets you uncheck defaults
+ * before the company exists and passes through the ones that stayed checked; pass undefined for
+ * the normal "seed every active default" behaviour. An empty array seeds nothing.
  */
 export async function seedCompanyFromDefaults(
   admin: SupabaseClient,
   fundId: string,
-  companyId: string
+  companyId: string,
+  onlyIds?: string[]
 ): Promise<number> {
   const { data: templates } = await admin
     .from('default_metrics')
@@ -60,7 +65,9 @@ export async function seedCompanyFromDefaults(
     .eq('is_active', true)
     .order('display_order')
 
-  const list = (templates ?? []) as DefaultMetricTemplate[]
+  const all = (templates ?? []) as DefaultMetricTemplate[]
+  const keep = onlyIds ? new Set(onlyIds) : null
+  const list = keep ? all.filter(t => keep.has(t.id)) : all
   if (list.length === 0) return 0
 
   const [{ data: existing }, { data: exclusions }] = await Promise.all([

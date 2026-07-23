@@ -113,10 +113,11 @@ export function DashboardCompanies({ companies, allGroups, canAdd }: Props) {
       {/* Filter bar */}
       {filtered.length > 0 && (
         <div className="flex items-center gap-2 flex-wrap mb-4">
+          {canAdd && <AddCompanyButton />}
           <select
             value={statusFilter}
             onChange={e => setStatusFilter(e.target.value)}
-            className="text-xs px-2 py-1 rounded-md border border-border bg-background"
+            className="h-8 rounded-md border border-input bg-background px-3 text-xs"
           >
             <option value="">All Statuses</option>
             <option value="active">Active</option>

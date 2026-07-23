@@ -2,9 +2,10 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
-import { Loader2, Check, AlertTriangle, Ban, Info, ChevronRight, SlidersHorizontal, Lock, Plus, X } from 'lucide-react'
+import { Loader2, Check, AlertTriangle, Ban, Info, ChevronRight, SlidersHorizontal, Lock, Plus, X, Pencil } from 'lucide-react'
 import { useCurrency, formatCurrencyPrice } from '@/components/currency-context'
-import { useLedgerFetch, useFundSeg } from '@/components/accounting-vehicle'
+import { useLedgerFetch, useFundSeg, useVehicle } from '@/components/accounting-vehicle'
+import { VehicleEditModal, type EditableVehicle } from '@/components/vehicle-edit-modal'
 import { AccountingSetup } from '../setup'
 import { DealCarryCard } from './deal-carry-card'
 import { CarryTerms } from '../allocation-terms/carry-terms'
@@ -65,6 +66,10 @@ export function StatusView() {
   if (loading) return <div className="flex items-center gap-2 text-muted-foreground text-sm"><Loader2 className="h-4 w-4 animate-spin" />Loading…</div>
   if (!s) return <div className="border border-dashed rounded-lg p-8 text-center text-sm text-muted-foreground">Could not load status for this vehicle.</div>
 
+  // Vehicle identity — name, type, vintage, aliases — sits above the accounting state on both
+  // branches below. It used to be editable only from the group table on /investments, which meant
+  // the page named after a fund was the one place you couldn't correct the fund's own details.
+
   // LP-only tracking: the whole ledger apparatus — trial balance, bank, partners, net assets,
   // onboarding, the seed-the-chart prompts, the close, allocation terms, and the entry-drafting
   // assistant — is meaningless without double-entry books. Show only the source switch and a
@@ -72,6 +77,7 @@ export function StatusView() {
   if (s.source === 'events') {
     return (
       <div className="space-y-6">
+        <VehicleDetailsCard />
         <Link
           href="/lps/capital"
           className="flex items-center gap-3 rounded-lg border p-3 transition-colors hover:bg-muted/30"
@@ -125,6 +131,8 @@ export function StatusView() {
 
   return (
     <div className="space-y-6">
+      <VehicleDetailsCard />
+
       {/* Onboarding only shows while it's actually unfinished. */}
       {!s.onboarded ? (
         <AccountingSetup alwaysShow />
@@ -233,6 +241,85 @@ export function StatusView() {
       {canReadGpEconomics && <DealCarryCard />}
 
     </div>
+  )
+}
+
+const KIND_LABELS: Record<string, string> = {
+  fund: 'Fund', spv: 'SPV', direct: 'Direct deal', associate: 'GP / associate entity', other: 'Other',
+}
+
+/**
+ * The vehicle's own record — name, type, vintage year, aliases, active — editable in place. Reads
+ * the registry by the selected vehicle's id; a legacy name-only vehicle (no registry row) falls
+ * back to matching on name, and shows nothing if neither resolves.
+ */
+function VehicleDetailsCard() {
+  const { vehicleId, group, setVehicle } = useVehicle()
+  const [vehicle, setVehicleRow] = useState<EditableVehicle | null>(null)
+  const [editing, setEditing] = useState(false)
+
+  const load = useCallback(async () => {
+    const res = await fetch('/api/vehicles')
+    if (!res.ok) return
+    const rows = (await res.json()) as Array<{
+      id: string; name: string; kind: string; aliases: string[] | null
+      active: boolean; vintage_year: number | null
+    }>
+    const n = (group ?? '').trim().toLowerCase()
+    const row =
+      rows.find(v => v.id === vehicleId) ??
+      rows.find(v => v.name.trim().toLowerCase() === n) ??
+      null
+    setVehicleRow(row
+      ? { id: row.id, name: row.name, kind: row.kind, vintage_year: row.vintage_year, active: row.active, aliases: row.aliases ?? [] }
+      : null)
+  }, [vehicleId, group])
+
+  useEffect(() => { load() }, [load])
+
+  if (!vehicle) return null
+
+  return (
+    <>
+      <div className="rounded-lg border p-3">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-sm font-medium truncate">{vehicle.name}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {KIND_LABELS[vehicle.kind] ?? vehicle.kind}
+              {' · '}
+              {vehicle.vintage_year != null ? `Vintage ${vehicle.vintage_year}` : 'No vintage set'}
+              {vehicle.active ? '' : ' · Inactive'}
+              {vehicle.aliases.length > 0 ? ` · also known as ${vehicle.aliases.join(', ')}` : ''}
+            </p>
+          </div>
+          <button
+            onClick={() => setEditing(true)}
+            className="shrink-0 inline-flex items-center gap-1 rounded border border-input px-2 py-1 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
+          >
+            <Pencil className="h-3 w-3" />Edit
+          </button>
+        </div>
+      </div>
+      {editing && (
+        <VehicleEditModal
+          vehicle={vehicle}
+          onClose={() => setEditing(false)}
+          onSaved={async () => {
+            setEditing(false)
+            await load()
+            // A rename cascades server-side; the selected vehicle's name is cached in context and
+            // localStorage, so re-point it or every ledger fetch keeps asking for the old group.
+            const res = await fetch('/api/vehicles')
+            if (res.ok) {
+              const rows = (await res.json()) as Array<{ id: string; name: string }>
+              const fresh = rows.find(v => v.id === vehicle.id)
+              if (fresh) setVehicle(fresh.name, fresh.id)
+            }
+          }}
+        />
+      )}
+    </>
   )
 }
 

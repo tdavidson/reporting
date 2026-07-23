@@ -46,6 +46,48 @@ export async function vehicleIdByName(
 }
 
 /**
+ * Guarantee every given vehicle name has a `fund_vehicles` row. Names that already match a vehicle
+ * (by name or alias, case/whitespace-insensitive) are left as-is; names with no match get a new
+ * LIGHTWEIGHT vehicle — `kind: 'other'` (the uncategorized bucket), a bare name the user enriches
+ * later (set the kind, add LP/fund/accounting details).
+ *
+ * This is the invariant that stops a vehicle name from ever being a disconnected string: every write
+ * path that stores one (company save, investment save, import) calls this first, so the registry is
+ * always the source of truth and the stored `portfolio_group` string is a projection of a real
+ * vehicle. Empty/blank input creates nothing — a company or investment may have NO vehicle.
+ */
+export async function ensureVehiclesByName(
+  admin: SupabaseClient,
+  fundId: string,
+  names: (string | null | undefined)[],
+): Promise<void> {
+  const wanted = Array.from(new Set(
+    names.map(n => (typeof n === 'string' ? n.trim() : '')).filter(Boolean),
+  ))
+  if (wanted.length === 0) return
+
+  const { data } = await (admin as any)
+    .from('fund_vehicles').select('name, aliases').eq('fund_id', fundId)
+  const existing = new Set<string>()
+  for (const v of ((data as any[]) ?? [])) {
+    if (v.name) existing.add((v.name as string).trim().toLowerCase())
+    for (const a of ((v.aliases as string[] | null) ?? [])) if (a) existing.add(a.trim().toLowerCase())
+  }
+
+  const toCreate = wanted.filter(n => !existing.has(n.toLowerCase()))
+  if (toCreate.length === 0) return
+
+  // ignoreDuplicates on the unique(fund_id, name) so a concurrent create (two saves racing to name
+  // the same new vehicle) is a no-op rather than an error.
+  await (admin as any)
+    .from('fund_vehicles')
+    .upsert(
+      toCreate.map(name => ({ fund_id: fundId, name, kind: 'other', aliases: [], active: true })),
+      { onConflict: 'fund_id,name', ignoreDuplicates: true },
+    )
+}
+
+/**
  * Resolve a `fund_vehicles.id` back to its current name, scoped to the fund. The inverse of
  * `vehicleIdByName`, for the URL-addressable surfaces (e.g. /funds/[id]) that route on the stable
  * UUID — like companies and LPs — rather than the mutable name. Returns null when the id isn't a

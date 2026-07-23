@@ -82,6 +82,48 @@ export async function PATCH(req: NextRequest) {
   const body = await req.json().catch(() => ({}))
   if (!body.id) return NextResponse.json({ error: 'id is required' }, { status: 400 })
 
+  // Merge: collapse this vehicle into another (e.g. a backfilled "Ocrolus SPV" duplicate of the
+  // real "Ocrolus SPV LP"). Distinct from a rename — the source row is deleted, not renamed, and
+  // the target keeps its own name while absorbing the source's data + aliases. Handled first and
+  // returns early; the normal field-update path below is for non-merge PATCHes only.
+  if (body.mergeIntoId) {
+    const fromId = body.id
+    const intoId = body.mergeIntoId
+    if (fromId === intoId) return NextResponse.json({ error: 'Cannot merge a vehicle into itself' }, { status: 400 })
+
+    const { data: fromRow } = await (admin as any)
+      .from('fund_vehicles').select('id, name, aliases').eq('id', fromId).eq('fund_id', gate.fundId).maybeSingle()
+    if (!fromRow) return NextResponse.json({ error: 'Vehicle not found' }, { status: 404 })
+    const { data: intoRow } = await (admin as any)
+      .from('fund_vehicles').select('id, name, aliases').eq('id', intoId).eq('fund_id', gate.fundId).maybeSingle()
+    if (!intoRow) return NextResponse.json({ error: 'Target vehicle not found' }, { status: 404 })
+
+    // Rewrite every portfolio_group-keyed row from the source's name to the target's name.
+    await retagPortfolioGroup(admin, gate.fundId, (fromRow as any).name, (intoRow as any).name)
+
+    // The target absorbs the source's name and aliases as its own aliases, so any legacy string
+    // (including the source's old name) still resolves to the target going forward.
+    const mergedAliases = Array.from(new Set([
+      ...(((intoRow as any).aliases ?? []) as string[]),
+      (fromRow as any).name,
+      ...(((fromRow as any).aliases ?? []) as string[]),
+    ].filter(Boolean)))
+
+    const { data: updatedInto, error: updateErr } = await (admin as any)
+      .from('fund_vehicles')
+      .update({ aliases: mergedAliases, updated_at: new Date().toISOString() })
+      .eq('id', intoId).eq('fund_id', gate.fundId)
+      .select('id, name, kind, aliases, active')
+      .single()
+    if (updateErr) return dbError(updateErr, 'vehicles')
+
+    const { error: deleteErr } = await (admin as any)
+      .from('fund_vehicles').delete().eq('id', fromId).eq('fund_id', gate.fundId)
+    if (deleteErr) return dbError(deleteErr, 'vehicles')
+
+    return NextResponse.json(updatedInto)
+  }
+
   const { data: current } = await (admin as any)
     .from('fund_vehicles').select('id, name, aliases').eq('id', body.id).eq('fund_id', gate.fundId).maybeSingle()
   if (!current) return NextResponse.json({ error: 'Vehicle not found' }, { status: 404 })

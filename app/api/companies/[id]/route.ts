@@ -5,6 +5,7 @@ import { assertWriteAccess } from '@/lib/api-helpers'
 import type { CompanyStatus } from '@/lib/types/database'
 import { dbError } from '@/lib/api-error'
 import { logActivity } from '@/lib/activity'
+import { ensureVehiclesByName } from '@/lib/accounting/vehicle-id'
 
 const VALID_STATUSES: CompanyStatus[] = ['active', 'exited', 'written-off']
 
@@ -76,7 +77,12 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   if (why_invested !== undefined) updates.why_invested = why_invested?.trim() || null
   if (current_update !== undefined) updates.current_update = current_update?.trim() || null
   if (contact_email !== undefined) updates.contact_email = contact_email
-  if (portfolio_group !== undefined) updates.portfolio_group = portfolio_group
+  if (portfolio_group !== undefined) {
+    // Every stored portfolio_group name must be backed by a real fund_vehicles row — never a
+    // disconnected string. Resolve/create before the write, not after.
+    await ensureVehiclesByName(admin, company.fund_id, portfolio_group ?? [])
+    updates.portfolio_group = portfolio_group
+  }
   if (google_drive_folder_id !== undefined) updates.google_drive_folder_id = google_drive_folder_id || null
   if (google_drive_folder_name !== undefined) updates.google_drive_folder_name = google_drive_folder_name || null
   if (status !== undefined) {

@@ -2,14 +2,14 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { Loader2, ChevronUp, ChevronDown, Lock, Pencil } from 'lucide-react'
+import { Loader2, ChevronUp, ChevronDown, Lock, Pencil, Link2Off } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { useCurrency, formatCurrency, formatCurrencyFull } from '@/components/currency-context'
 import type { CompanyStatus } from '@/lib/types/database'
 import { AnalystToggleButton } from '@/components/analyst-button'
 import { AddCompanyButton } from '@/components/add-company-button'
 import { AddVehicleButton } from '@/components/add-vehicle-button'
-import { VehicleEditModal, type EditableVehicle } from '@/components/vehicle-edit-modal'
+import { VehicleEditModal, VehicleLinkModal, type EditableVehicle } from '@/components/vehicle-edit-modal'
 import { InvestmentVehicleFilters } from '@/components/investments-vehicle-filters'
 import { AnalystPanel } from '@/components/analyst-panel'
 import { PortfolioNotesProvider, PortfolioNotesButton, PortfolioNotesPanel } from '@/components/portfolio-notes'
@@ -158,7 +158,6 @@ export default function InvestmentsPage() {
   const [sortKey, setSortKey] = useState<SortKey>('totalValue')
   const [sortDir, setSortDir] = useState<SortDir>('desc')
   const [statusFilter, setStatusFilter] = useState('')
-  const [groupFilter, setGroupFilter] = useState('')
 
   const [groupSortKey, setGroupSortKey] = useState<GroupSortKey>('totalInvested')
   const [groupSortDir, setGroupSortDir] = useState<SortDir>('desc')
@@ -175,11 +174,13 @@ export default function InvestmentsPage() {
   // Full vehicle registry rows, so a group row can be edited in place (name/type/vintage/active).
   const [vehicleList, setVehicleList] = useState<Array<{ id: string; name: string; aliases: string[] | null; kind: string; active: boolean; vintage_year: number | null }>>([])
   const [editingVehicle, setEditingVehicle] = useState<EditableVehicle | null>(null)
+  // A group string with no registry vehicle behind it — offer to link or register it rather than
+  // silently showing a row with no vintage and no edit.
+  const [linkingGroup, setLinkingGroup] = useState<string | null>(null)
   // Filters. Default: hide empty (no-transaction) vehicles and hide GP/associate entities — the
   // common view — but every combination is pickable.
   const [selectedKinds, setSelectedKinds] = useState<Set<string>>(() => new Set(['fund', 'spv', 'direct', 'other']))
   const [showEmpty, setShowEmpty] = useState(false)
-  const [excludedVehicles, setExcludedVehicles] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     async function load() {
@@ -218,25 +219,13 @@ export default function InvestmentsPage() {
     return v ? { id: v.id, name: v.name, kind: v.kind, vintage_year: v.vintage_year, active: v.active, aliases: v.aliases ?? [] } : null
   }
 
-  // Names available to the specific-vehicle picker: every group with data plus every registry vehicle.
-  const allVehicleNames = useMemo(() => {
-    const s = new Set<string>()
-    for (const g of (data?.groups ?? [])) s.add(g.group)
-    for (const v of vehicleList) s.add(v.name)
-    return Array.from(s).sort((a, b) => a.localeCompare(b))
-  }, [data, vehicleList])
-
-  // Derive unique portfolio groups from data
-  const availableGroups = useMemo(() => {
-    if (!data) return []
-    const groups = new Set<string>()
-    for (const c of data.companies) {
-      for (const g of c.portfolioGroup) groups.add(g)
-    }
-    return Array.from(groups).sort()
-  }, [data])
-
-
+  // Whether a vehicle/group should be visible per the popover's vehicle-type selection. Shared by
+  // the group summary table and the companies table so both respect the same filter.
+  const groupIsVisible = (group: string) => {
+    const veh = vehicleForGroup(group)
+    if (veh && !selectedKinds.has(veh.kind)) return false
+    return true
+  }
 
   // Group-level totals for percentage columns
   const groupTotalsMap = useMemo(() => {
@@ -270,9 +259,7 @@ export default function InvestmentsPage() {
     if (statusFilter) {
       list = list.filter(c => c.status === statusFilter)
     }
-    if (groupFilter) {
-      list = list.filter(c => c.portfolioGroup.includes(groupFilter))
-    }
+    list = list.filter(c => c.portfolioGroup.length === 0 || c.portfolioGroup.some(g => groupIsVisible(g)))
 
     const dir = sortDir === 'asc' ? 1 : -1
 
@@ -289,7 +276,7 @@ export default function InvestmentsPage() {
 
     return list
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data, statusFilter, groupFilter, sortKey, sortDir, groupTotalsMap])
+  }, [data, statusFilter, sortKey, sortDir, groupTotalsMap, selectedKinds, vehicleList])
 
   // Sort groups
   const sortedGroups = useMemo(() => {
@@ -310,12 +297,7 @@ export default function InvestmentsPage() {
     }
     // Type filter (a group's vehicle kind must be selected; an unmapped group has no kind, so it
     // always shows) + the specific-vehicle picker.
-    list = list.filter(g => {
-      if (excludedVehicles.has(g.group)) return false
-      const veh = vehicleForGroup(g.group)
-      if (veh && !selectedKinds.has(veh.kind)) return false
-      return true
-    })
+    list = list.filter(g => groupIsVisible(g.group))
     if (list.length === 0) return []
     const dir = groupSortDir === 'asc' ? 1 : -1
     return [...list].sort((a, b) => {
@@ -329,7 +311,7 @@ export default function InvestmentsPage() {
       const bv = getGroupDerivedValue(b, groupSortKey)
       return dir * (av - bv)
     })
-  }, [data, groupSortKey, groupSortDir, vintages, showEmpty, selectedKinds, excludedVehicles, vehicleList])
+  }, [data, groupSortKey, groupSortDir, vintages, showEmpty, selectedKinds, vehicleList])
 
   // Group totals for footer
   const groupTotals = useMemo(() => {
@@ -437,7 +419,7 @@ export default function InvestmentsPage() {
         <div className="flex items-center gap-2"><PortfolioNotesButton /><AnalystToggleButton /></div>
       </div>
       <p className="text-sm text-muted-foreground">Portfolio-level investment positions and returns</p>
-      <div className="flex items-center gap-2 pt-2">
+      <div className="flex items-center gap-2 pt-3">
         <AddCompanyButton />
         <AddVehicleButton onCreated={() => setRefreshKey(k => k + 1)} />
         <div className="ml-auto flex items-center gap-2">
@@ -446,10 +428,8 @@ export default function InvestmentsPage() {
             onToggleKind={k => setSelectedKinds(prev => { const n = new Set(prev); n.has(k) ? n.delete(k) : n.add(k); return n })}
             showEmpty={showEmpty}
             onToggleShowEmpty={() => setShowEmpty(v => !v)}
-            allVehicles={allVehicleNames}
-            excludedVehicles={excludedVehicles}
-            onToggleVehicle={v => setExcludedVehicles(prev => { const n = new Set(prev); n.has(v) ? n.delete(v) : n.add(v); return n })}
-            onToggleAllVehicles={() => setExcludedVehicles(prev => prev.size === 0 ? new Set(allVehicleNames) : new Set())}
+            status={statusFilter}
+            onStatusChange={setStatusFilter}
           />
           <span className="text-sm text-muted-foreground">As of</span>
           <input
@@ -547,14 +527,13 @@ export default function InvestmentsPage() {
       {/* Group summary table, only shown when multiple groups exist */}
       {sortedGroups.length > 0 && groupTotals && (
         <div className="mb-8">
-          <h2 className="text-sm font-medium text-muted-foreground mb-2">Portfolio Groups</h2>
           <div className="border rounded-lg overflow-x-auto">
             <table className="w-full text-sm whitespace-nowrap">
               <thead>
                 <tr className="border-b bg-muted">
                   <th className="text-left px-3 py-2 font-medium sticky left-0 bg-muted z-10">
                     <button onClick={() => handleGroupSort('group')} className="hover:text-foreground">
-                      Group<GroupSortIcon col="group" />
+                      Vehicle<GroupSortIcon col="group" />
                     </button>
                   </th>
                   <th className="text-center px-3 py-2 font-medium">
@@ -579,11 +558,19 @@ export default function InvestmentsPage() {
                       <td className="px-3 py-2 font-medium sticky left-0 bg-background z-10">
                         <span className="inline-flex items-center gap-1.5">
                           {g.group || '(none)'}
-                          {veh && (
+                          {veh ? (
                             <button onClick={() => setEditingVehicle(veh)} title="Edit vehicle" className="text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-foreground">
                               <Pencil className="h-3 w-3" />
                             </button>
-                          )}
+                          ) : g.group ? (
+                            <button
+                              onClick={() => setLinkingGroup(g.group)}
+                              title="No vehicle matches this group name — link or register it"
+                              className="text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-foreground"
+                            >
+                              <Link2Off className="h-3 w-3" />
+                            </button>
+                          ) : null}
                         </span>
                       </td>
                       <td className="px-3 py-2 text-center text-xs text-muted-foreground">{vintages.get(g.group.trim().toLowerCase()) ?? '-'}</td>
@@ -614,32 +601,6 @@ export default function InvestmentsPage() {
         </div>
       )}
 
-      {/* Filter bar */}
-      <div className="flex items-center gap-4 mb-4">
-        <select
-          value={statusFilter}
-          onChange={e => setStatusFilter(e.target.value)}
-          className="border rounded px-2 py-1 text-sm"
-        >
-          <option value="">All Statuses</option>
-          <option value="active">Active</option>
-          <option value="exited">Exited</option>
-          <option value="written-off">Written Off</option>
-        </select>
-        {availableGroups.length > 0 && (
-          <select
-            value={groupFilter}
-            onChange={e => setGroupFilter(e.target.value)}
-            className="border rounded px-2 py-1 text-sm"
-          >
-            <option value="">All Groups</option>
-            {availableGroups.map(g => (
-              <option key={g} value={g}>{g}</option>
-            ))}
-          </select>
-        )}
-      </div>
-
       {/* Company table */}
       <div className="border rounded-lg overflow-x-auto">
         <table className="w-full text-sm whitespace-nowrap">
@@ -657,7 +618,7 @@ export default function InvestmentsPage() {
               </th>
               <th className="text-left px-3 py-2 font-medium">
                 <button onClick={() => handleSort('portfolioGroup')} className="hover:text-foreground">
-                  Group<SortIcon col="portfolioGroup" />
+                  Vehicle<SortIcon col="portfolioGroup" />
                 </button>
               </th>
               {companyColumns.map(col => (
@@ -731,6 +692,14 @@ export default function InvestmentsPage() {
         vehicle={editingVehicle}
         onClose={() => setEditingVehicle(null)}
         onSaved={() => { setEditingVehicle(null); setRefreshKey(k => k + 1) }}
+      />
+    )}
+    {linkingGroup && (
+      <VehicleLinkModal
+        group={linkingGroup}
+        vehicles={vehicleList.map(v => ({ id: v.id, name: v.name, aliases: v.aliases ?? [] }))}
+        onClose={() => setLinkingGroup(null)}
+        onSaved={() => { setLinkingGroup(null); setRefreshKey(k => k + 1) }}
       />
     )}
     </PortfolioNotesProvider>

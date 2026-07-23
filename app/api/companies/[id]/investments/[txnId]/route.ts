@@ -7,6 +7,7 @@ import { logActivity } from '@/lib/activity'
 import { redraftEntryForTransaction, retractEntriesForTransaction } from '@/lib/accounting/from-portfolio'
 import { validateConversionLink } from '@/lib/accounting/conversion-link'
 import { normalizeSecurityType, SECURITY_TYPES } from '@/lib/accounting/soi'
+import { ensureVehiclesByName } from '@/lib/accounting/vehicle-id'
 
 // ---------------------------------------------------------------------------
 // PATCH — update a transaction
@@ -123,6 +124,12 @@ export async function PATCH(
     updates.security_type = security_type
   } else if ('security_type' in body) {
     updates.security_type = null
+  }
+
+  if ('portfolio_group' in updates) {
+    // Every stored portfolio_group name must be backed by a real fund_vehicles row — never a
+    // disconnected string. Resolve/create before the write, not after.
+    await ensureVehiclesByName(admin, existing.fund_id, [updates.portfolio_group as string | null | undefined])
   }
 
   const { data: txn, error } = await admin

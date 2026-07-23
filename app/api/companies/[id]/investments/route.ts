@@ -10,6 +10,7 @@ import { computeSummary } from '@/lib/investments'
 import { draftEntryForTransaction } from '@/lib/accounting/from-portfolio'
 import { validateConversionLink } from '@/lib/accounting/conversion-link'
 import { normalizeSecurityType, SECURITY_TYPES } from '@/lib/accounting/soi'
+import { ensureVehiclesByName } from '@/lib/accounting/vehicle-id'
 
 // ---------------------------------------------------------------------------
 // GET — all transactions for a company + computed summary
@@ -140,6 +141,10 @@ export async function POST(
     const linkError = await validateConversionLink(admin, params.id, convertsFrom, transaction_type)
     if (linkError) return NextResponse.json({ error: linkError }, { status: 400 })
   }
+
+  // Every stored portfolio_group name must be backed by a real fund_vehicles row — never a
+  // disconnected string. Resolve/create before the write, not after.
+  await ensureVehiclesByName(admin, company.fund_id, [body.portfolio_group])
 
   const { data: txn, error } = await admin
     .from('investment_transactions' as any)

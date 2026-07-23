@@ -754,7 +754,7 @@ export function CompanyInvestments({ companyId, companyStatus, portfolioGroups, 
 
             {portfolioGroups.length > 0 && (
               <div>
-                <Label>Portfolio Group</Label>
+                <Label>Vehicle</Label>
                 <Select
                   value={form.portfolio_group || undefined}
                   onValueChange={v => setForm(f => ({ ...f, portfolio_group: v }))}
@@ -1618,7 +1618,7 @@ function TransactionTable({
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b bg-muted/50">
-            {showGroup && <th className="text-left px-3 py-2 font-medium">Group</th>}
+            {showGroup && <th className="text-left px-3 py-2 font-medium">Vehicle</th>}
             <th className="text-left px-3 py-2 font-medium">Type</th>
             <th className="text-left px-3 py-2 font-medium">Round</th>
             <th className="text-left px-3 py-2 font-medium">Date</th>
@@ -1818,7 +1818,7 @@ function RoundSummaryTable({
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b bg-muted/50">
-            {showGroup && <th className="text-left px-3 py-2 font-medium">Group</th>}
+            {showGroup && <th className="text-left px-3 py-2 font-medium">Vehicle</th>}
             <th className="text-left px-3 py-2 font-medium">Round</th>
             <th className="text-right px-3 py-2 font-medium">Invested</th>
             <th className="text-right px-3 py-2 font-medium">Proceeds</th>

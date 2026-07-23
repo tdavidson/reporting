@@ -8,6 +8,7 @@ import { logActivity } from '@/lib/activity'
 import { rateLimit } from '@/lib/rate-limit'
 import { draftEntryForTransaction } from '@/lib/accounting/from-portfolio'
 import { normalizeSecurityType, SECURITY_TYPES } from '@/lib/accounting/soi'
+import { ensureVehiclesByName } from '@/lib/accounting/vehicle-id'
 
 interface ParsedTransaction {
   company_name: string
@@ -235,6 +236,12 @@ ${text}`,
   if (parsed.transactions.length > 5000) {
     return NextResponse.json({ error: 'Too many transactions in parsed result (max 5000)' }, { status: 400 })
   }
+
+  // Every stored portfolio_group name must be backed by a real fund_vehicles row — never a
+  // disconnected string. The importer is the biggest source of orphan vehicle names (an LLM
+  // free-typing "Fund I" / "SPV 1" straight into the column), so resolve/create every distinct
+  // name ONCE up front rather than per-row.
+  await ensureVehiclesByName(admin, fundId, parsed.transactions.map(t => t.portfolio_group))
 
   // Get existing companies for matching
   const { data: existingCompanies } = await admin
