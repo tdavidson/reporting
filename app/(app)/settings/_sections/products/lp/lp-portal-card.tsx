@@ -38,8 +38,7 @@ export function LpPortalRow({ enabled, onSaved }: { enabled: boolean; onSaved: (
       <div className="min-w-0">
         <div className="text-sm font-medium">LP portal</div>
         <div className="text-xs text-muted-foreground">
-          For your investors, not your team — whether LPs can sign in and see what you’ve shared.
-          Gates “LP documents &amp; sharing” and “LP activity log” below.
+          Portal to share documents and performance with LPs. Note, LP documents and sharing and LP activity log can be turned off to prepare materials before enabling the LP portal, thus why there are separate settings.
         </div>
       </div>
       <div className="flex items-center gap-1.5 shrink-0">
