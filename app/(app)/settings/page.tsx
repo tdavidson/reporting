@@ -31,7 +31,6 @@ import { MemoAgentSection } from './_sections/products/investment/memo-agent-sec
 import { FeatureVisibilitySection } from './_sections/access/feature-visibility-section'
 import { ProductGroup } from './_sections/products/product-group'
 import { isProductActive } from '@/lib/access/products'
-import { Unlink, ArrowDownCircle, Eye } from 'lucide-react'
 import type { FeatureVisibilityMap } from '@/lib/types/features'
 import { AnalystToggleButton } from '@/components/analyst-button'
 import { AnalystPanel } from '@/components/analyst-panel'
@@ -39,7 +38,7 @@ import { AffinityConnect } from '@/components/settings/affinity-connect'
 import { HeartbeatConnect } from '@/components/settings/heartbeat-connect'
 import { DealResearchSettings } from '@/components/settings/deal-research-settings'
 import { AdminSectionContext, GroupHeader, Section } from '@/components/settings/section'
-import type { SettingsData, Saved } from './_sections/types'
+import type { SettingsData } from './_sections/types'
 
 export default function SettingsPage() {
   const router = useRouter()
