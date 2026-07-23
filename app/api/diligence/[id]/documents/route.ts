@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { classifyDocumentHeuristic } from '@/lib/memo-agent/heuristic-classify'
 import { dbError } from '@/lib/api-error'
+import { scanFileAsync } from '@/lib/security/scan-file'
 
 const MAX_BYTES = 100 * 1024 * 1024  // 100 MB to match bucket cap
 
@@ -58,6 +59,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   let storagePath: string
   let fileSize: number
   let mime: string
+  // Set only on the multipart path, where the bytes already transit the server; the JSON
+  // (signed-URL) path leaves this null and the quarantine scan below downloads the object.
+  let multipartBuffer: Buffer | null = null
 
   if (contentType.includes('application/json')) {
     const body = await req.json().catch(() => ({}))
@@ -118,15 +122,37 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     storagePath = `${params.id}/${Date.now()}_${safeName}`
     fileSize = file.size
     mime = file.type || 'application/octet-stream'
-    const buffer = Buffer.from(await file.arrayBuffer())
+    multipartBuffer = Buffer.from(await file.arrayBuffer())
 
     const { error: uploadErr } = await admin.storage
       .from('diligence-documents')
-      .upload(storagePath, buffer, { contentType: mime, upsert: false })
+      .upload(storagePath, multipartBuffer, { contentType: mime, upsert: false })
     if (uploadErr) {
       console.error('[diligence-documents] upload', uploadErr.message)
       return NextResponse.json({ error: 'Upload failed.' }, { status: 500 })
     }
+  }
+
+  // Quarantine scan. The file is now in storage no matter which path we took — uploaded above
+  // (multipart) or pushed straight to the bucket via a signed URL and registered through the
+  // JSON branch. Scan it before recording the row, so an unsafe file (dangerous type, executable
+  // signature, ZIP bomb) is never surfaced to the diligence pipeline. The multipart path already
+  // holds the bytes; the signed-URL path must download them back to scan.
+  let scanBuffer = multipartBuffer
+  if (!scanBuffer) {
+    const { data: blob, error: dlErr } = await admin.storage
+      .from('diligence-documents')
+      .download(storagePath)
+    if (dlErr || !blob) {
+      await admin.storage.from('diligence-documents').remove([storagePath]).catch(() => {})
+      return NextResponse.json({ error: 'Uploaded file could not be read for scanning.' }, { status: 400 })
+    }
+    scanBuffer = Buffer.from(await blob.arrayBuffer())
+  }
+  const scan = await scanFileAsync(scanBuffer, safeName, mime)
+  if (!scan.safe) {
+    await admin.storage.from('diligence-documents').remove([storagePath]).catch(() => {})
+    return NextResponse.json({ error: 'That file could not be accepted.' }, { status: 400 })
   }
 
   const { detected_type, confidence } = classifyDocumentHeuristic(safeName, mime)

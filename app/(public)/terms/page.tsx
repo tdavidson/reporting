@@ -66,8 +66,8 @@ export default function TermsPage() {
               accelerators, and angel investors. It can be self-hosted on your own infrastructure or
               accessed through a managed hosting arrangement. The Platform integrates with third-party
               services including database providers (Supabase), hosting providers (Vercel, Netlify),
-              AI providers (Anthropic, OpenAI, Ollama), email services (Postmark,
-              Mailgun, Gmail, Resend), and file storage providers (Google Drive, Dropbox).
+              AI providers (Anthropic, OpenAI), email services (Postmark,
+              Mailgun, Gmail, Resend), and file storage providers (Google Drive).
             </p>
           </div>
 
@@ -146,7 +146,7 @@ export default function TermsPage() {
             </p>
             <ul className="list-disc pl-5 text-muted-foreground space-y-1">
               <li>AI outputs are generated automatically and may contain errors, omissions, or inaccuracies. You are responsible for reviewing and verifying all AI-generated content before relying on it.</li>
-              <li>Data sent to AI providers (Anthropic, OpenAI, Google, or local Ollama instances) is subject to those providers&apos; terms of service and privacy policies.</li>
+              <li>Data sent to AI providers (Anthropic, OpenAI, or OpenRouter) is subject to those providers&apos; terms of service and privacy policies.</li>
               <li>AI-generated analysis, summaries, and letters do not constitute financial, investment, legal, or tax advice.</li>
             </ul>
           </div>

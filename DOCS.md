@@ -19,8 +19,7 @@ Designed as a single-tenant deployment per fund. You control your own data, your
 | AI provider — at least one | AI for email processing, metric extraction, and summaries | See below |
 | ↳ [Anthropic](https://console.anthropic.com) | Claude API (default model: `claude-sonnet-4-5`) | Pay-as-you-go |
 | ↳ [OpenAI](https://platform.openai.com) | OpenAI API (default model: `gpt-4o`) | Pay-as-you-go |
-| ↳ [Google Gemini](https://aistudio.google.com) | Gemini API (default model: `gemini-2.0-flash`) | Free tier available |
-| ↳ [Ollama](https://ollama.com) | Local models via OpenAI-compatible API (default model: `llama3.2`) | Free (runs locally) |
+| ↳ [OpenRouter](https://openrouter.ai) | Unified API for many model providers | Pay-as-you-go |
 
 ### Optional services
 
@@ -28,7 +27,6 @@ Designed as a single-tenant deployment per fund. You control your own data, your
 |---------|-------------|-----------------|
 | Outbound email provider | Sends quarterly reporting requests and system notifications | If you want to email portfolio companies from the app. Choose **Resend**, **Postmark**, **Mailgun**, or **Gmail**. |
 | [Google Cloud](https://console.cloud.google.com) (OAuth) | Google Drive archiving + Gmail sending | If you want to save emails/attachments to Drive or send via Gmail |
-| [Dropbox](https://www.dropbox.com/developers) | Alternative file archiving | If you prefer Dropbox over Google Drive |
 
 ### Step-by-step setup guide
 
@@ -126,7 +124,7 @@ By default the first signup is the admin, with access to the fund-level and tech
 After confirming your email and signing in, the app walks you through:
 
 1. **Fund name** — this appears in the app header
-2. **AI API key** — enter at least one: an Anthropic key from [console.anthropic.com](https://console.anthropic.com), an OpenAI key from [platform.openai.com](https://platform.openai.com), a Google Gemini key from [aistudio.google.com](https://aistudio.google.com), or configure a local Ollama endpoint. You can configure multiple providers and switch between them. Keys are encrypted and stored in your database, not in environment variables.
+2. **AI API key** — enter at least one: an Anthropic key from [console.anthropic.com](https://console.anthropic.com), an OpenAI key from [platform.openai.com](https://platform.openai.com), or an OpenRouter key from [openrouter.ai](https://openrouter.ai). You can configure multiple providers and switch between them. Keys are encrypted and stored in your database, not in environment variables.
 3. **Inbound email address** — see Step 8
 
 ### Step 8: Set up inbound email
@@ -195,7 +193,7 @@ To send quarterly reporting requests or system notifications, configure an outbo
 
 You can set different providers for system emails and portfolio asks.
 
-### Optional: Google Drive / Dropbox
+### Optional: Google Drive
 
 To automatically archive processed emails and attachments:
 
@@ -206,11 +204,6 @@ To automatically archive processed emails and attachments:
 4. Create **OAuth 2.0 credentials** (Web application type)
 5. Add `https://your-app.com/api/auth/google/callback` as an authorized redirect URI
 6. In the app, go to **Settings**, enter your Google Client ID and Client Secret, connect Google, and use the folder picker to select a Drive folder for archiving
-
-**Dropbox:**
-1. Create an app at [dropbox.com/developers](https://www.dropbox.com/developers)
-2. Add `https://your-app.com/api/auth/dropbox/callback` as a redirect URI
-3. In the app, go to **Settings** and connect Dropbox
 
 ### Optional: Fund accounting
 
@@ -276,18 +269,15 @@ Then set the tunnel URL as your inbound webhook (e.g. `https://your-tunnel.ngrok
 
 ### AI Providers
 
-The platform supports four AI providers. Configure at least one in Settings, then select the default provider used for email processing, metric extraction, summaries, and imports.
+The platform supports three AI providers. Configure at least one in Settings, then select the default provider used for email processing, metric extraction, summaries, and imports.
 
 | Provider | Default Model | Key Required | Notes |
 |----------|--------------|-------------|-------|
 | **Anthropic** | `claude-sonnet-4-5` | API key from [console.anthropic.com](https://console.anthropic.com) | Best overall quality for analysis and extraction |
 | **OpenAI** | `gpt-4o` | API key from [platform.openai.com](https://platform.openai.com) | Strong alternative with broad model selection |
-| **Google Gemini** | `gemini-2.0-flash` | API key from [aistudio.google.com](https://aistudio.google.com) | Fast and cost-effective, free tier available |
-| **Ollama** | `llama3.2` | None (runs locally) | Self-hosted models, no data leaves your machine |
+| **OpenRouter** | Configurable | API key from [openrouter.ai](https://openrouter.ai) | Unified access to many model providers through one key |
 
-Each provider has a model selector in Settings — after saving your API key (or endpoint URL for Ollama), you can fetch the available models and choose which one to use. The **Analyst** panel also has a model dropdown that shows models from all configured providers, with an "Auto" option that uses the fund's default.
-
-Ollama connects via its OpenAI-compatible API (default endpoint: `http://localhost:11434/v1`). No API key is needed — just enter the endpoint URL and select a model. Ollama usage is tracked but shows zero cost since it runs locally.
+Each provider has a model selector in Settings — after saving your API key, you can fetch the available models and choose which one to use. The **Analyst** panel also has a model dropdown that shows models from all configured providers, with an "Auto" option that uses the fund's default.
 
 ### Feature Visibility
 
@@ -310,7 +300,7 @@ The features that can be configured are: **Interactions** (CRM-style email loggi
 | **Styling** | Tailwind CSS, Radix UI primitives (shadcn/ui) |
 | **Charts** | Recharts |
 | **Database & Auth** | Supabase (PostgreSQL with Row Level Security) |
-| **AI** | Anthropic Claude, OpenAI, Google Gemini, and/or Ollama (local) |
+| **AI** | Anthropic Claude, OpenAI, and/or OpenRouter |
 | **File parsing** | mammoth (DOCX), xlsx (spreadsheets), jszip (PPTX), PDF and images handled natively by the AI provider |
 | **Icons** | Lucide React |
 

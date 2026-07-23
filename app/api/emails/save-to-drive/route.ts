@@ -7,11 +7,9 @@ import { rateLimit } from '@/lib/rate-limit'
 import { decrypt } from '@/lib/crypto'
 import { getAccessToken as getGoogleAccessToken, findOrCreateFolder as findOrCreateGoogleFolder, uploadFile as uploadGoogleFile } from '@/lib/google/drive'
 import { getGoogleCredentials } from '@/lib/google/credentials'
-import { getDropboxCredentials } from '@/lib/dropbox/credentials'
-import { getAccessToken as getDropboxAccessToken, findOrCreateFolder as findOrCreateDropboxFolder, uploadFile as uploadDropboxFile } from '@/lib/dropbox/files'
 import { hydrateAttachments } from '@/lib/parsing/extractAttachmentText'
 
-// POST — save one or more emails to file storage (Google Drive or Dropbox)
+// POST — save one or more emails to file storage (Google Drive)
 export async function POST(req: NextRequest) {
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -44,7 +42,7 @@ export async function POST(req: NextRequest) {
   // Check file storage provider
   const { data: settings } = await admin
     .from('fund_settings')
-    .select('file_storage_provider, google_refresh_token_encrypted, encryption_key_encrypted, google_drive_folder_id, dropbox_refresh_token_encrypted, dropbox_folder_path')
+    .select('file_storage_provider, google_refresh_token_encrypted, encryption_key_encrypted, google_drive_folder_id')
     .eq('fund_id', membership.fund_id)
     .single()
 
@@ -68,8 +66,8 @@ export async function POST(req: NextRequest) {
   }
 
   // Set up provider-specific upload functions
-  let uploadEmail: (companyName: string, dateStr: string, subject: string, emailBody: string, companyInfo: { google_drive_folder_id: string | null; dropbox_folder_path: string | null } | null) => Promise<void>
-  let uploadAttachment: (companyName: string, name: string, content: Buffer, companyInfo: { google_drive_folder_id: string | null; dropbox_folder_path: string | null } | null) => Promise<void>
+  let uploadEmail: (companyName: string, dateStr: string, subject: string, emailBody: string, companyInfo: { google_drive_folder_id: string | null } | null) => Promise<void>
+  let uploadAttachment: (companyName: string, name: string, content: Buffer, companyInfo: { google_drive_folder_id: string | null } | null) => Promise<void>
 
   try {
     if (provider === 'google_drive') {
@@ -92,27 +90,6 @@ export async function POST(req: NextRequest) {
         const safeName = name.replace(/[\/\\:*?"<>|]/g, '_').replace(/\.\./g, '_')
         const folderId = companyInfo?.google_drive_folder_id || await findOrCreateGoogleFolder(accessToken, rootFolderId, companyName)
         await uploadGoogleFile(accessToken, folderId, safeName, content, 'application/octet-stream')
-      }
-    } else if (provider === 'dropbox') {
-      if (!settings.dropbox_refresh_token_encrypted || !settings.dropbox_folder_path) {
-        return NextResponse.json({ error: 'Dropbox not connected or no folder selected' }, { status: 400 })
-      }
-      const refreshToken = decrypt(settings.dropbox_refresh_token_encrypted, dek)
-      const creds = await getDropboxCredentials(admin, membership.fund_id)
-      if (!creds) return NextResponse.json({ error: 'Dropbox credentials not found' }, { status: 400 })
-      const accessToken = await getDropboxAccessToken(refreshToken, creds.appKey, creds.appSecret)
-      const rootPath = settings.dropbox_folder_path
-
-      uploadEmail = async (companyName, dateStr, subject, emailBody, companyInfo) => {
-        const companyPath = companyInfo?.dropbox_folder_path || `${rootPath}/${companyName}`
-        await findOrCreateDropboxFolder(accessToken, companyPath)
-        await uploadDropboxFile(accessToken, companyPath, `${dateStr}_${subject}.txt`, emailBody)
-      }
-      uploadAttachment = async (companyName, name, content, companyInfo) => {
-        const safeName = name.replace(/[\/\\:*?"<>|]/g, '_').replace(/\.\./g, '_')
-        const companyPath = companyInfo?.dropbox_folder_path || `${rootPath}/${companyName}`
-        await findOrCreateDropboxFolder(accessToken, companyPath)
-        await uploadDropboxFile(accessToken, companyPath, safeName, content)
       }
     } else {
       return NextResponse.json({ error: `Unknown storage provider: ${provider}` }, { status: 400 })
@@ -140,16 +117,16 @@ export async function POST(req: NextRequest) {
 
   // Get company info for subfolder creation
   const companyIds = Array.from(new Set(emails.map(e => e.company_id).filter(Boolean))) as string[]
-  const companiesMap: Record<string, { name: string; google_drive_folder_id: string | null; dropbox_folder_path: string | null }> = {}
+  const companiesMap: Record<string, { name: string; google_drive_folder_id: string | null }> = {}
 
   if (companyIds.length > 0) {
     const { data: companies } = await admin
       .from('companies')
-      .select('id, name, google_drive_folder_id, dropbox_folder_path')
+      .select('id, name, google_drive_folder_id')
       .in('id', companyIds)
 
     for (const c of companies ?? []) {
-      companiesMap[c.id] = { name: c.name, google_drive_folder_id: c.google_drive_folder_id, dropbox_folder_path: c.dropbox_folder_path }
+      companiesMap[c.id] = { name: c.name, google_drive_folder_id: c.google_drive_folder_id }
     }
   }
 

@@ -19,7 +19,6 @@ interface Props {
   companyId: string
   storageProvider?: string | null
   googleDriveFolderId?: string | null
-  dropboxFolderPath?: string | null
 }
 
 function formatFileSize(bytes: number): string {
@@ -44,7 +43,7 @@ function FileIcon({ fileType, source }: { fileType: string; source: string }) {
   return <File className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
 }
 
-export function CompanyDocuments({ companyId, storageProvider, googleDriveFolderId, dropboxFolderPath }: Props) {
+export function CompanyDocuments({ companyId, storageProvider, googleDriveFolderId }: Props) {
   const [documents, setDocuments] = useState<Document[]>([])
   const [loading, setLoading] = useState(true)
   const [deletingId, setDeletingId] = useState<string | null>(null)
@@ -174,18 +173,6 @@ export function CompanyDocuments({ companyId, storageProvider, googleDriveFolder
                 className="underline underline-offset-4 hover:text-foreground"
               >
                 Google Drive
-              </a>.
-            </>
-          ) : storageProvider === 'dropbox' && dropboxFolderPath ? (
-            <>
-              Raw documents can be found in{' '}
-              <a
-                href={`https://www.dropbox.com/home${dropboxFolderPath}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="underline underline-offset-4 hover:text-foreground"
-              >
-                Dropbox
               </a>.
             </>
           ) : (

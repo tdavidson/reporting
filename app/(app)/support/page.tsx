@@ -380,7 +380,7 @@ export default function SupportPage() {
           </p>
           <p className="text-muted-foreground">
             The platform can also store documents for you automatically. If your admin has connected
-            <strong>Google Drive</strong> or <strong>Dropbox</strong> in Settings, every inbound email and its attachments are saved
+            <strong>Google Drive</strong> in Settings, every inbound email and its attachments are saved
             into company-specific folders &mdash; organized by company name &mdash; so you always have
             the original source files alongside the extracted data.
           </p>
@@ -416,7 +416,7 @@ export default function SupportPage() {
             your portfolio, updated metric definitions, or changed AI providers. It will replace any
             existing extracted metrics and review items with fresh results. If file storage is
             connected, a <strong>Save to File Storage</strong> button lets you manually push the email
-            and its attachments to your Google Drive or Dropbox, organized into the appropriate company
+            and its attachments to your Google Drive, organized into the appropriate company
             folder.
           </p>
         </div>
@@ -458,13 +458,6 @@ export default function SupportPage() {
             companies. This is useful for bulk-importing cap table history, backfilling historical rounds,
             or onboarding an entire portfolio&apos;s investment data at once. Transactions are written to
             each company&apos;s Investments section automatically.
-          </p>
-          <p className="text-muted-foreground mb-2">
-            You can also paste <strong>fund-level cash flow data</strong> &mdash; commitments, capital calls, and
-            distributions per portfolio group. Each row uses the format: date, group, type, amount,
-            notes (optional). Type accepts full names (commitment, called_capital, distribution)
-            or abbreviations (com, cc, dist). These cash flows power the computed LP metrics
-            (TVPI, DPI, RVPI, Net IRR) shown on the Funds and Investments pages.
           </p>
           <p className="text-muted-foreground">
             Tip: for best results, include the company name and reporting period somewhere in the pasted
@@ -516,9 +509,9 @@ export default function SupportPage() {
           </p>
           <p className="text-muted-foreground mb-2">
             For admins, Settings covers the full platform configuration: <strong>AI provider keys</strong> and model
-            selection (Anthropic, OpenAI, and/or Ollama for local models), the default AI provider
+            selection (Anthropic, OpenAI, and/or OpenRouter), the default AI provider
             for the fund, <strong>feature visibility</strong> controls, inbound email setup (Postmark or Mailgun), outbound email
-            providers (Gmail, Resend, Postmark, or Mailgun), file storage connections (Google Drive or Dropbox),
+            providers (Gmail, Resend, Postmark, or Mailgun), file storage connections (Google Drive),
             the AI summary prompt, and email templates for reporting asks.
           </p>
           <p className="text-muted-foreground mb-2">
@@ -663,11 +656,9 @@ export default function SupportPage() {
           </p>
           <p className="text-muted-foreground">
             Settings &rarr; Deals controls the investment thesis, screening prompt, public submission token,
-            confidence threshold, optional routing-model override, the Known Referrers list (scouts and
-            friends-of-fund whose intros bias toward Deals), an <strong>Email Audit</strong> log of dropped
-            items, and a <strong>Routing Accuracy</strong> dashboard showing manual reroutes per week as a
-            drift signal. Below a configurable confidence threshold, items go to a Review queue with the top
-            two predicted destinations for one-click resolution &mdash; nothing is silently dropped.
+            and the Known Referrers list (scouts and friends-of-fund whose intros bias toward Deals).
+            Uncertain items go to a Review queue with the top two predicted destinations for one-click
+            resolution &mdash; nothing is silently dropped.
           </p>
         </div>
 
@@ -776,9 +767,8 @@ export default function SupportPage() {
             Estimated carry is computed as 20% of profit above remaining invested capital.
           </p>
           <p className="text-muted-foreground">
-            Cash flows can be added individually from the Funds page or bulk-imported via the Import page
-            by pasting tab or comma-separated data. The same computed metrics also appear in the group summary
-            table on the Investments page.
+            Cash flows can be added individually from the Funds page. The same computed metrics also
+            appear in the group summary table on the Investments page.
           </p>
         </div>
 
@@ -921,8 +911,7 @@ export default function SupportPage() {
           </p>
           <p className="text-muted-foreground mb-2">
             The top section displays <strong>AI token usage</strong> broken down by provider (Anthropic,
-            OpenAI and/or Ollama), with month-to-date totals for input tokens, output tokens, and estimated cost.
-            Ollama usage is tracked but shown at zero cost since it runs locally.
+            OpenAI, and/or OpenRouter), with month-to-date totals for input tokens, output tokens, and estimated cost.
             A daily breakdown table shows usage by model, so you can see exactly where tokens are being
             spent &mdash; email processing, metric extraction, company identification, summaries, or
             analyst conversations.
@@ -1016,17 +1005,17 @@ export default function SupportPage() {
           </p>
           <p className="text-muted-foreground mb-2">
             The platform does not currently include built-in antivirus or <strong>malware scanning</strong> of uploaded
-            files. Files are stored in your configured storage provider (Supabase Storage, Google Drive,
-            or Dropbox), which may provide their own scanning capabilities depending on your plan and
+            files. Files are stored in your configured storage provider (Supabase Storage or Google
+            Drive), which may provide their own scanning capabilities depending on your plan and
             configuration. If your organization requires virus scanning, we recommend configuring it at
             the storage provider level or scanning files before uploading them to the platform.
           </p>
           <p className="text-muted-foreground mb-2">
-            When <strong>file storage</strong> is configured (Google Drive or Dropbox),
+            When <strong>file storage</strong> is configured (Google Drive),
             email attachments and uploaded documents are automatically organized into company-specific
             folders. This provides a backup of all source materials alongside the extracted data. Files
             stored in Supabase Storage are accessible through the platform&apos;s UI; files in Google
-            Drive or Dropbox can also be accessed directly through those services.
+            Drive can also be accessed directly through that service.
           </p>
           <p className="text-muted-foreground">
             Uploaded files and their extracted content are only accessible to members of your fund.

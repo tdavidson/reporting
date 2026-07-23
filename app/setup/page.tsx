@@ -153,7 +153,7 @@ export default function SetupPage() {
       sections.push({
         title: 'File Storage',
         checks: [
-          { label: 'Google Drive or Dropbox connected', passed: s.fileStorage.connected, required: false, helpLabel: 'Settings', helpUrl: '/settings' },
+          { label: 'Google Drive connected', passed: s.fileStorage.connected, required: false, helpLabel: 'Settings', helpUrl: '/settings' },
         ],
       })
     }

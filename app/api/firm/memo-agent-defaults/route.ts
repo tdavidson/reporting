@@ -4,7 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { getCapState } from '@/lib/memo-agent/cost'
 import { dbError } from '@/lib/api-error'
 
-const VALID_PROVIDERS = ['anthropic', 'openai', 'ollama'] as const
+const VALID_PROVIDERS = ['anthropic', 'openai'] as const
 // The real stages that make AI calls (must match getStageProvider keys + the UI).
 const VALID_STAGES = ['ingest', 'ingest_synthesis', 'checklist_assessment', 'research', 'qa', 'draft', 'draft_review', 'score'] as const
 // Standalone (non-memo-agent) features with their own model selector.
@@ -15,7 +15,6 @@ const VALID_FEATURES = ['deal_classify', 'deal_analysis', 'portfolio'] as const
 const DEFAULT_MODELS: Record<string, string> = {
   anthropic: 'claude-sonnet-4-6',
   openai: 'gpt-4o',
-  ollama: 'llama3.2',
 }
 
 export async function GET() {
@@ -25,7 +24,7 @@ export async function GET() {
 
   const { data: settings } = await admin
     .from('fund_settings')
-    .select('memo_agent_per_deal_token_cap, memo_agent_monthly_token_cap, memo_agent_stage_models, ai_feature_models, memo_agent_web_search_enabled, default_ai_provider, claude_model, openai_model, ollama_model, memo_export_font_family, memo_export_font_size')
+    .select('memo_agent_per_deal_token_cap, memo_agent_monthly_token_cap, memo_agent_stage_models, ai_feature_models, memo_agent_web_search_enabled, default_ai_provider, claude_model, openai_model, memo_export_font_family, memo_export_font_size')
     .eq('fund_id', fundId)
     .maybeSingle()
 
@@ -45,7 +44,6 @@ export async function GET() {
     default_models: {
       anthropic: s?.claude_model ?? DEFAULT_MODELS.anthropic,
       openai: s?.openai_model ?? DEFAULT_MODELS.openai,
-      ollama: s?.ollama_model ?? DEFAULT_MODELS.ollama,
     },
     export_font_family: s?.memo_export_font_family ?? 'DM Sans',
     export_font_size: s?.memo_export_font_size ?? 11,

@@ -162,7 +162,7 @@ export const DOMAIN_META: Record<Domain, DomainMeta> = {
     label: 'GP economics',
     description: 'Carry terms, carry accrued and paid per partner, per-deal carry, GP ownership.',
     primaryFeature: 'gp_economics',
-    features: ['gp_economics', 'lp_associates'],
+    features: ['gp_economics'],
   },
   lp_relations: {
     label: 'LP Docs',

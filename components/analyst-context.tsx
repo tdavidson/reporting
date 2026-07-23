@@ -211,8 +211,6 @@ export function AnalystProvider({
       const providerEndpoints: { provider: string; url: string }[] = [
         { provider: 'anthropic', url: '/api/claude-models' },
         { provider: 'openai', url: '/api/openai-models' },
-        { provider: 'gemini', url: '/api/gemini-models' },
-        { provider: 'ollama', url: '/api/ollama-models' },
       ].filter(p => configuredProviders.includes(p.provider))
 
       const results = await Promise.allSettled(

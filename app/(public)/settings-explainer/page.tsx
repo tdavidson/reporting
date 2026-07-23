@@ -22,9 +22,9 @@ export default function SettingsExplainerPage() {
       </p>
       <p className="text-muted-foreground">
         For admins, Settings covers the full platform configuration: AI provider keys and model
-        selection (Anthropic, OpenAI, and/or Ollama for local models), the default AI provider
+        selection (Anthropic, OpenAI, and/or OpenRouter), the default AI provider
         for the fund, feature visibility controls, inbound email setup (Postmark or Mailgun), outbound email
-        providers (Gmail, Resend, Postmark, or Mailgun), file storage connections (Google Drive or Dropbox),
+        providers (Gmail, Resend, Postmark, or Mailgun), file storage connections (Google Drive),
         the AI summary prompt, and email templates for reporting asks.
       </p>
       <p className="text-muted-foreground">

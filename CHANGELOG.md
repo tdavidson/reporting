@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+Removed
+- **Dropbox file storage.** Google Drive (and "None / database only") remain; the Dropbox connect flow, settings, and stored credentials are gone
+- **Ollama and Google Gemini AI providers.** Anthropic, OpenAI, and OpenRouter remain
+- **Email-routing detail surface** — the Email Audit log, the Routing Accuracy dashboard, and the routing confidence-threshold / model-override settings. Inbound email is still auto-classified; only the audit/accuracy dashboards and their tuning settings are gone
+- **Fund cash-flow paste import** on the Import page. Fund cash flows are still entered, edited, and deleted inline on the Funds page
+- **GP associates look-through (legacy).** The old `lp_associates_overrides` batch model was already superseded by the live look-through derived from the ledger and `vehicle_gp_links`
+
 ## 0.9.6
 
 Access control

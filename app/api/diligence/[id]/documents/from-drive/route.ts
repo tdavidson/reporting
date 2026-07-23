@@ -5,6 +5,7 @@ import { decrypt } from '@/lib/crypto'
 import { getGoogleCredentials } from '@/lib/google/credentials'
 import { getAccessToken, listFilesRecursive, downloadFile, exportFile, googleExportTarget, parseDriveFolderUrl } from '@/lib/google/drive'
 import { classifyDocumentHeuristic } from '@/lib/memo-agent/heuristic-classify'
+import { scanFileAsync } from '@/lib/security/scan-file'
 
 // The diligence-documents bucket caps each object at 100 MB. Skip larger files
 // up front with a clear reason instead of a cryptic storage error mid-upload.
@@ -190,6 +191,16 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
             // spaces, brackets and other chars that are fine in a display name.
             const keySafe = baseName.replace(/[^a-zA-Z0-9._-]/g, '_')
             const storagePath = `${dealId}/${Date.now()}_${f.id.slice(0, 8)}_${keySafe}`
+
+            // Quarantine scan before the file enters storage — a Drive folder is untrusted
+            // (dangerous type, executable signature, ZIP bomb). Skip unsafe files with a reason
+            // rather than importing them, matching the direct-upload quarantine.
+            const scan = await scanFileAsync(buffer, baseName, effectiveMime)
+            if (!scan.safe) {
+              skipped++
+              emit({ type: 'file_skipped', file: displayName, reason: `rejected by file scan (${scan.reason ?? 'unsafe'})` })
+              continue
+            }
 
             const { error: uploadErr } = await admin.storage
               .from('diligence-documents')

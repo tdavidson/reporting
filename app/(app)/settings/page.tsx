@@ -55,8 +55,6 @@ interface Settings {
   hasOpenAIKey: boolean
   openaiModel: string
   defaultAIProvider: string
-  ollamaBaseUrl: string
-  ollamaModel: string
   hasOpenRouterKey: boolean
   openrouterModel: string
   openrouterBaseUrl: string
@@ -69,10 +67,6 @@ interface Settings {
   hasGoogleCredentials: boolean
   googleClientId: string
   fileStorageProvider: string | null
-  dropboxConnected: boolean
-  hasDropboxCredentials: boolean
-  dropboxAppKey: string
-  dropboxFolderPath: string | null
   aiSummaryPrompt: string | null
   outboundEmailProvider: string | null
   asksEmailProvider: string | null
@@ -101,8 +95,6 @@ interface Settings {
   dealScreeningPrompt: string | null
   dealIntakeEnabled: boolean
   hasSubmissionToken: boolean
-  routingConfidenceThreshold: number | null
-  routingModel: string | null
   lpPortalEnabled: boolean
 }
 
@@ -246,8 +238,6 @@ export default function SettingsPage() {
             claudeModel={settings.claudeModel}
             hasOpenAIKey={settings.hasOpenAIKey}
             openaiModel={settings.openaiModel}
-            ollamaBaseUrl={settings.ollamaBaseUrl}
-            ollamaModel={settings.ollamaModel}
             hasOpenRouterKey={settings.hasOpenRouterKey}
             openrouterModel={settings.openrouterModel}
             openrouterBaseUrl={settings.openrouterBaseUrl}
@@ -266,11 +256,6 @@ export default function SettingsPage() {
           />
           <DealResearchSettings />
           <KnownReferrersSection />
-          <RoutingSection
-            threshold={settings.routingConfidenceThreshold}
-            model={settings.routingModel}
-            onSaved={load}
-          />
           <Section title="AI">
             <p className="text-xs text-muted-foreground mb-3">
               AI provider and model for the key deal features: the inbound email classifier, deal screening, and inbound portfolio extraction.
@@ -290,10 +275,6 @@ export default function SettingsPage() {
             googleDriveFolderName={settings.googleDriveFolderName}
             hasGoogleCredentials={settings.hasGoogleCredentials}
             googleClientId={settings.googleClientId}
-            dropboxConnected={settings.dropboxConnected}
-            hasDropboxCredentials={settings.hasDropboxCredentials}
-            dropboxAppKey={settings.dropboxAppKey}
-            dropboxFolderPath={settings.dropboxFolderPath}
             onChanged={load}
           />
           <GroupHeader label="Analytics" />
@@ -1083,14 +1064,12 @@ function FundNameSection({ name, logo, address, onSaved }: { name: string; logo:
 // ──────────────────────────── AI Providers ────────────────────────────
 
 function AIProvidersSection({
-  hasClaudeKey, claudeModel, hasOpenAIKey, openaiModel, ollamaBaseUrl, ollamaModel, hasOpenRouterKey, openrouterModel, openrouterBaseUrl, defaultAIProvider, onSaved,
+  hasClaudeKey, claudeModel, hasOpenAIKey, openaiModel, hasOpenRouterKey, openrouterModel, openrouterBaseUrl, defaultAIProvider, onSaved,
 }: {
   hasClaudeKey: boolean
   claudeModel: string
   hasOpenAIKey: boolean
   openaiModel: string
-  ollamaBaseUrl: string
-  ollamaModel: string
   hasOpenRouterKey: boolean
   openrouterModel: string
   openrouterBaseUrl: string
@@ -1146,9 +1125,6 @@ function AIProvidersSection({
           <option value="openai" disabled={!hasOpenAIKey}>
             OpenAI{!hasOpenAIKey ? ', no key configured' : ''}
           </option>
-          <option value="ollama" disabled={!ollamaBaseUrl}>
-            Ollama (Local){!ollamaBaseUrl ? ', not configured' : ''}
-          </option>
           <option value="openrouter" disabled={!hasOpenRouterKey}>
             OpenRouter{!hasOpenRouterKey ? ', no key configured' : ''}
           </option>
@@ -1176,16 +1152,6 @@ function AIProvidersSection({
           hasKey={hasOpenAIKey}
         >
           <OpenAIKeyContent hasKey={hasOpenAIKey} currentModel={openaiModel} onSaved={onSaved} />
-        </AIProviderDisclosure>
-        <AIProviderDisclosure
-          label="Ollama (Local)"
-          providerKey="ollama"
-          isDefault={defaultProvider === 'ollama'}
-          isOpen={openSections.has('ollama')}
-          onToggle={() => toggleSection('ollama')}
-          hasKey={!!ollamaBaseUrl}
-        >
-          <OllamaContent baseUrl={ollamaBaseUrl} currentModel={ollamaModel} onSaved={onSaved} />
         </AIProviderDisclosure>
         <AIProviderDisclosure
           label="OpenRouter"
@@ -1532,128 +1498,6 @@ function OpenAIKeyContent({ hasKey, currentModel, onSaved }: { hasKey: boolean; 
           )}
         </div>
       )}
-    </>
-  )
-}
-
-function OllamaContent({ baseUrl, currentModel, onSaved }: { baseUrl: string; currentModel: string; onSaved: () => void }) {
-  const [url, setUrl] = useState(baseUrl || 'http://localhost:11434/v1')
-  const [testing, setTesting] = useState(false)
-  const [saving, setSaving] = useState(false)
-  const [testStatus, setTestStatus] = useState<'idle' | 'ok' | 'error'>('idle')
-  const [testError, setTestError] = useState('')
-
-  const [models, setModels] = useState<{ id: string; name: string }[]>([])
-  const [modelsLoading, setModelsLoading] = useState(false)
-  const [modelsError, setModelsError] = useState<string | null>(null)
-  const [selectedModel, setSelectedModel] = useState(currentModel)
-  const [modelSaving, setModelSaving] = useState(false)
-
-  useEffect(() => { setUrl(baseUrl || 'http://localhost:11434/v1') }, [baseUrl])
-  useEffect(() => { setSelectedModel(currentModel) }, [currentModel])
-
-  const testConnection = async () => {
-    setTesting(true)
-    setTestStatus('idle')
-    setTestError('')
-    try {
-      const res = await fetch('/api/test-ollama', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ baseUrl: url }),
-      })
-      if (res.ok) {
-        setTestStatus('ok')
-        fetchModels()
-      } else {
-        const data = await res.json()
-        setTestStatus('error')
-        setTestError(data.error || 'Connection failed')
-      }
-    } catch {
-      setTestStatus('error')
-      setTestError('Connection failed')
-    }
-    setTesting(false)
-  }
-
-  const saveUrl = async () => {
-    setSaving(true)
-    const res = await fetch('/api/settings', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ollamaBaseUrl: url }),
-    })
-    setSaving(false)
-    if (res.ok) onSaved()
-  }
-
-  const fetchModels = async () => {
-    setModelsLoading(true)
-    setModelsError(null)
-    try {
-      const res = await fetch('/api/ollama-models')
-      const data = await res.json()
-      if (data.error) setModelsError(data.error)
-      setModels(data.models ?? [])
-    } catch {
-      setModelsError('Failed to fetch models')
-    } finally {
-      setModelsLoading(false)
-    }
-  }
-
-  const saveModel = async (modelId: string) => {
-    setSelectedModel(modelId)
-    setModelSaving(true)
-    const res = await fetch('/api/settings', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ollamaModel: modelId }),
-    })
-    setModelSaving(false)
-    if (res.ok) onSaved()
-  }
-
-  return (
-    <>
-      <p className="text-xs text-muted-foreground mb-3">
-        Connect to a local Ollama instance. No API key needed, models run on your machine.
-      </p>
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-end gap-2">
-        <div className="flex-1">
-          <Label>Base URL</Label>
-          <Input value={url} onChange={(e) => { setUrl(e.target.value); setTestStatus('idle') }} placeholder="http://localhost:11434/v1" />
-        </div>
-        <div className="flex gap-2">
-          <Button onClick={testConnection} disabled={!url.trim() || testing} variant="outline" size="sm">
-            {testing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Test'}
-          </Button>
-          <Button onClick={saveUrl} disabled={!url.trim() || saving} size="sm">
-            {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Save'}
-          </Button>
-        </div>
-      </div>
-      {testStatus === 'ok' && <p className="text-xs text-emerald-600 mt-1 flex items-center gap-1"><Check className="h-3 w-3" /> Connected</p>}
-      {testStatus === 'error' && <p className="text-xs text-destructive mt-1 flex items-center gap-1"><AlertCircle className="h-3 w-3" /> {testError}</p>}
-
-      <div className="mt-4 pt-4 border-t">
-        <Label>Model</Label>
-        <p className="text-xs text-muted-foreground mb-2">Choose which Ollama model to use. Test the connection first to load available models.</p>
-        {modelsLoading ? (
-          <div className="flex items-center gap-2 text-xs text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading models…</div>
-        ) : modelsError ? (
-          <p className="text-xs text-destructive">{modelsError}</p>
-        ) : (
-          <div className="flex items-center gap-2">
-            <select className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring" value={selectedModel} onChange={(e) => saveModel(e.target.value)} disabled={modelSaving}>
-              {models.length === 0 && <option value={selectedModel}>{selectedModel}</option>}
-              {models.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
-            </select>
-            {modelSaving && <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" />}
-          </div>
-        )}
-      </div>
     </>
   )
 }
@@ -2732,10 +2576,6 @@ function StorageSection({
   googleDriveFolderName,
   hasGoogleCredentials,
   googleClientId,
-  dropboxConnected,
-  hasDropboxCredentials,
-  dropboxAppKey,
-  dropboxFolderPath,
   onChanged,
 }: {
   fundId: string
@@ -2745,10 +2585,6 @@ function StorageSection({
   googleDriveFolderName: string | null
   hasGoogleCredentials: boolean
   googleClientId: string
-  dropboxConnected: boolean
-  hasDropboxCredentials: boolean
-  dropboxAppKey: string
-  dropboxFolderPath: string | null
   onChanged: () => void
 }) {
   const [selectedProvider, setSelectedProvider] = useState(fileStorageProvider || '')
@@ -2774,7 +2610,7 @@ function StorageSection({
   return (
     <Section title="Storage">
       <p className="text-xs text-muted-foreground mb-4">
-        All portfolio data, company details, metrics, and email content are stored in the database (Supabase/PostgreSQL). By default, email attachments are also stored in the database. Optionally, connect Google Drive or Dropbox to store portfolio reports and attachments externally.
+        All portfolio data, company details, metrics, and email content are stored in the database (Supabase/PostgreSQL). By default, email attachments are also stored in the database. Optionally, connect Google Drive to store portfolio reports and attachments externally.
       </p>
 
       <div className="space-y-4">
@@ -2789,7 +2625,6 @@ function StorageSection({
             >
               <option value="">None (database only)</option>
               <option value="google_drive">Google Drive</option>
-              <option value="dropbox">Dropbox</option>
             </select>
             {saving && <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" />}
             {saved && <Check className="h-3.5 w-3.5 text-emerald-600 shrink-0" />}
@@ -2808,370 +2643,8 @@ function StorageSection({
             />
           </div>
         )}
-
-        {selectedProvider === 'dropbox' && (
-          <div className="border-t pt-4">
-            <DropboxSection
-              fundId={fundId}
-              connected={dropboxConnected}
-              hasCredentials={hasDropboxCredentials}
-              appKey={dropboxAppKey}
-              folderPath={dropboxFolderPath}
-              onChanged={onChanged}
-            />
-          </div>
-        )}
       </div>
     </Section>
-  )
-}
-
-// ──────────────────────────── Dropbox ────────────────────────────
-
-function DropboxSection({
-  fundId,
-  connected,
-  hasCredentials,
-  appKey: existingAppKey,
-  folderPath,
-  onChanged,
-}: {
-  fundId: string
-  connected: boolean
-  hasCredentials: boolean
-  appKey: string
-  folderPath: string | null
-  onChanged: () => void
-}) {
-  const [editingCreds, setEditingCreds] = useState(!hasCredentials)
-  const [newAppKey, setNewAppKey] = useState(existingAppKey)
-  const [newAppSecret, setNewAppSecret] = useState('')
-  const [savingCreds, setSavingCreds] = useState(false)
-  const [credsSaved, setCredsSaved] = useState(false)
-  const [disconnecting, setDisconnecting] = useState(false)
-  const [newFolderPath, setNewFolderPath] = useState('')
-  const [creatingFolder, setCreatingFolder] = useState(false)
-  const [folderError, setFolderError] = useState<string | null>(null)
-  const [showFolderInput, setShowFolderInput] = useState(false)
-
-  useEffect(() => { setNewAppKey(existingAppKey) }, [existingAppKey])
-  useEffect(() => { if (hasCredentials && editingCreds && credsSaved) setEditingCreds(false) }, [hasCredentials, editingCreds, credsSaved])
-
-  const saveCredentials = async () => {
-    if (!newAppKey.trim() || !newAppSecret.trim()) return
-    setSavingCreds(true)
-    const res = await fetch('/api/settings', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        dropboxAppKey: newAppKey.trim(),
-        dropboxAppSecret: newAppSecret.trim(),
-      }),
-    })
-    setSavingCreds(false)
-    if (res.ok) {
-      setNewAppSecret('')
-      setEditingCreds(false)
-      setCredsSaved(true)
-      setTimeout(() => setCredsSaved(false), 2000)
-      onChanged()
-    }
-  }
-
-  const handleDisconnect = async () => {
-    setDisconnecting(true)
-    const res = await fetch('/api/settings/dropbox', { method: 'DELETE' })
-    setDisconnecting(false)
-    if (res.ok) onChanged()
-  }
-
-  const createFolder = async () => {
-    if (!newFolderPath.trim()) return
-    setCreatingFolder(true)
-    setFolderError(null)
-    const res = await fetch('/api/settings/dropbox/folders', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ folderPath: newFolderPath.trim() }),
-    })
-    setCreatingFolder(false)
-    if (res.ok) {
-      setNewFolderPath('')
-      setShowFolderInput(false)
-      onChanged()
-    } else {
-      const data = await res.json().catch(() => ({}))
-      setFolderError(data.error || 'Failed to create folder')
-    }
-  }
-
-  return (
-    <div className="space-y-3">
-      <p className="text-xs font-medium">Dropbox</p>
-
-      {/* Credentials section */}
-      {(editingCreds || !hasCredentials) ? (
-        <div className="space-y-2">
-          <p className="text-xs text-muted-foreground">
-            Create a Dropbox app at{' '}
-            <a href="https://www.dropbox.com/developers/apps" target="_blank" rel="noopener noreferrer" className="underline">
-              Dropbox App Console
-            </a>
-            . Add <code className="text-[11px] bg-muted px-1 rounded">{typeof window !== 'undefined' ? window.location.origin : ''}/api/auth/dropbox/callback</code> as a redirect URI.
-          </p>
-          <div>
-            <Label>App key</Label>
-            <Input
-              value={newAppKey}
-              onChange={(e) => setNewAppKey(e.target.value)}
-              placeholder="Dropbox app key"
-            />
-          </div>
-          <div>
-            <Label>App secret</Label>
-            <Input
-              type="password"
-              value={newAppSecret}
-              onChange={(e) => setNewAppSecret(e.target.value)}
-              placeholder="Dropbox app secret"
-            />
-          </div>
-          <div className="flex gap-2">
-            <Button size="sm" onClick={saveCredentials} disabled={savingCreds || !newAppKey.trim() || !newAppSecret.trim()}>
-              {savingCreds ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Save credentials'}
-            </Button>
-            {hasCredentials && (
-              <Button size="sm" variant="outline" onClick={() => setEditingCreds(false)}>
-                Cancel
-              </Button>
-            )}
-          </div>
-        </div>
-      ) : (
-        <div className="flex items-center gap-2">
-          <p className="text-xs text-muted-foreground flex-1">
-            Dropbox credentials configured.
-            {credsSaved && <span className="text-emerald-600 ml-1">Saved!</span>}
-          </p>
-          <Button size="sm" variant="outline" onClick={() => setEditingCreds(true)} className="text-xs h-7">
-            Update credentials
-          </Button>
-        </div>
-      )}
-
-      {/* Connection section */}
-      {hasCredentials && !connected && (
-        <Button size="sm" onClick={() => { window.location.href = '/api/auth/dropbox' }}>
-          Connect Dropbox account
-        </Button>
-      )}
-
-      {connected && (
-        <div className="space-y-3">
-          <div className="flex items-center gap-2 text-sm">
-            <Check className="h-4 w-4 text-green-600 shrink-0" />
-            <span>Dropbox account connected.</span>
-          </div>
-
-          {/* Folder management */}
-          {folderPath ? (
-            <div className="flex items-center gap-2 text-sm">
-              <FolderOpen className="h-4 w-4 text-muted-foreground" />
-              <span>Saving to: <span className="font-medium">{folderPath}</span></span>
-            </div>
-          ) : (
-            <p className="text-xs text-muted-foreground">
-              No folder selected. Set a folder path to start saving reports.
-            </p>
-          )}
-
-          {showFolderInput ? (
-            <div className="border rounded-lg p-3 space-y-3">
-              <div>
-                <Label>Folder path</Label>
-                <Input
-                  value={newFolderPath}
-                  onChange={(e) => { setNewFolderPath(e.target.value); setFolderError(null) }}
-                  placeholder="/Portfolio Reports"
-                  onKeyDown={(e) => { if (e.key === 'Enter') createFolder() }}
-                />
-                <p className="text-xs text-muted-foreground mt-1">
-                  A folder at this path will be created in your Dropbox. If it already exists, the existing folder will be used.
-                </p>
-              </div>
-              {folderError && (
-                <p className="text-xs text-destructive flex items-center gap-1">
-                  <AlertCircle className="h-3 w-3" /> {folderError}
-                </p>
-              )}
-              <div className="flex gap-2 justify-end">
-                <Button size="sm" variant="outline" onClick={() => { setShowFolderInput(false); setFolderError(null) }}>
-                  Cancel
-                </Button>
-                <Button size="sm" onClick={createFolder} disabled={creatingFolder || !newFolderPath.trim()}>
-                  {creatingFolder ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : null}
-                  {folderPath ? 'Update folder' : 'Set folder'}
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <div className="flex gap-2">
-              <Button size="sm" variant="outline" onClick={() => setShowFolderInput(true)}>
-                {folderPath ? 'Change folder' : 'Set folder'}
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={handleDisconnect}
-                disabled={disconnecting}
-                className="text-destructive hover:text-destructive"
-              >
-                {disconnecting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Unlink className="h-3.5 w-3.5 mr-1" />}
-                Disconnect
-              </Button>
-            </div>
-          )}
-
-          {folderPath && (
-            <DropboxCompanyFolders fundId={fundId} />
-          )}
-        </div>
-      )}
-    </div>
-  )
-}
-
-function DropboxCompanyFolders({ fundId }: { fundId: string }) {
-  const [expanded, setExpanded] = useState(false)
-  const [companies, setCompanies] = useState<{ id: string; name: string; dropbox_folder_path: string | null }[]>([])
-  const [loading, setLoading] = useState(false)
-  const [editingId, setEditingId] = useState<string | null>(null)
-  const [editPath, setEditPath] = useState('')
-  const [saving, setSaving] = useState<string | null>(null)
-
-  const loadCompanies = async () => {
-    setLoading(true)
-    const res = await fetch('/api/companies')
-    if (res.ok) {
-      const data = await res.json()
-      const detailed = await Promise.all(
-        data.map(async (c: { id: string; name: string }) => {
-          const r = await fetch(`/api/companies/${c.id}`)
-          if (r.ok) {
-            const d = await r.json()
-            return { id: d.id, name: d.name, dropbox_folder_path: d.dropbox_folder_path ?? null }
-          }
-          return { id: c.id, name: c.name, dropbox_folder_path: null }
-        })
-      )
-      setCompanies(detailed)
-    }
-    setLoading(false)
-  }
-
-  const handleExpand = () => {
-    if (!expanded) loadCompanies()
-    setExpanded(!expanded)
-  }
-
-  const startEdit = (companyId: string, currentPath: string | null) => {
-    setEditingId(companyId)
-    setEditPath(currentPath || '')
-  }
-
-  const savePath = async (companyId: string) => {
-    setSaving(companyId)
-    const res = await fetch(`/api/companies/${companyId}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ dropbox_folder_path: editPath.trim() || null }),
-    })
-    setSaving(null)
-    if (res.ok) {
-      setCompanies(prev => prev.map(c => c.id === companyId ? { ...c, dropbox_folder_path: editPath.trim() || null } : c))
-      setEditingId(null)
-    }
-  }
-
-  const clearPath = async (companyId: string) => {
-    setSaving(companyId)
-    const res = await fetch(`/api/companies/${companyId}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ dropbox_folder_path: null }),
-    })
-    setSaving(null)
-    if (res.ok) {
-      setCompanies(prev => prev.map(c => c.id === companyId ? { ...c, dropbox_folder_path: null } : c))
-    }
-  }
-
-  return (
-    <div className="border-t pt-3 mt-3">
-      <button onClick={handleExpand} className="flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground">
-        {expanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-        Company Folders
-        <span className="font-normal">(optional overrides)</span>
-      </button>
-
-      {expanded && (
-        <div className="mt-2 space-y-1">
-          {loading ? (
-            <div className="flex items-center justify-center py-4">
-              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-            </div>
-          ) : companies.length === 0 ? (
-            <p className="text-xs text-muted-foreground py-2">No companies found.</p>
-          ) : (
-            <div className="border rounded-lg divide-y">
-              {companies.map(c => (
-                <div key={c.id} className="px-3 py-2">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-sm font-medium truncate">{c.name}</span>
-                    <div className="flex items-center gap-1 shrink-0">
-                      {editingId === c.id ? (
-                        <div className="flex items-center gap-1">
-                          <Input
-                            value={editPath}
-                            onChange={(e) => setEditPath(e.target.value)}
-                            placeholder="/Custom/Path"
-                            className="h-7 text-xs w-48"
-                            onKeyDown={(e) => { if (e.key === 'Enter') savePath(c.id) }}
-                          />
-                          <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => savePath(c.id)} disabled={saving === c.id}>
-                            {saving === c.id ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Save'}
-                          </Button>
-                          <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setEditingId(null)}>
-                            Cancel
-                          </Button>
-                        </div>
-                      ) : c.dropbox_folder_path ? (
-                        <>
-                          <span className="text-xs text-muted-foreground truncate max-w-[200px]">{c.dropbox_folder_path}</span>
-                          <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => startEdit(c.id, c.dropbox_folder_path)}>
-                            Change
-                          </Button>
-                          <Button size="sm" variant="ghost" className="h-7 text-xs text-destructive hover:text-destructive" onClick={() => clearPath(c.id)} disabled={saving === c.id}>
-                            {saving === c.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <X className="h-3 w-3" />}
-                          </Button>
-                        </>
-                      ) : (
-                        <>
-                          <span className="text-xs text-muted-foreground">Default (auto-created)</span>
-                          <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => startEdit(c.id, null)}>
-                            Set path
-                          </Button>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-    </div>
   )
 }
 
@@ -4470,77 +3943,6 @@ function KnownReferrersSection() {
           ))}
         </div>
       )}
-    </Section>
-  )
-}
-
-function RoutingSection({ threshold, model, onSaved }: {
-  threshold: number | null
-  model: string | null
-  onSaved: () => void
-}) {
-  const [thresholdVal, setThresholdVal] = useState(threshold !== null ? String(threshold) : '')
-  const [modelVal, setModelVal] = useState(model ?? '')
-  const [saving, setSaving] = useState(false)
-  const [saved, setSaved] = useState(false)
-
-  async function save() {
-    setSaving(true)
-    const res = await fetch('/api/settings', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        routingConfidenceThreshold: thresholdVal === '' ? null : thresholdVal,
-        routingModel: modelVal,
-      }),
-    })
-    setSaving(false)
-    if (res.ok) {
-      setSaved(true)
-      setTimeout(() => setSaved(false), 2000)
-      onSaved()
-    }
-  }
-
-  return (
-    <Section title="Email Routing">
-      <p className="text-xs text-muted-foreground mb-3">
-        Tune how the inbound classifier routes emails. Leave the threshold blank to accept all classifier
-        decisions; set it (e.g. 0.7) once you've observed shadow-mode confidence distributions.
-      </p>
-
-      <div className="grid grid-cols-12 gap-3 mb-3">
-        <div className="col-span-4">
-          <label className="block text-xs font-medium text-muted-foreground mb-1">Confidence threshold</label>
-          <Input
-            type="number"
-            min="0" max="1" step="0.05"
-            value={thresholdVal}
-            onChange={e => setThresholdVal(e.target.value)}
-            placeholder="(none)"
-            className="h-9"
-          />
-        </div>
-        <div className="col-span-8">
-          <label className="block text-xs font-medium text-muted-foreground mb-1">Routing model override</label>
-          <Input
-            value={modelVal}
-            onChange={e => setModelVal(e.target.value)}
-            placeholder="e.g. claude-haiku-4-5 (defaults to fund's primary model)"
-            className="h-9"
-          />
-        </div>
-      </div>
-
-      <div className="flex items-center gap-2 mb-3">
-        <Button onClick={save} disabled={saving} size="sm">
-          {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : saved ? <Check className="h-3.5 w-3.5" /> : 'Save'}
-        </Button>
-      </div>
-
-      <div className="flex flex-wrap gap-3 text-xs">
-        <Link href="/settings/email-routing" className="text-muted-foreground hover:underline">Email routing →</Link>
-      </div>
     </Section>
   )
 }

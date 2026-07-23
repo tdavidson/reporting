@@ -4,7 +4,7 @@ import { ExplainerContent } from '../explainer-content'
 
 export const metadata = ogMetadata({
   title: 'Import',
-  description: 'Manually import reports, metrics, investment transactions, and fund cash flows via paste or file upload.',
+  description: 'Manually import reports, metrics, and investment transactions via paste or file upload.',
 })
 
 export default function ImportExplainerPage() {
@@ -47,13 +47,6 @@ export default function ImportExplainerPage() {
         companies. This is useful for bulk-importing cap table history, backfilling historical rounds,
         or onboarding an entire portfolio&apos;s investment data at once. Transactions are written to
         each company&apos;s Investments section automatically.
-      </p>
-      <p className="text-muted-foreground">
-        You can also paste fund-level cash flow data - commitments, capital calls, and
-        distributions per portfolio group. Each row uses the format: date, group, type, amount,
-        notes (optional). Type accepts full names (commitment, called_capital, distribution)
-        or abbreviations (com, cc, dist). These cash flows power the computed LP metrics
-        (TVPI, DPI, RVPI, Net IRR) shown on the Funds and Investments pages.
       </p>
       <p className="text-muted-foreground">
         Tip: for best results, include the company name and reporting period somewhere in the pasted

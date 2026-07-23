@@ -54,17 +54,15 @@ const PROVIDER_LABEL: Record<string, string> = {
   '': 'Use fund default',
   anthropic: 'Anthropic (Claude)',
   openai: 'OpenAI',
-  ollama: 'Ollama (self-hosted)',
   openrouter: 'OpenRouter',
 }
 
 const PROVIDER_MODELS_ENDPOINT: Record<string, string> = {
   anthropic: '/api/claude-models',
   openai: '/api/openai-models',
-  ollama: '/api/ollama-models',
 }
 
-const PROVIDERS = ['anthropic', 'openai', 'ollama', 'openrouter'] as const
+const PROVIDERS = ['anthropic', 'openai', 'openrouter'] as const
 
 interface Defaults {
   per_deal_token_cap: number | null
@@ -91,7 +89,7 @@ interface AIModel { id: string; name: string }
 
 // One provider+model row, prefilled with the recommended choice for the fund's
 // provider. The model dropdown defaults to the recommended model for the tier
-// (Claude/OpenAI have fast/strong models; Gemini/Ollama use the fund default).
+// (Claude/OpenAI have fast/strong models; OpenRouter uses the fund default).
 function ModelRow({ label, hint, recommendedKey, current, onChange, defaultProvider, defaultModels, modelsByProvider, loadingProviders }: {
   label: string
   hint: string

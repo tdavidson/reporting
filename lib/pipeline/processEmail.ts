@@ -13,8 +13,6 @@ import { getFeatureProvider } from '@/lib/ai/feature-provider'
 import { decryptApiKey, decrypt } from '@/lib/crypto'
 import { getAccessToken as getGoogleAccessToken, findOrCreateFolder as findOrCreateGoogleFolder, uploadFile as uploadGoogleFile } from '@/lib/google/drive'
 import { getGoogleCredentials } from '@/lib/google/credentials'
-import { getDropboxCredentials } from '@/lib/dropbox/credentials'
-import { getAccessToken as getDropboxAccessToken, findOrCreateFolder as findOrCreateDropboxFolder, uploadFile as uploadDropboxFile } from '@/lib/dropbox/files'
 import { extractInteraction } from '@/lib/claude/extractInteraction'
 import { classifyEmail, detectForward, type SenderFlags, type AttachmentDescriptor } from '@/lib/pipeline/classifyEmail'
 import { isAuthorizedSender } from '@/lib/pipeline/isAuthorizedSender'
@@ -492,7 +490,7 @@ export async function getOpenAIModel(supabase: Supabase, fundId: string): Promis
   return data?.openai_model || 'gpt-4o'
 }
 
-export async function getDefaultAIProvider(supabase: Supabase, fundId: string): Promise<'anthropic' | 'openai' | 'ollama' | 'openrouter'> {
+export async function getDefaultAIProvider(supabase: Supabase, fundId: string): Promise<'anthropic' | 'openai' | 'openrouter'> {
   const { data } = await supabase
     .from('fund_settings')
     .select('default_ai_provider')
@@ -501,7 +499,7 @@ export async function getDefaultAIProvider(supabase: Supabase, fundId: string): 
 
   const provider = data?.default_ai_provider
   // A fund still set to the removed 'gemini' provider falls through to the Claude default.
-  if (provider === 'openai' || provider === 'ollama' || provider === 'openrouter') return provider
+  if (provider === 'openai' || provider === 'openrouter') return provider
   return 'anthropic'
 }
 
@@ -529,19 +527,6 @@ export async function getOpenRouterConfig(supabase: Supabase, fundId: string): P
   return {
     baseUrl: data?.openrouter_base_url || 'https://openrouter.ai/api/v1',
     model: data?.openrouter_model || 'openai/gpt-4o-mini',
-  }
-}
-
-export async function getOllamaConfig(supabase: Supabase, fundId: string): Promise<{ baseUrl: string; model: string }> {
-  const { data } = await supabase
-    .from('fund_settings')
-    .select('ollama_base_url, ollama_model')
-    .eq('fund_id', fundId)
-    .single()
-
-  return {
-    baseUrl: data?.ollama_base_url || 'http://localhost:11434/v1',
-    model: data?.ollama_model || 'llama3.2',
   }
 }
 
@@ -658,9 +643,6 @@ function describeStorageError(msg: string): string {
   if (msg.includes('timed out')) {
     return 'File storage skipped: connection timed out. Check your storage provider in Settings.'
   }
-  if (msg.includes('Dropbox')) {
-    return 'File storage skipped: Dropbox connection failed. Reconnect in Settings.'
-  }
   return `File storage skipped: ${msg}`
 }
 
@@ -750,7 +732,7 @@ async function saveToFileStorage(
 ): Promise<void> {
   const { data: settings } = await supabase
     .from('fund_settings')
-    .select('file_storage_provider, google_refresh_token_encrypted, encryption_key_encrypted, google_drive_folder_id, dropbox_refresh_token_encrypted, dropbox_folder_path')
+    .select('file_storage_provider, google_refresh_token_encrypted, encryption_key_encrypted, google_drive_folder_id')
     .eq('fund_id', fundId)
     .single()
 
@@ -758,8 +740,6 @@ async function saveToFileStorage(
 
   if (settings.file_storage_provider === 'google_drive') {
     await saveToGoogleDrive(supabase, fundId, companyName, payload, settings)
-  } else if (settings.file_storage_provider === 'dropbox') {
-    await saveToDropbox(supabase, fundId, companyName, payload, settings)
   }
 }
 
@@ -804,55 +784,6 @@ async function saveToGoogleDrive(
       const safeName = att.Name.replace(/[\/\\:*?"<>|]/g, '_').replace(/\.\./g, '_')
       const content = Buffer.from(att.Content, 'base64')
       await uploadGoogleFile(accessToken, companyFolderId, safeName, content, att.ContentType)
-    }
-  }
-}
-
-async function saveToDropbox(
-  supabase: Supabase,
-  fundId: string,
-  companyName: string,
-  payload: PostmarkPayload,
-  settings: { dropbox_refresh_token_encrypted: string | null; encryption_key_encrypted: string | null; dropbox_folder_path: string | null }
-): Promise<void> {
-  if (
-    !settings.dropbox_refresh_token_encrypted ||
-    !settings.encryption_key_encrypted ||
-    !settings.dropbox_folder_path
-  ) {
-    return
-  }
-
-  const kek = process.env.ENCRYPTION_KEY
-  if (!kek) return
-
-  const dek = decrypt(settings.encryption_key_encrypted, kek)
-  const refreshToken = decrypt(settings.dropbox_refresh_token_encrypted, dek)
-
-  const creds = await getDropboxCredentials(supabase, fundId)
-  if (!creds) return
-
-  const accessToken = await getDropboxAccessToken(refreshToken, creds.appKey, creds.appSecret)
-  const rootPath = settings.dropbox_folder_path
-
-  // Create company subfolder (sanitize name to prevent path traversal)
-  const safeCompanyName = companyName.replace(/[\/\\:*?"<>|.]/g, '_').replace(/^_+/, '').slice(0, 100) || 'Unknown'
-  const companyPath = `${rootPath}/${safeCompanyName}`
-  await findOrCreateDropboxFolder(accessToken, companyPath)
-
-  const dateStr = new Date().toISOString().slice(0, 10)
-  const subject = payload.Subject?.replace(/[^a-zA-Z0-9 _-]/g, '').slice(0, 60) || 'Report'
-  const emailFilename = `${dateStr}_${subject}.txt`
-
-  const emailBody = payload.TextBody || payload.HtmlBody || '(no body)'
-  await uploadDropboxFile(accessToken, companyPath, emailFilename, emailBody)
-
-  if (payload.Attachments?.length) {
-    for (const att of payload.Attachments) {
-      if (!att.Content) continue
-      const safeName = att.Name.replace(/[\/\\:*?"<>|]/g, '_').replace(/\.\./g, '_')
-      const content = Buffer.from(att.Content, 'base64')
-      await uploadDropboxFile(accessToken, companyPath, safeName, content)
     }
   }
 }

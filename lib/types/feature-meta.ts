@@ -16,7 +16,6 @@ export const FEATURE_META: Record<FeatureKey, { label: string; description: stri
   asks: { label: 'Asks', description: 'Track and send portfolio company requests to your network', href: '/support#asks' },
   lps: { label: 'LPs', description: 'Investor-level report cards with consolidated performance across fund vehicles', href: '/support#lps' },
   lp_tracking: { label: 'LP capital', description: 'Per-vehicle limited-partner capital — commitment (always a memo), paid-in, distributions, NAV. Pasted as dated positions where you don’t keep books, or derived from the ledger where you do. Turn off for a fund that doesn’t report LP capital at all.', href: '/support#lps' },
-  lp_associates: { label: 'GP Entities', description: 'Entity ownership mappings and pro-rata associates calculations for LP reporting', href: '/support#lps' },
   lp_portal: { label: 'LP documents & sharing', description: 'The LPs → Documents page (invite LPs, upload documents, read their messages) and the “Share with LPs” controls on snapshots and letters. Needs the LP portal switched on.', href: '/support#lps' },
   lp_activity: { label: 'LP activity log', description: 'The LPs → Activity page — which LPs and authorized users logged in, viewed, or downloaded. Needs the LP portal switched on.', href: '/support#lps' },
   compliance: { label: 'Compliance', description: 'Track regulatory deadlines, filings, and compliance workflows', href: '/support#compliance' },

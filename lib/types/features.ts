@@ -1,4 +1,4 @@
-export type FeatureKey = 'interactions' | 'investments' | 'notes' | 'lp_letters' | 'imports' | 'asks' | 'lps' | 'lp_tracking' | 'lp_associates' | 'lp_portal' | 'lp_activity' | 'compliance' | 'deals' | 'diligence' | 'accounting' | 'gp_economics'
+export type FeatureKey = 'interactions' | 'investments' | 'notes' | 'lp_letters' | 'imports' | 'asks' | 'lps' | 'lp_tracking' | 'lp_portal' | 'lp_activity' | 'compliance' | 'deals' | 'diligence' | 'accounting' | 'gp_economics'
 
 export type FeatureVisibility = 'everyone' | 'admin' | 'hidden' | 'off'
 
@@ -22,7 +22,6 @@ export const DEFAULT_FEATURE_VISIBILITY: FeatureVisibilityMap = {
   // as dated positions otherwise. This flag only decides whether the fund reports LP capital at
   // ALL; it is independent of `accounting` and can be off even when the books are on.
   lp_tracking: 'off',
-  lp_associates: 'admin',
   lp_portal: 'off',
   lp_activity: 'off',
   compliance: 'off',

@@ -22,8 +22,6 @@ function priceFor(model: string): { in: number; out: number } {
   if (m.includes('deepseek')) return { in: 0.3, out: 1.1 }
   if (m.includes('glm')) return { in: 0.4, out: 1.6 }
   if (m.includes('qwen')) return { in: 0.3, out: 1.2 }
-  // Local / self-hosted (Ollama) — no marginal API cost
-  if (m.includes('ollama') || m.includes('llama') || m.includes('mistral') || m.includes('phi')) return { in: 0, out: 0 }
   return { in: 3, out: 15 } // sensible default (~Sonnet tier)
 }
 

@@ -53,7 +53,7 @@ Inbound shows every email received and processed by the system — the audit tra
 
 If an email failed processing, you can see the error in the detail view. For emails needing review, resolve flagged items directly from the detail page. A **Process Email** action lets you rerun the entire AI pipeline on an email — useful after adding companies, updating metrics, or changing AI providers.
 
-If file storage is connected (Google Drive or Dropbox), emails and attachments are saved into company-specific folders automatically.
+If file storage is connected (Google Drive), emails and attachments are saved into company-specific folders automatically.
 
 ![Inbound](public/screenshots/inbound.png)
 
@@ -66,8 +66,6 @@ Import lets you process reports manually when they arrive outside the normal ema
 You can also paste data covering multiple companies at once — rows from a spreadsheet or CSV. The system will parse the data, create new companies if needed, add new metrics, and populate values. This makes it easy to bulk import historical data or onboard an entire portfolio in one step.
 
 Investment transaction data can also be pasted — rounds, proceeds, valuations, and share prices — and the AI will match entries to your portfolio companies.
-
-Fund cash flow data (commitments, called capital, distributions) can be pasted in freeform format — the AI parses dates, amounts, flow types, and portfolio group assignments automatically.
 
 ![Import](public/screenshots/import.png)
 
@@ -221,11 +219,11 @@ On each company's detail page, a **Recent Interactions** section shows the lates
 
 Deals is the inbound side of deal flow — cold pitches, partner-forwarded intros, and scout submissions arrive at your existing inbound email address and get screened against your fund's thesis before they reach a partner's inbox.
 
-Every inbound email runs through a content-aware classifier that decides between four destinations: **reporting** (portfolio metrics, the existing pipeline), **interactions** (CRM-style emails from fund members), **deals** (a company pitching the fund), or **other** (newsletters, recruiter spam, vendor pitches). Sender identity is a strong signal but not a hard rule, so a partner forwarding a cold pitch lands in Deals where it belongs, and a portfolio founder pitching a side project gets routed correctly. Below a configurable confidence threshold, items go to a Review queue with the top two predicted destinations for one-click resolution. Items labelled "other" go to an Email Audit log instead of being silently dropped.
+Every inbound email runs through a content-aware classifier that decides between four destinations: **reporting** (portfolio metrics, the existing pipeline), **interactions** (CRM-style emails from fund members), **deals** (a company pitching the fund), or **other** (newsletters, recruiter spam, vendor pitches). Sender identity is a strong signal but not a hard rule, so a partner forwarding a cold pitch lands in Deals where it belongs, and a portfolio founder pitching a side project gets routed correctly. When the classifier is unsure, items go to a Review queue with the top two predicted destinations for one-click resolution.
 
 For each pitch routed to Deals, a single AI call extracts company name, founder, intro source (referral / cold / warm intro / accelerator / demo day), referrer when applicable, stage, industry, raise size, a 100–150 word company summary, and a thesis-fit analysis with a fit score (strong, moderate, weak, out of thesis). Out-of-thesis pitches auto-archive and surface in a weekly digest email so partners can sanity-check without eyeballing every cold pitch. Founders can also submit pitches directly via a public form at a per-fund URL — no signup, file uploads supported, honeypot + rate-limited.
 
-The Deals page lists active pitches as a sortable table or a kanban board (drag-and-drop across status columns: new, reviewing, advancing, met, passed). Click a pitch to see the summary, thesis-fit analysis, source email, attachments, founders, intro source, and a deal-scoped Analyst chat that knows the pitch and your thesis. Settings → Deals controls the investment thesis, screening prompt, public submission token, confidence threshold, optional routing-model override, Known Referrers list (scouts and friends-of-fund whose intros bias toward Deals), an Email Audit log of dropped items, and a Routing Accuracy dashboard showing manual reroutes per week as a drift signal.
+The Deals page lists active pitches as a sortable table or a kanban board (drag-and-drop across status columns: new, reviewing, advancing, met, passed). Click a pitch to see the summary, thesis-fit analysis, source email, attachments, founders, intro source, and a deal-scoped Analyst chat that knows the pitch and your thesis. Settings → Deals controls the investment thesis, screening prompt, public submission token, and the Known Referrers list (scouts and friends-of-fund whose intros bias toward Deals).
 
 ## Diligence
 
@@ -254,6 +252,6 @@ Settings → Diligence has three controls: **Schemas** (the seven YAML editors),
 
 Settings is where the platform is configured. Most settings are admin-only, but all users can update their display name and enable two-factor authentication.
 
-For admins, Settings covers: AI provider keys and model selection (Anthropic, OpenAI, Google Gemini, and/or Ollama for local models), fund currency, feature visibility (control which features are visible to everyone, admin-only, hidden, or off), inbound email setup (Postmark or Mailgun), outbound email providers (Gmail, Resend, Postmark, or Mailgun), file storage connections (Google Drive or Dropbox), the AI summary prompt, email templates for reporting asks, analytics (Fathom, Google Analytics, and custom scripts), authorized senders, team members and roles, and the signup allow-list. The **Deals** group configures the inbound-pitch screening flow: investment thesis, screening prompt, intake toggle, public submission URL, known referrers, routing confidence threshold, and optional per-stage routing-model override. The **Diligence** group has three sub-pages: Schemas (the seven YAML editors with version history), Style Anchors (reference memo library with text extraction), and Defaults (per-deal and monthly token caps, per-stage AI provider overrides). The current app version is shown at the bottom of Settings, with a link to the Updates page when a newer version is available.
+For admins, Settings covers: AI provider keys and model selection (Anthropic, OpenAI, and/or OpenRouter), fund currency, feature visibility (control which features are visible to everyone, admin-only, hidden, or off), inbound email setup (Postmark or Mailgun), outbound email providers (Gmail, Resend, Postmark, or Mailgun), file storage connections (Google Drive or Dropbox), the AI summary prompt, email templates for reporting asks, analytics (Fathom, Google Analytics, and custom scripts), authorized senders, team members and roles, and the signup allow-list. The **Deals** group configures the inbound-pitch screening flow: investment thesis, screening prompt, intake toggle, public submission URL, known referrers, routing confidence threshold, and optional per-stage routing-model override. The **Diligence** group has three sub-pages: Schemas (the seven YAML editors with version history), Style Anchors (reference memo library with text extraction), and Defaults (per-deal and monthly token caps, per-stage AI provider overrides). The current app version is shown at the bottom of Settings, with a link to the Updates page when a newer version is available.
 
 ![Settings](public/screenshots/settings.png)

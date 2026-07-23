@@ -134,7 +134,7 @@ export async function POST(
   let providerOverride: import('@/lib/ai').ProviderType | undefined
   try {
     const body = await req.json()
-    const validProviders = ['anthropic', 'openai', 'ollama']
+    const validProviders = ['anthropic', 'openai']
     if (validProviders.includes(body.provider)) {
       providerOverride = body.provider
     }

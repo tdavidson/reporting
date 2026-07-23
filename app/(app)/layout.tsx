@@ -72,7 +72,6 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const configuredProviders = [
     fundSettings?.claude_api_key_encrypted ? 'anthropic' : null,
     fundSettings?.openai_api_key_encrypted ? 'openai' : null,
-    fundSettings?.ollama_base_url ? 'ollama' : null,
   ].filter(Boolean) as string[]
   const hasAIKey = configuredProviders.length > 0
   const defaultAIProvider = fundSettings?.default_ai_provider ?? 'anthropic'

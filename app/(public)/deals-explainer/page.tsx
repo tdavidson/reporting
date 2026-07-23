@@ -27,9 +27,8 @@ export default function DealsExplainerPage() {
       <p className="text-muted-foreground">
         Sender identity is a strong signal but not a hard rule, so a partner forwarding a cold
         pitch lands in Deals where it belongs, and a portfolio founder pitching a side project gets
-        routed correctly. Below a configurable confidence threshold, items go to a Review queue,
-        tagged with the top two predicted destinations, for quick manual resolution. Items labelled
-        &ldquo;other&rdquo; go to an Email Audit log instead of being silently dropped.
+        routed correctly. Uncertain items go to a Review queue, tagged with the top two predicted
+        destinations, for quick manual resolution &mdash; nothing is silently dropped.
       </p>
       <p className="text-muted-foreground">
         For each pitch routed to Deals, a single AI call extracts company name, founder, intro
@@ -46,8 +45,7 @@ export default function DealsExplainerPage() {
         across status columns: new, reviewing, advancing, met, diligence, invested, passed. Click a pitch to see the
         summary, thesis-fit analysis, source email, attachments, founders, intro source, and a
         deal-scoped Analyst chat that knows the pitch and your thesis. Settings includes a Known
-        Referrers list (scouts and friends-of-fund whose intros bias toward Deals), the Email Audit
-        log, and a Routing Accuracy dashboard showing manual reroutes per week as a drift signal.
+        Referrers list (scouts and friends-of-fund whose intros bias toward Deals).
       </p>
     </ExplainerContent>
   )

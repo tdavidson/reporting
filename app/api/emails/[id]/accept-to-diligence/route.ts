@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { classifyDocumentHeuristic } from '@/lib/memo-agent/heuristic-classify'
 import { enqueueIngestForDocuments } from '@/lib/diligence/enqueue-ingest'
+import { scanFileAsync } from '@/lib/security/scan-file'
 import type { PostmarkPayload } from '@/lib/pipeline/processEmail'
 
 /**
@@ -168,6 +169,15 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       const keySafe = safeName.replace(/[^a-zA-Z0-9._-]/g, '_')
       const mime = att.ContentType || 'application/octet-stream'
       const storagePath = `${dealId}/${Date.now()}_email_${index}_${keySafe}`
+
+      // Defense-in-depth: these bytes come from email-attachments, which are scanned at inbound
+      // time — but re-scan before they enter the diligence bucket so this path can't silently
+      // become a gap if that upstream ever changes.
+      const scan = await scanFileAsync(bytes, safeName, mime)
+      if (!scan.safe) {
+        skipped.push({ item: label, reason: `rejected by file scan (${scan.reason ?? 'unsafe'})` })
+        continue
+      }
 
       const { error: upErr } = await admin.storage
         .from('diligence-documents')

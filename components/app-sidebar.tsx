@@ -78,13 +78,7 @@ const NAV_ITEMS: NavItem[] = [
   // at zero). The list still filters rows by per-domain access; members reach theirs via the API/URL.
   { href: '/pending-actions', label: 'Pending Actions', icon: ListChecks, domain: 'portfolio', adminOnly: true, badgeKey: 'pendingActions' },
   { href: '/emails', label: 'Inbound', icon: Mail, domain: 'dealflow' },
-  {
-    href: '/deals', label: 'Deals', icon: Lightbulb, featureKey: 'deals',
-    children: [
-      { href: '/settings/email-audit',       label: 'Email audit',       adminOnly: true },
-      { href: '/settings/routing-accuracy',  label: 'Routing accuracy',  adminOnly: true },
-    ],
-  },
+  { href: '/deals', label: 'Deals', icon: Lightbulb, featureKey: 'deals' },
   {
     href: '/diligence', label: 'Diligence', icon: Microscope, featureKey: 'diligence',
     children: [

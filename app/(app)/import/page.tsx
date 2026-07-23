@@ -31,11 +31,6 @@ interface InvestmentImportResult {
   errors: string[]
 }
 
-interface CashFlowImportResult {
-  created: number
-  errors: string[]
-}
-
 interface FileMatch {
   file: File
   filename: string
@@ -78,12 +73,6 @@ export default function ImportPage() {
   const [investmentImporting, setInvestmentImporting] = useState(false)
   const [investmentResult, setInvestmentResult] = useState<InvestmentImportResult | null>(null)
   const [investmentError, setInvestmentError] = useState<string | null>(null)
-
-  // Fund cash flow import state
-  const [cashFlowText, setCashFlowText] = useState('')
-  const [cashFlowImporting, setCashFlowImporting] = useState(false)
-  const [cashFlowResult, setCashFlowResult] = useState<CashFlowImportResult | null>(null)
-  const [cashFlowError, setCashFlowError] = useState<string | null>(null)
 
   // Load companies for the dropdown and get fund_id
   useEffect(() => {
@@ -319,42 +308,6 @@ export default function ImportPage() {
       setInvestmentError('Something went wrong')
     } finally {
       setInvestmentImporting(false)
-    }
-  }
-
-  async function handleCashFlowImport() {
-    if (!cashFlowText.trim()) return
-    setCashFlowImporting(true)
-    setCashFlowResult(null)
-    setCashFlowError(null)
-
-    try {
-      const res = await fetch('/api/import/fund-cash-flows', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: cashFlowText }),
-      })
-
-      let data: any
-      const contentType = res.headers.get('content-type') ?? ''
-      if (contentType.includes('application/json')) {
-        data = await res.json()
-      } else {
-        const text = await res.text()
-        setCashFlowError(`Server error (${res.status}): ${text.slice(0, 200)}`)
-        return
-      }
-
-      if (!res.ok) {
-        setCashFlowError(data.error ?? 'Import failed')
-        return
-      }
-
-      setCashFlowResult(data)
-    } catch (err) {
-      setCashFlowError(err instanceof Error ? err.message : 'Something went wrong')
-    } finally {
-      setCashFlowImporting(false)
     }
   }
 
@@ -629,61 +582,6 @@ export default function ImportPage() {
             <Button onClick={handleInvestmentImport} disabled={investmentImporting || !investmentText.trim()}>
               {investmentImporting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               {investmentImporting ? 'Importing...' : 'Import Investments'}
-            </Button>
-          </div>
-        </div>
-      </div>
-
-      {/* Fund Cash Flows Section */}
-      <div className="mt-12 pt-8 border-t">
-        <h2 className="text-xl font-semibold tracking-tight mb-2">Paste Fund Cash Flows</h2>
-        <p className="text-sm text-muted-foreground mb-6">
-          Paste fund-level cash flow data (commitments, capital calls, distributions) per portfolio group. AI will parse any format.
-        </p>
-
-        {cashFlowError && (
-          <Alert variant="destructive" className="mb-4">
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription>{cashFlowError}</AlertDescription>
-          </Alert>
-        )}
-
-        {cashFlowResult && (
-          <Alert className="mb-4">
-            <CheckCircle2 className="h-4 w-4" />
-            <AlertDescription>
-              <div className="space-y-1">
-                <p className="font-medium">Import complete</p>
-                <p className="text-sm">{cashFlowResult.created} cash flow{cashFlowResult.created !== 1 ? 's' : ''} created</p>
-                {cashFlowResult.errors.length > 0 && (
-                  <div className="mt-2">
-                    <p className="text-sm font-medium text-destructive">Issues:</p>
-                    <ul className="text-sm text-destructive space-y-0.5">
-                      {cashFlowResult.errors.map((e, i) => <li key={i}>{e}</li>)}
-                    </ul>
-                  </div>
-                )}
-              </div>
-            </AlertDescription>
-          </Alert>
-        )}
-
-        <div className="space-y-4">
-          <Textarea
-            placeholder={`Paste fund cash flow data here...\n\nExample:\nFund I, Jan 15 2024, commitment, $10,000,000, Initial commitment\nFund I, Mar 1 2024, capital call, 2500000, First call\nFund I, Jun 15 2025, distribution, $500K, Q2 distribution\n\nOr any format, capital call notices, distribution memos, spreadsheet data, etc.`}
-            value={cashFlowText}
-            onChange={e => setCashFlowText(e.target.value)}
-            rows={12}
-            className="font-mono text-sm"
-          />
-
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-            <p className="text-xs text-muted-foreground">
-              Supports CSV, tab-separated, or free-form text. AI parses dates, amounts, and flow types automatically.
-            </p>
-            <Button onClick={handleCashFlowImport} disabled={cashFlowImporting || !cashFlowText.trim()}>
-              {cashFlowImporting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              {cashFlowImporting ? 'Importing...' : 'Import Cash Flows'}
             </Button>
           </div>
         </div>

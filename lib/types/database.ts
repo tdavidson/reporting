@@ -210,7 +210,6 @@ export type Database = {
           contact_email: string[] | null
           created_at: string | null
           current_update: string | null
-          dropbox_folder_path: string | null
           founded_year: number | null
           founders: string | null
           fund_id: string
@@ -233,7 +232,6 @@ export type Database = {
           contact_email?: string[] | null
           created_at?: string | null
           current_update?: string | null
-          dropbox_folder_path?: string | null
           founded_year?: number | null
           founders?: string | null
           fund_id: string
@@ -256,7 +254,6 @@ export type Database = {
           contact_email?: string[] | null
           created_at?: string | null
           current_update?: string | null
-          dropbox_folder_path?: string | null
           founded_year?: number | null
           founders?: string | null
           fund_id?: string
@@ -933,16 +930,10 @@ export type Database = {
           memo_agent_stage_models: Json | null
           memo_agent_web_search_enabled: boolean
           disable_user_tracking: boolean
-          dropbox_app_key: string | null
-          dropbox_app_secret_encrypted: string | null
-          dropbox_folder_path: string | null
-          dropbox_refresh_token_encrypted: string | null
           encryption_key_encrypted: string | null
           feature_visibility: Json | null
           file_storage_provider: string | null
           fund_id: string
-          gemini_api_key_encrypted: string | null
-          gemini_model: string
           google_client_id: string | null
           google_client_secret_encrypted: string | null
           google_drive_folder_id: string | null
@@ -954,8 +945,6 @@ export type Database = {
           mailgun_inbound_domain: string | null
           mailgun_sending_domain: string | null
           mailgun_signing_key_encrypted: string | null
-          ollama_base_url: string | null
-          ollama_model: string
           openai_api_key_encrypted: string | null
           openai_model: string
           outbound_email_provider: string | null
@@ -994,16 +983,10 @@ export type Database = {
           memo_agent_stage_models?: Json | null
           memo_agent_web_search_enabled?: boolean
           disable_user_tracking?: boolean
-          dropbox_app_key?: string | null
-          dropbox_app_secret_encrypted?: string | null
-          dropbox_folder_path?: string | null
-          dropbox_refresh_token_encrypted?: string | null
           encryption_key_encrypted?: string | null
           feature_visibility?: Json | null
           file_storage_provider?: string | null
           fund_id: string
-          gemini_api_key_encrypted?: string | null
-          gemini_model?: string
           google_client_id?: string | null
           google_client_secret_encrypted?: string | null
           google_drive_folder_id?: string | null
@@ -1015,8 +998,6 @@ export type Database = {
           mailgun_inbound_domain?: string | null
           mailgun_sending_domain?: string | null
           mailgun_signing_key_encrypted?: string | null
-          ollama_base_url?: string | null
-          ollama_model?: string
           openai_api_key_encrypted?: string | null
           openai_model?: string
           outbound_email_provider?: string | null
@@ -1055,16 +1036,10 @@ export type Database = {
           memo_agent_stage_models?: Json | null
           memo_agent_web_search_enabled?: boolean
           disable_user_tracking?: boolean
-          dropbox_app_key?: string | null
-          dropbox_app_secret_encrypted?: string | null
-          dropbox_folder_path?: string | null
-          dropbox_refresh_token_encrypted?: string | null
           encryption_key_encrypted?: string | null
           feature_visibility?: Json | null
           file_storage_provider?: string | null
           fund_id?: string
-          gemini_api_key_encrypted?: string | null
-          gemini_model?: string
           google_client_id?: string | null
           google_client_secret_encrypted?: string | null
           google_drive_folder_id?: string | null
@@ -1076,8 +1051,6 @@ export type Database = {
           mailgun_inbound_domain?: string | null
           mailgun_sending_domain?: string | null
           mailgun_signing_key_encrypted?: string | null
-          ollama_base_url?: string | null
-          ollama_model?: string
           openai_api_key_encrypted?: string | null
           openai_model?: string
           outbound_email_provider?: string | null

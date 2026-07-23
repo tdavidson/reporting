@@ -142,13 +142,12 @@ export default function PrivacyPage() {
           <div id="ai-providers">
             <h2 className="text-base font-medium mb-2">5. AI Provider Data Handling</h2>
             <p className="text-muted-foreground">
-              The Platform sends data to AI providers (Anthropic, OpenAI, Google, or local Ollama
-              instances) for metric extraction, summaries, analysis, and letter generation. This data
+              The Platform sends data to AI providers (Anthropic, OpenAI, or OpenRouter) for metric
+              extraction, summaries, analysis, and letter generation. This data
               may include email content, company metrics, documents, and other portfolio information.
               Each AI provider has its own data handling and privacy policies. For self-hosted
               deployments, you choose which provider to use and are responsible for understanding
-              that provider&apos;s data practices. Ollama runs locally and does not send data to
-              external services.
+              that provider&apos;s data practices.
             </p>
           </div>
 
@@ -161,10 +160,10 @@ export default function PrivacyPage() {
             <ul className="list-disc pl-5 text-muted-foreground space-y-1">
               <li><strong className="text-foreground">Supabase</strong> - database, authentication, and file storage</li>
               <li><strong className="text-foreground">Vercel / Netlify</strong> - application hosting</li>
-              <li><strong className="text-foreground">Anthropic / OpenAI / Google</strong> - AI processing</li>
+              <li><strong className="text-foreground">Anthropic / OpenAI</strong> - AI processing</li>
               <li><strong className="text-foreground">Postmark / Mailgun</strong> - inbound email processing</li>
               <li><strong className="text-foreground">Gmail / Resend / Postmark / Mailgun</strong> - outbound email</li>
-              <li><strong className="text-foreground">Google Drive / Dropbox</strong> - optional file storage</li>
+              <li><strong className="text-foreground">Google Drive</strong> - optional file storage</li>
             </ul>
             <p className="text-muted-foreground mt-2">
               We encourage you to review the privacy policies of any third-party services you configure

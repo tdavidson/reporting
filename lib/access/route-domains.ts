@@ -86,8 +86,6 @@ export const ROUTE_DOMAINS: Record<string, RouteAccess> = {
   'api/accounting/deal-carry': { domain: 'gp_economics' },
   'api/accounting/gp-economics': { domain: 'gp_economics' },
   'api/accounting/waterfall-terms': { domain: 'gp_economics' },
-  'api/lps/associates-calculate': { domain: 'gp_economics', feature: 'lp_associates' },
-  'api/lps/associates-overrides': { domain: 'gp_economics', feature: 'lp_associates' },
 
   // ── LP capital: identities, commitments, capital accounts ──────────────────
   'api/accounting/capital-accounts': { domain: 'lp_capital' },
@@ -168,7 +166,6 @@ export const ROUTE_DOMAINS: Record<string, RouteAccess> = {
   'api/default-metrics/apply': { domain: 'portfolio' },
   'api/import': { domain: 'portfolio', feature: 'imports' },
   'api/import/documents': { domain: 'portfolio', feature: 'imports' },
-  'api/import/fund-cash-flows': { domain: 'portfolio', feature: 'imports' },
   'api/import/investments': { domain: 'portfolio', feature: 'imports' },
   'api/metric-values/[id]': { domain: 'portfolio' },
   'api/metrics/[id]': { domain: 'portfolio' },
@@ -279,8 +276,6 @@ export const ROUTE_DOMAINS: Record<string, RouteAccess> = {
   'api/settings/deal-submission-token': { domain: 'admin' },
   'api/settings/drive': { domain: 'admin' },
   'api/settings/drive/folders': { domain: 'admin' },
-  'api/settings/dropbox': { domain: 'admin' },
-  'api/settings/dropbox/folders': { domain: 'admin' },
   'api/settings/heartbeat': { domain: 'admin' },
   'api/settings/senders': { domain: 'admin' },
   'api/settings/senders/[id]': { domain: 'admin' },
@@ -293,7 +288,6 @@ export const ROUTE_DOMAINS: Record<string, RouteAccess> = {
   'api/onboarding/senders': { domain: 'admin' },
   'api/usage': { domain: 'admin' },
   'api/test-claude-key': { domain: 'admin' },
-  'api/test-ollama': { domain: 'admin' },
   'api/test-openai-key': { domain: 'admin' },
   'api/transcription/test': { domain: 'admin' },
   // Reading fund settings feeds the app shell for every member. Writing is *mostly* administration
@@ -350,8 +344,6 @@ export const OPTIONAL_ROUTES = new Set<string>([
 export const UNGATED_ROUTES: Record<string, string> = {
   // Pre-authentication, or the act of authenticating.
   'api/auth/branding': 'Pre-auth: login page branding.',
-  'api/auth/dropbox': 'OAuth start; the callback establishes identity.',
-  'api/auth/dropbox/callback': 'OAuth callback.',
   'api/auth/google': 'OAuth start.',
   'api/auth/google/callback': 'OAuth callback.',
   'api/auth/logout': 'Ends a session.',
@@ -416,7 +408,6 @@ export const UNGATED_ROUTES: Record<string, string> = {
 
   // No fund data: these list what models a configured provider offers, for the model picker.
   'api/claude-models': 'Model list; no fund data.',
-  'api/ollama-models': 'Model list; no fund data.',
   'api/openai-models': 'Model list; no fund data.',
   'api/github-stars': 'Public repo star count.',
   'api/og': 'Renders an OG card from its own query params; reads nothing.',
