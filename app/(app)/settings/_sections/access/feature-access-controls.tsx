@@ -1,5 +1,6 @@
 'use client'
 
+import { Fragment } from 'react'
 import Link from 'next/link'
 import { FEATURE_META } from '@/lib/types/feature-meta'
 import { DEFAULT_FEATURE_VISIBILITY } from '@/lib/types/features'
@@ -26,10 +27,12 @@ const displayLevel = (level: FeatureVisibility): FeatureVisibility => (level ===
  * ProductGroup's "Access" panel — one product's worth at a time — rather than as a single
  * standalone grid grouped by product.
  */
-export function FeatureAccessControls({ features, values, onChange }: {
+export function FeatureAccessControls({ features, values, onChange, rowsBefore }: {
   features: FeatureKey[]
   values: Record<string, string>
   onChange: (key: FeatureKey, level: FeatureVisibility) => void
+  /** Optional custom row rendered (as a sibling, so it picks up the same divider) just ABOVE a given feature's row. */
+  rowsBefore?: Partial<Record<FeatureKey, React.ReactNode>>
 }) {
   // Rows, not cards: the everyone/admin/off buttons line up in a fixed column on the right so
   // access is scannable straight down the list.
@@ -39,7 +42,9 @@ export function FeatureAccessControls({ features, values, onChange }: {
         const current = displayLevel((values[key] ?? DEFAULT_FEATURE_VISIBILITY[key]) as FeatureVisibility)
         const meta = FEATURE_META[key]
         return (
-          <div key={key} className="flex items-center justify-between gap-4 px-3 py-2.5">
+          <Fragment key={key}>
+            {rowsBefore?.[key]}
+          <div className="flex items-center justify-between gap-4 px-3 py-2.5">
             <div className="min-w-0">
               <div className="text-sm font-medium">{meta.label}</div>
               <div className="text-xs text-muted-foreground">
@@ -64,6 +69,7 @@ export function FeatureAccessControls({ features, values, onChange }: {
               ))}
             </div>
           </div>
+          </Fragment>
         )
       })}
     </div>

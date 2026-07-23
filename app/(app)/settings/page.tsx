@@ -28,7 +28,7 @@ import { AiSummaryPromptSection, AiSummaryPromptReadOnly } from './_sections/pro
 import { DealScreeningSection } from './_sections/products/investment/deal-screening-section'
 import { KnownReferrersSection } from './_sections/products/investment/known-referrers-section'
 import { MemoAgentSection } from './_sections/products/investment/memo-agent-section'
-import { LpPortalCard } from './_sections/products/lp/lp-portal-card'
+import { LpPortalRow } from './_sections/products/lp/lp-portal-card'
 import { ProductGroup } from './_sections/products/product-group'
 import { SettingsGroup } from './_sections/settings-group'
 import type { FeatureKey, FeatureVisibility } from '@/lib/types/features'
@@ -250,7 +250,7 @@ export default function SettingsPage() {
             values={visValues}
             onFeatureChange={handleFeatureChange}
             onToggled={load}
-            accessExtra={<LpPortalCard enabled={settings.lpPortalEnabled} onSaved={load} />}
+            accessRowsBefore={{ lp_portal: <LpPortalRow enabled={settings.lpPortalEnabled} onSaved={load} /> }}
           />
 
           <ProductGroup product="fund_operations" values={visValues} onFeatureChange={handleFeatureChange} onToggled={load}>
