@@ -40,11 +40,7 @@ const FIT_BADGE: Record<string, { label: string; cls: string }> = {
 
 const FIT_OPTIONS = ['strong', 'moderate', 'weak', 'out_of_thesis', 'spam']
 
-// The sources a human can pick from. 'heartbeat' is NOT here: it is only ever set
-// by the Heartbeat ingest path, and the filter only offers it to funds that have
-// the integration on (or that have already received a deal through it) — see
-// heartbeatSourceAvailable from /api/settings. A fund that doesn't use Heartbeat
-// should never see a dead option in its dropdown.
+// The sources a human can pick from.
 const SOURCE_OPTIONS = ['referral', 'cold', 'warm_intro', 'accelerator', 'demo_day', 'event', 'other']
 
 type ViewMode = 'table' | 'board'
@@ -68,7 +64,6 @@ export function DealsContent({ initialDeals }: { initialDeals: Deal[] }) {
   const [view, setView] = useState<ViewMode>('table')
   const [sort, setSort] = useState<SortState>({ key: 'date', dir: 'desc' })
   const [inboundAddress, setInboundAddress] = useState('')
-  const [heartbeatSource, setHeartbeatSource] = useState(false)
   const [copied, setCopied] = useState(false)
   const [createOpen, setCreateOpen] = useState(false)
   const router = useRouter()
@@ -76,14 +71,8 @@ export function DealsContent({ initialDeals }: { initialDeals: Deal[] }) {
   useEffect(() => {
     fetch('/api/settings').then(r => r.ok ? r.json() : null).then(s => {
       if (s?.postmarkInboundAddress) setInboundAddress(s.postmarkInboundAddress)
-      setHeartbeatSource(!!s?.heartbeatSourceAvailable)
     }).catch(() => {})
   }, [])
-
-  const sourceOptions = useMemo(
-    () => heartbeatSource ? [...SOURCE_OPTIONS, 'heartbeat'] : SOURCE_OPTIONS,
-    [heartbeatSource]
-  )
 
   function toggleSort(key: SortKey) {
     setSort(prev => {
@@ -208,7 +197,7 @@ export function DealsContent({ initialDeals }: { initialDeals: Deal[] }) {
           className="h-9 px-3 rounded-md border border-input bg-background text-sm"
         >
           <option value="">All sources</option>
-          {sourceOptions.map(o => <option key={o} value={o}>{labelFor(o)}</option>)}
+          {SOURCE_OPTIONS.map(o => <option key={o} value={o}>{labelFor(o)}</option>)}
         </select>
         {inboundAddress && (
           <div className="ml-auto flex items-center gap-1.5">

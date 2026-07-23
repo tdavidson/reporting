@@ -36,12 +36,6 @@
     },
     "app/api/cron/deal-research/route.ts": {
       "maxDuration": 300
-    },
-    "app/api/cron/heartbeat-backfill/route.ts": {
-      "maxDuration": 300
-    },
-    "app/api/webhooks/heartbeat/*/route.ts": {
-      "maxDuration": 120
     }
   },
   "crons": [
@@ -60,10 +54,6 @@
     {
       "path": "/api/cron/deal-research",
       "schedule": "*/10 * * * *"
-    },
-    {
-      "path": "/api/cron/heartbeat-backfill",
-      "schedule": "0 * * * *"
     }
   ]
 }

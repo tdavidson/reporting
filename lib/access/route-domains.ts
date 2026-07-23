@@ -276,7 +276,6 @@ export const ROUTE_DOMAINS: Record<string, RouteAccess> = {
   'api/settings/deal-submission-token': { domain: 'admin' },
   'api/settings/drive': { domain: 'admin' },
   'api/settings/drive/folders': { domain: 'admin' },
-  'api/settings/heartbeat': { domain: 'admin' },
   'api/settings/senders': { domain: 'admin' },
   'api/settings/senders/[id]': { domain: 'admin' },
   // The control panel for who can see what: reading it maps the fund's data.
@@ -377,11 +376,9 @@ export const UNGATED_ROUTES: Record<string, string> = {
   'api/cron/affinity-sync': 'Cron: CRON_SECRET.',
   'api/cron/deal-research': 'Cron: CRON_SECRET.',
   'api/cron/deals-digest': 'Cron: CRON_SECRET.',
-  'api/cron/heartbeat-backfill': 'Cron: CRON_SECRET.',
   'api/cron/memo-agent-worker': 'Cron: CRON_SECRET.',
 
   // Inbound from third parties, authenticated by a token in the path or a provider signature.
-  'api/webhooks/heartbeat/[token]': 'Inbound webhook: high-entropy path token.',
   'api/webhooks/transcription/[secret]': 'Inbound webhook: path secret.',
   'api/inbound-email': 'Inbound email webhook.',
   'api/inbound-email/mailgun': 'Inbound email webhook (Mailgun).',

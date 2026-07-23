@@ -82,36 +82,6 @@ export async function GET() {
     agentApiEnabled = !!agentRow?.agent_api_enabled
   } catch { /* migration not applied — the surface is simply off */ }
 
-  // Whether the Deals UI should offer "Heartbeat" as a source at all.
-  //
-  // True if the integration is connected and switched on, OR if a deal has ever
-  // actually arrived through it. The second clause is what keeps history honest:
-  // disconnecting Heartbeat must not make the source filter for deals you already
-  // have vanish, leaving rows you can see but can no longer filter for.
-  //
-  // Same tolerate-a-missing-table posture as affinity_mcp_enabled above — a
-  // deployment that hasn't run the Heartbeat migration just gets `false` instead
-  // of a settings page that won't load.
-  let heartbeatSourceAvailable = false
-  try {
-    const { data: hb } = await (admin as any)
-      .from('heartbeat_credentials')
-      .select('enabled')
-      .eq('fund_id', membership.fund_id)
-      .maybeSingle()
-
-    if (hb?.enabled) {
-      heartbeatSourceAvailable = true
-    } else {
-      const { count } = await (admin as any)
-        .from('inbound_deals')
-        .select('id', { count: 'exact', head: true })
-        .eq('fund_id', membership.fund_id)
-        .eq('intro_source', 'heartbeat')
-      heartbeatSourceAvailable = (count ?? 0) > 0
-    }
-  } catch { /* migration not applied — the source is simply not offered */ }
-
   return NextResponse.json({
     fundId: fund?.id,
     fundName: fund?.name,
@@ -163,7 +133,6 @@ export async function GET() {
     hasSubmissionToken: !!settings?.deal_submission_token,
     lpPortalEnabled: settings?.lp_portal_enabled ?? false,
     affinityMcpEnabled,
-    heartbeatSourceAvailable,
     agentApiEnabled,
     displayName: membership.display_name ?? '',
     isAdmin: membership.role === 'admin',

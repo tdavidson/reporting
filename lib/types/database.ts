@@ -2996,10 +2996,12 @@ export type RoutedTo           = 'reporting' | 'interactions' | 'deals' | 'dilig
 export type DiligenceIntakeStatus = 'pending' | 'accepted' | 'rejected'
 export type ThesisFitScore     = 'strong' | 'moderate' | 'weak' | 'out_of_thesis' | 'spam'
 export type DealStatus         = 'new' | 'reviewing' | 'advancing' | 'met' | 'diligence' | 'invested' | 'passed'
-// 'heartbeat' is set ONLY by the Heartbeat ingest path (processDeal's
-// introSourceOverride), never inferred by the deal analyzer — it is deliberately
-// absent from VALID_INTRO_SOURCES in lib/claude/analyzeDeal.ts so the model can't
-// label an emailed pitch as having come from the community.
+// 'heartbeat' is a historical value: it was set only by the now-removed Heartbeat
+// integration and is kept here so existing inbound_deals rows with
+// intro_source='heartbeat' remain valid. It is deliberately absent from
+// VALID_INTRO_SOURCES in lib/claude/analyzeDeal.ts so the model can't label an
+// emailed pitch as having come from the community, and it can no longer be set
+// on new rows.
 export type IntroSource        = 'referral' | 'cold' | 'warm_intro' | 'accelerator' | 'demo_day' | 'event' | 'heartbeat' | 'other'
 export type ReviewResolution   = 'accepted' | 'rejected' | 'manually_corrected'
 export type EmailRequestStatus = 'draft' | 'sent' | 'failed'

@@ -1,6 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import type { AIProvider } from '@/lib/ai/types'
-import type { IntroSource } from '@/lib/types/database'
 import type { ExtractionResult } from '@/lib/parsing/extractAttachmentText'
 import type { PostmarkPayload } from '@/lib/pipeline/processEmail'
 import { analyzeDeal, DEFAULT_SCREENING_PROMPT, type DealAnalysis } from '@/lib/claude/analyzeDeal'
@@ -17,15 +16,6 @@ export interface ProcessDealParams {
   provider: AIProvider
   providerType: string
   model: string
-  /**
-   * Pin `intro_source` instead of letting the analyzer infer it, for ingestion
-   * paths where the channel is a fact rather than a guess: a thread that arrived
-   * over the Heartbeat webhook came from the community, and no amount of prose in
-   * the post should be able to talk the model out of that. The analyzer's own
-   * vocabulary deliberately excludes these values (see VALID_INTRO_SOURCES), so
-   * this is the only way they get set.
-   */
-  introSourceOverride?: IntroSource
 }
 
 export interface ProcessDealResult {
@@ -46,7 +36,7 @@ export interface ProcessDealResult {
  *   5. Flag in parsing_reviews when critical fields are missing.
  */
 export async function processDeal(params: ProcessDealParams): Promise<ProcessDealResult> {
-  const { supabase, emailId, fundId, payload, extracted, provider, providerType, model, introSourceOverride } = params
+  const { supabase, emailId, fundId, payload, extracted, provider, providerType, model } = params
 
   const settings = await loadSettings(supabase, fundId)
   const thesis = settings?.deal_thesis ?? ''
@@ -112,7 +102,7 @@ export async function processDeal(params: ProcessDealParams): Promise<ProcessDea
       founder_name: analysis.founder_name,
       founder_email: founderEmail,
       co_founders: analysis.co_founders as any,
-      intro_source: introSourceOverride ?? analysis.intro_source,
+      intro_source: analysis.intro_source,
       referrer_name: analysis.referrer_name,
       referrer_email: analysis.referrer_email,
       stage: analysis.stage,

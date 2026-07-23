@@ -35,7 +35,6 @@ import type { FeatureVisibilityMap } from '@/lib/types/features'
 import { AnalystToggleButton } from '@/components/analyst-button'
 import { AnalystPanel } from '@/components/analyst-panel'
 import { AffinityConnect } from '@/components/settings/affinity-connect'
-import { HeartbeatConnect } from '@/components/settings/heartbeat-connect'
 import { DealResearchSettings } from '@/components/settings/deal-research-settings'
 import { AdminSectionContext, GroupHeader, Section } from '@/components/settings/section'
 import type { SettingsData } from './_sections/types'
@@ -126,9 +125,6 @@ export default function SettingsPage() {
           token and every user needs their own. This section used for all external data integrations. */}
       <GroupHeader label="External Data" />
       <AffinityConnect />
-      {/* Heartbeat, unlike Affinity, is a per-FUND credential that reads the whole
-          community — so the card is admin-only and renders nothing for everyone else. */}
-      <HeartbeatConnect />
 
       <GroupHeader label="Notes" />
       <NotificationPreferencesSection />
