@@ -78,3 +78,7 @@ export function isProductActive(p: ProductKey, fv: FeatureVisibilityMap | null |
     return v !== 'off' && v !== 'hidden'
   })
 }
+
+export function groupFeaturesByProduct(): Array<{ product: ProductKey; features: FeatureKey[] }> {
+  return orderedProducts().map(product => ({ product, features: featuresForProduct(product) }))
+}

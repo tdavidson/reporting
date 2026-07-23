@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { PRODUCT_META, productForFeature, featuresForProduct, productForDomain, isProductActive, orderedProducts, type ProductKey } from './products'
+import { PRODUCT_META, productForFeature, featuresForProduct, productForDomain, isProductActive, orderedProducts, groupFeaturesByProduct, type ProductKey } from './products'
 import { DEFAULT_FEATURE_VISIBILITY, type FeatureKey, type FeatureVisibilityMap } from '@/lib/types/features'
 import { DOMAIN_META, type Domain } from './domains'
 
@@ -62,5 +62,12 @@ describe('PRODUCT_META', () => {
       const fromDomains = PRODUCT_META[p].domains.flatMap(d => DOMAIN_META[d].features)
       expect(Array.from(new Set(PRODUCT_META[p].features)).sort()).toEqual(Array.from(new Set(fromDomains)).sort())
     }
+  })
+
+  it('groups all features by product in order', () => {
+    const groups = groupFeaturesByProduct()
+    expect(groups.map(g => g.product)).toEqual(orderedProducts())
+    const flat = groups.flatMap(g => g.features)
+    expect(flat.sort()).toEqual((Object.keys(DEFAULT_FEATURE_VISIBILITY) as FeatureKey[]).sort())
   })
 })
