@@ -125,16 +125,15 @@ export default function SettingsPage() {
       <div className="flex flex-col lg:flex-row gap-6 items-start">
       <div className="flex-1 min-w-0 max-w-3xl w-full space-y-8">
 
-      <SettingsGroup label="Account">
-        <ProfileSection displayName={settings.displayName} onSaved={load} />
-        <MfaSection />
-        <NotificationPreferencesSection />
-        {/* No longer gated on the accounting feature: the agent surface now covers the
-            portfolio, companies, performance and LPs as well as the ledger, so a fund with
-            accounting switched off still has most of it. Per-user keys, so this lives in
-            Account (all users); the admin on/off toggle lives in Organization below. */}
+      {/* Account settings are not grouped/collapsible — they sit directly on the page. */}
+      <ProfileSection displayName={settings.displayName} onSaved={load} />
+      <MfaSection />
+      <NotificationPreferencesSection />
+      {/* Per-user API/MCP keys, so this lives on the page for all users; the admin on/off
+          toggle lives in Organization below. */}
+      <Section title="API and MCP">
         <LedgerAgentAccess isAdmin={settings.isAdmin} section="keys" />
-      </SettingsGroup>
+      </Section>
 
       {/* Per-USER, not per-fund: the Affinity key is the caller's own personal access
           token and every user needs their own. Admins get the same card inside Investment
