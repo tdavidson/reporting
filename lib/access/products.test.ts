@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { PRODUCT_META, productForFeature, featuresForProduct, productForDomain, isProductActive, orderedProducts, groupFeaturesByProduct, type ProductKey } from './products'
+import { PRODUCT_META, productForFeature, featuresForProduct, productForDomain, isProductActive, orderedProducts, groupFeaturesByProduct, recommendedVisibilityForProduct, disabledVisibilityForProduct, type ProductKey } from './products'
 import { DEFAULT_FEATURE_VISIBILITY, type FeatureKey, type FeatureVisibilityMap } from '@/lib/types/features'
 import { DOMAIN_META, type Domain } from './domains'
 
@@ -69,5 +69,19 @@ describe('PRODUCT_META', () => {
     expect(groups.map(g => g.product)).toEqual(orderedProducts())
     const flat = groups.flatMap(g => g.features)
     expect(flat.sort()).toEqual((Object.keys(DEFAULT_FEATURE_VISIBILITY) as FeatureKey[]).sort())
+  })
+
+  it("recommendedVisibilityForProduct turns all of a product's features on", () => {
+    const rec = recommendedVisibilityForProduct('lp_reporting')
+    for (const f of featuresForProduct('lp_reporting')) {
+      expect(rec[f]).toBeDefined()
+      expect(rec[f]).not.toBe('off')
+      expect(rec[f]).not.toBe('hidden')
+    }
+  })
+
+  it("disabledVisibilityForProduct sets all of a product's features off", () => {
+    const dis = disabledVisibilityForProduct('lp_reporting')
+    for (const f of featuresForProduct('lp_reporting')) expect(dis[f]).toBe('off')
   })
 })

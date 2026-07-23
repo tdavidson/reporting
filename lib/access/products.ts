@@ -82,3 +82,20 @@ export function isProductActive(p: ProductKey, fv: FeatureVisibilityMap | null |
 export function groupFeaturesByProduct(): Array<{ product: ProductKey; features: FeatureKey[] }> {
   return orderedProducts().map(product => ({ product, features: featuresForProduct(product) }))
 }
+
+/** Feature-visibility map that turns a product fully on: each feature gets its
+ *  `DEFAULT_FEATURE_VISIBILITY` value, except `off`/`hidden` defaults are forced to `admin`
+ *  (so the product becomes reachable at all — see `isProductActive`). */
+export function recommendedVisibilityForProduct(p: ProductKey): Partial<FeatureVisibilityMap> {
+  const out: Partial<FeatureVisibilityMap> = {}
+  for (const f of featuresForProduct(p)) {
+    const def = DEFAULT_FEATURE_VISIBILITY[f]
+    out[f] = (def === 'off' || def === 'hidden') ? 'admin' : def
+  }
+  return out
+}
+
+/** Feature-visibility map that turns a product fully off: every feature set to `off`. */
+export function disabledVisibilityForProduct(p: ProductKey): Partial<FeatureVisibilityMap> {
+  return Object.fromEntries(featuresForProduct(p).map(f => [f, 'off'])) as Partial<FeatureVisibilityMap>
+}

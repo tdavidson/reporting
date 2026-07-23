@@ -1,33 +1,75 @@
 'use client'
 
 import { useState } from 'react'
-import { ChevronDown, ChevronRight } from 'lucide-react'
-import { PRODUCT_META, type ProductKey } from '@/lib/access/products'
+import { ChevronDown, ChevronRight, Loader2 } from 'lucide-react'
+import { PRODUCT_META, recommendedVisibilityForProduct, disabledVisibilityForProduct, type ProductKey } from '@/lib/access/products'
+import type { FeatureVisibilityMap } from '@/lib/types/features'
 
 /**
  * Collapsible wrapper for one product's settings. Expanded by default when the product is active
  * (any of its features on); collapsed when off, so a fresh fund shows only Portfolio Reporting.
- * (A one-click enable/disable control is added in a later task.)
+ * Includes a one-click Turn on/off control that bulk-updates feature visibility for every
+ * feature the product owns via the existing partial-merge `/api/settings` PATCH.
  */
-export function ProductGroup({ product, active, children }: { product: ProductKey; active: boolean; children?: React.ReactNode }) {
+export function ProductGroup({ product, active, onToggled, children }: {
+  product: ProductKey
+  active: boolean
+  onToggled: () => void
+  children?: React.ReactNode
+}) {
   const meta = PRODUCT_META[product]
   const [open, setOpen] = useState(active)
+  const [busy, setBusy] = useState(false)
+
+  async function apply(map: Partial<FeatureVisibilityMap>, openAfter: boolean) {
+    setBusy(true)
+    const res = await fetch('/api/settings', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ featureVisibility: map }),
+    })
+    setBusy(false)
+    if (res.ok) {
+      if (openAfter) setOpen(true)
+      onToggled()
+    }
+  }
+
   return (
     <div className="rounded-lg border bg-card">
-      <button
-        type="button"
-        onClick={() => setOpen(o => !o)}
-        className="w-full flex items-center gap-3 p-4 text-left"
-      >
-        {open ? <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />}
-        <div className="flex-1 min-w-0">
-          <div className="text-sm font-medium">{meta.label}</div>
-          <div className="text-xs text-muted-foreground">{meta.description}</div>
-        </div>
-        <span className={`text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full border ${active ? 'text-green-600 border-green-600/30' : 'text-muted-foreground border-border'}`}>
-          {active ? 'On' : 'Off'}
-        </span>
-      </button>
+      <div className="flex items-center gap-3 p-4">
+        <button
+          type="button"
+          onClick={() => setOpen(o => !o)}
+          aria-expanded={open}
+          className="flex items-center gap-3 flex-1 min-w-0 text-left"
+        >
+          {open ? <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />}
+          <div className="flex-1 min-w-0">
+            <div className="text-sm font-medium">{meta.label}</div>
+            <div className="text-xs text-muted-foreground">{meta.description}</div>
+          </div>
+        </button>
+        {active ? (
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => apply(disabledVisibilityForProduct(product), false)}
+            className="text-xs px-3 py-1.5 rounded-md border hover:bg-accent/30 disabled:opacity-50 shrink-0"
+          >
+            {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Turn off'}
+          </button>
+        ) : (
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => apply(recommendedVisibilityForProduct(product), true)}
+            className="text-xs px-3 py-1.5 rounded-md border border-foreground/30 bg-accent font-medium hover:bg-accent/70 disabled:opacity-50 shrink-0"
+          >
+            {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : `Turn on ${meta.label}`}
+          </button>
+        )}
+      </div>
       {open && children != null && <div className="px-4 pb-4 space-y-6">{children}</div>}
     </div>
   )
