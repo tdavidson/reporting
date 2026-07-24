@@ -40,7 +40,8 @@ export async function middleware(request: NextRequest) {
     process.env.NEXT_PUBLIC_ENABLE_MARKETING_SITE === 'true' &&
     !!process.env.MARKETING_DEPLOYMENT_KEY
 
-  const isMarketingRoute = pathname === '/' || pathname === '/license' || pathname === '/demo' || pathname === '/contact' || pathname === '/terms' || pathname === '/privacy' || pathname === '/pricing' || pathname.endsWith('-explainer')
+  // Only the single marketing page remains; legal/pricing/contact live on hemrock.com.
+  const isMarketingRoute = pathname === '/'
   const isPublicMarketingRoute = marketingEnabled && isMarketingRoute
 
   // Token-gated public surfaces — always reachable regardless of the marketing
