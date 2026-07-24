@@ -117,7 +117,7 @@ function AuthForm() {
           </p>
 
           <p className="text-center text-xs text-muted-foreground">
-            <a href="/license" target="_blank" rel="noopener noreferrer" className="hover:text-foreground underline underline-offset-4">License</a>
+            <a href="https://github.com/tdavidson/reporting/blob/main/LICENSE.md" target="_blank" rel="noopener noreferrer" className="hover:text-foreground underline underline-offset-4">License</a>
             {isHemrock && (
               <>
                 {' · '}
