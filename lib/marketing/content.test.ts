@@ -57,6 +57,13 @@ describe('parseSiteContent', () => {
     expect(out?.pricing.tiers).toEqual([])
     expect(out?.links).toEqual({})
   })
+
+  it('drops an invalid product-group key but keeps the group', () => {
+    const bad = { ...valid, productGroups: [{ ...valid.productGroups[0], key: 'not_a_product' }] }
+    const out = parseSiteContent(bad)
+    expect(out?.productGroups).toHaveLength(1)
+    expect(out?.productGroups[0].key).toBeUndefined()
+  })
 })
 
 describe('resolveIcon', () => {
@@ -66,5 +73,10 @@ describe('resolveIcon', () => {
   it('falls back to Circle for unknown/missing', () => {
     expect(resolveIcon('NotAnIcon')).toBe(Circle)
     expect(resolveIcon(undefined)).toBe(Circle)
+  })
+  it('falls back to Circle for Object.prototype member names', () => {
+    expect(resolveIcon('constructor')).toBe(Circle)
+    expect(resolveIcon('toString')).toBe(Circle)
+    expect(resolveIcon('hasOwnProperty')).toBe(Circle)
   })
 })

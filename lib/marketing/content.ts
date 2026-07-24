@@ -1,6 +1,6 @@
 import { Circle, Mail, Upload, LineChart, BarChart3, StickyNote, MessageCircle, Handshake, Briefcase, Microscope, FileText, Calculator, Lock, FolderOpen, ShieldCheck, Database, Brain, ShieldUser, Users, Lightbulb, Send, Play, Github } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
-import type { ProductKey } from '@/lib/access/products'
+import { orderedProducts, type ProductKey } from '@/lib/access/products'
 
 export interface SiteFeature { title: string; text: string; screenshot?: string; icon?: string }
 export interface SiteProductGroup {
@@ -35,7 +35,7 @@ export const ICONS: Record<string, LucideIcon> = {
 }
 
 export function resolveIcon(name?: string): LucideIcon {
-  return (name && ICONS[name]) || Circle
+  return (name && Object.prototype.hasOwnProperty.call(ICONS, name) && ICONS[name]) || Circle
 }
 
 // ---- hand-rolled validation (no zod; cf. app/api/settings/theme/route.ts) ----
@@ -59,7 +59,7 @@ function group(v: unknown): SiteProductGroup | null {
   if (features.length === 0) return null
   return {
     label: v.label, description: v.description, features,
-    ...(isStr(v.key) ? { key: v.key as ProductKey } : {}),
+    ...(isStr(v.key) && (orderedProducts() as string[]).includes(v.key) ? { key: v.key as ProductKey } : {}),
     ...(isStr(v.heroScreenshot) ? { heroScreenshot: v.heroScreenshot } : {}),
   }
 }
