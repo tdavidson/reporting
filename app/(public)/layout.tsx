@@ -4,47 +4,16 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createBrowserClient } from '@supabase/ssr'
 import Link from 'next/link'
-import { Github, LogIn, Play, Monitor, Sun, Moon, Star } from 'lucide-react'
-
-function XIcon({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" fill="currentColor" className={className}>
-      <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
-    </svg>
-  )
-}
+import { Github, LogIn, Play, Star } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { AppFooter } from '@/components/app-footer'
+import { APP_VERSION } from '@/lib/version'
 
 function HemrockIcon({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 24 24" fill="none" className={className}>
       <path d="M13 14L17 9L22 18H2.84444C2.46441 18 2.2233 17.5928 2.40603 17.2596L10.0509 3.31896C10.2429 2.96885 10.7476 2.97394 10.9325 3.32786L15.122 11.3476" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
-  )
-}
-import { Button } from '@/components/ui/button'
-import { useTheme } from 'next-themes'
-import { AppFooter } from '@/components/app-footer'
-import { APP_VERSION } from '@/lib/version'
-
-const THEME_CYCLE = ['system', 'light', 'dark'] as const
-const THEME_ICONS = { system: Monitor, light: Sun, dark: Moon }
-const THEME_LABELS = { system: 'System', light: 'Light', dark: 'Dark' }
-
-function ThemeToggleButton() {
-  const { theme, setTheme } = useTheme()
-  const [mounted, setMounted] = useState(false)
-  useEffect(() => setMounted(true), [])
-  const current = (THEME_CYCLE.includes(theme as typeof THEME_CYCLE[number]) ? theme : 'system') as typeof THEME_CYCLE[number]
-  const Icon = mounted ? THEME_ICONS[current] : Monitor
-  const label = mounted ? THEME_LABELS[current] : 'System'
-  return (
-    <Button
-      variant="outline" size="sm" title={label}
-      className="text-muted-foreground"
-      onClick={() => setTheme(THEME_CYCLE[(THEME_CYCLE.indexOf(current) + 1) % THEME_CYCLE.length])}
-    >
-      <Icon className="h-4 w-4" />
-    </Button>
   )
 }
 
@@ -60,7 +29,7 @@ function PublicShell({ children }: { children: React.ReactNode }) {
 
   return (
     <>
-      <header className="relative flex items-center justify-between px-4 py-3 shrink-0">
+      <header className="relative flex items-center justify-between px-4 md:px-8 py-3 shrink-0">
         <div className="flex items-center gap-3">
           <a href="https://www.hemrock.com" target="_blank" rel="noopener noreferrer" aria-label="Hemrock">
             <HemrockIcon className="h-7 w-7 text-foreground" />
@@ -72,7 +41,6 @@ function PublicShell({ children }: { children: React.ReactNode }) {
         </div>
 
         <div className="flex items-center gap-2">
-          <ThemeToggleButton />
           <Button variant="outline" size="sm" asChild className="text-muted-foreground gap-2 hidden sm:inline-flex">
             <a href="https://portfolio.hemrock.com/demo" target="_blank" rel="noopener noreferrer">
               <Play className="h-4 w-4" />
@@ -91,11 +59,6 @@ function PublicShell({ children }: { children: React.ReactNode }) {
               <span className="hidden sm:inline">GitHub</span>
             </a>
           </Button>
-          <Button variant="outline" size="sm" asChild className="text-muted-foreground gap-2 hidden sm:inline-flex">
-            <a href="https://x.com/tdavidson" target="_blank" rel="noopener noreferrer" aria-label="tdavidson">
-              <XIcon className="h-4 w-4" />
-            </a>
-          </Button>
           <Button variant="outline" size="sm" asChild className="text-muted-foreground gap-2">
             <Link href="/auth">
               <LogIn className="h-4 w-4" />
@@ -109,9 +72,7 @@ function PublicShell({ children }: { children: React.ReactNode }) {
         <div className="flex-1">
           {children}
         </div>
-        <div className="max-w-3xl">
-          <AppFooter />
-        </div>
+        <AppFooter social />
       </main>
     </>
   )
@@ -141,7 +102,7 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
-      <div className="w-full max-w-screen-xl mx-auto flex flex-col flex-1">
+      <div className="w-full max-w-5xl mx-auto flex flex-col flex-1">
         <PublicShell>{children}</PublicShell>
       </div>
       {fathomSiteId && (

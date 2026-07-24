@@ -1,4 +1,4 @@
-import { Circle, Mail, Upload, LineChart, BarChart3, StickyNote, MessageCircle, Handshake, Briefcase, Microscope, FileText, Calculator, Lock, FolderOpen, ShieldCheck, Database, Brain, ShieldUser, Users, Lightbulb, Send, Play, Github } from 'lucide-react'
+import { Circle, Mail, Upload, LineChart, BarChart3, StickyNote, MessageCircle, Handshake, Briefcase, Microscope, FileText, Calculator, Lock, FolderOpen, ShieldCheck, Database, Brain, ShieldUser, Users, Lightbulb, Send, Play, Github, Crown, Landmark, Receipt, Percent, Eye, Coins, Search } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { orderedProducts, type ProductKey } from '@/lib/access/products'
 
@@ -25,6 +25,8 @@ export interface SiteContent {
   faqs: SiteFaq[]
   about: SiteAbout
   links: SiteLinks
+  /** Optional personal CTA rendered as a highlighted (amber) card in the About section. */
+  cfoCallout?: { badge?: string; title?: string; text: string; href: string }
 }
 
 // Allowlist of icons the JSON may reference by name. JSON can't hold components.
@@ -32,6 +34,7 @@ export const ICONS: Record<string, LucideIcon> = {
   Mail, Upload, LineChart, BarChart3, StickyNote, MessageCircle, Handshake, Briefcase,
   Microscope, FileText, Calculator, Lock, FolderOpen, ShieldCheck, Database, Brain,
   ShieldUser, Users, Lightbulb, Send, Play, Github, Circle,
+  Crown, Landmark, Receipt, Percent, Eye, Coins, Search,
 }
 
 export function resolveIcon(name?: string): LucideIcon {
@@ -132,5 +135,15 @@ export function parseSiteContent(raw: unknown): SiteContent | null {
     faqs: arr(raw.faqs).map(faq).filter((f): f is SiteFaq => f !== null),
     about: about(raw.about),
     links: links(raw.links),
+    ...(isObj(raw.cfoCallout) && nonEmpty(raw.cfoCallout.text) && nonEmpty(raw.cfoCallout.href)
+      ? {
+          cfoCallout: {
+            text: raw.cfoCallout.text,
+            href: raw.cfoCallout.href,
+            ...(nonEmpty(raw.cfoCallout.badge) ? { badge: raw.cfoCallout.badge } : {}),
+            ...(nonEmpty(raw.cfoCallout.title) ? { title: raw.cfoCallout.title } : {}),
+          },
+        }
+      : {}),
   }
 }

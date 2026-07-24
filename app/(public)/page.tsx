@@ -35,37 +35,31 @@ export default async function HomePage() {
   if (!content) redirect('/auth')
 
   return (
-    <div className="p-4 pt-6 md:p-8">
+    <div className="px-4 md:px-8 pb-8 pt-12 md:pt-20">
       <h1 className="text-4xl md:text-7xl font-semibold tracking-tight mb-2 max-w-3xl">{content.hero.title}</h1>
-      <p className="text-xl text-muted-foreground mb-12 max-w-2xl">{content.hero.subtitle}</p>
+      <p className="text-xl text-muted-foreground mb-16 max-w-2xl">{content.hero.subtitle}</p>
 
-      {/* Product groups — mirrors the settings product structure */}
+      {/* Product groups — mirrors the settings product structure. Every group presents its
+          features as half-width cards (no full-width hero banner). */}
       {content.productGroups.map(group => (
         <section key={group.label} className="mb-16">
           <h2 className="text-2xl font-semibold tracking-tight mb-1">{group.label}</h2>
           <p className="text-muted-foreground mb-6 max-w-2xl">{group.description}</p>
-          {group.heroScreenshot && (
-            <div className="relative h-[220px] md:h-[320px] rounded-lg border shadow-sm overflow-hidden mb-8">
-              <Image src={group.heroScreenshot} alt={group.label} fill sizes="(max-width: 768px) 100vw, 80vw" className="object-cover object-left-top" />
-            </div>
-          )}
-          <div className="space-y-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {group.features.map(f => {
               const Icon = resolveIcon(f.icon)
               return (
-                <div key={f.title} className="flex gap-4 md:gap-6 items-start">
-                  <div className="h-10 w-10 rounded-full border-2 border-border bg-background flex items-center justify-center shrink-0">
-                    <Icon className="h-4 w-4 text-muted-foreground" />
+                <div key={f.title} className="rounded-lg border p-5 flex flex-col">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Icon className="h-4 w-4 text-muted-foreground shrink-0" />
+                    <h3 className="text-base font-medium">{f.title}</h3>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <h3 className="text-base font-medium mb-1">{f.title}</h3>
-                    <p className="text-sm text-muted-foreground mb-3 max-w-xl">{f.text}</p>
-                    {f.screenshot && (
-                      <div className="relative h-[200px] md:h-[280px] rounded-lg border shadow-sm overflow-hidden">
-                        <Image src={f.screenshot} alt={f.title} fill sizes="(max-width: 768px) 100vw, 80vw" className="object-cover object-left-top" />
-                      </div>
-                    )}
-                  </div>
+                  <p className="text-sm text-muted-foreground mb-4">{f.text}</p>
+                  {f.screenshot && (
+                    <div className="relative h-[180px] rounded-md border shadow-sm overflow-hidden mt-auto">
+                      <Image src={f.screenshot} alt={f.title} fill sizes="(max-width: 768px) 100vw, 40vw" className="object-cover object-left-top" />
+                    </div>
+                  )}
                 </div>
               )
             })}
@@ -132,25 +126,40 @@ export default async function HomePage() {
         </section>
       )}
 
-      {/* About */}
-      {content.about.name && (
+      {/* About + optional CFO / Head of AI callout */}
+      {(content.about.name || content.cfoCallout) && (
         <section className="mb-8">
-          <div className="rounded-lg border bg-muted/50 p-5 flex items-start gap-4">
-            {content.about.photo && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={content.about.photo} alt={content.about.name} width={128} height={128} className="rounded-lg shrink-0" />
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+            {content.about.name && (
+              <div className={`${content.cfoCallout ? 'sm:col-span-3' : 'sm:col-span-4'} rounded-lg border bg-muted/50 p-5 flex flex-col sm:flex-row items-start gap-4`}>
+                {content.about.photo && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={content.about.photo} alt={content.about.name} width={128} height={128} className="rounded-lg w-full h-auto sm:w-32 sm:h-32 sm:object-cover shrink-0" />
+                )}
+                <div className="min-w-0">
+                  <p className="text-sm text-muted-foreground break-words">{renderInlineMarkdown(content.about.bio)}</p>
+                  {content.about.links.length > 0 && (
+                    <ul className="text-sm text-muted-foreground mt-3 flex flex-wrap gap-x-4 gap-y-1">
+                      {content.about.links.map(l => (
+                        <li key={l.href}><a href={l.href} target="_blank" rel="noopener noreferrer" className="underline hover:text-foreground">{l.label}</a></li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              </div>
             )}
-            <div>
-              <p className="font-medium text-base mb-2">{content.about.name}</p>
-              <p className="text-base text-muted-foreground">{renderInlineMarkdown(content.about.bio)}</p>
-              {content.about.links.length > 0 && (
-                <ul className="text-sm text-muted-foreground mt-3 flex gap-4">
-                  {content.about.links.map(l => (
-                    <li key={l.href}><a href={l.href} target="_blank" rel="noopener noreferrer" className="underline hover:text-foreground">{l.label}</a></li>
-                  ))}
-                </ul>
-              )}
-            </div>
+            {content.cfoCallout && (
+              <a
+                href={content.cfoCallout.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="relative rounded-lg border border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-950/40 p-5 flex flex-col transition-colors hover:bg-amber-100 dark:hover:bg-amber-950/60"
+              >
+                {content.cfoCallout.badge && <span className="absolute -top-3 left-4 bg-amber-500 text-white text-xs font-medium px-2.5 py-0.5 rounded-full">{content.cfoCallout.badge}</span>}
+                {content.cfoCallout.title && <h3 className="text-base font-medium mb-1">{content.cfoCallout.title}</h3>}
+                <p className="text-sm text-muted-foreground">{renderInlineMarkdown(content.cfoCallout.text)}</p>
+              </a>
+            )}
           </div>
         </section>
       )}
