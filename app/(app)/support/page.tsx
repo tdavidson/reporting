@@ -179,7 +179,9 @@ export default function SupportPage() {
             </a>
             . Read the{' '}
             <a
-              href="/license"
+              href="https://github.com/tdavidson/reporting/blob/main/LICENSE.md"
+              target="_blank"
+              rel="noopener noreferrer"
               className="text-foreground underline underline-offset-4 hover:text-foreground/80"
             >
               full license
@@ -193,7 +195,9 @@ export default function SupportPage() {
           <p className="text-muted-foreground mb-2">
             You can download and deploy this platform for your own use under the terms of the{' '}
             <a
-              href="/license"
+              href="https://github.com/tdavidson/reporting/blob/main/LICENSE.md"
+              target="_blank"
+              rel="noopener noreferrer"
               className="text-foreground underline underline-offset-4 hover:text-foreground/80"
             >
               license

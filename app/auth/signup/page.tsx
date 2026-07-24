@@ -189,7 +189,7 @@ export default function SignUpPage() {
                   <p>This email is not authorized for the hosted platform.</p>
                   <p>
                     This software is available to download and install on your own servers, subject to the{' '}
-                    <a href="/license" target="_blank" rel="noopener noreferrer" className="text-primary underline underline-offset-4 hover:text-primary/80">license</a>.
+                    <a href="https://github.com/tdavidson/reporting/blob/main/LICENSE.md" target="_blank" rel="noopener noreferrer" className="text-primary underline underline-offset-4 hover:text-primary/80">license</a>.
                     If you are interested in the hosted solution, contact{' '}
                     <a href="https://www.hemrock.com/contact" target="_blank" rel="noopener noreferrer" className="text-primary underline underline-offset-4 hover:text-primary/80">Taylor</a>.
                   </p>
@@ -238,7 +238,7 @@ export default function SignUpPage() {
               />
               <label htmlFor="accept-license" className="text-xs text-muted-foreground leading-relaxed">
                 I agree to the{' '}
-                <a href="/license" target="_blank" rel="noopener noreferrer" className="text-primary underline underline-offset-4 hover:text-primary/80">
+                <a href="https://github.com/tdavidson/reporting/blob/main/LICENSE.md" target="_blank" rel="noopener noreferrer" className="text-primary underline underline-offset-4 hover:text-primary/80">
                   License Agreement
                 </a>
                 {isHemrock && (
