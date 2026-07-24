@@ -15,15 +15,15 @@ Once data starts flowing, the Portfolio dashboard gives you a real-time view of 
 
 ## Portfolio
 
-The Portfolio page is the main dashboard and your starting point for monitoring the fund. It shows all active companies with key headline metrics (such as MRR and cash balance) so you can quickly scan the health of the portfolio without clicking into individual companies. Companies are displayed as cards with their most recently reported figures, sparkline charts, and badges for stage, industry, and portfolio group.
+The Portfolio page is the main dashboard and your starting point for monitoring the fund. It shows all active companies with key headline metrics (such as MRR and cash balance) so you can quickly scan the health of the portfolio without clicking into individual companies. Companies are displayed as cards with their most recently reported figures, sparkline charts, and badges for stage, industry, and vehicle.
 
-Filter by portfolio group and sort by name, cash position, or other criteria. A shared notes section at the bottom lets team members post fund-level observations — market commentary, cross-portfolio themes, reminders for the next IC meeting.
+Filter by vehicle and sort by name, cash position, or other criteria. A shared notes section at the bottom lets team members post fund-level observations — market commentary, cross-portfolio themes, reminders for the next IC meeting.
 
 ![Portfolio Dashboard](public/screenshots/dashboard.png)
 
 ### Company Detail
 
-Clicking a company opens its detail page. At the top you'll see the company name, headline metrics, and badges for stage, industry, and portfolio groups. Admins can edit the company's name, aliases, stage, industry, founders, overview, and other details.
+Clicking a company opens its detail page. At the top you'll see the company name, headline metrics, and badges for stage, industry, and vehicles. Admins can edit the company's name, aliases, stage, industry, founders, overview, and other details.
 
 The **Analyst** card generates a summary based on all available data — reported metrics, email content, uploaded documents, and previous summaries. The AI acts as a senior analyst preparing a portfolio review memo: it highlights current performance, trends, strengths, risks, and follow-up questions. You can regenerate the summary at any time, clear it to start fresh, or upload additional context documents directly from the card. If your fund has multiple AI providers configured, a provider selector lets you choose which AI to use.
 
@@ -73,9 +73,9 @@ Investment transaction data can also be pasted — rounds, proceeds, valuations,
 
 The Investments page provides a fund-level view of all investment transactions across the portfolio. Two tables organize the data:
 
-**Portfolio group summary** — one row per portfolio group (e.g. Fund I, Fund II) showing aggregate invested capital, current cost, realized and unrealized values, total value, gain/loss breakdowns, gross MOIC, realized/cost MOIC, unrealized/cost MOIC, and gross IRR. When fund cash flows are configured, computed LP metrics (TVPI, DPI, RVPI, Net IRR) appear alongside each group.
+**Vehicle summary** — one row per vehicle (e.g. Fund I, Fund II) showing aggregate invested capital, current cost, realized and unrealized values, total value, gain/loss breakdowns, gross MOIC, realized/cost MOIC, unrealized/cost MOIC, and gross IRR. When fund cash flows are configured, computed LP metrics (TVPI, DPI, RVPI, Net IRR) appear alongside each vehicle.
 
-**Company detail table** — every company with its investment cost, current cost, proceeds, unrealized value, total value, MOIC, IRR, and percentage allocation. The first column (company name) is sticky during horizontal scrolling. Both tables support column sorting, and a group filter lets you focus on a single portfolio group.
+**Company detail table** — every company with its investment cost, current cost, proceeds, unrealized value, total value, MOIC, IRR, and percentage allocation. The first column (company name) is sticky during horizontal scrolling. Both tables support column sorting, and a vehicle filter lets you focus on a single vehicle.
 
 Realized/Cost MOIC is calculated as realized proceeds divided by the cost basis exited. Unrealized/Cost MOIC is unrealized value divided by current cost (total invested minus cost basis exited). These provide a more precise view of returns relative to the capital actually at work, rather than total invested capital.
 
@@ -83,31 +83,27 @@ Realized/Cost MOIC is calculated as realized proceeds divided by the cost basis 
 
 ## Funds
 
-The Funds page tracks fund-level cash flows and computes LP return metrics per portfolio group. Each portfolio group gets its own tab showing:
+The Funds page is a per-vehicle performance overview, with every figure derived from the capital accounts rather than typed in. It reads the same whether a vehicle runs on light capital tracking (no double-entry books) or a full ledger, because both feed the same capital accounts.
 
-**Summary cards** — Committed Capital, Called Capital (PIC), Uncalled Capital, Distributions, Net Assets (editable — represents cash and other assets held by the fund excluding investment portfolio value), Gross Residual (investment unrealized value plus net assets), Net Residual, Total Value, TVPI, DPI, RVPI, and Net IRR.
+**Filters and lens** — search vehicles, filter by source (Fund Accounting or LP tracking), set an "As of" date, and toggle **Net to LP** (the LP-class partners' own accounts, already net of the carry the close accrued to the GP) against **Whole fund** (every partner, GP included). The toggle appears only when there is a GP class to carve out.
 
-**Cash flow table** — chronological list of all fund cash flows (commitments, called capital, distributions) with cumulative running totals for committed, called, uncalled, and distributed amounts. Cash flows can be added, edited, and deleted inline.
+**Summary cards** — Committed, Called, Distributed, NAV, TVPI, and DPI, totaled across the vehicles currently in view.
 
-**Per-group settings** — a settings dialog (pencil icon) lets admins configure carry rate and GP commit percentage for each portfolio group. The GP commit percentage represents the portion of called capital funded by the general partner, which is excluded from carried interest calculations. Carry is calculated only on the LP portion of profits above remaining LP capital.
+**Vehicle table** — one row per vehicle with Vintage, Committed, Called, Not called, Distributed, NAV, DPI, RVPI, TVPI, and IRR, sortable on any column. Click a vehicle to open its detail page.
 
-Key calculations:
-- **Gross Assets** = investment unrealized value + net assets
-- **Estimated Carry** = carry rate × max(0, gross assets × LP share − LP remaining capital)
-- **Net Residual** = gross assets − estimated carry
-- **Net IRR** = XIRR of called capital (negative), distributions (positive), and net residual as terminal value
+Capital is recognized when it is called, so called capital may be unfunded. Carry is exact rather than estimated: the period close accrues it to the GP's own account, so an LP's reported numbers are already net of it, with no carry-rate heuristic and nothing to keep in sync.
 
-Cash flow data can be bulk-imported from the Import page using freeform text — the AI parses dates, amounts, types, and group assignments automatically.
+A vehicle gets its capital one of two ways, and both land in the same accounts. **Capital tracking** records what moved each LP's capital (contributions, distributions, marks) with no double-entry books, enough for an SPV or a fund whose admin sends a quarterly statement. The **full ledger** adds a chart of accounts, journal entries, capital calls against a receivable, period closes that accrue carry, and financial statements.
 
 ![Funds](public/screenshots/funds.png)
 
 ## Letters
 
-Letters helps you generate quarterly update letters for your limited partners. Using AI and your portfolio data — reported metrics, company summaries, investment performance, and team notes — the system drafts professional LP communications scoped to a specific portfolio group and reporting period.
+Letters helps you generate quarterly update letters for your limited partners. Using AI and your portfolio data — reported metrics, company summaries, investment performance, and team notes — the system drafts professional LP communications scoped to a specific vehicle and reporting period.
 
-To create a letter, select the year, quarter, portfolio group, and template. Optionally toggle "year-end summary" for Q4 letters and add custom instructions to guide the AI. A preview step shows the companies and data that will be included before generation begins. You can upload a previous LP letter (.docx or .pdf) and AI analyzes it to match your writing style, tone, and structure, or use the built-in default template. Templates are reusable across letters and managed from the Templates dialog on the Letters page.
+To create a letter, select the year, quarter, vehicle, and template. Optionally toggle "year-end summary" for Q4 letters and add custom instructions to guide the AI. A preview step shows the companies and data that will be included before generation begins. You can upload a previous LP letter (.docx or .pdf) and AI analyzes it to match your writing style, tone, and structure, or use the built-in default template. Templates are reusable across letters and managed from the Templates dialog on the Letters page.
 
-The AI generates a narrative for each company in the portfolio group, drawing on reported metrics, recent trends, company summaries, investment data, and team notes. A portfolio summary table with investment performance is also generated. The full letter is assembled from these sections.
+The AI generates a narrative for each company in the vehicle, drawing on reported metrics, recent trends, company summaries, investment data, and team notes. A portfolio summary table with investment performance is also generated. The full letter is assembled from these sections.
 
 After generation, the letter opens in an editor with two views: "Sections" shows each company narrative individually for targeted editing, and "Full" shows the complete assembled letter. Edit narratives inline, regenerate individual company sections or the entire letter, and add per-company or global custom prompts to refine the output. Per-company prompts can either add to or replace the default generation prompt. When finished, export the letter as a .docx file for final formatting and distribution, or export directly to Google Drive if connected.
 
@@ -123,7 +119,7 @@ LPs is where you track and report on your limited partner positions across every
 
 **Report cards, live or frozen.** Print investor report cards — the per-investor summary aggregated across vehicles — straight from the live data, one at a time or the whole list at once, in your browser's font. Or freeze a **snapshot**: a point-in-time set of positions kept exactly as it was, in an admin-only archive, with its own bulk PDF printing and Excel export. Snapshots stop *driving* the numbers (that's live now) but remain the record for anything you've already sent. Every report footnotes when its data was last updated — **per vehicle**, since vehicles report on irregular cadences.
 
-The snapshot archive keeps all the original tools: create a named snapshot, paste-import into it, inline-edit, group investors under a parent, merge duplicates, filter portfolio groups, configure a header/footer, and batch-print or export to Excel.
+The snapshot archive keeps all the original tools: create a named snapshot, paste-import into it, inline-edit, group investors under a parent, merge duplicates, filter vehicles, configure a header/footer, and batch-print or export to Excel.
 
 ## Accounting
 

@@ -91,7 +91,7 @@ Greenfield: no history to reconstruct — you're the book of record from first c
 
 1. **Create the vehicle's LP data first** so it appears in the selector: in the **LPs** section add
    the investors/entities and their commitments under the new `portfolio_group` (or import them).
-   Set the vehicle's economics (carry, GP commit, vintage) on the **Funds** page (`fund_group_config`).
+   Set the vehicle's economics on its admin status page (**Funds → the vehicle → Status**, `/funds/[id]/status`): vintage on the vehicle record, plus carry terms (rate, preferred return, catch-up, and the receiving GP entity) and allocation terms (each partner's commitment, including the GP's, and who bears fees, expenses, and carry).
 2. Pick the new vehicle → Accounting → home → **Seed the chart of accounts**.
 3. Book from **first close forward**:
    - **Capital call**: import the wire from the bank feed and *Book as call*, or use
