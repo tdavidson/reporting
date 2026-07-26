@@ -27,6 +27,16 @@ const config: Config = {
   			title: ['clamp(1.875rem, 4vw, 2.875rem)', { lineHeight: '1.1', letterSpacing: '-0.02em' }],
   			display: ['clamp(2.625rem, 5.5vw, 4.25rem)', { lineHeight: '1.1', letterSpacing: '-0.025em' }],
   		},
+  		maxWidth: {
+  			// Two page widths, and only two. `page` is the app-wide cap (applied
+  			// once, on the wrapper in app/(app)/layout.tsx) — the same 1280px the
+  			// app already used as a bare `max-w-screen-xl`, now named so pages
+  			// stop inventing their own. `readable` is the measure for forms and
+  			// prose, where a full-width line is genuinely harder to read.
+  			// See DESIGN.md.
+  			page: '1280px',
+  			readable: '46rem',
+  		},
   		borderRadius: {
   			// --radius is the *control* radius (0.25rem, matching hemrock.com);
   			// cards use the larger --radius-card via `rounded-card`.

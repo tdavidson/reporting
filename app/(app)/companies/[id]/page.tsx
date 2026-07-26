@@ -139,7 +139,7 @@ export default async function CompanyDetailPage({
     <CompanyPanelProvider companyId={company.id} userId={user.id} isAdmin={isAdmin}>
     <div className="p-4 md:p-8">
       {/* Header */}
-      <div className="mb-6 max-w-6xl">
+      <div className="mb-6 max-w-page">
         <Link
           href="/dashboard"
           className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground mb-4"
@@ -186,7 +186,7 @@ export default async function CompanyDetailPage({
 
       {/* Content + Notes panel side by side */}
       <div className="flex flex-col lg:flex-row gap-6 items-start">
-        <div className="flex-1 min-w-0 max-w-6xl w-full [&>*:first-child]:mt-0">
+        <div className="flex-1 min-w-0 max-w-page w-full [&>*:first-child]:mt-0">
           {company.status !== 'exited' && company.status !== 'written-off' && (
             <>
               <CompanySummary

@@ -28,6 +28,7 @@ import { PortfolioNotesProvider, PortfolioNotesButton, PortfolioNotesPanel } fro
 import { RenameInvestorDialog } from '@/components/lp/rename-investor-dialog'
 import { lpRatios } from '@/lib/lp-metrics'
 import { SortTh, nextSort, compareVals, type SortState } from '@/components/sortable-th'
+import { Metric as Stat } from '@/components/ui/metric'
 
 interface LiveRow {
   entity_id: string
@@ -481,15 +482,6 @@ function LpsInner() {
 
 function Money({ v, fmt, small }: { v: number; fmt: (n: number) => string; small?: boolean }) {
   return <td className={`px-3 py-1.5 text-right tabular-nums whitespace-nowrap ${small ? 'text-xs' : ''}`}>{fmt(v)}</td>
-}
-
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <Card><CardContent className="pt-4 pb-3 px-4">
-      <p className="text-xs text-muted-foreground mb-1">{label}</p>
-      <p className="text-xl font-semibold tabular-nums">{value}</p>
-    </CardContent></Card>
-  )
 }
 
 // ---------------------------------------------------------------------------

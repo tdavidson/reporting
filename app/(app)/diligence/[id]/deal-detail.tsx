@@ -2329,7 +2329,7 @@ function ResearchTab({ dealId, userId, isAdmin }: { dealId: string; userId: stri
   cm.named_by_research.forEach((c, i) => { if (c.dismissed) dismissedItems.push({ key: `cmr-${i}`, kind: 'Competitor', title: c.name, detail: c.rationale, restore: () => toggleCompetitorDismiss('named_by_research', i) }) })
 
   return (
-    <div className="space-y-6 max-w-6xl">
+    <div className="space-y-6 max-w-page">
       {/* The one action this tab is FOR, at the top of it. It's the only run button on
           the tab — the header knows if it's blocked and says why, and it reports the
           last run, so a second button and status line in the section below would only
@@ -3036,7 +3036,7 @@ function FoundersTab({ dealId }: { dealId: string }) {
   if (loading) return <div className="text-sm text-muted-foreground"><Loader2 className="h-4 w-4 inline animate-spin mr-1" /> Loading…</div>
 
   return (
-    <div className="space-y-6 max-w-6xl">
+    <div className="space-y-6 max-w-page">
       <Section
         title="Founders"
         count={dossiers.length}
@@ -3442,7 +3442,7 @@ function ScoringTab({ dealId }: { dealId: string }) {
   }
 
   return (
-    <div className="space-y-6 max-w-6xl">
+    <div className="space-y-6 max-w-page">
       {/* The only run button on this tab. It knows if it's blocked, says why, and
           reports the last run — so the section below carries no second button. */}
       <StageHeader dealId={dealId} stageKey="scoring" />
@@ -3606,7 +3606,7 @@ function MemoTab({ dealId, dealName, isAdmin }: { dealId: string; dealName: stri
   const hasMemo = Array.isArray(memoParagraphs) && memoParagraphs.length > 0
 
   return (
-    <div className="space-y-6 max-w-6xl">
+    <div className="space-y-6 max-w-page">
       {/* The only run button on this tab, and the only place the last run is reported. */}
       <StageHeader dealId={dealId} stageKey="memo" />
 

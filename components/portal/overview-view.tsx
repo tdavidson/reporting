@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { ArrowRight } from 'lucide-react'
 import type { OverviewMetrics, OverviewTotals, OverviewVehicle } from '@/lib/lp-overview'
+import { Metric as MetricBox } from '@/components/ui/metric'
 
 export interface OverviewViewData extends Partial<OverviewMetrics> {
   investorName?: string | null
@@ -20,16 +21,6 @@ function fmtDate(s: string | null | undefined): string {
   if (!s) return ''
   const d = new Date(s.length <= 10 ? `${s}T00:00:00` : s)
   return isNaN(d.getTime()) ? '' : d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
-}
-
-function MetricBox({ label, value, sub }: { label: string; value: string; sub?: string }) {
-  return (
-    <div className="rounded-card border bg-card p-4">
-      <div className="text-xs text-muted-foreground">{label}</div>
-      <div className="mt-1 text-xl font-semibold tabular-nums tracking-tight">{value}</div>
-      {sub && <div className="mt-0.5 text-xs text-muted-foreground">{sub}</div>}
-    </div>
-  )
 }
 
 /**

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { Loader2, BarChart3, Lock } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Metric as Stat } from '@/components/ui/metric'
 
 interface Analytics {
   summary: { total: number; active: number; passed: number; won: number; lost: number; on_hold: number }
@@ -30,7 +31,7 @@ export function AnalyticsView() {
   }, [])
 
   return (
-    <div className="p-4 md:py-8 md:pl-8 md:pr-4 max-w-6xl">
+    <div className="p-4 md:py-8 md:pl-8 md:pr-4 max-w-page">
       <div className="mb-6">
         <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2">
           <BarChart3 className="h-5 w-5" /> Diligence Analytics
@@ -160,15 +161,6 @@ export function AnalyticsView() {
           )}
         </div>
       )}
-    </div>
-  )
-}
-
-function Stat({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="rounded-card border bg-card p-3">
-      <div className="text-2xl font-semibold tracking-tight">{value}</div>
-      <div className="text-xs text-muted-foreground mt-0.5">{label}</div>
     </div>
   )
 }

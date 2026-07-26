@@ -155,7 +155,7 @@ export function SchemaEditor({ schemaName, initialContent, initialVersion, embed
   }
 
   return (
-    <div className={embedded ? '' : 'p-4 md:py-8 md:pl-8 md:pr-4 max-w-6xl'}>
+    <div className={embedded ? '' : 'p-4 md:py-8 md:pl-8 md:pr-4 max-w-page'}>
       {!embedded && (
         <Link href="/settings/memo-agent/schemas" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mb-4">
           <ArrowLeft className="h-3.5 w-3.5" /> All schemas

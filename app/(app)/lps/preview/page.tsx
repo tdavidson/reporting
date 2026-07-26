@@ -139,7 +139,7 @@ export default function LpPortalPreviewPage() {
   const isEmpty = !!data && data.snapshots.length === 0 && data.letters.length === 0 && data.documents.length === 0
 
   return (
-    // Full-bleed: break out of the GP layout's max-w-screen-xl wrapper so the
+    // Full-bleed: break out of the GP layout's max-w-page wrapper so the
     // preview fills the window like a real standalone portal (banner + header
     // lines span edge-to-edge; content stays centered below).
     <div className="min-h-screen flex flex-col bg-muted/20 w-screen ml-[calc(50%-50vw)]">

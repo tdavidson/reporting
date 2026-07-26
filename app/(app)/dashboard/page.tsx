@@ -193,7 +193,7 @@ export default async function DashboardPage() {
       </div>
 
       <div className="flex flex-col lg:flex-row gap-6 items-start">
-        <div className="flex-1 min-w-0 max-w-7xl w-full">
+        <div className="flex-1 min-w-0 max-w-page w-full">
           <DashboardCompanies companies={companiesWithInvestments} allGroups={allGroups} canAdd={membership?.role !== 'viewer'} />
         </div>
         <DashboardNotesPanel />

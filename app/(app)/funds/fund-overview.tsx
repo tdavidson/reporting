@@ -6,8 +6,8 @@ import { useRouter } from 'next/navigation'
 import { Loader2, Landmark, ClipboardList, ArrowRight, Search, X } from 'lucide-react'
 import { useCurrency, formatCurrency, formatCurrencyFull } from '@/components/currency-context'
 import { useVehicle, useFundSeg } from '@/components/accounting-vehicle'
-import { Card, CardContent } from '@/components/ui/card'
 import { SortTh, nextSort, compareVals, type SortState } from '@/components/sortable-th'
+import { Metric as MetricBox } from '@/components/ui/metric'
 
 // The fund overview: performance per vehicle, DERIVED FROM THE LEDGER.
 //
@@ -265,16 +265,6 @@ export function FundOverview() {
 }
 
 /** Same card treatment as the LP snapshot metric boxes, so the two pages read as one. */
-function MetricBox({ label, value }: { label: string; value: string }) {
-  return (
-    <Card>
-      <CardContent className="pt-4 pb-3 px-4">
-        <p className="text-xs text-muted-foreground mb-1">{label}</p>
-        <p className="text-xl font-semibold">{value}</p>
-      </CardContent>
-    </Card>
-  )
-}
 
 /**
  * Shown when no vehicle carries any capital yet — so instead of an empty table, explain the

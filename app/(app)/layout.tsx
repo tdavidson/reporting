@@ -96,7 +96,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         </>
       )}
 
-      <div className="w-full max-w-screen-xl mx-auto flex flex-col flex-1">
+      <div className="w-full max-w-page mx-auto flex flex-col flex-1">
         <AppShell
           lpPortalEnabled={!!fundSettings?.lp_portal_enabled}
           fundName={fundName}

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import type { IngestionOutput } from '@/lib/memo-agent/stages/ingest'
+import { Metric as Stat } from '@/components/ui/metric'
 
 const CRIT_BADGE: Record<string, string> = {
   blocker: 'bg-destructive-subtle text-destructive dark:bg-destructive-subtle/40',
@@ -172,15 +173,6 @@ export function IngestionSummary({ output, fileNamesById, dealId, draftId, edita
           ))}
         </div>
       </section>
-    </div>
-  )
-}
-
-function Stat({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="rounded-card border bg-card p-3">
-      <div className="text-2xl font-semibold tracking-tight">{value}</div>
-      <div className="text-xs text-muted-foreground mt-0.5">{label}</div>
     </div>
   )
 }

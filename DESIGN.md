@@ -213,7 +213,31 @@ for larger movements. Keep durations at or under 200ms.
 | Prose measure | 640px |
 | Marketing section rhythm | 80–112px (`mb-20 md:mb-28`) |
 
-App page widths are not yet settled — see `plans/plan-design-system.md` §6.
+**Two app page widths, and only two.**
+
+| Class | Width | Use |
+| --- | --- | --- |
+| `max-w-page` | 1280px | The app-wide cap. Applied **once**, on the wrapper in `app/(app)/layout.tsx` |
+| `max-w-readable` | 46rem | Forms and prose, where a full-width line is harder to read |
+
+Don't add a third. A page that wants to be narrower than `page` uses `readable`;
+pages previously picked `max-w-6xl`, `max-w-7xl` and `max-w-screen-xl` more or
+less at random, which is why nothing lined up between routes.
+
+`max-w-*` on a card, modal, popover or truncated label is a different thing and
+is fine — this rule is about *page containers*.
+
+## Figures
+
+`components/ui/metric.tsx` is the KPI tile: an eyebrow label over a large
+tabular-figure value. Use it rather than hand-rolling — six near-identical copies
+had already drifted apart on size, label position and whether the value carried
+tabular figures.
+
+A figure is what the reader came for, so it gets the promotion the rest of the
+dense UI doesn't: it's the largest type on most pages. That's the shape of the
+type hierarchy generally — **promote the few things that carry meaning, and leave
+12/14px as the dense-table default.** Making everything bigger is not the goal.
 
 ---
 

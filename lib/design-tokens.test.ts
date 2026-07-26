@@ -79,6 +79,30 @@ describe('design tokens', () => {
 // Numbers use tabular figures, not a monospaced face
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Page width
+// ---------------------------------------------------------------------------
+
+describe('page width', () => {
+  it('uses the two named page widths, not ad-hoc container sizes', () => {
+    // These three were the ones pages picked at random before the convention
+    // existed. Card/modal/label max-widths are unaffected — this only catches
+    // the sizes that were being used as page containers.
+    const BANNED = ['max-w-6xl', 'max-w-7xl', 'max-w-screen-xl']
+    const offenders: string[] = []
+    for (const f of ALL) {
+      const src = readFileSync(f, 'utf8')
+      const hits = BANNED.filter(b => src.includes(b))
+      if (hits.length) offenders.push(`${f} → ${hits.join(', ')}`)
+    }
+    expect(
+      offenders,
+      'Use max-w-page (the app cap, set once in app/(app)/layout.tsx) or max-w-readable. See DESIGN.md.\n\n' +
+      offenders.join('\n')
+    ).toEqual([])
+  })
+})
+
 describe('numeric type', () => {
   it('does not put right-aligned columns on a monospaced face', () => {
     // text-right + font-mono is the signature of a financial table cell. Column

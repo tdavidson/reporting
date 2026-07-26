@@ -1,6 +1,7 @@
 'use client'
 
 import type { ResearchOutput } from '@/lib/memo-agent/stages/research'
+import { Metric as Stat } from '@/components/ui/metric'
 
 const VERIFY_BADGE: Record<string, { label: string; cls: string }> = {
   verified: { label: 'Verified', cls: 'bg-success-subtle text-success dark:bg-success-subtle/40' },
@@ -182,15 +183,6 @@ export function ResearchSummary({ output }: { output: ResearchOutput }) {
           </div>
         </section>
       )}
-    </div>
-  )
-}
-
-function Stat({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="rounded-card border bg-card p-3">
-      <div className="text-2xl font-semibold tracking-tight">{value}</div>
-      <div className="text-xs text-muted-foreground mt-0.5">{label}</div>
     </div>
   )
 }

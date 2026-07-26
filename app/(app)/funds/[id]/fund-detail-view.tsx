@@ -13,6 +13,7 @@ import { useVehicle, FundSwitcher } from '@/components/accounting-vehicle'
 import { AnalystToggleButton } from '@/components/analyst-button'
 import { AccountingBody } from '@/components/accounting-chrome'
 import { Card, CardContent } from '@/components/ui/card'
+import { Metric as MetricBox } from '@/components/ui/metric'
 
 // The fund detail (lead) page. Everything here is READ-ONLY and derived — the same numbers as the
 // /funds overview (fund-economics), the schedule of investments (statements), and the growth
@@ -234,17 +235,6 @@ export function FundDetailView({ vehicle, vehicleId }: { vehicle: string; vehicl
 }
 
 // ── Shared pieces ───────────────────────────────────────────────────────────
-
-function MetricBox({ label, value }: { label: string; value: string }) {
-  return (
-    <Card>
-      <CardContent className="pt-4 pb-3 px-4">
-        <p className="text-xs text-muted-foreground mb-1">{label}</p>
-        <p className="text-xl font-semibold">{value}</p>
-      </CardContent>
-    </Card>
-  )
-}
 
 function ChartCard({ title, action, children }: { title: string; action?: React.ReactNode; children: React.ReactNode }) {
   return (

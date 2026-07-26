@@ -102,7 +102,8 @@ function AppShellInner({ fundName, fundLogo, userEmail, reviewBadge, settingsBad
           <AppSidebar reviewBadge={reviewBadge} settingsBadge={settingsBadge} notesBadge={notesBadge} pendingActionsBadge={pendingActionsBadge} isAdmin={isAdmin} updateAvailable={updateAvailable} featureVisibility={featureVisibility} />
         </aside>
 
-        {/* Page content */}
+        {/* Page content. The width cap lives one level up, on the wrapper in
+            app/(app)/layout.tsx — capping again here would be inert. */}
         <main className={`flex-1 min-w-0 flex flex-col ${collapsed ? 'md:pl-4' : ''}`}>
           <div className="flex-1">
             {children}
