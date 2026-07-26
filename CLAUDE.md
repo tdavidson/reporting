@@ -8,8 +8,9 @@ Conventions baked in to keep automated edits safe across this repo. Read before 
 
 The short version, because these are the mistakes that actually get made:
 
-- **Never use raw Tailwind palette classes** — `bg-amber-100`, `text-green-600`, `border-blue-500`. They break per-fund white-labelling, because `themeCssVars()` can't repoint them. Use the tokens: `bg-warning-subtle`, `text-success`, `border-brand-200`. (~996 pre-existing usages are being migrated; don't add more.)
-- **Numbers use `tabular-nums`, not `font-mono`.** Mono is for content a machine reads literally — code, IDs, OTP inputs. Financial figures are not code.
+- **Never use raw Tailwind palette classes** — `bg-amber-100`, `text-green-600`, `border-blue-500`. They break per-fund white-labelling, because `themeCssVars()` can't repoint them. Use the tokens: `bg-warning-subtle`, `text-success`, `border-brand-200`, `text-muted-foreground`. `lib/design-tokens.test.ts` fails on new ones; the only exemptions are files using colour *categorically*, allowlisted there with a reason.
+- **Numbers use `tabular-nums`, not `font-mono`.** Mono is for content a machine reads literally — code, IDs, OTP inputs. Financial figures are not code. Same rule in the PDF templates.
+- **Cards use `rounded-card`**, controls use `rounded-lg`/`md`/`sm`. `--radius` is the control radius (0.25rem), `--radius-card` the card one (0.5rem).
 - **`--primary` is the deployment's action colour** (fund-themeable). **`--brand` is Hemrock's** (evergreen, marketing). They are not interchangeable.
 - **Accent text needs a dark-mode pair**: `text-brand-700 dark:text-brand-400`. The 700 stop fails contrast on the dark surface.
 - **Display headings are weight 400**, not semibold. `font-display text-display font-normal`.

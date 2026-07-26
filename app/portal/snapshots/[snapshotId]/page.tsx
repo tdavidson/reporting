@@ -107,7 +107,7 @@ export default function PortalSnapshotDetailPage() {
 
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold tracking-tight">{snapshot.name}</h1>
+          <h1 className="font-display text-heading font-normal">{snapshot.name}</h1>
           {snapshot.as_of_date && <p className="text-sm text-muted-foreground mt-0.5">As of {snapshot.as_of_date}</p>}
           {snapshot.description && <p className="text-sm text-muted-foreground mt-2 max-w-2xl">{snapshot.description}</p>}
         </div>

@@ -87,7 +87,7 @@ export function LpReportCard(props: ReportCardProps) {
           <p className="text-xs text-muted-foreground whitespace-pre-line leading-relaxed mb-10">{description}</p>
         ) : <div className="mb-6" />}
 
-        <h1 className="text-xl font-bold tracking-tight mb-3">{investorName}</h1>
+        <h1 className="font-display text-heading font-normal mb-3">{investorName}</h1>
 
         {totals.paidInCapital > 0 && (
           <p className="text-xs leading-relaxed mb-5">

@@ -65,7 +65,7 @@ export default function PortalLetterDetailPage() {
       <Link href="/portal/snapshots" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft className="h-3.5 w-3.5" /> Back to documents</Link>
 
       <div className="flex items-start justify-between gap-3">
-        <h1 className="text-xl font-semibold tracking-tight">{letter.period_label}</h1>
+        <h1 className="font-display text-heading font-normal">{letter.period_label}</h1>
         <button
           onClick={downloadPdf}
           disabled={downloading}

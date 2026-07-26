@@ -14,8 +14,11 @@ that white-labels the app still gets amber locks and blue chips. Every colour
 must resolve through a CSS variable so `themeCssVars()` (`lib/theme.ts`) can
 repoint it.
 
-The app currently carries ~996 raw palette usages across 105 files. They are
-being migrated; don't add more.
+This was migrated in bulk: 996 raw palette usages across 105 files became 23,
+and `lib/design-tokens.test.ts` now fails the build on new ones. The 23 that
+remain are colour used *categorically* (relationship types, compliance
+categories, LP activity kinds) rather than as status; they are allowlisted by
+file, with a reason, and need a categorical palette rather than a status token.
 
 ## Colour
 
@@ -138,10 +141,13 @@ display heading to `font-semibold` undoes the entire effect.
 
 **Use `tabular-nums`, not `font-mono`.** Column alignment needs tabular figures;
 Inter ships them. `font-mono` costs letterform quality and makes money look like
-code.
+code. This applies to PDF templates too — they use
+`font-variant-numeric: tabular-nums` rather than a monospaced family.
 
 `font-mono` is for content a machine cares about literally: code blocks, IDs,
-API keys, OTP inputs.
+API keys, GA/Fathom IDs, model names, account codes, version strings, OTP
+inputs. `lib/design-tokens.test.ts` fails on `text-right` combined with
+`font-mono`, which is the signature of a financial table cell.
 
 ## Radius
 
