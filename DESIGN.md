@@ -97,8 +97,23 @@ brand. Due a pass of their own — see `plans/plan-design-system.md` §8.
 ## Typography
 
 **Inter** for everything (`--font-sans`). **Newsreader** for display
-(`--font-display`, `font-display` in Tailwind). Newsreader is deliberately absent
-from `FONT_OPTIONS` — it is Hemrock's voice, so a fund theme cannot override it.
+(`--font-display`, `font-display` in Tailwind).
+
+Newsreader is absent from `FONT_OPTIONS` because that list drives `--font-sans`
+— the *body* font for the whole app. Adding a serif there would set it on every
+dense financial table, which is not what a display face is for. Letting a fund
+pick its own display face is a reasonable future feature, but it needs a
+separate `displayFont` axis writing `--font-display`; it isn't this list. (There
+would be nothing for it to style yet in any case: `font-display` currently
+appears only on the marketing page, which is not under a fund theme —
+`themeCssVars` is injected in `app/(app)/layout.tsx`, not `app/(public)`.)
+
+Inter's figures are proportional by default with `tnum` available, which is the
+profile this product wants: proportional in prose, tabular on demand in tables.
+Worth knowing if the body font is ever revisited — Hanken Grotesk and Plus
+Jakarta Sans are both loaded here, and Hanken Grotesk's figures are
+*permanently* tabular (all ten digits share one advance width), so it can't do
+proportional numerals in running text.
 
 Named steps, defined in `tailwind.config.ts`. Each carries its own line-height
 and tracking, so an eyebrow can't be reassembled wrongly by hand:

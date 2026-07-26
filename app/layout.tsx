@@ -14,8 +14,9 @@ const inter = Inter({ subsets: ['latin'], variable: '--font-inter', display: 'sw
 
 // Newsreader is the display face, behind --font-display. Variable weight plus an
 // optical-size axis, so one face covers a 68px marketing hero and a 20px report
-// cover. Deliberately absent from FONT_OPTIONS: this is Hemrock's voice, not a
-// per-fund choice, so a fund theme cannot override it.
+// cover. Absent from FONT_OPTIONS because that list drives --font-sans, the body
+// font: a serif there would land on every dense financial table. A per-fund
+// display face would need its own axis writing --font-display (see DESIGN.md).
 const newsreader = Newsreader({ subsets: ['latin'], variable: '--font-newsreader', display: 'swap' })
 
 // Curated per-fund UI font options. Loaded as CSS variables so the per-fund theme

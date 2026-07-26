@@ -12,9 +12,9 @@
   :root {
     /* Font stacks. --font-sans is Inter (the Hemrock brand guide's UI face, and
        what hemrock.com ships); the per-fund theme may override it to opt into a
-       different loaded webfont. --font-display is Newsreader and is deliberately
-       NOT in FONT_OPTIONS: it is Hemrock's voice on the marketing site, not a
-       per-fund choice. See lib/theme.ts and plans/plan-design-system.md. */
+       different loaded webfont. --font-display is Newsreader, and is not in
+       FONT_OPTIONS because that list drives --font-sans — a serif there would
+       land on every dense financial table. See DESIGN.md. */
     --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
     --font-display: var(--font-newsreader), ui-serif, Georgia, Cambria, serif;
     --font-serif: ui-serif, Georgia, Cambria, serif;
