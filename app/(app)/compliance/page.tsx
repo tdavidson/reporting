@@ -204,22 +204,22 @@ type View = ComplianceTab
 type StatusFilter = 'active' | 'completed' | 'dismissed' | 'all'
 
 const STATUS_COLORS: Record<Applicability | 'monitor', { bg: string; text: string; icon: typeof Check }> = {
-  applies: { bg: 'bg-green-100 dark:bg-green-900/30', text: 'text-green-700 dark:text-green-400', icon: Check },
-  completed: { bg: 'bg-blue-100 dark:bg-blue-900/30', text: 'text-blue-700 dark:text-blue-400', icon: Check },
+  applies: { bg: 'bg-success-subtle dark:bg-success-subtle/30', text: 'text-success', icon: Check },
+  completed: { bg: 'bg-info-subtle dark:bg-info-subtle/30', text: 'text-info', icon: Check },
   not_applicable: { bg: 'bg-muted', text: 'text-muted-foreground', icon: X },
-  needs_review: { bg: 'bg-amber-100 dark:bg-amber-900/30', text: 'text-amber-700 dark:text-amber-400', icon: AlertTriangle },
-  monitor: { bg: 'bg-blue-100 dark:bg-blue-900/30', text: 'text-blue-700 dark:text-blue-400', icon: Clock },
+  needs_review: { bg: 'bg-warning-subtle dark:bg-warning-subtle/30', text: 'text-warning', icon: AlertTriangle },
+  monitor: { bg: 'bg-info-subtle dark:bg-info-subtle/30', text: 'text-info', icon: Clock },
 }
 
 const CATEGORY_COLORS: Record<string, { bg: string; text: string }> = {
-  'SEC Filings':           { bg: 'bg-amber-100 dark:bg-amber-900/30', text: 'text-amber-700 dark:text-amber-400' },
-  'Securities Offerings':  { bg: 'bg-amber-100 dark:bg-amber-900/30', text: 'text-amber-700 dark:text-amber-400' },
-  'Tax Filings':           { bg: 'bg-green-100 dark:bg-green-900/30', text: 'text-green-700 dark:text-green-400' },
-  'Internal Compliance':   { bg: 'bg-blue-100 dark:bg-blue-900/30', text: 'text-blue-700 dark:text-blue-400' },
+  'SEC Filings':           { bg: 'bg-warning-subtle dark:bg-warning-subtle/30', text: 'text-warning' },
+  'Securities Offerings':  { bg: 'bg-warning-subtle dark:bg-warning-subtle/30', text: 'text-warning' },
+  'Tax Filings':           { bg: 'bg-success-subtle dark:bg-success-subtle/30', text: 'text-success' },
+  'Internal Compliance':   { bg: 'bg-info-subtle dark:bg-info-subtle/30', text: 'text-info' },
   'Fund Reporting':        { bg: 'bg-purple-100 dark:bg-purple-900/30', text: 'text-purple-700 dark:text-purple-400' },
-  'State Compliance':      { bg: 'bg-rose-100 dark:bg-rose-900/30', text: 'text-rose-700 dark:text-rose-400' },
-  'CFTC':                  { bg: 'bg-orange-100 dark:bg-orange-900/30', text: 'text-orange-700 dark:text-orange-400' },
-  'AML / FinCEN':          { bg: 'bg-red-100 dark:bg-red-900/30', text: 'text-red-700 dark:text-red-400' },
+  'State Compliance':      { bg: 'bg-destructive-subtle dark:bg-destructive-subtle/30', text: 'text-destructive' },
+  'CFTC':                  { bg: 'bg-warning-subtle dark:bg-warning-subtle/30', text: 'text-warning' },
+  'AML / FinCEN':          { bg: 'bg-destructive-subtle dark:bg-destructive-subtle/30', text: 'text-destructive' },
 }
 const DEFAULT_CATEGORY_COLORS = { bg: 'bg-muted', text: 'text-muted-foreground' }
 
@@ -511,13 +511,7 @@ export default function CompliancePage() {
                   <button
                     key={f}
                     onClick={() => setStatusFilter(f)}
-                    className={`px-3 py-1 capitalize transition-colors ${
-                      i === 0 ? 'rounded-l-md' : i === arr.length - 1 ? 'rounded-r-md' : ''
-                    } ${
-                      statusFilter === f
-                        ? 'bg-foreground text-background'
-                        : 'text-muted-foreground hover:text-foreground'
-                    }`}
+                    className={`px-3 py-1 capitalize transition-colors ${ i === 0 ? 'rounded-l-md' : i === arr.length - 1 ? 'rounded-r-md' : '' } ${ statusFilter === f ? 'bg-foreground text-background' : 'text-muted-foreground hover:text-foreground' }`}
                   >
                     {f}
                   </button>
@@ -620,7 +614,7 @@ function IntakeQuestionnaire({
         {QUESTIONS.map((q, idx) => {
           const currentVal = answers[q.key]
           return (
-            <div key={q.key} className="rounded-lg border p-4">
+            <div key={q.key} className="rounded-card border p-4">
               <p className="font-medium text-sm mb-1">
                 <span className="text-muted-foreground mr-2">{idx + 1}.</span>
                 {q.question}
@@ -645,11 +639,7 @@ function IntakeQuestionnaire({
                             return { ...prev, [q.key]: [...filtered, opt.value] }
                           })
                         }}
-                        className={`w-full text-left px-3 py-2 rounded-md text-sm border transition-colors ${
-                          selected
-                            ? 'border-foreground bg-accent font-medium'
-                            : 'border-border hover:bg-accent/50'
-                        }`}
+                        className={`w-full text-left px-3 py-2 rounded-md text-sm border transition-colors ${ selected ? 'border-foreground bg-accent font-medium' : 'border-border hover:bg-accent/50' }`}
                       >
                         {opt.label}
                       </button>
@@ -662,11 +652,7 @@ function IntakeQuestionnaire({
                     <button
                       key={opt.value}
                       onClick={() => setAnswers(prev => ({ ...prev, [q.key]: opt.value }))}
-                      className={`w-full text-left px-3 py-2 rounded-md text-sm border transition-colors ${
-                        currentVal === opt.value
-                          ? 'border-foreground bg-accent font-medium'
-                          : 'border-border hover:bg-accent/50'
-                      }`}
+                      className={`w-full text-left px-3 py-2 rounded-md text-sm border transition-colors ${ currentVal === opt.value ? 'border-foreground bg-accent font-medium' : 'border-border hover:bg-accent/50' }`}
                     >
                       {opt.label}
                     </button>
@@ -730,7 +716,7 @@ function CalendarView({
             return (
               <div
                 key={month}
-                className={`rounded-lg border p-3 ${isPast ? 'opacity-60' : ''}`}
+                className={`rounded-card border p-3 ${isPast ? 'opacity-60' : ''}`}
               >
                 <p className={`text-base font-semibold mb-2 ${isCurrent ? 'text-foreground' : 'text-muted-foreground'}`}>
                   {MONTHS[month - 1]}
@@ -742,7 +728,7 @@ function CalendarView({
                     const colors = status === 'not_applicable'
                       ? { bg: 'bg-muted', text: 'text-muted-foreground' }
                       : status === 'completed'
-                        ? { bg: 'bg-blue-100 dark:bg-blue-900/30', text: 'text-blue-700 dark:text-blue-400' }
+                        ? { bg: 'bg-info-subtle dark:bg-info-subtle/30', text: 'text-info' }
                         : (CATEGORY_COLORS[item.category] ?? DEFAULT_CATEGORY_COLORS)
                     const ek = entryKey(entry)
                     const isExpanded = expandedEntry?.itemId === item.id && expandedEntry?.group === group
@@ -750,9 +736,7 @@ function CalendarView({
                       <div key={ek}>
                         <button
                           onClick={() => setExpandedEntry(isExpanded ? null : { itemId: item.id, group })}
-                          className={`w-full text-left px-2 py-1 rounded text-xs ${
-                            isExpanded ? 'ring-1 ring-foreground' : ''
-                          } ${colors.bg} ${colors.text} hover:opacity-80 transition-opacity`}
+                          className={`w-full text-left px-2 py-1 rounded text-xs ${ isExpanded ? 'ring-1 ring-foreground' : '' } ${colors.bg} ${colors.text} hover:opacity-80 transition-opacity`}
                         >
                           {item.short_name}
                           {group && <span className="ml-1 opacity-70">· {group}</span>}
@@ -913,26 +897,24 @@ function ItemsView({
                 const colors = isDismissed
                   ? { bg: 'bg-muted', text: 'text-muted-foreground' }
                   : isCompleted
-                    ? { bg: 'bg-blue-100 dark:bg-blue-900/30', text: 'text-blue-700 dark:text-blue-400' }
+                    ? { bg: 'bg-info-subtle dark:bg-info-subtle/30', text: 'text-info' }
                     : catColors
                 const isExpanded = expandedItem === ik
                 return (
                   <div key={ik}>
                     <button
                       onClick={() => setExpandedItem(isExpanded ? null : ik)}
-                      className={`w-full text-left px-3 py-2.5 rounded-lg border text-sm flex items-center justify-between transition-colors ${
-                        isExpanded ? 'bg-accent border-foreground/20' : 'hover:bg-accent/50'
-                      }`}
+                      className={`w-full text-left px-3 py-2.5 rounded-lg border text-sm flex items-center justify-between transition-colors ${ isExpanded ? 'bg-accent border-foreground/20' : 'hover:bg-accent/50' }`}
                     >
                       <span className="flex items-center gap-2">
                         <span className={`inline-block w-2 h-2 rounded-full ${colors.bg}`} />
-                        <span className={`font-medium ${isDismissed ? 'text-muted-foreground line-through' : ''} ${isCompleted ? 'text-blue-700 dark:text-blue-400' : ''}`}>
+                        <span className={`font-medium ${isDismissed ? 'text-muted-foreground line-through' : ''} ${isCompleted ? 'text-info dark:text-info' : ''}`}>
                           {inst.item.short_name}
                         </span>
                         {inst.group && <span className="text-xs text-muted-foreground">· {inst.group}</span>}
                       </span>
                       <span className="flex items-center gap-2">
-                        {isCompleted && <span className="text-xs text-blue-600 dark:text-blue-400">Completed</span>}
+                        {isCompleted && <span className="text-xs text-info">Completed</span>}
                         {isDismissed && <span className="text-xs text-muted-foreground">Dismissed</span>}
                         <ChevronRight className={`h-3.5 w-3.5 text-muted-foreground transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
                       </span>
@@ -985,7 +967,7 @@ function ItemDetail({
   const isDismissed = status === 'not_applicable' && setting?.dismissed
 
   return (
-    <div className="rounded-lg border bg-card p-4 mt-2 mb-4">
+    <div className="rounded-card border bg-card p-4 mt-2 mb-4">
       <div className="flex items-start justify-between mb-3">
         <div>
           <h3 className="font-medium text-sm">{item.name}{group && <span className="text-muted-foreground font-normal"> · {group}</span>}</h3>
@@ -997,7 +979,7 @@ function ItemDetail({
       </div>
 
       {isCompleted && (
-        <div className="text-sm px-2.5 py-1.5 rounded mb-3 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400">
+        <div className="text-sm px-2.5 py-1.5 rounded mb-3 bg-info-subtle dark:bg-info-subtle/30 text-info">
           <span className="font-medium">Completed</span>
           {setting?.completed_at && <span> on {new Date(setting.completed_at).toLocaleDateString()}</span>}
           {setting?.completed_note && <p className="mt-1">{setting.completed_note}</p>}
@@ -1018,7 +1000,7 @@ function ItemDetail({
       )}
 
       {item.alert && (
-        <div className="text-sm px-2.5 py-1.5 rounded mb-3 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400">
+        <div className="text-sm px-2.5 py-1.5 rounded mb-3 bg-warning-subtle dark:bg-warning-subtle/30 text-warning">
           {item.alert}
         </div>
       )}

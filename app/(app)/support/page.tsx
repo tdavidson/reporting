@@ -48,7 +48,7 @@ export default function SupportPage() {
         {/* Main content */}
         <div className="flex-1 min-w-0 max-w-3xl space-y-8 text-sm leading-relaxed">
           {/* Contact info */}
-          <div className="rounded-lg border bg-card p-5">
+          <div className="rounded-card border bg-card p-5">
             <h2 className="text-base font-medium mb-2">Need help?</h2>
             <p className="text-muted-foreground">
               For questions about your fund&apos;s data, companies, metrics, or account access,

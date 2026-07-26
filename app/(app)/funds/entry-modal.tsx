@@ -236,7 +236,7 @@ export function EntryModal({
             </table>
 
             <div className="flex items-center justify-between">
-              <span className={`text-xs ${diff === 0 ? 'text-muted-foreground' : 'text-amber-600'}`}>{diff === 0 ? 'Balanced' : `Out of balance by ${fmt(Math.abs(diff))}`}</span>
+              <span className={`text-xs ${diff === 0 ? 'text-muted-foreground' : 'text-warning'}`}>{diff === 0 ? 'Balanced' : `Out of balance by ${fmt(Math.abs(diff))}`}</span>
               {error && <span className="text-xs text-destructive">{error}</span>}
             </div>
             </div>

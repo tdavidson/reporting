@@ -67,11 +67,11 @@ interface EmailRow {
 }
 
 const FIT_BADGE: Record<string, { label: string; cls: string }> = {
-  strong: { label: 'Strong fit', cls: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' },
-  moderate: { label: 'Moderate fit', cls: 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400' },
+  strong: { label: 'Strong fit', cls: 'bg-success-subtle dark:bg-success-subtle/30 text-success' },
+  moderate: { label: 'Moderate fit', cls: 'bg-warning-subtle dark:bg-warning-subtle/30 text-warning' },
   weak: { label: 'Weak fit', cls: 'bg-muted text-muted-foreground' },
-  out_of_thesis: { label: 'Out of thesis', cls: 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400' },
-  spam: { label: 'Spam', cls: 'bg-zinc-200 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 line-through' },
+  out_of_thesis: { label: 'Out of thesis', cls: 'bg-destructive-subtle dark:bg-destructive-subtle/30 text-destructive' },
+  spam: { label: 'Spam', cls: 'bg-muted text-muted-foreground line-through' },
 }
 
 const STATUS_OPTIONS: DealStatus[] = ['new', 'reviewing', 'advancing', 'met', 'diligence', 'invested', 'passed']
@@ -217,7 +217,7 @@ export function DealDetail({ deal: initial, email, priorDeal }: { deal: Deal; em
       </div>
 
       {priorDeal && (
-        <Card className="mb-4 border-amber-200 bg-amber-50/50 dark:bg-amber-900/10">
+        <Card className="mb-4 border-warning bg-warning-subtle/50 dark:bg-warning-subtle/10">
           <CardContent className="py-3 text-sm">
             <span className="font-medium">Prior pitch</span> from this founder/company on{' '}
             {priorDeal.created_at ? new Date(priorDeal.created_at).toLocaleDateString() : 'unknown date'}.{' '}

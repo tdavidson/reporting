@@ -96,7 +96,7 @@ export default function PortalSnapshotDetailPage() {
     return (
       <div className="space-y-4">
         <Link href="/portal/snapshots" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft className="h-3.5 w-3.5" /> Back</Link>
-        <div className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">{error ?? 'Not found.'}</div>
+        <div className="rounded-card border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">{error ?? 'Not found.'}</div>
       </div>
     )
   }
@@ -128,7 +128,7 @@ export default function PortalSnapshotDetailPage() {
           { label: 'Distributions', value: money(totals.distributions) },
           { label: 'Net asset value', value: money(totals.nav) },
         ].map(s => (
-          <div key={s.label} className="rounded-md border bg-card p-3">
+          <div key={s.label} className="rounded-card border bg-card p-3">
             <div className="text-lg font-semibold tabular-nums">{s.value}</div>
             <div className="text-xs text-muted-foreground mt-0.5">{s.label}</div>
           </div>

@@ -7,14 +7,14 @@ import { Building2, ChevronDown, ChevronRight, Mail, Users } from 'lucide-react'
 const KNOWN_TAGS = ['intro', 'hiring', 'strategy', 'fundraising', 'product', 'partnership', 'legal', 'operations'] as const
 
 const TAG_COLORS: Record<string, string> = {
-  intro: 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400',
-  hiring: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400',
+  intro: 'bg-warning-subtle dark:bg-warning-subtle/30 text-warning',
+  hiring: 'bg-info-subtle dark:bg-info-subtle/30 text-info',
   strategy: 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400',
-  fundraising: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400',
-  product: 'bg-cyan-100 dark:bg-cyan-900/30 text-cyan-700 dark:text-cyan-400',
+  fundraising: 'bg-success-subtle dark:bg-success-subtle/30 text-success',
+  product: 'bg-info-subtle dark:bg-info-subtle/30 text-info',
   partnership: 'bg-pink-100 dark:bg-pink-900/30 text-pink-700 dark:text-pink-400',
-  legal: 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400',
-  operations: 'bg-gray-100 dark:bg-gray-800/50 text-gray-700 dark:text-gray-400',
+  legal: 'bg-destructive-subtle dark:bg-destructive-subtle/30 text-destructive',
+  operations: 'bg-muted dark:bg-muted/50 text-muted-foreground',
 }
 
 interface IntroContact {
@@ -108,11 +108,7 @@ export function RelationshipsList({ interactions }: { interactions: Interaction[
           <button
             key={tag}
             onClick={() => toggleTag(tag)}
-            className={`px-2.5 py-1 text-xs rounded-full transition-colors capitalize ${
-              selectedTags.has(tag)
-                ? TAG_COLORS[tag] + ' font-medium ring-1 ring-current/20'
-                : 'text-muted-foreground hover:text-foreground hover:bg-accent'
-            }`}
+            className={`px-2.5 py-1 text-xs rounded-full transition-colors capitalize ${ selectedTags.has(tag) ? TAG_COLORS[tag] + ' font-medium ring-1 ring-current/20' : 'text-muted-foreground hover:text-foreground hover:bg-accent' }`}
           >
             {tag}
           </button>
@@ -147,7 +143,7 @@ export function RelationshipsList({ interactions }: { interactions: Interaction[
             return (
               <div
                 key={interaction.id}
-                className="border rounded-lg p-3 hover:bg-accent/30 transition-colors"
+                className="border rounded-card p-3 hover:bg-accent/30 transition-colors"
               >
                 <div className="flex items-start gap-3">
                   <div className="flex-1 min-w-0">
@@ -165,7 +161,7 @@ export function RelationshipsList({ interactions }: { interactions: Interaction[
                         </Link>
                       )}
                       {tags.includes('intro') && (
-                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 text-[10px] font-medium">
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-warning-subtle dark:bg-warning-subtle/30 text-warning text-[10px] font-medium">
                           <Users className="h-2.5 w-2.5" />
                           {introContacts.length} intro{introContacts.length !== 1 ? 's' : ''}
                         </span>
@@ -173,7 +169,7 @@ export function RelationshipsList({ interactions }: { interactions: Interaction[
                       {tags.filter(t => t !== 'intro').map(tag => (
                         <span
                           key={tag}
-                          className={`px-1.5 py-0.5 rounded-full text-[10px] font-medium capitalize ${TAG_COLORS[tag] ?? 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'}`}
+                          className={`px-1.5 py-0.5 rounded-full text-[10px] font-medium capitalize ${TAG_COLORS[tag] ?? 'bg-muted dark:bg-muted text-muted-foreground dark:text-muted-foreground'}`}
                         >
                           {tag}
                         </span>
@@ -200,7 +196,7 @@ export function RelationshipsList({ interactions }: { interactions: Interaction[
                     )}
 
                     {isExpanded && hasIntros && (
-                      <div className="mt-2 pl-3 border-l-2 border-amber-200 dark:border-amber-800 space-y-1.5">
+                      <div className="mt-2 pl-3 border-l-2 border-warning space-y-1.5">
                         {introContacts.map((contact, idx) => (
                           <div key={idx} className="text-xs">
                             <span className="font-medium">{contact.name}</span>
@@ -228,7 +224,7 @@ export function RelationshipsList({ interactions }: { interactions: Interaction[
                     )}
 
                     {emailExpandedId === interaction.id && interaction.email_id && (
-                      <div className="mt-2 border rounded-md bg-muted/30 p-3">
+                      <div className="mt-2 border rounded-card bg-muted/30 p-3">
                         {emailLoading === interaction.id ? (
                           <p className="text-xs text-muted-foreground animate-pulse">Loading email...</p>
                         ) : (

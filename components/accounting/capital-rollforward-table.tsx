@@ -285,7 +285,7 @@ function RollforwardRow({
           <span className="flex items-center gap-2">
             <Input value={draft.name} onChange={e => setDraft(d => ({ ...d, name: e.target.value }))} placeholder="LP name" className="h-8 w-44 text-sm" />
             <span className="flex items-center gap-1 shrink-0">
-              <button onClick={save} disabled={saving} title="Save" className="text-green-600 hover:text-green-700">{saving ? <Loader2 className="h-3.5 w-3.5 animate-spin inline" /> : <Check className="h-3.5 w-3.5 inline" />}</button>
+              <button onClick={save} disabled={saving} title="Save" className="text-success hover:text-success">{saving ? <Loader2 className="h-3.5 w-3.5 animate-spin inline" /> : <Check className="h-3.5 w-3.5 inline" />}</button>
               <button onClick={() => { setEditing(false); setRowErr(null) }} title="Cancel" className="text-muted-foreground hover:text-foreground"><X className="h-3.5 w-3.5 inline" /></button>
             </span>
           </span>
@@ -324,7 +324,7 @@ function RollforwardRow({
             <button onClick={() => setEditing(true)} title="Edit name & figures" className="text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-foreground shrink-0"><Pencil className="h-3.5 w-3.5" /></button>
           )}
           {editable?.onDelete && (
-            <button onClick={() => editable.onDelete!(r.lpEntityId, r.name)} title="Delete LP" className="text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-red-600 shrink-0"><Trash2 className="h-3.5 w-3.5" /></button>
+            <button onClick={() => editable.onDelete!(r.lpEntityId, r.name)} title="Delete LP" className="text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-destructive shrink-0"><Trash2 className="h-3.5 w-3.5" /></button>
           )}
         </div>
       </td>
@@ -332,7 +332,7 @@ function RollforwardRow({
         <td key={c.key} className={`px-3 py-2 text-right tabular-nums border-l ${Math.abs(r[c.key]) > 0.004 ? '' : 'text-muted-foreground'}`}>{fmt(r[c.key])}</td>
       ))}
       {accountCols.map((c, i) => (
-        <td key={c.key} className={`px-3 py-2 text-right tabular-nums ${i === 0 ? 'border-l' : ''} ${c.key === 'ending' ? 'font-semibold' : ''} ${c.key === 'unclassified' && Math.abs(a[c.key]) > 0.004 ? 'text-amber-600' : ''}`}>{fmt(a[c.key])}</td>
+        <td key={c.key} className={`px-3 py-2 text-right tabular-nums ${i === 0 ? 'border-l' : ''} ${c.key === 'ending' ? 'font-semibold' : ''} ${c.key === 'unclassified' && Math.abs(a[c.key]) > 0.004 ? 'text-warning' : ''}`}>{fmt(a[c.key])}</td>
       ))}
       {metrics && METRIC_COLUMNS.map((c, i) => (
         <td key={c.key} className={`px-3 py-2 text-right tabular-nums text-muted-foreground ${i === 0 ? 'border-l' : ''}`}>{metricCell(c.key)}</td>

@@ -41,7 +41,7 @@ export function InteractionsContent({ interactions }: { interactions: Interactio
       <div className="p-4 md:py-8 md:pl-8 md:pr-4">
         <div className="mb-6 space-y-1">
           <div className="flex items-center justify-between">
-            <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2">{fv.interactions === 'admin' && <Lock className="h-4 w-4 text-amber-500" />}Interactions</h1>
+            <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2">{fv.interactions === 'admin' && <Lock className="h-4 w-4 text-warning" />}Interactions</h1>
             <div className="flex items-center gap-2">
               <PortfolioNotesButton />
               <AnalystToggleButton />
@@ -64,7 +64,7 @@ export function InteractionsContent({ interactions }: { interactions: Interactio
                 className="text-muted-foreground hover:text-foreground transition-colors mb-1.5"
                 title="Copy to clipboard"
               >
-                {copied ? <Check className="h-3.5 w-3.5 text-green-500" /> : <Copy className="h-3.5 w-3.5" />}
+                {copied ? <Check className="h-3.5 w-3.5 text-success" /> : <Copy className="h-3.5 w-3.5" />}
               </button>
             </div>
           )}

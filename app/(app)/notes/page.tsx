@@ -226,7 +226,7 @@ export default function NotesPage() {
     <div className="p-4 md:py-8 md:pl-8 md:pr-4">
       <div className="mb-6 space-y-1">
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2">{fv.notes === 'admin' && <Lock className="h-4 w-4 text-amber-500" />}Notes</h1>
+          <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2">{fv.notes === 'admin' && <Lock className="h-4 w-4 text-warning" />}Notes</h1>
           <AnalystToggleButton />
         </div>
         <p className="text-sm text-muted-foreground">Activity and conversations across your portfolio</p>
@@ -236,13 +236,7 @@ export default function NotesPage() {
             <button
               key={f}
               onClick={() => setFilter(f)}
-              className={`px-3 py-1 capitalize transition-colors ${
-                f === 'all' ? 'rounded-l-md' : f === 'general' ? 'rounded-r-md' : ''
-              } ${
-                filter === f
-                  ? 'bg-foreground text-background'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
+              className={`px-3 py-1 capitalize transition-colors ${ f === 'all' ? 'rounded-l-md' : f === 'general' ? 'rounded-r-md' : '' } ${ filter === f ? 'bg-foreground text-background' : 'text-muted-foreground hover:text-foreground' }`}
             >
               {f === 'mentions' ? '@Mentions' : f.charAt(0).toUpperCase() + f.slice(1)}
             </button>
@@ -263,16 +257,12 @@ export default function NotesPage() {
         {notes.map(note => (
           <div
             key={note.id}
-            className={`group rounded-lg border p-4 transition-colors ${
-              note.pinnedAt ? 'border-l-4 border-l-foreground/20' : ''
-            } ${
-              !note.isRead ? 'bg-blue-50/50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800/40' : 'bg-card'
-            }`}
+            className={`group rounded-card border p-4 transition-colors ${ note.pinnedAt ? 'border-l-4 border-l-foreground/20' : '' } ${ !note.isRead ? 'bg-info-subtle/50 dark:bg-info-subtle/20 border-info dark:border-info/40' : 'bg-card' }`}
           >
             {/* Header row */}
             <div className="flex items-center gap-2 mb-1">
               {!note.isRead && (
-                <span className="h-2 w-2 rounded-full bg-blue-500 shrink-0" />
+                <span className="h-2 w-2 rounded-full bg-info shrink-0" />
               )}
               {note.pinnedAt && (
                 <Pin className="h-3 w-3 text-muted-foreground shrink-0" />

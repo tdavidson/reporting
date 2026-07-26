@@ -31,11 +31,11 @@ interface Deal {
 }
 
 const FIT_BADGE: Record<string, { label: string; cls: string }> = {
-  strong: { label: 'Strong', cls: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' },
-  moderate: { label: 'Moderate', cls: 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400' },
+  strong: { label: 'Strong', cls: 'bg-success-subtle dark:bg-success-subtle/30 text-success' },
+  moderate: { label: 'Moderate', cls: 'bg-warning-subtle dark:bg-warning-subtle/30 text-warning' },
   weak: { label: 'Weak', cls: 'bg-muted text-muted-foreground' },
-  out_of_thesis: { label: 'Out', cls: 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400' },
-  spam: { label: 'Spam', cls: 'bg-zinc-200 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 line-through' },
+  out_of_thesis: { label: 'Out', cls: 'bg-destructive-subtle dark:bg-destructive-subtle/30 text-destructive' },
+  spam: { label: 'Spam', cls: 'bg-muted text-muted-foreground line-through' },
 }
 
 const FIT_OPTIONS = ['strong', 'moderate', 'weak', 'out_of_thesis', 'spam']
@@ -140,7 +140,7 @@ export function DealsContent({ initialDeals }: { initialDeals: Deal[] }) {
       <div className="mb-6 flex items-start justify-between gap-3">
         <div className="space-y-1">
           <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2">
-            {fv.deals === 'admin' && <Lock className="h-4 w-4 text-amber-500" />}
+            {fv.deals === 'admin' && <Lock className="h-4 w-4 text-warning" />}
             Deals
           </h1>
           <p className="text-sm text-muted-foreground">Inbound pitches screened against your fund thesis.</p>
@@ -218,7 +218,7 @@ export function DealsContent({ initialDeals }: { initialDeals: Deal[] }) {
               className="h-9 px-2 text-muted-foreground hover:text-foreground transition-colors"
               title="Copy to clipboard"
             >
-              {copied ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
+              {copied ? <Check className="h-4 w-4 text-success" /> : <Copy className="h-4 w-4" />}
             </button>
           </div>
         )}

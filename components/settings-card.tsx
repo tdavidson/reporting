@@ -29,7 +29,7 @@ export function SettingsCard({
   children?: ReactNode
 }) {
   return (
-    <div className={`rounded-md border bg-card p-3 ${muted ? 'opacity-60' : ''}`}>
+    <div className={`rounded-card border bg-card p-3 ${muted ? 'opacity-60' : ''}`}>
       <div className="mb-2 flex items-start justify-between gap-2">
         <div className="min-w-0">
           <div className="truncate text-sm font-medium">{title}</div>

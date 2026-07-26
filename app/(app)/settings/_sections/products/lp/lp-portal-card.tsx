@@ -48,11 +48,7 @@ export function LpPortalRow({ enabled, onSaved }: { enabled: boolean; onSaved: (
             key={opt.label}
             onClick={() => setValue(opt.value)}
             disabled={saving}
-            className={`px-3 py-1.5 text-xs rounded-md border transition-colors ${
-              on === opt.value
-                ? 'border-foreground/30 bg-accent font-medium'
-                : 'hover:bg-accent/30'
-            }`}
+            className={`px-3 py-1.5 text-xs rounded-md border transition-colors ${ on === opt.value ? 'border-foreground/30 bg-accent font-medium' : 'hover:bg-accent/30' }`}
           >
             {opt.label}
           </button>

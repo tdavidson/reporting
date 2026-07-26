@@ -102,7 +102,7 @@ export function LedgerAgentAccess({ isAdmin, section = 'keys' }: { isAdmin: bool
   if (section === 'toggle') {
     if (!isAdmin) return null
     return (
-      <label className="flex items-start gap-2 text-sm cursor-pointer rounded-md border border-amber-500/40 bg-amber-500/5 p-3">
+      <label className="flex items-start gap-2 text-sm cursor-pointer rounded-card border border-warning/40 bg-warning/5 p-3">
         <input
           type="checkbox"
           checked={!!enabled}
@@ -113,7 +113,7 @@ export function LedgerAgentAccess({ isAdmin, section = 'keys' }: { isAdmin: bool
         <span>
           <span className="flex items-center gap-2 font-medium">
             Allow agents to reach this fund
-            <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-wider text-amber-600 dark:text-amber-400">
+            <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-wider text-warning">
               <Lock className="h-3 w-3" />Admin only
             </span>
           </span>
@@ -146,7 +146,7 @@ export function LedgerAgentAccess({ isAdmin, section = 'keys' }: { isAdmin: bool
       </p>
 
       {enabled === false && (
-        <div className="rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground">
+        <div className="rounded-card border bg-muted/30 p-3 text-xs text-muted-foreground">
           Agent access is turned off for this fund. An admin can enable it here in Settings.
         </div>
       )}
@@ -158,18 +158,18 @@ export function LedgerAgentAccess({ isAdmin, section = 'keys' }: { isAdmin: bool
         <div className="flex items-center gap-2">
           <span className="text-muted-foreground w-12 shrink-0 text-xs">MCP</span>
           <code className="flex-1 bg-muted rounded px-2 py-1 text-xs font-mono truncate">{mcpUrl || '…'}</code>
-          <button onClick={() => copy(mcpUrl, 'mcp')} className="text-muted-foreground hover:text-foreground">{copied === 'mcp' ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}</button>
+          <button onClick={() => copy(mcpUrl, 'mcp')} className="text-muted-foreground hover:text-foreground">{copied === 'mcp' ? <Check className="h-4 w-4 text-success" /> : <Copy className="h-4 w-4" />}</button>
         </div>
         <div className="flex items-center gap-2">
           <span className="text-muted-foreground w-12 shrink-0 text-xs">REST</span>
           <code className="flex-1 bg-muted rounded px-2 py-1 text-xs font-mono truncate">{restUrl || '…'}</code>
-          <button onClick={() => copy(restUrl, 'rest')} className="text-muted-foreground hover:text-foreground">{copied === 'rest' ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}</button>
+          <button onClick={() => copy(restUrl, 'rest')} className="text-muted-foreground hover:text-foreground">{copied === 'rest' ? <Check className="h-4 w-4 text-success" /> : <Copy className="h-4 w-4" />}</button>
         </div>
       </div>
 
       {/* How to actually connect. This was the missing piece: people pasted the MCP
           URL into Claude's connector, hit the OAuth wall, and had nothing to go on. */}
-      <div className="rounded-md border bg-muted/30 p-3 space-y-2">
+      <div className="rounded-card border bg-muted/30 p-3 space-y-2">
         <p className="text-xs font-medium">Connecting Claude</p>
         <ul className="text-xs text-muted-foreground space-y-1.5 list-disc ml-4">
           <li>
@@ -187,11 +187,11 @@ export function LedgerAgentAccess({ isAdmin, section = 'keys' }: { isAdmin: bool
       </div>
 
       {newToken && (
-        <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
-          <p className="text-amber-700 dark:text-amber-400 mb-1">Copy this token now — it won&rsquo;t be shown again.</p>
+        <div className="rounded-card border border-warning/40 bg-warning/10 p-3 text-sm">
+          <p className="text-warning mb-1">Copy this token now — it won&rsquo;t be shown again.</p>
           <div className="flex items-center gap-2">
             <code className="flex-1 bg-background rounded px-2 py-1 text-xs font-mono truncate">{newToken}</code>
-            <button onClick={() => copy(newToken, 'token')} className="text-muted-foreground hover:text-foreground">{copied === 'token' ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}</button>
+            <button onClick={() => copy(newToken, 'token')} className="text-muted-foreground hover:text-foreground">{copied === 'token' ? <Check className="h-4 w-4 text-success" /> : <Copy className="h-4 w-4" />}</button>
           </div>
         </div>
       )}
@@ -218,7 +218,7 @@ export function LedgerAgentAccess({ isAdmin, section = 'keys' }: { isAdmin: bool
                 <td className="py-1.5 font-mono text-xs text-muted-foreground">{k.key_prefix}…</td>
                 <td className="py-1.5 text-xs text-muted-foreground">{k.scopes}</td>
                 <td className="py-1.5 text-xs text-muted-foreground">{k.last_used_at ? 'used' : 'unused'}</td>
-                <td className="py-1.5 text-right"><button onClick={() => revoke(k.id)} className="text-muted-foreground hover:text-red-600" title="Revoke"><Trash2 className="h-3.5 w-3.5" /></button></td>
+                <td className="py-1.5 text-right"><button onClick={() => revoke(k.id)} className="text-muted-foreground hover:text-destructive" title="Revoke"><Trash2 className="h-3.5 w-3.5" /></button></td>
               </tr>
             ))}
           </tbody>
@@ -236,7 +236,7 @@ export function LedgerAgentAccess({ isAdmin, section = 'keys' }: { isAdmin: bool
               {g.tools.map(t => (
                 <div key={t.name} className="text-sm flex gap-2">
                   <code className="text-xs bg-muted rounded px-1.5 py-0.5 font-mono shrink-0">{t.name}</code>
-                  <span className={`text-[10px] uppercase tracking-wider px-1 py-0.5 rounded self-center shrink-0 ${t.scope === 'write' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' : 'bg-muted text-muted-foreground'}`}>{t.scope}</span>
+                  <span className={`text-[10px] uppercase tracking-wider px-1 py-0.5 rounded self-center shrink-0 ${t.scope === 'write' ? 'bg-warning-subtle text-warning dark:bg-warning-subtle/30 dark:text-warning' : 'bg-muted text-muted-foreground'}`}>{t.scope}</span>
                   <span className="text-muted-foreground text-xs self-center">{t.description}</span>
                 </div>
               ))}

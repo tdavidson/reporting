@@ -105,7 +105,7 @@ export function GpPanel({ isAdmin }: { isAdmin: boolean }) {
   const nameById = new Map(gp.partners.map(p => [p.lpEntityId, p.name]))
 
   return (
-    <div className="rounded-lg border p-4 space-y-4">
+    <div className="rounded-card border p-4 space-y-4">
       <div className="space-y-1">
         <h2 className="text-sm font-medium">
           {gp.link.vehicle}
@@ -130,7 +130,7 @@ export function GpPanel({ isAdmin }: { isAdmin: boolean }) {
         )}
       </p>
 
-      {error && <p className="text-xs text-red-600">{error}</p>}
+      {error && <p className="text-xs text-destructive">{error}</p>}
 
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
@@ -178,7 +178,7 @@ export function GpPanel({ isAdmin }: { isAdmin: boolean }) {
       </div>
 
       {gp.partners.some(p => p.carryUnpaid < -0.005) && (
-        <p className="text-xs text-amber-600">
+        <p className="text-xs text-warning">
           A negative <strong>carry unpaid</strong> means more carry has been paid than is currently accrued (NAV fell
           after a payment) — an over-distribution to claw back, not an amount owed.
         </p>
@@ -217,7 +217,7 @@ export function GpPanel({ isAdmin }: { isAdmin: boolean }) {
                     <td className="px-3 py-1.5 text-right tabular-nums">{fmt(pay.amount)}</td>
                     {isAdmin && (
                       <td className="px-3 py-1.5 text-right">
-                        <button onClick={() => deletePayment(pay.id)} disabled={saving === 'del' + pay.id} className="text-muted-foreground hover:text-red-600">
+                        <button onClick={() => deletePayment(pay.id)} disabled={saving === 'del' + pay.id} className="text-muted-foreground hover:text-destructive">
                           {saving === 'del' + pay.id ? <Loader2 className="h-3.5 w-3.5 animate-spin inline" /> : <Trash2 className="h-3.5 w-3.5 inline" />}
                         </button>
                       </td>

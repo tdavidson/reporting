@@ -179,7 +179,7 @@ export function CapitalAccountsView() {
             Share with LPs
           </Button>
         )}
-        {err && !showShare && <span className="text-xs text-amber-600">{err}</span>}
+        {err && !showShare && <span className="text-xs text-warning">{err}</span>}
 
         <div className="ml-auto flex flex-wrap items-center gap-2">
           {/* "As of" report date + Latest — same control and placement as /lps. The preset
@@ -230,14 +230,14 @@ export function CapitalAccountsView() {
               ))}
             </div>
 
-            {err && <p className="text-xs text-amber-600">{err}</p>}
+            {err && <p className="text-xs text-warning">{err}</p>}
             {publishResult && (
               <div className="rounded-md border p-2.5 text-sm space-y-1">
-                <p className="flex items-center gap-1.5 text-green-700 dark:text-green-400">
+                <p className="flex items-center gap-1.5 text-success">
                   <Check className="h-4 w-4" />
                   Published {publishResult.count} statement{publishResult.count === 1 ? '' : 's'} for {period?.label} to the LP portal.
                 </p>
-                {publishResult.errors.map((e, i) => <p key={i} className="text-xs text-amber-600">{e}</p>)}
+                {publishResult.errors.map((e, i) => <p key={i} className="text-xs text-warning">{e}</p>)}
               </div>
             )}
           </div>
@@ -256,7 +256,7 @@ export function CapitalAccountsView() {
           well as `showCall`: switching vehicle while the panel is open would otherwise leave
           it showing on a vehicle that has no receivable to call against. */}
       {showCall && !isEvents && rows.length > 0 && (
-        <div className="border rounded-lg p-4 space-y-3">
+        <div className="border rounded-card p-4 space-y-3">
           <p className="text-sm font-medium">Issue a capital call</p>
           <div className="flex flex-wrap items-end gap-3">
             <label className="text-xs text-muted-foreground">Date
@@ -327,7 +327,7 @@ export function CapitalAccountsView() {
             </Button>
             <Button size="sm" variant="outline" onClick={() => setShowCall(false)} disabled={issuing}>Cancel</Button>
             {msg && (
-              <span className={`text-sm flex items-center gap-1 ${msg.ok ? 'text-green-600' : 'text-amber-600'}`}>
+              <span className={`text-sm flex items-center gap-1 ${msg.ok ? 'text-success' : 'text-warning'}`}>
                 {msg.ok ? <Check className="h-4 w-4" /> : <AlertTriangle className="h-4 w-4" />}{msg.text}
               </span>
             )}
@@ -338,7 +338,7 @@ export function CapitalAccountsView() {
       {loading && rows.length === 0 ? (
         <div className="flex items-center gap-2 text-muted-foreground text-sm"><Loader2 className="h-4 w-4 animate-spin" />Loading…</div>
       ) : rows.length === 0 ? (
-        <div className="border border-dashed rounded-lg p-8 text-center text-sm text-muted-foreground">
+        <div className="border border-dashed rounded-card p-8 text-center text-sm text-muted-foreground">
           No capital accounts yet. Add a partner above, or import opening balances from the Accounting home page.
         </div>
       ) : (
@@ -357,7 +357,7 @@ export function CapitalAccountsView() {
           <p className="text-sm font-medium mb-2 mt-4">Issued calls</p>
           <div className="space-y-2">
             {calls.map(c => (
-              <div key={c.id} className="border rounded-lg p-3">
+              <div key={c.id} className="border rounded-card p-3">
                 <div className="flex items-center justify-between text-sm">
                   <span className="font-medium">{c.callDate} · {fmt(c.total)}</span>
                   <span className="text-xs text-muted-foreground">{c.scope === 'fund_wide' ? 'Fund-wide' : 'Per-LP'}</span>
@@ -380,7 +380,7 @@ export function CapitalAccountsView() {
           showing a panel whose writes would go nowhere. */}
       {isEvents && (
         <div className="pt-6">
-          <div className="rounded-lg border p-4 text-sm text-muted-foreground">
+          <div className="rounded-card border p-4 text-sm text-muted-foreground">
             This vehicle is capital-tracked. Add or edit its LP positions on the{' '}
             <Link href="/lps/capital" className="text-foreground underline underline-offset-4">LP capital accounts</Link>{' '}
             page.

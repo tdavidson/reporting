@@ -124,11 +124,11 @@ export function FundDetailView({ vehicle, vehicleId }: { vehicle: string; vehicl
   // <AccountingBody> below, so the Analyst panel slides in beside it while the header above
   // stays full width.
   const body = loading ? (
-    <div className="rounded-lg border p-6 flex items-center gap-2 text-sm text-muted-foreground">
+    <div className="rounded-card border p-6 flex items-center gap-2 text-sm text-muted-foreground">
       <Loader2 className="h-4 w-4 animate-spin" /> Loading fund detail…
     </div>
   ) : (notFound || !econ || !m) ? (
-    <div className="rounded-lg border p-6 space-y-3 max-w-lg">
+    <div className="rounded-card border p-6 space-y-3 max-w-lg">
       <p className="text-sm">No vehicle named <strong>{vehicle}</strong> was found, or it carries no capital yet.</p>
       <Link href="/funds" className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm hover:bg-accent transition-colors">
         Back to all funds <ArrowRight className="h-3.5 w-3.5" />

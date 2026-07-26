@@ -76,7 +76,7 @@ export function SubmitForm({ token, fundName }: { token: string; fundName: strin
     return (
       <Card>
         <CardContent className="py-12 flex flex-col items-center text-center">
-          <CheckCircle2 className="h-10 w-10 text-green-500 mb-4" />
+          <CheckCircle2 className="h-10 w-10 text-success mb-4" />
           <h2 className="text-lg font-medium mb-2">Submission received</h2>
           <p className="text-sm text-muted-foreground max-w-md">
             Thanks, {fundName}'s team will review and reach out if it's a fit. No reply means we're passing for now;

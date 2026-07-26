@@ -122,7 +122,7 @@ export function PeriodsView() {
 
   return (
     <div className="space-y-6 max-w-3xl">
-      <div className="border rounded-lg p-4 space-y-3">
+      <div className="border rounded-card p-4 space-y-3">
         <p className="text-sm font-medium">Close through a date</p>
         <p className="text-xs text-muted-foreground">
           You pick the end date and each month is closed in order. Preview the allocations per period, review and reopen if you need to make adjustments.
@@ -153,7 +153,7 @@ export function PeriodsView() {
             {busy && !preview && <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />}Preview close
           </Button>
         </div>
-        {error && <p className="text-xs text-red-600">{error}</p>}
+        {error && <p className="text-xs text-destructive">{error}</p>}
       </div>
 
       {/* Nothing is posted until this is approved. */}
@@ -173,13 +173,13 @@ export function PeriodsView() {
           {/* Blockers, not warnings: closing over unposted work silently strands its
               P&L, and the lock then prevents posting it into the period. */}
           {preview.readiness.blockers.map((b, i) => (
-            <p key={`b${i}`} className="px-4 py-2 text-xs text-red-600 flex items-start gap-1.5 border-b bg-red-500/5">
+            <p key={`b${i}`} className="px-4 py-2 text-xs text-destructive flex items-start gap-1.5 border-b bg-destructive/5">
               <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />{b}
             </p>
           ))}
 
           {[...preview.readiness.warnings, ...preview.warnings].map((w, i) => (
-            <p key={`w${i}`} className="px-4 py-2 text-xs text-amber-600 flex items-start gap-1.5 border-b">
+            <p key={`w${i}`} className="px-4 py-2 text-xs text-warning flex items-start gap-1.5 border-b">
               <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />{w}
             </p>
           ))}
@@ -257,7 +257,7 @@ export function PeriodsView() {
                       </td>
                       <td className="px-3 py-2 text-muted-foreground">{p.label ?? '—'}</td>
                       <td className="px-3 py-2">
-                        <span className={`text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded inline-flex items-center gap-1 ${isClosed ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-muted text-muted-foreground'}`}>
+                        <span className={`text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded inline-flex items-center gap-1 ${isClosed ? 'bg-success-subtle text-success dark:bg-success-subtle/30 dark:text-success' : 'bg-muted text-muted-foreground'}`}>
                           {isClosed ? <Lock className="h-3 w-3" /> : <Unlock className="h-3 w-3" />}{p.status}
                         </span>
                       </td>

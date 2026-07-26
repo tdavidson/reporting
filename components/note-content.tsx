@@ -44,7 +44,7 @@ export function NoteContent({ content }: Props) {
     <p className="text-sm whitespace-pre-wrap">
       {parts.map((part, i) =>
         part.type === 'mention' ? (
-          <span key={i} className="text-blue-600 dark:text-blue-400 font-medium">
+          <span key={i} className="text-info font-medium">
             {part.value}
           </span>
         ) : (

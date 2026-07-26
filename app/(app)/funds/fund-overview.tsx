@@ -87,7 +87,7 @@ export function FundOverview() {
 
   if (loading) {
     return (
-      <div className="rounded-lg border p-6 flex items-center gap-2 text-sm text-muted-foreground">
+      <div className="rounded-card border p-6 flex items-center gap-2 text-sm text-muted-foreground">
         <Loader2 className="h-4 w-4 animate-spin" /> Deriving fund performance from the ledger…
       </div>
     )
@@ -285,7 +285,7 @@ function MetricBox({ label, value }: { label: string; value: string }) {
 function OnboardingEmptyState() {
   const fundSeg = useFundSeg()
   return (
-    <div className="rounded-lg border p-6 max-w-2xl space-y-5">
+    <div className="rounded-card border p-6 max-w-2xl space-y-5">
       <div className="space-y-1">
         <h2 className="text-sm font-medium">No fund capital recorded yet</h2>
         <p className="text-sm text-muted-foreground">
@@ -295,7 +295,7 @@ function OnboardingEmptyState() {
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2">
-        <div className="rounded-md border p-3 space-y-1.5">
+        <div className="rounded-card border p-3 space-y-1.5">
           <div className="flex items-center gap-2">
             <ClipboardList className="h-4 w-4 text-muted-foreground" />
             <p className="text-sm font-medium">Capital tracking</p>
@@ -306,7 +306,7 @@ function OnboardingEmptyState() {
             fund whose admin sends a quarterly statement.
           </p>
         </div>
-        <div className="rounded-md border p-3 space-y-1.5">
+        <div className="rounded-card border p-3 space-y-1.5">
           <div className="flex items-center gap-2">
             <Landmark className="h-4 w-4 text-muted-foreground" />
             <p className="text-sm font-medium">Full ledger</p>

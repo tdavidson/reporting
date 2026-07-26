@@ -179,10 +179,10 @@ function AIProviderDisclosure({ label, providerKey, isDefault, isOpen, onToggle,
         {isOpen ? <ChevronDown className="h-3.5 w-3.5 shrink-0" /> : <ChevronRight className="h-3.5 w-3.5 shrink-0" />}
         <span className="flex-1">{label}</span>
         {isDefault && (
-          <span className="text-[9px] font-medium text-emerald-600 bg-emerald-500/10 rounded px-1.5 py-0.5 leading-none uppercase tracking-wider">default</span>
+          <span className="text-[9px] font-medium text-success bg-success/10 rounded px-1.5 py-0.5 leading-none uppercase tracking-wider">default</span>
         )}
         {hasKey ? (
-          <Check className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+          <Check className="h-3.5 w-3.5 text-success shrink-0" />
         ) : (
           <span className="text-[10px] text-muted-foreground">Not configured</span>
         )}
@@ -298,9 +298,9 @@ function ClaudeKeyContent({ hasKey, currentModel, onSaved }: { hasKey: boolean; 
           </Button>
         </div>
       </div>
-      {status === 'valid' && <p className="text-xs text-emerald-600 mt-1 flex items-center gap-1"><Check className="h-3 w-3" /> Key is valid</p>}
+      {status === 'valid' && <p className="text-xs text-success mt-1 flex items-center gap-1"><Check className="h-3 w-3" /> Key is valid</p>}
       {status === 'invalid' && <p className="text-xs text-destructive mt-1 flex items-center gap-1"><AlertCircle className="h-3 w-3" /> Key is invalid</p>}
-      {status === 'saved' && <p className="text-xs text-emerald-600 mt-1 flex items-center gap-1"><Check className="h-3 w-3" /> Key updated</p>}
+      {status === 'saved' && <p className="text-xs text-success mt-1 flex items-center gap-1"><Check className="h-3 w-3" /> Key updated</p>}
 
       {hasKey && (
         <div className="mt-4 pt-4 border-t">
@@ -419,9 +419,9 @@ function OpenAIKeyContent({ hasKey, currentModel, onSaved }: { hasKey: boolean; 
           </Button>
         </div>
       </div>
-      {status === 'valid' && <p className="text-xs text-emerald-600 mt-1 flex items-center gap-1"><Check className="h-3 w-3" /> Key is valid</p>}
+      {status === 'valid' && <p className="text-xs text-success mt-1 flex items-center gap-1"><Check className="h-3 w-3" /> Key is valid</p>}
       {status === 'invalid' && <p className="text-xs text-destructive mt-1 flex items-center gap-1"><AlertCircle className="h-3 w-3" /> Key is invalid</p>}
-      {status === 'saved' && <p className="text-xs text-emerald-600 mt-1 flex items-center gap-1"><Check className="h-3 w-3" /> Key updated</p>}
+      {status === 'saved' && <p className="text-xs text-success mt-1 flex items-center gap-1"><Check className="h-3 w-3" /> Key updated</p>}
 
       {hasKey && (
         <div className="mt-4 pt-4 border-t">

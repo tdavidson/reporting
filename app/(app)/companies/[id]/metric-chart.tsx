@@ -118,21 +118,13 @@ export function MetricChart({ metric, values, onRefresh, compact }: Props) {
         <div className="inline-flex rounded-md border text-[10px]">
           <button
             onClick={() => setChartType('line')}
-            className={`px-2 py-0.5 rounded-l-md transition-colors ${
-              chartType === 'line'
-                ? 'bg-secondary text-secondary-foreground'
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
+            className={`px-2 py-0.5 rounded-l-md transition-colors ${ chartType === 'line' ? 'bg-secondary text-secondary-foreground' : 'text-muted-foreground hover:text-foreground' }`}
           >
             Line
           </button>
           <button
             onClick={() => setChartType('bar')}
-            className={`px-2 py-0.5 rounded-r-md transition-colors ${
-              chartType === 'bar'
-                ? 'bg-secondary text-secondary-foreground'
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
+            className={`px-2 py-0.5 rounded-r-md transition-colors ${ chartType === 'bar' ? 'bg-secondary text-secondary-foreground' : 'text-muted-foreground hover:text-foreground' }`}
           >
             Bar
           </button>

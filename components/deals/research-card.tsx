@@ -119,7 +119,7 @@ export function DealResearchCard({
         {status === 'done' && (
           <>
             {error && (
-              <p className="text-amber-600 flex items-start gap-2 text-xs">
+              <p className="text-warning flex items-start gap-2 text-xs">
                 <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
                 <span>{error}</span>
               </p>
@@ -211,9 +211,7 @@ function Section({
 }) {
   return (
     <div>
-      <h4 className={`text-xs font-semibold uppercase tracking-wide mb-1 ${
-        tone === 'danger' ? 'text-destructive' : 'text-muted-foreground'
-      }`}>
+      <h4 className={`text-xs font-semibold uppercase tracking-wide mb-1 ${ tone === 'danger' ? 'text-destructive' : 'text-muted-foreground' }`}>
         {title}
       </h4>
       <div className="text-sm">{children}</div>

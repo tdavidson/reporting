@@ -371,7 +371,7 @@ export default function LetterEditorPage() {
       {/* Header */}
       <div className="mb-6 space-y-1">
         <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2">
-          {fv.lp_letters === 'admin' && <Lock className="h-4 w-4 text-amber-500" />}{letter.period_label}
+          {fv.lp_letters === 'admin' && <Lock className="h-4 w-4 text-warning" />}{letter.period_label}
         </h1>
         <p className="text-sm text-muted-foreground">{letter.portfolio_group}</p>
       </div>
@@ -475,7 +475,7 @@ export default function LetterEditorPage() {
       </div>}
 
       {!hasContent && !regeneratingAll && letter.status === 'generating' && (
-        <div className="rounded-lg border bg-muted/30 p-8 text-center space-y-3">
+        <div className="rounded-card border bg-muted/30 p-8 text-center space-y-3">
           <Loader2 className="h-6 w-6 animate-spin mx-auto text-muted-foreground" />
           <p className="text-sm text-muted-foreground">
             Generation is in progress. This may take a few minutes...
@@ -485,7 +485,7 @@ export default function LetterEditorPage() {
       )}
 
       {!hasContent && !regeneratingAll && letter.status !== 'generating' && (
-        <div className="rounded-lg border border-dashed p-12 text-center space-y-3">
+        <div className="rounded-card border border-dashed p-12 text-center space-y-3">
           <FileText className="h-8 w-8 mx-auto text-muted-foreground" />
           {letter.generation_error ? (
             <>
@@ -508,7 +508,7 @@ export default function LetterEditorPage() {
       )}
 
       {regeneratingAll && (
-        <div className="rounded-lg border bg-muted/30 p-8 text-center space-y-3">
+        <div className="rounded-card border bg-muted/30 p-8 text-center space-y-3">
           <Loader2 className="h-6 w-6 animate-spin mx-auto text-muted-foreground" />
           <p className="text-sm text-muted-foreground">
             Analyzing all companies. This may take a few minutes...
@@ -521,7 +521,7 @@ export default function LetterEditorPage() {
         <div className="space-y-6">
           {/* Company narratives */}
           {hasContent && narratives.map(n => (
-            <div key={n.company_id} className="rounded-lg border p-4">
+            <div key={n.company_id} className="rounded-card border p-4">
               <div className="flex items-center justify-between mb-3">
                 <h3 className="font-medium text-sm">{n.company_name}</h3>
                 <div className="flex items-center gap-1.5">
@@ -671,7 +671,7 @@ export default function LetterEditorPage() {
           ) : previewData ? (
             <>
               {/* Fund metrics table */}
-              <div className="rounded-lg border p-4">
+              <div className="rounded-card border p-4">
                 <h2 className="font-medium text-sm mb-3">Fund Summary</h2>
                 <div className="overflow-x-auto">
                   <table className="w-full text-xs">
@@ -725,7 +725,7 @@ export default function LetterEditorPage() {
 
               {/* Portfolio company table */}
               {tableHtml && (
-                <div className="rounded-lg border p-4">
+                <div className="rounded-card border p-4">
                   <h2 className="font-medium text-sm mb-3">Portfolio Companies</h2>
                   <div
                     className="prose prose-sm dark:prose-invert max-w-none [&_table]:w-full [&_table]:text-xs [&_th]:px-2 [&_th]:py-1.5 [&_td]:px-2 [&_td]:py-1.5 [&_th]:border [&_td]:border [&_thead]:bg-muted/50"
@@ -735,7 +735,7 @@ export default function LetterEditorPage() {
               )}
             </>
           ) : (
-            <div className="rounded-lg border border-dashed p-12 text-center">
+            <div className="rounded-card border border-dashed p-12 text-center">
               <p className="text-sm text-muted-foreground">No portfolio data available for this period.</p>
             </div>
           )}

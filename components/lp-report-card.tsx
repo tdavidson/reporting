@@ -68,7 +68,7 @@ export function LpReportCard(props: ReportCardProps) {
   const { fundName, fundLogo, fundAddress, description, investorName, rows, totals } = props
 
   return (
-    <div className="print-page max-w-4xl mx-auto bg-background border rounded-lg p-8 print:border-0 print:rounded-none print:shadow-none">
+    <div className="print-page max-w-4xl mx-auto bg-background border rounded-card p-8 print:border-0 print:rounded-none print:shadow-none">
       <div className="report-content">
         {/* Fund header — logo left, name/address right. Matches the statement + letter. */}
         <div className="flex items-start justify-between mb-8">

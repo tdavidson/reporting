@@ -153,14 +153,14 @@ export function BankView() {
   return (
     <div className="space-y-6">
       {matchError && (
-        <div className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm">
+        <div className="flex items-start gap-2 rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-sm">
           <span className="flex-1">{matchError}</span>
           <button onClick={() => setMatchError(null)} className="text-muted-foreground hover:text-foreground" aria-label="Dismiss">×</button>
         </div>
       )}
 
       {/* Import */}
-      <div className="border rounded-lg p-4 space-y-2">
+      <div className="border rounded-card p-4 space-y-2">
         <p className="text-sm font-medium">Import transactions</p>
         <p className="text-xs text-muted-foreground">Paste a CSV/TSV export from your bank, Ramp, or QuickBooks. Columns matched automatically (date, description, amount, or debit/credit). Each row is deduped and drafted as a balanced entry for review.</p>
         <textarea value={csv} onChange={e => setCsv(e.target.value)} rows={5} placeholder="Date,Description,Amount&#10;2026-06-01,Capital call Fund II,5000000&#10;2026-06-15,Audit fee,-12000" className="w-full border border-input rounded p-2 text-sm font-mono bg-transparent" />
@@ -176,19 +176,19 @@ export function BankView() {
             </span>
           )}
         </div>
-        {result?.errors?.length ? <p className="text-xs text-red-600">{result.errors[0]}</p> : null}
+        {result?.errors?.length ? <p className="text-xs text-destructive">{result.errors[0]}</p> : null}
       </div>
 
       {/* Reconciliation */}
       {rec && (
-        <div className={`rounded-lg border p-3 text-sm flex flex-wrap items-center gap-x-6 gap-y-1 ${rec.tiesOut ? 'border-green-500/40 bg-green-500/10' : 'border-amber-500/40 bg-amber-500/10'}`}>
+        <div className={`rounded-card border p-3 text-sm flex flex-wrap items-center gap-x-6 gap-y-1 ${rec.tiesOut ? 'border-success/40 bg-success/10' : 'border-warning/40 bg-warning/10'}`}>
           <span className="flex items-center gap-2 font-medium">
-            {rec.tiesOut ? <Check className="h-4 w-4 text-green-600" /> : <AlertTriangle className="h-4 w-4 text-amber-500" />}
+            {rec.tiesOut ? <Check className="h-4 w-4 text-success" /> : <AlertTriangle className="h-4 w-4 text-warning" />}
             Bank reconciliation
           </span>
           <span className="text-muted-foreground">Ledger cash <span className="tabular-nums text-foreground">{fmt(rec.ledgerCashBalance)}</span></span>
           <span className="text-muted-foreground">Bank ending <span className="tabular-nums text-foreground">{fmt(rec.bankEndingBalance)}</span></span>
-          <span className="text-muted-foreground">Difference <span className={`tabular-nums ${rec.difference !== 0 ? 'text-amber-600' : 'text-foreground'}`}>{fmt(rec.difference)}</span></span>
+          <span className="text-muted-foreground">Difference <span className={`tabular-nums ${rec.difference !== 0 ? 'text-warning' : 'text-foreground'}`}>{fmt(rec.difference)}</span></span>
           {rec.unmatchedCount > 0 && <span className="text-muted-foreground">{rec.unmatchedCount} unmatched ({fmt(rec.unmatchedTotal)})</span>}
         </div>
       )}
@@ -207,7 +207,7 @@ export function BankView() {
       {loading && txns.length === 0 ? (
         <div className="flex items-center gap-2 text-muted-foreground text-sm"><Loader2 className="h-4 w-4 animate-spin" />Loading…</div>
       ) : txns.length === 0 ? (
-        <div className="border border-dashed rounded-lg p-8 text-center text-sm text-muted-foreground">No transactions yet. Import a feed above.</div>
+        <div className="border border-dashed rounded-card p-8 text-center text-sm text-muted-foreground">No transactions yet. Import a feed above.</div>
       ) : (
         <>
           <div className="flex flex-wrap items-center gap-2">
@@ -230,7 +230,7 @@ export function BankView() {
             <span className="text-xs text-muted-foreground">{visibleTxns.length} of {txns.length}</span>
           </div>
           {visibleTxns.length === 0 ? (
-            <div className="border border-dashed rounded-lg p-8 text-center text-sm text-muted-foreground">No transactions match your filters.</div>
+            <div className="border border-dashed rounded-card p-8 text-center text-sm text-muted-foreground">No transactions match your filters.</div>
           ) : (
           <div className="border rounded-lg overflow-x-auto">
           <table className="w-full text-sm whitespace-nowrap">

@@ -305,7 +305,7 @@ function LpsInner() {
             {applied && <Button size="sm" variant="ghost" onClick={() => { setAsOf(''); setApplied('') }}>Latest</Button>}
           </div>
 
-          {error && <Card><CardContent className="p-4 text-red-600 text-sm">{error}</CardContent></Card>}
+          {error && <Card><CardContent className="p-4 text-destructive text-sm">{error}</CardContent></Card>}
 
           {loading && !data ? (
             <div className="flex items-center py-16 text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin mr-2" /> Deriving from the ledger…</div>
@@ -320,7 +320,7 @@ function LpsInner() {
               </div>
 
               {delErr && (
-                <div className="mb-2 flex items-center justify-between gap-3 rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
+                <div className="mb-2 flex items-center justify-between gap-3 rounded-md border border-destructive bg-destructive-subtle px-3 py-2 text-sm text-destructive dark:bg-destructive-subtle/40">
                   <span>{delErr}</span>
                   <button onClick={() => setDelErr(null)} className="shrink-0 hover:opacity-70"><X className="h-3.5 w-3.5" /></button>
                 </div>
@@ -374,7 +374,7 @@ function LpsInner() {
                                       <Link href={`/lps/cards/${inv.id}`} title="Report card" className="hover:text-foreground"><FileText className="h-3.5 w-3.5" /></Link>
                                       <button onClick={() => setRename({ id: inv.id, name: inv.name })} title="Rename" className="hover:text-foreground"><Pencil className="h-3.5 w-3.5" /></button>
                                       <button onClick={() => setGrouping({ id: inv.id, name: inv.name })} title="Group under another investor" className="hover:text-foreground"><Users className="h-3.5 w-3.5" /></button>
-                                      <button onClick={() => deleteInvestor(inv)} title="Delete this LP (for duplicates/ghosts)" className="hover:text-red-600"><Trash2 className="h-3.5 w-3.5" /></button>
+                                      <button onClick={() => deleteInvestor(inv)} title="Delete this LP (for duplicates/ghosts)" className="hover:text-destructive"><Trash2 className="h-3.5 w-3.5" /></button>
                                     </span>
                                   )}
                                 </span>

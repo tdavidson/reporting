@@ -96,7 +96,7 @@ export default function PendingActionsPage() {
           )}
 
           {!loading && rows.length === 0 && (
-            <div className="rounded-lg border border-dashed p-12 text-center">
+            <div className="rounded-card border border-dashed p-12 text-center">
               <p className="text-muted-foreground">Nothing pending. Drafts you stage in the Analyst show up here.</p>
             </div>
           )}
@@ -109,7 +109,7 @@ export default function PendingActionsPage() {
                 const perLp = row.preview.details.perLp as Array<{ lp: string; amount: number }> | undefined
                 const scalars = Object.entries(row.preview.details).filter(([k]) => k !== 'perLp')
                 return (
-                  <div key={row.id} className="rounded-lg border bg-card p-4 space-y-3">
+                  <div key={row.id} className="rounded-card border bg-card p-4 space-y-3">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium">
                         {ACTION_LABELS[row.action_type] ?? row.action_type}

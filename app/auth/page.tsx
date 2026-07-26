@@ -137,8 +137,8 @@ function AuthForm() {
           </CardHeader>
           <CardContent className="space-y-4">
             {emailConfirmed && (
-              <Alert className="border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950">
-                <AlertDescription className="text-green-800 dark:text-green-200">
+              <Alert className="border-success bg-success-subtle">
+                <AlertDescription className="text-success">
                   Your email has been confirmed. Please sign in to continue.
                 </AlertDescription>
               </Alert>

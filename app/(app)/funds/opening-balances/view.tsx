@@ -62,7 +62,7 @@ export function OpeningBalancesView() {
 
   if (done) {
     return (
-      <div className="rounded-lg border border-green-500/40 bg-green-500/10 p-4 text-sm text-green-700 dark:text-green-400 flex items-center gap-2">
+      <div className="rounded-card border border-success/40 bg-success/10 p-4 text-sm text-success flex items-center gap-2">
         <Check className="h-4 w-4" />
         Booked opening balances for {done.lpCount} LP(s), total {fmt(done.total)}. View them in Capital accounts.
       </div>
@@ -71,7 +71,7 @@ export function OpeningBalancesView() {
 
   if (entities.length === 0) {
     return (
-      <div className="border border-dashed rounded-lg p-8 text-center text-sm text-muted-foreground">
+      <div className="border border-dashed rounded-card p-8 text-center text-sm text-muted-foreground">
         No LP entities found. Add investors and entities first (LPs section).
       </div>
     )
@@ -83,8 +83,8 @@ export function OpeningBalancesView() {
   // behind an explicit override rather than letting a stray visit corrupt the books.
   if (historyMode === 'full_history' && !override) {
     return (
-      <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-4 text-sm space-y-2">
-        <p className="flex items-center gap-2 font-medium text-amber-700 dark:text-amber-400">
+      <div className="rounded-card border border-warning/40 bg-warning/10 p-4 text-sm space-y-2">
+        <p className="flex items-center gap-2 font-medium text-warning">
           <AlertTriangle className="h-4 w-4" />This vehicle doesn&rsquo;t need opening balances.
         </p>
         <p className="text-muted-foreground">
@@ -146,7 +146,7 @@ export function OpeningBalancesView() {
         </table>
       </div>
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p className="text-sm text-destructive">{error}</p>}
 
       <Button onClick={submit} disabled={saving || !entryDate || total === 0}>
         {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}

@@ -101,7 +101,7 @@ export function LpDocumentsSettings() {
         Upload files for your LPs (fund financials, statements, …). Choose who sees each file: every LP in this fund, all investors in a specific investment vehicle, or hand-picked investors. They appear in the LP portal&apos;s Documents tab, grouped by category.
       </p>
 
-      <div className="rounded-md border p-3 space-y-3">
+      <div className="rounded-card border p-3 space-y-3">
         <div className="flex flex-wrap gap-2 items-center">
           <Input value={title} onChange={e => setTitle(e.target.value)} placeholder="Document title" className="h-8 text-sm flex-1 min-w-[160px]" />
           <input id="lp-doc-file" type="file" onChange={e => setFile(e.target.files?.[0] ?? null)} className="text-xs" />

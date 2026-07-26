@@ -148,7 +148,7 @@ export function VehicleEditModal({ vehicle, onClose, onSaved }: {
           </div>
 
           {others !== null && others.length > 0 && (
-            <div className="mt-2 space-y-2 rounded-md border border-destructive/30 bg-destructive/5 p-3">
+            <div className="mt-2 space-y-2 rounded-card border border-destructive/30 bg-destructive/5 p-3">
               <p className="text-xs font-medium text-muted-foreground">Merge into another vehicle</p>
               <p className="text-[11px] text-muted-foreground">
                 Collapses a duplicate: moves all of {vehicle.name}&rsquo;s data into the target vehicle and

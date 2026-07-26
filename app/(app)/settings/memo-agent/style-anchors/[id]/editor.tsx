@@ -292,7 +292,7 @@ export function AnchorEditor({ anchor: initial }: { anchor: Anchor }) {
                 )}
               </div>
             ) : (
-              <p className="text-amber-600">
+              <p className="text-warning">
                 Text extraction failed at upload time. Re-upload the file or contact support if this persists.
               </p>
             )}

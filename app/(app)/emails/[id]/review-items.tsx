@@ -49,11 +49,11 @@ const ISSUE_LABELS: Record<string, string> = {
 }
 
 const STATUS_COLORS: Record<string, string> = {
-  new_company_detected: 'bg-blue-100 text-blue-800 border-blue-200',
-  low_confidence: 'bg-amber-100 text-amber-800 border-amber-200',
-  ambiguous_period: 'bg-orange-100 text-orange-800 border-orange-200',
-  metric_not_found: 'bg-slate-100 text-slate-700 border-slate-200',
-  company_not_identified: 'bg-red-100 text-red-800 border-red-200',
+  new_company_detected: 'bg-info-subtle text-info border-info',
+  low_confidence: 'bg-warning-subtle text-warning border-warning',
+  ambiguous_period: 'bg-warning-subtle text-warning border-warning',
+  metric_not_found: 'bg-muted text-muted-foreground border-border',
+  company_not_identified: 'bg-destructive-subtle text-destructive border-destructive',
   duplicate_period: 'bg-purple-100 text-purple-800 border-purple-200',
 }
 
@@ -169,7 +169,7 @@ export function ReviewItems({
             const isMetricNotFound = item.issue_type === 'metric_not_found'
 
             return (
-              <div key={item.id} className="rounded-lg border bg-card p-4 space-y-3">
+              <div key={item.id} className="rounded-card border bg-card p-4 space-y-3">
                 <div className="flex flex-wrap items-center gap-2">
                   <span
                     className={`inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium ${STATUS_COLORS[item.issue_type] ?? ''}`}

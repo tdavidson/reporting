@@ -61,11 +61,11 @@ export function MarketingSection() {
         onChange={e => setText(e.target.value)}
         spellCheck={false}
         disabled={loading}
-        className="w-full h-96 font-mono text-xs rounded-md border bg-background p-3"
+        className="w-full h-96 font-mono text-xs rounded-card border bg-background p-3"
         placeholder='{ "hero": { "title": "...", "subtitle": "..." }, "productGroups": [ ... ] }'
       />
-      {parseError && <p className="text-xs text-amber-600 dark:text-amber-400 mt-2">{parseError}</p>}
-      {error && <p className="text-xs text-red-600 mt-2">{error}</p>}
+      {parseError && <p className="text-xs text-warning mt-2">{parseError}</p>}
+      {error && <p className="text-xs text-destructive mt-2">{error}</p>}
       <div className="mt-3">
         <Button size="sm" onClick={save} disabled={saving || !!parseError}>
           {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : saved ? <Check className="h-4 w-4" /> : 'Save'}

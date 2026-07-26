@@ -11,7 +11,7 @@ import { Loader2, Check, UserCheck, Trash2, Monitor, Sun, Moon } from 'lucide-re
 
 function SettingsCard({ title, description, children }: { title: string; description?: string; children: React.ReactNode }) {
   return (
-    <section className="rounded-md border bg-card p-4">
+    <section className="rounded-card border bg-card p-4">
       <h2 className="text-sm font-semibold">{title}</h2>
       {description && <p className="text-xs text-muted-foreground mt-0.5">{description}</p>}
       <div className="mt-3">{children}</div>
@@ -102,7 +102,7 @@ export default function PortalSettingsPage() {
             <Input id="pw2" type="password" value={pw2} onChange={e => setPw2(e.target.value)} autoComplete="new-password" onKeyDown={e => e.key === 'Enter' && changePassword()} />
           </div>
           {pwErr && <p className="text-xs text-destructive">{pwErr}</p>}
-          {pwMsg && <p className="text-xs text-emerald-600 dark:text-emerald-400 inline-flex items-center gap-1"><Check className="h-3.5 w-3.5" /> {pwMsg}</p>}
+          {pwMsg && <p className="text-xs text-success inline-flex items-center gap-1"><Check className="h-3.5 w-3.5" /> {pwMsg}</p>}
           <Button size="sm" onClick={changePassword} disabled={pwBusy || !pw || !pw2}>
             {pwBusy ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : null} Update password
           </Button>

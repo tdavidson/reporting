@@ -125,9 +125,9 @@ export function EmailIntakeTray({
   if (loading || emails.length === 0) return null
 
   return (
-    <div className="mb-4 rounded-lg border border-amber-300/60 bg-amber-50/50 dark:bg-amber-950/20 p-4">
+    <div className="mb-4 rounded-card border border-warning/60 bg-warning-subtle/50 dark:bg-warning-subtle/20 p-4">
       <div className="flex items-center gap-2 mb-1">
-        <Mail className="h-4 w-4 text-amber-700 dark:text-amber-400" />
+        <Mail className="h-4 w-4 text-warning" />
         <h3 className="text-sm font-semibold">
           {emails.length} inbound email{emails.length === 1 ? '' : 's'} matched to this deal
         </h3>
@@ -143,7 +143,7 @@ export function EmailIntakeTray({
           const selected = selection[email.id] ?? new Set<number>()
           const busy = busyId === email.id
           return (
-            <div key={email.id} className="rounded-md border bg-card p-3">
+            <div key={email.id} className="rounded-card border bg-card p-3">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <div className="text-sm font-medium truncate">

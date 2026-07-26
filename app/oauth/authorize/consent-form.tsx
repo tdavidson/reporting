@@ -79,7 +79,7 @@ export function ConsentForm({ clientName, fundName, willWrite, downgraded, param
           {/* The permissions, split read vs write. The write block is the one that matters,
               so it gets its own visual weight rather than being a third bullet in a list —
               "post journal entries and close periods" is not a detail. */}
-          <div className="rounded-md border bg-muted/30 p-3 space-y-3">
+          <div className="rounded-card border bg-muted/30 p-3 space-y-3">
             <div className="flex gap-2.5">
               <ShieldCheck className="h-4 w-4 shrink-0 mt-0.5 text-muted-foreground" />
               <div className="space-y-1">
@@ -94,9 +94,9 @@ export function ConsentForm({ clientName, fundName, willWrite, downgraded, param
 
             {willWrite ? (
               <div className="flex gap-2.5 border-t pt-3">
-                <PencilLine className="h-4 w-4 shrink-0 mt-0.5 text-amber-600 dark:text-amber-500" />
+                <PencilLine className="h-4 w-4 shrink-0 mt-0.5 text-warning" />
                 <div className="space-y-1">
-                  <p className="text-xs font-medium text-amber-700 dark:text-amber-400">Make changes</p>
+                  <p className="text-xs font-medium text-warning">Make changes</p>
                   <p className="text-xs text-muted-foreground">
                     Record investments, post journal entries, run allocations, import bank transactions,
                     and close accounting periods.
@@ -114,8 +114,8 @@ export function ConsentForm({ clientName, fundName, willWrite, downgraded, param
           </div>
 
           {downgraded && (
-            <Alert className="border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950">
-              <AlertDescription className="text-amber-800 dark:text-amber-200 text-xs">
+            <Alert className="border-warning bg-warning-subtle">
+              <AlertDescription className="text-warning text-xs">
                 It asked for write access, but only fund admins can grant that — so it will get read-only.
               </AlertDescription>
             </Alert>

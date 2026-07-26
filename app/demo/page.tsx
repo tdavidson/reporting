@@ -46,7 +46,7 @@ export default function DemoPage() {
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center space-y-4">
           <p className="text-sm text-muted-foreground">{error}</p>
-          <a href="/auth" className="text-sm text-blue-600 underline">Go to sign in</a>
+          <a href="/auth" className="text-sm text-info underline">Go to sign in</a>
         </div>
       </div>
     )

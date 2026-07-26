@@ -58,11 +58,7 @@ export function FeatureAccessControls({ features, values, onChange, rowsBefore }
                   key={opt.value}
                   onClick={() => onChange(key, opt.value)}
                   title={opt.description}
-                  className={`px-3 py-1.5 text-xs rounded-md border transition-colors ${
-                    current === opt.value
-                      ? 'border-foreground/30 bg-accent font-medium'
-                      : 'hover:bg-accent/30'
-                  }`}
+                  className={`px-3 py-1.5 text-xs rounded-md border transition-colors ${ current === opt.value ? 'border-foreground/30 bg-accent font-medium' : 'hover:bg-accent/30' }`}
                 >
                   {opt.label}
                 </button>

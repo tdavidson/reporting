@@ -195,7 +195,7 @@ export function LpCapitalView({ isAdmin }: { isAdmin: boolean }) {
           {/* One table for both producers — the roll-forward plus performance ratios. A pasted
               vehicle's amount columns are editable inputs; an accounting vehicle's are calculated. */}
           {delErr && (
-            <div className="flex items-center justify-between gap-3 rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
+            <div className="flex items-center justify-between gap-3 rounded-md border border-destructive bg-destructive-subtle px-3 py-2 text-sm text-destructive dark:bg-destructive-subtle/40">
               <span>{delErr}</span>
               <button onClick={() => setDelErr(null)} className="shrink-0 hover:opacity-70"><X className="h-3.5 w-3.5" /></button>
             </div>
@@ -315,7 +315,7 @@ function HistoryTable({
                       <button
                         onClick={() => onDelete(d)}
                         title={`Delete the entire ${d} set`}
-                        className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-red-600 opacity-0 group-hover:opacity-100 focus:opacity-100"
+                        className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 focus:opacity-100"
                       >
                         <Trash2 className="h-3.5 w-3.5" /> Delete set
                       </button>
@@ -356,7 +356,7 @@ function ImportBox({ group, onImported }: { group: string; onImported: () => voi
   }
 
   return (
-    <div className="rounded-lg border p-4 space-y-3">
+    <div className="rounded-card border p-4 space-y-3">
       <div className="flex items-center gap-2">
         <ClipboardPaste className="h-4 w-4 text-muted-foreground" />
         <h2 className="text-sm font-medium">Import</h2>

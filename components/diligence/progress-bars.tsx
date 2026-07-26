@@ -105,10 +105,10 @@ export function DataRoomBar({ counts, total }: { counts: Record<DocBucket, numbe
 // (amber = in progress, emerald = finished); width carries how far in it is. A stage
 // that isn't done is capped below 100% fill upstream, so amber can never look full.
 const STATE_STYLE: Record<StageInfo['state'], { fill: string; text: string; Icon: typeof Check | null }> = {
-  done:    { fill: 'bg-emerald-500',           text: 'text-foreground',          Icon: Check },
-  partial: { fill: 'bg-amber-500',             text: 'text-foreground',          Icon: null },
+  done:    { fill: 'bg-success',           text: 'text-foreground',          Icon: Check },
+  partial: { fill: 'bg-warning',             text: 'text-foreground',          Icon: null },
   running: { fill: 'bg-primary animate-pulse', text: 'text-foreground',          Icon: Loader2 },
-  failed:  { fill: 'bg-red-500',               text: 'text-red-600',             Icon: AlertTriangle },
+  failed:  { fill: 'bg-destructive',               text: 'text-destructive',             Icon: AlertTriangle },
   blocked: { fill: 'bg-transparent',           text: 'text-muted-foreground/60', Icon: Lock },
   todo:    { fill: 'bg-transparent',           text: 'text-muted-foreground',    Icon: null },
 }
@@ -163,7 +163,7 @@ export function StageBar({
                 {Icon && <Icon className={`h-3 w-3 shrink-0 ${s.state === 'running' ? 'animate-spin' : ''}`} />}
                 <span className="truncate">{s.label}</span>
                 {s.state === 'partial' && (
-                  <span className="shrink-0 tabular-nums text-amber-600 dark:text-amber-500">{pct}%</span>
+                  <span className="shrink-0 tabular-nums text-warning">{pct}%</span>
                 )}
               </span>
             </button>

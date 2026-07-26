@@ -72,7 +72,7 @@ export function ReconciliationPanel() {
 
   if (rows.length === 0) {
     return (
-      <div className="border border-dashed rounded-lg p-8 text-center text-sm text-muted-foreground">
+      <div className="border border-dashed rounded-card p-8 text-center text-sm text-muted-foreground">
         No ledger capital accounts to reconcile yet. Import opening balances and post a period first.
       </div>
     )
@@ -83,10 +83,7 @@ export function ReconciliationPanel() {
   return (
     <div className="space-y-4">
       {result && (
-        <div className={`rounded-lg border p-3 flex items-center gap-2 text-sm ${
-          result.allTieOut ? 'border-green-500/40 bg-green-500/10 text-green-700 dark:text-green-400'
-                            : 'border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400'
-        }`}>
+        <div className={`rounded-card border p-3 flex items-center gap-2 text-sm ${ result.allTieOut ? 'border-success/40 bg-success/10 text-success dark:text-success' : 'border-warning/40 bg-warning/10 text-warning dark:text-warning' }`}>
           {result.allTieOut ? <Check className="h-4 w-4" /> : <AlertTriangle className="h-4 w-4" />}
           {result.allTieOut
             ? 'Ties out — every LP matches the admin to the penny.'
@@ -128,11 +125,11 @@ export function ReconciliationPanel() {
                       className="border rounded px-1.5 py-0.5 text-sm text-right w-32 tabular-nums bg-transparent"
                     />
                   </td>
-                  <td className={`px-3 py-2 text-right tabular-nums ${d && !d.tiesOut ? 'text-amber-600 dark:text-amber-400' : ''}`}>
+                  <td className={`px-3 py-2 text-right tabular-nums ${d && !d.tiesOut ? 'text-warning dark:text-warning' : ''}`}>
                     {d ? fmt(d.delta) : '—'}
                   </td>
                   <td className="px-3 py-2 text-center">
-                    {d && (d.tiesOut ? <Check className="h-4 w-4 text-green-600 inline" /> : <AlertTriangle className="h-4 w-4 text-amber-500 inline" />)}
+                    {d && (d.tiesOut ? <Check className="h-4 w-4 text-success inline" /> : <AlertTriangle className="h-4 w-4 text-warning inline" />)}
                   </td>
                 </tr>
               )

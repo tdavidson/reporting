@@ -34,7 +34,7 @@ export function AnalyticsView() {
       <div className="mb-6">
         <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2">
           <BarChart3 className="h-5 w-5" /> Diligence Analytics
-          <Lock className="h-4 w-4 text-amber-500" />
+          <Lock className="h-4 w-4 text-warning" />
         </h1>
         <p className="text-sm text-muted-foreground mt-1">
           Status mix, conversion funnel, time-in-stage, throughput by partner. Updates live as deals move.
@@ -42,11 +42,11 @@ export function AnalyticsView() {
       </div>
 
       {loading || !data ? (
-        <div className="rounded-md border bg-card p-12 text-center text-sm text-muted-foreground">
+        <div className="rounded-card border bg-card p-12 text-center text-sm text-muted-foreground">
           <Loader2 className="h-5 w-5 animate-spin mx-auto mb-2" /> Loading…
         </div>
       ) : data.summary.total === 0 ? (
-        <div className="rounded-md border bg-card p-12 text-center text-sm text-muted-foreground">
+        <div className="rounded-card border bg-card p-12 text-center text-sm text-muted-foreground">
           No deals yet. Analytics populate as you create and progress deals.
         </div>
       ) : (
@@ -166,7 +166,7 @@ export function AnalyticsView() {
 
 function Stat({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-md border bg-card p-3">
+    <div className="rounded-card border bg-card p-3">
       <div className="text-2xl font-semibold tracking-tight">{value}</div>
       <div className="text-xs text-muted-foreground mt-0.5">{label}</div>
     </div>
@@ -199,7 +199,7 @@ function Funnel({ funnel }: { funnel: Analytics['funnel'] }) {
               <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs font-medium text-foreground">{s.value}</span>
             </div>
             <span className="w-12 shrink-0 text-right text-xs">
-              {dropoff !== null ? <span className="text-amber-600">−{dropoff}%</span> : ''}
+              {dropoff !== null ? <span className="text-warning">−{dropoff}%</span> : ''}
             </span>
           </div>
         )

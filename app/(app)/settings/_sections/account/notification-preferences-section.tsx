@@ -71,9 +71,7 @@ export function NotificationPreferencesSection() {
           {options.map(opt => (
             <label
               key={opt.value}
-              className={`flex items-start gap-3 rounded-md border p-3 cursor-pointer transition-colors ${
-                level === opt.value ? 'border-foreground/30 bg-accent/50' : 'hover:bg-accent/30'
-              }`}
+              className={`flex items-start gap-3 rounded-card border p-3 cursor-pointer transition-colors ${ level === opt.value ? 'border-foreground/30 bg-accent/50' : 'hover:bg-accent/30' }`}
             >
               <input
                 type="radio"
@@ -113,7 +111,7 @@ export function NotificationPreferencesSection() {
           )}
 
           {saving && <p className="text-xs text-muted-foreground mt-2">Saving...</p>}
-          {saved && <p className="text-xs text-green-600 mt-2">Saved</p>}
+          {saved && <p className="text-xs text-success mt-2">Saved</p>}
         </div>
       )}
     </Section>

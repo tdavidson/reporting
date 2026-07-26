@@ -69,7 +69,7 @@ export function RenameInvestorDialog({ target, onClose, onSaved }: {
         {err && <p className="text-xs text-destructive">{err}</p>}
 
         {conflict && !confirmMerge && (
-          <div className="space-y-2 rounded-md border border-destructive/30 bg-destructive/5 p-3">
+          <div className="space-y-2 rounded-card border border-destructive/30 bg-destructive/5 p-3">
             <p className="text-xs text-destructive">
               An investor named &ldquo;{name.trim()}&rdquo; already exists. Rename won&rsquo;t merge them.
             </p>
@@ -80,7 +80,7 @@ export function RenameInvestorDialog({ target, onClose, onSaved }: {
         )}
 
         {conflict && confirmMerge && (
-          <div className="space-y-2 rounded-md border border-destructive/30 bg-destructive/5 p-3">
+          <div className="space-y-2 rounded-card border border-destructive/30 bg-destructive/5 p-3">
             <p className="text-xs text-destructive">
               This deletes this investor and moves its positions into &ldquo;{name.trim()}&rdquo;. This can&rsquo;t be undone.
             </p>

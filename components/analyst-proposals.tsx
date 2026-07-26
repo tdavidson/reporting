@@ -53,7 +53,7 @@ export function AnalystProposals({ proposals, vehicle }: { proposals: Proposal[]
     <div className="mt-2 space-y-2">
       <p className="text-xs font-medium text-muted-foreground">Proposed entries</p>
       {proposals.map((p, i) => (
-        <div key={i} className="border rounded-lg p-3 space-y-2">
+        <div key={i} className="border rounded-card p-3 space-y-2">
           <div className="flex items-center justify-between gap-2">
             <p className="text-xs font-medium">
               {p.type === 'edit' ? 'Edit' : 'New'} &middot; {p.entryDate} &middot; {p.memo}
@@ -83,9 +83,9 @@ export function AnalystProposals({ proposals, vehicle }: { proposals: Proposal[]
           </table>
           {p.rationale && <p className="text-[11px] text-muted-foreground">{p.rationale}</p>}
           {applied[i] ? (
-            <span className="text-xs text-green-600 flex items-center gap-1"><Check className="h-3.5 w-3.5" />Applied as a draft — review it in the Journal.</span>
+            <span className="text-xs text-success flex items-center gap-1"><Check className="h-3.5 w-3.5" />Applied as a draft — review it in the Journal.</span>
           ) : !balanced(p) ? (
-            <span className="text-xs text-amber-600 flex items-center gap-1"><AlertTriangle className="h-3.5 w-3.5" />Doesn&apos;t balance — won&apos;t apply.</span>
+            <span className="text-xs text-warning flex items-center gap-1"><AlertTriangle className="h-3.5 w-3.5" />Doesn&apos;t balance — won&apos;t apply.</span>
           ) : (
             <Button size="sm" variant="outline" onClick={() => apply(p, i)} disabled={busy === i}>
               {busy === i ? 'Applying…' : 'Apply as draft'}

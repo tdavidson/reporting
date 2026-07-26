@@ -281,9 +281,7 @@ export function AnalystPanel() {
                 {conversations.map((conv) => (
                   <div
                     key={conv.id}
-                    className={`group flex items-start gap-2 rounded-md px-2 py-2 cursor-pointer hover:bg-muted ${
-                      conv.id === conversationId ? 'bg-muted' : ''
-                    }`}
+                    className={`group flex items-start gap-2 rounded-md px-2 py-2 cursor-pointer hover:bg-muted ${ conv.id === conversationId ? 'bg-muted' : '' }`}
                     onClick={() => loadConversation(conv.id)}
                   >
                     <div className="flex-1 min-w-0">

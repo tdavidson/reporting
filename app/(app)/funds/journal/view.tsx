@@ -127,7 +127,7 @@ export function JournalView() {
           Post all drafts
         </Button>
         {postMsg && <span className="text-xs text-muted-foreground">{postMsg}</span>}
-        {error && <span className="text-xs text-amber-600">{error}</span>}
+        {error && <span className="text-xs text-warning">{error}</span>}
         <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
           <PeriodPicker
             preset={preset} onPreset={p => { setPreset(p); setPage(0) }}
@@ -140,7 +140,7 @@ export function JournalView() {
       {loading ? (
         <div className="flex items-center gap-2 text-muted-foreground text-sm"><Loader2 className="h-4 w-4 animate-spin" />Loading…</div>
       ) : entries.length === 0 ? (
-        <div className="border border-dashed rounded-lg p-8 text-center text-sm text-muted-foreground">
+        <div className="border border-dashed rounded-card p-8 text-center text-sm text-muted-foreground">
           {debounced ? 'No entries match your search in this period.' : 'No journal entries in this period. Widen the range, create one above, or import bank transactions.'}
         </div>
       ) : (
@@ -149,8 +149,8 @@ export function JournalView() {
             const narration = (e.memo || e.source_type || 'Entry').replace(/"/g, "'")
             // Readable status marker instead of a cryptic */!/# flag.
             const statusCls = e.status === 'posted'
-              ? 'bg-green-500/15 text-green-600'
-              : e.status === 'void' ? 'bg-muted text-muted-foreground' : 'bg-amber-500/15 text-amber-600'
+              ? 'bg-success/15 text-success'
+              : e.status === 'void' ? 'bg-muted text-muted-foreground' : 'bg-warning/15 text-warning'
             const clickable = e.status !== 'void'
             return (
               <div

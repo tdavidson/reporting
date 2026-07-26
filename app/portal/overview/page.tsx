@@ -21,7 +21,7 @@ export default function PortalOverviewPage() {
     return <div className="flex items-center gap-2 text-sm text-muted-foreground py-8"><Loader2 className="h-4 w-4 animate-spin" /> Loading…</div>
   }
   if (error || !data) {
-    return <div className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">Could not load your overview.</div>
+    return <div className="rounded-card border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">Could not load your overview.</div>
   }
   return <OverviewView data={data} />
 }

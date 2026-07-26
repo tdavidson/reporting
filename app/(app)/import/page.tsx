@@ -318,7 +318,7 @@ export default function ImportPage() {
     <div className="p-4 md:p-8">
       <div className="mb-6 space-y-1">
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2">{fv.imports === 'admin' && <Lock className="h-4 w-4 text-amber-500" />}Import</h1>
+          <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2">{fv.imports === 'admin' && <Lock className="h-4 w-4 text-warning" />}Import</h1>
           <AnalystToggleButton />
         </div>
         <p className="text-sm text-muted-foreground">Upload documents and spreadsheets to populate your portfolio</p>
@@ -424,10 +424,10 @@ export default function ImportPage() {
                             <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
                           )}
                           {f.status === 'done' && !f.textOnly && (
-                            <CheckCircle2 className="h-3.5 w-3.5 text-green-600" />
+                            <CheckCircle2 className="h-3.5 w-3.5 text-success" />
                           )}
                           {f.status === 'done' && f.textOnly && (
-                            <span className="text-xs text-amber-600" title="File exceeded 10 MB, only extracted text was stored (no native PDF/image)">Text only</span>
+                            <span className="text-xs text-warning" title="File exceeded 10 MB, only extracted text was stored (no native PDF/image)">Text only</span>
                           )}
                           {f.status === 'error' && (
                             <span className="text-xs text-destructive" title={f.error}>Failed</span>

@@ -106,7 +106,7 @@ function ModelRow({ label, hint, recommendedKey, current, onChange, defaultProvi
   const models = modelsByProvider[effProvider]
   const loading = loadingProviders.has(effProvider)
   return (
-    <div className="rounded-md border bg-card p-3">
+    <div className="rounded-card border bg-card p-3">
       <div className="mb-2">
         <div className="text-sm font-medium">{label}</div>
         <p className="text-[11px] text-muted-foreground mt-0.5 max-w-2xl">{hint}</p>
@@ -310,7 +310,7 @@ export function DefaultsEditor({ embedded, section }: { embedded?: boolean; sect
         </>
       )}
 
-      {error && <div className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive mb-4">{error}</div>}
+      {error && <div className="rounded-card border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive mb-4">{error}</div>}
 
       <div className="space-y-4">
         {show('caps') && (
@@ -345,7 +345,7 @@ export function DefaultsEditor({ embedded, section }: { embedded?: boolean; sect
               </div>
             </div>
 
-            <div className="rounded-md border bg-muted/20 p-3">
+            <div className="rounded-card border bg-muted/20 p-3">
               <div className="flex items-center justify-between text-xs mb-1">
                 <span className="font-medium">{monthName}, usage</span>
                 <span className="font-mono text-muted-foreground">
@@ -355,7 +355,7 @@ export function DefaultsEditor({ embedded, section }: { embedded?: boolean; sect
               {data.monthly_token_cap && (
                 <div className="h-1.5 bg-background rounded overflow-hidden">
                   <div
-                    className={`h-full ${monthlyPct > 90 ? 'bg-red-500' : monthlyPct > 70 ? 'bg-amber-500' : 'bg-primary'}`}
+                    className={`h-full ${monthlyPct > 90 ? 'bg-destructive' : monthlyPct > 70 ? 'bg-warning' : 'bg-primary'}`}
                     style={{ width: `${monthlyPct}%` }}
                   />
                 </div>
@@ -479,7 +479,7 @@ export function DefaultsEditor({ embedded, section }: { embedded?: boolean; sect
               Test Deepgram connection
             </Button>
             {dgResult && (
-              <div className="rounded-md border bg-muted/20 p-3 space-y-1.5 text-xs">
+              <div className="rounded-card border bg-muted/20 p-3 space-y-1.5 text-xs">
                 <ResultRow ok={dgResult.deepgram.ok} label="Deepgram API" detail={dgResult.deepgram.detail} />
                 <ResultRow
                   ok={dgResult.webhook_secret_set}
@@ -491,7 +491,7 @@ export function DefaultsEditor({ embedded, section }: { embedded?: boolean; sect
                   label="Webhook URL"
                   detail={dgResult.webhook_url_resolvable ? 'A callback base URL is resolvable.' : 'No callback base URL (set TRANSCRIPTION_WEBHOOK_URL or NEXT_PUBLIC_SITE_URL).'}
                 />
-                <div className={`pt-1 font-medium ${dgResult.ready ? 'text-green-600 dark:text-green-400' : 'text-amber-600 dark:text-amber-400'}`}>
+                <div className={`pt-1 font-medium ${dgResult.ready ? 'text-success dark:text-success' : 'text-warning dark:text-warning'}`}>
                   {dgResult.ready ? 'Transcription is ready to use.' : 'Transcription is not fully configured.'}
                 </div>
               </div>
@@ -513,7 +513,7 @@ export function DefaultsEditor({ embedded, section }: { embedded?: boolean; sect
 function ResultRow({ ok, label, detail }: { ok: boolean; label: string; detail: string }) {
   return (
     <div className="flex items-start gap-2">
-      <span className={ok ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>
+      <span className={ok ? 'text-success' : 'text-destructive'}>
         {ok ? '\u2713' : '\u2717'}
       </span>
       <div className="min-w-0">

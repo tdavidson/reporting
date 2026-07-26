@@ -4,14 +4,14 @@ import { useEffect, useState } from 'react'
 import type { IngestionOutput } from '@/lib/memo-agent/stages/ingest'
 
 const CRIT_BADGE: Record<string, string> = {
-  blocker: 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200',
-  important: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200',
-  nice_to_have: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300',
-  high: 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200',
-  material: 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200',
-  medium: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200',
-  minor: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200',
-  low: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300',
+  blocker: 'bg-destructive-subtle text-destructive dark:bg-destructive-subtle/40',
+  important: 'bg-warning-subtle text-warning dark:bg-warning-subtle/40',
+  nice_to_have: 'bg-muted text-muted-foreground',
+  high: 'bg-destructive-subtle text-destructive dark:bg-destructive-subtle/40',
+  material: 'bg-destructive-subtle text-destructive dark:bg-destructive-subtle/40',
+  medium: 'bg-warning-subtle text-warning dark:bg-warning-subtle/40',
+  minor: 'bg-warning-subtle text-warning dark:bg-warning-subtle/40',
+  low: 'bg-muted text-muted-foreground',
 }
 
 // Rank for sorting the merged inconsistencies list so the most severe float up.
@@ -144,7 +144,7 @@ export function IngestionSummary({ output, fileNamesById, dealId, draftId, edita
                 </div>
                 {doc.summary && <p className="text-sm mt-2">{doc.summary}</p>}
                 {doc.issues && doc.issues.length > 0 && (
-                  <ul className="text-xs text-amber-600 mt-2 list-disc list-inside">
+                  <ul className="text-xs text-warning mt-2 list-disc list-inside">
                     {doc.issues.map((s, i) => <li key={i}>{s}</li>)}
                   </ul>
                 )}
@@ -178,7 +178,7 @@ export function IngestionSummary({ output, fileNamesById, dealId, draftId, edita
 
 function Stat({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-md border bg-card p-3">
+    <div className="rounded-card border bg-card p-3">
       <div className="text-2xl font-semibold tracking-tight">{value}</div>
       <div className="text-xs text-muted-foreground mt-0.5">{label}</div>
     </div>

@@ -58,8 +58,8 @@ const RANGE_OPTIONS = [
 ]
 
 const EVENT_META: Record<string, { label: string; icon: typeof Eye; className: string }> = {
-  login: { label: 'Login', icon: LogIn, className: 'text-blue-600 dark:text-blue-400' },
-  view: { label: 'View', icon: Eye, className: 'text-emerald-600 dark:text-emerald-400' },
+  login: { label: 'Login', icon: LogIn, className: 'text-info' },
+  view: { label: 'View', icon: Eye, className: 'text-success' },
   download: { label: 'Download', icon: ArrowDownCircle, className: 'text-violet-600 dark:text-violet-400' },
 }
 
@@ -141,7 +141,7 @@ export function LpActivityDashboard() {
       )}
 
       {error && !loading && (
-        <div className="rounded-lg border border-destructive/40 bg-destructive/5 text-destructive text-sm p-4">{error}</div>
+        <div className="rounded-card border border-destructive/40 bg-destructive/5 text-destructive text-sm p-4">{error}</div>
       )}
 
       {data && !loading && (

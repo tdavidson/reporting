@@ -351,7 +351,7 @@ export function MemoEditor({ dealId, dealName, draft: initial, initialAttention,
           <h1 className={`${embedded ? 'text-base' : 'text-xl'} font-semibold tracking-tight truncate flex items-center gap-2`}>
             {embedded ? 'Memo draft' : `${dealName} memo`}
             {!draft.is_draft && (
-              <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400">
+              <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-success-subtle dark:bg-success-subtle/30 text-success">
                 <Lock className="h-3 w-3 inline mr-0.5" /> Final
               </span>
             )}
@@ -381,9 +381,9 @@ export function MemoEditor({ dealId, dealName, draft: initial, initialAttention,
         </div>
       </div>
 
-      {error && <div className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive mb-4">{error}</div>}
+      {error && <div className="rounded-card border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive mb-4">{error}</div>}
       {exportResult?.url && (
-        <div className="rounded-md border border-emerald-500/40 bg-emerald-50/50 dark:bg-emerald-900/10 p-3 text-sm mb-4 flex items-center justify-between gap-2">
+        <div className="rounded-card border border-success/40 bg-success-subtle/50 dark:bg-success-subtle/10 p-3 text-sm mb-4 flex items-center justify-between gap-2">
           <span>Export ready ({exportResult.format})</span>
           <a href={exportResult.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 underline">
             Open <ExternalLink className="h-3 w-3" />
@@ -398,9 +398,9 @@ export function MemoEditor({ dealId, dealName, draft: initial, initialAttention,
             {openAttention.map(item => (
               <div
                 key={item.id}
-                className={`rounded-md border p-3 text-sm flex items-start gap-2 ${item.urgency === 'must_address' ? 'border-destructive/40 bg-destructive/5' : item.urgency === 'should_address' ? 'border-amber-500/40 bg-amber-50/50 dark:bg-amber-900/10' : 'bg-muted/30'}`}
+                className={`rounded-card border p-3 text-sm flex items-start gap-2 ${item.urgency === 'must_address' ? 'border-destructive/40 bg-destructive/5' : item.urgency === 'should_address' ? 'border-warning/40 bg-warning-subtle/50 dark:bg-warning-subtle/10' : 'bg-muted/30'}`}
               >
-                <AlertTriangle className={`h-4 w-4 shrink-0 mt-0.5 ${item.urgency === 'must_address' ? 'text-destructive' : item.urgency === 'should_address' ? 'text-amber-600 dark:text-amber-400' : 'text-muted-foreground'}`} />
+                <AlertTriangle className={`h-4 w-4 shrink-0 mt-0.5 ${item.urgency === 'must_address' ? 'text-destructive' : item.urgency === 'should_address' ? 'text-warning dark:text-warning' : 'text-muted-foreground'}`} />
                 <div className="flex-1 min-w-0">
                   <div className="text-xs font-medium capitalize">
                     {item.kind.replace(/_/g, ' ')}
@@ -420,7 +420,7 @@ export function MemoEditor({ dealId, dealName, draft: initial, initialAttention,
           <div className="space-y-2 mb-6">
             <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Dismissed warnings</div>
             {dismissedAttention.map(item => (
-              <div key={item.id} className="rounded-md border p-3 text-sm flex items-start gap-2 opacity-60">
+              <div key={item.id} className="rounded-card border p-3 text-sm flex items-start gap-2 opacity-60">
                 <div className="flex-1 min-w-0">
                   <div className="text-xs font-medium capitalize">{item.kind.replace(/_/g, ' ')}</div>
                   <div className="text-xs text-muted-foreground mt-0.5 line-through">{item.body}</div>
@@ -534,7 +534,7 @@ function ParagraphView({
     return (
       <div className="rounded-md p-3 mb-2 text-sm bg-muted/30 ring-1 ring-primary/30">
         {isPlaceholder ? (
-          <div className="rounded-md border border-amber-500/40 bg-amber-50/50 dark:bg-amber-900/10 p-2 text-xs">
+          <div className="rounded-md border border-warning/40 bg-warning-subtle/50 dark:bg-warning-subtle/10 p-2 text-xs">
             Partner-only section. Use “+ Add paragraph” to write the partner-drafted content for this section.
           </div>
         ) : (
@@ -660,9 +660,9 @@ function SourceList({ sources, labels }: { sources: Array<{ source_type: string;
 
 function Badge({ tone = 'muted', children }: { tone?: 'muted' | 'amber' | 'red'; children: React.ReactNode }) {
   const cls = tone === 'red'
-    ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
+    ? 'bg-destructive-subtle dark:bg-destructive-subtle/30 text-destructive'
     : tone === 'amber'
-      ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400'
+      ? 'bg-warning-subtle dark:bg-warning-subtle/30 text-warning'
       : 'bg-muted text-muted-foreground'
   return <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-medium ${cls}`}>{children}</span>
 }

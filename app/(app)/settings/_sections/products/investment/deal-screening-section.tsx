@@ -182,7 +182,7 @@ export function DealScreeningSection({ thesis, prompt, intakeEnabled, hasSubmiss
         </p>
         {submissionUrl ? (
           <div className="space-y-2">
-            <p className="text-xs text-amber-600 dark:text-amber-400">Copy this URL now — it won&rsquo;t be shown again. Only a hash is stored.</p>
+            <p className="text-xs text-warning">Copy this URL now — it won&rsquo;t be shown again. Only a hash is stored.</p>
             <div className="flex items-center gap-2">
               <Input readOnly value={submissionUrl} className="font-mono text-xs" />
               <Button onClick={copyUrl} variant="outline" size="sm">
@@ -191,7 +191,7 @@ export function DealScreeningSection({ thesis, prompt, intakeEnabled, hasSubmiss
             </div>
             <Button onClick={clearToken} disabled={tokenBusy} variant="outline" size="sm">Disable form</Button>
             {!intake && (
-              <p className="text-xs text-amber-600 dark:text-amber-400">
+              <p className="text-xs text-warning">
                 Note: the form is currently inactive because deal intake is disabled above.
               </p>
             )}
@@ -204,7 +204,7 @@ export function DealScreeningSection({ thesis, prompt, intakeEnabled, hasSubmiss
               <Button onClick={clearToken} disabled={tokenBusy} variant="outline" size="sm">Disable form</Button>
             </div>
             {!intake && (
-              <p className="text-xs text-amber-600 dark:text-amber-400">
+              <p className="text-xs text-warning">
                 Note: the form is currently inactive because deal intake is disabled above.
               </p>
             )}

@@ -56,9 +56,7 @@ function StepIndicator({ current }: { current: number }) {
               <Circle className="h-5 w-5 text-muted-foreground" />
             )}
             <span
-              className={`text-sm ${
-                current === step.n ? 'font-medium' : 'text-muted-foreground'
-              }`}
+              className={`text-sm ${ current === step.n ? 'font-medium' : 'text-muted-foreground' }`}
             >
               {step.label}
             </span>
@@ -157,9 +155,9 @@ function OnboardingContent() {
   }
 
   const confirmedBanner = emailConfirmed ? (
-    <Alert className="mb-6 border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950">
-      <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
-      <AlertDescription className="text-green-800 dark:text-green-200">
+    <Alert className="mb-6 border-success bg-success-subtle">
+      <CheckCircle2 className="h-4 w-4 text-success" />
+      <AlertDescription className="text-success">
         Your email has been confirmed. You&apos;re all set to get started.
       </AlertDescription>
     </Alert>
@@ -273,13 +271,13 @@ function JoinFundScreen({
 
             {requested ? (
               <div className="text-center py-4">
-                <CheckCircle2 className="h-8 w-8 text-emerald-500 mx-auto mb-2" />
+                <CheckCircle2 className="h-8 w-8 text-success mx-auto mb-2" />
                 <p className="font-medium">Request sent</p>
                 <p className="text-sm text-muted-foreground">Redirecting...</p>
               </div>
             ) : (
               <>
-                <div className="flex items-center gap-3 p-4 rounded-lg border bg-muted/50">
+                <div className="flex items-center gap-3 p-4 rounded-card border bg-muted/50">
                   <Building2 className="h-8 w-8 text-muted-foreground shrink-0" />
                   <div>
                     <p className="font-medium">{fund.name}</p>
@@ -422,7 +420,7 @@ function Step1({ onComplete }: { onComplete: (fundId: string, webhookToken: stri
             </Button>
           </div>
           {testResult === 'success' && (
-            <p className="text-sm text-green-600 flex items-center gap-1">
+            <p className="text-sm text-success flex items-center gap-1">
               <CheckCircle2 className="h-3.5 w-3.5" /> Connected successfully
             </p>
           )}
@@ -531,11 +529,7 @@ function Step2({
             <button
               type="button"
               onClick={() => setProvider('postmark')}
-              className={`flex-1 rounded-lg border px-4 py-3 text-left text-sm transition-colors ${
-                provider === 'postmark'
-                  ? 'border-primary bg-primary/5 ring-1 ring-primary'
-                  : 'hover:bg-accent'
-              }`}
+              className={`flex-1 rounded-lg border px-4 py-3 text-left text-sm transition-colors ${ provider === 'postmark' ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'hover:bg-accent' }`}
             >
               <span className="font-medium">Postmark</span>
               <p className="text-xs text-muted-foreground mt-0.5">
@@ -545,11 +539,7 @@ function Step2({
             <button
               type="button"
               onClick={() => setProvider('mailgun')}
-              className={`flex-1 rounded-lg border px-4 py-3 text-left text-sm transition-colors ${
-                provider === 'mailgun'
-                  ? 'border-primary bg-primary/5 ring-1 ring-primary'
-                  : 'hover:bg-accent'
-              }`}
+              className={`flex-1 rounded-lg border px-4 py-3 text-left text-sm transition-colors ${ provider === 'mailgun' ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'hover:bg-accent' }`}
             >
               <span className="font-medium">Mailgun</span>
               <p className="text-xs text-muted-foreground mt-0.5">
@@ -847,8 +837,8 @@ function Step4({
       </CardHeader>
       <CardContent className="space-y-5">
         {googleConnected ? (
-          <div className="flex items-center gap-3 p-4 rounded-lg border bg-muted/50">
-            <CheckCircle2 className="h-6 w-6 text-emerald-500 shrink-0" />
+          <div className="flex items-center gap-3 p-4 rounded-card border bg-muted/50">
+            <CheckCircle2 className="h-6 w-6 text-success shrink-0" />
             <div>
               <p className="font-medium text-sm">Google Drive connected</p>
               <p className="text-xs text-muted-foreground">
@@ -858,7 +848,7 @@ function Step4({
           </div>
         ) : !configured ? (
           <div className="space-y-3">
-            <div className="flex items-center gap-3 p-4 rounded-lg border border-dashed">
+            <div className="flex items-center gap-3 p-4 rounded-card border border-dashed">
               <HardDrive className="h-6 w-6 text-muted-foreground shrink-0" />
               <div className="flex-1">
                 <p className="font-medium text-sm">Save reports to Google Drive</p>
@@ -905,7 +895,7 @@ function Step4({
             </div>
           </div>
         ) : (
-          <div className="flex items-center gap-3 p-4 rounded-lg border border-dashed">
+          <div className="flex items-center gap-3 p-4 rounded-card border border-dashed">
             <HardDrive className="h-6 w-6 text-muted-foreground shrink-0" />
             <div className="flex-1">
               <p className="font-medium text-sm">Save reports to Google Drive</p>

@@ -194,9 +194,7 @@ export const MentionTextarea = forwardRef<MentionTextareaRef, MentionTextareaPro
                   key={`${item.type}-${item.id}`}
                   data-mention-item
                   type="button"
-                  className={`w-full text-left px-3 py-1.5 text-sm transition-colors flex items-center gap-2 ${
-                    i === selectedIndex ? 'bg-accent text-foreground' : 'text-muted-foreground hover:bg-accent/50'
-                  }`}
+                  className={`w-full text-left px-3 py-1.5 text-sm transition-colors flex items-center gap-2 ${ i === selectedIndex ? 'bg-accent text-foreground' : 'text-muted-foreground hover:bg-accent/50' }`}
                   onMouseDown={(e) => {
                     e.preventDefault()
                     insertMention(item)

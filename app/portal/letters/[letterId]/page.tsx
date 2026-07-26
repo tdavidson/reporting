@@ -55,7 +55,7 @@ export default function PortalLetterDetailPage() {
     return (
       <div className="space-y-4">
         <Link href="/portal/snapshots" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft className="h-3.5 w-3.5" /> Back</Link>
-        <div className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">{error ?? 'Not found.'}</div>
+        <div className="rounded-card border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">{error ?? 'Not found.'}</div>
       </div>
     )
   }
@@ -76,7 +76,7 @@ export default function PortalLetterDetailPage() {
         </button>
       </div>
 
-      <div className="rounded-md border bg-card p-6 space-y-4">
+      <div className="rounded-card border bg-card p-6 space-y-4">
         {letter.full_draft && (
           <div className="whitespace-pre-wrap text-sm leading-relaxed">{letter.full_draft}</div>
         )}

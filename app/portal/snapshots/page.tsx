@@ -144,12 +144,12 @@ export default function PortalLibraryPage() {
     return (
       <div className="flex items-center hover:bg-muted/40 transition-colors">
         <Link href={href} className="flex flex-1 min-w-0 items-center gap-3 px-4 py-3">
-          {unread && <span className="h-2 w-2 rounded-full bg-amber-500 shrink-0" title="Not viewed yet" />}
+          {unread && <span className="h-2 w-2 rounded-full bg-warning shrink-0" title="Not viewed yet" />}
           {icon}
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
               <span className="font-medium text-sm truncate">{title}</span>
-              {unread && <span className="shrink-0 rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-amber-600 dark:text-amber-400">New</span>}
+              {unread && <span className="shrink-0 rounded bg-warning/15 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-warning">New</span>}
             </div>
             {subtitle && <div className="text-xs text-muted-foreground">{subtitle}</div>}
             {viewedAt && <div className="text-xs text-muted-foreground/80">Viewed {fmtDate(viewedAt)}</div>}
@@ -190,12 +190,12 @@ export default function PortalLibraryPage() {
 
     const inner = (
       <>
-        {unread && <span className="h-2 w-2 rounded-full bg-amber-500 shrink-0 mt-1.5" title="Not opened yet" />}
+        {unread && <span className="h-2 w-2 rounded-full bg-warning shrink-0 mt-1.5" title="Not opened yet" />}
         <FileText className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
             <span className="font-medium text-sm truncate">{d.title}</span>
-            {unread && <span className="shrink-0 rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-amber-600 dark:text-amber-400">New</span>}
+            {unread && <span className="shrink-0 rounded bg-warning/15 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-warning">New</span>}
             {d.category?.trim() && (
               <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{d.category.trim()}</span>
             )}
@@ -243,19 +243,17 @@ export default function PortalLibraryPage() {
       {loading ? (
         <div className="flex items-center gap-2 text-sm text-muted-foreground py-8"><Loader2 className="h-4 w-4 animate-spin" /> Loading…</div>
       ) : error ? (
-        <div className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">{error}</div>
+        <div className="rounded-card border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">{error}</div>
       ) : isEmpty ? (
-        <div className="rounded-md border bg-card p-8 text-center text-sm text-muted-foreground">Nothing has been shared with you yet.</div>
+        <div className="rounded-card border bg-card p-8 text-center text-sm text-muted-foreground">Nothing has been shared with you yet.</div>
       ) : (
         <>
           <div className="flex items-center gap-2">
             <button
               onClick={() => setUnreadOnly(v => !v)}
-              className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-                unreadOnly ? 'border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300' : 'text-muted-foreground hover:text-foreground hover:bg-muted/40'
-              }`}
+              className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${ unreadOnly ? 'border-warning/40 bg-warning/10 text-warning dark:text-warning' : 'text-muted-foreground hover:text-foreground hover:bg-muted/40' }`}
             >
-              <span className={`h-2 w-2 rounded-full ${unreadCount > 0 ? 'bg-amber-500' : 'bg-muted-foreground/40'}`} />
+              <span className={`h-2 w-2 rounded-full ${unreadCount > 0 ? 'bg-warning' : 'bg-muted-foreground/40'}`} />
               Unread only{unreadCount > 0 ? ` (${unreadCount})` : ''}
             </button>
           </div>
@@ -319,7 +317,7 @@ export default function PortalLibraryPage() {
           )}
 
           {unreadOnly && visSnapshots.length === 0 && visLetters.length === 0 && groupedDocs.size === 0 && (
-            <div className="rounded-md border bg-card p-8 text-center text-sm text-muted-foreground">You&apos;re all caught up — nothing unread.</div>
+            <div className="rounded-card border bg-card p-8 text-center text-sm text-muted-foreground">You&apos;re all caught up — nothing unread.</div>
           )}
         </>
       )}

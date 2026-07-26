@@ -229,7 +229,7 @@ export function AffinityPanel({
       </div>
 
       {status.linked && !status.sync_active && (
-        <p className="text-xs text-amber-600 flex items-center gap-1 mt-1">
+        <p className="text-xs text-warning flex items-center gap-1 mt-1">
           <AlertCircle className="h-3 w-3" />
           Background sync is paused — the person who linked this deal has disconnected Affinity.
         </p>
@@ -237,7 +237,7 @@ export function AffinityPanel({
 
       {/* Import progress */}
       {(importing || lines.length > 0) && (
-        <div className="mt-2 rounded-md border bg-muted/30 p-3 text-xs">
+        <div className="mt-2 rounded-card border bg-muted/30 p-3 text-xs">
           {progress && (
             <div className="mb-2 text-muted-foreground">
               {progress.current} of {progress.total}…
@@ -279,7 +279,7 @@ export function AffinityPanel({
       {/* Link dialog */}
       {open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setOpen(false)}>
-          <div className="w-full max-w-lg rounded-lg border bg-card p-5" onClick={e => e.stopPropagation()}>
+          <div className="w-full max-w-lg rounded-card border bg-card p-5" onClick={e => e.stopPropagation()}>
             <h3 className="text-base font-semibold mb-1">Link to Affinity</h3>
             <p className="text-sm text-muted-foreground mb-3">
               Find this company in your Affinity. Once linked, its notes and attached files are

@@ -29,16 +29,16 @@ function formatFileSize(bytes: number): string {
 
 function FileIcon({ fileType, source }: { fileType: string; source: string }) {
   if (source === 'email') {
-    return <Mail className="h-3.5 w-3.5 text-blue-500 shrink-0" />
+    return <Mail className="h-3.5 w-3.5 text-info shrink-0" />
   }
   if (fileType === 'application/pdf' || fileType.endsWith('.pdf')) {
-    return <FileText className="h-3.5 w-3.5 text-red-500 shrink-0" />
+    return <FileText className="h-3.5 w-3.5 text-destructive shrink-0" />
   }
   if (fileType.startsWith('image/')) {
-    return <FileImage className="h-3.5 w-3.5 text-blue-500 shrink-0" />
+    return <FileImage className="h-3.5 w-3.5 text-info shrink-0" />
   }
   if (fileType.includes('spreadsheet') || fileType.includes('excel') || fileType.includes('csv')) {
-    return <FileSpreadsheet className="h-3.5 w-3.5 text-green-600 shrink-0" />
+    return <FileSpreadsheet className="h-3.5 w-3.5 text-success shrink-0" />
   }
   return <File className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
 }

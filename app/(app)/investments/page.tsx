@@ -97,8 +97,8 @@ function fmtIrr(val: number | null): string {
 }
 
 const STATUS_COLORS: Record<CompanyStatus, string> = {
-  active: 'text-green-600',
-  exited: 'text-blue-600',
+  active: 'text-success',
+  exited: 'text-info',
   'written-off': 'text-muted-foreground',
 }
 
@@ -415,7 +415,7 @@ export default function InvestmentsPage() {
   const heading = (
     <div className="mb-6 space-y-1">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2">{fv.investments === 'admin' && <Lock className="h-4 w-4 text-amber-500" />}Investments</h1>
+        <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2">{fv.investments === 'admin' && <Lock className="h-4 w-4 text-warning" />}Investments</h1>
         <div className="flex items-center gap-2"><PortfolioNotesButton /><AnalystToggleButton /></div>
       </div>
       <p className="text-sm text-muted-foreground">Portfolio-level investment positions and returns</p>

@@ -3,21 +3,21 @@
 import type { ResearchOutput } from '@/lib/memo-agent/stages/research'
 
 const VERIFY_BADGE: Record<string, { label: string; cls: string }> = {
-  verified: { label: 'Verified', cls: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200' },
-  contradicted: { label: 'Contradicted', cls: 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200' },
-  company_stated: { label: 'Company-stated', cls: 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-200' },
-  inconclusive: { label: 'Inconclusive', cls: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200' },
+  verified: { label: 'Verified', cls: 'bg-success-subtle text-success dark:bg-success-subtle/40' },
+  contradicted: { label: 'Contradicted', cls: 'bg-destructive-subtle text-destructive dark:bg-destructive-subtle/40' },
+  company_stated: { label: 'Company-stated', cls: 'bg-info-subtle text-info dark:bg-info-subtle/40' },
+  inconclusive: { label: 'Inconclusive', cls: 'bg-warning-subtle text-warning dark:bg-warning-subtle/40' },
 }
 
 const CRIT_BADGE: Record<string, string> = {
-  blocker: 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200',
-  important: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200',
-  nice_to_have: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300',
+  blocker: 'bg-destructive-subtle text-destructive dark:bg-destructive-subtle/40',
+  important: 'bg-warning-subtle text-warning dark:bg-warning-subtle/40',
+  nice_to_have: 'bg-muted text-muted-foreground',
 }
 
 const SEVERITY_BADGE: Record<string, string> = {
-  material: 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200',
-  minor: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200',
+  material: 'bg-destructive-subtle text-destructive dark:bg-destructive-subtle/40',
+  minor: 'bg-warning-subtle text-warning dark:bg-warning-subtle/40',
 }
 
 const TIER_LABEL: Record<string, string> = {
@@ -33,7 +33,7 @@ export function ResearchSummary({ output }: { output: ResearchOutput }) {
   return (
     <div className="space-y-6">
       {output.research_mode === 'no_web_search' && (
-        <div className="rounded-md border border-amber-500/40 bg-amber-50/50 dark:bg-amber-900/10 p-3 text-sm">
+        <div className="rounded-card border border-warning/40 bg-warning-subtle/50 dark:bg-warning-subtle/10 p-3 text-sm">
           <div className="font-medium">External web search disabled</div>
           <div className="text-xs text-muted-foreground mt-0.5">
             The agent verified what it could from its training data and the deal materials, and surfaced the rest as research gaps.
@@ -107,7 +107,7 @@ export function ResearchSummary({ output }: { output: ResearchOutput }) {
         <section>
           <h3 className="text-sm font-medium mb-2">Competitive map</h3>
           <div className="grid gap-3 md:grid-cols-2">
-            <div className="rounded-md border bg-card p-3">
+            <div className="rounded-card border bg-card p-3">
               <div className="text-xs font-medium text-muted-foreground mb-2">Named by company</div>
               {output.competitive_map.named_by_company.length === 0 ? (
                 <p className="text-xs text-muted-foreground italic">None.</p>
@@ -122,7 +122,7 @@ export function ResearchSummary({ output }: { output: ResearchOutput }) {
                 </ul>
               )}
             </div>
-            <div className="rounded-md border bg-card p-3">
+            <div className="rounded-card border bg-card p-3">
               <div className="text-xs font-medium text-muted-foreground mb-2">Identified by research</div>
               {output.competitive_map.named_by_research.length === 0 ? (
                 <p className="text-xs text-muted-foreground italic">None.</p>
@@ -146,7 +146,7 @@ export function ResearchSummary({ output }: { output: ResearchOutput }) {
           <h3 className="text-sm font-medium mb-2">Founder dossiers</h3>
           <div className="space-y-3">
             {output.founder_dossiers.map((f, i) => (
-              <div key={i} className="rounded-md border bg-card p-3">
+              <div key={i} className="rounded-card border bg-card p-3">
                 <div className="font-medium">{f.founder_name}</div>
                 <div className="text-xs text-muted-foreground mb-2">{f.role}</div>
                 <p className="text-sm">{f.background_summary}</p>
@@ -188,7 +188,7 @@ export function ResearchSummary({ output }: { output: ResearchOutput }) {
 
 function Stat({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-md border bg-card p-3">
+    <div className="rounded-card border bg-card p-3">
       <div className="text-2xl font-semibold tracking-tight">{value}</div>
       <div className="text-xs text-muted-foreground mt-0.5">{label}</div>
     </div>

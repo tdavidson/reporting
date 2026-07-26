@@ -54,7 +54,7 @@ export function UploadDocumentButton({ emailId }: Props) {
       {uploadedFiles.length > 0 && (
         <div className="space-y-1 mb-3">
           {uploadedFiles.map((name, i) => (
-            <p key={i} className="text-xs text-emerald-600 flex items-center gap-1.5">
+            <p key={i} className="text-xs text-success flex items-center gap-1.5">
               <Check className="h-3 w-3" />
               <FileText className="h-3 w-3" />
               {name} uploaded

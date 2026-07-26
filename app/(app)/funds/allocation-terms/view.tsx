@@ -150,7 +150,7 @@ export function AllocationTermsView() {
 
   return (
     <div className="space-y-6">
-      {error && <p className="text-sm text-amber-600">{error}</p>}
+      {error && <p className="text-sm text-warning">{error}</p>}
 
       {/* Per-partner terms — actions (Add LP / Change Commitment / Basis) share one panel */}
       <div>
@@ -184,7 +184,7 @@ export function AllocationTermsView() {
         </div>
 
         {showBasis && (
-          <div className="border rounded-lg p-3 mb-3 max-w-md space-y-2">
+          <div className="border rounded-card p-3 mb-3 max-w-md space-y-2">
             <p className="text-xs text-muted-foreground">
               What the close splits each category on. Commitment is the common default; some LPAs
               allocate on capital-account balance at period end.
@@ -207,7 +207,7 @@ export function AllocationTermsView() {
         )}
 
         {showAdd && (
-          <div className="border rounded-lg p-3 mb-3 flex flex-wrap items-end gap-3">
+          <div className="border rounded-card p-3 mb-3 flex flex-wrap items-end gap-3">
             <label className="text-xs text-muted-foreground">Name
               <Input value={addName} onChange={e => setAddName(e.target.value)} placeholder="e.g. Laconia Associates LLC" className="mt-1 h-9 w-64" />
             </label>
@@ -233,7 +233,7 @@ export function AllocationTermsView() {
         )}
 
         {showChange && (
-          <div className="border rounded-lg p-3 mb-3 space-y-3">
+          <div className="border rounded-card p-3 mb-3 space-y-3">
             {editingId && (
               <p className="text-xs text-muted-foreground">Editing an existing event — partner and transfer type can&rsquo;t change; delete and re-enter to change either.</p>
             )}

@@ -235,7 +235,7 @@ export function StatementsView() {
       {loading ? (
         <div className="flex items-center gap-2 text-muted-foreground text-sm"><Loader2 className="h-4 w-4 animate-spin" />Loading…</div>
       ) : !data || data.trialBalance.rows.length === 0 ? (
-        <div className="border border-dashed rounded-lg p-8 text-center text-sm text-muted-foreground">No statements yet — the ledger has no posted entries{period?.end ? ` as of ${period.end}` : ''}.</div>
+        <div className="border border-dashed rounded-card p-8 text-center text-sm text-muted-foreground">No statements yet — the ledger has no posted entries{period?.end ? ` as of ${period.end}` : ''}.</div>
       ) : (
     // ASC 946 order: assets & liabilities, then operations, then cash flows, then
     // changes in partners' capital last — the per-partner detail behind the single
@@ -257,13 +257,13 @@ export function StatementsView() {
         {/* Only worth saying when it's actionable: unallocated earnings mean the
             per-LP capital accounts understate until the period is closed. */}
         {data.balanceSheet.partnersCapital.unallocatedEarnings !== 0 && (
-          <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+          <p className="text-xs text-warning mt-1">
             {fmt(data.balanceSheet.partnersCapital.unallocatedEarnings)} of net income is not yet allocated to partners.
             Close the period to allocate it — until then each partner&rsquo;s capital account understates their NAV.
           </p>
         )}
         {data.balanceSheet.check !== 0 && (
-          <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+          <p className="text-xs text-warning mt-1">
             Does not balance — residual {fmt(data.balanceSheet.check)}.
           </p>
         )}
@@ -287,7 +287,7 @@ export function StatementsView() {
         </div>
         {/* A balanced trial balance is the expected state — only worth saying when it isn't. */}
         {!data.trialBalance.balanced && (
-          <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+          <p className="text-xs text-warning mt-1">
             Trial balance is out of balance — debits {fmt(data.trialBalance.totalDebits)} vs credits {fmt(data.trialBalance.totalCredits)}.
           </p>
         )}
