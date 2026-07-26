@@ -9,6 +9,9 @@ export interface FundTheme {
   accent?: string | null
   /** UI font key (see FONT_OPTIONS). Null/'system' = the default stack. */
   font?: string | null
+  /** Display font key (see DISPLAY_FONT_OPTIONS). Drives --font-display: report
+   *  covers, letter mastheads, statement headers. Null = Newsreader. */
+  displayFont?: string | null
   /** Corner radius in rem, e.g. 0.5. */
   radius?: number | null
 }
@@ -33,6 +36,23 @@ export const FONT_OPTIONS: Array<{ key: string; label: string; varName: string |
   { key: 'inter', label: 'Inter', varName: '--font-inter' },
   { key: 'hanken', label: 'Hanken Grotesk', varName: '--font-hanken' },
   { key: 'jakarta', label: 'Plus Jakarta Sans', varName: '--font-jakarta' },
+]
+
+/**
+ * Display faces a fund may pick for its reports, behind --font-display.
+ *
+ * Separate from FONT_OPTIONS on purpose: that list drives --font-sans, the body
+ * font, and a serif there would land on every dense financial table. This list
+ * only touches headings, covers and mastheads.
+ *
+ * Kept deliberately short. Every option has to be embedded as base64 woff2 for
+ * server-rendered PDFs (lib/pdf-fonts.ts) — headless Chromium has no fonts
+ * installed — so each addition has a real per-render cost.
+ */
+export const DISPLAY_FONT_OPTIONS: Array<{ key: string; label: string; varName: string | null; note: string }> = [
+  { key: 'newsreader', label: 'Newsreader (default)', varName: null, note: 'Editorial serif. Optical sizing, warm.' },
+  { key: 'source-serif', label: 'Source Serif 4', varName: '--font-source-serif', note: 'Institutional and neutral.' },
+  { key: 'libre-caslon', label: 'Libre Caslon Display', varName: '--font-libre-caslon', note: 'Caslon — legal and banking heritage.' },
 ]
 
 // 0.25rem is the app default (matching hemrock.com); the labels describe the
@@ -115,6 +135,17 @@ export function hslToHex(hsl: string): string | null {
 }
 
 /**
+ * Pull the display-font key off a raw `fund_settings.theme` blob, validating it
+ * against the curated list. Returns null for anything unrecognised, so a direct
+ * DB write can't push an arbitrary string into a PDF template.
+ */
+export function displayFontOf(theme: unknown): string | null {
+  if (!theme || typeof theme !== 'object') return null
+  const key = (theme as FundTheme).displayFont
+  return typeof key === 'string' && DISPLAY_FONT_OPTIONS.some(o => o.key === key) ? key : null
+}
+
+/**
  * Generate the eleven brand-ramp stops for an accent, as `[stop, "h s% l%"]`.
  * Hue and base saturation come from the accent; the lightness curve is fixed.
  *
@@ -160,6 +191,10 @@ export function themeCssVars(theme: FundTheme | null | undefined): string {
   if (theme.font) {
     const f = FONT_OPTIONS.find(o => o.key === theme.font)
     if (f?.varName) out.push(`--font-sans:var(${f.varName})`)
+  }
+  if (theme.displayFont) {
+    const d = DISPLAY_FONT_OPTIONS.find(o => o.key === theme.displayFont)
+    if (d?.varName) out.push(`--font-display:var(${d.varName}),ui-serif,Georgia,Cambria,serif`)
   }
   if (typeof theme.radius === 'number' && theme.radius >= 0) {
     // Cards sit one step softer than controls, the same relationship the

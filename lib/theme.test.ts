@@ -91,4 +91,22 @@ describe('themeCssVars', () => {
     expect(themeCssVars({ font: 'inter' })).toBe('--font-sans:var(--font-inter)')
     expect(themeCssVars({ font: 'system' })).toBe('')
   })
+
+  it('overrides only --font-display for a display font, never --font-sans', () => {
+    const css = themeCssVars({ displayFont: 'libre-caslon' })
+    expect(css).toContain('--font-display:var(--font-libre-caslon)')
+    expect(css).not.toContain('--font-sans')
+  })
+
+  it('emits nothing for the default display font', () => {
+    // 'newsreader' is the default; storing it as an override would be a no-op.
+    expect(themeCssVars({ displayFont: 'newsreader' })).toBe('')
+    expect(themeCssVars({ displayFont: 'not-a-font' })).toBe('')
+  })
+
+  it('keeps the UI font and the display font independent', () => {
+    const css = themeCssVars({ font: 'hanken', displayFont: 'source-serif' })
+    expect(css).toContain('--font-sans:var(--font-hanken)')
+    expect(css).toContain('--font-display:var(--font-source-serif)')
+  })
 })

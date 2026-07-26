@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import puppeteer from 'puppeteer-core'
 import JSZip from 'jszip'
 import { getChromeConfig, buildReportHtml, computeRow, computeTotals, runPool, type InvestmentRow } from '@/lib/lp-report-pdf'
+import { displayFontOf } from '@/lib/theme'
 import { generateLiveReport } from '@/lib/accounting/live-report'
 
 export const maxDuration = 300
@@ -69,7 +70,7 @@ export async function POST(req: NextRequest) {
   const [investorsResult, fundResult, settingsResult] = await Promise.all([
     admin.from('lp_investors').select('id, name, parent_id').eq('fund_id', fundId),
     admin.from('funds').select('name, logo_url, address').eq('id', fundId).maybeSingle(),
-    admin.from('fund_settings' as any).select('currency, lp_report_description, lp_report_footer').eq('fund_id', fundId).maybeSingle(),
+    admin.from('fund_settings' as any).select('currency, lp_report_description, lp_report_footer, theme').eq('fund_id', fundId).maybeSingle(),
   ])
 
   // --- Report data: live (derived) vs snapshot (frozen). Both produce the same shapes:
@@ -158,6 +159,7 @@ export async function POST(req: NextRequest) {
   const fundLogo = fund?.logo_url && typeof fund.logo_url === 'string' && fund.logo_url.startsWith('data:image/') ? fund.logo_url : null
   const fundAddress = fund?.address || null
   const currency = settings?.currency || 'USD'
+  const displayFont = displayFontOf(settings?.theme)
 
   const asOfFormatted = asOfDate
     ? new Date(asOfDate + 'T00:00:00').toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
@@ -216,6 +218,7 @@ export async function POST(req: NextRequest) {
       footerNote,
       asOfFormatted,
       currency,
+      displayFont,
     })
 
     const safeName = investorName.replace(/[^a-zA-Z0-9 _-]/g, '').trim() || 'Investor'

@@ -13,7 +13,8 @@
 // moment you publish.
 
 import { renderHtmlToPdf } from '@/lib/lp-report-pdf'
-import { PDF_FONT_CSS, PDF_SANS, PDF_MONO } from '@/lib/pdf-fonts'
+import { pdfFontCss, PDF_SANS, PDF_DISPLAY } from '@/lib/pdf-fonts'
+import { displayFontOf } from '@/lib/theme'
 import { getCurrencySymbol } from '@/lib/currency'
 import { lpStatement, lpCapitalSummary } from './capital-calls'
 import { lastDataDate } from './lp-positions'
@@ -51,6 +52,8 @@ const TXN_LABELS: Record<string, string> = {
 }
 
 export interface StatementPdfData {
+  /** Fund's display face (FundTheme.displayFont). Absent = Newsreader. */
+  displayFont?: string | null
   fundName: string
   fundLogo: string | null
   fundAddress: string | null
@@ -69,7 +72,7 @@ export interface StatementPdfData {
 }
 
 export function buildStatementHtml(d: StatementPdfData): string {
-  const { currency } = d
+  const { currency, displayFont } = d
   const m = (v: number) => money(v, currency)
 
   // Only show a line if it moved in EITHER column — an SPV shouldn't print four empty rows.
@@ -80,8 +83,8 @@ export function buildStatementHtml(d: StatementPdfData): string {
   const row = (label: string, period: number, itd: number, bold = false) => `
     <tr${bold ? ' style="font-weight:600;background:#fafafa;"' : ''}>
       <td style="padding:6px 8px;border-top:1px solid #e5e5e5;">${esc(label)}</td>
-      <td style="padding:6px 8px;border-top:1px solid #e5e5e5;text-align:right;font-family:${PDF_MONO};">${m(period)}</td>
-      <td style="padding:6px 8px;border-top:1px solid #e5e5e5;text-align:right;font-family:${PDF_MONO};">${m(itd)}</td>
+      <td style="padding:6px 8px;border-top:1px solid #e5e5e5;text-align:right;font-variant-numeric:tabular-nums;">${m(period)}</td>
+      <td style="padding:6px 8px;border-top:1px solid #e5e5e5;text-align:right;font-variant-numeric:tabular-nums;">${m(itd)}</td>
     </tr>`
 
   const rollForwardRows = [
@@ -109,9 +112,9 @@ export function buildStatementHtml(d: StatementPdfData): string {
       <tbody>
         ${txns.map(t => `
           <tr>
-            <td style="padding:5px 8px;border-top:1px solid #e5e5e5;font-family:${PDF_MONO};">${esc(t.date)}</td>
+            <td style="padding:5px 8px;border-top:1px solid #e5e5e5;font-variant-numeric:tabular-nums;">${esc(t.date)}</td>
             <td style="padding:5px 8px;border-top:1px solid #e5e5e5;">${esc(TXN_LABELS[t.sourceType ?? ''] ?? t.memo ?? 'Capital movement')}</td>
-            <td style="padding:5px 8px;border-top:1px solid #e5e5e5;text-align:right;font-family:${PDF_MONO};">${m(t.amount)}</td>
+            <td style="padding:5px 8px;border-top:1px solid #e5e5e5;text-align:right;font-variant-numeric:tabular-nums;">${m(t.amount)}</td>
           </tr>`).join('')}
       </tbody>
     </table>`
@@ -138,7 +141,7 @@ export function buildStatementHtml(d: StatementPdfData): string {
     : d.period.label
 
   return `<!DOCTYPE html>
-<html><head><meta charset="utf-8"><style>${PDF_FONT_CSS}
+<html><head><meta charset="utf-8"><style>${pdfFontCss(displayFont)}
   * { margin:0; padding:0; box-sizing:border-box; }
   body { font-family: ${PDF_SANS}; font-size:12px; color:#111; line-height:1.4; }
   table { width:100%; border-collapse:collapse; font-size:11px; }
@@ -151,12 +154,12 @@ export function buildStatementHtml(d: StatementPdfData): string {
         ${d.fundLogo ? `<img src="${d.fundLogo}" style="height:40px;width:auto;object-fit:contain;" />` : ''}
       </div>
       <div style="text-align:right;margin-left:40%;">
-        <h2 style="font-size:16px;font-weight:600;letter-spacing:-0.01em;">${esc(d.fundName)}</h2>
+        <h2 style="font-family:${PDF_DISPLAY};font-size:17px;font-weight:400;letter-spacing:-0.01em;">${esc(d.fundName)}</h2>
         ${d.fundAddress ? `<p style="font-size:11px;color:#888;white-space:pre-line;line-height:1.3;margin-top:2px;">${esc(d.fundAddress)}</p>` : ''}
       </div>
     </div>
 
-    <h1 style="font-size:18px;font-weight:700;letter-spacing:-0.01em;margin-bottom:3px;">Capital Account Statement</h1>
+    <h1 style="font-family:${PDF_DISPLAY};font-size:22px;font-weight:400;letter-spacing:-0.01em;margin-bottom:3px;">Capital Account Statement</h1>
     <p style="font-size:14px;font-weight:600;color:#111;">${esc(d.partnerName)}</p>
     <p style="font-size:11px;color:#888;margin-bottom:22px;">${esc(d.vehicle)} &middot; ${esc(periodLabel)}</p>
 
@@ -179,7 +182,7 @@ export function buildStatementHtml(d: StatementPdfData): string {
         ${summary.map(([k, v]) => `
           <tr>
             <td style="padding:5px 8px;border-top:1px solid #e5e5e5;">${esc(k)}</td>
-            <td style="padding:5px 8px;border-top:1px solid #e5e5e5;text-align:right;font-family:${PDF_MONO};">${v}</td>
+            <td style="padding:5px 8px;border-top:1px solid #e5e5e5;text-align:right;font-variant-numeric:tabular-nums;">${v}</td>
           </tr>`).join('')}
       </tbody>
     </table>
@@ -208,7 +211,7 @@ export async function generateLpStatementPdf(
   const [statement, fundRes, settingsRes] = await Promise.all([
     lpStatement(admin, fundId, group, lpEntityId, capitalPeriod),
     admin.from('funds' as any).select('name, logo_url, address').eq('id', fundId).maybeSingle(),
-    admin.from('fund_settings' as any).select('currency').eq('fund_id', fundId).maybeSingle(),
+    admin.from('fund_settings' as any).select('currency, theme').eq('fund_id', fundId).maybeSingle(),
   ])
 
   if ('error' in statement) return null
@@ -231,6 +234,7 @@ export async function generateLpStatementPdf(
   const dataAsOf = await lastDataDate(admin, fundId, group)
 
   const html = buildStatementHtml({
+    displayFont: displayFontOf(settingsRes.data?.theme),
     fundName: fund?.name || '',
     fundLogo,
     fundAddress: fund?.address || null,

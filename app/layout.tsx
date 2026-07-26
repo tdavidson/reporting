@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import Script from 'next/script'
-import { Hanken_Grotesk, Plus_Jakarta_Sans, Inter, Newsreader } from 'next/font/google'
+import { Hanken_Grotesk, Plus_Jakarta_Sans, Inter, Newsreader, Source_Serif_4, Libre_Caslon_Display } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import { SpeedInsights } from '@vercel/speed-insights/next'
 import { ThemeProvider } from '@/components/theme-provider'
@@ -21,8 +21,16 @@ const newsreader = Newsreader({ subsets: ['latin'], variable: '--font-newsreader
 
 // Curated per-fund UI font options. Loaded as CSS variables so the per-fund theme
 // can opt in via --font-sans; unset, --font-sans stays on Inter.
-const hankenGrotesk = Hanken_Grotesk({ subsets: ['latin'], variable: '--font-hanken', display: 'swap' })
-const plusJakarta = Plus_Jakarta_Sans({ subsets: ['latin'], variable: '--font-jakarta', display: 'swap' })
+//
+// preload:false on every optional face — only one fund in a deployment uses any
+// given one, so preloading all four would make every page pay for fonts it will
+// never reference. They are fetched on demand when a theme points at them.
+const hankenGrotesk = Hanken_Grotesk({ subsets: ['latin'], variable: '--font-hanken', display: 'swap', preload: false })
+const plusJakarta = Plus_Jakarta_Sans({ subsets: ['latin'], variable: '--font-jakarta', display: 'swap', preload: false })
+
+// Alternate display faces a fund may pick for its reports (DISPLAY_FONT_OPTIONS).
+const sourceSerif = Source_Serif_4({ subsets: ['latin'], variable: '--font-source-serif', display: 'swap', preload: false })
+const libreCaslon = Libre_Caslon_Display({ subsets: ['latin'], weight: '400', variable: '--font-libre-caslon', display: 'swap', preload: false })
 
 const ogImageUrl = `${process.env.NEXT_PUBLIC_SITE_URL || 'https://portfolio.hemrock.com'}/api/og?title=Portfolio+Reporting`
 
@@ -53,7 +61,7 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en" suppressHydrationWarning className={`${inter.variable} ${newsreader.variable} ${hankenGrotesk.variable} ${plusJakarta.variable}`}>
+    <html lang="en" suppressHydrationWarning className={`${inter.variable} ${newsreader.variable} ${sourceSerif.variable} ${libreCaslon.variable} ${hankenGrotesk.variable} ${plusJakarta.variable}`}>
       <body className="font-sans">
         <ThemeProvider
           attribute="class"
