@@ -57,10 +57,19 @@ const RANGE_OPTIONS = [
   { value: 3650, label: 'All time' },
 ]
 
+// Event kinds are categories, not states — a download is not "success" and a login
+// is not "info", which is what these used to say (plus a raw violet for download).
+//
+// They are not categorical slots either. Each kind already carries a distinct glyph
+// AND a text label, so colour would be a third encoding of something already
+// unambiguous. Validating the alternatives made the cost explicit: no three slots
+// clear all-pairs separation in both themes at legible icon contrast without
+// pulling in the red slot, which would paint "Download" as an error. Identity is
+// in the glyph; the icons stay in muted ink.
 const EVENT_META: Record<string, { label: string; icon: typeof Eye; className: string }> = {
-  login: { label: 'Login', icon: LogIn, className: 'text-info' },
-  view: { label: 'View', icon: Eye, className: 'text-success' },
-  download: { label: 'Download', icon: ArrowDownCircle, className: 'text-violet-600 dark:text-violet-400' },
+  login: { label: 'Login', icon: LogIn, className: 'text-muted-foreground' },
+  view: { label: 'View', icon: Eye, className: 'text-muted-foreground' },
+  download: { label: 'Download', icon: ArrowDownCircle, className: 'text-muted-foreground' },
 }
 
 const TARGET_LABELS: Record<string, string> = {

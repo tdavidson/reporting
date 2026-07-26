@@ -39,21 +39,16 @@ const PALETTE_SRC =
 const palette = () => new RegExp(PALETTE_SRC, 'g')
 
 /**
- * Files still allowed raw palette classes, and why.
+ * Files allowed raw palette classes, and why.
  *
- * All of these use colour CATEGORICALLY — to tell one kind of thing from
- * another — not as status. There is no token for that yet; it is the same open
- * question as --chart-1..5 (see plans/plan-design-system.md §8). Forcing them
- * into a status token would say "warning" where the design means "partnership".
+ * Deliberately EMPTY. It previously held six files that used colour
+ * categorically, which the status tokens genuinely could not express — that is
+ * what --cat-1..8 was added for. Every one of them now draws from the
+ * categorical palette, so the exemption is gone.
+ *
+ * Any new entry needs a reason that no existing token covers.
  */
-const CATEGORICAL_ALLOWLIST = new Map<string, string>([
-  ['app/(app)/emails/[id]/review-items.tsx', 'duplicate_period review flag — categorical'],
-  ['app/(app)/review/page.tsx', 'duplicate_period review flag — categorical'],
-  ['components/email-review-modal.tsx', 'duplicate_period review flag — categorical'],
-  ['app/(app)/compliance/page.tsx', 'compliance category chips — categorical'],
-  ['app/(app)/interactions/relationships-list.tsx', 'relationship type chips — categorical'],
-  ['app/(app)/lp-activity/lp-activity-dashboard.tsx', 'LP activity kind icons — categorical'],
-])
+const CATEGORICAL_ALLOWLIST = new Map<string, string>([])
 
 describe('design tokens', () => {
   it('does not add raw Tailwind palette classes', () => {

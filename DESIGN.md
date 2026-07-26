@@ -92,10 +92,48 @@ Each has a `-foreground` (text on the fill) and a `-subtle` (tinted background).
 Use `bg-warning-subtle text-warning` for a callout, `bg-warning
 text-warning-foreground` for a badge.
 
+### Categorical — `--cat-1` … `--cat-8`
+
+For **identity**: telling one kind of thing from another. Compliance categories,
+relationship tags, chart series. Not for state — that's what the status tokens
+are, and they are reserved.
+
+Two rules, both load-bearing:
+
+1. **Fixed order, never cycled.** Slot N is always the same hue. A category keeps
+   its colour regardless of which categories are on screen — colour follows the
+   entity, never its rank. Past the last slot, fold into "Other"; never generate
+   a hue.
+2. **Respect the series ceiling.** It depends on the chart form, because it
+   depends on which pairs a reader compares:
+
+| Form | Pairs compared | Ceiling |
+| --- | --- | --- |
+| Stacked bars, lines, chips, legends | adjacent | **8** (all slots) |
+| Pie, scatter, bubble — anything where any two marks sit together | all | **4**, and only slots 1,4,5,6 |
+
+These were computed with the dataviz skill's validator against this app's own
+surfaces (`#ffffff` light card, `#262422` dark card), not chosen by eye. Re-run
+it before changing a slot:
+
+```
+node <skill>/scripts/validate_palette.js "#2a78d6,#eb6834,…" --mode light --surface "#ffffff"
+```
+
+Slots 3, 4 and 5 sit under 3:1 on white. Anything using them must carry a visible
+label — which is why category chips are neutral with a **coloured dot**, and
+relationship tags are ink text on a **15% tint**, rather than coloured text on a
+coloured fill.
+
+Dark mode is a *selected* set of steps for the dark surface, not an automatic
+flip of the light values.
+
 ### Charts
 
-`--chart-1` … `--chart-5` are still the stock shadcn values and unrelated to the
-brand. Due a pass of their own — see `plans/plan-design-system.md` §8.
+`--chart-1` … `--chart-5` are aliases onto `--cat-1` … `--cat-5`, kept as their
+own names because `fund-detail-view` and `metric-chart` already reference them.
+The stacked bars use the adjacent-pairs ceiling (5 of 8 is fine); the pie uses
+the all-pairs subset and folds the tail into "Other".
 
 ## Typography
 

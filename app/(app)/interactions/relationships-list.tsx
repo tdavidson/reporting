@@ -6,15 +6,27 @@ import { Building2, ChevronDown, ChevronRight, Mail, Users } from 'lucide-react'
 
 const KNOWN_TAGS = ['intro', 'hiring', 'strategy', 'fundraising', 'product', 'partnership', 'legal', 'operations'] as const
 
+/**
+ * Relationship tag → categorical slot.
+ *
+ * These were status colours doing categorical work, and it showed: "hiring" and
+ * "product" were both info (indistinguishable), and "legal" was destructive —
+ * a legal intro rendering as an error. Eight tags now take eight fixed slots
+ * from the categorical palette (--cat-1..8, validated in globals.css).
+ *
+ * The hue rides as a 15% tint behind ink-coloured text rather than colouring the
+ * text itself: the label carries the meaning, the tint carries identity, and it
+ * keeps every pill readable regardless of which slot it drew.
+ */
 const TAG_COLORS: Record<string, string> = {
-  intro: 'bg-warning-subtle dark:bg-warning-subtle/30 text-warning',
-  hiring: 'bg-info-subtle dark:bg-info-subtle/30 text-info',
-  strategy: 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400',
-  fundraising: 'bg-success-subtle dark:bg-success-subtle/30 text-success',
-  product: 'bg-info-subtle dark:bg-info-subtle/30 text-info',
-  partnership: 'bg-pink-100 dark:bg-pink-900/30 text-pink-700 dark:text-pink-400',
-  legal: 'bg-destructive-subtle dark:bg-destructive-subtle/30 text-destructive',
-  operations: 'bg-muted dark:bg-muted/50 text-muted-foreground',
+  intro: 'bg-cat-1/15 text-foreground',
+  hiring: 'bg-cat-2/15 text-foreground',
+  strategy: 'bg-cat-3/15 text-foreground',
+  fundraising: 'bg-cat-4/15 text-foreground',
+  product: 'bg-cat-5/15 text-foreground',
+  partnership: 'bg-cat-6/15 text-foreground',
+  legal: 'bg-cat-7/15 text-foreground',
+  operations: 'bg-cat-8/15 text-foreground',
 }
 
 interface IntroContact {

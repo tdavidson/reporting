@@ -87,14 +87,35 @@
     --destructive-foreground: 0 0% 100%;
     --destructive-subtle: 0 75% 96%;
 
-    /* Charts still carry the stock shadcn values — unrelated to the brand and
-       due a pass of their own (plan §8, "Revisit --chart-1..5"). Left alone here
-       so this change stays additive for fund-detail-view / metric-chart. */
-    --chart-1: 12 76% 61%;
-    --chart-2: 173 58% 39%;
-    --chart-3: 197 37% 24%;
-    --chart-4: 43 74% 66%;
-    --chart-5: 27 87% 67%;
+    /* Categorical palette — identity, not status. Eight hues in a FIXED order:
+       slot N is always the same colour, never cycled and never reassigned when a
+       filter changes the series count.
+       Validated with the dataviz skill's checker against this app's surfaces
+       (light #ffffff card, dark #262422), not chosen by eye:
+         - 8 slots pass every check on the ADJACENT pairlist (stacks, bars,
+           chips) in both modes.
+         - For ALL-PAIRS forms (pie, scatter — where any two marks sit side by
+           side) the ceiling is FOUR, and only two subsets clear it in both
+           modes. Slots 1,4,5,6 is the one used; past that, fold to "Other".
+       Three light slots sit under 3:1 on white, so anything using them carries a
+       visible label — which is why category chips are neutral with a coloured
+       dot rather than coloured fills behind text. */
+    --cat-1: 213 67.7% 50.2%;
+    --cat-2: 17 82.1% 56.3%;
+    --cat-3: 159 73.3% 39.6%;
+    --cat-4: 41 100% 46.5%;
+    --cat-5: 337 70.3% 69.6%;
+    --cat-6: 120 100% 25.7%;
+    --cat-7: 249 48.4% 44.1%;
+    --cat-8: 0 73.5% 58.6%;
+
+    /* Chart slots are the categorical palette. Kept as their own names because
+       fund-detail-view and metric-chart already reference them. */
+    --chart-1: var(--cat-1);
+    --chart-2: var(--cat-2);
+    --chart-3: var(--cat-3);
+    --chart-4: var(--cat-4);
+    --chart-5: var(--cat-5);
 
     /* Radius. Controls are 0.25rem and cards 0.5rem, matching hemrock.com. The
        per-fund theme overrides --radius and derives --radius-card from it. */
@@ -143,10 +164,15 @@
     --destructive-foreground: 40 8% 11%;
     --destructive-subtle: 0 40% 18%;
 
-    --chart-1: 220 70% 50%;
-    --chart-2: 160 60% 45%;
-    --chart-3: 30 80% 55%;
-    --chart-4: 280 65% 60%;
-    --chart-5: 340 75% 55%;
+    /* The same eight hues re-stepped for the dark surface — a selected dark
+       palette, not an automatic flip. All eight clear 3:1 on #262422. */
+    --cat-1: 213 76.8% 56.1%;
+    --cat-2: 17 70.2% 50%;
+    --cat-3: 159 72.7% 35.9%;
+    --cat-4: 40 100% 39.4%;
+    --cat-5: 338 61.1% 57.6%;
+    --cat-6: 120 100% 25.7%;
+    --cat-7: 247 69.4% 71.8%;
+    --cat-8: 0 71.8% 65.3%;
   }
 }

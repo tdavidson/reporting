@@ -110,6 +110,18 @@ const config: Config = {
   				'3': 'hsl(var(--chart-3))',
   				'4': 'hsl(var(--chart-4))',
   				'5': 'hsl(var(--chart-5))'
+  			},
+  			// Categorical identity slots. Fixed order — slot N is always the same
+  			// hue. See the note in globals.css for the validated series ceilings.
+  			cat: {
+  				'1': 'hsl(var(--cat-1))',
+  				'2': 'hsl(var(--cat-2))',
+  				'3': 'hsl(var(--cat-3))',
+  				'4': 'hsl(var(--cat-4))',
+  				'5': 'hsl(var(--cat-5))',
+  				'6': 'hsl(var(--cat-6))',
+  				'7': 'hsl(var(--cat-7))',
+  				'8': 'hsl(var(--cat-8))'
   			}
   		}
   	}

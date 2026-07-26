@@ -54,7 +54,7 @@ const STATUS_COLORS: Record<string, string> = {
   ambiguous_period: 'bg-warning-subtle text-warning border-warning',
   metric_not_found: 'bg-muted text-muted-foreground border-border',
   company_not_identified: 'bg-destructive-subtle text-destructive border-destructive',
-  duplicate_period: 'bg-purple-100 text-purple-800 border-purple-200',
+  duplicate_period: 'bg-warning-subtle text-warning border-warning',
 }
 
 // ---------------------------------------------------------------------------

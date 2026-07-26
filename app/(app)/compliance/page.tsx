@@ -211,17 +211,34 @@ const STATUS_COLORS: Record<Applicability | 'monitor', { bg: string; text: strin
   monitor: { bg: 'bg-info-subtle dark:bg-info-subtle/30', text: 'text-info', icon: Clock },
 }
 
-const CATEGORY_COLORS: Record<string, { bg: string; text: string }> = {
-  'SEC Filings':           { bg: 'bg-warning-subtle dark:bg-warning-subtle/30', text: 'text-warning' },
-  'Securities Offerings':  { bg: 'bg-warning-subtle dark:bg-warning-subtle/30', text: 'text-warning' },
-  'Tax Filings':           { bg: 'bg-success-subtle dark:bg-success-subtle/30', text: 'text-success' },
-  'Internal Compliance':   { bg: 'bg-info-subtle dark:bg-info-subtle/30', text: 'text-info' },
-  'Fund Reporting':        { bg: 'bg-purple-100 dark:bg-purple-900/30', text: 'text-purple-700 dark:text-purple-400' },
-  'State Compliance':      { bg: 'bg-destructive-subtle dark:bg-destructive-subtle/30', text: 'text-destructive' },
-  'CFTC':                  { bg: 'bg-warning-subtle dark:bg-warning-subtle/30', text: 'text-warning' },
-  'AML / FinCEN':          { bg: 'bg-destructive-subtle dark:bg-destructive-subtle/30', text: 'text-destructive' },
+/**
+ * Compliance category → categorical slot.
+ *
+ * These used to borrow the STATUS colours: "SEC Filings" was amber, "State
+ * Compliance" red, "Tax Filings" green. A category is not a status, so a routine
+ * state filing rendered as an error and three unrelated categories shared amber
+ * because there were not enough status colours to go round.
+ *
+ * Now each category owns a fixed slot from the categorical palette (--cat-1..8,
+ * validated in globals.css). Fixed, so a category keeps its hue no matter which
+ * categories are on screen — colour follows the entity, never its rank.
+ *
+ * The hue rides on a DOT, not on the text or a fill behind it: identity is never
+ * colour-alone (the label is right there), and it sidesteps the three light-mode
+ * slots that sit under 3:1 on white.
+ */
+const CATEGORY_DOT: Record<string, string> = {
+  'SEC Filings':           'bg-cat-1',
+  'Securities Offerings':  'bg-cat-2',
+  'Tax Filings':           'bg-cat-3',
+  'Internal Compliance':   'bg-cat-4',
+  'Fund Reporting':        'bg-cat-5',
+  'State Compliance':      'bg-cat-6',
+  'CFTC':                  'bg-cat-7',
+  'AML / FinCEN':          'bg-cat-8',
 }
-const DEFAULT_CATEGORY_COLORS = { bg: 'bg-muted', text: 'text-muted-foreground' }
+const DEFAULT_CATEGORY_DOT = 'bg-muted-foreground'
+const categoryDot = (c: string) => CATEGORY_DOT[c] ?? DEFAULT_CATEGORY_DOT
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
@@ -725,19 +742,23 @@ function CalendarView({
                   {entries.map(entry => {
                     const { item, group } = entry
                     const status = getStatus(item.id, group)
-                    const colors = status === 'not_applicable'
-                      ? { bg: 'bg-muted', text: 'text-muted-foreground' }
+                    // Status wins over category: a dismissed or completed item reads as
+                    // its state, so it drops the category dot entirely.
+                    const tone = status === 'not_applicable'
+                      ? 'bg-muted text-muted-foreground'
                       : status === 'completed'
-                        ? { bg: 'bg-info-subtle dark:bg-info-subtle/30', text: 'text-info' }
-                        : (CATEGORY_COLORS[item.category] ?? DEFAULT_CATEGORY_COLORS)
+                        ? 'bg-info-subtle dark:bg-info-subtle/30 text-info'
+                        : 'bg-muted/60 text-foreground'
+                    const dot = status === 'not_applicable' || status === 'completed' ? null : categoryDot(item.category)
                     const ek = entryKey(entry)
                     const isExpanded = expandedEntry?.itemId === item.id && expandedEntry?.group === group
                     return (
                       <div key={ek}>
                         <button
                           onClick={() => setExpandedEntry(isExpanded ? null : { itemId: item.id, group })}
-                          className={`w-full text-left px-2 py-1 rounded text-xs ${ isExpanded ? 'ring-1 ring-foreground' : '' } ${colors.bg} ${colors.text} hover:opacity-80 transition-opacity`}
+                          className={`w-full text-left px-2 py-1 rounded text-xs flex items-center gap-1.5 ${ isExpanded ? 'ring-1 ring-foreground' : '' } ${tone} hover:opacity-80 transition-opacity`}
                         >
+                          {dot && <span className={`inline-block w-1.5 h-1.5 rounded-full shrink-0 ${dot}`} aria-hidden />}
                           {item.short_name}
                           {group && <span className="ml-1 opacity-70">· {group}</span>}
                           {item.deadline_day && !group && <span className="ml-1 opacity-70">({item.deadline_month}/{item.deadline_day})</span>}
@@ -883,22 +904,25 @@ function ItemsView({
   return (
     <div>
       {orderedCategories.map(category => {
-        const catColors = CATEGORY_COLORS[category] ?? DEFAULT_CATEGORY_COLORS
+        const catDot = categoryDot(category)
         const instances = categoryInstances[category]
         return (
           <div key={category} className="mb-6">
-            <h3 className={`text-xs font-medium mb-2 ${catColors.text}`}>{category} ({instances.length})</h3>
+            <h3 className="text-xs font-medium mb-2 flex items-center gap-1.5">
+              <span className={`inline-block w-2 h-2 rounded-full shrink-0 ${catDot}`} aria-hidden />
+              {category} ({instances.length})
+            </h3>
             <div className="space-y-1">
               {instances.map(inst => {
                 const ik = instanceKey(inst)
                 const status = getStatus(inst.item.id, inst.group)
                 const isDismissed = status === 'not_applicable'
                 const isCompleted = status === 'completed'
-                const colors = isDismissed
-                  ? { bg: 'bg-muted', text: 'text-muted-foreground' }
+                const dotClass = isDismissed
+                  ? 'bg-muted-foreground/40'
                   : isCompleted
-                    ? { bg: 'bg-info-subtle dark:bg-info-subtle/30', text: 'text-info' }
-                    : catColors
+                    ? 'bg-info'
+                    : catDot
                 const isExpanded = expandedItem === ik
                 return (
                   <div key={ik}>
@@ -907,7 +931,7 @@ function ItemsView({
                       className={`w-full text-left px-3 py-2.5 rounded-lg border text-sm flex items-center justify-between transition-colors ${ isExpanded ? 'bg-accent border-foreground/20' : 'hover:bg-accent/50' }`}
                     >
                       <span className="flex items-center gap-2">
-                        <span className={`inline-block w-2 h-2 rounded-full ${colors.bg}`} />
+                        <span className={`inline-block w-2 h-2 rounded-full shrink-0 ${dotClass}`} aria-hidden />
                         <span className={`font-medium ${isDismissed ? 'text-muted-foreground line-through' : ''} ${isCompleted ? 'text-info dark:text-info' : ''}`}>
                           {inst.item.short_name}
                         </span>
