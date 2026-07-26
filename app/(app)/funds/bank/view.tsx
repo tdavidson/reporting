@@ -186,9 +186,9 @@ export function BankView() {
             {rec.tiesOut ? <Check className="h-4 w-4 text-green-600" /> : <AlertTriangle className="h-4 w-4 text-amber-500" />}
             Bank reconciliation
           </span>
-          <span className="text-muted-foreground">Ledger cash <span className="font-mono text-foreground">{fmt(rec.ledgerCashBalance)}</span></span>
-          <span className="text-muted-foreground">Bank ending <span className="font-mono text-foreground">{fmt(rec.bankEndingBalance)}</span></span>
-          <span className="text-muted-foreground">Difference <span className={`font-mono ${rec.difference !== 0 ? 'text-amber-600' : 'text-foreground'}`}>{fmt(rec.difference)}</span></span>
+          <span className="text-muted-foreground">Ledger cash <span className="tabular-nums text-foreground">{fmt(rec.ledgerCashBalance)}</span></span>
+          <span className="text-muted-foreground">Bank ending <span className="tabular-nums text-foreground">{fmt(rec.bankEndingBalance)}</span></span>
+          <span className="text-muted-foreground">Difference <span className={`tabular-nums ${rec.difference !== 0 ? 'text-amber-600' : 'text-foreground'}`}>{fmt(rec.difference)}</span></span>
           {rec.unmatchedCount > 0 && <span className="text-muted-foreground">{rec.unmatchedCount} unmatched ({fmt(rec.unmatchedTotal)})</span>}
         </div>
       )}
@@ -247,9 +247,9 @@ export function BankView() {
             <tbody>
               {visibleTxns.map(t => (
                 <tr key={t.id} className="border-b last:border-b-0 hover:bg-muted/30">
-                  <td className="px-3 py-2 font-mono text-xs">{t.txn_date}</td>
+                  <td className="px-3 py-2 tabular-nums text-xs">{t.txn_date}</td>
                   <td className="px-3 py-2">{t.description}</td>
-                  <td className={`px-3 py-2 text-right font-mono ${t.amount < 0 ? 'text-muted-foreground' : ''}`}>{fmt(t.amount)}</td>
+                  <td className={`px-3 py-2 text-right tabular-nums ${t.amount < 0 ? 'text-muted-foreground' : ''}`}>{fmt(t.amount)}</td>
                   <td className="px-3 py-2 text-xs">
                     {t.status === 'drafted' ? (
                       <select

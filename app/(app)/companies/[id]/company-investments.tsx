@@ -1687,29 +1687,29 @@ function TransactionTable({
                 </td>
                 {companyStatus === 'exited' ? (
                   <>
-                    <td className="px-3 py-2 text-right font-mono">
+                    <td className="px-3 py-2 text-right tabular-nums">
                       {txn.transaction_type === 'investment' ? fmt(txn.investment_cost) : '-'}
                     </td>
-                    <td className="px-3 py-2 text-right font-mono">
+                    <td className="px-3 py-2 text-right tabular-nums">
                       {txn.transaction_type === 'proceeds' ? fmt(txn.proceeds_received) : '-'}
                     </td>
                   </>
                 ) : (
                   <>
-                    <td className="px-3 py-2 text-right font-mono">
+                    <td className="px-3 py-2 text-right tabular-nums">
                       {txn.transaction_type === 'investment' ? fmt(txn.investment_cost) : '-'}
                     </td>
                     {hasPostmoney && (
-                      <td className="px-3 py-2 text-right font-mono">
+                      <td className="px-3 py-2 text-right tabular-nums">
                         {(txn.transaction_type === 'investment' || txn.transaction_type === 'round_info')
                           ? fmt(txn.postmoney_valuation)
                           : '-'}
                       </td>
                     )}
-                    <td className="px-3 py-2 text-right font-mono">
+                    <td className="px-3 py-2 text-right tabular-nums">
                       {txn.transaction_type === 'investment' ? fmtNum(txn.shares_acquired) : '-'}
                     </td>
-                    <td className="px-3 py-2 text-right font-mono">
+                    <td className="px-3 py-2 text-right tabular-nums">
                       {txn.transaction_type === 'investment'
                         ? fmtPrice(txn.share_price)
                         : txn.transaction_type === 'unrealized_gain_change'
@@ -1718,7 +1718,7 @@ function TransactionTable({
                         ? fmtPrice(txn.share_price)
                         : '-'}
                     </td>
-                    <td className="px-3 py-2 text-right font-mono">
+                    <td className="px-3 py-2 text-right tabular-nums">
                       {txn.transaction_type === 'investment' && round
                         ? (() => {
                             const isPricedEquity = (txn.shares_acquired ?? 0) > 0 && ((txn.share_price != null && txn.share_price > 0) || (txn.investment_cost ?? 0) > 0)
@@ -1834,11 +1834,11 @@ function RoundSummaryTable({
               <tr key={r.roundName} className="border-b last:border-b-0">
                 {showGroup && <td className="px-3 py-2 text-xs">{roundGroupMap.get(r.roundName) ?? '-'}</td>}
                 <td className="px-3 py-2">{r.roundName}</td>
-                <td className="px-3 py-2 text-right font-mono">{fmt(r.investmentCost)}</td>
-                <td className="px-3 py-2 text-right font-mono">{fmt(r.totalRealized)}</td>
-                <td className="px-3 py-2 text-right font-mono">{r.totalEscrow > 0 ? fmt(r.totalEscrow) : '-'}</td>
-                <td className="px-3 py-2 text-right font-mono">{fmtMoicFn(roundMoic)}</td>
-                <td className="px-3 py-2 text-right font-mono">
+                <td className="px-3 py-2 text-right tabular-nums">{fmt(r.investmentCost)}</td>
+                <td className="px-3 py-2 text-right tabular-nums">{fmt(r.totalRealized)}</td>
+                <td className="px-3 py-2 text-right tabular-nums">{r.totalEscrow > 0 ? fmt(r.totalEscrow) : '-'}</td>
+                <td className="px-3 py-2 text-right tabular-nums">{fmtMoicFn(roundMoic)}</td>
+                <td className="px-3 py-2 text-right tabular-nums">
                   {r.grossIrr != null && Math.abs(r.grossIrr) >= 0.0005
                     ? `${(r.grossIrr * 100).toFixed(1)}%`
                     : '-'}
@@ -1851,11 +1851,11 @@ function RoundSummaryTable({
           <tr className="bg-muted/30 font-medium">
             {showGroup && <td className="px-3 py-2" />}
             <td className="px-3 py-2">Total</td>
-            <td className="px-3 py-2 text-right font-mono">{fmt(totInvested)}</td>
-            <td className="px-3 py-2 text-right font-mono">{fmt(totRealized)}</td>
-            <td className="px-3 py-2 text-right font-mono">{totEscrow > 0 ? fmt(totEscrow) : '-'}</td>
-            <td className="px-3 py-2 text-right font-mono">{fmtMoicFn(totMoic)}</td>
-            <td className="px-3 py-2 text-right font-mono">
+            <td className="px-3 py-2 text-right tabular-nums">{fmt(totInvested)}</td>
+            <td className="px-3 py-2 text-right tabular-nums">{fmt(totRealized)}</td>
+            <td className="px-3 py-2 text-right tabular-nums">{totEscrow > 0 ? fmt(totEscrow) : '-'}</td>
+            <td className="px-3 py-2 text-right tabular-nums">{fmtMoicFn(totMoic)}</td>
+            <td className="px-3 py-2 text-right tabular-nums">
               {summary.grossIrr != null && Math.abs(summary.grossIrr) >= 0.0005
                 ? `${(summary.grossIrr * 100).toFixed(1)}%`
                 : '-'}

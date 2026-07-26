@@ -162,12 +162,12 @@ export function StatementsView() {
         {m.keys.map(k => (
           <tr key={k.key} className="border-t">
             <td className="px-3 py-1.5 text-muted-foreground">{k.code ? `${k.code} · ` : ''}{k.name}</td>
-            {cols.map((c, i) => <td key={i} className="px-3 py-1.5 text-right font-mono">{fmtCell(m.amountFor(c, k.key))}</td>)}
+            {cols.map((c, i) => <td key={i} className="px-3 py-1.5 text-right tabular-nums">{fmtCell(m.amountFor(c, k.key))}</td>)}
           </tr>
         ))}
         <tr className="border-t font-semibold">
           <td className="px-3 py-1.5">Total {m.label}</td>
-          {cols.map((c, i) => <td key={i} className="px-3 py-1.5 text-right font-mono">{fmt(m.totalFor(c))}</td>)}
+          {cols.map((c, i) => <td key={i} className="px-3 py-1.5 text-right tabular-nums">{fmt(m.totalFor(c))}</td>)}
         </tr>
       </>
     )
@@ -280,7 +280,7 @@ export function StatementsView() {
               <MultiSec pick={d => d.incomeStatement.expenses} />
               <tr className="border-t font-semibold bg-muted/30">
                 <td className="px-3 py-1.5">Net income</td>
-                {cols.map((c, i) => <td key={i} className="px-3 py-1.5 text-right font-mono">{fmt(c.incomeStatement.netIncome)}</td>)}
+                {cols.map((c, i) => <td key={i} className="px-3 py-1.5 text-right tabular-nums">{fmt(c.incomeStatement.netIncome)}</td>)}
               </tr>
             </tbody>
           </table>
@@ -305,15 +305,15 @@ export function StatementsView() {
                 <MultiSec pick={cfAsSection(cf => cf.financing)} />
                 <tr className="border-t font-semibold bg-muted/30">
                   <td className="px-3 py-1.5">Net change in cash</td>
-                  {cols.map((c, i) => <td key={i} className="px-3 py-1.5 text-right font-mono">{fmtCell(c.cashFlows?.netChange)}</td>)}
+                  {cols.map((c, i) => <td key={i} className="px-3 py-1.5 text-right tabular-nums">{fmtCell(c.cashFlows?.netChange)}</td>)}
                 </tr>
                 <tr className="border-t">
                   <td className="px-3 py-1.5 text-muted-foreground">Opening cash</td>
-                  {cols.map((c, i) => <td key={i} className="px-3 py-1.5 text-right font-mono">{fmtCell(c.cashFlows?.openingCash)}</td>)}
+                  {cols.map((c, i) => <td key={i} className="px-3 py-1.5 text-right tabular-nums">{fmtCell(c.cashFlows?.openingCash)}</td>)}
                 </tr>
                 <tr className="border-t">
                   <td className="px-3 py-1.5 text-muted-foreground">Ending cash</td>
-                  {cols.map((c, i) => <td key={i} className="px-3 py-1.5 text-right font-mono">{fmtCell(c.cashFlows?.endingCash)}</td>)}
+                  {cols.map((c, i) => <td key={i} className="px-3 py-1.5 text-right tabular-nums">{fmtCell(c.cashFlows?.endingCash)}</td>)}
                 </tr>
               </tbody>
             </table>
@@ -335,13 +335,13 @@ export function StatementsView() {
                     {data.cashFlows.nonCash.map(n => (
                       <tr key={n.entryId} className="border-t first:border-t-0">
                         <td className="px-3 py-1.5">
-                          <span className="font-mono text-xs text-muted-foreground mr-2">{n.date}</span>
+                          <span className="tabular-nums text-xs text-muted-foreground mr-2">{n.date}</span>
                           {n.description}
                           <div className="text-[11px] text-muted-foreground mt-0.5">
                             {n.legs.map(l => `${l.amount > 0 ? 'Dr' : 'Cr'} ${l.name}`).join(' · ')}
                           </div>
                         </td>
-                        <td className="px-3 py-1.5 text-right font-mono align-top whitespace-nowrap">{fmt(n.amount)}</td>
+                        <td className="px-3 py-1.5 text-right tabular-nums align-top whitespace-nowrap">{fmt(n.amount)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -380,12 +380,12 @@ export function StatementsView() {
                   {rows.map(r => (
                     <tr key={r.id} className="border-t">
                       <td className="px-3 py-1.5 text-muted-foreground">{r.name}</td>
-                      {cols.map((c, i) => <td key={i} className="px-3 py-1.5 text-right font-mono">{fmtCell(endingFor(c, r.id))}</td>)}
+                      {cols.map((c, i) => <td key={i} className="px-3 py-1.5 text-right tabular-nums">{fmtCell(endingFor(c, r.id))}</td>)}
                     </tr>
                   ))}
                   <tr className="border-t font-semibold">
                     <td className="px-3 py-1.5">Total</td>
-                    {cols.map((c, i) => <td key={i} className="px-3 py-1.5 text-right font-mono">{fmt(c.changesInPartnersCapital.totals.ending)}</td>)}
+                    {cols.map((c, i) => <td key={i} className="px-3 py-1.5 text-right tabular-nums">{fmt(c.changesInPartnersCapital.totals.ending)}</td>)}
                   </tr>
                 </tbody>
               </table>
@@ -410,14 +410,14 @@ export function StatementsView() {
                         ? p.name
                         : <Link href={fundSeg ? `/funds/${fundSeg}/capital-accounts/${p.id}` : '/funds'} className="hover:underline">{p.name}</Link>}
                     </td>
-                    {CAP_COLS.map(c => <td key={c.key} className={`px-3 py-2 text-right font-mono ${c.key === 'ending' ? 'font-semibold' : ''}`}>{fmt(p[c.key] as number)}</td>)}
+                    {CAP_COLS.map(c => <td key={c.key} className={`px-3 py-2 text-right tabular-nums ${c.key === 'ending' ? 'font-semibold' : ''}`}>{fmt(p[c.key] as number)}</td>)}
                   </tr>
                 ))}
               </tbody>
               <tfoot>
                 <tr className="border-t bg-muted/30 font-semibold">
                   <td className="px-3 py-2">Total</td>
-                  {CAP_COLS.map(c => <td key={c.key} className="px-3 py-2 text-right font-mono">{fmt(data.changesInPartnersCapital.totals[c.key] as number)}</td>)}
+                  {CAP_COLS.map(c => <td key={c.key} className="px-3 py-2 text-right tabular-nums">{fmt(data.changesInPartnersCapital.totals[c.key] as number)}</td>)}
                 </tr>
               </tfoot>
             </table>

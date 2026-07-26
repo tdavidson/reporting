@@ -696,25 +696,25 @@ export default function LetterEditorPage() {
                         </td>
                         {previewData.fundMetrics ? (
                           <>
-                            <td className="text-right px-2 py-1.5 font-mono">{fmtCurrency(previewData.fundMetrics.committedCapital)}</td>
-                            <td className="text-right px-2 py-1.5 font-mono">{fmtCurrency(previewData.fundMetrics.paidInCapital)}</td>
-                            <td className="text-right px-2 py-1.5 font-mono">{fmtCurrency(previewData.fundMetrics.distributions)}</td>
-                            <td className="text-right px-2 py-1.5 font-mono">{fmtCurrency(previewData.fundMetrics.fmv)}</td>
-                            <td className="text-right px-2 py-1.5 font-mono">{previewData.fundMetrics.dpi != null ? `${previewData.fundMetrics.dpi.toFixed(2)}x` : '\u2014'}</td>
-                            <td className="text-right px-2 py-1.5 font-mono">{previewData.fundMetrics.rvpi != null ? `${previewData.fundMetrics.rvpi.toFixed(2)}x` : '\u2014'}</td>
-                            <td className="text-right px-2 py-1.5 font-mono">{previewData.fundMetrics.tvpi != null ? `${previewData.fundMetrics.tvpi.toFixed(2)}x` : '\u2014'}</td>
-                            <td className="text-right px-2 py-1.5 font-mono">{previewData.fundMetrics.irr != null ? `${(previewData.fundMetrics.irr * 100).toFixed(1)}%` : '\u2014'}</td>
+                            <td className="text-right px-2 py-1.5 tabular-nums">{fmtCurrency(previewData.fundMetrics.committedCapital)}</td>
+                            <td className="text-right px-2 py-1.5 tabular-nums">{fmtCurrency(previewData.fundMetrics.paidInCapital)}</td>
+                            <td className="text-right px-2 py-1.5 tabular-nums">{fmtCurrency(previewData.fundMetrics.distributions)}</td>
+                            <td className="text-right px-2 py-1.5 tabular-nums">{fmtCurrency(previewData.fundMetrics.fmv)}</td>
+                            <td className="text-right px-2 py-1.5 tabular-nums">{previewData.fundMetrics.dpi != null ? `${previewData.fundMetrics.dpi.toFixed(2)}x` : '\u2014'}</td>
+                            <td className="text-right px-2 py-1.5 tabular-nums">{previewData.fundMetrics.rvpi != null ? `${previewData.fundMetrics.rvpi.toFixed(2)}x` : '\u2014'}</td>
+                            <td className="text-right px-2 py-1.5 tabular-nums">{previewData.fundMetrics.tvpi != null ? `${previewData.fundMetrics.tvpi.toFixed(2)}x` : '\u2014'}</td>
+                            <td className="text-right px-2 py-1.5 tabular-nums">{previewData.fundMetrics.irr != null ? `${(previewData.fundMetrics.irr * 100).toFixed(1)}%` : '\u2014'}</td>
                           </>
                         ) : (
                           <>
-                            <td className="text-right px-2 py-1.5 font-mono">{'\u2014'}</td>
-                            <td className="text-right px-2 py-1.5 font-mono">{'\u2014'}</td>
-                            <td className="text-right px-2 py-1.5 font-mono">{'\u2014'}</td>
-                            <td className="text-right px-2 py-1.5 font-mono">{'\u2014'}</td>
-                            <td className="text-right px-2 py-1.5 font-mono">{'\u2014'}</td>
-                            <td className="text-right px-2 py-1.5 font-mono">{'\u2014'}</td>
-                            <td className="text-right px-2 py-1.5 font-mono">{'\u2014'}</td>
-                            <td className="text-right px-2 py-1.5 font-mono">{'\u2014'}</td>
+                            <td className="text-right px-2 py-1.5 tabular-nums">{'\u2014'}</td>
+                            <td className="text-right px-2 py-1.5 tabular-nums">{'\u2014'}</td>
+                            <td className="text-right px-2 py-1.5 tabular-nums">{'\u2014'}</td>
+                            <td className="text-right px-2 py-1.5 tabular-nums">{'\u2014'}</td>
+                            <td className="text-right px-2 py-1.5 tabular-nums">{'\u2014'}</td>
+                            <td className="text-right px-2 py-1.5 tabular-nums">{'\u2014'}</td>
+                            <td className="text-right px-2 py-1.5 tabular-nums">{'\u2014'}</td>
+                            <td className="text-right px-2 py-1.5 tabular-nums">{'\u2014'}</td>
                           </>
                         )}
                       </tr>

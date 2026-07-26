@@ -298,15 +298,15 @@ export function CapitalAccountsView() {
                 {rows.map(r => (
                   <tr key={r.lpEntityId} className="border-b last:border-b-0">
                     <td className="px-3 py-2 max-w-[200px]"><div className="truncate" title={r.name}>{r.name}</div></td>
-                    <td className="px-3 py-2 text-right font-mono text-muted-foreground">{fmt(r.commitment)}</td>
-                    <td className="px-3 py-2 text-right font-mono text-muted-foreground">{fmt(r.outstanding)}</td>
+                    <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">{fmt(r.commitment)}</td>
+                    <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">{fmt(r.outstanding)}</td>
                     <td className="px-3 py-2 text-right">
                       <input
                         value={amounts[r.lpEntityId] ?? ''}
                         onChange={e => setAmounts(a => ({ ...a, [r.lpEntityId]: e.target.value }))}
                         inputMode="decimal"
                         placeholder="0.00"
-                        className="border border-input rounded px-2 py-1 text-sm font-mono bg-transparent w-32 text-right"
+                        className="border border-input rounded px-2 py-1 text-sm tabular-nums bg-transparent w-32 text-right"
                       />
                     </td>
                   </tr>
@@ -315,7 +315,7 @@ export function CapitalAccountsView() {
               <tfoot>
                 <tr className="border-t bg-muted/30 font-semibold">
                   <td className="px-3 py-2" colSpan={3}>Call total</td>
-                  <td className="px-3 py-2 text-right font-mono">{fmt(enteredTotal)}</td>
+                  <td className="px-3 py-2 text-right tabular-nums">{fmt(enteredTotal)}</td>
                 </tr>
               </tfoot>
             </table>
@@ -364,7 +364,7 @@ export function CapitalAccountsView() {
                 </div>
                 {c.description && <p className="text-xs text-muted-foreground mt-0.5">{c.description}</p>}
                 <div className="mt-2 text-xs text-muted-foreground flex flex-wrap gap-x-4 gap-y-0.5">
-                  {c.lines.map(l => <span key={l.lpEntityId}>{l.name}: <span className="font-mono">{fmt(l.amount)}</span></span>)}
+                  {c.lines.map(l => <span key={l.lpEntityId}>{l.name}: <span className="tabular-nums">{fmt(l.amount)}</span></span>)}
                 </div>
               </div>
             ))}

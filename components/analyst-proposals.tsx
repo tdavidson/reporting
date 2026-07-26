@@ -75,8 +75,8 @@ export function AnalystProposals({ proposals, vehicle }: { proposals: Proposal[]
                     <span className="font-mono">{x.accountCode}</span>
                     {x.lpEntity && <span className="ml-1.5 text-muted-foreground">&middot; {x.lpEntity}</span>}
                   </td>
-                  <td className="py-1 text-right font-mono">{x.amount > 0 ? fmt(x.amount) : ''}</td>
-                  <td className="py-1 text-right font-mono">{x.amount < 0 ? fmt(-x.amount) : ''}</td>
+                  <td className="py-1 text-right tabular-nums">{x.amount > 0 ? fmt(x.amount) : ''}</td>
+                  <td className="py-1 text-right tabular-nums">{x.amount < 0 ? fmt(-x.amount) : ''}</td>
                 </tr>
               ))}
             </tbody>

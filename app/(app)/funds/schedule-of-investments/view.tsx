@@ -142,9 +142,9 @@ export function ScheduleOfInvestmentsView() {
             {groups.map(g => (
               <tr key={g.name} className="border-b last:border-b-0">
                 <td className="px-3 py-2">{g.name}</td>
-                <td className="px-3 py-2 text-right font-mono">{fmt(g.cost)}</td>
-                <td className="px-3 py-2 text-right font-mono">{fmt(g.fairValue)}</td>
-                <td className="px-3 py-2 text-right font-mono text-muted-foreground">{pct(g.pctOfNetAssets)}</td>
+                <td className="px-3 py-2 text-right tabular-nums">{fmt(g.cost)}</td>
+                <td className="px-3 py-2 text-right tabular-nums">{fmt(g.fairValue)}</td>
+                <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">{pct(g.pctOfNetAssets)}</td>
               </tr>
             ))}
           </tbody>
@@ -214,8 +214,8 @@ export function ScheduleOfInvestmentsView() {
                     <strong>{hist.events.length}</strong> {hist.events.length === 1 ? 'event' : 'events'} across{' '}
                     <strong>{hist.dates.length}</strong> {hist.dates.length === 1 ? 'date' : 'dates'}
                     {hist.dates.length > 0 && <> — {hist.dates[0]} to {hist.dates[hist.dates.length - 1]}</>}.
-                    Ending cost <span className="font-mono">{fmt(hist.totalCost)}</span>, unrealized{' '}
-                    <span className="font-mono">{fmt(hist.totalUnrealized)}</span>.
+                    Ending cost <span className="tabular-nums">{fmt(hist.totalCost)}</span>, unrealized{' '}
+                    <span className="tabular-nums">{fmt(hist.totalUnrealized)}</span>.
                   </p>
 
                   {/* The tracker is the control total. If the replay wouldn't land on it,
@@ -258,10 +258,10 @@ export function ScheduleOfInvestmentsView() {
                         <tbody>
                           {hist.events.map((e, i) => (
                             <tr key={i} className="border-b last:border-b-0">
-                              <td className="px-2 py-1 font-mono text-muted-foreground">{e.date}</td>
+                              <td className="px-2 py-1 tabular-nums text-muted-foreground">{e.date}</td>
                               <td className="px-2 py-1">{e.companyName}</td>
-                              <td className="px-2 py-1 text-right font-mono">{e.costDelta === 0 ? '—' : fmt(e.costDelta)}</td>
-                              <td className={`px-2 py-1 text-right font-mono ${e.unrealizedDelta < 0 ? 'text-red-600' : ''}`}>
+                              <td className="px-2 py-1 text-right tabular-nums">{e.costDelta === 0 ? '—' : fmt(e.costDelta)}</td>
+                              <td className={`px-2 py-1 text-right tabular-nums ${e.unrealizedDelta < 0 ? 'text-red-600' : ''}`}>
                                 {e.unrealizedDelta === 0 ? '—' : fmt(e.unrealizedDelta)}
                               </td>
                             </tr>
@@ -314,7 +314,7 @@ export function ScheduleOfInvestmentsView() {
           <span>
             <strong>Does not tie to the ledger.</strong> The tracker says cost {fmt(soi.totalCost)} / fair value {fmt(soi.totalFairValue)};
             the ledger says {fmt(soi.ledgerCost)} / {fmt(soi.ledgerFairValue)}.
-            Variance: cost <span className="font-mono">{fmt(soi.costVariance)}</span>, fair value <span className="font-mono">{fmt(soi.fairValueVariance)}</span>.
+            Variance: cost <span className="tabular-nums">{fmt(soi.costVariance)}</span>, fair value <span className="tabular-nums">{fmt(soi.fairValueVariance)}</span>.
             A mark or purchase was recorded in one system and not the other.
           </span>
         )}
@@ -348,20 +348,20 @@ export function ScheduleOfInvestmentsView() {
                 </td>
                 <td className="px-3 py-2 text-xs text-muted-foreground">{r.industry ?? '—'}</td>
                 <td className="px-3 py-2 text-xs text-muted-foreground">{r.assetType ?? '—'}</td>
-                <td className="px-3 py-2 text-right font-mono text-xs">{num(r.shares)}</td>
-                <td className="px-3 py-2 text-right font-mono text-xs">{r.sharePrice == null ? '—' : formatSharePrice(r.sharePrice, currency)}</td>
-                <td className="px-3 py-2 text-right font-mono">{fmt(r.cost)}</td>
-                <td className="px-3 py-2 text-right font-mono">{fmt(r.fairValue)}</td>
-                <td className="px-3 py-2 text-right font-mono text-xs text-muted-foreground">{r.moic == null ? '—' : `${r.moic.toFixed(2)}×`}</td>
-                <td className="px-3 py-2 text-right font-mono text-muted-foreground">{pct(r.pctOfNetAssets)}</td>
+                <td className="px-3 py-2 text-right tabular-nums text-xs">{num(r.shares)}</td>
+                <td className="px-3 py-2 text-right tabular-nums text-xs">{r.sharePrice == null ? '—' : formatSharePrice(r.sharePrice, currency)}</td>
+                <td className="px-3 py-2 text-right tabular-nums">{fmt(r.cost)}</td>
+                <td className="px-3 py-2 text-right tabular-nums">{fmt(r.fairValue)}</td>
+                <td className="px-3 py-2 text-right tabular-nums text-xs text-muted-foreground">{r.moic == null ? '—' : `${r.moic.toFixed(2)}×`}</td>
+                <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">{pct(r.pctOfNetAssets)}</td>
               </tr>
             ))}
           </tbody>
           <tfoot>
             <tr className="border-t bg-muted/30 font-semibold">
               <td className="px-3 py-2" colSpan={5}>Total</td>
-              <td className="px-3 py-2 text-right font-mono">{fmt(soi.totalCost)}</td>
-              <td className="px-3 py-2 text-right font-mono">{fmt(soi.totalFairValue)}</td>
+              <td className="px-3 py-2 text-right tabular-nums">{fmt(soi.totalCost)}</td>
+              <td className="px-3 py-2 text-right tabular-nums">{fmt(soi.totalFairValue)}</td>
               <td />
               <td />
             </tr>

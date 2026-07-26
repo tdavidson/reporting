@@ -111,7 +111,7 @@ export function LpStatementView({ lpEntityId }: { lpEntityId: string }) {
         {cards.map(c => (
           <div key={c.label} className="border rounded-lg p-3">
             <p className="text-xs text-muted-foreground">{c.label}</p>
-            <p className="text-lg font-mono font-semibold mt-0.5">{fmt(c.value)}</p>
+            <p className="text-lg tabular-nums font-semibold mt-0.5">{fmt(c.value)}</p>
           </div>
         ))}
       </div>
@@ -150,8 +150,8 @@ export function LpStatementView({ lpEntityId }: { lpEntityId: string }) {
               {lines.map(r => (
                 <tr key={r.key} className={`border-b last:border-b-0 ${r.key === 'ending' ? 'font-semibold bg-muted/30' : ''}`}>
                   <td className="px-3 py-2">{r.label}</td>
-                  <td className={`px-3 py-2 text-right font-mono ${r.key === 'unclassified' && Math.abs(periodRollForward[r.key]) > 0.004 ? 'text-amber-600' : ''}`}>{fmt(periodRollForward[r.key])}</td>
-                  <td className={`px-3 py-2 text-right font-mono ${r.key === 'unclassified' && Math.abs(rollForward[r.key]) > 0.004 ? 'text-amber-600' : ''}`}>{fmt(rollForward[r.key])}</td>
+                  <td className={`px-3 py-2 text-right tabular-nums ${r.key === 'unclassified' && Math.abs(periodRollForward[r.key]) > 0.004 ? 'text-amber-600' : ''}`}>{fmt(periodRollForward[r.key])}</td>
+                  <td className={`px-3 py-2 text-right tabular-nums ${r.key === 'unclassified' && Math.abs(rollForward[r.key]) > 0.004 ? 'text-amber-600' : ''}`}>{fmt(rollForward[r.key])}</td>
                 </tr>
               ))}
             </tbody>
@@ -178,11 +178,11 @@ export function LpStatementView({ lpEntityId }: { lpEntityId: string }) {
               <tbody>
                 {transactions.map((t, i) => (
                   <tr key={i} className="border-b last:border-b-0 hover:bg-muted/30">
-                    <td className="px-3 py-2 font-mono text-xs">{t.date}</td>
+                    <td className="px-3 py-2 tabular-nums text-xs">{t.date}</td>
                     <td className="px-3 py-2">{t.memo ?? '—'}</td>
                     <td className="px-3 py-2 text-xs text-muted-foreground">{t.sourceType ?? '—'}</td>
-                    <td className="px-3 py-2 text-right font-mono">{fmt(t.amount)}</td>
-                    <td className="px-3 py-2 text-right font-mono">{fmt(t.balance)}</td>
+                    <td className="px-3 py-2 text-right tabular-nums">{fmt(t.amount)}</td>
+                    <td className="px-3 py-2 text-right tabular-nums">{fmt(t.balance)}</td>
                   </tr>
                 ))}
               </tbody>

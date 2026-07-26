@@ -575,7 +575,7 @@ export default function InvestmentsPage() {
                       </td>
                       <td className="px-3 py-2 text-center text-xs text-muted-foreground">{vintages.get(g.group.trim().toLowerCase()) ?? '-'}</td>
                       {numericColumns.map(col => (
-                        <td key={col.sortKey} className="px-3 py-2 text-right font-mono">{fmtVal(col.getValue(g), col.format)}</td>
+                        <td key={col.sortKey} className="px-3 py-2 text-right tabular-nums">{fmtVal(col.getValue(g), col.format)}</td>
                       ))}
                     </tr>
                   )
@@ -587,11 +587,11 @@ export default function InvestmentsPage() {
                   <td className="px-3 py-2 sticky left-0 bg-muted z-10">Total</td>
                   <td className="px-3 py-2" />
                   {numericColumns.map(col => {
-                    if (col.format === 'irr') return <td key={col.sortKey} className="px-3 py-2 text-right font-mono">{fmtIrr(data.portfolioIRR)}</td>
-                    if (col.sortKey === 'moic') return <td key={col.sortKey} className="px-3 py-2 text-right font-mono">{fmtMoic(groupTotals.moic)}</td>
-                    if (col.sortKey === 'realizedMoic') return <td key={col.sortKey} className="px-3 py-2 text-right font-mono">{fmtMoic(realizedMoic(groupTotals))}</td>
-                    if (col.sortKey === 'unrealizedMoic') return <td key={col.sortKey} className="px-3 py-2 text-right font-mono">{fmtMoic(unrealizedMoic(groupTotals))}</td>
-                    return <td key={col.sortKey} className="px-3 py-2 text-right font-mono">{fmtVal(col.getValue(groupTotals), col.format)}</td>
+                    if (col.format === 'irr') return <td key={col.sortKey} className="px-3 py-2 text-right tabular-nums">{fmtIrr(data.portfolioIRR)}</td>
+                    if (col.sortKey === 'moic') return <td key={col.sortKey} className="px-3 py-2 text-right tabular-nums">{fmtMoic(groupTotals.moic)}</td>
+                    if (col.sortKey === 'realizedMoic') return <td key={col.sortKey} className="px-3 py-2 text-right tabular-nums">{fmtMoic(realizedMoic(groupTotals))}</td>
+                    if (col.sortKey === 'unrealizedMoic') return <td key={col.sortKey} className="px-3 py-2 text-right tabular-nums">{fmtMoic(unrealizedMoic(groupTotals))}</td>
+                    return <td key={col.sortKey} className="px-3 py-2 text-right tabular-nums">{fmtVal(col.getValue(groupTotals), col.format)}</td>
                   })}
                 </tr>
               </tfoot>
@@ -655,10 +655,10 @@ export default function InvestmentsPage() {
                 {companyColumns.map(col => {
                   if (col.type === 'pct') {
                     const val = col.sortKey === 'pctUnrealized' ? pctUnr : pctTV
-                    return <td key={col.sortKey} className="px-3 py-2 text-right font-mono">{val != null ? `${(val * 100).toFixed(1)}%` : '-'}</td>
+                    return <td key={col.sortKey} className="px-3 py-2 text-right tabular-nums">{val != null ? `${(val * 100).toFixed(1)}%` : '-'}</td>
                   }
                   const numCol = numericColumns[col.colIdx!]
-                  return <td key={col.sortKey} className="px-3 py-2 text-right font-mono">{fmtVal(numCol.getValue(c), numCol.format)}</td>
+                  return <td key={col.sortKey} className="px-3 py-2 text-right tabular-nums">{fmtVal(numCol.getValue(c), numCol.format)}</td>
                 })}
               </tr>
               )
@@ -672,11 +672,11 @@ export default function InvestmentsPage() {
               {companyColumns.map(col => {
                 if (col.type === 'pct') return <td key={col.sortKey} className="px-3 py-2" />
                 const numCol = numericColumns[col.colIdx!]
-                if (numCol.format === 'irr') return <td key={col.sortKey} className="px-3 py-2 text-right font-mono">{fmtIrr(data.portfolioIRR)}</td>
-                if (numCol.sortKey === 'moic') return <td key={col.sortKey} className="px-3 py-2 text-right font-mono">{fmtMoic(totals.moic)}</td>
-                if (numCol.sortKey === 'realizedMoic') return <td key={col.sortKey} className="px-3 py-2 text-right font-mono">{fmtMoic(realizedMoic(totals))}</td>
-                if (numCol.sortKey === 'unrealizedMoic') return <td key={col.sortKey} className="px-3 py-2 text-right font-mono">{fmtMoic(unrealizedMoic(totals))}</td>
-                return <td key={col.sortKey} className="px-3 py-2 text-right font-mono">{fmtVal(numCol.getValue(totals), numCol.format)}</td>
+                if (numCol.format === 'irr') return <td key={col.sortKey} className="px-3 py-2 text-right tabular-nums">{fmtIrr(data.portfolioIRR)}</td>
+                if (numCol.sortKey === 'moic') return <td key={col.sortKey} className="px-3 py-2 text-right tabular-nums">{fmtMoic(totals.moic)}</td>
+                if (numCol.sortKey === 'realizedMoic') return <td key={col.sortKey} className="px-3 py-2 text-right tabular-nums">{fmtMoic(realizedMoic(totals))}</td>
+                if (numCol.sortKey === 'unrealizedMoic') return <td key={col.sortKey} className="px-3 py-2 text-right tabular-nums">{fmtMoic(unrealizedMoic(totals))}</td>
+                return <td key={col.sortKey} className="px-3 py-2 text-right tabular-nums">{fmtVal(numCol.getValue(totals), numCol.format)}</td>
               })}
             </tr>
           </tfoot>

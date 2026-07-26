@@ -148,7 +148,7 @@ export function StatusView() {
         {cards.map(c => (
           <div key={c.label} className="border rounded-lg p-3">
             <p className="text-xs text-muted-foreground">{c.label}</p>
-            <p className="text-lg font-mono font-semibold mt-0.5 truncate">{c.value}</p>
+            <p className="text-lg tabular-nums font-semibold mt-0.5 truncate">{c.value}</p>
             {c.hint && <p className="text-[11px] text-muted-foreground mt-0.5">{c.hint}</p>}
           </div>
         ))}

@@ -306,10 +306,10 @@ function HistoryTable({
                 <tr key={d} className={`border-t group cursor-pointer hover:bg-muted/20 ${d === activeDate ? 'bg-muted/30' : ''}`} onClick={() => onSelect(d)}>
                   <td className="px-3 py-1.5 font-medium">{d}{d === activeDate && <span className="ml-2 text-[10px] text-muted-foreground">shown above</span>}</td>
                   <td className="px-3 py-1.5 text-right tabular-nums text-muted-foreground">{a.lps}</td>
-                  <td className="px-3 py-1.5 text-right font-mono">{fmt(a.commitment)}</td>
-                  <td className="px-3 py-1.5 text-right font-mono">{fmt(a.called)}</td>
-                  <td className="px-3 py-1.5 text-right font-mono">{fmt(a.distributions)}</td>
-                  <td className="px-3 py-1.5 text-right font-mono">{fmt(a.nav)}</td>
+                  <td className="px-3 py-1.5 text-right tabular-nums">{fmt(a.commitment)}</td>
+                  <td className="px-3 py-1.5 text-right tabular-nums">{fmt(a.called)}</td>
+                  <td className="px-3 py-1.5 text-right tabular-nums">{fmt(a.distributions)}</td>
+                  <td className="px-3 py-1.5 text-right tabular-nums">{fmt(a.nav)}</td>
                   {onDelete && (
                     <td className="px-3 py-1.5 text-right" onClick={e => e.stopPropagation()}>
                       <button

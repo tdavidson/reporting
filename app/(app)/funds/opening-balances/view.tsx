@@ -123,7 +123,7 @@ export function OpeningBalancesView() {
             {entities.map(e => (
               <tr key={e.lpEntityId} className="border-b last:border-b-0">
                 <td className="px-3 py-2">{e.name}</td>
-                <td className="px-3 py-2 text-right font-mono text-muted-foreground">{fmt(e.commitment)}</td>
+                <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">{fmt(e.commitment)}</td>
                 <td className="px-3 py-2 text-right">
                   <input
                     type="number"
@@ -131,7 +131,7 @@ export function OpeningBalancesView() {
                     value={amounts[e.lpEntityId] ?? ''}
                     onChange={ev => setAmounts(prev => ({ ...prev, [e.lpEntityId]: ev.target.value }))}
                     placeholder="0.00"
-                    className="border rounded px-1.5 py-0.5 text-sm text-right w-36 font-mono bg-transparent"
+                    className="border rounded px-1.5 py-0.5 text-sm text-right w-36 tabular-nums bg-transparent"
                   />
                 </td>
               </tr>
@@ -140,7 +140,7 @@ export function OpeningBalancesView() {
           <tfoot>
             <tr className="border-t bg-muted/30 font-semibold">
               <td className="px-3 py-2" colSpan={2}>Total opening NAV</td>
-              <td className="px-3 py-2 text-right font-mono">{fmt(total)}</td>
+              <td className="px-3 py-2 text-right tabular-nums">{fmt(total)}</td>
             </tr>
           </tfoot>
         </table>

@@ -231,15 +231,15 @@ export function FundOverview() {
                     </button>
                   </td>
                   <td className="px-3 py-2 text-muted-foreground tabular-nums">{v.vintageYear ?? '—'}</td>
-                  <td className="px-3 py-2 text-right font-mono">{fmtFull(x.committed)}</td>
-                  <td className="px-3 py-2 text-right font-mono">{fmtFull(x.paidIn)}</td>
-                  <td className="px-3 py-2 text-right font-mono text-muted-foreground">{fmtFull(x.uncalled)}</td>
-                  <td className="px-3 py-2 text-right font-mono">{fmtFull(x.distributions)}</td>
-                  <td className="px-3 py-2 text-right font-mono">{fmtFull(x.nav)}</td>
-                  <td className="px-3 py-2 text-right font-mono">{moic(x.dpi)}</td>
-                  <td className="px-3 py-2 text-right font-mono">{moic(x.rvpi)}</td>
-                  <td className="px-3 py-2 text-right font-mono font-medium">{moic(x.tvpi)}</td>
-                  <td className="px-3 py-2 text-right font-mono">{irrPct(x.irr)}</td>
+                  <td className="px-3 py-2 text-right tabular-nums">{fmtFull(x.committed)}</td>
+                  <td className="px-3 py-2 text-right tabular-nums">{fmtFull(x.paidIn)}</td>
+                  <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">{fmtFull(x.uncalled)}</td>
+                  <td className="px-3 py-2 text-right tabular-nums">{fmtFull(x.distributions)}</td>
+                  <td className="px-3 py-2 text-right tabular-nums">{fmtFull(x.nav)}</td>
+                  <td className="px-3 py-2 text-right tabular-nums">{moic(x.dpi)}</td>
+                  <td className="px-3 py-2 text-right tabular-nums">{moic(x.rvpi)}</td>
+                  <td className="px-3 py-2 text-right tabular-nums font-medium">{moic(x.tvpi)}</td>
+                  <td className="px-3 py-2 text-right tabular-nums">{irrPct(x.irr)}</td>
                 </tr>
               )
             })}

@@ -225,7 +225,7 @@ export default async function EmailDetailPage({ params }: { params: { id: string
                     <tr key={mv.id}>
                       <td className="px-4 py-2.5 font-medium">{metric?.name ?? '—'}</td>
                       <td className="px-4 py-2.5 text-muted-foreground">{mv.period_label}</td>
-                      <td className="px-4 py-2.5 font-mono">{formatValue(mv, metric)}</td>
+                      <td className="px-4 py-2.5 tabular-nums">{formatValue(mv, metric)}</td>
                       <td className="px-4 py-2.5">
                         <ConfidenceBadge confidence={mv.confidence} />
                       </td>

@@ -207,13 +207,13 @@ export function SnapshotCutover() {
                               <span key={i} className="block text-[10px] text-amber-600">{w}</span>
                             ))}
                           </td>
-                          <td className="px-3 py-1.5 text-right font-mono text-muted-foreground">{fmt(lp.commitment)}</td>
-                          <td className="px-3 py-1.5 text-right font-mono">{fmt(amt('capital_call'))}</td>
-                          <td className="px-3 py-1.5 text-right font-mono">{fmt(-amt('distribution'))}</td>
-                          <td className="px-3 py-1.5 text-right font-mono">{fmt(amt('valuation'))}</td>
-                          <td className="px-3 py-1.5 text-right font-mono font-medium">{fmt(lp.endingCapital)}</td>
+                          <td className="px-3 py-1.5 text-right tabular-nums text-muted-foreground">{fmt(lp.commitment)}</td>
+                          <td className="px-3 py-1.5 text-right tabular-nums">{fmt(amt('capital_call'))}</td>
+                          <td className="px-3 py-1.5 text-right tabular-nums">{fmt(-amt('distribution'))}</td>
+                          <td className="px-3 py-1.5 text-right tabular-nums">{fmt(amt('valuation'))}</td>
+                          <td className="px-3 py-1.5 text-right tabular-nums font-medium">{fmt(lp.endingCapital)}</td>
                           {/* The check that matters: the events must reproduce the snapshot's NAV. */}
-                          <td className={`px-3 py-1.5 text-right font-mono ${ties ? 'text-muted-foreground' : 'text-red-600 font-medium'}`}>
+                          <td className={`px-3 py-1.5 text-right tabular-nums ${ties ? 'text-muted-foreground' : 'text-red-600 font-medium'}`}>
                             {fmt(lp.snapshotNav)}{ties ? '' : ' ✕'}
                           </td>
                         </tr>
@@ -263,7 +263,7 @@ export function SnapshotCutover() {
 function Stat({ label, value }: { label: string; value: string }) {
   return (
     <span className="text-muted-foreground">
-      {label} <span className="font-mono font-medium text-foreground">{value}</span>
+      {label} <span className="tabular-nums font-medium text-foreground">{value}</span>
     </span>
   )
 }

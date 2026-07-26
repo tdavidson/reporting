@@ -191,14 +191,14 @@ export function PeriodsView() {
                   {m.periodStart} → {m.periodEnd}
                   {m.categories.length === 0 && <span className="ml-2 text-xs font-normal text-muted-foreground">no activity</span>}
                 </span>
-                <span className="font-mono text-sm">{fmt(m.netIncome)}</span>
+                <span className="tabular-nums text-sm">{fmt(m.netIncome)}</span>
               </div>
 
               {m.categories.map(cat => (
                 <div key={cat.sourceType} className="px-4 py-2 border-t">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-medium">{cat.label}</span>
-                    <span className="font-mono text-xs">{fmt(cat.capitalEffect)}</span>
+                    <span className="tabular-nums text-xs">{fmt(cat.capitalEffect)}</span>
                   </div>
                   <p className="text-[11px] text-muted-foreground mt-0.5">
                     {cat.accounts.map(a => `${a.code} ${a.name}`).join(', ')} · {cat.lines.filter(l => l.amount !== 0).length} partners
@@ -246,7 +246,7 @@ export function PeriodsView() {
                       className={`border-b ${open ? '' : 'last:border-b-0'} ${isClosed ? 'cursor-pointer hover:bg-muted/20' : ''}`}
                       onClick={isClosed ? () => toggleEntries(p.id) : undefined}
                     >
-                      <td className="px-3 py-2 font-mono text-xs">
+                      <td className="px-3 py-2 tabular-nums text-xs">
                         <span className="flex items-center gap-1.5">
                           {/* Closed periods expand to show the transactions the close posted. */}
                           {isClosed
@@ -301,7 +301,7 @@ export function PeriodsView() {
                                 <div key={en.id} className="rounded border bg-background overflow-hidden">
                                   <div className="flex items-center justify-between px-2.5 py-1.5 border-b bg-muted/30">
                                     <span className="text-xs font-medium">{en.memo ?? en.sourceType ?? 'Transaction'}</span>
-                                    <span className="text-[11px] text-muted-foreground font-mono">{en.entryDate}</span>
+                                    <span className="text-[11px] text-muted-foreground tabular-nums">{en.entryDate}</span>
                                   </div>
                                   <table className="w-full text-xs">
                                     <tbody>
@@ -309,7 +309,7 @@ export function PeriodsView() {
                                         <tr key={i} className="border-t first:border-t-0">
                                           <td className="px-2.5 py-1 text-muted-foreground whitespace-nowrap">{[l.accountCode, l.accountName].filter(Boolean).join(' ')}</td>
                                           <td className="px-2.5 py-1">{l.lpName ?? ''}</td>
-                                          <td className="px-2.5 py-1 text-right font-mono">{fmt(l.amount)}</td>
+                                          <td className="px-2.5 py-1 text-right tabular-nums">{fmt(l.amount)}</td>
                                         </tr>
                                       ))}
                                     </tbody>

@@ -117,7 +117,7 @@ export function ReconciliationPanel() {
               return (
                 <tr key={r.lpEntityId} className="border-b last:border-b-0">
                   <td className="px-3 py-2">{r.name}</td>
-                  <td className="px-3 py-2 text-right font-mono">{fmt(r.ending)}</td>
+                  <td className="px-3 py-2 text-right tabular-nums">{fmt(r.ending)}</td>
                   <td className="px-3 py-2 text-right">
                     <input
                       type="number"
@@ -125,10 +125,10 @@ export function ReconciliationPanel() {
                       value={adminInput[r.lpEntityId] ?? ''}
                       onChange={e => setAdminInput(prev => ({ ...prev, [r.lpEntityId]: e.target.value }))}
                       placeholder="0.00"
-                      className="border rounded px-1.5 py-0.5 text-sm text-right w-32 font-mono bg-transparent"
+                      className="border rounded px-1.5 py-0.5 text-sm text-right w-32 tabular-nums bg-transparent"
                     />
                   </td>
-                  <td className={`px-3 py-2 text-right font-mono ${d && !d.tiesOut ? 'text-amber-600 dark:text-amber-400' : ''}`}>
+                  <td className={`px-3 py-2 text-right tabular-nums ${d && !d.tiesOut ? 'text-amber-600 dark:text-amber-400' : ''}`}>
                     {d ? fmt(d.delta) : '—'}
                   </td>
                   <td className="px-3 py-2 text-center">

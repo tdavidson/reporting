@@ -207,9 +207,9 @@ export function CapitalRollforwardTable({
         <tfoot>
           <tr className="border-t bg-muted/30 font-semibold">
             <td className="px-3 py-2">Total</td>
-            {commitmentCols.map(c => <td key={c.key} className="px-3 py-2 text-right font-mono border-l">{fmt(commitTotals[c.key])}</td>)}
-            {columns.map((c, i) => <td key={c.key} className={`px-3 py-2 text-right font-mono ${i === 0 ? 'border-l' : ''}`}>{fmt(totals[c.key])}</td>)}
-            {metrics && METRIC_COLUMNS.map((c, i) => <td key={c.key} className={`px-3 py-2 text-right font-mono text-muted-foreground ${i === 0 ? 'border-l' : ''}`}>{metricTotal(c.key)}</td>)}
+            {commitmentCols.map(c => <td key={c.key} className="px-3 py-2 text-right tabular-nums border-l">{fmt(commitTotals[c.key])}</td>)}
+            {columns.map((c, i) => <td key={c.key} className={`px-3 py-2 text-right tabular-nums ${i === 0 ? 'border-l' : ''}`}>{fmt(totals[c.key])}</td>)}
+            {metrics && METRIC_COLUMNS.map((c, i) => <td key={c.key} className={`px-3 py-2 text-right tabular-nums text-muted-foreground ${i === 0 ? 'border-l' : ''}`}>{metricTotal(c.key)}</td>)}
             {editable && <td />}
           </tr>
         </tfoot>
@@ -264,7 +264,7 @@ function RollforwardRow({
     }
   }
   const inp = (k: 'commitment' | 'calledCapital' | 'distributions' | 'nav' | 'irr', w = 'w-24') => (
-    <Input value={draft[k]} onChange={e => setDraft(d => ({ ...d, [k]: e.target.value }))} inputMode="decimal" className={`h-8 ${w} text-right font-mono ml-auto`} />
+    <Input value={draft[k]} onChange={e => setDraft(d => ({ ...d, [k]: e.target.value }))} inputMode="decimal" className={`h-8 ${w} text-right tabular-nums ml-auto`} />
   )
 
   const metricCell = (key: string) => {
@@ -292,17 +292,17 @@ function RollforwardRow({
           {rowErr && <p className="text-xs text-destructive mt-1">{rowErr}</p>}
         </td>
         {commitmentCols.map(c => (
-          <td key={c.key} className="px-3 py-1.5 text-right font-mono border-l">
+          <td key={c.key} className="px-3 py-1.5 text-right tabular-nums border-l">
             {c.key === 'commitment' ? inp('commitment') : c.key === 'called' ? inp('calledCapital') : fmt(r[c.key])}
           </td>
         ))}
         {accountCols.map((c, i) => (
-          <td key={c.key} className={`px-3 py-1.5 text-right font-mono ${i === 0 ? 'border-l' : ''}`}>
+          <td key={c.key} className={`px-3 py-1.5 text-right tabular-nums ${i === 0 ? 'border-l' : ''}`}>
             {c.key === 'distributions' ? inp('distributions') : c.key === 'ending' ? inp('nav') : fmt(a[c.key])}
           </td>
         ))}
         {metrics && METRIC_COLUMNS.map((c, i) => (
-          <td key={c.key} className={`px-3 py-1.5 text-right font-mono ${i === 0 ? 'border-l' : ''} text-muted-foreground`}>
+          <td key={c.key} className={`px-3 py-1.5 text-right tabular-nums ${i === 0 ? 'border-l' : ''} text-muted-foreground`}>
             {c.key === 'netIrr' ? inp('irr', 'w-20') : metricCell(c.key)}
           </td>
         ))}
@@ -329,13 +329,13 @@ function RollforwardRow({
         </div>
       </td>
       {commitmentCols.map(c => (
-        <td key={c.key} className={`px-3 py-2 text-right font-mono border-l ${Math.abs(r[c.key]) > 0.004 ? '' : 'text-muted-foreground'}`}>{fmt(r[c.key])}</td>
+        <td key={c.key} className={`px-3 py-2 text-right tabular-nums border-l ${Math.abs(r[c.key]) > 0.004 ? '' : 'text-muted-foreground'}`}>{fmt(r[c.key])}</td>
       ))}
       {accountCols.map((c, i) => (
-        <td key={c.key} className={`px-3 py-2 text-right font-mono ${i === 0 ? 'border-l' : ''} ${c.key === 'ending' ? 'font-semibold' : ''} ${c.key === 'unclassified' && Math.abs(a[c.key]) > 0.004 ? 'text-amber-600' : ''}`}>{fmt(a[c.key])}</td>
+        <td key={c.key} className={`px-3 py-2 text-right tabular-nums ${i === 0 ? 'border-l' : ''} ${c.key === 'ending' ? 'font-semibold' : ''} ${c.key === 'unclassified' && Math.abs(a[c.key]) > 0.004 ? 'text-amber-600' : ''}`}>{fmt(a[c.key])}</td>
       ))}
       {metrics && METRIC_COLUMNS.map((c, i) => (
-        <td key={c.key} className={`px-3 py-2 text-right font-mono text-muted-foreground ${i === 0 ? 'border-l' : ''}`}>{metricCell(c.key)}</td>
+        <td key={c.key} className={`px-3 py-2 text-right tabular-nums text-muted-foreground ${i === 0 ? 'border-l' : ''}`}>{metricCell(c.key)}</td>
       ))}
       {editable && <td />}
     </tr>

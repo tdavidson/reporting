@@ -45,9 +45,9 @@ describe('pdfFontCss', () => {
 
   it('carries real base64 payloads rather than empty src slots', () => {
     const css = pdfFontCss('source-serif')
-    for (const m of css.matchAll(/base64,([^)]*)\)/g)) {
-      expect(m[1].length).toBeGreaterThan(1000)
-    }
+    const payloads = Array.from(css.match(/base64,[^)]*\)/g) ?? [])
+    expect(payloads.length).toBeGreaterThan(0)
+    for (const p of payloads) expect(p.length).toBeGreaterThan(1000)
   })
 
   it('names Inter first in the body stack', () => {

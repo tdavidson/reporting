@@ -439,8 +439,8 @@ function NewVsFollowOnPie({
               <li key={d.name} className="flex items-center gap-2">
                 <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: d.color }} />
                 <span className="truncate flex-1">{d.name}</span>
-                <span className="font-mono text-muted-foreground shrink-0">{fmt(d.value)}</span>
-                <span className="font-mono text-muted-foreground/70 shrink-0 w-10 text-right">
+                <span className="tabular-nums text-muted-foreground shrink-0">{fmt(d.value)}</span>
+                <span className="tabular-nums text-muted-foreground/70 shrink-0 w-10 text-right">
                   {total ? `${Math.round((d.value / total) * 100)}%` : '—'}
                 </span>
               </li>
@@ -538,8 +538,8 @@ function BreakdownChart({
               <li key={gp.name} className="flex items-center gap-2">
                 <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: SLICE[i % SLICE.length] }} />
                 <span className="truncate flex-1" title={gp.name}>{gp.name}</span>
-                <span className="font-mono text-muted-foreground shrink-0">{fmt(gp.fairValue)}</span>
-                <span className="font-mono text-muted-foreground/70 shrink-0 w-10 text-right">
+                <span className="tabular-nums text-muted-foreground shrink-0">{fmt(gp.fairValue)}</span>
+                <span className="tabular-nums text-muted-foreground/70 shrink-0 w-10 text-right">
                   {total ? `${Math.round((gp.fairValue / total) * 100)}%` : '—'}
                 </span>
               </li>
@@ -672,8 +672,8 @@ function TopHoldings({
                 ))}
               </div>
             </div>
-            <div className="w-24 shrink-0 text-right font-mono" title={fmtFull(h[metric])}>{fmt(h[metric])}</div>
-            <div className="w-12 shrink-0 text-right font-mono text-muted-foreground/70">
+            <div className="w-24 shrink-0 text-right tabular-nums" title={fmtFull(h[metric])}>{fmt(h[metric])}</div>
+            <div className="w-12 shrink-0 text-right tabular-nums text-muted-foreground/70">
               {fundTotal ? `${Math.round((h[metric] / fundTotal) * 100)}%` : '—'}
             </div>
           </div>

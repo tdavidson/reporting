@@ -91,7 +91,7 @@ function PreviewDetails({ details }: { details: Record<string, unknown> }) {
           {scalars.map(([k, v]) => (
             <div key={k} className="contents">
               <dt className="text-muted-foreground">{k}</dt>
-              <dd className="font-mono">{formatVal(v)}</dd>
+              <dd className="tabular-nums">{formatVal(v)}</dd>
             </div>
           ))}
         </dl>
@@ -108,7 +108,7 @@ function PreviewDetails({ details }: { details: Record<string, unknown> }) {
             {perLp.map((r, i) => (
               <tr key={i} className="border-t">
                 <td className="py-0.5">{r.lp}</td>
-                <td className="py-0.5 text-right font-mono">{formatVal(r.amount)}</td>
+                <td className="py-0.5 text-right tabular-nums">{formatVal(r.amount)}</td>
               </tr>
             ))}
           </tbody>
