@@ -25,16 +25,36 @@ export const ACCENT_PRESETS: Array<{ key: string; label: string; hsl: string; fg
   { key: 'slate', label: 'Slate blue', hsl: '215 25% 35%', fg: '0 0% 100%' },
 ]
 
+// 'system' keeps its key for themes already stored against it, but the app-wide
+// default is now Inter (globals.css points --font-sans there), so leaving the
+// font unset and picking 'inter' land in the same place.
 export const FONT_OPTIONS: Array<{ key: string; label: string; varName: string | null }> = [
-  { key: 'system', label: 'System default', varName: null },
+  { key: 'system', label: 'Inter (default)', varName: null },
+  { key: 'inter', label: 'Inter', varName: '--font-inter' },
   { key: 'hanken', label: 'Hanken Grotesk', varName: '--font-hanken' },
   { key: 'jakarta', label: 'Plus Jakarta Sans', varName: '--font-jakarta' },
 ]
 
+// 0.25rem is the app default (matching hemrock.com); the labels describe the
+// step rather than claiming one of them is "the" default. Keys are unchanged so
+// themes already stored against 'default' keep resolving.
 export const RADIUS_OPTIONS: Array<{ key: string; label: string; rem: number }> = [
   { key: 'sharp', label: 'Sharp', rem: 0.25 },
-  { key: 'default', label: 'Default', rem: 0.5 },
+  { key: 'default', label: 'Soft', rem: 0.5 },
   { key: 'rounded', label: 'Rounded', rem: 0.875 },
+]
+
+/**
+ * The saturation/lightness curve behind the brand ramp: [stop, saturation
+ * multiplier, lightness]. Hue and base saturation come from the accent, so any
+ * accent generates a ramp with the same internal relationships as Hemrock's
+ * evergreen. Verified against WCAG at hue 164 — 700 takes white text at 7.05:1,
+ * 500 clears 5.14:1 on the dark surface (plans/plan-design-system.md §8).
+ */
+const RAMP_STOPS: Array<[number, number, number]> = [
+  [50, 0.30, 97], [100, 0.35, 93], [200, 0.40, 85], [300, 0.42, 72],
+  [400, 0.48, 56], [500, 0.55, 44], [600, 0.62, 35], [700, 0.60, 27],
+  [800, 0.55, 21], [900, 0.50, 16], [950, 0.45, 10],
 ]
 
 const HSL_RE = /^(\d{1,3}(?:\.\d+)?)\s+(\d{1,3}(?:\.\d+)?)%\s+(\d{1,3}(?:\.\d+)?)%$/
@@ -95,8 +115,26 @@ export function hslToHex(hsl: string): string | null {
 }
 
 /**
+ * Generate the eleven brand-ramp stops for an accent, as `[stop, "h s% l%"]`.
+ * Hue and base saturation come from the accent; the lightness curve is fixed.
+ *
+ * The accent's own value is NOT relocated onto a stop — a fund that picks amber
+ * should keep amber as its fill, and amber pushed to stop 700 is brown. The
+ * ramp supplies the *missing* tones (tints, borders, hovers) around whatever
+ * fill the fund chose.
+ *
+ * Returns null for a syntactically invalid triple.
+ */
+export function rampFor(hsl: string): Array<[number, string]> | null {
+  const m = hsl.match(HSL_RE)
+  if (!m) return null
+  const h = +m[1], s = +m[2]
+  return RAMP_STOPS.map(([stop, sMul, l]) => [stop, `${h} ${+(s * sMul).toFixed(1)}% ${l}%`])
+}
+
+/**
  * Build the `:root` CSS-variable overrides for a fund theme. Returns '' when
- * nothing is set, so the default neutral theme is left fully intact.
+ * nothing is set, so the default Hemrock theme is left fully intact.
  */
 export function themeCssVars(theme: FundTheme | null | undefined): string {
   if (!theme) return ''
@@ -113,13 +151,20 @@ export function themeCssVars(theme: FundTheme | null | undefined): string {
       `--brand:${theme.accent}`,
       `--brand-foreground:${fg}`,
     )
+    // Regenerate the ramp off the fund's hue so tinted surfaces, hairlines and
+    // hovers stay in the fund's colour instead of falling back to evergreen.
+    for (const [stop, value] of rampFor(theme.accent) ?? []) {
+      out.push(`--brand-${stop}:${value}`)
+    }
   }
   if (theme.font) {
     const f = FONT_OPTIONS.find(o => o.key === theme.font)
     if (f?.varName) out.push(`--font-sans:var(${f.varName})`)
   }
   if (typeof theme.radius === 'number' && theme.radius >= 0) {
-    out.push(`--radius:${theme.radius}rem`)
+    // Cards sit one step softer than controls, the same relationship the
+    // defaults carry (0.25rem controls / 0.5rem cards).
+    out.push(`--radius:${theme.radius}rem`, `--radius-card:${theme.radius + 0.25}rem`)
   }
   return out.join(';')
 }

@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import Script from 'next/script'
-import { Hanken_Grotesk, Plus_Jakarta_Sans } from 'next/font/google'
+import { Hanken_Grotesk, Plus_Jakarta_Sans, Inter, Newsreader } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import { SpeedInsights } from '@vercel/speed-insights/next'
 import { ThemeProvider } from '@/components/theme-provider'
@@ -8,9 +8,18 @@ import { Toaster } from '@/components/toaster'
 import { ConfirmProvider } from '@/components/confirm-dialog'
 import './globals.css'
 
-// Curated UI font options. Loaded as CSS variables so the per-fund theme can
-// opt in via --font-sans; the default (--font-sans unset) falls back to the
-// system stack, so the app looks unchanged out of the box.
+// Inter is the default UI face — the Hemrock brand guide's typeface, and what
+// hemrock.com ships. globals.css points --font-sans at it.
+const inter = Inter({ subsets: ['latin'], variable: '--font-inter', display: 'swap' })
+
+// Newsreader is the display face, behind --font-display. Variable weight plus an
+// optical-size axis, so one face covers a 68px marketing hero and a 20px report
+// cover. Deliberately absent from FONT_OPTIONS: this is Hemrock's voice, not a
+// per-fund choice, so a fund theme cannot override it.
+const newsreader = Newsreader({ subsets: ['latin'], variable: '--font-newsreader', display: 'swap' })
+
+// Curated per-fund UI font options. Loaded as CSS variables so the per-fund theme
+// can opt in via --font-sans; unset, --font-sans stays on Inter.
 const hankenGrotesk = Hanken_Grotesk({ subsets: ['latin'], variable: '--font-hanken', display: 'swap' })
 const plusJakarta = Plus_Jakarta_Sans({ subsets: ['latin'], variable: '--font-jakarta', display: 'swap' })
 
@@ -43,7 +52,7 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en" suppressHydrationWarning className={`${hankenGrotesk.variable} ${plusJakarta.variable}`}>
+    <html lang="en" suppressHydrationWarning className={`${inter.variable} ${newsreader.variable} ${hankenGrotesk.variable} ${plusJakarta.variable}`}>
       <body className="font-sans">
         <ThemeProvider
           attribute="class"

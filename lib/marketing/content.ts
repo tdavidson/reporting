@@ -7,9 +7,13 @@ export interface SiteProductGroup {
   key?: ProductKey
   label: string
   description: string
+  /** Small uppercase label above the section heading. Omitted = no eyebrow. */
+  eyebrow?: string
   heroScreenshot?: string
   features: SiteFeature[]
 }
+/** A single figure in the stat strip — `value` is the big number, `label` the caption. */
+export interface SiteStat { value: string; label: string }
 export interface SiteWhy { icon?: string; title: string; text: string }
 export interface SiteTierCta { kind: 'link' | 'calendly' | 'subscription'; label: string; href?: string }
 export interface SiteTier { badge?: string; name: string; price: string; subtitle?: string; bullets: string[]; cta: SiteTierCta }
@@ -18,7 +22,11 @@ export interface SiteAbout { name: string; photo?: string; bio: string; links: A
 export interface SiteLinks { github?: string; x?: string; demo?: string }
 
 export interface SiteContent {
-  hero: { title: string; subtitle: string }
+  /** `emphasis` renders after the title in the display italic, in the brand accent
+   *  — the one deliberate flourish in the hero. Omitted = plain headline. */
+  hero: { title: string; subtitle: string; emphasis?: string }
+  /** Proof figures under the hero. Empty = the strip isn't rendered. */
+  stats: SiteStat[]
   productGroups: SiteProductGroup[]
   why: SiteWhy[]
   pricing: { note?: string; tiers: SiteTier[] }
@@ -63,8 +71,14 @@ function group(v: unknown): SiteProductGroup | null {
   return {
     label: v.label, description: v.description, features,
     ...(isStr(v.key) && (orderedProducts() as string[]).includes(v.key) ? { key: v.key as ProductKey } : {}),
+    ...(nonEmpty(v.eyebrow) ? { eyebrow: v.eyebrow } : {}),
     ...(isStr(v.heroScreenshot) ? { heroScreenshot: v.heroScreenshot } : {}),
   }
+}
+
+function stat(v: unknown): SiteStat | null {
+  if (!isObj(v) || !nonEmpty(v.value) || !nonEmpty(v.label)) return null
+  return { value: v.value, label: v.label }
 }
 
 function why(v: unknown): SiteWhy | null {
@@ -125,7 +139,12 @@ export function parseSiteContent(raw: unknown): SiteContent | null {
 
   const pricingRaw = isObj(raw.pricing) ? raw.pricing : {}
   return {
-    hero: { title: hero.title, subtitle: hero.subtitle },
+    hero: {
+      title: hero.title,
+      subtitle: hero.subtitle,
+      ...(nonEmpty(hero.emphasis) ? { emphasis: hero.emphasis } : {}),
+    },
+    stats: arr(raw.stats).map(stat).filter((s): s is SiteStat => s !== null),
     productGroups,
     why: arr(raw.why).map(why).filter((w): w is SiteWhy => w !== null),
     pricing: {

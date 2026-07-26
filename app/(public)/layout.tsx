@@ -29,7 +29,7 @@ function PublicShell({ children }: { children: React.ReactNode }) {
 
   return (
     <>
-      <header className="relative flex items-center justify-between px-4 md:px-8 py-3 shrink-0">
+      <header className="relative flex items-center justify-between px-6 md:px-8 py-4 shrink-0">
         <div className="flex items-center gap-3">
           <a href="https://www.hemrock.com" target="_blank" rel="noopener noreferrer" aria-label="Hemrock">
             <HemrockIcon className="h-7 w-7 text-foreground" />
@@ -37,33 +37,35 @@ function PublicShell({ children }: { children: React.ReactNode }) {
           <a href="https://www.hemrock.com" target="_blank" rel="noopener noreferrer" className="font-medium text-sm text-muted-foreground tracking-tight truncate hover:text-foreground transition-colors">
             Hemrock
           </a>
-          <span className="hidden md:inline-block text-[10px] font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400 px-1.5 py-0.5 rounded">v{APP_VERSION}</span>
+          <span className="hidden md:inline-block text-caption text-muted-foreground border rounded px-1.5 py-0.5">v{APP_VERSION}</span>
         </div>
 
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" asChild className="text-muted-foreground gap-2 hidden sm:inline-flex">
-            <a href="https://portfolio.hemrock.com/demo" target="_blank" rel="noopener noreferrer">
-              <Play className="h-4 w-4" />
-              Try the Demo
-            </a>
-          </Button>
-          <Button variant="outline" size="sm" asChild className="text-muted-foreground gap-2">
+        {/* One primary action. The demo is the thing a first-time visitor should
+            do; GitHub and sign-in are secondary and read as such. */}
+        <div className="flex items-center gap-1.5">
+          <Button variant="ghost" size="sm" asChild className="text-muted-foreground gap-2">
             <a href="https://github.com/tdavidson/reporting" target="_blank" rel="noopener noreferrer">
               <Github className="h-4 w-4" />
               {starCount != null && starCount >= 10 && (
                 <span className="inline-flex items-center gap-0.5 text-xs">
-                  <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+                  <Star className="h-3 w-3 fill-current" />
                   {starCount}
                 </span>
               )}
               <span className="hidden sm:inline">GitHub</span>
             </a>
           </Button>
-          <Button variant="outline" size="sm" asChild className="text-muted-foreground gap-2">
+          <Button variant="ghost" size="sm" asChild className="text-muted-foreground gap-2">
             <Link href="/auth">
               <LogIn className="h-4 w-4" />
               <span className="hidden sm:inline">Sign in</span>
             </Link>
+          </Button>
+          <Button size="sm" asChild className="gap-2 bg-brand text-brand-foreground hover:bg-brand-800 ml-1">
+            <a href="https://portfolio.hemrock.com/demo" target="_blank" rel="noopener noreferrer">
+              <Play className="h-4 w-4" />
+              Try the Demo
+            </a>
           </Button>
         </div>
       </header>
@@ -102,7 +104,7 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
-      <div className="w-full max-w-5xl mx-auto flex flex-col flex-1">
+      <div className="w-full max-w-[1100px] mx-auto flex flex-col flex-1">
         <PublicShell>{children}</PublicShell>
       </div>
       {fathomSiteId && (

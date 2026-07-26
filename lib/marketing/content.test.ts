@@ -3,12 +3,14 @@ import { parseSiteContent, resolveIcon, type SiteContent } from './content'
 import { Circle, Mail } from 'lucide-react'
 
 const valid: SiteContent = {
-  hero: { title: 'Run your fund', subtitle: 'Open source portfolio reporting.' },
+  hero: { title: 'Run your fund', subtitle: 'Open source portfolio reporting.', emphasis: 'without the spreadsheets.' },
+  stats: [{ value: '$20B', label: 'Assets under administration' }],
   productGroups: [
     {
       key: 'portfolio_reporting',
       label: 'Portfolio Reporting',
       description: 'Inbound updates, metrics, dashboards.',
+      eyebrow: 'The platform',
       heroScreenshot: '/screenshots/dashboard-cropped.png',
       features: [
         { title: 'Forward updates', text: 'Send investor updates.', icon: 'Mail', screenshot: '/screenshots/inbound-cropped.png' },
@@ -56,6 +58,27 @@ describe('parseSiteContent', () => {
     expect(out?.faqs).toEqual([])
     expect(out?.pricing.tiers).toEqual([])
     expect(out?.links).toEqual({})
+    expect(out?.stats).toEqual([])
+  })
+
+  it('drops the hero emphasis when it is blank, keeping the headline', () => {
+    const out = parseSiteContent({ ...valid, hero: { title: 'A', subtitle: 'B', emphasis: '   ' } })
+    expect(out?.hero.title).toBe('A')
+    expect(out?.hero.emphasis).toBeUndefined()
+  })
+
+  it('drops the section eyebrow when blank but keeps the group', () => {
+    const out = parseSiteContent({ ...valid, productGroups: [{ ...valid.productGroups[0], eyebrow: '' }] })
+    expect(out?.productGroups).toHaveLength(1)
+    expect(out?.productGroups[0].eyebrow).toBeUndefined()
+  })
+
+  it('drops stats missing a value or label', () => {
+    const out = parseSiteContent({
+      ...valid,
+      stats: [{ value: '90%', label: 'Auto-categorised' }, { value: '', label: 'x' }, { value: 'y' }, 'nope'],
+    })
+    expect(out?.stats).toEqual([{ value: '90%', label: 'Auto-categorised' }])
   })
 
   it('drops an invalid product-group key but keeps the group', () => {

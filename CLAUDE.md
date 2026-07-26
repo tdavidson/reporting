@@ -2,6 +2,18 @@
 
 Conventions baked in to keep automated edits safe across this repo. Read before generating migrations or refactoring data-access code.
 
+## Styling
+
+`DESIGN.md` is the design system; `app/globals.css` holds the tokens. Read it before writing UI.
+
+The short version, because these are the mistakes that actually get made:
+
+- **Never use raw Tailwind palette classes** — `bg-amber-100`, `text-green-600`, `border-blue-500`. They break per-fund white-labelling, because `themeCssVars()` can't repoint them. Use the tokens: `bg-warning-subtle`, `text-success`, `border-brand-200`. (~996 pre-existing usages are being migrated; don't add more.)
+- **Numbers use `tabular-nums`, not `font-mono`.** Mono is for content a machine reads literally — code, IDs, OTP inputs. Financial figures are not code.
+- **`--primary` is the deployment's action colour** (fund-themeable). **`--brand` is Hemrock's** (evergreen, marketing). They are not interchangeable.
+- **Accent text needs a dark-mode pair**: `text-brand-700 dark:text-brand-400`. The 700 stop fails contrast on the dark surface.
+- **Display headings are weight 400**, not semibold. `font-display text-display font-normal`.
+
 ## Migration conventions
 
 ### Every new `create table` migration requires explicit Data API grants
