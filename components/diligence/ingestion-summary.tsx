@@ -230,7 +230,7 @@ export function InconsistenciesList({ contradictions, crossDocFlags, fileNamesBy
   ].sort((a, b) => (SEV_RANK[a.sev] ?? 1) - (SEV_RANK[b.sev] ?? 1))
 
   if (rows.length === 0) {
-    return <p className="text-xs text-muted-foreground italic">No contradictions or cross-document inconsistencies found.</p>
+    return <p className="text-sm text-muted-foreground">No contradictions or cross-document inconsistencies found.</p>
   }
 
   return (

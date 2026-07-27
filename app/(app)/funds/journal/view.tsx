@@ -10,6 +10,7 @@ import type { Account, AccountType } from '@/lib/accounting/types'
 import { PeriodPicker } from '@/components/accounting/period-picker'
 import type { PeriodPreset } from '@/lib/accounting/statement-period'
 import { EntryModal } from '../entry-modal'
+import { EmptyState } from '@/components/ui/empty-state'
 
 interface Posting { id: string; account_id: string; account_code: string | null; account_name: string | null; account_type: string | null; amount: number; currency: string | null; lp_entity_id: string | null }
 interface Entry {
@@ -140,9 +141,9 @@ export function JournalView() {
       {loading ? (
         <div className="flex items-center gap-2 text-muted-foreground text-sm"><Loader2 className="h-4 w-4 animate-spin" />Loading…</div>
       ) : entries.length === 0 ? (
-        <div className="border border-dashed rounded-card p-8 text-center text-sm text-muted-foreground">
+        <EmptyState>
           {debounced ? 'No entries match your search in this period.' : 'No journal entries in this period. Widen the range, create one above, or import bank transactions.'}
-        </div>
+        </EmptyState>
       ) : (
         <div className="border rounded-lg divide-y font-mono text-xs">
           {entries.map(e => {

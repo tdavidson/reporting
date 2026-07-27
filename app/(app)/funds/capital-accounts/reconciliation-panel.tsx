@@ -5,6 +5,7 @@ import { Loader2, Check, AlertTriangle } from 'lucide-react'
 import { useCurrency, formatCurrencyPrice } from '@/components/currency-context'
 import { useLedgerFetch } from '@/components/accounting-vehicle'
 import { Button } from '@/components/ui/button'
+import { EmptyState } from '@/components/ui/empty-state'
 
 interface LedgerRow { lpEntityId: string; name: string; ending: number }
 interface ReconLine { lpEntityId: string; line: string; ledger: number; admin: number; delta: number; tiesOut: boolean }
@@ -72,9 +73,9 @@ export function ReconciliationPanel() {
 
   if (rows.length === 0) {
     return (
-      <div className="border border-dashed rounded-card p-8 text-center text-sm text-muted-foreground">
+      <EmptyState>
         No ledger capital accounts to reconcile yet. Import opening balances and post a period first.
-      </div>
+      </EmptyState>
     )
   }
 

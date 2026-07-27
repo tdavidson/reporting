@@ -1920,7 +1920,7 @@ function DriveImportDialog({ open, onOpenChange, dealId, initialFolderUrl, onImp
         {(importing || logLines.length > 0) && (
           <div className="mt-3 rounded-md border bg-muted/30 p-2 max-h-40 overflow-y-auto text-[11px] font-mono space-y-0.5">
             {logLines.length === 0 ? (
-              <p className="text-muted-foreground italic">Connecting…</p>
+              <p className="text-sm text-muted-foreground">Connecting…</p>
             ) : (
               logLines.map((l, i) => <div key={i} className="truncate">{l}</div>)
             )}
@@ -2462,7 +2462,7 @@ function InternalDiligenceView({ research, crossDocFlags, fileNamesById, editabl
       <section>
         <h4 className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-2">Inconsistencies &amp; contradictions</h4>
         {noInconsistencies ? (
-          <p className="text-xs text-muted-foreground italic">No contradictions or cross-document inconsistencies found.</p>
+          <p className="text-sm text-muted-foreground">No contradictions or cross-document inconsistencies found.</p>
         ) : (
           <div className="divide-y">
             {activeContradictions.map(({ c, i }) => (
@@ -2478,7 +2478,7 @@ function InternalDiligenceView({ research, crossDocFlags, fileNamesById, editabl
       <section>
         <h4 className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-2">Research gaps &amp; open questions</h4>
         {internalGaps.length === 0 ? (
-          <p className="text-xs text-muted-foreground italic">No material gaps. Nice-to-have follow-ups, if any, are under External research.</p>
+          <p className="text-sm text-muted-foreground">No material gaps. Nice-to-have follow-ups, if any, are under External research.</p>
         ) : (
           <div className="divide-y">
             {internalGaps.map(({ g, i }) => (
@@ -2587,7 +2587,7 @@ function CompetitiveLandscape({ competitiveMap, editable, onToggle }: {
   const byCompany = competitiveMap.named_by_company.map((c, i) => ({ c, i })).filter(x => !x.c.dismissed)
   const byResearch = competitiveMap.named_by_research.map((c, i) => ({ c, i })).filter(x => !x.c.dismissed)
   if (byCompany.length === 0 && byResearch.length === 0) {
-    return <p className="text-xs text-muted-foreground italic py-2">No competitors mapped yet. Run external research to populate.</p>
+    return <p className="text-sm text-muted-foreground py-2">No competitors mapped yet. Run external research to populate.</p>
   }
   return (
     <div className="divide-y [&>*:first-child]:pt-0 [&>*:last-child]:pb-0">
@@ -2718,7 +2718,7 @@ function QALibraryPanel({ dealId, qaAnswers, onAdded }: { dealId: string; qaAnsw
       </div>
 
       {localAnswers.length === 0 ? (
-        <p className="text-xs text-muted-foreground italic">No Q&amp;A entries yet. Add one above, or run the agent Q&amp;A flow once the structured library is back in place.</p>
+        <p className="text-sm text-muted-foreground">No Q&amp;A entries yet. Add one above, or run the agent Q&amp;A flow once the structured library is back in place.</p>
       ) : (
         <div className="rounded-md border divide-y">
           {localAnswers.map((entry, i) => (

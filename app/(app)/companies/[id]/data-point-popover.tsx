@@ -206,7 +206,7 @@ export function DataPointPopover({
         )}
 
         {dataPoint.notes && (
-          <p className="text-xs text-muted-foreground italic">{dataPoint.notes}</p>
+          <p className="text-sm text-muted-foreground">{dataPoint.notes}</p>
         )}
 
         <div className="flex items-center gap-3 pt-1 border-t">

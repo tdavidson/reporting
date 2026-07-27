@@ -111,7 +111,7 @@ export function ResearchSummary({ output }: { output: ResearchOutput }) {
             <div className="rounded-card border bg-card p-3">
               <div className="text-xs font-medium text-muted-foreground mb-2">Named by company</div>
               {output.competitive_map.named_by_company.length === 0 ? (
-                <p className="text-xs text-muted-foreground italic">None.</p>
+                <p className="text-sm text-muted-foreground">None.</p>
               ) : (
                 <ul className="space-y-1.5 text-sm">
                   {output.competitive_map.named_by_company.map((c, i) => (
@@ -126,7 +126,7 @@ export function ResearchSummary({ output }: { output: ResearchOutput }) {
             <div className="rounded-card border bg-card p-3">
               <div className="text-xs font-medium text-muted-foreground mb-2">Identified by research</div>
               {output.competitive_map.named_by_research.length === 0 ? (
-                <p className="text-xs text-muted-foreground italic">None.</p>
+                <p className="text-sm text-muted-foreground">None.</p>
               ) : (
                 <ul className="space-y-2 text-sm">
                   {output.competitive_map.named_by_research.map((c, i) => (

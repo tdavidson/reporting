@@ -9,6 +9,7 @@ import { Check, X, Pencil, Loader2, Mail } from 'lucide-react'
 import { EmailReviewModal } from '@/components/email-review-modal'
 import { AnalystToggleButton } from '@/components/analyst-button'
 import { AnalystPanel } from '@/components/analyst-panel'
+import { EmptyState } from '@/components/ui/empty-state'
 
 interface ReviewItem {
   id: string
@@ -134,9 +135,7 @@ export default function ReviewPage() {
       )}
 
       {!loading && items.length === 0 && (data?.needsReviewEmails ?? []).length === 0 && (
-        <div className="rounded-card border border-dashed p-12 text-center">
-          <p className="text-muted-foreground">All clear, nothing to review.</p>
-        </div>
+        <EmptyState>All clear, nothing to review.</EmptyState>
       )}
 
       {!loading && items.length > 0 && (

@@ -310,7 +310,6 @@ export const ROUTE_DOMAINS: Record<string, RouteAccess> = {
   'api/settings/theme': { domain: 'portfolio', level: 'any' },
   'api/settings/notifications': { domain: 'portfolio', level: 'any' },
   'api/auth/activity': { domain: 'portfolio', level: 'any' },
-  'api/contact': { domain: 'portfolio', level: 'any' },
   // Affinity issues ONE KEY PER USER, scoped to that user's own permissions, so each member
   // connects their own. It lives under /settings but it is not administration.
   'api/settings/affinity': { domain: 'portfolio', level: 'any' },

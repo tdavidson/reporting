@@ -7,6 +7,7 @@ import { useCurrency, formatCurrencyPrice } from '@/components/currency-context'
 import { useLedgerFetch, useVehicle, useFundSeg } from '@/components/accounting-vehicle'
 import { type PeriodPreset } from '@/lib/accounting/statement-period'
 import { PeriodPicker } from '@/components/accounting/period-picker'
+import { EmptyState } from '@/components/ui/empty-state'
 
 interface Section { label: string; rows: { code: string; name: string; amount: number }[]; total: number }
 interface PartnerRow {
@@ -235,7 +236,7 @@ export function StatementsView() {
       {loading ? (
         <div className="flex items-center gap-2 text-muted-foreground text-sm"><Loader2 className="h-4 w-4 animate-spin" />Loading…</div>
       ) : !data || data.trialBalance.rows.length === 0 ? (
-        <div className="border border-dashed rounded-card p-8 text-center text-sm text-muted-foreground">No statements yet — the ledger has no posted entries{period?.end ? ` as of ${period.end}` : ''}.</div>
+        <EmptyState>No statements yet — the ledger has no posted entries{period?.end ? ` as of ${period.end}` : ''}.</EmptyState>
       ) : (
     // ASC 946 order: assets & liabilities, then operations, then cash flows, then
     // changes in partners' capital last — the per-partner detail behind the single

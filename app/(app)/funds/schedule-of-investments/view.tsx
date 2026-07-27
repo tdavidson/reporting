@@ -8,6 +8,7 @@ import { useCurrency, formatCurrencyPrice, formatSharePrice } from '@/components
 import { useLedgerFetch } from '@/components/accounting-vehicle'
 import { PeriodPicker } from '@/components/accounting/period-picker'
 import type { PeriodPreset } from '@/lib/accounting/statement-period'
+import { EmptyState } from '@/components/ui/empty-state'
 
 interface SoiRow {
   name: string
@@ -401,7 +402,7 @@ export function ScheduleOfInvestmentsView() {
       {loading ? (
         <div className="flex items-center gap-2 text-muted-foreground text-sm"><Loader2 className="h-4 w-4 animate-spin" />Loading…</div>
       ) : !soi || soi.rows.length === 0 ? (
-        <div className="border border-dashed rounded-card p-8 text-center text-sm text-muted-foreground">No investments booked as of {asOf || 'today'}.</div>
+        <EmptyState>No investments booked as of {asOf || 'today'}.</EmptyState>
       ) : (
         content
       )}

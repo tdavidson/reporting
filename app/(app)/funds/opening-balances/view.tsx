@@ -6,6 +6,7 @@ import { Loader2, Check, AlertTriangle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useCurrency, formatCurrencyPrice } from '@/components/currency-context'
 import { useLedgerFetch, useFundSeg } from '@/components/accounting-vehicle'
+import { EmptyState } from '@/components/ui/empty-state'
 
 interface Entity { lpEntityId: string; name: string; commitment: number }
 
@@ -71,9 +72,9 @@ export function OpeningBalancesView() {
 
   if (entities.length === 0) {
     return (
-      <div className="border border-dashed rounded-card p-8 text-center text-sm text-muted-foreground">
+      <EmptyState>
         No LP entities found. Add investors and entities first (LPs section).
-      </div>
+      </EmptyState>
     )
   }
 

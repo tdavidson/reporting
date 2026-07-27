@@ -13,6 +13,7 @@ import { useCanRead } from '@/components/access-context'
 import { AllocationTermsView } from '../allocation-terms/view'
 import { CollapsibleSection } from '@/components/collapsible-section'
 import { Button } from '@/components/ui/button'
+import { EmptyState } from '@/components/ui/empty-state'
 
 interface Issue { level: 'blocker' | 'warning' | 'info'; title: string; detail: string; href?: string; action?: string }
 interface Status {
@@ -64,7 +65,7 @@ export function StatusView() {
   }, [lf])
 
   if (loading) return <div className="flex items-center gap-2 text-muted-foreground text-sm"><Loader2 className="h-4 w-4 animate-spin" />Loading…</div>
-  if (!s) return <div className="border border-dashed rounded-card p-8 text-center text-sm text-muted-foreground">Could not load status for this vehicle.</div>
+  if (!s) return <EmptyState>Could not load status for this vehicle.</EmptyState>
 
   // Vehicle identity — name, type, vintage, aliases — sits above the accounting state on both
   // branches below. It used to be editable only from the group table on /investments, which meant

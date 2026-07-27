@@ -15,6 +15,7 @@ import { type CapitalSource } from '@/lib/accounting/capital-source'
 import { GpPanel } from './gp-panel'
 import { useCanRead } from '@/components/access-context'
 import { CapitalRollforwardTable, type Row } from '@/components/accounting/capital-rollforward-table'
+import { EmptyState } from '@/components/ui/empty-state'
 
 interface CallLine { lpEntityId: string; name: string; amount: number }
 interface CallRow { id: string; callDate: string; description: string | null; scope: string; total: number; lines: CallLine[] }
@@ -338,9 +339,9 @@ export function CapitalAccountsView() {
       {loading && rows.length === 0 ? (
         <div className="flex items-center gap-2 text-muted-foreground text-sm"><Loader2 className="h-4 w-4 animate-spin" />Loading…</div>
       ) : rows.length === 0 ? (
-        <div className="border border-dashed rounded-card p-8 text-center text-sm text-muted-foreground">
+        <EmptyState>
           No capital accounts yet. Add a partner above, or import opening balances from the Accounting home page.
-        </div>
+        </EmptyState>
       ) : (
         <CapitalRollforwardTable
           rows={rows}

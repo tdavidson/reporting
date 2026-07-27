@@ -277,7 +277,7 @@ export function DealDetail({ deal: initial, email, priorDeal }: { deal: Deal; em
             <CardTitle className="text-base">Summary</CardTitle>
           </CardHeader>
           <CardContent className="text-sm whitespace-pre-wrap">
-            {deal.company_summary || <span className="text-muted-foreground italic">No summary generated.</span>}
+            {deal.company_summary || <span className="text-sm text-muted-foreground">No summary generated.</span>}
           </CardContent>
         </Card>
       </div>
@@ -291,7 +291,7 @@ export function DealDetail({ deal: initial, email, priorDeal }: { deal: Deal; em
           </Button>
         </CardHeader>
         <CardContent className="text-sm whitespace-pre-wrap">
-          {deal.thesis_fit_analysis || <span className="text-muted-foreground italic">No analysis yet.</span>}
+          {deal.thesis_fit_analysis || <span className="text-sm text-muted-foreground">No analysis yet.</span>}
         </CardContent>
       </Card>
 

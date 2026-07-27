@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input'
 import { useCurrency, formatCurrencyPrice } from '@/components/currency-context'
 import { useLedgerFetch } from '@/components/accounting-vehicle'
 import { EntryModal } from '../entry-modal'
+import { EmptyState } from '@/components/ui/empty-state'
 
 interface Txn { id: string; txn_date: string; amount: number; description: string; counterparty: string | null; status: string; suggested_account_code: string | null; journal_entry_id: string | null }
 interface Rec { bankEndingBalance: number; ledgerCashBalance: number; difference: number; matchedCount: number; unmatchedCount: number; unmatchedTotal: number; tiesOut: boolean }
@@ -207,7 +208,7 @@ export function BankView() {
       {loading && txns.length === 0 ? (
         <div className="flex items-center gap-2 text-muted-foreground text-sm"><Loader2 className="h-4 w-4 animate-spin" />Loading…</div>
       ) : txns.length === 0 ? (
-        <div className="border border-dashed rounded-card p-8 text-center text-sm text-muted-foreground">No transactions yet. Import a feed above.</div>
+        <EmptyState>No transactions yet. Import a feed above.</EmptyState>
       ) : (
         <>
           <div className="flex flex-wrap items-center gap-2">
@@ -230,7 +231,7 @@ export function BankView() {
             <span className="text-xs text-muted-foreground">{visibleTxns.length} of {txns.length}</span>
           </div>
           {visibleTxns.length === 0 ? (
-            <div className="border border-dashed rounded-card p-8 text-center text-sm text-muted-foreground">No transactions match your filters.</div>
+            <EmptyState>No transactions match your filters.</EmptyState>
           ) : (
           <div className="border rounded-lg overflow-x-auto">
           <table className="w-full text-sm whitespace-nowrap">
@@ -315,7 +316,7 @@ export function BankView() {
                     )}
                     {t.status === 'ignored' && (
                       <span className="flex items-center gap-1.5 justify-end">
-                        <span className="text-xs text-muted-foreground italic">Ignored</span>
+                        <span className="text-sm text-muted-foreground">Ignored</span>
                         <button onClick={() => act(t.id, 'restore')} title="Restore to draft so you can edit it" className={actionBtn}>Restore</button>
                       </span>
                     )}

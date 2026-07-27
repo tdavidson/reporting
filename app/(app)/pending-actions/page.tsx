@@ -5,6 +5,7 @@ import { Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { AnalystToggleButton } from '@/components/analyst-button'
 import { AnalystPanel } from '@/components/analyst-panel'
+import { EmptyState } from '@/components/ui/empty-state'
 
 interface PreviewResult {
   summary: string
@@ -96,9 +97,7 @@ export default function PendingActionsPage() {
           )}
 
           {!loading && rows.length === 0 && (
-            <div className="rounded-card border border-dashed p-12 text-center">
-              <p className="text-muted-foreground">Nothing pending. Drafts you stage in the Analyst show up here.</p>
-            </div>
+            <EmptyState>Nothing pending. Drafts you stage in the Analyst show up here.</EmptyState>
           )}
 
           {error && <p className="mb-3 text-sm text-destructive">{error}</p>}

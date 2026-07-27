@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input'
 import { useCurrency, formatCurrencyPrice } from '@/components/currency-context'
 import { useLedgerFetch, useVehicle } from '@/components/accounting-vehicle'
 import { PERIOD_PRESETS, type PeriodPreset } from '@/lib/accounting/statement-period'
+import { EmptyState } from '@/components/ui/empty-state'
 
 interface Row { lpEntityId: string; name: string; partnerClass: string; commitment: number; called: number; funded: number; outstanding: number; receivable: number; ending: number }
 interface RollForward {
@@ -66,7 +67,7 @@ export function LpStatementView({ lpEntityId }: { lpEntityId: string }) {
   }, [lf, lpEntityId, preset, start, end])
 
   if (loading) return <div className="flex items-center gap-2 text-muted-foreground text-sm"><Loader2 className="h-4 w-4 animate-spin" />Loading…</div>
-  if (!data) return <div className="border border-dashed rounded-card p-8 text-center text-sm text-muted-foreground">No statement for this LP in the selected vehicle.</div>
+  if (!data) return <EmptyState>No statement for this LP in the selected vehicle.</EmptyState>
 
   const { row, rollForward, periodRollForward, transactions, period } = data
   const pdfQs = new URLSearchParams({ lp: lpEntityId })
@@ -162,7 +163,7 @@ export function LpStatementView({ lpEntityId }: { lpEntityId: string }) {
       <div>
         <p className="text-sm font-medium mb-2">Transactions</p>
         {transactions.length === 0 ? (
-          <div className="border border-dashed rounded-card p-6 text-center text-sm text-muted-foreground">No capital movements yet.</div>
+          <EmptyState>No capital movements yet.</EmptyState>
         ) : (
           <div className="border rounded-lg overflow-x-auto">
             <table className="w-full text-sm whitespace-nowrap">
