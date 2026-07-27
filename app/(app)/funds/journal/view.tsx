@@ -1,10 +1,11 @@
 'use client'
 
+import Link from 'next/link'
 import { useCallback, useEffect, useState } from 'react'
 import { Loader2, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { useLedgerFetch } from '@/components/accounting-vehicle'
+import { useLedgerFetch, useFundSeg } from '@/components/accounting-vehicle'
 import { textAccountName } from '@/lib/accounting/text-ledger'
 import type { Account, AccountType } from '@/lib/accounting/types'
 import { PeriodPicker } from '@/components/accounting/period-picker'
@@ -29,6 +30,7 @@ const PAGE = 50
 
 export function JournalView() {
   const lf = useLedgerFetch()
+  const fundSeg = useFundSeg()
 
   const [entries, setEntries] = useState<Entry[]>([])
   const [total, setTotal] = useState(0)
@@ -141,8 +143,16 @@ export function JournalView() {
       {loading ? (
         <div className="flex items-center gap-2 text-muted-foreground text-sm"><Loader2 className="h-4 w-4 animate-spin" />Loading…</div>
       ) : entries.length === 0 ? (
-        <EmptyState>
-          {debounced ? 'No entries match your search in this period.' : 'No journal entries in this period. Widen the range, create one above, or import bank transactions.'}
+        <EmptyState
+          // No action on the search-miss variant: the search box is right there,
+          // and offering an import would answer a question nobody asked.
+          action={!debounced && fundSeg && (
+            <Button size="sm" variant="outline" asChild>
+              <Link href={`/funds/${fundSeg}/bank`}>Import bank transactions</Link>
+            </Button>
+          )}
+        >
+          {debounced ? 'No entries match your search in this period.' : 'No journal entries in this period. Widen the range, or create one above.'}
         </EmptyState>
       ) : (
         <div className="border rounded-lg divide-y font-mono text-xs">

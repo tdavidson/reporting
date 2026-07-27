@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Loader2, Download } from 'lucide-react'
 import { useCurrency, formatCurrencyPrice } from '@/components/currency-context'
+import { Button } from '@/components/ui/button'
 import { useLedgerFetch, useVehicle, useFundSeg } from '@/components/accounting-vehicle'
 import { type PeriodPreset } from '@/lib/accounting/statement-period'
 import { PeriodPicker } from '@/components/accounting/period-picker'
@@ -236,7 +237,15 @@ export function StatementsView() {
       {loading ? (
         <div className="flex items-center gap-2 text-muted-foreground text-sm"><Loader2 className="h-4 w-4 animate-spin" />Loading…</div>
       ) : !data || data.trialBalance.rows.length === 0 ? (
-        <EmptyState>No statements yet — the ledger has no posted entries{period?.end ? ` as of ${period.end}` : ''}.</EmptyState>
+        <EmptyState
+          action={fundSeg && (
+            <Button size="sm" variant="outline" asChild>
+              <Link href={`/funds/${fundSeg}/journal`}>Open journal</Link>
+            </Button>
+          )}
+        >
+          No statements yet — the ledger has no posted entries{period?.end ? ` as of ${period.end}` : ''}.
+        </EmptyState>
       ) : (
     // ASC 946 order: assets & liabilities, then operations, then cash flows, then
     // changes in partners' capital last — the per-partner detail behind the single

@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useCallback, useEffect, useState } from 'react'
 import { Loader2, AlertTriangle, Check, Download, History } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -402,7 +403,17 @@ export function ScheduleOfInvestmentsView() {
       {loading ? (
         <div className="flex items-center gap-2 text-muted-foreground text-sm"><Loader2 className="h-4 w-4 animate-spin" />Loading…</div>
       ) : !soi || soi.rows.length === 0 ? (
-        <EmptyState>No investments booked as of {asOf || 'today'}.</EmptyState>
+        <EmptyState
+          // Investments are recorded on a company page, and every company is
+          // reachable from Portfolio — so that is the way in from here.
+          action={
+            <Button size="sm" variant="outline" asChild>
+              <Link href="/dashboard">Open Portfolio</Link>
+            </Button>
+          }
+        >
+          No investments booked as of {asOf || 'today'}. Investments are recorded on a company.
+        </EmptyState>
       ) : (
         content
       )}

@@ -72,8 +72,14 @@ export function OpeningBalancesView() {
 
   if (entities.length === 0) {
     return (
-      <EmptyState>
-        No LP entities found. Add investors and entities first (LPs section).
+      <EmptyState
+        action={
+          <Button size="sm" variant="outline" asChild>
+            <Link href="/lps">Go to LPs</Link>
+          </Button>
+        }
+      >
+        No LP entities found. Add investors and entities first.
       </EmptyState>
     )
   }
