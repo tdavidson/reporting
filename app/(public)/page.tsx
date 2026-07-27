@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { CalendlyButton } from '@/components/calendly-button'
 import { SubscriptionInquiryButton } from '@/components/subscription-inquiry-modal'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { parseSiteContent, resolveIcon, type SiteTier } from '@/lib/marketing/content'
+import { parseSiteContent, resolveIcon, type SiteTier, type SiteLinks } from '@/lib/marketing/content'
 import { renderInlineMarkdown } from '@/lib/marketing/markdown'
 
 export const metadata = ogMetadata({
@@ -16,7 +16,38 @@ export const metadata = ogMetadata({
 
 /** Small uppercase label above a section heading. */
 function Eyebrow({ children }: { children: React.ReactNode }) {
-  return <p className="text-eyebrow uppercase text-muted-foreground mb-3">{children}</p>
+  return <p className="text-eyebrow uppercase text-muted-foreground mb-3 text-center">{children}</p>
+}
+
+/**
+ * Hero actions: try it, read about it, read the source — in descending order of
+ * commitment, so the eye lands on the demo first. Every button is driven by
+ * site_content.links, so an absent href drops that button rather than rendering
+ * a dead one, and the whole row disappears if none are set.
+ */
+function HeroCtas({ links }: { links: SiteLinks }) {
+  if (!links.demo && !links.features && !links.github) return null
+  return (
+    <div className="mt-9 flex flex-wrap justify-center gap-3">
+      {links.demo && (
+        <Button asChild size="lg" className="bg-brand text-brand-foreground hover:bg-brand-800">
+          <a href={links.demo}>Try the demo</a>
+        </Button>
+      )}
+      {links.features && (
+        <Button asChild size="lg" variant="outline">
+          <a href={links.features}>Explore features</a>
+        </Button>
+      )}
+      {links.github && (
+        <Button asChild size="lg" variant="ghost">
+          <a href={links.github} target="_blank" rel="noopener noreferrer" className="gap-2">
+            <Github className="h-4 w-4" />View on GitHub
+          </a>
+        </Button>
+      )}
+    </div>
+  )
 }
 
 function TierCta({ tier, featured }: { tier: SiteTier; featured?: boolean }) {
@@ -44,14 +75,15 @@ export default async function HomePage() {
       {/* Hero. Display serif at weight 400 — large and light, not large and bold.
           The emphasis phrase is the page's one flourish and the only place the
           brand accent appears above the fold. */}
-      <section className="mb-20 md:mb-28">
-        <h1 className="font-display text-display font-normal max-w-3xl text-balance">
+      <section className="mb-20 md:mb-28 text-center">
+        <h1 className="font-display text-display font-normal max-w-3xl mx-auto text-balance">
           {content.hero.title}
           {content.hero.emphasis && (
             <>{' '}<em className="italic text-brand-700 dark:text-brand-400">{content.hero.emphasis}</em></>
           )}
         </h1>
-        <p className="text-lede text-muted-foreground max-w-[640px] mt-7">{content.hero.subtitle}</p>
+        <p className="text-lede text-muted-foreground max-w-[640px] mx-auto mt-7 text-pretty">{content.hero.subtitle}</p>
+        <HeroCtas links={content.links} />
       </section>
 
       {/* Proof strip. Both reference sites lead with figures; absent from the JSON
@@ -60,9 +92,9 @@ export default async function HomePage() {
         <section className="mb-20 md:mb-28 border-y py-10">
           <dl className="grid grid-cols-1 sm:grid-cols-3 gap-8">
             {content.stats.map(s => (
-              <div key={s.label}>
+              <div key={s.label} className="text-center">
                 <dt className="font-display text-title font-normal text-brand-700 dark:text-brand-400">{s.value}</dt>
-                <dd className="text-label text-muted-foreground mt-2 max-w-[28ch]">{s.label}</dd>
+                <dd className="text-label text-muted-foreground mt-2 max-w-[28ch] mx-auto">{s.label}</dd>
               </div>
             ))}
           </dl>
@@ -75,8 +107,8 @@ export default async function HomePage() {
       {content.productGroups.map(group => (
         <section key={group.label} className="mb-20 md:mb-28">
           {group.eyebrow && <Eyebrow>{group.eyebrow}</Eyebrow>}
-          <h2 className="font-display text-title font-normal">{group.label}</h2>
-          <p className="text-muted-foreground max-w-[640px] mt-3 mb-10">{group.description}</p>
+          <h2 className="font-display text-title font-normal text-center">{group.label}</h2>
+          <p className="text-muted-foreground max-w-[640px] mx-auto mt-3 mb-10 text-center text-pretty">{group.description}</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
             {group.features.map(f => {
               const Icon = resolveIcon(f.icon)
@@ -102,7 +134,7 @@ export default async function HomePage() {
       {content.why.length > 0 && (
         <section className="mb-20 md:mb-28">
           <Eyebrow>Why Hemrock</Eyebrow>
-          <h2 className="font-display text-title font-normal mb-10">Why should you use this?</h2>
+          <h2 className="font-display text-title font-normal mb-10 text-center">Why should you use this?</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-8 gap-y-10">
             {content.why.map(w => {
               const Icon = resolveIcon(w.icon)
@@ -123,8 +155,8 @@ export default async function HomePage() {
       {content.pricing.tiers.length > 0 && (
         <section className="mb-20 md:mb-28">
           <Eyebrow>Pricing</Eyebrow>
-          <h2 className="font-display text-title font-normal">Pricing</h2>
-          {content.pricing.note && <p className="text-sm text-muted-foreground mt-3 mb-10 max-w-[640px]">{renderInlineMarkdown(content.pricing.note)}</p>}
+          <h2 className="font-display text-title font-normal text-center">Pricing</h2>
+          {content.pricing.note && <p className="text-sm text-muted-foreground mt-3 mb-10 max-w-[640px] mx-auto text-center text-pretty">{renderInlineMarkdown(content.pricing.note)}</p>}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
             {content.pricing.tiers.map(tier => (
               <div
@@ -153,7 +185,7 @@ export default async function HomePage() {
       {content.faqs.length > 0 && (
         <section className="mb-20 md:mb-28">
           <Eyebrow>FAQ</Eyebrow>
-          <h2 className="font-display text-title font-normal mb-8">Common Questions</h2>
+          <h2 className="font-display text-title font-normal mb-8 text-center">Common Questions</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-10">
             {content.faqs.map((f, i) => (
               <details key={i} className="group border-b">

@@ -19,7 +19,9 @@ export interface SiteTierCta { kind: 'link' | 'calendly' | 'subscription'; label
 export interface SiteTier { badge?: string; name: string; price: string; subtitle?: string; bullets: string[]; cta: SiteTierCta }
 export interface SiteFaq { q: string; a: string }
 export interface SiteAbout { name: string; photo?: string; bio: string; links: Array<{ label: string; href: string }> }
-export interface SiteLinks { github?: string; x?: string; demo?: string }
+/** `features` points at the marketing site's product page (hemrock.com/reporting);
+ *  the others are the repo and the read-only demo. All three feed the hero CTA row. */
+export interface SiteLinks { github?: string; x?: string; demo?: string; features?: string }
 
 export interface SiteContent {
   /** `emphasis` renders after the title in the display italic, in the brand accent
@@ -124,6 +126,7 @@ function links(v: unknown): SiteLinks {
   if (isStr(v.github)) out.github = v.github
   if (isStr(v.x)) out.x = v.x
   if (isStr(v.demo)) out.demo = v.demo
+  if (isStr(v.features)) out.features = v.features
   return out
 }
 

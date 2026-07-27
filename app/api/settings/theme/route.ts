@@ -37,8 +37,8 @@ export async function PATCH(req: NextRequest) {
     // Accept a curated preset or any valid custom "h s% l%" brand color.
     if (typeof raw.accent === 'string' && (ACCENT_PRESETS.some(p => p.hsl === raw.accent) || isValidHsl(raw.accent))) t.accent = raw.accent
     if (typeof raw.font === 'string' && FONT_OPTIONS.some(o => o.key === raw.font) && raw.font !== 'system') t.font = raw.font
-    // 'newsreader' is the default, so storing it would be a no-op override.
-    if (typeof raw.displayFont === 'string' && DISPLAY_FONT_OPTIONS.some(o => o.key === raw.displayFont) && raw.displayFont !== 'newsreader') t.displayFont = raw.displayFont
+    // 'source-serif' is the default, so storing it would be a no-op override.
+    if (typeof raw.displayFont === 'string' && DISPLAY_FONT_OPTIONS.some(o => o.key === raw.displayFont) && raw.displayFont !== 'source-serif') t.displayFont = raw.displayFont
     if (typeof raw.radius === 'number' && raw.radius >= 0 && raw.radius <= 2) t.radius = raw.radius
     const hasAny = !!t.accent || !!t.font || !!t.displayFont || typeof t.radius === 'number'
     theme = hasAny ? t : null

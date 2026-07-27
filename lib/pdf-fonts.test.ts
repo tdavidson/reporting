@@ -30,14 +30,14 @@ describe('pdfFontCss', () => {
   it('embeds a distinct face for every key DISPLAY_FONT_OPTIONS offers', () => {
     // A key in the picker with no embedded face silently falls back, so the fund
     // picks a font and the PDF renders in a different one. Comparing against the
-    // fallback would pass vacuously for 'newsreader' (it IS the fallback), so
+    // fallback would pass vacuously for 'source-serif' (it IS the fallback), so
     // assert all keys produce mutually distinct output instead.
     const blocks = DISPLAY_FONT_OPTIONS.map(o => pdfFontCss(o.key))
     expect(new Set(blocks).size).toBe(DISPLAY_FONT_OPTIONS.length)
   })
 
   it('falls back to the default for unknown or absent keys', () => {
-    const dflt = pdfFontCss('newsreader')
+    const dflt = pdfFontCss('source-serif')
     expect(pdfFontCss(undefined)).toBe(dflt)
     expect(pdfFontCss(null)).toBe(dflt)
     expect(pdfFontCss('not-a-font')).toBe(dflt)
@@ -71,6 +71,6 @@ describe('displayFontOf', () => {
   it('round-trips into a font block without falling back', () => {
     const key = displayFontOf({ displayFont: 'libre-caslon' })
     expect(pdfFontCss(key)).toBe(pdfFontCss('libre-caslon'))
-    expect(pdfFontCss(key)).not.toBe(pdfFontCss('newsreader'))
+    expect(pdfFontCss(key)).not.toBe(pdfFontCss('source-serif'))
   })
 })

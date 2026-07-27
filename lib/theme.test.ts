@@ -99,14 +99,14 @@ describe('themeCssVars', () => {
   })
 
   it('emits nothing for the default display font', () => {
-    // 'newsreader' is the default; storing it as an override would be a no-op.
-    expect(themeCssVars({ displayFont: 'newsreader' })).toBe('')
+    // 'source-serif' is the default; storing it as an override would be a no-op.
+    expect(themeCssVars({ displayFont: 'source-serif' })).toBe('')
     expect(themeCssVars({ displayFont: 'not-a-font' })).toBe('')
   })
 
   it('keeps the UI font and the display font independent', () => {
-    const css = themeCssVars({ font: 'hanken', displayFont: 'source-serif' })
+    const css = themeCssVars({ font: 'hanken', displayFont: 'newsreader' })
     expect(css).toContain('--font-sans:var(--font-hanken)')
-    expect(css).toContain('--font-display:var(--font-source-serif)')
+    expect(css).toContain('--font-display:var(--font-newsreader)')
   })
 })

@@ -11,7 +11,7 @@ import { ACCENT_PRESETS, FONT_OPTIONS, DISPLAY_FONT_OPTIONS, RADIUS_OPTIONS, the
 export function AppearanceEditor() {
   const [accent, setAccent] = useState<string | null>(null)
   const [font, setFont] = useState<string>('system')
-  const [displayFont, setDisplayFont] = useState<string>('newsreader')
+  const [displayFont, setDisplayFont] = useState<string>('source-serif')
   const [radius, setRadius] = useState<number | null>(null)
   const [loaded, setLoaded] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -25,7 +25,7 @@ export function AppearanceEditor() {
         const t: FundTheme | null = b?.theme ?? null
         setAccent(t?.accent ?? null)
         setFont(t?.font ?? 'system')
-        setDisplayFont(t?.displayFont ?? 'newsreader')
+        setDisplayFont(t?.displayFont ?? 'source-serif')
         setRadius(typeof t?.radius === 'number' ? t.radius : null)
       })
       .finally(() => setLoaded(true))
@@ -34,7 +34,7 @@ export function AppearanceEditor() {
   const draft: FundTheme = {
     accent,
     font: font === 'system' ? null : font,
-    displayFont: displayFont === 'newsreader' ? null : displayFont,
+    displayFont: displayFont === 'source-serif' ? null : displayFont,
     radius: radius ?? undefined,
   }
   const isCustom = !!accent && !ACCENT_PRESETS.some(p => p.hsl === accent)
@@ -68,7 +68,7 @@ export function AppearanceEditor() {
       setSaving(false)
     }
   }
-  function reset() { setAccent(null); setFont('system'); setDisplayFont('newsreader'); setRadius(null) }
+  function reset() { setAccent(null); setFont('system'); setDisplayFont('source-serif'); setRadius(null) }
 
   if (!loaded) return <div className="text-sm text-muted-foreground"><Loader2 className="h-4 w-4 inline animate-spin mr-2" />Loading…</div>
 
@@ -76,7 +76,7 @@ export function AppearanceEditor() {
     <div className="space-y-5">
       {error && <div className="rounded-md border border-destructive/40 bg-destructive/5 p-2 text-sm text-destructive">{error}</div>}
       <p className="text-xs text-muted-foreground max-w-xl">
-        Changes preview live across the app. Save to apply for everyone in your fund. The defaults are a neutral accent, Inter for the interface and Newsreader for reports; everything here is optional.
+        Changes preview live across the app. Save to apply for everyone in your fund. The defaults are a neutral accent, Inter for the interface and Source Serif 4 for reports; everything here is optional.
       </p>
 
       <div>

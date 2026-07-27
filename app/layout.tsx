@@ -12,12 +12,14 @@ import './globals.css'
 // hemrock.com ships. globals.css points --font-sans at it.
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter', display: 'swap' })
 
-// Newsreader is the display face, behind --font-display. Variable weight plus an
-// optical-size axis, so one face covers a 68px marketing hero and a 20px report
-// cover. Absent from FONT_OPTIONS because that list drives --font-sans, the body
-// font: a serif there would land on every dense financial table. A per-fund
-// display face would need its own axis writing --font-display (see DESIGN.md).
-const newsreader = Newsreader({ subsets: ['latin'], variable: '--font-newsreader', display: 'swap' })
+// Source Serif 4 is the display face, behind --font-display. Variable weight and
+// drawn for screen, so one face covers a 68px marketing hero and a 20px report
+// cover. Low contrast and sturdy — it shares a humanist skeleton with Inter, so
+// the pairing reads as chosen rather than borrowed. Absent from FONT_OPTIONS
+// because that list drives --font-sans, the body font: a serif there would land
+// on every dense financial table. A per-fund display face writes --font-display
+// via its own axis (see DESIGN.md).
+const sourceSerif = Source_Serif_4({ subsets: ['latin'], variable: '--font-source-serif', display: 'swap' })
 
 // Curated per-fund UI font options. Loaded as CSS variables so the per-fund theme
 // can opt in via --font-sans; unset, --font-sans stays on Inter.
@@ -29,7 +31,7 @@ const hankenGrotesk = Hanken_Grotesk({ subsets: ['latin'], variable: '--font-han
 const plusJakarta = Plus_Jakarta_Sans({ subsets: ['latin'], variable: '--font-jakarta', display: 'swap', preload: false })
 
 // Alternate display faces a fund may pick for its reports (DISPLAY_FONT_OPTIONS).
-const sourceSerif = Source_Serif_4({ subsets: ['latin'], variable: '--font-source-serif', display: 'swap', preload: false })
+const newsreader = Newsreader({ subsets: ['latin'], variable: '--font-newsreader', display: 'swap', preload: false })
 const libreCaslon = Libre_Caslon_Display({ subsets: ['latin'], weight: '400', variable: '--font-libre-caslon', display: 'swap', preload: false })
 
 const ogImageUrl = `${process.env.NEXT_PUBLIC_SITE_URL || 'https://portfolio.hemrock.com'}/api/og?title=Portfolio+Reporting`

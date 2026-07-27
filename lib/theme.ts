@@ -10,7 +10,7 @@ export interface FundTheme {
   /** UI font key (see FONT_OPTIONS). Null/'system' = the default stack. */
   font?: string | null
   /** Display font key (see DISPLAY_FONT_OPTIONS). Drives --font-display: report
-   *  covers, letter mastheads, statement headers. Null = Newsreader. */
+   *  covers, letter mastheads, statement headers. Null = Source Serif 4. */
   displayFont?: string | null
   /** Corner radius in rem, e.g. 0.5. */
   radius?: number | null
@@ -50,8 +50,8 @@ export const FONT_OPTIONS: Array<{ key: string; label: string; varName: string |
  * installed — so each addition has a real per-render cost.
  */
 export const DISPLAY_FONT_OPTIONS: Array<{ key: string; label: string; varName: string | null; note: string }> = [
-  { key: 'newsreader', label: 'Newsreader (default)', varName: null, note: 'Editorial serif. Optical sizing, warm.' },
-  { key: 'source-serif', label: 'Source Serif 4', varName: '--font-source-serif', note: 'Institutional and neutral.' },
+  { key: 'source-serif', label: 'Source Serif 4 (default)', varName: null, note: 'Institutional and neutral.' },
+  { key: 'newsreader', label: 'Newsreader', varName: '--font-newsreader', note: 'Editorial serif. Optical sizing, warm.' },
   { key: 'libre-caslon', label: 'Libre Caslon Display', varName: '--font-libre-caslon', note: 'Caslon — legal and banking heritage.' },
 ]
 

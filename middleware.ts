@@ -44,6 +44,12 @@ export async function middleware(request: NextRequest) {
   const isMarketingRoute = pathname === '/'
   const isPublicMarketingRoute = marketingEnabled && isMarketingRoute
 
+  // /demo signs ITSELF in: app/demo/page.tsx calls signInWithPassword from a useEffect. So the
+  // page has to render to a visitor with no session — redirect the request here and the effect
+  // never runs, leaving them on a login form for an account they don't have. Gated on the same
+  // flag as getDemoCredentials, which refuses without it.
+  const isDemoRoute = marketingEnabled && pathname === '/demo'
+
   // Token-gated public surfaces — always reachable regardless of the marketing
   // site flag. The token in the URL is the auth: a fund admin generates it
   // in Settings and shares the resulting link with founders. The page itself
@@ -64,8 +70,8 @@ export async function middleware(request: NextRequest) {
   const isPortalWelcome = pathname === '/portal/welcome'
 
   // Unauthenticated users can only access /auth, API, marketing pages (if
-  // enabled), the token-gated public submit form, and setup routes.
-  if (!user && !isAuthRoute && !isApiRoute && !isPublicMarketingRoute && !isPublicTokenRoute && !isSetupRoute && !isPortalWelcome && !isOAuthDiscovery) {
+  // enabled), the demo, the token-gated public submit form, and setup routes.
+  if (!user && !isAuthRoute && !isApiRoute && !isPublicMarketingRoute && !isDemoRoute && !isPublicTokenRoute && !isSetupRoute && !isPortalWelcome && !isOAuthDiscovery) {
     const url = request.nextUrl.clone()
     url.pathname = '/auth'
     // Carry where they were headed, so signing in RESUMES it.
