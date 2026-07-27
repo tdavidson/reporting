@@ -140,7 +140,7 @@ export function EntryModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
       <div className="flex max-h-[90vh] w-full max-w-2xl flex-col rounded-lg border bg-card shadow-xl" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between border-b px-4 py-3">
-          <h2 className="text-sm font-medium">{isNew ? 'New journal entry' : editable ? 'Edit journal entry' : 'Journal entry'}</h2>
+          <h2 className="text-base font-medium">{isNew ? 'New journal entry' : editable ? 'Edit journal entry' : 'Journal entry'}</h2>
           <div className="flex items-center gap-2">
             {!editable && <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">Posted</span>}
             <button onClick={onClose} className="text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
@@ -236,8 +236,8 @@ export function EntryModal({
             </table>
 
             <div className="flex items-center justify-between">
-              <span className={`text-xs ${diff === 0 ? 'text-muted-foreground' : 'text-warning'}`}>{diff === 0 ? 'Balanced' : `Out of balance by ${fmt(Math.abs(diff))}`}</span>
-              {error && <span className="text-xs text-destructive">{error}</span>}
+              <span className={`text-sm ${diff === 0 ? 'text-muted-foreground' : 'text-warning'}`}>{diff === 0 ? 'Balanced' : `Out of balance by ${fmt(Math.abs(diff))}`}</span>
+              {error && <span className="text-sm text-destructive">{error}</span>}
             </div>
             </div>
 

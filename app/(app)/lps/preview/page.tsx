@@ -35,7 +35,7 @@ const effective = (d: Doc) => d.doc_date || d.uploaded_at || ''
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="space-y-2">
-      <h2 className="text-sm font-semibold">{title}</h2>
+      <h2 className="text-base font-semibold">{title}</h2>
       {children}
     </section>
   )
@@ -294,7 +294,7 @@ export default function LpPortalPreviewPage() {
                         if (!list || list.length === 0) return null
                         return (
                           <div key={scope.key} className="space-y-1.5">
-                            <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{scope.label}</h3>
+                            <h3 className="text-base font-medium text-muted-foreground uppercase tracking-wide">{scope.label}</h3>
                             <div className="rounded-md border bg-card divide-y">{list.map(docRow)}</div>
                           </div>
                         )

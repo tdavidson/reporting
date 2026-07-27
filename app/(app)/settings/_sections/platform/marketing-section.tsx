@@ -64,8 +64,8 @@ export function MarketingSection() {
         className="w-full h-96 font-mono text-xs rounded-card border bg-background p-3"
         placeholder='{ "hero": { "title": "...", "subtitle": "..." }, "productGroups": [ ... ] }'
       />
-      {parseError && <p className="text-xs text-warning mt-2">{parseError}</p>}
-      {error && <p className="text-xs text-destructive mt-2">{error}</p>}
+      {parseError && <p className="text-sm text-warning mt-2">{parseError}</p>}
+      {error && <p className="text-sm text-destructive mt-2">{error}</p>}
       <div className="mt-3">
         <Button size="sm" onClick={save} disabled={saving || !!parseError}>
           {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : saved ? <Check className="h-4 w-4" /> : 'Save'}

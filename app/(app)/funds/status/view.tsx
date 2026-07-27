@@ -399,7 +399,7 @@ function GeneralPartnersCard() {
     <div className="border rounded-card p-3 space-y-2">
       <p className="text-sm font-medium">General partner(s)</p>
 
-      {error && <p className="text-xs text-destructive">{error}</p>}
+      {error && <p className="text-sm text-destructive">{error}</p>}
 
       {data.links.length === 0 ? (
         <p className="text-xs text-muted-foreground">No general partner linked to this vehicle yet.</p>

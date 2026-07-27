@@ -152,7 +152,7 @@ function OpenRouterContent({ hasKey, currentModel, currentBaseUrl, onSaved }: { 
         <Label className="text-xs">Model</Label>
         <Input value={model} onChange={e => setModel(e.target.value)} placeholder="e.g. deepseek/deepseek-chat or z-ai/glm-4.6" className="h-9 font-mono text-xs" />
       </div>
-      {error && <p className="text-xs text-destructive">{error}</p>}
+      {error && <p className="text-sm text-destructive">{error}</p>}
       <Button size="sm" onClick={save} disabled={saving}>
         {saving ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : saved ? <Check className="h-3.5 w-3.5 mr-1" /> : null}
         Save
@@ -299,7 +299,7 @@ function ClaudeKeyContent({ hasKey, currentModel, onSaved }: { hasKey: boolean; 
         </div>
       </div>
       {status === 'valid' && <p className="text-xs text-success mt-1 flex items-center gap-1"><Check className="h-3 w-3" /> Key is valid</p>}
-      {status === 'invalid' && <p className="text-xs text-destructive mt-1 flex items-center gap-1"><AlertCircle className="h-3 w-3" /> Key is invalid</p>}
+      {status === 'invalid' && <p className="text-sm text-destructive mt-1 flex items-center gap-1"><AlertCircle className="h-3 w-3" /> Key is invalid</p>}
       {status === 'saved' && <p className="text-xs text-success mt-1 flex items-center gap-1"><Check className="h-3 w-3" /> Key updated</p>}
 
       {hasKey && (
@@ -309,7 +309,7 @@ function ClaudeKeyContent({ hasKey, currentModel, onSaved }: { hasKey: boolean; 
           {modelsLoading ? (
             <div className="flex items-center gap-2 text-xs text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading models…</div>
           ) : modelsError ? (
-            <p className="text-xs text-destructive">{modelsError}</p>
+            <p className="text-sm text-destructive">{modelsError}</p>
           ) : (
             <div className="flex items-center gap-2">
               <select className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring" value={selectedModel} onChange={(e) => saveModel(e.target.value)} disabled={modelSaving}>
@@ -420,7 +420,7 @@ function OpenAIKeyContent({ hasKey, currentModel, onSaved }: { hasKey: boolean; 
         </div>
       </div>
       {status === 'valid' && <p className="text-xs text-success mt-1 flex items-center gap-1"><Check className="h-3 w-3" /> Key is valid</p>}
-      {status === 'invalid' && <p className="text-xs text-destructive mt-1 flex items-center gap-1"><AlertCircle className="h-3 w-3" /> Key is invalid</p>}
+      {status === 'invalid' && <p className="text-sm text-destructive mt-1 flex items-center gap-1"><AlertCircle className="h-3 w-3" /> Key is invalid</p>}
       {status === 'saved' && <p className="text-xs text-success mt-1 flex items-center gap-1"><Check className="h-3 w-3" /> Key updated</p>}
 
       {hasKey && (
@@ -430,7 +430,7 @@ function OpenAIKeyContent({ hasKey, currentModel, onSaved }: { hasKey: boolean; 
           {modelsLoading ? (
             <div className="flex items-center gap-2 text-xs text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading models…</div>
           ) : modelsError ? (
-            <p className="text-xs text-destructive">{modelsError}</p>
+            <p className="text-sm text-destructive">{modelsError}</p>
           ) : (
             <div className="flex items-center gap-2">
               <select className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring" value={selectedModel} onChange={(e) => saveModel(e.target.value)} disabled={modelSaving}>

@@ -289,7 +289,7 @@ function RollforwardRow({
               <button onClick={() => { setEditing(false); setRowErr(null) }} title="Cancel" className="text-muted-foreground hover:text-foreground"><X className="h-3.5 w-3.5 inline" /></button>
             </span>
           </span>
-          {rowErr && <p className="text-xs text-destructive mt-1">{rowErr}</p>}
+          {rowErr && <p className="text-sm text-destructive mt-1">{rowErr}</p>}
         </td>
         {commitmentCols.map(c => (
           <td key={c.key} className="px-3 py-1.5 text-right tabular-nums border-l">

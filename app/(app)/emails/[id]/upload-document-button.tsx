@@ -64,7 +64,7 @@ export function UploadDocumentButton({ emailId }: Props) {
       )}
 
       {error && (
-        <p className="text-xs text-destructive mb-2">{error}</p>
+        <p className="text-sm text-destructive mb-2">{error}</p>
       )}
 
       <label className="inline-flex items-center gap-1.5 cursor-pointer">

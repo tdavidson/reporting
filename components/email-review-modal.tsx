@@ -504,7 +504,7 @@ export function EmailReviewModal({
             {items.length > 0 && (
               <section>
                 <div className="flex items-center gap-2 mb-3">
-                  <h3 className="text-sm font-medium">Review Items</h3>
+                  <h3 className="text-base font-medium">Review Items</h3>
                   <span className="text-xs text-muted-foreground">
                     {items.length} pending
                   </span>
@@ -540,7 +540,7 @@ export function EmailReviewModal({
                     <Building2 className="h-3 w-3 text-muted-foreground" />
                   )}
                 </div>
-                <h3 className="text-sm font-medium">Company</h3>
+                <h3 className="text-base font-medium">Company</h3>
                 {hasCompany && (
                   <span className="text-sm text-muted-foreground">{emailInfo.company!.name}</span>
                 )}
@@ -620,7 +620,7 @@ export function EmailReviewModal({
                       <BarChart3 className="h-3 w-3 text-muted-foreground" />
                     )}
                   </div>
-                  <h3 className="text-sm font-medium">Metrics</h3>
+                  <h3 className="text-base font-medium">Metrics</h3>
                   {hasMetrics && (
                     <span className="text-sm text-muted-foreground">
                       {metrics.length} configured
@@ -693,7 +693,7 @@ export function EmailReviewModal({
                       <Upload className="h-3 w-3 text-muted-foreground" />
                     )}
                   </div>
-                  <h3 className="text-sm font-medium">Upload Document</h3>
+                  <h3 className="text-base font-medium">Upload Document</h3>
                 </div>
 
                 <div className="ml-7">
@@ -751,7 +751,7 @@ export function EmailReviewModal({
                 <div className={`flex items-center justify-center h-5 w-5 rounded-full ${approveSuccess ? 'bg-success-subtle' : 'bg-muted'}`}>
                   <Check className={`h-3 w-3 ${approveSuccess ? 'text-success' : 'text-muted-foreground'}`} />
                 </div>
-                <h3 className="text-sm font-medium">Approve</h3>
+                <h3 className="text-base font-medium">Approve</h3>
               </div>
               <div className="ml-7">
                 {approveSuccess ? (
@@ -794,7 +794,7 @@ export function EmailReviewModal({
                       <RefreshCw className="h-3 w-3 text-muted-foreground" />
                     )}
                   </div>
-                  <h3 className="text-sm font-medium">Process Email</h3>
+                  <h3 className="text-base font-medium">Process Email</h3>
                 </div>
 
                 <div className="ml-7">

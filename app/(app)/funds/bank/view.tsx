@@ -177,7 +177,7 @@ export function BankView() {
             </span>
           )}
         </div>
-        {result?.errors?.length ? <p className="text-xs text-destructive">{result.errors[0]}</p> : null}
+        {result?.errors?.length ? <p className="text-sm text-destructive">{result.errors[0]}</p> : null}
       </div>
 
       {/* Reconciliation */}

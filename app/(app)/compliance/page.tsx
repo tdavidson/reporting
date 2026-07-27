@@ -908,7 +908,7 @@ function ItemsView({
         const instances = categoryInstances[category]
         return (
           <div key={category} className="mb-6">
-            <h3 className="text-xs font-medium mb-2 flex items-center gap-1.5">
+            <h3 className="text-base font-medium mb-2 flex items-center gap-1.5">
               <span className={`inline-block w-2 h-2 rounded-full shrink-0 ${catDot}`} aria-hidden />
               {category} ({instances.length})
             </h3>
@@ -994,7 +994,7 @@ function ItemDetail({
     <div className="rounded-card border bg-card p-4 mt-2 mb-4">
       <div className="flex items-start justify-between mb-3">
         <div>
-          <h3 className="font-medium text-sm">{item.name}{group && <span className="text-muted-foreground font-normal"> · {group}</span>}</h3>
+          <h3 className="font-medium text-base">{item.name}{group && <span className="text-muted-foreground font-normal"> · {group}</span>}</h3>
           <p className="text-sm text-muted-foreground">{item.category} · {item.frequency} · {item.complexity} complexity</p>
         </div>
         <button onClick={onClose} className="text-muted-foreground hover:text-foreground">

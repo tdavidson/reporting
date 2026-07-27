@@ -74,12 +74,12 @@ export function IngestionSummary({ output, fileNamesById, dealId, draftId, edita
       </div>
 
       {saveError && (
-        <div className="rounded-md border border-destructive/40 bg-destructive/5 p-2 text-xs text-destructive">{saveError}</div>
+        <div className="rounded-md border border-destructive/40 bg-destructive/5 p-2 text-sm text-destructive">{saveError}</div>
       )}
 
       {gap.missing.length > 0 && (
         <section>
-          <h3 className="text-sm font-medium mb-2">
+          <h3 className="text-base font-medium mb-2">
             Missing documents
             {canEdit && <span className="ml-2 text-xs font-normal text-muted-foreground">— dismiss anything the agent flagged wrongly</span>}
           </h3>
@@ -107,7 +107,7 @@ export function IngestionSummary({ output, fileNamesById, dealId, draftId, edita
 
       {gap.inadequate.length > 0 && (
         <section>
-          <h3 className="text-sm font-medium mb-2">
+          <h3 className="text-base font-medium mb-2">
             Inadequate documents
             {canEdit && <span className="ml-2 text-xs font-normal text-muted-foreground">— dismiss anything the agent flagged wrongly</span>}
           </h3>
@@ -134,7 +134,7 @@ export function IngestionSummary({ output, fileNamesById, dealId, draftId, edita
       )}
 
       <section>
-        <h3 className="text-sm font-medium mb-2">Per-document extraction</h3>
+        <h3 className="text-base font-medium mb-2">Per-document extraction</h3>
         <div className="space-y-3">
           {output.documents.map(doc => (
             <div key={doc.document_id} className="rounded-md border bg-card">
@@ -145,7 +145,7 @@ export function IngestionSummary({ output, fileNamesById, dealId, draftId, edita
                 </div>
                 {doc.summary && <p className="text-sm mt-2">{doc.summary}</p>}
                 {doc.issues && doc.issues.length > 0 && (
-                  <ul className="text-xs text-warning mt-2 list-disc list-inside">
+                  <ul className="text-sm text-warning mt-2 list-disc list-inside">
                     {doc.issues.map((s, i) => <li key={i}>{s}</li>)}
                   </ul>
                 )}
@@ -236,7 +236,7 @@ export function InconsistenciesList({ contradictions, crossDocFlags, fileNamesBy
   return (
     <div>
       {saveError && (
-        <div className="rounded-md border border-destructive/40 bg-destructive/5 p-2 mb-2 text-xs text-destructive">{saveError}</div>
+        <div className="rounded-md border border-destructive/40 bg-destructive/5 p-2 mb-2 text-sm text-destructive">{saveError}</div>
       )}
       <div className="rounded-md border bg-card divide-y">
         {rows.map((r, i) => (

@@ -246,7 +246,7 @@ export default function SetupPage() {
 
             {sections.map((section) => (
               <div key={section.title} className="rounded-card border bg-card p-4">
-                <h2 className="mb-3 text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+                <h2 className="mb-3 text-base font-semibold text-muted-foreground uppercase tracking-wide">
                   {section.title}
                 </h2>
                 <ul className="space-y-2">

@@ -130,7 +130,7 @@ export function JournalView() {
           Post all drafts
         </Button>
         {postMsg && <span className="text-xs text-muted-foreground">{postMsg}</span>}
-        {error && <span className="text-xs text-warning">{error}</span>}
+        {error && <span className="text-sm text-warning">{error}</span>}
         <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
           <PeriodPicker
             preset={preset} onPreset={p => { setPreset(p); setPage(0) }}

@@ -35,7 +35,7 @@ export function SchemasInline() {
       .catch(() => setError('Could not load schemas.'))
   }, [])
 
-  if (error) return <div className="text-xs text-destructive">{error}</div>
+  if (error) return <div className="text-sm text-destructive">{error}</div>
   if (!schemas) return <div className="text-xs text-muted-foreground"><Loader2 className="h-3.5 w-3.5 inline animate-spin mr-1" /> Loading…</div>
 
   return (

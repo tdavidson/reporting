@@ -171,6 +171,30 @@ and tracking, so an eyebrow can't be reassembled wrongly by hand:
 
 Tailwind's `text-xs` … `text-2xl` still work and remain correct for dense app UI.
 
+### The app ladder
+
+The named steps above are for **marketing** — their clamps are wrong for dense
+app chrome. In-app, use Tailwind's plain steps, in five rungs:
+
+| Rung | Class | Use |
+| --- | --- | --- |
+| Page title | `text-2xl font-semibold tracking-tight` | One `<h1>` per page |
+| Major section | `text-lg` | An `<h2>` leading a whole page region |
+| Section heading | `text-base` | Ordinary `<h2>`/`<h3>` |
+| Body | `text-sm` | Paragraphs, table cells, controls |
+| Caption | `text-xs` | Form labels, hints, timestamps |
+
+The middle rung is the one that used to be missing: 79 headings sat at `text-sm`
+or `text-xs`, the same size as the paragraph beneath them, so hierarchy rested
+entirely on font-weight. `lib/design-tokens.test.ts` fails on an `<h2>`/`<h3>` at
+body size or smaller.
+
+**Errors and warnings are `text-sm` or larger**, never `text-xs` — the one thing
+a user must read should not be the smallest type on screen. Also guarded.
+
+Note that `text-xs` is *not* mainly a table style here: only ~36 of its uses are
+in `<td>`. It is mostly labels and hints, which is what it's for.
+
 **Display type is light, not bold.** `font-display text-display font-normal`.
 Large + light reads as expensive; large + bold reads as a dashboard. Setting a
 display heading to `font-semibold` undoes the entire effect.

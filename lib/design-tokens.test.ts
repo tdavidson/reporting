@@ -103,6 +103,46 @@ describe('page width', () => {
   })
 })
 
+// ---------------------------------------------------------------------------
+// Type ladder
+// ---------------------------------------------------------------------------
+
+describe('type ladder', () => {
+  it('does not set a section heading at body size or smaller', () => {
+    // The app ladder is text-2xl (page title) / text-lg (major section) /
+    // text-base (section heading) / text-sm (body) / text-xs (caption, label).
+    // 79 headings had collapsed onto text-sm or text-xs, which made a heading the
+    // same size as the paragraph under it — hierarchy carried by weight alone.
+    const offenders: string[] = []
+    for (const f of ALL) {
+      for (const m of readFileSync(f, 'utf8').match(/<h[23] className="[^"]*"/g) ?? []) {
+        if (/\btext-(xs|sm)\b/.test(m)) offenders.push(`${f} → ${m.slice(0, 90)}`)
+      }
+    }
+    expect(
+      offenders,
+      'Section headings use text-base (or text-lg for a major section). See DESIGN.md.\n\n' +
+      offenders.join('\n')
+    ).toEqual([])
+  })
+
+  it('does not set error or warning text below body size', () => {
+    // The one thing a user must be able to read was the smallest type on screen.
+    const offenders: string[] = []
+    for (const f of ALL) {
+      for (const m of readFileSync(f, 'utf8').match(/className=(?:"[^"]*"|\{`[^`]*`\})/g) ?? []) {
+        if (/\btext-(destructive|warning)\b/.test(m) && /\btext-xs\b/.test(m)) {
+          offenders.push(`${f} → ${m.slice(0, 90)}`)
+        }
+      }
+    }
+    expect(
+      offenders,
+      'Error and warning messages are text-sm or larger. See DESIGN.md.\n\n' + offenders.join('\n')
+    ).toEqual([])
+  })
+})
+
 describe('numeric type', () => {
   it('does not put right-aligned columns on a monospaced face', () => {
     // text-right + font-mono is the signature of a financial table cell. Column

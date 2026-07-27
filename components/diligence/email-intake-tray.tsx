@@ -128,7 +128,7 @@ export function EmailIntakeTray({
     <div className="mb-4 rounded-card border border-warning/60 bg-warning-subtle/50 dark:bg-warning-subtle/20 p-4">
       <div className="flex items-center gap-2 mb-1">
         <Mail className="h-4 w-4 text-warning" />
-        <h3 className="text-sm font-semibold">
+        <h3 className="text-base font-semibold">
           {emails.length} inbound email{emails.length === 1 ? '' : 's'} matched to this deal
         </h3>
       </div>
@@ -136,7 +136,7 @@ export function EmailIntakeTray({
         Nothing is added to the data room until you accept it. Pick which attachments to keep.
       </p>
 
-      {error && <p className="mb-2 text-xs text-destructive">{error}</p>}
+      {error && <p className="mb-2 text-sm text-destructive">{error}</p>}
 
       <div className="space-y-3">
         {emails.map(email => {

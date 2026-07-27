@@ -36,7 +36,7 @@ export function Section({ title, children }: { title: string; children: React.Re
   const isAdminSection = useContext(AdminSectionContext)
   return (
     <div className={`rounded-card border bg-card p-5 ${isAdminSection ? 'border-warning/30' : ''}`}>
-      <h2 className="text-sm font-medium mb-3 flex items-center gap-1.5">
+      <h2 className="text-base font-medium mb-3 flex items-center gap-1.5">
         {isAdminSection && <Lock className="h-3 w-3 text-warning" />}
         {title}
       </h2>

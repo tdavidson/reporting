@@ -126,7 +126,7 @@ export function LpDocumentsSettings() {
           <Button size="sm" onClick={upload} disabled={uploading || !file || !title.trim()}>
             {uploading ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Upload className="h-3.5 w-3.5 mr-1" />}Upload
           </Button>
-          {error && <span className="text-xs text-destructive">{error}</span>}
+          {error && <span className="text-sm text-destructive">{error}</span>}
         </div>
         {scope === 'investor' && (
           <div className="rounded-md border divide-y max-h-48 overflow-y-auto">

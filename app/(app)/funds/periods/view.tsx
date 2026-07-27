@@ -153,7 +153,7 @@ export function PeriodsView() {
             {busy && !preview && <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />}Preview close
           </Button>
         </div>
-        {error && <p className="text-xs text-destructive">{error}</p>}
+        {error && <p className="text-sm text-destructive">{error}</p>}
       </div>
 
       {/* Nothing is posted until this is approved. */}
@@ -173,13 +173,13 @@ export function PeriodsView() {
           {/* Blockers, not warnings: closing over unposted work silently strands its
               P&L, and the lock then prevents posting it into the period. */}
           {preview.readiness.blockers.map((b, i) => (
-            <p key={`b${i}`} className="px-4 py-2 text-xs text-destructive flex items-start gap-1.5 border-b bg-destructive/5">
+            <p key={`b${i}`} className="px-4 py-2 text-sm text-destructive flex items-start gap-1.5 border-b bg-destructive/5">
               <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />{b}
             </p>
           ))}
 
           {[...preview.readiness.warnings, ...preview.warnings].map((w, i) => (
-            <p key={`w${i}`} className="px-4 py-2 text-xs text-warning flex items-start gap-1.5 border-b">
+            <p key={`w${i}`} className="px-4 py-2 text-sm text-warning flex items-start gap-1.5 border-b">
               <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />{w}
             </p>
           ))}

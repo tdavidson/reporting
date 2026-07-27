@@ -102,7 +102,7 @@ export function WhitelistSection() {
             </Button>
           </div>
           {error && (
-            <p className="text-xs text-destructive mt-1 flex items-center gap-1">
+            <p className="text-sm text-destructive mt-1 flex items-center gap-1">
               <AlertCircle className="h-3 w-3" /> {error}
             </p>
           )}

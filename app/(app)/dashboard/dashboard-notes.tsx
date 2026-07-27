@@ -247,7 +247,7 @@ function NotesPanel({ ctx }: { ctx: NotesContextValue }) {
     <div className="flex flex-col h-full">
     <div className="max-h-[80vh] lg:max-h-[calc(100vh-6rem)] rounded-lg border bg-card flex flex-col flex-1">
       <div className="px-4 py-3 flex items-center justify-between">
-        <h2 className="text-sm font-medium text-muted-foreground">Team Notes</h2>
+        <h2 className="text-base font-medium text-muted-foreground">Team Notes</h2>
         <button onClick={toggle} className="hidden lg:block">
           <X className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground" />
         </button>

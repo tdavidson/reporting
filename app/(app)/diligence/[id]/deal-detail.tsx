@@ -1485,7 +1485,7 @@ function DealRoomTab({ dealId, dealName, documents, setDocuments, initialDriveFo
       </div>
 
       {reprocessError && (
-        <div className="mb-3 rounded-md border border-destructive/40 bg-destructive/5 p-2 text-xs text-destructive">
+        <div className="mb-3 rounded-md border border-destructive/40 bg-destructive/5 p-2 text-sm text-destructive">
           {reprocessError}
         </div>
       )}
@@ -1727,13 +1727,13 @@ function DriveFilePicker({ open, onOpenChange, dealId, folderUrl, onImported }: 
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => !importing && onOpenChange(false)}>
       <div className="bg-card rounded-lg border shadow-lg w-full max-w-lg max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
         <div className="p-4 border-b">
-          <h3 className="text-sm font-medium">Add a file from Drive</h3>
+          <h3 className="text-base font-medium">Add a file from Drive</h3>
           <p className="text-xs text-muted-foreground mt-0.5">Pick specific files to import; the rest of the data room is untouched.</p>
         </div>
 
         <div className="flex-1 overflow-y-auto p-4 space-y-1">
           {loading && <div className="text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin inline mr-2" />Listing Drive folder…</div>}
-          {error && <div className="rounded-md border border-destructive/40 bg-destructive/5 p-2 text-xs text-destructive">{error}</div>}
+          {error && <div className="rounded-md border border-destructive/40 bg-destructive/5 p-2 text-sm text-destructive">{error}</div>}
           {doneMsg && <div className="rounded-md border border-success/40 bg-success-subtle dark:bg-success-subtle/30 p-2 text-xs text-success">{doneMsg}</div>}
           {!loading && !error && files.length === 0 && <div className="text-sm text-muted-foreground">No files in the Drive folder.</div>}
           {files.map(f => (
@@ -2710,7 +2710,7 @@ function QALibraryPanel({ dealId, qaAnswers, onAdded }: { dealId: string; qaAnsw
           className="w-full resize-y rounded-md border border-input bg-transparent px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
         />
         <div className="flex justify-end gap-2">
-          {err && <span className="text-xs text-destructive mr-auto self-center">{err}</span>}
+          {err && <span className="text-sm text-destructive mr-auto self-center">{err}</span>}
           <Button size="sm" disabled={busy || !q.trim() || !a.trim()} onClick={add}>
             {busy && <Loader2 className="h-3 w-3 mr-1 animate-spin" />} Add Q&amp;A
           </Button>
@@ -2775,7 +2775,7 @@ function JobStatusLine({ job, kind, error }: { job: AgentStatus['latest_job']; k
 
   if (error) {
     return (
-      <div className="mt-3 rounded-md border border-destructive/40 bg-destructive/5 p-2 text-xs text-destructive">
+      <div className="mt-3 rounded-md border border-destructive/40 bg-destructive/5 p-2 text-sm text-destructive">
         {error}
       </div>
     )
@@ -2919,7 +2919,7 @@ function QATab({ dealId }: { dealId: string }) {
     <div className="flex flex-col gap-3">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-sm font-medium">Ask anything about this deal</h3>
+          <h3 className="text-base font-medium">Ask anything about this deal</h3>
           <p className="text-xs text-muted-foreground">
             The agent answers from the data room, research output, Q&amp;A library, and checklist. Citations link to the document.
           </p>
@@ -2946,7 +2946,7 @@ function QATab({ dealId }: { dealId: string }) {
         <div ref={bottomRef} />
       </div>
 
-      {error && <div className="rounded-md border border-destructive/40 bg-destructive/5 p-2 text-xs text-destructive">{error}</div>}
+      {error && <div className="rounded-md border border-destructive/40 bg-destructive/5 p-2 text-sm text-destructive">{error}</div>}
 
       <div className="flex gap-2">
         <textarea
@@ -3382,7 +3382,7 @@ function SettingsTab({ dealId, dealName, isAdmin }: { dealId: string; dealName: 
 
       {isAdmin && (
         <section>
-          <h3 className="text-sm font-medium text-destructive">Danger zone</h3>
+          <h3 className="text-base font-medium text-destructive">Danger zone</h3>
           <div className="mt-2 rounded-card border border-destructive/40 p-4 flex items-start justify-between gap-3">
             <div>
               <div className="text-sm font-medium">Delete this deal</div>
@@ -3616,7 +3616,7 @@ function MemoTab({ dealId, dealName, isAdmin }: { dealId: string; dealName: stri
       />
 
       {status?.memo_stale && !isInFlight && (
-        <div className="rounded-card border border-warning/40 bg-warning-subtle dark:bg-warning-subtle/30 p-3 text-xs text-warning">
+        <div className="rounded-card border border-warning/40 bg-warning-subtle dark:bg-warning-subtle/30 p-3 text-sm text-warning">
           <span className="font-medium">Memo is out of date with the data room.</span>{' '}
           {status.documents_added_since_draft && status.documents_added_since_draft > 0
             ? `${status.documents_added_since_draft} document${status.documents_added_since_draft === 1 ? '' : 's'} ${status.documents_added_since_draft === 1 ? 'has' : 'have'} been uploaded since this memo was drafted. `

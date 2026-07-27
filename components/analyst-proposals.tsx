@@ -85,7 +85,7 @@ export function AnalystProposals({ proposals, vehicle }: { proposals: Proposal[]
           {applied[i] ? (
             <span className="text-xs text-success flex items-center gap-1"><Check className="h-3.5 w-3.5" />Applied as a draft — review it in the Journal.</span>
           ) : !balanced(p) ? (
-            <span className="text-xs text-warning flex items-center gap-1"><AlertTriangle className="h-3.5 w-3.5" />Doesn&apos;t balance — won&apos;t apply.</span>
+            <span className="text-sm text-warning flex items-center gap-1"><AlertTriangle className="h-3.5 w-3.5" />Doesn&apos;t balance — won&apos;t apply.</span>
           ) : (
             <Button size="sm" variant="outline" onClick={() => apply(p, i)} disabled={busy === i}>
               {busy === i ? 'Applying…' : 'Apply as draft'}
@@ -93,7 +93,7 @@ export function AnalystProposals({ proposals, vehicle }: { proposals: Proposal[]
           )}
         </div>
       ))}
-      {error && <p className="text-xs text-destructive">{error}</p>}
+      {error && <p className="text-sm text-destructive">{error}</p>}
     </div>
   )
 }

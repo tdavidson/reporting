@@ -30,7 +30,7 @@ export function StyleAnchorsInline() {
       .catch(() => setError('Could not load example memos.'))
   }, [])
 
-  if (error) return <div className="text-xs text-destructive">{error}</div>
+  if (error) return <div className="text-sm text-destructive">{error}</div>
   if (anchors === null) return <div className="text-xs text-muted-foreground"><Loader2 className="h-3.5 w-3.5 inline animate-spin mr-1" /> Loading…</div>
 
   return <StyleAnchorsLibrary initialAnchors={anchors} initialConfidence={confidenceFor(anchors.length)} embedded />

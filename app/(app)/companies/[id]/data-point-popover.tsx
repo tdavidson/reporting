@@ -220,7 +220,7 @@ export function DataPointPopover({
           <button
             onClick={handleDelete}
             disabled={deleting}
-            className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-destructive disabled:opacity-50"
+            className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-destructive disabled:opacity-50"
           >
             <Trash2 className="h-3 w-3" />
             {deleting ? 'Deleting...' : 'Delete'}

@@ -199,7 +199,7 @@ export default async function EmailDetailPage({ params }: { params: { id: string
       {/* Metrics written */}
       {metricValues.length > 0 && (
         <section>
-          <h2 className="text-sm font-semibold mb-2">Metrics Written ({metricValues.length})</h2>
+          <h2 className="text-base font-semibold mb-2">Metrics Written ({metricValues.length})</h2>
           <div className="rounded-lg border overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-muted/50 border-b">
@@ -244,7 +244,7 @@ export default async function EmailDetailPage({ params }: { params: { id: string
       {/* Attachments */}
       {attachments.length > 0 && (
         <section>
-          <h2 className="text-sm font-semibold mb-2">Attachments ({attachments.length})</h2>
+          <h2 className="text-base font-semibold mb-2">Attachments ({attachments.length})</h2>
           <div className="space-y-1.5">
             {attachments.map((att, i) => (
               <div
@@ -265,7 +265,7 @@ export default async function EmailDetailPage({ params }: { params: { id: string
       {/* Email body */}
       {textBody && (
         <section>
-          <h2 className="text-sm font-semibold mb-2">Email Body</h2>
+          <h2 className="text-base font-semibold mb-2">Email Body</h2>
           <pre className="text-xs bg-muted rounded-card p-4 whitespace-pre-wrap break-words font-mono max-h-96 overflow-auto border">
             {textBody}
           </pre>

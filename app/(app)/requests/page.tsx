@@ -412,7 +412,7 @@ export default function RequestsPage() {
       {/* Recipients */}
       <div className="rounded-card border bg-card p-5">
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-medium">Recipients ({selected.size} of {companies.length})</h2>
+          <h2 className="text-base font-medium">Recipients ({selected.size} of {companies.length})</h2>
           <button
             onClick={toggleAll}
             className="text-xs text-primary hover:underline"
@@ -450,7 +450,7 @@ export default function RequestsPage() {
 
       {/* Test send */}
       <div className="rounded-card border bg-card p-5 space-y-3">
-        <h2 className="text-sm font-medium">Test send</h2>
+        <h2 className="text-base font-medium">Test send</h2>
         <div className="flex items-center gap-2">
           <Input
             value={testEmail}
@@ -476,7 +476,7 @@ export default function RequestsPage() {
                 <Check className="h-3 w-3" /> Sent
               </span>
             ) : (
-              <span className="text-xs text-destructive flex items-center gap-1">
+              <span className="text-sm text-destructive flex items-center gap-1">
                 <AlertCircle className="h-3 w-3" /> {testResult.error || 'Failed'}
               </span>
             )
@@ -530,7 +530,7 @@ export default function RequestsPage() {
 
       {results && (
         <div className="rounded-card border bg-card p-5 space-y-3">
-          <h2 className="text-sm font-medium">
+          <h2 className="text-base font-medium">
             Results: {results.sent} sent, {results.failed} failed
           </h2>
           <div className="border rounded-lg divide-y max-h-[300px] overflow-y-auto">
@@ -542,7 +542,7 @@ export default function RequestsPage() {
                     <Check className="h-3 w-3" /> Sent
                   </span>
                 ) : (
-                  <span className="text-xs text-destructive flex items-center gap-1">
+                  <span className="text-sm text-destructive flex items-center gap-1">
                     <AlertCircle className="h-3 w-3" /> {r.error || 'Failed'}
                   </span>
                 )}

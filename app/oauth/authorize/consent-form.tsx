@@ -96,7 +96,7 @@ export function ConsentForm({ clientName, fundName, willWrite, downgraded, param
               <div className="flex gap-2.5 border-t pt-3">
                 <PencilLine className="h-4 w-4 shrink-0 mt-0.5 text-warning" />
                 <div className="space-y-1">
-                  <p className="text-xs font-medium text-warning">Make changes</p>
+                  <p className="text-sm font-medium text-warning">Make changes</p>
                   <p className="text-xs text-muted-foreground">
                     Record investments, post journal entries, run allocations, import bank transactions,
                     and close accounting periods.
@@ -115,7 +115,7 @@ export function ConsentForm({ clientName, fundName, willWrite, downgraded, param
 
           {downgraded && (
             <Alert className="border-warning bg-warning-subtle">
-              <AlertDescription className="text-warning text-xs">
+              <AlertDescription className="text-warning text-sm">
                 It asked for write access, but only fund admins can grant that — so it will get read-only.
               </AlertDescription>
             </Alert>

@@ -277,7 +277,7 @@ function OnboardingEmptyState() {
   return (
     <div className="rounded-card border p-6 max-w-2xl space-y-5">
       <div className="space-y-1">
-        <h2 className="text-sm font-medium">No fund capital recorded yet</h2>
+        <h2 className="text-base font-medium">No fund capital recorded yet</h2>
         <p className="text-sm text-muted-foreground">
           This overview is derived from the capital accounts, so it fills in once a vehicle has capital against it.
           There are two ways to get there — pick per vehicle, and both feed this page the same way.

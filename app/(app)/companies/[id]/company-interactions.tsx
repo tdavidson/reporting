@@ -77,7 +77,7 @@ export function CompanyInteractions({ companyId, adminOnly }: { companyId: strin
   if (loading) {
     return (
       <div className="mt-6">
-        <h2 className="text-sm font-medium text-muted-foreground mb-2 flex items-center gap-1.5">Recent Interactions{adminOnly && <Lock className="h-3 w-3 text-warning" />}</h2>
+        <h2 className="text-base font-medium text-muted-foreground mb-2 flex items-center gap-1.5">Recent Interactions{adminOnly && <Lock className="h-3 w-3 text-warning" />}</h2>
         <p className="text-xs text-muted-foreground">Loading...</p>
       </div>
     )
@@ -88,7 +88,7 @@ export function CompanyInteractions({ companyId, adminOnly }: { companyId: strin
   return (
     <div className="mt-6">
       <div className="flex items-center justify-between mb-2">
-        <h2 className="text-sm font-medium text-muted-foreground flex items-center gap-1.5">Recent Interactions{adminOnly && <Lock className="h-3 w-3 text-warning" />}</h2>
+        <h2 className="text-base font-medium text-muted-foreground flex items-center gap-1.5">Recent Interactions{adminOnly && <Lock className="h-3 w-3 text-warning" />}</h2>
         <Link
           href={`/interactions?company_id=${companyId}`}
           className="text-xs text-muted-foreground hover:text-foreground"

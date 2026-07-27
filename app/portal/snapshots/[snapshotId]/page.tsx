@@ -137,7 +137,7 @@ export default function PortalSnapshotDetailPage() {
 
       {byInvestor.map((grp, gi) => (
         <div key={gi} className="space-y-2">
-          {byInvestor.length > 1 && <h2 className="text-sm font-medium">{grp.name}</h2>}
+          {byInvestor.length > 1 && <h2 className="text-base font-medium">{grp.name}</h2>}
           <div className="rounded-md border bg-card overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-muted/50 text-xs uppercase text-muted-foreground">

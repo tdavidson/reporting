@@ -229,7 +229,7 @@ export function AffinityPanel({
       </div>
 
       {status.linked && !status.sync_active && (
-        <p className="text-xs text-warning flex items-center gap-1 mt-1">
+        <p className="text-sm text-warning flex items-center gap-1 mt-1">
           <AlertCircle className="h-3 w-3" />
           Background sync is paused — the person who linked this deal has disconnected Affinity.
         </p>
@@ -260,7 +260,7 @@ export function AffinityPanel({
       )}
 
       {error && (
-        <p className="mt-1 text-xs text-destructive">{error}</p>
+        <p className="mt-1 text-sm text-destructive">{error}</p>
       )}
 
       {status.linked && (
@@ -301,7 +301,7 @@ export function AffinityPanel({
               </Button>
             </div>
 
-            {error && <p className="mt-2 text-xs text-destructive">{error}</p>}
+            {error && <p className="mt-2 text-sm text-destructive">{error}</p>}
 
             <div className="mt-3 max-h-64 overflow-y-auto divide-y">
               {results.map(org => (

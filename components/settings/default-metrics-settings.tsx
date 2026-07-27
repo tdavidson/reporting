@@ -106,7 +106,7 @@ export function DefaultMetricsSettings() {
               aside={
                 <>
                   <button onClick={() => setEditing(m)} className="text-xs text-muted-foreground hover:text-foreground">Edit</button>
-                  <button onClick={() => remove(m.id)} className="text-xs text-muted-foreground hover:text-destructive">Remove</button>
+                  <button onClick={() => remove(m.id)} className="text-sm text-muted-foreground hover:text-destructive">Remove</button>
                 </>
               }
             >

@@ -74,7 +74,7 @@ export function AppearanceEditor() {
 
   return (
     <div className="space-y-5">
-      {error && <div className="rounded-md border border-destructive/40 bg-destructive/5 p-2 text-xs text-destructive">{error}</div>}
+      {error && <div className="rounded-md border border-destructive/40 bg-destructive/5 p-2 text-sm text-destructive">{error}</div>}
       <p className="text-xs text-muted-foreground max-w-xl">
         Changes preview live across the app. Save to apply for everyone in your fund. The defaults are a neutral accent, Inter for the interface and Newsreader for reports; everything here is optional.
       </p>

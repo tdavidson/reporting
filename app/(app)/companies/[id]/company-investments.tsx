@@ -633,7 +633,7 @@ export function CompanyInvestments({ companyId, companyStatus, portfolioGroups, 
           const groupTxns = [...transactions.filter(t => t.portfolio_group === group), ...companyWideTxns]
           return (
             <div key={group} className="mb-5">
-              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">{group}</h3>
+              <h3 className="text-base font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">{group}</h3>
               <SummaryLine summary={gs} fmt={fmt} fmtMoic={fmtMoic} asOfDate={asOfDate} setAsOfDate={setAsOfDate} />
               <TransactionTable
                 transactions={groupTxns}
@@ -1409,7 +1409,7 @@ function FxRevaluationFields({
           </div>
 
           {missingSharePrice && (
-            <p className="text-xs text-warning">
+            <p className="text-sm text-warning">
               This position is priced equity, so its FMV tracks share price. Enter the share price
               in {ccy} or the revalued mark won&apos;t reach FMV.
             </p>

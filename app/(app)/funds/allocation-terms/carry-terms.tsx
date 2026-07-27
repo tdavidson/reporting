@@ -236,7 +236,7 @@ export function CarryTerms() {
                   </div>
                 )
               })}
-              <p className={`text-xs ${Math.abs(totalPct - 100) > 0.01 && recipients.length > 0 ? 'text-warning' : 'text-muted-foreground'}`}>
+              <p className={`text-sm ${Math.abs(totalPct - 100) > 0.01 && recipients.length > 0 ? 'text-warning' : 'text-muted-foreground'}`}>
                 Total: {totalPct}%
               </p>
             </div>
@@ -252,7 +252,7 @@ export function CarryTerms() {
           {/* Carry of 0% accrues nothing — the single most common reason "carry isn't showing up".
               Warn in place rather than silently saving a term that does nothing. */}
           {carryMissing && (
-            <p className="text-xs text-warning flex items-center gap-1.5">
+            <p className="text-sm text-warning flex items-center gap-1.5">
               <AlertTriangle className="h-3.5 w-3.5" />
               Carry is 0% — nothing will accrue. Enter the GP&rsquo;s share (e.g. 20).
             </p>
@@ -262,7 +262,7 @@ export function CarryTerms() {
               — it never shows in any capital account, and the associates look-through can't
               split it. Say so before they hit Save and get a 400. */}
           {recipientsInvalid && (
-            <p className="text-xs text-warning flex items-center gap-1.5">
+            <p className="text-sm text-warning flex items-center gap-1.5">
               <AlertTriangle className="h-3.5 w-3.5" />
               Recipient shares must total 100%.
             </p>

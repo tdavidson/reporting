@@ -523,7 +523,7 @@ export default function LetterEditorPage() {
           {hasContent && narratives.map(n => (
             <div key={n.company_id} className="rounded-card border p-4">
               <div className="flex items-center justify-between mb-3">
-                <h3 className="font-medium text-sm">{n.company_name}</h3>
+                <h3 className="font-medium text-base">{n.company_name}</h3>
                 <div className="flex items-center gap-1.5">
                   {editingNarrative !== n.company_id && (
                     <Button
@@ -672,7 +672,7 @@ export default function LetterEditorPage() {
             <>
               {/* Fund metrics table */}
               <div className="rounded-card border p-4">
-                <h2 className="font-medium text-sm mb-3">Fund Summary</h2>
+                <h2 className="font-medium text-base mb-3">Fund Summary</h2>
                 <div className="overflow-x-auto">
                   <table className="w-full text-xs">
                     <thead>
@@ -726,7 +726,7 @@ export default function LetterEditorPage() {
               {/* Portfolio company table */}
               {tableHtml && (
                 <div className="rounded-card border p-4">
-                  <h2 className="font-medium text-sm mb-3">Portfolio Companies</h2>
+                  <h2 className="font-medium text-base mb-3">Portfolio Companies</h2>
                   <div
                     className="prose prose-sm dark:prose-invert max-w-none [&_table]:w-full [&_table]:text-xs [&_th]:px-2 [&_th]:py-1.5 [&_td]:px-2 [&_td]:py-1.5 [&_th]:border [&_td]:border [&_thead]:bg-muted/50"
                     dangerouslySetInnerHTML={{ __html: tableHtml }}

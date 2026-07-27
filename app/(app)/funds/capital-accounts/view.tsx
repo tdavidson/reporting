@@ -180,7 +180,7 @@ export function CapitalAccountsView() {
             Share with LPs
           </Button>
         )}
-        {err && !showShare && <span className="text-xs text-warning">{err}</span>}
+        {err && !showShare && <span className="text-sm text-warning">{err}</span>}
 
         <div className="ml-auto flex flex-wrap items-center gap-2">
           {/* "As of" report date + Latest — same control and placement as /lps. The preset
@@ -231,14 +231,14 @@ export function CapitalAccountsView() {
               ))}
             </div>
 
-            {err && <p className="text-xs text-warning">{err}</p>}
+            {err && <p className="text-sm text-warning">{err}</p>}
             {publishResult && (
               <div className="rounded-md border p-2.5 text-sm space-y-1">
                 <p className="flex items-center gap-1.5 text-success">
                   <Check className="h-4 w-4" />
                   Published {publishResult.count} statement{publishResult.count === 1 ? '' : 's'} for {period?.label} to the LP portal.
                 </p>
-                {publishResult.errors.map((e, i) => <p key={i} className="text-xs text-warning">{e}</p>)}
+                {publishResult.errors.map((e, i) => <p key={i} className="text-sm text-warning">{e}</p>)}
               </div>
             )}
           </div>

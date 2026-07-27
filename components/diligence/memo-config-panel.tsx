@@ -316,7 +316,7 @@ export function MemoConfigPanel({ dealId, defaultOpen }: { dealId: string; defau
 
       {open && (
         <div className="px-4 pb-4 pt-1 border-t space-y-4">
-          {error && <div className="text-xs text-destructive">{error}</div>}
+          {error && <div className="text-sm text-destructive">{error}</div>}
 
           {/* Preset toolbar, load a saved fund preset into the form, or save
               the current form state as a new preset. The form below is still

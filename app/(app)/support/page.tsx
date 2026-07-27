@@ -115,7 +115,7 @@ export default function SupportPage() {
         </div>
 
         <div id="setup" className="pl-4 border-l-2 border-border">
-          <h3 className="text-sm font-medium mb-2">Setup</h3>
+          <h3 className="text-base font-medium mb-2">Setup</h3>
           <p className="text-muted-foreground mb-2">
             Under the hood, the platform uses a database, authentication, file storage, inbound email
             processing, and an AI provider, with prebuilt integrations for several third-party services
@@ -157,7 +157,7 @@ export default function SupportPage() {
         </div>
 
         <div id="license" className="pl-4 border-l-2 border-border">
-          <h3 className="text-sm font-medium mb-2">License</h3>
+          <h3 className="text-base font-medium mb-2">License</h3>
           <p className="text-muted-foreground mb-2">
             Apache License 2.0. You are free to use it, modify it,
             and deploy it on your own infrastructure &mdash; for your own fund or commercially. There are no
@@ -191,7 +191,7 @@ export default function SupportPage() {
         </div>
 
         <div id="pricing" className="pl-4 border-l-2 border-border">
-          <h3 className="text-sm font-medium mb-2">Pricing</h3>
+          <h3 className="text-base font-medium mb-2">Pricing</h3>
           <p className="text-muted-foreground mb-2">
             You can download and deploy this platform for your own use under the terms of the{' '}
             <a
@@ -267,7 +267,7 @@ export default function SupportPage() {
         </div>
 
         <div id="company-detail" className="pl-4 border-l-2 border-border">
-          <h3 className="text-sm font-medium mb-2 flex items-center gap-2">
+          <h3 className="text-base font-medium mb-2 flex items-center gap-2">
             <Building2 className="h-3.5 w-3.5 text-muted-foreground" />
             Company Detail
           </h3>
@@ -391,7 +391,7 @@ export default function SupportPage() {
         </div>
 
         <div id="email-detail" className="pl-4 border-l-2 border-border">
-          <h3 className="text-sm font-medium mb-2 flex items-center gap-2">
+          <h3 className="text-base font-medium mb-2 flex items-center gap-2">
             <Mail className="h-3.5 w-3.5 text-muted-foreground" />
             Email Detail
           </h3>

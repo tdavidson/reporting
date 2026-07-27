@@ -109,7 +109,7 @@ export default async function HomePage() {
               return (
                 <div key={w.title}>
                   <Icon className="h-5 w-5 text-brand-700 dark:text-brand-400 mb-4" />
-                  <h3 className="text-sm font-medium mb-1.5">{w.title}</h3>
+                  <h3 className="text-base font-medium mb-1.5">{w.title}</h3>
                   <p className="text-sm text-muted-foreground">{w.text}</p>
                 </div>
               )
@@ -136,7 +136,7 @@ export default async function HomePage() {
                     {tier.badge}
                   </span>
                 )}
-                <h3 className="text-sm font-medium text-muted-foreground">{tier.name}</h3>
+                <h3 className="text-base font-medium text-muted-foreground">{tier.name}</h3>
                 <p className="font-display text-heading font-normal mt-2 mb-1">{tier.price}</p>
                 {tier.subtitle && <p className="text-caption text-muted-foreground mb-5">{tier.subtitle}</p>}
                 <ul className="text-sm text-muted-foreground space-y-2 mb-6 flex-1">

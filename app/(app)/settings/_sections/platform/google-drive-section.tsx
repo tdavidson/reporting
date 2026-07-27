@@ -180,7 +180,7 @@ export function GoogleConnectionUI({
             <Button size="sm" variant="outline" onClick={() => { window.location.href = '/api/auth/google' }} className="text-xs h-7">
               Reconnect
             </Button>
-            <Button size="sm" variant="outline" onClick={removeCredentials} disabled={removingCreds} className="text-xs h-7 text-destructive hover:text-destructive hover:bg-destructive-subtle dark:hover:bg-destructive-subtle/30">
+            <Button size="sm" variant="outline" onClick={removeCredentials} disabled={removingCreds} className="text-sm h-7 text-destructive hover:text-destructive hover:bg-destructive-subtle dark:hover:bg-destructive-subtle/30">
               {removingCreds ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Remove'}
             </Button>
           </div>
@@ -207,7 +207,7 @@ export function GoogleConnectionUI({
           <Button size="sm" variant="outline" onClick={() => setEditingCreds(true)} className="text-xs h-7">
             Update credentials
           </Button>
-          <Button size="sm" variant="outline" onClick={removeCredentials} disabled={removingCreds} className="text-xs h-7 text-destructive hover:text-destructive hover:bg-destructive-subtle dark:hover:bg-destructive-subtle/30">
+          <Button size="sm" variant="outline" onClick={removeCredentials} disabled={removingCreds} className="text-sm h-7 text-destructive hover:text-destructive hover:bg-destructive-subtle dark:hover:bg-destructive-subtle/30">
             {removingCreds ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Remove'}
           </Button>
         </div>
@@ -496,7 +496,7 @@ export function GoogleDriveSection({
           </div>
 
           {folderError && (
-            <p className="text-xs text-destructive flex items-center gap-1">
+            <p className="text-sm text-destructive flex items-center gap-1">
               <AlertCircle className="h-3 w-3" /> {folderError}
             </p>
           )}
@@ -685,7 +685,7 @@ function GoogleDriveCompanyFolders({ fundId }: { fundId: string }) {
                           <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => openPicker(c.id)} disabled={saving === c.id}>
                             Change
                           </Button>
-                          <Button size="sm" variant="ghost" className="h-7 text-xs text-destructive hover:text-destructive" onClick={() => clearFolder(c.id)} disabled={saving === c.id}>
+                          <Button size="sm" variant="ghost" className="h-7 text-sm text-destructive hover:text-destructive" onClick={() => clearFolder(c.id)} disabled={saving === c.id}>
                             {saving === c.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <X className="h-3 w-3" />}
                           </Button>
                         </>
@@ -771,7 +771,7 @@ function GoogleDriveCompanyFolders({ fundId }: { fundId: string }) {
                       </div>
 
                       {folderError && (
-                        <p className="text-xs text-destructive flex items-center gap-1">
+                        <p className="text-sm text-destructive flex items-center gap-1">
                           <AlertCircle className="h-3 w-3" /> {folderError}
                         </p>
                       )}

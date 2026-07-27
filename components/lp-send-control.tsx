@@ -210,7 +210,7 @@ export function LpSendControl({ kind, id, itemTitle }: {
                 </div>
               </div>
 
-              {error && <div className="text-xs rounded-md border border-destructive/40 bg-destructive/5 px-2.5 py-2 text-destructive">{error}</div>}
+              {error && <div className="text-sm rounded-md border border-destructive/40 bg-destructive/5 px-2.5 py-2 text-destructive">{error}</div>}
 
               <div className="flex items-center justify-between gap-2">
                 <Button variant="ghost" size="sm" onClick={() => { setStage('compose'); setError(null) }} disabled={sending}>
@@ -227,7 +227,7 @@ export function LpSendControl({ kind, id, itemTitle }: {
           ) : (
             <div className="space-y-4 min-w-0">
               {portalEnabled === false && delivery !== 'attachment' && (
-                <div className="text-xs rounded-md border border-warning/50 bg-warning-subtle dark:bg-warning-subtle/30 text-warning px-2.5 py-2">
+                <div className="text-sm rounded-md border border-warning/50 bg-warning-subtle dark:bg-warning-subtle/30 text-warning px-2.5 py-2">
                   The LP portal is off, so portal links won&apos;t work. Enable it in{' '}
                   <a href="/settings" className="underline">Settings → LP Portal</a>, or send as a PDF attachment.
                 </div>
@@ -299,7 +299,7 @@ export function LpSendControl({ kind, id, itemTitle }: {
                     />
                   </div>
 
-                  {error && <div className="text-xs rounded-md border border-destructive/40 bg-destructive/5 px-2.5 py-2 text-destructive">{error}</div>}
+                  {error && <div className="text-sm rounded-md border border-destructive/40 bg-destructive/5 px-2.5 py-2 text-destructive">{error}</div>}
 
                   <div className="flex justify-end gap-2">
                     <Button variant="outline" size="sm" onClick={() => setOpen(false)} disabled={previewing}>Cancel</Button>

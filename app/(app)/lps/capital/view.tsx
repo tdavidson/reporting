@@ -285,7 +285,7 @@ function HistoryTable({
 
   return (
     <div className="space-y-2">
-      <h2 className="text-sm font-medium">History</h2>
+      <h2 className="text-base font-medium">History</h2>
       <div className="overflow-x-auto rounded-lg border">
         <table className="w-full text-sm">
           <thead className="text-xs text-muted-foreground bg-muted/40">
@@ -315,7 +315,7 @@ function HistoryTable({
                       <button
                         onClick={() => onDelete(d)}
                         title={`Delete the entire ${d} set`}
-                        className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 focus:opacity-100"
+                        className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 focus:opacity-100"
                       >
                         <Trash2 className="h-3.5 w-3.5" /> Delete set
                       </button>
@@ -359,7 +359,7 @@ function ImportBox({ group, onImported }: { group: string; onImported: () => voi
     <div className="rounded-card border p-4 space-y-3">
       <div className="flex items-center gap-2">
         <ClipboardPaste className="h-4 w-4 text-muted-foreground" />
-        <h2 className="text-sm font-medium">Import</h2>
+        <h2 className="text-base font-medium">Import</h2>
       </div>
       <p className="text-xs text-muted-foreground">
         Paste a statement — the AI maps the columns (commitment, called/paid-in, distributions, NAV, and Net IRR if present).

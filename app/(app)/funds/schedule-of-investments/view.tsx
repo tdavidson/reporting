@@ -223,7 +223,7 @@ export function ScheduleOfInvestmentsView() {
                   {/* The tracker is the control total. If the replay wouldn't land on it,
                       say so rather than posting dozens of entries that don't tie. */}
                   {Math.abs(hist.totalCost - soi.totalCost) > 0.005 || Math.abs(hist.totalCost + hist.totalUnrealized - soi.totalFairValue) > 0.005 ? (
-                    <p className="text-xs text-warning">
+                    <p className="text-sm text-warning">
                       Heads up: this lands at {fmt(hist.totalCost + hist.totalUnrealized)} carrying value, but the tracker
                       shows {fmt(soi.totalFairValue)}. Replay only what you mean to.
                     </p>
@@ -234,7 +234,7 @@ export function ScheduleOfInvestmentsView() {
                   )}
 
                   {hist.warnings.map((w, i) => (
-                    <p key={i} className="text-xs text-warning flex items-start gap-1">
+                    <p key={i} className="text-sm text-warning flex items-start gap-1">
                       <AlertTriangle className="h-3.5 w-3.5 mt-px shrink-0" />{w}
                     </p>
                   ))}

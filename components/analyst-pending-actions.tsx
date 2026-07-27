@@ -71,7 +71,7 @@ export function AnalystPendingActions({ actions }: { actions: StagedAction[] }) 
                 </Button>
               </div>
             )}
-            {st === 'error' && errors[a.id] && <p className="text-xs text-destructive">{errors[a.id]}</p>}
+            {st === 'error' && errors[a.id] && <p className="text-sm text-destructive">{errors[a.id]}</p>}
           </div>
         )
       })}

@@ -52,7 +52,7 @@ export function ResearchSummary({ output }: { output: ResearchOutput }) {
 
       {output.contradictions.length > 0 && (
         <section>
-          <h3 className="text-sm font-medium mb-2">Contradictions</h3>
+          <h3 className="text-base font-medium mb-2">Contradictions</h3>
           <div className="rounded-md border bg-card divide-y">
             {output.contradictions.map((c, i) => (
               <div key={i} className="p-3 text-sm">
@@ -72,7 +72,7 @@ export function ResearchSummary({ output }: { output: ResearchOutput }) {
       )}
 
       <section>
-        <h3 className="text-sm font-medium mb-2">Findings</h3>
+        <h3 className="text-base font-medium mb-2">Findings</h3>
         {output.findings.length === 0 ? (
           <p className="text-xs text-muted-foreground">No findings recorded.</p>
         ) : (
@@ -106,7 +106,7 @@ export function ResearchSummary({ output }: { output: ResearchOutput }) {
 
       {(output.competitive_map.named_by_company.length > 0 || output.competitive_map.named_by_research.length > 0) && (
         <section>
-          <h3 className="text-sm font-medium mb-2">Competitive map</h3>
+          <h3 className="text-base font-medium mb-2">Competitive map</h3>
           <div className="grid gap-3 md:grid-cols-2">
             <div className="rounded-card border bg-card p-3">
               <div className="text-xs font-medium text-muted-foreground mb-2">Named by company</div>
@@ -144,7 +144,7 @@ export function ResearchSummary({ output }: { output: ResearchOutput }) {
 
       {output.founder_dossiers.length > 0 && (
         <section>
-          <h3 className="text-sm font-medium mb-2">Founder dossiers</h3>
+          <h3 className="text-base font-medium mb-2">Founder dossiers</h3>
           <div className="space-y-3">
             {output.founder_dossiers.map((f, i) => (
               <div key={i} className="rounded-card border bg-card p-3">
@@ -167,7 +167,7 @@ export function ResearchSummary({ output }: { output: ResearchOutput }) {
 
       {output.research_gaps.length > 0 && (
         <section>
-          <h3 className="text-sm font-medium mb-2">Research gaps</h3>
+          <h3 className="text-base font-medium mb-2">Research gaps</h3>
           <div className="rounded-md border bg-card divide-y">
             {output.research_gaps.map((g, i) => (
               <div key={i} className="p-3 text-sm flex items-start gap-2">

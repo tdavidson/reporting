@@ -175,14 +175,14 @@ export function DealScreeningSection({ thesis, prompt, intakeEnabled, hasSubmiss
       )}
 
       <div className="border-t mt-6 pt-4">
-        <h3 className="text-sm font-medium mb-1">Public submission form</h3>
+        <h3 className="text-base font-medium mb-1">Public submission form</h3>
         <p className="text-xs text-muted-foreground mb-3">
           Share a public URL where founders can submit pitches directly. Each submission runs through the same screening pipeline as inbound emails.
           Generating a new URL invalidates the previous one.
         </p>
         {submissionUrl ? (
           <div className="space-y-2">
-            <p className="text-xs text-warning">Copy this URL now — it won&rsquo;t be shown again. Only a hash is stored.</p>
+            <p className="text-sm text-warning">Copy this URL now — it won&rsquo;t be shown again. Only a hash is stored.</p>
             <div className="flex items-center gap-2">
               <Input readOnly value={submissionUrl} className="font-mono text-xs" />
               <Button onClick={copyUrl} variant="outline" size="sm">
@@ -191,7 +191,7 @@ export function DealScreeningSection({ thesis, prompt, intakeEnabled, hasSubmiss
             </div>
             <Button onClick={clearToken} disabled={tokenBusy} variant="outline" size="sm">Disable form</Button>
             {!intake && (
-              <p className="text-xs text-warning">
+              <p className="text-sm text-warning">
                 Note: the form is currently inactive because deal intake is disabled above.
               </p>
             )}
@@ -204,7 +204,7 @@ export function DealScreeningSection({ thesis, prompt, intakeEnabled, hasSubmiss
               <Button onClick={clearToken} disabled={tokenBusy} variant="outline" size="sm">Disable form</Button>
             </div>
             {!intake && (
-              <p className="text-xs text-warning">
+              <p className="text-sm text-warning">
                 Note: the form is currently inactive because deal intake is disabled above.
               </p>
             )}

@@ -272,7 +272,7 @@ function MetricChartCard({
     <div className="rounded-card border bg-card p-4">
       <div className="flex items-start justify-between mb-2">
         <div className="min-w-0">
-          <h3 className="font-medium text-sm truncate">{metric.name}</h3>
+          <h3 className="font-medium text-base truncate">{metric.name}</h3>
           {metric.description && (
             <p className="text-[11px] text-muted-foreground mt-0.5 line-clamp-1">{metric.description}</p>
           )}

@@ -93,7 +93,7 @@ export function MfaSettings() {
   return (
     <>
       {error && (
-        <p className="text-xs text-destructive flex items-center gap-1 mb-3">
+        <p className="text-sm text-destructive flex items-center gap-1 mb-3">
           <AlertCircle className="h-3.5 w-3.5 shrink-0" /> {error}
         </p>
       )}

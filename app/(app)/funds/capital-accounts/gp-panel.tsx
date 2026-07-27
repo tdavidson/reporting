@@ -107,7 +107,7 @@ export function GpPanel({ isAdmin }: { isAdmin: boolean }) {
   return (
     <div className="rounded-card border p-4 space-y-4">
       <div className="space-y-1">
-        <h2 className="text-sm font-medium">
+        <h2 className="text-base font-medium">
           {gp.link.vehicle}
           <span className="ml-2 text-xs font-normal text-muted-foreground">GP of {gp.link.servesVehicle}</span>
         </h2>
@@ -130,7 +130,7 @@ export function GpPanel({ isAdmin }: { isAdmin: boolean }) {
         )}
       </p>
 
-      {error && <p className="text-xs text-destructive">{error}</p>}
+      {error && <p className="text-sm text-destructive">{error}</p>}
 
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
@@ -178,7 +178,7 @@ export function GpPanel({ isAdmin }: { isAdmin: boolean }) {
       </div>
 
       {gp.partners.some(p => p.carryUnpaid < -0.005) && (
-        <p className="text-xs text-warning">
+        <p className="text-sm text-warning">
           A negative <strong>carry unpaid</strong> means more carry has been paid than is currently accrued (NAV fell
           after a payment) — an over-distribution to claw back, not an amount owed.
         </p>
@@ -194,7 +194,7 @@ export function GpPanel({ isAdmin }: { isAdmin: boolean }) {
         </p>
       ) : (
         <div className="space-y-2">
-          <h3 className="text-sm font-medium">Carry payments</h3>
+          <h3 className="text-base font-medium">Carry payments</h3>
           <p className="text-xs text-muted-foreground">Carry paid to each partner — the total per partner feeds the table above.</p>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">

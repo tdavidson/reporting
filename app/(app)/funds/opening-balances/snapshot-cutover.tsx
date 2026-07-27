@@ -116,7 +116,7 @@ export function SnapshotCutover() {
   return (
     <div className="rounded-card border p-4 space-y-4">
       <div className="space-y-1">
-        <h2 className="text-sm font-medium">Copy the LP snapshot into the vehicles</h2>
+        <h2 className="text-base font-medium">Copy the LP snapshot into the vehicles</h2>
         <p className="text-xs text-muted-foreground max-w-3xl">
           Takes the figures from <strong>{preview.snapshot.name}</strong> (as of {preview.snapshot.asOf}) and writes them
           into each vehicle as capital events, so capital accounts derive from the vehicle instead of the imported
@@ -126,7 +126,7 @@ export function SnapshotCutover() {
       </div>
 
       {preview.alreadyImported && !done && (
-        <p className="text-xs rounded-md border border-warning/50 bg-warning-subtle dark:bg-warning-subtle/30 text-warning px-2.5 py-2">
+        <p className="text-sm rounded-md border border-warning/50 bg-warning-subtle dark:bg-warning-subtle/30 text-warning px-2.5 py-2">
           This snapshot has already been copied in. Running it again is a no-op, not a double-count — but you probably
           want <strong>Undo import</strong> if you meant to start over.
         </p>
@@ -139,11 +139,11 @@ export function SnapshotCutover() {
             Copied {done.events} events{done.commitments > 0 ? ` and ${done.commitments} commitments` : ''} into{' '}
             {done.vehicles.join(', ')}.
           </p>
-          {done.errors.map((e, i) => <p key={i} className="text-xs text-warning">{e}</p>)}
+          {done.errors.map((e, i) => <p key={i} className="text-sm text-warning">{e}</p>)}
         </div>
       )}
 
-      {error && <p className="text-xs text-destructive">{error}</p>}
+      {error && <p className="text-sm text-destructive">{error}</p>}
 
       {/* Totals */}
       <div className="flex flex-wrap gap-x-6 gap-y-1 text-xs">

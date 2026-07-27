@@ -46,7 +46,7 @@ function fileType(d: Doc): string {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="space-y-2">
-      <h2 className="text-sm font-semibold">{title}</h2>
+      <h2 className="text-base font-semibold">{title}</h2>
       {children}
     </section>
   )
@@ -251,7 +251,7 @@ export default function PortalLibraryPage() {
           <div className="flex items-center gap-2">
             <button
               onClick={() => setUnreadOnly(v => !v)}
-              className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${ unreadOnly ? 'border-warning/40 bg-warning/10 text-warning dark:text-warning' : 'text-muted-foreground hover:text-foreground hover:bg-muted/40' }`}
+              className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-sm font-medium transition-colors ${ unreadOnly ? 'border-warning/40 bg-warning/10 text-warning dark:text-warning' : 'text-muted-foreground hover:text-foreground hover:bg-muted/40' }`}
             >
               <span className={`h-2 w-2 rounded-full ${unreadCount > 0 ? 'bg-warning' : 'bg-muted-foreground/40'}`} />
               Unread only{unreadCount > 0 ? ` (${unreadCount})` : ''}
@@ -307,7 +307,7 @@ export default function PortalLibraryPage() {
                   if (!list || list.length === 0) return null
                   return (
                     <div key={scope.key} className="space-y-1.5">
-                      <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{scope.label}</h3>
+                      <h3 className="text-base font-medium text-muted-foreground uppercase tracking-wide">{scope.label}</h3>
                       <div className="rounded-md border bg-card divide-y">{list.map(docRow)}</div>
                     </div>
                   )

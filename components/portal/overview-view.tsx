@@ -67,7 +67,7 @@ export function OverviewView({ data }: { data: OverviewViewData }) {
           {/* Per-vehicle */}
           {(data.vehicles?.length ?? 0) > 0 && (
             <section className="space-y-3">
-              <h2 className="text-sm font-semibold">By investment vehicle</h2>
+              <h2 className="text-base font-semibold">By investment vehicle</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {data.vehicles!.map((v: OverviewVehicle) => (
                   <div key={v.name} className="rounded-card border bg-card p-4">

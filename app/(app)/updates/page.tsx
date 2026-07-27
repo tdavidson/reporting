@@ -55,7 +55,7 @@ export default async function UpdatesPage() {
             <p className="text-sm font-medium text-warning">
               A new version is available!
             </p>
-            <p className="text-xs text-warning mt-1">
+            <p className="text-sm text-warning mt-1">
               Published {new Date(update.publishedAt).toLocaleDateString()}
             </p>
           </div>

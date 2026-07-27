@@ -268,7 +268,7 @@ export default function ReviewPage() {
 
       {!loading && (data?.needsReviewEmails ?? []).length > 0 && (
         <div className="mt-6">
-          <h2 className="text-sm font-medium text-muted-foreground mb-3">
+          <h2 className="text-base font-medium text-muted-foreground mb-3">
             Emails needing review ({data!.needsReviewEmails.length})
           </h2>
           <div className="space-y-2">

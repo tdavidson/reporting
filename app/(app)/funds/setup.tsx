@@ -179,7 +179,7 @@ export function AccountingSetup({ alwaysShow = false }: { alwaysShow?: boolean }
           <Button size="sm" onClick={turnOn} disabled={turningOn}>
             {turningOn && <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />}Turn on fund accounting
           </Button>
-          {turnOnErr && <p className="text-xs text-destructive">{turnOnErr}</p>}
+          {turnOnErr && <p className="text-sm text-destructive">{turnOnErr}</p>}
           {!showManual && (
             <button onClick={() => setShowManual(true)} className="block text-xs text-muted-foreground hover:text-foreground underline underline-offset-2">
               Set up manually instead
@@ -209,7 +209,7 @@ export function AccountingSetup({ alwaysShow = false }: { alwaysShow?: boolean }
             {attrLoading && <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />}Preview
           </Button>
         </div>
-        {attrError && <p className="text-xs text-destructive mt-1">{attrError}</p>}
+        {attrError && <p className="text-sm text-destructive mt-1">{attrError}</p>}
         {attrPreview && (
           <div className="mt-1.5 space-y-1">
             {attrPreview.empty ? (
@@ -328,7 +328,7 @@ export function AccountingSetup({ alwaysShow = false }: { alwaysShow?: boolean }
           <Button size="sm" onClick={activate} disabled={activating}>
             {activating && <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />}Activate fund accounting
           </Button>
-          {activateErr && <p className="text-xs text-destructive">{activateErr}</p>}
+          {activateErr && <p className="text-sm text-destructive">{activateErr}</p>}
         </div>
       )}
       </>

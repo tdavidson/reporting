@@ -109,7 +109,7 @@ export function CompanyDefaultMetricsDialog({
                     <button
                       onClick={() => setExcluded(i.id, true)}
                       disabled={busyId === i.id}
-                      className="text-xs text-muted-foreground hover:text-destructive"
+                      className="text-sm text-muted-foreground hover:text-destructive"
                     >
                       {busyId === i.id ? '…' : 'Exclude'}
                     </button>

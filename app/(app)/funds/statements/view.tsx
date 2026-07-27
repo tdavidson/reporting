@@ -252,7 +252,7 @@ export function StatementsView() {
     // capital line on the balance sheet.
     <div className="space-y-8">
       <section>
-        <h2 className="text-sm font-semibold">Statement of assets, liabilities and partners&rsquo; capital</h2>
+        <h2 className="text-base font-semibold">Statement of assets, liabilities and partners&rsquo; capital</h2>
         <p className="text-xs text-muted-foreground mb-2">Balance sheet — {asOfLabel}</p>
         <div className="border rounded-lg overflow-x-auto">
           <table className="w-full text-sm">
@@ -267,20 +267,20 @@ export function StatementsView() {
         {/* Only worth saying when it's actionable: unallocated earnings mean the
             per-LP capital accounts understate until the period is closed. */}
         {data.balanceSheet.partnersCapital.unallocatedEarnings !== 0 && (
-          <p className="text-xs text-warning mt-1">
+          <p className="text-sm text-warning mt-1">
             {fmt(data.balanceSheet.partnersCapital.unallocatedEarnings)} of net income is not yet allocated to partners.
             Close the period to allocate it — until then each partner&rsquo;s capital account understates their NAV.
           </p>
         )}
         {data.balanceSheet.check !== 0 && (
-          <p className="text-xs text-warning mt-1">
+          <p className="text-sm text-warning mt-1">
             Does not balance — residual {fmt(data.balanceSheet.check)}.
           </p>
         )}
       </section>
 
       <section>
-        <h2 className="text-sm font-semibold">Statement of operations</h2>
+        <h2 className="text-base font-semibold">Statement of operations</h2>
         <p className="text-xs text-muted-foreground mb-2">Income statement — {overLabel}</p>
         <div className="border rounded-lg overflow-x-auto">
           <table className="w-full text-sm">
@@ -297,7 +297,7 @@ export function StatementsView() {
         </div>
         {/* A balanced trial balance is the expected state — only worth saying when it isn't. */}
         {!data.trialBalance.balanced && (
-          <p className="text-xs text-warning mt-1">
+          <p className="text-sm text-warning mt-1">
             Trial balance is out of balance — debits {fmt(data.trialBalance.totalDebits)} vs credits {fmt(data.trialBalance.totalCredits)}.
           </p>
         )}
@@ -305,7 +305,7 @@ export function StatementsView() {
 
       {data.cashFlows && (
         <section>
-          <h2 className="text-sm font-semibold">Statement of cash flows</h2>
+          <h2 className="text-base font-semibold">Statement of cash flows</h2>
           <p className="text-xs text-muted-foreground mb-2">{overLabel}</p>
           <div className="border rounded-lg overflow-x-auto">
             <table className="w-full text-sm">
@@ -334,7 +334,7 @@ export function StatementsView() {
               repayment of money that was never borrowed. */}
           {data.cashFlows.nonCash.length > 0 && (
             <div className="mt-4">
-              <h3 className="text-sm font-medium">Supplemental — non-cash investing and financing activities</h3>
+              <h3 className="text-base font-medium">Supplemental — non-cash investing and financing activities</h3>
               <p className="text-xs text-muted-foreground mb-2">
                 Transactions that changed investments, borrowings, or partners&rsquo; capital without moving cash,
                 so they do not appear above.
@@ -363,7 +363,7 @@ export function StatementsView() {
       )}
 
       <section>
-        <h2 className="text-sm font-semibold">Statement of changes in partners&rsquo; capital</h2>
+        <h2 className="text-base font-semibold">Statement of changes in partners&rsquo; capital</h2>
         <p className="text-xs text-muted-foreground mb-2">
           {overLabel} — beginning capital is the balance carried into the period; this is the detail behind the
           single partners&rsquo; capital line on the balance sheet

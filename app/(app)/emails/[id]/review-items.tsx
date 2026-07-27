@@ -147,7 +147,7 @@ export function ReviewItems({
 
   return (
     <section>
-      <h2 className="text-sm font-semibold mb-2">
+      <h2 className="text-base font-semibold mb-2">
         Review Items {loading ? '' : `(${items.length} unresolved)`}
       </h2>
 

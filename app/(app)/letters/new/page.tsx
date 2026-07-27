@@ -243,7 +243,7 @@ export default function NewLetterPage() {
       {step === 2 && preview && (
         <div className="space-y-6">
           <div className="rounded-card border bg-muted/30 p-4">
-            <h2 className="font-medium text-sm mb-2">{preview.fundName}, {preview.periodLabel}</h2>
+            <h2 className="font-medium text-base mb-2">{preview.fundName}, {preview.periodLabel}</h2>
             <div className="grid grid-cols-3 gap-4 text-sm">
               <div>
                 <p className="text-muted-foreground text-xs">Capital Deployed</p>
@@ -264,7 +264,7 @@ export default function NewLetterPage() {
           </div>
 
           <div>
-            <h3 className="font-medium text-sm mb-3">Companies ({preview.companies.length})</h3>
+            <h3 className="font-medium text-base mb-3">Companies ({preview.companies.length})</h3>
             <div className="space-y-2">
               {preview.companies.map(c => (
                 <div key={c.investment.companyId} className="rounded-card border p-3">

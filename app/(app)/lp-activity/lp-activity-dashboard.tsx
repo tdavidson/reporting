@@ -178,7 +178,7 @@ export function LpActivityDashboard() {
           {/* Per-person rollup */}
           {data.people.length > 0 && (
             <div className="mb-8">
-              <h2 className="text-sm font-semibold mb-2">By person</h2>
+              <h2 className="text-base font-semibold mb-2">By person</h2>
               <div className="rounded-lg border overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>

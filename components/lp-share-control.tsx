@@ -81,7 +81,7 @@ export function LpSharePanel({ shareEndpoint }: { shareEndpoint: string }) {
   return (
     <div className="space-y-3 min-w-0">
       {portalEnabled === false && (
-        <div className="text-xs rounded-md border border-warning/50 bg-warning-subtle dark:bg-warning-subtle/30 text-warning px-2.5 py-2">
+        <div className="text-sm rounded-md border border-warning/50 bg-warning-subtle dark:bg-warning-subtle/30 text-warning px-2.5 py-2">
           The LP portal is off for this fund, shares won&apos;t reach LPs until you enable it in{' '}
           <a href="/settings" className="underline">Settings → LP Portal</a>.
         </div>

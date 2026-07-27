@@ -149,7 +149,7 @@ export function StageHeader({
 
       {children}
 
-      {error && <p className="text-xs text-destructive">{error}</p>}
+      {error && <p className="text-sm text-destructive">{error}</p>}
 
       {job && job.kind && stage.state !== 'blocked' && <JobLine job={job} stage={stage} />}
     </div>
