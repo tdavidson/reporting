@@ -7,8 +7,6 @@ export interface SiteProductGroup {
   key?: ProductKey
   label: string
   description: string
-  /** Small uppercase label above the section heading. Omitted = no eyebrow. */
-  eyebrow?: string
   heroScreenshot?: string
   features: SiteFeature[]
 }
@@ -73,7 +71,6 @@ function group(v: unknown): SiteProductGroup | null {
   return {
     label: v.label, description: v.description, features,
     ...(isStr(v.key) && (orderedProducts() as string[]).includes(v.key) ? { key: v.key as ProductKey } : {}),
-    ...(nonEmpty(v.eyebrow) ? { eyebrow: v.eyebrow } : {}),
     ...(isStr(v.heroScreenshot) ? { heroScreenshot: v.heroScreenshot } : {}),
   }
 }

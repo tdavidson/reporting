@@ -17,6 +17,11 @@ function HemrockIcon({ className }: { className?: string }) {
   )
 }
 
+/** 1234 -> "1.2k". Exact below a thousand; the trailing ".0" is dropped. */
+function formatStars(n: number): string {
+  return n >= 1000 ? `${(n / 1000).toFixed(1).replace(/\.0$/, '')}k` : String(n)
+}
+
 function PublicShell({ children }: { children: React.ReactNode }) {
   const [starCount, setStarCount] = useState<number | null>(null)
 
@@ -43,16 +48,22 @@ function PublicShell({ children }: { children: React.ReactNode }) {
         {/* One primary action. The demo is the thing a first-time visitor should
             do; GitHub and sign-in are secondary and read as such. */}
         <div className="flex items-center gap-1.5">
-          <Button variant="ghost" size="sm" asChild className="text-muted-foreground gap-2">
+          {/* GitHub as a bordered pill with the star count set off by a divider.
+              The count is social proof, so it reads better as its own field than
+              as a number tucked inside a ghost link. It appears only once fetched
+              and above the floor, so the button never reflows mid-paint. */}
+          <Button variant="outline" size="sm" asChild className="p-0 gap-0 overflow-hidden">
             <a href="https://github.com/tdavidson/reporting" target="_blank" rel="noopener noreferrer">
-              <Github className="h-4 w-4" />
+              <span className="flex items-center gap-2 self-stretch px-3">
+                <Github className="h-4 w-4" />
+                <span className="hidden sm:inline">GitHub</span>
+              </span>
               {starCount != null && starCount >= 10 && (
-                <span className="inline-flex items-center gap-0.5 text-xs">
+                <span className="flex items-center gap-1 self-stretch border-l px-2.5 text-xs text-muted-foreground">
                   <Star className="h-3 w-3 fill-current" />
-                  {starCount}
+                  {formatStars(starCount)}
                 </span>
               )}
-              <span className="hidden sm:inline">GitHub</span>
             </a>
           </Button>
           <Button variant="ghost" size="sm" asChild className="text-muted-foreground gap-2">
@@ -64,7 +75,7 @@ function PublicShell({ children }: { children: React.ReactNode }) {
           <Button size="sm" asChild className="gap-2 bg-brand text-brand-foreground hover:bg-brand-800 ml-1">
             <a href="https://portfolio.hemrock.com/demo" target="_blank" rel="noopener noreferrer">
               <Play className="h-4 w-4" />
-              Try the Demo
+              Try the demo
             </a>
           </Button>
         </div>

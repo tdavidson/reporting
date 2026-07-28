@@ -10,7 +10,6 @@ const valid: SiteContent = {
       key: 'portfolio_reporting',
       label: 'Portfolio Reporting',
       description: 'Inbound updates, metrics, dashboards.',
-      eyebrow: 'The platform',
       heroScreenshot: '/screenshots/dashboard-cropped.png',
       features: [
         { title: 'Forward updates', text: 'Send investor updates.', icon: 'Mail', screenshot: '/screenshots/inbound-cropped.png' },
@@ -67,10 +66,12 @@ describe('parseSiteContent', () => {
     expect(out?.hero.emphasis).toBeUndefined()
   })
 
-  it('drops the section eyebrow when blank but keeps the group', () => {
-    const out = parseSiteContent({ ...valid, productGroups: [{ ...valid.productGroups[0], eyebrow: '' }] })
+  it('ignores unknown keys on a group rather than rejecting it', () => {
+    // Stored content still carries `eyebrow` from before the section labels were
+    // dropped; parsing must skip it silently rather than fail the whole page.
+    const out = parseSiteContent({ ...valid, productGroups: [{ ...valid.productGroups[0], eyebrow: 'The platform' }] })
     expect(out?.productGroups).toHaveLength(1)
-    expect(out?.productGroups[0].eyebrow).toBeUndefined()
+    expect(out?.productGroups[0]).not.toHaveProperty('eyebrow')
   })
 
   it('drops stats missing a value or label', () => {
