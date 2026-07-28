@@ -66,7 +66,7 @@ function PublicShell({ children }: { children: React.ReactNode }) {
               )}
             </a>
           </Button>
-          <Button variant="ghost" size="sm" asChild className="text-muted-foreground gap-2">
+          <Button variant="outline" size="sm" asChild className="gap-2">
             <Link href="/auth">
               <LogIn className="h-4 w-4" />
               <span className="hidden sm:inline">Sign in</span>

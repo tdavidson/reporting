@@ -35,7 +35,7 @@ function HeroCtas({ links }: { links: SiteLinks }) {
         </Button>
       )}
       {links.github && (
-        <Button asChild size="lg" variant="ghost">
+        <Button asChild size="lg" variant="outline">
           <a href={links.github} target="_blank" rel="noopener noreferrer" className="gap-2">
             <Github className="h-4 w-4" />View on GitHub
           </a>
