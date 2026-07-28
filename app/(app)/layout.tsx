@@ -89,14 +89,14 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       {isViewer && (
         <>
           <DemoSessionGuard />
-          <div className="bg-blue-500 text-white text-center text-xs py-1.5 px-4 shrink-0 flex items-center justify-center gap-3">
+          <div className="bg-info text-white text-center text-xs py-1.5 px-4 shrink-0 flex items-center justify-center gap-3">
             <span>Viewing demo &mdash; read only</span>
             <a href="/api/auth/logout" className="underline underline-offset-2 hover:text-white/80">Exit demo</a>
           </div>
         </>
       )}
 
-      <div className="w-full max-w-screen-xl mx-auto flex flex-col flex-1">
+      <div className="w-full max-w-page mx-auto flex flex-col flex-1">
         <AppShell
           lpPortalEnabled={!!fundSettings?.lp_portal_enabled}
           fundName={fundName}

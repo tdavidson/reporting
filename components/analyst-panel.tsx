@@ -212,7 +212,7 @@ export function AnalystPanel() {
     <div className="max-h-[80vh] lg:max-h-[calc(100vh-6rem)] rounded-lg border bg-card flex flex-col flex-1">
         {/* Header */}
         <div className="px-4 py-3 flex items-center gap-2">
-          <h2 className="text-sm font-medium text-muted-foreground flex items-center gap-1.5 shrink-0">
+          <h2 className="text-base font-medium text-muted-foreground flex items-center gap-1.5 shrink-0">
             <Sparkles className="h-3.5 w-3.5" />
             Analyst
           </h2>
@@ -281,9 +281,7 @@ export function AnalystPanel() {
                 {conversations.map((conv) => (
                   <div
                     key={conv.id}
-                    className={`group flex items-start gap-2 rounded-md px-2 py-2 cursor-pointer hover:bg-muted ${
-                      conv.id === conversationId ? 'bg-muted' : ''
-                    }`}
+                    className={`group flex items-start gap-2 rounded-md px-2 py-2 cursor-pointer hover:bg-muted ${ conv.id === conversationId ? 'bg-muted' : '' }`}
                     onClick={() => loadConversation(conv.id)}
                   >
                     <div className="flex-1 min-w-0">
@@ -357,7 +355,7 @@ export function AnalystPanel() {
                 </div>
               )}
               {error && (
-                <p className="text-xs text-destructive">{error}</p>
+                <p className="text-sm text-destructive">{error}</p>
               )}
             </div>
 

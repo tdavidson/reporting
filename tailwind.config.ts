@@ -11,20 +11,83 @@ const config: Config = {
   	extend: {
   		fontFamily: {
   			sans: ['var(--font-sans)', 'ui-sans-serif', 'system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'Helvetica', 'Arial', 'sans-serif'],
+  			// Sans fallbacks: --font-display resolves to Inter by default, so falling
+  			// back to Georgia would swap a sans for a serif on the one heading most
+  			// likely to paint before fonts load. A fund that picks a serif gets that
+  			// serif from the variable; only the failure path is sans.
+  			display: ['var(--font-display)', 'ui-sans-serif', 'system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'Helvetica', 'Arial', 'sans-serif'],
   			serif: ['var(--font-serif)', 'ui-serif', 'Georgia', 'Cambria', 'serif'],
   			mono: ['var(--font-mono)', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'Consolas', 'monospace'],
   		},
+  		// Named steps, added alongside Tailwind's defaults (text-xs/sm/... still work).
+  		// Each carries its own line-height, tracking and — where it is part of the
+  		// step's identity — weight, so an eyebrow can't be reassembled wrongly by hand.
+  		fontSize: {
+  			eyebrow: ['0.6875rem', { lineHeight: '1', letterSpacing: '0.09em', fontWeight: '700' }],
+  			caption: ['0.75rem', { lineHeight: '1.5' }],
+  			label: ['0.8125rem', { lineHeight: '1.5' }],
+  			lede: ['1.125rem', { lineHeight: '1.65', letterSpacing: '-0.005em' }],
+  			heading: ['clamp(1.25rem, 2vw, 1.5rem)', { lineHeight: '1.25', letterSpacing: '-0.01em' }],
+  			// The two display steps track tighter than the serif scale did: Inter is
+  			// drawn for text sizes, so at 46px and 68px its default fit reads loose.
+  			// The ramp still widens as it goes down (-0.035 / -0.025 / -0.01 / -0.005).
+  			title: ['clamp(1.875rem, 4vw, 2.875rem)', { lineHeight: '1.1', letterSpacing: '-0.025em' }],
+  			display: ['clamp(2.625rem, 5.5vw, 4.25rem)', { lineHeight: '1.1', letterSpacing: '-0.035em' }],
+  		},
+  		maxWidth: {
+  			// Two page widths, and only two. `page` is the app-wide cap (applied
+  			// once, on the wrapper in app/(app)/layout.tsx) — the same 1280px the
+  			// app already used as a bare `max-w-screen-xl`, now named so pages
+  			// stop inventing their own. `readable` is the measure for forms and
+  			// prose, where a full-width line is genuinely harder to read.
+  			// See DESIGN.md.
+  			page: '1280px',
+  			readable: '46rem',
+  		},
   		borderRadius: {
+  			// --radius is the *control* radius (0.25rem, matching hemrock.com);
+  			// cards use the larger --radius-card via `rounded-card`.
   			lg: 'var(--radius)',
-  			md: 'calc(var(--radius) - 2px)',
-  			sm: 'calc(var(--radius) - 4px)'
+  			md: 'calc(var(--radius) - 1px)',
+  			sm: 'calc(var(--radius) - 2px)',
+  			card: 'var(--radius-card)'
+  		},
+  		transitionTimingFunction: {
+  			'out-soft': 'var(--ease-out)',
+  			expo: 'var(--ease-expo)',
   		},
   		colors: {
   			background: 'hsl(var(--background))',
   			foreground: 'hsl(var(--foreground))',
   			brand: {
   				DEFAULT: 'hsl(var(--brand))',
-  				foreground: 'hsl(var(--brand-foreground))'
+  				foreground: 'hsl(var(--brand-foreground))',
+  				50: 'hsl(var(--brand-50))',
+  				100: 'hsl(var(--brand-100))',
+  				200: 'hsl(var(--brand-200))',
+  				300: 'hsl(var(--brand-300))',
+  				400: 'hsl(var(--brand-400))',
+  				500: 'hsl(var(--brand-500))',
+  				600: 'hsl(var(--brand-600))',
+  				700: 'hsl(var(--brand-700))',
+  				800: 'hsl(var(--brand-800))',
+  				900: 'hsl(var(--brand-900))',
+  				950: 'hsl(var(--brand-950))'
+  			},
+  			success: {
+  				DEFAULT: 'hsl(var(--success))',
+  				foreground: 'hsl(var(--success-foreground))',
+  				subtle: 'hsl(var(--success-subtle))'
+  			},
+  			warning: {
+  				DEFAULT: 'hsl(var(--warning))',
+  				foreground: 'hsl(var(--warning-foreground))',
+  				subtle: 'hsl(var(--warning-subtle))'
+  			},
+  			info: {
+  				DEFAULT: 'hsl(var(--info))',
+  				foreground: 'hsl(var(--info-foreground))',
+  				subtle: 'hsl(var(--info-subtle))'
   			},
   			card: {
   				DEFAULT: 'hsl(var(--card))',
@@ -52,7 +115,8 @@ const config: Config = {
   			},
   			destructive: {
   				DEFAULT: 'hsl(var(--destructive))',
-  				foreground: 'hsl(var(--destructive-foreground))'
+  				foreground: 'hsl(var(--destructive-foreground))',
+  				subtle: 'hsl(var(--destructive-subtle))'
   			},
   			border: 'hsl(var(--border))',
   			input: 'hsl(var(--input))',
@@ -63,6 +127,18 @@ const config: Config = {
   				'3': 'hsl(var(--chart-3))',
   				'4': 'hsl(var(--chart-4))',
   				'5': 'hsl(var(--chart-5))'
+  			},
+  			// Categorical identity slots. Fixed order — slot N is always the same
+  			// hue. See the note in globals.css for the validated series ceilings.
+  			cat: {
+  				'1': 'hsl(var(--cat-1))',
+  				'2': 'hsl(var(--cat-2))',
+  				'3': 'hsl(var(--cat-3))',
+  				'4': 'hsl(var(--cat-4))',
+  				'5': 'hsl(var(--cat-5))',
+  				'6': 'hsl(var(--cat-6))',
+  				'7': 'hsl(var(--cat-7))',
+  				'8': 'hsl(var(--cat-8))'
   			}
   		}
   	}

@@ -155,7 +155,7 @@ export function SchemaEditor({ schemaName, initialContent, initialVersion, embed
   }
 
   return (
-    <div className={embedded ? '' : 'p-4 md:py-8 md:pl-8 md:pr-4 max-w-6xl'}>
+    <div className={embedded ? '' : 'p-4 md:py-8 md:pl-8 md:pr-4 max-w-page'}>
       {!embedded && (
         <Link href="/settings/memo-agent/schemas" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mb-4">
           <ArrowLeft className="h-3.5 w-3.5" /> All schemas
@@ -192,7 +192,7 @@ export function SchemaEditor({ schemaName, initialContent, initialVersion, embed
                 <textarea
                   readOnly
                   value={diffAgainst.yaml_content}
-                  className="w-full font-mono text-xs leading-relaxed rounded-md border bg-muted/30 p-3 resize-none focus:outline-none"
+                  className="w-full font-mono text-xs leading-relaxed rounded-card border bg-muted/30 p-3 resize-none focus:outline-none"
                   style={{ height: '60vh' }}
                 />
               </div>
@@ -201,7 +201,7 @@ export function SchemaEditor({ schemaName, initialContent, initialVersion, embed
                 <textarea
                   readOnly
                   value={content}
-                  className="w-full font-mono text-xs leading-relaxed rounded-md border bg-muted/30 p-3 resize-none focus:outline-none"
+                  className="w-full font-mono text-xs leading-relaxed rounded-card border bg-muted/30 p-3 resize-none focus:outline-none"
                   style={{ height: '60vh' }}
                 />
               </div>
@@ -211,13 +211,13 @@ export function SchemaEditor({ schemaName, initialContent, initialVersion, embed
               value={content}
               onChange={e => setContent(e.target.value)}
               spellCheck={false}
-              className="w-full font-mono text-xs leading-relaxed rounded-md border bg-card p-3 resize-none focus:outline-none focus:ring-1 focus:ring-ring"
+              className="w-full font-mono text-xs leading-relaxed rounded-card border bg-card p-3 resize-none focus:outline-none focus:ring-1 focus:ring-ring"
               style={{ height: '60vh' }}
             />
           )}
 
           {errors.length > 0 && (
-            <div className="mt-3 rounded-md border border-destructive/50 bg-destructive/5 p-3">
+            <div className="mt-3 rounded-card border border-destructive/50 bg-destructive/5 p-3">
               <div className="flex items-center gap-2 text-sm font-medium text-destructive">
                 <AlertCircle className="h-4 w-4" /> {errors.length} error{errors.length === 1 ? '' : 's'}
               </div>
@@ -234,8 +234,8 @@ export function SchemaEditor({ schemaName, initialContent, initialVersion, embed
           )}
 
           {warnings.length > 0 && (
-            <div className="mt-3 rounded-md border border-amber-500/50 bg-amber-500/5 p-3">
-              <div className="flex items-center gap-2 text-sm font-medium text-amber-700 dark:text-amber-300">
+            <div className="mt-3 rounded-card border border-warning/50 bg-warning/5 p-3">
+              <div className="flex items-center gap-2 text-sm font-medium text-warning">
                 <AlertTriangle className="h-4 w-4" /> {warnings.length} cross-reference warning{warnings.length === 1 ? '' : 's'}
               </div>
               <ul className="mt-2 space-y-1 text-sm">
@@ -266,7 +266,7 @@ export function SchemaEditor({ schemaName, initialContent, initialVersion, embed
         </div>
 
         {showHistory && (
-          <aside className="rounded-md border bg-card p-3">
+          <aside className="rounded-card border bg-card p-3">
             <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-2">Versions</div>
             {history.length === 0 ? (
               <p className="text-xs text-muted-foreground">Loading…</p>

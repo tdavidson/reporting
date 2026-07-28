@@ -141,14 +141,14 @@ export function VehicleEditModal({ vehicle, onClose, onSaved }: {
             <input type="checkbox" checked={active} onChange={e => setActive(e.target.checked)} className="h-3.5 w-3.5" />
             Active
           </label>
-          {err && <p className="text-xs text-destructive">{err}</p>}
+          {err && <p className="text-sm text-destructive">{err}</p>}
           <div className="flex justify-end gap-2 pt-1">
             <Button variant="outline" size="sm" onClick={onClose} disabled={busy}>Cancel</Button>
             <Button size="sm" onClick={save} disabled={busy || !name.trim()}>{busy && <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />}Save</Button>
           </div>
 
           {others !== null && others.length > 0 && (
-            <div className="mt-2 space-y-2 rounded-md border border-destructive/30 bg-destructive/5 p-3">
+            <div className="mt-2 space-y-2 rounded-card border border-destructive/30 bg-destructive/5 p-3">
               <p className="text-xs font-medium text-muted-foreground">Merge into another vehicle</p>
               <p className="text-[11px] text-muted-foreground">
                 Collapses a duplicate: moves all of {vehicle.name}&rsquo;s data into the target vehicle and
@@ -175,12 +175,12 @@ export function VehicleEditModal({ vehicle, onClose, onSaved }: {
               </div>
               {mergeConfirming && mergeTargetId && (
                 <div className="space-y-2 rounded-md border border-destructive/40 bg-destructive/10 p-2">
-                  <p className="text-xs text-destructive">
+                  <p className="text-sm text-destructive">
                     Are you sure? This moves all of {vehicle.name}&rsquo;s data into{' '}
                     {others.find(v => v.id === mergeTargetId)?.name ?? 'the selected vehicle'} and deletes {vehicle.name}.
                     This cannot be undone.
                   </p>
-                  {mergeErr && <p className="text-xs text-destructive">{mergeErr}</p>}
+                  {mergeErr && <p className="text-sm text-destructive">{mergeErr}</p>}
                   <div className="flex justify-end gap-2">
                     <Button variant="outline" size="sm" onClick={() => setMergeConfirming(false)} disabled={mergeBusy}>Cancel</Button>
                     <Button variant="destructive" size="sm" onClick={doMerge} disabled={mergeBusy}>
@@ -288,7 +288,7 @@ export function VehicleLinkModal({ group, vehicles, onClose, onSaved }: {
             </span>
           </label>
 
-          {err && <p className="text-xs text-destructive">{err}</p>}
+          {err && <p className="text-sm text-destructive">{err}</p>}
           <div className="flex justify-end gap-2 pt-1">
             <Button variant="outline" size="sm" onClick={onClose} disabled={busy}>Cancel</Button>
             <Button size="sm" onClick={save} disabled={busy}>{busy && <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />}Save</Button>

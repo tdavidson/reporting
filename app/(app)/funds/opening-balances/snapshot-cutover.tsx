@@ -100,13 +100,13 @@ export function SnapshotCutover() {
 
   if (loading) {
     return (
-      <div className="rounded-lg border p-4 flex items-center gap-2 text-sm text-muted-foreground">
+      <div className="rounded-card border p-4 flex items-center gap-2 text-sm text-muted-foreground">
         <Loader2 className="h-4 w-4 animate-spin" /> Loading the latest LP snapshot…
       </div>
     )
   }
   if (error && !preview) {
-    return <div className="rounded-lg border p-4 text-sm text-muted-foreground">{error}</div>
+    return <div className="rounded-card border p-4 text-sm text-muted-foreground">{error}</div>
   }
   if (!preview) return null
 
@@ -114,9 +114,9 @@ export function SnapshotCutover() {
   const skipped = preview.vehicles.filter(v => v.action === 'skip')
 
   return (
-    <div className="rounded-lg border p-4 space-y-4">
+    <div className="rounded-card border p-4 space-y-4">
       <div className="space-y-1">
-        <h2 className="text-sm font-medium">Copy the LP snapshot into the vehicles</h2>
+        <h2 className="text-base font-medium">Copy the LP snapshot into the vehicles</h2>
         <p className="text-xs text-muted-foreground max-w-3xl">
           Takes the figures from <strong>{preview.snapshot.name}</strong> (as of {preview.snapshot.asOf}) and writes them
           into each vehicle as capital events, so capital accounts derive from the vehicle instead of the imported
@@ -126,24 +126,24 @@ export function SnapshotCutover() {
       </div>
 
       {preview.alreadyImported && !done && (
-        <p className="text-xs rounded-md border border-amber-300/50 bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400 px-2.5 py-2">
+        <p className="text-sm rounded-md border border-warning/50 bg-warning-subtle dark:bg-warning-subtle/30 text-warning px-2.5 py-2">
           This snapshot has already been copied in. Running it again is a no-op, not a double-count — but you probably
           want <strong>Undo import</strong> if you meant to start over.
         </p>
       )}
 
       {done && (
-        <div className="rounded-md border p-3 text-sm space-y-1">
-          <p className="flex items-center gap-1.5 text-green-700 dark:text-green-400">
+        <div className="rounded-card border p-3 text-sm space-y-1">
+          <p className="flex items-center gap-1.5 text-success">
             <Check className="h-4 w-4" />
             Copied {done.events} events{done.commitments > 0 ? ` and ${done.commitments} commitments` : ''} into{' '}
             {done.vehicles.join(', ')}.
           </p>
-          {done.errors.map((e, i) => <p key={i} className="text-xs text-amber-600">{e}</p>)}
+          {done.errors.map((e, i) => <p key={i} className="text-sm text-warning">{e}</p>)}
         </div>
       )}
 
-      {error && <p className="text-xs text-red-600">{error}</p>}
+      {error && <p className="text-sm text-destructive">{error}</p>}
 
       {/* Totals */}
       <div className="flex flex-wrap gap-x-6 gap-y-1 text-xs">
@@ -152,7 +152,7 @@ export function SnapshotCutover() {
         <Stat label="Events" value={String(preview.totals.events)} />
         <Stat label="Commitments to create" value={String(preview.totals.commitments)} />
         {preview.totals.warnings > 0 && (
-          <span className="inline-flex items-center gap-1 text-amber-600">
+          <span className="inline-flex items-center gap-1 text-warning">
             <AlertTriangle className="h-3.5 w-3.5" />
             {preview.totals.warnings} warning{preview.totals.warnings === 1 ? '' : 's'}
           </span>
@@ -204,16 +204,16 @@ export function SnapshotCutover() {
                               <span className="ml-1.5 text-[10px] text-muted-foreground">+ commitment</span>
                             )}
                             {lp.warnings.map((w, i) => (
-                              <span key={i} className="block text-[10px] text-amber-600">{w}</span>
+                              <span key={i} className="block text-[10px] text-warning">{w}</span>
                             ))}
                           </td>
-                          <td className="px-3 py-1.5 text-right font-mono text-muted-foreground">{fmt(lp.commitment)}</td>
-                          <td className="px-3 py-1.5 text-right font-mono">{fmt(amt('capital_call'))}</td>
-                          <td className="px-3 py-1.5 text-right font-mono">{fmt(-amt('distribution'))}</td>
-                          <td className="px-3 py-1.5 text-right font-mono">{fmt(amt('valuation'))}</td>
-                          <td className="px-3 py-1.5 text-right font-mono font-medium">{fmt(lp.endingCapital)}</td>
+                          <td className="px-3 py-1.5 text-right tabular-nums text-muted-foreground">{fmt(lp.commitment)}</td>
+                          <td className="px-3 py-1.5 text-right tabular-nums">{fmt(amt('capital_call'))}</td>
+                          <td className="px-3 py-1.5 text-right tabular-nums">{fmt(-amt('distribution'))}</td>
+                          <td className="px-3 py-1.5 text-right tabular-nums">{fmt(amt('valuation'))}</td>
+                          <td className="px-3 py-1.5 text-right tabular-nums font-medium">{fmt(lp.endingCapital)}</td>
                           {/* The check that matters: the events must reproduce the snapshot's NAV. */}
-                          <td className={`px-3 py-1.5 text-right font-mono ${ties ? 'text-muted-foreground' : 'text-red-600 font-medium'}`}>
+                          <td className={`px-3 py-1.5 text-right tabular-nums ${ties ? 'text-muted-foreground' : 'text-destructive font-medium'}`}>
                             {fmt(lp.snapshotNav)}{ties ? '' : ' ✕'}
                           </td>
                         </tr>
@@ -227,7 +227,7 @@ export function SnapshotCutover() {
         ))}
 
         {skipped.length > 0 && (
-          <div className="rounded-md border border-dashed p-3 space-y-1">
+          <div className="rounded-card border border-dashed p-3 space-y-1">
             <p className="text-xs font-medium text-muted-foreground">Skipped</p>
             {skipped.map(v => (
               <p key={v.vehicle} className="text-xs text-muted-foreground">
@@ -263,7 +263,7 @@ export function SnapshotCutover() {
 function Stat({ label, value }: { label: string; value: string }) {
   return (
     <span className="text-muted-foreground">
-      {label} <span className="font-mono font-medium text-foreground">{value}</span>
+      {label} <span className="tabular-nums font-medium text-foreground">{value}</span>
     </span>
   )
 }

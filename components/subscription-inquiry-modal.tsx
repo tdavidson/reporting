@@ -33,8 +33,8 @@ export function SubscriptionInquiryButton({ children, className, variant, size }
         <DialogContent className="sm:max-w-md">
           {sent ? (
             <div className="py-6 text-center">
-              <p className="text-sm font-medium mb-1 text-green-600 dark:text-green-400">Thanks for your interest!</p>
-              <p className="text-sm text-green-600/80 dark:text-green-400/80">We&apos;ll be in touch shortly.</p>
+              <p className="text-sm font-medium mb-1 text-success">Thanks for your interest!</p>
+              <p className="text-sm text-success/80">We&apos;ll be in touch shortly.</p>
             </div>
           ) : (
             <>
@@ -48,7 +48,7 @@ export function SubscriptionInquiryButton({ children, className, variant, size }
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-3">
               <div>
-                <label className="text-sm font-medium">Name <span className="text-red-500">*</span></label>
+                <label className="text-sm font-medium">Name <span className="text-destructive">*</span></label>
                 <input
                   type="text"
                   required
@@ -59,7 +59,7 @@ export function SubscriptionInquiryButton({ children, className, variant, size }
                 />
               </div>
               <div>
-                <label className="text-sm font-medium">Email <span className="text-red-500">*</span></label>
+                <label className="text-sm font-medium">Email <span className="text-destructive">*</span></label>
                 <input
                   type="email"
                   required
@@ -70,7 +70,7 @@ export function SubscriptionInquiryButton({ children, className, variant, size }
                 />
               </div>
               <div>
-                <label className="text-sm font-medium">Fund Name <span className="text-red-500">*</span></label>
+                <label className="text-sm font-medium">Fund Name <span className="text-destructive">*</span></label>
                 <input
                   type="text"
                   required
@@ -81,7 +81,7 @@ export function SubscriptionInquiryButton({ children, className, variant, size }
                 />
               </div>
               <div>
-                <label className="text-sm font-medium">Message <span className="text-red-500">*</span></label>
+                <label className="text-sm font-medium">Message <span className="text-destructive">*</span></label>
                 <textarea
                   required
                   value={form.message}

@@ -79,19 +79,19 @@ export function DealCarryCard() {
             {data.deals.map(d => (
               <tr key={d.companyId} className="border-t">
                 <td className="px-3 py-1.5">{d.name}</td>
-                <td className="px-3 py-1.5 text-right font-mono">{fmt(d.costBasis)}</td>
-                <td className="px-3 py-1.5 text-right font-mono text-muted-foreground">{fmt(d.allocatedExpense)}</td>
-                <td className="px-3 py-1.5 text-right font-mono">{fmt(d.proceeds)}</td>
-                <td className="px-3 py-1.5 text-right font-mono">{fmt(d.remainingValue)}</td>
-                <td className={`px-3 py-1.5 text-right font-mono ${d.profit < 0 ? 'text-muted-foreground' : ''}`}>{fmt(d.profit)}</td>
-                <td className="px-3 py-1.5 text-right font-mono font-medium">{fmt(d.carry)}</td>
+                <td className="px-3 py-1.5 text-right tabular-nums">{fmt(d.costBasis)}</td>
+                <td className="px-3 py-1.5 text-right tabular-nums text-muted-foreground">{fmt(d.allocatedExpense)}</td>
+                <td className="px-3 py-1.5 text-right tabular-nums">{fmt(d.proceeds)}</td>
+                <td className="px-3 py-1.5 text-right tabular-nums">{fmt(d.remainingValue)}</td>
+                <td className={`px-3 py-1.5 text-right tabular-nums ${d.profit < 0 ? 'text-muted-foreground' : ''}`}>{fmt(d.profit)}</td>
+                <td className="px-3 py-1.5 text-right tabular-nums font-medium">{fmt(d.carry)}</td>
               </tr>
             ))}
           </tbody>
           <tfoot>
             <tr className="border-t bg-muted/30 font-semibold">
               <td className="px-3 py-1.5" colSpan={6}>Total carry earned deal-by-deal</td>
-              <td className="px-3 py-1.5 text-right font-mono">{fmt(data.totalCarry)}</td>
+              <td className="px-3 py-1.5 text-right tabular-nums">{fmt(data.totalCarry)}</td>
             </tr>
           </tfoot>
         </table>

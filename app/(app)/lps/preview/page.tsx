@@ -35,13 +35,13 @@ const effective = (d: Doc) => d.doc_date || d.uploaded_at || ''
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="space-y-2">
-      <h2 className="text-sm font-semibold">{title}</h2>
+      <h2 className="text-base font-semibold">{title}</h2>
       {children}
     </section>
   )
 }
 function Empty({ label }: { label: string }) {
-  return <div className="rounded-md border bg-card p-8 text-center text-sm text-muted-foreground">{label}</div>
+  return <div className="rounded-card border bg-card p-8 text-center text-sm text-muted-foreground">{label}</div>
 }
 
 export default function LpPortalPreviewPage() {
@@ -139,18 +139,18 @@ export default function LpPortalPreviewPage() {
   const isEmpty = !!data && data.snapshots.length === 0 && data.letters.length === 0 && data.documents.length === 0
 
   return (
-    // Full-bleed: break out of the GP layout's max-w-screen-xl wrapper so the
+    // Full-bleed: break out of the GP layout's max-w-page wrapper so the
     // preview fills the window like a real standalone portal (banner + header
     // lines span edge-to-edge; content stays centered below).
     <div className="min-h-screen flex flex-col bg-muted/20 w-screen ml-[calc(50%-50vw)]">
       {/* Admin preview bar — NOT part of the real portal an LP sees */}
-      <div className="sticky top-0 z-20 border-b bg-amber-50 dark:bg-amber-950/40 text-amber-900 dark:text-amber-200">
+      <div className="sticky top-0 z-20 border-b bg-warning-subtle dark:bg-warning-subtle/40 text-warning">
         <div className="max-w-5xl mx-auto px-4 py-2 flex items-center gap-3 text-sm">
           <span className="inline-flex items-center gap-1.5 font-medium shrink-0 whitespace-nowrap"><Eye className="h-4 w-4" /> LP portal preview — viewing as</span>
           <select
             value={investorId}
             onChange={e => { setInvestorId(e.target.value); setTab('overview') }}
-            className="h-7 w-56 shrink-0 rounded border border-amber-300 dark:border-amber-700 bg-white dark:bg-amber-950 px-2 text-sm text-foreground"
+            className="h-7 w-56 shrink-0 rounded border border-warning bg-white dark:bg-warning-subtle px-2 text-sm text-foreground"
           >
             <option value="sample">Sample investor (example)</option>
             {investors.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
@@ -208,7 +208,7 @@ export default function LpPortalPreviewPage() {
               <h1 className="text-xl font-semibold tracking-tight">Settings</h1>
               <p className="text-sm text-muted-foreground mt-0.5">Manage your sign-in security and who can access your account.</p>
             </div>
-            <div className="rounded-md border bg-card p-4 text-sm text-muted-foreground flex items-start gap-2">
+            <div className="rounded-card border bg-card p-4 text-sm text-muted-foreground flex items-start gap-2">
               <ShieldCheck className="h-4 w-4 mt-0.5 shrink-0" />
               <span>Each investor manages their own account here — change password, enable two-factor authentication, and review the people they&apos;ve authorized. There&apos;s nothing investor-specific to preview.</span>
             </div>
@@ -219,7 +219,7 @@ export default function LpPortalPreviewPage() {
               <h1 className="text-xl font-semibold tracking-tight">Contact your fund</h1>
               <p className="text-sm text-muted-foreground mt-0.5">Send an email to your fund&apos;s team.</p>
             </div>
-            <div className="rounded-md border bg-card p-4 text-sm text-muted-foreground flex items-start gap-2">
+            <div className="rounded-card border bg-card p-4 text-sm text-muted-foreground flex items-start gap-2">
               <MessageSquare className="h-4 w-4 mt-0.5 shrink-0" />
               <span>The contact form is the same for every investor — there&apos;s nothing investor-specific to preview.</span>
             </div>
@@ -229,7 +229,7 @@ export default function LpPortalPreviewPage() {
         ) : loading ? (
           <div className="flex items-center gap-2 text-sm text-muted-foreground py-8"><Loader2 className="h-4 w-4 animate-spin" /> Loading…</div>
         ) : !data ? (
-          <div className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">Could not load preview.</div>
+          <div className="rounded-card border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">Could not load preview.</div>
         ) : (
           <div className="space-y-6">
             <div>
@@ -294,7 +294,7 @@ export default function LpPortalPreviewPage() {
                         if (!list || list.length === 0) return null
                         return (
                           <div key={scope.key} className="space-y-1.5">
-                            <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{scope.label}</h3>
+                            <h3 className="text-base font-medium text-muted-foreground uppercase tracking-wide">{scope.label}</h3>
                             <div className="rounded-md border bg-card divide-y">{list.map(docRow)}</div>
                           </div>
                         )

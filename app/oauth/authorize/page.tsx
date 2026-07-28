@@ -141,7 +141,7 @@ function Problem({ title, detail }: { title: string; detail: string }) {
       <Card>
         <CardHeader className="pb-3">
           <div className="flex items-center gap-2">
-            <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-500" />
+            <AlertTriangle className="h-4 w-4 text-warning" />
             <CardTitle className="text-lg">{title}</CardTitle>
           </div>
         </CardHeader>

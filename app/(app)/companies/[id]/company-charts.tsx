@@ -145,7 +145,7 @@ export function CompanyCharts({ companyId, companyName, metrics }: Props) {
   if (metrics.length === 0) {
     return (
       <>
-        <div className="rounded-lg border border-dashed p-12 text-center space-y-3">
+        <div className="rounded-card border border-dashed p-12 text-center space-y-3">
           <p className="text-muted-foreground">
             No metrics configured yet. Add metrics to this company to start tracking data.
           </p>
@@ -180,7 +180,7 @@ export function CompanyCharts({ companyId, companyName, metrics }: Props) {
     return (
       <div className={gridClass}>
         {visibleMetrics.map((m) => (
-          <div key={m.id} className="rounded-lg border p-4 animate-pulse">
+          <div key={m.id} className="rounded-card border p-4 animate-pulse">
             <div className="h-4 w-32 bg-muted rounded mb-3" />
             <div className="h-[180px] bg-muted/50 rounded" />
           </div>
@@ -269,10 +269,10 @@ function MetricChartCard({
   }
 
   return (
-    <div className="rounded-lg border bg-card p-4">
+    <div className="rounded-card border bg-card p-4">
       <div className="flex items-start justify-between mb-2">
         <div className="min-w-0">
-          <h3 className="font-medium text-sm truncate">{metric.name}</h3>
+          <h3 className="font-medium text-base truncate">{metric.name}</h3>
           {metric.description && (
             <p className="text-[11px] text-muted-foreground mt-0.5 line-clamp-1">{metric.description}</p>
           )}

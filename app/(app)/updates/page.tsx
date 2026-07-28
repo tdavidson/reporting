@@ -34,7 +34,7 @@ export default async function UpdatesPage() {
         </p>
       </div>
 
-      <div className="rounded-lg border p-6 space-y-4">
+      <div className="rounded-card border p-6 space-y-4">
         <div className="flex items-center gap-4">
           <div>
             <p className="text-sm text-muted-foreground">Current version</p>
@@ -43,7 +43,7 @@ export default async function UpdatesPage() {
           {update && (
             <div>
               <p className="text-sm text-muted-foreground">Latest version</p>
-              <p className={`text-lg font-mono font-medium ${update.hasUpdate ? 'text-amber-600 dark:text-amber-400' : 'text-green-600 dark:text-green-400'}`}>
+              <p className={`text-lg font-mono font-medium ${update.hasUpdate ? 'text-warning dark:text-warning' : 'text-success dark:text-success'}`}>
                 v{update.latestVersion}
               </p>
             </div>
@@ -51,17 +51,17 @@ export default async function UpdatesPage() {
         </div>
 
         {update?.hasUpdate ? (
-          <div className="rounded-md bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 p-4">
-            <p className="text-sm font-medium text-amber-800 dark:text-amber-300">
+          <div className="rounded-card bg-warning-subtle dark:bg-warning-subtle/30 border border-warning p-4">
+            <p className="text-sm font-medium text-warning">
               A new version is available!
             </p>
-            <p className="text-xs text-amber-700 dark:text-amber-400 mt-1">
+            <p className="text-sm text-warning mt-1">
               Published {new Date(update.publishedAt).toLocaleDateString()}
             </p>
           </div>
         ) : update ? (
-          <div className="rounded-md bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 p-4">
-            <p className="text-sm font-medium text-green-800 dark:text-green-300">
+          <div className="rounded-card bg-success-subtle dark:bg-success-subtle/30 border border-success p-4">
+            <p className="text-sm font-medium text-success">
               You&apos;re up to date!
             </p>
           </div>
@@ -75,7 +75,7 @@ export default async function UpdatesPage() {
       </div>
 
       {update?.hasUpdate && update.body && (
-        <div className="rounded-lg border p-6 space-y-3">
+        <div className="rounded-card border p-6 space-y-3">
           <h2 className="text-lg font-semibold">Release Notes</h2>
           <div className="prose prose-sm dark:prose-invert max-w-none whitespace-pre-wrap">
             {update.body}
@@ -91,7 +91,7 @@ export default async function UpdatesPage() {
         </div>
       )}
 
-      {update?.hasUpdate && <div className="rounded-lg border p-6 space-y-3">
+      {update?.hasUpdate && <div className="rounded-card border p-6 space-y-3">
         <h2 className="text-lg font-semibold">How to Update</h2>
         <div className="text-sm text-muted-foreground space-y-2">
           <p>To update your deployment, pull the latest code from GitHub and redeploy:</p>

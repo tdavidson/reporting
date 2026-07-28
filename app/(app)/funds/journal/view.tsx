@@ -1,15 +1,17 @@
 'use client'
 
+import Link from 'next/link'
 import { useCallback, useEffect, useState } from 'react'
 import { Loader2, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { useLedgerFetch } from '@/components/accounting-vehicle'
+import { useLedgerFetch, useFundSeg } from '@/components/accounting-vehicle'
 import { textAccountName } from '@/lib/accounting/text-ledger'
 import type { Account, AccountType } from '@/lib/accounting/types'
 import { PeriodPicker } from '@/components/accounting/period-picker'
 import type { PeriodPreset } from '@/lib/accounting/statement-period'
 import { EntryModal } from '../entry-modal'
+import { EmptyState } from '@/components/ui/empty-state'
 
 interface Posting { id: string; account_id: string; account_code: string | null; account_name: string | null; account_type: string | null; amount: number; currency: string | null; lp_entity_id: string | null }
 interface Entry {
@@ -28,6 +30,7 @@ const PAGE = 50
 
 export function JournalView() {
   const lf = useLedgerFetch()
+  const fundSeg = useFundSeg()
 
   const [entries, setEntries] = useState<Entry[]>([])
   const [total, setTotal] = useState(0)
@@ -127,7 +130,7 @@ export function JournalView() {
           Post all drafts
         </Button>
         {postMsg && <span className="text-xs text-muted-foreground">{postMsg}</span>}
-        {error && <span className="text-xs text-amber-600">{error}</span>}
+        {error && <span className="text-sm text-warning">{error}</span>}
         <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
           <PeriodPicker
             preset={preset} onPreset={p => { setPreset(p); setPage(0) }}
@@ -140,17 +143,25 @@ export function JournalView() {
       {loading ? (
         <div className="flex items-center gap-2 text-muted-foreground text-sm"><Loader2 className="h-4 w-4 animate-spin" />Loading…</div>
       ) : entries.length === 0 ? (
-        <div className="border border-dashed rounded-lg p-8 text-center text-sm text-muted-foreground">
-          {debounced ? 'No entries match your search in this period.' : 'No journal entries in this period. Widen the range, create one above, or import bank transactions.'}
-        </div>
+        <EmptyState
+          // No action on the search-miss variant: the search box is right there,
+          // and offering an import would answer a question nobody asked.
+          action={!debounced && fundSeg && (
+            <Button size="sm" variant="outline" asChild>
+              <Link href={`/funds/${fundSeg}/bank`}>Import bank transactions</Link>
+            </Button>
+          )}
+        >
+          {debounced ? 'No entries match your search in this period.' : 'No journal entries in this period. Widen the range, or create one above.'}
+        </EmptyState>
       ) : (
         <div className="border rounded-lg divide-y font-mono text-xs">
           {entries.map(e => {
             const narration = (e.memo || e.source_type || 'Entry').replace(/"/g, "'")
             // Readable status marker instead of a cryptic */!/# flag.
             const statusCls = e.status === 'posted'
-              ? 'bg-green-500/15 text-green-600'
-              : e.status === 'void' ? 'bg-muted text-muted-foreground' : 'bg-amber-500/15 text-amber-600'
+              ? 'bg-success/15 text-success'
+              : e.status === 'void' ? 'bg-muted text-muted-foreground' : 'bg-warning/15 text-warning'
             const clickable = e.status !== 'void'
             return (
               <div

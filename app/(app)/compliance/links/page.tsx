@@ -140,7 +140,7 @@ export default function ComplianceLinksPage() {
       </div>
 
       {showForm && (
-        <form onSubmit={handleSubmit} className="rounded-lg border p-4 mb-4 space-y-3">
+        <form onSubmit={handleSubmit} className="rounded-card border p-4 mb-4 space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-xs font-medium text-muted-foreground mb-1 block">Title</label>
@@ -296,7 +296,7 @@ export default function ComplianceLinksPage() {
           )}
         </div>
       ) : !showForm ? (
-        <div className="rounded-lg border p-8 text-center">
+        <div className="rounded-card border p-8 text-center">
           <LinkIcon className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
           <p className="text-sm text-muted-foreground">No links saved yet.</p>
           <p className="text-xs text-muted-foreground mt-1">Add links to filing portals, accounts, or reference documents.</p>

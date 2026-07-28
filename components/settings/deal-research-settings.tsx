@@ -119,8 +119,8 @@ export function DealResearchSettings() {
           <Button onClick={save} disabled={saving} size="sm">
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Save'}
           </Button>
-          {saved && <span className="text-xs text-green-600">Saved</span>}
-          {error && <span className="text-xs text-destructive">{error}</span>}
+          {saved && <span className="text-xs text-success">Saved</span>}
+          {error && <span className="text-sm text-destructive">{error}</span>}
         </div>
       </div>
     </Section>

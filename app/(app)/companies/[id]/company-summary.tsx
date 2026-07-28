@@ -164,7 +164,7 @@ export function CompanySummary({ companyId, fundId, hasClaudeKey, hasOpenAIKey, 
   // Loading skeleton
   if (loading) {
     return (
-      <div className="rounded-lg border bg-card p-5 mb-6">
+      <div className="rounded-card border bg-card p-5 mb-6">
         <div className="flex items-center gap-2 mb-2">
           <Sparkles className="h-3.5 w-3.5 text-muted-foreground" />
           <span className="text-xs font-medium text-muted-foreground">Analyst</span>
@@ -181,7 +181,7 @@ export function CompanySummary({ companyId, fundId, hasClaudeKey, hasOpenAIKey, 
   // No summary yet — show generate button
   if (!data?.summary) {
     return (
-      <div className="rounded-lg border border-dashed bg-card p-5 mb-6">
+      <div className="rounded-card border border-dashed bg-card p-5 mb-6">
         <input
           ref={fileInputRef}
           type="file"
@@ -237,7 +237,7 @@ export function CompanySummary({ companyId, fundId, hasClaudeKey, hasOpenAIKey, 
           <p className="text-sm text-destructive mt-3">{error}</p>
         )}
         {warning && (
-          <p className="text-sm text-amber-600 mt-3">{warning}</p>
+          <p className="text-sm text-warning mt-3">{warning}</p>
         )}
       </div>
     )
@@ -247,7 +247,7 @@ export function CompanySummary({ companyId, fundId, hasClaudeKey, hasOpenAIKey, 
   const paragraphs = (displaySummary ?? '').split('\n\n').filter(p => p.trim())
 
   return (
-    <div className="rounded-lg border bg-card p-5 mb-6">
+    <div className="rounded-card border bg-card p-5 mb-6">
       <input
         ref={fileInputRef}
         type="file"
@@ -346,11 +346,7 @@ export function CompanySummary({ companyId, fundId, hasClaudeKey, hasOpenAIKey, 
                       <button
                         key={entry.id}
                         onClick={() => viewHistoryEntry(entry)}
-                        className={`w-full text-left px-3 py-2 hover:bg-muted/50 border-b last:border-0 ${
-                          (viewingHistoryId === entry.id || (!viewingHistoryId && i === 0))
-                            ? 'bg-muted/30'
-                            : ''
-                        }`}
+                        className={`w-full text-left px-3 py-2 hover:bg-muted/50 border-b last:border-0 ${ (viewingHistoryId === entry.id || (!viewingHistoryId && i === 0)) ? 'bg-muted/30' : '' }`}
                       >
                         <div className="flex items-center gap-2">
                           <span className="text-xs text-foreground">
@@ -392,7 +388,7 @@ export function CompanySummary({ companyId, fundId, hasClaudeKey, hasOpenAIKey, 
         <p className="text-sm text-destructive mt-3 pt-3 border-t">{error}</p>
       )}
       {warning && (
-        <p className="text-sm text-amber-600 mt-3 pt-3 border-t">{warning}</p>
+        <p className="text-sm text-warning mt-3 pt-3 border-t">{warning}</p>
       )}
     </div>
   )

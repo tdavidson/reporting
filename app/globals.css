@@ -10,67 +10,175 @@
     @apply bg-background text-foreground;
   }
   :root {
-    /* Font stacks default to the system UI fonts (today's look). The per-fund
-       theme overrides --font-sans to opt into a loaded webfont. */
-    --font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    /* Font stacks. --font-sans is Inter (the Hemrock brand guide's UI face, and
+       what hemrock.com ships); the per-fund theme may override it to opt into a
+       different loaded webfont.
+
+       --font-display defaults to Inter too, so the app ships with no serif. It
+       stays a SEPARATE axis on purpose: every heading that should change when a
+       display face is chosen already carries `font-display`, so picking a serif
+       in DISPLAY_FONT_OPTIONS repoints all of them at once — marketing hero,
+       report covers, letter mastheads, statement headers, PDFs. Kept out of
+       FONT_OPTIONS because that list drives --font-sans, the body font, where a
+       serif would land on every dense financial table. See DESIGN.md. */
+    --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    --font-display: var(--font-inter), ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
     --font-serif: ui-serif, Georgia, Cambria, serif;
     --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-    --background: 0 0% 100%;
-    --foreground: 0 0% 3.9%;
+
+    /* Neutrals. Warm-tinted rather than pure greyscale — paper is #fdfdfc, not
+       #ffffff, and ink is #1c1a17, not #0a0a0a. Sub-1% chroma: the cast reads as
+       considered rather than coloured, and it is what separates the reference
+       sites (archstone.app #fafaf9, hanoverpark.com #f8fcfc) from a default
+       shadcn install. --card stays pure white so cards lift off the paper
+       without needing a border. */
+    --background: 40 20% 99%;
+    --foreground: 40 8% 10%;
     --card: 0 0% 100%;
-    --card-foreground: 0 0% 3.9%;
+    --card-foreground: 40 8% 10%;
     --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 3.9%;
-    --primary: 0 0% 9%;
-    --primary-foreground: 0 0% 98%;
-    /* Brand accent — defaults to the neutral primary; the per-fund theme
-       overrides --primary / --ring / --brand when an accent is chosen. */
-    --brand: 0 0% 9%;
-    --brand-foreground: 0 0% 98%;
-    --secondary: 0 0% 96.1%;
-    --secondary-foreground: 0 0% 9%;
-    --muted: 0 0% 96.1%;
-    --muted-foreground: 0 0% 45.1%;
-    --accent: 0 0% 96.1%;
-    --accent-foreground: 0 0% 9%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 89.8%;
-    --input: 0 0% 89.8%;
-    --ring: 0 0% 3.9%;
-    --chart-1: 12 76% 61%;
-    --chart-2: 173 58% 39%;
-    --chart-3: 197 37% 24%;
-    --chart-4: 43 74% 66%;
-    --chart-5: 27 87% 67%;
-    --radius: 0.5rem
+    --popover-foreground: 40 8% 10%;
+    /* Actions. --primary is the *deployment's* action colour and stays neutral
+       by default; the per-fund theme overrides it (a fund's buttons should be
+       the fund's colour, not Hemrock's). */
+    --primary: 40 8% 10%;
+    --primary-foreground: 40 20% 99%;
+    --secondary: 40 12% 96%;
+    --secondary-foreground: 40 8% 10%;
+    --muted: 40 12% 96%;
+    --muted-foreground: 40 5% 42%;
+    /* --accent here is shadcn's *subtle hover surface*, not the brand accent.
+       The brand accent is --brand / --brand-* below. Renaming this would touch
+       every hover:bg-accent in the app, so it keeps its original meaning. */
+    --accent: 40 12% 96%;
+    --accent-foreground: 40 8% 10%;
+    --border: 40 10% 86%;
+    --input: 40 10% 86%;
+    --ring: 164 44.6% 35%;
+
+    /* Brand accent — evergreen. Hue 164, from a fixed saturation/lightness curve;
+       every stop is contrast-verified (see plans/plan-design-system.md §8).
+       700 is the CTA fill (white text at 7.05), 500 is the dark-mode accent
+       (5.14 on the dark surface), 50/100 are tinted surfaces, 200 their borders.
+       This is Hemrock's colour: the marketing site is not under a fund theme, so
+       it always renders evergreen. Inside the app, themeCssVars() regenerates
+       this ramp from the fund's own accent hue. */
+    --brand-50: 164 21.6% 97%;
+    --brand-100: 164 25.2% 93%;
+    --brand-200: 164 28.8% 85%;
+    --brand-300: 164 30.2% 72%;
+    --brand-400: 164 34.6% 56%;
+    --brand-500: 164 39.6% 44%;
+    --brand-600: 164 44.6% 35%;
+    --brand-700: 164 43.2% 27%;
+    --brand-800: 164 39.6% 21%;
+    --brand-900: 164 36% 16%;
+    --brand-950: 164 32.4% 10%;
+    --brand: 164 43.2% 27%;
+    --brand-foreground: 0 0% 100%;
+
+    /* Status. These are what the ~996 raw Tailwind palette classes across the app
+       migrate onto — amber is a warning, not a brand colour. Each is verified for
+       text-on-paper AND as a fill with white text (both >= 4.5:1). */
+    --success: 152 60% 30%;
+    --success-foreground: 0 0% 100%;
+    --success-subtle: 152 45% 95%;
+    --warning: 32 80% 36%;
+    --warning-foreground: 0 0% 100%;
+    --warning-subtle: 40 85% 94%;
+    --info: 212 70% 40%;
+    --info-foreground: 0 0% 100%;
+    --info-subtle: 212 70% 95%;
+    --destructive: 0 68% 44%;
+    --destructive-foreground: 0 0% 100%;
+    --destructive-subtle: 0 75% 96%;
+
+    /* Categorical palette — identity, not status. Eight hues in a FIXED order:
+       slot N is always the same colour, never cycled and never reassigned when a
+       filter changes the series count.
+       Validated with the dataviz skill's checker against this app's surfaces
+       (light #ffffff card, dark #262422), not chosen by eye:
+         - 8 slots pass every check on the ADJACENT pairlist (stacks, bars,
+           chips) in both modes.
+         - For ALL-PAIRS forms (pie, scatter — where any two marks sit side by
+           side) the ceiling is FOUR, and only two subsets clear it in both
+           modes. Slots 1,4,5,6 is the one used; past that, fold to "Other".
+       Three light slots sit under 3:1 on white, so anything using them carries a
+       visible label — which is why category chips are neutral with a coloured
+       dot rather than coloured fills behind text. */
+    --cat-1: 213 67.7% 50.2%;
+    --cat-2: 17 82.1% 56.3%;
+    --cat-3: 159 73.3% 39.6%;
+    --cat-4: 41 100% 46.5%;
+    --cat-5: 337 70.3% 69.6%;
+    --cat-6: 120 100% 25.7%;
+    --cat-7: 249 48.4% 44.1%;
+    --cat-8: 0 73.5% 58.6%;
+
+    /* Chart slots are the categorical palette. Kept as their own names because
+       fund-detail-view and metric-chart already reference them. */
+    --chart-1: var(--cat-1);
+    --chart-2: var(--cat-2);
+    --chart-3: var(--cat-3);
+    --chart-4: var(--cat-4);
+    --chart-5: var(--cat-5);
+
+    /* Radius. Controls are 0.25rem and cards 0.5rem, matching hemrock.com. The
+       per-fund theme overrides --radius and derives --radius-card from it. */
+    --radius: 0.25rem;
+    --radius-card: 0.5rem;
+
+    /* Motion. */
+    --ease-out: cubic-bezier(0.2, 0.6, 0.2, 1);
+    --ease-expo: cubic-bezier(0.16, 1, 0.3, 1);
   }
   .dark {
-    --background: 0 0% 9%;
-    --foreground: 0 0% 98%;
-    --card: 0 0% 13%;
-    --card-foreground: 0 0% 98%;
-    --popover: 0 0% 13%;
-    --popover-foreground: 0 0% 98%;
-    --primary: 0 0% 98%;
-    --primary-foreground: 0 0% 9%;
-    --brand: 0 0% 98%;
-    --brand-foreground: 0 0% 9%;
-    --secondary: 0 0% 17%;
-    --secondary-foreground: 0 0% 98%;
-    --muted: 0 0% 17%;
-    --muted-foreground: 0 0% 63.9%;
-    --accent: 0 0% 17%;
-    --accent-foreground: 0 0% 98%;
-    --destructive: 0 80% 65%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 20%;
-    --input: 0 0% 17%;
-    --ring: 0 0% 83.1%;
-    --chart-1: 220 70% 50%;
-    --chart-2: 160 60% 45%;
-    --chart-3: 30 80% 55%;
-    --chart-4: 280 65% 60%;
-    --chart-5: 340 75% 55%
+    --background: 40 6% 11%;
+    --foreground: 40 8% 96%;
+    --card: 40 6% 14%;
+    --card-foreground: 40 8% 96%;
+    --popover: 40 6% 14%;
+    --popover-foreground: 40 8% 96%;
+    --primary: 40 8% 96%;
+    --primary-foreground: 40 8% 11%;
+    --secondary: 40 5% 18%;
+    --secondary-foreground: 40 8% 96%;
+    --muted: 40 5% 18%;
+    --muted-foreground: 40 5% 64%;
+    --accent: 40 5% 18%;
+    --accent-foreground: 40 8% 96%;
+    --border: 40 5% 22%;
+    --input: 40 5% 18%;
+    --ring: 164 39.6% 44%;
+
+    /* The ramp is not re-declared in dark mode — the stops are absolute. What
+       changes is which stop each role uses: 500 for accent text (5.14 on the
+       dark surface) where light mode uses 700, and 900/950 for tinted surfaces. */
+    --brand: 164 39.6% 44%;
+    --brand-foreground: 40 8% 11%;
+
+    --success: 152 45% 60%;
+    --success-foreground: 40 8% 11%;
+    --success-subtle: 152 30% 16%;
+    --warning: 32 75% 62%;
+    --warning-foreground: 40 8% 11%;
+    --warning-subtle: 32 40% 16%;
+    --info: 212 65% 66%;
+    --info-foreground: 40 8% 11%;
+    --info-subtle: 212 40% 18%;
+    --destructive: 0 70% 66%;
+    --destructive-foreground: 40 8% 11%;
+    --destructive-subtle: 0 40% 18%;
+
+    /* The same eight hues re-stepped for the dark surface — a selected dark
+       palette, not an automatic flip. All eight clear 3:1 on #262422. */
+    --cat-1: 213 76.8% 56.1%;
+    --cat-2: 17 70.2% 50%;
+    --cat-3: 159 72.7% 35.9%;
+    --cat-4: 40 100% 39.4%;
+    --cat-5: 338 61.1% 57.6%;
+    --cat-6: 120 100% 25.7%;
+    --cat-7: 247 69.4% 71.8%;
+    --cat-8: 0 71.8% 65.3%;
   }
 }

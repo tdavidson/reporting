@@ -13,6 +13,7 @@ import { useVehicle, FundSwitcher } from '@/components/accounting-vehicle'
 import { AnalystToggleButton } from '@/components/analyst-button'
 import { AccountingBody } from '@/components/accounting-chrome'
 import { Card, CardContent } from '@/components/ui/card'
+import { Metric as MetricBox } from '@/components/ui/metric'
 
 // The fund detail (lead) page. Everything here is READ-ONLY and derived — the same numbers as the
 // /funds overview (fund-economics), the schedule of investments (statements), and the growth
@@ -61,12 +62,17 @@ const HUE = {
   muted: 'hsl(var(--muted-foreground))',
   surface: 'hsl(var(--background))',
 }
-// A fixed palette for the SOI breakdown slices, so a slice keeps its colour as the mix changes.
-const SLICE = [HUE.chart2, HUE.chart1, HUE.chart3, HUE.chart4, HUE.chart5, HUE.muted]
+// Pie slices sit side by side in every combination, so they need the ALL-PAIRS
+// palette, not the adjacent-pairs one the stacked bars use. Only four slots clear
+// that bar in both light and dark (see the note in globals.css) — hence four
+// categorical hues and then "Other" in muted ink. Fixed order, never cycled: a
+// slice keeps its colour as the mix changes.
+const SLICE = ['hsl(var(--cat-1))', 'hsl(var(--cat-4))', 'hsl(var(--cat-5))', 'hsl(var(--cat-6))']
+const sliceFill = (i: number) => SLICE[i] ?? HUE.muted
 
-// Invested capital reads as one blue family split by intensity: new = solid, follow-on = a lighter
-// tint of the same slot (so the pairing holds in either theme). Gains keep the orange "unrealized"
-// hue; proceeds keep the teal they use elsewhere.
+// Invested capital reads as one hue split by intensity: new = solid, follow-on = a
+// lighter tint of the same slot (so the pairing holds in either theme). Gains and
+// proceeds take their own slots, distinct from it and from each other.
 const INVEST_NEW = HUE.chart3
 const INVEST_FOLLOW = 'hsl(var(--chart-3) / 0.5)'
 const GAINS_HUE = HUE.chart1
@@ -124,11 +130,11 @@ export function FundDetailView({ vehicle, vehicleId }: { vehicle: string; vehicl
   // <AccountingBody> below, so the Analyst panel slides in beside it while the header above
   // stays full width.
   const body = loading ? (
-    <div className="rounded-lg border p-6 flex items-center gap-2 text-sm text-muted-foreground">
+    <div className="rounded-card border p-6 flex items-center gap-2 text-sm text-muted-foreground">
       <Loader2 className="h-4 w-4 animate-spin" /> Loading fund detail…
     </div>
   ) : (notFound || !econ || !m) ? (
-    <div className="rounded-lg border p-6 space-y-3 max-w-lg">
+    <div className="rounded-card border p-6 space-y-3 max-w-lg">
       <p className="text-sm">No vehicle named <strong>{vehicle}</strong> was found, or it carries no capital yet.</p>
       <Link href="/funds" className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm hover:bg-accent transition-colors">
         Back to all funds <ArrowRight className="h-3.5 w-3.5" />
@@ -229,17 +235,6 @@ export function FundDetailView({ vehicle, vehicleId }: { vehicle: string; vehicl
 }
 
 // ── Shared pieces ───────────────────────────────────────────────────────────
-
-function MetricBox({ label, value }: { label: string; value: string }) {
-  return (
-    <Card>
-      <CardContent className="pt-4 pb-3 px-4">
-        <p className="text-xs text-muted-foreground mb-1">{label}</p>
-        <p className="text-xl font-semibold">{value}</p>
-      </CardContent>
-    </Card>
-  )
-}
 
 function ChartCard({ title, action, children }: { title: string; action?: React.ReactNode; children: React.ReactNode }) {
   return (
@@ -439,8 +434,8 @@ function NewVsFollowOnPie({
               <li key={d.name} className="flex items-center gap-2">
                 <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: d.color }} />
                 <span className="truncate flex-1">{d.name}</span>
-                <span className="font-mono text-muted-foreground shrink-0">{fmt(d.value)}</span>
-                <span className="font-mono text-muted-foreground/70 shrink-0 w-10 text-right">
+                <span className="tabular-nums text-muted-foreground shrink-0">{fmt(d.value)}</span>
+                <span className="tabular-nums text-muted-foreground/70 shrink-0 w-10 text-right">
                   {total ? `${Math.round((d.value / total) * 100)}%` : '—'}
                 </span>
               </li>
@@ -508,12 +503,14 @@ function IrrOverTimeChart({
 function BreakdownChart({
   title, groups, fmt, fmtFull,
 }: { title: string; groups: SoiGroup[]; fmt: (v: number) => string; fmtFull: (v: number) => string }) {
-  // Cap the legend: keep the top 5 slices by fair value, fold the tail into "Other".
+  // Keep the top 4 slices by fair value and fold the tail into "Other" — four is
+  // the validated all-pairs ceiling for this palette, so a fifth hue would be one
+  // no colour-blind reader could separate from its neighbours.
   const data = useMemo(() => {
     const sorted = [...groups].filter(g => g.fairValue > 0).sort((a, b) => b.fairValue - a.fairValue)
-    if (sorted.length <= 6) return sorted
-    const head = sorted.slice(0, 5)
-    const tail = sorted.slice(5).reduce((s, g) => s + g.fairValue, 0)
+    if (sorted.length <= SLICE.length + 1) return sorted
+    const head = sorted.slice(0, SLICE.length)
+    const tail = sorted.slice(SLICE.length).reduce((s, g) => s + g.fairValue, 0)
     return [...head, { name: 'Other', cost: 0, fairValue: tail, pctOfNetAssets: 0 }]
   }, [groups])
   const total = data.reduce((s, g) => s + g.fairValue, 0)
@@ -527,7 +524,7 @@ function BreakdownChart({
           <ResponsiveContainer width="55%" height={220}>
             <PieChart>
               <Pie data={data} dataKey="fairValue" nameKey="name" cx="50%" cy="50%" innerRadius={48} outerRadius={80} paddingAngle={2} stroke={HUE.surface} strokeWidth={2}>
-                {data.map((_, i) => <Cell key={i} fill={SLICE[i % SLICE.length]} />)}
+                {data.map((_, i) => <Cell key={i} fill={sliceFill(i)} />)}
               </Pie>
               <Tooltip contentStyle={tooltipStyle} formatter={(v: any, n: any) => [fmtFull(v as number), n]} />
             </PieChart>
@@ -536,10 +533,10 @@ function BreakdownChart({
           <ul className="flex-1 space-y-1.5 text-xs min-w-0">
             {data.map((gp, i) => (
               <li key={gp.name} className="flex items-center gap-2">
-                <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: SLICE[i % SLICE.length] }} />
+                <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: sliceFill(i) }} />
                 <span className="truncate flex-1" title={gp.name}>{gp.name}</span>
-                <span className="font-mono text-muted-foreground shrink-0">{fmt(gp.fairValue)}</span>
-                <span className="font-mono text-muted-foreground/70 shrink-0 w-10 text-right">
+                <span className="tabular-nums text-muted-foreground shrink-0">{fmt(gp.fairValue)}</span>
+                <span className="tabular-nums text-muted-foreground/70 shrink-0 w-10 text-right">
                   {total ? `${Math.round((gp.fairValue / total) * 100)}%` : '—'}
                 </span>
               </li>
@@ -672,8 +669,8 @@ function TopHoldings({
                 ))}
               </div>
             </div>
-            <div className="w-24 shrink-0 text-right font-mono" title={fmtFull(h[metric])}>{fmt(h[metric])}</div>
-            <div className="w-12 shrink-0 text-right font-mono text-muted-foreground/70">
+            <div className="w-24 shrink-0 text-right tabular-nums" title={fmtFull(h[metric])}>{fmt(h[metric])}</div>
+            <div className="w-12 shrink-0 text-right tabular-nums text-muted-foreground/70">
               {fundTotal ? `${Math.round((h[metric] / fundTotal) * 100)}%` : '—'}
             </div>
           </div>

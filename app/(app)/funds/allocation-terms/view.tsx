@@ -150,7 +150,7 @@ export function AllocationTermsView() {
 
   return (
     <div className="space-y-6">
-      {error && <p className="text-sm text-amber-600">{error}</p>}
+      {error && <p className="text-sm text-warning">{error}</p>}
 
       {/* Per-partner terms — actions (Add LP / Change Commitment / Basis) share one panel */}
       <div>
@@ -184,7 +184,7 @@ export function AllocationTermsView() {
         </div>
 
         {showBasis && (
-          <div className="border rounded-lg p-3 mb-3 max-w-md space-y-2">
+          <div className="border rounded-card p-3 mb-3 max-w-md space-y-2">
             <p className="text-xs text-muted-foreground">
               What the close splits each category on. Commitment is the common default; some LPAs
               allocate on capital-account balance at period end.
@@ -207,12 +207,12 @@ export function AllocationTermsView() {
         )}
 
         {showAdd && (
-          <div className="border rounded-lg p-3 mb-3 flex flex-wrap items-end gap-3">
+          <div className="border rounded-card p-3 mb-3 flex flex-wrap items-end gap-3">
             <label className="text-xs text-muted-foreground">Name
               <Input value={addName} onChange={e => setAddName(e.target.value)} placeholder="e.g. Laconia Associates LLC" className="mt-1 h-9 w-64" />
             </label>
             <label className="text-xs text-muted-foreground">Commitment
-              <Input value={addCommitment} onChange={e => setAddCommitment(e.target.value)} inputMode="decimal" placeholder="0.00" className="mt-1 h-9 w-36 font-mono" />
+              <Input value={addCommitment} onChange={e => setAddCommitment(e.target.value)} inputMode="decimal" placeholder="0.00" className="mt-1 h-9 w-36 tabular-nums" />
             </label>
             <label className="text-xs text-muted-foreground">Type
               <select value={addPartnerClass} onChange={e => setAddPartnerClass(e.target.value)} className="mt-1 block h-9 px-3 rounded-md border border-input bg-background text-sm">
@@ -233,7 +233,7 @@ export function AllocationTermsView() {
         )}
 
         {showChange && (
-          <div className="border rounded-lg p-3 mb-3 space-y-3">
+          <div className="border rounded-card p-3 mb-3 space-y-3">
             {editingId && (
               <p className="text-xs text-muted-foreground">Editing an existing event — partner and transfer type can&rsquo;t change; delete and re-enter to change either.</p>
             )}
@@ -263,7 +263,7 @@ export function AllocationTermsView() {
                   onChange={e => setAmount(e.target.value)}
                   inputMode="decimal"
                   placeholder={isTransfer ? '100000' : '100000 or -50000'}
-                  className="mt-1 h-9 w-36 font-mono"
+                  className="mt-1 h-9 w-36 tabular-nums"
                 />
               </label>
               <label className="text-xs text-muted-foreground">Effective
@@ -308,7 +308,7 @@ export function AllocationTermsView() {
                       </button>
                     </div>
                   </td>
-                  <td className="px-3 py-2 text-right font-mono">{fmt(p.commitment)}</td>
+                  <td className="px-3 py-2 text-right tabular-nums">{fmt(p.commitment)}</td>
                   {CATEGORIES.map(c => {
                     const t = termFor(p, c.key)
                     const on = t ? t.participates : true
@@ -330,7 +330,7 @@ export function AllocationTermsView() {
             <tfoot>
               <tr className="border-t bg-muted/30 font-semibold">
                 <td className="px-3 py-2">Total</td>
-                <td className="px-3 py-2 text-right font-mono">{fmt(totalCommitment)}</td>
+                <td className="px-3 py-2 text-right tabular-nums">{fmt(totalCommitment)}</td>
                 {CATEGORIES.map(c => <td key={c.key} />)}
               </tr>
             </tfoot>
@@ -375,10 +375,10 @@ export function AllocationTermsView() {
                       const isXfer = e.kind.startsWith('transfer')
                       return (
                         <tr key={e.id} className="border-b last:border-b-0">
-                          <td className="px-3 py-2 font-mono text-xs">{e.effectiveDate}</td>
+                          <td className="px-3 py-2 tabular-nums text-xs">{e.effectiveDate}</td>
                           <td className="px-3 py-2">{e.name}</td>
                           <td className="px-3 py-2 text-xs text-muted-foreground">{e.kind.replace('_', ' ')}</td>
-                          <td className={`px-3 py-2 text-right font-mono ${e.amount < 0 ? 'text-muted-foreground' : ''}`}>{fmt(e.amount)}</td>
+                          <td className={`px-3 py-2 text-right tabular-nums ${e.amount < 0 ? 'text-muted-foreground' : ''}`}>{fmt(e.amount)}</td>
                           <td className="px-3 py-2 text-right">
                             <div className="flex items-center justify-end gap-1">
                               <Button

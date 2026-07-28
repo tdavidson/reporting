@@ -13,6 +13,7 @@ import { useCanRead } from '@/components/access-context'
 import { AllocationTermsView } from '../allocation-terms/view'
 import { CollapsibleSection } from '@/components/collapsible-section'
 import { Button } from '@/components/ui/button'
+import { EmptyState } from '@/components/ui/empty-state'
 
 interface Issue { level: 'blocker' | 'warning' | 'info'; title: string; detail: string; href?: string; action?: string }
 interface Status {
@@ -34,8 +35,8 @@ interface Status {
 }
 
 const LEVEL = {
-  blocker: { Icon: Ban, cls: 'text-red-600', box: 'border-red-500/40 bg-red-500/5' },
-  warning: { Icon: AlertTriangle, cls: 'text-amber-600', box: 'border-amber-500/40 bg-amber-500/5' },
+  blocker: { Icon: Ban, cls: 'text-destructive', box: 'border-destructive/40 bg-destructive/5' },
+  warning: { Icon: AlertTriangle, cls: 'text-warning', box: 'border-warning/40 bg-warning/5' },
   info: { Icon: Info, cls: 'text-muted-foreground', box: '' },
 }
 
@@ -64,7 +65,7 @@ export function StatusView() {
   }, [lf])
 
   if (loading) return <div className="flex items-center gap-2 text-muted-foreground text-sm"><Loader2 className="h-4 w-4 animate-spin" />Loading…</div>
-  if (!s) return <div className="border border-dashed rounded-lg p-8 text-center text-sm text-muted-foreground">Could not load status for this vehicle.</div>
+  if (!s) return <EmptyState>Could not load status for this vehicle.</EmptyState>
 
   // Vehicle identity — name, type, vintage, aliases — sits above the accounting state on both
   // branches below. It used to be editable only from the group table on /investments, which meant
@@ -80,7 +81,7 @@ export function StatusView() {
         <VehicleDetailsCard />
         <Link
           href="/lps/capital"
-          className="flex items-center gap-3 rounded-lg border p-3 transition-colors hover:bg-muted/30"
+          className="flex items-center gap-3 rounded-card border p-3 transition-colors hover:bg-muted/30"
         >
           <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
           <div className="min-w-0 flex-1">
@@ -138,7 +139,7 @@ export function StatusView() {
         <AccountingSetup alwaysShow />
       ) : (
         <div className="flex items-center gap-2 rounded-lg border px-3 py-2 text-sm text-muted-foreground">
-          <Check className="h-4 w-4 text-green-600" />
+          <Check className="h-4 w-4 text-success" />
           Onboarded — {s.setup.historyMode === 'full_history' ? 'rebuilt from full history' : 'started from a cutover balance'},
           {' '}{s.setup.accountCount} accounts, {s.setup.partnerCount} partners.
         </div>
@@ -146,9 +147,9 @@ export function StatusView() {
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {cards.map(c => (
-          <div key={c.label} className="border rounded-lg p-3">
+          <div key={c.label} className="border rounded-card p-3">
             <p className="text-xs text-muted-foreground">{c.label}</p>
-            <p className="text-lg font-mono font-semibold mt-0.5 truncate">{c.value}</p>
+            <p className="text-lg tabular-nums font-semibold mt-0.5 truncate">{c.value}</p>
             {c.hint && <p className="text-[11px] text-muted-foreground mt-0.5">{c.hint}</p>}
           </div>
         ))}
@@ -157,7 +158,7 @@ export function StatusView() {
       <div>
         <p className="text-sm font-medium mb-2">Needs attention</p>
         {s.issues.length === 0 ? (
-          <div className="flex items-center gap-2 rounded-lg border border-green-500/40 bg-green-500/5 px-3 py-2 text-sm text-green-700 dark:text-green-400">
+          <div className="flex items-center gap-2 rounded-lg border border-success/40 bg-success/5 px-3 py-2 text-sm text-success">
             <Check className="h-4 w-4" />
             Nothing outstanding. The books balance, everything is posted, and the close is up to date.
           </div>
@@ -166,7 +167,7 @@ export function StatusView() {
             {s.issues.map((i, idx) => {
               const L = LEVEL[i.level] ?? LEVEL.info
               return (
-                <div key={idx} className={`flex items-start gap-2 rounded-lg border p-3 text-sm ${L.box}`}>
+                <div key={idx} className={`flex items-start gap-2 rounded-card border p-3 text-sm ${L.box}`}>
                   <L.Icon className={`h-4 w-4 mt-0.5 shrink-0 ${L.cls}`} />
                   <div className="min-w-0 flex-1">
                     <p className="font-medium">{i.title}</p>
@@ -189,9 +190,9 @@ export function StatusView() {
           because until it's closed every partner's capital account understates. */}
       <Link
         href={fundHref('/funds/periods')}
-        className={`flex items-center gap-3 rounded-lg border p-3 transition-colors hover:bg-muted/30 ${unallocated ? 'border-amber-500/40 bg-amber-500/5' : ''}`}
+        className={`flex items-center gap-3 rounded-card border p-3 transition-colors hover:bg-muted/30 ${unallocated ? 'border-warning/40 bg-warning/5' : ''}`}
       >
-        <Lock className={`h-4 w-4 shrink-0 ${unallocated ? 'text-amber-600' : 'text-muted-foreground'}`} />
+        <Lock className={`h-4 w-4 shrink-0 ${unallocated ? 'text-warning' : 'text-muted-foreground'}`} />
         <div className="min-w-0 flex-1">
           <p className="text-sm font-medium">Period close</p>
           <p className="text-xs text-muted-foreground mt-0.5">
@@ -199,7 +200,7 @@ export function StatusView() {
             {unallocated && (
               <>
                 {' '}
-                <span className="text-amber-600">
+                <span className="text-warning">
                   {fmt(s.close.unallocatedEarnings)} of net income is not yet allocated to partners.
                 </span>
               </>
@@ -281,7 +282,7 @@ function VehicleDetailsCard() {
 
   return (
     <>
-      <div className="rounded-lg border p-3">
+      <div className="rounded-card border p-3">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <p className="text-sm font-medium truncate">{vehicle.name}</p>
@@ -395,10 +396,10 @@ function GeneralPartnersCard() {
   const addableCandidates = data.candidates.filter(c => !linkedGpIds.has(c.id))
 
   return (
-    <div className="border rounded-lg p-3 space-y-2">
+    <div className="border rounded-card p-3 space-y-2">
       <p className="text-sm font-medium">General partner(s)</p>
 
-      {error && <p className="text-xs text-red-600">{error}</p>}
+      {error && <p className="text-sm text-destructive">{error}</p>}
 
       {data.links.length === 0 ? (
         <p className="text-xs text-muted-foreground">No general partner linked to this vehicle yet.</p>
@@ -414,7 +415,7 @@ function GeneralPartnersCard() {
                 onClick={() => removeLink(l.id)}
                 disabled={busy === l.id}
                 title="Remove"
-                className="shrink-0 text-muted-foreground hover:text-red-600"
+                className="shrink-0 text-muted-foreground hover:text-destructive"
               >
                 {busy === l.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <X className="h-3.5 w-3.5" />}
               </button>

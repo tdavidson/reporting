@@ -50,11 +50,11 @@ export function AnalystPendingActions({ actions }: { actions: StagedAction[] }) 
       {actions.map(a => {
         const st = state[a.id] ?? 'idle'
         return (
-          <div key={a.id} className="border rounded-lg p-3 space-y-2">
+          <div key={a.id} className="border rounded-card p-3 space-y-2">
             <p className="text-xs font-medium">{a.preview.summary}</p>
             <PreviewDetails details={a.preview.details} />
             {st === 'applied' ? (
-              <span className="text-xs text-green-600 flex items-center gap-1">
+              <span className="text-xs text-success flex items-center gap-1">
                 <Check className="h-3.5 w-3.5" />Applied.
               </span>
             ) : st === 'rejected' ? (
@@ -71,7 +71,7 @@ export function AnalystPendingActions({ actions }: { actions: StagedAction[] }) 
                 </Button>
               </div>
             )}
-            {st === 'error' && errors[a.id] && <p className="text-xs text-destructive">{errors[a.id]}</p>}
+            {st === 'error' && errors[a.id] && <p className="text-sm text-destructive">{errors[a.id]}</p>}
           </div>
         )
       })}
@@ -91,7 +91,7 @@ function PreviewDetails({ details }: { details: Record<string, unknown> }) {
           {scalars.map(([k, v]) => (
             <div key={k} className="contents">
               <dt className="text-muted-foreground">{k}</dt>
-              <dd className="font-mono">{formatVal(v)}</dd>
+              <dd className="tabular-nums">{formatVal(v)}</dd>
             </div>
           ))}
         </dl>
@@ -108,7 +108,7 @@ function PreviewDetails({ details }: { details: Record<string, unknown> }) {
             {perLp.map((r, i) => (
               <tr key={i} className="border-t">
                 <td className="py-0.5">{r.lp}</td>
-                <td className="py-0.5 text-right font-mono">{formatVal(r.amount)}</td>
+                <td className="py-0.5 text-right tabular-nums">{formatVal(r.amount)}</td>
               </tr>
             ))}
           </tbody>

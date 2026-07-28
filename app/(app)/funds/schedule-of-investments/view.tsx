@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useCallback, useEffect, useState } from 'react'
 import { Loader2, AlertTriangle, Check, Download, History } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -8,6 +9,7 @@ import { useCurrency, formatCurrencyPrice, formatSharePrice } from '@/components
 import { useLedgerFetch } from '@/components/accounting-vehicle'
 import { PeriodPicker } from '@/components/accounting/period-picker'
 import type { PeriodPreset } from '@/lib/accounting/statement-period'
+import { EmptyState } from '@/components/ui/empty-state'
 
 interface SoiRow {
   name: string
@@ -142,9 +144,9 @@ export function ScheduleOfInvestmentsView() {
             {groups.map(g => (
               <tr key={g.name} className="border-b last:border-b-0">
                 <td className="px-3 py-2">{g.name}</td>
-                <td className="px-3 py-2 text-right font-mono">{fmt(g.cost)}</td>
-                <td className="px-3 py-2 text-right font-mono">{fmt(g.fairValue)}</td>
-                <td className="px-3 py-2 text-right font-mono text-muted-foreground">{pct(g.pctOfNetAssets)}</td>
+                <td className="px-3 py-2 text-right tabular-nums">{fmt(g.cost)}</td>
+                <td className="px-3 py-2 text-right tabular-nums">{fmt(g.fairValue)}</td>
+                <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">{pct(g.pctOfNetAssets)}</td>
               </tr>
             ))}
           </tbody>
@@ -157,16 +159,16 @@ export function ScheduleOfInvestmentsView() {
       {/* The SOI's rows come from the portfolio tracker; the ledger is the control
           total. If they disagree, say so loudly rather than showing a tidy number. */}
       {error && <p className="text-sm text-destructive">{error}</p>}
-      {note && <p className="text-sm text-green-700 dark:text-green-400 flex items-center gap-1.5"><Check className="h-4 w-4" />{note}</p>}
+      {note && <p className="text-sm text-success flex items-center gap-1.5"><Check className="h-4 w-4" />{note}</p>}
 
       {/* The tracker knows the fund holds these companies but the ledger doesn't.
           Booking them RECLASSIFIES out of cash — the cutover opening already credited
           partners' capital for the whole NAV, so crediting it again here would book
           the fund's equity twice. */}
       {needsBootstrap && (
-        <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 space-y-3">
+        <div className="rounded-card border border-warning/40 bg-warning/10 p-3 space-y-3">
           <div>
-            <p className="text-sm font-medium text-amber-700 dark:text-amber-400 flex items-center gap-1.5">
+            <p className="text-sm font-medium text-warning flex items-center gap-1.5">
               <AlertTriangle className="h-4 w-4" />These investments are not on the ledger.
             </p>
             <p className="text-xs text-muted-foreground mt-1">
@@ -181,7 +183,7 @@ export function ScheduleOfInvestmentsView() {
               <button
                 key={m}
                 onClick={() => { setMode(m); setHist(null); setError(null) }}
-                className={`rounded border px-2.5 py-1 ${mode === m ? 'border-amber-500/60 bg-background font-medium' : 'border-transparent text-muted-foreground hover:bg-background/50'}`}
+                className={`rounded border px-2.5 py-1 ${mode === m ? 'border-warning/60 bg-background font-medium' : 'border-transparent text-muted-foreground hover:bg-background/50'}`}
               >
                 {label}
               </button>
@@ -214,25 +216,25 @@ export function ScheduleOfInvestmentsView() {
                     <strong>{hist.events.length}</strong> {hist.events.length === 1 ? 'event' : 'events'} across{' '}
                     <strong>{hist.dates.length}</strong> {hist.dates.length === 1 ? 'date' : 'dates'}
                     {hist.dates.length > 0 && <> — {hist.dates[0]} to {hist.dates[hist.dates.length - 1]}</>}.
-                    Ending cost <span className="font-mono">{fmt(hist.totalCost)}</span>, unrealized{' '}
-                    <span className="font-mono">{fmt(hist.totalUnrealized)}</span>.
+                    Ending cost <span className="tabular-nums">{fmt(hist.totalCost)}</span>, unrealized{' '}
+                    <span className="tabular-nums">{fmt(hist.totalUnrealized)}</span>.
                   </p>
 
                   {/* The tracker is the control total. If the replay wouldn't land on it,
                       say so rather than posting dozens of entries that don't tie. */}
                   {Math.abs(hist.totalCost - soi.totalCost) > 0.005 || Math.abs(hist.totalCost + hist.totalUnrealized - soi.totalFairValue) > 0.005 ? (
-                    <p className="text-xs text-amber-700 dark:text-amber-400">
+                    <p className="text-sm text-warning">
                       Heads up: this lands at {fmt(hist.totalCost + hist.totalUnrealized)} carrying value, but the tracker
                       shows {fmt(soi.totalFairValue)}. Replay only what you mean to.
                     </p>
                   ) : (
-                    <p className="text-xs text-green-700 dark:text-green-400 flex items-center gap-1">
+                    <p className="text-xs text-success flex items-center gap-1">
                       <Check className="h-3.5 w-3.5" />Lands exactly on the tracker&rsquo;s cost and fair value.
                     </p>
                   )}
 
                   {hist.warnings.map((w, i) => (
-                    <p key={i} className="text-xs text-amber-700 dark:text-amber-400 flex items-start gap-1">
+                    <p key={i} className="text-sm text-warning flex items-start gap-1">
                       <AlertTriangle className="h-3.5 w-3.5 mt-px shrink-0" />{w}
                     </p>
                   ))}
@@ -258,10 +260,10 @@ export function ScheduleOfInvestmentsView() {
                         <tbody>
                           {hist.events.map((e, i) => (
                             <tr key={i} className="border-b last:border-b-0">
-                              <td className="px-2 py-1 font-mono text-muted-foreground">{e.date}</td>
+                              <td className="px-2 py-1 tabular-nums text-muted-foreground">{e.date}</td>
                               <td className="px-2 py-1">{e.companyName}</td>
-                              <td className="px-2 py-1 text-right font-mono">{e.costDelta === 0 ? '—' : fmt(e.costDelta)}</td>
-                              <td className={`px-2 py-1 text-right font-mono ${e.unrealizedDelta < 0 ? 'text-red-600' : ''}`}>
+                              <td className="px-2 py-1 text-right tabular-nums">{e.costDelta === 0 ? '—' : fmt(e.costDelta)}</td>
+                              <td className={`px-2 py-1 text-right tabular-nums ${e.unrealizedDelta < 0 ? 'text-destructive' : ''}`}>
                                 {e.unrealizedDelta === 0 ? '—' : fmt(e.unrealizedDelta)}
                               </td>
                             </tr>
@@ -306,15 +308,15 @@ export function ScheduleOfInvestmentsView() {
         </div>
       )}
 
-      <div className={`flex items-start gap-2 rounded-lg border px-3 py-2 text-sm ${tied ? 'text-muted-foreground' : 'border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400'}`}>
-        {tied ? <Check className="h-4 w-4 mt-0.5 shrink-0 text-green-600" /> : <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />}
+      <div className={`flex items-start gap-2 rounded-lg border px-3 py-2 text-sm ${tied ? 'text-muted-foreground' : 'border-warning/40 bg-warning/10 text-warning dark:text-warning'}`}>
+        {tied ? <Check className="h-4 w-4 mt-0.5 shrink-0 text-success" /> : <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />}
         {tied ? (
           <span>Ties to the ledger — cost {fmt(soi.ledgerCost)}, fair value {fmt(soi.ledgerFairValue)}.</span>
         ) : (
           <span>
             <strong>Does not tie to the ledger.</strong> The tracker says cost {fmt(soi.totalCost)} / fair value {fmt(soi.totalFairValue)};
             the ledger says {fmt(soi.ledgerCost)} / {fmt(soi.ledgerFairValue)}.
-            Variance: cost <span className="font-mono">{fmt(soi.costVariance)}</span>, fair value <span className="font-mono">{fmt(soi.fairValueVariance)}</span>.
+            Variance: cost <span className="tabular-nums">{fmt(soi.costVariance)}</span>, fair value <span className="tabular-nums">{fmt(soi.fairValueVariance)}</span>.
             A mark or purchase was recorded in one system and not the other.
           </span>
         )}
@@ -343,25 +345,25 @@ export function ScheduleOfInvestmentsView() {
                   {/* A per-company tie-out is only possible once the company has its own
                       accounts. The aggregate line can't tell you which position is off. */}
                   {r.tiesOut === false && (
-                    <span className="ml-1.5 text-[10px] uppercase tracking-wider px-1 py-0.5 rounded bg-amber-500/15 text-amber-700 dark:text-amber-400">off ledger</span>
+                    <span className="ml-1.5 text-[10px] uppercase tracking-wider px-1 py-0.5 rounded bg-warning/15 text-warning">off ledger</span>
                   )}
                 </td>
                 <td className="px-3 py-2 text-xs text-muted-foreground">{r.industry ?? '—'}</td>
                 <td className="px-3 py-2 text-xs text-muted-foreground">{r.assetType ?? '—'}</td>
-                <td className="px-3 py-2 text-right font-mono text-xs">{num(r.shares)}</td>
-                <td className="px-3 py-2 text-right font-mono text-xs">{r.sharePrice == null ? '—' : formatSharePrice(r.sharePrice, currency)}</td>
-                <td className="px-3 py-2 text-right font-mono">{fmt(r.cost)}</td>
-                <td className="px-3 py-2 text-right font-mono">{fmt(r.fairValue)}</td>
-                <td className="px-3 py-2 text-right font-mono text-xs text-muted-foreground">{r.moic == null ? '—' : `${r.moic.toFixed(2)}×`}</td>
-                <td className="px-3 py-2 text-right font-mono text-muted-foreground">{pct(r.pctOfNetAssets)}</td>
+                <td className="px-3 py-2 text-right tabular-nums text-xs">{num(r.shares)}</td>
+                <td className="px-3 py-2 text-right tabular-nums text-xs">{r.sharePrice == null ? '—' : formatSharePrice(r.sharePrice, currency)}</td>
+                <td className="px-3 py-2 text-right tabular-nums">{fmt(r.cost)}</td>
+                <td className="px-3 py-2 text-right tabular-nums">{fmt(r.fairValue)}</td>
+                <td className="px-3 py-2 text-right tabular-nums text-xs text-muted-foreground">{r.moic == null ? '—' : `${r.moic.toFixed(2)}×`}</td>
+                <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">{pct(r.pctOfNetAssets)}</td>
               </tr>
             ))}
           </tbody>
           <tfoot>
             <tr className="border-t bg-muted/30 font-semibold">
               <td className="px-3 py-2" colSpan={5}>Total</td>
-              <td className="px-3 py-2 text-right font-mono">{fmt(soi.totalCost)}</td>
-              <td className="px-3 py-2 text-right font-mono">{fmt(soi.totalFairValue)}</td>
+              <td className="px-3 py-2 text-right tabular-nums">{fmt(soi.totalCost)}</td>
+              <td className="px-3 py-2 text-right tabular-nums">{fmt(soi.totalFairValue)}</td>
               <td />
               <td />
             </tr>
@@ -401,7 +403,17 @@ export function ScheduleOfInvestmentsView() {
       {loading ? (
         <div className="flex items-center gap-2 text-muted-foreground text-sm"><Loader2 className="h-4 w-4 animate-spin" />Loading…</div>
       ) : !soi || soi.rows.length === 0 ? (
-        <div className="border border-dashed rounded-lg p-8 text-center text-sm text-muted-foreground">No investments booked as of {asOf || 'today'}.</div>
+        <EmptyState
+          // Investments are recorded on a company page, and every company is
+          // reachable from Portfolio — so that is the way in from here.
+          action={
+            <Button size="sm" variant="outline" asChild>
+              <Link href="/dashboard">Open Portfolio</Link>
+            </Button>
+          }
+        >
+          No investments booked as of {asOf || 'today'}. Investments are recorded on a company.
+        </EmptyState>
       ) : (
         content
       )}

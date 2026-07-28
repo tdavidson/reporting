@@ -140,7 +140,7 @@ export function FundNameSection({ name, logo, address, onSaved }: { name: string
           {logoSaving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
         </div>
         {logoError && (
-          <p className="text-xs text-destructive mt-1 flex items-center gap-1">
+          <p className="text-sm text-destructive mt-1 flex items-center gap-1">
             <AlertCircle className="h-3 w-3" /> {logoError}
           </p>
         )}

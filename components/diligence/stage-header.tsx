@@ -110,11 +110,11 @@ export function StageHeader({
     : null
 
   return (
-    <div className="mb-4 rounded-lg border p-3 space-y-3">
+    <div className="mb-4 rounded-card border p-3 space-y-3">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <p className="text-sm font-medium flex items-center gap-1.5">
-            {Icon && <Icon className={`h-3.5 w-3.5 ${stage.state === 'done' ? 'text-emerald-600' : stage.state === 'failed' ? 'text-red-600' : 'text-muted-foreground'}`} />}
+            {Icon && <Icon className={`h-3.5 w-3.5 ${stage.state === 'done' ? 'text-success' : stage.state === 'failed' ? 'text-destructive' : 'text-muted-foreground'}`} />}
             {stage.label}
           </p>
           <p className="text-xs text-muted-foreground mt-0.5">{stage.hint}</p>
@@ -149,7 +149,7 @@ export function StageHeader({
 
       {children}
 
-      {error && <p className="text-xs text-destructive">{error}</p>}
+      {error && <p className="text-sm text-destructive">{error}</p>}
 
       {job && job.kind && stage.state !== 'blocked' && <JobLine job={job} stage={stage} />}
     </div>
@@ -207,7 +207,7 @@ export function DiligenceStageBar({ dealId, onJump }: { dealId: string; onJump?:
   const { progress } = useDiligenceProgress(dealId)
   if (!progress) return null
   return (
-    <div className="mb-4 rounded-lg border p-3">
+    <div className="mb-4 rounded-card border p-3">
       <StageBar stages={progress.stages} onJump={onJump} />
     </div>
   )

@@ -9,6 +9,7 @@ import { Check, X, Pencil, Loader2, Mail } from 'lucide-react'
 import { EmailReviewModal } from '@/components/email-review-modal'
 import { AnalystToggleButton } from '@/components/analyst-button'
 import { AnalystPanel } from '@/components/analyst-panel'
+import { EmptyState } from '@/components/ui/empty-state'
 
 interface ReviewItem {
   id: string
@@ -46,12 +47,12 @@ const ISSUE_LABELS: Record<string, string> = {
 }
 
 const STATUS_COLORS: Record<string, string> = {
-  new_company_detected: 'bg-blue-100 text-blue-800 border-blue-200',
-  low_confidence: 'bg-amber-100 text-amber-800 border-amber-200',
-  ambiguous_period: 'bg-orange-100 text-orange-800 border-orange-200',
-  metric_not_found: 'bg-slate-100 text-slate-700 border-slate-200',
-  company_not_identified: 'bg-red-100 text-red-800 border-red-200',
-  duplicate_period: 'bg-purple-100 text-purple-800 border-purple-200',
+  new_company_detected: 'bg-info-subtle text-info border-info',
+  low_confidence: 'bg-warning-subtle text-warning border-warning',
+  ambiguous_period: 'bg-warning-subtle text-warning border-warning',
+  metric_not_found: 'bg-muted text-muted-foreground border-border',
+  company_not_identified: 'bg-destructive-subtle text-destructive border-destructive',
+  duplicate_period: 'bg-warning-subtle text-warning border-warning',
 }
 
 export default function ReviewPage() {
@@ -134,9 +135,7 @@ export default function ReviewPage() {
       )}
 
       {!loading && items.length === 0 && (data?.needsReviewEmails ?? []).length === 0 && (
-        <div className="rounded-lg border border-dashed p-12 text-center">
-          <p className="text-muted-foreground">All clear, nothing to review.</p>
-        </div>
+        <EmptyState>All clear, nothing to review.</EmptyState>
       )}
 
       {!loading && items.length > 0 && (
@@ -147,7 +146,7 @@ export default function ReviewPage() {
             const hasValue = !!item.extracted_value
 
             return (
-              <div key={item.id} className="rounded-lg border bg-card p-4 space-y-3">
+              <div key={item.id} className="rounded-card border bg-card p-4 space-y-3">
                 {/* Header row */}
                 <div className="flex flex-wrap items-center gap-2">
                   <span
@@ -269,7 +268,7 @@ export default function ReviewPage() {
 
       {!loading && (data?.needsReviewEmails ?? []).length > 0 && (
         <div className="mt-6">
-          <h2 className="text-sm font-medium text-muted-foreground mb-3">
+          <h2 className="text-base font-medium text-muted-foreground mb-3">
             Emails needing review ({data!.needsReviewEmails.length})
           </h2>
           <div className="space-y-2">
@@ -277,10 +276,10 @@ export default function ReviewPage() {
               <button
                 key={email.id}
                 onClick={() => setReviewModalEmailId(email.id)}
-                className="w-full rounded-lg border bg-card p-4 text-left hover:bg-muted/30 transition-colors"
+                className="w-full rounded-card border bg-card p-4 text-left hover:bg-muted/30 transition-colors"
               >
                 <div className="flex items-center gap-3">
-                  <Mail className="h-4 w-4 text-amber-500 shrink-0" />
+                  <Mail className="h-4 w-4 text-warning shrink-0" />
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium truncate">
                       {email.subject || '(no subject)'}
@@ -291,11 +290,11 @@ export default function ReviewPage() {
                       {email.company ? (
                         <span>{email.company.name}</span>
                       ) : (
-                        <span className="text-amber-600">No company assigned</span>
+                        <span className="text-warning">No company assigned</span>
                       )}
                     </div>
                   </div>
-                  <Badge variant="outline" className="bg-amber-100 text-amber-800 border-amber-200 shrink-0">
+                  <Badge variant="outline" className="bg-warning-subtle text-warning border-warning shrink-0">
                     Needs Review
                   </Badge>
                 </div>

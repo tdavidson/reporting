@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { ArrowRight } from 'lucide-react'
 import type { OverviewMetrics, OverviewTotals, OverviewVehicle } from '@/lib/lp-overview'
+import { Metric as MetricBox } from '@/components/ui/metric'
 
 export interface OverviewViewData extends Partial<OverviewMetrics> {
   investorName?: string | null
@@ -20,16 +21,6 @@ function fmtDate(s: string | null | undefined): string {
   if (!s) return ''
   const d = new Date(s.length <= 10 ? `${s}T00:00:00` : s)
   return isNaN(d.getTime()) ? '' : d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
-}
-
-function MetricBox({ label, value, sub }: { label: string; value: string; sub?: string }) {
-  return (
-    <div className="rounded-lg border bg-card p-4">
-      <div className="text-xs text-muted-foreground">{label}</div>
-      <div className="mt-1 text-xl font-semibold tabular-nums tracking-tight">{value}</div>
-      {sub && <div className="mt-0.5 text-xs text-muted-foreground">{sub}</div>}
-    </div>
-  )
 }
 
 /**
@@ -53,7 +44,7 @@ export function OverviewView({ data }: { data: OverviewViewData }) {
       </div>
 
       {!data.hasData || !data.totals ? (
-        <div className="rounded-lg border bg-card p-8 text-center">
+        <div className="rounded-card border bg-card p-8 text-center">
           <p className="text-sm text-muted-foreground">No performance figures have been shared with you yet.</p>
           <Link href="/portal/snapshots" className="mt-3 inline-flex items-center gap-1 text-sm text-primary hover:underline">
             Browse your documents <ArrowRight className="h-3.5 w-3.5" />
@@ -76,10 +67,10 @@ export function OverviewView({ data }: { data: OverviewViewData }) {
           {/* Per-vehicle */}
           {(data.vehicles?.length ?? 0) > 0 && (
             <section className="space-y-3">
-              <h2 className="text-sm font-semibold">By investment vehicle</h2>
+              <h2 className="text-base font-semibold">By investment vehicle</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {data.vehicles!.map((v: OverviewVehicle) => (
-                  <div key={v.name} className="rounded-lg border bg-card p-4">
+                  <div key={v.name} className="rounded-card border bg-card p-4">
                     <div className="flex items-baseline justify-between gap-2">
                       <h3 className="font-medium truncate">{v.name}</h3>
                       <span className="shrink-0 text-xs text-muted-foreground tabular-nums">

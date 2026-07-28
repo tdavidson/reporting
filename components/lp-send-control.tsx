@@ -153,13 +153,13 @@ export function LpSendControl({ kind, id, itemTitle }: {
           {/* ---- RESULT ---- */}
           {stage === 'result' && result ? (
             <div className="space-y-4">
-              <div className="flex items-start gap-2 rounded-md border border-emerald-300/50 bg-emerald-50 dark:bg-emerald-950/30 px-3 py-2.5 text-sm text-emerald-700 dark:text-emerald-400">
+              <div className="flex items-start gap-2 rounded-md border border-success/50 bg-success-subtle dark:bg-success-subtle/30 px-3 py-2.5 text-sm text-success">
                 <CheckCircle2 className="h-4 w-4 mt-0.5 shrink-0" />
                 <div>
                   Sent to {result.sent} LP{result.sent === 1 ? '' : 's'}
                   {result.ccRecipients > 0 && `, plus ${result.ccRecipients} authorized user${result.ccRecipients === 1 ? '' : 's'}`}.
                   {result.failures.length > 0 && (
-                    <div className="text-amber-700 dark:text-amber-400 mt-1">{result.failures.length} failed: {result.failures.join(', ')}</div>
+                    <div className="text-warning mt-1">{result.failures.length} failed: {result.failures.join(', ')}</div>
                   )}
                 </div>
               </div>
@@ -210,7 +210,7 @@ export function LpSendControl({ kind, id, itemTitle }: {
                 </div>
               </div>
 
-              {error && <div className="text-xs rounded-md border border-destructive/40 bg-destructive/5 px-2.5 py-2 text-destructive">{error}</div>}
+              {error && <div className="text-sm rounded-md border border-destructive/40 bg-destructive/5 px-2.5 py-2 text-destructive">{error}</div>}
 
               <div className="flex items-center justify-between gap-2">
                 <Button variant="ghost" size="sm" onClick={() => { setStage('compose'); setError(null) }} disabled={sending}>
@@ -227,7 +227,7 @@ export function LpSendControl({ kind, id, itemTitle }: {
           ) : (
             <div className="space-y-4 min-w-0">
               {portalEnabled === false && delivery !== 'attachment' && (
-                <div className="text-xs rounded-md border border-amber-300/50 bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400 px-2.5 py-2">
+                <div className="text-sm rounded-md border border-warning/50 bg-warning-subtle dark:bg-warning-subtle/30 text-warning px-2.5 py-2">
                   The LP portal is off, so portal links won&apos;t work. Enable it in{' '}
                   <a href="/settings" className="underline">Settings → LP Portal</a>, or send as a PDF attachment.
                 </div>
@@ -269,9 +269,7 @@ export function LpSendControl({ kind, id, itemTitle }: {
                           key={opt.value}
                           onClick={() => setDelivery(opt.value)}
                           title={opt.hint}
-                          className={`rounded-md border px-2 py-1.5 text-xs transition-colors ${
-                            delivery === opt.value ? 'border-primary bg-primary/5 text-foreground font-medium' : 'text-muted-foreground hover:bg-muted/40'
-                          }`}
+                          className={`rounded-md border px-2 py-1.5 text-xs transition-colors ${ delivery === opt.value ? 'border-primary bg-primary/5 text-foreground font-medium' : 'text-muted-foreground hover:bg-muted/40' }`}
                         >
                           {opt.label}
                         </button>
@@ -301,7 +299,7 @@ export function LpSendControl({ kind, id, itemTitle }: {
                     />
                   </div>
 
-                  {error && <div className="text-xs rounded-md border border-destructive/40 bg-destructive/5 px-2.5 py-2 text-destructive">{error}</div>}
+                  {error && <div className="text-sm rounded-md border border-destructive/40 bg-destructive/5 px-2.5 py-2 text-destructive">{error}</div>}
 
                   <div className="flex justify-end gap-2">
                     <Button variant="outline" size="sm" onClick={() => setOpen(false)} disabled={previewing}>Cancel</Button>

@@ -522,7 +522,7 @@ export function CompanyInvestments({ companyId, companyStatus, portfolioGroups, 
         <div className="flex items-center gap-2 mb-2">
           <DollarSign className="h-3.5 w-3.5 text-muted-foreground" />
           <span className="text-sm font-medium text-muted-foreground">Investment Details</span>
-          {adminOnly && <Lock className="h-3 w-3 text-amber-500" />}
+          {adminOnly && <Lock className="h-3 w-3 text-warning" />}
         </div>
         <div className="animate-pulse space-y-2">
           <div className="h-8 bg-muted rounded w-full" />
@@ -545,8 +545,8 @@ export function CompanyInvestments({ companyId, companyStatus, portfolioGroups, 
       {/* A draft entry nobody knows about is worse than none — it sits in the journal
           silently changing nothing while the books drift. So say it, and link to it. */}
       {canReadAccounting && ledger?.drafted && (
-        <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-blue-500/40 bg-blue-500/10 px-3 py-2 text-sm">
-          <FileText className="h-4 w-4 shrink-0 text-blue-700 dark:text-blue-400" />
+        <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-info/40 bg-info/10 px-3 py-2 text-sm">
+          <FileText className="h-4 w-4 shrink-0 text-info" />
           <span>
             Drafted {LEDGER_KIND_LABEL[ledger.kind ?? ''] ?? 'a journal entry'} in{' '}
             <strong>{ledger.vehicle}</strong>&rsquo;s ledger. It is <strong>not posted</strong> until you review it.
@@ -586,8 +586,8 @@ export function CompanyInvestments({ companyId, companyStatus, portfolioGroups, 
           account, a row the ledger can't place. Amber, because the tracker and the ledger now say
           different things and only this message explains why. */}
       {canReadAccounting && ledger && !ledger.drafted && !ledger.notOnboarded && ledger.reason && (
-        <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm">
-          <AlertTriangle className="h-4 w-4 shrink-0 text-amber-700 dark:text-amber-400" />
+        <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-sm">
+          <AlertTriangle className="h-4 w-4 shrink-0 text-warning" />
           <span>
             Saved to the tracker, but <strong>nothing was booked</strong> to the ledger.{' '}
             {ledger.reason}
@@ -610,7 +610,7 @@ export function CompanyInvestments({ companyId, companyStatus, portfolioGroups, 
           {expanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
           <DollarSign className="h-3.5 w-3.5" />
           Investment Details
-          {adminOnly && <Lock className="h-3 w-3 text-amber-500" />}
+          {adminOnly && <Lock className="h-3 w-3 text-warning" />}
           {transactions.length > 0 && (
             <span className="text-xs bg-muted rounded-full px-1.5 py-0.5">{transactions.length}</span>
           )}
@@ -633,7 +633,7 @@ export function CompanyInvestments({ companyId, companyStatus, portfolioGroups, 
           const groupTxns = [...transactions.filter(t => t.portfolio_group === group), ...companyWideTxns]
           return (
             <div key={group} className="mb-5">
-              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">{group}</h3>
+              <h3 className="text-base font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">{group}</h3>
               <SummaryLine summary={gs} fmt={fmt} fmtMoic={fmtMoic} asOfDate={asOfDate} setAsOfDate={setAsOfDate} />
               <TransactionTable
                 transactions={groupTxns}
@@ -943,7 +943,7 @@ export function CompanyInvestments({ companyId, companyStatus, portfolioGroups, 
                       ))}
                     </select>
                     {convertibleSources.length === 0 && (
-                      <p className="text-[11px] text-amber-600 dark:text-amber-400 mt-1">
+                      <p className="text-[11px] text-warning mt-1">
                         No open SAFE or note on this company. Record the SAFE/note as an Investment first.
                       </p>
                     )}
@@ -991,10 +991,10 @@ export function CompanyInvestments({ companyId, companyStatus, portfolioGroups, 
 
                   {/* Live preview so the arithmetic of the conversion is obvious before saving. */}
                   {form.converts_from_txn_id && (
-                    <div className="rounded-md border bg-muted/30 p-3 text-xs space-y-1">
+                    <div className="rounded-card border bg-muted/30 p-3 text-xs space-y-1">
                       <div className="flex justify-between"><span className="text-muted-foreground">Carried basis (principal + interest)</span><span className="font-mono">{symbol.trim()}{fmtNum(carriedBasis)}</span></div>
                       <div className="flex justify-between"><span className="text-muted-foreground">Round value ({shares > 0 && price > 0 ? `${fmtNum(shares)} × ${symbol.trim()}${fmtNum(price)}` : 'held at cost'})</span><span className="font-mono">{symbol.trim()}{fmtNum(roundValue)}</span></div>
-                      <div className="flex justify-between font-medium"><span>{stepUp >= 0 ? 'Step-up recognized' : 'Down-round loss'} at {form.transaction_date || 'conversion date'}</span><span className={`font-mono ${stepUp >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>{stepUp >= 0 ? '+' : ''}{symbol.trim()}{fmtNum(stepUp)}</span></div>
+                      <div className="flex justify-between font-medium"><span>{stepUp >= 0 ? 'Step-up recognized' : 'Down-round loss'} at {form.transaction_date || 'conversion date'}</span><span className={`font-mono ${stepUp >= 0 ? 'text-success dark:text-success' : 'text-destructive dark:text-destructive'}`}>{stepUp >= 0 ? '+' : ''}{symbol.trim()}{fmtNum(stepUp)}</span></div>
                     </div>
                   )}
                   <p className="text-[11px] text-muted-foreground">
@@ -1181,7 +1181,7 @@ export function CompanyInvestments({ companyId, companyStatus, portfolioGroups, 
                 + Different currency?
               </button>
             ) : (
-              <div className="border rounded-lg p-3 space-y-3">
+              <div className="border rounded-card p-3 space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-medium text-muted-foreground">Original Currency Amounts</span>
                   <button
@@ -1305,8 +1305,8 @@ function PreviewLine({
   emphasis?: 'positive' | 'negative'
 }) {
   const tone =
-    emphasis === 'positive' ? 'font-medium text-green-600 dark:text-green-400'
-    : emphasis === 'negative' ? 'font-medium text-red-600 dark:text-red-400'
+    emphasis === 'positive' ? 'font-medium text-success'
+    : emphasis === 'negative' ? 'font-medium text-destructive'
     : ''
   return (
     <div className="flex items-baseline justify-between gap-4">
@@ -1340,7 +1340,7 @@ function FxRevaluationFields({
   const missingSharePrice = needsSharePrice && !(parseFloat(form.original_current_share_price) > 0)
 
   return (
-    <div className="border rounded-lg p-3 space-y-3">
+    <div className="border rounded-card p-3 space-y-3">
       <div>
         <Label>Deal Currency</Label>
         <Select value={ccy || undefined} onValueChange={setFxCurrency}>
@@ -1409,7 +1409,7 @@ function FxRevaluationFields({
           </div>
 
           {missingSharePrice && (
-            <p className="text-xs text-amber-600 dark:text-amber-500">
+            <p className="text-sm text-warning">
               This position is priced equity, so its FMV tracks share price. Enter the share price
               in {ccy} or the revalued mark won&apos;t reach FMV.
             </p>
@@ -1687,29 +1687,29 @@ function TransactionTable({
                 </td>
                 {companyStatus === 'exited' ? (
                   <>
-                    <td className="px-3 py-2 text-right font-mono">
+                    <td className="px-3 py-2 text-right tabular-nums">
                       {txn.transaction_type === 'investment' ? fmt(txn.investment_cost) : '-'}
                     </td>
-                    <td className="px-3 py-2 text-right font-mono">
+                    <td className="px-3 py-2 text-right tabular-nums">
                       {txn.transaction_type === 'proceeds' ? fmt(txn.proceeds_received) : '-'}
                     </td>
                   </>
                 ) : (
                   <>
-                    <td className="px-3 py-2 text-right font-mono">
+                    <td className="px-3 py-2 text-right tabular-nums">
                       {txn.transaction_type === 'investment' ? fmt(txn.investment_cost) : '-'}
                     </td>
                     {hasPostmoney && (
-                      <td className="px-3 py-2 text-right font-mono">
+                      <td className="px-3 py-2 text-right tabular-nums">
                         {(txn.transaction_type === 'investment' || txn.transaction_type === 'round_info')
                           ? fmt(txn.postmoney_valuation)
                           : '-'}
                       </td>
                     )}
-                    <td className="px-3 py-2 text-right font-mono">
+                    <td className="px-3 py-2 text-right tabular-nums">
                       {txn.transaction_type === 'investment' ? fmtNum(txn.shares_acquired) : '-'}
                     </td>
-                    <td className="px-3 py-2 text-right font-mono">
+                    <td className="px-3 py-2 text-right tabular-nums">
                       {txn.transaction_type === 'investment'
                         ? fmtPrice(txn.share_price)
                         : txn.transaction_type === 'unrealized_gain_change'
@@ -1718,7 +1718,7 @@ function TransactionTable({
                         ? fmtPrice(txn.share_price)
                         : '-'}
                     </td>
-                    <td className="px-3 py-2 text-right font-mono">
+                    <td className="px-3 py-2 text-right tabular-nums">
                       {txn.transaction_type === 'investment' && round
                         ? (() => {
                             const isPricedEquity = (txn.shares_acquired ?? 0) > 0 && ((txn.share_price != null && txn.share_price > 0) || (txn.investment_cost ?? 0) > 0)
@@ -1834,11 +1834,11 @@ function RoundSummaryTable({
               <tr key={r.roundName} className="border-b last:border-b-0">
                 {showGroup && <td className="px-3 py-2 text-xs">{roundGroupMap.get(r.roundName) ?? '-'}</td>}
                 <td className="px-3 py-2">{r.roundName}</td>
-                <td className="px-3 py-2 text-right font-mono">{fmt(r.investmentCost)}</td>
-                <td className="px-3 py-2 text-right font-mono">{fmt(r.totalRealized)}</td>
-                <td className="px-3 py-2 text-right font-mono">{r.totalEscrow > 0 ? fmt(r.totalEscrow) : '-'}</td>
-                <td className="px-3 py-2 text-right font-mono">{fmtMoicFn(roundMoic)}</td>
-                <td className="px-3 py-2 text-right font-mono">
+                <td className="px-3 py-2 text-right tabular-nums">{fmt(r.investmentCost)}</td>
+                <td className="px-3 py-2 text-right tabular-nums">{fmt(r.totalRealized)}</td>
+                <td className="px-3 py-2 text-right tabular-nums">{r.totalEscrow > 0 ? fmt(r.totalEscrow) : '-'}</td>
+                <td className="px-3 py-2 text-right tabular-nums">{fmtMoicFn(roundMoic)}</td>
+                <td className="px-3 py-2 text-right tabular-nums">
                   {r.grossIrr != null && Math.abs(r.grossIrr) >= 0.0005
                     ? `${(r.grossIrr * 100).toFixed(1)}%`
                     : '-'}
@@ -1851,11 +1851,11 @@ function RoundSummaryTable({
           <tr className="bg-muted/30 font-medium">
             {showGroup && <td className="px-3 py-2" />}
             <td className="px-3 py-2">Total</td>
-            <td className="px-3 py-2 text-right font-mono">{fmt(totInvested)}</td>
-            <td className="px-3 py-2 text-right font-mono">{fmt(totRealized)}</td>
-            <td className="px-3 py-2 text-right font-mono">{totEscrow > 0 ? fmt(totEscrow) : '-'}</td>
-            <td className="px-3 py-2 text-right font-mono">{fmtMoicFn(totMoic)}</td>
-            <td className="px-3 py-2 text-right font-mono">
+            <td className="px-3 py-2 text-right tabular-nums">{fmt(totInvested)}</td>
+            <td className="px-3 py-2 text-right tabular-nums">{fmt(totRealized)}</td>
+            <td className="px-3 py-2 text-right tabular-nums">{totEscrow > 0 ? fmt(totEscrow) : '-'}</td>
+            <td className="px-3 py-2 text-right tabular-nums">{fmtMoicFn(totMoic)}</td>
+            <td className="px-3 py-2 text-right tabular-nums">
               {summary.grossIrr != null && Math.abs(summary.grossIrr) >= 0.0005
                 ? `${(summary.grossIrr * 100).toFixed(1)}%`
                 : '-'}

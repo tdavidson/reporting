@@ -2,6 +2,19 @@
 
 Conventions baked in to keep automated edits safe across this repo. Read before generating migrations or refactoring data-access code.
 
+## Styling
+
+`DESIGN.md` is the design system; `app/globals.css` holds the tokens. Read it before writing UI.
+
+The short version, because these are the mistakes that actually get made:
+
+- **Never use raw Tailwind palette classes** — `bg-amber-100`, `text-green-600`, `border-blue-500`. They break per-fund white-labelling, because `themeCssVars()` can't repoint them. Use the tokens: `bg-warning-subtle`, `text-success`, `border-brand-200`, `text-muted-foreground`. `lib/design-tokens.test.ts` fails on new ones; the only exemptions are files using colour *categorically*, allowlisted there with a reason.
+- **Numbers use `tabular-nums`, not `font-mono`.** Mono is for content a machine reads literally — code, IDs, OTP inputs. Financial figures are not code. Same rule in the PDF templates.
+- **Cards use `rounded-card`**, controls use `rounded-lg`/`md`/`sm`. `--radius` is the control radius (0.25rem), `--radius-card` the card one (0.5rem).
+- **`--primary` is the deployment's action colour** (fund-themeable). **`--brand` is Hemrock's** (evergreen, marketing). They are not interchangeable.
+- **Accent text needs a dark-mode pair**: `text-brand-700 dark:text-brand-400`. The 700 stop fails contrast on the dark surface.
+- **Display weight follows size and face.** Marketing headings (`text-display`/`text-title`) are `font-semibold`; LP-facing document headings (`text-heading`) stay `font-normal`. Both numbers assume `--font-display` is Inter — a serif display face wants 400 throughout.
+
 ## Migration conventions
 
 ### Every new `create table` migration requires explicit Data API grants

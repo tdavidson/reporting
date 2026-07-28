@@ -34,8 +34,8 @@ export function DangerZone({ onDeleted }: { onDeleted: () => void }) {
   }
 
   return (
-    <div className="rounded-lg border border-destructive/30 p-5">
-      <h2 className="text-sm font-medium text-destructive mb-1 flex items-center gap-1.5"><Lock className="h-3 w-3 text-destructive" />Danger zone</h2>
+    <div className="rounded-card border border-destructive/30 p-5">
+      <h2 className="text-base font-medium text-destructive mb-1 flex items-center gap-1.5"><Lock className="h-3 w-3 text-destructive" />Danger zone</h2>
       <p className="text-xs text-muted-foreground mb-3">
         Permanently delete your fund and all associated data. This cannot be undone.
       </p>

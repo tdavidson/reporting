@@ -321,9 +321,9 @@ function formatJobTiming(status: string, startedAt: string | null, enqueuedAt: s
 
 const STATUS_PILL: Record<ChecklistItem['status'], { label: string; cls: string }> = {
   unknown:        { label: 'Not yet assessed', cls: 'bg-muted text-muted-foreground' },
-  found:          { label: 'Found',            cls: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' },
-  partial:        { label: 'Partial',          cls: 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400' },
-  missing:        { label: 'Missing',          cls: 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400' },
+  found:          { label: 'Found',            cls: 'bg-success-subtle dark:bg-success-subtle/30 text-success' },
+  partial:        { label: 'Partial',          cls: 'bg-warning-subtle dark:bg-warning-subtle/30 text-warning' },
+  missing:        { label: 'Missing',          cls: 'bg-destructive-subtle dark:bg-destructive-subtle/30 text-destructive' },
   not_applicable: { label: 'N/A',              cls: 'bg-muted text-muted-foreground' },
 }
 
@@ -673,16 +673,16 @@ function ChecklistTab({ deal, documentCount, isAdmin, onJumpToDoc }: {
         </div>
       </div>
 
-      {error && <div className="text-sm text-red-600">{error}</div>}
+      {error && <div className="text-sm text-destructive">{error}</div>}
 
       {assessmentJob && assessmentJob.status !== 'success' && assessmentJob.status !== 'failed' && (
-        <div className="flex items-start gap-2 text-sm rounded-md border border-blue-200 dark:border-blue-900/40 bg-blue-50 dark:bg-blue-950/30 px-3 py-2">
-          <Loader2 className="h-4 w-4 animate-spin text-blue-600 mt-0.5 shrink-0" />
+        <div className="flex items-start gap-2 text-sm rounded-md border border-info dark:border-info/40 bg-info-subtle dark:bg-info-subtle/30 px-3 py-2">
+          <Loader2 className="h-4 w-4 animate-spin text-info mt-0.5 shrink-0" />
           <div className="flex-1 min-w-0">
-            <div className="text-blue-900 dark:text-blue-200 font-medium">
+            <div className="text-info font-medium">
               {assessmentJob.status === 'pending' ? 'Queued, worker picks up within ~1 minute' : 'AI assessment in progress'}
             </div>
-            <div className="text-xs text-blue-700 dark:text-blue-300 mt-0.5 flex flex-wrap gap-x-3">
+            <div className="text-xs text-info mt-0.5 flex flex-wrap gap-x-3">
               {assessmentJob.progress && <span className="truncate">{assessmentJob.progress}</span>}
               <span>{formatJobTiming(assessmentJob.status, assessmentJob.started_at, assessmentJob.enqueued_at, allItems.length)}</span>
             </div>
@@ -690,7 +690,7 @@ function ChecklistTab({ deal, documentCount, isAdmin, onJumpToDoc }: {
         </div>
       )}
       {assessmentJob && assessmentJob.status === 'failed' && (
-        <div className="text-sm rounded-md border border-red-200 bg-red-50 dark:bg-red-950/30 px-3 py-2 text-red-700 dark:text-red-300">
+        <div className="text-sm rounded-md border border-destructive bg-destructive-subtle dark:bg-destructive-subtle/30 px-3 py-2 text-destructive">
           <div className="font-medium">AI assessment failed</div>
           {assessmentJob.error ? (
             <div className="text-xs mt-1 break-words whitespace-pre-wrap">{assessmentJob.error}</div>
@@ -1485,13 +1485,13 @@ function DealRoomTab({ dealId, dealName, documents, setDocuments, initialDriveFo
       </div>
 
       {reprocessError && (
-        <div className="mb-3 rounded-md border border-destructive/40 bg-destructive/5 p-2 text-xs text-destructive">
+        <div className="mb-3 rounded-md border border-destructive/40 bg-destructive/5 p-2 text-sm text-destructive">
           {reprocessError}
         </div>
       )}
 
       {documents.length === 0 ? (
-        <div className="rounded-md border bg-card p-12 text-center text-sm text-muted-foreground">
+        <div className="rounded-card border bg-card p-12 text-center text-sm text-muted-foreground">
           No documents yet. Upload files or import a Drive folder to populate the deal room.
         </div>
       ) : (
@@ -1511,7 +1511,7 @@ function DealRoomTab({ dealId, dealName, documents, setDocuments, initialDriveFo
                 <tr
                   key={d.id}
                   id={`doc-row-${d.id}`}
-                  className={`border-t transition-colors ${highlightedDocId === d.id ? 'bg-yellow-100 dark:bg-yellow-900/30' : ''}`}
+                  className={`border-t transition-colors ${highlightedDocId === d.id ? 'bg-warning-subtle dark:bg-warning-subtle/30' : ''}`}
                 >
                   <td className="px-3 py-2">
                     <div className="font-medium truncate max-w-[280px]">{d.file_name}</div>
@@ -1727,14 +1727,14 @@ function DriveFilePicker({ open, onOpenChange, dealId, folderUrl, onImported }: 
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => !importing && onOpenChange(false)}>
       <div className="bg-card rounded-lg border shadow-lg w-full max-w-lg max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
         <div className="p-4 border-b">
-          <h3 className="text-sm font-medium">Add a file from Drive</h3>
+          <h3 className="text-base font-medium">Add a file from Drive</h3>
           <p className="text-xs text-muted-foreground mt-0.5">Pick specific files to import; the rest of the data room is untouched.</p>
         </div>
 
         <div className="flex-1 overflow-y-auto p-4 space-y-1">
           {loading && <div className="text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin inline mr-2" />Listing Drive folder…</div>}
-          {error && <div className="rounded-md border border-destructive/40 bg-destructive/5 p-2 text-xs text-destructive">{error}</div>}
-          {doneMsg && <div className="rounded-md border border-green-500/40 bg-green-50 dark:bg-green-950/30 p-2 text-xs text-green-700 dark:text-green-400">{doneMsg}</div>}
+          {error && <div className="rounded-md border border-destructive/40 bg-destructive/5 p-2 text-sm text-destructive">{error}</div>}
+          {doneMsg && <div className="rounded-md border border-success/40 bg-success-subtle dark:bg-success-subtle/30 p-2 text-xs text-success">{doneMsg}</div>}
           {!loading && !error && files.length === 0 && <div className="text-sm text-muted-foreground">No files in the Drive folder.</div>}
           {files.map(f => (
             <label
@@ -1879,7 +1879,7 @@ function DriveImportDialog({ open, onOpenChange, dealId, initialFolderUrl, onImp
   if (!open) return null
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80">
-      <div className="rounded-md border bg-card p-5 w-full max-w-lg">
+      <div className="rounded-card border bg-card p-5 w-full max-w-lg">
         <h3 className="text-base font-semibold mb-2">Import from Drive folder</h3>
         <p className="text-xs text-muted-foreground mb-3">
           Paste a Google Drive folder URL. Every file in the folder and its subfolders is imported. Files already imported (matched by Drive ID) are skipped.
@@ -1920,7 +1920,7 @@ function DriveImportDialog({ open, onOpenChange, dealId, initialFolderUrl, onImp
         {(importing || logLines.length > 0) && (
           <div className="mt-3 rounded-md border bg-muted/30 p-2 max-h-40 overflow-y-auto text-[11px] font-mono space-y-0.5">
             {logLines.length === 0 ? (
-              <p className="text-muted-foreground italic">Connecting…</p>
+              <p className="text-sm text-muted-foreground">Connecting…</p>
             ) : (
               logLines.map((l, i) => <div key={i} className="truncate">{l}</div>)
             )}
@@ -1958,7 +1958,7 @@ function DriveImportDialog({ open, onOpenChange, dealId, initialFolderUrl, onImp
 
 function PlaceholderTab({ phase }: { phase: string }) {
   return (
-    <div className="rounded-md border bg-card p-12 text-center">
+    <div className="rounded-card border bg-card p-12 text-center">
       <p className="text-sm text-muted-foreground">Coming in {phase}.</p>
     </div>
   )
@@ -2203,7 +2203,7 @@ function Section({ title, count, action, help, children, className }: {
   // space-y-3 (not a header margin) so an empty/condition-only body collapses
   // and the header stays vertically centred in the card.
   return (
-    <div className={`rounded-lg border bg-card p-5 space-y-3 ${className ?? ''}`}>
+    <div className={`rounded-card border bg-card p-5 space-y-3 ${className ?? ''}`}>
       {(title || action) && (
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 min-w-0">
@@ -2329,7 +2329,7 @@ function ResearchTab({ dealId, userId, isAdmin }: { dealId: string; userId: stri
   cm.named_by_research.forEach((c, i) => { if (c.dismissed) dismissedItems.push({ key: `cmr-${i}`, kind: 'Competitor', title: c.name, detail: c.rationale, restore: () => toggleCompetitorDismiss('named_by_research', i) }) })
 
   return (
-    <div className="space-y-6 max-w-6xl">
+    <div className="space-y-6 max-w-page">
       {/* The one action this tab is FOR, at the top of it. It's the only run button on
           the tab — the header knows if it's blocked and says why, and it reports the
           last run, so a second button and status line in the section below would only
@@ -2344,7 +2344,7 @@ function ResearchTab({ dealId, userId, isAdmin }: { dealId: string; userId: stri
       </Section>
 
       {!ingestReady && (
-        <div className="rounded-md border border-amber-500/40 bg-amber-50/50 dark:bg-amber-900/10 p-3 text-sm">
+        <div className="rounded-card border border-warning/40 bg-warning-subtle/50 dark:bg-warning-subtle/10 p-3 text-sm">
           <AlertCircle className="h-4 w-4 inline mr-1" />
           Run the data analysis on Checklist first.
         </div>
@@ -2367,8 +2367,8 @@ function ResearchTab({ dealId, userId, isAdmin }: { dealId: string; userId: stri
         count={activeFindings}
         help="Verifies findings via web search, surfaces competitors, builds founder dossiers, and lists gaps. Web search runs only when it's enabled in Settings → Memo agent and the research stage uses an Anthropic model. Run it from the header above."
       >
-        {research?.research_mode === 'no_web_search' && <p className="text-[11px] text-amber-700 dark:text-amber-400">Last run: web search was off.</p>}
-        {research?.research_mode === 'with_web_search' && <p className="text-[11px] text-emerald-700 dark:text-emerald-400">Last run: web search was on.</p>}
+        {research?.research_mode === 'no_web_search' && <p className="text-[11px] text-warning">Last run: web search was off.</p>}
+        {research?.research_mode === 'with_web_search' && <p className="text-[11px] text-success">Last run: web search was on.</p>}
         {research && !isResearchInFlight && (
           <ExternalResearchView
             research={research}
@@ -2418,10 +2418,10 @@ function ResearchTab({ dealId, userId, isAdmin }: { dealId: string; userId: stri
 // (high/medium/low), and gap (blocker/important/nice_to_have) scales.
 function SevBadge({ level }: { level: string }) {
   const cls = level === 'blocker' || level === 'high' || level === 'material'
-    ? 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200'
+    ? 'bg-destructive-subtle text-destructive dark:bg-destructive-subtle/40'
     : level === 'important' || level === 'medium' || level === 'minor'
-      ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200'
-      : 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300'
+      ? 'bg-warning-subtle text-warning dark:bg-warning-subtle/40'
+      : 'bg-muted text-muted-foreground'
   return <span className={`shrink-0 inline-block px-1.5 py-0.5 rounded text-[10px] font-medium ${cls}`}>{level.replace(/_/g, ' ')}</span>
 }
 
@@ -2462,7 +2462,7 @@ function InternalDiligenceView({ research, crossDocFlags, fileNamesById, editabl
       <section>
         <h4 className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-2">Inconsistencies &amp; contradictions</h4>
         {noInconsistencies ? (
-          <p className="text-xs text-muted-foreground italic">No contradictions or cross-document inconsistencies found.</p>
+          <p className="text-sm text-muted-foreground">No contradictions or cross-document inconsistencies found.</p>
         ) : (
           <div className="divide-y">
             {activeContradictions.map(({ c, i }) => (
@@ -2478,7 +2478,7 @@ function InternalDiligenceView({ research, crossDocFlags, fileNamesById, editabl
       <section>
         <h4 className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-2">Research gaps &amp; open questions</h4>
         {internalGaps.length === 0 ? (
-          <p className="text-xs text-muted-foreground italic">No material gaps. Nice-to-have follow-ups, if any, are under External research.</p>
+          <p className="text-sm text-muted-foreground">No material gaps. Nice-to-have follow-ups, if any, are under External research.</p>
         ) : (
           <div className="divide-y">
             {internalGaps.map(({ g, i }) => (
@@ -2513,7 +2513,7 @@ function ExternalResearchView({ research, editable, onToggleFinding, onToggleGap
             Findings with a URL in sources: <span className="text-foreground font-medium">{sourcedFindings} / {research.findings.length}</span>
           </div>
           {searchCount !== null && searchCount > 0 && webSources.length === 0 && sourcedFindings === 0 && (
-            <div className="text-amber-700 dark:text-amber-400 text-[11px]">Searches ran but no URLs landed in the output. Re-run, the prompt was tightened to require URL echoing into JSON sources.</div>
+            <div className="text-warning text-[11px]">Searches ran but no URLs landed in the output. Re-run, the prompt was tightened to require URL echoing into JSON sources.</div>
           )}
           {webSources.length > 0 && (
             <details className="mt-1">
@@ -2535,7 +2535,7 @@ function ExternalResearchView({ research, editable, onToggleFinding, onToggleGap
             {activeFindings.map(({ f, i }) => (
               <div key={f.id} className="p-3 text-sm">
                 <div className="flex items-start gap-2">
-                  <span className={`shrink-0 inline-block px-1.5 py-0.5 rounded text-[10px] font-medium ${f.verification_status === 'verified' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200' : f.verification_status === 'contradicted' ? 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200' : f.verification_status === 'company_stated' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-200' : 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200'}`}>
+                  <span className={`shrink-0 inline-block px-1.5 py-0.5 rounded text-[10px] font-medium ${f.verification_status === 'verified' ? 'bg-success-subtle text-success dark:bg-success-subtle/40 dark:text-success' : f.verification_status === 'contradicted' ? 'bg-destructive-subtle text-destructive dark:bg-destructive-subtle/40 dark:text-destructive' : f.verification_status === 'company_stated' ? 'bg-info-subtle text-info dark:bg-info-subtle/40 dark:text-info' : 'bg-warning-subtle text-warning dark:bg-warning-subtle/40 dark:text-warning'}`}>
                     {f.verification_status.replace(/_/g, ' ')}
                   </span>
                   <div className="flex-1 min-w-0">
@@ -2587,7 +2587,7 @@ function CompetitiveLandscape({ competitiveMap, editable, onToggle }: {
   const byCompany = competitiveMap.named_by_company.map((c, i) => ({ c, i })).filter(x => !x.c.dismissed)
   const byResearch = competitiveMap.named_by_research.map((c, i) => ({ c, i })).filter(x => !x.c.dismissed)
   if (byCompany.length === 0 && byResearch.length === 0) {
-    return <p className="text-xs text-muted-foreground italic py-2">No competitors mapped yet. Run external research to populate.</p>
+    return <p className="text-sm text-muted-foreground py-2">No competitors mapped yet. Run external research to populate.</p>
   }
   return (
     <div className="divide-y [&>*:first-child]:pt-0 [&>*:last-child]:pb-0">
@@ -2694,7 +2694,7 @@ function QALibraryPanel({ dealId, qaAnswers, onAdded }: { dealId: string; qaAnsw
 
   return (
     <div className="space-y-3 pt-2">
-      <div className="rounded-md border p-3 space-y-2">
+      <div className="rounded-card border p-3 space-y-2">
         <div className="text-xs font-medium">Add a Q&amp;A entry</div>
         <Input
           value={q}
@@ -2710,7 +2710,7 @@ function QALibraryPanel({ dealId, qaAnswers, onAdded }: { dealId: string; qaAnsw
           className="w-full resize-y rounded-md border border-input bg-transparent px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
         />
         <div className="flex justify-end gap-2">
-          {err && <span className="text-xs text-destructive mr-auto self-center">{err}</span>}
+          {err && <span className="text-sm text-destructive mr-auto self-center">{err}</span>}
           <Button size="sm" disabled={busy || !q.trim() || !a.trim()} onClick={add}>
             {busy && <Loader2 className="h-3 w-3 mr-1 animate-spin" />} Add Q&amp;A
           </Button>
@@ -2718,7 +2718,7 @@ function QALibraryPanel({ dealId, qaAnswers, onAdded }: { dealId: string; qaAnsw
       </div>
 
       {localAnswers.length === 0 ? (
-        <p className="text-xs text-muted-foreground italic">No Q&amp;A entries yet. Add one above, or run the agent Q&amp;A flow once the structured library is back in place.</p>
+        <p className="text-sm text-muted-foreground">No Q&amp;A entries yet. Add one above, or run the agent Q&amp;A flow once the structured library is back in place.</p>
       ) : (
         <div className="rounded-md border divide-y">
           {localAnswers.map((entry, i) => (
@@ -2775,7 +2775,7 @@ function JobStatusLine({ job, kind, error }: { job: AgentStatus['latest_job']; k
 
   if (error) {
     return (
-      <div className="mt-3 rounded-md border border-destructive/40 bg-destructive/5 p-2 text-xs text-destructive">
+      <div className="mt-3 rounded-md border border-destructive/40 bg-destructive/5 p-2 text-sm text-destructive">
         {error}
       </div>
     )
@@ -2919,7 +2919,7 @@ function QATab({ dealId }: { dealId: string }) {
     <div className="flex flex-col gap-3">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-sm font-medium">Ask anything about this deal</h3>
+          <h3 className="text-base font-medium">Ask anything about this deal</h3>
           <p className="text-xs text-muted-foreground">
             The agent answers from the data room, research output, Q&amp;A library, and checklist. Citations link to the document.
           </p>
@@ -2929,7 +2929,7 @@ function QATab({ dealId }: { dealId: string }) {
         )}
       </div>
 
-      <div className="overflow-y-auto rounded-md border bg-card p-4 space-y-4 max-h-[calc(100vh-260px)]">
+      <div className="overflow-y-auto rounded-card border bg-card p-4 space-y-4 max-h-[calc(100vh-260px)]">
         {loading ? (
           <div className="text-sm text-muted-foreground"><Loader2 className="h-3.5 w-3.5 inline animate-spin mr-1" /> Loading conversation…</div>
         ) : messages.length === 0 ? (
@@ -2946,7 +2946,7 @@ function QATab({ dealId }: { dealId: string }) {
         <div ref={bottomRef} />
       </div>
 
-      {error && <div className="rounded-md border border-destructive/40 bg-destructive/5 p-2 text-xs text-destructive">{error}</div>}
+      {error && <div className="rounded-md border border-destructive/40 bg-destructive/5 p-2 text-sm text-destructive">{error}</div>}
 
       <div className="flex gap-2">
         <textarea
@@ -3036,7 +3036,7 @@ function FoundersTab({ dealId }: { dealId: string }) {
   if (loading) return <div className="text-sm text-muted-foreground"><Loader2 className="h-4 w-4 inline animate-spin mr-1" /> Loading…</div>
 
   return (
-    <div className="space-y-6 max-w-6xl">
+    <div className="space-y-6 max-w-page">
       <Section
         title="Founders"
         count={dossiers.length}
@@ -3204,7 +3204,7 @@ function NotesPanel({ dealId, userId, isAdmin }: { dealId: string; userId: strin
       {loading ? (
         <div className="text-sm text-muted-foreground"><Loader2 className="h-3.5 w-3.5 inline animate-spin mr-1" /> Loading notes…</div>
       ) : notes.length === 0 ? (
-        <div className="rounded-md border bg-card p-8 text-center text-sm text-muted-foreground">No notes yet.</div>
+        <div className="rounded-card border bg-card p-8 text-center text-sm text-muted-foreground">No notes yet.</div>
       ) : (
         <div className="rounded-md border bg-card divide-y">
           {notes.map(n => {
@@ -3255,7 +3255,7 @@ const usageFeatureLabel = (f: string) => f.replace(/^memo_agent_/, '').replace(/
 
 function UsageStat({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
-    <div className="rounded-md border bg-card p-3">
+    <div className="rounded-card border bg-card p-3">
       <div className="text-xl font-semibold tracking-tight tabular-nums">{value}</div>
       <div className="text-xs text-muted-foreground mt-0.5">{label}</div>
       {sub && <div className="text-[10px] text-muted-foreground mt-0.5">{sub}</div>}
@@ -3317,7 +3317,7 @@ function SettingsTab({ dealId, dealName, isAdmin }: { dealId: string; dealName: 
         {loading ? (
           <div className="text-sm text-muted-foreground"><Loader2 className="h-3.5 w-3.5 inline animate-spin mr-1" /> Loading usage…</div>
         ) : !t || (t.calls === 0 && t.jobs === 0) ? (
-          <div className="rounded-md border bg-card p-8 text-center text-sm text-muted-foreground">No AI usage recorded for this deal in this window.</div>
+          <div className="rounded-card border bg-card p-8 text-center text-sm text-muted-foreground">No AI usage recorded for this deal in this window.</div>
         ) : (
           <>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -3382,8 +3382,8 @@ function SettingsTab({ dealId, dealName, isAdmin }: { dealId: string; dealName: 
 
       {isAdmin && (
         <section>
-          <h3 className="text-sm font-medium text-destructive">Danger zone</h3>
-          <div className="mt-2 rounded-md border border-destructive/40 p-4 flex items-start justify-between gap-3">
+          <h3 className="text-base font-medium text-destructive">Danger zone</h3>
+          <div className="mt-2 rounded-card border border-destructive/40 p-4 flex items-start justify-between gap-3">
             <div>
               <div className="text-sm font-medium">Delete this deal</div>
               <p className="text-xs text-muted-foreground mt-1 max-w-md">Permanently removes the deal and all of its analysis: documents, drafts, checklist, notes, and Q&A. This cannot be undone.</p>
@@ -3442,7 +3442,7 @@ function ScoringTab({ dealId }: { dealId: string }) {
   }
 
   return (
-    <div className="space-y-6 max-w-6xl">
+    <div className="space-y-6 max-w-page">
       {/* The only run button on this tab. It knows if it's blocked, says why, and
           reports the last run — so the section below carries no second button. */}
       <StageHeader dealId={dealId} stageKey="scoring" />
@@ -3606,7 +3606,7 @@ function MemoTab({ dealId, dealName, isAdmin }: { dealId: string; dealName: stri
   const hasMemo = Array.isArray(memoParagraphs) && memoParagraphs.length > 0
 
   return (
-    <div className="space-y-6 max-w-6xl">
+    <div className="space-y-6 max-w-page">
       {/* The only run button on this tab, and the only place the last run is reported. */}
       <StageHeader dealId={dealId} stageKey="memo" />
 
@@ -3616,7 +3616,7 @@ function MemoTab({ dealId, dealName, isAdmin }: { dealId: string; dealName: stri
       />
 
       {status?.memo_stale && !isInFlight && (
-        <div className="rounded-md border border-amber-500/40 bg-amber-50 dark:bg-amber-950/30 p-3 text-xs text-amber-900 dark:text-amber-200">
+        <div className="rounded-card border border-warning/40 bg-warning-subtle dark:bg-warning-subtle/30 p-3 text-sm text-warning">
           <span className="font-medium">Memo is out of date with the data room.</span>{' '}
           {status.documents_added_since_draft && status.documents_added_since_draft > 0
             ? `${status.documents_added_since_draft} document${status.documents_added_since_draft === 1 ? '' : 's'} ${status.documents_added_since_draft === 1 ? 'has' : 'have'} been uploaded since this memo was drafted. `
@@ -3626,11 +3626,11 @@ function MemoTab({ dealId, dealName, isAdmin }: { dealId: string; dealName: stri
       )}
 
       {loading ? (
-        <div className="rounded-md border bg-card p-12 text-center text-sm text-muted-foreground">
+        <div className="rounded-card border bg-card p-12 text-center text-sm text-muted-foreground">
           <Loader2 className="h-4 w-4 inline animate-spin mr-2" /> Loading memo…
         </div>
       ) : !hasMemo ? (
-        <div className="rounded-md border bg-card p-12 text-center text-sm text-muted-foreground">
+        <div className="rounded-card border bg-card p-12 text-center text-sm text-muted-foreground">
           No memo yet. Run the draft from the header above once the data room and research are ready.
         </div>
       ) : (

@@ -77,7 +77,7 @@ export function CompanyInteractions({ companyId, adminOnly }: { companyId: strin
   if (loading) {
     return (
       <div className="mt-6">
-        <h2 className="text-sm font-medium text-muted-foreground mb-2 flex items-center gap-1.5">Recent Interactions{adminOnly && <Lock className="h-3 w-3 text-amber-500" />}</h2>
+        <h2 className="text-base font-medium text-muted-foreground mb-2 flex items-center gap-1.5">Recent Interactions{adminOnly && <Lock className="h-3 w-3 text-warning" />}</h2>
         <p className="text-xs text-muted-foreground">Loading...</p>
       </div>
     )
@@ -88,7 +88,7 @@ export function CompanyInteractions({ companyId, adminOnly }: { companyId: strin
   return (
     <div className="mt-6">
       <div className="flex items-center justify-between mb-2">
-        <h2 className="text-sm font-medium text-muted-foreground flex items-center gap-1.5">Recent Interactions{adminOnly && <Lock className="h-3 w-3 text-amber-500" />}</h2>
+        <h2 className="text-base font-medium text-muted-foreground flex items-center gap-1.5">Recent Interactions{adminOnly && <Lock className="h-3 w-3 text-warning" />}</h2>
         <Link
           href={`/interactions?company_id=${companyId}`}
           className="text-xs text-muted-foreground hover:text-foreground"
@@ -106,21 +106,17 @@ export function CompanyInteractions({ companyId, adminOnly }: { companyId: strin
           return (
             <div
               key={interaction.id}
-              className={`border rounded-md p-2.5 text-sm ${
-                interaction.tags?.includes('intro')
-                  ? 'border-amber-200 dark:border-amber-800/50 bg-amber-50/50 dark:bg-amber-900/10'
-                  : ''
-              }`}
+              className={`border rounded-md p-2.5 text-sm ${ interaction.tags?.includes('intro') ? 'border-warning dark:border-warning/50 bg-warning-subtle/50 dark:bg-warning-subtle/10' : '' }`}
             >
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 {interaction.tags?.includes('intro') ? (
-                  <Users className="h-3 w-3 text-amber-600 dark:text-amber-400" />
+                  <Users className="h-3 w-3 text-warning" />
                 ) : (
                   <Mail className="h-3 w-3" />
                 )}
                 <span>{formatRelativeTime(interaction.interaction_date)}</span>
                 {interaction.tags?.includes('intro') && (
-                  <span className="text-amber-600 dark:text-amber-400 font-medium">Intro</span>
+                  <span className="text-warning font-medium">Intro</span>
                 )}
               </div>
 
@@ -143,7 +139,7 @@ export function CompanyInteractions({ companyId, adminOnly }: { companyId: strin
                   </button>
 
                   {isExpanded && (
-                    <div className="mt-1.5 pl-3 border-l-2 border-amber-200 dark:border-amber-800 space-y-1">
+                    <div className="mt-1.5 pl-3 border-l-2 border-warning space-y-1">
                       {introContacts.map((contact, idx) => (
                         <div key={idx} className="text-xs">
                           <span className="font-medium">{contact.name}</span>
@@ -170,7 +166,7 @@ export function CompanyInteractions({ companyId, adminOnly }: { companyId: strin
               )}
 
               {emailExpandedId === interaction.id && interaction.email_id && (
-                <div className="mt-1.5 border rounded-md bg-muted/30 p-3">
+                <div className="mt-1.5 border rounded-card bg-muted/30 p-3">
                   {emailLoading === interaction.id ? (
                     <p className="text-xs text-muted-foreground animate-pulse">Loading email...</p>
                   ) : (

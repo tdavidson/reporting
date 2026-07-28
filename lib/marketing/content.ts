@@ -10,15 +10,23 @@ export interface SiteProductGroup {
   heroScreenshot?: string
   features: SiteFeature[]
 }
+/** A single figure in the stat strip — `value` is the big number, `label` the caption. */
+export interface SiteStat { value: string; label: string }
 export interface SiteWhy { icon?: string; title: string; text: string }
 export interface SiteTierCta { kind: 'link' | 'calendly' | 'subscription'; label: string; href?: string }
 export interface SiteTier { badge?: string; name: string; price: string; subtitle?: string; bullets: string[]; cta: SiteTierCta }
 export interface SiteFaq { q: string; a: string }
 export interface SiteAbout { name: string; photo?: string; bio: string; links: Array<{ label: string; href: string }> }
-export interface SiteLinks { github?: string; x?: string; demo?: string }
+/** `features` points at the marketing site's product page (hemrock.com/reporting);
+ *  the others are the repo and the read-only demo. All three feed the hero CTA row. */
+export interface SiteLinks { github?: string; x?: string; demo?: string; features?: string }
 
 export interface SiteContent {
-  hero: { title: string; subtitle: string }
+  /** `emphasis` renders after the title in the display italic, in the brand accent
+   *  — the one deliberate flourish in the hero. Omitted = plain headline. */
+  hero: { title: string; subtitle: string; emphasis?: string }
+  /** Proof figures under the hero. Empty = the strip isn't rendered. */
+  stats: SiteStat[]
   productGroups: SiteProductGroup[]
   why: SiteWhy[]
   pricing: { note?: string; tiers: SiteTier[] }
@@ -67,6 +75,11 @@ function group(v: unknown): SiteProductGroup | null {
   }
 }
 
+function stat(v: unknown): SiteStat | null {
+  if (!isObj(v) || !nonEmpty(v.value) || !nonEmpty(v.label)) return null
+  return { value: v.value, label: v.label }
+}
+
 function why(v: unknown): SiteWhy | null {
   if (!isObj(v) || !nonEmpty(v.title) || !isStr(v.text)) return null
   return { title: v.title, text: v.text, ...(isStr(v.icon) ? { icon: v.icon } : {}) }
@@ -110,6 +123,7 @@ function links(v: unknown): SiteLinks {
   if (isStr(v.github)) out.github = v.github
   if (isStr(v.x)) out.x = v.x
   if (isStr(v.demo)) out.demo = v.demo
+  if (isStr(v.features)) out.features = v.features
   return out
 }
 
@@ -125,7 +139,12 @@ export function parseSiteContent(raw: unknown): SiteContent | null {
 
   const pricingRaw = isObj(raw.pricing) ? raw.pricing : {}
   return {
-    hero: { title: hero.title, subtitle: hero.subtitle },
+    hero: {
+      title: hero.title,
+      subtitle: hero.subtitle,
+      ...(nonEmpty(hero.emphasis) ? { emphasis: hero.emphasis } : {}),
+    },
+    stats: arr(raw.stats).map(stat).filter((s): s is SiteStat => s !== null),
     productGroups,
     why: arr(raw.why).map(why).filter((w): w is SiteWhy => w !== null),
     pricing: {

@@ -157,9 +157,7 @@ export function CarryTerms() {
           <button
             key={k}
             onClick={() => setKind(k)}
-            className={`px-2.5 py-1 text-xs rounded-md border transition-colors ${
-              kind === k ? 'border-foreground/30 bg-accent font-medium' : 'border-border text-muted-foreground hover:text-foreground'
-            }`}
+            className={`px-2.5 py-1 text-xs rounded-md border transition-colors ${ kind === k ? 'border-foreground/30 bg-accent font-medium' : 'border-border text-muted-foreground hover:text-foreground' }`}
           >
             {label}
           </button>
@@ -238,7 +236,7 @@ export function CarryTerms() {
                   </div>
                 )
               })}
-              <p className={`text-xs ${Math.abs(totalPct - 100) > 0.01 && recipients.length > 0 ? 'text-amber-600' : 'text-muted-foreground'}`}>
+              <p className={`text-sm ${Math.abs(totalPct - 100) > 0.01 && recipients.length > 0 ? 'text-warning' : 'text-muted-foreground'}`}>
                 Total: {totalPct}%
               </p>
             </div>
@@ -254,7 +252,7 @@ export function CarryTerms() {
           {/* Carry of 0% accrues nothing — the single most common reason "carry isn't showing up".
               Warn in place rather than silently saving a term that does nothing. */}
           {carryMissing && (
-            <p className="text-xs text-amber-600 flex items-center gap-1.5">
+            <p className="text-sm text-warning flex items-center gap-1.5">
               <AlertTriangle className="h-3.5 w-3.5" />
               Carry is 0% — nothing will accrue. Enter the GP&rsquo;s share (e.g. 20).
             </p>
@@ -264,7 +262,7 @@ export function CarryTerms() {
               — it never shows in any capital account, and the associates look-through can't
               split it. Say so before they hit Save and get a 400. */}
           {recipientsInvalid && (
-            <p className="text-xs text-amber-600 flex items-center gap-1.5">
+            <p className="text-sm text-warning flex items-center gap-1.5">
               <AlertTriangle className="h-3.5 w-3.5" />
               Recipient shares must total 100%.
             </p>
@@ -278,14 +276,14 @@ export function CarryTerms() {
         </div>
       )}
 
-      {error && <p className="text-sm text-amber-600">{error}</p>}
+      {error && <p className="text-sm text-warning">{error}</p>}
 
       <div className="flex items-center gap-2 pt-1">
         <Button size="sm" variant="outline" className="text-muted-foreground" onClick={save} disabled={busy || recipientsInvalid}>
           {busy ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Check className="h-4 w-4 mr-1" />}
           Save carry terms
         </Button>
-        {saved && <span className="text-xs text-emerald-600">Saved</span>}
+        {saved && <span className="text-xs text-success">Saved</span>}
       </div>
     </div>
   )

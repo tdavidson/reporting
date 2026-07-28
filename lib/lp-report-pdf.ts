@@ -1,5 +1,6 @@
 import puppeteer from 'puppeteer-core'
-import { PDF_FONT_CSS, PDF_SANS, PDF_MONO } from '@/lib/pdf-fonts'
+import { pdfFontCss, PDF_SANS, PDF_DISPLAY } from '@/lib/pdf-fonts'
+import { displayFontOf } from '@/lib/theme'
 import { sanitizeBasicHtml } from '@/lib/sanitize'
 import { lpRatios } from '@/lib/lp-metrics'
 import { generateLiveReport } from '@/lib/accounting/live-report'
@@ -170,8 +171,10 @@ export function buildReportHtml(opts: {
   footerNote: string | null
   asOfFormatted: string | null
   currency: string
+  /** Fund's display face (FundTheme.displayFont). Absent = Newsreader. */
+  displayFont?: string | null
 }): string {
-  const { investorName, rows, totals, excludedGroupNames, fundName, fundLogo, fundAddress, description, footerNote, asOfFormatted, currency } = opts
+  const { investorName, rows, totals, excludedGroupNames, fundName, fundLogo, fundAddress, description, footerNote, asOfFormatted, currency, displayFont } = opts
   const fmt = (v: number) => esc(fmtCurrency(v, currency))
   const fmtF = (v: number) => esc(fmtCurrencyFull(v, currency))
 
@@ -185,22 +188,22 @@ export function buildReportHtml(opts: {
     <tr style="border-bottom:1px solid #e5e5e5;">
       <td style="padding:5px 8px 5px 5px;max-width:0;overflow:hidden;text-overflow:ellipsis;">${esc(r.entityName)}</td>
       <td style="padding:5px 5px 5px 8px;">${esc(r.portfolioGroup)}${r.lookThroughVia ? `<span style="color:#888;"> · via ${esc(r.lookThroughVia)}</span>` : ''}</td>
-      <td style="padding:5px;text-align:right;font-family:${PDF_MONO};">${fmt(r.commitment)}</td>
-      <td style="padding:5px;text-align:right;font-family:${PDF_MONO};">${fmt(r.paidInCapital)}</td>
-      <td style="padding:5px;text-align:right;font-family:${PDF_MONO};">${fmt(r.distributions)}</td>
-      <td style="padding:5px;text-align:right;font-family:${PDF_MONO};">${fmt(r.nav)}</td>
-      <td style="padding:5px;text-align:right;font-family:${PDF_MONO};">${fmt(r.totalValue)}</td>
+      <td style="padding:5px;text-align:right;font-variant-numeric:tabular-nums;">${fmt(r.commitment)}</td>
+      <td style="padding:5px;text-align:right;font-variant-numeric:tabular-nums;">${fmt(r.paidInCapital)}</td>
+      <td style="padding:5px;text-align:right;font-variant-numeric:tabular-nums;">${fmt(r.distributions)}</td>
+      <td style="padding:5px;text-align:right;font-variant-numeric:tabular-nums;">${fmt(r.nav)}</td>
+      <td style="padding:5px;text-align:right;font-variant-numeric:tabular-nums;">${fmt(r.totalValue)}</td>
     </tr>`).join('')
 
   const perfRows = rows.map(r => `
     <tr style="border-bottom:1px solid #e5e5e5;">
       <td style="padding:5px 8px 5px 5px;max-width:0;overflow:hidden;text-overflow:ellipsis;">${esc(r.entityName)}</td>
       <td style="padding:5px 5px 5px 8px;">${esc(r.portfolioGroup)}${r.lookThroughVia ? `<span style="color:#888;"> · via ${esc(r.lookThroughVia)}</span>` : ''}</td>
-      <td style="padding:5px;text-align:right;font-family:${PDF_MONO};">${esc(fmtPct(r.pctFunded))}</td>
-      <td style="padding:5px;text-align:right;font-family:${PDF_MONO};">${esc(fmtMoic(r.dpi))}</td>
-      <td style="padding:5px;text-align:right;font-family:${PDF_MONO};">${esc(fmtMoic(r.rvpi))}</td>
-      <td style="padding:5px;text-align:right;font-family:${PDF_MONO};">${esc(fmtMoic(r.tvpi))}</td>
-      <td style="padding:5px;text-align:right;font-family:${PDF_MONO};">${esc(fmtPct(r.irr))}</td>
+      <td style="padding:5px;text-align:right;font-variant-numeric:tabular-nums;">${esc(fmtPct(r.pctFunded))}</td>
+      <td style="padding:5px;text-align:right;font-variant-numeric:tabular-nums;">${esc(fmtMoic(r.dpi))}</td>
+      <td style="padding:5px;text-align:right;font-variant-numeric:tabular-nums;">${esc(fmtMoic(r.rvpi))}</td>
+      <td style="padding:5px;text-align:right;font-variant-numeric:tabular-nums;">${esc(fmtMoic(r.tvpi))}</td>
+      <td style="padding:5px;text-align:right;font-variant-numeric:tabular-nums;">${esc(fmtPct(r.irr))}</td>
     </tr>`).join('')
 
   // Called-but-unfunded (receivable) table — only when some vehicle has one. Its own table so it
@@ -222,12 +225,12 @@ export function buildReportHtml(opts: {
         <tr style="border-bottom:1px solid #e5e5e5;">
           <td style="padding:5px 8px 5px 5px;max-width:0;overflow:hidden;text-overflow:ellipsis;">${esc(r.entityName)}</td>
           <td style="padding:5px 5px 5px 8px;">${esc(r.portfolioGroup)}</td>
-          <td style="padding:5px;text-align:right;font-family:${PDF_MONO};">${fmt(r.receivable ?? 0)}</td>
+          <td style="padding:5px;text-align:right;font-variant-numeric:tabular-nums;">${fmt(r.receivable ?? 0)}</td>
         </tr>`).join('')}</tbody>
       <tfoot>
         <tr style="border-top:2px solid #ccc;font-weight:600;">
           <td style="padding:5px;" colspan="2">Total</td>
-          <td style="padding:5px;text-align:right;font-family:${PDF_MONO};">${fmt(unfundedTotal)}</td>
+          <td style="padding:5px;text-align:right;font-variant-numeric:tabular-nums;">${fmt(unfundedTotal)}</td>
         </tr>
       </tfoot>
     </table>`
@@ -245,7 +248,7 @@ export function buildReportHtml(opts: {
   </colgroup>`
 
   return `<!DOCTYPE html>
-<html><head><meta charset="utf-8"><style>${PDF_FONT_CSS}
+<html><head><meta charset="utf-8"><style>${pdfFontCss(displayFont)}
   * { margin:0; padding:0; box-sizing:border-box; }
   body { font-family: ${PDF_SANS}; font-size:12px; color:#111; line-height:1.4; }
   table { width:100%; border-collapse:collapse; table-layout:fixed; font-size:11px; }
@@ -259,7 +262,7 @@ export function buildReportHtml(opts: {
         ${fundLogo ? `<img src="${fundLogo}" style="height:40px;width:auto;object-fit:contain;" />` : ''}
       </div>
       <div style="text-align:right;margin-left:40%;">
-        <h2 style="font-size:16px;font-weight:600;letter-spacing:-0.01em;">${esc(fundName)}</h2>
+        <h2 style="font-family:${PDF_DISPLAY};font-size:17px;font-weight:400;letter-spacing:-0.01em;">${esc(fundName)}</h2>
         ${fundAddress ? `<p style="font-size:11px;color:#888;white-space:pre-line;line-height:1.3;margin-top:2px;">${esc(fundAddress)}</p>` : ''}
       </div>
     </div>
@@ -267,7 +270,7 @@ export function buildReportHtml(opts: {
     ${description ? `<p style="font-size:11px;color:#888;white-space:pre-line;line-height:1.5;margin-bottom:40px;">${esc(description)}</p>` : '<div style="margin-bottom:24px;"></div>'}
 
     <!-- Investor Header -->
-    <h1 style="font-size:18px;font-weight:700;letter-spacing:-0.01em;margin-bottom:12px;">${esc(investorName)}</h1>
+    <h1 style="font-family:${PDF_DISPLAY};font-size:22px;font-weight:400;letter-spacing:-0.01em;margin-bottom:12px;">${esc(investorName)}</h1>
 
     ${summaryText ? `<p style="font-size:11px;line-height:1.5;margin-bottom:20px;">${summaryText}</p>` : ''}
 
@@ -291,11 +294,11 @@ export function buildReportHtml(opts: {
       <tfoot>
         <tr style="border-top:2px solid #ccc;font-weight:600;">
           <td style="padding:5px;" colspan="2">Total</td>
-          <td style="padding:5px;text-align:right;font-family:${PDF_MONO};">${fmt(totals.commitment)}</td>
-          <td style="padding:5px;text-align:right;font-family:${PDF_MONO};">${fmt(totals.paidInCapital)}</td>
-          <td style="padding:5px;text-align:right;font-family:${PDF_MONO};">${fmt(totals.distributions)}</td>
-          <td style="padding:5px;text-align:right;font-family:${PDF_MONO};">${fmt(totals.nav)}</td>
-          <td style="padding:5px;text-align:right;font-family:${PDF_MONO};">${fmt(totals.totalValue)}</td>
+          <td style="padding:5px;text-align:right;font-variant-numeric:tabular-nums;">${fmt(totals.commitment)}</td>
+          <td style="padding:5px;text-align:right;font-variant-numeric:tabular-nums;">${fmt(totals.paidInCapital)}</td>
+          <td style="padding:5px;text-align:right;font-variant-numeric:tabular-nums;">${fmt(totals.distributions)}</td>
+          <td style="padding:5px;text-align:right;font-variant-numeric:tabular-nums;">${fmt(totals.nav)}</td>
+          <td style="padding:5px;text-align:right;font-variant-numeric:tabular-nums;">${fmt(totals.totalValue)}</td>
         </tr>
       </tfoot>
     </table>
@@ -319,10 +322,10 @@ export function buildReportHtml(opts: {
       <tfoot>
         <tr style="border-top:2px solid #ccc;font-weight:600;">
           <td style="padding:5px;" colspan="2">Total</td>
-          <td style="padding:5px;text-align:right;font-family:${PDF_MONO};">${esc(fmtPct(totals.pctFunded))}</td>
-          <td style="padding:5px;text-align:right;font-family:${PDF_MONO};">${esc(fmtMoic(totals.dpi))}</td>
-          <td style="padding:5px;text-align:right;font-family:${PDF_MONO};">${esc(fmtMoic(totals.rvpi))}</td>
-          <td style="padding:5px;text-align:right;font-family:${PDF_MONO};">${esc(fmtMoic(totals.tvpi))}</td>
+          <td style="padding:5px;text-align:right;font-variant-numeric:tabular-nums;">${esc(fmtPct(totals.pctFunded))}</td>
+          <td style="padding:5px;text-align:right;font-variant-numeric:tabular-nums;">${esc(fmtMoic(totals.dpi))}</td>
+          <td style="padding:5px;text-align:right;font-variant-numeric:tabular-nums;">${esc(fmtMoic(totals.rvpi))}</td>
+          <td style="padding:5px;text-align:right;font-variant-numeric:tabular-nums;">${esc(fmtMoic(totals.tvpi))}</td>
           <td style="padding:5px;"></td>
         </tr>
       </tfoot>
@@ -400,7 +403,7 @@ export async function generateInvestorReportPdf(
   const [snapRes, fundRes, settingsRes, investorsRes, investmentsRes] = await Promise.all([
     admin.from('lp_snapshots').select('id, name, as_of_date, description, footer_note').eq('id', snapshotId).eq('fund_id', fundId).maybeSingle(),
     admin.from('funds').select('name, logo_url, address').eq('id', fundId).maybeSingle(),
-    admin.from('fund_settings').select('currency').eq('fund_id', fundId).maybeSingle(),
+    admin.from('fund_settings').select('currency, theme').eq('fund_id', fundId).maybeSingle(),
     admin.from('lp_investors').select('id, name').eq('fund_id', fundId).in('id', investorIds),
     admin.from('lp_investments').select('id, entity_id, portfolio_group, commitment, total_value, nav, called_capital, paid_in_capital, distributions, irr, lp_entities(id, entity_name, investor_id, lp_investors(id, name))').eq('snapshot_id', snapshotId),
   ])
@@ -442,6 +445,7 @@ export async function generateInvestorReportPdf(
     investorName, rows, totals, excludedGroupNames,
     fundName: fund?.name || '', fundLogo, fundAddress: fund?.address || null,
     description: snapshot.description, footerNote: snapshot.footer_note, asOfFormatted, currency,
+    displayFont: displayFontOf(settingsRes.data?.theme),
   })
 
   const pdf = await renderHtmlToPdf(html)
@@ -466,7 +470,7 @@ export async function generateLiveInvestorReportPdf(
   const [report, fundRes, settingsRes, entsRes, investorsRes] = await Promise.all([
     generateLiveReport(admin, fundId),
     admin.from('funds').select('name, logo_url, address').eq('id', fundId).maybeSingle(),
-    admin.from('fund_settings').select('currency, lp_report_description, lp_report_footer').eq('fund_id', fundId).maybeSingle(),
+    admin.from('fund_settings').select('currency, lp_report_description, lp_report_footer, theme').eq('fund_id', fundId).maybeSingle(),
     admin.from('lp_entities').select('id, entity_name, investor_id').eq('fund_id', fundId),
     admin.from('lp_investors').select('id, name').eq('fund_id', fundId).in('id', investorIds),
   ])
@@ -512,6 +516,7 @@ export async function generateLiveInvestorReportPdf(
     fundName: fund?.name || '', fundLogo, fundAddress: fund?.address || null,
     description: settingsRes.data?.lp_report_description ?? null, footerNote: settingsRes.data?.lp_report_footer ?? null,
     asOfFormatted, currency,
+    displayFont: displayFontOf(settingsRes.data?.theme),
   })
 
   const pdf = await renderHtmlToPdf(html)
@@ -534,8 +539,10 @@ export function buildLetterHtml(opts: {
   fundLogo: string | null
   fundAddress: string | null
   asOfFormatted: string | null
+  /** Fund's display face (FundTheme.displayFont). Absent = Newsreader. */
+  displayFont?: string | null
 }): string {
-  const { periodLabel, fullDraft, portfolioTableHtml, fundName, fundLogo, fundAddress, asOfFormatted } = opts
+  const { periodLabel, fullDraft, portfolioTableHtml, fundName, fundLogo, fundAddress, asOfFormatted, displayFont } = opts
 
   // Preserve the author's paragraph breaks; escape the prose itself.
   const draftHtml = fullDraft
@@ -551,7 +558,7 @@ export function buildLetterHtml(opts: {
   const footer = `${asOfFormatted ? `As of ${esc(asOfFormatted)}. ` : ''}This letter is provided to limited partners for informational purposes. All figures are reported net of expenses, including estimated carried interest.`
 
   return `<!DOCTYPE html>
-<html><head><meta charset="utf-8"><style>${PDF_FONT_CSS}
+<html><head><meta charset="utf-8"><style>${pdfFontCss(displayFont)}
   * { margin:0; padding:0; box-sizing:border-box; }
   body { font-family: ${PDF_SANS}; font-size:12px; color:#111; line-height:1.4; }
   table { width:100%; border-collapse:collapse; font-size:11px; }
@@ -566,13 +573,13 @@ export function buildLetterHtml(opts: {
         ${fundLogo ? `<img src="${fundLogo}" style="height:40px;width:auto;object-fit:contain;" />` : ''}
       </div>
       <div style="text-align:right;margin-left:40%;">
-        <h2 style="font-size:16px;font-weight:600;letter-spacing:-0.01em;">${esc(fundName)}</h2>
+        <h2 style="font-family:${PDF_DISPLAY};font-size:17px;font-weight:400;letter-spacing:-0.01em;">${esc(fundName)}</h2>
         ${fundAddress ? `<p style="font-size:11px;color:#888;white-space:pre-line;line-height:1.3;margin-top:2px;">${esc(fundAddress)}</p>` : ''}
       </div>
     </div>
 
     <!-- Letter Header -->
-    <h1 style="font-size:18px;font-weight:700;letter-spacing:-0.01em;margin-bottom:4px;">${esc(periodLabel)}</h1>
+    <h1 style="font-family:${PDF_DISPLAY};font-size:22px;font-weight:400;letter-spacing:-0.01em;margin-bottom:4px;">${esc(periodLabel)}</h1>
     ${asOfFormatted ? `<p style="font-size:11px;color:#888;margin-bottom:24px;">As of ${esc(asOfFormatted)}</p>` : '<div style="margin-bottom:24px;"></div>'}
 
     ${draftHtml}
@@ -598,9 +605,10 @@ export async function generateLetterPdf(
 ): Promise<{ pdf: Buffer; fileName: string } | null> {
   const { fundId, letterId } = opts
 
-  const [letterRes, fundRes] = await Promise.all([
+  const [letterRes, fundRes, settingsRes] = await Promise.all([
     admin.from('lp_letters').select('id, period_label, status, full_draft, portfolio_table_html').eq('id', letterId).eq('fund_id', fundId).maybeSingle(),
     admin.from('funds').select('name, logo_url, address').eq('id', fundId).maybeSingle(),
+    admin.from('fund_settings').select('theme').eq('fund_id', fundId).maybeSingle(),
   ])
 
   const letter = letterRes.data
@@ -617,6 +625,7 @@ export async function generateLetterPdf(
     fundLogo,
     fundAddress: fund?.address || null,
     asOfFormatted: null,
+    displayFont: displayFontOf(settingsRes.data?.theme),
   })
 
   const pdf = await renderHtmlToPdf(html)

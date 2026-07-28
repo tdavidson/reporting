@@ -258,7 +258,7 @@ export default function RequestsPage() {
       <div className="p-4 md:p-8">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2">{fv.asks === 'admin' && <Lock className="h-4 w-4 text-amber-500" />}Asks</h1>
+            <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2">{fv.asks === 'admin' && <Lock className="h-4 w-4 text-warning" />}Asks</h1>
             <p className="text-sm text-muted-foreground mt-1">Monitor responses to quarterly reporting asks</p>
           </div>
           <div className="flex items-center gap-2">
@@ -286,7 +286,7 @@ export default function RequestsPage() {
       <div className="p-4 md:p-8">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2">{fv.asks === 'admin' && <Lock className="h-4 w-4 text-amber-500" />}Asks</h1>
+            <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2">{fv.asks === 'admin' && <Lock className="h-4 w-4 text-warning" />}Asks</h1>
             <p className="text-sm text-muted-foreground mt-1">Quarterly reporting email program</p>
           </div>
           <div className="flex items-center gap-2">
@@ -299,7 +299,7 @@ export default function RequestsPage() {
           {trackerQuarters.length > 0 && (
             <ResponseTracker quarters={trackerQuarters} data={trackerData} onStatusChange={handleResponseStatusChange} />
           )}
-          <div className="rounded-lg border border-dashed p-12 text-center space-y-2">
+          <div className="rounded-card border border-dashed p-12 text-center space-y-2">
             <p className="text-muted-foreground">
               Administrators can configure and send quarterly reporting request emails to portfolio companies from this page.
             </p>
@@ -323,7 +323,7 @@ export default function RequestsPage() {
     <div className="p-4 md:p-8">
       <div className="mb-6 space-y-1">
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2">{fv.asks === 'admin' && <Lock className="h-4 w-4 text-amber-500" />}Asks</h1>
+          <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2">{fv.asks === 'admin' && <Lock className="h-4 w-4 text-warning" />}Asks</h1>
           <div className="flex items-center gap-2">
             <PortfolioNotesButton />
             <AnalystToggleButton />
@@ -341,7 +341,7 @@ export default function RequestsPage() {
       <h2 className="text-lg font-semibold tracking-tight">Create an Ask</h2>
 
       {!hasEmailProvider && (
-        <div className="rounded-lg border border-dashed p-4 text-center space-y-1">
+        <div className="rounded-card border border-dashed p-4 text-center space-y-1">
           <p className="text-sm text-muted-foreground">Set up an outbound email provider in Settings to enable sending emails.</p>
           <p className="text-xs text-muted-foreground">
             Choose from Gmail, Resend, Mailgun, or Postmark in Settings &gt; Outbound Email.
@@ -350,7 +350,7 @@ export default function RequestsPage() {
       )}
 
       {/* Compose */}
-      <div className="rounded-lg border bg-card p-5 space-y-3">
+      <div className="rounded-card border bg-card p-5 space-y-3">
         {settings?.asksEmailProvider && settings.asksEmailProvider !== 'gmail' && (
           <div className="grid grid-cols-2 gap-3">
             <div>
@@ -410,9 +410,9 @@ export default function RequestsPage() {
       </div>
 
       {/* Recipients */}
-      <div className="rounded-lg border bg-card p-5">
+      <div className="rounded-card border bg-card p-5">
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-medium">Recipients ({selected.size} of {companies.length})</h2>
+          <h2 className="text-base font-medium">Recipients ({selected.size} of {companies.length})</h2>
           <button
             onClick={toggleAll}
             className="text-xs text-primary hover:underline"
@@ -449,8 +449,8 @@ export default function RequestsPage() {
       </div>
 
       {/* Test send */}
-      <div className="rounded-lg border bg-card p-5 space-y-3">
-        <h2 className="text-sm font-medium">Test send</h2>
+      <div className="rounded-card border bg-card p-5 space-y-3">
+        <h2 className="text-base font-medium">Test send</h2>
         <div className="flex items-center gap-2">
           <Input
             value={testEmail}
@@ -472,11 +472,11 @@ export default function RequestsPage() {
           </Button>
           {testResult && (
             testResult.success ? (
-              <span className="text-xs text-emerald-600 flex items-center gap-1">
+              <span className="text-xs text-success flex items-center gap-1">
                 <Check className="h-3 w-3" /> Sent
               </span>
             ) : (
-              <span className="text-xs text-destructive flex items-center gap-1">
+              <span className="text-sm text-destructive flex items-center gap-1">
                 <AlertCircle className="h-3 w-3" /> {testResult.error || 'Failed'}
               </span>
             )
@@ -521,7 +521,7 @@ export default function RequestsPage() {
       </div>
 
       {error && (
-        <div className="rounded-lg border border-destructive/30 p-4">
+        <div className="rounded-card border border-destructive/30 p-4">
           <p className="text-sm text-destructive flex items-center gap-2">
             <AlertCircle className="h-4 w-4" /> {error}
           </p>
@@ -529,8 +529,8 @@ export default function RequestsPage() {
       )}
 
       {results && (
-        <div className="rounded-lg border bg-card p-5 space-y-3">
-          <h2 className="text-sm font-medium">
+        <div className="rounded-card border bg-card p-5 space-y-3">
+          <h2 className="text-base font-medium">
             Results: {results.sent} sent, {results.failed} failed
           </h2>
           <div className="border rounded-lg divide-y max-h-[300px] overflow-y-auto">
@@ -538,11 +538,11 @@ export default function RequestsPage() {
               <div key={i} className="flex items-center justify-between px-3 py-2">
                 <span className="text-sm">{r.emails}</span>
                 {r.success ? (
-                  <span className="text-xs text-emerald-600 flex items-center gap-1">
+                  <span className="text-xs text-success flex items-center gap-1">
                     <Check className="h-3 w-3" /> Sent
                   </span>
                 ) : (
-                  <span className="text-xs text-destructive flex items-center gap-1">
+                  <span className="text-sm text-destructive flex items-center gap-1">
                     <AlertCircle className="h-3 w-3" /> {r.error || 'Failed'}
                   </span>
                 )}

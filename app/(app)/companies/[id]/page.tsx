@@ -139,7 +139,7 @@ export default async function CompanyDetailPage({
     <CompanyPanelProvider companyId={company.id} userId={user.id} isAdmin={isAdmin}>
     <div className="p-4 md:p-8">
       {/* Header */}
-      <div className="mb-6 max-w-6xl">
+      <div className="mb-6 max-w-page">
         <Link
           href="/dashboard"
           className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground mb-4"
@@ -186,7 +186,7 @@ export default async function CompanyDetailPage({
 
       {/* Content + Notes panel side by side */}
       <div className="flex flex-col lg:flex-row gap-6 items-start">
-        <div className="flex-1 min-w-0 max-w-6xl w-full [&>*:first-child]:mt-0">
+        <div className="flex-1 min-w-0 max-w-page w-full [&>*:first-child]:mt-0">
           {company.status !== 'exited' && company.status !== 'written-off' && (
             <>
               <CompanySummary
@@ -223,14 +223,14 @@ export default async function CompanyDetailPage({
             <div className="mt-6 space-y-3">
               {company.founders && (
                 <div>
-                  <h3 className="text-sm font-medium text-muted-foreground mb-1">Founders</h3>
+                  <h3 className="text-base font-medium text-muted-foreground mb-1">Founders</h3>
                   <p className="text-sm">{company.founders}</p>
                 </div>
               )}
 
               {company.contact_email && company.contact_email.length > 0 && (
                 <div>
-                  <h3 className="text-sm font-medium text-muted-foreground mb-1">Contact{company.contact_email.length > 1 ? 's' : ''}</h3>
+                  <h3 className="text-base font-medium text-muted-foreground mb-1">Contact{company.contact_email.length > 1 ? 's' : ''}</h3>
                   <div className="flex flex-wrap gap-x-4 gap-y-1">
                     {company.contact_email.map((email) => (
                       <p key={email} className="text-sm">
@@ -245,21 +245,21 @@ export default async function CompanyDetailPage({
 
               {company.overview && (
                 <div>
-                  <h3 className="text-sm font-medium text-muted-foreground mb-1">Overview</h3>
+                  <h3 className="text-base font-medium text-muted-foreground mb-1">Overview</h3>
                   <p className="text-sm">{company.overview}</p>
                 </div>
               )}
 
               {company.why_invested && (
                 <div>
-                  <h3 className="text-sm font-medium text-muted-foreground mb-1">Why We Invested</h3>
+                  <h3 className="text-base font-medium text-muted-foreground mb-1">Why We Invested</h3>
                   <p className="text-sm">{company.why_invested}</p>
                 </div>
               )}
 
               {company.current_update && (
                 <div>
-                  <h3 className="text-sm font-medium text-muted-foreground mb-1">Current Business Update</h3>
+                  <h3 className="text-base font-medium text-muted-foreground mb-1">Current Business Update</h3>
                   <p className="text-sm">{company.current_update}</p>
                 </div>
               )}

@@ -4,9 +4,11 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Loader2, Download } from 'lucide-react'
 import { useCurrency, formatCurrencyPrice } from '@/components/currency-context'
+import { Button } from '@/components/ui/button'
 import { useLedgerFetch, useVehicle, useFundSeg } from '@/components/accounting-vehicle'
 import { type PeriodPreset } from '@/lib/accounting/statement-period'
 import { PeriodPicker } from '@/components/accounting/period-picker'
+import { EmptyState } from '@/components/ui/empty-state'
 
 interface Section { label: string; rows: { code: string; name: string; amount: number }[]; total: number }
 interface PartnerRow {
@@ -162,12 +164,12 @@ export function StatementsView() {
         {m.keys.map(k => (
           <tr key={k.key} className="border-t">
             <td className="px-3 py-1.5 text-muted-foreground">{k.code ? `${k.code} · ` : ''}{k.name}</td>
-            {cols.map((c, i) => <td key={i} className="px-3 py-1.5 text-right font-mono">{fmtCell(m.amountFor(c, k.key))}</td>)}
+            {cols.map((c, i) => <td key={i} className="px-3 py-1.5 text-right tabular-nums">{fmtCell(m.amountFor(c, k.key))}</td>)}
           </tr>
         ))}
         <tr className="border-t font-semibold">
           <td className="px-3 py-1.5">Total {m.label}</td>
-          {cols.map((c, i) => <td key={i} className="px-3 py-1.5 text-right font-mono">{fmt(m.totalFor(c))}</td>)}
+          {cols.map((c, i) => <td key={i} className="px-3 py-1.5 text-right tabular-nums">{fmt(m.totalFor(c))}</td>)}
         </tr>
       </>
     )
@@ -235,14 +237,22 @@ export function StatementsView() {
       {loading ? (
         <div className="flex items-center gap-2 text-muted-foreground text-sm"><Loader2 className="h-4 w-4 animate-spin" />Loading…</div>
       ) : !data || data.trialBalance.rows.length === 0 ? (
-        <div className="border border-dashed rounded-lg p-8 text-center text-sm text-muted-foreground">No statements yet — the ledger has no posted entries{period?.end ? ` as of ${period.end}` : ''}.</div>
+        <EmptyState
+          action={fundSeg && (
+            <Button size="sm" variant="outline" asChild>
+              <Link href={`/funds/${fundSeg}/journal`}>Open journal</Link>
+            </Button>
+          )}
+        >
+          No statements yet — the ledger has no posted entries{period?.end ? ` as of ${period.end}` : ''}.
+        </EmptyState>
       ) : (
     // ASC 946 order: assets & liabilities, then operations, then cash flows, then
     // changes in partners' capital last — the per-partner detail behind the single
     // capital line on the balance sheet.
     <div className="space-y-8">
       <section>
-        <h2 className="text-sm font-semibold">Statement of assets, liabilities and partners&rsquo; capital</h2>
+        <h2 className="text-base font-semibold">Statement of assets, liabilities and partners&rsquo; capital</h2>
         <p className="text-xs text-muted-foreground mb-2">Balance sheet — {asOfLabel}</p>
         <div className="border rounded-lg overflow-x-auto">
           <table className="w-full text-sm">
@@ -257,20 +267,20 @@ export function StatementsView() {
         {/* Only worth saying when it's actionable: unallocated earnings mean the
             per-LP capital accounts understate until the period is closed. */}
         {data.balanceSheet.partnersCapital.unallocatedEarnings !== 0 && (
-          <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+          <p className="text-sm text-warning mt-1">
             {fmt(data.balanceSheet.partnersCapital.unallocatedEarnings)} of net income is not yet allocated to partners.
             Close the period to allocate it — until then each partner&rsquo;s capital account understates their NAV.
           </p>
         )}
         {data.balanceSheet.check !== 0 && (
-          <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+          <p className="text-sm text-warning mt-1">
             Does not balance — residual {fmt(data.balanceSheet.check)}.
           </p>
         )}
       </section>
 
       <section>
-        <h2 className="text-sm font-semibold">Statement of operations</h2>
+        <h2 className="text-base font-semibold">Statement of operations</h2>
         <p className="text-xs text-muted-foreground mb-2">Income statement — {overLabel}</p>
         <div className="border rounded-lg overflow-x-auto">
           <table className="w-full text-sm">
@@ -280,14 +290,14 @@ export function StatementsView() {
               <MultiSec pick={d => d.incomeStatement.expenses} />
               <tr className="border-t font-semibold bg-muted/30">
                 <td className="px-3 py-1.5">Net income</td>
-                {cols.map((c, i) => <td key={i} className="px-3 py-1.5 text-right font-mono">{fmt(c.incomeStatement.netIncome)}</td>)}
+                {cols.map((c, i) => <td key={i} className="px-3 py-1.5 text-right tabular-nums">{fmt(c.incomeStatement.netIncome)}</td>)}
               </tr>
             </tbody>
           </table>
         </div>
         {/* A balanced trial balance is the expected state — only worth saying when it isn't. */}
         {!data.trialBalance.balanced && (
-          <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+          <p className="text-sm text-warning mt-1">
             Trial balance is out of balance — debits {fmt(data.trialBalance.totalDebits)} vs credits {fmt(data.trialBalance.totalCredits)}.
           </p>
         )}
@@ -295,7 +305,7 @@ export function StatementsView() {
 
       {data.cashFlows && (
         <section>
-          <h2 className="text-sm font-semibold">Statement of cash flows</h2>
+          <h2 className="text-base font-semibold">Statement of cash flows</h2>
           <p className="text-xs text-muted-foreground mb-2">{overLabel}</p>
           <div className="border rounded-lg overflow-x-auto">
             <table className="w-full text-sm">
@@ -305,15 +315,15 @@ export function StatementsView() {
                 <MultiSec pick={cfAsSection(cf => cf.financing)} />
                 <tr className="border-t font-semibold bg-muted/30">
                   <td className="px-3 py-1.5">Net change in cash</td>
-                  {cols.map((c, i) => <td key={i} className="px-3 py-1.5 text-right font-mono">{fmtCell(c.cashFlows?.netChange)}</td>)}
+                  {cols.map((c, i) => <td key={i} className="px-3 py-1.5 text-right tabular-nums">{fmtCell(c.cashFlows?.netChange)}</td>)}
                 </tr>
                 <tr className="border-t">
                   <td className="px-3 py-1.5 text-muted-foreground">Opening cash</td>
-                  {cols.map((c, i) => <td key={i} className="px-3 py-1.5 text-right font-mono">{fmtCell(c.cashFlows?.openingCash)}</td>)}
+                  {cols.map((c, i) => <td key={i} className="px-3 py-1.5 text-right tabular-nums">{fmtCell(c.cashFlows?.openingCash)}</td>)}
                 </tr>
                 <tr className="border-t">
                   <td className="px-3 py-1.5 text-muted-foreground">Ending cash</td>
-                  {cols.map((c, i) => <td key={i} className="px-3 py-1.5 text-right font-mono">{fmtCell(c.cashFlows?.endingCash)}</td>)}
+                  {cols.map((c, i) => <td key={i} className="px-3 py-1.5 text-right tabular-nums">{fmtCell(c.cashFlows?.endingCash)}</td>)}
                 </tr>
               </tbody>
             </table>
@@ -324,7 +334,7 @@ export function StatementsView() {
               repayment of money that was never borrowed. */}
           {data.cashFlows.nonCash.length > 0 && (
             <div className="mt-4">
-              <h3 className="text-sm font-medium">Supplemental — non-cash investing and financing activities</h3>
+              <h3 className="text-base font-medium">Supplemental — non-cash investing and financing activities</h3>
               <p className="text-xs text-muted-foreground mb-2">
                 Transactions that changed investments, borrowings, or partners&rsquo; capital without moving cash,
                 so they do not appear above.
@@ -335,13 +345,13 @@ export function StatementsView() {
                     {data.cashFlows.nonCash.map(n => (
                       <tr key={n.entryId} className="border-t first:border-t-0">
                         <td className="px-3 py-1.5">
-                          <span className="font-mono text-xs text-muted-foreground mr-2">{n.date}</span>
+                          <span className="tabular-nums text-xs text-muted-foreground mr-2">{n.date}</span>
                           {n.description}
                           <div className="text-[11px] text-muted-foreground mt-0.5">
                             {n.legs.map(l => `${l.amount > 0 ? 'Dr' : 'Cr'} ${l.name}`).join(' · ')}
                           </div>
                         </td>
-                        <td className="px-3 py-1.5 text-right font-mono align-top whitespace-nowrap">{fmt(n.amount)}</td>
+                        <td className="px-3 py-1.5 text-right tabular-nums align-top whitespace-nowrap">{fmt(n.amount)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -353,7 +363,7 @@ export function StatementsView() {
       )}
 
       <section>
-        <h2 className="text-sm font-semibold">Statement of changes in partners&rsquo; capital</h2>
+        <h2 className="text-base font-semibold">Statement of changes in partners&rsquo; capital</h2>
         <p className="text-xs text-muted-foreground mb-2">
           {overLabel} — beginning capital is the balance carried into the period; this is the detail behind the
           single partners&rsquo; capital line on the balance sheet
@@ -380,12 +390,12 @@ export function StatementsView() {
                   {rows.map(r => (
                     <tr key={r.id} className="border-t">
                       <td className="px-3 py-1.5 text-muted-foreground">{r.name}</td>
-                      {cols.map((c, i) => <td key={i} className="px-3 py-1.5 text-right font-mono">{fmtCell(endingFor(c, r.id))}</td>)}
+                      {cols.map((c, i) => <td key={i} className="px-3 py-1.5 text-right tabular-nums">{fmtCell(endingFor(c, r.id))}</td>)}
                     </tr>
                   ))}
                   <tr className="border-t font-semibold">
                     <td className="px-3 py-1.5">Total</td>
-                    {cols.map((c, i) => <td key={i} className="px-3 py-1.5 text-right font-mono">{fmt(c.changesInPartnersCapital.totals.ending)}</td>)}
+                    {cols.map((c, i) => <td key={i} className="px-3 py-1.5 text-right tabular-nums">{fmt(c.changesInPartnersCapital.totals.ending)}</td>)}
                   </tr>
                 </tbody>
               </table>
@@ -410,14 +420,14 @@ export function StatementsView() {
                         ? p.name
                         : <Link href={fundSeg ? `/funds/${fundSeg}/capital-accounts/${p.id}` : '/funds'} className="hover:underline">{p.name}</Link>}
                     </td>
-                    {CAP_COLS.map(c => <td key={c.key} className={`px-3 py-2 text-right font-mono ${c.key === 'ending' ? 'font-semibold' : ''}`}>{fmt(p[c.key] as number)}</td>)}
+                    {CAP_COLS.map(c => <td key={c.key} className={`px-3 py-2 text-right tabular-nums ${c.key === 'ending' ? 'font-semibold' : ''}`}>{fmt(p[c.key] as number)}</td>)}
                   </tr>
                 ))}
               </tbody>
               <tfoot>
                 <tr className="border-t bg-muted/30 font-semibold">
                   <td className="px-3 py-2">Total</td>
-                  {CAP_COLS.map(c => <td key={c.key} className="px-3 py-2 text-right font-mono">{fmt(data.changesInPartnersCapital.totals[c.key] as number)}</td>)}
+                  {CAP_COLS.map(c => <td key={c.key} className="px-3 py-2 text-right tabular-nums">{fmt(data.changesInPartnersCapital.totals[c.key] as number)}</td>)}
                 </tr>
               </tfoot>
             </table>

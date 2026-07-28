@@ -65,12 +65,12 @@ const ISSUE_LABELS: Record<string, string> = {
 }
 
 const STATUS_COLORS: Record<string, string> = {
-  new_company_detected: 'bg-blue-100 text-blue-800 border-blue-200',
-  low_confidence: 'bg-amber-100 text-amber-800 border-amber-200',
-  ambiguous_period: 'bg-orange-100 text-orange-800 border-orange-200',
-  metric_not_found: 'bg-slate-100 text-slate-700 border-slate-200',
-  company_not_identified: 'bg-red-100 text-red-800 border-red-200',
-  duplicate_period: 'bg-purple-100 text-purple-800 border-purple-200',
+  new_company_detected: 'bg-info-subtle text-info border-info',
+  low_confidence: 'bg-warning-subtle text-warning border-warning',
+  ambiguous_period: 'bg-warning-subtle text-warning border-warning',
+  metric_not_found: 'bg-muted text-muted-foreground border-border',
+  company_not_identified: 'bg-destructive-subtle text-destructive border-destructive',
+  duplicate_period: 'bg-warning-subtle text-warning border-warning',
 }
 
 // ---------------------------------------------------------------------------
@@ -467,7 +467,7 @@ export function EmailReviewModal({
         {!loading && emailInfo && (
           <div className="space-y-5">
             {/* ── Email Context ── */}
-            <section className="rounded-lg border bg-muted/30 p-4">
+            <section className="rounded-card border bg-muted/30 p-4">
               <div className="flex items-start gap-3">
                 <Mail className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
                 <div className="min-w-0 space-y-1 flex-1">
@@ -504,7 +504,7 @@ export function EmailReviewModal({
             {items.length > 0 && (
               <section>
                 <div className="flex items-center gap-2 mb-3">
-                  <h3 className="text-sm font-medium">Review Items</h3>
+                  <h3 className="text-base font-medium">Review Items</h3>
                   <span className="text-xs text-muted-foreground">
                     {items.length} pending
                   </span>
@@ -533,14 +533,14 @@ export function EmailReviewModal({
             {/* ── Section 2: Company ── */}
             <section>
               <div className="flex items-center gap-2 mb-2">
-                <div className={`flex items-center justify-center h-5 w-5 rounded-full ${hasCompany ? 'bg-green-100' : 'bg-slate-100'}`}>
+                <div className={`flex items-center justify-center h-5 w-5 rounded-full ${hasCompany ? 'bg-success-subtle' : 'bg-muted'}`}>
                   {hasCompany ? (
-                    <Check className="h-3 w-3 text-green-600" />
+                    <Check className="h-3 w-3 text-success" />
                   ) : (
-                    <Building2 className="h-3 w-3 text-slate-400" />
+                    <Building2 className="h-3 w-3 text-muted-foreground" />
                   )}
                 </div>
-                <h3 className="text-sm font-medium">Company</h3>
+                <h3 className="text-base font-medium">Company</h3>
                 {hasCompany && (
                   <span className="text-sm text-muted-foreground">{emailInfo.company!.name}</span>
                 )}
@@ -599,7 +599,7 @@ export function EmailReviewModal({
               )}
 
               {!hasCompany && showCompanyForm && (
-                <div className="ml-7 rounded-lg border bg-muted/30 p-4">
+                <div className="ml-7 rounded-card border bg-muted/30 p-4">
                   <CompanyForm
                     initialName={companyNameHint}
                     onSuccess={handleCompanyCreated}
@@ -613,14 +613,14 @@ export function EmailReviewModal({
             {hasCompany && (
               <section>
                 <div className="flex items-center gap-2 mb-2">
-                  <div className={`flex items-center justify-center h-5 w-5 rounded-full ${hasMetrics ? 'bg-green-100' : 'bg-slate-100'}`}>
+                  <div className={`flex items-center justify-center h-5 w-5 rounded-full ${hasMetrics ? 'bg-success-subtle' : 'bg-muted'}`}>
                     {hasMetrics ? (
-                      <Check className="h-3 w-3 text-green-600" />
+                      <Check className="h-3 w-3 text-success" />
                     ) : (
-                      <BarChart3 className="h-3 w-3 text-slate-400" />
+                      <BarChart3 className="h-3 w-3 text-muted-foreground" />
                     )}
                   </div>
-                  <h3 className="text-sm font-medium">Metrics</h3>
+                  <h3 className="text-base font-medium">Metrics</h3>
                   {hasMetrics && (
                     <span className="text-sm text-muted-foreground">
                       {metrics.length} configured
@@ -645,14 +645,14 @@ export function EmailReviewModal({
                 )}
 
                 {showMetricForm && (
-                  <div className="ml-7 rounded-lg border bg-muted/30 p-4">
+                  <div className="ml-7 rounded-card border bg-muted/30 p-4">
                     {!hasMetrics && (
                       <p className="text-xs text-muted-foreground mb-3">
                         No metrics configured. Add at least one so Claude knows what to extract.
                       </p>
                     )}
                     {metricsAdded > 0 && (
-                      <p className="text-xs text-emerald-600 flex items-center gap-1 mb-3">
+                      <p className="text-xs text-success flex items-center gap-1 mb-3">
                         <Check className="h-3 w-3" />
                         {metricsAdded} metric{metricsAdded !== 1 ? 's' : ''} added
                       </p>
@@ -686,14 +686,14 @@ export function EmailReviewModal({
             {hasCompany && (
               <section>
                 <div className="flex items-center gap-2 mb-2">
-                  <div className={`flex items-center justify-center h-5 w-5 rounded-full ${uploadedFiles.length > 0 ? 'bg-green-100' : 'bg-slate-100'}`}>
+                  <div className={`flex items-center justify-center h-5 w-5 rounded-full ${uploadedFiles.length > 0 ? 'bg-success-subtle' : 'bg-muted'}`}>
                     {uploadedFiles.length > 0 ? (
-                      <Check className="h-3 w-3 text-green-600" />
+                      <Check className="h-3 w-3 text-success" />
                     ) : (
-                      <Upload className="h-3 w-3 text-slate-400" />
+                      <Upload className="h-3 w-3 text-muted-foreground" />
                     )}
                   </div>
-                  <h3 className="text-sm font-medium">Upload Document</h3>
+                  <h3 className="text-base font-medium">Upload Document</h3>
                 </div>
 
                 <div className="ml-7">
@@ -704,7 +704,7 @@ export function EmailReviewModal({
                   {uploadedFiles.length > 0 && (
                     <div className="space-y-1.5 mb-3">
                       {uploadedFiles.map((name, i) => (
-                        <p key={i} className="text-xs text-emerald-600 flex items-center gap-1.5">
+                        <p key={i} className="text-xs text-success flex items-center gap-1.5">
                           <FileText className="h-3 w-3" />
                           {name}
                         </p>
@@ -748,14 +748,14 @@ export function EmailReviewModal({
             {/* ── Section 5: Approve ── */}
             <section>
               <div className="flex items-center gap-2 mb-2">
-                <div className={`flex items-center justify-center h-5 w-5 rounded-full ${approveSuccess ? 'bg-green-100' : 'bg-slate-100'}`}>
-                  <Check className={`h-3 w-3 ${approveSuccess ? 'text-green-600' : 'text-slate-400'}`} />
+                <div className={`flex items-center justify-center h-5 w-5 rounded-full ${approveSuccess ? 'bg-success-subtle' : 'bg-muted'}`}>
+                  <Check className={`h-3 w-3 ${approveSuccess ? 'text-success' : 'text-muted-foreground'}`} />
                 </div>
-                <h3 className="text-sm font-medium">Approve</h3>
+                <h3 className="text-base font-medium">Approve</h3>
               </div>
               <div className="ml-7">
                 {approveSuccess ? (
-                  <p className="text-sm text-emerald-600 flex items-center gap-1.5">
+                  <p className="text-sm text-success flex items-center gap-1.5">
                     <Check className="h-3.5 w-3.5" />
                     Approved. Modal will close shortly.
                   </p>
@@ -787,19 +787,19 @@ export function EmailReviewModal({
             {hasCompany && (
               <section>
                 <div className="flex items-center gap-2 mb-2">
-                  <div className={`flex items-center justify-center h-5 w-5 rounded-full ${reprocessSuccess ? 'bg-green-100' : 'bg-slate-100'}`}>
+                  <div className={`flex items-center justify-center h-5 w-5 rounded-full ${reprocessSuccess ? 'bg-success-subtle' : 'bg-muted'}`}>
                     {reprocessSuccess ? (
-                      <Check className="h-3 w-3 text-green-600" />
+                      <Check className="h-3 w-3 text-success" />
                     ) : (
-                      <RefreshCw className="h-3 w-3 text-slate-400" />
+                      <RefreshCw className="h-3 w-3 text-muted-foreground" />
                     )}
                   </div>
-                  <h3 className="text-sm font-medium">Process Email</h3>
+                  <h3 className="text-base font-medium">Process Email</h3>
                 </div>
 
                 <div className="ml-7">
                   {reprocessSuccess ? (
-                    <p className="text-sm text-emerald-600 flex items-center gap-1.5">
+                    <p className="text-sm text-success flex items-center gap-1.5">
                       <Check className="h-3.5 w-3.5" />
                       Processing started. Modal will close shortly.
                     </p>
@@ -866,7 +866,7 @@ function ReviewCard({
   const isMetricNotFound = item.issue_type === 'metric_not_found'
 
   return (
-    <div className="rounded-lg border bg-card p-4 space-y-3">
+    <div className="rounded-card border bg-card p-4 space-y-3">
       {/* Top row: badge + company + metric */}
       <div className="flex flex-wrap items-center gap-2">
         <span

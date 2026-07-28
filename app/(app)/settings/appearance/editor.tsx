@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { Loader2, Check, Save } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { ACCENT_PRESETS, FONT_OPTIONS, RADIUS_OPTIONS, themeCssVars, hexToHsl, hslToHex, type FundTheme } from '@/lib/theme'
+import { ACCENT_PRESETS, FONT_OPTIONS, DISPLAY_FONT_OPTIONS, RADIUS_OPTIONS, themeCssVars, hexToHsl, hslToHex, type FundTheme } from '@/lib/theme'
 
 // Branding / appearance editor. Previews live across the whole app (injects a
 // <style> override into <head>) and saves the fund-wide theme. The default is
@@ -11,6 +11,7 @@ import { ACCENT_PRESETS, FONT_OPTIONS, RADIUS_OPTIONS, themeCssVars, hexToHsl, h
 export function AppearanceEditor() {
   const [accent, setAccent] = useState<string | null>(null)
   const [font, setFont] = useState<string>('system')
+  const [displayFont, setDisplayFont] = useState<string>('inter')
   const [radius, setRadius] = useState<number | null>(null)
   const [loaded, setLoaded] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -24,12 +25,18 @@ export function AppearanceEditor() {
         const t: FundTheme | null = b?.theme ?? null
         setAccent(t?.accent ?? null)
         setFont(t?.font ?? 'system')
+        setDisplayFont(t?.displayFont ?? 'inter')
         setRadius(typeof t?.radius === 'number' ? t.radius : null)
       })
       .finally(() => setLoaded(true))
   }, [])
 
-  const draft: FundTheme = { accent, font: font === 'system' ? null : font, radius: radius ?? undefined }
+  const draft: FundTheme = {
+    accent,
+    font: font === 'system' ? null : font,
+    displayFont: displayFont === 'inter' ? null : displayFont,
+    radius: radius ?? undefined,
+  }
   const isCustom = !!accent && !ACCENT_PRESETS.some(p => p.hsl === accent)
 
   // Live, app-wide preview while editing.
@@ -41,7 +48,7 @@ export function AppearanceEditor() {
     const vars = themeCssVars(draft)
     el.textContent = vars ? `:root{${vars}}` : ''
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loaded, accent, font, radius])
+  }, [loaded, accent, font, displayFont, radius])
   // Drop the preview when leaving the page; the server-rendered theme takes over.
   useEffect(() => () => { document.getElementById('appearance-preview')?.remove() }, [])
 
@@ -61,15 +68,15 @@ export function AppearanceEditor() {
       setSaving(false)
     }
   }
-  function reset() { setAccent(null); setFont('system'); setRadius(null) }
+  function reset() { setAccent(null); setFont('system'); setDisplayFont('inter'); setRadius(null) }
 
   if (!loaded) return <div className="text-sm text-muted-foreground"><Loader2 className="h-4 w-4 inline animate-spin mr-2" />Loading…</div>
 
   return (
     <div className="space-y-5">
-      {error && <div className="rounded-md border border-destructive/40 bg-destructive/5 p-2 text-xs text-destructive">{error}</div>}
+      {error && <div className="rounded-md border border-destructive/40 bg-destructive/5 p-2 text-sm text-destructive">{error}</div>}
       <p className="text-xs text-muted-foreground max-w-xl">
-        Changes preview live across the app. Save to apply for everyone in your fund. The default is neutral gray with the system font; everything here is optional.
+        Changes preview live across the app. Save to apply for everyone in your fund. The defaults are a neutral accent and Inter for both the interface and report headings; pick a serif below if you want reports set apart. Everything here is optional.
       </p>
 
       <div>
@@ -111,6 +118,16 @@ export function AppearanceEditor() {
           <select value={font} onChange={e => setFont(e.target.value)} className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm">
             {FONT_OPTIONS.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
           </select>
+          <p className="text-[10px] text-muted-foreground mt-1">Body text, tables and controls.</p>
+        </div>
+        <div>
+          <div className="text-xs font-medium mb-1">Report font</div>
+          <select value={displayFont} onChange={e => setDisplayFont(e.target.value)} className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm">
+            {DISPLAY_FONT_OPTIONS.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
+          </select>
+          <p className="text-[10px] text-muted-foreground mt-1">
+            {DISPLAY_FONT_OPTIONS.find(o => o.key === displayFont)?.note} Headings on report covers, letters and statements — including PDFs. Word exports use a system font and are unaffected.
+          </p>
         </div>
         <div>
           <div className="text-xs font-medium mb-1">Corner radius</div>
@@ -123,12 +140,16 @@ export function AppearanceEditor() {
         </div>
       </div>
 
-      <div className="rounded-lg border p-4 space-y-3 max-w-xl">
+      <div className="rounded-card border p-5 space-y-4 max-w-xl">
         <div className="text-xs font-medium text-muted-foreground">Preview</div>
+        <div>
+          <p className="text-eyebrow uppercase text-muted-foreground mb-2">Q3 2026</p>
+          <p className="font-display text-heading font-normal">Quarterly Report to Limited Partners</p>
+        </div>
         <div className="flex flex-wrap items-center gap-3">
           <Button size="sm">Primary action</Button>
           <Button size="sm" variant="outline">Secondary</Button>
-          <span className="text-sm">Body text with a <a href="#" onClick={e => e.preventDefault()} className="text-primary underline">link</a> and <span className="font-mono tabular-nums">$1,234.56</span>.</span>
+          <span className="text-sm">Body text with a <a href="#" onClick={e => e.preventDefault()} className="text-primary underline">link</a> and <span className="tabular-nums">$1,234.56</span>.</span>
         </div>
       </div>
 

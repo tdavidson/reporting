@@ -310,7 +310,6 @@ export const ROUTE_DOMAINS: Record<string, RouteAccess> = {
   'api/settings/theme': { domain: 'portfolio', level: 'any' },
   'api/settings/notifications': { domain: 'portfolio', level: 'any' },
   'api/auth/activity': { domain: 'portfolio', level: 'any' },
-  'api/contact': { domain: 'portfolio', level: 'any' },
   // Affinity issues ONE KEY PER USER, scoped to that user's own permissions, so each member
   // connects their own. It lives under /settings but it is not administration.
   'api/settings/affinity': { domain: 'portfolio', level: 'any' },
@@ -411,6 +410,7 @@ export const UNGATED_ROUTES: Record<string, string> = {
   'api/og': 'Renders an OG card from its own query params; reads nothing.',
 
   // The demo fund's own bootstrap; it provisions the read-only demo, which holds no real data.
-  'api/demo/credentials': 'Demo fund sign-in.',
+  // Sign-in itself is no longer a route: it moved to the `startDemo` server action, which mints
+  // the session server-side instead of handing credentials to the browser.
   'api/demo/seed': 'Demo fund provisioning.',
 }

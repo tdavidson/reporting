@@ -65,7 +65,7 @@ export function StorageSection({
               <option value="google_drive">Google Drive</option>
             </select>
             {saving && <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" />}
-            {saved && <Check className="h-3.5 w-3.5 text-emerald-600 shrink-0" />}
+            {saved && <Check className="h-3.5 w-3.5 text-success shrink-0" />}
           </div>
         </div>
 

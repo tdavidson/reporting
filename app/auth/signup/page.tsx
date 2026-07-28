@@ -156,7 +156,7 @@ export default function SignUpPage() {
   return (
     <AuthShell
       above={isHemrock && (
-        <div className="rounded-lg border bg-card p-4 text-sm text-center">
+        <div className="rounded-card border bg-card p-4 text-sm text-center">
           <p>👋 Want to try it out first? <a href="/demo" className="text-primary underline underline-offset-4 hover:text-primary/80 font-medium">Launch the demo</a></p>
         </div>
       )}
@@ -184,7 +184,7 @@ export default function SignUpPage() {
               </Alert>
             )}
             {error === 'not_whitelisted' && (
-              <Alert className="!border-amber-500/50 !bg-amber-50 dark:!bg-amber-950/30 !text-amber-900 dark:!text-amber-200">
+              <Alert className="!border-warning/50 !bg-warning-subtle dark:!bg-warning-subtle/30 !text-warning">
                 <AlertDescription className="text-sm space-y-2">
                   <p>This email is not authorized for the hosted platform.</p>
                   <p>
@@ -197,7 +197,7 @@ export default function SignUpPage() {
               </Alert>
             )}
             {info && (
-              <Alert className="!border-green-500/50 !bg-green-50 dark:!bg-green-950/30 !text-green-900 dark:!text-green-200">
+              <Alert className="!border-success/50 !bg-success-subtle dark:!bg-success-subtle/30 !text-success">
                 <AlertDescription>{info}</AlertDescription>
               </Alert>
             )}

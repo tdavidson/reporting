@@ -134,7 +134,7 @@ export function OutboundEmailSection({
         </div>
 
         {systemProvider && (
-          <div className="border rounded-lg p-3 space-y-3">
+          <div className="border rounded-card p-3 space-y-3">
             <div>
               <button
                 type="button"

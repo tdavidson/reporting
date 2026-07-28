@@ -94,7 +94,7 @@ export function CompanyDefaultMetricsDialog({
                 </div>
                 <div className="shrink-0">
                   {i.status === 'tracked' ? (
-                    <span className="inline-flex items-center gap-1 text-xs text-emerald-600">
+                    <span className="inline-flex items-center gap-1 text-xs text-success">
                       <Check className="h-3.5 w-3.5" /> Tracked
                     </span>
                   ) : i.status === 'excluded' ? (
@@ -109,7 +109,7 @@ export function CompanyDefaultMetricsDialog({
                     <button
                       onClick={() => setExcluded(i.id, true)}
                       disabled={busyId === i.id}
-                      className="text-xs text-muted-foreground hover:text-destructive"
+                      className="text-sm text-muted-foreground hover:text-destructive"
                     >
                       {busyId === i.id ? '…' : 'Exclude'}
                     </button>

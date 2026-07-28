@@ -57,7 +57,7 @@ export function AddVehicleButton({ onCreated }: { onCreated?: () => void }) {
               {KINDS.map(k => <option key={k.value} value={k.value}>{k.label}</option>)}
             </select>
           </div>
-          {err && <p className="text-xs text-destructive">{err}</p>}
+          {err && <p className="text-sm text-destructive">{err}</p>}
           <div className="flex justify-end gap-2 pt-1">
             <Button variant="outline" size="sm" onClick={() => setOpen(false)} disabled={busy}>Cancel</Button>
             <Button size="sm" onClick={create} disabled={busy || !name.trim()}>{busy && <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />}Add vehicle</Button>

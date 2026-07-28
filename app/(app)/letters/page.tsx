@@ -119,7 +119,7 @@ export default function LettersPage() {
       <div className="mb-6 space-y-1">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2">
-            {fv.lp_letters === 'admin' && <Lock className="h-4 w-4 text-amber-500" />}Letters
+            {fv.lp_letters === 'admin' && <Lock className="h-4 w-4 text-warning" />}Letters
           </h1>
           <AnalystToggleButton />
         </div>
@@ -141,7 +141,7 @@ export default function LettersPage() {
         <div className="flex-1 min-w-0 w-full space-y-6">
           {/* No templates notice */}
           {templates.length === 0 && (
-            <div className="rounded-lg border border-dashed p-8 text-center space-y-3">
+            <div className="rounded-card border border-dashed p-8 text-center space-y-3">
               <FileText className="h-8 w-8 mx-auto text-muted-foreground" />
               <p className="text-sm text-muted-foreground">
                 Set up a template first. Upload a previous LP letter to match your style, or use the default template.
@@ -154,7 +154,7 @@ export default function LettersPage() {
 
           {/* Letters list */}
           {letters.length === 0 && templates.length > 0 && (
-            <div className="rounded-lg border border-dashed p-8 text-center space-y-4">
+            <div className="rounded-card border border-dashed p-8 text-center space-y-4">
               <p className="text-sm text-muted-foreground">No letters yet. Create your first quarterly LP letter.</p>
               <Link href="/letters/new" className="inline-block">
                 <Button size="sm">
@@ -245,7 +245,7 @@ export default function LettersPage() {
             {templates.length > 0 && (
               <div className="space-y-2">
                 {templates.map(t => (
-                  <div key={t.id} className="flex items-center justify-between rounded-lg border p-3">
+                  <div key={t.id} className="flex items-center justify-between rounded-card border p-3">
                     <div>
                       <p className="text-sm font-medium">{t.name}</p>
                       <p className="text-xs text-muted-foreground">

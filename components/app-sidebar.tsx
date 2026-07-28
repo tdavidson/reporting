@@ -220,49 +220,43 @@ export function AppSidebar({ reviewBadge, settingsBadge, notesBadge, pendingActi
                 href={href}
                 onClick={onNavigate}
                 title={collapsed ? label : undefined}
-                className={`relative flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors ${
-                  collapsed ? 'md:justify-center md:px-0' : ''
-                } ${
-                  isActive
-                    ? 'bg-accent text-foreground font-medium'
-                    : 'text-muted-foreground hover:text-foreground hover:bg-accent'
-                }`}
+                className={`relative flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors ${ collapsed ? 'md:justify-center md:px-0' : '' } ${ isActive ? 'bg-accent text-foreground font-medium' : 'text-muted-foreground hover:text-foreground hover:bg-accent' }`}
               >
                 <Icon className="h-5 w-5 shrink-0" />
                 <span className={`${collapsed ? 'md:hidden' : ''}`}>{label}</span>
                 {badgeCount > 0 && (
                   collapsed ? (
-                    <span className="hidden md:block absolute top-1 right-1 h-2 w-2 rounded-full bg-amber-500" />
+                    <span className="hidden md:block absolute top-1 right-1 h-2 w-2 rounded-full bg-warning" />
                   ) : (
-                    <span className="rounded-full bg-amber-500 text-white text-[10px] font-semibold leading-none px-1.5 py-0.5 min-w-[18px] text-center">
+                    <span className="rounded-full bg-warning text-white text-[10px] font-semibold leading-none px-1.5 py-0.5 min-w-[18px] text-center">
                       {badgeCount > 99 ? '99+' : badgeCount}
                     </span>
                   )
                 )}
                 {beta && !showLock && (
                   collapsed ? (
-                    <span className="hidden md:block absolute top-1 right-1 h-2 w-2 rounded-full bg-blue-500" />
+                    <span className="hidden md:block absolute top-1 right-1 h-2 w-2 rounded-full bg-info" />
                   ) : (
-                    <span className="text-[9px] font-medium text-blue-500 bg-blue-500/10 rounded px-1 py-0.5 leading-none uppercase tracking-wider self-center">beta</span>
+                    <span className="text-[9px] font-medium text-info bg-info/10 rounded px-1 py-0.5 leading-none uppercase tracking-wider self-center">beta</span>
                   )
                 )}
                 {showLock && !beta && !collapsed && (
-                  <Lock className="h-3 w-3 text-amber-500 shrink-0 md:block hidden" />
+                  <Lock className="h-3 w-3 text-warning shrink-0 md:block hidden" />
                 )}
                 {showLock && !beta && collapsed && (
                   <span className="hidden md:block absolute top-1 right-1">
-                    <Lock className="h-2.5 w-2.5 text-amber-500" />
+                    <Lock className="h-2.5 w-2.5 text-warning" />
                   </span>
                 )}
                 {beta && showLock && !collapsed && (
                   <>
-                    <span className="text-[9px] font-medium text-blue-500 bg-blue-500/10 rounded px-1 py-0.5 leading-none uppercase tracking-wider self-center hidden md:inline">beta</span>
-                    <Lock className="h-3 w-3 text-amber-500 shrink-0 md:block hidden" />
+                    <span className="text-[9px] font-medium text-info bg-info/10 rounded px-1 py-0.5 leading-none uppercase tracking-wider self-center hidden md:inline">beta</span>
+                    <Lock className="h-3 w-3 text-warning shrink-0 md:block hidden" />
                   </>
                 )}
                 {beta && showLock && collapsed && (
                   <span className="hidden md:block absolute top-1 right-1">
-                    <Lock className="h-2.5 w-2.5 text-blue-500" />
+                    <Lock className="h-2.5 w-2.5 text-info" />
                   </span>
                 )}
               </Link>
@@ -279,14 +273,10 @@ export function AppSidebar({ reviewBadge, settingsBadge, notesBadge, pendingActi
                         key={child.href}
                         href={child.href}
                         onClick={onNavigate}
-                        className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm transition-colors ${
-                          childIsActive
-                            ? 'bg-accent text-foreground font-medium'
-                            : 'text-muted-foreground hover:text-foreground hover:bg-accent'
-                        }`}
+                        className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm transition-colors ${ childIsActive ? 'bg-accent text-foreground font-medium' : 'text-muted-foreground hover:text-foreground hover:bg-accent' }`}
                       >
                         <span>{child.label}</span>
-                        {childShowLock && <Lock className="h-3 w-3 text-amber-500 shrink-0" />}
+                        {childShowLock && <Lock className="h-3 w-3 text-warning shrink-0" />}
                         {child.badgeKey === 'notes' && (notesBadge ?? 0) > 0 && (
                           <span className="ml-auto text-[10px] font-medium rounded-full bg-muted-foreground/15 px-1.5 py-0.5 tabular-nums">
                             {notesBadge}
@@ -309,20 +299,14 @@ export function AppSidebar({ reviewBadge, settingsBadge, notesBadge, pendingActi
               href="/updates"
               onClick={onNavigate}
               title={collapsed ? 'Updates' : undefined}
-              className={`relative flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors ${
-                collapsed ? 'md:justify-center md:px-0' : ''
-              } ${
-                isActive
-                  ? 'bg-accent text-foreground font-medium'
-                  : 'text-amber-600 dark:text-amber-400 hover:text-foreground hover:bg-accent'
-              }`}
+              className={`relative flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors ${ collapsed ? 'md:justify-center md:px-0' : '' } ${ isActive ? 'bg-accent text-foreground font-medium' : 'text-warning dark:text-warning hover:text-foreground hover:bg-accent' }`}
             >
               <ArrowDownCircle className="h-5 w-5 shrink-0" />
               <span className={`${collapsed ? 'md:hidden' : ''}`}>Updates</span>
               {collapsed ? (
-                <span className="hidden md:block absolute top-1 right-1 h-2 w-2 rounded-full bg-amber-500" />
+                <span className="hidden md:block absolute top-1 right-1 h-2 w-2 rounded-full bg-warning" />
               ) : (
-                <span className="h-2 w-2 rounded-full bg-amber-500 shrink-0" />
+                <span className="h-2 w-2 rounded-full bg-warning shrink-0" />
               )}
             </Link>
           )
@@ -332,9 +316,7 @@ export function AppSidebar({ reviewBadge, settingsBadge, notesBadge, pendingActi
         <button
           onClick={cycleTheme}
           title={collapsed ? themeLabel : undefined}
-          className={`flex w-full items-center gap-3 px-3 py-2 rounded-md text-xs transition-colors text-muted-foreground/60 hover:text-muted-foreground hover:bg-accent ${
-            collapsed ? 'md:justify-center md:px-0' : ''
-          }`}
+          className={`flex w-full items-center gap-3 px-3 py-2 rounded-md text-xs transition-colors text-muted-foreground/60 hover:text-muted-foreground hover:bg-accent ${ collapsed ? 'md:justify-center md:px-0' : '' }`}
         >
           <ThemeIcon className="h-5 w-5 shrink-0" />
           <span className={`flex-1 text-left ${collapsed ? 'md:hidden' : ''}`}>
@@ -346,9 +328,7 @@ export function AppSidebar({ reviewBadge, settingsBadge, notesBadge, pendingActi
         <button
           onClick={toggle}
           title={collapsed ? 'Show Sidebar' : 'Hide Sidebar'}
-          className={`hidden md:flex w-full items-center gap-3 px-3 py-2 rounded-md text-xs transition-colors text-muted-foreground/60 hover:text-muted-foreground hover:bg-accent ${
-            collapsed ? 'md:justify-center md:px-0' : ''
-          }`}
+          className={`hidden md:flex w-full items-center gap-3 px-3 py-2 rounded-md text-xs transition-colors text-muted-foreground/60 hover:text-muted-foreground hover:bg-accent ${ collapsed ? 'md:justify-center md:px-0' : '' }`}
         >
           {collapsed ? (
             <PanelLeftOpen className="h-5 w-5 shrink-0" />

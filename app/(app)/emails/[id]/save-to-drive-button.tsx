@@ -62,7 +62,7 @@ export function SaveToDriveButton({ emailId }: { emailId: string }) {
         {result === 'success' ? 'Saved' : 'Save to storage'}
       </Button>
       {result === 'error' && errorMsg && (
-        <span className="text-xs text-destructive flex items-center gap-1">
+        <span className="text-sm text-destructive flex items-center gap-1">
           <AlertCircle className="h-3 w-3" /> {errorMsg}
         </span>
       )}

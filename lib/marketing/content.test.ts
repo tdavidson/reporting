@@ -3,7 +3,8 @@ import { parseSiteContent, resolveIcon, type SiteContent } from './content'
 import { Circle, Mail } from 'lucide-react'
 
 const valid: SiteContent = {
-  hero: { title: 'Run your fund', subtitle: 'Open source portfolio reporting.' },
+  hero: { title: 'Run your fund', subtitle: 'Open source portfolio reporting.', emphasis: 'without the spreadsheets.' },
+  stats: [{ value: '$20B', label: 'Assets under administration' }],
   productGroups: [
     {
       key: 'portfolio_reporting',
@@ -56,6 +57,29 @@ describe('parseSiteContent', () => {
     expect(out?.faqs).toEqual([])
     expect(out?.pricing.tiers).toEqual([])
     expect(out?.links).toEqual({})
+    expect(out?.stats).toEqual([])
+  })
+
+  it('drops the hero emphasis when it is blank, keeping the headline', () => {
+    const out = parseSiteContent({ ...valid, hero: { title: 'A', subtitle: 'B', emphasis: '   ' } })
+    expect(out?.hero.title).toBe('A')
+    expect(out?.hero.emphasis).toBeUndefined()
+  })
+
+  it('ignores unknown keys on a group rather than rejecting it', () => {
+    // Stored content still carries `eyebrow` from before the section labels were
+    // dropped; parsing must skip it silently rather than fail the whole page.
+    const out = parseSiteContent({ ...valid, productGroups: [{ ...valid.productGroups[0], eyebrow: 'The platform' }] })
+    expect(out?.productGroups).toHaveLength(1)
+    expect(out?.productGroups[0]).not.toHaveProperty('eyebrow')
+  })
+
+  it('drops stats missing a value or label', () => {
+    const out = parseSiteContent({
+      ...valid,
+      stats: [{ value: '90%', label: 'Auto-categorised' }, { value: '', label: 'x' }, { value: 'y' }, 'nope'],
+    })
+    expect(out?.stats).toEqual([{ value: '90%', label: 'Auto-categorised' }])
   })
 
   it('drops an invalid product-group key but keeps the group', () => {

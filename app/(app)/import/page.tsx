@@ -318,7 +318,7 @@ export default function ImportPage() {
     <div className="p-4 md:p-8">
       <div className="mb-6 space-y-1">
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2">{fv.imports === 'admin' && <Lock className="h-4 w-4 text-amber-500" />}Import</h1>
+          <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2">{fv.imports === 'admin' && <Lock className="h-4 w-4 text-warning" />}Import</h1>
           <AnalystToggleButton />
         </div>
         <p className="text-sm text-muted-foreground">Upload documents and spreadsheets to populate your portfolio</p>
@@ -328,7 +328,7 @@ export default function ImportPage() {
       <div className="flex-1 min-w-0 max-w-3xl w-full">
       {/* Document Upload Section */}
       <div>
-        <h2 className="text-xl font-semibold tracking-tight mb-2">Document Upload</h2>
+        <h2 className="text-lg font-semibold tracking-tight mb-2">Document Upload</h2>
         <p className="text-sm text-muted-foreground mb-6">
           Upload documents (strategy decks, board materials, reports) and auto-match them to portfolio companies. These provide additional context for the AI analyst.
         </p>
@@ -424,13 +424,13 @@ export default function ImportPage() {
                             <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
                           )}
                           {f.status === 'done' && !f.textOnly && (
-                            <CheckCircle2 className="h-3.5 w-3.5 text-green-600" />
+                            <CheckCircle2 className="h-3.5 w-3.5 text-success" />
                           )}
                           {f.status === 'done' && f.textOnly && (
-                            <span className="text-xs text-amber-600" title="File exceeded 10 MB, only extracted text was stored (no native PDF/image)">Text only</span>
+                            <span className="text-sm text-warning" title="File exceeded 10 MB, only extracted text was stored (no native PDF/image)">Text only</span>
                           )}
                           {f.status === 'error' && (
-                            <span className="text-xs text-destructive" title={f.error}>Failed</span>
+                            <span className="text-sm text-destructive" title={f.error}>Failed</span>
                           )}
                         </td>
                       </tr>
@@ -458,7 +458,7 @@ export default function ImportPage() {
 
       {/* Paste Data Section */}
       <div className="mt-12 pt-8 border-t">
-        <h2 className="text-xl font-semibold tracking-tight mb-2">Paste Company Metrics</h2>
+        <h2 className="text-lg font-semibold tracking-tight mb-2">Paste Company Metrics</h2>
         <p className="text-sm text-muted-foreground mb-6">
           Paste CSV or spreadsheet data from Google Sheets. Claude will parse it to create companies, metrics, and historical values.
         </p>
@@ -520,7 +520,7 @@ export default function ImportPage() {
 
       {/* Investment Data Section */}
       <div className="mt-12 pt-8 border-t">
-        <h2 className="text-xl font-semibold tracking-tight mb-2">Paste Investment Data</h2>
+        <h2 className="text-lg font-semibold tracking-tight mb-2">Paste Investment Data</h2>
         <p className="text-sm text-muted-foreground mb-6">
           Paste investment transaction data (rounds, proceeds, valuations). AI will parse and match to existing portfolio companies.
         </p>

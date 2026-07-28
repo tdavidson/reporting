@@ -123,14 +123,14 @@ export function LpAccessSettings() {
         </div>
 
         {preview && (
-          <div className="mt-3 rounded-md border bg-muted/20 p-3 text-xs space-y-1">
+          <div className="mt-3 rounded-card border bg-muted/20 p-3 text-xs space-y-1">
             <div>{preview.lpInvites} LP invite(s){preview.authorizedInvites > 0 ? `, ${preview.authorizedInvites} authorized-user invite(s)` : ''}.</div>
             <div>
               {preview.matched} matched existing investor(s)
               {preview.toCreate.length > 0 ? `, ${preview.toCreate.length} new will be created: ${preview.toCreate.slice(0, 8).join(', ')}${preview.toCreate.length > 8 ? '…' : ''}` : ''}.
             </div>
             {preview.errors.length > 0 && (
-              <div className="text-amber-600 dark:text-amber-400">
+              <div className="text-warning">
                 {preview.errors.length} row(s) skipped: {preview.errors.slice(0, 5).map(e => `row ${e.row} (${e.message})`).join('; ')}{preview.errors.length > 5 ? '…' : ''}
               </div>
             )}
@@ -141,7 +141,7 @@ export function LpAccessSettings() {
           </div>
         )}
         {result && (
-          <div className="mt-3 rounded-md border border-emerald-300/50 bg-emerald-50 dark:bg-emerald-950/30 p-3 text-xs text-emerald-700 dark:text-emerald-300">
+          <div className="mt-3 rounded-card border border-success/50 bg-success-subtle dark:bg-success-subtle/30 p-3 text-xs text-success">
             Done, invited {result.lpInvites} LP(s){result.authorizedInvites > 0 ? ` and ${result.authorizedInvites} authorized user(s)` : ''}
             {result.toCreate.length > 0 ? `, created ${result.toCreate.length} investor(s)` : ''}.{result.errors.length > 0 ? ` ${result.errors.length} skipped.` : ''}
           </div>

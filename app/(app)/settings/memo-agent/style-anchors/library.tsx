@@ -29,17 +29,17 @@ interface AnchorListItem {
 }
 
 const VOICE_BADGE: Record<AnchorListItem['voice_representativeness'], { label: string; cls: string }> = {
-  exemplary:           { label: 'Exemplary',     cls: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200' },
-  representative:      { label: 'Representative',cls: 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-200' },
-  atypical:            { label: 'Atypical',      cls: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200' },
-  do_not_match_voice:  { label: 'Do not match',  cls: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300' },
+  exemplary:           { label: 'Exemplary',     cls: 'bg-success-subtle text-success dark:bg-success-subtle/40' },
+  representative:      { label: 'Representative',cls: 'bg-info-subtle text-info dark:bg-info-subtle/40' },
+  atypical:            { label: 'Atypical',      cls: 'bg-warning-subtle text-warning dark:bg-warning-subtle/40' },
+  do_not_match_voice:  { label: 'Do not match',  cls: 'bg-muted text-muted-foreground' },
 }
 
 const CONFIDENCE_NOTES: Record<Confidence, { label: string; help: string; cls: string }> = {
-  unavailable:  { label: 'Voice match unavailable', help: 'Upload at least one memo to start teaching the agent your voice.', cls: 'bg-gray-100 text-gray-700' },
-  preliminary:  { label: 'Preliminary voice match', help: 'With 1-2 memos the voice signal is weak. Plan to add a few more.', cls: 'bg-amber-100 text-amber-800' },
-  reliable:     { label: 'Reliable voice match',    help: 'With 3-7 memos the dominant voice is captured well.', cls: 'bg-blue-100 text-blue-800' },
-  robust:       { label: 'Robust voice match',      help: 'With 8+ memos voice patterns are robust across authors and vintages.', cls: 'bg-emerald-100 text-emerald-800' },
+  unavailable:  { label: 'Voice match unavailable', help: 'Upload at least one memo to start teaching the agent your voice.', cls: 'bg-muted text-muted-foreground' },
+  preliminary:  { label: 'Preliminary voice match', help: 'With 1-2 memos the voice signal is weak. Plan to add a few more.', cls: 'bg-warning-subtle text-warning' },
+  reliable:     { label: 'Reliable voice match',    help: 'With 3-7 memos the dominant voice is captured well.', cls: 'bg-info-subtle text-info' },
+  robust:       { label: 'Robust voice match',      help: 'With 8+ memos voice patterns are robust across authors and vintages.', cls: 'bg-success-subtle text-success' },
 }
 
 function nextConfidence(count: number): Confidence {
@@ -101,19 +101,19 @@ export function StyleAnchorsLibrary({ initialAnchors, initialConfidence, embedde
         </Button>
       </div>
 
-      <div className={`mb-6 rounded-md border p-3 text-sm dark:bg-opacity-20 ${note.cls}`}>
+      <div className={`mb-6 rounded-card border p-3 text-sm dark:bg-opacity-20 ${note.cls}`}>
         <div className="font-medium">{note.label}</div>
         <div className="opacity-80 mt-0.5 text-[13px]">{note.help}</div>
       </div>
 
       {anchors.length === 0 ? (
-        <div className="rounded-md border bg-card p-12 text-center text-sm text-muted-foreground">
+        <div className="rounded-card border bg-card p-12 text-center text-sm text-muted-foreground">
           No reference memos yet. Click Upload memo to add your first.
         </div>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {anchors.map(a => (
-            <div key={a.id} className="rounded-md border bg-card p-4 flex flex-col">
+            <div key={a.id} className="rounded-card border bg-card p-4 flex flex-col">
               <div className="flex items-start justify-between gap-2 mb-2">
                 <Link href={`/settings/memo-agent/style-anchors/${a.id}`} className="font-medium truncate hover:underline">
                   {a.title || a.file_name}
@@ -132,7 +132,7 @@ export function StyleAnchorsLibrary({ initialAnchors, initialConfidence, embedde
                   {a.extracted_at ? (
                     <span>Text extracted ({(a.extracted_text_length ?? 0).toLocaleString()} chars)</span>
                   ) : (
-                    <span className="text-amber-600">Text extraction failed, open to retry</span>
+                    <span className="text-warning">Text extraction failed, open to retry</span>
                   )}
                 </div>
                 {a.partner_notes && (

@@ -2,16 +2,17 @@
 
 import { useEffect, useState } from 'react'
 import type { IngestionOutput } from '@/lib/memo-agent/stages/ingest'
+import { Metric as Stat } from '@/components/ui/metric'
 
 const CRIT_BADGE: Record<string, string> = {
-  blocker: 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200',
-  important: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200',
-  nice_to_have: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300',
-  high: 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200',
-  material: 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200',
-  medium: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200',
-  minor: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200',
-  low: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300',
+  blocker: 'bg-destructive-subtle text-destructive dark:bg-destructive-subtle/40',
+  important: 'bg-warning-subtle text-warning dark:bg-warning-subtle/40',
+  nice_to_have: 'bg-muted text-muted-foreground',
+  high: 'bg-destructive-subtle text-destructive dark:bg-destructive-subtle/40',
+  material: 'bg-destructive-subtle text-destructive dark:bg-destructive-subtle/40',
+  medium: 'bg-warning-subtle text-warning dark:bg-warning-subtle/40',
+  minor: 'bg-warning-subtle text-warning dark:bg-warning-subtle/40',
+  low: 'bg-muted text-muted-foreground',
 }
 
 // Rank for sorting the merged inconsistencies list so the most severe float up.
@@ -73,12 +74,12 @@ export function IngestionSummary({ output, fileNamesById, dealId, draftId, edita
       </div>
 
       {saveError && (
-        <div className="rounded-md border border-destructive/40 bg-destructive/5 p-2 text-xs text-destructive">{saveError}</div>
+        <div className="rounded-md border border-destructive/40 bg-destructive/5 p-2 text-sm text-destructive">{saveError}</div>
       )}
 
       {gap.missing.length > 0 && (
         <section>
-          <h3 className="text-sm font-medium mb-2">
+          <h3 className="text-base font-medium mb-2">
             Missing documents
             {canEdit && <span className="ml-2 text-xs font-normal text-muted-foreground">— dismiss anything the agent flagged wrongly</span>}
           </h3>
@@ -106,7 +107,7 @@ export function IngestionSummary({ output, fileNamesById, dealId, draftId, edita
 
       {gap.inadequate.length > 0 && (
         <section>
-          <h3 className="text-sm font-medium mb-2">
+          <h3 className="text-base font-medium mb-2">
             Inadequate documents
             {canEdit && <span className="ml-2 text-xs font-normal text-muted-foreground">— dismiss anything the agent flagged wrongly</span>}
           </h3>
@@ -133,7 +134,7 @@ export function IngestionSummary({ output, fileNamesById, dealId, draftId, edita
       )}
 
       <section>
-        <h3 className="text-sm font-medium mb-2">Per-document extraction</h3>
+        <h3 className="text-base font-medium mb-2">Per-document extraction</h3>
         <div className="space-y-3">
           {output.documents.map(doc => (
             <div key={doc.document_id} className="rounded-md border bg-card">
@@ -144,7 +145,7 @@ export function IngestionSummary({ output, fileNamesById, dealId, draftId, edita
                 </div>
                 {doc.summary && <p className="text-sm mt-2">{doc.summary}</p>}
                 {doc.issues && doc.issues.length > 0 && (
-                  <ul className="text-xs text-amber-600 mt-2 list-disc list-inside">
+                  <ul className="text-sm text-warning mt-2 list-disc list-inside">
                     {doc.issues.map((s, i) => <li key={i}>{s}</li>)}
                   </ul>
                 )}
@@ -172,15 +173,6 @@ export function IngestionSummary({ output, fileNamesById, dealId, draftId, edita
           ))}
         </div>
       </section>
-    </div>
-  )
-}
-
-function Stat({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="rounded-md border bg-card p-3">
-      <div className="text-2xl font-semibold tracking-tight">{value}</div>
-      <div className="text-xs text-muted-foreground mt-0.5">{label}</div>
     </div>
   )
 }
@@ -238,13 +230,13 @@ export function InconsistenciesList({ contradictions, crossDocFlags, fileNamesBy
   ].sort((a, b) => (SEV_RANK[a.sev] ?? 1) - (SEV_RANK[b.sev] ?? 1))
 
   if (rows.length === 0) {
-    return <p className="text-xs text-muted-foreground italic">No contradictions or cross-document inconsistencies found.</p>
+    return <p className="text-sm text-muted-foreground">No contradictions or cross-document inconsistencies found.</p>
   }
 
   return (
     <div>
       {saveError && (
-        <div className="rounded-md border border-destructive/40 bg-destructive/5 p-2 mb-2 text-xs text-destructive">{saveError}</div>
+        <div className="rounded-md border border-destructive/40 bg-destructive/5 p-2 mb-2 text-sm text-destructive">{saveError}</div>
       )}
       <div className="rounded-md border bg-card divide-y">
         {rows.map((r, i) => (

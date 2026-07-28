@@ -57,10 +57,19 @@ const RANGE_OPTIONS = [
   { value: 3650, label: 'All time' },
 ]
 
+// Event kinds are categories, not states — a download is not "success" and a login
+// is not "info", which is what these used to say (plus a raw violet for download).
+//
+// They are not categorical slots either. Each kind already carries a distinct glyph
+// AND a text label, so colour would be a third encoding of something already
+// unambiguous. Validating the alternatives made the cost explicit: no three slots
+// clear all-pairs separation in both themes at legible icon contrast without
+// pulling in the red slot, which would paint "Download" as an error. Identity is
+// in the glyph; the icons stay in muted ink.
 const EVENT_META: Record<string, { label: string; icon: typeof Eye; className: string }> = {
-  login: { label: 'Login', icon: LogIn, className: 'text-blue-600 dark:text-blue-400' },
-  view: { label: 'View', icon: Eye, className: 'text-emerald-600 dark:text-emerald-400' },
-  download: { label: 'Download', icon: ArrowDownCircle, className: 'text-violet-600 dark:text-violet-400' },
+  login: { label: 'Login', icon: LogIn, className: 'text-muted-foreground' },
+  view: { label: 'View', icon: Eye, className: 'text-muted-foreground' },
+  download: { label: 'Download', icon: ArrowDownCircle, className: 'text-muted-foreground' },
 }
 
 const TARGET_LABELS: Record<string, string> = {
@@ -141,7 +150,7 @@ export function LpActivityDashboard() {
       )}
 
       {error && !loading && (
-        <div className="rounded-lg border border-destructive/40 bg-destructive/5 text-destructive text-sm p-4">{error}</div>
+        <div className="rounded-card border border-destructive/40 bg-destructive/5 text-destructive text-sm p-4">{error}</div>
       )}
 
       {data && !loading && (
@@ -169,7 +178,7 @@ export function LpActivityDashboard() {
           {/* Per-person rollup */}
           {data.people.length > 0 && (
             <div className="mb-8">
-              <h2 className="text-sm font-semibold mb-2">By person</h2>
+              <h2 className="text-base font-semibold mb-2">By person</h2>
               <div className="rounded-lg border overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>

@@ -114,13 +114,13 @@ export function DashboardChatButton() {
       <span className="relative">
         <MessageSquare className="h-3.5 w-3.5" />
         {!open && unreadCount > 0 && (
-          <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-blue-500" />
+          <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-info" />
         )}
       </span>
       Notes
-      {notesAdminOnly && <Lock className="h-3 w-3 text-amber-500" />}
+      {notesAdminOnly && <Lock className="h-3 w-3 text-warning" />}
       {!open && unreadCount > 0 && (
-        <span className="text-[10px] font-medium bg-blue-500 text-white rounded-full px-1 min-w-[16px] text-center">
+        <span className="text-[10px] font-medium bg-info text-white rounded-full px-1 min-w-[16px] text-center">
           {unreadCount}
         </span>
       )}
@@ -247,7 +247,7 @@ function NotesPanel({ ctx }: { ctx: NotesContextValue }) {
     <div className="flex flex-col h-full">
     <div className="max-h-[80vh] lg:max-h-[calc(100vh-6rem)] rounded-lg border bg-card flex flex-col flex-1">
       <div className="px-4 py-3 flex items-center justify-between">
-        <h2 className="text-sm font-medium text-muted-foreground">Team Notes</h2>
+        <h2 className="text-base font-medium text-muted-foreground">Team Notes</h2>
         <button onClick={toggle} className="hidden lg:block">
           <X className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground" />
         </button>
@@ -264,7 +264,7 @@ function NotesPanel({ ctx }: { ctx: NotesContextValue }) {
           <div key={note.id} className="group">
             <div className="flex items-center gap-2 mb-0.5">
               {!note.isRead && (
-                <span className="h-1.5 w-1.5 rounded-full bg-blue-500 shrink-0" />
+                <span className="h-1.5 w-1.5 rounded-full bg-info shrink-0" />
               )}
               <span className="text-xs font-medium">
                 {note.userName || note.userEmail.split('@')[0]}

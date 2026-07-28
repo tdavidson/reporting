@@ -140,7 +140,7 @@ export function EntryModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
       <div className="flex max-h-[90vh] w-full max-w-2xl flex-col rounded-lg border bg-card shadow-xl" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between border-b px-4 py-3">
-          <h2 className="text-sm font-medium">{isNew ? 'New journal entry' : editable ? 'Edit journal entry' : 'Journal entry'}</h2>
+          <h2 className="text-base font-medium">{isNew ? 'New journal entry' : editable ? 'Edit journal entry' : 'Journal entry'}</h2>
           <div className="flex items-center gap-2">
             {!editable && <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">Posted</span>}
             <button onClick={onClose} className="text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
@@ -156,7 +156,7 @@ export function EntryModal({
               <label className="text-xs text-muted-foreground">Date
                 {editable
                   ? <input type="date" value={date} onChange={e => setDate(e.target.value)} className="mt-0.5 block rounded border border-input bg-transparent px-2 py-1 text-sm" />
-                  : <span className="mt-0.5 block px-2 py-1 font-mono text-sm text-foreground">{date || '—'}</span>}
+                  : <span className="mt-0.5 block px-2 py-1 tabular-nums text-sm text-foreground">{date || '—'}</span>}
               </label>
               <label className="min-w-[200px] flex-1 text-xs text-muted-foreground">Memo
                 {editable
@@ -210,14 +210,14 @@ export function EntryModal({
                       </td>
                       {editable ? (
                         <>
-                          <td className="px-1 py-1"><input inputMode="decimal" value={l.debit} onChange={e => update(l.key, { debit: e.target.value, credit: '' })} className="w-full rounded border border-input bg-transparent px-1.5 py-1 text-right font-mono text-xs" /></td>
-                          <td className="px-1 py-1"><input inputMode="decimal" value={l.credit} onChange={e => update(l.key, { credit: e.target.value, debit: '' })} className="w-full rounded border border-input bg-transparent px-1.5 py-1 text-right font-mono text-xs" /></td>
+                          <td className="px-1 py-1"><input inputMode="decimal" value={l.debit} onChange={e => update(l.key, { debit: e.target.value, credit: '' })} className="w-full rounded border border-input bg-transparent px-1.5 py-1 text-right tabular-nums text-xs" /></td>
+                          <td className="px-1 py-1"><input inputMode="decimal" value={l.credit} onChange={e => update(l.key, { credit: e.target.value, debit: '' })} className="w-full rounded border border-input bg-transparent px-1.5 py-1 text-right tabular-nums text-xs" /></td>
                           <td className="py-1 text-right"><button onClick={() => setLines(prev => prev.filter(x => x.key !== l.key))} className="text-muted-foreground hover:text-destructive"><Trash2 className="h-3.5 w-3.5" /></button></td>
                         </>
                       ) : (
                         <>
-                          <td className="px-1 py-1 text-right font-mono text-xs">{num(l.debit) > 0 ? fmt(num(l.debit)) : ''}</td>
-                          <td className="px-1 py-1 text-right font-mono text-xs">{num(l.credit) > 0 ? fmt(num(l.credit)) : ''}</td>
+                          <td className="px-1 py-1 text-right tabular-nums text-xs">{num(l.debit) > 0 ? fmt(num(l.debit)) : ''}</td>
+                          <td className="px-1 py-1 text-right tabular-nums text-xs">{num(l.credit) > 0 ? fmt(num(l.credit)) : ''}</td>
                           <td />
                         </>
                       )}
@@ -228,16 +228,16 @@ export function EntryModal({
               <tfoot>
                 <tr className="border-t text-xs">
                   <td className="pt-1">{editable && <button onClick={() => setLines(prev => [...prev, newLine()])} className="inline-flex items-center gap-1 text-muted-foreground hover:text-foreground"><Plus className="h-3.5 w-3.5" /> Add line</button>}</td>
-                  <td className="pt-1 text-right font-mono">{fmt(totalDebit)}</td>
-                  <td className="pt-1 text-right font-mono">{fmt(totalCredit)}</td>
+                  <td className="pt-1 text-right tabular-nums">{fmt(totalDebit)}</td>
+                  <td className="pt-1 text-right tabular-nums">{fmt(totalCredit)}</td>
                   <td />
                 </tr>
               </tfoot>
             </table>
 
             <div className="flex items-center justify-between">
-              <span className={`text-xs ${diff === 0 ? 'text-muted-foreground' : 'text-amber-600'}`}>{diff === 0 ? 'Balanced' : `Out of balance by ${fmt(Math.abs(diff))}`}</span>
-              {error && <span className="text-xs text-destructive">{error}</span>}
+              <span className={`text-sm ${diff === 0 ? 'text-muted-foreground' : 'text-warning'}`}>{diff === 0 ? 'Balanced' : `Out of balance by ${fmt(Math.abs(diff))}`}</span>
+              {error && <span className="text-sm text-destructive">{error}</span>}
             </div>
             </div>
 

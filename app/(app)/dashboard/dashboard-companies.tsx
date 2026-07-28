@@ -173,7 +173,7 @@ export function DashboardCompanies({ companies, allGroups, canAdd }: Props) {
       )}
 
       {filtered.length === 0 ? (
-        <div className="rounded-lg border border-dashed p-12 text-center space-y-3">
+        <div className="rounded-card border border-dashed p-12 text-center space-y-3">
           {companies.length === 0 ? (
             <>
               <p className="text-muted-foreground">No portfolio companies yet.</p>
@@ -266,12 +266,12 @@ function CompanyGrid({ companies }: { companies: Company[] }) {
           <Link
             key={c.id}
             href={`/companies/${c.id}`}
-            className="rounded-lg border bg-card p-4 hover:bg-accent/50 transition-colors"
+            className="rounded-card border bg-card p-4 hover:bg-accent/50 transition-colors"
           >
               <div className="flex items-center justify-between mb-1">
                 <span className="font-medium text-sm">{c.name}</span>
                 {c.openReviews > 0 && (
-                  <span className="rounded-full bg-amber-500 text-white text-[10px] font-semibold leading-none px-1.5 py-0.5 min-w-[18px] text-center">
+                  <span className="rounded-full bg-warning text-white text-[10px] font-semibold leading-none px-1.5 py-0.5 min-w-[18px] text-center">
                     {c.openReviews}
                   </span>
                 )}
@@ -352,7 +352,7 @@ function ExitedMetricDisplay({ company }: { company: Company }) {
     <div className="grid grid-cols-2 gap-3 mt-3">
       <div className="min-w-0">
         <div className="text-[10px] text-muted-foreground truncate mb-0.5">Net Gain</div>
-        <div className={`text-xl font-semibold tabular-nums truncate ${netGain != null && netGain < 0 ? 'text-red-500' : ''}`}>
+        <div className={`text-xl font-semibold tabular-nums truncate ${netGain != null && netGain < 0 ? 'text-destructive' : ''}`}>
           {netGain != null ? formatCurrency(netGain) : '\u2014'}
         </div>
       </div>

@@ -120,7 +120,7 @@ export function AffinityConnect() {
         {status.connected ? (
           <>
             <div className="flex items-center gap-2 text-sm">
-              <CheckCircle2 className="h-4 w-4 text-green-600" />
+              <CheckCircle2 className="h-4 w-4 text-success" />
               <span>
                 Connected as {status.affinity_user_name ?? status.affinity_user_email ?? 'your Affinity account'}
                 {status.affinity_user_name && status.affinity_user_email && (
@@ -130,7 +130,7 @@ export function AffinityConnect() {
             </div>
 
             {status.last_error && (
-              <div className="flex items-start gap-2 text-sm text-amber-600">
+              <div className="flex items-start gap-2 text-sm text-warning">
                 <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
                 <span>{status.last_error} Re-enter your key below to reconnect.</span>
               </div>
@@ -178,7 +178,7 @@ export function AffinityConnect() {
         {/* How the sync actually behaves. It was doing all of this already and saying none
             of it, so nobody could tell whether they had to press anything. */}
         {status.connected && (
-          <div className="rounded-md border bg-muted/30 p-3 space-y-1.5">
+          <div className="rounded-card border bg-muted/30 p-3 space-y-1.5">
             <p className="text-xs font-medium">How the sync works</p>
             <ul className="text-xs text-muted-foreground space-y-1 list-disc ml-4">
               <li>

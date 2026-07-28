@@ -66,11 +66,11 @@ export function RenameInvestorDialog({ target, onClose, onSaved }: {
           disabled={saving}
         />
 
-        {err && <p className="text-xs text-destructive">{err}</p>}
+        {err && <p className="text-sm text-destructive">{err}</p>}
 
         {conflict && !confirmMerge && (
-          <div className="space-y-2 rounded-md border border-destructive/30 bg-destructive/5 p-3">
-            <p className="text-xs text-destructive">
+          <div className="space-y-2 rounded-card border border-destructive/30 bg-destructive/5 p-3">
+            <p className="text-sm text-destructive">
               An investor named &ldquo;{name.trim()}&rdquo; already exists. Rename won&rsquo;t merge them.
             </p>
             <Button variant="outline" size="sm" onClick={() => setConfirmMerge(true)} disabled={saving}>
@@ -80,8 +80,8 @@ export function RenameInvestorDialog({ target, onClose, onSaved }: {
         )}
 
         {conflict && confirmMerge && (
-          <div className="space-y-2 rounded-md border border-destructive/30 bg-destructive/5 p-3">
-            <p className="text-xs text-destructive">
+          <div className="space-y-2 rounded-card border border-destructive/30 bg-destructive/5 p-3">
+            <p className="text-sm text-destructive">
               This deletes this investor and moves its positions into &ldquo;{name.trim()}&rdquo;. This can&rsquo;t be undone.
             </p>
             <div className="flex gap-2">

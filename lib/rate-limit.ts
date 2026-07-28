@@ -116,7 +116,18 @@ export async function rateLimit(config: RateLimitConfig): Promise<NextResponse |
  * share a single rate-limit bucket with a tighter effective limit.
  */
 export function getClientIp(req: Request): string {
-  const headers = req.headers
+  return getClientIpFromHeaders(req.headers)
+}
+
+/**
+ * The same lookup for callers that hold headers but no Request — server actions, which
+ * reach them through `headers()` from next/headers.
+ *
+ * This deployment runs on Vercel; the Netlify header stays in the list because the repo is
+ * meant to be installable elsewhere, and this function is about portability rather than about
+ * where we happen to deploy.
+ */
+export function getClientIpFromHeaders(headers: { get(name: string): string | null }): string {
   return (
     // Vercel injects x-real-ip from the TCP connection (cannot be spoofed)
     headers.get('x-real-ip') ||

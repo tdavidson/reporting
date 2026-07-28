@@ -47,14 +47,14 @@ type ReviewRow = {
 // ---------------------------------------------------------------------------
 
 const STATUS_VARIANTS: Record<string, { label: string; className: string }> = {
-  pending: { label: 'Pending', className: 'bg-slate-100 text-slate-700 border-slate-200' },
-  processing: { label: 'Processing', className: 'bg-blue-100 text-blue-800 border-blue-200' },
-  success: { label: 'Success', className: 'bg-green-100 text-green-800 border-green-200' },
-  not_processed: { label: 'Skipped', className: 'bg-gray-100 text-gray-600 border-gray-200' },
-  failed: { label: 'Failed', className: 'bg-red-100 text-red-800 border-red-200' },
+  pending: { label: 'Pending', className: 'bg-muted text-muted-foreground border-border' },
+  processing: { label: 'Processing', className: 'bg-info-subtle text-info border-info' },
+  success: { label: 'Success', className: 'bg-success-subtle text-success border-success' },
+  not_processed: { label: 'Skipped', className: 'bg-muted text-muted-foreground border-border' },
+  failed: { label: 'Failed', className: 'bg-destructive-subtle text-destructive border-destructive' },
   needs_review: {
     label: 'Review',
-    className: 'bg-amber-100 text-amber-800 border-amber-200',
+    className: 'bg-warning-subtle text-warning border-warning',
   },
 }
 
@@ -189,7 +189,7 @@ export default async function EmailDetailPage({ params }: { params: { id: string
       {email.processing_error && (() => {
         const isWarning = email.processing_status === 'success' || email.processing_status === 'needs_review' || email.processing_status === 'not_processed'
         return (
-          <div className={`rounded-lg border p-4 text-sm ${isWarning ? 'border-amber-200 bg-amber-50 text-amber-800' : 'border-red-200 bg-red-50 text-red-800'}`}>
+          <div className={`rounded-card border p-4 text-sm ${isWarning ? 'border-warning bg-warning-subtle text-warning' : 'border-destructive bg-destructive-subtle text-destructive'}`}>
             <p className="font-medium mb-1">{isWarning ? 'Warning' : 'Processing error'}</p>
             <p className="text-xs break-all">{email.processing_error}</p>
           </div>
@@ -199,7 +199,7 @@ export default async function EmailDetailPage({ params }: { params: { id: string
       {/* Metrics written */}
       {metricValues.length > 0 && (
         <section>
-          <h2 className="text-sm font-semibold mb-2">Metrics Written ({metricValues.length})</h2>
+          <h2 className="text-base font-semibold mb-2">Metrics Written ({metricValues.length})</h2>
           <div className="rounded-lg border overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-muted/50 border-b">
@@ -225,7 +225,7 @@ export default async function EmailDetailPage({ params }: { params: { id: string
                     <tr key={mv.id}>
                       <td className="px-4 py-2.5 font-medium">{metric?.name ?? '—'}</td>
                       <td className="px-4 py-2.5 text-muted-foreground">{mv.period_label}</td>
-                      <td className="px-4 py-2.5 font-mono">{formatValue(mv, metric)}</td>
+                      <td className="px-4 py-2.5 tabular-nums">{formatValue(mv, metric)}</td>
                       <td className="px-4 py-2.5">
                         <ConfidenceBadge confidence={mv.confidence} />
                       </td>
@@ -244,7 +244,7 @@ export default async function EmailDetailPage({ params }: { params: { id: string
       {/* Attachments */}
       {attachments.length > 0 && (
         <section>
-          <h2 className="text-sm font-semibold mb-2">Attachments ({attachments.length})</h2>
+          <h2 className="text-base font-semibold mb-2">Attachments ({attachments.length})</h2>
           <div className="space-y-1.5">
             {attachments.map((att, i) => (
               <div
@@ -265,8 +265,8 @@ export default async function EmailDetailPage({ params }: { params: { id: string
       {/* Email body */}
       {textBody && (
         <section>
-          <h2 className="text-sm font-semibold mb-2">Email Body</h2>
-          <pre className="text-xs bg-muted rounded-lg p-4 whitespace-pre-wrap break-words font-mono max-h-96 overflow-auto border">
+          <h2 className="text-base font-semibold mb-2">Email Body</h2>
+          <pre className="text-xs bg-muted rounded-card p-4 whitespace-pre-wrap break-words font-mono max-h-96 overflow-auto border">
             {textBody}
           </pre>
         </section>
@@ -333,9 +333,9 @@ export default async function EmailDetailPage({ params }: { params: { id: string
 
 function ConfidenceBadge({ confidence }: { confidence: string }) {
   const styles: Record<string, string> = {
-    high: 'bg-green-100 text-green-800 border-green-200',
-    medium: 'bg-amber-100 text-amber-800 border-amber-200',
-    low: 'bg-red-100 text-red-800 border-red-200',
+    high: 'bg-success-subtle text-success border-success',
+    medium: 'bg-warning-subtle text-warning border-warning',
+    low: 'bg-destructive-subtle text-destructive border-destructive',
   }
   return (
     <span

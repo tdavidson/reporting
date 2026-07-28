@@ -174,13 +174,13 @@ export function QAChat({ dealId, dealName }: { dealId: string; dealName: string 
       </div>
 
       {finished && (
-        <div className="rounded-md border border-emerald-500/40 bg-emerald-50/50 dark:bg-emerald-900/10 p-4 mb-4">
-          <CheckCircle2 className="h-5 w-5 text-emerald-600 inline mr-2" />
+        <div className="rounded-card border border-success/40 bg-success-subtle/50 dark:bg-success-subtle/10 p-4 mb-4">
+          <CheckCircle2 className="h-5 w-5 text-success inline mr-2" />
           Q&amp;A complete. Returning to the deal…
         </div>
       )}
 
-      {error && <div className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive mb-4">{error}</div>}
+      {error && <div className="rounded-card border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive mb-4">{error}</div>}
 
       {/* Partner-authored questions, your own question + your take, fed to the memo. */}
       {!finished && (
@@ -222,7 +222,7 @@ export function QAChat({ dealId, dealName }: { dealId: string; dealName: string 
       )}
 
       {covered.length > 0 && (
-        <div className="rounded-md border bg-muted/20 p-3 mb-4 text-xs space-y-1">
+        <div className="rounded-card border bg-muted/20 p-3 mb-4 text-xs space-y-1">
           <div className="font-medium text-muted-foreground">Skipped, already covered</div>
           {covered.map(c => (
             <div key={c.question_id}>
@@ -233,14 +233,14 @@ export function QAChat({ dealId, dealName }: { dealId: string; dealName: string 
       )}
 
       {loading && (
-        <div className="rounded-md border bg-card p-12 text-center text-sm text-muted-foreground">
+        <div className="rounded-card border bg-card p-12 text-center text-sm text-muted-foreground">
           <Loader2 className="h-5 w-5 animate-spin mx-auto mb-2" />
           Fetching next batch of questions…
         </div>
       )}
 
       {!loading && batch.length === 0 && !finished && (
-        <div className="rounded-md border bg-card p-8 text-center">
+        <div className="rounded-card border bg-card p-8 text-center">
           <p className="text-sm text-muted-foreground mb-3">
             No more questions to ask. {answeredCount > 0 ? 'Finish the Q&A to write answers to the draft.' : 'You can finish without answers if needed.'}
           </p>
@@ -254,14 +254,14 @@ export function QAChat({ dealId, dealName }: { dealId: string; dealName: string 
       {!loading && batch.length > 0 && (
         <div className="space-y-3">
           {batch.map(item => (
-            <div key={item.question_id} className="rounded-md border bg-card p-4">
+            <div key={item.question_id} className="rounded-card border bg-card p-4">
               <div className="flex items-start gap-2 mb-2">
                 <span className="font-mono text-[10px] text-muted-foreground mt-1">{item.question_id}</span>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium">{item.prompt}</p>
                   <p className="text-[11px] text-muted-foreground mt-0.5">
                     <span className="capitalize">{item.category.replace(/_/g, ' ')}</span>
-                    {item.sensitivity === 'high' && <span className="ml-2 text-amber-600">· high sensitivity</span>}
+                    {item.sensitivity === 'high' && <span className="ml-2 text-warning">· high sensitivity</span>}
                   </p>
                   {item.rationale && (
                     <p className="text-[11px] text-muted-foreground italic mt-0.5">Why now: {item.rationale}</p>

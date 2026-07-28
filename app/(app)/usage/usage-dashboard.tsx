@@ -161,7 +161,7 @@ export function UsageDashboard() {
     <div className="p-4 md:py-8 md:pl-8 md:pr-4">
       <div className="mb-6 space-y-1">
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2"><Lock className="h-4 w-4 text-amber-500" />AI Usage</h1>
+          <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2"><Lock className="h-4 w-4 text-warning" />AI Usage</h1>
           <AnalystToggleButton />
         </div>
         <p className="text-sm text-muted-foreground">{monthLabel} &mdash; month to date</p>
@@ -284,7 +284,7 @@ export function UsageDashboard() {
 
       {/* User activity disabled notice */}
       {!activity && (
-        <div className="rounded-lg border bg-muted/30 p-5">
+        <div className="rounded-card border bg-muted/30 p-5">
           <p className="text-sm text-muted-foreground">
             Per-user activity tracking is turned off. AI token usage above is always recorded regardless of this setting.
             User activity logs (logins, actions, and the activity feed) can be enabled in{' '}

@@ -61,17 +61,18 @@ const nextConfig = {
     const noCacheHeaders = [
       { key: 'Cache-Control', value: 'no-store, no-cache, must-revalidate' },
       { key: 'CDN-Cache-Control', value: 'no-store' },
-      { key: 'Netlify-CDN-Cache-Control', value: 'no-store' },
     ]
 
     return [
-      // Security headers for pages and API routes only — exclude _next/static
-      // so Netlify CDN can serve JS/CSS chunks directly without interference.
+      // Security headers for pages and API routes only — exclude _next/static so the CDN can
+      // serve immutable JS/CSS chunks straight from cache without these headers in the way.
       {
         source: '/((?!_next/static).*)',
         headers: securityHeaders,
       },
-      // Prevent caching on auth and demo routes
+      // Prevent caching on auth and demo routes. /demo matters most: it is a client component
+      // with no dynamic server API, so nothing else stops it being prerendered and served
+      // stale — and a stale demo page is one that never runs its sign-in.
       { source: '/auth/:path*', headers: noCacheHeaders },
       { source: '/demo', headers: noCacheHeaders },
       { source: '/api/auth/:path*', headers: noCacheHeaders },

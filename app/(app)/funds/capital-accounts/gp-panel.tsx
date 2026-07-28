@@ -105,9 +105,9 @@ export function GpPanel({ isAdmin }: { isAdmin: boolean }) {
   const nameById = new Map(gp.partners.map(p => [p.lpEntityId, p.name]))
 
   return (
-    <div className="rounded-lg border p-4 space-y-4">
+    <div className="rounded-card border p-4 space-y-4">
       <div className="space-y-1">
-        <h2 className="text-sm font-medium">
+        <h2 className="text-base font-medium">
           {gp.link.vehicle}
           <span className="ml-2 text-xs font-normal text-muted-foreground">GP of {gp.link.servesVehicle}</span>
         </h2>
@@ -130,7 +130,7 @@ export function GpPanel({ isAdmin }: { isAdmin: boolean }) {
         )}
       </p>
 
-      {error && <p className="text-xs text-red-600">{error}</p>}
+      {error && <p className="text-sm text-destructive">{error}</p>}
 
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
@@ -148,7 +148,7 @@ export function GpPanel({ isAdmin }: { isAdmin: boolean }) {
               <tr key={p.lpEntityId} className="border-t">
                 <td className="px-3 py-1.5">{p.name}</td>
 
-                <td className="px-3 py-1.5 text-right font-mono">
+                <td className="px-3 py-1.5 text-right tabular-nums">
                   {isAdmin ? (
                     <WeightInput
                       value={p.carryWeight ?? ''}
@@ -160,25 +160,25 @@ export function GpPanel({ isAdmin }: { isAdmin: boolean }) {
                   ) : pct(p.carryPct)}
                 </td>
 
-                <td className="px-3 py-1.5 text-right font-mono">{fmt(p.carryAccrued)}</td>
-                <td className="px-3 py-1.5 text-right font-mono">{fmt(p.carryPaid)}</td>
-                <td className="px-3 py-1.5 text-right font-mono font-medium">{fmt(p.carryUnpaid)}</td>
+                <td className="px-3 py-1.5 text-right tabular-nums">{fmt(p.carryAccrued)}</td>
+                <td className="px-3 py-1.5 text-right tabular-nums">{fmt(p.carryPaid)}</td>
+                <td className="px-3 py-1.5 text-right tabular-nums font-medium">{fmt(p.carryUnpaid)}</td>
               </tr>
             ))}
 
             <tr className="border-t font-medium">
               <td className="px-3 py-1.5">Total</td>
               <td />
-              <td className="px-3 py-1.5 text-right font-mono">{fmt(gp.totals.carryAccrued)}</td>
-              <td className="px-3 py-1.5 text-right font-mono">{fmt(gp.totals.carryPaid)}</td>
-              <td className="px-3 py-1.5 text-right font-mono">{fmt(gp.totals.carryUnpaid)}</td>
+              <td className="px-3 py-1.5 text-right tabular-nums">{fmt(gp.totals.carryAccrued)}</td>
+              <td className="px-3 py-1.5 text-right tabular-nums">{fmt(gp.totals.carryPaid)}</td>
+              <td className="px-3 py-1.5 text-right tabular-nums">{fmt(gp.totals.carryUnpaid)}</td>
             </tr>
           </tbody>
         </table>
       </div>
 
       {gp.partners.some(p => p.carryUnpaid < -0.005) && (
-        <p className="text-xs text-amber-600">
+        <p className="text-sm text-warning">
           A negative <strong>carry unpaid</strong> means more carry has been paid than is currently accrued (NAV fell
           after a payment) — an over-distribution to claw back, not an amount owed.
         </p>
@@ -194,7 +194,7 @@ export function GpPanel({ isAdmin }: { isAdmin: boolean }) {
         </p>
       ) : (
         <div className="space-y-2">
-          <h3 className="text-sm font-medium">Carry payments</h3>
+          <h3 className="text-base font-medium">Carry payments</h3>
           <p className="text-xs text-muted-foreground">Carry paid to each partner — the total per partner feeds the table above.</p>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -214,10 +214,10 @@ export function GpPanel({ isAdmin }: { isAdmin: boolean }) {
                   <tr key={pay.id} className="border-t">
                     <td className="px-3 py-1.5">{nameById.get(pay.lpEntityId) ?? pay.lpEntityId}</td>
                     <td className="px-3 py-1.5 text-muted-foreground">{pay.date}</td>
-                    <td className="px-3 py-1.5 text-right font-mono">{fmt(pay.amount)}</td>
+                    <td className="px-3 py-1.5 text-right tabular-nums">{fmt(pay.amount)}</td>
                     {isAdmin && (
                       <td className="px-3 py-1.5 text-right">
-                        <button onClick={() => deletePayment(pay.id)} disabled={saving === 'del' + pay.id} className="text-muted-foreground hover:text-red-600">
+                        <button onClick={() => deletePayment(pay.id)} disabled={saving === 'del' + pay.id} className="text-muted-foreground hover:text-destructive">
                           {saving === 'del' + pay.id ? <Loader2 className="h-3.5 w-3.5 animate-spin inline" /> : <Trash2 className="h-3.5 w-3.5 inline" />}
                         </button>
                       </td>
@@ -275,7 +275,7 @@ function WeightInput({
         onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
         inputMode="decimal"
         placeholder={placeholder}
-        className="h-8 w-20 text-right font-mono"
+        className="h-8 w-20 text-right tabular-nums"
       />
       {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <span className="text-xs text-muted-foreground w-14">{suffix}</span>}
     </span>

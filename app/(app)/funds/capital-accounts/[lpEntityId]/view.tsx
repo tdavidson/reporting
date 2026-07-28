@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input'
 import { useCurrency, formatCurrencyPrice } from '@/components/currency-context'
 import { useLedgerFetch, useVehicle } from '@/components/accounting-vehicle'
 import { PERIOD_PRESETS, type PeriodPreset } from '@/lib/accounting/statement-period'
+import { EmptyState } from '@/components/ui/empty-state'
 
 interface Row { lpEntityId: string; name: string; partnerClass: string; commitment: number; called: number; funded: number; outstanding: number; receivable: number; ending: number }
 interface RollForward {
@@ -66,7 +67,7 @@ export function LpStatementView({ lpEntityId }: { lpEntityId: string }) {
   }, [lf, lpEntityId, preset, start, end])
 
   if (loading) return <div className="flex items-center gap-2 text-muted-foreground text-sm"><Loader2 className="h-4 w-4 animate-spin" />Loading…</div>
-  if (!data) return <div className="border border-dashed rounded-lg p-8 text-center text-sm text-muted-foreground">No statement for this LP in the selected vehicle.</div>
+  if (!data) return <EmptyState>No statement for this LP in the selected vehicle.</EmptyState>
 
   const { row, rollForward, periodRollForward, transactions, period } = data
   const pdfQs = new URLSearchParams({ lp: lpEntityId })
@@ -109,9 +110,9 @@ export function LpStatementView({ lpEntityId }: { lpEntityId: string }) {
 
       <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
         {cards.map(c => (
-          <div key={c.label} className="border rounded-lg p-3">
+          <div key={c.label} className="border rounded-card p-3">
             <p className="text-xs text-muted-foreground">{c.label}</p>
-            <p className="text-lg font-mono font-semibold mt-0.5">{fmt(c.value)}</p>
+            <p className="text-lg tabular-nums font-semibold mt-0.5">{fmt(c.value)}</p>
           </div>
         ))}
       </div>
@@ -150,8 +151,8 @@ export function LpStatementView({ lpEntityId }: { lpEntityId: string }) {
               {lines.map(r => (
                 <tr key={r.key} className={`border-b last:border-b-0 ${r.key === 'ending' ? 'font-semibold bg-muted/30' : ''}`}>
                   <td className="px-3 py-2">{r.label}</td>
-                  <td className={`px-3 py-2 text-right font-mono ${r.key === 'unclassified' && Math.abs(periodRollForward[r.key]) > 0.004 ? 'text-amber-600' : ''}`}>{fmt(periodRollForward[r.key])}</td>
-                  <td className={`px-3 py-2 text-right font-mono ${r.key === 'unclassified' && Math.abs(rollForward[r.key]) > 0.004 ? 'text-amber-600' : ''}`}>{fmt(rollForward[r.key])}</td>
+                  <td className={`px-3 py-2 text-right tabular-nums ${r.key === 'unclassified' && Math.abs(periodRollForward[r.key]) > 0.004 ? 'text-warning' : ''}`}>{fmt(periodRollForward[r.key])}</td>
+                  <td className={`px-3 py-2 text-right tabular-nums ${r.key === 'unclassified' && Math.abs(rollForward[r.key]) > 0.004 ? 'text-warning' : ''}`}>{fmt(rollForward[r.key])}</td>
                 </tr>
               ))}
             </tbody>
@@ -162,7 +163,7 @@ export function LpStatementView({ lpEntityId }: { lpEntityId: string }) {
       <div>
         <p className="text-sm font-medium mb-2">Transactions</p>
         {transactions.length === 0 ? (
-          <div className="border border-dashed rounded-lg p-6 text-center text-sm text-muted-foreground">No capital movements yet.</div>
+          <EmptyState>No capital movements yet.</EmptyState>
         ) : (
           <div className="border rounded-lg overflow-x-auto">
             <table className="w-full text-sm whitespace-nowrap">
@@ -178,11 +179,11 @@ export function LpStatementView({ lpEntityId }: { lpEntityId: string }) {
               <tbody>
                 {transactions.map((t, i) => (
                   <tr key={i} className="border-b last:border-b-0 hover:bg-muted/30">
-                    <td className="px-3 py-2 font-mono text-xs">{t.date}</td>
+                    <td className="px-3 py-2 tabular-nums text-xs">{t.date}</td>
                     <td className="px-3 py-2">{t.memo ?? '—'}</td>
                     <td className="px-3 py-2 text-xs text-muted-foreground">{t.sourceType ?? '—'}</td>
-                    <td className="px-3 py-2 text-right font-mono">{fmt(t.amount)}</td>
-                    <td className="px-3 py-2 text-right font-mono">{fmt(t.balance)}</td>
+                    <td className="px-3 py-2 text-right tabular-nums">{fmt(t.amount)}</td>
+                    <td className="px-3 py-2 text-right tabular-nums">{fmt(t.balance)}</td>
                   </tr>
                 ))}
               </tbody>

@@ -45,14 +45,14 @@ interface EmailsData {
 // ---------------------------------------------------------------------------
 
 const STATUS_VARIANTS: Record<string, { label: string; className: string }> = {
-  pending: { label: 'Pending', className: 'bg-slate-100 text-slate-700 border-slate-200' },
-  processing: { label: 'Processing', className: 'bg-blue-100 text-blue-800 border-blue-200' },
-  success: { label: 'Success', className: 'bg-green-100 text-green-800 border-green-200' },
-  not_processed: { label: 'Skipped', className: 'bg-gray-100 text-gray-600 border-gray-200' },
-  failed: { label: 'Failed', className: 'bg-red-100 text-red-800 border-red-200' },
+  pending: { label: 'Pending', className: 'bg-muted text-muted-foreground border-border' },
+  processing: { label: 'Processing', className: 'bg-info-subtle text-info border-info' },
+  success: { label: 'Success', className: 'bg-success-subtle text-success border-success' },
+  not_processed: { label: 'Skipped', className: 'bg-muted text-muted-foreground border-border' },
+  failed: { label: 'Failed', className: 'bg-destructive-subtle text-destructive border-destructive' },
   needs_review: {
     label: 'Review',
-    className: 'bg-amber-100 text-amber-800 border-amber-200',
+    className: 'bg-warning-subtle text-warning border-warning',
   },
 }
 
@@ -351,7 +351,7 @@ export default function EmailsPage() {
               className="h-8 px-2 text-muted-foreground hover:text-foreground transition-colors"
               title="Copy to clipboard"
             >
-              {copied ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
+              {copied ? <Check className="h-4 w-4 text-success" /> : <Copy className="h-4 w-4" />}
             </button>
           </div>
         )}
@@ -375,7 +375,7 @@ export default function EmailsPage() {
             className="h-8 px-2 text-muted-foreground hover:text-foreground transition-colors"
             title="Copy to clipboard"
           >
-            {copied ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
+            {copied ? <Check className="h-4 w-4 text-success" /> : <Copy className="h-4 w-4" />}
           </button>
         </div>
       )}
@@ -446,7 +446,7 @@ export default function EmailsPage() {
                     if (needsSetup) {
                       return (
                         <button
-                          className="text-amber-600 hover:text-amber-700 font-medium text-sm underline underline-offset-2"
+                          className="text-warning hover:text-warning font-medium text-sm underline underline-offset-2"
                           onClick={(e) => {
                             e.stopPropagation()
                             setReviewModalEmailId(email.id)

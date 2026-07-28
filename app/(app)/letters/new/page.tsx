@@ -146,7 +146,7 @@ export default function NewLetterPage() {
     <div className="p-4 md:py-8 md:pl-8 md:pr-4 max-w-3xl">
       <div className="mb-6 space-y-1">
         <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2">
-          {fv.lp_letters === 'admin' && <Lock className="h-4 w-4 text-amber-500" />}New Letter
+          {fv.lp_letters === 'admin' && <Lock className="h-4 w-4 text-warning" />}New Letter
         </h1>
         <p className="text-sm text-muted-foreground">
           Step {step} of 2, {step === 1 ? 'Select period' : 'Review & generate'}
@@ -242,8 +242,8 @@ export default function NewLetterPage() {
 
       {step === 2 && preview && (
         <div className="space-y-6">
-          <div className="rounded-lg border bg-muted/30 p-4">
-            <h2 className="font-medium text-sm mb-2">{preview.fundName}, {preview.periodLabel}</h2>
+          <div className="rounded-card border bg-muted/30 p-4">
+            <h2 className="font-medium text-base mb-2">{preview.fundName}, {preview.periodLabel}</h2>
             <div className="grid grid-cols-3 gap-4 text-sm">
               <div>
                 <p className="text-muted-foreground text-xs">Capital Deployed</p>
@@ -264,10 +264,10 @@ export default function NewLetterPage() {
           </div>
 
           <div>
-            <h3 className="font-medium text-sm mb-3">Companies ({preview.companies.length})</h3>
+            <h3 className="font-medium text-base mb-3">Companies ({preview.companies.length})</h3>
             <div className="space-y-2">
               {preview.companies.map(c => (
-                <div key={c.investment.companyId} className="rounded-lg border p-3">
+                <div key={c.investment.companyId} className="rounded-card border p-3">
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm font-medium">{c.investment.companyName}</p>
@@ -318,7 +318,7 @@ export default function NewLetterPage() {
           </div>
 
           {creating && (
-            <div className="rounded-lg border bg-muted/30 p-4">
+            <div className="rounded-card border bg-muted/30 p-4">
               <p className="text-sm text-muted-foreground">
                 Generating narratives for {preview.companies.length} companies. This may take a minute...
               </p>

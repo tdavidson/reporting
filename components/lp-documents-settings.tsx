@@ -101,7 +101,7 @@ export function LpDocumentsSettings() {
         Upload files for your LPs (fund financials, statements, …). Choose who sees each file: every LP in this fund, all investors in a specific investment vehicle, or hand-picked investors. They appear in the LP portal&apos;s Documents tab, grouped by category.
       </p>
 
-      <div className="rounded-md border p-3 space-y-3">
+      <div className="rounded-card border p-3 space-y-3">
         <div className="flex flex-wrap gap-2 items-center">
           <Input value={title} onChange={e => setTitle(e.target.value)} placeholder="Document title" className="h-8 text-sm flex-1 min-w-[160px]" />
           <input id="lp-doc-file" type="file" onChange={e => setFile(e.target.files?.[0] ?? null)} className="text-xs" />
@@ -126,7 +126,7 @@ export function LpDocumentsSettings() {
           <Button size="sm" onClick={upload} disabled={uploading || !file || !title.trim()}>
             {uploading ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Upload className="h-3.5 w-3.5 mr-1" />}Upload
           </Button>
-          {error && <span className="text-xs text-destructive">{error}</span>}
+          {error && <span className="text-sm text-destructive">{error}</span>}
         </div>
         {scope === 'investor' && (
           <div className="rounded-md border divide-y max-h-48 overflow-y-auto">

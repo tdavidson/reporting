@@ -5,6 +5,7 @@ import { Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { AnalystToggleButton } from '@/components/analyst-button'
 import { AnalystPanel } from '@/components/analyst-panel'
+import { EmptyState } from '@/components/ui/empty-state'
 
 interface PreviewResult {
   summary: string
@@ -96,9 +97,7 @@ export default function PendingActionsPage() {
           )}
 
           {!loading && rows.length === 0 && (
-            <div className="rounded-lg border border-dashed p-12 text-center">
-              <p className="text-muted-foreground">Nothing pending. Drafts you stage in the Analyst show up here.</p>
-            </div>
+            <EmptyState>Nothing pending. Drafts you stage in the Analyst show up here.</EmptyState>
           )}
 
           {error && <p className="mb-3 text-sm text-destructive">{error}</p>}
@@ -109,7 +108,7 @@ export default function PendingActionsPage() {
                 const perLp = row.preview.details.perLp as Array<{ lp: string; amount: number }> | undefined
                 const scalars = Object.entries(row.preview.details).filter(([k]) => k !== 'perLp')
                 return (
-                  <div key={row.id} className="rounded-lg border bg-card p-4 space-y-3">
+                  <div key={row.id} className="rounded-card border bg-card p-4 space-y-3">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium">
                         {ACTION_LABELS[row.action_type] ?? row.action_type}
@@ -125,7 +124,7 @@ export default function PendingActionsPage() {
                         {scalars.map(([k, v]) => (
                           <div key={k} className="contents">
                             <dt className="text-muted-foreground">{k}</dt>
-                            <dd className="font-mono">{formatVal(v)}</dd>
+                            <dd className="tabular-nums">{formatVal(v)}</dd>
                           </div>
                         ))}
                       </dl>
@@ -143,7 +142,7 @@ export default function PendingActionsPage() {
                           {perLp.map((r, i) => (
                             <tr key={i} className="border-t">
                               <td className="py-0.5">{r.lp}</td>
-                              <td className="py-0.5 text-right font-mono">{formatVal(r.amount)}</td>
+                              <td className="py-0.5 text-right tabular-nums">{formatVal(r.amount)}</td>
                             </tr>
                           ))}
                         </tbody>

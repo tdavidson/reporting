@@ -19,12 +19,12 @@ export const AdminSectionContext = createContext(false)
 
 export function GroupHeader({ label }: { label: string }) {
   const isAdminSection = useContext(AdminSectionContext)
-  const lineColor = isAdminSection ? 'bg-amber-500/30' : 'bg-border'
+  const lineColor = isAdminSection ? 'bg-warning/30' : 'bg-border'
   return (
     <div className="flex items-center gap-3 pt-2">
       <div className={`h-px flex-1 ${lineColor}`} />
       <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-1">
-        {isAdminSection && <Lock className="h-2.5 w-2.5 text-amber-500" />}
+        {isAdminSection && <Lock className="h-2.5 w-2.5 text-warning" />}
         {label}
       </span>
       <div className={`h-px flex-1 ${lineColor}`} />
@@ -35,9 +35,9 @@ export function GroupHeader({ label }: { label: string }) {
 export function Section({ title, children }: { title: string; children: React.ReactNode }) {
   const isAdminSection = useContext(AdminSectionContext)
   return (
-    <div className={`rounded-lg border bg-card p-5 ${isAdminSection ? 'border-amber-500/30' : ''}`}>
-      <h2 className="text-sm font-medium mb-3 flex items-center gap-1.5">
-        {isAdminSection && <Lock className="h-3 w-3 text-amber-500" />}
+    <div className={`rounded-card border bg-card p-5 ${isAdminSection ? 'border-warning/30' : ''}`}>
+      <h2 className="text-base font-medium mb-3 flex items-center gap-1.5">
+        {isAdminSection && <Lock className="h-3 w-3 text-warning" />}
         {title}
       </h2>
       {children}

@@ -119,7 +119,7 @@ export function AccessGrid({ featureVisibility }: { featureVisibility: FeatureVi
         admin-only however it is granted here.
       </p>
 
-      {error && <p className="text-xs text-destructive">{error}</p>}
+      {error && <p className="text-sm text-destructive">{error}</p>}
 
       <div className="overflow-x-auto">
         <table className="w-full text-sm border-separate border-spacing-0">
@@ -213,7 +213,7 @@ export function AccessGrid({ featureVisibility }: { featureVisibility: FeatureVi
       </div>
 
       {savedAt && !saving && (
-        <p className="text-[11px] text-green-600 inline-flex items-center gap-1"><Check className="h-3 w-3" />Saved</p>
+        <p className="text-[11px] text-success inline-flex items-center gap-1"><Check className="h-3 w-3" />Saved</p>
       )}
     </div>
   )

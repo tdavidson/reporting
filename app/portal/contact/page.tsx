@@ -32,8 +32,8 @@ export default function PortalContactPage() {
   if (sent) {
     return (
       <div>
-        <div className="rounded-md border bg-card p-8 text-center">
-          <Check className="h-6 w-6 mx-auto text-green-600 dark:text-green-400 mb-2" />
+        <div className="rounded-card border bg-card p-8 text-center">
+          <Check className="h-6 w-6 mx-auto text-success mb-2" />
           <div className="text-sm font-medium">Message sent</div>
           <p className="text-sm text-muted-foreground mt-1">Your fund has received your message and will follow up by email.</p>
           <button onClick={() => setSent(false)} className="mt-4 text-xs text-primary hover:underline">Send another</button>
@@ -50,7 +50,7 @@ export default function PortalContactPage() {
           Have a question about your investment, a statement, or a document? Send a message and the team will get back to you by email.
         </p>
       </div>
-      <div className="rounded-md border bg-card p-4 space-y-3">
+      <div className="rounded-card border bg-card p-4 space-y-3">
         <div>
           <label className="block text-xs font-medium text-muted-foreground mb-1">Subject (optional)</label>
           <input

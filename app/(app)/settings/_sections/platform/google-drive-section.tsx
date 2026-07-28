@@ -158,7 +158,7 @@ export function GoogleConnectionUI({
     return (
       <div className="space-y-3">
         <div className="flex items-center gap-2 text-sm">
-          <Check className="h-4 w-4 text-green-600 shrink-0" />
+          <Check className="h-4 w-4 text-success shrink-0" />
           <span>Google account connected.</span>
         </div>
         {editingCreds ? (
@@ -172,7 +172,7 @@ export function GoogleConnectionUI({
           <div className="flex items-center gap-2">
             <p className="text-xs text-muted-foreground flex-1">
               Google credentials configured.
-              {credsSaved && <span className="text-emerald-600 ml-1">Saved!</span>}
+              {credsSaved && <span className="text-success ml-1">Saved!</span>}
             </p>
             <Button size="sm" variant="outline" onClick={() => setEditingCreds(true)} className="text-xs h-7">
               Update credentials
@@ -180,7 +180,7 @@ export function GoogleConnectionUI({
             <Button size="sm" variant="outline" onClick={() => { window.location.href = '/api/auth/google' }} className="text-xs h-7">
               Reconnect
             </Button>
-            <Button size="sm" variant="outline" onClick={removeCredentials} disabled={removingCreds} className="text-xs h-7 text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30">
+            <Button size="sm" variant="outline" onClick={removeCredentials} disabled={removingCreds} className="text-sm h-7 text-destructive hover:text-destructive hover:bg-destructive-subtle dark:hover:bg-destructive-subtle/30">
               {removingCreds ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Remove'}
             </Button>
           </div>
@@ -202,12 +202,12 @@ export function GoogleConnectionUI({
         <div className="flex items-center gap-2">
           <p className="text-xs text-muted-foreground flex-1">
             Google credentials configured.
-            {credsSaved && <span className="text-emerald-600 ml-1">Saved!</span>}
+            {credsSaved && <span className="text-success ml-1">Saved!</span>}
           </p>
           <Button size="sm" variant="outline" onClick={() => setEditingCreds(true)} className="text-xs h-7">
             Update credentials
           </Button>
-          <Button size="sm" variant="outline" onClick={removeCredentials} disabled={removingCreds} className="text-xs h-7 text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30">
+          <Button size="sm" variant="outline" onClick={removeCredentials} disabled={removingCreds} className="text-sm h-7 text-destructive hover:text-destructive hover:bg-destructive-subtle dark:hover:bg-destructive-subtle/30">
             {removingCreds ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Remove'}
           </Button>
         </div>
@@ -407,7 +407,7 @@ export function GoogleDriveSection({
       )}
 
       {showPicker ? (
-        <div className="border rounded-lg p-3 space-y-3">
+        <div className="border rounded-card p-3 space-y-3">
           <div className="space-y-1.5">
             <label className="text-xs text-muted-foreground">Paste a Google Drive folder URL</label>
             <div className="flex gap-2">
@@ -496,7 +496,7 @@ export function GoogleDriveSection({
           </div>
 
           {folderError && (
-            <p className="text-xs text-destructive flex items-center gap-1">
+            <p className="text-sm text-destructive flex items-center gap-1">
               <AlertCircle className="h-3 w-3" /> {folderError}
             </p>
           )}
@@ -685,7 +685,7 @@ function GoogleDriveCompanyFolders({ fundId }: { fundId: string }) {
                           <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => openPicker(c.id)} disabled={saving === c.id}>
                             Change
                           </Button>
-                          <Button size="sm" variant="ghost" className="h-7 text-xs text-destructive hover:text-destructive" onClick={() => clearFolder(c.id)} disabled={saving === c.id}>
+                          <Button size="sm" variant="ghost" className="h-7 text-sm text-destructive hover:text-destructive" onClick={() => clearFolder(c.id)} disabled={saving === c.id}>
                             {saving === c.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <X className="h-3 w-3" />}
                           </Button>
                         </>
@@ -701,7 +701,7 @@ function GoogleDriveCompanyFolders({ fundId }: { fundId: string }) {
                   </div>
 
                   {pickerCompanyId === c.id && (
-                    <div className="border rounded-lg p-3 mt-2 space-y-3">
+                    <div className="border rounded-card p-3 mt-2 space-y-3">
                       <div className="space-y-1.5">
                         <label className="text-xs text-muted-foreground">Paste a Google Drive folder URL</label>
                         <div className="flex gap-2">
@@ -771,7 +771,7 @@ function GoogleDriveCompanyFolders({ fundId }: { fundId: string }) {
                       </div>
 
                       {folderError && (
-                        <p className="text-xs text-destructive flex items-center gap-1">
+                        <p className="text-sm text-destructive flex items-center gap-1">
                           <AlertCircle className="h-3 w-3" /> {folderError}
                         </p>
                       )}

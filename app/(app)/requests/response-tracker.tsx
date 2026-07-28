@@ -40,8 +40,8 @@ const STATUS_CYCLE: Record<string, 'yes' | 'no' | 'na'> = {
 }
 
 const STATUS_STYLES = {
-  yes: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
-  no: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
+  yes: 'bg-success-subtle text-success dark:bg-success-subtle/30',
+  no: 'bg-destructive-subtle text-destructive dark:bg-destructive-subtle/30',
   na: 'bg-muted text-muted-foreground',
 }
 

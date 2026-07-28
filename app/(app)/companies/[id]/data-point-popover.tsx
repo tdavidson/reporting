@@ -17,9 +17,9 @@ interface Props {
 }
 
 const CONFIDENCE_STYLES: Record<string, { bg: string; text: string; label: string }> = {
-  high: { bg: 'bg-emerald-100', text: 'text-emerald-700', label: 'High' },
-  medium: { bg: 'bg-amber-100', text: 'text-amber-700', label: 'Medium' },
-  low: { bg: 'bg-red-100', text: 'text-red-700', label: 'Low' },
+  high: { bg: 'bg-success-subtle', text: 'text-success', label: 'High' },
+  medium: { bg: 'bg-warning-subtle', text: 'text-warning', label: 'Medium' },
+  low: { bg: 'bg-destructive-subtle', text: 'text-destructive', label: 'Low' },
 }
 
 export function DataPointPopover({
@@ -206,7 +206,7 @@ export function DataPointPopover({
         )}
 
         {dataPoint.notes && (
-          <p className="text-xs text-muted-foreground italic">{dataPoint.notes}</p>
+          <p className="text-sm text-muted-foreground">{dataPoint.notes}</p>
         )}
 
         <div className="flex items-center gap-3 pt-1 border-t">
@@ -220,7 +220,7 @@ export function DataPointPopover({
           <button
             onClick={handleDelete}
             disabled={deleting}
-            className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-destructive disabled:opacity-50"
+            className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-destructive disabled:opacity-50"
           >
             <Trash2 className="h-3 w-3" />
             {deleting ? 'Deleting...' : 'Delete'}

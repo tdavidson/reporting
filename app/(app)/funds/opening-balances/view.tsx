@@ -6,6 +6,7 @@ import { Loader2, Check, AlertTriangle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useCurrency, formatCurrencyPrice } from '@/components/currency-context'
 import { useLedgerFetch, useFundSeg } from '@/components/accounting-vehicle'
+import { EmptyState } from '@/components/ui/empty-state'
 
 interface Entity { lpEntityId: string; name: string; commitment: number }
 
@@ -62,7 +63,7 @@ export function OpeningBalancesView() {
 
   if (done) {
     return (
-      <div className="rounded-lg border border-green-500/40 bg-green-500/10 p-4 text-sm text-green-700 dark:text-green-400 flex items-center gap-2">
+      <div className="rounded-card border border-success/40 bg-success/10 p-4 text-sm text-success flex items-center gap-2">
         <Check className="h-4 w-4" />
         Booked opening balances for {done.lpCount} LP(s), total {fmt(done.total)}. View them in Capital accounts.
       </div>
@@ -71,9 +72,15 @@ export function OpeningBalancesView() {
 
   if (entities.length === 0) {
     return (
-      <div className="border border-dashed rounded-lg p-8 text-center text-sm text-muted-foreground">
-        No LP entities found. Add investors and entities first (LPs section).
-      </div>
+      <EmptyState
+        action={
+          <Button size="sm" variant="outline" asChild>
+            <Link href="/lps">Go to LPs</Link>
+          </Button>
+        }
+      >
+        No LP entities found. Add investors and entities first.
+      </EmptyState>
     )
   }
 
@@ -83,8 +90,8 @@ export function OpeningBalancesView() {
   // behind an explicit override rather than letting a stray visit corrupt the books.
   if (historyMode === 'full_history' && !override) {
     return (
-      <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-4 text-sm space-y-2">
-        <p className="flex items-center gap-2 font-medium text-amber-700 dark:text-amber-400">
+      <div className="rounded-card border border-warning/40 bg-warning/10 p-4 text-sm space-y-2">
+        <p className="flex items-center gap-2 font-medium text-warning">
           <AlertTriangle className="h-4 w-4" />This vehicle doesn&rsquo;t need opening balances.
         </p>
         <p className="text-muted-foreground">
@@ -123,7 +130,7 @@ export function OpeningBalancesView() {
             {entities.map(e => (
               <tr key={e.lpEntityId} className="border-b last:border-b-0">
                 <td className="px-3 py-2">{e.name}</td>
-                <td className="px-3 py-2 text-right font-mono text-muted-foreground">{fmt(e.commitment)}</td>
+                <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">{fmt(e.commitment)}</td>
                 <td className="px-3 py-2 text-right">
                   <input
                     type="number"
@@ -131,7 +138,7 @@ export function OpeningBalancesView() {
                     value={amounts[e.lpEntityId] ?? ''}
                     onChange={ev => setAmounts(prev => ({ ...prev, [e.lpEntityId]: ev.target.value }))}
                     placeholder="0.00"
-                    className="border rounded px-1.5 py-0.5 text-sm text-right w-36 font-mono bg-transparent"
+                    className="border rounded px-1.5 py-0.5 text-sm text-right w-36 tabular-nums bg-transparent"
                   />
                 </td>
               </tr>
@@ -140,13 +147,13 @@ export function OpeningBalancesView() {
           <tfoot>
             <tr className="border-t bg-muted/30 font-semibold">
               <td className="px-3 py-2" colSpan={2}>Total opening NAV</td>
-              <td className="px-3 py-2 text-right font-mono">{fmt(total)}</td>
+              <td className="px-3 py-2 text-right tabular-nums">{fmt(total)}</td>
             </tr>
           </tfoot>
         </table>
       </div>
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p className="text-sm text-destructive">{error}</p>}
 
       <Button onClick={submit} disabled={saving || !entryDate || total === 0}>
         {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}

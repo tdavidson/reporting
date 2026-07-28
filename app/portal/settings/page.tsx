@@ -11,8 +11,8 @@ import { Loader2, Check, UserCheck, Trash2, Monitor, Sun, Moon } from 'lucide-re
 
 function SettingsCard({ title, description, children }: { title: string; description?: string; children: React.ReactNode }) {
   return (
-    <section className="rounded-md border bg-card p-4">
-      <h2 className="text-sm font-semibold">{title}</h2>
+    <section className="rounded-card border bg-card p-4">
+      <h2 className="text-base font-semibold">{title}</h2>
       {description && <p className="text-xs text-muted-foreground mt-0.5">{description}</p>}
       <div className="mt-3">{children}</div>
     </section>
@@ -101,8 +101,8 @@ export default function PortalSettingsPage() {
             <Label htmlFor="pw2">Confirm password</Label>
             <Input id="pw2" type="password" value={pw2} onChange={e => setPw2(e.target.value)} autoComplete="new-password" onKeyDown={e => e.key === 'Enter' && changePassword()} />
           </div>
-          {pwErr && <p className="text-xs text-destructive">{pwErr}</p>}
-          {pwMsg && <p className="text-xs text-emerald-600 dark:text-emerald-400 inline-flex items-center gap-1"><Check className="h-3.5 w-3.5" /> {pwMsg}</p>}
+          {pwErr && <p className="text-sm text-destructive">{pwErr}</p>}
+          {pwMsg && <p className="text-xs text-success inline-flex items-center gap-1"><Check className="h-3.5 w-3.5" /> {pwMsg}</p>}
           <Button size="sm" onClick={changePassword} disabled={pwBusy || !pw || !pw2}>
             {pwBusy ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : null} Update password
           </Button>
@@ -133,7 +133,7 @@ export default function PortalSettingsPage() {
                       {account?.status && account.status !== 'active' && <span className="uppercase tracking-wide ml-2">{account.status}</span>}
                     </div>
                   </div>
-                  <button onClick={() => revoke(r.id)} disabled={revoking === r.id} className="text-xs text-muted-foreground hover:text-destructive inline-flex items-center gap-1 shrink-0">
+                  <button onClick={() => revoke(r.id)} disabled={revoking === r.id} className="text-sm text-muted-foreground hover:text-destructive inline-flex items-center gap-1 shrink-0">
                     {revoking === r.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />} Revoke
                   </button>
                 </div>

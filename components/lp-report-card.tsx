@@ -68,7 +68,7 @@ export function LpReportCard(props: ReportCardProps) {
   const { fundName, fundLogo, fundAddress, description, investorName, rows, totals } = props
 
   return (
-    <div className="print-page max-w-4xl mx-auto bg-background border rounded-lg p-8 print:border-0 print:rounded-none print:shadow-none">
+    <div className="print-page max-w-4xl mx-auto bg-background border rounded-card p-8 print:border-0 print:rounded-none print:shadow-none">
       <div className="report-content">
         {/* Fund header — logo left, name/address right. Matches the statement + letter. */}
         <div className="flex items-start justify-between mb-8">
@@ -87,7 +87,7 @@ export function LpReportCard(props: ReportCardProps) {
           <p className="text-xs text-muted-foreground whitespace-pre-line leading-relaxed mb-10">{description}</p>
         ) : <div className="mb-6" />}
 
-        <h1 className="text-xl font-bold tracking-tight mb-3">{investorName}</h1>
+        <h1 className="font-display text-heading font-normal mb-3">{investorName}</h1>
 
         {totals.paidInCapital > 0 && (
           <p className="text-xs leading-relaxed mb-5">
@@ -124,22 +124,22 @@ export function LpReportCard(props: ReportCardProps) {
                   <tr key={r.key} className="border-b border-foreground/10">
                     <td className="pl-1.5 pr-2.5 py-1.5 max-w-0"><div className="line-clamp-2 break-words">{r.entityName}</div></td>
                     <td className="pl-2.5 pr-1.5 py-1.5">{r.portfolioGroup}</td>
-                    <td className="px-1.5 py-1.5 text-right font-mono">{fmt(r.commitment)}</td>
-                    <td className="px-1.5 py-1.5 text-right font-mono">{fmt(r.paidInCapital)}</td>
-                    <td className="px-1.5 py-1.5 text-right font-mono">{fmt(r.distributions)}</td>
-                    <td className="px-1.5 py-1.5 text-right font-mono">{fmt(r.nav)}</td>
-                    <td className="px-1.5 py-1.5 text-right font-mono">{fmt(r.totalValue)}</td>
+                    <td className="px-1.5 py-1.5 text-right tabular-nums">{fmt(r.commitment)}</td>
+                    <td className="px-1.5 py-1.5 text-right tabular-nums">{fmt(r.paidInCapital)}</td>
+                    <td className="px-1.5 py-1.5 text-right tabular-nums">{fmt(r.distributions)}</td>
+                    <td className="px-1.5 py-1.5 text-right tabular-nums">{fmt(r.nav)}</td>
+                    <td className="px-1.5 py-1.5 text-right tabular-nums">{fmt(r.totalValue)}</td>
                   </tr>
                 ))}
               </tbody>
               <tfoot>
                 <tr className="border-t-2 border-foreground/20 font-semibold">
                   <td className="px-1.5 py-1.5" colSpan={2}>Total</td>
-                  <td className="px-1.5 py-1.5 text-right font-mono">{fmt(totals.commitment)}</td>
-                  <td className="px-1.5 py-1.5 text-right font-mono">{fmt(totals.paidInCapital)}</td>
-                  <td className="px-1.5 py-1.5 text-right font-mono">{fmt(totals.distributions)}</td>
-                  <td className="px-1.5 py-1.5 text-right font-mono">{fmt(totals.nav)}</td>
-                  <td className="px-1.5 py-1.5 text-right font-mono">{fmt(totals.totalValue)}</td>
+                  <td className="px-1.5 py-1.5 text-right tabular-nums">{fmt(totals.commitment)}</td>
+                  <td className="px-1.5 py-1.5 text-right tabular-nums">{fmt(totals.paidInCapital)}</td>
+                  <td className="px-1.5 py-1.5 text-right tabular-nums">{fmt(totals.distributions)}</td>
+                  <td className="px-1.5 py-1.5 text-right tabular-nums">{fmt(totals.nav)}</td>
+                  <td className="px-1.5 py-1.5 text-right tabular-nums">{fmt(totals.totalValue)}</td>
                 </tr>
               </tfoot>
             </table>
@@ -163,21 +163,21 @@ export function LpReportCard(props: ReportCardProps) {
                   <tr key={r.key} className="border-b border-foreground/10">
                     <td className="pl-1.5 pr-2.5 py-1.5 max-w-0"><div className="line-clamp-2 break-words">{r.entityName}</div></td>
                     <td className="pl-2.5 pr-1.5 py-1.5">{r.portfolioGroup}</td>
-                    <td className="px-1.5 py-1.5 text-right font-mono">{pctOf(r.pctFunded)}</td>
-                    <td className="px-1.5 py-1.5 text-right font-mono">{moic(r.dpi)}</td>
-                    <td className="px-1.5 py-1.5 text-right font-mono">{moic(r.rvpi)}</td>
-                    <td className="px-1.5 py-1.5 text-right font-mono">{moic(r.tvpi)}</td>
-                    <td className="px-1.5 py-1.5 text-right font-mono">{pctOf(r.irr)}</td>
+                    <td className="px-1.5 py-1.5 text-right tabular-nums">{pctOf(r.pctFunded)}</td>
+                    <td className="px-1.5 py-1.5 text-right tabular-nums">{moic(r.dpi)}</td>
+                    <td className="px-1.5 py-1.5 text-right tabular-nums">{moic(r.rvpi)}</td>
+                    <td className="px-1.5 py-1.5 text-right tabular-nums">{moic(r.tvpi)}</td>
+                    <td className="px-1.5 py-1.5 text-right tabular-nums">{pctOf(r.irr)}</td>
                   </tr>
                 ))}
               </tbody>
               <tfoot>
                 <tr className="border-t-2 border-foreground/20 font-semibold">
                   <td className="px-1.5 py-1.5" colSpan={2}>Total</td>
-                  <td className="px-1.5 py-1.5 text-right font-mono">{pctOf(totals.pctFunded)}</td>
-                  <td className="px-1.5 py-1.5 text-right font-mono">{moic(totals.dpi)}</td>
-                  <td className="px-1.5 py-1.5 text-right font-mono">{moic(totals.rvpi)}</td>
-                  <td className="px-1.5 py-1.5 text-right font-mono">{moic(totals.tvpi)}</td>
+                  <td className="px-1.5 py-1.5 text-right tabular-nums">{pctOf(totals.pctFunded)}</td>
+                  <td className="px-1.5 py-1.5 text-right tabular-nums">{moic(totals.dpi)}</td>
+                  <td className="px-1.5 py-1.5 text-right tabular-nums">{moic(totals.rvpi)}</td>
+                  <td className="px-1.5 py-1.5 text-right tabular-nums">{moic(totals.tvpi)}</td>
                   <td className="px-1.5 py-1.5"></td>
                 </tr>
               </tfoot>
@@ -211,14 +211,14 @@ export function LpReportCard(props: ReportCardProps) {
                         <tr key={r.key} className="border-b border-foreground/10">
                           <td className="pl-1.5 pr-2.5 py-1.5 max-w-0"><div className="line-clamp-2 break-words">{r.entityName}</div></td>
                           <td className="pl-2.5 pr-1.5 py-1.5">{r.portfolioGroup}</td>
-                          <td className="px-1.5 py-1.5 text-right font-mono">{fmt(r.receivable ?? 0)}</td>
+                          <td className="px-1.5 py-1.5 text-right tabular-nums">{fmt(r.receivable ?? 0)}</td>
                         </tr>
                       ))}
                     </tbody>
                     <tfoot>
                       <tr className="border-t-2 border-foreground/20 font-semibold">
                         <td className="px-1.5 py-1.5" colSpan={2}>Total</td>
-                        <td className="px-1.5 py-1.5 text-right font-mono">{fmt(total)}</td>
+                        <td className="px-1.5 py-1.5 text-right tabular-nums">{fmt(total)}</td>
                       </tr>
                     </tfoot>
                   </table>

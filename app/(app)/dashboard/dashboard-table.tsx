@@ -3,6 +3,7 @@
 import React, { useEffect, useState, useMemo } from 'react'
 import Link from 'next/link'
 import { useCurrency, getCurrencySymbol } from '@/components/currency-context'
+import { EmptyState } from '@/components/ui/empty-state'
 
 interface MetricData {
   id: string
@@ -100,7 +101,7 @@ export function DashboardTable({ companyIds, grouped }: Props) {
 
   if (loading) {
     return (
-      <div className="rounded-lg border border-dashed p-12 text-center">
+      <div className="rounded-card border border-dashed p-12 text-center">
         <p className="text-muted-foreground text-sm">Loading table data…</p>
       </div>
     )
@@ -108,9 +109,7 @@ export function DashboardTable({ companyIds, grouped }: Props) {
 
   if (!data || data.length === 0) {
     return (
-      <div className="rounded-lg border border-dashed p-12 text-center">
-        <p className="text-muted-foreground">No data available.</p>
-      </div>
+      <EmptyState>No data available.</EmptyState>
     )
   }
 

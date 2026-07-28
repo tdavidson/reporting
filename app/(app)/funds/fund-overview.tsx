@@ -6,8 +6,8 @@ import { useRouter } from 'next/navigation'
 import { Loader2, Landmark, ClipboardList, ArrowRight, Search, X } from 'lucide-react'
 import { useCurrency, formatCurrency, formatCurrencyFull } from '@/components/currency-context'
 import { useVehicle, useFundSeg } from '@/components/accounting-vehicle'
-import { Card, CardContent } from '@/components/ui/card'
 import { SortTh, nextSort, compareVals, type SortState } from '@/components/sortable-th'
+import { Metric as MetricBox } from '@/components/ui/metric'
 
 // The fund overview: performance per vehicle, DERIVED FROM THE LEDGER.
 //
@@ -87,7 +87,7 @@ export function FundOverview() {
 
   if (loading) {
     return (
-      <div className="rounded-lg border p-6 flex items-center gap-2 text-sm text-muted-foreground">
+      <div className="rounded-card border p-6 flex items-center gap-2 text-sm text-muted-foreground">
         <Loader2 className="h-4 w-4 animate-spin" /> Deriving fund performance from the ledger…
       </div>
     )
@@ -231,15 +231,15 @@ export function FundOverview() {
                     </button>
                   </td>
                   <td className="px-3 py-2 text-muted-foreground tabular-nums">{v.vintageYear ?? '—'}</td>
-                  <td className="px-3 py-2 text-right font-mono">{fmtFull(x.committed)}</td>
-                  <td className="px-3 py-2 text-right font-mono">{fmtFull(x.paidIn)}</td>
-                  <td className="px-3 py-2 text-right font-mono text-muted-foreground">{fmtFull(x.uncalled)}</td>
-                  <td className="px-3 py-2 text-right font-mono">{fmtFull(x.distributions)}</td>
-                  <td className="px-3 py-2 text-right font-mono">{fmtFull(x.nav)}</td>
-                  <td className="px-3 py-2 text-right font-mono">{moic(x.dpi)}</td>
-                  <td className="px-3 py-2 text-right font-mono">{moic(x.rvpi)}</td>
-                  <td className="px-3 py-2 text-right font-mono font-medium">{moic(x.tvpi)}</td>
-                  <td className="px-3 py-2 text-right font-mono">{irrPct(x.irr)}</td>
+                  <td className="px-3 py-2 text-right tabular-nums">{fmtFull(x.committed)}</td>
+                  <td className="px-3 py-2 text-right tabular-nums">{fmtFull(x.paidIn)}</td>
+                  <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">{fmtFull(x.uncalled)}</td>
+                  <td className="px-3 py-2 text-right tabular-nums">{fmtFull(x.distributions)}</td>
+                  <td className="px-3 py-2 text-right tabular-nums">{fmtFull(x.nav)}</td>
+                  <td className="px-3 py-2 text-right tabular-nums">{moic(x.dpi)}</td>
+                  <td className="px-3 py-2 text-right tabular-nums">{moic(x.rvpi)}</td>
+                  <td className="px-3 py-2 text-right tabular-nums font-medium">{moic(x.tvpi)}</td>
+                  <td className="px-3 py-2 text-right tabular-nums">{irrPct(x.irr)}</td>
                 </tr>
               )
             })}
@@ -265,16 +265,6 @@ export function FundOverview() {
 }
 
 /** Same card treatment as the LP snapshot metric boxes, so the two pages read as one. */
-function MetricBox({ label, value }: { label: string; value: string }) {
-  return (
-    <Card>
-      <CardContent className="pt-4 pb-3 px-4">
-        <p className="text-xs text-muted-foreground mb-1">{label}</p>
-        <p className="text-xl font-semibold">{value}</p>
-      </CardContent>
-    </Card>
-  )
-}
 
 /**
  * Shown when no vehicle carries any capital yet — so instead of an empty table, explain the
@@ -285,9 +275,9 @@ function MetricBox({ label, value }: { label: string; value: string }) {
 function OnboardingEmptyState() {
   const fundSeg = useFundSeg()
   return (
-    <div className="rounded-lg border p-6 max-w-2xl space-y-5">
+    <div className="rounded-card border p-6 max-w-2xl space-y-5">
       <div className="space-y-1">
-        <h2 className="text-sm font-medium">No fund capital recorded yet</h2>
+        <h2 className="text-base font-medium">No fund capital recorded yet</h2>
         <p className="text-sm text-muted-foreground">
           This overview is derived from the capital accounts, so it fills in once a vehicle has capital against it.
           There are two ways to get there — pick per vehicle, and both feed this page the same way.
@@ -295,7 +285,7 @@ function OnboardingEmptyState() {
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2">
-        <div className="rounded-md border p-3 space-y-1.5">
+        <div className="rounded-card border p-3 space-y-1.5">
           <div className="flex items-center gap-2">
             <ClipboardList className="h-4 w-4 text-muted-foreground" />
             <p className="text-sm font-medium">Capital tracking</p>
@@ -306,7 +296,7 @@ function OnboardingEmptyState() {
             fund whose admin sends a quarterly statement.
           </p>
         </div>
-        <div className="rounded-md border p-3 space-y-1.5">
+        <div className="rounded-card border p-3 space-y-1.5">
           <div className="flex items-center gap-2">
             <Landmark className="h-4 w-4 text-muted-foreground" />
             <p className="text-sm font-medium">Full ledger</p>
