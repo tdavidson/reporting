@@ -11,7 +11,11 @@ const config: Config = {
   	extend: {
   		fontFamily: {
   			sans: ['var(--font-sans)', 'ui-sans-serif', 'system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'Helvetica', 'Arial', 'sans-serif'],
-  			display: ['var(--font-display)', 'ui-serif', 'Georgia', 'Cambria', 'serif'],
+  			// Sans fallbacks: --font-display resolves to Inter by default, so falling
+  			// back to Georgia would swap a sans for a serif on the one heading most
+  			// likely to paint before fonts load. A fund that picks a serif gets that
+  			// serif from the variable; only the failure path is sans.
+  			display: ['var(--font-display)', 'ui-sans-serif', 'system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'Helvetica', 'Arial', 'sans-serif'],
   			serif: ['var(--font-serif)', 'ui-serif', 'Georgia', 'Cambria', 'serif'],
   			mono: ['var(--font-mono)', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'Consolas', 'monospace'],
   		},
@@ -24,8 +28,11 @@ const config: Config = {
   			label: ['0.8125rem', { lineHeight: '1.5' }],
   			lede: ['1.125rem', { lineHeight: '1.65', letterSpacing: '-0.005em' }],
   			heading: ['clamp(1.25rem, 2vw, 1.5rem)', { lineHeight: '1.25', letterSpacing: '-0.01em' }],
-  			title: ['clamp(1.875rem, 4vw, 2.875rem)', { lineHeight: '1.1', letterSpacing: '-0.02em' }],
-  			display: ['clamp(2.625rem, 5.5vw, 4.25rem)', { lineHeight: '1.1', letterSpacing: '-0.025em' }],
+  			// The two display steps track tighter than the serif scale did: Inter is
+  			// drawn for text sizes, so at 46px and 68px its default fit reads loose.
+  			// The ramp still widens as it goes down (-0.035 / -0.025 / -0.01 / -0.005).
+  			title: ['clamp(1.875rem, 4vw, 2.875rem)', { lineHeight: '1.1', letterSpacing: '-0.025em' }],
+  			display: ['clamp(2.625rem, 5.5vw, 4.25rem)', { lineHeight: '1.1', letterSpacing: '-0.035em' }],
   		},
   		maxWidth: {
   			// Two page widths, and only two. `page` is the app-wide cap (applied
