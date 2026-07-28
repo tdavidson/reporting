@@ -3,6 +3,8 @@ import Script from 'next/script'
 import { Hanken_Grotesk, Plus_Jakarta_Sans, Inter, Newsreader, Source_Serif_4, Libre_Caslon_Display } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import { SpeedInsights } from '@vercel/speed-insights/next'
+import { BotIdClient } from 'botid/client'
+import { BOTID_PROTECTED_ROUTES } from '@/lib/botid-routes'
 import { ThemeProvider } from '@/components/theme-provider'
 import { Toaster } from '@/components/toaster'
 import { ConfirmProvider } from '@/components/confirm-dialog'
@@ -59,6 +61,15 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" suppressHydrationWarning className={`${inter.variable} ${newsreader.variable} ${sourceSerif.variable} ${libreCaslon.variable} ${hankenGrotesk.variable} ${plusJakarta.variable}`}>
+      <head>
+        {/* BotId's client half. It must be mounted HERE and not in instrumentation-client.ts:
+            that file is a Next 15.3+ entry point and this app is on 14, so it was compiled by
+            nothing and loaded by nothing — silently, with the only symptom being that every
+            visitor to /demo was classified as a bot. Move it back only when Next is upgraded.
+            Renders an inline <script>, which the CSP in next.config.mjs allows via
+            'unsafe-inline'; the challenge itself is same-origin through withBotId's rewrites. */}
+        <BotIdClient protect={BOTID_PROTECTED_ROUTES} />
+      </head>
       <body className="font-sans">
         <ThemeProvider
           attribute="class"
