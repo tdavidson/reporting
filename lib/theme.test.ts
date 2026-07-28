@@ -99,8 +99,8 @@ describe('themeCssVars', () => {
   })
 
   it('emits nothing for the default display font', () => {
-    // 'source-serif' is the default; storing it as an override would be a no-op.
-    expect(themeCssVars({ displayFont: 'source-serif' })).toBe('')
+    // 'inter' is the default; storing it as an override would be a no-op.
+    expect(themeCssVars({ displayFont: 'inter' })).toBe('')
     expect(themeCssVars({ displayFont: 'not-a-font' })).toBe('')
   })
 

@@ -10,7 +10,7 @@ export interface FundTheme {
   /** UI font key (see FONT_OPTIONS). Null/'system' = the default stack. */
   font?: string | null
   /** Display font key (see DISPLAY_FONT_OPTIONS). Drives --font-display: report
-   *  covers, letter mastheads, statement headers. Null = Source Serif 4. */
+   *  covers, letter mastheads, statement headers. Null = Inter (no serif). */
   displayFont?: string | null
   /** Corner radius in rem, e.g. 0.5. */
   radius?: number | null
@@ -45,12 +45,15 @@ export const FONT_OPTIONS: Array<{ key: string; label: string; varName: string |
  * font, and a serif there would land on every dense financial table. This list
  * only touches headings, covers and mastheads.
  *
- * Kept deliberately short. Every option has to be embedded as base64 woff2 for
- * server-rendered PDFs (lib/pdf-fonts.ts) — headless Chromium has no fonts
- * installed — so each addition has a real per-render cost.
+ * Kept deliberately short. Every SERIF option has to be embedded as base64 woff2
+ * for server-rendered PDFs (lib/pdf-fonts.ts) — headless Chromium has no fonts
+ * installed — so each addition has a real per-render cost. The default costs
+ * nothing: Inter is already embedded as the body face, so PDFs fall through to
+ * it rather than carrying a second copy.
  */
 export const DISPLAY_FONT_OPTIONS: Array<{ key: string; label: string; varName: string | null; note: string }> = [
-  { key: 'source-serif', label: 'Source Serif 4 (default)', varName: null, note: 'Institutional and neutral.' },
+  { key: 'inter', label: 'Inter (default)', varName: null, note: 'No serif — headings match the interface.' },
+  { key: 'source-serif', label: 'Source Serif 4', varName: '--font-source-serif', note: 'Institutional and neutral.' },
   { key: 'newsreader', label: 'Newsreader', varName: '--font-newsreader', note: 'Editorial serif. Optical sizing, warm.' },
   { key: 'libre-caslon', label: 'Libre Caslon Display', varName: '--font-libre-caslon', note: 'Caslon — legal and banking heritage.' },
 ]

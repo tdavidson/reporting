@@ -55,9 +55,13 @@ const CASLON_400 = 'd09GMgABAAAAAD78AA4AAAAAmWAAAD6fAAEAAAAAAAAAAAAAAAAAAAAAAAAA
  */
 export const PDF_SANS = `'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif`
 export const PDF_MONO = `'Roboto Mono', ui-monospace, SFMono-Regular, Menlo, monospace`
-export const PDF_DISPLAY = `'PDFDisplay', Georgia, 'Times New Roman', serif`
+// 'Inter' sits second on purpose. On the default theme no PDFDisplay face is
+// emitted at all, so this stack falls through to the Inter already embedded as
+// the body face — the default display font costs zero extra bytes per render.
+export const PDF_DISPLAY = `'PDFDisplay', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif`
 
-/** Display faces a fund may pick, keyed by DISPLAY_FONT_OPTIONS in lib/theme.ts. */
+/** SERIF display faces a fund may pick, keyed by DISPLAY_FONT_OPTIONS in
+ *  lib/theme.ts. The default ('inter') is deliberately absent — see PDF_DISPLAY. */
 const DISPLAY_FACES: Record<string, string> = {
   'newsreader': NEWSREADER_400,
   'source-serif': SOURCESERIF_400,
@@ -72,18 +76,20 @@ const DISPLAY_FACES: Record<string, string> = {
  * The chosen face is always emitted under the same family name ('PDFDisplay') so
  * templates can reference ${PDF_DISPLAY} without knowing which font it resolved to.
  *
- * Unknown or absent keys fall back to Source Serif 4, matching the app default.
+ * Unknown or absent keys, and the 'inter' default, emit NO display face: the
+ * PDF_DISPLAY stack then falls through to the Inter already embedded below, so
+ * the default costs nothing rather than carrying a second copy of Inter.
  */
 export function pdfFontCss(displayFont?: string | null): string {
-  const display = DISPLAY_FACES[displayFont ?? ''] ?? DISPLAY_FACES['source-serif']
+  const display = DISPLAY_FACES[displayFont ?? '']
   return `
   @font-face { font-family:'Inter'; font-style:normal; font-weight:400; font-display:block; src:url(data:font/woff2;base64,${INTER_400}) format('woff2'); }
   @font-face { font-family:'Inter'; font-style:normal; font-weight:600; font-display:block; src:url(data:font/woff2;base64,${INTER_600}) format('woff2'); }
   @font-face { font-family:'Inter'; font-style:normal; font-weight:700; font-display:block; src:url(data:font/woff2;base64,${INTER_700}) format('woff2'); }
   @font-face { font-family:'Roboto Mono'; font-style:normal; font-weight:400; font-display:block; src:url(data:font/woff2;base64,${MONO_400}) format('woff2'); }
-  @font-face { font-family:'PDFDisplay'; font-style:normal; font-weight:400; font-display:block; src:url(data:font/woff2;base64,${display}) format('woff2'); }
+${display ? `  @font-face { font-family:'PDFDisplay'; font-style:normal; font-weight:400; font-display:block; src:url(data:font/woff2;base64,${display}) format('woff2'); }` : ''}
 `
 }
 
-/** Back-compat: the default (Source Serif 4) font block. */
+/** Back-compat: the default (Inter) font block — no PDFDisplay face. */
 export const PDF_FONT_CSS = pdfFontCss()

@@ -137,17 +137,25 @@ the all-pairs subset and folds the tail into "Other".
 
 ## Typography
 
-**Inter** for everything (`--font-sans`). **Newsreader** for display
-(`--font-display`, `font-display` in Tailwind).
+**Inter** for everything — body (`--font-sans`) *and* display (`--font-display`,
+`font-display` in Tailwind). The app ships with no serif.
 
-Newsreader is absent from `FONT_OPTIONS` because that list drives `--font-sans`
-— the *body* font for the whole app. Adding a serif there would set it on every
-dense financial table, which is not what a display face is for. Letting a fund
-pick its own display face is a reasonable future feature, but it needs a
-separate `displayFont` axis writing `--font-display`; it isn't this list. (There
-would be nothing for it to style yet in any case: `font-display` currently
-appears only on the marketing page, which is not under a fund theme —
-`themeCssVars` is injected in `app/(app)/layout.tsx`, not `app/(public)`.)
+`--font-display` is still a separate axis, and that is the point. Every heading
+that should change when a display face is chosen already carries `font-display`:
+the marketing hero and section headings, report covers, letter mastheads,
+statement headers, and the PDF templates. Picking a serif in
+`DISPLAY_FONT_OPTIONS` (`lib/theme.ts`) repoints all of them at once — the
+design work is done, the default is simply "no serif". Source Serif 4,
+Newsreader and Libre Caslon Display ship as options and load only when selected.
+
+That list is kept out of `FONT_OPTIONS` because `FONT_OPTIONS` drives
+`--font-sans` — the *body* font for the whole app. A serif there would land on
+every dense financial table, which is not what a display face is for.
+
+Because the default is Inter, the PDF pipeline emits **no** `PDFDisplay`
+`@font-face` at all: `PDF_DISPLAY` lists `'Inter'` second, so it falls through to
+the copy already embedded as the body face. Choosing a serif embeds that one
+face and nothing else (`lib/pdf-fonts.ts`).
 
 Inter's figures are proportional by default with `tnum` available, which is the
 profile this product wants: proportional in prose, tabular on demand in tables.

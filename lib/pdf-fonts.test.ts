@@ -28,19 +28,24 @@ describe('pdfFontCss', () => {
   })
 
   it('embeds a distinct face for every key DISPLAY_FONT_OPTIONS offers', () => {
-    // A key in the picker with no embedded face silently falls back, so the fund
-    // picks a font and the PDF renders in a different one. Comparing against the
-    // fallback would pass vacuously for 'source-serif' (it IS the fallback), so
-    // assert all keys produce mutually distinct output instead.
+    // A SERIF key in the picker with no embedded face silently falls back, so the
+    // fund picks a font and the PDF renders in a different one. Asserting every
+    // key produces mutually distinct output catches that: the 'inter' default is
+    // distinct precisely because it emits no PDFDisplay block, and each serif is
+    // distinct because it embeds its own.
     const blocks = DISPLAY_FONT_OPTIONS.map(o => pdfFontCss(o.key))
     expect(new Set(blocks).size).toBe(DISPLAY_FONT_OPTIONS.length)
   })
 
   it('falls back to the default for unknown or absent keys', () => {
-    const dflt = pdfFontCss('source-serif')
+    const dflt = pdfFontCss('inter')
     expect(pdfFontCss(undefined)).toBe(dflt)
     expect(pdfFontCss(null)).toBe(dflt)
     expect(pdfFontCss('not-a-font')).toBe(dflt)
+    // The default emits no PDFDisplay face at all — PDF_DISPLAY falls through to
+    // the embedded Inter, so a second copy of Inter is never shipped.
+    expect(dflt).not.toContain('PDFDisplay')
+    expect(PDF_DISPLAY).toContain("'Inter'")
   })
 
   it('carries real base64 payloads rather than empty src slots', () => {

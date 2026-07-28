@@ -12,11 +12,17 @@
   :root {
     /* Font stacks. --font-sans is Inter (the Hemrock brand guide's UI face, and
        what hemrock.com ships); the per-fund theme may override it to opt into a
-       different loaded webfont. --font-display is Source Serif 4, and is not in
-       FONT_OPTIONS because that list drives --font-sans — a serif there would
-       land on every dense financial table. See DESIGN.md. */
+       different loaded webfont.
+
+       --font-display defaults to Inter too, so the app ships with no serif. It
+       stays a SEPARATE axis on purpose: every heading that should change when a
+       display face is chosen already carries `font-display`, so picking a serif
+       in DISPLAY_FONT_OPTIONS repoints all of them at once — marketing hero,
+       report covers, letter mastheads, statement headers, PDFs. Kept out of
+       FONT_OPTIONS because that list drives --font-sans, the body font, where a
+       serif would land on every dense financial table. See DESIGN.md. */
     --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-    --font-display: var(--font-source-serif), ui-serif, Georgia, Cambria, serif;
+    --font-display: var(--font-inter), ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
     --font-serif: ui-serif, Georgia, Cambria, serif;
     --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 
