@@ -211,9 +211,21 @@ async function gateApiRequest(
 
 export const config = {
   matcher: [
-    // Exclude: Next.js internals, static assets, and the inbound email webhook.
+    // Exclude: Next.js internals, static assets, the inbound email webhook, and
+    // BotId's challenge endpoints.
+    //
     // The webhook receives large Postmark payloads (base64 attachments) that must
     // not pass through the Edge middleware layer, which has a tight body-size limit.
-    '/((?!_next/static|_next/image|favicon.ico|api/inbound-email|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    //
+    // The UUID is BotId's own path prefix (withBotId rewrites `/149e9513-…/…/c.js`
+    // to the challenge and `/149e9513-…/:path*` to the proxy — see
+    // botid/dist/next/config). Middleware runs BEFORE next.config rewrites, so
+    // without this the challenge script is just an unauthenticated request: it gets
+    // redirected to /auth, the browser is handed HTML where it asked for
+    // JavaScript, and refuses it on MIME type. BotId then has no token to issue and
+    // `checkBotId()` fails every caller closed — which looks exactly like the demo
+    // being switched off. Hardcoded because `matcher` must be statically analysable;
+    // BOTID_PATH_PREFIX in lib/botid-routes.ts pins the same string for the test.
+    '/((?!_next/static|_next/image|favicon.ico|api/inbound-email|149e9513-01fa-4fb0-aad4-566afd725d1b|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 }

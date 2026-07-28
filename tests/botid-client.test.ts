@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync, existsSync } from 'fs'
 import { join } from 'path'
+import { BOTID_PATH_PREFIX } from '@/lib/botid-routes'
 
 /**
  * BotId's client-side protection has to be mounted through an entry point THIS version of Next
@@ -57,6 +58,23 @@ describe('BotId client-side protection', () => {
       'instrumentation-client.ts is a Next 15.3+ entry point and is dead code on Next ' +
         nextVersion().join('.') + ' — move the protect list into app/layout.tsx'
     ).toBe(false)
+  })
+
+  it('lets the challenge endpoints past the middleware', () => {
+    // Middleware runs before next.config rewrites, so the challenge script is an
+    // unauthenticated request like any other: without this exclusion it is redirected to
+    // /auth, the browser gets HTML where it asked for JavaScript and refuses it on MIME
+    // type, and BotId has no token to issue — so checkBotId() fails everyone closed.
+    const matcher = read('middleware.ts').split('matcher:')[1]
+    expect(matcher).toContain(BOTID_PATH_PREFIX)
+  })
+
+  it('pins BOTID_PATH_PREFIX to the prefix botid actually rewrites', () => {
+    // The constant is duplicated into middleware.ts (config.matcher must be statically
+    // analysable). If a botid upgrade moves this path, both copies are silently wrong and
+    // the demo breaks the same way again — so read it off the installed package.
+    const vendor = read('node_modules/botid/dist/next/config/index.mjs')
+    expect(vendor).toContain(BOTID_PATH_PREFIX)
   })
 
   it('protects every path that calls checkBotId() server-side', () => {

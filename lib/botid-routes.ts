@@ -20,6 +20,16 @@
  * app/demo/actions.ts and nowhere else yet. The other two are declarations waiting for their
  * server-side call, deliberately left for their own change.
  */
+/**
+ * BotId's own path prefix. `withBotId` (next.config.mjs) rewrites everything under it to
+ * Vercel's challenge and proxy endpoints, so it must reach those rewrites unauthenticated —
+ * middleware runs first and would otherwise bounce the challenge script to /auth.
+ *
+ * Not imported by middleware.ts: `config.matcher` has to be statically analysable, so the
+ * string is written out there too. This constant exists so the test can prove they match.
+ */
+export const BOTID_PATH_PREFIX = '149e9513-01fa-4fb0-aad4-566afd725d1b'
+
 export const BOTID_PROTECTED_ROUTES = [
   { path: '/api/auth/*', method: 'POST' },
   { path: '/api/demo/seed', method: 'POST' },
