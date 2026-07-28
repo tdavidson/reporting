@@ -50,8 +50,10 @@ supabase/.temp
 # (lib/access/route-domains.ts) so the route-coverage test doesn't call its registry entry stale
 # when the file isn't here.
 #
-# NOTE: /api/demo/credentials is NOT ignored — it's the generic demo sign-in and has no Hemrock in
-# it. Nor is scripts/demo-agent-account.ts, which is deliberately decoupled from these fixtures.
+# NOTE: the demo SIGN-IN is not ignored and never should be — it's generic, with no Hemrock in it.
+# It now lives in the `startDemo` server action (app/demo/actions.ts), which replaced the old
+# /api/demo/credentials route. Nor is scripts/demo-agent-account.ts ignored, which is deliberately
+# decoupled from these fixtures.
 /lib/demo/
 /app/api/demo/seed/
 /scripts/run-demo-seed.ts

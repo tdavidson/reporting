@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { getDemoCredentials } from './actions'
+import { startDemo } from './actions'
 
 export default function DemoPage() {
   const [error, setError] = useState<string | null>(null)
@@ -11,34 +11,25 @@ export default function DemoPage() {
   const supabase = createClient()
 
   useEffect(() => {
-    async function startDemo() {
-      // If already signed in, go to dashboard
+    async function run() {
+      // If already signed in, go to dashboard — no reason to mint a second session.
       const { data: { user } } = await supabase.auth.getUser()
       if (user) {
         router.replace('/dashboard')
         return
       }
 
-      // Fetch demo credentials via server action (no secrets in client bundle)
-      const result = await getDemoCredentials()
+      // The server signs the visitor in and hands back cookies. No credential is returned
+      // here, and this page no longer touches Supabase auth to get in — that is the point.
+      const result = await startDemo()
       if (!result.ok) {
         setError(result.error)
         return
       }
 
-      const { error } = await supabase.auth.signInWithPassword({
-        email: result.email,
-        password: result.password,
-      })
-      if (error) {
-        console.error('[demo] signInWithPassword failed:', error.message, error.status)
-        setError(`Unable to load demo. (${error.message})`)
-        return
-      }
-
       router.replace('/dashboard')
     }
-    startDemo()
+    run()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (error) {

@@ -410,6 +410,7 @@ export const UNGATED_ROUTES: Record<string, string> = {
   'api/og': 'Renders an OG card from its own query params; reads nothing.',
 
   // The demo fund's own bootstrap; it provisions the read-only demo, which holds no real data.
-  'api/demo/credentials': 'Demo fund sign-in.',
+  // Sign-in itself is no longer a route: it moved to the `startDemo` server action, which mints
+  // the session server-side instead of handing credentials to the browser.
   'api/demo/seed': 'Demo fund provisioning.',
 }
