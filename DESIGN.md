@@ -203,14 +203,23 @@ a user must read should not be the smallest type on screen. Also guarded.
 Note that `text-xs` is *not* mainly a table style here: only ~36 of its uses are
 in `<td>`. It is mostly labels and hints, which is what it's for.
 
-**Display type is light, not bold.** `font-display text-display font-medium`.
-Large + light reads as expensive; large + bold reads as a dashboard. Setting a
-display heading to `font-semibold` undoes the entire effect.
+**Display weight follows the size and the face**, and both changed when
+`--font-display` became Inter.
 
-Weight 500, not 400, because the display face is Inter. This rule was written
-when it was a serif, and serifs carry visual weight that a UI sans doesn't —
-Inter at 400 reads thin at 46px and 68px rather than light. If you switch
-`--font-display` to one of the serif options, drop back to `font-normal`.
+| Where | Size | Weight |
+| --- | --- | --- |
+| Marketing headings — hero, sections, stat totals | `text-display` / `text-title` (46–68px) | `font-semibold` |
+| Document headings — LP letters, snapshots, report cards | `text-heading` (20–24px) | `font-normal` |
+
+The old rule was a flat "display type is light, never semibold", written when
+the display face was a serif. Serifs carry visual weight a UI sans doesn't, so
+Inter at 400 reads *thin* at 68px rather than light, and the marketing page
+needs 600 — which also matches the `h1` on hemrock.com, so the two properties
+read as one product. At `text-heading` the type is near body size, Inter 400 is
+already right, and the LP-facing documents keep it.
+
+If you point `--font-display` at one of the serif options, the marketing
+headings want `font-normal` again.
 
 ### Numbers
 

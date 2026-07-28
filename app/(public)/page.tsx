@@ -67,12 +67,12 @@ export default async function HomePage() {
 
   return (
     <div className="px-6 md:px-8 pb-12 pt-8 md:pt-16">
-      {/* Hero. Display type at weight 500 — Inter needs the extra step a serif
-          didn't, but it stays short of semibold. The emphasis phrase is the
-          page's one flourish and the only place the brand accent appears above
-          the fold. */}
+      {/* Hero. Display type at weight 600 — Inter needs the extra weight a
+          serif didn't, and it matches the h1 on hemrock.com so the two
+          properties read as one product. The emphasis phrase is the page's one
+          flourish and the only place the brand accent appears above the fold. */}
       <section className="mb-20 md:mb-28 text-center">
-        <h1 className="font-display text-display font-medium max-w-3xl mx-auto text-balance">
+        <h1 className="font-display text-display font-semibold max-w-3xl mx-auto text-balance">
           {content.hero.title}
           {content.hero.emphasis && (
             <>{' '}<em className="italic text-brand-700 dark:text-brand-400">{content.hero.emphasis}</em></>
@@ -89,7 +89,7 @@ export default async function HomePage() {
           <dl className="grid grid-cols-1 sm:grid-cols-3 gap-8">
             {content.stats.map(s => (
               <div key={s.label} className="text-center">
-                <dt className="font-display text-title font-medium text-brand-700 dark:text-brand-400">{s.value}</dt>
+                <dt className="font-display text-title font-semibold text-brand-700 dark:text-brand-400">{s.value}</dt>
                 <dd className="text-label text-muted-foreground mt-2 max-w-[28ch] mx-auto">{s.label}</dd>
               </div>
             ))}
@@ -102,7 +102,7 @@ export default async function HomePage() {
           where shadows don't read. */}
       {content.productGroups.map(group => (
         <section key={group.label} className="mb-20 md:mb-28">
-          <h2 className="font-display text-title font-medium text-center">{group.label}</h2>
+          <h2 className="font-display text-title font-semibold text-center">{group.label}</h2>
           <p className="text-muted-foreground max-w-[640px] mx-auto mt-3 mb-10 text-center text-pretty">{group.description}</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
             {group.features.map(f => {
@@ -128,7 +128,7 @@ export default async function HomePage() {
           than the feature grid above it rather than more of the same. */}
       {content.why.length > 0 && (
         <section className="mb-20 md:mb-28">
-          <h2 className="font-display text-title font-medium mb-10 text-center">Why should you use this?</h2>
+          <h2 className="font-display text-title font-semibold mb-10 text-center">Why should you use this?</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-8 gap-y-10">
             {content.why.map(w => {
               const Icon = resolveIcon(w.icon)
@@ -148,7 +148,7 @@ export default async function HomePage() {
           moment carries more weight than a feature tile. */}
       {content.pricing.tiers.length > 0 && (
         <section className="mb-20 md:mb-28">
-          <h2 className="font-display text-title font-medium text-center">Pricing</h2>
+          <h2 className="font-display text-title font-semibold text-center">Pricing</h2>
           {content.pricing.note && <p className="text-sm text-muted-foreground mt-3 mb-10 max-w-[640px] mx-auto text-center text-pretty">{renderInlineMarkdown(content.pricing.note)}</p>}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
             {content.pricing.tiers.map(tier => (
@@ -162,7 +162,7 @@ export default async function HomePage() {
                   </span>
                 )}
                 <h3 className="text-base font-medium text-muted-foreground">{tier.name}</h3>
-                <p className="font-display text-heading font-medium mt-2 mb-1">{tier.price}</p>
+                <p className="font-display text-heading font-semibold mt-2 mb-1">{tier.price}</p>
                 {tier.subtitle && <p className="text-caption text-muted-foreground mb-5">{tier.subtitle}</p>}
                 <ul className="text-sm text-muted-foreground space-y-2 mb-6 flex-1">
                   {tier.bullets.map((b, i) => <li key={i}>{b}</li>)}
@@ -177,7 +177,7 @@ export default async function HomePage() {
       {/* FAQ */}
       {content.faqs.length > 0 && (
         <section className="mb-20 md:mb-28">
-          <h2 className="font-display text-title font-medium mb-8 text-center">Common Questions</h2>
+          <h2 className="font-display text-title font-semibold mb-8 text-center">Common Questions</h2>
           {/* No rules between rows — the chevron and the spacing separate them, and
               hairlines under a two-column grid read as a broken table. */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-1">

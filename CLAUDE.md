@@ -13,7 +13,7 @@ The short version, because these are the mistakes that actually get made:
 - **Cards use `rounded-card`**, controls use `rounded-lg`/`md`/`sm`. `--radius` is the control radius (0.25rem), `--radius-card` the card one (0.5rem).
 - **`--primary` is the deployment's action colour** (fund-themeable). **`--brand` is Hemrock's** (evergreen, marketing). They are not interchangeable.
 - **Accent text needs a dark-mode pair**: `text-brand-700 dark:text-brand-400`. The 700 stop fails contrast on the dark surface.
-- **Display headings are weight 500**, not semibold. `font-display text-display font-medium`. (500 because `--font-display` is Inter; a serif display face wants 400.)
+- **Display weight follows size and face.** Marketing headings (`text-display`/`text-title`) are `font-semibold`; LP-facing document headings (`text-heading`) stay `font-normal`. Both numbers assume `--font-display` is Inter — a serif display face wants 400 throughout.
 
 ## Migration conventions
 
