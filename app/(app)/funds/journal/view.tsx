@@ -76,9 +76,12 @@ export function JournalView() {
     if (debounced) qs.set('q', debounced)
     if (status !== 'all') qs.set('status', status)
     lf(`/api/accounting/journal?${qs}`)
-      .then(r => (r.ok ? r.json() : { entries: [], total: 0 }))
+      // A failed request must NOT render as an empty journal. Swallowing the error into
+      // `{ entries: [] }` made a hard backend failure look exactly like a fund with no
+      // entries — which is how a missing migration read as "this vehicle has no journal".
+      .then(r => (r.ok ? r.json() : r.json().catch(() => ({})).then(d => Promise.reject(new Error(d?.error ?? `Request failed (${r.status})`)))))
       .then(d => { setEntries(Array.isArray(d.entries) ? d.entries : []); setTotal(d.total ?? 0) })
-      .catch(() => setError('Could not load entries'))
+      .catch(e => { setEntries([]); setTotal(0); setError(e?.message ? `Could not load entries — ${e.message}` : 'Could not load entries') })
       .finally(() => setLoading(false))
   }, [lf, preset, start, end, debounced, status, page])
   useEffect(() => { loadPage() }, [loadPage])

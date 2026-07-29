@@ -309,9 +309,9 @@ export function commitmentFigures(
   // negative, so rather than render an impossible figure we clamp it and raise a flag the
   // surfaces turn into "these books need attention" — see loadStrandedCapital.
   //
-  // This is the exact shape of the Ocrolus SPV LP failure: capital pooled on 3100 with no
-  // per-LP accounts, giving funded = 0 - commitment = -commitment for months, and nothing
-  // in the product treating it as anything other than a number.
+  // The shape to recognise: capital pooled on 3100 with no per-LP accounts gives
+  // funded = 0 - commitment = -commitment indefinitely, and without this flag nothing in
+  // the product treats it as anything other than a number.
   const rawFunded = roundCents(called - receivable)
   const fundedUnderflow = rawFunded < -0.005
 

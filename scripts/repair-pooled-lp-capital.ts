@@ -1,7 +1,7 @@
 // Repair a vehicle whose LP capital never reached per-LP capital accounts.
 //
-//   npx tsx --env-file=.env.local scripts/repair-pooled-lp-capital.ts "Ocrolus SPV LP"
-//   npx tsx --env-file=.env.local scripts/repair-pooled-lp-capital.ts "Ocrolus SPV LP" --apply
+//   npx tsx --env-file=.env.local scripts/repair-pooled-lp-capital.ts "<vehicle name>"
+//   npx tsx --env-file=.env.local scripts/repair-pooled-lp-capital.ts "<vehicle name>" --apply
 //
 // Three ordered steps. Each is idempotent, and the dry run prints exactly what --apply would do.
 //

@@ -7,8 +7,9 @@
 // read 0 while Committed — which never touches the ledger — reads correctly.
 //
 // That state is indistinguishable from "this vehicle has no capital yet" unless something
-// goes looking, which is why Ocrolus SPV LP sat wrong from 2020 to 2026 with a $316k
-// overstatement on the balance sheet. This is the something.
+// goes looking. Worse, the balance sheet can still tie: the offsetting error sits in a
+// receivable, so assets and equity are inflated by the same amount and `check` reads 0.
+// Nothing about a balanced trial balance rules this out. This is the something that looks.
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { vehicleIdByName } from './vehicle-id'

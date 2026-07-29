@@ -137,7 +137,7 @@ export async function vehicleStatus(
   // Same lesson, second column. Capital sitting on the POOLED account reaches no partner, so
   // every per-LP figure reads 0 while the vehicle looks finished. Counting it as onboarded is
   // what let the setup tools — including the attribution repair — disappear from Status on a
-  // vehicle that still needed them, which is how Ocrolus SPV LP stayed broken for six years.
+  // vehicle that still needed them, leaving no route to the fix from anywhere in the product.
   const stranded = await loadStrandedCapital(admin, fundId, group)
   const capitalAttributed = !stranded.stranded
   const onboarded = chartSeeded && !!historyMode && hasPostedEntries && investmentsBooked && capitalAttributed

@@ -85,12 +85,16 @@ async function scan(admin: SupabaseClient, fundId: string, group: string) {
   // Paginate: PostgREST caps a single response at max_rows (1000), and a full-history
   // vehicle can have more than that many pooled postings — an unpaginated read would
   // silently attribute only the first page.
+  // Exclude VOID entries. Their postings affect no balance, so attributing them achieves
+  // nothing — but counting them made the tool report "N still untagged" for postings that
+  // were never going to matter, which reads as an unfinished repair.
   const posts = await fetchAllRows<any>((f, t) =>
     admin
       .from('journal_postings' as any)
-      .select('id, amount, lp_entity_id, journal_entries!inner(entry_date)')
+      .select('id, amount, lp_entity_id, journal_entries!inner(entry_date, status)')
       .eq('fund_id', fundId)
       .in('account_id', pooledIds)
+      .neq('journal_entries.status', 'void')
       .range(f, t),
   )
   const postings: PooledPosting[] = (posts ?? []).map(p => ({

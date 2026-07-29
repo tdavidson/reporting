@@ -1,6 +1,6 @@
 // Read-only diagnostic for a vehicle whose LP capital never reached per-LP accounts.
 //
-//   npx tsx --env-file=.env.local scripts/diagnose-pooled-lp-capital.ts "Ocrolus SPV LP"
+//   npx tsx --env-file=.env.local scripts/diagnose-pooled-lp-capital.ts "<vehicle name>"
 //
 // Writes nothing. Answers the questions that decide how a repair has to work:
 //   1. Do per-LP capital accounts (3100-<lp>) exist at all?

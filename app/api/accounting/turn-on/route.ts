@@ -50,8 +50,8 @@ export async function POST(req: NextRequest) {
   //     Seeding the chart is not enough: the roll-forward only attributes a posting when the
   //     ACCOUNT it lands on carries an lp_entity_id (load.ts:107-126). A vehicle turned on
   //     without these books its capital to the pooled 3100, where it reaches nobody and every
-  //     partner reads Called 0 / Ending 0 — indistinguishable from a fund with no capital yet.
-  //     That is how Ocrolus SPV LP ran wrong from 2020 to 2026.
+  //     partner reads Called 0 / Ending 0 — indistinguishable from a fund with no capital yet,
+  //     and a vehicle can run that way for years before anyone notices.
   const committed = await committedLpIds(admin, gate.fundId, group)
   let capitalAccounts = 0
   if (committed.length > 0) {
