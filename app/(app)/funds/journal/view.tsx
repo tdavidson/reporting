@@ -44,7 +44,9 @@ export function JournalView() {
   const [preset, setPreset] = useState<PeriodPreset>('ytd')
   const [start, setStart] = useState('')
   const [end, setEnd] = useState('')
-  const [status, setStatus] = useState<'all' | 'draft' | 'posted'>('all')
+  // 'all' means draft + posted, NOT literally everything — voided entries are discarded and
+  // only come back when you ask for them by name. The API applies the same rule.
+  const [status, setStatus] = useState<'all' | 'draft' | 'posted' | 'void'>('all')
   const [page, setPage] = useState(0)
   // `{ entryId: null }` = a new entry; readOnly = view a posted one without reverting it.
   const [editing, setEditing] = useState<{ entryId: string | null; readOnly?: boolean } | null>(null)
@@ -107,20 +109,24 @@ export function JournalView() {
     }
   }, [sel.allPageSelected, sel.selectedIds.length])
 
-  // Post the ticked drafts. Two request shapes, because the two scopes page differently:
+  // Post or discard the ticked drafts. Two request shapes, because the two scopes page
+  // differently:
   //   - an explicit selection goes as `ids`, chunked at the endpoint's 500-row cap (that path
   //     has no cursor, so the client does the paging);
   //   - the escalated "every draft in range" goes as start/end and follows the server's keyset
-  //     cursor, which advances past entries too stuck to post.
-  // Either way the server re-checks draft status, balance and closed periods per entry, and
-  // hands back the ones it refused.
-  const postDrafts = useCallback(() => {
+  //     cursor, which advances past entries too stuck to act on.
+  // Either way the server re-checks draft status and closed periods per entry (plus balance,
+  // when posting) and hands back the ones it refused.
+  const runBulk = useCallback((action: 'post' | 'void') => {
     const ids = allMatching ? null : sel.draftIds
     if (ids && ids.length === 0) return
     const scope = ids
       ? `${ids.length} selected draft${ids.length === 1 ? '' : 's'}`
       : `every draft in ${rangeLabel}`
-    if (!window.confirm(`Post ${scope} to the ledger? This cannot be bulk-undone.`)) return
+    const question = action === 'post'
+      ? `Post ${scope} to the ledger? This cannot be bulk-undone.`
+      : `Discard ${scope}? They're marked void and drop off this list — pick "Voided" in the status filter to see them again.`
+    if (!window.confirm(question)) return
 
     setPosting(true)
     setPostMsg(null)
@@ -130,10 +136,10 @@ export function JournalView() {
     const skipped: Record<string, string> = {}
 
     const call = (body: Record<string, unknown>) =>
-      lf('/api/accounting/journal/bulk-post', { method: 'POST', body: JSON.stringify(body) })
-        .then(r => (r.ok ? r.json() : Promise.reject(new Error('bulk-post failed'))))
-        .then((d: { posted?: number; skipped?: { id: string; reason: string }[]; hasMore?: boolean; cursor?: string | null }) => {
-          totalPosted += d.posted ?? 0
+      lf(`/api/accounting/journal/bulk-${action}`, { method: 'POST', body: JSON.stringify(body) })
+        .then(r => (r.ok ? r.json() : Promise.reject(new Error(`bulk-${action} failed`))))
+        .then((d: { changed?: number; skipped?: { id: string; reason: string }[]; hasMore?: boolean; cursor?: string | null }) => {
+          totalPosted += d.changed ?? 0
           if (Array.isArray(d.skipped)) for (const s of d.skipped) skipped[s.id] = s.reason
           return d
         })
@@ -155,9 +161,10 @@ export function JournalView() {
     run
       .catch(() => { failed = true })
       .then(() => {
+        const verb = action === 'post' ? 'Posted' : 'Discarded'
         setPostMsg(failed
-          ? 'Could not post draft entries.'
-          : `Posted ${totalPosted} ${totalPosted === 1 ? 'entry' : 'entries'}. ${describeSkipped(Object.keys(skipped).map(id => ({ id, reason: skipped[id] })))}`.trim())
+          ? `Could not ${action === 'post' ? 'post' : 'discard'} draft entries.`
+          : `${verb} ${totalPosted} ${totalPosted === 1 ? 'entry' : 'entries'}. ${describeSkipped(Object.keys(skipped).map(id => ({ id, reason: skipped[id] })))}`.trim())
         setPosting(false)
         loadPage() // also clears the selection
       })
@@ -180,12 +187,13 @@ export function JournalView() {
         />
         <select
           value={status}
-          onChange={e => { setStatus(e.target.value as 'all' | 'draft' | 'posted'); setPage(0) }}
+          onChange={e => { setStatus(e.target.value as 'all' | 'draft' | 'posted' | 'void'); setPage(0) }}
           className="h-9 rounded-md border border-input bg-background px-2 text-sm"
         >
           <option value="all">All entries</option>
           <option value="draft">Draft</option>
           <option value="posted">Posted</option>
+          <option value="void">Voided</option>
         </select>
         {error && <span className="text-sm text-warning">{error}</span>}
         <div className="ml-auto">
@@ -196,6 +204,10 @@ export function JournalView() {
           />
         </div>
       </div>
+
+      {/* Outside the selection strip on purpose: discarding every draft on screen empties the
+          list, and the confirmation that it worked must survive that. */}
+      {postMsg && <div className="text-xs text-muted-foreground">{postMsg}</div>}
 
       {loading ? (
         <div className="flex items-center gap-2 text-muted-foreground text-sm"><Loader2 className="h-4 w-4 animate-spin" />Loading…</div>
@@ -213,8 +225,11 @@ export function JournalView() {
         </EmptyState>
       ) : (
         <div className="space-y-2">
-        {/* Selection strip. Always rendered while there are entries, so its presence never
-            depends on state and the list below never jumps. */}
+        {/* Selection strip. Rendered whenever anything on the page can be ticked, so its
+            presence doesn't depend on what IS ticked and the list below never jumps. The one
+            case it's absent is the Voided view, where nothing is actionable and a dead
+            select-all checkbox would just be a lie. */}
+        {sel.selectableIds.length > 0 && (
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border bg-muted/30 px-3 py-2 text-xs">
           <input
             ref={selectAllRef}
@@ -249,21 +264,23 @@ export function JournalView() {
             </button>
           )}
 
-          {/* One right-aligned group, so the result message and the buttons can't each claim
-              the auto margin and end up fighting over the same edge. */}
-          <div className="ml-auto flex items-center gap-2">
-            {postMsg && <span className="text-muted-foreground">{postMsg}</span>}
-            {(allMatching || sel.draftIds.length > 0) && (
-              <>
-                <Button size="sm" variant="outline" disabled={posting} onClick={postDrafts}>
-                  {posting ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : null}
-                  {allMatching ? 'Post all drafts in range' : `Post ${sel.draftIds.length} draft${sel.draftIds.length === 1 ? '' : 's'}`}
-                </Button>
-                <Button size="sm" variant="ghost" disabled={posting} onClick={clearSelection}>Clear</Button>
-              </>
-            )}
-          </div>
+          {(allMatching || sel.draftIds.length > 0) && (
+            <div className="ml-auto flex items-center gap-2">
+              <Button size="sm" variant="outline" disabled={posting} onClick={() => runBulk('post')}>
+                {posting ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : null}
+                {allMatching ? 'Post all drafts in range' : `Post ${sel.draftIds.length} draft${sel.draftIds.length === 1 ? '' : 's'}`}
+              </Button>
+              {/* Discard is the same scope as Post, worded as the destructive twin. It voids
+                  rather than deletes: the entries leave this list but the rows survive, and
+                  the "Voided" filter is the way back. */}
+              <Button size="sm" variant="outline" disabled={posting} onClick={() => runBulk('void')} className="text-destructive hover:text-destructive">
+                {allMatching ? 'Discard all drafts in range' : `Discard ${sel.draftIds.length}`}
+              </Button>
+              <Button size="sm" variant="ghost" disabled={posting} onClick={clearSelection}>Clear</Button>
+            </div>
+          )}
         </div>
+        )}
 
         <div className="border rounded-lg divide-y font-mono text-xs">
           {entries.map(e => {

@@ -4,6 +4,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { loadPostedLedger, loadOwnership } from './load'
+import { loadStrandedCapital, type StrandedCapital } from './pooled-capital-check'
 import { balanceSheet, scheduleOfInvestments, postingsAsOf } from './statements'
 import { buildSoiPositions, type SoiCompany } from './soi'
 import { computeCapitalAccounts, totalNav } from './capital-account'
@@ -39,6 +40,9 @@ export interface VehicleStatus {
     partnersWithCommitment: number
     /** False only when the tracker holds positions the ledger doesn't carry. */
     investmentsBooked: boolean
+    /** Every LP capital posting has reached a partner's OWN capital account. */
+    capitalAttributed: boolean
+    stranded: StrandedCapital
   }
   investments: {
     trackerPositions: number
@@ -130,7 +134,13 @@ export async function vehicleStatus(
   // card vanished and the only hint was a blocker on Status, discovered after the fact.
   // A vehicle with no positions at all (a fresh SPV pre-investment) is fine.
   const investmentsBooked = positions.length === 0 || Math.abs(soi.ledgerCost) >= 0.005
-  const onboarded = chartSeeded && !!historyMode && hasPostedEntries && investmentsBooked
+  // Same lesson, second column. Capital sitting on the POOLED account reaches no partner, so
+  // every per-LP figure reads 0 while the vehicle looks finished. Counting it as onboarded is
+  // what let the setup tools — including the attribution repair — disappear from Status on a
+  // vehicle that still needed them, which is how Ocrolus SPV LP stayed broken for six years.
+  const stranded = await loadStrandedCapital(admin, fundId, group)
+  const capitalAttributed = !stranded.stranded
+  const onboarded = chartSeeded && !!historyMode && hasPostedEntries && investmentsBooked && capitalAttributed
 
   // ---------------------------------------------------------------------------
   // What needs attention, worst first.
@@ -259,6 +269,8 @@ export async function vehicleStatus(
       partnerCount: owners.length,
       partnersWithCommitment,
       investmentsBooked,
+      capitalAttributed,
+      stranded,
     },
     investments: {
       trackerPositions: positions.length,

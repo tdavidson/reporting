@@ -38,6 +38,11 @@ export function CapitalAccountsView() {
   // Which producer this vehicle's capital comes from. Null until the first load — the
   // mode-specific parts of the page stay hidden rather than flashing the wrong ones.
   const [source, setSource] = useState<CapitalSource | null>(null)
+  // Capital stranded on the pooled account. Reported by the API because it's the one thing
+  // that makes every number on this page a lie while looking like a fund with no capital.
+  const [stranded, setStranded] = useState<{ stranded: boolean; message: string | null; taggedPostings: number; pooledPostings: number } | null>(null)
+  const [fixing, setFixing] = useState(false)
+  const [fixMsg, setFixMsg] = useState<string | null>(null)
 
   const [preset, setPreset] = useState<PeriodPreset>('itd')
   const [start, setStart] = useState('')
@@ -78,7 +83,7 @@ export function CapitalAccountsView() {
       .then(r => (r.ok ? r.json() : { rows: [], nav: 0, calls: [] }))
       .then(d => {
         setRows(d.rows ?? []); setNav(d.nav ?? 0); setPeriod(d.period ?? null)
-        setCalls(d.calls ?? []); setSource(d.source ?? null)
+        setCalls(d.calls ?? []); setSource(d.source ?? null); setStranded(d.stranded ?? null)
       })
       .finally(() => setLoading(false))
   }, [lf, preset, start, end, asOf])
@@ -147,8 +152,42 @@ export function CapitalAccountsView() {
     load()
   }
 
+  // Repair from here. The Setup page hides these tools once a vehicle counts as "onboarded"
+  // — which is judged on accounts and partners existing, not on capital reaching anyone — so
+  // the one place the problem is visible had no way to act on it.
+  async function attributeNow() {
+    if (!window.confirm('Create each partner\u2019s capital account and move the pooled LP capital onto it? Balance-sheet neutral; postings in a closed period are skipped.')) return
+    setFixing(true); setFixMsg(null)
+    try {
+      const res = await lf('/api/accounting/attribute-lp-capital', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}),
+      })
+      const d = await res.json().catch(() => ({}))
+      if (!res.ok) { setFixMsg(d.error ?? 'Attribution failed'); return }
+      setFixMsg(`Created ${d.accountsCreated} accounts, attributed ${d.moved} postings.`
+        + (d.untagged ? ` ${d.untagged} carry no LP and need splitting by hand.` : '')
+        + (d.closedSkipped ? ` ${d.closedSkipped} skipped \u2014 reopen those periods to include them.` : ''))
+      load()
+    } finally {
+      setFixing(false)
+    }
+  }
+
   return (
     <div className="space-y-3">
+      {stranded?.stranded && (
+        <div className="rounded-lg border border-warning bg-warning-subtle px-3 py-2.5 text-sm">
+          <p className="font-medium">LP capital is not attributed to partner accounts</p>
+          <p className="mt-0.5 text-muted-foreground">{stranded.message}</p>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <Button size="sm" variant="outline" onClick={attributeNow} disabled={fixing}>
+              {fixing && <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />}Attribute now
+            </Button>
+            {fixMsg && <span className="text-xs text-muted-foreground">{fixMsg}</span>}
+          </div>
+        </div>
+      )}
+
       {/* The action row. The statement-period select sits on the RIGHT of the same row (via
           ml-auto) rather than in its own box — one control strip instead of two stacked
           panels. Choosing the capital source (ledger vs capital tracking) lives on the Admin

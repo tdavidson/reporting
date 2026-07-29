@@ -9,6 +9,7 @@ import { computeCapitalAccounts, totalNav, type CapitalPosting } from '@/lib/acc
 import { lpIrr } from '@/lib/accounting/live-report'
 import { latestPositionIrr } from '@/lib/accounting/lp-positions'
 import { lpCapitalSummary, listCapitalCalls } from '@/lib/accounting/capital-calls'
+import { loadStrandedCapital } from '@/lib/accounting/pooled-capital-check'
 import { resolvePeriod, customPeriod, type PeriodPreset } from '@/lib/accounting/statement-period'
 
 // GET — per-LP capital-account roll-forward for a vehicle.
@@ -49,12 +50,15 @@ export async function GET(req: NextRequest) {
   // period one needs the pre-period history anyway to open with a carried-in balance.
   // `summary` and `calls` fold the old Capital calls page into this one — commitment,
   // called, funded, and unfunded were the duplicated half of it.
-  const [{ source, postings: capitalPostings }, names, classes, summary, calls] = await Promise.all([
+  const [{ source, postings: capitalPostings }, names, classes, summary, calls, stranded] = await Promise.all([
     loadCapitalPostings(admin, gate.fundId, group),
     loadEntityNames(admin, gate.fundId, group),
     loadEntityClasses(admin, gate.fundId, group),
     lpCapitalSummary(admin, gate.fundId, group),
     listCapitalCalls(admin, gate.fundId, group),
+    // Capital sitting on the pooled account reaches no partner, which reads on this page as
+    // a fund where nobody has contributed. Surface it rather than render the zeroes.
+    loadStrandedCapital(admin, gate.fundId, group),
   ])
 
   const periodAccounts = computeCapitalAccounts(capitalPostings, period)
@@ -99,6 +103,7 @@ export async function GET(req: NextRequest) {
         funded: s?.funded ?? 0,
         outstanding: s?.outstanding ?? 0,
         receivable: s?.receivable ?? 0,
+        fundedUnderflow: s?.fundedUnderflow ?? false,
         period: periodAccounts.get(lpEntityId) ?? null,
         itd: itd ?? zero,
         irr: irrByLp.get(lpEntityId) ?? null,
@@ -115,5 +120,6 @@ export async function GET(req: NextRequest) {
     period,
     calls,
     source,
+    stranded,
   })
 }

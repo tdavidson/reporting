@@ -48,9 +48,13 @@ export async function GET(req: NextRequest) {
     : resolvePeriod(preset)
   const limit = Math.min(Math.max(parseInt(sp.get('limit') ?? '50', 10) || 50, 1), 200)
   const offset = Math.max(parseInt(sp.get('offset') ?? '0', 10) || 0, 0)
-  // Status filter: draft | posted | void; anything else (incl. 'all') → no filter.
+  // Status filter: draft | posted | void picks exactly that one. Anything else — including
+  // 'all' and an omitted param — means draft + posted: a voided entry has been discarded, and
+  // leaving it in the default list is the opposite of discarding it. Ask for 'void' to see them.
   const statusParam = sp.get('status')
-  const status = ['draft', 'posted', 'void'].includes(statusParam ?? '') ? statusParam : null
+  const statuses = ['draft', 'posted', 'void'].includes(statusParam ?? '')
+    ? [statusParam as string]
+    : ['draft', 'posted']
 
   const { data, error } = await admin.rpc('journal_search' as any, {
     p_fund_id: gate.fundId,
@@ -58,7 +62,7 @@ export async function GET(req: NextRequest) {
     p_start: period.start,
     p_end: period.end,
     p_query: sp.get('q'),
-    p_status: status,
+    p_statuses: statuses,
     p_limit: limit,
     p_offset: offset,
   })
@@ -163,7 +167,10 @@ export async function POST(req: NextRequest) {
 // PATCH — change an entry's state:
 //   post   → a draft becomes posted (it hits the ledger)
 //   unpost → back to draft so it can be edited and re-posted
-//   void   → keep it on the ledger but reverse its effect (audit-safe correction)
+//   void   → from POSTED, reverse its effect on the ledger (audit-safe correction);
+//            from DRAFT, discard it — the only way to get rid of a draft, which until now
+//            was a one-way door you could only edit or post. The bank page has always done
+//            this to drafts via its Ignore action; the journal simply couldn't reach it.
 // All are refused if the entry falls in a closed period (reopen it first).
 export async function PATCH(req: NextRequest) {
   const supabase = createClient()
@@ -194,8 +201,13 @@ export async function PATCH(req: NextRequest) {
   if (action === 'post' && status !== 'draft') {
     return NextResponse.json({ error: 'Only a draft entry can be posted' }, { status: 400 })
   }
-  if (action !== 'post' && status !== 'posted') {
-    return NextResponse.json({ error: 'Only a posted entry can be unposted or voided' }, { status: 400 })
+  if (action === 'unpost' && status !== 'posted') {
+    return NextResponse.json({ error: 'Only a posted entry can be unposted' }, { status: 400 })
+  }
+  // Void takes a draft (discard) or a posted entry (reverse). Only an already-void entry
+  // has nothing left to do.
+  if (action === 'void' && status !== 'draft' && status !== 'posted') {
+    return NextResponse.json({ error: 'That entry is already void' }, { status: 400 })
   }
 
   const closed = await closedPeriodRanges(admin, gate.fundId, group)
@@ -222,7 +234,9 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ ok: true, status: 'draft' })
   }
 
-  const { error } = await admin.from('journal_entries' as any).update({ status: 'void' }).eq('id', id).eq('fund_id', gate.fundId)
+  // `posted_at: null` matches what the bank page's Ignore writes, so an entry voided from
+  // either surface looks identical afterwards.
+  const { error } = await admin.from('journal_entries' as any).update({ status: 'void', posted_at: null }).eq('id', id).eq('fund_id', gate.fundId)
   if (error) return dbError(error, 'journal-void')
   await admin.from('bank_transactions' as any).update({ status: 'ignored' }).eq('journal_entry_id', id).eq('fund_id', gate.fundId)
   return NextResponse.json({ ok: true, status: 'void' })

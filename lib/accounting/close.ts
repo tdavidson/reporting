@@ -49,6 +49,7 @@ import {
 } from './terms'
 import { exportLedgerText } from './text-ledger-run'
 import { vehicleIdByName } from './vehicle-id'
+import { loadStrandedCapital } from './pooled-capital-check'
 import { roundCents } from './ledger'
 import type { Account, JournalEntry, Posting } from './types'
 
@@ -368,6 +369,18 @@ async function checkReadiness(
     blockers.push(
       `${draftRows.length} journal entr${draftRows.length === 1 ? 'y is' : 'ies are'} still in draft inside this span (from ${earliest}). ` +
       `A draft has no P&L in the ledger, so closing would allocate nothing for it — and lock the period so it can't be posted. Post or void them first.`
+    )
+  }
+
+  // Capital stranded on the pooled account means the allocation has nowhere to land for
+  // those partners: the close would compute each partner's share from capital balances that
+  // read 0, and lock the period on top of the result. Block, don't warn.
+  const stranded = await loadStrandedCapital(admin, fundId, group)
+  if (stranded.stranded) {
+    blockers.push(
+      `LP capital is not attributed to partner accounts. ${stranded.message} ` +
+      `Allocating on top of this would divide the period's income using capital balances that read zero. ` +
+      `Attribute it on the vehicle's Setup page first.`
     )
   }
 

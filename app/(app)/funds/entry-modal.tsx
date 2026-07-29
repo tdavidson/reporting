@@ -136,6 +136,27 @@ export function EntryModal({
     setSaving(false); setEditable(true); onSaved()
   }
 
+  /**
+   * Discard a draft — the only way to get rid of one. It's a void, not a delete: the entry
+   * keeps its row and drops off the journal's default list, and the "Voided" status filter
+   * is the way back. A hard delete would leave the bank transaction, capital call or carry
+   * payment that points at it holding a null reference.
+   *
+   * A bank-sourced entry goes through the bank API's `ignore` so the transaction lands on
+   * 'ignored' by the same path the bank page uses; a standalone entry goes straight to the
+   * journal API. Both refuse a closed period, which surfaces as the API error.
+   */
+  async function discardDraft() {
+    if (!id) return
+    if (!window.confirm('Discard this draft? It’s marked void and drops off the journal — pick “Voided” in the status filter to see it again.')) return
+    setSaving(true); setError(null)
+    const res = txnId
+      ? await lf('/api/accounting/bank', json({ action: 'ignore', id: txnId }))
+      : await lf('/api/accounting/journal', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'void', id }) })
+    if (!res.ok) { setError(await errOf(res, 'Could not discard the entry')); setSaving(false); return }
+    setSaving(false); onSaved(); onClose()
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
       <div className="flex max-h-[90vh] w-full max-w-2xl flex-col rounded-lg border bg-card shadow-xl" onClick={e => e.stopPropagation()}>
@@ -245,7 +266,18 @@ export function EntryModal({
                 the lines area above scrolls within the modal's max height. */}
             <div className="border-t p-4">
               {editable ? (
-                <div className="flex justify-end gap-2">
+                <div className="flex items-center justify-end gap-2">
+                  {/* Only once the entry exists — an unsaved new one is discarded by Cancel.
+                      Pushed to the far left so it can't be hit while reaching for Save. */}
+                  {id && (
+                    <Button
+                      size="sm" variant="ghost" onClick={discardDraft} disabled={saving}
+                      title="Mark this draft void — it drops off the journal"
+                      className="mr-auto text-destructive hover:text-destructive"
+                    >
+                      Discard
+                    </Button>
+                  )}
                   <Button size="sm" variant="outline" onClick={onClose}>Cancel</Button>
                   <Button size="sm" variant="outline" onClick={() => save(false)} disabled={saving || !balanced}>{saving && <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />}Save draft</Button>
                   <Button size="sm" onClick={() => save(true)} disabled={saving || !balanced}>Save &amp; post</Button>

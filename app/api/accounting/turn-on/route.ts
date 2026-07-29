@@ -10,6 +10,8 @@ import { DEFAULT_CHART, GP_ENTITY_CHART } from '@/lib/accounting/chart'
 import { bootstrapOpeningBalances } from '@/lib/accounting/bootstrap'
 import { positionDates } from '@/lib/accounting/lp-positions'
 import { saveHistoryMode } from '@/lib/accounting/terms'
+import { committedLpIds } from '@/lib/accounting/attribute-lp-capital'
+import { ensureCapitalAccounts } from '@/lib/accounting/persist'
 
 // POST — turn on fund accounting for a vehicle in ONE action. Seeds the chart (by kind), carries the
 // latest pasted snapshot in as opening balances (cutover), and flips the producer to the ledger.
@@ -44,6 +46,19 @@ export async function POST(req: NextRequest) {
     seeded = rows.length
   }
 
+  // 1b. Give every committed partner their OWN capital account, before any capital is booked.
+  //     Seeding the chart is not enough: the roll-forward only attributes a posting when the
+  //     ACCOUNT it lands on carries an lp_entity_id (load.ts:107-126). A vehicle turned on
+  //     without these books its capital to the pooled 3100, where it reaches nobody and every
+  //     partner reads Called 0 / Ending 0 — indistinguishable from a fund with no capital yet.
+  //     That is how Ocrolus SPV LP ran wrong from 2020 to 2026.
+  const committed = await committedLpIds(admin, gate.fundId, group)
+  let capitalAccounts = 0
+  if (committed.length > 0) {
+    const capMap = await ensureCapitalAccounts(admin, gate.fundId, group, committed)
+    capitalAccounts = capMap.size
+  }
+
   // 2. Carry the latest pasted snapshot in as opening balances (cutover). No positions → nothing to
   //    carry, so the vehicle starts empty and builds from journal entries (full history from here).
   const dates = await positionDates(admin, gate.fundId, group)
@@ -58,7 +73,8 @@ export async function POST(req: NextRequest) {
   const historyMode = booked ? 'cutover' : 'full_history'
   await saveHistoryMode(admin, gate.fundId, group, historyMode)
 
-  // 3. Flip the producer to the ledger. The chart now exists, so capital won't read as zero.
+  // 3. Flip the producer to the ledger. The chart AND every partner's own capital account
+  //    now exist, so capital booked from here lands somewhere it can be attributed.
   const { error: flipErr } = await admin
     .from('vehicle_accounting_settings' as any)
     .upsert(
@@ -67,5 +83,5 @@ export async function POST(req: NextRequest) {
     )
   if (flipErr) return dbError(flipErr, 'accounting-turn-on-flip')
 
-  return NextResponse.json({ ok: true, source: 'ledger', seeded, cutoverDate: booked ? cutover : null, lpCount, historyMode })
+  return NextResponse.json({ ok: true, source: 'ledger', seeded, capitalAccounts, cutoverDate: booked ? cutover : null, lpCount, historyMode })
 }

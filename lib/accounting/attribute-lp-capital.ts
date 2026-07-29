@@ -25,7 +25,7 @@ import { fetchAllRows } from './load'
  * commitment (event history or the `lp_investments` scalar). Used to seed accounts for
  * committed-but-not-yet-contributed partners, so the roster is complete after onboarding.
  */
-async function committedLpIds(admin: SupabaseClient, fundId: string, group: string): Promise<string[]> {
+export async function committedLpIds(admin: SupabaseClient, fundId: string, group: string): Promise<string[]> {
   const ids = new Set<string>()
   for (const e of await loadCommitmentEvents(admin, fundId, group)) ids.add(e.lpEntityId)
   const { data: inv } = await admin

@@ -7,14 +7,15 @@ import { vehicleIdByName } from '@/lib/accounting/vehicle-id'
 import { dbError } from '@/lib/api-error'
 import { readBulkScope, runBulkDraftAction } from '@/lib/accounting/journal-bulk'
 
-// POST — post many DRAFT entries at once (the journal's bulk-post action).
-//   body: { group?, start?, end?, ids?, afterId? }
-//     ids     — post exactly these entries (still draft-only, still guarded), one shot; OR
-//     start/end — restrict the window (omit both for all drafts);
-//     afterId — keyset cursor from the previous call's `cursor`, to page through.
-// Each entry is posted only if it is a draft, is balanced, and does not fall in a closed
-// period; everything else comes back in `skipped` with a reason. Returns { posted, skipped,
-// hasMore, cursor } — the client loops with afterId=cursor while hasMore is true.
+// POST — void many DRAFT entries at once (the journal's bulk-discard action). Same body,
+// same paging and the same guards as bulk-post; see lib/accounting/journal-bulk.ts.
+//
+// Draft-only, deliberately. A draft has never touched the ledger, so voiding it discards a
+// note-to-self. Voiding a POSTED entry reverses real balances, and that stays a one-at-a-time
+// act through the PATCH route where the operator sees the entry they're reversing.
+//
+// Balance is NOT a condition here (unlike posting): an out-of-balance draft is exactly the
+// kind you want to be able to throw away. A closed period still blocks it.
 export async function POST(req: NextRequest) {
   const supabase = createClient()
   const admin = createAdminClient()
@@ -32,13 +33,13 @@ export async function POST(req: NextRequest) {
     fundId: gate.fundId,
     vehicleId,
     group,
-    action: 'post',
+    action: 'void',
     scope: readBulkScope(body),
   })
-  if (!result.ok) return dbError(result.error as any, 'journal-bulk-post')
+  if (!result.ok) return dbError(result.error as any, 'journal-bulk-void')
 
   const { changed, skipped, hasMore, cursor } = result.outcome
-  // `changed` is the action-neutral name the client reads; `posted` is kept for clarity
+  // `changed` is the action-neutral name the client reads; `voided` is kept for clarity
   // at the API surface.
-  return NextResponse.json({ changed, posted: changed, skipped, hasMore, cursor })
+  return NextResponse.json({ changed, voided: changed, skipped, hasMore, cursor })
 }

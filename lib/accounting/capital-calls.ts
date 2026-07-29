@@ -222,6 +222,13 @@ export interface LpCapitalRow {
   outstanding: number
   /** Called but not yet in the bank (acct 1300). Always 0 on an events vehicle. */
   receivable: number
+  /**
+   * `called − receivable` came out NEGATIVE, which is impossible for cash received. It means
+   * this LP has a receivable but no reachable capital postings — almost always capital
+   * stranded on the pooled account. `funded` is clamped to 0; treat this as "the books are
+   * wrong", not as a number to display.
+   */
+  fundedUnderflow: boolean
   /** Capital-account ending balance (the LP's NAV). */
   ending: number
 }
@@ -288,16 +295,33 @@ export function commitmentFigures(
   commitmentRaw: number,
   calledRaw: number,
   receivableRaw: number,
-): { commitment: number; called: number; funded: number; outstanding: number; receivable: number } {
+): {
+  commitment: number; called: number; funded: number; outstanding: number; receivable: number
+  fundedUnderflow: boolean
+} {
   const commitment = roundCents(commitmentRaw)
   const called = roundCents(calledRaw)
   const receivable = roundCents(receivableRaw)
+
+  // `called - receivable` can only go negative when the two sides disagree about reality:
+  // a 1300 receivable exists for an LP whose capital postings never reached their own
+  // account, so `called` reads 0 while the receivable stands. Cash received is never
+  // negative, so rather than render an impossible figure we clamp it and raise a flag the
+  // surfaces turn into "these books need attention" — see loadStrandedCapital.
+  //
+  // This is the exact shape of the Ocrolus SPV LP failure: capital pooled on 3100 with no
+  // per-LP accounts, giving funded = 0 - commitment = -commitment for months, and nothing
+  // in the product treating it as anything other than a number.
+  const rawFunded = roundCents(called - receivable)
+  const fundedUnderflow = rawFunded < -0.005
+
   return {
     commitment,
     called,
-    funded: roundCents(called - receivable),      // cash actually received
+    funded: fundedUnderflow ? 0 : rawFunded,      // cash actually received
     outstanding: roundCents(commitment - called), // remaining to be called
     receivable,
+    fundedUnderflow,
   }
 }
 
