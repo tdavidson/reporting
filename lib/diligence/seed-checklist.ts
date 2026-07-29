@@ -6,7 +6,7 @@ type Admin = ReturnType<typeof createAdminClient>
 
 /**
  * Seed a fresh deal's checklist from the fund's stored template (falling
- * back to the bundled Laconia default if the fund hasn't customized one).
+ * back to the bundled default if the fund hasn't customized one).
  *
  * Best-effort: failures are swallowed so deal creation can't be blocked by
  * a checklist hiccup. Returns the count of rows inserted (0 on any failure

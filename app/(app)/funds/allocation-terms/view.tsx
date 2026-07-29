@@ -209,7 +209,7 @@ export function AllocationTermsView() {
         {showAdd && (
           <div className="border rounded-card p-3 mb-3 flex flex-wrap items-end gap-3">
             <label className="text-xs text-muted-foreground">Name
-              <Input value={addName} onChange={e => setAddName(e.target.value)} placeholder="e.g. Laconia Associates LLC" className="mt-1 h-9 w-64" />
+              <Input value={addName} onChange={e => setAddName(e.target.value)} placeholder="e.g. GP Associates LLC" className="mt-1 h-9 w-64" />
             </label>
             <label className="text-xs text-muted-foreground">Commitment
               <Input value={addCommitment} onChange={e => setAddCommitment(e.target.value)} inputMode="decimal" placeholder="0.00" className="mt-1 h-9 w-36 tabular-nums" />

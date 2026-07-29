@@ -38,8 +38,16 @@ import { listVehicles } from './load'
  * A skip LIST, deliberately, and not a rule that infers which vehicles are "done" — an
  * inference that silently starts including a vehicle is precisely the failure this must
  * not have. These were reconciled by hand; copying into them would double their capital.
+ *
+ * The list is per-DEPLOYMENT, so it comes from `CUTOVER_SKIP_VEHICLES` (comma-separated,
+ * case-insensitive) rather than living in the repo — naming a firm's vehicles in source is
+ * not something an installable app should do. Unset means skip nothing, which is right for
+ * a fresh install: it has no hand-reconciled vehicles to protect.
  */
-export const CUTOVER_SKIP_VEHICLES = ['bluefish', 'bluefish spv associates']
+export const CUTOVER_SKIP_VEHICLES = (process.env.CUTOVER_SKIP_VEHICLES ?? '')
+  .split(',')
+  .map(v => v.trim().toLowerCase())
+  .filter(Boolean)
 
 export function isSkippedVehicle(name: string): boolean {
   return CUTOVER_SKIP_VEHICLES.includes(name.trim().toLowerCase())

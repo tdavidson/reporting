@@ -40,7 +40,7 @@ export function VehicleEditModal({ vehicle, onClose, onSaved }: {
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
 
-  // Merge into another vehicle — collapses a duplicate (e.g. a backfilled "Ocrolus SPV" row) into
+  // Merge into another vehicle — collapses a duplicate (e.g. a backfilled "<X> SPV" row) into
   // an existing one, moving its data and deleting this row. Fetched lazily from the same list the
   // management page uses, minus this vehicle.
   const [others, setOthers] = useState<LinkableVehicle[] | null>(null)

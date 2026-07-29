@@ -2,8 +2,8 @@ import { describe, it, expect } from 'vitest'
 import { buildSoiPositions, txnsForVehicle, type SoiCompany } from './soi'
 
 const co = (over: Partial<SoiCompany> = {}): SoiCompany => ({
-  id: 'c1', name: 'Bluefish Labs, Inc.', status: 'active',
-  industry: ['Software'], stage: 'Series B', portfolio_group: ['Bluefish SPV LP'],
+  id: 'c1', name: 'Acme Labs, Inc.', status: 'active',
+  industry: ['Software'], stage: 'Series B', portfolio_group: ['Acme SPV LP'],
   ...over,
 })
 
@@ -29,46 +29,46 @@ const txn = (o: any) => ({
 
 describe('txnsForVehicle', () => {
   it('matches the vehicle EXACTLY — never as a substring', () => {
-    // The bug this guards: "Ocrolus SPV II".includes("Ocrolus SPV") is true.
+    // The bug this guards: "Acme SPV II".includes("Acme SPV") is true.
     const txns = [
-      txn({ transaction_type: 'investment', portfolio_group: 'Ocrolus SPV', investment_cost: 100 }),
-      txn({ transaction_type: 'investment', portfolio_group: 'Ocrolus SPV II', investment_cost: 999 }),
+      txn({ transaction_type: 'investment', portfolio_group: 'Acme SPV', investment_cost: 100 }),
+      txn({ transaction_type: 'investment', portfolio_group: 'Acme SPV II', investment_cost: 999 }),
     ]
-    const got = txnsForVehicle(txns, 'Ocrolus SPV')
+    const got = txnsForVehicle(txns, 'Acme SPV')
     expect(got).toHaveLength(1)
     expect(got[0].investment_cost).toBe(100)
   })
 
   it('includes untagged company-wide price signals', () => {
     const txns = [
-      txn({ transaction_type: 'investment', portfolio_group: 'Bluefish SPV LP', investment_cost: 100 }),
-      txn({ transaction_type: 'round_info', portfolio_group: null, share_price: 11.3679 }),
+      txn({ transaction_type: 'investment', portfolio_group: 'Acme SPV LP', investment_cost: 100 }),
+      txn({ transaction_type: 'round_info', portfolio_group: null, share_price: 12.5 }),
       txn({ transaction_type: 'investment', portfolio_group: null, investment_cost: 555 }), // untagged investment: NOT a price signal
     ]
-    const got = txnsForVehicle(txns, 'Bluefish SPV LP')
+    const got = txnsForVehicle(txns, 'Acme SPV LP')
     expect(got.map(t => t.transaction_type).sort()).toEqual(['investment', 'round_info'])
   })
 })
 
 describe('buildSoiPositions', () => {
   it('values priced equity at shares × the latest round price', () => {
-    // The real Bluefish position: 345,585 sh @ $7.9575 cost, marked to $11.3679.
+    // A priced position marked up: 100,000 sh bought at $8.00, latest round at $12.50.
     const positions = buildSoiPositions(
       [
-        txn({ transaction_type: 'investment', portfolio_group: 'Bluefish SPV LP', investment_cost: 2_749_992.64, shares_acquired: 345_585, share_price: 7.9575 }),
-        txn({ transaction_type: 'round_info', portfolio_group: null, share_price: 11.3679 }),
+        txn({ transaction_type: 'investment', portfolio_group: 'Acme SPV LP', investment_cost: 800_000, shares_acquired: 100_000, share_price: 8 }),
+        txn({ transaction_type: 'round_info', portfolio_group: null, share_price: 12.5 }),
       ],
       [co()],
-      'Bluefish SPV LP',
+      'Acme SPV LP',
     )
     expect(positions).toHaveLength(1)
     const p = positions[0]
-    expect(p.name).toBe('Bluefish Labs, Inc.')
-    expect(p.shares).toBe(345_585)
-    expect(p.sharePrice).toBe(11.3679)
-    expect(p.cost).toBe(2_749_992.64)
-    expect(p.fairValue).toBe(3_928_575.72) // 345,585 × 11.3679
-    expect(p.unrealized).toBe(1_178_583.08)
+    expect(p.name).toBe('Acme Labs, Inc.')
+    expect(p.shares).toBe(100_000)
+    expect(p.sharePrice).toBe(12.5)
+    expect(p.cost).toBe(800_000)
+    expect(p.fairValue).toBe(1_250_000) // 100,000 × 12.50
+    expect(p.unrealized).toBe(450_000)
     expect(p.assetType).toBe('Priced equity')
     expect(p.industry).toBe('Software')
   })
@@ -77,16 +77,16 @@ describe('buildSoiPositions', () => {
     const positions = buildSoiPositions(
       [txn({ transaction_type: 'investment', portfolio_group: 'Some Other Fund, LP', investment_cost: 500_000, shares_acquired: 100, share_price: 5000 })],
       [co()],
-      'Bluefish SPV LP',
+      'Acme SPV LP',
     )
     expect(positions).toEqual([])
   })
 
   it('does not create a position from a price signal alone', () => {
     const positions = buildSoiPositions(
-      [txn({ transaction_type: 'round_info', portfolio_group: null, share_price: 11.3679 })],
+      [txn({ transaction_type: 'round_info', portfolio_group: null, share_price: 12.5 })],
       [co()],
-      'Bluefish SPV LP',
+      'Acme SPV LP',
     )
     expect(positions).toEqual([])
   })
@@ -94,11 +94,11 @@ describe('buildSoiPositions', () => {
   it('values an unpriced SAFE at cost plus its cumulative value change', () => {
     const positions = buildSoiPositions(
       [
-        txn({ transaction_type: 'investment', portfolio_group: 'Bluefish SPV LP', investment_cost: 250_000, shares_acquired: 0, share_price: 0, round_name: 'SAFE' }),
-        txn({ transaction_type: 'unrealized_gain_change', portfolio_group: 'Bluefish SPV LP', unrealized_value_change: 50_000, round_name: 'SAFE' }),
+        txn({ transaction_type: 'investment', portfolio_group: 'Acme SPV LP', investment_cost: 250_000, shares_acquired: 0, share_price: 0, round_name: 'SAFE' }),
+        txn({ transaction_type: 'unrealized_gain_change', portfolio_group: 'Acme SPV LP', unrealized_value_change: 50_000, round_name: 'SAFE' }),
       ],
       [co()],
-      'Bluefish SPV LP',
+      'Acme SPV LP',
     )
     expect(positions[0].fairValue).toBe(300_000)
     expect(positions[0].assetType).toBe('Convertible / SAFE')

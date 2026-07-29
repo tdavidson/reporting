@@ -148,8 +148,8 @@ function assetTypeOf(txns: InvestmentTransaction[], hasShares: boolean, hasPrice
  *
  * `investment_transactions.portfolio_group` is a SCALAR text column (only
  * `companies.portfolio_group` is text[]), so it must be compared with `===`.
- * Using `.includes()` here would be a substring test — "Ocrolus SPV II" contains
- * "Ocrolus SPV" — which is exactly the bug that was in lib/lp-letters/aggregate.ts.
+ * Using `.includes()` here would be a substring test — a vehicle named "<X> SPV II"
+ * contains "<X> SPV" — which is exactly the bug that was in lib/lp-letters/aggregate.ts.
  *
  * Untagged `round_info` / `unrealized_gain_change` rows are company-wide pricing
  * signals (a later round the fund didn't participate in), so they count for every

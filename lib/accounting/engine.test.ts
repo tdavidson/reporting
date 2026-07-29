@@ -310,9 +310,9 @@ describe('statement of cash flows', () => {
   })
 
   it('splits ONE payment of principal + interest across financing and operating', () => {
-    // The real Bluefish payoff: a single 20,689.95 wire that is 14,992.64 of loan
-    // principal (financing) and 5,697.31 of accrued interest (operating). Classifying
-    // by the entry's source_type would dump the whole thing into financing.
+    // A single wire that is part loan principal (financing) and part accrued interest
+    // (operating). Classifying by the entry's source_type would dump the whole thing
+    // into financing.
     const cash: CashPosting[] = [
       { entryId: 'payoff', accountId: 'cash', amount: -20_689.95, sourceType: 'loan_repayment' },
       { entryId: 'payoff', accountId: 'note', amount: 14_992.64, sourceType: 'loan_repayment' },
@@ -362,9 +362,9 @@ describe('statement of cash flows', () => {
   })
 
   it('DISCLOSES an investment bought with borrowed money that bypassed the bank', () => {
-    // Bluefish: the lender paid the company directly. No cash moved, so neither the
-    // 2.75M draw nor the purchase can appear in the cash sections — but omitting them
-    // entirely makes the loan look like it was repaid without ever being borrowed.
+    // The lender paid the company directly. No cash moved, so neither the draw nor the
+    // purchase can appear in the cash sections — but omitting them entirely makes the
+    // loan look like it was repaid without ever being borrowed.
     const cash: CashPosting[] = [
       { entryId: 'draw', accountId: 'inv', amount: 2_749_992.64, sourceType: 'investment', entryDate: '2026-02-02', memo: 'Investment funded by loan' },
       { entryId: 'draw', accountId: 'note', amount: -2_749_992.64, sourceType: 'investment', entryDate: '2026-02-02', memo: 'Investment funded by loan' },

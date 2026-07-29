@@ -221,9 +221,17 @@ export function EntryModal({
                             <optgroup label="Accounts">
                               {general.map(a => <option key={a.id} value={a.id}>{a.name} ({a.code})</option>)}
                             </optgroup>
-                            {partnerAccounts.length > 0 && (
+                            {partnerAccounts.length > 0 ? (
                               <optgroup label="Partner capital">
                                 {partnerAccounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                              </optgroup>
+                            ) : (
+                              // Say WHY there is no partner to pick. Rendering nothing here made a
+                              // vehicle with no per-LP capital accounts look like a vehicle whose
+                              // partners simply weren't offered — the pooled account was the only
+                              // capital option and picking a partner appeared not to stick.
+                              <optgroup label="Partner capital">
+                                <option value="" disabled>No partner capital accounts — attribute LP capital on Capital accounts</option>
                               </optgroup>
                             )}
                           </select>

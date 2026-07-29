@@ -41,19 +41,22 @@ interface SendResult {
   error?: string
 }
 
-const DEFAULT_SUBJECT = 'Laconia - Q4 and YE 2025 Information Request'
+// A starting point, not a fixed template: both fields are editable below, and once a request
+// has been sent the last-sent subject and body are restored instead of these. Placeholders
+// rather than real names so nothing about a particular fund is baked into the repo.
+const DEFAULT_SUBJECT = '[Fund name] - [Period] Information Request'
 
-const DEFAULT_BODY = `Hi! We are finalizing Laconia's quarterly and year-end reporting and need your help obtaining the following information:
+const DEFAULT_BODY = `Hi! We are finalizing [fund name]'s quarterly and year-end reporting and need your help obtaining the following information:
 
-- Q4 and YE 2025 Income Statement (Monthly and Quarterly will be great, if possible)
-- YE 2025 Balance Sheet (Monthly and Quarterly will be great, if possible)
-- Q4 and YE 2025 Cashflow Statement (Monthly and Quarterly will be great, if possible)
+- [Period] Income Statement (Monthly and Quarterly will be great, if possible)
+- [Period] Balance Sheet (Monthly and Quarterly will be great, if possible)
+- [Period] Cashflow Statement (Monthly and Quarterly will be great, if possible)
 - Any financing activities that occurred during the quarter (If a new financing closed, please include the fully executed documents)
 - Any other crucial materials, such as the latest board decks or key KPIs
 
-Please provide the above information by Friday, February 20, 2026. Contact me or anyone on the Laconia team if you have any questions. Thank you,
+Please provide the above information by [date]. Contact me or anyone on the team if you have any questions. Thank you,
 
-Taylor`
+[Your name]`
 
 function plainTextToHtml(text: string): string {
   const escaped = text

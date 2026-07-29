@@ -125,7 +125,7 @@ export async function aggregatePortfolioData(
       shares_acquired: number | null; unrealized_value_change: number | null
       // NOTE: scalar text on investment_transactions (only companies.portfolio_group
       // is text[]). Must be compared with ===, never .includes() — on a string that
-      // is a substring test, and "Ocrolus SPV II" contains "Ocrolus SPV".
+      // is a substring test, and "<X> SPV II" contains "<X> SPV".
       portfolio_group: string | null
     }[] | null }
 

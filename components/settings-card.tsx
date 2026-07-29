@@ -5,10 +5,10 @@
 // A row works while every item has the same controls. Investment vehicles don't: an associate
 // carries two extra selects, so its row wrapped to a second line and left-aligned while its
 // neighbours stayed on one and right-aligned — nothing lined up, and the fields squeezed until
-// "Vintage", "GP of Bluefish SPV LP" and "invests as …" all truncated mid-word.
+// "Vintage", "GP of <a long vehicle name>" and "invests as …" all truncated mid-word.
 //
 // A card gives each item its own space and lets fields carry LABELS, which is what actually fixes
-// the truncation: the label says "GP of", so the control only has to say "Bluefish SPV LP".
+// the truncation: the label says "GP of", so the control only has to name the vehicle.
 
 import type { ReactNode } from 'react'
 

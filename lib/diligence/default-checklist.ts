@@ -2,7 +2,7 @@
  * Default fund checklist — seeded into fund_settings.diligence_checklist_template
  * on first use, and applied to a deal as a flat list of sections + items.
  *
- * Sourced from the Laconia Capital diligence checklist (partner-provided).
+ * Sourced from a partner-provided venture diligence checklist.
  */
 export const DEFAULT_CHECKLIST_TEMPLATE = `Business Summary
 Updated pitch deck & company blurb (investor-facing)

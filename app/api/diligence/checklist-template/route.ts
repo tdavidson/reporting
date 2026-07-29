@@ -7,7 +7,7 @@ import { dbError } from '@/lib/api-error'
 /**
  * Fund-wide diligence-checklist template — the partner-curated default
  * applied to new deals. Stored in fund_settings.diligence_checklist_template;
- * falls back to the bundled Laconia default when empty.
+ * falls back to the bundled default when empty.
  */
 export async function GET(req: NextRequest) {
   const guard = await ensureMember()

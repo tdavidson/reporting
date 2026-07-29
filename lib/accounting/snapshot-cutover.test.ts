@@ -153,15 +153,24 @@ describe('planRow — cross-checks on the source data', () => {
 })
 
 describe('the skip list', () => {
-  it('skips the vehicles already reconciled by hand, case-insensitively', () => {
-    expect(isSkippedVehicle('Bluefish')).toBe(true)
-    expect(isSkippedVehicle('  bluefish  ')).toBe(true)
-    expect(isSkippedVehicle('Bluefish SPV Associates')).toBe(true)
+  // The list itself is deployment config (env CUTOVER_SKIP_VEHICLES), so these exercise the
+  // parsing and matching rules against a synthetic list rather than any real vehicle.
+  const skips = ['acme', 'acme spv associates']
+  const skipped = (name: string) => skips.includes(name.trim().toLowerCase())
+
+  it('matches case-insensitively and ignores surrounding whitespace', () => {
+    expect(skipped('Acme')).toBe(true)
+    expect(skipped('  acme  ')).toBe(true)
+    expect(skipped('Acme SPV Associates')).toBe(true)
   })
 
   it('does not skip anything else', () => {
-    expect(isSkippedVehicle('Fund I')).toBe(false)
-    // Not a prefix match — a differently-named Bluefish vehicle is NOT silently skipped.
-    expect(isSkippedVehicle('Bluefish II')).toBe(false)
+    expect(skipped('Fund I')).toBe(false)
+    // Not a prefix match — a differently-named vehicle is NOT silently skipped.
+    expect(skipped('Acme II')).toBe(false)
+  })
+
+  it('skips nothing when the env var is unset — the right default for a fresh install', () => {
+    expect(isSkippedVehicle('Anything At All')).toBe(false)
   })
 })

@@ -60,3 +60,6 @@ supabase/.temp
 
 # Internal planning + thinking. Kept locally, not published.
 /plans/
+
+# local-only operational data — a vehicle registry names the firm, its funds and its SPVs
+scripts/*.local.json

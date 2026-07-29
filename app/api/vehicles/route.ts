@@ -82,8 +82,8 @@ export async function PATCH(req: NextRequest) {
   const body = await req.json().catch(() => ({}))
   if (!body.id) return NextResponse.json({ error: 'id is required' }, { status: 400 })
 
-  // Merge: collapse this vehicle into another (e.g. a backfilled "Ocrolus SPV" duplicate of the
-  // real "Ocrolus SPV LP"). Distinct from a rename — the source row is deleted, not renamed, and
+  // Merge: collapse this vehicle into another (e.g. a backfilled "<X> SPV" duplicate of the
+  // real "<X> SPV LP"). Distinct from a rename — the source row is deleted, not renamed, and
   // the target keeps its own name while absorbing the source's data + aliases. Handled first and
   // returns early; the normal field-update path below is for non-merge PATCHes only.
   if (body.mergeIntoId) {
