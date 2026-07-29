@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Loader2, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -9,7 +9,10 @@ import { useLedgerFetch, useFundSeg } from '@/components/accounting-vehicle'
 import { textAccountName } from '@/lib/accounting/text-ledger'
 import type { Account, AccountType } from '@/lib/accounting/types'
 import { PeriodPicker } from '@/components/accounting/period-picker'
-import type { PeriodPreset } from '@/lib/accounting/statement-period'
+import {
+  customPeriod, periodTriggerLabel, resolvePeriod, type PeriodPreset,
+} from '@/lib/accounting/statement-period'
+import { chunkIds, describeSkipped, summarizeSelection } from '@/lib/accounting/journal-selection'
 import { EntryModal } from '../entry-modal'
 import { EmptyState } from '@/components/ui/empty-state'
 
@@ -47,6 +50,10 @@ export function JournalView() {
   const [editing, setEditing] = useState<{ entryId: string | null; readOnly?: boolean } | null>(null)
   const [posting, setPosting] = useState(false)
   const [postMsg, setPostMsg] = useState<string | null>(null)
+  // Ticked entry ids on the current page. `allMatching` is the escalation past it: every
+  // draft in the filtered window, including the ones no page has shown yet.
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [allMatching, setAllMatching] = useState(false)
 
   // Debounce the search box → server query. Reset page in the same state
   // transition so the fetch effect (below) recomputes and fires exactly once.
@@ -58,6 +65,10 @@ export function JournalView() {
   const loadPage = useCallback(() => {
     setError(null)
     setLoading(true)
+    // Any reload — a filter change, a page turn, or the refresh after posting — invalidates
+    // the selection: the ids on screen are about to be different ones.
+    setSelected(new Set())
+    setAllMatching(false)
     const qs = new URLSearchParams({ preset, limit: String(PAGE), offset: String(page * PAGE) })
     if (preset === 'custom') { if (start) qs.set('start', start); if (end) qs.set('end', end) }
     if (debounced) qs.set('q', debounced)
@@ -70,42 +81,93 @@ export function JournalView() {
   }, [lf, preset, start, end, debounced, status, page])
   useEffect(() => { loadPage() }, [loadPage])
 
-  // Post every draft entry for this vehicle, one page at a time (the endpoint caps a
-  // single call at 500 rows and returns `remaining` so we know whether to loop).
-  const postAllDrafts = useCallback(() => {
-    if (!window.confirm('Post all draft entries for this vehicle to the ledger? This cannot be bulk-undone.')) return
+  const sel = useMemo(() => summarizeSelection(entries, selected), [entries, selected])
+  const rangeLabel = periodTriggerLabel(preset, start, end)
+  // The escalation is only offered when it would be honest: bulk-post filters by date and id,
+  // it has no free-text search, so with a query active "all matching" would silently mean
+  // something wider than what's on screen.
+  const canEscalate = sel.allPageSelected && !allMatching && total > entries.length && !debounced
+
+  const toggleRow = (id: string) => setSelected(prev => {
+    const next = new Set(prev)
+    if (next.has(id)) next.delete(id); else next.add(id)
+    return next
+  })
+  const toggleAll = () => {
+    setAllMatching(false)
+    setSelected(sel.allPageSelected ? new Set() : new Set(sel.selectableIds))
+  }
+  const clearSelection = () => { setSelected(new Set()); setAllMatching(false) }
+
+  // Indeterminate isn't an attribute — it only exists on the DOM node.
+  const selectAllRef = useRef<HTMLInputElement>(null)
+  useEffect(() => {
+    if (selectAllRef.current) {
+      selectAllRef.current.indeterminate = !sel.allPageSelected && sel.selectedIds.length > 0
+    }
+  }, [sel.allPageSelected, sel.selectedIds.length])
+
+  // Post the ticked drafts. Two request shapes, because the two scopes page differently:
+  //   - an explicit selection goes as `ids`, chunked at the endpoint's 500-row cap (that path
+  //     has no cursor, so the client does the paging);
+  //   - the escalated "every draft in range" goes as start/end and follows the server's keyset
+  //     cursor, which advances past entries too stuck to post.
+  // Either way the server re-checks draft status, balance and closed periods per entry, and
+  // hands back the ones it refused.
+  const postDrafts = useCallback(() => {
+    const ids = allMatching ? null : sel.draftIds
+    if (ids && ids.length === 0) return
+    const scope = ids
+      ? `${ids.length} selected draft${ids.length === 1 ? '' : 's'}`
+      : `every draft in ${rangeLabel}`
+    if (!window.confirm(`Post ${scope} to the ledger? This cannot be bulk-undone.`)) return
+
     setPosting(true)
     setPostMsg(null)
+    const win = preset === 'custom' ? customPeriod(start, end) : resolvePeriod(preset)
     let totalPosted = 0
-    const skipIds = new Set<string>()
-    let failed = false
-    // Keyset loop: page by the cursor the server returns (afterId), and dedup skips by id so
-    // a stuck entry counts once no matter how many pages it survives.
-    const step = (afterId: string | null, iter: number): Promise<void> => {
-      if (iter >= 200) return Promise.resolve()
-      return lf('/api/accounting/journal/bulk-post', { method: 'POST', body: JSON.stringify(afterId ? { afterId } : {}) })
-        .then(r => (r.ok ? r.json() : { posted: 0, skipped: [], hasMore: false, cursor: null }))
-        .then(d => {
+    // Keyed by id so a stuck entry counts once however many pages it survives.
+    const skipped: Record<string, string> = {}
+
+    const call = (body: Record<string, unknown>) =>
+      lf('/api/accounting/journal/bulk-post', { method: 'POST', body: JSON.stringify(body) })
+        .then(r => (r.ok ? r.json() : Promise.reject(new Error('bulk-post failed'))))
+        .then((d: { posted?: number; skipped?: { id: string; reason: string }[]; hasMore?: boolean; cursor?: string | null }) => {
           totalPosted += d.posted ?? 0
-          if (Array.isArray(d.skipped)) for (const s of d.skipped) skipIds.add(s.id)
-          if (d.hasMore && d.cursor) return step(d.cursor, iter + 1)
+          if (Array.isArray(d.skipped)) for (const s of d.skipped) skipped[s.id] = s.reason
+          return d
         })
-        .catch(() => { failed = true })
+
+    const stepAll = (afterId: string | null, iter: number): Promise<void> => {
+      if (iter >= 200) return Promise.resolve() // backstop against a server that never stops claiming hasMore
+      return call({
+        ...(win.start ? { start: win.start } : {}),
+        ...(win.end ? { end: win.end } : {}),
+        ...(afterId ? { afterId } : {}),
+      }).then(d => { if (d.hasMore && d.cursor) return stepAll(d.cursor, iter + 1) })
     }
-    step(null, 0).finally(() => {
-      setPostMsg(failed
-        ? 'Could not post draft entries.'
-        : `Posted ${totalPosted} entries.${skipIds.size ? ` ${skipIds.size} skipped (closed period or out of balance).` : ''}`)
-      setPosting(false)
-      loadPage()
-    })
-  }, [lf, loadPage])
+
+    const run: Promise<unknown> = ids
+      ? chunkIds(ids).reduce<Promise<unknown>>((p, batch) => p.then(() => call({ ids: batch })), Promise.resolve())
+      : stepAll(null, 0)
+
+    let failed = false
+    run
+      .catch(() => { failed = true })
+      .then(() => {
+        setPostMsg(failed
+          ? 'Could not post draft entries.'
+          : `Posted ${totalPosted} ${totalPosted === 1 ? 'entry' : 'entries'}. ${describeSkipped(Object.keys(skipped).map(id => ({ id, reason: skipped[id] })))}`.trim())
+        setPosting(false)
+        loadPage() // also clears the selection
+      })
+  }, [lf, loadPage, allMatching, sel.draftIds, rangeLabel, preset, start, end])
 
   return (
     <div className="space-y-4">
-      {/* Actions + search on the left; the period controls are right-aligned so the
-          extra From/To inputs that appear in Custom mode grow leftward and don't shove
-          the rest of the row around. Pagination lives BELOW the table (see footer). */}
+      {/* One row, always. The period control is a single popover trigger, so picking Custom
+          no longer drops two date inputs into this row and wraps it. Bulk actions live in the
+          selection strip below, and pagination BELOW the table (see footer). */}
       <div className="flex flex-wrap items-center gap-2">
         <Button size="sm" variant="outline" onClick={() => setEditing({ entryId: null })}>
           <Plus className="h-4 w-4 mr-1" />New entry
@@ -114,7 +176,7 @@ export function JournalView() {
           value={search}
           onChange={e => setSearch(e.target.value)}
           placeholder="Search memo, source, date, account, or amount…"
-          className="h-9 max-w-xs"
+          className="h-9 min-w-[10rem] max-w-xs flex-1"
         />
         <select
           value={status}
@@ -125,13 +187,8 @@ export function JournalView() {
           <option value="draft">Draft</option>
           <option value="posted">Posted</option>
         </select>
-        <Button size="sm" variant="outline" disabled={posting} onClick={postAllDrafts}>
-          {posting ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : null}
-          Post all drafts
-        </Button>
-        {postMsg && <span className="text-xs text-muted-foreground">{postMsg}</span>}
         {error && <span className="text-sm text-warning">{error}</span>}
-        <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+        <div className="ml-auto">
           <PeriodPicker
             preset={preset} onPreset={p => { setPreset(p); setPage(0) }}
             start={start} end={end}
@@ -155,6 +212,59 @@ export function JournalView() {
           {debounced ? 'No entries match your search in this period.' : 'No journal entries in this period. Widen the range, or create one above.'}
         </EmptyState>
       ) : (
+        <div className="space-y-2">
+        {/* Selection strip. Always rendered while there are entries, so its presence never
+            depends on state and the list below never jumps. */}
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border bg-muted/30 px-3 py-2 text-xs">
+          <input
+            ref={selectAllRef}
+            type="checkbox"
+            checked={sel.allPageSelected}
+            onChange={toggleAll}
+            aria-label="Select all entries on this page"
+          />
+          {allMatching ? (
+            <span className="font-medium">All drafts in {rangeLabel} are selected.</span>
+          ) : sel.selectedIds.length === 0 ? (
+            <span className="text-muted-foreground">Select all {sel.selectableIds.length} on this page</span>
+          ) : (
+            <span>
+              {sel.selectedIds.length} selected
+              <span className="text-muted-foreground"> · {sel.draftIds.length} draft{sel.draftIds.length === 1 ? '' : 's'}</span>
+            </span>
+          )}
+
+          {canEscalate && (
+            <button
+              type="button"
+              onClick={() => setAllMatching(true)}
+              className="underline underline-offset-2 hover:text-foreground"
+            >
+              {/* `total` counts the active filter, so it's only a draft count when the status
+                  filter already says Draft. Otherwise offer the action without a number
+                  rather than quote one that includes posted entries. */}
+              {status === 'draft'
+                ? `Select all ${total} drafts in ${rangeLabel}`
+                : `Select every draft in ${rangeLabel}`}
+            </button>
+          )}
+
+          {/* One right-aligned group, so the result message and the buttons can't each claim
+              the auto margin and end up fighting over the same edge. */}
+          <div className="ml-auto flex items-center gap-2">
+            {postMsg && <span className="text-muted-foreground">{postMsg}</span>}
+            {(allMatching || sel.draftIds.length > 0) && (
+              <>
+                <Button size="sm" variant="outline" disabled={posting} onClick={postDrafts}>
+                  {posting ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : null}
+                  {allMatching ? 'Post all drafts in range' : `Post ${sel.draftIds.length} draft${sel.draftIds.length === 1 ? '' : 's'}`}
+                </Button>
+                <Button size="sm" variant="ghost" disabled={posting} onClick={clearSelection}>Clear</Button>
+              </>
+            )}
+          </div>
+        </div>
+
         <div className="border rounded-lg divide-y font-mono text-xs">
           {entries.map(e => {
             const narration = (e.memo || e.source_type || 'Entry').replace(/"/g, "'")
@@ -171,7 +281,20 @@ export function JournalView() {
                 onClick={clickable ? () => setEditing({ entryId: e.id, readOnly: e.status === 'posted' }) : undefined}
                 className={`group px-3 py-2 ${clickable ? 'cursor-pointer hover:bg-muted/30' : 'opacity-50 line-through'}`}
               >
-                <div className="flex items-start justify-between gap-3">
+                <div className="flex items-start gap-3">
+                  {/* Fixed-width gutter whether or not the row has a box, so the entry text
+                      stays on one left edge. The span swallows the click that would
+                      otherwise open the entry modal. */}
+                  <span className="flex w-4 shrink-0 justify-center pt-0.5" onClick={ev => ev.stopPropagation()}>
+                    {clickable && (
+                      <input
+                        type="checkbox"
+                        checked={selected.has(e.id)}
+                        onChange={() => toggleRow(e.id)}
+                        aria-label={`Select entry ${e.entry_date}`}
+                      />
+                    )}
+                  </span>
                   <div className="min-w-0 flex-1 leading-relaxed">
                     <div className="whitespace-pre-wrap break-words">
                       <span className="text-muted-foreground">{e.entry_date}</span>{' '}
@@ -216,6 +339,7 @@ export function JournalView() {
               </div>
             )
           })}
+        </div>
         </div>
       )}
 

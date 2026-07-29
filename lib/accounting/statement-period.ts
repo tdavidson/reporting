@@ -73,6 +73,21 @@ export function customPeriod(start: string | null, end: string | null): Statemen
   }
 }
 
+/**
+ * One line summarising the period picker's whole state, for its trigger button.
+ * `asOf` is appended rather than replacing the window: on the pages that offer it,
+ * the preset still bounds the activity and as-of only moves the valuation date.
+ */
+export function periodTriggerLabel(
+  preset: PeriodPreset,
+  start: string,
+  end: string,
+  asOf?: string,
+): string {
+  const base = preset === 'custom' ? customPeriod(start, end).label : resolvePeriod(preset).label
+  return asOf ? `${base} · as of ${asOf}` : base
+}
+
 // --- Comparison stepping -----------------------------------------------------
 
 type PeriodInterval = 'quarter' | 'year' | 'ytd' | 'custom-length' | 'none'

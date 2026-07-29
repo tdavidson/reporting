@@ -53,9 +53,12 @@ export function AppHeader({ fundName, fundLogo, userEmail, reviewBadge, settings
         )}
       </div>
 
-      {/* Fund name aligned above page content when sidebar collapsed */}
+      {/* Fund name aligned above page content when sidebar collapsed.
+          left-28 (112px) is the page content's left edge, and has to be kept in step with it:
+          64 (the collapsed aside's w-16) + 16 (main's md:pl-4) + 32 (the section layout's
+          md:pl-8, e.g. app/(app)/funds/layout.tsx). */}
       {collapsed && (
-        <span className="hidden md:block absolute left-24 top-1/2 -translate-y-1/2 text-sm font-medium text-muted-foreground/70 tracking-tight">
+        <span className="hidden md:block absolute left-28 top-1/2 -translate-y-1/2 text-sm font-medium text-muted-foreground/70 tracking-tight">
           {fundName}
         </span>
       )}

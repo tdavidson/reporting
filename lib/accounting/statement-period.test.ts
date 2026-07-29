@@ -1,5 +1,25 @@
 import { describe, it, expect } from 'vitest'
-import { resolvePeriod, customPeriod, comparisonPeriods } from './statement-period'
+import { resolvePeriod, customPeriod, comparisonPeriods, periodTriggerLabel } from './statement-period'
+
+describe('periodTriggerLabel', () => {
+  it('uses the preset label and ignores stale custom dates', () => {
+    expect(periodTriggerLabel('itd', '2020-01-01', '2020-12-31')).toBe('Inception to date')
+  })
+
+  it('shows the window for custom', () => {
+    expect(periodTriggerLabel('custom', '2020-09-28', '2023-01-28')).toBe('2020-09-28 → 2023-01-28')
+  })
+
+  it('falls back to a half-open custom window rather than showing nothing', () => {
+    expect(periodTriggerLabel('custom', '', '2023-01-28')).toBe('Through 2023-01-28')
+    expect(periodTriggerLabel('custom', '2020-09-28', '')).toBe('From 2020-09-28')
+  })
+
+  it('appends as-of, which narrows the valuation date without replacing the window', () => {
+    expect(periodTriggerLabel('itd', '', '', '2026-06-30')).toBe('Inception to date · as of 2026-06-30')
+    expect(periodTriggerLabel('itd', '', '', '')).toBe('Inception to date')
+  })
+})
 
 describe('comparisonPeriods', () => {
   const q2 = resolvePeriod('this_quarter', new Date(Date.UTC(2026, 4, 15))) // May 2026 → Q2
