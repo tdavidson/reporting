@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest'
+import { resolveDistributionSplit } from './bank-match'
 import {
   parseTransactionsCsv,
   normalizeDate,
@@ -135,5 +136,54 @@ describe('summarizeBankRec', () => {
     expect(s.bankEndingBalance).toBe(3000)
     expect(s.difference).toBe(2000) // ledger cash still shows the unbooked outflow
     expect(s.tiesOut).toBe(false)
+  })
+})
+
+describe('resolveDistributionSplit', () => {
+  const balances = [
+    { lpEntityId: 'a', commitment: 75_000 },
+    { lpEntityId: 'b', commitment: 25_000 },
+  ]
+
+  it('gives the whole amount to a named partner', () => {
+    const r = resolveDistributionSplit(10_000, { lpEntityId: 'b', balances })
+    expect('perLp' in r && Array.from(r.perLp.entries())).toEqual([['b', 10_000]])
+  })
+
+  it('lets a named partner win over the pro-rata split, and does NOT need a balance', () => {
+    // Naming the partner is the operator asserting who received the wire — it may
+    // legitimately overdraw them, and an LP absent from `balances` is still valid.
+    const r = resolveDistributionSplit(5_000, { lpEntityId: 'newcomer', balances: [] })
+    expect('perLp' in r && Array.from(r.perLp.entries())).toEqual([['newcomer', 5_000]])
+  })
+
+  it('splits pro-rata by ending capital balance when no partner is named', () => {
+    const r = resolveDistributionSplit(100_000, { balances })
+    expect('perLp' in r && Object.fromEntries(r.perLp)).toEqual({ a: 75_000, b: 25_000 })
+  })
+
+  it('ignores partners with no capital when splitting pro-rata', () => {
+    const r = resolveDistributionSplit(100_000, {
+      balances: [...balances, { lpEntityId: 'zero', commitment: 0 }],
+    })
+    expect('perLp' in r && r.perLp.has('zero')).toBe(false)
+  })
+
+  it('refuses a pro-rata split when nobody has capital, and says what to do instead', () => {
+    const r = resolveDistributionSplit(1_000, { balances: [] })
+    expect('error' in r && r.error).toContain('No partner has a positive capital balance')
+    expect('error' in r && r.error).toContain('name the partner it went to')
+  })
+
+  it('uses explicit per-LP amounts as given', () => {
+    const perLpOverride = new Map([['a', 6_000], ['b', 4_000]])
+    const r = resolveDistributionSplit(10_000, { perLpOverride, balances })
+    expect('perLp' in r && Object.fromEntries(r.perLp)).toEqual({ a: 6_000, b: 4_000 })
+  })
+
+  it('rejects explicit amounts that do not total the transaction', () => {
+    const perLpOverride = new Map([['a', 6_000], ['b', 1_000]])
+    const r = resolveDistributionSplit(10_000, { perLpOverride, balances })
+    expect('error' in r && r.error).toContain('total 7000')
   })
 })

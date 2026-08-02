@@ -35,7 +35,7 @@ import { buildCapitalCallIssuanceEntry } from './entries'
 import { allocateAmount } from './allocation'
 import { vehicleIdByName } from './vehicle-id'
 import { roundCents } from './ledger'
-import { RECEIVABLE_CODE } from './chart'
+import { RECEIVABLE_CODE, DISTRIBUTION_PAYABLE_CODE } from './chart'
 
 // Re-exported for the callers that have always imported it from here.
 export { RECEIVABLE_CODE }
@@ -143,6 +143,29 @@ export async function lpReceivableBalances(
   for (const p of postings) {
     if (p.accountId !== receivable.id || !p.lpEntityId) continue
     out.set(p.lpEntityId, roundCents((out.get(p.lpEntityId) ?? 0) + p.amount))
+  }
+  return out
+}
+
+/**
+ * Per-LP DECLARED-BUT-UNPAID distribution balance, from the ledger (account 2300).
+ *
+ * The outbound mirror of `lpReceivableBalances`. Returned POSITIVE = still owed to the
+ * partner, so callers don't have to reason about the payable's credit-normal sign.
+ */
+export async function lpPayableBalances(
+  admin: SupabaseClient,
+  fundId: string,
+  group: string
+): Promise<Map<string, number>> {
+  const { accounts, postings } = await loadPostedLedger(admin, fundId, group)
+  const payable = accounts.find(a => a.code === DISTRIBUTION_PAYABLE_CODE)
+  const out = new Map<string, number>()
+  if (!payable) return out
+  for (const p of postings) {
+    if (p.accountId !== payable.id || !p.lpEntityId) continue
+    // A credit (negative posting) creates the obligation, so negate to report what is owed.
+    out.set(p.lpEntityId, roundCents((out.get(p.lpEntityId) ?? 0) - p.amount))
   }
   return out
 }

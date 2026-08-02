@@ -9,9 +9,8 @@ import { useLedgerFetch } from '@/components/accounting-vehicle'
 import { EntryModal } from '../entry-modal'
 import { EmptyState } from '@/components/ui/empty-state'
 
-interface Txn { id: string; txn_date: string; amount: number; description: string; counterparty: string | null; status: string; suggested_account_code: string | null; journal_entry_id: string | null }
+interface Txn { id: string; txn_date: string; amount: number; description: string; counterparty: string | null; status: string; suggested_account_code: string | null; journal_entry_id: string | null; settled_lp_entity_id: string | null; settled_lp_name: string | null }
 interface Rec { bankEndingBalance: number; ledgerCashBalance: number; difference: number; matchedCount: number; unmatchedCount: number; unmatchedTotal: number; tiesOut: boolean }
-interface Candidate { entryId: string; amount: number; entryDate: string; memo: string | null }
 interface Lp { lpEntityId: string; name: string; commitment: number }
 
 const actionBtn = 'text-xs border border-input rounded px-2 py-1 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors'
@@ -22,19 +21,17 @@ export function BankView() {
   const [csv, setCsv] = useState('')
   const [txns, setTxns] = useState<Txn[]>([])
   const [rec, setRec] = useState<Rec | null>(null)
-  const [candidates, setCandidates] = useState<Candidate[]>([])
   const [lps, setLps] = useState<Lp[]>([])
   const [acctNames, setAcctNames] = useState<Record<string, string>>({})
   /** Why a match/book action was refused. Shown rather than swallowed. */
   const [matchError, setMatchError] = useState<string | null>(null)
-  const [accounts, setAccounts] = useState<{ code: string; name: string }[]>([])
+  const [accounts, setAccounts] = useState<{ code: string; name: string; is_active?: boolean }[]>([])
   const [loading, setLoading] = useState(true)
   const [importing, setImporting] = useState(false)
   const [categorizing, setCategorizing] = useState(false)
   const [result, setResult] = useState<{ imported: number; skipped: number; errors: string[] } | null>(null)
   const [editing, setEditing] = useState<{ txnId: string; entryId: string; readOnly?: boolean } | null>(null)
   const [selected, setSelected] = useState<Set<string>>(new Set())
-  const [bookedLp, setBookedLp] = useState<Record<string, string>>({})
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [sortBy, setSortBy] = useState('date-desc')
@@ -45,22 +42,42 @@ export function BankView() {
     Promise.all([
       lf('/api/accounting/bank').then(r => (r.ok ? r.json() : [])),
       lf('/api/accounting/bank/reconcile').then(r => (r.ok ? r.json() : null)),
-      lf('/api/accounting/bank/match').then(r => (r.ok ? r.json() : [])),
       lf('/api/accounting/chart').then(r => (r.ok ? r.json() : [])),
       lf('/api/accounting/entities').then(r => (r.ok ? r.json() : [])),
-    ]).then(([t, r, c, ch, lpRows]) => {
+    ]).then(([t, r, ch, lpRows]) => {
       setLps(Array.isArray(lpRows) ? lpRows : [])
       setTxns(Array.isArray(t) ? t : [])
       setSelected(new Set())
       setRec(r)
-      setCandidates(Array.isArray(c) ? c : [])
-      const chart = (Array.isArray(ch) ? ch : []).map((a: any) => ({ code: a.code, name: a.name }))
+      const chart = (Array.isArray(ch) ? ch : []).map((a: any) => ({ code: a.code, name: a.name, is_active: a.is_active }))
       setAccounts(chart)
       setAcctNames(Object.fromEntries(chart.map(a => [a.code, a.name])))
     }).finally(() => setLoading(false))
   }, [lf])
 
   useEffect(() => { load() }, [load])
+
+  const [matching, setMatching] = useState(false)
+  const [matchMsg, setMatchMsg] = useState<string | null>(null)
+
+  /**
+   * Settle drafted rows against DECLARED calls and distributions. Runs automatically after an
+   * import; this button re-runs it, which matters after declaring something new.
+   */
+  const autoMatch = useCallback(async (silent = false) => {
+    if (!silent) { setMatching(true); setMatchMsg(null) }
+    const res = await lf('/api/accounting/bank/auto-match', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) })
+    const d = await res.json().catch(() => ({}))
+    if (!silent) {
+      setMatching(false)
+      setMatchMsg(res.ok
+        ? `Matched ${d.matched?.length ?? 0}.` +
+          (d.ambiguous?.length ? ` ${d.ambiguous.length} could be more than one partner — pick below.` : '') +
+          (d.unmatched ? ` ${d.unmatched} had no declared call or distribution to settle.` : '')
+        : (d.error ?? 'Auto-match failed'))
+    }
+    load()
+  }, [lf, load])
 
   async function categorize() {
     setCategorizing(true)
@@ -83,13 +100,13 @@ export function BankView() {
     load()
   }
 
-  const candidateFor = (amount: number) => candidates.find(c => Math.abs(c.amount - amount) < 0.01)
-
   async function doImport() {
     setImporting(true); setResult(null)
     const res = await lf('/api/accounting/bank/import', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ csv }) })
     const data = await res.json()
-    if (res.ok) { setResult(data); setCsv(''); load() }
+    // Settle anything that pays a declared call or distribution before the AI sees it — an
+    // obligation is a fact, and guessing an expense account for it would only be worse.
+    if (res.ok) { setResult(data); setCsv(''); await autoMatch(true) }
     else setResult({ imported: 0, skipped: 0, errors: [data.error ?? 'Import failed'] })
     setImporting(false)
   }
@@ -196,13 +213,21 @@ export function BankView() {
 
       {/* Transactions */}
       {txns.some(t => t.status === 'drafted') && (
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Settlement first, guessing second: a wire that pays a declared call or
+              distribution is a fact, so it is matched before the categorizer is allowed an
+              opinion about it. Runs on import; this re-runs it after a new declaration. */}
+          <Button size="sm" variant="outline" onClick={() => autoMatch()} disabled={matching}>
+            {matching && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
+            Match declared calls &amp; distributions
+          </Button>
           <Button size="sm" variant="outline" onClick={categorize} disabled={categorizing}>
             {categorizing ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Sparkles className="h-4 w-4 mr-1" />}
             Categorize with AI
           </Button>
           <span className="text-xs text-muted-foreground">Re-classifies drafted rows against your chart of accounts.</span>
           {selectedCount > 0 && <Button size="sm" onClick={bulkPost}>Post {selectedCount} selected</Button>}
+          {matchMsg && <span className="text-xs text-muted-foreground">{matchMsg}</span>}
         </div>
       )}
       {loading && txns.length === 0 ? (
@@ -259,7 +284,10 @@ export function BankView() {
                         className="border border-input rounded bg-transparent px-1.5 py-1 text-xs max-w-[220px] hover:bg-accent/50"
                       >
                         {!t.suggested_account_code && <option value="">—</option>}
-                        {accounts.map(a => <option key={a.code} value={a.code}>{a.name} ({a.code})</option>)}
+                        {/* Hidden accounts drop out of the list, except the one this row already
+                            uses — otherwise the select would render blank and look broken. */}
+                        {accounts.filter(a => a.is_active !== false || a.code === t.suggested_account_code)
+                          .map(a => <option key={a.code} value={a.code}>{a.name} ({a.code})</option>)}
                       </select>
                     ) : t.suggested_account_code ? (
                       <span>
@@ -273,34 +301,24 @@ export function BankView() {
                   <td className="px-3 py-2 text-right">
                     {t.status === 'drafted' && (
                       <span className="flex items-center gap-1.5 justify-end">
-                        {t.amount > 0 && (candidateFor(t.amount)
-                          ? <button onClick={() => match(t.id, 'link', candidateFor(t.amount)!.entryId)} className={actionBtn} title="Link to the capital call you already recorded">Match call</button>
-                          : lps.length > 0
-                            ? <select
-                                value={bookedLp[t.id] ?? ''}
-                                onChange={e => { const v = e.target.value; if (!v) return; setBookedLp(m => ({ ...m, [t.id]: v })); if (v === '__prorata__') match(t.id, 'allocate'); else match(t.id, 'allocate', undefined, v) }}
-                                title="Book this inflow as a capital call — pick the LP who funded it"
-                                className="text-xs border border-input rounded bg-transparent px-2 py-1 max-w-[170px] text-muted-foreground hover:bg-accent"
-                              >
-                                <option value="">Book as call…</option>
-                                {lps.map(l => <option key={l.lpEntityId} value={l.lpEntityId}>{l.name}</option>)}
-                                <option value="__prorata__">All LPs (pro-rata)</option>
-                              </select>
-                            : <button onClick={() => match(t.id, 'allocate')} className={actionBtn} title="Allocate this inflow across LPs as a capital call">Book as call</button>
-                        )}
-
-                        {/* The outflow counterpart. Without it, the only way to book a
-                            distribution was the bank categorizer's rule, which posts to the
-                            POOLED capital account with no partner attached — money leaves the
-                            fund and no LP's capital account or statement ever records it. */}
-                        {t.amount < 0 && (
-                          <button
-                            onClick={() => match(t.id, 'distribute')}
-                            className={actionBtn}
-                            title="Book this outflow as a distribution — split across LPs by their capital balance, so it lands in each partner's capital account"
+                        {/* Settlement, not booking. A call or distribution is DECLARED first (creating a
+                            1300 receivable or a 2300 payable); auto-matching then settles the wire
+                            against it and names the partner. This shows who it landed on and lets
+                            you change it — the two "Book as call / Book as distribution" controls
+                            that used to live here created capital from the bank page, collapsing
+                            recognition and settlement into one step. */}
+                        {lps.length > 0 && (
+                          <select
+                            value={t.settled_lp_entity_id ?? ''}
+                            onChange={e => { const v = e.target.value; if (!v) return; match(t.id, t.amount > 0 ? 'allocate' : 'distribute', undefined, v) }}
+                            title={t.settled_lp_name
+                              ? `Settles against ${t.settled_lp_name} — change if that is the wrong partner`
+                              : 'Not matched to a declared call or distribution. Pick the partner to settle it against.'}
+                            className={`text-xs border rounded bg-transparent px-2 py-1 max-w-[170px] hover:bg-accent ${t.settled_lp_name ? 'border-input text-foreground' : 'border-dashed border-input text-muted-foreground'}`}
                           >
-                            Book as distribution
-                          </button>
+                            <option value="">{t.settled_lp_name ?? 'Unmatched — pick partner…'}</option>
+                            {lps.map(l => <option key={l.lpEntityId} value={l.lpEntityId}>{l.name}</option>)}
+                          </select>
                         )}
                         {t.journal_entry_id && <button onClick={() => setEditing({ txnId: t.id, entryId: t.journal_entry_id! })} className={actionBtn}>Edit</button>}
                         <button onClick={() => act(t.id, 'post')} className={actionBtn}>Post</button>

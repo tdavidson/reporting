@@ -6,6 +6,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { createFundAIProviderWithOverride } from '@/lib/ai'
 import { loadPostedLedger } from './load'
+import { RECEIVABLE_CODE, DISTRIBUTION_PAYABLE_CODE } from './chart'
 import { accountIdByCode } from './persist'
 import { vehicleIdByName } from './vehicle-id'
 import { buildCategorizePrompt, parseCategorizations, type TxnToCategorize } from './categorize-ai'
@@ -30,6 +31,11 @@ export async function runCategorization(
     .eq('fund_id', fundId)
     .eq('vehicle_id', vehicleId)
     .eq('status', 'drafted')
+    // Leave rows that auto-matching already settled against a declared call (1300) or
+    // distribution (2300). Those are attributed to a specific partner from a real
+    // obligation; letting the categorizer re-point them to a guessed expense account
+    // would silently undo a correct attribution.
+    .not('suggested_account_code', 'in', `(${RECEIVABLE_CODE},${DISTRIBUTION_PAYABLE_CODE})`)
   if (ids && ids.length) q = q.in('id', ids)
   const { data: rows } = await q
   const txns = (rows as any[]) ?? []

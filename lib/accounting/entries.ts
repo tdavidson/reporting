@@ -107,6 +107,53 @@ export function buildDistributionEntry(
 }
 
 /**
+ * DECLARE a distribution: reduce each partner's capital now, park the obligation in
+ * Distributions payable until the money actually leaves.
+ *
+ * The mirror of `buildCapitalCallIssuanceEntry`. Recognition and settlement are separate
+ * events on the way out just as they are on the way in — and the payable is what an outgoing
+ * wire later settles, which is what makes a distribution matchable to the declaration that
+ * authorized it. Booking straight to cash would leave nothing to match against.
+ *
+ * Each posting carries the LP id, so per-LP payable balances derive from the ledger.
+ */
+export function buildDistributionDeclarationEntry(
+  base: Base,
+  perLp: Map<string, number>,
+  capMap: CapitalAccountMap,
+  payableAccountId: string,
+  currency = 'USD'
+): JournalEntry {
+  const postings: Posting[] = []
+  for (const [lpEntityId, amt] of Array.from(perLp.entries())) {
+    if (!amt) continue
+    postings.push(lpDebit(capMap, lpEntityId, amt, currency))                                  // Dr LP capital
+    postings.push({ accountId: payableAccountId, amount: roundCents(-amt), currency, lpEntityId }) // Cr payable
+  }
+  return finalize(base, 'distribution', postings)
+}
+
+/**
+ * SETTLE a declared distribution: clear the payable with cash. No capital effect — capital
+ * was reduced at declaration, exactly as `buildFundingEntry` adds none because capital was
+ * recognized at the call.
+ */
+export function buildDistributionSettlementEntry(
+  base: Base,
+  lpEntityId: string,
+  amount: number,
+  cashAccountId: string,
+  payableAccountId: string,
+  currency = 'USD'
+): JournalEntry {
+  const amt = roundCents(Math.abs(amount))
+  return finalize(base, 'distribution_settlement', [
+    { accountId: payableAccountId, amount: amt, currency, lpEntityId },        // Dr payable
+    { accountId: cashAccountId, amount: roundCents(-amt), currency, lpEntityId: null }, // Cr cash
+  ])
+}
+
+/**
  * The two accounts a P&L entry touches.
  *
  * NOTE — these entries deliberately do NOT allocate to LP capital accounts.

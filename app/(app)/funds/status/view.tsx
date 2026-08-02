@@ -12,6 +12,7 @@ import { CarryTerms } from '../allocation-terms/carry-terms'
 import { useCanRead } from '@/components/access-context'
 import { AllocationTermsView } from '../allocation-terms/view'
 import { CollapsibleSection } from '@/components/collapsible-section'
+import { ChartOfAccountsCard } from '@/components/accounting/chart-of-accounts-card'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/empty-state'
 
@@ -228,6 +229,13 @@ export function StatusView() {
             </div>
           </CollapsibleSection>
         )}
+
+        {/* The chart itself — add, rename, hide. The only surface for it: the Setup block that
+            holds "Sync accounts" disappears once a vehicle counts as onboarded, which is exactly
+            when you want to add an account to one. */}
+        <CollapsibleSection title="Chart of accounts" subtitle="Add, rename, or hide the accounts this vehicle posts to">
+          <ChartOfAccountsCard />
+        </CollapsibleSection>
 
         <CollapsibleSection
           title="Partners Detail"

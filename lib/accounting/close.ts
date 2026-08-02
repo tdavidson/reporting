@@ -700,7 +700,58 @@ export async function closePeriodWithAllocation(
     .eq('fund_id', fundId)
   if (closeErr) return { error: closeErr.message }
 
+  await removeSupersededPeriods(admin, fundId, vehicleId, periodId, periodStart, periodEnd)
+
   return { id: periodId, entryIds, netIncome: preview.netIncome }
+}
+
+/**
+ * Delete period rows this close has SUPERSEDED — leftovers that overlap the range just closed
+ * but hold nothing.
+ *
+ * Row reuse above matches on the EXACT range, which is right: two genuinely different windows
+ * are two different periods. But it means a pre-existing row with a non-standard range (a
+ * December ending on the 30th, say) is orphaned rather than replaced when the calendar-month
+ * close runs — leaving an OPEN period overlapping a CLOSED one, both labelled the same month.
+ * That reads as a second, unfinished close of a month that is in fact closed.
+ *
+ * Deliberately narrow, because a fiscal period is a record and deleting one is not reversible.
+ * A row is removed only when ALL of these hold:
+ *   - it overlaps the range just closed, and is not the row we closed;
+ *   - it is NOT closed itself (a closed period is real history — overlapping ones need a human);
+ *   - no journal entry points at it, and it has no `close:<id>` entries of its own.
+ * Anything failing those is left exactly where it is.
+ */
+async function removeSupersededPeriods(
+  admin: SupabaseClient,
+  fundId: string,
+  vehicleId: string | null,
+  keepId: string,
+  periodStart: string,
+  periodEnd: string
+): Promise<void> {
+  const { data: overlapping } = await admin
+    .from('fiscal_periods' as any)
+    .select('id, status')
+    .eq('fund_id', fundId)
+    .eq('vehicle_id', vehicleId)
+    .neq('id', keepId)
+    .lte('period_start', periodEnd)
+    .gte('period_end', periodStart)
+
+  for (const p of ((overlapping as any[]) ?? [])) {
+    if (p.status === 'closed') continue
+
+    const [{ count: entryCount }, { count: closeCount }] = await Promise.all([
+      admin.from('journal_entries' as any).select('id', { count: 'exact', head: true })
+        .eq('fund_id', fundId).eq('period_id', p.id),
+      admin.from('journal_entries' as any).select('id', { count: 'exact', head: true })
+        .eq('fund_id', fundId).eq('source_ref', `close:${p.id}`),
+    ])
+    if ((entryCount ?? 0) > 0 || (closeCount ?? 0) > 0) continue
+
+    await admin.from('fiscal_periods' as any).delete().eq('id', p.id).eq('fund_id', fundId)
+  }
 }
 
 /**

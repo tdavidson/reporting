@@ -9,10 +9,11 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { loadOwnership, loadEntityNames, loadPostedLedger } from './load'
 import { accountIdByCode, ensureCapitalAccounts, persistEntry } from './persist'
 import { vehicleIdByName } from './vehicle-id'
-import { buildCapitalCallEntry, buildFundingEntry, buildDistributionEntry } from './entries'
+import { buildCapitalCallEntry, buildFundingEntry, buildDistributionEntry, buildDistributionSettlementEntry } from './entries'
 import { computeCapitalAccounts } from './capital-account'
 import { allocateAmount } from './allocation'
-import { lpReceivableBalances, RECEIVABLE_CODE } from './capital-calls'
+import { lpReceivableBalances, lpPayableBalances, RECEIVABLE_CODE } from './capital-calls'
+import { DISTRIBUTION_PAYABLE_CODE } from './chart'
 import { roundCents } from './ledger'
 import { closedPeriodRanges, dateInAnyClosedPeriod } from './periods'
 import type { JournalEntry } from './types'
@@ -158,6 +159,46 @@ async function retireEntry(
 }
 
 /**
+ * Who gets how much of a distribution — the precedence rules, pulled out so they can be
+ * pinned by a test.
+ *
+ * In order: a named partner takes the whole amount; explicit per-LP amounts are used as
+ * given (and must total the transaction); otherwise it splits pro-rata by ending capital
+ * balance. Only the last needs a positive balance to exist — naming a partner is the
+ * operator asserting who received the money, which may legitimately overdraw them.
+ */
+export function resolveDistributionSplit(
+  total: number,
+  opts: {
+    lpEntityId?: string | null
+    perLpOverride?: Map<string, number> | null
+    balances: { lpEntityId: string; commitment: number }[]
+  },
+): { perLp: Map<string, number> } | { error: string } {
+  const { lpEntityId, perLpOverride, balances } = opts
+
+  if (lpEntityId) {
+    // The amount comes from the transaction, so the client never computes it and can't
+    // disagree with the bank.
+    return { perLp: new Map([[lpEntityId, total]]) }
+  }
+
+  if (perLpOverride && perLpOverride.size > 0) {
+    const sum = roundCents(Array.from(perLpOverride.values()).reduce((s, v) => s + v, 0))
+    if (Math.abs(sum - total) > 0.01) {
+      return { error: `The per-LP amounts total ${sum}, but the transaction is ${total}.` }
+    }
+    return { perLp: perLpOverride }
+  }
+
+  const basis = balances.filter(b => b.commitment > 0)
+  if (basis.length === 0) {
+    return { error: 'No partner has a positive capital balance to distribute against. Book the contributions first, name the partner it went to, or enter the per-LP amounts.' }
+  }
+  return { perLp: allocateAmount(total, basis) }
+}
+
+/**
  * Turn an outflow into a DISTRIBUTION entry: Dr each LP's capital, Cr cash.
  *
  * The counterpart to `bookCapitalCallFromInflow`, and the fix for a real hole: the bank
@@ -172,6 +213,11 @@ async function retireEntry(
  * of the proceeds proportional to the former. (A capital CALL is the mirror image, and
  * correctly splits by commitment.) Pass `perLp` to override with explicit amounts, which is
  * what a waterfall would supply.
+ *
+ * `lpEntityId` books the WHOLE outflow to one partner — the mirror of naming a single LP on a
+ * capital call, and the common case when a wire went to one person. It takes precedence over
+ * the pro-rata split and, unlike it, does not require a positive capital balance: naming the
+ * partner is the operator asserting who received the money.
  */
 export async function bookDistributionFromOutflow(
   admin: SupabaseClient,
@@ -179,7 +225,8 @@ export async function bookDistributionFromOutflow(
   group: string,
   userId: string | null,
   txnId: string,
-  perLpOverride?: Map<string, number> | null
+  perLpOverride?: Map<string, number> | null,
+  lpEntityId?: string | null
 ): Promise<{ entryId: string } | { error: string }> {
   const txn = await getTxn(admin, fundId, group, txnId)
   if (!txn) return { error: 'Transaction not found' }
@@ -191,26 +238,43 @@ export async function bookDistributionFromOutflow(
   const cashId = codes.get('1000')
   if (!cashId) return { error: 'Seed the chart of accounts first' }
 
-  let perLp: Map<string, number>
-  if (perLpOverride && perLpOverride.size > 0) {
-    const sum = roundCents(Array.from(perLpOverride.values()).reduce((s, v) => s + v, 0))
-    if (Math.abs(sum - total) > 0.01) {
-      return { error: `The per-LP amounts total ${sum}, but the transaction is ${total}.` }
-    }
-    perLp = perLpOverride
-  } else {
-    // Split by ending capital balance.
+  // Only the pro-rata branch needs the ledger, so load it lazily.
+  let balances: { lpEntityId: string; commitment: number }[] = []
+  if (!lpEntityId && !(perLpOverride && perLpOverride.size > 0)) {
     const { capitalPostings } = await loadPostedLedger(admin, fundId, group)
-    const accounts = computeCapitalAccounts(capitalPostings)
-    const basis = Array.from(accounts.entries())
-      .map(([lpEntityId, a]) => ({ lpEntityId, commitment: a.ending }))
-      .filter(o => o.commitment > 0)
-
-    if (basis.length === 0) {
-      return { error: 'No partner has a positive capital balance to distribute against. Book the contributions first, or enter the per-LP amounts.' }
-    }
-    perLp = allocateAmount(total, basis)
+    balances = Array.from(computeCapitalAccounts(capitalPostings).entries())
+      .map(([id, a]) => ({ lpEntityId: id, commitment: a.ending }))
   }
+
+  // A named partner with a DECLARED distribution outstanding settles it, rather than reducing
+  // their capital a second time. Exactly the shape `bookCapitalCallFromInflow` already uses for
+  // an open call: recognition happened at declaration, so settlement carries no capital effect.
+  if (lpEntityId) {
+    const openPayable = (await lpPayableBalances(admin, fundId, group)).get(lpEntityId) ?? 0
+    const payableId = codes.get(DISTRIBUTION_PAYABLE_CODE)
+    if (openPayable > 0.005 && payableId) {
+      const names = await loadEntityNames(admin, fundId, group)
+      const entry = buildDistributionSettlementEntry(
+        { fundId, entryDate: txn.txn_date, memo: `Distribution paid — ${names.get(lpEntityId) ?? ''}${txn.description ? ` — ${txn.description}` : ''}` },
+        lpEntityId, total, cashId, payableId,
+      )
+      const saved = await persistEntry(admin, fundId, group, userId, entry, 'draft')
+      if ('error' in saved) return { error: saved.error }
+      const prior = txn.journal_entry_id
+      await (admin as any).from('bank_transactions')
+        .update({ journal_entry_id: saved.entryId, suggested_account_code: DISTRIBUTION_PAYABLE_CODE })
+        .eq('id', txnId).eq('fund_id', fundId)
+      if (prior && prior !== saved.entryId) {
+        const retired = await retireEntry(admin, fundId, prior)
+        if ('error' in retired) return { error: retired.error }
+      }
+      return { entryId: saved.entryId }
+    }
+  }
+
+  const split = resolveDistributionSplit(total, { lpEntityId, perLpOverride, balances })
+  if ('error' in split) return split
+  const perLp = split.perLp
 
   const capMap = await ensureCapitalAccounts(admin, fundId, group, Array.from(perLp.keys()))
   const entry = buildDistributionEntry(

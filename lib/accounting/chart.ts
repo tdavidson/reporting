@@ -16,6 +16,8 @@ export interface ChartAccountSeed {
  *  Lives here, not in capital-calls.ts, so capital-calls can depend on capital-source
  *  (which needs this code) without the two importing each other. */
 export const RECEIVABLE_CODE = '1300'
+/** Distributions declared and not yet paid — the outbound mirror of RECEIVABLE_CODE. */
+export const DISTRIBUTION_PAYABLE_CODE = '2300'
 
 export const DEFAULT_CHART: ChartAccountSeed[] = [
   // Assets
@@ -44,6 +46,11 @@ export const DEFAULT_CHART: ChartAccountSeed[] = [
   // Bridge/subscription line or other borrowing used to fund investments ahead of
   // capital calls; repaid as contributions arrive.
   { code: '2200', name: 'Loan payable', type: 'liability', subtype: 'loan_payable' },
+  // Distributions declared but not yet wired. The mirror of 1300 on the way out: declaring
+  // reduces the partner's capital and parks the obligation here; the bank outflow clears it.
+  // Without a payable there is nothing for an outgoing wire to settle, so a distribution
+  // could never be matched to the declaration it pays.
+  { code: '2300', name: 'Distributions payable', type: 'liability', subtype: 'distributions_payable' },
 
   // Equity — the GP account; per-LP capital accounts are added with lp_entity_id.
   { code: '3000', name: "Partners' capital — GP", type: 'equity', subtype: 'gp_capital' },

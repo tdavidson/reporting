@@ -60,6 +60,11 @@ export function CapitalAccountsView() {
 
   // Issue-a-call (folded in from the old Capital calls page).
   const [showCall, setShowCall] = useState(false)
+  // The panel does BOTH directions. A call and a distribution take the same inputs — date,
+  // description, an amount per partner — and differ only in the pro-rata basis and which
+  // obligation they create, so one panel is honest rather than two near-identical ones.
+  const [kind, setKind] = useState<'call' | 'distribution'>('call')
+  const isDist = kind === 'distribution'
   const [mode, setMode] = useState<'fund_wide' | 'per_lp'>('fund_wide')
   const [callDate, setCallDate] = useState('')
   const [description, setDescription] = useState('')
@@ -121,7 +126,7 @@ export function CapitalAccountsView() {
   async function splitProRata() {
     const t = Number(callTotal)
     if (!Number.isFinite(t) || t <= 0) { setMsg({ ok: false, text: 'Enter a positive total to split' }); return }
-    const res = await lf('/api/accounting/capital-calls', {
+    const res = await lf(isDist ? '/api/accounting/distributions' : '/api/accounting/capital-calls', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'preview', total: t }),
     })
@@ -138,16 +143,18 @@ export function CapitalAccountsView() {
       .map(r => ({ lpEntityId: r.lpEntityId, amount: Number(amounts[r.lpEntityId]) || 0 }))
       .filter(l => l.amount > 0)
     if (lines.length === 0) { setMsg({ ok: false, text: 'Enter at least one LP amount' }); return }
-    if (!callDate) { setMsg({ ok: false, text: 'Pick a call date' }); return }
+    if (!callDate) { setMsg({ ok: false, text: isDist ? 'Pick a distribution date' : 'Pick a call date' }); return }
     setIssuing(true)
-    const res = await lf('/api/accounting/capital-calls', {
+    const res = await lf(isDist ? '/api/accounting/distributions' : '/api/accounting/capital-calls', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'issue', callDate, description: description || null, scope: mode, lines }),
+      body: isDist
+        ? JSON.stringify({ action: 'declare', distributionDate: callDate, description: description || null, lines })
+        : JSON.stringify({ action: 'issue', callDate, description: description || null, scope: mode, lines }),
     })
     const data = await res.json()
     setIssuing(false)
-    if (!res.ok) { setMsg({ ok: false, text: data.error ?? 'Could not issue call' }); return }
-    setMsg({ ok: true, text: 'Call issued.' })
+    if (!res.ok) { setMsg({ ok: false, text: data.error ?? (isDist ? 'Could not declare distribution' : 'Could not issue call') }); return }
+    setMsg({ ok: true, text: isDist ? 'Distribution declared. The wire that pays it will match automatically.' : 'Call issued.' })
     setAmounts({}); setCallTotal(''); setDescription('')
     load()
   }
@@ -206,9 +213,14 @@ export function CapitalAccountsView() {
           )}
         </div>
         {!isEvents && (
-          <Button size="sm" variant="outline" className="text-muted-foreground" onClick={() => setShowCall(v => !v)} disabled={rows.length === 0}>
-            <Landmark className="h-4 w-4 mr-1" />Issue a capital call
-          </Button>
+          <>
+            <Button size="sm" variant="outline" className="text-muted-foreground" onClick={() => { setKind('call'); setShowCall(v => !(v && !isDist)) }} disabled={rows.length === 0}>
+              <Landmark className="h-4 w-4 mr-1" />Issue a capital call
+            </Button>
+            <Button size="sm" variant="outline" className="text-muted-foreground" onClick={() => { setKind('distribution'); setShowCall(v => !(v && isDist)) }} disabled={rows.length === 0}>
+              <Landmark className="h-4 w-4 mr-1" />Declare a distribution
+            </Button>
+          </>
         )}
         {/* Same "Share with LPs" action as the LPs report page: pick which LPs, publish to the
             portal, no email. Only offered when the portal is on — publishing statements nobody
@@ -297,30 +309,32 @@ export function CapitalAccountsView() {
           it showing on a vehicle that has no receivable to call against. */}
       {showCall && !isEvents && rows.length > 0 && (
         <div className="border rounded-card p-4 space-y-3">
-          <p className="text-sm font-medium">Issue a capital call</p>
+          <p className="text-sm font-medium">{isDist ? 'Declare a distribution' : 'Issue a capital call'}</p>
           <div className="flex flex-wrap items-end gap-3">
             <label className="text-xs text-muted-foreground">Date
               <input type="date" value={callDate} onChange={e => setCallDate(e.target.value)} className="block mt-1 border border-input rounded px-2 py-1.5 text-sm bg-transparent" />
             </label>
             <label className="text-xs text-muted-foreground flex-1 min-w-[180px]">Description
-              <input value={description} onChange={e => setDescription(e.target.value)} placeholder="e.g. Call #3 — new investment" className="block mt-1 w-full border border-input rounded px-2 py-1.5 text-sm bg-transparent" />
+              <input value={description} onChange={e => setDescription(e.target.value)} placeholder={isDist ? "e.g. Q3 2026 distribution — Acme exit" : "e.g. Call #3 — new investment"} className="block mt-1 w-full border border-input rounded px-2 py-1.5 text-sm bg-transparent" />
             </label>
-            <div className="text-xs text-muted-foreground">
+            {/* Scope is a CALL concept — it records whether the call went to the whole fund or
+                to named partners. A distribution has no such register, so it isn't offered. */}
+            {!isDist && <div className="text-xs text-muted-foreground">
               <span className="block mb-1">Type</span>
               <div className="inline-flex rounded border border-input overflow-hidden">
                 <button type="button" onClick={() => setMode('fund_wide')} className={`px-2.5 py-1.5 text-xs ${mode === 'fund_wide' ? 'bg-accent text-foreground' : 'text-muted-foreground'}`}>Fund-wide</button>
                 <button type="button" onClick={() => setMode('per_lp')} className={`px-2.5 py-1.5 text-xs border-l border-input ${mode === 'per_lp' ? 'bg-accent text-foreground' : 'text-muted-foreground'}`}>Per-LP</button>
               </div>
-            </div>
+            </div>}
           </div>
 
-          {mode === 'fund_wide' && (
+          {(isDist || mode === 'fund_wide') && (
             <div className="flex items-end gap-2">
-              <label className="text-xs text-muted-foreground">Total to call
+              <label className="text-xs text-muted-foreground">{isDist ? 'Total to distribute' : 'Total to call'}
                 <input value={callTotal} onChange={e => setCallTotal(e.target.value)} inputMode="decimal" placeholder="0.00" className="block mt-1 border border-input rounded px-2 py-1.5 text-sm font-mono bg-transparent w-40" />
               </label>
               <Button size="sm" variant="outline" onClick={splitProRata}>Split pro-rata</Button>
-              <span className="text-xs text-muted-foreground pb-2">Fills each LP by commitment — edit any row below.</span>
+              <span className="text-xs text-muted-foreground pb-2">{isDist ? 'Fills each partner by capital balance — edit any row below.' : 'Fills each LP by commitment — edit any row below.'}</span>
             </div>
           )}
 
@@ -330,8 +344,8 @@ export function CapitalAccountsView() {
                 <tr className="border-b bg-muted/50">
                   <th className="text-left px-3 py-2 font-medium">Partner</th>
                   <th className="text-right px-3 py-2 font-medium">Commitment</th>
-                  <th className="text-right px-3 py-2 font-medium">Unfunded</th>
-                  <th className="text-right px-3 py-2 font-medium">Call amount</th>
+                  <th className="text-right px-3 py-2 font-medium">{isDist ? 'Capital balance' : 'Unfunded'}</th>
+                  <th className="text-right px-3 py-2 font-medium">{isDist ? 'Distribution' : 'Call amount'}</th>
                 </tr>
               </thead>
               <tbody>
@@ -339,7 +353,7 @@ export function CapitalAccountsView() {
                   <tr key={r.lpEntityId} className="border-b last:border-b-0">
                     <td className="px-3 py-2 max-w-[200px]"><div className="truncate" title={r.name}>{r.name}</div></td>
                     <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">{fmt(r.commitment)}</td>
-                    <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">{fmt(r.outstanding)}</td>
+                    <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">{fmt(isDist ? r.ending : r.outstanding)}</td>
                     <td className="px-3 py-2 text-right">
                       <input
                         value={amounts[r.lpEntityId] ?? ''}
@@ -354,7 +368,7 @@ export function CapitalAccountsView() {
               </tbody>
               <tfoot>
                 <tr className="border-t bg-muted/30 font-semibold">
-                  <td className="px-3 py-2" colSpan={3}>Call total</td>
+                  <td className="px-3 py-2" colSpan={3}>{isDist ? 'Distribution total' : 'Call total'}</td>
                   <td className="px-3 py-2 text-right tabular-nums">{fmt(enteredTotal)}</td>
                 </tr>
               </tfoot>
@@ -363,7 +377,7 @@ export function CapitalAccountsView() {
 
           <div className="flex items-center gap-2">
             <Button size="sm" onClick={issue} disabled={issuing || enteredTotal <= 0}>
-              {issuing && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}Issue call
+              {issuing && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}{isDist ? 'Declare distribution' : 'Issue call'}
             </Button>
             <Button size="sm" variant="outline" onClick={() => setShowCall(false)} disabled={issuing}>Cancel</Button>
             {msg && (

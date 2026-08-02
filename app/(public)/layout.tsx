@@ -51,8 +51,13 @@ function PublicShell({ children }: { children: React.ReactNode }) {
           {/* GitHub as a bordered pill with the star count set off by a divider.
               The count is social proof, so it reads better as its own field than
               as a number tucked inside a ghost link. It appears only once fetched
-              and above the floor, so the button never reflows mid-paint. */}
-          <Button variant="outline" size="sm" asChild className="p-0 gap-0 overflow-hidden">
+              and above the floor, so the button never reflows mid-paint.
+
+              Dropped entirely below `sm`. Hiding only the label still left the pill
+              and the star count eating the width that "Try the demo" — the one
+              primary action — needs, so it overflowed the viewport. Nothing is lost:
+              the hero carries its own "View on GitHub" button. */}
+          <Button variant="outline" size="sm" asChild className="hidden sm:inline-flex p-0 gap-0 overflow-hidden">
             <a href="https://github.com/tdavidson/reporting" target="_blank" rel="noopener noreferrer">
               <span className="flex items-center gap-2 self-stretch px-3">
                 <Github className="h-4 w-4" />

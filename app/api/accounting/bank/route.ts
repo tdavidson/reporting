@@ -7,6 +7,8 @@ import { assertWriteAccess, assertReadAccess } from '@/lib/api-helpers'
 import { resolveGroupOr400 } from '@/lib/accounting/http-vehicle'
 import { vehicleIdByName } from '@/lib/accounting/vehicle-id'
 import { accountIdByCode } from '@/lib/accounting/persist'
+import { RECEIVABLE_CODE, DISTRIBUTION_PAYABLE_CODE } from '@/lib/accounting/chart'
+import { loadEntityNames } from '@/lib/accounting/load'
 import { closedPeriodRanges, dateInAnyClosedPeriod } from '@/lib/accounting/periods'
 import { dbError } from '@/lib/api-error'
 
@@ -30,7 +32,33 @@ export async function GET(req: NextRequest) {
     .order('txn_date', { ascending: false })
     .limit(1000)
   if (error) return dbError(error, 'bank-transactions')
-  return NextResponse.json(data ?? [])
+
+  // Which partner each row settles, when it settles a declared call or distribution. Derived
+  // from the linked entry rather than held in the client, so the answer survives a reload and
+  // can't drift from the ledger. Rows that aren't settlements simply have no partner.
+  const rows = (data as any[]) ?? []
+  const entryIds = Array.from(new Set(rows.map(r => r.journal_entry_id).filter(Boolean)))
+  const partnerByEntry = new Map<string, string>()
+  if (entryIds.length > 0) {
+    const codes = await accountIdByCode(admin, gate.fundId, group)
+    const settleIds = new Set([codes.get(RECEIVABLE_CODE), codes.get(DISTRIBUTION_PAYABLE_CODE)].filter(Boolean) as string[])
+    if (settleIds.size > 0) {
+      const { data: postings } = await admin
+        .from('journal_postings' as any)
+        .select('journal_entry_id, account_id, lp_entity_id')
+        .eq('fund_id', gate.fundId)
+        .in('journal_entry_id', entryIds)
+      for (const p of ((postings as any[]) ?? [])) {
+        if (p.lp_entity_id && settleIds.has(p.account_id)) partnerByEntry.set(p.journal_entry_id, p.lp_entity_id)
+      }
+    }
+  }
+  const names = partnerByEntry.size > 0 ? await loadEntityNames(admin, gate.fundId, group) : new Map<string, string>()
+
+  return NextResponse.json(rows.map(r => {
+    const lpEntityId = r.journal_entry_id ? partnerByEntry.get(r.journal_entry_id) ?? null : null
+    return { ...r, settled_lp_entity_id: lpEntityId, settled_lp_name: lpEntityId ? names.get(lpEntityId) ?? null : null }
+  }))
 }
 
 // POST — act on a staged transaction.
@@ -136,6 +164,19 @@ export async function POST(req: NextRequest) {
     if (!newAccountId) return NextResponse.json({ error: 'Unknown account for this vehicle' }, { status: 400 })
     if (!entryId) return NextResponse.json({ error: 'No draft entry to update' }, { status: 400 })
 
+    // The account CARRIES the partner: a per-LP capital account has its own lp_entity_id, and
+    // the capital roll-forward only counts a posting when the posting AND the account both
+    // have one (load.ts:107-126). Re-pointing account_id alone put the money on the partner's
+    // account with a null tag — visible in the trial balance, invisible in that partner's
+    // capital account, statement and the LP portal. Carry the tag across, and clear it when
+    // moving to a general account so a stale partner can't linger on a re-categorized row.
+    const { data: acct } = await admin
+      .from('chart_of_accounts' as any)
+      .select('lp_entity_id')
+      .eq('id', newAccountId)
+      .maybeSingle()
+    const newLpEntityId = (acct as any)?.lp_entity_id ?? null
+
     const cashId = codes.get('1000')
     const { data: postings } = await admin
       .from('journal_postings' as any)
@@ -144,7 +185,9 @@ export async function POST(req: NextRequest) {
     const nonCash = ((postings as any[]) ?? []).filter(p => p.account_id !== cashId)
     if (nonCash.length !== 1) return NextResponse.json({ error: 'This entry has a custom allocation — edit it in the Journal.' }, { status: 400 })
 
-    await admin.from('journal_postings' as any).update({ account_id: newAccountId }).eq('id', nonCash[0].id)
+    await admin.from('journal_postings' as any)
+      .update({ account_id: newAccountId, lp_entity_id: newLpEntityId })
+      .eq('id', nonCash[0].id)
     await admin.from('bank_transactions' as any).update({ suggested_account_code: code }).eq('id', id).eq('fund_id', gate.fundId)
     return NextResponse.json({ ok: true, suggested_account_code: code })
   }

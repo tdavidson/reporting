@@ -23,6 +23,9 @@ export async function GET(req: NextRequest) {
 // POST — match a bank transaction to LP capital.
 //   { id, mode: 'allocate' | 'link' | 'distribute', entryId?, lpEntityId?, perLp?, group? }
 //
+// 'distribute' takes the same `lpEntityId` as 'allocate' does: name a partner to book the whole
+// outflow to them, or omit it to split pro-rata by capital balance.
+//
 // 'distribute' is the outflow counterpart to 'allocate'. Without it, the only way to book a
 // distribution was the bank categorizer's rule, which posts to the POOLED capital account
 // with no lp_entity_id — money leaves the fund and no LP's capital account, statement, or
@@ -53,7 +56,9 @@ export async function POST(req: NextRequest) {
     const override = perLp && typeof perLp === 'object'
       ? new Map<string, number>(Object.entries(perLp).map(([k, v]) => [k, Number(v)]))
       : null
-    const result = await bookDistributionFromOutflow(admin, gate.fundId, group, user.id, id, override)
+    // `lpEntityId` = the whole outflow to that one partner; `perLp` = explicit amounts;
+    // neither = split pro-rata by capital balance.
+    const result = await bookDistributionFromOutflow(admin, gate.fundId, group, user.id, id, override, lpEntityId ?? null)
     if ('error' in result) return NextResponse.json({ error: result.error }, { status: 400 })
     return NextResponse.json({ ok: true, ...result })
   }

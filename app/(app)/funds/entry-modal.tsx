@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { useCurrency, formatCurrencyPrice } from '@/components/currency-context'
 import { useLedgerFetch } from '@/components/accounting-vehicle'
 
-interface Acct { id: string; code: string; name: string; lp_entity_id: string | null }
+interface Acct { id: string; code: string; name: string; lp_entity_id: string | null; is_active?: boolean }
 interface PostingRow { id: string; account_id: string; amount: number; lp_entity_id: string | null }
 interface Line { key: string; accountId: string; debit: string; credit: string; lpEntityId: string | null }
 
@@ -75,10 +75,22 @@ export function EntryModal({
   }, [lf, entryId])
 
   const acctById = new Map(accounts.map(a => [a.id, a]))
+  // Accounts a line already points at that are NOT in this vehicle's chart. The chart is
+  // vehicle-scoped (/api/accounting/chart filters on vehicle_id), so a posting to another
+  // vehicle's account has no matching <option> — and a controlled <select> whose value
+  // matches no option renders BLANK. The selection looked like it silently vanished, and
+  // because `balanced` requires every line to have an accountId, Save then did nothing with
+  // no explanation. Surface them instead of dropping them.
+  const orphanIds = Array.from(new Set(
+    lines.map(l => l.accountId).filter(idv => idv && !acctById.has(idv))
+  ))
   // Both kinds are selectable. A per-LP capital account carries its own lp_entity_id,
   // so choosing one is how you set (or change) the partner on that line.
-  const general = accounts.filter(a => !a.lp_entity_id)
-  const partnerAccounts = accounts.filter(a => a.lp_entity_id)
+  // Hidden accounts are not offered for NEW postings, but one a line ALREADY uses stays
+  // listed — dropping it would blank the select exactly as an out-of-vehicle account did.
+  const usable = (a: Acct) => a.is_active !== false || lines.some(l => l.accountId === a.id)
+  const general = accounts.filter(a => !a.lp_entity_id).filter(usable)
+  const partnerAccounts = accounts.filter(a => a.lp_entity_id).filter(usable)
 
   const totalDebit = lines.reduce((s, l) => s + num(l.debit), 0)
   const totalCredit = lines.reduce((s, l) => s + num(l.credit), 0)
@@ -221,6 +233,11 @@ export function EntryModal({
                             <optgroup label="Accounts">
                               {general.map(a => <option key={a.id} value={a.id}>{a.name} ({a.code})</option>)}
                             </optgroup>
+                            {orphanIds.includes(l.accountId) && (
+                              <optgroup label="Not in this vehicle's chart">
+                                <option value={l.accountId}>{l.accountId.slice(0, 8)}… — switch vehicle to see this account</option>
+                              </optgroup>
+                            )}
                             {partnerAccounts.length > 0 ? (
                               <optgroup label="Partner capital">
                                 {partnerAccounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
