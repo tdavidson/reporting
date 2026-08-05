@@ -93,7 +93,7 @@ export function ChartOfAccountsCard() {
           <Plus className="h-4 w-4 mr-1" />Add account
         </Button>
         <span className="text-xs text-muted-foreground">
-          Hidden accounts keep every posting and stay in the statements — they just stop being offered for new entries.
+          Hidden accounts keep every posting and stay in the statements, but are not offered for new entries.
         </span>
         {err && <span className="text-sm text-warning">{err}</span>}
       </div>
@@ -147,15 +147,22 @@ export function ChartOfAccountsCard() {
                         {a.name}
                       </button>
                       {!a.is_active && <span className="shrink-0 text-xs text-muted-foreground">Hidden</span>}
+                      {/* The action, in words. A bare eye icon is ambiguous — it can mean "this
+                          is visible" (state) or "make this hidden" (action), and this row shows
+                          state as text already, so an Eye beside the word "Hidden" read as a
+                          contradiction. Naming the verb removes the guess in both directions. */}
                       <button
                         onClick={() => patch(a.id, { isActive: !a.is_active })}
                         disabled={busy === a.id}
-                        title={a.is_active ? 'Hide — stops it being offered for new entries' : 'Show again'}
-                        className="shrink-0 text-muted-foreground hover:text-foreground"
+                        title={a.is_active
+                          ? 'Stop offering this account for new entries. Its postings and statement lines are unaffected.'
+                          : 'Offer this account for new entries again.'}
+                        className="shrink-0 inline-flex items-center gap-1 rounded border border-input px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
                       >
                         {busy === a.id
-                          ? <Loader2 className="h-4 w-4 animate-spin" />
-                          : a.is_active ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                          ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          : a.is_active ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                        {a.is_active ? 'Hide' : 'Show'}
                       </button>
                     </>
                   )}

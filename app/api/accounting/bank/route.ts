@@ -33,31 +33,68 @@ export async function GET(req: NextRequest) {
     .limit(1000)
   if (error) return dbError(error, 'bank-transactions')
 
-  // Which partner each row settles, when it settles a declared call or distribution. Derived
-  // from the linked entry rather than held in the client, so the answer survives a reload and
-  // can't drift from the ledger. Rows that aren't settlements simply have no partner.
+  // What the row's ENTRY actually posts to, derived rather than remembered.
+  //
+  // `bank_transactions.suggested_account_code` is a denormalized copy written by the
+  // categorizer and the booking paths. Editing the entry in the journal modal changes the
+  // postings and never touches that column, so the bank page went on showing the old account —
+  // an entry re-pointed to a partner still read "Partners' capital — LP (unallocated)". The
+  // ledger is the truth; the column is only a hint for the categorizer.
+  //
+  // Also derived here: the partner a settlement belongs to (a row posting to 1300/2300 names an
+  // obligation, not a person), and whether the entry SPLITS across several accounts — which is
+  // why re-pointing it is refused.
   const rows = (data as any[]) ?? []
   const entryIds = Array.from(new Set(rows.map(r => r.journal_entry_id).filter(Boolean)))
+
   const partnerByEntry = new Map<string, string>()
+  const acctByEntry = new Map<string, { code: string; name: string } | 'split'>()
+
   if (entryIds.length > 0) {
+    const { data: chart } = await admin
+      .from('chart_of_accounts' as any)
+      .select('id, code, name')
+      .eq('fund_id', gate.fundId).eq('vehicle_id', vehicleId)
+    const acctById = new Map(((chart as any[]) ?? []).map(a => [a.id as string, { code: a.code as string, name: a.name as string }]))
     const codes = await accountIdByCode(admin, gate.fundId, group)
+    const cashId = codes.get('1000')
     const settleIds = new Set([codes.get(RECEIVABLE_CODE), codes.get(DISTRIBUTION_PAYABLE_CODE)].filter(Boolean) as string[])
-    if (settleIds.size > 0) {
-      const { data: postings } = await admin
-        .from('journal_postings' as any)
-        .select('journal_entry_id, account_id, lp_entity_id')
-        .eq('fund_id', gate.fundId)
-        .in('journal_entry_id', entryIds)
-      for (const p of ((postings as any[]) ?? [])) {
-        if (p.lp_entity_id && settleIds.has(p.account_id)) partnerByEntry.set(p.journal_entry_id, p.lp_entity_id)
-      }
+
+    const { data: postings } = await admin
+      .from('journal_postings' as any)
+      .select('journal_entry_id, account_id, lp_entity_id')
+      .eq('fund_id', gate.fundId)
+      .in('journal_entry_id', entryIds)
+
+    const nonCashByEntry = new Map<string, Set<string>>()
+    for (const p of ((postings as any[]) ?? [])) {
+      if (p.lp_entity_id && settleIds.has(p.account_id)) partnerByEntry.set(p.journal_entry_id, p.lp_entity_id)
+      if (p.account_id === cashId) continue
+      const set = nonCashByEntry.get(p.journal_entry_id) ?? new Set<string>()
+      set.add(p.account_id)
+      nonCashByEntry.set(p.journal_entry_id, set)
+    }
+    for (const [entryId, accts] of Array.from(nonCashByEntry.entries())) {
+      if (accts.size !== 1) { acctByEntry.set(entryId, 'split'); continue }
+      const found = acctById.get(Array.from(accts)[0])
+      if (found) acctByEntry.set(entryId, found)
     }
   }
   const names = partnerByEntry.size > 0 ? await loadEntityNames(admin, gate.fundId, group) : new Map<string, string>()
 
   return NextResponse.json(rows.map(r => {
     const lpEntityId = r.journal_entry_id ? partnerByEntry.get(r.journal_entry_id) ?? null : null
-    return { ...r, settled_lp_entity_id: lpEntityId, settled_lp_name: lpEntityId ? names.get(lpEntityId) ?? null : null }
+    const acct = r.journal_entry_id ? acctByEntry.get(r.journal_entry_id) : undefined
+    const split = acct === 'split'
+    return {
+      ...r,
+      // What to SHOW. Falls back to the stored hint only when there is no entry to read.
+      entry_account_code: split ? null : acct?.code ?? null,
+      entry_account_name: split ? null : acct?.name ?? null,
+      entry_is_split: split,
+      settled_lp_entity_id: lpEntityId,
+      settled_lp_name: lpEntityId ? names.get(lpEntityId) ?? null : null,
+    }
   }))
 }
 

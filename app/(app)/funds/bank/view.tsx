@@ -9,9 +9,8 @@ import { useLedgerFetch } from '@/components/accounting-vehicle'
 import { EntryModal } from '../entry-modal'
 import { EmptyState } from '@/components/ui/empty-state'
 
-interface Txn { id: string; txn_date: string; amount: number; description: string; counterparty: string | null; status: string; suggested_account_code: string | null; journal_entry_id: string | null; settled_lp_entity_id: string | null; settled_lp_name: string | null }
+interface Txn { id: string; txn_date: string; amount: number; description: string; counterparty: string | null; status: string; suggested_account_code: string | null; journal_entry_id: string | null; entry_account_code: string | null; entry_account_name: string | null; entry_is_split: boolean; settled_lp_entity_id: string | null; settled_lp_name: string | null }
 interface Rec { bankEndingBalance: number; ledgerCashBalance: number; difference: number; matchedCount: number; unmatchedCount: number; unmatchedTotal: number; tiesOut: boolean }
-interface Lp { lpEntityId: string; name: string; commitment: number }
 
 const actionBtn = 'text-xs border border-input rounded px-2 py-1 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors'
 
@@ -21,11 +20,10 @@ export function BankView() {
   const [csv, setCsv] = useState('')
   const [txns, setTxns] = useState<Txn[]>([])
   const [rec, setRec] = useState<Rec | null>(null)
-  const [lps, setLps] = useState<Lp[]>([])
   const [acctNames, setAcctNames] = useState<Record<string, string>>({})
   /** Why a match/book action was refused. Shown rather than swallowed. */
   const [matchError, setMatchError] = useState<string | null>(null)
-  const [accounts, setAccounts] = useState<{ code: string; name: string; is_active?: boolean }[]>([])
+  const [accounts, setAccounts] = useState<{ code: string; name: string; is_active?: boolean; lp_entity_id?: string | null }[]>([])
   const [loading, setLoading] = useState(true)
   const [importing, setImporting] = useState(false)
   const [categorizing, setCategorizing] = useState(false)
@@ -43,13 +41,11 @@ export function BankView() {
       lf('/api/accounting/bank').then(r => (r.ok ? r.json() : [])),
       lf('/api/accounting/bank/reconcile').then(r => (r.ok ? r.json() : null)),
       lf('/api/accounting/chart').then(r => (r.ok ? r.json() : [])),
-      lf('/api/accounting/entities').then(r => (r.ok ? r.json() : [])),
-    ]).then(([t, r, ch, lpRows]) => {
-      setLps(Array.isArray(lpRows) ? lpRows : [])
+    ]).then(([t, r, ch]) => {
       setTxns(Array.isArray(t) ? t : [])
       setSelected(new Set())
       setRec(r)
-      const chart = (Array.isArray(ch) ? ch : []).map((a: any) => ({ code: a.code, name: a.name, is_active: a.is_active }))
+      const chart = (Array.isArray(ch) ? ch : []).map((a: any) => ({ code: a.code, name: a.name, is_active: a.is_active, lp_entity_id: a.lp_entity_id }))
       setAccounts(chart)
       setAcctNames(Object.fromEntries(chart.map(a => [a.code, a.name])))
     }).finally(() => setLoading(false))
@@ -148,9 +144,17 @@ export function BankView() {
   }
 
   async function setAccount(id: string, code: string) {
+    setMatchError(null)
     setTxns(prev => prev.map(t => (t.id === id ? { ...t, suggested_account_code: code } : t))) // optimistic
     const res = await lf('/api/accounting/bank', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'setAccount', id, accountCode: code }) })
-    if (!res.ok) load() // revert on failure (e.g. custom allocation)
+    if (!res.ok) {
+      // SAY why. Re-pointing is refused when the draft has a custom allocation (more than one
+      // non-cash line), and the only signal used to be the selection springing back to what it
+      // was — indistinguishable from the click not registering.
+      const body = await res.json().catch(() => ({}))
+      setMatchError(body.error || 'That account could not be applied.')
+      load() // revert the optimistic change
+    }
   }
 
   async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
@@ -277,22 +281,50 @@ export function BankView() {
                   <td className="px-3 py-2">{t.description}</td>
                   <td className={`px-3 py-2 text-right tabular-nums ${t.amount < 0 ? 'text-muted-foreground' : ''}`}>{fmt(t.amount)}</td>
                   <td className="px-3 py-2 text-xs">
-                    {t.status === 'drafted' ? (
-                      <select
-                        value={t.suggested_account_code ?? ''}
-                        onChange={e => setAccount(t.id, e.target.value)}
-                        className="border border-input rounded bg-transparent px-1.5 py-1 text-xs max-w-[220px] hover:bg-accent/50"
-                      >
-                        {!t.suggested_account_code && <option value="">—</option>}
-                        {/* Hidden accounts drop out of the list, except the one this row already
-                            uses — otherwise the select would render blank and look broken. */}
-                        {accounts.filter(a => a.is_active !== false || a.code === t.suggested_account_code)
-                          .map(a => <option key={a.code} value={a.code}>{a.name} ({a.code})</option>)}
-                      </select>
-                    ) : t.suggested_account_code ? (
+                    {/* What the ENTRY posts to, not the stored hint — editing an entry in the
+                        journal modal never updates `suggested_account_code`, so showing that
+                        column left a re-pointed entry displaying its old account. */}
+                    {t.entry_is_split ? (
+                      <span className="text-muted-foreground" title="This entry splits across several accounts, so it can't be re-pointed from here — open it with Edit.">
+                        Split across several accounts
+                      </span>
+                    ) : t.status === 'drafted' ? (
+                      <span className="inline-flex items-center">
+                        <select
+                          value={t.entry_account_code ?? t.suggested_account_code ?? ''}
+                          onChange={e => {
+                            const picked = accounts.find(a => a.code === e.target.value)
+                            // Naming a partner's capital account IS naming the partner, so route it
+                            // through the settlement path rather than a plain re-point: it clears a
+                            // declared call or distribution when one is open, and books capital
+                            // directly when there isn't one. A separate "pick partner" dropdown
+                            // asked the same question a second time.
+                            if (picked?.lp_entity_id) match(t.id, t.amount > 0 ? 'allocate' : 'distribute', undefined, picked.lp_entity_id)
+                            else setAccount(t.id, e.target.value)
+                          }}
+                          className="border border-input rounded bg-transparent px-1.5 py-1 text-xs max-w-[220px] hover:bg-accent/50"
+                        >
+                          {!(t.entry_account_code ?? t.suggested_account_code) && <option value="">—</option>}
+                          {/* Hidden accounts drop out of the list, except the one this row already
+                              uses — otherwise the select would render blank and look broken. */}
+                          {accounts.filter(a => a.is_active !== false || a.code === (t.entry_account_code ?? t.suggested_account_code))
+                            .map(a => <option key={a.code} value={a.code}>{a.name} ({a.code})</option>)}
+                        </select>
+                        {/* Only where the account can't say it: a settled row posts to 1300 / 2300,
+                            which names an obligation, not a person. */}
+                        {t.settled_lp_name && (
+                          <span className="ml-1.5 shrink-0 text-muted-foreground" title="Settles this partner's declared call or distribution">
+                            · {t.settled_lp_name}
+                          </span>
+                        )}
+                      </span>
+                    ) : (t.entry_account_name ?? t.suggested_account_code) ? (
                       <span>
-                        <span className="text-foreground">{acctNames[t.suggested_account_code] ?? t.suggested_account_code}</span>
-                        {acctNames[t.suggested_account_code] && <span className="ml-1.5 text-muted-foreground/70 font-mono">{t.suggested_account_code}</span>}
+                        <span className="text-foreground">{t.entry_account_name ?? acctNames[t.suggested_account_code!] ?? t.suggested_account_code}</span>
+                        {(t.entry_account_code ?? t.suggested_account_code) && (
+                          <span className="ml-1.5 text-muted-foreground/70 font-mono">{t.entry_account_code ?? t.suggested_account_code}</span>
+                        )}
+                        {t.settled_lp_name && <span className="ml-1.5 text-muted-foreground">· {t.settled_lp_name}</span>}
                       </span>
                     ) : (
                       <span className="text-muted-foreground">—</span>
@@ -301,25 +333,6 @@ export function BankView() {
                   <td className="px-3 py-2 text-right">
                     {t.status === 'drafted' && (
                       <span className="flex items-center gap-1.5 justify-end">
-                        {/* Settlement, not booking. A call or distribution is DECLARED first (creating a
-                            1300 receivable or a 2300 payable); auto-matching then settles the wire
-                            against it and names the partner. This shows who it landed on and lets
-                            you change it — the two "Book as call / Book as distribution" controls
-                            that used to live here created capital from the bank page, collapsing
-                            recognition and settlement into one step. */}
-                        {lps.length > 0 && (
-                          <select
-                            value={t.settled_lp_entity_id ?? ''}
-                            onChange={e => { const v = e.target.value; if (!v) return; match(t.id, t.amount > 0 ? 'allocate' : 'distribute', undefined, v) }}
-                            title={t.settled_lp_name
-                              ? `Settles against ${t.settled_lp_name} — change if that is the wrong partner`
-                              : 'Not matched to a declared call or distribution. Pick the partner to settle it against.'}
-                            className={`text-xs border rounded bg-transparent px-2 py-1 max-w-[170px] hover:bg-accent ${t.settled_lp_name ? 'border-input text-foreground' : 'border-dashed border-input text-muted-foreground'}`}
-                          >
-                            <option value="">{t.settled_lp_name ?? 'Unmatched — pick partner…'}</option>
-                            {lps.map(l => <option key={l.lpEntityId} value={l.lpEntityId}>{l.name}</option>)}
-                          </select>
-                        )}
                         {t.journal_entry_id && <button onClick={() => setEditing({ txnId: t.id, entryId: t.journal_entry_id! })} className={actionBtn}>Edit</button>}
                         <button onClick={() => act(t.id, 'post')} className={actionBtn}>Post</button>
                         <button onClick={() => act(t.id, 'ignore')} className={actionBtn}>Ignore</button>

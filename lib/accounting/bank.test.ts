@@ -140,50 +140,35 @@ describe('summarizeBankRec', () => {
 })
 
 describe('resolveDistributionSplit', () => {
-  const balances = [
-    { lpEntityId: 'a', commitment: 75_000 },
-    { lpEntityId: 'b', commitment: 25_000 },
-  ]
-
   it('gives the whole amount to a named partner', () => {
-    const r = resolveDistributionSplit(10_000, { lpEntityId: 'b', balances })
+    const r = resolveDistributionSplit(10_000, { lpEntityId: 'b' })
     expect('perLp' in r && Array.from(r.perLp.entries())).toEqual([['b', 10_000]])
-  })
-
-  it('lets a named partner win over the pro-rata split, and does NOT need a balance', () => {
-    // Naming the partner is the operator asserting who received the wire — it may
-    // legitimately overdraw them, and an LP absent from `balances` is still valid.
-    const r = resolveDistributionSplit(5_000, { lpEntityId: 'newcomer', balances: [] })
-    expect('perLp' in r && Array.from(r.perLp.entries())).toEqual([['newcomer', 5_000]])
-  })
-
-  it('splits pro-rata by ending capital balance when no partner is named', () => {
-    const r = resolveDistributionSplit(100_000, { balances })
-    expect('perLp' in r && Object.fromEntries(r.perLp)).toEqual({ a: 75_000, b: 25_000 })
-  })
-
-  it('ignores partners with no capital when splitting pro-rata', () => {
-    const r = resolveDistributionSplit(100_000, {
-      balances: [...balances, { lpEntityId: 'zero', commitment: 0 }],
-    })
-    expect('perLp' in r && r.perLp.has('zero')).toBe(false)
-  })
-
-  it('refuses a pro-rata split when nobody has capital, and says what to do instead', () => {
-    const r = resolveDistributionSplit(1_000, { balances: [] })
-    expect('error' in r && r.error).toContain('No partner has a positive capital balance')
-    expect('error' in r && r.error).toContain('name the partner it went to')
   })
 
   it('uses explicit per-LP amounts as given', () => {
     const perLpOverride = new Map([['a', 6_000], ['b', 4_000]])
-    const r = resolveDistributionSplit(10_000, { perLpOverride, balances })
+    const r = resolveDistributionSplit(10_000, { perLpOverride })
     expect('perLp' in r && Object.fromEntries(r.perLp)).toEqual({ a: 6_000, b: 4_000 })
   })
 
   it('rejects explicit amounts that do not total the transaction', () => {
     const perLpOverride = new Map([['a', 6_000], ['b', 1_000]])
-    const r = resolveDistributionSplit(10_000, { perLpOverride, balances })
+    const r = resolveDistributionSplit(10_000, { perLpOverride })
     expect('error' in r && r.error).toContain('total 7000')
+  })
+
+  it('REFUSES an unnamed payment rather than splitting it pro-rata', () => {
+    // The bug this guards: a $500 wire to ONE partner was split across all twenty by capital
+    // balance, so the recipient was debited $12.50 of their own money. A wire is one payment;
+    // pro-rata belongs to DECLARING a distribution, before any money moves.
+    const r = resolveDistributionSplit(500, {})
+    expect('error' in r).toBe(true)
+    expect('error' in r && r.error).toContain('Name the partner')
+    expect('error' in r && r.error).toContain('declare it')
+  })
+
+  it('refuses an empty override too — an empty map is not an instruction', () => {
+    const r = resolveDistributionSplit(500, { perLpOverride: new Map() })
+    expect('error' in r).toBe(true)
   })
 })

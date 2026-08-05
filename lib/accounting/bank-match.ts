@@ -1,6 +1,6 @@
 // Marry bank inflows to capital calls. Two paths:
-//   allocate — turn the inflow into a per-LP allocated capital call (pro-rata by
-//              commitment), replacing the auto-drafted two-line entry.
+//   allocate — attribute the inflow to ONE named partner, funding their open call if they
+//              have one, replacing the auto-drafted two-line entry.
 //   link     — match the inflow to a call the GP already recorded from a notice
 //              (e.g. via the allocations page or draft-from-document): post that
 //              entry, drop the auto-draft, and mark the transaction reconciled.
@@ -35,8 +35,8 @@ async function getTxn(admin: SupabaseClient, fundId: string, group: string, txnI
  * is attributed to one LP: if that LP has an open (called-but-unfunded) balance
  * it FUNDS the call — Dr Cash / Cr the receivable, clearing it — otherwise there's
  * no open call, so it recognizes AND funds one in a single step (Dr Cash / Cr the
- * LP's capital). Without `lpEntityId`, the amount is split across every LP
- * pro-rata by commitment and recognized-and-funded together.
+ * LP's capital). WITHOUT `lpEntityId` it refuses: a deposit is one partner's money, and
+ * splitting it across everyone by commitment is never what a single wire means.
  */
 export async function bookCapitalCallFromInflow(
   admin: SupabaseClient,
@@ -91,19 +91,10 @@ export async function bookCapitalCallFromInflow(
       }
     }
   } else {
-    // Pro-rata across all LPs by commitment — recognized and funded together.
-    const owners = await loadOwnership(admin, fundId, group)
-    if (owners.length === 0 || owners.every(o => o.commitment <= 0)) {
-      return { error: 'No LP commitments found — add investors/commitments before allocating a call' }
-    }
-    const capMap = await ensureCapitalAccounts(admin, fundId, group, owners.map(o => o.lpEntityId))
-    entry = buildCapitalCallEntry(
-      { fundId, entryDate: txn.txn_date, memo: `Capital call — ${txn.description || ''}`.trim() },
-      total,
-      owners,
-      capMap,
-      cashId
-    )
+    // Same rule as the outflow: a deposit is one partner's money. Splitting it across every LP
+    // by commitment made a single wire look like a fund-wide call, and credited the partner who
+    // actually paid with a fraction of what they sent.
+    return { error: 'Name the partner this deposit came from. If it really is a fund-wide call, issue the call on the Capital accounts page first — the deposit then settles it.' }
   }
 
   const result = await persistEntry(admin, fundId, group, userId, entry, 'draft')
@@ -162,20 +153,23 @@ async function retireEntry(
  * Who gets how much of a distribution — the precedence rules, pulled out so they can be
  * pinned by a test.
  *
- * In order: a named partner takes the whole amount; explicit per-LP amounts are used as
- * given (and must total the transaction); otherwise it splits pro-rata by ending capital
- * balance. Only the last needs a positive balance to exist — naming a partner is the
- * operator asserting who received the money, which may legitimately overdraw them.
+ * A named partner takes the whole amount; explicit per-LP amounts are used as given (and must
+ * total the transaction). There is deliberately NO pro-rata fallback.
+ *
+ * There used to be, and it was the bug: an unnamed outflow was split across every partner by
+ * capital balance, so a $500 wire to ONE partner debited all twenty — the recipient credited
+ * with $12.50 of their own money. A bank wire is a single payment to a single party. Pro-rata
+ * is a property of DECLARING a distribution (`proRataDistribution`), which happens before any
+ * money moves; it cannot be inferred from the fact that money moved.
  */
 export function resolveDistributionSplit(
   total: number,
   opts: {
     lpEntityId?: string | null
     perLpOverride?: Map<string, number> | null
-    balances: { lpEntityId: string; commitment: number }[]
   },
 ): { perLp: Map<string, number> } | { error: string } {
-  const { lpEntityId, perLpOverride, balances } = opts
+  const { lpEntityId, perLpOverride } = opts
 
   if (lpEntityId) {
     // The amount comes from the transaction, so the client never computes it and can't
@@ -191,11 +185,7 @@ export function resolveDistributionSplit(
     return { perLp: perLpOverride }
   }
 
-  const basis = balances.filter(b => b.commitment > 0)
-  if (basis.length === 0) {
-    return { error: 'No partner has a positive capital balance to distribute against. Book the contributions first, name the partner it went to, or enter the per-LP amounts.' }
-  }
-  return { perLp: allocateAmount(total, basis) }
+  return { error: 'Name the partner this payment went to. If it really is a fund-wide distribution, declare it on the Capital accounts page first — the wire then settles that declaration.' }
 }
 
 /**
@@ -238,14 +228,6 @@ export async function bookDistributionFromOutflow(
   const cashId = codes.get('1000')
   if (!cashId) return { error: 'Seed the chart of accounts first' }
 
-  // Only the pro-rata branch needs the ledger, so load it lazily.
-  let balances: { lpEntityId: string; commitment: number }[] = []
-  if (!lpEntityId && !(perLpOverride && perLpOverride.size > 0)) {
-    const { capitalPostings } = await loadPostedLedger(admin, fundId, group)
-    balances = Array.from(computeCapitalAccounts(capitalPostings).entries())
-      .map(([id, a]) => ({ lpEntityId: id, commitment: a.ending }))
-  }
-
   // A named partner with a DECLARED distribution outstanding settles it, rather than reducing
   // their capital a second time. Exactly the shape `bookCapitalCallFromInflow` already uses for
   // an open call: recognition happened at declaration, so settlement carries no capital effect.
@@ -272,7 +254,7 @@ export async function bookDistributionFromOutflow(
     }
   }
 
-  const split = resolveDistributionSplit(total, { lpEntityId, perLpOverride, balances })
+  const split = resolveDistributionSplit(total, { lpEntityId, perLpOverride })
   if ('error' in split) return split
   const perLp = split.perLp
 
