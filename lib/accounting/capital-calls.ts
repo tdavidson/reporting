@@ -61,6 +61,8 @@ export async function proRataCall(
 
 export interface IssueCallInput {
   callDate: string
+  /** When the money is due. Recorded at issue so a notice can't invent it later. */
+  dueDate?: string | null
   description?: string | null
   scope: 'fund_wide' | 'per_lp'
   lines: CallLineInput[]
@@ -105,6 +107,7 @@ export async function issueCapitalCall(
       fund_id: fundId,
       vehicle_id: vehicleId,
       call_date: input.callDate,
+      due_date: input.dueDate || null,
       description: input.description ?? null,
       scope: input.scope,
       status: 'issued',

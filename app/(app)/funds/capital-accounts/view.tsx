@@ -10,6 +10,7 @@ import { useCurrency, formatCurrencyPrice } from '@/components/currency-context'
 import { useLedgerFetch, useFundSeg } from '@/components/accounting-vehicle'
 import { type PeriodPreset } from '@/lib/accounting/statement-period'
 import { PeriodPicker } from '@/components/accounting/period-picker'
+import { NoticeAction } from '@/components/accounting/notice-action'
 import { ReconciliationPanel } from './reconciliation-panel'
 import { type CapitalSource } from '@/lib/accounting/capital-source'
 import { GpPanel } from './gp-panel'
@@ -19,6 +20,7 @@ import { EmptyState } from '@/components/ui/empty-state'
 
 interface CallLine { lpEntityId: string; name: string; amount: number }
 interface CallRow { id: string; callDate: string; description: string | null; scope: string; total: number; lines: CallLine[] }
+interface DistRow { distributionId: string; date: string; description: string | null; total: number; lines: CallLine[] }
 interface Period { preset: PeriodPreset; start: string | null; end: string | null; label: string }
 
 export function CapitalAccountsView() {
@@ -32,6 +34,7 @@ export function CapitalAccountsView() {
 
   const [rows, setRows] = useState<Row[]>([])
   const [calls, setCalls] = useState<CallRow[]>([])
+  const [dists, setDists] = useState<DistRow[]>([])
   const [nav, setNav] = useState(0)
   const [period, setPeriod] = useState<Period | null>(null)
   const [loading, setLoading] = useState(true)
@@ -69,6 +72,8 @@ export function CapitalAccountsView() {
   const [callDate, setCallDate] = useState('')
   const [description, setDescription] = useState('')
   const [callTotal, setCallTotal] = useState('')
+  // Calls only: a notice is a demand with a deadline, and the deadline is recorded at issue.
+  const [dueDate, setDueDate] = useState('')
   const [amounts, setAmounts] = useState<Record<string, string>>({})
   const [issuing, setIssuing] = useState(false)
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
@@ -89,6 +94,9 @@ export function CapitalAccountsView() {
       .then(d => {
         setRows(d.rows ?? []); setNav(d.nav ?? 0); setPeriod(d.period ?? null)
         setCalls(d.calls ?? []); setSource(d.source ?? null); setStranded(d.stranded ?? null)
+      })
+      .then(() => lf('/api/accounting/distributions').then(r => (r.ok ? r.json() : [])))
+      .then(d => { setDists(Array.isArray(d) ? d : [])
       })
       .finally(() => setLoading(false))
   }, [lf, preset, start, end, asOf])
@@ -149,7 +157,7 @@ export function CapitalAccountsView() {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: isDist
         ? JSON.stringify({ action: 'declare', distributionDate: callDate, description: description || null, lines })
-        : JSON.stringify({ action: 'issue', callDate, description: description || null, scope: mode, lines }),
+        : JSON.stringify({ action: 'issue', callDate, dueDate: dueDate || null, description: description || null, scope: mode, lines }),
     })
     const data = await res.json()
     setIssuing(false)
@@ -314,6 +322,11 @@ export function CapitalAccountsView() {
             <label className="text-xs text-muted-foreground">Date
               <input type="date" value={callDate} onChange={e => setCallDate(e.target.value)} className="block mt-1 border border-input rounded px-2 py-1.5 text-sm bg-transparent" />
             </label>
+            {!isDist && (
+              <label className="text-xs text-muted-foreground">Due
+                <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} className="block mt-1 border border-input rounded px-2 py-1.5 text-sm bg-transparent" />
+              </label>
+            )}
             <label className="text-xs text-muted-foreground flex-1 min-w-[180px]">Description
               <input value={description} onChange={e => setDescription(e.target.value)} placeholder={isDist ? "e.g. Q3 2026 distribution — Acme exit" : "e.g. Call #3 — new investment"} className="block mt-1 w-full border border-input rounded px-2 py-1.5 text-sm bg-transparent" />
             </label>
@@ -426,6 +439,28 @@ export function CapitalAccountsView() {
                 <div className="mt-2 text-xs text-muted-foreground flex flex-wrap gap-x-4 gap-y-0.5">
                   {c.lines.map(l => <span key={l.lpEntityId}>{l.name}: <span className="tabular-nums">{fmt(l.amount)}</span></span>)}
                 </div>
+                <NoticeAction kind="capital_call" id={c.id} />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Declared distributions — the outbound register, read the same way. */}
+      {dists.length > 0 && (
+        <div>
+          <p className="text-sm font-medium mb-2 mt-4">Declared distributions</p>
+          <div className="space-y-2">
+            {dists.map(d => (
+              <div key={d.distributionId} className="border rounded-card p-3">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="font-medium">{d.date} · {fmt(d.total)}</span>
+                </div>
+                {d.description && <p className="text-xs text-muted-foreground mt-0.5">{d.description}</p>}
+                <div className="mt-2 text-xs text-muted-foreground flex flex-wrap gap-x-4 gap-y-0.5">
+                  {d.lines.map(l => <span key={l.lpEntityId}>{l.name}: <span className="tabular-nums">{fmt(l.amount)}</span></span>)}
+                </div>
+                <NoticeAction kind="distribution" id={d.distributionId} />
               </div>
             ))}
           </div>

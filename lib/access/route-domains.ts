@@ -80,6 +80,7 @@ export const ROUTE_DOMAINS: Record<string, RouteAccess> = {
   'api/accounting/status': { domain: 'accounting' },
   'api/accounting/vehicles': { domain: 'accounting' },
   'api/accounting/vehicle-index': { domain: 'accounting' },
+  'api/accounting/vehicle-settings': { domain: 'accounting' },
   'api/accounting/vehicle-gp-links': { domain: 'accounting' },
   'api/vehicles': { domain: 'accounting' },
 
@@ -124,6 +125,8 @@ export const ROUTE_DOMAINS: Record<string, RouteAccess> = {
   //    Sharing is the sensitive verb here, so the share routes sit here rather than with the
   //    capital data they happen to share.
   'api/accounting/lp-statement/publish': { domain: 'lp_relations', feature: 'lp_portal' },
+  // Call and distribution notices go OUT to partners, same as a published statement.
+  'api/accounting/notices/publish': { domain: 'lp_relations', feature: 'lp_portal' },
   'api/lps/live-report/share': { domain: 'lp_relations', feature: 'lp_portal' },
   'api/lps/snapshots/[id]/share': { domain: 'lp_relations', feature: 'lp_portal' },
   'api/lps/authorized-users': { domain: 'lp_relations', feature: 'lp_portal' },

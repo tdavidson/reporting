@@ -50,6 +50,7 @@ export async function POST(req: NextRequest) {
   if (body?.action === 'issue') {
     const result = await issueCapitalCall(admin, gate.fundId, group, user.id, {
       callDate: String(body?.callDate ?? ''),
+      dueDate: body?.dueDate ? String(body.dueDate) : null,
       description: body?.description ?? null,
       scope: body?.scope === 'per_lp' ? 'per_lp' : 'fund_wide',
       lines: Array.isArray(body?.lines) ? body.lines : [],

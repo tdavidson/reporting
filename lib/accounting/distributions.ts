@@ -4,9 +4,11 @@
 // payable. The wire that follows settles the payable, which is what lets a bank transaction be
 // matched back to the declaration that authorized it.
 //
-// Deliberately NO `distributions` table. A call has one because `capital_calls` predates the
-// ledger being authoritative; here the journal entry IS the record and the outstanding balance
-// derives from it (`lpPayableBalances`). A second store would only be something to disagree.
+// THE REGISTER. This originally had no table — the journal entry was the record and the
+// outstanding balance derived from it. That was wrong, and notices are what proved it: the 2300
+// payable is CLEARED as wires go out, so once a distribution is paid the ledger no longer says
+// what was declared. A notice states an amount a partner was told they would receive, and that
+// figure has to survive its own payment. `distribution_lines.amount` is that frozen figure.
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { roundCents } from './ledger'
@@ -23,6 +25,7 @@ export interface DistributionLineInput { lpEntityId: string; amount: number }
 export interface DeclareDistributionInput {
   distributionDate: string
   description?: string | null
+  scope?: 'fund_wide' | 'per_lp'
   lines: DistributionLineInput[]
 }
 
@@ -54,7 +57,7 @@ export async function declareDistribution(
   group: string,
   userId: string | null,
   input: DeclareDistributionInput,
-): Promise<{ entryId: string } | { error: string }> {
+): Promise<{ entryId: string; distributionId: string } | { error: string }> {
   const lines = (input.lines ?? []).filter(l => l.lpEntityId && Number(l.amount) > 0)
   if (lines.length === 0) return { error: 'A distribution needs at least one partner with a positive amount' }
   if (!input.distributionDate) return { error: 'A distribution date is required' }
@@ -79,58 +82,87 @@ export async function declareDistribution(
   // draft later, from the bank.
   const result = await persistEntry(admin, fundId, group, userId, entry, 'posted')
   if ('error' in result) return { error: result.error }
-  return { entryId: result.entryId }
+
+  // The register, written in the same shape as issueCapitalCall's.
+  const vehicleId = await vehicleIdByName(admin, fundId, group)
+  const { data: row, error: regErr } = await (admin as any)
+    .from('distributions')
+    .insert({
+      fund_id: fundId,
+      vehicle_id: vehicleId,
+      distribution_date: input.distributionDate,
+      description: input.description ?? null,
+      scope: input.scope === 'per_lp' ? 'per_lp' : 'fund_wide',
+      status: 'declared',
+      journal_entry_id: result.entryId,
+      created_by: userId,
+    })
+    .select('id')
+    .single()
+  if (regErr) return { error: regErr.message }
+  const distributionId = (row as any).id
+
+  const { error: lineErr } = await (admin as any).from('distribution_lines').insert(
+    Array.from(perLp.entries()).map(([lpEntityId, amount]) => ({
+      distribution_id: distributionId,
+      fund_id: fundId,
+      vehicle_id: vehicleId,
+      lp_entity_id: lpEntityId,
+      amount,
+    }))
+  )
+  if (lineErr) return { error: lineErr.message }
+
+  return { entryId: result.entryId, distributionId }
 }
 
 export interface DeclaredDistribution {
-  entryId: string
+  distributionId: string
+  entryId: string | null
   date: string
   description: string | null
   total: number
-  /** Still owed across all partners on this declaration's account. */
+  /** What each partner was DECLARED, frozen at declaration. */
   lines: { lpEntityId: string; name: string; amount: number }[]
 }
 
-/** Declared distributions, newest first, derived from the ledger. */
+/**
+ * Declared distributions, newest first, from the REGISTER.
+ *
+ * Read from `distribution_lines`, not from the 2300 payable: the payable tells you what is
+ * still owed, which is zero once everyone has been paid. The register tells you what was
+ * declared, which is what a notice restates and what an LP will hold you to.
+ */
 export async function listDistributions(
   admin: SupabaseClient,
   fundId: string,
   group: string,
 ): Promise<DeclaredDistribution[]> {
   const vehicleId = await vehicleIdByName(admin, fundId, group)
-  const codes = await accountIdByCode(admin, fundId, group)
-  const payableId = codes.get(DISTRIBUTION_PAYABLE_CODE)
-  if (!payableId) return []
-
-  const [{ data: entries }, names] = await Promise.all([
+  const [{ data: rows }, names] = await Promise.all([
     (admin as any)
-      .from('journal_entries')
-      .select('id, entry_date, memo, status, journal_postings(account_id, amount, lp_entity_id)')
+      .from('distributions')
+      .select('id, distribution_date, description, status, journal_entry_id, distribution_lines(lp_entity_id, amount)')
       .eq('fund_id', fundId)
       .eq('vehicle_id', vehicleId)
-      .eq('source_type', 'distribution')
-      .neq('status', 'void')
-      .order('entry_date', { ascending: false })
+      .order('distribution_date', { ascending: false })
       .limit(200),
     loadEntityNames(admin, fundId, group),
   ])
 
-  return ((entries as any[]) ?? [])
-    .map(e => {
-      const payableLines = (e.journal_postings ?? []).filter((p: any) => p.account_id === payableId && p.lp_entity_id)
-      const lines = payableLines.map((p: any) => ({
-        lpEntityId: p.lp_entity_id,
-        name: names.get(p.lp_entity_id) ?? p.lp_entity_id,
-        amount: roundCents(-Number(p.amount)), // credit-normal → what is owed
-      }))
-      return {
-        entryId: e.id,
-        date: e.entry_date,
-        description: e.memo ?? null,
-        total: roundCents(lines.reduce((s: number, l: any) => s + l.amount, 0)),
-        lines,
-      }
-    })
-    // Only declarations — a pre-payable distribution booked straight to cash has no 2300 line.
-    .filter(d => d.lines.length > 0)
+  return ((rows as any[]) ?? []).map(d => {
+    const lines = (d.distribution_lines ?? []).map((l: any) => ({
+      lpEntityId: l.lp_entity_id,
+      name: names.get(l.lp_entity_id) ?? l.lp_entity_id,
+      amount: roundCents(Number(l.amount)),
+    }))
+    return {
+      distributionId: d.id,
+      entryId: d.journal_entry_id,
+      date: d.distribution_date,
+      description: d.description ?? null,
+      total: roundCents(lines.reduce((s: number, l: any) => s + l.amount, 0)),
+      lines,
+    }
+  })
 }
