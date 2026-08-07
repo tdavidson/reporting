@@ -31,6 +31,8 @@ interface AppShellProps {
   defaultAIProvider?: string
   updateAvailable?: boolean
   featureVisibility?: FeatureVisibilityMap
+  /** Derived, not a setting: true when the fund holds at least one fund. */
+  fofActive?: boolean
   /** The access resolver's inputs for this user. Drives what the nav offers. */
   domainAccess?: ClientAccess
   /** LP portal switched on for this fund. Gates every 'publish/share to LPs' button. */
@@ -38,7 +40,7 @@ interface AppShellProps {
   children: React.ReactNode
 }
 
-export function AppShell({ fundName, fundLogo, userEmail, reviewBadge, settingsBadge, notesBadge, pendingActionsBadge, isAdmin, currency, hasAIKey, configuredProviders, defaultAIProvider, updateAvailable, featureVisibility, domainAccess, lpPortalEnabled, children }: AppShellProps) {
+export function AppShell({ fundName, fundLogo, userEmail, reviewBadge, settingsBadge, notesBadge, pendingActionsBadge, isAdmin, currency, hasAIKey, configuredProviders, defaultAIProvider, updateAvailable, featureVisibility, domainAccess, lpPortalEnabled, fofActive, children }: AppShellProps) {
   return (
     <FeatureVisibilityProvider value={featureVisibility ?? DEFAULT_FEATURE_VISIBILITY} isAdmin={isAdmin} lpPortalEnabled={lpPortalEnabled ?? false}>
     <AccessProvider value={domainAccess ?? EMPTY_ACCESS}>
@@ -71,7 +73,7 @@ export function AppShell({ fundName, fundLogo, userEmail, reviewBadge, settingsB
   )
 }
 
-function AppShellInner({ fundName, fundLogo, userEmail, reviewBadge, settingsBadge, notesBadge, pendingActionsBadge, isAdmin, updateAvailable, featureVisibility, children }: AppShellProps) {
+function AppShellInner({ fundName, fundLogo, userEmail, reviewBadge, settingsBadge, notesBadge, pendingActionsBadge, isAdmin, updateAvailable, featureVisibility, fofActive, children }: AppShellProps) {
   const { collapsed } = useSidebar()
   const pathname = usePathname()
 
@@ -99,7 +101,7 @@ function AppShellInner({ fundName, fundLogo, userEmail, reviewBadge, settingsBad
         <aside
           className={`hidden md:flex flex-col shrink-0 pt-6 transition-all duration-200 ${ collapsed ? 'w-16' : 'w-56' }`}
         >
-          <AppSidebar reviewBadge={reviewBadge} settingsBadge={settingsBadge} notesBadge={notesBadge} pendingActionsBadge={pendingActionsBadge} isAdmin={isAdmin} updateAvailable={updateAvailable} featureVisibility={featureVisibility} />
+          <AppSidebar reviewBadge={reviewBadge} settingsBadge={settingsBadge} notesBadge={notesBadge} pendingActionsBadge={pendingActionsBadge} isAdmin={isAdmin} updateAvailable={updateAvailable} featureVisibility={featureVisibility} fofActive={fofActive} />
         </aside>
 
         {/* Page content. The width cap lives one level up, on the wrapper in
