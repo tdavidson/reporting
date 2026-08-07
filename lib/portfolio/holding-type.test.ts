@@ -36,6 +36,7 @@ const ALLOWLIST = new Map<string, string>([
   ['app/api/review/route.ts', 'resolves names for an id set already gathered from emails'],
   ['app/api/emails/save-to-drive/route.ts', 'resolves drive folders for an explicit id set'],
   ['app/api/settings/notifications/route.ts', 'validates an explicit subscribed-company id set'],
+  ['lib/portfolio/fof-register.ts', 'resolves one fund holding\'s name by id for the entry memo'],
   // Intentionally all holdings.
   ['lib/vehicles.ts', 'vehicle rollups cover every holding a vehicle owns, funds included'],
   ['app/api/settings/route.ts', 'fund deletion must remove every holding, fund holdings included'],
