@@ -179,6 +179,12 @@ export const ROUTE_DOMAINS: Record<string, RouteAccess> = {
   'api/portfolio/fund-cash-flows': { domain: 'portfolio' },
   'api/portfolio/fund-cash-flows/import': { domain: 'portfolio', feature: 'imports' },
   'api/portfolio/fund-group-config': { domain: 'portfolio' },
+  // Fund-of-funds holdings and their register. Portfolio, not accounting: an underlying fund
+  // is a holding, and confirming a register row posts through the same investments path.
+  'api/portfolio/fund-holdings': { domain: 'portfolio', feature: 'investments' },
+  'api/portfolio/fund-holdings/[id]': { domain: 'portfolio', feature: 'investments' },
+  'api/portfolio/fund-holdings/[id]/events': { domain: 'portfolio', feature: 'investments' },
+  'api/portfolio/fund-holdings/[id]/nav': { domain: 'portfolio', feature: 'investments' },
   'api/portfolio/investments': { domain: 'portfolio', feature: 'investments' },
   'api/requests': { domain: 'portfolio', feature: 'asks' },
   'api/requests/responses': { domain: 'portfolio', feature: 'asks' },
