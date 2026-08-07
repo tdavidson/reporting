@@ -42,6 +42,7 @@ export async function GET() {
     .from('companies')
     .select('id, name')
     .eq('fund_id', membership.fund_id)
+    .eq('holding_type', 'company')   // fund holdings have their own surfaces
     .eq('status', 'active')
     .order('name')
 

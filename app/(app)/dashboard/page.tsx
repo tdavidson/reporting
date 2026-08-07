@@ -41,6 +41,7 @@ export default async function DashboardPage() {
       metrics(id, name, unit, unit_position, value_type, currency, display_order, is_active),
       parsing_reviews(id, resolution)
     `)
+    .eq('holding_type', 'company')   // fund holdings have their own surfaces
     .order('name') as { data: CompanyRow[] | null }
 
   // Find cash metric IDs for each company

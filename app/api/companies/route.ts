@@ -33,6 +33,7 @@ export async function GET() {
     .from('companies')
     .select('id, name, stage, status, industry, aliases, tags, portfolio_group, contact_email, metrics(id), inbound_emails(received_at)')
     .eq('fund_id', membership.fund_id)
+    .eq('holding_type', 'company')   // fund holdings have their own surfaces
     .order('name') as { data: CompanyRow[] | null; error: { message: string } | null }
 
   if (error) return dbError(error, 'companies')
@@ -113,6 +114,9 @@ export async function POST(req: NextRequest) {
       contact_email: contact_email ?? null,
       portfolio_group: portfolio_group ?? null,
       status: 'active',
+      // A holding is a company unless it is explicitly a fund. Anything but 'fund' falls
+      // back to 'company' so an unexpected value cannot create an unreachable holding.
+      holding_type: body?.holding_type === 'fund' ? 'fund' : 'company',
     })
     .select()
     .single()

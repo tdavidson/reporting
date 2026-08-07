@@ -27,6 +27,7 @@ export async function GET() {
       metrics(id, name, unit, unit_position, value_type, currency, display_order, is_active)
     `)
     .eq('fund_id', fundId)
+    .eq('holding_type', 'company')   // fund holdings have their own surfaces
     .eq('status', 'active')
     .order('name')
 

@@ -73,6 +73,7 @@ export async function POST(req: NextRequest) {
     .from('companies')
     .select('id, name, aliases')
     .eq('fund_id', membership.fund_id)
+    .eq('holding_type', 'company')   // fund holdings have their own surfaces
 
   const companyNameLookup = new Map<string, string>()
   const companyIdToName = new Map<string, string>()

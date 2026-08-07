@@ -33,6 +33,7 @@ export async function buildPortfolioContext(
     .from('companies')
     .select('id, name, status, stage, industry')
     .eq('fund_id', fundId)
+    .eq('holding_type', 'company')   // fund holdings have their own surfaces
 
   const { data: allTransactions } = await admin
     .from('investment_transactions')
@@ -218,6 +219,7 @@ export async function buildCompanyContext(
     .from('companies')
     .select('id, name, status')
     .eq('fund_id', company.fund_id)
+    .eq('holding_type', 'company')   // fund holdings have their own surfaces
 
   const { data: allTransactions } = await admin
     .from('investment_transactions')

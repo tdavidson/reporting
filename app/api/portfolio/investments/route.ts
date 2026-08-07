@@ -47,7 +47,9 @@ export async function GET(req: NextRequest) {
   const { data: companies, error: compError } = await admin
     .from('companies')
     .select('id, name, status, portfolio_group')
-    .eq('fund_id', fundId) as { data: { id: string; name: string; status: CompanyStatus; portfolio_group: string[] | null }[] | null; error: { message: string } | null }
+    .eq('fund_id', fundId)
+    // fund holdings have their own surfaces
+    .eq('holding_type', 'company') as { data: { id: string; name: string; status: CompanyStatus; portfolio_group: string[] | null }[] | null; error: { message: string } | null }
 
   if (compError) return dbError(compError, 'portfolio-investments-companies')
 

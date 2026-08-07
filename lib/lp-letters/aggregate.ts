@@ -105,6 +105,7 @@ export async function aggregatePortfolioData(
     .from('companies')
     .select('id, name, status, stage, industry, overview, why_invested, current_update')
     .eq('fund_id', fundId)
+    .eq('holding_type', 'company')   // fund holdings have their own surfaces
     .eq('status', 'active')
     .order('name') as { data: {
       id: string; name: string; status: string; stage: string | null
@@ -142,7 +143,9 @@ export async function aggregatePortfolioData(
   const { data: companyGroupAssignments } = await admin
     .from('companies')
     .select('id, portfolio_group')
-    .eq('fund_id', fundId) as { data: { id: string; portfolio_group: string[] | null }[] | null }
+    .eq('fund_id', fundId)
+    // fund holdings have their own surfaces
+    .eq('holding_type', 'company') as { data: { id: string; portfolio_group: string[] | null }[] | null }
 
   for (const c of companyGroupAssignments ?? []) {
     if (c.portfolio_group?.includes(portfolioGroup)) {
@@ -157,6 +160,7 @@ export async function aggregatePortfolioData(
     .from('companies')
     .select('id, name, status, stage, industry, overview, why_invested, current_update')
     .eq('fund_id', fundId)
+    .eq('holding_type', 'company')   // fund holdings have their own surfaces
     .in('status', ['exited', 'written-off']) as { data: typeof allCompanies }
 
   const allGroupCompanies = [
