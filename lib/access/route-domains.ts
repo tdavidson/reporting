@@ -68,6 +68,13 @@ export const ROUTE_DOMAINS: Record<string, RouteAccess> = {
   'api/accounting/fof-grid/confirm': { domain: 'accounting' },
   'api/accounting/fof-marks': { domain: 'accounting' },
   'api/accounting/fund-economics': { domain: 'accounting' },
+  // QuickBooks migration. `mapping/discover` is its own route file and therefore needs its
+  // own entry — route-domains.test.ts matches on the route path, not on a prefix.
+  'api/accounting/quickbooks/parse': { domain: 'accounting' },
+  'api/accounting/quickbooks/mapping': { domain: 'accounting' },
+  'api/accounting/quickbooks/mapping/discover': { domain: 'accounting' },
+  'api/accounting/quickbooks/import': { domain: 'accounting' },
+  'api/accounting/quickbooks/tie-out': { domain: 'accounting' },
   'api/accounting/fund-timeseries': { domain: 'accounting' },
   'api/accounting/investments': { domain: 'accounting' },
   'api/accounting/journal': { domain: 'accounting' },
