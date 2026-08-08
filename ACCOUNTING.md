@@ -463,6 +463,19 @@ Checks that should always hold — use these to confirm a new setup and to sanit
 
 ---
 
+# Forecasting
+
+The **Forecast** page (`/funds/[id]/forecast`) runs a Monte Carlo over the vehicle's existing
+positions (at their current SOI fair values) plus a forecast pipeline of new investments:
+outcome tiers with lognormal spread, quarterly NAV percentile bands, TVPI/DPI/forward-IRR
+distributions, and the probability of returning less than capital. The deterministic expected
+path renders as **draft plain-text journal entries** (the format above, `!` flag) for review —
+forecasts never post as actuals. Scenarios (assumptions + RNG seed) save per vehicle and
+reproduce their simulation exactly. Roadmap, including plan-vs-actual, in
+`plans/plan-accounting-forecasting.md`.
+
+---
+
 # Agents
 
 Everything above is also available to agents over MCP/REST (Settings → *Agent access*): seed the

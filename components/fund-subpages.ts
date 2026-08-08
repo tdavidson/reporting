@@ -8,4 +8,5 @@
 export const FUND_SUBPAGE_SLUGS = new Set([
   'status', 'bank', 'journal', 'periods', 'statements', 'capital-accounts',
   'schedule-of-investments', 'allocation-terms', 'opening-balances', 'lp-events',
+  'forecast',
 ])

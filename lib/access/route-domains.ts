@@ -62,6 +62,7 @@ export const ROUTE_DOMAINS: Record<string, RouteAccess> = {
   'api/accounting/chart': { domain: 'accounting' },
   'api/accounting/cutover': { domain: 'accounting' },
   'api/accounting/turn-on': { domain: 'accounting' },
+  'api/accounting/forecast': { domain: 'accounting' },
   'api/accounting/fund-economics': { domain: 'accounting' },
   'api/accounting/fund-timeseries': { domain: 'accounting' },
   'api/accounting/investments': { domain: 'accounting' },

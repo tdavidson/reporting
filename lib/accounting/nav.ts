@@ -4,7 +4,7 @@
 
 import {
   Landmark, Users, ScrollText, Gauge,
-  Lock, Layers, FileText,
+  Lock, Layers, FileText, TrendingUp,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import type { Domain } from '@/lib/access/domains'
@@ -80,5 +80,11 @@ export const ACCOUNTING_SECTIONS: AccountingSection[] = [
     label: 'Financial statements',
     icon: FileText,
     desc: 'Balance sheet, income statement, statement of cash flows, and statement of changes in partners capital.',
+  },
+  {
+    href: '/funds/forecast',
+    label: 'Forecast',
+    icon: TrendingUp,
+    desc: 'Monte Carlo forecast of the existing portfolio plus forecasted new investments: NAV path, TVPI and DPI distributions, and the expected schedule as draft journal entries.',
   },
 ]
