@@ -22,6 +22,9 @@ import { CAPITAL_ACCOUNT_LABELS, ACTIVITY_FIELDS, type CapitalAccount } from './
 import type { CapitalPeriod } from './capital-account'
 import type { StatementPeriod } from './statement-period'
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { loadFofRaw, computeFofFromRaw } from '@/lib/portfolio/fof-load'
+import { commitmentSchedule, performanceTable } from '@/lib/portfolio/fof-exhibits'
+import { valuationBasisNote } from '@/lib/portfolio/fof-valuation'
 
 function esc(s: string): string {
   return String(s ?? '')
@@ -69,6 +72,98 @@ export interface StatementPdfData {
   /** When this vehicle's underlying data was last updated (footnote). Vehicles report on
    *  irregular cadences, so the reporting PERIOD and the last-updated date are not the same. */
   dataAsOf?: string | null
+  /**
+   * Fund-of-funds exhibits. OPTIONAL and absent unless the fund holds funds, so a statement
+   * for an ordinary fund is byte-identical to before.
+   *
+   * The SCHEDULE OF INVESTMENTS is deliberately NOT here: this document is the partner's
+   * capital account, and the SOI already reaches them through the fund financials. What does
+   * belong is the valuation note — an LP reading a NAV struck 92 days ago is entitled to know
+   * that, and it is the disclosure an auditor looks for.
+   */
+  fof?: {
+    commitments: { rows: { name: string; commitment: number; called: number; unfunded: number }[]
+                   totals: { commitment: number; called: number; unfunded: number } }
+    performance: { rows: { name: string; vintageYear: number | null; contributed: number; distributed: number; nav: number; tvpi: number | null }[] }
+    valuationNote: { name: string; navAsOf: string | null; basis: string; stalenessDays: number | null }[]
+  }
+}
+
+/**
+ * The fund-of-funds exhibits, appended to a partner's statement. Empty string when the fund
+ * holds no funds, so nothing about an ordinary statement changes.
+ */
+function fofSection(d: StatementPdfData): string {
+  if (!d.fof) return ''
+  const m = (v: number) => money(v, d.currency)
+  const mult = (v: number | null) => (v === null || v === undefined ? '&mdash;' : `${v.toFixed(2)}x`)
+  const th = 'padding:5px 8px;border-bottom:1px solid #e5e5e5;text-align:right;font-weight:600;'
+  const thL = th.replace('right', 'left')
+  const td = 'padding:5px 8px;border-top:1px solid #e5e5e5;text-align:right;font-variant-numeric:tabular-nums;'
+  const tdL = 'padding:5px 8px;border-top:1px solid #e5e5e5;'
+
+  const commit = d.fof.commitments
+  return `
+    <h2 style="font-size:13px;margin:24px 0 8px;">Commitments to underlying funds</h2>
+    <table style="width:100%;border-collapse:collapse;font-size:11px;">
+      <thead><tr>
+        <th style="${thL}">Fund</th><th style="${th}">Commitment</th>
+        <th style="${th}">Called</th><th style="${th}">Unfunded</th>
+      </tr></thead>
+      <tbody>
+        ${commit.rows.map(r => `<tr>
+          <td style="${tdL}">${esc(r.name)}</td>
+          <td style="${td}">${m(r.commitment)}</td>
+          <td style="${td}">${m(r.called)}</td>
+          <td style="${td}">${m(r.unfunded)}</td>
+        </tr>`).join('')}
+        <tr style="font-weight:600;">
+          <td style="${tdL}">Total</td>
+          <td style="${td}">${m(commit.totals.commitment)}</td>
+          <td style="${td}">${m(commit.totals.called)}</td>
+          <td style="${td}">${m(commit.totals.unfunded)}</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2 style="font-size:13px;margin:24px 0 8px;">Underlying fund performance</h2>
+    <table style="width:100%;border-collapse:collapse;font-size:11px;">
+      <thead><tr>
+        <th style="${thL}">Fund</th><th style="${th}">Vintage</th><th style="${th}">Contributed</th>
+        <th style="${th}">Distributed</th><th style="${th}">NAV</th><th style="${th}">TVPI</th>
+      </tr></thead>
+      <tbody>
+        ${d.fof.performance.rows.map(r => `<tr>
+          <td style="${tdL}">${esc(r.name)}</td>
+          <td style="${td}">${r.vintageYear ?? '&mdash;'}</td>
+          <td style="${td}">${m(r.contributed)}</td>
+          <td style="${td}">${m(r.distributed)}</td>
+          <td style="${td}">${m(r.nav)}</td>
+          <td style="${td}">${mult(r.tvpi)}</td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
+
+    <h2 style="font-size:13px;margin:24px 0 8px;">Basis of valuation</h2>
+    <p style="font-size:10px;color:#666;margin:0 0 8px;">
+      Each position is carried at the manager&rsquo;s most recent reported net asset value, adjusted
+      for capital called and distributions received between that valuation date and the
+      reporting date.
+    </p>
+    <table style="width:100%;border-collapse:collapse;font-size:11px;">
+      <thead><tr>
+        <th style="${thL}">Fund</th><th style="${thL}">NAV as of</th>
+        <th style="${thL}">Basis</th><th style="${th}">Days stale</th>
+      </tr></thead>
+      <tbody>
+        ${d.fof.valuationNote.map(r => `<tr>
+          <td style="${tdL}">${esc(r.name)}</td>
+          <td style="${tdL}">${r.navAsOf ? esc(r.navAsOf) : 'No statement received'}</td>
+          <td style="${tdL}">${r.basis === 'unreported' ? 'Carried at cost' : esc(r.basis)}</td>
+          <td style="${td}">${r.stalenessDays ?? '&mdash;'}</td>
+        </tr>`).join('')}
+      </tbody>
+    </table>`
 }
 
 export function buildStatementHtml(d: StatementPdfData): string {
@@ -188,6 +283,7 @@ export function buildStatementHtml(d: StatementPdfData): string {
     </table>
 
     ${txnSection}
+    ${fofSection(d)}
   </div>
 
   <div style="position:fixed;bottom:0;left:0;right:0;padding:8px 0;border-top:1px solid #e5e5e5;background:white;font-size:9px;color:#888;">
@@ -233,6 +329,22 @@ export async function generateLpStatementPdf(
 
   const dataAsOf = await lastDataDate(admin, fundId, group)
 
+  // Fund-of-funds exhibits, only when the fund actually holds funds. loadFofRaw returns null
+  // otherwise, so the statement for an ordinary fund is unchanged.
+  const fofRaw = await loadFofRaw(admin, fundId)
+  const fof = fofRaw
+    ? (() => {
+        // period.end is nullable on an inception-to-date window; fall back to today, which
+        // is what "as of now" means for a statement with no closing date.
+        const { positions } = computeFofFromRaw(fofRaw, period.end ?? new Date().toISOString().slice(0, 10))
+        return {
+          commitments: commitmentSchedule(positions, 0),
+          performance: performanceTable(positions),
+          valuationNote: valuationBasisNote(positions),
+        }
+      })()
+    : undefined
+
   const html = buildStatementHtml({
     displayFont: displayFontOf(settingsRes.data?.theme),
     fundName: fund?.name || '',
@@ -248,6 +360,7 @@ export async function generateLpStatementPdf(
     transactions: statement.transactions,
     ownership,
     dataAsOf,
+    fof,
   })
 
   const pdf = await renderHtmlToPdf(html)

@@ -22,19 +22,25 @@ export interface FofData {
   navStatements: any[]
 }
 
-export async function loadFofData(
-  admin: SupabaseClient,
-  fundId: string,
-  asOf: string,
-): Promise<FofData> {
+/** The raw register rows, loaded once. Windowed computation happens in computeFofFromRaw. */
+export interface FofRawData {
+  holdings: { id: string; name: string }[]
+  terms: any[]
+  events: any[]
+  navs: any[]
+}
+
+/**
+ * Load the register WITHOUT computing anything, so a caller that needs several as-of dates
+ * (the statement package with comparison periods) pays for one round trip rather than one
+ * per window.
+ */
+export async function loadFofRaw(admin: SupabaseClient, fundId: string): Promise<FofRawData | null> {
   const { data: holdings } = await admin
     .from('companies').select('id, name')
     .eq('fund_id', fundId).eq('holding_type', 'fund').order('name')
   const holdingRows = ((holdings as any[]) ?? [])
-
-  if (holdingRows.length === 0) {
-    return { positions: [], managerFigures: [], events: [], navStatements: [] }
-  }
+  if (holdingRows.length === 0) return null
 
   const [{ data: terms }, { data: events }, { data: navs }] = await Promise.all([
     (admin as any).from('fund_holding_terms').select('*').eq('fund_id', fundId),
@@ -42,13 +48,24 @@ export async function loadFofData(
     (admin as any).from('fund_nav_statements').select('*').eq('fund_id', fundId).order('as_of_date'),
   ])
 
-  const eventRows = ((events as any[]) ?? [])
-  const navRows = ((navs as any[]) ?? [])
-  const termByCompany = new Map(((terms as any[]) ?? []).map(t => [t.company_id, t]))
+  return {
+    holdings: holdingRows.map(h => ({ id: h.id, name: h.name })),
+    terms: ((terms as any[]) ?? []),
+    events: ((events as any[]) ?? []),
+    navs: ((navs as any[]) ?? []),
+  }
+}
+
+/** Positions and manager figures at one as-of date. Pure over already-loaded rows. */
+export function computeFofFromRaw(raw: FofRawData, asOf: string): {
+  positions: FundPosition[]
+  managerFigures: ManagerStatementFigures[]
+} {
+  const termByCompany = new Map(raw.terms.map(t => [t.company_id, t]))
 
   const positions = computeFundPositions({
     asOf,
-    terms: holdingRows.map(h => {
+    terms: raw.holdings.map(h => {
       const t: any = termByCompany.get(h.id)
       return {
         companyId: h.id,
@@ -59,7 +76,7 @@ export async function loadFofData(
         commitment: Number(t?.commitment ?? 0),
       }
     }),
-    events: eventRows.map(e => ({
+    events: raw.events.map(e => ({
       companyId: e.company_id,
       kind: e.kind,
       eventDate: e.event_date,
@@ -69,7 +86,7 @@ export async function loadFofData(
       charRealizedGain: Number(e.char_realized_gain ?? 0),
       charIncome: Number(e.char_income ?? 0),
     })),
-    navs: navRows.map(n => ({
+    navs: raw.navs.map(n => ({
       companyId: n.company_id,
       asOfDate: n.as_of_date,
       reportedNav: Number(n.reported_nav),
@@ -81,7 +98,7 @@ export async function loadFofData(
   // position is carried on. An older statement's since-inception figures would disagree with
   // our register for the perfectly good reason that time passed.
   const newestByCompany = new Map<string, any>()
-  for (const n of navRows) {
+  for (const n of raw.navs) {
     if (n.as_of_date > asOf) continue
     const cur = newestByCompany.get(n.company_id)
     if (!cur || n.as_of_date > cur.as_of_date) newestByCompany.set(n.company_id, n)
@@ -93,7 +110,19 @@ export async function loadFofData(
     reportedUnfunded: n.reported_unfunded === null ? null : Number(n.reported_unfunded),
   }))
 
-  return { positions, managerFigures, events: eventRows, navStatements: navRows }
+  return { positions, managerFigures }
+}
+
+/** Convenience: load and compute at one date. Delegates, so there is one mapping, not two. */
+export async function loadFofData(
+  admin: SupabaseClient,
+  fundId: string,
+  asOf: string,
+): Promise<FofData> {
+  const raw = await loadFofRaw(admin, fundId)
+  if (!raw) return { positions: [], managerFigures: [], events: [], navStatements: [] }
+  const { positions, managerFigures } = computeFofFromRaw(raw, asOf)
+  return { positions, managerFigures, events: raw.events, navStatements: raw.navs }
 }
 
 /**
