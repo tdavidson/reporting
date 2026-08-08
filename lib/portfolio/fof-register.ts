@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { draftEntryForTransaction } from '@/lib/accounting/from-portfolio'
+import { vehicleNameById } from '@/lib/accounting/vehicle-id'
 
 /**
  * The register produces ordinary investment_transactions rows. It is the ONLY thing that
@@ -112,6 +113,12 @@ export interface ConfirmResult {
   ok: boolean
   transactionId?: string
   skipped?: 'before_ledger_start' | 'no_change'
+  /**
+   * Why the LEDGER entry was not drafted, when the transaction itself was written. Surfaced
+   * rather than swallowed: a confirm that produces a transaction but no entry looks like a
+   * success and silently leaves the position off the books.
+   */
+  ledgerSkipped?: string
   error?: string
 }
 
@@ -156,10 +163,19 @@ export async function confirmFundCapitalEvent(
     return { ok: true, skipped: 'before_ledger_start' }
   }
 
+  // The vehicle NAME, not the id: investment_transactions.portfolio_group is the text name,
+  // and draftEntryForTransaction SKIPS any row without one ("no vehicle, so this is
+  // company-wide pricing"). Omitting it produced a transaction with no ledger entry — a
+  // silent half-write that reads as success.
+  const group = row.vehicle_id ? await vehicleNameById(admin, fundId, row.vehicle_id) : null
+  if (!group) {
+    return { ok: false, error: 'This register row has no vehicle, so the entry has no books to post to.' }
+  }
+
   const { data: txn, error } = await (admin as any)
     .from('investment_transactions')
-    .insert({ ...draft, fund_id: fundId })
-    .select('id').single()
+    .insert({ ...draft, fund_id: fundId, portfolio_group: group })
+    .select('*').single()
   if (error || !txn) return { ok: false, error: error?.message ?? 'Insert failed.' }
 
   await (admin as any).from('fund_capital_events')
@@ -168,9 +184,13 @@ export async function confirmFundCapitalEvent(
 
   const { data: holding } = await admin
     .from('companies').select('name').eq('id', row.company_id).maybeSingle()
-  await draftEntryForTransaction(admin, fundId, userId, txn, (holding as any)?.name ?? 'Fund')
+  const drafted = await draftEntryForTransaction(admin, fundId, userId, txn, (holding as any)?.name ?? 'Fund')
 
-  return { ok: true, transactionId: txn.id }
+  return {
+    ok: true,
+    transactionId: txn.id,
+    ...(drafted?.drafted ? {} : { ledgerSkipped: drafted?.reason ?? 'No ledger entry was drafted.' }),
+  }
 }
 
 function toRegisterEvent(row: any): RegisterEvent {
