@@ -1,4 +1,4 @@
-import { splitLine, pickDelim, normalizeDate, parseAmount } from '@/lib/accounting/bank'
+import { splitRecords, splitLine, pickDelim, normalizeDate, parseAmount } from '@/lib/accounting/bank'
 
 /**
  * QuickBooks' Journal report, parsed. Pure.
@@ -39,37 +39,6 @@ export interface QbAccountSummary {
   totalCredit: number
 }
 
-/**
- * Split into records WITHOUT trimming leading delimiters.
- *
- * Not `splitRecords` from bank.ts: that one ends with `.map(r => r.trim())`, which is harmless
- * for CSV but destroys a TAB-delimited continuation line — QuickBooks writes those with empty
- * leading columns (`\t\t\t\tMemo\tAccount...`), and trimming the leading tabs shifts every
- * column left, so the account lands where the memo should be. Only line endings are stripped.
- */
-function splitJournalRecords(text: string): string[] {
-  const records: string[] = []
-  let cur = ''
-  let inQuotes = false
-  for (let i = 0; i < text.length; i++) {
-    const c = text[i]
-    if (c === '"') {
-      if (inQuotes && text[i + 1] === '"') { cur += '""'; i++; continue }
-      inQuotes = !inQuotes
-      cur += c
-    } else if ((c === '\n' || c === '\r') && !inQuotes) {
-      if (c === '\r' && text[i + 1] === '\n') i++
-      records.push(cur)
-      cur = ''
-    } else {
-      cur += c
-    }
-  }
-  records.push(cur)
-  // Strip stray carriage returns only — never leading/trailing delimiters.
-  return records.map(r => r.replace(/\r/g, '')).filter(r => r.length > 0)
-}
-
 const norm = (s: string) => s.trim().toLowerCase().replace(/\s+/g, ' ')
 
 const HEADERS = {
@@ -92,7 +61,7 @@ export function parseQbJournal(text: string): {
   errors: string[]
 } {
   const errors: string[] = []
-  const records = splitJournalRecords(text).filter(l => l.trim().length > 0)
+  const records = splitRecords(text)
   if (records.length < 2) return { transactions: [], accounts: [], errors: ['Nothing to parse.'] }
 
   const delim = pickDelim(records[0])

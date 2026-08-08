@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { resolveDistributionSplit } from './bank-match'
 import {
+  splitRecords,
   parseTransactionsCsv,
   normalizeDate,
   dedupHash,
@@ -16,6 +17,33 @@ describe('normalizeDate', () => {
     expect(normalizeDate('6/30/2026')).toBe('2026-06-30')
     expect(normalizeDate('06/05/26')).toBe('2026-06-05')
     expect(normalizeDate('nope')).toBeNull()
+  })
+})
+
+describe('splitRecords', () => {
+  it('preserves leading empty columns in a TAB-delimited record', () => {
+    // Leading tabs are WHITESPACE. Trimming a record destroys its empty leading columns and
+    // shifts every field left — the failure that made a QuickBooks continuation line put the
+    // account where the memo belongs. Commas survive trimming, which is why CSV never showed it.
+    const [row] = splitRecords('\t\t\tThird\tFourth')
+    expect(row).toBe('\t\t\tThird\tFourth')
+  })
+
+  it('preserves leading empty columns in a comma-delimited record', () => {
+    const [row] = splitRecords(',,,Third,Fourth')
+    expect(row).toBe(',,,Third,Fourth')
+  })
+
+  it('still drops blank and whitespace-only lines', () => {
+    expect(splitRecords('a,b\n\n   \nc,d')).toEqual(['a,b', 'c,d'])
+  })
+
+  it('still honors newlines inside quoted fields', () => {
+    expect(splitRecords('a,"multi\nline",c')).toEqual(['a,"multi\nline",c'])
+  })
+
+  it('strips carriage returns from CRLF input', () => {
+    expect(splitRecords('a,b\r\nc,d')).toEqual(['a,b', 'c,d'])
   })
 })
 
