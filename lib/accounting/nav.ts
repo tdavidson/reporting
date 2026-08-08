@@ -73,6 +73,12 @@ export const ACCOUNTING_SECTIONS: AccountingSection[] = [
     desc: "Close a period: allocate its income and expenses to each partner's capital account, snapshot the ledger, and lock the books. Reopen to reverse.",
   },
   {
+    href: '/funds/migrate',
+    label: 'Migrate from QuickBooks',
+    icon: Landmark,
+    desc: 'Import a QuickBooks general ledger, map its accounts to this chart, and tie every period out before cutting over.',
+  },
+  {
     href: '/funds/fof-quarter',
     label: 'Quarterly close (funds)',
     icon: Layers,
