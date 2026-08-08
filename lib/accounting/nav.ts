@@ -73,6 +73,13 @@ export const ACCOUNTING_SECTIONS: AccountingSection[] = [
     desc: "Close a period: allocate its income and expenses to each partner's capital account, snapshot the ledger, and lock the books. Reopen to reverse.",
   },
   {
+    href: '/funds/fof-report',
+    label: 'Fund-of-funds report',
+    icon: Layers,
+    desc: 'Schedule of investments, commitments and liquidity, and per-fund performance for the underlying funds.',
+    requiresFof: true,
+  },
+  {
     href: '/funds/migrate',
     label: 'Migrate from QuickBooks',
     icon: Landmark,
