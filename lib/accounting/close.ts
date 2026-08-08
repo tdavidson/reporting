@@ -24,7 +24,8 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { loadPostedLedger, loadOwnership, loadEntityNames } from './load'
-import { computeFundPositions, type FundPosition } from '@/lib/portfolio/fof-metrics'
+import type { FundPosition } from '@/lib/portfolio/fof-metrics'
+import { loadFofData, ledgerCarryingByHolding } from '@/lib/portfolio/fof-load'
 import { fofCloseIssues } from '@/lib/portfolio/fof-valuation'
 import { accountIdByCode, ensureCapitalAccounts, persistEntry } from './persist'
 import { allocateAmount } from './allocation'
@@ -351,66 +352,18 @@ async function loadFofCloseInputs(
   group: string,
   asOf: string,
 ): Promise<{ positions: FundPosition[]; ledgerCarrying: Map<string, number> } | null> {
-  const { data: holdings } = await admin
-    .from('companies').select('id, name')
-    .eq('fund_id', fundId).eq('holding_type', 'fund')
-  const holdingRows = ((holdings as any[]) ?? [])
-  if (holdingRows.length === 0) return null
-
-  const [{ data: terms }, { data: events }, { data: navs }, ledger] = await Promise.all([
-    admin.from('fund_holding_terms' as any).select('*').eq('fund_id', fundId),
-    admin.from('fund_capital_events' as any).select('*').eq('fund_id', fundId),
-    admin.from('fund_nav_statements' as any).select('*').eq('fund_id', fundId),
-    // Reused rather than re-queried: loadPostedLedger already paginates (a vehicle can hold
-    // more than the PostgREST 1000-row default, which would silently truncate) and already
-    // scopes to POSTED entries on or before the date.
+  const [fof, ledger] = await Promise.all([
+    loadFofData(admin, fundId, asOf),
+    // loadPostedLedger already paginates (a vehicle can hold more than the PostgREST 1000-row
+    // default, which would silently truncate) and already scopes to POSTED entries <= asOf.
     loadPostedLedger(admin, fundId, group, asOf),
   ])
+  if (fof.positions.length === 0) return null
 
-  const termByCompany = new Map(((terms as any[]) ?? []).map(t => [t.company_id, t]))
-  const positions = computeFundPositions({
-    asOf,
-    terms: holdingRows.map(h => {
-      const t: any = termByCompany.get(h.id)
-      return {
-        companyId: h.id,
-        name: h.name,
-        managerName: t?.manager_name ?? null,
-        vintageYear: t?.vintage_year ?? null,
-        strategy: t?.strategy ?? null,
-        commitment: Number(t?.commitment ?? 0),
-      }
-    }),
-    events: ((events as any[]) ?? []).map(e => ({
-      companyId: e.company_id,
-      kind: e.kind,
-      eventDate: e.event_date,
-      amount: Number(e.amount),
-      recallableAmount: Number(e.recallable_amount ?? 0),
-      charReturnOfCapital: Number(e.char_return_of_capital ?? 0),
-      charRealizedGain: Number(e.char_realized_gain ?? 0),
-      charIncome: Number(e.char_income ?? 0),
-    })),
-    navs: ((navs as any[]) ?? []).map(n => ({
-      companyId: n.company_id,
-      asOfDate: n.as_of_date,
-      reportedNav: Number(n.reported_nav),
-      basis: n.basis,
-    })),
-  })
-
-  // A holding's ledger carrying value is its cost plus its accumulated mark — the per-holding
-  // account pair ensureInvestmentAccounts creates.
-  const byAccount = new Map(ledger.accounts.map(a => [a.id, a]))
-  const ledgerCarrying = new Map<string, number>()
-  for (const p of ledger.postings) {
-    const acct = byAccount.get(p.accountId)
-    if (!acct?.companyId) continue
-    if (acct.subtype !== 'investment' && acct.subtype !== 'unrealized') continue
-    ledgerCarrying.set(acct.companyId, roundCents((ledgerCarrying.get(acct.companyId) ?? 0) + p.amount))
+  return {
+    positions: fof.positions,
+    ledgerCarrying: ledgerCarryingByHolding(ledger.accounts, ledger.postings),
   }
-
-  return { positions, ledgerCarrying }
 }
 
 /** Pre-close checks over the whole span. */

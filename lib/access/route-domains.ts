@@ -62,6 +62,11 @@ export const ROUTE_DOMAINS: Record<string, RouteAccess> = {
   'api/accounting/chart': { domain: 'accounting' },
   'api/accounting/cutover': { domain: 'accounting' },
   'api/accounting/turn-on': { domain: 'accounting' },
+  // The fund-of-funds quarterly close: paste intake, bulk confirm, and period-end marks.
+  // Accounting, not portfolio — this is close-time work and the marks post to the ledger.
+  'api/accounting/fof-grid': { domain: 'accounting' },
+  'api/accounting/fof-grid/confirm': { domain: 'accounting' },
+  'api/accounting/fof-marks': { domain: 'accounting' },
   'api/accounting/fund-economics': { domain: 'accounting' },
   'api/accounting/fund-timeseries': { domain: 'accounting' },
   'api/accounting/investments': { domain: 'accounting' },
