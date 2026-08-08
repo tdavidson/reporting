@@ -55,6 +55,45 @@ export function periodEndMarks(
   return marks
 }
 
+/**
+ * The fund-of-funds half of the pre-close check, as a PURE function so it can be exercised
+ * without a database — `lib/accounting/close.ts` loads the inputs and splices the result into
+ * its existing `blockers` / `warnings` arrays. No new rule engine: `closeThrough` already
+ * refuses to close when `blockers` is non-empty.
+ *
+ * The severity split is the whole point. An unbooked mark BLOCKS, because the ledger is the
+ * control total for the schedule of investments and closing without it publishes a NAV no
+ * posting supports. A stale manager NAV only WARNS, because reporting 45-90 days late is
+ * normal — blocking on it would make a fund of funds unclosable by construction.
+ */
+export function fofCloseIssues(
+  positions: FundPosition[],
+  ledgerCarrying: Map<string, number>,
+  periodEnd: string,
+): { blockers: string[]; warnings: string[] } {
+  const blockers: string[] = []
+  const warnings: string[] = []
+
+  for (const m of periodEndMarks(positions, ledgerCarrying, periodEnd)) {
+    blockers.push(
+      `${m.name}: the ledger carries ${m.ledgerCarrying.toFixed(2)} but the position values `
+      + `at ${m.derivedCarrying.toFixed(2)} as of ${periodEnd}. Book the period-end mark first.`,
+    )
+  }
+
+  for (const p of positions) {
+    if (p.stalenessDays === null) {
+      warnings.push(`${p.name}: no manager statement has been received; carried at cost.`)
+    } else if (p.stalenessDays > STALE_NAV_DAYS) {
+      warnings.push(
+        `${p.name}: newest NAV is as of ${p.navAsOf} (${p.stalenessDays} days before ${periodEnd}).`,
+      )
+    }
+  }
+
+  return { blockers, warnings }
+}
+
 export interface ValuationBasisRow {
   name: string
   navAsOf: string | null

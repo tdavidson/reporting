@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { periodEndMarks, valuationBasisNote, managerTieOut, STALE_NAV_DAYS } from './fof-valuation'
+import { periodEndMarks, valuationBasisNote, managerTieOut, fofCloseIssues, STALE_NAV_DAYS } from './fof-valuation'
 import type { FundPosition } from './fof-metrics'
 
 const pos = (over: Partial<FundPosition>): FundPosition => ({
@@ -113,6 +113,60 @@ describe('managerTieOut', () => {
 
   it('skips a holding with no manager statement at all', () => {
     expect(managerTieOut([pos({})], [])).toEqual([])
+  })
+})
+
+describe('fofCloseIssues', () => {
+  it('blocks the close when a position carries a value the ledger disagrees with', () => {
+    // Derived carrying 4.0m (last NAV rolled forward), ledger carries 3.6m. Closing here
+    // would report a NAV that no posting supports.
+    const { blockers } = fofCloseIssues([pos({})], new Map([['f1', 3_600_000]]), '2025-12-31')
+    expect(blockers).toHaveLength(1)
+    expect(blockers[0]).toMatch(/Acme Ventures III/)
+    expect(blockers[0]).toMatch(/3600000\.00|3,600,000|3600000/)
+    expect(blockers[0]).toMatch(/mark/i)
+  })
+
+  it('warns — does not block — on a NAV more than one quarter stale', () => {
+    const { blockers, warnings } = fofCloseIssues(
+      [pos({ navAsOf: '2025-03-31', stalenessDays: 275 })],
+      new Map([['f1', 4_000_000]]),
+      '2025-12-31',
+    )
+    expect(blockers).toEqual([])
+    expect(warnings).toHaveLength(1)
+    expect(warnings[0]).toMatch(/Acme Ventures III/)
+    expect(warnings[0]).toMatch(/2025-03-31/)
+  })
+
+  it('does not warn on a NAV inside the staleness threshold', () => {
+    const { warnings } = fofCloseIssues([pos({ stalenessDays: 92 })], new Map([['f1', 4_000_000]]), '2025-12-31')
+    expect(warnings).toEqual([])
+  })
+
+  it('warns when a holding has no manager statement at all', () => {
+    const { blockers, warnings } = fofCloseIssues(
+      [pos({ reportedNav: null, navAsOf: null, navBasis: null, stalenessDays: null, carryingValue: 3_000_000 })],
+      new Map([['f1', 3_000_000]]),
+      '2025-12-31',
+    )
+    expect(blockers).toEqual([])
+    expect(warnings[0]).toMatch(/no manager statement/i)
+  })
+
+  it('is silent for a fund with no fund holdings', () => {
+    expect(fofCloseIssues([], new Map(), '2025-12-31')).toEqual({ blockers: [], warnings: [] })
+  })
+
+  it('reports a blocker and a warning independently for the same holding', () => {
+    // A stale NAV AND an unbooked mark are different problems with different severities.
+    const { blockers, warnings } = fofCloseIssues(
+      [pos({ navAsOf: '2025-03-31', stalenessDays: 275 })],
+      new Map([['f1', 1_000_000]]),
+      '2025-12-31',
+    )
+    expect(blockers).toHaveLength(1)
+    expect(warnings).toHaveLength(1)
   })
 })
 

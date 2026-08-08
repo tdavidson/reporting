@@ -24,6 +24,8 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { loadPostedLedger, loadOwnership, loadEntityNames } from './load'
+import { computeFundPositions, type FundPosition } from '@/lib/portfolio/fof-metrics'
+import { fofCloseIssues } from '@/lib/portfolio/fof-valuation'
 import { accountIdByCode, ensureCapitalAccounts, persistEntry } from './persist'
 import { allocateAmount } from './allocation'
 import { postingsInPeriod } from './statements'
@@ -335,6 +337,82 @@ export interface CloseThroughPreview {
   warnings: string[]
 }
 
+/**
+ * The fund-of-funds inputs the pre-close check needs, or null when this fund holds no funds.
+ *
+ * Two figures per holding: what the position VALUES at (last manager NAV rolled forward for
+ * our own cash flows since — see lib/portfolio/fof-metrics.ts) and what the LEDGER carries
+ * for it (its 1100/1200 account pair). The check compares them; disagreement means a
+ * period-end mark has not been booked.
+ */
+async function loadFofCloseInputs(
+  admin: SupabaseClient,
+  fundId: string,
+  group: string,
+  asOf: string,
+): Promise<{ positions: FundPosition[]; ledgerCarrying: Map<string, number> } | null> {
+  const { data: holdings } = await admin
+    .from('companies').select('id, name')
+    .eq('fund_id', fundId).eq('holding_type', 'fund')
+  const holdingRows = ((holdings as any[]) ?? [])
+  if (holdingRows.length === 0) return null
+
+  const [{ data: terms }, { data: events }, { data: navs }, ledger] = await Promise.all([
+    admin.from('fund_holding_terms' as any).select('*').eq('fund_id', fundId),
+    admin.from('fund_capital_events' as any).select('*').eq('fund_id', fundId),
+    admin.from('fund_nav_statements' as any).select('*').eq('fund_id', fundId),
+    // Reused rather than re-queried: loadPostedLedger already paginates (a vehicle can hold
+    // more than the PostgREST 1000-row default, which would silently truncate) and already
+    // scopes to POSTED entries on or before the date.
+    loadPostedLedger(admin, fundId, group, asOf),
+  ])
+
+  const termByCompany = new Map(((terms as any[]) ?? []).map(t => [t.company_id, t]))
+  const positions = computeFundPositions({
+    asOf,
+    terms: holdingRows.map(h => {
+      const t: any = termByCompany.get(h.id)
+      return {
+        companyId: h.id,
+        name: h.name,
+        managerName: t?.manager_name ?? null,
+        vintageYear: t?.vintage_year ?? null,
+        strategy: t?.strategy ?? null,
+        commitment: Number(t?.commitment ?? 0),
+      }
+    }),
+    events: ((events as any[]) ?? []).map(e => ({
+      companyId: e.company_id,
+      kind: e.kind,
+      eventDate: e.event_date,
+      amount: Number(e.amount),
+      recallableAmount: Number(e.recallable_amount ?? 0),
+      charReturnOfCapital: Number(e.char_return_of_capital ?? 0),
+      charRealizedGain: Number(e.char_realized_gain ?? 0),
+      charIncome: Number(e.char_income ?? 0),
+    })),
+    navs: ((navs as any[]) ?? []).map(n => ({
+      companyId: n.company_id,
+      asOfDate: n.as_of_date,
+      reportedNav: Number(n.reported_nav),
+      basis: n.basis,
+    })),
+  })
+
+  // A holding's ledger carrying value is its cost plus its accumulated mark — the per-holding
+  // account pair ensureInvestmentAccounts creates.
+  const byAccount = new Map(ledger.accounts.map(a => [a.id, a]))
+  const ledgerCarrying = new Map<string, number>()
+  for (const p of ledger.postings) {
+    const acct = byAccount.get(p.accountId)
+    if (!acct?.companyId) continue
+    if (acct.subtype !== 'investment' && acct.subtype !== 'unrealized') continue
+    ledgerCarrying.set(acct.companyId, roundCents((ledgerCarrying.get(acct.companyId) ?? 0) + p.amount))
+  }
+
+  return { positions, ledgerCarrying }
+}
+
 /** Pre-close checks over the whole span. */
 async function checkReadiness(
   admin: SupabaseClient,
@@ -382,6 +460,15 @@ async function checkReadiness(
       `Allocating on top of this would divide the period's income using capital balances that read zero. ` +
       `Attribute it on the vehicle's Setup page first.`
     )
+  }
+
+  // Fund-of-funds positions. Skipped entirely for a fund holding no funds — FoF behaviour is
+  // derived from the data, never a setting (lib/portfolio/fof.ts).
+  const fof = await loadFofCloseInputs(admin, fundId, group, end)
+  if (fof) {
+    const issues = fofCloseIssues(fof.positions, fof.ledgerCarrying, end)
+    blockers.push(...issues.blockers)
+    warnings.push(...issues.warnings)
   }
 
   if (bankRows.length > 0) {
