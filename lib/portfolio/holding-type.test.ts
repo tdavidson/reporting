@@ -37,6 +37,16 @@ const ALLOWLIST = new Map<string, string>([
   ['app/api/emails/save-to-drive/route.ts', 'resolves drive folders for an explicit id set'],
   ['app/api/settings/notifications/route.ts', 'validates an explicit subscribed-company id set'],
   ['lib/portfolio/fof-register.ts', 'resolves one fund holding\'s name by id for the entry memo'],
+  ['app/api/companies/[id]/investments/[txnId]/route.ts', 'resolves one holding name by id for the memo'],
+  // LEDGER paths. A fund holding is a real position with 1100/1200 balances, exactly like a
+  // company — so anything reconciling the ledger, pricing positions, or computing carry must
+  // see BOTH kinds. Filtering these to companies would break the tie-outs, not tidy them.
+  ['app/api/accounting/investments/route.ts', 'ledger-vs-tracker tie-out covers every position, funds included'],
+  ['app/api/accounting/deal-carry/route.ts', 'deal-by-deal carry is computed over every position, funds included'],
+  ['lib/accounting/investments.ts', 'per-holding account triplets and ledger balances cover both kinds'],
+  ['lib/accounting/fund-timeseries.ts', 'cost and value over time cover every position, funds included'],
+  ['lib/accounting/status.ts', 'the schedule-of-investments tie-out must cover every ledger position'],
+  ['lib/accounting/statement-package.ts', 'the SOI needs both kinds to tie to the ledger; it splits them for display by holdingType'],
   // Intentionally all holdings.
   ['lib/vehicles.ts', 'vehicle rollups cover every holding a vehicle owns, funds included'],
   ['app/api/settings/route.ts', 'fund deletion must remove every holding, fund holdings included'],
@@ -55,7 +65,10 @@ function sourceFiles(dir: string, out: string[] = []): string[] {
 const ROOTS = ['app', 'lib', 'components']
 const ALL = ROOTS.flatMap(r => sourceFiles(r))
 
-const queriesCompanies = (src: string) => /\.from\(['"]companies['"]\)/.test(src)
+// Matches `.from('companies')` AND `.from('companies' as any)` — the cast form is used
+// wherever the generated types lag the schema, and an anchored regex silently missed it.
+const COMPANIES_QUERY = /\.from\(\s*['"]companies['"]/
+const queriesCompanies = (src: string) => COMPANIES_QUERY.test(src)
 
 describe('holding_type discriminator', () => {
   it('filters holding_type on every company-shaped query', () => {

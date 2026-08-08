@@ -76,6 +76,9 @@ export async function loadLedgerData(admin: SupabaseClient, fundId: string, grou
     loadPostedLedger(admin, fundId, group),
     loadEntityNames(admin, fundId, group),
     admin.from('investment_transactions' as any).select('*').eq('fund_id', fundId).order('transaction_date', { ascending: true }),
+    // Every holding, fund and company alike: both carry 1100/1200 balances, so the SOI's
+    // ledger control total only ties if both are present. The SOI splits them for DISPLAY by
+    // holding_type — see SoiPosition.holdingType — rather than by excluding either here.
     admin.from('companies' as any).select('*').eq('fund_id', fundId),
   ])
   return {

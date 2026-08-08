@@ -13,6 +13,7 @@ import { EmptyState } from '@/components/ui/empty-state'
 
 interface SoiRow {
   name: string
+  holdingType?: 'company' | 'fund'
   cost: number
   fairValue: number
   pctOfNetAssets: number
@@ -128,6 +129,13 @@ export function ScheduleOfInvestmentsView() {
     const needsBootstrap = soi.source === 'tracker' && Math.abs(soi.ledgerCost) < 0.005 && soi.rows.length > 0
     const num = (v: number | null | undefined, dp = 0) =>
       v == null ? '—' : v.toLocaleString('en-US', { minimumFractionDigits: dp, maximumFractionDigits: dp })
+
+    // Fund holdings and company holdings get their OWN sections rather than one mixed table:
+    // a fund position has no share count and a company position has no unfunded commitment,
+    // so a single table would render half its columns blank for every row. The ledger control
+    // total below still covers both — only the display is split.
+    const fundRows = soi.rows.filter(r => r.holdingType === 'fund')
+    const companyRows = soi.rows.filter(r => r.holdingType !== 'fund')
 
     const groupTable = (title: string, groups: SoiGroup[]) => (
       <div className="border rounded-lg overflow-x-auto">
@@ -322,11 +330,15 @@ export function ScheduleOfInvestmentsView() {
         )}
       </div>
 
-      <div className="border rounded-lg overflow-x-auto">
+      {([
+        ['Underlying funds', fundRows] as const,
+        [fundRows.length > 0 ? 'Direct investments' : 'Investment', companyRows] as const,
+      ]).filter(([, rs]) => rs.length > 0).map(([heading, rs]) => (
+      <div key={heading} className="border rounded-lg overflow-x-auto">
         <table className="w-full text-sm whitespace-nowrap">
           <thead>
             <tr className="border-b bg-muted/50">
-              <th className="text-left px-3 py-2 font-medium">Investment</th>
+              <th className="text-left px-3 py-2 font-medium">{heading}</th>
               <th className="text-left px-3 py-2 font-medium">Industry</th>
               <th className="text-left px-3 py-2 font-medium">Type</th>
               <th className="text-right px-3 py-2 font-medium">Shares</th>
@@ -338,7 +350,7 @@ export function ScheduleOfInvestmentsView() {
             </tr>
           </thead>
           <tbody>
-            {soi.rows.map((r, i) => (
+            {rs.map((r, i) => (
               <tr key={r.name + i} className="border-b last:border-b-0 hover:bg-muted/20">
                 <td className="px-3 py-2">
                   {r.name}
@@ -362,14 +374,23 @@ export function ScheduleOfInvestmentsView() {
           <tfoot>
             <tr className="border-t bg-muted/30 font-semibold">
               <td className="px-3 py-2" colSpan={5}>Total</td>
-              <td className="px-3 py-2 text-right tabular-nums">{fmt(soi.totalCost)}</td>
-              <td className="px-3 py-2 text-right tabular-nums">{fmt(soi.totalFairValue)}</td>
+              <td className="px-3 py-2 text-right tabular-nums">{fmt(rs.reduce((a, r) => a + r.cost, 0))}</td>
+              <td className="px-3 py-2 text-right tabular-nums">{fmt(rs.reduce((a, r) => a + r.fairValue, 0))}</td>
               <td />
               <td />
             </tr>
           </tfoot>
         </table>
       </div>
+      ))}
+
+      {/* Both sections together, against the ledger — the control total is unchanged by the split. */}
+      {fundRows.length > 0 && companyRows.length > 0 && (
+        <div className="border rounded-lg px-3 py-2 flex items-center justify-between text-sm font-semibold">
+          <span>Total investments</span>
+          <span className="tabular-nums">{fmt(soi.totalCost)} cost · {fmt(soi.totalFairValue)} fair value</span>
+        </div>
+      )}
 
       {soi.source === 'tracker' && (
         <div className="grid gap-4 md:grid-cols-2">
