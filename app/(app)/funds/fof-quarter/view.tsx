@@ -38,10 +38,21 @@ interface PendingMark {
   delta: number
 }
 
+interface PreviewRow {
+  companyId: string; matchedName: string; fundName: string
+  calls: number; distributions: number; reportedNav: number | null; navAsOf: string | null
+  /** Extraction only — absent for a paste. */
+  confidence?: 'high' | 'medium' | 'low'
+  sourceText?: string | null
+}
+
 interface PastePreview {
-  matched: { companyId: string; matchedName: string; fundName: string; calls: number; distributions: number; reportedNav: number | null; navAsOf: string | null }[]
+  matched: PreviewRow[]
   unmatched: string[]
   errors: string[]
+  /** Set when the rows came from a document rather than a paste. */
+  extracted?: boolean
+  note?: string
 }
 
 const STALE_DAYS = 100
@@ -59,6 +70,7 @@ export function FofQuarterView() {
   const [valuationNote, setValuationNote] = useState<ValuationBasisRow[]>([])
   const [pasteText, setPasteText] = useState('')
   const [preview, setPreview] = useState<PastePreview | null>(null)
+  const [extracting, setExtracting] = useState(false)
   const [status, setStatus] = useState<string | null>(null)
 
   const load = useCallback(async () => {
@@ -95,13 +107,49 @@ export function FofQuarterView() {
     } finally { setBusy(false) }
   }
 
+  /**
+   * Read a manager document into the SAME preview the paste path produces. Extraction writes
+   * nothing — applying goes through the one grid endpoint either way.
+   */
+  async function extractFile(file: File) {
+    setExtracting(true); setStatus(null); setPreview(null)
+    try {
+      const buf = await file.arrayBuffer()
+      let binary = ''
+      const bytes = new Uint8Array(buf)
+      for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i])
+      const res = await fetch('/api/accounting/fof-extract', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fileBase64: btoa(binary),
+          mediaType: file.type || 'application/pdf',
+          fileName: file.name,
+        }),
+      })
+      const json = await res.json()
+      if (!res.ok) { setStatus(json?.error ?? 'Could not read that document.'); return }
+      setPreview({
+        matched: json.matched ?? [],
+        unmatched: json.unmatched ?? [],
+        errors: json.warnings ?? [],
+        extracted: true,
+        note: json.note,
+      })
+    } finally { setExtracting(false) }
+  }
+
   async function applyPaste() {
     setBusy(true); setStatus(null)
     try {
       const res = await fetch('/api/accounting/fof-grid', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: pasteText, periodEnd: asOf, apply: true }),
+        body: JSON.stringify(
+          preview?.extracted
+            ? { rows: preview.matched, periodEnd: asOf, apply: true }
+            : { text: pasteText, periodEnd: asOf, apply: true },
+        ),
       })
       const json = await res.json()
       if (!res.ok) { setStatus(json?.error ?? 'Could not apply.'); return }
@@ -178,10 +226,21 @@ export function FofQuarterView() {
             placeholder={'Fund\tNAV as of\tReported NAV\tCalls\tDistributions'}
             className="font-mono text-xs"
           />
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Button size="sm" variant="outline" onClick={runPreview} disabled={busy || !pasteText.trim()}>
               Check
             </Button>
+            <label className="text-sm">
+              <span className="sr-only">Upload a manager statement</span>
+              <input
+                type="file"
+                accept=".pdf,.csv,.xlsx,.txt"
+                disabled={busy || extracting}
+                onChange={e => { const f = e.target.files?.[0]; if (f) void extractFile(f); e.target.value = '' }}
+                className="text-sm file:mr-2 file:rounded-lg file:border file:border-input file:bg-background file:px-2 file:py-1 file:text-sm"
+              />
+            </label>
+            {extracting && <span className="text-sm text-muted-foreground flex items-center gap-1"><Loader2 className="h-4 w-4 animate-spin" />Reading the statement…</span>}
             {preview && preview.matched.length > 0 && (
               <Button size="sm" onClick={applyPaste} disabled={busy}>
                 Record {preview.matched.length} row{preview.matched.length === 1 ? '' : 's'} as drafts
@@ -193,8 +252,45 @@ export function FofQuarterView() {
             <div className="space-y-2 pt-2">
               <p className="text-sm">
                 <CheckCircle2 className="inline h-4 w-4 mr-1 text-success" />
-                {preview.matched.length} row{preview.matched.length === 1 ? '' : 's'} matched.
+                {preview.matched.length} row{preview.matched.length === 1 ? '' : 's'} matched
+                {preview.extracted ? ' from the document' : ''}.
               </p>
+              {preview.note && <p className="text-sm text-warning">{preview.note}</p>}
+              {preview.extracted && preview.matched.length > 0 && (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Fund</TableHead>
+                      <TableHead className="text-right">Calls</TableHead>
+                      <TableHead className="text-right">Distributions</TableHead>
+                      <TableHead className="text-right">Reported NAV</TableHead>
+                      <TableHead>As of</TableHead>
+                      <TableHead>Read from</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {preview.matched.map((r, i) => (
+                      <TableRow key={`${r.companyId}-${i}`}>
+                        <TableCell className="font-medium">
+                          {r.matchedName}
+                          {/* Low confidence is the model's own flag — check this one against
+                              the statement before applying. */}
+                          {r.confidence && r.confidence !== 'high' && (
+                            <span className="block text-sm text-warning">{r.confidence} confidence</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">{fmt(r.calls)}</TableCell>
+                        <TableCell className="text-right tabular-nums">{fmt(r.distributions)}</TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {r.reportedNav === null ? '—' : fmt(r.reportedNav)}
+                        </TableCell>
+                        <TableCell className="tabular-nums">{r.navAsOf ?? '—'}</TableCell>
+                        <TableCell className="text-sm text-muted-foreground">{r.sourceText ?? '—'}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
               {preview.unmatched.length > 0 && (
                 <div className="text-sm text-warning">
                   <AlertTriangle className="inline h-4 w-4 mr-1" />

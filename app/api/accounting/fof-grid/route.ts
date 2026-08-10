@@ -48,7 +48,11 @@ export async function POST(req: NextRequest) {
   if (gate instanceof NextResponse) return gate
 
   const body = await req.json().catch(() => ({}))
-  if (typeof body?.text !== 'string' || !body.text.trim()) {
+  // Two ways in, ONE write path. `text` is the paste grid; `rows` is a set already matched
+  // upstream — today that is the statement extractor, which proposes but never writes. Both
+  // land in the same insert block below, so there is no second route into the register.
+  const preMatched = Array.isArray(body?.rows) ? body.rows : null
+  if (!preMatched && (typeof body?.text !== 'string' || !body.text.trim())) {
     return NextResponse.json({ error: 'Paste something first.' }, { status: 400 })
   }
   const periodEnd = typeof body?.periodEnd === 'string'
@@ -59,10 +63,25 @@ export async function POST(req: NextRequest) {
     .from('companies').select('id, name, aliases')
     .eq('fund_id', gate.fundId).eq('holding_type', 'fund')
 
-  const { rows, errors } = parseFofPaste(body.text)
-  const matched = matchHoldings(rows, ((holdings as any[]) ?? []).map(h => ({
-    id: h.id, name: h.name, aliases: h.aliases,
-  })))
+  const { rows, errors } = preMatched
+    ? { rows: [], errors: [] as string[] }
+    : parseFofPaste(body.text)
+  const matched = preMatched
+    // Re-match by name rather than trusting a companyId the caller supplied: the row came
+    // from outside, and an id is not something to take on faith just because it parsed.
+    ? matchHoldings(
+        preMatched.map((r: any) => ({
+          fundName: String(r.fundName ?? r.matchedName ?? ''),
+          navAsOf: r.navAsOf ?? null,
+          reportedNav: r.reportedNav ?? null,
+          calls: Number(r.calls ?? 0),
+          distributions: Number(r.distributions ?? 0),
+        })),
+        ((holdings as any[]) ?? []).map(h => ({ id: h.id, name: h.name, aliases: h.aliases })),
+      )
+    : matchHoldings(rows, ((holdings as any[]) ?? []).map(h => ({
+        id: h.id, name: h.name, aliases: h.aliases,
+      })))
 
   const unmatched = matched.filter(m => !m.companyId).map(m => m.row.fundName)
   const hits = matched.filter(m => m.companyId)
@@ -85,7 +104,8 @@ export async function POST(req: NextRequest) {
   for (const m of hits) {
     const base = {
       fund_id: gate.fundId, vehicle_id: vehicleId, company_id: m.companyId,
-      event_date: periodEnd, status: 'draft', source: 'grid', created_by: user.id,
+      event_date: periodEnd, status: 'draft',
+      source: preMatched ? 'extracted' : 'grid', created_by: user.id,
     }
     // A pasted call carries no purpose breakdown, so the whole amount is investments —
     // transactionForEvent requires the split to reconcile to the amount, and defaulting to
@@ -108,7 +128,7 @@ export async function POST(req: NextRequest) {
       navRows.push({
         fund_id: gate.fundId, vehicle_id: vehicleId, company_id: m.companyId,
         as_of_date: m.row.navAsOf, reported_nav: m.row.reportedNav,
-        basis: 'final', source: 'grid', created_by: user.id,
+        basis: 'final', source: preMatched ? 'extracted' : 'grid', created_by: user.id,
       })
     }
   }
