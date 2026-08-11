@@ -115,9 +115,51 @@ export async function DELETE(_req: NextRequest, { params }: { params: { id: stri
     }, { status: 409 })
   }
 
+  // The holding's own accounts (1100-<id>, 1200-<id>, …). chart_of_accounts.company_id is
+  // ON DELETE SET NULL, so deleting the company ORPHANS these rather than removing them —
+  // they linger in the chart with a null company_id, named after a holding that no longer
+  // exists. Remove them here instead, but only once we know they carry nothing.
+  const { data: acctRows } = await admin
+    .from('chart_of_accounts' as any)
+    .select('id, code')
+    .eq('fund_id', gate.fundId)
+    .eq('company_id', params.id)
+  const acctIds = ((acctRows as any[]) ?? []).map(a => a.id)
+
+  if (acctIds.length > 0) {
+    // A posting against one of these accounts means this holding is in the ledger by some
+    // path the register checks above do not cover — a transaction recorded directly, say.
+    // Deleting then would strand postings pointing at accounts for a deleted holding.
+    const { count: postingCount } = await admin
+      .from('journal_postings' as any)
+      .select('id', { count: 'exact', head: true })
+      .eq('fund_id', gate.fundId)
+      .in('account_id', acctIds)
+
+    if ((postingCount ?? 0) > 0) {
+      return NextResponse.json({
+        error: `This holding's accounts carry ${postingCount} ledger posting(s). `
+             + `Reverse the entries behind them before deleting the holding.`,
+      }, { status: 409 })
+    }
+  }
+
   const { error } = await admin
     .from('companies').delete().eq('id', params.id).eq('fund_id', gate.fundId)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  return NextResponse.json({ ok: true })
+  // After the company is gone: its accounts now have a null company_id, so delete by id.
+  if (acctIds.length > 0) {
+    const { error: acctErr } = await admin
+      .from('chart_of_accounts' as any).delete().eq('fund_id', gate.fundId).in('id', acctIds)
+    // The holding is already gone; a failure here leaves tidy-up, not corruption.
+    if (acctErr) {
+      return NextResponse.json({
+        ok: true,
+        warning: `The holding was deleted, but ${acctIds.length} of its chart accounts could not be removed: ${acctErr.message}`,
+      })
+    }
+  }
+
+  return NextResponse.json({ ok: true, accountsRemoved: acctIds.length })
 }

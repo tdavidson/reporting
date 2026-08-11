@@ -66,6 +66,76 @@ afterAll(async () => {
   expect(count).toBe(0)
 })
 
+/**
+ * The delete path, which used to ORPHAN a holding's chart accounts: company_id is
+ * ON DELETE SET NULL, so removing the company left 1100-/1200-/… rows in the chart named
+ * after a holding that no longer existed.
+ */
+describe('fund holding deletion — live database', { timeout: 30_000 }, () => {
+  const DEL = 'ZZ SMOKE DELETE'
+  let fid = ''
+  let grp = ''
+  let cid = ''
+
+  afterAll(async () => {
+    if (cid) {
+      await admin.from('fund_holding_terms').delete().eq('company_id', cid)
+      await admin.from('companies').delete().eq('id', cid)
+    }
+    await admin.from('chart_of_accounts').delete().eq('fund_id', fid).ilike('name', `%${DEL}%`)
+    const { count } = await admin.from('chart_of_accounts')
+      .select('id', { count: 'exact', head: true }).ilike('name', `%${DEL}%`)
+    expect(count).toBe(0)
+  })
+
+  it('removes the holding AND its chart accounts, leaving no orphans', async () => {
+    const { data: funds } = await admin.from('funds').select('id, name')
+    const demo = (funds ?? []).find((f: any) => /hemrock/i.test(f.name)) ?? (funds ?? [])[0]
+    fid = demo.id
+    const { data: veh } = await admin.from('fund_vehicles')
+      .select('id, name').eq('fund_id', fid).eq('kind', 'fund').limit(1)
+    grp = veh[0].name
+
+    const { data: c } = await admin.from('companies')
+      .insert({ fund_id: fid, name: DEL, holding_type: 'fund', status: 'active', portfolio_group: [grp] })
+      .select('id').single()
+    cid = c.id
+    await admin.from('fund_holding_terms').insert({ fund_id: fid, company_id: cid, commitment: 0 })
+    await ensureInvestmentAccounts(admin, fid, grp, [{ id: cid, name: DEL }])
+
+    const { count: before } = await admin.from('chart_of_accounts')
+      .select('id', { count: 'exact', head: true }).eq('fund_id', fid).eq('company_id', cid)
+    expect(before).toBeGreaterThan(0)
+    console.log('[delete] accounts created:', before)
+
+    // What the DELETE route does, in the same order.
+    const { data: acctRows } = await admin.from('chart_of_accounts')
+      .select('id').eq('fund_id', fid).eq('company_id', cid)
+    const acctIds = (acctRows ?? []).map((a: any) => a.id)
+    const { count: postings } = await admin.from('journal_postings')
+      .select('id', { count: 'exact', head: true }).eq('fund_id', fid).in('account_id', acctIds)
+    expect(postings).toBe(0)   // nothing posted, so the delete is allowed
+
+    await admin.from('fund_holding_terms').delete().eq('company_id', cid)
+    await admin.from('companies').delete().eq('id', cid)
+    await admin.from('chart_of_accounts').delete().eq('fund_id', fid).in('id', acctIds)
+    cid = ''
+
+    const { count: after } = await admin.from('chart_of_accounts')
+      .select('id', { count: 'exact', head: true }).eq('fund_id', fid).ilike('name', `%${DEL}%`)
+    console.log('[delete] accounts remaining:', after)
+    expect(after).toBe(0)
+
+    // The orphan signature is a PER-HOLDING sub-account (1100-<id>) with a null company_id.
+    // The base pooled `1100 Investments at cost` also has a null company_id and always will —
+    // one per vehicle — so matching on '11%' would flag the healthy chart as broken.
+    const { data: orphanRows } = await admin.from('chart_of_accounts')
+      .select('code, name').eq('fund_id', fid).is('company_id', null).like('code', '1100-%')
+    console.log('[delete] orphaned per-holding accounts:', (orphanRows ?? []).length)
+    expect(orphanRows ?? []).toEqual([])
+  })
+})
+
 describe('FoF register — live database', { timeout: 30_000 }, () => {
   it('finds a fund and a ledger vehicle to test against', async () => {
     // Target the DEMO fund explicitly. These tests write (and remove) real rows, and
