@@ -68,8 +68,14 @@ afterAll(async () => {
 
 describe('FoF register — live database', { timeout: 30_000 }, () => {
   it('finds a fund and a ledger vehicle to test against', async () => {
-    const { data: fund } = await admin.from('funds').select('id').limit(1).single()
-    fundId = fund.id
+    // Target the DEMO fund explicitly. These tests write (and remove) real rows, and
+    // `limit(1)` picking whichever fund sorts first is luck, not a safety property — this
+    // installation has two funds and only one of them is disposable.
+    const { data: funds } = await admin.from('funds').select('id, name')
+    const demo = (funds ?? []).find((f: any) => /hemrock/i.test(f.name)) ?? (funds ?? [])[0]
+    expect(demo, 'no fund found to test against').toBeTruthy()
+    fundId = demo.id
+    console.log(`[safety] running against fund "${demo.name}"`)
     const { data: veh } = await admin.from('fund_vehicles')
       .select('id, name').eq('fund_id', fundId).eq('kind', 'fund').limit(1)
     expect((veh ?? []).length).toBeGreaterThan(0)

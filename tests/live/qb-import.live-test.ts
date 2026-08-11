@@ -9,6 +9,7 @@ import { accountIdByCode, persistEntry } from '@/lib/accounting/persist'
 import { ensureInvestmentAccounts } from '@/lib/accounting/investments'
 import { fetchAllRows } from '@/lib/accounting/load'
 import { trialBalance } from '@/lib/accounting/statements'
+import { runBulkDraftAction } from '@/lib/accounting/journal-bulk'
 import type { Account, Posting } from '@/lib/accounting/types'
 
 /**
@@ -64,8 +65,14 @@ afterAll(async () => {
 
 describe('QuickBooks migration — live database', { timeout: 60_000 }, () => {
   it('finds a fund, a vehicle, and dates after the last close', async () => {
-    const { data: fund } = await admin.from('funds').select('id').limit(1).single()
-    fundId = fund.id
+    // Target the DEMO fund explicitly. These tests write (and remove) real rows, and
+    // `limit(1)` picking whichever fund sorts first is luck, not a safety property — this
+    // installation has two funds and only one of them is disposable.
+    const { data: funds } = await admin.from('funds').select('id, name')
+    const demo = (funds ?? []).find((f: any) => /hemrock/i.test(f.name)) ?? (funds ?? [])[0]
+    expect(demo, 'no fund found to test against').toBeTruthy()
+    fundId = demo.id
+    console.log(`[safety] running against fund "${demo.name}"`)
     const { data: veh } = await admin.from('fund_vehicles')
       .select('id, name').eq('fund_id', fundId).eq('kind', 'fund').limit(1)
     group = veh[0].name
@@ -220,6 +227,67 @@ describe('QuickBooks migration — live database', { timeout: 60_000 }, () => {
 
     const result = compareTrialBalance(trialBalance(accounts, postings), theirs, mapping)
     console.log('[tie-out]', JSON.stringify({ ties: result.ties, lines: result.lines }))
+    expect(result.ties).toBe(true)
+  })
+
+  it('bulk-posts the imported drafts — the last step of the migration', async () => {
+    // The step the migration surface hands off to: drafts are reviewed on the journal page
+    // and posted through the EXISTING bulk-post path, not a QuickBooks-specific one.
+    const { data: before } = await admin.from('journal_entries')
+      .select('id, status').eq('fund_id', fundId).in('source_ref', createdRefs)
+    expect((before ?? []).every((e: any) => e.status === 'draft')).toBe(true)
+
+    const result = await runBulkDraftAction(admin, {
+      fundId, vehicleId, group, action: 'post',
+      scope: { ids: (before ?? []).map((e: any) => e.id), start: null, end: null, afterId: null },
+    } as any)
+    console.log('[bulk-post]', JSON.stringify(result))
+    expect(result.ok, `bulk post failed: ${JSON.stringify((result as any).error)}`).toBe(true)
+    const outcome = (result as any).outcome
+    expect(outcome.changed).toBe(2)
+    expect(outcome.skipped).toEqual([])
+
+    const { data: after } = await admin.from('journal_entries')
+      .select('id, status').eq('fund_id', fundId).in('source_ref', createdRefs)
+    expect((after ?? []).every((e: any) => e.status === 'posted')).toBe(true)
+  })
+
+  it('still ties to QuickBooks once posted, now on the POSTED ledger', async () => {
+    // The tie-out included drafts while the entries were drafts. Now that they are posted it
+    // must tie on posted-only too — otherwise the migration would "tie" right up to the
+    // moment it stopped being provisional.
+    const tb = [
+      'Account,Debit,Credit',
+      `Investments:${SMOKE} Fund III,"1,000,000.00",`,
+      `${SMOKE} Professional Fees,"12,500.00",`,
+      `${SMOKE} Bank:Operating,,"1,012,500.00"`,
+    ].join('\n')
+    const { rows: theirs } = parseQbTrialBalance(tb)
+
+    const { data: mappingRows } = await admin.from('qb_account_mappings')
+      .select('qb_account, account_code, excluded').eq('fund_id', fundId).eq('vehicle_id', vehicleId)
+    const mapping = new Map<string, string>()
+    for (const r of (mappingRows ?? [])) if (!r.excluded && r.account_code) mapping.set(r.qb_account, r.account_code)
+
+    const { data: posted } = await admin.from('journal_entries')
+      .select('id').eq('fund_id', fundId).eq('status', 'posted').in('source_ref', createdRefs)
+    const entryIds = (posted ?? []).map((e: any) => e.id)
+    expect(entryIds).toHaveLength(2)
+
+    const acctRows = await fetchAllRows((f, t) => admin.from('chart_of_accounts')
+      .select('id, code, name, type, subtype, company_id')
+      .eq('fund_id', fundId).eq('vehicle_id', vehicleId).range(f, t))
+    const { data: postingRows } = await admin.from('journal_postings')
+      .select('account_id, amount, currency').in('journal_entry_id', entryIds)
+
+    const accounts: Account[] = (acctRows as any[]).map(a => ({
+      id: a.id, fundId, code: a.code, name: a.name, type: a.type, subtype: a.subtype, companyId: a.company_id ?? null,
+    }))
+    const postings: Posting[] = (postingRows ?? []).map((p: any) => ({
+      accountId: p.account_id, amount: Number(p.amount), currency: p.currency,
+    }))
+    const result = compareTrialBalance(trialBalance(accounts, postings), theirs, mapping)
+    console.log('[tie-out posted]', JSON.stringify({ ties: result.ties, lines: result.lines }))
     expect(result.ties).toBe(true)
   })
 
