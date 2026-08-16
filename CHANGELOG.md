@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+Added
+- **Installable app (PWA).** The web app can be added to a phone, tablet, or desktop home screen and opens without browser chrome. Branded per fund: the name under the icon is your fund's, and the icon takes its colour from Settings → Appearance
+- Offline handling is deliberately narrow — only static assets and an offline notice are cached, never a page or an API response, so an installed app never shows a stale figure. `NEXT_PUBLIC_DISABLE_SW=true` turns the service worker off and unregisters any already installed
+
 Removed
 - **Dropbox file storage.** Google Drive (and "None / database only") remain; the Dropbox connect flow, settings, and stored credentials are gone
 - **Ollama and Google Gemini AI providers.** Anthropic, OpenAI, and OpenRouter remain

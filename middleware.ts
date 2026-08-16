@@ -69,9 +69,21 @@ export async function middleware(request: NextRequest) {
   // Onboarding begins before the LP has a session, so it must be reachable unauthenticated.
   const isPortalWelcome = pathname === '/portal/welcome'
 
+  // The installable-app shell. A browser fetches a manifest WITHOUT credentials unless
+  // it is marked use-credentials, and a service worker script is fetched by the worker
+  // registration rather than the page — so a redirect here does not send anyone to a
+  // login screen, it just fails the install with an opaque error. Worse for /sw.js:
+  // the redirect answers with HTML where JavaScript was asked for, and the browser
+  // refuses it on MIME type.
+  //
+  // Nothing here is fund data. The manifest carries the deployment's fund name and
+  // accent, which the sign-in page already shows, and /offline is a static string.
+  const isPwaShell =
+    pathname === '/manifest.webmanifest' || pathname === '/sw.js' || pathname === '/offline'
+
   // Unauthenticated users can only access /auth, API, marketing pages (if
   // enabled), the demo, the token-gated public submit form, and setup routes.
-  if (!user && !isAuthRoute && !isApiRoute && !isPublicMarketingRoute && !isDemoRoute && !isPublicTokenRoute && !isSetupRoute && !isPortalWelcome && !isOAuthDiscovery) {
+  if (!user && !isAuthRoute && !isApiRoute && !isPublicMarketingRoute && !isDemoRoute && !isPublicTokenRoute && !isSetupRoute && !isPortalWelcome && !isOAuthDiscovery && !isPwaShell) {
     const url = request.nextUrl.clone()
     url.pathname = '/auth'
     // Carry where they were headed, so signing in RESUMES it.
@@ -92,7 +104,11 @@ export async function middleware(request: NextRequest) {
   }
 
   // Enforce MFA: redirect to verify page if user has enrolled TOTP but hasn't completed AAL2
-  if (user && !isAuthRoute && !isPublicMarketingRoute && !isPublicTokenRoute && !isOAuthDiscovery) {
+  // isPwaShell is exempt here too: a user who has signed in but not yet passed TOTP
+  // still needs the worker script to load as JavaScript, and bouncing /sw.js to the
+  // verify page breaks it in exactly the way described above. None of these three
+  // paths reveal anything AAL2 is protecting.
+  if (user && !isAuthRoute && !isPublicMarketingRoute && !isPublicTokenRoute && !isOAuthDiscovery && !isPwaShell) {
     const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel()
     if (aal && aal.nextLevel === 'aal2' && aal.currentLevel !== 'aal2') {
       if (isApiRoute) {
@@ -126,7 +142,12 @@ export async function middleware(request: NextRequest) {
   // route context decides which applies. /portal is LP-only; the GP app is for
   // members. A dual GP+LP user is allowed in both. Resolved from the user's OWN
   // rows (RLS-scoped) — never cross-referenced.
-  if (user && !isApiRoute && !isAuthRoute && !isPublicMarketingRoute && !isPublicTokenRoute && !isSetupRoute && !isOAuthDiscovery) {
+  //
+  // isPwaShell sits outside this entirely. The manifest, the worker and the offline
+  // page are the same bytes for every caller, so there is no LP/GP question to ask —
+  // and asking it would redirect an LP-only user's /sw.js to /portal/overview, which
+  // the worker rejects on MIME type. It also saves two queries per shell fetch.
+  if (user && !isApiRoute && !isAuthRoute && !isPublicMarketingRoute && !isPublicTokenRoute && !isSetupRoute && !isOAuthDiscovery && !isPwaShell) {
     const [{ data: membership }, { data: lpAccount }] = await Promise.all([
       supabase.from('fund_members').select('fund_id').eq('user_id', user.id).maybeSingle(),
       supabase.from('lp_accounts').select('status').eq('auth_user_id', user.id).maybeSingle(),

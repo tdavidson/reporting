@@ -232,6 +232,24 @@ Admins and team members can enable TOTP-based two-factor authentication from the
 
 In **Settings > Team**, your team members can sign up (if their email matches the whitelist or your fund's email domain) and request to join. Admins approve requests and can assign admin or member roles.
 
+### Install as an app (PWA)
+
+The web app is installable, so partners can keep it on a phone or tablet home screen and open it without browser chrome. Nothing needs configuring — it works on any deployment over HTTPS.
+
+- **iOS/iPadOS (Safari):** Share → **Add to Home Screen**. Safari does not offer an install prompt; this is the only route, and it must be Safari rather than Chrome or Firefox on iOS.
+- **Android (Chrome):** an **Install app** prompt appears in the menu or the address bar.
+- **Desktop (Chrome/Edge):** an install icon appears at the right of the address bar.
+
+The installed app is branded per fund: the name under the icon is your fund's name, and the mark takes the accent colour from **Settings > Appearance**. Home-screen labels are clipped near twelve characters on both platforms, so a longer fund name is shortened by whole words — "Evergreen Capital Partners" installs as "Evergreen".
+
+**What works offline: not much, deliberately.** This app reads live fund data, so a cached balance is a wrong balance. The service worker (`public/sw.js`) stores only the app's static JavaScript and CSS — which are content-hashed, so they cannot go stale — plus a single offline notice page. It never caches a page or an API response. That last point is a privacy decision as much as a correctness one: a cached response would outlive the session that was allowed to see it, on a device that may be shared.
+
+So an installed app opened with no connection shows the offline page, not a stale dashboard. It starts faster on a warm cache, and that is the extent of the benefit.
+
+**Turning it off.** Set `NEXT_PUBLIC_DISABLE_SW=true` and redeploy. This does not merely stop registering the worker — it unregisters any worker already installed, so it is a complete way out without asking users to clear site data. (It is a `NEXT_PUBLIC_*` variable, so it needs a rebuild to take effect.) The install itself is driven by the manifest and cannot be switched off from here; it also does no harm without a worker.
+
+**Known gaps.** The manifest is manager-facing: it is named for the fund and starts at `/dashboard`, so an LP who installs it lands on a page they will be redirected off. Giving the LP portal its own manifest — its own name, icon, and `/portal` start URL, linked from the portal layout — is the natural follow-up. Web push notifications are not wired up on any platform.
+
 ## Local Development
 
 ```bash

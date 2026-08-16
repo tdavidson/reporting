@@ -415,6 +415,9 @@ export const UNGATED_ROUTES: Record<string, string> = {
   'api/openai-models': 'Model list; no fund data.',
   'api/github-stars': 'Public repo star count.',
   'api/og': 'Renders an OG card from its own query params; reads nothing.',
+  'api/pwa-icon':
+    "Home-screen icon PNG. Must answer a browser that has no session — a manifest's icons are " +
+    'fetched without credentials. Reads only the fund name and accent, which the sign-in page shows.',
 
   // The demo fund's own bootstrap; it provisions the read-only demo, which holds no real data.
   // Sign-in itself is no longer a route: it moved to the `startDemo` server action, which mints
