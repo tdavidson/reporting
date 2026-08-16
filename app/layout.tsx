@@ -9,7 +9,7 @@ import { ThemeProvider } from '@/components/theme-provider'
 import { Toaster } from '@/components/toaster'
 import { ConfirmProvider } from '@/components/confirm-dialog'
 import { APP_VERSION } from '@/lib/version'
-import { SURFACE_DARK_HEX, SURFACE_LIGHT_HEX } from '@/lib/pwa'
+import { SURFACE_DARK_HEX, SURFACE_LIGHT_HEX, iconUrl } from '@/lib/pwa'
 import './globals.css'
 
 // Inter is the default UI face — the Hemrock brand guide's typeface, and what
@@ -64,8 +64,10 @@ export const metadata: Metadata = {
   // full; app/portal/layout.tsx is the override this enables.
   manifest: '/manifest.webmanifest',
   // The home-screen icon. app/icon.tsx stays the 32px favicon; this is the same mark
-  // drawn large and in the fund's accent.
-  icons: { apple: '/api/pwa-icon?size=180' },
+  // drawn large and in the fund's accent. iOS prefers this over the manifest's icons,
+  // so app/portal/layout.tsx overrides it with the inverted variant — without that,
+  // an LP's home screen would show the manager icon whatever the manifest said.
+  icons: { apple: iconUrl(180) },
   appleWebApp: {
     // Older iOS needs this to launch without Safari chrome; iOS 17+ reads
     // `display: standalone` off the manifest instead. Both are cheap to keep.

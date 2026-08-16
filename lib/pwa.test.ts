@@ -13,13 +13,21 @@ import {
   buildManifest,
   buildPortalManifest,
   isIconSize,
+  iconUrl,
   markHexFor,
+  portalFillFor,
   portalNameFor,
   shortNameFor,
   type PwaBrand,
 } from './pwa'
+import { ACCENT_PRESETS } from './theme'
 
-const brand: PwaBrand = { name: 'Evergreen Capital', shortName: 'Evergreen', markHex: '#123456' }
+const brand: PwaBrand = {
+  name: 'Evergreen Capital',
+  shortName: 'Evergreen',
+  markHex: '#123456',
+  portalFillHex: '#0b2a20',
+}
 
 describe('shortNameFor', () => {
   it('keeps a name that already fits under an icon', () => {
@@ -125,6 +133,62 @@ describe('buildManifest', () => {
   })
 })
 
+describe('iconUrl', () => {
+  it('leaves the default variant off, so an icon has one canonical URL', () => {
+    // Two URLs for identical bytes would have the CDN and the browser cache both.
+    expect(iconUrl(180)).toBe('/api/pwa-icon?size=180')
+    expect(iconUrl(192, 'app', true)).toBe('/api/pwa-icon?size=192&maskable=1')
+  })
+
+  it('names the portal variant explicitly', () => {
+    expect(iconUrl(180, 'portal')).toBe('/api/pwa-icon?size=180&variant=portal')
+    expect(iconUrl(512, 'portal', true)).toBe('/api/pwa-icon?size=512&variant=portal&maskable=1')
+  })
+})
+
+describe('portalFillFor', () => {
+  /** WCAG relative-luminance contrast, same maths as foregroundFor in lib/theme.ts. */
+  function contrastWithWhite(hex: string): number {
+    const [r, g, b] = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16))
+    const lin = (c: number) => {
+      c /= 255
+      return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4)
+    }
+    const lum = 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b)
+    return 1.05 / (lum + 0.05)
+  }
+
+  it('knocks white out legibly on EVERY accent a fund can pick', () => {
+    // The reason the fill is the ramp's 700 stop and not the accent itself. Accents are
+    // chosen to read as text ON a light surface, which is the opposite requirement —
+    // white on raw amber is 2.14:1. If a preset is ever added, this fails until its
+    // ramp behaves.
+    const failures = ACCENT_PRESETS.map(p => ({
+      key: p.key,
+      ratio: contrastWithWhite(portalFillFor({ accent: p.hsl })),
+    })).filter(r => r.ratio < 4.5)
+
+    expect(failures, `these fills cannot carry white: ${JSON.stringify(failures)}`).toEqual([])
+  })
+
+  it('is materially darker than the accent it came from', () => {
+    // Guards against someone "simplifying" this back to the raw accent.
+    const amber = ACCENT_PRESETS.find(p => p.key === 'amber')!
+    expect(contrastWithWhite(portalFillFor({ accent: amber.hsl }))).toBeGreaterThan(
+      contrastWithWhite(markHexFor({ accent: amber.hsl }))
+    )
+  })
+
+  it('falls back to a fill that still carries white when unthemed', () => {
+    expect(portalFillFor(null)).toBe(DEFAULT_MARK_HEX)
+    expect(contrastWithWhite(DEFAULT_MARK_HEX)).toBeGreaterThan(4.5)
+  })
+
+  it('refuses an accent that did not come through the settings form', () => {
+    expect(portalFillFor({ accent: 'red; } body { display:none' })).toBe(DEFAULT_MARK_HEX)
+  })
+})
+
 describe('portalNameFor', () => {
   it('names the fund', () => {
     expect(portalNameFor('Evergreen Capital')).toBe('Evergreen Capital Investor Portal')
@@ -160,10 +224,20 @@ describe('buildPortalManifest', () => {
     expect(portal.name).not.toBe(manager.name)
   })
 
-  it('wears the same fund branding', () => {
+  it('wears the same fund branding, but its own icon variant', () => {
     expect(portal.short_name).toBe(manager.short_name)
-    expect(portal.icons).toEqual(manager.icons)
     expect(portal.theme_color).toBe(manager.theme_color)
+    // The differentiator: same mark, inverted. Identical icons here is the bug this
+    // closed — two apps that were indistinguishable on a home screen.
+    expect(portal.icons).not.toEqual(manager.icons)
+    expect((portal.icons ?? []).every(i => i.src.includes('variant=portal'))).toBe(true)
+    expect((manager.icons ?? []).some(i => i.src.includes('variant='))).toBe(false)
+  })
+
+  it('matches the manager manifest on sizes and purposes', () => {
+    const shape = (m: typeof portal) =>
+      (m.icons ?? []).map(i => `${i.sizes}:${i.purpose}`).sort()
+    expect(shape(portal)).toEqual(shape(manager))
   })
 
   it('is installable on the same terms', () => {
@@ -178,6 +252,7 @@ describe('buildPortalManifest', () => {
       name: DEFAULT_APP_NAME,
       shortName: DEFAULT_SHORT_NAME,
       markHex: DEFAULT_MARK_HEX,
+      portalFillHex: DEFAULT_MARK_HEX,
     })
     expect(unbranded.short_name).toBe('Investor')
     expect(unbranded.short_name!.length).toBeLessThanOrEqual(12)

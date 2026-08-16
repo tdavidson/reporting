@@ -1,4 +1,5 @@
 import { getPortalFund } from '@/lib/portal-fund'
+import { iconUrl } from '@/lib/pwa'
 import { themeCssVars } from '@/lib/theme'
 import { PortalChrome } from '@/components/portal-chrome'
 import { createClient } from '@/lib/supabase/server'
@@ -16,6 +17,9 @@ import { recordPortalVisit } from '@/lib/lp-access-log'
 export const metadata = {
   title: 'Investor Portal',
   manifest: '/portal/manifest.webmanifest',
+  // iOS reads apple-touch-icon ahead of the manifest's icons, so overriding the
+  // manifest alone would still have put the manager icon on an LP's home screen.
+  icons: { apple: iconUrl(180, 'portal') },
 }
 
 export default async function PortalLayout({ children }: { children: React.ReactNode }) {

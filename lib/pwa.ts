@@ -15,7 +15,7 @@ import { unstable_cache } from 'next/cache'
 import { NextResponse } from 'next/server'
 import type { MetadataRoute } from 'next'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { isValidHsl, hslToHex, type FundTheme } from '@/lib/theme'
+import { isValidHsl, hslToHex, rampFor, type FundTheme } from '@/lib/theme'
 
 /**
  * The app surface, as `--background` in app/globals.css `:root` and `.dark`.
@@ -51,6 +51,37 @@ export function isIconSize(n: number): n is IconSize {
   return (ICON_SIZES as readonly number[]).includes(n)
 }
 
+/**
+ * Which of the two installable apps an icon is for.
+ *
+ * 'app' is the manager app: the mark drawn on the light surface. 'portal' inverts it
+ * — the tile filled, the mark knocked out in the surface colour.
+ *
+ * The inversion is the whole differentiator, and it is doing more work than a second
+ * mark would. Solid-versus-hollow survives being shrunk to 60px and cropped to a
+ * circle, which two line drawings do not: at home-screen size a document and a
+ * building are both a vertical rectangle with lines in it. It also says the right
+ * thing — these are two doors into one product, not two products, so they keep one
+ * mark between them.
+ */
+export const ICON_VARIANTS = ['app', 'portal'] as const
+export type IconVariant = (typeof ICON_VARIANTS)[number]
+
+export function isIconVariant(s: string): s is IconVariant {
+  return (ICON_VARIANTS as readonly string[]).includes(s)
+}
+
+/**
+ * The ramp stop the portal tile is filled with.
+ *
+ * NOT the raw accent. White on the raw accent fails WCAG on four of the nine presets
+ * in ACCENT_PRESETS — amber lands at 2.14:1 — because those accents are chosen to be
+ * legible AS text on a light surface, which is the opposite requirement. The 700 stop
+ * is the ramp's "dark enough for white text" rung (see the note on RAMP_STOPS in
+ * lib/theme.ts) and clears 4.5:1 for every preset. lib/pwa.test.ts checks all of them.
+ */
+const PORTAL_FILL_STOP = 700
+
 export interface PwaBrand {
   /** Full name — install prompts and app switchers have room for this. */
   name: string
@@ -58,12 +89,15 @@ export interface PwaBrand {
   shortName: string
   /** Mark colour as hex: the fund's accent when themed, else the default neutral. */
   markHex: string
+  /** Tile fill for the inverted portal icon. Always dark enough to knock white out of. */
+  portalFillHex: string
 }
 
 export const DEFAULT_BRAND: PwaBrand = {
   name: DEFAULT_APP_NAME,
   shortName: DEFAULT_SHORT_NAME,
   markHex: DEFAULT_MARK_HEX,
+  portalFillHex: DEFAULT_MARK_HEX,
 }
 
 /**
@@ -100,6 +134,20 @@ export function markHexFor(theme: FundTheme | null | undefined): string {
 }
 
 /**
+ * The portal tile's fill for a raw `fund_settings.theme` blob.
+ *
+ * Falls back to the default mark colour, which is itself dark enough to knock white
+ * out of (7.7:1) — so an unthemed deployment still gets a legible inverted icon
+ * rather than a special case.
+ */
+export function portalFillFor(theme: FundTheme | null | undefined): string {
+  const accent = theme?.accent
+  if (!accent || !isValidHsl(accent)) return DEFAULT_MARK_HEX
+  const stop = rampFor(accent)?.find(([s]) => s === PORTAL_FILL_STOP)
+  return (stop && hslToHex(stop[1])) || DEFAULT_MARK_HEX
+}
+
+/**
  * The fund's name and accent, for the manifest and the icon route.
  *
  * A deployment hosts one fund (app/(app)/layout.tsx resolves it the same way), so
@@ -125,10 +173,12 @@ export const loadPwaBrand = unstable_cache(
         .maybeSingle()
 
       const name = fund.name?.trim() || DEFAULT_APP_NAME
+      const theme = (settings?.theme as FundTheme | null) ?? null
       return {
         name,
         shortName: shortNameFor(name),
-        markHex: markHexFor((settings?.theme as FundTheme | null) ?? null),
+        markHex: markHexFor(theme),
+        portalFillHex: portalFillFor(theme),
       }
     } catch {
       return DEFAULT_BRAND
@@ -140,9 +190,19 @@ export const loadPwaBrand = unstable_cache(
   { tags: ['fund-data', 'fund-settings'], revalidate: 300 }
 )
 
-function iconEntry(size: IconSize, maskable: boolean) {
+/** The icon URL for one size/purpose/variant. Also used for the apple-touch-icon link. */
+export function iconUrl(size: IconSize, variant: IconVariant = 'app', maskable = false): string {
+  const params = [`size=${size}`]
+  // 'app' is the route's default, so leave it off — one canonical URL per icon keeps
+  // the CDN from holding two copies of identical bytes.
+  if (variant !== 'app') params.push(`variant=${variant}`)
+  if (maskable) params.push('maskable=1')
+  return `/api/pwa-icon?${params.join('&')}`
+}
+
+function iconEntry(size: IconSize, maskable: boolean, variant: IconVariant) {
   return {
-    src: `/api/pwa-icon?size=${size}${maskable ? '&maskable=1' : ''}`,
+    src: iconUrl(size, variant, maskable),
     sizes: `${size}x${size}`,
     type: 'image/png',
     purpose: maskable ? ('maskable' as const) : ('any' as const),
@@ -151,17 +211,23 @@ function iconEntry(size: IconSize, maskable: boolean) {
 
 /**
  * What both manifests share: they are the same app, wearing the same fund's colours.
- * Only identity, scope, and start page differ between them.
+ * Identity, scope, start page, and icon variant are all that differ.
  */
-function sharedChrome() {
+function sharedChrome(variant: IconVariant) {
   return {
     display: 'standalone' as const,
     // The app surface, not the accent: the chrome around this app is neutral, and
     // `--primary` is an action colour (DESIGN.md). A saturated title bar wrapped
-    // around a near-white app reads as someone else's brand bleeding in.
+    // around a near-white app reads as someone else's brand bleeding in. This is the
+    // window the app runs in, so it stays light for both — only the ICON inverts.
     background_color: SURFACE_LIGHT_HEX,
     theme_color: SURFACE_LIGHT_HEX,
-    icons: [iconEntry(192, false), iconEntry(512, false), iconEntry(192, true), iconEntry(512, true)],
+    icons: [
+      iconEntry(192, false, variant),
+      iconEntry(512, false, variant),
+      iconEntry(192, true, variant),
+      iconEntry(512, true, variant),
+    ],
   }
 }
 
@@ -181,7 +247,7 @@ export function buildManifest(brand: PwaBrand): MetadataRoute.Manifest {
     description: 'Portfolio, fund and LP reporting.',
     start_url: '/dashboard',
     scope: '/',
-    ...sharedChrome(),
+    ...sharedChrome('app'),
   }
 }
 
@@ -227,7 +293,7 @@ export function buildPortalManifest(brand: PwaBrand): MetadataRoute.Manifest {
     description: 'Your capital account statements, letters, and fund documents.',
     start_url: '/portal/overview',
     scope: '/portal',
-    ...sharedChrome(),
+    ...sharedChrome('portal'),
   }
 }
 

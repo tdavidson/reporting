@@ -252,7 +252,9 @@ So an installed app opened with no connection shows the offline page, not a stal
 
 The portal app is scoped to `/portal`: a link out of it opens in the browser rather than inside the installed app, so it can't wander onto the manager surface in a window with no address bar.
 
-**Known gaps.** Both apps use the same icon and, for a named fund, the same home-screen label — so a fund member who installs *both* sees two identically labelled icons. The full names differ, and install prompts show those, but a distinct portal mark is the real fix. Web push notifications are not wired up on any platform.
+The two are told apart on a home screen by the icon: the manager app is the mark on a light tile, the portal is the same mark inverted — knocked out of a filled tile in the fund's colour. One mark between them, because these are two doors into one product rather than two products. Solid-versus-hollow is what survives being shrunk to 60px and cropped to a circle; two different drawings would not. The fill is taken from the brand ramp's 700 stop rather than the accent itself, so the knockout stays legible whichever accent a fund picks — several accents are far too light to carry white directly.
+
+**Known gaps.** For a named fund both apps carry the same home-screen *label* (the fund's name); only the icon distinguishes them. The full names differ and install prompts show those. Web push notifications are not wired up on any platform.
 
 ## Local Development
 

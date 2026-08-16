@@ -1,6 +1,13 @@
 import { ImageResponse } from 'next/og'
 import { NextRequest } from 'next/server'
-import { SURFACE_LIGHT_HEX, isIconSize, loadPwaBrand, type IconSize } from '@/lib/pwa'
+import {
+  SURFACE_LIGHT_HEX,
+  isIconSize,
+  isIconVariant,
+  loadPwaBrand,
+  type IconSize,
+  type IconVariant,
+} from '@/lib/pwa'
 
 // Home-screen and install icons, in the fund's accent. The same mark app/icon.tsx
 // draws for the browser tab, rendered large.
@@ -28,7 +35,18 @@ export async function GET(req: NextRequest) {
   const size: IconSize = isIconSize(requested) ? requested : 192
   const maskable = searchParams.get('maskable') === '1'
 
-  const { markHex } = await loadPwaBrand()
+  const requestedVariant = searchParams.get('variant') ?? 'app'
+  const variant: IconVariant = isIconVariant(requestedVariant) ? requestedVariant : 'app'
+
+  const { markHex, portalFillHex } = await loadPwaBrand()
+
+  // The LP portal runs the mark inverted — filled tile, mark knocked out — so the two
+  // installed apps are told apart by solid-versus-hollow rather than by two different
+  // drawings. portalFillHex is the ramp's 700 stop precisely so the knockout stays
+  // legible on every accent; see lib/pwa.ts.
+  const background = variant === 'portal' ? portalFillHex : SURFACE_LIGHT_HEX
+  const stroke = variant === 'portal' ? SURFACE_LIGHT_HEX : markHex
+
   const markPx = Math.round(size * MARK_SCALE[maskable ? 'maskable' : 'any'])
 
   return new ImageResponse(
@@ -40,7 +58,7 @@ export async function GET(req: NextRequest) {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          background: SURFACE_LIGHT_HEX,
+          background,
         }}
       >
         {/* Same paths as app/icon.tsx. */}
@@ -50,7 +68,7 @@ export async function GET(req: NextRequest) {
           height={markPx}
           viewBox="0 0 24 24"
           fill="none"
-          stroke={markHex}
+          stroke={stroke}
           strokeWidth="2"
           strokeLinecap="round"
           strokeLinejoin="round"
