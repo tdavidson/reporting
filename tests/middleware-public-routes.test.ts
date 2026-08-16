@@ -88,14 +88,16 @@ describe('middleware — anonymous access to the public surfaces', () => {
 /**
  * The installable-app shell.
  *
- * These three are not fetched by a person following a link, so a redirect does not
+ * These are not fetched by a person following a link, so a redirect does not
  * land anyone on a login page — it fails the install with an opaque error. A browser
  * requests a manifest WITHOUT credentials unless it is marked use-credentials, and
  * /sw.js is fetched by the worker registration, which refuses an HTML response on
  * MIME type and reports only that registration failed.
  */
+const PWA_SHELL = ['/manifest.webmanifest', '/portal/manifest.webmanifest', '/sw.js', '/offline']
+
 describe('middleware — the PWA shell answers without a session', () => {
-  for (const path of ['/manifest.webmanifest', '/sw.js', '/offline']) {
+  for (const path of PWA_SHELL) {
     it(`serves ${path} to a signed-out visitor`, async () => {
       expect(redirectedToAuth(await middleware(req(path)))).toBe(false)
     })
@@ -109,7 +111,7 @@ describe('middleware — the PWA shell answers without a session', () => {
       data: { nextLevel: 'aal2', currentLevel: 'aal1' },
     })
 
-    for (const path of ['/manifest.webmanifest', '/sw.js', '/offline']) {
+    for (const path of PWA_SHELL) {
       const res = await middleware(req(path))
       expect(res.status, path).not.toBe(307)
     }
@@ -130,7 +132,7 @@ describe('middleware — the PWA shell answers without a session', () => {
       }),
     }))
 
-    for (const path of ['/manifest.webmanifest', '/sw.js', '/offline']) {
+    for (const path of PWA_SHELL) {
       const res = await middleware(req(path))
       expect(res.status, path).not.toBe(307)
     }
@@ -139,8 +141,15 @@ describe('middleware — the PWA shell answers without a session', () => {
     expect(new URL(res.headers.get('location')!).pathname).toBe('/portal/overview')
   })
 
+  it('does not exempt the rest of /portal', async () => {
+    // The portal manifest is an exact path, not a /portal prefix. If it were a
+    // prefix, every portal page would answer to anyone.
+    expect(redirectedToAuth(await middleware(req('/portal/overview')))).toBe(true)
+    expect(redirectedToAuth(await middleware(req('/portal/manifest.webmanifest/x')))).toBe(true)
+  })
+
   it('still gates a real app route for that same user', async () => {
-    // Guards the exemption above from having widened past the three paths.
+    // Guards the exemption above from having widened past the shell itself.
     getUser.mockResolvedValue({ data: { user: { id: 'u1' } } })
     getAuthenticatorAssuranceLevel.mockResolvedValue({
       data: { nextLevel: 'aal2', currentLevel: 'aal1' },

@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs'
 import path from 'node:path'
 
 import {
+  DEFAULT_APP_NAME,
   DEFAULT_MARK_HEX,
   DEFAULT_SHORT_NAME,
   SURFACE_DARK_HEX,
@@ -10,8 +11,10 @@ import {
   SURFACE_LIGHT_HEX,
   SURFACE_LIGHT_HSL,
   buildManifest,
+  buildPortalManifest,
   isIconSize,
   markHexFor,
+  portalNameFor,
   shortNameFor,
   type PwaBrand,
 } from './pwa'
@@ -119,6 +122,65 @@ describe('buildManifest', () => {
   it('uses hex colours, which is all a manifest parser is guaranteed to read', () => {
     expect(manifest.theme_color).toMatch(/^#[0-9a-f]{6}$/)
     expect(manifest.background_color).toMatch(/^#[0-9a-f]{6}$/)
+  })
+})
+
+describe('portalNameFor', () => {
+  it('names the fund', () => {
+    expect(portalNameFor('Evergreen Capital')).toBe('Evergreen Capital Investor Portal')
+  })
+
+  it('does not staple two product names together on an unbranded deployment', () => {
+    expect(portalNameFor(DEFAULT_APP_NAME)).toBe('Investor Portal')
+    expect(portalNameFor('')).toBe('Investor Portal')
+    expect(portalNameFor('   ')).toBe('Investor Portal')
+  })
+})
+
+describe('buildPortalManifest', () => {
+  const portal = buildPortalManifest(brand)
+  const manager = buildManifest(brand)
+
+  it('starts an LP inside the portal', () => {
+    // The whole point: an LP installing the manager manifest would launch at
+    // /dashboard and be redirected straight back out by the LP/GP split.
+    expect(portal.start_url).toBe('/portal/overview')
+  })
+
+  it('scopes the installed app to the portal', () => {
+    // Keeps a link out of the portal opening in the browser rather than inside the
+    // LP's installed app — so an LP who is also a member cannot end up on the GP
+    // surface in a window with no address bar.
+    expect(portal.scope).toBe('/portal')
+  })
+
+  it('is a distinct app identity from the manager manifest', () => {
+    // Same id would make a browser treat one as an update to the other.
+    expect(portal.id).not.toBe(manager.id)
+    expect(portal.name).not.toBe(manager.name)
+  })
+
+  it('wears the same fund branding', () => {
+    expect(portal.short_name).toBe(manager.short_name)
+    expect(portal.icons).toEqual(manager.icons)
+    expect(portal.theme_color).toBe(manager.theme_color)
+  })
+
+  it('is installable on the same terms', () => {
+    expect(portal.display).toBe('standalone')
+    expect(portal.background_color).toMatch(/^#[0-9a-f]{6}$/)
+  })
+
+  it('does not label an unbranded install with the manager app name', () => {
+    // Before a fund exists the shared short name is "Portfolio", which says nothing
+    // to an LP and names the wrong app.
+    const unbranded = buildPortalManifest({
+      name: DEFAULT_APP_NAME,
+      shortName: DEFAULT_SHORT_NAME,
+      markHex: DEFAULT_MARK_HEX,
+    })
+    expect(unbranded.short_name).toBe('Investor')
+    expect(unbranded.short_name!.length).toBeLessThanOrEqual(12)
   })
 })
 

@@ -248,7 +248,11 @@ So an installed app opened with no connection shows the offline page, not a stal
 
 **Turning it off.** Set `NEXT_PUBLIC_DISABLE_SW=true` and redeploy. This does not merely stop registering the worker — it unregisters any worker already installed, so it is a complete way out without asking users to clear site data. (It is a `NEXT_PUBLIC_*` variable, so it needs a rebuild to take effect.) The install itself is driven by the manifest and cannot be switched off from here; it also does no harm without a worker.
 
-**Known gaps.** The manifest is manager-facing: it is named for the fund and starts at `/dashboard`, so an LP who installs it lands on a page they will be redirected off. Giving the LP portal its own manifest — its own name, icon, and `/portal` start URL, linked from the portal layout — is the natural follow-up. Web push notifications are not wired up on any platform.
+**The LP portal installs separately.** A deployment offers two installable apps, and which one you get depends on the page you install from. Anywhere in the manager app installs "*Your Fund*" and launches at the dashboard. Anywhere under `/portal` installs "*Your Fund* Investor Portal" and launches at the LP overview — so an LP who adds it to their home screen lands on their own statements, not on a manager page they would be redirected off. Send LPs to a `/portal` page (the welcome link works before they have an account) if you want them to install it.
+
+The portal app is scoped to `/portal`: a link out of it opens in the browser rather than inside the installed app, so it can't wander onto the manager surface in a window with no address bar.
+
+**Known gaps.** Both apps use the same icon and, for a named fund, the same home-screen label — so a fund member who installs *both* sees two identically labelled icons. The full names differ, and install prompts show those, but a distinct portal mark is the real fix. Web push notifications are not wired up on any platform.
 
 ## Local Development
 

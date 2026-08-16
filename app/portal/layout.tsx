@@ -5,7 +5,18 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { recordPortalVisit } from '@/lib/lp-access-log'
 
-export const metadata = { title: 'Investor Portal' }
+// `manifest` overrides the app-wide one from app/layout.tsx. Without it an LP
+// installing from the portal would get the manager app: launching at /dashboard,
+// which the LP/GP split in middleware bounces them straight out of.
+//
+// This REPLACES the inherited link rather than sitting alongside it — a browser reads
+// only the first <link rel="manifest">. The override works only because the root
+// manifest is a route handler rather than Next's app/manifest.ts file convention,
+// which would win over this field. See app/manifest.webmanifest/route.ts.
+export const metadata = {
+  title: 'Investor Portal',
+  manifest: '/portal/manifest.webmanifest',
+}
 
 export default async function PortalLayout({ children }: { children: React.ReactNode }) {
   const fund = await getPortalFund()

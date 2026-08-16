@@ -58,6 +58,11 @@ export const metadata: Metadata = {
     description: 'Open source fund operations for venture capital firms, accelerators, and angel investors.',
     images: [ogImageUrl],
   },
+  // Linked as a field rather than through Next's app/manifest.ts file convention: the
+  // convention overrides `metadata.manifest` in every child layout, which left the LP
+  // portal unable to link its own. app/manifest.webmanifest/route.ts explains it in
+  // full; app/portal/layout.tsx is the override this enables.
+  manifest: '/manifest.webmanifest',
   // The home-screen icon. app/icon.tsx stays the 32px favicon; this is the same mark
   // drawn large and in the fund's accent.
   icons: { apple: '/api/pwa-icon?size=180' },

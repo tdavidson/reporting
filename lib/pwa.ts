@@ -12,6 +12,7 @@
 // what the icon picks up. A dedicated square icon per fund is the natural follow-up.
 
 import { unstable_cache } from 'next/cache'
+import { NextResponse } from 'next/server'
 import type { MetadataRoute } from 'next'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { isValidHsl, hslToHex, type FundTheme } from '@/lib/theme'
@@ -40,6 +41,7 @@ export const DEFAULT_MARK_HEX = '#52525b'
 
 export const DEFAULT_APP_NAME = 'Portfolio Reporting'
 export const DEFAULT_SHORT_NAME = 'Portfolio'
+export const DEFAULT_PORTAL_NAME = 'Investor Portal'
 
 /** The sizes the manifest and the apple-touch-icon link ask for. */
 export const ICON_SIZES = [180, 192, 512] as const
@@ -148,13 +150,28 @@ function iconEntry(size: IconSize, maskable: boolean) {
 }
 
 /**
+ * What both manifests share: they are the same app, wearing the same fund's colours.
+ * Only identity, scope, and start page differ between them.
+ */
+function sharedChrome() {
+  return {
+    display: 'standalone' as const,
+    // The app surface, not the accent: the chrome around this app is neutral, and
+    // `--primary` is an action colour (DESIGN.md). A saturated title bar wrapped
+    // around a near-white app reads as someone else's brand bleeding in.
+    background_color: SURFACE_LIGHT_HEX,
+    theme_color: SURFACE_LIGHT_HEX,
+    icons: [iconEntry(192, false), iconEntry(512, false), iconEntry(192, true), iconEntry(512, true)],
+  }
+}
+
+/**
  * The manifest itself. Pure, so the interesting decisions are testable without a
  * database.
  *
  * `start_url` is the manager's dashboard: this is an app for the people who run the
- * fund, and an LP arriving there would be bounced by the app layout. The LP portal
- * wants its own manifest — different name, different icon, `start_url: /portal` —
- * linked from the portal layout. That is a separate piece of work, noted in DOCS.md.
+ * fund, and an LP arriving there would be bounced by the LP/GP split in middleware.
+ * LPs get their own manifest instead — see buildPortalManifest below.
  */
 export function buildManifest(brand: PwaBrand): MetadataRoute.Manifest {
   return {
@@ -164,12 +181,76 @@ export function buildManifest(brand: PwaBrand): MetadataRoute.Manifest {
     description: 'Portfolio, fund and LP reporting.',
     start_url: '/dashboard',
     scope: '/',
-    display: 'standalone',
-    // The app surface, not the accent: the chrome around this app is neutral, and
-    // `--primary` is an action colour (DESIGN.md). A saturated title bar wrapped
-    // around a near-white app reads as someone else's brand bleeding in.
-    background_color: SURFACE_LIGHT_HEX,
-    theme_color: SURFACE_LIGHT_HEX,
-    icons: [iconEntry(192, false), iconEntry(512, false), iconEntry(192, true), iconEntry(512, true)],
+    ...sharedChrome(),
   }
+}
+
+/**
+ * What an LP sees in an install prompt.
+ *
+ * An unbranded deployment would otherwise offer "Portfolio Reporting Investor
+ * Portal", which reads as two products stapled together.
+ */
+export function portalNameFor(name: string): string {
+  const clean = name.trim()
+  if (!clean || clean === DEFAULT_APP_NAME) return DEFAULT_PORTAL_NAME
+  return `${clean} Investor Portal`
+}
+
+/**
+ * The LP portal's manifest — a second installable app on the same deployment.
+ *
+ * It needs to be separate rather than a wider root manifest because the two have
+ * different start pages and different audiences: an LP installing the root manifest
+ * would launch at /dashboard and be redirected straight back out by the LP/GP split
+ * in middleware.
+ *
+ * `scope: '/portal'` is what keeps the two apart once installed. A link out of the
+ * portal opens in the browser instead of inside the LP's installed app, so an LP who
+ * is also a fund member cannot wander into the GP surface in a window with no address
+ * bar. It also makes `id` distinct, which is what stops a browser treating this as an
+ * update to the manager app.
+ *
+ * `short_name` is the fund's, not "Portal": under an icon, the LP wants to recognise
+ * their fund. The trade is that a GP who installs BOTH apps sees two identically
+ * labelled icons — noted in DOCS.md, and the fix is a distinct portal mark rather
+ * than a worse label.
+ */
+export function buildPortalManifest(brand: PwaBrand): MetadataRoute.Manifest {
+  return {
+    id: '/portal',
+    name: portalNameFor(brand.name),
+    // The fund's short name, except on a deployment with no fund yet — there
+    // brand.shortName is "Portfolio", which under an LP's icon names the manager app
+    // rather than anything they recognise.
+    short_name: brand.name === DEFAULT_APP_NAME ? shortNameFor(DEFAULT_PORTAL_NAME) : brand.shortName,
+    description: 'Your capital account statements, letters, and fund documents.',
+    start_url: '/portal/overview',
+    scope: '/portal',
+    ...sharedChrome(),
+  }
+}
+
+/**
+ * Serve a manifest.
+ *
+ * Both manifests are hand-written routes rather than Next's `app/manifest.ts` file
+ * convention. That convention allows exactly one manifest per app AND wins over
+ * `metadata.manifest` in child layouts — so with it in place the portal could not
+ * link its own, and an LP installing from the portal got the manager app. Two plain
+ * routes plus an explicit `metadata.manifest` in each layout is what makes the
+ * override possible at all; the URLs are unchanged.
+ *
+ * Neither needs a session, so both are publicly cacheable: the fund behind them is
+ * the deployment's, not the caller's.
+ */
+export function manifestResponse(manifest: MetadataRoute.Manifest): NextResponse {
+  return NextResponse.json(manifest, {
+    headers: {
+      // Some install prompts refuse a manifest served as application/json. The file
+      // convention set this for us; a route handler has to say it.
+      'Content-Type': 'application/manifest+json',
+      'Cache-Control': 'public, max-age=300, stale-while-revalidate=3600',
+    },
+  })
 }

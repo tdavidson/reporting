@@ -4,6 +4,7 @@
 
 Added
 - **Installable app (PWA).** The web app can be added to a phone, tablet, or desktop home screen and opens without browser chrome. Branded per fund: the name under the icon is your fund's, and the icon takes its colour from Settings → Appearance
+- **The LP portal installs as its own app.** Installing from any `/portal` page gives an investor-facing app that opens on their statements rather than the manager dashboard, scoped to `/portal` so it can't wander onto the manager surface
 - Offline handling is deliberately narrow — only static assets and an offline notice are cached, never a page or an API response, so an installed app never shows a stale figure. `NEXT_PUBLIC_DISABLE_SW=true` turns the service worker off and unregisters any already installed
 
 Removed

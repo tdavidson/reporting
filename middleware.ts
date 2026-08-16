@@ -78,8 +78,16 @@ export async function middleware(request: NextRequest) {
   //
   // Nothing here is fund data. The manifest carries the deployment's fund name and
   // accent, which the sign-in page already shows, and /offline is a static string.
+  //
+  // The portal's manifest is in here for a second reason: /portal/* is otherwise run
+  // through the LP/GP split below, which redirects anyone who is not an active LP.
+  // A prospective LP on /portal/welcome has no active account yet, and that is
+  // precisely where they are most likely to install.
   const isPwaShell =
-    pathname === '/manifest.webmanifest' || pathname === '/sw.js' || pathname === '/offline'
+    pathname === '/manifest.webmanifest' ||
+    pathname === '/portal/manifest.webmanifest' ||
+    pathname === '/sw.js' ||
+    pathname === '/offline'
 
   // Unauthenticated users can only access /auth, API, marketing pages (if
   // enabled), the demo, the token-gated public submit form, and setup routes.
