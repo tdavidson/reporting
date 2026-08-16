@@ -232,6 +232,30 @@ Admins and team members can enable TOTP-based two-factor authentication from the
 
 In **Settings > Team**, your team members can sign up (if their email matches the whitelist or your fund's email domain) and request to join. Admins approve requests and can assign admin or member roles.
 
+### Install as an app (PWA)
+
+The web app is installable, so partners can keep it on a phone or tablet home screen and open it without browser chrome. Nothing needs configuring — it works on any deployment over HTTPS.
+
+- **iOS/iPadOS (Safari):** Share → **Add to Home Screen**. Safari does not offer an install prompt; this is the only route, and it must be Safari rather than Chrome or Firefox on iOS.
+- **Android (Chrome):** an **Install app** prompt appears in the menu or the address bar.
+- **Desktop (Chrome/Edge):** an install icon appears at the right of the address bar.
+
+The installed app is branded per fund: the name under the icon is your fund's name, and the mark takes the accent colour from **Settings > Appearance**. Home-screen labels are clipped near twelve characters on both platforms, so a longer fund name is shortened by whole words — "Evergreen Capital Partners" installs as "Evergreen".
+
+**What works offline: not much, deliberately.** This app reads live fund data, so a cached balance is a wrong balance. The service worker (`public/sw.js`) stores only the app's static JavaScript and CSS — which are content-hashed, so they cannot go stale — plus a single offline notice page. It never caches a page or an API response. That last point is a privacy decision as much as a correctness one: a cached response would outlive the session that was allowed to see it, on a device that may be shared.
+
+So an installed app opened with no connection shows the offline page, not a stale dashboard. It starts faster on a warm cache, and that is the extent of the benefit.
+
+**Turning it off.** Set `NEXT_PUBLIC_DISABLE_SW=true` and redeploy. This does not merely stop registering the worker — it unregisters any worker already installed, so it is a complete way out without asking users to clear site data. (It is a `NEXT_PUBLIC_*` variable, so it needs a rebuild to take effect.) The install itself is driven by the manifest and cannot be switched off from here; it also does no harm without a worker.
+
+**The LP portal installs separately.** A deployment offers two installable apps, and which one you get depends on the page you install from. Anywhere in the manager app installs "*Your Fund*" and launches at the dashboard. Anywhere under `/portal` installs "*Your Fund* Investor Portal" and launches at the LP overview — so an LP who adds it to their home screen lands on their own statements, not on a manager page they would be redirected off. Send LPs to a `/portal` page (the welcome link works before they have an account) if you want them to install it.
+
+The portal app is scoped to `/portal`: a link out of it opens in the browser rather than inside the installed app, so it can't wander onto the manager surface in a window with no address bar.
+
+The two are told apart on a home screen by the icon: the manager app is the mark on a light tile, the portal is the same mark inverted — knocked out of a filled tile in the fund's colour. One mark between them, because these are two doors into one product rather than two products. Solid-versus-hollow is what survives being shrunk to 60px and cropped to a circle; two different drawings would not. The fill is taken from the brand ramp's 700 stop rather than the accent itself, so the knockout stays legible whichever accent a fund picks — several accents are far too light to carry white directly.
+
+**Known gaps.** For a named fund both apps carry the same home-screen *label* (the fund's name); only the icon distinguishes them. The full names differ and install prompts show those. Web push notifications are not wired up on any platform.
+
 ## Local Development
 
 ```bash

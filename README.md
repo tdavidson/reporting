@@ -28,6 +28,7 @@ Turn on fund accounting when you want the LP numbers to come from a real ledger 
 - **LP portal** — Give your LPs a private, fund-branded login to view and download their capital account statements, quarterly letters, and fund documents — each as a web page or a PDF. Send any item by email to one LP, several, or your whole list as a secure portal link, a PDF attachment, or both. Authorized users (advisors, accountants) are included automatically, and an AI analyst answers LP questions from only their own materials.
 - **Layered, not all-or-nothing** — LP tracking, the LP portal, LP documents, and fund accounting are independent switches, each off by default. Turn on only what you use: track LP capital from pasted statements without any accounting, keep full books for the vehicles you run yourself, or anything in between.
 - **Lightweight CRM** - Track intros, strategy, qualitative value-adds to demonstrate how you work with your portfolio
+- **Installable on a phone** — add the app to a home screen and it opens without browser chrome, named and coloured for your fund. It reads live data, so it caches almost nothing on purpose: no page and no API response is ever stored on the device
 
 > Detailed feature descriptions at [FEATURES](./FEATURES.md)  
 > Fund accounting setup and double-entry reference at [ACCOUNTING](./ACCOUNTING.md)
