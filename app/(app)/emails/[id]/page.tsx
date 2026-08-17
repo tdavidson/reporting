@@ -14,6 +14,7 @@ import { UploadDocumentButton } from './upload-document-button'
 import { SaveToDriveButton } from './save-to-drive-button'
 import { CollapsibleJson } from './collapsible-json'
 import { ReviewItems } from './review-items'
+import { EmailMetricsSection } from './metrics-section'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -251,6 +252,9 @@ export default async function EmailDetailPage({ params }: { params: { id: string
 
       {/* Review items */}
       <ReviewItems emailId={params.id} hasReviews={reviews.length > 0} />
+
+      {/* Company + metric configuration — the same options the review modal offers */}
+      <EmailMetricsSection emailId={params.id} initialCompany={company} />
 
       {/* Attachments */}
       {attachments.length > 0 && (
