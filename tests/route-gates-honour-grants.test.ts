@@ -56,6 +56,19 @@ describe('route gates honour the per-domain grants', () => {
     expect(read('api/settings/access')).toContain('assertAdminAccess')
   })
 
+  it('lets no PAGE guard veto a grant by hard-coding roles either', () => {
+    // The same bug, one layer up. app/(app)/funds/guard.ts gates the whole accounting section and
+    // used to admit `admin|viewer` by role, ignoring the `accounting` grant entirely — so a member
+    // the fund had granted write read the books through every API and was redirected off every
+    // page. Section guards must ask the resolver, like the routes below them do.
+    const guard = readFileSync(path.join(process.cwd(), 'app', '(app)', 'funds', 'guard.ts'), 'utf8')
+    expect(guard).toMatch(/canViewPage\s*\(/)
+    expect(
+      /role\s*!==\s*'admin'/.test(guard),
+      'funds/guard.ts is comparing roles again — the grant is what decides',
+    ).toBe(false)
+  })
+
   it('keeps the admin domain admin-gated in the route as well as the boundary', () => {
     // The one place the role check is the real policy rather than a stand-in — worth defence in
     // depth, because it is the control panel for everyone else's access.

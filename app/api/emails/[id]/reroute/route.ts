@@ -8,9 +8,8 @@ import { extractAttachmentText, hydrateAttachments } from '@/lib/parsing/extract
 import { createFundAIProvider } from '@/lib/ai'
 import { rateLimit } from '@/lib/rate-limit'
 import { assertWriteAccess } from '@/lib/api-helpers'
-
-const VALID_TARGETS = ['reporting', 'interactions', 'deals', 'audit'] as const
-type RerouteTarget = typeof VALID_TARGETS[number]
+import { assertDomainAccess } from '@/lib/access/gate'
+import { domainForRerouteTarget, isRerouteTarget, type RerouteTarget } from '@/lib/access/reroute-targets'
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   const supabase = createClient()
@@ -26,8 +25,17 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
   const body = await req.json().catch(() => ({}))
   const target = body.to as RerouteTarget
-  if (!VALID_TARGETS.includes(target)) {
+  if (!isRerouteTarget(target)) {
     return NextResponse.json({ error: 'Invalid target' }, { status: 400 })
+  }
+
+  // The middleware gated this route on `portfolio` — the mailbox. One destination costs more than
+  // that: rerouting to 'deals' runs processDeal and writes a deal, which a fund without the
+  // Investment Workflow product must not get through the side door.
+  const extraDomain = domainForRerouteTarget(target)
+  if (extraDomain) {
+    const gate = await assertDomainAccess(admin, user.id, extraDomain, 'write')
+    if (gate instanceof NextResponse) return gate
   }
 
   // Fetch email (RLS via RPC scopes by membership)

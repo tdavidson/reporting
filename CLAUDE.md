@@ -86,6 +86,33 @@ handler (`hasAccess(access, 'lp_capital', 'read')`), as `/api/accounting/stateme
 statement of changes in partners' capital. When adding a route, ask what its response *contains*,
 not just what it's called.
 
+### Every new server-component PAGE needs one too
+
+The middleware never sees a page. A server component under `app/(app)/**` queries Postgres itself —
+often with `createAdminClient()`, so RLS is out of the path as well — and renders the result, which
+means the only gate is the one the page calls. Getting this wrong is not "the nav is untidy": it is
+`hidden` failing to mean hidden, reachable by anyone who has the URL.
+
+So the page side has the same registry: `lib/access/page-domains.ts` maps every server page to a
+domain (or lists it in `UNGATED_PAGES` with a reason — a redirect or a static document, never
+"the nav hides it"), and `lib/access/page-domains.test.ts` fails when a page is in neither. It also
+fails when a page is mapped to a domain it never checks, so the map can't rot into a comment.
+
+In the page, before it fetches anything:
+
+```ts
+const page = await resolvePageAccess(user.id)
+if (!page || !canViewPage(page, 'portfolio')) redirect('/dashboard')
+```
+
+`resolvePageAccess` also returns `fundId`, `role` and `isAdmin`, so it replaces the `fund_members`
+lookup rather than adding to it. Client pages ('use client') need nothing: they render no fund data
+on the server, and their `/api` calls are gated by the middleware.
+
+Section guards (`app/(app)/funds/guard.ts`) count as the gate, but they must resolve through
+`canViewPage` too — one that compares roles instead silently vetoes the grants, which is the bug
+`tests/route-gates-honour-grants.test.ts` exists to catch on both sides.
+
 Access resolves through ONE function, `effectiveAccess` (`lib/access/effective.ts`). Two axes:
 `fund_settings.feature_visibility` is the fund-level ceiling; per-user grants (`fund_member_access`,
 defaulting to `fund_domain_defaults`) narrow it and never widen it. **The order of its checks is the

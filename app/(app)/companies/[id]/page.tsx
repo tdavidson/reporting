@@ -2,10 +2,19 @@ import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
+import { resolvePageAccess, canViewPage } from '@/lib/access/page-gate'
 import { ArrowLeft } from 'lucide-react'
 
 export async function generateMetadata({ params }: { params: { id: string } }): Promise<Metadata> {
   const supabase = createClient()
+  // Runs BEFORE the page body, so it needs the same gate: the title is a company name, and a
+  // member without `portfolio` would otherwise read it off the browser tab on their way to being
+  // redirected. Falls back to the generic title rather than 404ing — metadata is not the place to
+  // decide whether the page exists.
+  const { data: { user } } = await supabase.auth.getUser()
+  const page = user ? await resolvePageAccess(user.id) : null
+  if (!page || !canViewPage(page, 'portfolio')) return { title: 'Company' }
+
   const { data } = await supabase.from('companies').select('name').eq('id', params.id).maybeSingle() as { data: { name: string } | null }
   return { title: data?.name ?? 'Company' }
 }
@@ -23,7 +32,6 @@ import { CompanyDocuments } from './company-documents'
 import { CompanyInvestments } from './company-investments'
 import { CompanyInteractions } from './company-interactions'
 import { DEFAULT_FEATURE_VISIBILITY } from '@/lib/types/features'
-import { resolvePageAccess, canViewPage } from '@/lib/access/page-gate'
 import type { FeatureVisibilityMap } from '@/lib/types/features'
 
 function formatHighlightValue(value: number, metric: Metric, fundCurrency: string) {
@@ -58,6 +66,13 @@ export default async function CompanyDetailPage({
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/auth')
 
+  // The company itself is `portfolio`. The per-panel checks further down decide which SECTIONS
+  // render (notes, interactions, investments each answer to their own domain) — but they were
+  // doing that on a page anyone in the fund could open, so a member denied portfolio still got the
+  // company and its metrics. The page needs its own gate before any of that.
+  const page = await resolvePageAccess(user.id)
+  if (!page || !canViewPage(page, 'portfolio')) redirect('/dashboard')
+
   const { data: company } = await supabase
     .from('companies')
     .select('*')
@@ -66,14 +81,7 @@ export default async function CompanyDetailPage({
 
   if (!company) redirect('/dashboard')
 
-  const { data: membership } = await supabase
-    .from('fund_members')
-    .select('role')
-    .eq('fund_id', company.fund_id)
-    .eq('user_id', user.id)
-    .maybeSingle() as { data: { role: string } | null }
-
-  const isAdmin = membership?.role === 'admin'
+  const isAdmin = page.isAdmin
 
   // Fetch AI provider settings for the summary component
   const { data: fundSettings } = await supabase
@@ -87,11 +95,11 @@ export default async function CompanyDetailPage({
 
   // These panels each belong to a domain, and their APIs are gated to it. Rendering one for a
   // member without the grant would show an empty panel that 403s on load, so ask the resolver —
-  // the feature switch alone is only half the answer.
-  const page = await resolvePageAccess(user.id)
-  const showNotes = !!page && canViewPage(page, 'relationships', 'notes')
-  const showInvestments = !!page && canViewPage(page, 'portfolio', 'investments')
-  const showInteractions = !!page && canViewPage(page, 'relationships', 'interactions')
+  // the feature switch alone is only half the answer. (`page` is resolved above, where it decides
+  // whether this page renders at all.)
+  const showNotes = canViewPage(page, 'relationships', 'notes')
+  const showInvestments = canViewPage(page, 'portfolio', 'investments')
+  const showInteractions = canViewPage(page, 'relationships', 'interactions')
 
   const { data: metrics } = await supabase
     .from('metrics')

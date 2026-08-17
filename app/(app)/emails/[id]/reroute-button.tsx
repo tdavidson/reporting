@@ -7,17 +7,22 @@ import { Button } from '@/components/ui/button'
 import { ArrowRightLeft } from 'lucide-react'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { useConfirm } from '@/components/confirm-dialog'
+import { useCanWrite } from '@/components/access-context'
+import { domainForRerouteTarget, type RerouteTarget } from '@/lib/access/reroute-targets'
 
-const TARGETS = [
+const TARGETS: { value: RerouteTarget; label: string }[] = [
   { value: 'reporting', label: 'Reporting (metrics)' },
   { value: 'interactions', label: 'Interactions (CRM)' },
   { value: 'deals', label: 'Deals (pitch)' },
   { value: 'audit', label: 'Audit (drop)' },
-] as const
+]
 
 export function RerouteButton({ emailId, currentTarget }: { emailId: string; currentTarget: string | null }) {
   const router = useRouter()
   const confirm = useConfirm()
+  // The mailbox is portfolio-gated, but 'deals' makes a deal. Offering a destination whose request
+  // always 403s is the nav lying — so it comes off the list rather than failing on click.
+  const canDeal = useCanWrite('dealflow')
   const [loading, setLoading] = useState(false)
   const [open, setOpen] = useState(false)
 
@@ -59,15 +64,18 @@ export function RerouteButton({ emailId, currentTarget }: { emailId: string; cur
         </Button>
       </PopoverTrigger>
       <PopoverContent align="end" className="w-56 p-1">
-        {TARGETS.filter(t => t.value !== currentTarget).map(t => (
-          <button
-            key={t.value}
-            onClick={() => handleReroute(t.value)}
-            className="w-full text-left px-2 py-1.5 text-sm rounded hover:bg-muted"
-          >
-            {t.label}
-          </button>
-        ))}
+        {TARGETS
+          .filter(t => t.value !== currentTarget)
+          .filter(t => domainForRerouteTarget(t.value) !== 'dealflow' || canDeal)
+          .map(t => (
+            <button
+              key={t.value}
+              onClick={() => handleReroute(t.value)}
+              className="w-full text-left px-2 py-1.5 text-sm rounded hover:bg-muted"
+            >
+              {t.label}
+            </button>
+          ))}
       </PopoverContent>
     </Popover>
   )

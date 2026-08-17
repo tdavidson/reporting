@@ -206,6 +206,29 @@ export const ROUTE_DOMAINS: Record<string, RouteAccess> = {
   'api/review': { domain: 'portfolio' },
   'api/review/[id]/resolve': { domain: 'portfolio' },
 
+  // The inbound mailbox. Portfolio, not deal flow: an inbound email is intake substrate — it is
+  // where a portfolio update arrives, where the metric extraction that fills the review queue
+  // happens, and only sometimes a deal. Filing the whole mailbox under `dealflow` meant a fund
+  // running Portfolio Reporting alone (deals is off by default) got a review queue it could not
+  // act on: the email modal 403'd on its first fetch and there was no Inbound page to reprocess
+  // from. PRODUCT_META already draws the line this way — Portfolio Reporting owns "inbound
+  // updates", Investment Workflow owns "inbound DEAL intake".
+  //
+  // Promoting an email INTO a deal or a diligence data room is the deal-flow act, and stays gated
+  // on the destination: see accept-to-diligence below, and the in-handler check on reroute.
+  'api/emails': { domain: 'portfolio' },
+  'api/emails/[id]': { domain: 'portfolio' },
+  'api/emails/[id]/attachment/[index]': { domain: 'portfolio' },
+  'api/emails/[id]/attachments': { domain: 'portfolio' },
+  'api/emails/[id]/reprocess': { domain: 'portfolio' },
+  'api/emails/[id]/reviews': { domain: 'portfolio' },
+  'api/emails/save-to-drive': { domain: 'portfolio' },
+  // Rerouting to 'reporting' / 'interactions' / 'audit' is portfolio work; rerouting to 'deals'
+  // creates a deal, so the handler requires `dealflow` for that target specifically. One domain
+  // per entry is the minimum to CALL the route — the payload that straddles domains is gated
+  // inside it.
+  'api/emails/[id]/reroute': { domain: 'portfolio' },
+
   // ── Relationships: candid internal commentary ──────────────────────────────
   'api/companies/[id]/interactions': { domain: 'relationships', feature: 'interactions' },
   'api/companies/[id]/notes': { domain: 'relationships', feature: 'notes' },
@@ -227,14 +250,6 @@ export const ROUTE_DOMAINS: Record<string, RouteAccess> = {
   'api/deals/preview': { domain: 'dealflow' },
   'api/known-referrers': { domain: 'dealflow' },
   'api/known-referrers/[id]': { domain: 'dealflow' },
-  'api/emails': { domain: 'dealflow' },
-  'api/emails/[id]': { domain: 'dealflow' },
-  'api/emails/[id]/attachment/[index]': { domain: 'dealflow' },
-  'api/emails/[id]/attachments': { domain: 'dealflow' },
-  'api/emails/[id]/reprocess': { domain: 'dealflow' },
-  'api/emails/[id]/reroute': { domain: 'dealflow' },
-  'api/emails/[id]/reviews': { domain: 'dealflow' },
-  'api/emails/save-to-drive': { domain: 'dealflow' },
 
   // ── Diligence ─────────────────────────────────────────────────────────────
   // These two promote INTO diligence, so they're gated on the destination — the more sensitive of

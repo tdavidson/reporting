@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { resolvePageAccess, canViewPage } from '@/lib/access/page-gate'
 import { APP_VERSION, checkForUpdate, getInstallationId } from '@/lib/version'
 
 export const metadata = { title: 'Updates' }
@@ -10,14 +11,10 @@ export default async function UpdatesPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/auth')
 
-  // Check admin
-  const { data: member } = await supabase
-    .from('fund_members')
-    .select('role')
-    .eq('user_id', user.id)
-    .maybeSingle() as { data: { role: string } | null }
-
-  if (member?.role !== 'admin') redirect('/dashboard')
+  // Deployment info — the `admin` domain, which is adminOnly, so this resolves to the same answer
+  // as the role check it replaces.
+  const page = await resolvePageAccess(user.id)
+  if (!page || !canViewPage(page, 'admin')) redirect('/dashboard')
 
   const admin = createAdminClient()
   const [update, installationId] = await Promise.all([

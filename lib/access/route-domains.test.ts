@@ -16,8 +16,20 @@ import path from 'node:path'
  * See plans/plan-access-control.md.
  */
 
-import { ROUTE_DOMAINS, UNGATED_ROUTES, OPTIONAL_ROUTES, requiredLevel } from './route-domains'
+import { ROUTE_DOMAINS, UNGATED_ROUTES, OPTIONAL_ROUTES, requiredLevel, type Method } from './route-domains'
 import { DOMAINS } from './domains'
+import { hasAccess, type AccessContext } from './effective'
+import { DEFAULT_FEATURE_VISIBILITY, type FeatureVisibilityMap } from '@/lib/types/features'
+
+const accessCtx = (over: Partial<AccessContext> = {}): AccessContext => ({
+  fundId: 'f1',
+  userId: 'u1',
+  role: 'member',
+  features: { ...DEFAULT_FEATURE_VISIBILITY } as FeatureVisibilityMap,
+  grants: {},
+  defaults: {},
+  ...over,
+})
 
 const API_DIR = path.join(process.cwd(), 'app', 'api')
 
@@ -92,6 +104,60 @@ describe('route access registry', () => {
       return levels.includes('any')
     })
     expect(leaks.map(([r]) => r)).toEqual([])
+  })
+})
+
+/**
+ * The review queue is Portfolio Reporting, and it must work in a fund that never bought the
+ * Investment Workflow product.
+ *
+ * It didn't. Every `api/emails/**` route was filed under `dealflow`, so a fund with `deals: off`
+ * — the shipped default — got a Review page whose email cards opened a modal that 403'd on its
+ * first fetch, and no Inbound page to reprocess from. The nav told the truth; the queue behind it
+ * was dead. PRODUCT_META has said all along that Portfolio Reporting owns "inbound updates" and
+ * Investment Workflow owns "inbound DEAL intake" — the registry just disagreed.
+ *
+ * The line: the email itself is intake substrate (portfolio). Promoting one into a deal or a
+ * diligence data room is the deal-flow act, and stays gated on the destination.
+ */
+describe('inbound email routes survive the Deals product being off', () => {
+  const dealsOff = accessCtx({
+    role: 'admin',
+    features: { ...DEFAULT_FEATURE_VISIBILITY, deals: 'off' } as FeatureVisibilityMap,
+  })
+
+  // Everything the Review queue's EmailReviewModal calls, plus the Inbound page that is the only
+  // place to reprocess an email that already left the queue.
+  const REVIEW_QUEUE_ROUTES: [string, Method][] = [
+    ['api/emails', 'GET'],
+    ['api/emails/[id]', 'GET'],
+    ['api/emails/[id]', 'PATCH'],
+    ['api/emails/[id]/reviews', 'GET'],
+    ['api/emails/[id]/reviews', 'POST'],
+    ['api/emails/[id]/reprocess', 'POST'],
+    ['api/emails/[id]/attachments', 'POST'],
+    ['api/emails/[id]/attachment/[index]', 'GET'],
+    ['api/emails/save-to-drive', 'POST'],
+    ['api/emails/[id]/reroute', 'POST'],
+    ['api/review', 'GET'],
+    ['api/review/[id]/resolve', 'POST'],
+  ]
+
+  it.each(REVIEW_QUEUE_ROUTES)('%s %s is callable with deals off', (route, method) => {
+    const entry = ROUTE_DOMAINS[route]
+    expect(entry, `${route} is not in ROUTE_DOMAINS`).toBeDefined()
+    const need = requiredLevel(entry, method)
+    // 'any' skips the domain check entirely — already callable.
+    if (need === 'any') return
+    expect(
+      hasAccess(dealsOff, entry.domain, need, entry.feature),
+      `${method} /${route} is gated on '${entry.domain}', which is denied when the Deals product is off`,
+    ).toBe(true)
+  })
+
+  it('promoting an email INTO a deal or diligence still needs that product', () => {
+    expect(ROUTE_DOMAINS['api/emails/[id]/accept-to-diligence'].domain).toBe('diligence')
+    expect(hasAccess(dealsOff, 'dealflow', 'read')).toBe(false)
   })
 })
 

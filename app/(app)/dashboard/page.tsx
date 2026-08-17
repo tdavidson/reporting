@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { resolvePageAccess, canViewPage } from '@/lib/access/page-gate'
 import { computeSummary } from '@/lib/investments'
 import type { InvestmentTransaction, CompanyStatus } from '@/lib/types/database'
 
@@ -16,13 +17,15 @@ export default async function DashboardPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/auth')
 
-  const { data: membership } = await supabase
-    .from('fund_members')
-    .select('role')
-    .eq('user_id', user.id)
-    .maybeSingle() as { data: { role: string } | null }
+  // Server-rendered portfolio data. The sidebar already hides this entry from a member without
+  // `portfolio` (app-sidebar's canSee), which is exactly the state where the URL still worked.
+  //
+  // Denied users go to /settings, not /dashboard: this IS /dashboard, and every other page's
+  // denial redirect points here, so sending them back would spin.
+  const page = await resolvePageAccess(user.id)
+  if (!page || !canViewPage(page, 'portfolio')) redirect('/settings')
 
-  const isAdmin = membership?.role === 'admin'
+  const isAdmin = page.isAdmin
 
   const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString()
 
@@ -195,7 +198,7 @@ export default async function DashboardPage() {
 
       <div className="flex flex-col lg:flex-row gap-6 items-start">
         <div className="flex-1 min-w-0 max-w-page w-full">
-          <DashboardCompanies companies={companiesWithInvestments} allGroups={allGroups} canAdd={membership?.role !== 'viewer'} />
+          <DashboardCompanies companies={companiesWithInvestments} allGroups={allGroups} canAdd={page.role !== 'viewer'} />
         </div>
         <DashboardNotesPanel />
         <AnalystPanel />

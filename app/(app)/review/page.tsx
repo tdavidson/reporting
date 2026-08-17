@@ -63,16 +63,19 @@ export default function ReviewPage() {
   const [editValue, setEditValue] = useState('')
   const [reviewModalEmailId, setReviewModalEmailId] = useState<string | null>(null)
 
-  const load = useCallback(async () => {
-    setLoading(true)
+  // `silent` refetches without the spinner: after resolving an item the list is already correct
+  // optimistically, and blanking the page to a loader would be a worse answer than the one on
+  // screen. What it's really for is the OTHER list — see resolve().
+  const load = useCallback(async (opts?: { silent?: boolean }) => {
+    if (!opts?.silent) setLoading(true)
     try {
       const res = await fetch('/api/review')
       if (!res.ok) throw new Error('Failed to load')
       setData(await res.json())
     } catch {
-      setData(null)
+      if (!opts?.silent) setData(null)
     } finally {
-      setLoading(false)
+      if (!opts?.silent) setLoading(false)
     }
   }, [])
 
@@ -104,6 +107,13 @@ export default function ReviewPage() {
             }
           : prev,
       )
+      // Resolving the LAST open item on an email flips that email to 'success' server-side
+      // (api/review/[id]/resolve), so the "Emails needing review" section below is now stale —
+      // it went on listing emails the server had already cleared, which read as work left undone
+      // while the sidebar's Review link (badge = items + emails) correctly vanished at zero.
+      // The optimistic edit above can't know that, because the promotion depends on rows this
+      // component never sees. Ask the server.
+      load({ silent: true })
     } catch {
       // ignore
     } finally {

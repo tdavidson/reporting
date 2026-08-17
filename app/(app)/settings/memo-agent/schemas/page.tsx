@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation'
 import { ArrowLeft } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { resolvePageAccess, canViewPage } from '@/lib/access/page-gate'
 import { ensureDefaults, getActiveSchemas } from '@/lib/memo-agent/firm-schemas'
 import { SCHEMA_NAMES, type SchemaName } from '@/lib/memo-agent/validate'
 
@@ -25,16 +26,15 @@ export default async function SchemasIndexPage() {
   if (!user) redirect('/auth')
 
   const admin = createAdminClient()
-  const { data: membership } = await admin
-    .from('fund_members')
-    .select('fund_id, role')
-    .eq('user_id', user.id)
-    .maybeSingle()
-  if (!membership) redirect('/dashboard')
-  // Diligence settings are open to any fund member, not admin-only.
+  // These pages configure the diligence agent and render its schemas server-side, so the domain
+  // has to be checked here — the middleware only sees the API calls the editors make later.
+  // Member-level, not admin-only: the fund decides who gets diligence, and the grant decides who
+  // gets to tune it.
+  const page = await resolvePageAccess(user.id)
+  if (!page || !canViewPage(page, 'diligence')) redirect('/dashboard')
 
-  await ensureDefaults((membership as any).fund_id, admin)
-  const schemas = await getActiveSchemas((membership as any).fund_id, admin)
+  await ensureDefaults(page.fundId, admin)
+  const schemas = await getActiveSchemas(page.fundId, admin)
 
   return (
     <div className="p-4 md:py-8 md:pl-8 md:pr-4 max-w-4xl">

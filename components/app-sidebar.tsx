@@ -80,7 +80,11 @@ const NAV_ITEMS: NavItem[] = [
   // Admin-only, and — like Review — only shown when there's something waiting (badgeKey hides it
   // at zero). The list still filters rows by per-domain access; members reach theirs via the API/URL.
   { href: '/pending-actions', label: 'Pending Actions', icon: ListChecks, domain: 'portfolio', adminOnly: true, badgeKey: 'pendingActions' },
-  { href: '/emails', label: 'Inbound', icon: Mail, domain: 'dealflow' },
+  // Portfolio, not dealflow — the mailbox is where portfolio updates arrive and where the review
+  // queue's emails live, so gating it on the Deals product hid the only page that can reprocess an
+  // email from every fund running Portfolio Reporting alone. Deal-specific actions inside it gate
+  // themselves. See ROUTE_DOMAINS['api/emails'].
+  { href: '/emails', label: 'Inbound', icon: Mail, domain: 'portfolio' },
   { href: '/deals', label: 'Deals', icon: Lightbulb, featureKey: 'deals' },
   {
     href: '/diligence', label: 'Diligence', icon: Microscope, featureKey: 'diligence',

@@ -1,7 +1,8 @@
 import type { Metadata } from 'next'
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
+import { resolvePageAccess, canViewPage } from '@/lib/access/page-gate'
 import type { InboundEmail } from '@/lib/types/database'
 
 export const metadata: Metadata = { title: 'Email' }
@@ -80,6 +81,16 @@ function formatValue(mv: MetricRow, metric: MetricDef | null): string {
 
 export default async function EmailDetailPage({ params }: { params: { id: string } }) {
   const supabase = createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/auth')
+
+  // A SERVER COMPONENT FETCHES ITS OWN DATA, so the middleware never sees it — this page's entry
+  // in ROUTE_DOMAINS governs `api/emails/[id]`, not the page. Below, RLS ("Fund members can read
+  // emails") scopes the row to the fund and stops there, so without this gate any member with the
+  // UUID got the whole message server-rendered — raw_payload included — whatever their grant said.
+  // That is the "hidden but still reachable by URL" hole the access model exists to close.
+  const page = await resolvePageAccess(user.id)
+  if (!page || !canViewPage(page, 'portfolio')) redirect('/dashboard')
 
   // Fetch email row (no join — avoids TS inference issues with hand-written DB types)
   const { data: emailData, error } = await supabase

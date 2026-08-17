@@ -1,4 +1,6 @@
 import { describe, it, expect } from 'vitest'
+import { readFileSync } from 'node:fs'
+import path from 'node:path'
 
 /**
  * The nav must answer the SAME question the API answers.
@@ -16,6 +18,7 @@ import { describe, it, expect } from 'vitest'
 
 import { effectiveAccess, type AccessContext } from './effective'
 import { domainForFeature, domainFundLevel, domainGrantableToMembers } from './domains'
+import { ROUTE_DOMAINS } from './route-domains'
 import { DEFAULT_FEATURE_VISIBILITY, type FeatureVisibilityMap } from '@/lib/types/features'
 
 const ctx = (features: Partial<FeatureVisibilityMap>, grants: Record<string, string> = {}): AccessContext => ({
@@ -105,5 +108,36 @@ describe('domainGrantableToMembers — what the access grid offers', () => {
   it('reports the level so the grid can name WHY it is not on offer', () => {
     expect(domainFundLevel('compliance', features({ compliance: 'admin' }))).toBe('admin')
     expect(domainFundLevel('accounting', features({ accounting: 'off' }))).toBe('off')
+  })
+})
+
+/**
+ * A nav entry and the API behind it must be gated on the SAME domain, or the link lies in one
+ * direction or the other.
+ *
+ * Inbound is the case that bit: the sidebar entry and every `api/emails/**` route agreed on
+ * `dealflow`, which was self-consistent and wrong — the mailbox is where portfolio updates arrive,
+ * so a fund running Portfolio Reporting alone lost both the page and the API that the review queue
+ * needs. Moving one without the other would have been worse than either.
+ */
+describe('nav entries agree with the routes behind them', () => {
+  const sidebar = readFileSync(path.join(process.cwd(), 'components', 'app-sidebar.tsx'), 'utf8')
+
+  const navDomainFor = (href: string): string | undefined => {
+    const entry = sidebar.match(new RegExp(`\\{[^{}]*href:\\s*'${href}'[^{}]*\\}`))
+    return entry?.[0].match(/domain:\s*'([a-z_]+)'/)?.[1]
+  }
+
+  it('finds the entry it claims to check (guards against a vacuous pass)', () => {
+    expect(navDomainFor('/emails')).toBeDefined()
+  })
+
+  it('gates the Inbound link on the same domain as the inbox API', () => {
+    expect(navDomainFor('/emails')).toBe(ROUTE_DOMAINS['api/emails'].domain)
+  })
+
+  it('shows Inbound to a fund that never bought the Deals product', () => {
+    const c = ctx({ deals: 'off' }, { portfolio: 'read' })
+    expect(effectiveAccess(c, ROUTE_DOMAINS['api/emails'].domain)).toBe('read')
   })
 })
