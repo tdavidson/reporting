@@ -1,0 +1,102 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
+// portfolio domain, investments feature (lib/access/route-domains.ts). The middleware has
+// already checked the grant.
+import { assertReadAccess, assertWriteAccess } from '@/lib/api-helpers'
+import { computeFundPositions } from '@/lib/portfolio/fof-metrics'
+
+// The fund-of-funds position table: one row per underlying fund, every figure derived.
+// Nothing here is stored — see lib/portfolio/fof-metrics.ts for why carrying value is a
+// roll-forward rather than a column.
+export async function GET(req: NextRequest) {
+  const supabase = createClient()
+  const admin = createAdminClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const gate = await assertReadAccess(admin, user.id)
+  if (gate instanceof NextResponse) return gate
+
+  const asOf = req.nextUrl.searchParams.get('asOf') ?? new Date().toISOString().slice(0, 10)
+
+  const [holdings, terms, events, navs] = await Promise.all([
+    admin.from('companies').select('id, name')
+      .eq('fund_id', gate.fundId).eq('holding_type', 'fund').order('name'),
+    (admin as any).from('fund_holding_terms').select('*').eq('fund_id', gate.fundId),
+    (admin as any).from('fund_capital_events').select('*').eq('fund_id', gate.fundId),
+    (admin as any).from('fund_nav_statements').select('*').eq('fund_id', gate.fundId),
+  ])
+
+  const termByCompany = new Map((terms.data ?? []).map((t: any) => [t.company_id, t]))
+
+  const positions = computeFundPositions({
+    asOf,
+    terms: ((holdings.data ?? []) as any[]).map(h => {
+      const t: any = termByCompany.get(h.id)
+      return {
+        companyId: h.id,
+        name: h.name,
+        managerName: t?.manager_name ?? null,
+        vintageYear: t?.vintage_year ?? null,
+        strategy: t?.strategy ?? null,
+        commitment: Number(t?.commitment ?? 0),
+      }
+    }),
+    events: ((events.data ?? []) as any[]).map(e => ({
+      companyId: e.company_id,
+      kind: e.kind,
+      eventDate: e.event_date,
+      amount: Number(e.amount),
+      recallableAmount: Number(e.recallable_amount ?? 0),
+      charReturnOfCapital: Number(e.char_return_of_capital ?? 0),
+      charRealizedGain: Number(e.char_realized_gain ?? 0),
+      charIncome: Number(e.char_income ?? 0),
+    })),
+    navs: ((navs.data ?? []) as any[]).map(n => ({
+      companyId: n.company_id,
+      asOfDate: n.as_of_date,
+      reportedNav: Number(n.reported_nav),
+      basis: n.basis,
+    })),
+  })
+
+  return NextResponse.json({ positions, asOf })
+}
+
+// POST — create a fund holding and its terms in one call.
+// { name, managerName?, vintageYear?, strategy?, commitment?, commitmentDate?, fundSize?, geography? }
+export async function POST(req: NextRequest) {
+  const supabase = createClient()
+  const admin = createAdminClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const gate = await assertWriteAccess(admin, user.id)
+  if (gate instanceof NextResponse) return gate
+
+  const body = await req.json().catch(() => ({}))
+  const name = typeof body?.name === 'string' ? body.name.trim() : ''
+  if (!name) return NextResponse.json({ error: 'name is required' }, { status: 400 })
+
+  const { data: holding, error } = await admin
+    .from('companies')
+    .insert({ fund_id: gate.fundId, name, holding_type: 'fund', status: 'active' })
+    .select('id').single()
+  if (error || !holding) {
+    return NextResponse.json({ error: error?.message ?? 'Create failed' }, { status: 500 })
+  }
+
+  const { error: termErr } = await (admin as any).from('fund_holding_terms').insert({
+    fund_id: gate.fundId,
+    company_id: holding.id,
+    manager_name: body?.managerName ?? null,
+    vintage_year: body?.vintageYear ?? null,
+    fund_size: body?.fundSize ?? null,
+    strategy: body?.strategy ?? null,
+    geography: body?.geography ?? null,
+    commitment: Number(body?.commitment ?? 0),
+    commitment_date: body?.commitmentDate ?? null,
+  })
+  if (termErr) return NextResponse.json({ error: termErr.message }, { status: 500 })
+
+  return NextResponse.json({ id: holding.id })
+}

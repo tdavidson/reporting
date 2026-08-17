@@ -1,0 +1,24 @@
+import type { Metadata } from 'next'
+import { requireAccountingAccess } from '../../guard'
+import { resolveVehicleParam } from '../resolve'
+import { FundSubpageChrome } from '@/components/fund-subpage-chrome'
+import { FofReportView } from '../../fof-report/view'
+
+export const metadata: Metadata = { title: 'Fund-of-funds report' }
+
+export default async function FofReportPage({ params }: { params: { id: string } }) {
+  const { fundId } = await requireAccountingAccess()
+  const { vehicle, vehicleId } = await resolveVehicleParam(fundId, params.id)
+  return (
+    <div className="pt-4 md:pt-8 pb-8 w-full">
+      <FundSubpageChrome
+        title="Fund-of-funds report"
+        description="Schedule of investments, commitments and liquidity, and underlying fund performance"
+        vehicle={vehicle}
+        vehicleId={vehicleId}
+      >
+        <FofReportView />
+      </FundSubpageChrome>
+    </div>
+  )
+}

@@ -20,6 +20,9 @@ export interface AccountingSection {
    * member who reconciles the bank isn't thereby entitled to. Omitted = accounting.
    */
   domain?: Domain
+  /** Only for a fund of funds — DERIVED from the data (at least one holding is a fund),
+   *  never a setting. Consumers filter on it; see lib/portfolio/fof.ts. */
+  requiresFof?: boolean
 }
 
 export const ACCOUNTING_SECTIONS: AccountingSection[] = [
@@ -68,6 +71,26 @@ export const ACCOUNTING_SECTIONS: AccountingSection[] = [
     label: 'Period close',
     icon: Lock,
     desc: "Close a period: allocate its income and expenses to each partner's capital account, snapshot the ledger, and lock the books. Reopen to reverse.",
+  },
+  {
+    href: '/funds/fof-report',
+    label: 'Fund-of-funds report',
+    icon: Layers,
+    desc: 'Schedule of investments, commitments and liquidity, and per-fund performance for the underlying funds.',
+    requiresFof: true,
+  },
+  {
+    href: '/funds/migrate',
+    label: 'Migrate from QuickBooks',
+    icon: Landmark,
+    desc: 'Import a QuickBooks general ledger, map its accounts to this chart, and tie every period out before cutting over.',
+  },
+  {
+    href: '/funds/fof-quarter',
+    label: 'Quarterly close (funds)',
+    icon: Layers,
+    desc: 'Paste the quarter\u2019s underlying-fund figures, confirm the notices, and book the period-end marks.',
+    requiresFof: true,
   },
   {
     href: '/funds/schedule-of-investments',

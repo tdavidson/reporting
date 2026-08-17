@@ -263,6 +263,7 @@ ${text}`,
     .from('companies')
     .select('id, name')
     .eq('fund_id', fundId)
+    .eq('holding_type', 'company')   // fund holdings have their own surfaces
 
   const companyByName = new Map(
     (existingCompanies ?? []).map(c => [c.name.toLowerCase(), c.id])

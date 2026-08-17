@@ -62,7 +62,21 @@ export const ROUTE_DOMAINS: Record<string, RouteAccess> = {
   'api/accounting/chart': { domain: 'accounting' },
   'api/accounting/cutover': { domain: 'accounting' },
   'api/accounting/turn-on': { domain: 'accounting' },
+  // The fund-of-funds quarterly close: paste intake, bulk confirm, and period-end marks.
+  // Accounting, not portfolio — this is close-time work and the marks post to the ledger.
+  'api/accounting/fof-exhibits': { domain: 'accounting' },
+  'api/accounting/fof-extract': { domain: 'accounting' },
+  'api/accounting/fof-grid': { domain: 'accounting' },
+  'api/accounting/fof-grid/confirm': { domain: 'accounting' },
+  'api/accounting/fof-marks': { domain: 'accounting' },
   'api/accounting/fund-economics': { domain: 'accounting' },
+  // QuickBooks migration. `mapping/discover` is its own route file and therefore needs its
+  // own entry — route-domains.test.ts matches on the route path, not on a prefix.
+  'api/accounting/quickbooks/parse': { domain: 'accounting' },
+  'api/accounting/quickbooks/mapping': { domain: 'accounting' },
+  'api/accounting/quickbooks/mapping/discover': { domain: 'accounting' },
+  'api/accounting/quickbooks/import': { domain: 'accounting' },
+  'api/accounting/quickbooks/tie-out': { domain: 'accounting' },
   'api/accounting/fund-timeseries': { domain: 'accounting' },
   'api/accounting/investments': { domain: 'accounting' },
   'api/accounting/journal': { domain: 'accounting' },
@@ -179,6 +193,12 @@ export const ROUTE_DOMAINS: Record<string, RouteAccess> = {
   'api/portfolio/fund-cash-flows': { domain: 'portfolio' },
   'api/portfolio/fund-cash-flows/import': { domain: 'portfolio', feature: 'imports' },
   'api/portfolio/fund-group-config': { domain: 'portfolio' },
+  // Fund-of-funds holdings and their register. Portfolio, not accounting: an underlying fund
+  // is a holding, and confirming a register row posts through the same investments path.
+  'api/portfolio/fund-holdings': { domain: 'portfolio', feature: 'investments' },
+  'api/portfolio/fund-holdings/[id]': { domain: 'portfolio', feature: 'investments' },
+  'api/portfolio/fund-holdings/[id]/events': { domain: 'portfolio', feature: 'investments' },
+  'api/portfolio/fund-holdings/[id]/nav': { domain: 'portfolio', feature: 'investments' },
   'api/portfolio/investments': { domain: 'portfolio', feature: 'investments' },
   'api/requests': { domain: 'portfolio', feature: 'asks' },
   'api/requests/responses': { domain: 'portfolio', feature: 'asks' },

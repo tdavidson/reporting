@@ -61,7 +61,14 @@ export function splitRecords(text: string): string[] {
     }
   }
   records.push(cur)
-  return records.map(r => r.trim()).filter(Boolean)
+  // Strip carriage returns, NOT surrounding whitespace.
+  //
+  // This used to be `.map(r => r.trim())`, which is invisible for CSV and destructive for TSV:
+  // a tab IS whitespace, so a record whose first columns are empty — `\t\t\tThird\tFourth`, the
+  // shape every QuickBooks continuation line and many bank exports use — lost its leading tabs
+  // and every field shifted left, putting the account where the memo belongs. Callers that want
+  // a trimmed CELL still get one: splitLine trims each field.
+  return records.map(r => r.replace(/\r/g, '')).filter(r => r.trim().length > 0)
 }
 
 /** Normalize a date string to ISO (YYYY-MM-DD). Accepts ISO and M/D/Y. */

@@ -24,6 +24,9 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { loadPostedLedger, loadOwnership, loadEntityNames } from './load'
+import type { FundPosition } from '@/lib/portfolio/fof-metrics'
+import { loadFofData, ledgerCarryingByHolding } from '@/lib/portfolio/fof-load'
+import { fofCloseIssues } from '@/lib/portfolio/fof-valuation'
 import { accountIdByCode, ensureCapitalAccounts, persistEntry } from './persist'
 import { allocateAmount } from './allocation'
 import { postingsInPeriod } from './statements'
@@ -335,6 +338,34 @@ export interface CloseThroughPreview {
   warnings: string[]
 }
 
+/**
+ * The fund-of-funds inputs the pre-close check needs, or null when this fund holds no funds.
+ *
+ * Two figures per holding: what the position VALUES at (last manager NAV rolled forward for
+ * our own cash flows since — see lib/portfolio/fof-metrics.ts) and what the LEDGER carries
+ * for it (its 1100/1200 account pair). The check compares them; disagreement means a
+ * period-end mark has not been booked.
+ */
+async function loadFofCloseInputs(
+  admin: SupabaseClient,
+  fundId: string,
+  group: string,
+  asOf: string,
+): Promise<{ positions: FundPosition[]; ledgerCarrying: Map<string, number> } | null> {
+  const [fof, ledger] = await Promise.all([
+    loadFofData(admin, fundId, asOf),
+    // loadPostedLedger already paginates (a vehicle can hold more than the PostgREST 1000-row
+    // default, which would silently truncate) and already scopes to POSTED entries <= asOf.
+    loadPostedLedger(admin, fundId, group, asOf),
+  ])
+  if (fof.positions.length === 0) return null
+
+  return {
+    positions: fof.positions,
+    ledgerCarrying: ledgerCarryingByHolding(ledger.accounts, ledger.postings),
+  }
+}
+
 /** Pre-close checks over the whole span. */
 async function checkReadiness(
   admin: SupabaseClient,
@@ -382,6 +413,15 @@ async function checkReadiness(
       `Allocating on top of this would divide the period's income using capital balances that read zero. ` +
       `Attribute it on the vehicle's Setup page first.`
     )
+  }
+
+  // Fund-of-funds positions. Skipped entirely for a fund holding no funds — FoF behaviour is
+  // derived from the data, never a setting (lib/portfolio/fof.ts).
+  const fof = await loadFofCloseInputs(admin, fundId, group, end)
+  if (fof) {
+    const issues = fofCloseIssues(fof.positions, fof.ledgerCarrying, end)
+    blockers.push(...issues.blockers)
+    warnings.push(...issues.warnings)
   }
 
   if (bankRows.length > 0) {

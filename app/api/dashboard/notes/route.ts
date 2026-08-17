@@ -180,7 +180,9 @@ export async function POST(req: NextRequest) {
   const { data: allCompanies } = await admin
     .from('companies')
     .select('id, name')
-    .eq('fund_id', membership.fund_id) as { data: { id: string; name: string }[] | null }
+    .eq('fund_id', membership.fund_id)
+    // fund holdings have their own surfaces
+    .eq('holding_type', 'company') as { data: { id: string; name: string }[] | null }
 
   const mentionedCompanyIds = parseCompanyMentions(content.trim(), allCompanies ?? [])
 

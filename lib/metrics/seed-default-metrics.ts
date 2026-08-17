@@ -103,6 +103,7 @@ export async function applyDefaultsToAllCompanies(
     .from('companies')
     .select('id')
     .eq('fund_id', fundId)
+    .eq('holding_type', 'company')   // fund holdings have their own surfaces
 
   const ids = ((companies ?? []) as { id: string }[]).map(c => c.id)
   let inserted = 0

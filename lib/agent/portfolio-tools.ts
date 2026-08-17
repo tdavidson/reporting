@@ -59,7 +59,7 @@ async function txnsFor(admin: SupabaseClient, fundId: string, companyId: string,
 
 /** Companies in the fund, optionally narrowed to a vehicle. `portfolio_group` is text[]. */
 async function companiesIn(admin: SupabaseClient, fundId: string, vehicle?: string): Promise<any[]> {
-  const { data } = await (admin as any).from('companies').select('*').eq('fund_id', fundId)
+  const { data } = await (admin as any).from('companies').select('*').eq('fund_id', fundId).eq('holding_type', 'company')
   const rows = ((data as any[]) ?? [])
   if (!vehicle) return rows
   return rows.filter(c => Array.isArray(c.portfolio_group) && c.portfolio_group.includes(vehicle))

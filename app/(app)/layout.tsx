@@ -13,6 +13,7 @@ import {
   getMembership,
   getDomainGrants,
   getUpdateAvailable,
+  getFofActive,
 } from '@/lib/cache/layout'
 import { accessContextFrom } from '@/lib/access/effective'
 import { DEFAULT_FEATURE_VISIBILITY } from '@/lib/types/features'
@@ -30,13 +31,14 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   if (!fund) redirect('/onboarding')
 
   // All cached queries in parallel
-  const [fundData, membership, fundSettings, reviewBadge, notesBadge, domainGrants] = await Promise.all([
+  const [fundData, membership, fundSettings, reviewBadge, notesBadge, domainGrants, fofActive] = await Promise.all([
     getFundData(fund.id),
     getMembership(user.id, fund.id),
     getFundSettings(fund.id),
     getReviewBadge(fund.id),
     getNotesBadge(user.id),
     getDomainGrants(user.id, fund.id),
+    getFofActive(fund.id),
   ])
 
   const isAdmin = membership?.role === 'admin'
@@ -114,6 +116,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           updateAvailable={updateAvailable}
           featureVisibility={featureVisibility}
           domainAccess={domainAccess}
+          fofActive={fofActive}
         >
           {children}
         </AppShell>

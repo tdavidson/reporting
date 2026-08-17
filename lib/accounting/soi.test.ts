@@ -50,6 +50,28 @@ describe('txnsForVehicle', () => {
   })
 })
 
+describe('buildSoiPositions — holding type', () => {
+  it('tags a fund holding so the view can render it separately', () => {
+    const positions = buildSoiPositions(
+      [{ id: 't1', company_id: 'c1', fund_id: 'f', transaction_type: 'investment',
+         investment_cost: 1000, transaction_date: '2025-01-01', portfolio_group: 'Fund I' } as any],
+      [co({ id: 'c1', name: 'Acme Ventures III', holding_type: 'fund' })],
+      'Fund I',
+    )
+    expect(positions[0].holdingType).toBe('fund')
+  })
+
+  it('defaults to company when the column is absent or null', () => {
+    const positions = buildSoiPositions(
+      [{ id: 't2', company_id: 'c2', fund_id: 'f', transaction_type: 'investment',
+         investment_cost: 1000, transaction_date: '2025-01-01', portfolio_group: 'Fund I' } as any],
+      [co({ id: 'c2', name: 'Widget Co' })],
+      'Fund I',
+    )
+    expect(positions[0].holdingType).toBe('company')
+  })
+})
+
 describe('buildSoiPositions', () => {
   it('values priced equity at shares × the latest round price', () => {
     // A priced position marked up: 100,000 sh bought at $8.00, latest round at $12.50.

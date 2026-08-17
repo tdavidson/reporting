@@ -1,6 +1,7 @@
 import { unstable_cache } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { checkForUpdate } from '@/lib/version'
+import { loadFofActive } from '@/lib/portfolio/fof'
 
 // Badge counts — short TTL (revalidated on mutation + 60s fallback)
 export const getReviewBadge = unstable_cache(
@@ -60,6 +61,22 @@ export const getPendingActionsBadge = unstable_cache(
   },
   ['pending-actions-badge'],
   { tags: ['pending-actions-badge'], revalidate: 60 }
+)
+
+/**
+ * Is this a fund of funds? Derived — true when at least one holding is itself a fund. There is
+ * no setting; creating the first fund holding is what turns the FoF surfaces on. See
+ * lib/portfolio/fof.ts for why this is data-derived rather than a feature flag.
+ *
+ * Longer TTL: a fund gains its first fund holding roughly once, ever.
+ */
+export const getFofActive = unstable_cache(
+  async (fundId: string) => {
+    const admin = createAdminClient()
+    return loadFofActive(admin, fundId)
+  },
+  ['fof-active'],
+  { tags: ['fof-active'], revalidate: 300 }
 )
 
 // Fund data — longer TTL (rarely changes)

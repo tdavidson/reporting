@@ -16,6 +16,9 @@ import {
 } from './statements'
 import { loadPostedLedger, loadEntityNames, type SourcedPosting } from './load'
 import { buildSoiPositions, type SoiCompany } from './soi'
+import { loadFofRaw, computeFofFromRaw, type FofRawData } from '@/lib/portfolio/fof-load'
+import { commitmentSchedule, performanceTable, type CommitmentSchedule, type PerformanceTable } from '@/lib/portfolio/fof-exhibits'
+import { valuationBasisNote, type ValuationBasisRow } from '@/lib/portfolio/fof-valuation'
 import { computeCapitalAccounts, totalNav } from './capital-account'
 import { resolvePeriod, customPeriod, comparisonPeriods, type PeriodPreset, type StatementPeriod } from './statement-period'
 import { accountBalances, normalBalance } from './ledger'
@@ -31,6 +34,16 @@ export interface StatementPayload {
   scheduleOfInvestments: ScheduleOfInvestments
   changesInPartnersCapital: ChangesInPartnersCapital
   cashFlows: StatementOfCashFlows | null
+  /**
+   * Fund-of-funds exhibits. OPTIONAL and absent when the fund holds no funds, so every
+   * existing consumer — the statements page, the workbook, the PDF — is untouched and a
+   * non-FoF package is byte-identical to before.
+   */
+  fof?: {
+    commitments: CommitmentSchedule
+    performance: PerformanceTable
+    valuationNote: ValuationBasisRow[]
+  }
 }
 
 export interface StatementPackage {
@@ -56,6 +69,9 @@ export interface LedgerData {
   group: string
   cashAccount: Account | undefined
   gpAccount: Account | undefined
+  /** Fund-of-funds positions as of the LATEST date; recomputed per window in computePayload.
+   *  Empty for a fund that holds no funds. */
+  fofRaw: FofRawData | null
   /** Min entryDate across postings — the inception bound for comparison stepping. */
   earliest: string | null
 }
@@ -72,14 +88,19 @@ export function earliestPostingDate(postings: { entryDate?: string | null }[]): 
 
 /** One DB load, reused across every period window. */
 export async function loadLedgerData(admin: SupabaseClient, fundId: string, group: string): Promise<LedgerData> {
-  const [{ accounts, postings, capitalPostings, sourcedPostings }, names, { data: txns }, { data: companies }] = await Promise.all([
+  const [{ accounts, postings, capitalPostings, sourcedPostings }, names, { data: txns }, { data: companies }, fofRaw] = await Promise.all([
     loadPostedLedger(admin, fundId, group),
     loadEntityNames(admin, fundId, group),
     admin.from('investment_transactions' as any).select('*').eq('fund_id', fundId).order('transaction_date', { ascending: true }),
+    // Every holding, fund and company alike: both carry 1100/1200 balances, so the SOI's
+    // ledger control total only ties if both are present. The SOI splits them for DISPLAY by
+    // holding_type — see SoiPosition.holdingType — rather than by excluding either here.
     admin.from('companies' as any).select('*').eq('fund_id', fundId),
+    loadFofRaw(admin, fundId),
   ])
   return {
     accounts, postings, capitalPostings, sourcedPostings, names,
+    fofRaw,
     txns: (txns as any[]) ?? [],
     companies: (companies as any[]) ?? [],
     group,
@@ -115,6 +136,8 @@ export function computePayload(data: LedgerData, period: StatementPeriod): State
     incomeStatement: incomeStatement(data.accounts, inPeriod),
     scheduleOfInvestments: scheduleOfInvestments(data.accounts, cumulative, nav, positions),
     changesInPartnersCapital: changesInPartnersCapital(capitalAccounts, data.names, gpEnding),
+    // Absent for a fund holding no funds, so a non-FoF package is unchanged.
+    ...(data.fofRaw ? { fof: fofExhibits(data.fofRaw, period.end) } : {}),
     cashFlows: data.cashAccount
       ? statementOfCashFlows(
           data.cashAccount.id, inPeriodSourced, data.accounts,
@@ -156,4 +179,21 @@ export async function buildStatementPackage(
   }
 
   return { payload, accounts: data.accounts, inPeriodSourced, comparisons }
+}
+
+/**
+ * The fund-of-funds exhibits for one reporting window. Computed from the ALREADY-LOADED raw
+ * register, so a package with comparison periods still costs one round trip.
+ *
+ * Cash is deliberately 0 here: the coverage ratio belongs to the live report, where the cash
+ * balance is loaded alongside. A statement package is a point-in-time document and the
+ * schedule it carries is the commitment table, not the liquidity dashboard.
+ */
+function fofExhibits(raw: FofRawData, asOf: string | null) {
+  const { positions } = computeFofFromRaw(raw, asOf ?? new Date().toISOString().slice(0, 10))
+  return {
+    commitments: commitmentSchedule(positions, 0),
+    performance: performanceTable(positions),
+    valuationNote: valuationBasisNote(positions),
+  }
 }

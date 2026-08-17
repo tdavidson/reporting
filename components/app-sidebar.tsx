@@ -30,6 +30,9 @@ interface NavChild {
   /** Highlight only on the exact path, never on descendants. The Funds "Overview" child
    *  (/funds/<id>) is a prefix of every sibling, so a prefix match would light it everywhere. */
   exact?: boolean
+  /** Only for a fund of funds. DERIVED from the data (at least one holding is a fund), not
+   *  from a feature key — so it is filtered separately from canSee(). */
+  requiresFof?: boolean
 }
 interface NavItem {
   href: string
@@ -91,6 +94,7 @@ const NAV_ITEMS: NavItem[] = [
     children: [
       { href: '/import',       label: 'Import',       featureKey: 'imports' },
       { href: '/investments',  label: 'Investments',  featureKey: 'investments' },
+      { href: '/fund-holdings', label: 'Underlying funds', featureKey: 'investments', requiresFof: true },
       { href: '/requests',     label: 'Asks',         featureKey: 'asks' },
       { href: '/interactions', label: 'Interactions', featureKey: 'interactions' },
       // Letters are generated from PORTFOLIO data (the companies) and can be produced without
@@ -122,7 +126,7 @@ const NAV_ITEMS: NavItem[] = [
     // that turns it on to 'admin' still only shows it to admins). Hard-coding adminOnly
     // on top of that also hid it from the read-only demo viewer, who should see the books.
     href: '/funds', label: 'Funds', icon: BookOpen, featureKey: 'accounting',
-    children: ACCOUNTING_SECTIONS.map(({ href, label, domain }) => ({ href, label, domain })),
+    children: ACCOUNTING_SECTIONS.map(({ href, label, domain, requiresFof }) => ({ href, label, domain, requiresFof })),
   },
   { href: '/usage', label: 'Usage', icon: Users, adminOnly: true, domain: 'admin' },
   { href: '/settings', label: 'Settings', icon: Settings, badgeKey: 'settings' },
@@ -137,10 +141,12 @@ interface AppSidebarProps {
   isAdmin?: boolean
   updateAvailable?: boolean
   featureVisibility?: FeatureVisibilityMap
+  /** Derived, not a setting: true when the fund holds at least one fund. */
+  fofActive?: boolean
   onNavigate?: () => void
 }
 
-export function AppSidebar({ reviewBadge, settingsBadge, notesBadge, pendingActionsBadge, isAdmin, updateAvailable, featureVisibility, onNavigate }: AppSidebarProps) {
+export function AppSidebar({ reviewBadge, settingsBadge, notesBadge, pendingActionsBadge, isAdmin, updateAvailable, featureVisibility, fofActive, onNavigate }: AppSidebarProps) {
   const pathname = usePathname()
   const access = useAccess()
   const { collapsed, toggle } = useSidebar()
@@ -159,7 +165,7 @@ export function AppSidebar({ reviewBadge, settingsBadge, notesBadge, pendingActi
   const fundsChildren: NavChild[] = fundSeg
     ? [
         { href: `/funds/${fundSeg}`, label: 'Overview', exact: true },
-        ...ACCOUNTING_SECTIONS.map(s => ({
+        ...ACCOUNTING_SECTIONS.filter(s => !s.requiresFof || !!fofActive).map(s => ({
           href: `/funds/${fundSeg}/${s.href.slice('/funds/'.length)}`,
           label: s.label,
           domain: s.domain,
@@ -207,7 +213,11 @@ export function AppSidebar({ reviewBadge, settingsBadge, notesBadge, pendingActi
           // Children visibility — drop children that the user can't access (admin
           // gate or per-feature visibility), then show only when the parent or any
           // visible child route is active.
-          const visibleChildren = (children ?? []).filter(c => canSee(c, !!isAdmin, access))
+          const visibleChildren = (children ?? [])
+            .filter(c => canSee(c, !!isAdmin, access))
+            // FoF children appear only once the fund actually holds a fund. Creating the first
+            // one is what turns them on; there is no setting to find.
+            .filter(c => !c.requiresFof || !!fofActive)
           const childActive = visibleChildren.some(c => pathname === c.href || pathname.startsWith(c.href + '/'))
           // Also keep the section open on any page UNDER its own path (e.g. /funds/allocation-terms,
           // a Funds page that isn't a listed child) — it's still this section, just not in the nav.

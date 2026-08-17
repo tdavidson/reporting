@@ -187,6 +187,9 @@ export interface SoiRow {
   pctOfNetAssets: number
   // Present only when the row came from the portfolio tracker (source: 'tracker').
   companyId?: string
+  /** 'fund' for a fund-of-funds holding, so the view can render those as their own section
+   *  instead of a mixed table where half the columns are blank. */
+  holdingType?: 'company' | 'fund'
   industry?: string | null
   country?: string | null
   stage?: string | null

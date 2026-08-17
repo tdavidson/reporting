@@ -535,6 +535,7 @@ export async function getCompanies(supabase: Supabase, fundId: string): Promise<
     .from('companies')
     .select('id, name, aliases')
     .eq('fund_id', fundId)
+    .eq('holding_type', 'company')   // fund holdings have their own surfaces
     .eq('status', 'active')
 
   return data ?? []

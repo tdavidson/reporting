@@ -51,6 +51,7 @@ export async function POST(req: NextRequest) {
     .from('companies')
     .select('id, name, aliases')
     .eq('fund_id', fundId)
+    .eq('holding_type', 'company')   // fund holdings have their own surfaces
     .eq('status', 'active')
 
   if (!companies || companies.length === 0) {

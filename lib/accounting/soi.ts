@@ -95,6 +95,9 @@ export function normalizeSecurityType(value: unknown): string | null {
 export interface SoiPosition {
   companyId: string
   name: string
+  /** 'fund' for a fund-of-funds holding. Company-shaped columns (shares, stage) are empty for
+   *  those, so the view renders them as their own section rather than in one mixed table. */
+  holdingType: 'company' | 'fund'
   industry: string | null
   /** ASC 946 geography band. Null until companies.country is populated. */
   country: string | null
@@ -120,6 +123,8 @@ export interface SoiPosition {
 export interface SoiCompany {
   id: string
   name: string
+  /** Added by the fund-of-funds migration; defaults to 'company' for every existing row. */
+  holding_type?: 'company' | 'fund' | null
   status: CompanyStatus
   industry: string[] | null
   stage: string | null
@@ -197,6 +202,7 @@ export function buildSoiPositions(
     positions.push({
       companyId: company.id,
       name: company.name,
+      holdingType: company.holding_type === 'fund' ? 'fund' : 'company',
       industry: company.industry?.[0] ?? null,
       country: company.country ?? null,
       stage: company.stage ?? null,
