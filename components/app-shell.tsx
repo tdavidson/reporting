@@ -8,6 +8,7 @@ import { VehicleProvider } from '@/components/accounting-vehicle'
 import { AppHeader } from '@/components/app-header'
 import { AppSidebar } from '@/components/app-sidebar'
 import { AppFooter } from '@/components/app-footer'
+import { MobileNav, MOBILE_TAB_BAR_SPACER } from '@/components/mobile-nav'
 import { FeatureVisibilityProvider } from '@/components/feature-visibility-context'
 import { AccessProvider, type ClientAccess } from '@/components/access-context'
 import { DEFAULT_FEATURE_VISIBILITY } from '@/lib/types/features'
@@ -50,6 +51,10 @@ export function AppShell({ fundName, fundLogo, userEmail, reviewBadge, settingsB
           {/* The selected fund lives here, above the sidebar, so the Funds subnav can build
               fund-first hrefs (/funds/<id>/...) from the current vehicle's id. */}
           <VehicleProvider>
+            {/* fofActive was being dropped here, which is why "Underlying funds" and the
+                fund-of-funds ledger pages never appeared in the nav on any surface: the
+                layout resolves it, AppShell takes it, and AppShellInner was never handed
+                it. */}
             <AppShellInner
               fundName={fundName}
               fundLogo={fundLogo}
@@ -61,6 +66,7 @@ export function AppShell({ fundName, fundLogo, userEmail, reviewBadge, settingsB
               isAdmin={isAdmin}
               updateAvailable={updateAvailable}
               featureVisibility={featureVisibility}
+              fofActive={fofActive}
             >
               {children}
             </AppShellInner>
@@ -89,11 +95,6 @@ function AppShellInner({ fundName, fundLogo, userEmail, reviewBadge, settingsBad
         fundName={fundName}
         fundLogo={fundLogo}
         userEmail={userEmail}
-        reviewBadge={reviewBadge}
-        settingsBadge={settingsBadge}
-        notesBadge={notesBadge}
-        isAdmin={isAdmin}
-        featureVisibility={featureVisibility}
       />
 
       <div className="flex flex-1">
@@ -105,14 +106,30 @@ function AppShellInner({ fundName, fundLogo, userEmail, reviewBadge, settingsBad
         </aside>
 
         {/* Page content. The width cap lives one level up, on the wrapper in
-            app/(app)/layout.tsx — capping again here would be inert. */}
-        <main className={`flex-1 min-w-0 flex flex-col ${collapsed ? 'md:pl-4' : ''}`}>
+            app/(app)/layout.tsx — capping again here would be inert.
+
+            The bottom padding clears the phone's tab bar, which is fixed: without it
+            the footer and the last row of any page sit underneath it. The measurement
+            lives with the bar, so the two cannot drift. */}
+        <main className={`flex-1 min-w-0 flex flex-col ${MOBILE_TAB_BAR_SPACER} ${collapsed ? 'md:pl-4' : ''}`}>
           <div className="flex-1">
             {children}
           </div>
           <AppFooter />
         </main>
       </div>
+
+      {/* Phone navigation. Rendered below md only; the aside above covers desktop. */}
+      <MobileNav
+        reviewBadge={reviewBadge}
+        settingsBadge={settingsBadge}
+        notesBadge={notesBadge}
+        pendingActionsBadge={pendingActionsBadge}
+        isAdmin={isAdmin}
+        updateAvailable={updateAvailable}
+        featureVisibility={featureVisibility}
+        fofActive={fofActive}
+      />
     </>
   )
 }

@@ -242,6 +242,10 @@ The web app is installable, so partners can keep it on a phone or tablet home sc
 
 The installed app is branded per fund: the name under the icon is your fund's name, and the mark takes the accent colour from **Settings > Appearance**. Home-screen labels are clipped near twelve characters on both platforms, so a longer fund name is shortened by whole words — "Evergreen Capital Partners" installs as "Evergreen".
 
+The icon is rendered on demand at every size a platform asks for — 152, 167 and 180 for iOS, 192 and 512 for Android, 384 for the Android splash, and 1024 for a desktop dock — so nothing is ever resized to fit. iOS is given one `apple-touch-icon` link per size rather than a single one to scale.
+
+**Navigating on a phone.** Below the tablet breakpoint the sidebar is replaced by a tab bar across the bottom of the screen: the four sections you can see, plus **More**, which opens the full menu. The four are chosen from the same access rules as the sidebar, so the bar never offers a page your account cannot open, and it fills itself from whatever you do have if some features are off. A dot on **More** means something is waiting behind it — a review queue, a settings item, an available update.
+
 **What works offline: not much, deliberately.** This app reads live fund data, so a cached balance is a wrong balance. The service worker (`public/sw.js`) stores only the app's static JavaScript and CSS — which are content-hashed, so they cannot go stale — plus a single offline notice page. It never caches a page or an API response. That last point is a privacy decision as much as a correctness one: a cached response would outlive the session that was allowed to see it, on a device that may be shared.
 
 So an installed app opened with no connection shows the offline page, not a stale dashboard. It starts faster on a warm cache, and that is the extent of the benefit.

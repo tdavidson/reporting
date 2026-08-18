@@ -9,7 +9,7 @@ import { ThemeProvider } from '@/components/theme-provider'
 import { Toaster } from '@/components/toaster'
 import { ConfirmProvider } from '@/components/confirm-dialog'
 import { APP_VERSION } from '@/lib/version'
-import { SURFACE_DARK_HEX, SURFACE_LIGHT_HEX, iconUrl } from '@/lib/pwa'
+import { SURFACE_DARK_HEX, SURFACE_LIGHT_HEX, appleTouchIcons } from '@/lib/pwa'
 import './globals.css'
 
 // Inter is the default UI face — the Hemrock brand guide's typeface, and what
@@ -67,7 +67,11 @@ export const metadata: Metadata = {
   // drawn large and in the fund's accent. iOS prefers this over the manifest's icons,
   // so app/portal/layout.tsx overrides it with the inverted variant — without that,
   // an LP's home screen would show the manager icon whatever the manifest said.
-  icons: { apple: iconUrl(180) },
+  //
+  // One link PER SIZE rather than a single 180. iOS does not resample an icon well,
+  // and 180 is only right for an iPhone: an iPad wants 152 or 167 and was scaling the
+  // one it was given, which is a large part of why the installed icon looked soft.
+  icons: { apple: appleTouchIcons('app') },
   appleWebApp: {
     // Older iOS needs this to launch without Safari chrome; iOS 17+ reads
     // `display: standalone` off the manifest instead. Both are cheap to keep.
