@@ -71,7 +71,7 @@ const TAB_HEIGHT = 'min-h-[3.5rem]'
  * interpolates the constant.
  */
 export const MOBILE_TAB_BAR_SPACER =
-  'pb-[calc(4.5rem+max(0.5rem,env(safe-area-inset-bottom)))] md:pb-0'
+  'pb-[calc(4.5rem+max(0.75rem,env(safe-area-inset-bottom)))] md:pb-0'
 
 export function MobileNav({
   reviewBadge,
@@ -123,15 +123,25 @@ export function MobileNav({
           so the background still reaches the bottom of the screen while the tabs clear
           the indicator.
 
-          max() rather than the inset alone, because env(safe-area-inset-bottom) is 0
-          here: the app does not use viewport-fit=cover (see app/layout.tsx), so iOS
-          stops the viewport above the home indicator instead of reporting an inset, and
-          a bar with no padding ends up with its labels against the gesture bar. The
-          0.5rem floor is the gap that gives; the inset wins the day the app does go
-          edge-to-edge, without this needing to be found again. */}
+          The SAME 0.75rem on all three open sides, so the tab row is inset equally from
+          the bottom, left and right rather than sitting in the corners. It is the gap
+          that was settled on against an installed iPhone: 0.5rem still read as the
+          labels touching the edge, 1rem as more room than the bar needs.
+
+          max() rather than the inset alone on each, because every env(safe-area-inset-*)
+          is 0 here: the app does not use viewport-fit=cover (see app/layout.tsx), so iOS
+          stops the viewport short of the home indicator instead of reporting an inset,
+          and a bar with no padding of its own ends up with its labels against the
+          gesture bar. The floor is what gives the gap today; the inset wins the day the
+          app does go edge-to-edge — including left/right, which is where a landscape
+          handset puts its notch — without any of this needing to be found again. */}
       <nav
         aria-label="Primary"
-        className="md:hidden fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background pb-[max(0.5rem,env(safe-area-inset-bottom))]"
+        className={
+          'md:hidden fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background ' +
+          'pb-[max(0.75rem,env(safe-area-inset-bottom))] ' +
+          'pl-[max(0.75rem,env(safe-area-inset-left))] pr-[max(0.75rem,env(safe-area-inset-right))]'
+        }
       >
         {/* The bar spans the screen; the tabs themselves stay centred and capped, so
             they do not stretch into thumb-hostile corners on a wide handset. */}
