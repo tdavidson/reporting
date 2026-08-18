@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { assertWriteAccess } from '@/lib/api-helpers'
 import { sanitizeHtml } from '@/lib/sanitize-html'
-import { getOutboundConfig, sendOutboundEmail } from '@/lib/email'
+import { getOutboundConfig, parseAddressList, sendOutboundEmail } from '@/lib/email'
 import { rateLimit } from '@/lib/rate-limit'
 import { logActivity } from '@/lib/activity'
 
@@ -31,11 +31,17 @@ export async function POST(req: NextRequest) {
   if (membership.role !== 'admin') return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
 
   const body = await req.json()
-  const { subject, body_html, body_text, recipients, quarter_label, cc, from_name, from_address } = body
+  const { subject, body_html, body_text, recipients, quarter_label, cc, bcc, from_name, from_address } = body
 
   if (!subject?.trim()) return NextResponse.json({ error: 'Subject is required' }, { status: 400 })
   if (!body_html?.trim() && !body_text?.trim()) return NextResponse.json({ error: 'Body is required' }, { status: 400 })
   if (!recipients?.length) return NextResponse.json({ error: 'No recipients selected' }, { status: 400 })
+
+  // Cc/Bcc are free text, so normalize before they reach a provider (or a MIME header)
+  const ccList = parseAddressList(cc)
+  if (ccList.invalid) return NextResponse.json({ error: `Invalid CC address: ${ccList.invalid}` }, { status: 400 })
+  const bccList = parseAddressList(bcc)
+  if (bccList.invalid) return NextResponse.json({ error: `Invalid BCC address: ${bccList.invalid}` }, { status: 400 })
 
   // Get the fund's outbound email config
   const config = await getOutboundConfig(admin, membership.fund_id, 'asks')
@@ -62,7 +68,8 @@ export async function POST(req: NextRequest) {
         from,
         subject: subject.trim(),
         html: sanitizeHtml(body_html.trim()),
-        cc: cc?.trim() || undefined,
+        cc: ccList.value,
+        bcc: bccList.value,
       })
       results.push({ emails: toAddresses, success: true, messageId: result.id?.toString() })
     } catch (err) {
@@ -85,6 +92,8 @@ export async function POST(req: NextRequest) {
     sent_by: user.id,
     status: 'sent',
     sent_at: new Date().toISOString(),
+    cc: ccList.value ?? null,
+    bcc: bccList.value ?? null,
     send_results: { sent, failed, details: results },
   })
 

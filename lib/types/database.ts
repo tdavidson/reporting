@@ -557,7 +557,9 @@ export type Database = {
       }
       email_requests: {
         Row: {
+          bcc: string | null
           body_html: string
+          cc: string | null
           created_at: string
           fund_id: string
           id: string
@@ -571,7 +573,9 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          bcc?: string | null
           body_html: string
+          cc?: string | null
           created_at?: string
           fund_id: string
           id?: string
@@ -585,7 +589,9 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          bcc?: string | null
           body_html?: string
+          cc?: string | null
           created_at?: string
           fund_id?: string
           id?: string

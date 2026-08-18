@@ -87,6 +87,7 @@ export default function RequestsPage() {
   const [subject, setSubject] = useState(DEFAULT_SUBJECT)
   const [bodyText, setBodyText] = useState(DEFAULT_BODY)
   const [cc, setCc] = useState('')
+  const [bcc, setBcc] = useState('')
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [confirmSend, setConfirmSend] = useState(false)
 
@@ -132,6 +133,11 @@ export default function RequestsPage() {
       if (lastSent) {
         setBodyText(lastSent.body_html as string)
         if (lastSent.subject) setSubject(lastSent.subject as string)
+        // Restored the same way as subject and body: the same people are usually copied
+        // every quarter. Empty string when the last send had none, so the field stays blank
+        // rather than holding a stale list.
+        setCc((lastSent.cc as string | null) ?? '')
+        setBcc((lastSent.bcc as string | null) ?? '')
       }
     }
 
@@ -197,6 +203,7 @@ export default function RequestsPage() {
         body_html: plainTextToHtml(bodyText),
         body_text: bodyText,
         cc: cc.trim() || undefined,
+        bcc: bcc.trim() || undefined,
         from_name: fromName.trim() || undefined,
         from_address: fromAddress.trim() || undefined,
         recipients: [{ emails: [testEmail.trim()], companyName: 'Test' }],
@@ -237,6 +244,7 @@ export default function RequestsPage() {
         body_html: plainTextToHtml(bodyText),
         body_text: bodyText,
         cc: cc.trim() || undefined,
+        bcc: bcc.trim() || undefined,
         from_name: fromName.trim() || undefined,
         from_address: fromAddress.trim() || undefined,
         recipients,
@@ -399,16 +407,31 @@ export default function RequestsPage() {
           </p>
         </div>
 
-        <div>
-          <Label>CC</Label>
-          <Input
-            value={cc}
-            onChange={(e) => setCc(e.target.value)}
-            placeholder="cc@example.com"
-          />
-          <p className="text-xs text-muted-foreground mt-1">
-            Optional. CC'd on every email sent.
-          </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <Label>CC</Label>
+            <Input
+              value={cc}
+              onChange={(e) => setCc(e.target.value)}
+              placeholder="cc@example.com, someone@example.com"
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              Optional. Separate multiple addresses with commas. CC'd on every email sent, and
+              visible to recipients.
+            </p>
+          </div>
+          <div>
+            <Label>BCC</Label>
+            <Input
+              value={bcc}
+              onChange={(e) => setBcc(e.target.value)}
+              placeholder="bcc@example.com, someone@example.com"
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              Optional. Separate multiple addresses with commas. Blind-copied on every email
+              sent — recipients don't see them.
+            </p>
+          </div>
         </div>
       </div>
 
