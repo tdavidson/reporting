@@ -1,5 +1,5 @@
 import { ImageResponse } from 'next/og'
-import { DEFAULT_MARK_HEX, MARK_PATHS, MARK_STROKE_UNITS, MARK_VIEWBOX, markGeometry } from '@/lib/pwa'
+import { DEFAULT_MARK_HEX, MARK_PATHS, MARK_VIEWBOX, markGeometry } from '@/lib/pwa'
 
 export const size = { width: 32, height: 32 }
 export const contentType = 'image/png'
@@ -13,8 +13,12 @@ export const contentType = 'image/png'
 // half-pixel offset, which is why the icon looked soft: most of its ink landed as
 // half-covered grey. markGeometry snaps it to a 24px mark at whole-pixel padding, so
 // a 2px stroke covers exactly two pixels. See the note there.
+//
+// This one keeps that 2px stroke while the home-screen icons above it thin out: at 32px
+// the mark is only 24px across, and the lighter weight they use would be a hairline
+// here. markGeometry's floor is what holds it.
 export default function Icon() {
-  const { markPx, padTop, padLeft } = markGeometry(size.width)
+  const { markPx, padTop, padLeft, strokeUnits } = markGeometry(size.width)
 
   return new ImageResponse(
     (
@@ -38,7 +42,7 @@ export default function Icon() {
           viewBox={`0 0 ${MARK_VIEWBOX} ${MARK_VIEWBOX}`}
           fill="none"
           stroke={DEFAULT_MARK_HEX}
-          strokeWidth={MARK_STROKE_UNITS}
+          strokeWidth={strokeUnits}
           strokeLinecap="round"
           strokeLinejoin="round"
         >

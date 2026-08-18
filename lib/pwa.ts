@@ -81,9 +81,26 @@ export const MARK_PATHS = [
   'M10 18h4',
 ] as const
 
-/** The mark's coordinate space. Stroke width is 2 of these units. */
+/** The mark's coordinate space. Every path coordinate above is a whole unit of it. */
 export const MARK_VIEWBOX = 24
-export const MARK_STROKE_UNITS = 2
+
+/**
+ * Stroke weight, as a fraction of the mark's width.
+ *
+ * The mark is drawn from a Lucide glyph, whose 2-in-24 stroke (8.3%) is a weight
+ * chosen to stay legible at 16px in a toolbar. A home-screen icon is not a toolbar
+ * glyph: at 180px, let alone 512, that weight closes up the window slots and the gap
+ * between the tower and its wings, and the whole thing reads as a blob rather than a
+ * drawing. Roughly 1.25-in-24 keeps the drawing open at icon sizes.
+ *
+ * Not applied to the 32px favicon, which lands on the floor below and keeps its 2px
+ * stroke — the same reason a typeface has a display cut and a text cut. The two are
+ * never seen together.
+ */
+const MARK_STROKE_RATIO = 1.25 / MARK_VIEWBOX
+
+/** Thinnest stroke that survives being drawn at all. Two, because of the rule below. */
+const MIN_STROKE_PX = 2
 
 /**
  * Fraction of the canvas the mark aims for.
@@ -103,6 +120,10 @@ export interface MarkGeometry {
   padLeft: number
   /** markPx / MARK_VIEWBOX. A whole number, which is the point. */
   scale: number
+  /** Rendered stroke width in device pixels. An EVEN number, which is also the point. */
+  strokePx: number
+  /** The same stroke expressed in viewBox units, which is what the SVG wants. */
+  strokeUnits: number
 }
 
 /**
@@ -115,17 +136,25 @@ export interface MarkGeometry {
  * 21px wide (scale 0.875, a 1.75px stroke) and centred by flexbox at an offset of
  * 30.5px, so more than half the ink in the icon was a half-covered grey pixel.
  *
- * Two rules, both about integers:
+ * Three rules, all about integers:
  *
- *   - The scale is a whole number, so a stroke is a whole number of pixels wide and
- *     its edges fall between pixels rather than through them. The mark's share of the
- *     canvas then varies a little across the ladder (62–72% for the `any` sizes)
- *     instead of being exactly 66% and soft everywhere.
+ *   - The scale is a whole number, so every path coordinate lands on a pixel boundary.
+ *     The mark's share of the canvas then varies a little across the ladder (62–72%
+ *     for the `any` sizes) instead of being exactly 66% and soft everywhere.
  *   - The padding is a whole number too, computed here rather than left to flexbox
  *     centring — which lands on a half pixel whenever the canvas and the mark disagree
  *     about parity, and does so for a third of the sizes above. An odd canvas leaves
  *     the spare pixel on the right and bottom; one pixel off centre is invisible, one
  *     pixel of smear across every stroke is not.
+ *   - The stroke is an EVEN number of pixels. A stroke is centred on its path, so it
+ *     reaches half its width either side: an odd width puts both edges on a half pixel
+ *     even when the path itself is exactly on the grid. This is measurable rather than
+ *     theoretical — scanning the rendered PNG, a 120px mark stroked at 6px shows 6 half
+ *     covered pixels and the same mark at 7px shows 55.
+ *
+ * Nudging the whole mark by half a pixel to compensate does NOT work, in case it looks
+ * like it should: the renderer does not honour a fractional offset, and the measurement
+ * comes back unchanged. Even widths only.
  */
 export function markGeometry(size: number, maskable = false): MarkGeometry {
   const target = size * MARK_FRACTION[maskable ? 'maskable' : 'any']
@@ -134,7 +163,14 @@ export function markGeometry(size: number, maskable = false): MarkGeometry {
   const scale = Math.max(1, Math.round(target / MARK_VIEWBOX))
   const markPx = scale * MARK_VIEWBOX
   const pad = Math.max(0, Math.floor((size - markPx) / 2))
-  return { markPx, padTop: pad, padLeft: pad, scale }
+
+  // Nearest even, floored at 2. The floor is what keeps the 32px favicon on the
+  // toolbar-weight stroke it needs while the icons above it thin out; it also means the
+  // realised weight drifts a little heavier on the smallest canvases, which is the
+  // direction legibility wants anyway.
+  const strokePx = Math.max(MIN_STROKE_PX, 2 * Math.round((markPx * MARK_STROKE_RATIO) / 2))
+
+  return { markPx, padTop: pad, padLeft: pad, scale, strokePx, strokeUnits: strokePx / scale }
 }
 
 /**

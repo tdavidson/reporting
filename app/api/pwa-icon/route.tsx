@@ -2,7 +2,6 @@ import { ImageResponse } from 'next/og'
 import { NextRequest } from 'next/server'
 import {
   MARK_PATHS,
-  MARK_STROKE_UNITS,
   MARK_VIEWBOX,
   SURFACE_LIGHT_HEX,
   isIconSize,
@@ -41,10 +40,11 @@ export async function GET(req: NextRequest) {
   const background = variant === 'portal' ? portalFillHex : SURFACE_LIGHT_HEX
   const stroke = variant === 'portal' ? SURFACE_LIGHT_HEX : markHex
 
-  // Whole-pixel size and offset, so the mark's strokes cover whole pixels instead of
-  // straddling them. markGeometry explains why that is the difference between a sharp
-  // icon and a soft one.
-  const { markPx, padTop, padLeft } = markGeometry(size, maskable)
+  // Whole-pixel size and offset, and an even-pixel stroke, so the mark's edges cover
+  // whole pixels instead of straddling them. The stroke is also lighter than the Lucide
+  // glyph it comes from — a toolbar weight blown up to 512px closes the drawing in.
+  // markGeometry explains both.
+  const { markPx, padTop, padLeft, strokeUnits } = markGeometry(size, maskable)
 
   return new ImageResponse(
     (
@@ -68,7 +68,7 @@ export async function GET(req: NextRequest) {
           viewBox={`0 0 ${MARK_VIEWBOX} ${MARK_VIEWBOX}`}
           fill="none"
           stroke={stroke}
-          strokeWidth={MARK_STROKE_UNITS}
+          strokeWidth={strokeUnits}
           strokeLinecap="round"
           strokeLinejoin="round"
         >

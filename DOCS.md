@@ -242,7 +242,7 @@ The web app is installable, so partners can keep it on a phone or tablet home sc
 
 The installed app is branded per fund: the name under the icon is your fund's name, and the mark takes the accent colour from **Settings > Appearance**. Home-screen labels are clipped near twelve characters on both platforms, so a longer fund name is shortened by whole words — "Evergreen Capital Partners" installs as "Evergreen".
 
-The icon is rendered on demand at every size a platform asks for — 152, 167 and 180 for iOS, 192 and 512 for Android, 384 for the Android splash, and 1024 for a desktop dock — so nothing is ever resized to fit. iOS is given one `apple-touch-icon` link per size rather than a single one to scale.
+The icon is rendered on demand at every size a platform asks for — 152, 167 and 180 for iOS, 192 and 512 for Android, 384 for the Android splash, and 1024 for a desktop dock — so nothing is ever resized to fit. iOS is given one `apple-touch-icon` link per size rather than a single one to scale. The mark is drawn at a lighter weight than the browser-tab favicon: a stroke that keeps a 16px toolbar glyph legible reads as a blob at 180px, and the home-screen icon is sized for the home screen.
 
 **Navigating on a phone.** Below the tablet breakpoint the sidebar is replaced by a tab bar across the bottom of the screen: the four sections you can see, plus **More**, which opens the full menu. The four are chosen from the same access rules as the sidebar, so the bar never offers a page your account cannot open, and it fills itself from whatever you do have if some features are off. A dot on **More** means something is waiting behind it — a review queue, a settings item, an available update.
 

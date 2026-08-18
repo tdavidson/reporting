@@ -176,6 +176,44 @@ describe('markGeometry', () => {
     }
   })
 
+  it('strokes an EVEN number of pixels, at every size', () => {
+    // A stroke is centred on its path and reaches half its width either side, so an
+    // odd width puts both edges on a half pixel even when the path is exactly on the
+    // grid. Measured on the rendered PNG rather than assumed: a 120px mark stroked at
+    // 6px shows 6 half-covered pixels across four scanlines, and the same mark at 7px
+    // shows 55. Nudging the mark half a pixel to compensate does not work — the
+    // renderer ignores a fractional offset.
+    for (const size of [...ICON_SIZES, 32]) {
+      for (const maskable of [false, true]) {
+        const { strokePx, strokeUnits, scale } = markGeometry(size, maskable)
+        expect(strokePx % 2).toBe(0)
+        expect(strokeUnits * scale).toBeCloseTo(strokePx, 10)
+      }
+    }
+  })
+
+  it('draws the home-screen icon lighter than the toolbar glyph it comes from', () => {
+    // The mark is a Lucide glyph, whose 2-in-24 stroke (8.3% of the mark) is a weight
+    // for staying legible at 16px in a toolbar. At icon sizes it closes up the window
+    // slots and the gap between the tower and its wings.
+    const LUCIDE_RATIO = 2 / MARK_VIEWBOX
+    for (const size of ICON_SIZES) {
+      for (const maskable of [false, true]) {
+        const { strokePx, markPx } = markGeometry(size, maskable)
+        expect(strokePx / markPx).toBeLessThan(LUCIDE_RATIO)
+        // ...but not so light it becomes a hairline on a home screen.
+        expect(strokePx / markPx).toBeGreaterThan(0.04)
+      }
+    }
+  })
+
+  it('keeps the 32px favicon on the heavier stroke, which it needs', () => {
+    // The mark is only 24px across there; the icons' lighter weight would be a
+    // hairline. Same reason a typeface has a display cut and a text cut — and the two
+    // are never seen together.
+    expect(markGeometry(32).strokePx).toBe(2)
+  })
+
   it('keeps the mark inside its canvas', () => {
     for (const size of ICON_SIZES) {
       for (const maskable of [false, true]) {
