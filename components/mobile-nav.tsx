@@ -25,13 +25,15 @@ import type { FeatureVisibilityMap } from '@/lib/types/features'
  * it on a modern handset.
  *
  * FLOATING rather than edge-to-edge: inset on three sides, rounded, translucent, with
- * the page visibly running underneath it. Two reasons, and neither is decoration. A
- * full-bleed bar welded to the bottom edge reads as the device's own chrome, which is
- * exactly the wrong signal in a standalone window where it is the app's only chrome
- * and the only way out of a page. And the inset is where the extra room comes from:
- * the bar can be taller, with real space around each tab, without eating more of a
- * page than the old cramped one did, because the gap underneath it is shared with the
- * home indicator rather than added to it.
+ * the page visibly running underneath it. A full-bleed bar welded to the bottom edge
+ * reads as the device's own chrome, which is exactly the wrong signal in a standalone
+ * window where it is the app's only chrome and the only way out of a page.
+ *
+ * It costs the page about 43px against the bar it replaced (96 reserved, against 53),
+ * and that is the trade being made deliberately: taller tabs, room around each icon,
+ * and a real gap under the bar rather than a strip of chrome pressed into the corner
+ * of the screen. The page under it scrolls — the bar does not — so what is spent is
+ * 43px of the LAST screenful, once, not of every screen.
  */
 interface MobileNavProps {
   reviewBadge: number
@@ -59,15 +61,15 @@ const TAB_HEIGHT = 'min-h-[3.5rem]'
  * of content. Exported so app-shell.tsx cannot drift from it by a pixel, which is
  * exactly what happened when the two were written out separately.
  *
- * 5rem = the 3.5rem tab, the bar's 0.25rem inner padding top and bottom, its two 1px
- * borders, the 0.5rem it floats above the bottom edge, and a little clearance — 74px of
- * bar against 80px reserved. On top of that comes the home-indicator inset, which the
+ * 6rem = the 3.5rem tab, the bar's 0.25rem inner padding top and bottom, its two 1px
+ * borders, the 1.5rem it floats above the bottom edge, and a little clearance — 90px of
+ * bar against 96px reserved. On top of that comes the home-indicator inset, which the
  * bar also pays back so it never sits under the indicator itself.
  *
  * The literal lives in this file so Tailwind's scanner sees it; app-shell only
  * interpolates the constant.
  */
-export const MOBILE_TAB_BAR_SPACER = 'pb-[calc(5rem+env(safe-area-inset-bottom))] md:pb-0'
+export const MOBILE_TAB_BAR_SPACER = 'pb-[calc(6rem+env(safe-area-inset-bottom))] md:pb-0'
 
 export function MobileNav({
   reviewBadge,
@@ -107,10 +109,17 @@ export function MobileNav({
     <>
       {/* The gutter the bar floats in. pointer-events-none so the strip either side of
           a narrow bar does not swallow taps meant for the page underneath; the bar
-          itself takes them back. pb pays back the home-indicator inset: the app does
-          not use viewport-fit=cover (see app/layout.tsx), so this is 0 today and
-          correct the day that changes. */}
-      <div className="md:hidden fixed inset-x-0 bottom-0 z-40 pointer-events-none px-3 pb-[calc(0.5rem+env(safe-area-inset-bottom))]">
+          itself takes them back.
+
+          The bottom gap is 1.5rem against 1rem at the sides — deliberately not square.
+          A bar 8px off the edge reads as one that failed to reach it, and the bottom of
+          a phone is the one edge with something else already competing for the space:
+          the home indicator, the gesture bar, and the curve of the screen itself. On
+          top of that comes env(safe-area-inset-bottom), which is 0 today because the
+          app does not use viewport-fit=cover (see app/layout.tsx) — the platforms that
+          need it are the ones where the viewport already stops short of the indicator
+          — and correct the day that changes. */}
+      <div className="md:hidden fixed inset-x-0 bottom-0 z-40 pointer-events-none px-4 pb-[calc(1.5rem+env(safe-area-inset-bottom))]">
         <nav
           aria-label="Primary"
           className={

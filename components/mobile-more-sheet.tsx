@@ -134,7 +134,7 @@ export function MobileMoreSheet({
           <span className="h-1 w-9 rounded-full bg-border" />
         </div>
 
-        <div className="max-h-[calc(85svh-2rem)] overflow-y-auto overscroll-contain px-4 pb-4">
+        <div className="max-h-[calc(85svh-2rem)] overflow-y-auto overscroll-contain px-4 pb-6">
           {grid.length > 0 && (
             <>
               <h2 className="text-base font-medium pt-1 pb-2">Go to</h2>
