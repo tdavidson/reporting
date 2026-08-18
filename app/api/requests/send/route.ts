@@ -92,7 +92,9 @@ export async function POST(req: NextRequest) {
     sent_by: user.id,
     status: 'sent',
     sent_at: new Date().toISOString(),
-    send_results: { sent, failed, cc: ccList.value ?? null, bcc: bccList.value ?? null, details: results },
+    cc: ccList.value ?? null,
+    bcc: bccList.value ?? null,
+    send_results: { sent, failed, details: results },
   })
 
   logActivity(admin, membership.fund_id, user.id, 'requests.send', { recipientCount: recipients.length })

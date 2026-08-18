@@ -133,6 +133,11 @@ export default function RequestsPage() {
       if (lastSent) {
         setBodyText(lastSent.body_html as string)
         if (lastSent.subject) setSubject(lastSent.subject as string)
+        // Restored the same way as subject and body: the same people are usually copied
+        // every quarter. Empty string when the last send had none, so the field stays blank
+        // rather than holding a stale list.
+        setCc((lastSent.cc as string | null) ?? '')
+        setBcc((lastSent.bcc as string | null) ?? '')
       }
     }
 
@@ -411,7 +416,8 @@ export default function RequestsPage() {
               placeholder="cc@example.com, someone@example.com"
             />
             <p className="text-xs text-muted-foreground mt-1">
-              Optional. CC'd on every email sent, and visible to recipients.
+              Optional. Separate multiple addresses with commas. CC'd on every email sent, and
+              visible to recipients.
             </p>
           </div>
           <div>
@@ -422,7 +428,8 @@ export default function RequestsPage() {
               placeholder="bcc@example.com, someone@example.com"
             />
             <p className="text-xs text-muted-foreground mt-1">
-              Optional. Blind-copied on every email sent — recipients don't see it.
+              Optional. Separate multiple addresses with commas. Blind-copied on every email
+              sent — recipients don't see them.
             </p>
           </div>
         </div>

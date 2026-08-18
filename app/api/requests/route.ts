@@ -21,7 +21,7 @@ export async function GET() {
 
   const { data, error } = await admin
     .from('email_requests')
-    .select('id, subject, body_html, recipients, quarter_label, status, sent_at, send_results, created_at')
+    .select('id, subject, body_html, cc, bcc, recipients, quarter_label, status, sent_at, send_results, created_at')
     .eq('fund_id', membership.fund_id)
     .order('created_at', { ascending: false })
     .limit(20)
