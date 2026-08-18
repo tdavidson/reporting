@@ -21,12 +21,20 @@ function encodeMimeParam(value: string): string {
   return `=?UTF-8?B?${Buffer.from(clean, 'utf8').toString('base64')}?=`
 }
 
+// An address-list header value (To/Cc/Bcc). Addresses must stay literal — RFC 2047
+// encoding the whole list would mangle them — so this only strips the CR/LF that
+// would otherwise let a crafted address inject extra MIME headers.
+function encodeAddressList(value: string): string {
+  return value.replace(/[\r\n]+/g, ' ').trim()
+}
+
 export async function sendEmail(
   accessToken: string,
   to: string,
   subject: string,
   htmlBody: string,
   cc?: string,
+  bcc?: string,
   attachments?: GmailAttachment[],
 ): Promise<{ id: string; threadId: string }> {
   // Send as plain text (Content-Type: text/plain) so Gmail applies its own
@@ -44,8 +52,9 @@ export async function sendEmail(
   if (attachments && attachments.length > 0) {
     const { randomUUID } = await import('crypto')
     const boundary = `mixed_${randomUUID().replace(/-/g, '')}`
-    const head = [`To: ${to}`]
-    if (cc?.trim()) head.push(`Cc: ${cc.trim()}`)
+    const head = [`To: ${encodeAddressList(to)}`]
+    if (cc?.trim()) head.push(`Cc: ${encodeAddressList(cc)}`)
+    if (bcc?.trim()) head.push(`Bcc: ${encodeAddressList(bcc)}`)
     head.push(
       `Subject: ${encodeMimeHeader(subject)}`,
       `MIME-Version: 1.0`,
@@ -84,8 +93,9 @@ export async function sendEmail(
 
   // Omit From: — Gmail fills it with the authenticated user. Avoids needing
   // a profile-read scope (gmail.send alone can't call users.getProfile).
-  const headers = [`To: ${to}`]
-  if (cc?.trim()) headers.push(`Cc: ${cc.trim()}`)
+  const headers = [`To: ${encodeAddressList(to)}`]
+  if (cc?.trim()) headers.push(`Cc: ${encodeAddressList(cc)}`)
+  if (bcc?.trim()) headers.push(`Bcc: ${encodeAddressList(bcc)}`)
   headers.push(
     `Subject: ${encodeMimeHeader(subject)}`,
     `MIME-Version: 1.0`,

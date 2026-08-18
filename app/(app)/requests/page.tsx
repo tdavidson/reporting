@@ -87,6 +87,7 @@ export default function RequestsPage() {
   const [subject, setSubject] = useState(DEFAULT_SUBJECT)
   const [bodyText, setBodyText] = useState(DEFAULT_BODY)
   const [cc, setCc] = useState('')
+  const [bcc, setBcc] = useState('')
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [confirmSend, setConfirmSend] = useState(false)
 
@@ -197,6 +198,7 @@ export default function RequestsPage() {
         body_html: plainTextToHtml(bodyText),
         body_text: bodyText,
         cc: cc.trim() || undefined,
+        bcc: bcc.trim() || undefined,
         from_name: fromName.trim() || undefined,
         from_address: fromAddress.trim() || undefined,
         recipients: [{ emails: [testEmail.trim()], companyName: 'Test' }],
@@ -237,6 +239,7 @@ export default function RequestsPage() {
         body_html: plainTextToHtml(bodyText),
         body_text: bodyText,
         cc: cc.trim() || undefined,
+        bcc: bcc.trim() || undefined,
         from_name: fromName.trim() || undefined,
         from_address: fromAddress.trim() || undefined,
         recipients,
@@ -399,16 +402,29 @@ export default function RequestsPage() {
           </p>
         </div>
 
-        <div>
-          <Label>CC</Label>
-          <Input
-            value={cc}
-            onChange={(e) => setCc(e.target.value)}
-            placeholder="cc@example.com"
-          />
-          <p className="text-xs text-muted-foreground mt-1">
-            Optional. CC'd on every email sent.
-          </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <Label>CC</Label>
+            <Input
+              value={cc}
+              onChange={(e) => setCc(e.target.value)}
+              placeholder="cc@example.com, someone@example.com"
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              Optional. CC'd on every email sent, and visible to recipients.
+            </p>
+          </div>
+          <div>
+            <Label>BCC</Label>
+            <Input
+              value={bcc}
+              onChange={(e) => setBcc(e.target.value)}
+              placeholder="bcc@example.com, someone@example.com"
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              Optional. Blind-copied on every email sent — recipients don't see it.
+            </p>
+          </div>
         </div>
       </div>
 

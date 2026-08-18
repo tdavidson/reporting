@@ -169,7 +169,7 @@ The system ships with a curated registry of compliance items covering SEC filing
 
 Asks lets you send reporting request emails to portfolio companies. Compose a message, select which companies should receive it, and send it out. The system tracks each request so you know what was sent and when.
 
-The email composer supports a customizable subject and body. Each request is logged with its recipient list, send timestamp, and delivery results. When companies reply to your ask email with their report, those replies flow into the Inbound pipeline automatically.
+The email composer supports a customizable subject and body, plus optional CC and BCC lists (comma-separated) that are copied on every email in the send. Each request is logged with its recipient list, the CC/BCC used, send timestamp, and delivery results. When companies reply to your ask email with their report, those replies flow into the Inbound pipeline automatically.
 
 ![Asks](public/screenshots/asks.png)
 
