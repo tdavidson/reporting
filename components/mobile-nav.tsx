@@ -64,13 +64,14 @@ const TAB_HEIGHT = 'min-h-[3.5rem]'
  *
  * 4.5rem = the 3.5rem tab, the bar's 0.25rem inner padding top and bottom, its 1px top
  * border, and a little clearance — 65px of bar against 72px reserved. On top of that
- * comes the home-indicator inset, which the bar also pays back so its tabs never sit
- * under the indicator itself.
+ * comes the bar's own bottom padding, which is the same max() it uses, so the two
+ * cannot disagree about how much room the home indicator is taking.
  *
  * The literal lives in this file so Tailwind's scanner sees it; app-shell only
  * interpolates the constant.
  */
-export const MOBILE_TAB_BAR_SPACER = 'pb-[calc(4.5rem+env(safe-area-inset-bottom))] md:pb-0'
+export const MOBILE_TAB_BAR_SPACER =
+  'pb-[calc(4.5rem+max(0.5rem,env(safe-area-inset-bottom)))] md:pb-0'
 
 export function MobileNav({
   reviewBadge,
@@ -118,15 +119,19 @@ export function MobileNav({
           longest tables scrolled under it — on the device with the least to spend.
           A single top hairline is the only separation it needs.
 
-          The padding pays back env(safe-area-inset-bottom) INSIDE the bar rather than
-          under it, so the background still reaches the bottom of the screen while the
-          tabs clear the home indicator. It is 0 today because the app does not use
-          viewport-fit=cover (see app/layout.tsx) — the platforms that need it are the
-          ones where the viewport already stops short of the indicator — and correct the
-          day that changes. */}
+          The padding pays the home indicator back INSIDE the bar rather than under it,
+          so the background still reaches the bottom of the screen while the tabs clear
+          the indicator.
+
+          max() rather than the inset alone, because env(safe-area-inset-bottom) is 0
+          here: the app does not use viewport-fit=cover (see app/layout.tsx), so iOS
+          stops the viewport above the home indicator instead of reporting an inset, and
+          a bar with no padding ends up with its labels against the gesture bar. The
+          0.5rem floor is the gap that gives; the inset wins the day the app does go
+          edge-to-edge, without this needing to be found again. */}
       <nav
         aria-label="Primary"
-        className="md:hidden fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background pb-[env(safe-area-inset-bottom)]"
+        className="md:hidden fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background pb-[max(0.5rem,env(safe-area-inset-bottom))]"
       >
         {/* The bar spans the screen; the tabs themselves stay centred and capped, so
             they do not stretch into thumb-hostile corners on a wide handset. */}
