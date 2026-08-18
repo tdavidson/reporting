@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { createClient } from '@/lib/supabase/server'
+import { createClient, getUser } from '@/lib/supabase/server'
 import { resolvePageAccess, canViewPage } from '@/lib/access/page-gate'
 import { ArrowLeft } from 'lucide-react'
 
@@ -63,7 +63,7 @@ export default async function CompanyDetailPage({
   params: { id: string }
 }) {
   const supabase = createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getUser()
   if (!user) redirect('/auth')
 
   // The company itself is `portfolio`. The per-panel checks further down decide which SECTIONS

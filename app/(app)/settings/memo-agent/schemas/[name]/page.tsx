@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import { redirect, notFound } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { createClient, getUser } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { resolvePageAccess, canViewPage } from '@/lib/access/page-gate'
 import { ensureDefaults, getActiveSchema } from '@/lib/memo-agent/firm-schemas'
@@ -11,7 +11,7 @@ export const metadata: Metadata = { title: 'Schema editor' }
 
 export default async function SchemaEditorPage({ params }: { params: { name: string } }) {
   const supabase = createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getUser()
   if (!user) redirect('/auth')
 
   const name = params.name as SchemaName

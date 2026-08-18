@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import { notFound, redirect } from 'next/navigation'
 import Link from 'next/link'
-import { createClient } from '@/lib/supabase/server'
+import { createClient, getUser } from '@/lib/supabase/server'
 import { resolvePageAccess, canViewPage } from '@/lib/access/page-gate'
 import type { InboundEmail } from '@/lib/types/database'
 
@@ -82,7 +82,7 @@ function formatValue(mv: MetricRow, metric: MetricDef | null): string {
 
 export default async function EmailDetailPage({ params }: { params: { id: string } }) {
   const supabase = createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getUser()
   if (!user) redirect('/auth')
 
   // A SERVER COMPONENT FETCHES ITS OWN DATA, so the middleware never sees it — this page's entry

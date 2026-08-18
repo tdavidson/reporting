@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { getUser } from '@/lib/supabase/server'
 import { resolvePageAccess, canViewPage } from '@/lib/access/page-gate'
 import { LpCapitalView } from './view'
 
@@ -15,8 +15,7 @@ export const metadata: Metadata = { title: 'LP capital accounts' }
  * same capital-account statement — a tracking-only one just has fewer lines.
  */
 export default async function LpCapitalPage() {
-  const supabase = createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getUser()
   if (!user) redirect('/auth')
 
   // Both axes, resolved by the same function the APIs on this page go through: the fund's

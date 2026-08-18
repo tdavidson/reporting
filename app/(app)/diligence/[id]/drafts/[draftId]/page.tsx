@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import { notFound, redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { createClient, getUser } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { resolvePageAccess, canViewPage } from '@/lib/access/page-gate'
 import { MemoEditor } from './memo-editor'
@@ -10,7 +10,7 @@ export const metadata: Metadata = { title: 'Memo draft' }
 
 export default async function DraftPage({ params }: { params: { id: string; draftId: string } }) {
   const supabase = createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getUser()
   if (!user) redirect('/auth')
 
   // A SERVER COMPONENT FETCHES ITS OWN DATA — the middleware never sees it, so being in the route

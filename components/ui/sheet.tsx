@@ -43,7 +43,11 @@ const SheetContent = React.forwardRef<
         // roughly a third of the menu untappable and is what "the mobile nav doesn't
         // work" turned out to mean. overscroll-contain keeps a flick at the end of the
         // list from being handed to the page underneath.
-        'fixed z-50 gap-4 bg-background p-6 shadow-lg overflow-y-auto overscroll-contain transition ease-in-out data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:duration-300 data-[state=open]:duration-500',
+        // Durations: DESIGN.md caps motion at 200ms, and this was opening over half a
+        // second — long enough that the sheet reads as the app thinking rather than as a
+        // panel arriving. Closing is quicker still: nobody wants to watch a menu they
+        // have finished with.
+        'fixed z-50 gap-4 bg-background p-6 shadow-lg overflow-y-auto overscroll-contain transition ease-out-soft data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:duration-150 data-[state=open]:duration-200',
         side === 'left' &&
           'inset-y-0 left-0 h-full w-3/4 max-w-sm border-r data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left',
         side === 'right' &&

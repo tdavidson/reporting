@@ -7,6 +7,7 @@
 //
 // See plans/plan-access-control.md.
 
+import { cache } from 'react'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { hasAccess, loadAccessContext, type AccessContext } from './effective'
 import type { Domain } from './domains'
@@ -23,8 +24,14 @@ export interface PageAccess {
  * Resolve the caller's fund + access, or null when they have no membership.
  *
  * Returns rather than redirects: a page decides where to send someone (usually /dashboard).
+ *
+ * Memoised per REQUEST (React `cache`), not across requests: several pages resolve it
+ * twice on one render — a section guard and then the page itself, e.g. the Funds
+ * section — and that was two membership lookups plus two access-context loads for one
+ * navigation. Nothing is remembered between requests, so a grant changed in Settings
+ * still applies to the very next one.
  */
-export async function resolvePageAccess(userId: string): Promise<PageAccess | null> {
+export const resolvePageAccess = cache(async (userId: string): Promise<PageAccess | null> => {
   const admin = createAdminClient()
   const { data: membership } = await admin
     .from('fund_members')
@@ -40,7 +47,7 @@ export async function resolvePageAccess(userId: string): Promise<PageAccess | nu
     isAdmin: membership.role === 'admin',
     access,
   }
-}
+})
 
 /** Can this page's viewer read the domain it shows? */
 export function canViewPage(page: PageAccess, domain: Domain, feature?: FeatureKey): boolean {

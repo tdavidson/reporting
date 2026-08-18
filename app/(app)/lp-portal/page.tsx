@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { createClient, getUser } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { resolvePageAccess, canViewPage } from '@/lib/access/page-gate'
 import { LpPortalDashboard } from './lp-portal-dashboard'
@@ -9,7 +9,7 @@ export const metadata: Metadata = { title: 'LP Documents' }
 
 export default async function LpPortalPage() {
   const supabase = createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getUser()
   if (!user) redirect('/auth')
 
   const page = await resolvePageAccess(user.id)

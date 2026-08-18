@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { createClient, getUser } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { resolvePageAccess, canViewPage } from '@/lib/access/page-gate'
 import { getActiveAnchors, getSynthesisConfidence } from '@/lib/memo-agent/style-anchors'
@@ -10,7 +10,7 @@ export const metadata: Metadata = { title: 'Example memos' }
 
 export default async function StyleAnchorsPage() {
   const supabase = createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getUser()
   if (!user) redirect('/auth')
 
   const admin = createAdminClient()

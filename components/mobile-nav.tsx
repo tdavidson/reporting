@@ -130,9 +130,15 @@ export function MobileNav({
             // second page: content scrolls visibly beneath it. backdrop-blur keeps the
             // labels legible over whatever happens to be passing under — a table of
             // figures, most of the time. Where a browser has no backdrop-filter the
-            // /85 surface is still opaque enough to read against.
+            // /90 surface is still opaque enough to read against.
+            //
+            // `md` (12px) rather than `xl` (24px): a backdrop filter is re-evaluated
+            // for every frame the page scrolls underneath it, and the cost scales with
+            // the radius. This is a fixed element over the app's longest tables, on the
+            // device with the least to spend — the extra 12px of blur is not worth a
+            // dropped frame, and the surface carries most of the legibility anyway.
             'pointer-events-auto mx-auto max-w-md rounded-card border border-border ' +
-            'bg-background/85 backdrop-blur-xl shadow-lg dark:shadow-none'
+            'bg-background/90 backdrop-blur-md shadow-lg dark:shadow-none'
           }
         >
           <div className={`grid ${COLS[Math.min(tabs.length + 1, 5)]} p-1`}>

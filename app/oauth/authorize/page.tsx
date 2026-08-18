@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 import { AlertTriangle } from 'lucide-react'
-import { createClient } from '@/lib/supabase/server'
+import { createClient, getUser } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getClient, redirectUriAllowed, grantableScope } from '@/lib/oauth/store'
 import { canWriteAnywhere, loadAccessContext } from '@/lib/access/effective'
@@ -46,7 +46,7 @@ export default async function AuthorizePage({ searchParams }: Props) {
 
   // Require a signed-in human BEFORE anything else, and come back here afterwards.
   const supabase = createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getUser()
   if (!user) {
     const self = `/oauth/authorize?${new URLSearchParams(
       Object.entries(searchParams).flatMap(([k, v]) =>

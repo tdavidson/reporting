@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 import Script from 'next/script'
-import { createClient } from '@/lib/supabase/server'
+import { createClient, getUser } from '@/lib/supabase/server'
 import { AppShell } from '@/components/app-shell'
 import { DemoSessionGuard } from '@/components/demo-session-guard'
 import {
@@ -23,7 +23,7 @@ import { themeCssVars, type FundTheme } from '@/lib/theme'
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   // Auth — uncached (uses cookies)
   const supabase = createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getUser()
   if (!user) redirect('/auth')
 
   // Get fund ID (uncached — quick single query, needed to key everything else)

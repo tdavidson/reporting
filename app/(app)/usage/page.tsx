@@ -1,14 +1,13 @@
 import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { getUser } from '@/lib/supabase/server'
 import { resolvePageAccess, canViewPage } from '@/lib/access/page-gate'
 import { UsageDashboard } from './usage-dashboard'
 
 export const metadata: Metadata = { title: 'Usage' }
 
 export default async function UsagePage() {
-  const supabase = createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getUser()
   if (!user) redirect('/auth')
 
   // Same answer as the hand-rolled role check this replaces — the `admin` domain is adminOnly —

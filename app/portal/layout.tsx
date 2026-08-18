@@ -2,7 +2,7 @@ import { getPortalFund } from '@/lib/portal-fund'
 import { appleTouchIcons } from '@/lib/pwa'
 import { themeCssVars } from '@/lib/theme'
 import { PortalChrome } from '@/components/portal-chrome'
-import { createClient } from '@/lib/supabase/server'
+import { createClient, getUser } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { recordPortalVisit } from '@/lib/lp-access-log'
 
@@ -29,7 +29,7 @@ export default async function PortalLayout({ children }: { children: React.React
   const fundName = fund?.name ?? 'Investor Portal'
 
   const supabase = createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getUser()
 
   // Best-effort login/session tracking (throttled to one event per 30 min).
   if (user && fund?.fundId) {
