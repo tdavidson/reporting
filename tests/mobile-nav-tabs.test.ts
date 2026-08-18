@@ -1,6 +1,14 @@
 import { describe, it, expect } from 'vitest'
 
-import { MOBILE_TAB_COUNT, mobileTabsFor, navItemMatches, type NavItem } from '@/components/app-sidebar'
+import {
+  MOBILE_TAB_COUNT,
+  mobileTabsFor,
+  navItemMatches,
+  moreSectionsFor,
+  navSectionsFor,
+  visibleChildrenFor,
+  type NavItem,
+} from '@/components/app-sidebar'
 import type { Domain } from '@/lib/access/domains'
 import type { FeatureKey } from '@/lib/types/features'
 import type { AccessLevel } from '@/lib/access/effective'
@@ -90,5 +98,93 @@ describe('navItemMatches', () => {
   it('does not light a tab on a path that merely starts with the same characters', () => {
     expect(navItemMatches(item({ href: '/lps' }), '/lps-preview')).toBe(false)
     expect(navItemMatches(item({ href: '/deals' }), '/dealflow')).toBe(false)
+  })
+})
+
+/**
+ * The "More" sheet is no longer the desktop sidebar in a drawer — it is its own
+ * surface (components/mobile-more-sheet.tsx), assembled from the same NAV_ITEMS
+ * through the same resolver. Splitting the phone's nav in two introduces exactly one
+ * new way to break it: a destination that is in neither half. That is what these pin.
+ */
+describe('navSectionsFor', () => {
+  it('splits the phone\'s nav into two halves that are disjoint and complete', () => {
+    // The bar shows four, the sheet shows the rest. A section in NEITHER half is
+    // unreachable on a handset — and in a standalone window there is no address bar to
+    // fall back on. A section in BOTH is the old drawer's mistake: the first thing the
+    // menu showed was the tab you had just chosen not to tap.
+    const badges = { review: 3, pendingActions: 2 }
+    const tabs = mobileTabsFor(true, allowAll).map(t => t.href)
+    const more = moreSectionsFor(true, allowAll, tabs, badges).map(s => s.href)
+
+    expect(more.filter(h => tabs.includes(h))).toEqual([])
+    const reachable = new Set([...tabs, ...more])
+    for (const href of navSectionsFor(true, allowAll, badges).map(s => s.href)) {
+      expect(reachable.has(href)).toBe(true)
+    }
+  })
+
+  it('leaves a member with no grants somewhere to go in the sheet too', () => {
+    const tabs = mobileTabsFor(false, denyAll).map(t => t.href)
+    const reachable = [...tabs, ...moreSectionsFor(false, denyAll, tabs).map(s => s.href)]
+    expect(reachable).toContain('/settings')
+    expect(reachable).toContain('/support')
+  })
+
+  it('drops the two entries that are noise when nothing is waiting', () => {
+    const idle = navSectionsFor(true, allowAll).map(s => s.href)
+    expect(idle).not.toContain('/review')
+    expect(idle).not.toContain('/pending-actions')
+
+    const busy = navSectionsFor(true, allowAll, { review: 1, pendingActions: 4 }).map(s => s.href)
+    expect(busy).toContain('/review')
+    expect(busy).toContain('/pending-actions')
+  })
+
+  it('applies the same access rules as the sidebar and the bar', () => {
+    const hrefs = navSectionsFor(false, allowOnly('portfolio'), { review: 5 }).map(s => s.href)
+    expect(hrefs).toContain('/dashboard')
+    expect(hrefs).not.toContain('/lps')
+    expect(hrefs).not.toContain('/funds')
+    // adminOnly, so hidden from a member even with something waiting.
+    expect(hrefs).not.toContain('/pending-actions')
+    expect(hrefs).not.toContain('/usage')
+  })
+})
+
+describe('visibleChildrenFor', () => {
+  const section = (href: string) => {
+    const found = navSectionsFor(true, allowAll, { review: 1, pendingActions: 1 }).find(s => s.href === href)
+    if (!found) throw new Error(`no section ${href}`)
+    return found
+  }
+
+  it('gives the current section its sub-pages — the thing the tab bar cannot do', () => {
+    const labels = visibleChildrenFor(section('/dashboard'), true, allowAll).map(c => c.label)
+    expect(labels).toContain('Investments')
+    expect(labels).toContain('Notes')
+  })
+
+  it('hides an admin-only sub-page from a member', () => {
+    const hrefs = visibleChildrenFor(section('/lps'), false, allowAll).map(c => c.href)
+    expect(hrefs).toContain('/lps/capital')
+    expect(hrefs).not.toContain('/lps/preview')
+  })
+
+  it('builds the Funds sub-pages fund-first, and offers none until a fund is known', () => {
+    expect(visibleChildrenFor(section('/funds'), true, allowAll, { fundSeg: null })).toEqual([])
+
+    const children = visibleChildrenFor(section('/funds'), true, allowAll, { fundSeg: 'abc' })
+    expect(children[0]).toMatchObject({ href: '/funds/abc', label: 'Overview', exact: true })
+    // Every other child hangs off the same fund, not off /funds itself — a child at
+    // /funds/journal would open the wrong vehicle's ledger.
+    for (const child of children.slice(1)) expect(child.href.startsWith('/funds/abc/')).toBe(true)
+  })
+
+  it('offers the fund-of-funds pages only once the fund holds a fund', () => {
+    const without = visibleChildrenFor(section('/dashboard'), true, allowAll).map(c => c.href)
+    const with_ = visibleChildrenFor(section('/dashboard'), true, allowAll, { fofActive: true }).map(c => c.href)
+    expect(without).not.toContain('/fund-holdings')
+    expect(with_).toContain('/fund-holdings')
   })
 })
