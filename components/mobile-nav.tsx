@@ -10,7 +10,7 @@ import { useAccess } from '@/components/access-context'
 import type { FeatureVisibilityMap } from '@/lib/types/features'
 
 /**
- * The phone's navigation: a floating tab bar near the bottom of the screen, with
+ * The phone's navigation: a tab bar docked to the bottom edge of the screen, with
  * everything else behind "More".
  *
  * This replaces a hamburger in the header that opened the desktop sidebar in a drawer
@@ -24,16 +24,17 @@ import type { FeatureVisibilityMap } from '@/lib/types/features'
  * reaches — the top-left corner, where the hamburger was, is the furthest point from
  * it on a modern handset.
  *
- * FLOATING rather than edge-to-edge: inset on three sides, rounded, translucent, with
- * the page visibly running underneath it. A full-bleed bar welded to the bottom edge
- * reads as the device's own chrome, which is exactly the wrong signal in a standalone
- * window where it is the app's only chrome and the only way out of a page.
+ * DOCKED rather than floating: pinned to the bottom edge, full-bleed, opaque, with a
+ * single hairline along its top. It was floating first — inset on three sides, rounded,
+ * translucent — and in a standalone PWA that reads as an element that failed to reach
+ * the edge rather than as a deliberate gap: the bar sits visibly high, content slides
+ * under its shoulders, and the strip beneath it is dead space that belongs to nothing.
+ * Sitting on the edge, with the background carried all the way across, is what makes it
+ * read as the app's own frame.
  *
- * It costs the page about 43px against the bar it replaced (96 reserved, against 53),
- * and that is the trade being made deliberately: taller tabs, room around each icon,
- * and a real gap under the bar rather than a strip of chrome pressed into the corner
- * of the screen. The page under it scrolls — the bar does not — so what is spent is
- * 43px of the LAST screenful, once, not of every screen.
+ * Docking also buys the page back most of what floating cost it: ~65px of bar, against
+ * ~90px of bar and 24px of gutter. The tabs keep their height and the room around each
+ * icon — what goes is the air underneath, which is the part that was never content.
  */
 interface MobileNavProps {
   reviewBadge: number
@@ -57,19 +58,20 @@ const COLS = ['', 'grid-cols-1', 'grid-cols-2', 'grid-cols-3', 'grid-cols-4', 'g
 const TAB_HEIGHT = 'min-h-[3.5rem]'
 
 /**
- * What a page must reserve at its foot so the floating bar does not sit on the last row
+ * What a page must reserve at its foot so the docked bar does not sit on the last row
  * of content. Exported so app-shell.tsx cannot drift from it by a pixel, which is
  * exactly what happened when the two were written out separately.
  *
- * 6rem = the 3.5rem tab, the bar's 0.25rem inner padding top and bottom, its two 1px
- * borders, the 1.5rem it floats above the bottom edge, and a little clearance — 90px of
- * bar against 96px reserved. On top of that comes the home-indicator inset, which the
- * bar also pays back so it never sits under the indicator itself.
+ * 4.5rem = the 3.5rem tab, the bar's 0.25rem inner padding top and bottom, its 1px top
+ * border, and a little clearance — 65px of bar against 72px reserved. On top of that
+ * comes the bar's own bottom padding, which is the same max() it uses, so the two
+ * cannot disagree about how much room the home indicator is taking.
  *
  * The literal lives in this file so Tailwind's scanner sees it; app-shell only
  * interpolates the constant.
  */
-export const MOBILE_TAB_BAR_SPACER = 'pb-[calc(6rem+env(safe-area-inset-bottom))] md:pb-0'
+export const MOBILE_TAB_BAR_SPACER =
+  'pb-[calc(4.5rem+max(0.5rem,env(safe-area-inset-bottom)))] md:pb-0'
 
 export function MobileNav({
   reviewBadge,
@@ -107,87 +109,78 @@ export function MobileNav({
 
   return (
     <>
-      {/* The gutter the bar floats in. pointer-events-none so the strip either side of
-          a narrow bar does not swallow taps meant for the page underneath; the bar
-          itself takes them back.
+      {/* Docked to the bottom edge and full width, so the surface runs corner to corner
+          rather than ending in a gutter. z-40 sits under the sheet overlay (z-50), so
+          the More sheet covers the bar it was opened from.
 
-          The bottom gap is 1.5rem against 1rem at the sides — deliberately not square.
-          A bar 8px off the edge reads as one that failed to reach it, and the bottom of
-          a phone is the one edge with something else already competing for the space:
-          the home indicator, the gesture bar, and the curve of the screen itself. On
-          top of that comes env(safe-area-inset-bottom), which is 0 today because the
-          app does not use viewport-fit=cover (see app/layout.tsx) — the platforms that
-          need it are the ones where the viewport already stops short of the indicator
-          — and correct the day that changes. */}
-      <div className="md:hidden fixed inset-x-0 bottom-0 z-40 pointer-events-none px-4 pb-[calc(1.5rem+env(safe-area-inset-bottom))]">
-        <nav
-          aria-label="Primary"
-          className={
-            // z-40 (on the gutter) sits under the sheet overlay (z-50) so the More
-            // sheet covers the bar it was opened from.
-            //
-            // The translucency is what makes it read as floating rather than as a
-            // second page: content scrolls visibly beneath it. backdrop-blur keeps the
-            // labels legible over whatever happens to be passing under — a table of
-            // figures, most of the time. Where a browser has no backdrop-filter the
-            // /90 surface is still opaque enough to read against.
-            //
-            // `md` (12px) rather than `xl` (24px): a backdrop filter is re-evaluated
-            // for every frame the page scrolls underneath it, and the cost scales with
-            // the radius. This is a fixed element over the app's longest tables, on the
-            // device with the least to spend — the extra 12px of blur is not worth a
-            // dropped frame, and the surface carries most of the legibility anyway.
-            'pointer-events-auto mx-auto max-w-md rounded-card border border-border ' +
-            'bg-background/90 backdrop-blur-md shadow-lg dark:shadow-none'
-          }
-        >
-          <div className={`grid ${COLS[Math.min(tabs.length + 1, 5)]} p-1`}>
-            {tabs.map(item => {
-              const Icon = item.icon
-              const active = navItemMatches(item, pathname)
-              const count = badgeFor(item.badgeKey)
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  aria-current={active ? 'page' : undefined}
-                  className={`relative flex ${TAB_HEIGHT} flex-col items-center justify-center gap-1 px-1 py-1.5 text-[11px] leading-none transition-colors ${
-                    active ? 'text-foreground font-medium' : 'text-muted-foreground'
-                  }`}
-                >
-                  <span className={`flex items-center justify-center rounded-full px-3.5 py-1 transition-colors ${active ? 'bg-accent' : ''}`}>
-                    <Icon className="h-5 w-5 shrink-0" />
-                  </span>
-                  <span className="max-w-full truncate">{item.label}</span>
-                  {count > 0 && (
-                    <span className="absolute right-1/2 top-1 h-2 w-2 translate-x-4 rounded-full bg-warning" />
-                  )}
-                </Link>
-              )
-            })}
+          Opaque, not translucent: content passing beneath a bar that touches the edge
+          is what made it read as a second, floating layer, and an opaque surface also
+          drops the backdrop-filter that was being re-evaluated every frame the app's
+          longest tables scrolled under it — on the device with the least to spend.
+          A single top hairline is the only separation it needs.
 
-            <button
-              type="button"
-              onClick={() => setMoreOpen(true)}
-              aria-expanded={moreOpen}
-              aria-label="More"
-              className={`relative flex ${TAB_HEIGHT} flex-col items-center justify-center gap-1 px-1 py-1.5 text-[11px] leading-none transition-colors ${
-                moreOpen ? 'text-foreground font-medium' : 'text-muted-foreground'
-              }`}
-            >
-              {/* Dots rather than a hamburger. A hamburger promises the menu it used to
-                  open — a full stack of rows — and this is no longer that. */}
-              <span className={`flex items-center justify-center rounded-full px-3.5 py-1 transition-colors ${moreOpen ? 'bg-accent' : ''}`}>
-                <MoreHorizontal className="h-5 w-5 shrink-0" />
-              </span>
-              <span>More</span>
-              {moreHasBadge && (
-                <span className="absolute right-1/2 top-1 h-2 w-2 translate-x-4 rounded-full bg-warning" />
-              )}
-            </button>
-          </div>
-        </nav>
-      </div>
+          The padding pays the home indicator back INSIDE the bar rather than under it,
+          so the background still reaches the bottom of the screen while the tabs clear
+          the indicator.
+
+          max() rather than the inset alone, because env(safe-area-inset-bottom) is 0
+          here: the app does not use viewport-fit=cover (see app/layout.tsx), so iOS
+          stops the viewport above the home indicator instead of reporting an inset, and
+          a bar with no padding ends up with its labels against the gesture bar. The
+          0.5rem floor is the gap that gives; the inset wins the day the app does go
+          edge-to-edge, without this needing to be found again. */}
+      <nav
+        aria-label="Primary"
+        className="md:hidden fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background pb-[max(0.5rem,env(safe-area-inset-bottom))]"
+      >
+        {/* The bar spans the screen; the tabs themselves stay centred and capped, so
+            they do not stretch into thumb-hostile corners on a wide handset. */}
+        <div className={`grid ${COLS[Math.min(tabs.length + 1, 5)]} mx-auto max-w-md p-1`}>
+          {tabs.map(item => {
+            const Icon = item.icon
+            const active = navItemMatches(item, pathname)
+            const count = badgeFor(item.badgeKey)
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                aria-current={active ? 'page' : undefined}
+                className={`relative flex ${TAB_HEIGHT} flex-col items-center justify-center gap-1 px-1 py-1.5 text-[11px] leading-none transition-colors ${
+                  active ? 'text-foreground font-medium' : 'text-muted-foreground'
+                }`}
+              >
+                <span className={`flex items-center justify-center rounded-full px-3.5 py-1 transition-colors ${active ? 'bg-accent' : ''}`}>
+                  <Icon className="h-5 w-5 shrink-0" />
+                </span>
+                <span className="max-w-full truncate">{item.label}</span>
+                {count > 0 && (
+                  <span className="absolute right-1/2 top-1 h-2 w-2 translate-x-4 rounded-full bg-warning" />
+                )}
+              </Link>
+            )
+          })}
+
+          <button
+            type="button"
+            onClick={() => setMoreOpen(true)}
+            aria-expanded={moreOpen}
+            aria-label="More"
+            className={`relative flex ${TAB_HEIGHT} flex-col items-center justify-center gap-1 px-1 py-1.5 text-[11px] leading-none transition-colors ${
+              moreOpen ? 'text-foreground font-medium' : 'text-muted-foreground'
+            }`}
+          >
+            {/* Dots rather than a hamburger. A hamburger promises the menu it used to
+                open — a full stack of rows — and this is no longer that. */}
+            <span className={`flex items-center justify-center rounded-full px-3.5 py-1 transition-colors ${moreOpen ? 'bg-accent' : ''}`}>
+              <MoreHorizontal className="h-5 w-5 shrink-0" />
+            </span>
+            <span>More</span>
+            {moreHasBadge && (
+              <span className="absolute right-1/2 top-1 h-2 w-2 translate-x-4 rounded-full bg-warning" />
+            )}
+          </button>
+        </div>
+      </nav>
 
       <MobileMoreSheet
         open={moreOpen}
