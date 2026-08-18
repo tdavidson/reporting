@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { createClient, getUser } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { resolvePageAccess, canViewPage } from '@/lib/access/page-gate'
 import { APP_VERSION, checkForUpdate, getInstallationId } from '@/lib/version'
@@ -8,7 +8,7 @@ export const metadata = { title: 'Updates' }
 
 export default async function UpdatesPage() {
   const supabase = createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getUser()
   if (!user) redirect('/auth')
 
   // Deployment info — the `admin` domain, which is adminOnly, so this resolves to the same answer

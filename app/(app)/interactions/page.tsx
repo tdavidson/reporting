@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { createClient, getUser } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { resolvePageAccess, canViewPage } from '@/lib/access/page-gate'
 import { InteractionsContent } from './interactions-content'
@@ -9,7 +9,7 @@ export const metadata: Metadata = { title: 'Interactions' }
 
 export default async function InteractionsPage() {
   const supabase = createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getUser()
   if (!user) redirect('/auth')
 
   // A SERVER COMPONENT FETCHES ITS OWN DATA, so the middleware never sees it — being in the

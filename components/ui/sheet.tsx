@@ -28,7 +28,7 @@ SheetOverlay.displayName = DialogPrimitive.Overlay.displayName
 const SheetContent = React.forwardRef<
   React.ComponentRef<typeof DialogPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & {
-    side?: 'left' | 'right'
+    side?: 'left' | 'right' | 'bottom'
   }
 >(({ side = 'left', className, children, ...props }, ref) => (
   <SheetPortal>
@@ -43,11 +43,21 @@ const SheetContent = React.forwardRef<
         // roughly a third of the menu untappable and is what "the mobile nav doesn't
         // work" turned out to mean. overscroll-contain keeps a flick at the end of the
         // list from being handed to the page underneath.
-        'fixed z-50 gap-4 bg-background p-6 shadow-lg overflow-y-auto overscroll-contain transition ease-in-out data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:duration-300 data-[state=open]:duration-500',
+        // Durations: DESIGN.md caps motion at 200ms, and this was opening over half a
+        // second — long enough that the sheet reads as the app thinking rather than as a
+        // panel arriving. Closing is quicker still: nobody wants to watch a menu they
+        // have finished with.
+        'fixed z-50 gap-4 bg-background p-6 shadow-lg overflow-y-auto overscroll-contain transition ease-out-soft data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:duration-150 data-[state=open]:duration-200',
         side === 'left' &&
           'inset-y-0 left-0 h-full w-3/4 max-w-sm border-r data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left',
         side === 'right' &&
           'inset-y-0 right-0 h-full w-3/4 max-w-sm border-l data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right',
+        // A sheet that rises from the bottom edge, for a control that lives there.
+        // `svh` rather than `vh` because a phone browser's `vh` includes the collapsing
+        // URL bar, so 85vh puts the top of the sheet — its header — off screen on first
+        // paint. Height is capped rather than set, so a short menu is a short sheet.
+        side === 'bottom' &&
+          'inset-x-0 bottom-0 max-h-[85svh] rounded-t-card border-t data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom',
         className
       )}
       {...props}
@@ -62,4 +72,11 @@ const SheetContent = React.forwardRef<
 ))
 SheetContent.displayName = DialogPrimitive.Content.displayName
 
-export { Sheet, SheetTrigger, SheetClose, SheetContent, SheetOverlay, SheetPortal }
+/**
+ * The sheet's accessible name. Radix warns without one, and a screen reader otherwise
+ * announces the dialog with no idea what opened. Usually `sr-only` — a sheet whose
+ * purpose is obvious on screen still needs to say it out loud.
+ */
+const SheetTitle = DialogPrimitive.Title
+
+export { Sheet, SheetTrigger, SheetClose, SheetContent, SheetOverlay, SheetPortal, SheetTitle }

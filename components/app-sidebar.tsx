@@ -187,7 +187,98 @@ export function navItemMatches(item: NavItem, pathname: string): boolean {
   return under(item.href) || (item.children ?? []).some(child => under(child.href))
 }
 
-export type { NavItem }
+/**
+ * Every top-level section this user can see, in nav order.
+ *
+ * Shared by the desktop aside and the phone's "More" sheet so the two cannot answer
+ * the access question differently — the sheet is no longer the sidebar rendered in a
+ * drawer, so without this it would be a second list to keep in step.
+ *
+ * The badge counts are here because two entries are conditional on having something
+ * waiting: Review and Pending Actions are noise at zero, and Pending Actions in
+ * particular is an empty page most days.
+ */
+export function navSectionsFor(
+  isAdmin: boolean,
+  access: (domain: Domain, feature?: FeatureKey) => AccessLevel,
+  badges: { review?: number; pendingActions?: number } = {},
+): NavItem[] {
+  return NAV_ITEMS.filter(item => {
+    if (!canSee(item, isAdmin, access)) return false
+    if (item.badgeKey === 'review' && (badges.review ?? 0) === 0) return false
+    if (item.badgeKey === 'pendingActions' && (badges.pendingActions ?? 0) === 0) return false
+    return true
+  })
+}
+
+/**
+ * What the phone's "More" sheet lists: every section the user can see that the tab bar
+ * is not already showing.
+ *
+ * The split lives here rather than in the sheet so the two halves of the phone's nav
+ * are computed from one list in one place — a destination that is in neither half is
+ * unreachable on a handset, and in a standalone window there is no address bar to fall
+ * back on. tests/mobile-nav-tabs.test.ts pins the two halves as disjoint and complete.
+ */
+export function moreSectionsFor(
+  isAdmin: boolean,
+  access: (domain: Domain, feature?: FeatureKey) => AccessLevel,
+  tabHrefs: string[],
+  badges: { review?: number; pendingActions?: number } = {},
+): NavItem[] {
+  const inBar = new Set(tabHrefs)
+  return navSectionsFor(isAdmin, access, badges).filter(item => !inBar.has(item.href))
+}
+
+/**
+ * The Funds section's children, which are fund-first: every one points at
+ * /funds/<seg>/<page>, with an "Overview" entry for the fund's lead page. Empty until
+ * a fund is known — there is nothing to point at.
+ */
+export function fundsChildrenFor(fundSeg: string | null, fofActive: boolean): NavChild[] {
+  if (!fundSeg) return []
+  return [
+    { href: `/funds/${fundSeg}`, label: 'Overview', exact: true },
+    ...ACCOUNTING_SECTIONS.filter(s => !s.requiresFof || fofActive).map(s => ({
+      href: `/funds/${fundSeg}/${s.href.slice('/funds/'.length)}`,
+      label: s.label,
+      domain: s.domain,
+    })),
+  ]
+}
+
+/**
+ * The children of one section this user can see — the admin gate, the per-feature
+ * visibility, and the fund-of-funds pages that only exist once the fund holds a fund.
+ */
+export function visibleChildrenFor(
+  item: NavItem,
+  isAdmin: boolean,
+  access: (domain: Domain, feature?: FeatureKey) => AccessLevel,
+  opts: { fofActive?: boolean; fundSeg?: string | null } = {},
+): NavChild[] {
+  const children = item.href === '/funds'
+    ? fundsChildrenFor(opts.fundSeg ?? null, !!opts.fofActive)
+    : item.children
+  return (children ?? [])
+    .filter(c => canSee(c, isAdmin, access))
+    .filter(c => !c.requiresFof || !!opts.fofActive)
+}
+
+/**
+ * Which fund the Funds subnav points at: the one in the URL when we are under a fund,
+ * else the selected vehicle from context (its id, or its name for a legacy vehicle
+ * with no registry id).
+ */
+export function useFundSeg(): string | null {
+  const pathname = usePathname()
+  const { vehicleId, group } = useVehicle()
+  const fundMatch = pathname.match(/^\/funds\/([^/]+)/)
+  const pathFundSeg = fundMatch && !FUND_SUBPAGE_SLUGS.has(fundMatch[1]) ? fundMatch[1] : null
+  return pathFundSeg ?? vehicleId ?? (group ? encodeURIComponent(group) : null)
+}
+
+export type { NavItem, NavChild }
 
 interface AppSidebarProps {
   reviewBadge: number
@@ -223,24 +314,8 @@ export function AppSidebar({ reviewBadge, settingsBadge, notesBadge, pendingActi
   const [mounted, setMounted] = useState(false)
   useEffect(() => setMounted(true), [])
 
-  // The Funds subnav is fund-first: every child points at /funds/<id>/<page>, with an
-  // "Overview" entry for the fund's lead page. Which fund? The one in the URL when we're
-  // under a fund, else the selected vehicle from context (its id, or its name for a legacy
-  // vehicle with no registry id). Null until a fund is known — then the children are empty.
-  const { vehicleId, group } = useVehicle()
-  const fundMatch = pathname.match(/^\/funds\/([^/]+)/)
-  const pathFundSeg = fundMatch && !FUND_SUBPAGE_SLUGS.has(fundMatch[1]) ? fundMatch[1] : null
-  const fundSeg = pathFundSeg ?? vehicleId ?? (group ? encodeURIComponent(group) : null)
-  const fundsChildren: NavChild[] = fundSeg
-    ? [
-        { href: `/funds/${fundSeg}`, label: 'Overview', exact: true },
-        ...ACCOUNTING_SECTIONS.filter(s => !s.requiresFof || !!fofActive).map(s => ({
-          href: `/funds/${fundSeg}/${s.href.slice('/funds/'.length)}`,
-          label: s.label,
-          domain: s.domain,
-        })),
-      ]
-    : []
+  // The Funds subnav is fund-first — see useFundSeg / fundsChildrenFor above.
+  const fundSeg = useFundSeg()
 
   const currentTheme = (THEME_CYCLE.includes(theme as typeof THEME_CYCLE[number]) ? theme : 'system') as typeof THEME_CYCLE[number]
   const ThemeIcon = mounted ? THEME_ICONS[currentTheme] : Monitor
@@ -254,16 +329,8 @@ export function AppSidebar({ reviewBadge, settingsBadge, notesBadge, pendingActi
   return (
     <div className="flex flex-col flex-1">
       <nav className={`flex-1 p-2 space-y-0.5 ${collapsed ? 'md:px-1' : ''}`}>
-        {NAV_ITEMS.filter(item => {
-          if (!canSee(item, !!isAdmin, access)) return false
-          if (item.badgeKey === 'review' && reviewBadge === 0) return false
-          if (item.badgeKey === 'pendingActions' && (pendingActionsBadge ?? 0) === 0) return false
-          return true
-        }).map((item) => {
+        {navSectionsFor(!!isAdmin, access, { review: reviewBadge, pendingActions: pendingActionsBadge }).map((item) => {
           const { href, label, icon: Icon, badgeKey, adminOnly, featureKey, beta } = item
-          // The Funds children are computed per-render from the current fund (fund-first hrefs);
-          // every other section uses its static children.
-          const children = item.href === '/funds' ? fundsChildren : item.children
           // The parent row is highlighted ONLY when it is the exact current page — never
           // merely because a child is open. Otherwise the highlight was inconsistent: Funds
           // (/funds) and Diligence (/diligence) nest their children under their own path, so a
@@ -279,14 +346,11 @@ export function AppSidebar({ reviewBadge, settingsBadge, notesBadge, pendingActi
             : 0
           const showLock = adminOnly || (featureKey && featureVisibility?.[featureKey] === 'admin')
 
-          // Children visibility — drop children that the user can't access (admin
-          // gate or per-feature visibility), then show only when the parent or any
-          // visible child route is active.
-          const visibleChildren = (children ?? [])
-            .filter(c => canSee(c, !!isAdmin, access))
-            // FoF children appear only once the fund actually holds a fund. Creating the first
-            // one is what turns them on; there is no setting to find.
-            .filter(c => !c.requiresFof || !!fofActive)
+          // Children visibility — the shared resolver drops what the user can't access
+          // (admin gate, per-feature visibility) and the fund-of-funds pages that only
+          // exist once the fund holds a fund. Shown only when the parent or any visible
+          // child route is active.
+          const visibleChildren = visibleChildrenFor(item, !!isAdmin, access, { fofActive, fundSeg })
           const childActive = visibleChildren.some(c => pathname === c.href || pathname.startsWith(c.href + '/'))
           // Also keep the section open on any page UNDER its own path (e.g. /funds/allocation-terms,
           // a Funds page that isn't a listed child) — it's still this section, just not in the nav.

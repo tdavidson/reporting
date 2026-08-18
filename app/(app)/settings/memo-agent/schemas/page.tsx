@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { ArrowLeft } from 'lucide-react'
-import { createClient } from '@/lib/supabase/server'
+import { createClient, getUser } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { resolvePageAccess, canViewPage } from '@/lib/access/page-gate'
 import { ensureDefaults, getActiveSchemas } from '@/lib/memo-agent/firm-schemas'
@@ -22,7 +22,7 @@ const SCHEMA_LABELS: Record<SchemaName, { label: string; description: string }> 
 
 export default async function SchemasIndexPage() {
   const supabase = createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getUser()
   if (!user) redirect('/auth')
 
   const admin = createAdminClient()
