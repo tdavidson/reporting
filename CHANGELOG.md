@@ -6,6 +6,13 @@ Added
 - **Installable app (PWA).** The web app can be added to a phone, tablet, or desktop home screen and opens without browser chrome. Branded per fund: the name under the icon is your fund's, and the icon takes its colour from Settings → Appearance
 - **The LP portal installs as its own app.** Installing from any `/portal` page gives an investor-facing app that opens on their statements rather than the manager dashboard, scoped to `/portal` so it can't wander onto the manager surface. It carries the same mark inverted — knocked out of a filled tile in your fund's colour — so the two are distinguishable on a home screen at a glance
 - Offline handling is deliberately narrow — only static assets and an offline notice are cached, never a page or an API response, so an installed app never shows a stale figure. `NEXT_PUBLIC_DISABLE_SW=true` turns the service worker off and unregisters any already installed
+- **A tab bar for phones.** Below the tablet breakpoint the sidebar is replaced by five slots along the bottom of the screen — the four sections you can see, plus More, which opens the full menu. It is built from the same access rules as the sidebar, so it never offers a page your account cannot open, and a dot on More flags anything waiting behind it
+
+Fixed
+- **The installable icon is sharp, and lighter.** The mark was drawn at a fractional scale and centred on a half pixel, so most of its ink rasterised as half-covered grey — worst at the sizes a phone actually installs. Its geometry and its stroke are now snapped to whole (and even) pixels at every size, and the app offers an exact icon for each install slot (152/167/180 for iOS, 192/384/512/1024 for Android and desktop) instead of leaving the platform to resize one. The stroke is also about a third thinner than the toolbar glyph it derives from, which at home-screen size was closing up the drawing; the 32px favicon keeps the heavier weight it needs
+- **Mobile navigation works.** The menu drawer had no scroll container and the page behind it is locked while it is open, so on a phone roughly the bottom third of the menu — Settings, Support, most sub-pages — could not be reached at all. Sheets now scroll
+- Sub-pages no longer disappear from the phone menu for anyone who had collapsed the sidebar on their desktop: collapsing is a desktop preference and no longer applies to the drawer
+- "Underlying funds" and the fund-of-funds ledger pages now appear in the nav for a fund that holds a fund — the flag that switches them on was resolved and then dropped before it reached the sidebar
 
 Removed
 - **Dropbox file storage.** Google Drive (and "None / database only") remain; the Dropbox connect flow, settings, and stored credentials are gone

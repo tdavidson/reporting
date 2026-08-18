@@ -36,7 +36,14 @@ const SheetContent = React.forwardRef<
     <DialogPrimitive.Content
       ref={ref}
       className={cn(
-        'fixed z-50 gap-4 bg-background p-6 shadow-lg transition ease-in-out data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:duration-300 data-[state=open]:duration-500',
+        // overflow-y-auto is not cosmetic. A sheet is `inset-y-0 h-full` and Radix locks
+        // the page behind it (react-remove-scroll), so without a scroller of its own
+        // anything past the fold is unreachable — not clipped, not scrolled to, simply
+        // gone. On a phone the app's nav is ~975px against a ~665px viewport, which made
+        // roughly a third of the menu untappable and is what "the mobile nav doesn't
+        // work" turned out to mean. overscroll-contain keeps a flick at the end of the
+        // list from being handed to the page underneath.
+        'fixed z-50 gap-4 bg-background p-6 shadow-lg overflow-y-auto overscroll-contain transition ease-in-out data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:duration-300 data-[state=open]:duration-500',
         side === 'left' &&
           'inset-y-0 left-0 h-full w-3/4 max-w-sm border-r data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left',
         side === 'right' &&

@@ -12,8 +12,13 @@ import {
   SURFACE_LIGHT_HSL,
   buildManifest,
   buildPortalManifest,
+  APPLE_TOUCH_SIZES,
+  ICON_SIZES,
+  MARK_VIEWBOX,
+  appleTouchIcons,
   isIconSize,
   iconUrl,
+  markGeometry,
   markHexFor,
   portalFillFor,
   portalNameFor,
@@ -110,13 +115,21 @@ describe('buildManifest', () => {
     expect(manifest.short_name).toBe('Evergreen')
   })
 
-  it('ships both an any and a maskable icon at 192 and 512', () => {
+  it('ships a maskable icon at both sizes Android reads', () => {
     // Android crops whatever it is given; without a maskable entry it crops the "any"
     // icon and eats the mark.
     const byPurpose = (purpose: string) =>
       (manifest.icons ?? []).filter(i => i.purpose === purpose).map(i => i.sizes).sort()
-    expect(byPurpose('any')).toEqual(['192x192', '512x512'])
     expect(byPurpose('maskable')).toEqual(['192x192', '512x512'])
+  })
+
+  it('offers an exact size for every install slot, so nothing is upscaled', () => {
+    // The reason this ladder is long: an icon the platform has to resize is why an
+    // installed app looks soft. 192/512 are Chrome's installability check, 384 is
+    // Android's splash, and 1024 is what a desktop install carves a dock icon from —
+    // without it macOS doubles the 512.
+    const any = (manifest.icons ?? []).filter(i => i.purpose === 'any').map(i => i.sizes).sort()
+    expect(any).toEqual(['1024x1024', '192x192', '384x384', '512x512'])
   })
 
   it('points every icon at a size the route will actually serve', () => {
@@ -130,6 +143,125 @@ describe('buildManifest', () => {
   it('uses hex colours, which is all a manifest parser is guaranteed to read', () => {
     expect(manifest.theme_color).toMatch(/^#[0-9a-f]{6}$/)
     expect(manifest.background_color).toMatch(/^#[0-9a-f]{6}$/)
+  })
+})
+
+describe('markGeometry', () => {
+  it('draws the mark at a WHOLE-number scale, so strokes cover whole pixels', () => {
+    // This is the blur. The mark is a 2-unit stroke on a 24-unit grid with whole-unit
+    // coordinates: at a fractional scale every edge lands mid-pixel and rasterises as
+    // a half-covered grey. The old 32px favicon drew it at 21px — scale 0.875 — and
+    // more than half its ink came out grey.
+    for (const size of [...ICON_SIZES, 32]) {
+      for (const maskable of [false, true]) {
+        const { scale, markPx } = markGeometry(size, maskable)
+        expect(Number.isInteger(scale)).toBe(true)
+        expect(scale).toBeGreaterThanOrEqual(1)
+        expect(markPx).toBe(scale * MARK_VIEWBOX)
+      }
+    }
+  })
+
+  it('offsets the mark by whole pixels, which flexbox centring does not', () => {
+    // Centring puts the mark on a half pixel whenever the canvas and the mark disagree
+    // about parity — true for a third of the ladder, including 180 and 192, the two
+    // sizes a phone actually installs.
+    for (const size of [...ICON_SIZES, 32]) {
+      for (const maskable of [false, true]) {
+        const { padTop, padLeft } = markGeometry(size, maskable)
+        expect(Number.isInteger(padTop)).toBe(true)
+        expect(Number.isInteger(padLeft)).toBe(true)
+        expect(padTop).toBeGreaterThanOrEqual(0)
+      }
+    }
+  })
+
+  it('strokes an EVEN number of pixels, at every size', () => {
+    // A stroke is centred on its path and reaches half its width either side, so an
+    // odd width puts both edges on a half pixel even when the path is exactly on the
+    // grid. Measured on the rendered PNG rather than assumed: a 120px mark stroked at
+    // 6px shows 6 half-covered pixels across four scanlines, and the same mark at 7px
+    // shows 55. Nudging the mark half a pixel to compensate does not work — the
+    // renderer ignores a fractional offset.
+    for (const size of [...ICON_SIZES, 32]) {
+      for (const maskable of [false, true]) {
+        const { strokePx, strokeUnits, scale } = markGeometry(size, maskable)
+        expect(strokePx % 2).toBe(0)
+        expect(strokeUnits * scale).toBeCloseTo(strokePx, 10)
+      }
+    }
+  })
+
+  it('draws the home-screen icon lighter than the toolbar glyph it comes from', () => {
+    // The mark is a Lucide glyph, whose 2-in-24 stroke (8.3% of the mark) is a weight
+    // for staying legible at 16px in a toolbar. At icon sizes it closes up the window
+    // slots and the gap between the tower and its wings.
+    const LUCIDE_RATIO = 2 / MARK_VIEWBOX
+    for (const size of ICON_SIZES) {
+      for (const maskable of [false, true]) {
+        const { strokePx, markPx } = markGeometry(size, maskable)
+        expect(strokePx / markPx).toBeLessThan(LUCIDE_RATIO)
+        // ...but not so light it becomes a hairline on a home screen.
+        expect(strokePx / markPx).toBeGreaterThan(0.04)
+      }
+    }
+  })
+
+  it('keeps the 32px favicon on the heavier stroke, which it needs', () => {
+    // The mark is only 24px across there; the icons' lighter weight would be a
+    // hairline. Same reason a typeface has a display cut and a text cut — and the two
+    // are never seen together.
+    expect(markGeometry(32).strokePx).toBe(2)
+  })
+
+  it('keeps the mark inside its canvas', () => {
+    for (const size of ICON_SIZES) {
+      for (const maskable of [false, true]) {
+        const { markPx, padLeft } = markGeometry(size, maskable)
+        expect(markPx + padLeft * 2).toBeLessThanOrEqual(size + 1)
+      }
+    }
+  })
+
+  it('keeps a maskable mark inside the safe zone Android guarantees', () => {
+    // Only the middle 80% of a maskable icon survives a launcher's crop. Snapping the
+    // scale moves the mark around a little, so this is the bound that matters.
+    for (const size of ICON_SIZES) {
+      const { markPx } = markGeometry(size, true)
+      expect(markPx / size).toBeLessThanOrEqual(0.8)
+    }
+  })
+
+  it('leaves the mark a recognisable share of the canvas at every size', () => {
+    // Snapping trades an exact 66% for sharpness; the band is what that costs.
+    for (const size of ICON_SIZES) {
+      const share = markGeometry(size).markPx / size
+      expect(share).toBeGreaterThanOrEqual(0.55)
+      expect(share).toBeLessThanOrEqual(0.75)
+    }
+  })
+})
+
+describe('appleTouchIcons', () => {
+  it('names a size for each link, so iOS never resamples one to fit', () => {
+    // A single unqualified 180 was being scaled into an iPad's 152 or 167 slot.
+    const icons = appleTouchIcons('app')
+    expect(icons.map(i => i.sizes)).toEqual(['180x180', '167x167', '152x152'])
+    for (const icon of icons) {
+      const size = Number(new URL(icon.url, 'https://x.test').searchParams.get('size'))
+      expect(isIconSize(size)).toBe(true)
+      expect(icon.sizes).toBe(`${size}x${size}`)
+    }
+  })
+
+  it('covers every size iOS picks between', () => {
+    const declared = appleTouchIcons('app').map(i => i.sizes).sort()
+    expect(declared).toEqual([...APPLE_TOUCH_SIZES].map(s => `${s}x${s}`).sort())
+  })
+
+  it('gives an LP the inverted mark, not the manager app icon', () => {
+    expect(appleTouchIcons('portal').every(i => i.url.includes('variant=portal'))).toBe(true)
+    expect(appleTouchIcons('app').some(i => i.url.includes('variant='))).toBe(false)
   })
 })
 

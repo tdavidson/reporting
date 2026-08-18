@@ -60,7 +60,7 @@ interface NavItem {
  * The nav is an affordance, not a boundary — but it must not LIE. A link to a page whose every
  * request 403s is worse than no link, and a link to data the user shouldn't have is worse still.
  */
-function canSee(
+export function canSee(
   entry: { adminOnly?: boolean; featureKey?: FeatureKey; domain?: Domain },
   isAdmin: boolean,
   access: (domain: Domain, feature?: FeatureKey) => AccessLevel,
@@ -137,6 +137,58 @@ const NAV_ITEMS: NavItem[] = [
   { href: '/support', label: 'Support', icon: LifeBuoy },
 ]
 
+/**
+ * What a phone's tab bar offers, in preference order.
+ *
+ * A phone does not get this sidebar. It gets four destinations across the bottom of
+ * the screen plus a "More" button that opens the sidebar in a drawer — because a
+ * sidebar is a poor fit for the shape of the device and worse for the shape of an
+ * installed app. It is twenty-odd rows deep, which on a phone is a full screen and a
+ * half; it sits behind a control in the TOP-LEFT corner, the hardest place on a
+ * handset to reach; and every navigation costs two taps. In a standalone PWA there is
+ * also no browser chrome to fall back on, so a menu you cannot reach is a dead end
+ * rather than an inconvenience.
+ *
+ * Four is the count both platforms' own tab bars settle on once a "More" affordance
+ * takes the fifth slot, and it is about as many labels as fit legibly across a narrow
+ * screen.
+ *
+ * The list is a PREFERENCE, not a fixed bar: entries the user cannot see are dropped
+ * (same canSee as the sidebar — the tab bar must not offer a page whose every request
+ * 403s), and the bar is then topped up from the rest of NAV_ITEMS so a fund running an
+ * unusual mix of features still gets a full bar rather than two tabs and a gap.
+ */
+const MOBILE_TAB_HREFS = ['/dashboard', '/emails', '/lps', '/funds', '/deals', '/diligence', '/review'] as const
+
+/** Slots before "More" takes the last one. */
+export const MOBILE_TAB_COUNT = 4
+
+export function mobileTabsFor(
+  isAdmin: boolean,
+  access: (domain: Domain, feature?: FeatureKey) => AccessLevel,
+): NavItem[] {
+  const byHref = new Map(NAV_ITEMS.map(item => [item.href, item]))
+  const preferred = MOBILE_TAB_HREFS.map(href => byHref.get(href)).filter((i): i is NavItem => !!i)
+  const rest = NAV_ITEMS.filter(item => !preferred.includes(item))
+  return [...preferred, ...rest].filter(item => canSee(item, isAdmin, access)).slice(0, MOBILE_TAB_COUNT)
+}
+
+/**
+ * Is `pathname` inside this nav item's section?
+ *
+ * Children are checked as well as the item itself, because half the sections keep
+ * theirs at unrelated paths — Portfolio's children are /investments, /notes, /letters
+ * — so a prefix match on the parent alone would leave the bar showing nothing selected
+ * across most of the app. This is deliberately looser than the sidebar's exact match:
+ * a tab bar is answering "which part of the app am I in", not "which row am I on".
+ */
+export function navItemMatches(item: NavItem, pathname: string): boolean {
+  const under = (href: string) => pathname === href || pathname.startsWith(href + '/')
+  return under(item.href) || (item.children ?? []).some(child => under(child.href))
+}
+
+export type { NavItem }
+
 interface AppSidebarProps {
   reviewBadge: number
   settingsBadge?: number
@@ -147,13 +199,26 @@ interface AppSidebarProps {
   featureVisibility?: FeatureVisibilityMap
   /** Derived, not a setting: true when the fund holds at least one fund. */
   fofActive?: boolean
+  /**
+   * Rendered inside the phone's drawer rather than as the desktop aside.
+   *
+   * It forces `collapsed` off. Collapsing is a DESKTOP preference — it trades labels
+   * for horizontal room in a 224px column — but it was read straight from context
+   * here, and `showChildren` is gated on it. So a user who had collapsed the sidebar
+   * at their desk opened the app on a phone, where there is no aside and nothing to
+   * collapse, and found every sub-page missing from the menu: no Investments, no
+   * Capital accounts, no ledger. The drawer is 288px of a screen with nothing beside
+   * it, so there is nothing for collapsing to buy here.
+   */
+  mobile?: boolean
   onNavigate?: () => void
 }
 
-export function AppSidebar({ reviewBadge, settingsBadge, notesBadge, pendingActionsBadge, isAdmin, updateAvailable, featureVisibility, fofActive, onNavigate }: AppSidebarProps) {
+export function AppSidebar({ reviewBadge, settingsBadge, notesBadge, pendingActionsBadge, isAdmin, updateAvailable, featureVisibility, fofActive, mobile, onNavigate }: AppSidebarProps) {
   const pathname = usePathname()
   const access = useAccess()
-  const { collapsed, toggle } = useSidebar()
+  const { collapsed: collapsedPref, toggle } = useSidebar()
+  const collapsed = collapsedPref && !mobile
   const { theme, setTheme } = useTheme()
   const [mounted, setMounted] = useState(false)
   useEffect(() => setMounted(true), [])

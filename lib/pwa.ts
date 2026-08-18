@@ -43,12 +43,134 @@ export const DEFAULT_APP_NAME = 'Portfolio Reporting'
 export const DEFAULT_SHORT_NAME = 'Portfolio'
 export const DEFAULT_PORTAL_NAME = 'Investor Portal'
 
-/** The sizes the manifest and the apple-touch-icon link ask for. */
-export const ICON_SIZES = [180, 192, 512] as const
+/**
+ * Every size the manifest and the apple-touch-icon links ask for.
+ *
+ * The ladder is deliberately long, because an icon a platform has to RESIZE is the
+ * whole reason home-screen icons look soft. Each entry is a slot something actually
+ * fills: 152/167/180 are iPad @2x, iPad Pro and iPhone @3x (iOS reads these off the
+ * apple-touch-icon links); 192 and 512 are the manifest sizes Chrome requires; 384 is
+ * Android's splash; 1024 is what a desktop PWA install carves its dock icon from, and
+ * without it macOS upscales the 512.
+ */
+export const ICON_SIZES = [152, 167, 180, 192, 384, 512, 1024] as const
 export type IconSize = (typeof ICON_SIZES)[number]
 
 export function isIconSize(n: number): n is IconSize {
   return (ICON_SIZES as readonly number[]).includes(n)
+}
+
+/** The sizes iOS picks between for a home-screen icon. Ordered small to large. */
+export const APPLE_TOUCH_SIZES = [152, 167, 180] as const
+
+/**
+ * The mark, as the path data both renderers draw.
+ *
+ * Shared rather than copied so app/icon.tsx (the 32px favicon) and the icon route
+ * cannot drift into two different drawings — they were previously kept in step by a
+ * comment. Every coordinate is a WHOLE unit of the 24-unit viewBox, which is what
+ * makes the snapping in markGeometry below work.
+ */
+export const MARK_PATHS = [
+  'M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z',
+  'M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2',
+  'M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2',
+  'M10 6h4',
+  'M10 10h4',
+  'M10 14h4',
+  'M10 18h4',
+] as const
+
+/** The mark's coordinate space. Every path coordinate above is a whole unit of it. */
+export const MARK_VIEWBOX = 24
+
+/**
+ * Stroke weight, as a fraction of the mark's width.
+ *
+ * The mark is drawn from a Lucide glyph, whose 2-in-24 stroke (8.3%) is a weight
+ * chosen to stay legible at 16px in a toolbar. A home-screen icon is not a toolbar
+ * glyph: at 180px, let alone 512, that weight closes up the window slots and the gap
+ * between the tower and its wings, and the whole thing reads as a blob rather than a
+ * drawing. Roughly 1.25-in-24 keeps the drawing open at icon sizes.
+ *
+ * Not applied to the 32px favicon, which lands on the floor below and keeps its 2px
+ * stroke — the same reason a typeface has a display cut and a text cut. The two are
+ * never seen together.
+ */
+const MARK_STROKE_RATIO = 1.25 / MARK_VIEWBOX
+
+/** Thinnest stroke that survives being drawn at all. Two, because of the rule below. */
+const MIN_STROKE_PX = 2
+
+/**
+ * Fraction of the canvas the mark aims for.
+ *
+ * Android crops a maskable icon to whatever shape the launcher uses — circle,
+ * squircle, teardrop — and only the middle 80% of the width is guaranteed to
+ * survive. Half of that is the mark, which leaves the corners of the background to be
+ * eaten without touching the drawing.
+ */
+const MARK_FRACTION = { any: 0.66, maskable: 0.5 } as const
+
+export interface MarkGeometry {
+  /** Rendered width/height of the mark, in device pixels. */
+  markPx: number
+  /** Distance from the canvas edge to the mark. Whole pixels, deliberately. */
+  padTop: number
+  padLeft: number
+  /** markPx / MARK_VIEWBOX. A whole number, which is the point. */
+  scale: number
+  /** Rendered stroke width in device pixels. An EVEN number, which is also the point. */
+  strokePx: number
+  /** The same stroke expressed in viewBox units, which is what the SVG wants. */
+  strokeUnits: number
+}
+
+/**
+ * Where to draw the mark on a canvas of `size`, so that its strokes land on the pixel
+ * grid instead of straddling it.
+ *
+ * This is the fix for "the icon is blurry". The mark is a 2-unit stroke on a 24-unit
+ * grid with whole-unit coordinates, so it rasterises cleanly at any WHOLE-NUMBER
+ * scale and smears at every other one: at the old 32px favicon the mark was drawn
+ * 21px wide (scale 0.875, a 1.75px stroke) and centred by flexbox at an offset of
+ * 30.5px, so more than half the ink in the icon was a half-covered grey pixel.
+ *
+ * Three rules, all about integers:
+ *
+ *   - The scale is a whole number, so every path coordinate lands on a pixel boundary.
+ *     The mark's share of the canvas then varies a little across the ladder (62–72%
+ *     for the `any` sizes) instead of being exactly 66% and soft everywhere.
+ *   - The padding is a whole number too, computed here rather than left to flexbox
+ *     centring — which lands on a half pixel whenever the canvas and the mark disagree
+ *     about parity, and does so for a third of the sizes above. An odd canvas leaves
+ *     the spare pixel on the right and bottom; one pixel off centre is invisible, one
+ *     pixel of smear across every stroke is not.
+ *   - The stroke is an EVEN number of pixels. A stroke is centred on its path, so it
+ *     reaches half its width either side: an odd width puts both edges on a half pixel
+ *     even when the path itself is exactly on the grid. This is measurable rather than
+ *     theoretical — scanning the rendered PNG, a 120px mark stroked at 6px shows 6 half
+ *     covered pixels and the same mark at 7px shows 55.
+ *
+ * Nudging the whole mark by half a pixel to compensate does NOT work, in case it looks
+ * like it should: the renderer does not honour a fractional offset, and the measurement
+ * comes back unchanged. Even widths only.
+ */
+export function markGeometry(size: number, maskable = false): MarkGeometry {
+  const target = size * MARK_FRACTION[maskable ? 'maskable' : 'any']
+  // At least 1: below ~36px there is no whole scale that also leaves a margin, and a
+  // mark that fills its canvas beats one rounded away to nothing.
+  const scale = Math.max(1, Math.round(target / MARK_VIEWBOX))
+  const markPx = scale * MARK_VIEWBOX
+  const pad = Math.max(0, Math.floor((size - markPx) / 2))
+
+  // Nearest even, floored at 2. The floor is what keeps the 32px favicon on the
+  // toolbar-weight stroke it needs while the icons above it thin out; it also means the
+  // realised weight drifts a little heavier on the smallest canvases, which is the
+  // direction legibility wants anyway.
+  const strokePx = Math.max(MIN_STROKE_PX, 2 * Math.round((markPx * MARK_STROKE_RATIO) / 2))
+
+  return { markPx, padTop: pad, padLeft: pad, scale, strokePx, strokeUnits: strokePx / scale }
 }
 
 /**
@@ -210,6 +332,31 @@ function iconEntry(size: IconSize, maskable: boolean, variant: IconVariant) {
 }
 
 /**
+ * The apple-touch-icon links for one variant, largest first.
+ *
+ * iOS reads these ahead of the manifest's icons, and it does NOT resize well: given a
+ * single unqualified link it takes whatever it finds and scales it into the slot the
+ * device wants, which is 180 on an iPhone but 152 or 167 on an iPad. Naming each size
+ * means every device gets an exact match and nothing is resampled.
+ */
+export function appleTouchIcons(variant: IconVariant = 'app') {
+  return [...APPLE_TOUCH_SIZES]
+    .reverse()
+    .map(size => ({ url: iconUrl(size, variant), sizes: `${size}x${size}` }))
+}
+
+/**
+ * The `any` sizes the manifest advertises.
+ *
+ * 192 and 512 are what Chrome checks for installability; 384 is Android's splash
+ * image, and 1024 is what a desktop install carves a dock icon from. Listing them all
+ * costs four lines of JSON and is what keeps a platform from upscaling.
+ */
+const MANIFEST_ANY_SIZES = [192, 384, 512, 1024] as const
+/** Maskable only needs the two Android reads. */
+const MANIFEST_MASKABLE_SIZES = [192, 512] as const
+
+/**
  * What both manifests share: they are the same app, wearing the same fund's colours.
  * Identity, scope, start page, and icon variant are all that differ.
  */
@@ -223,10 +370,8 @@ function sharedChrome(variant: IconVariant) {
     background_color: SURFACE_LIGHT_HEX,
     theme_color: SURFACE_LIGHT_HEX,
     icons: [
-      iconEntry(192, false, variant),
-      iconEntry(512, false, variant),
-      iconEntry(192, true, variant),
-      iconEntry(512, true, variant),
+      ...MANIFEST_ANY_SIZES.map(size => iconEntry(size, false, variant)),
+      ...MANIFEST_MASKABLE_SIZES.map(size => iconEntry(size, true, variant)),
     ],
   }
 }
