@@ -41,14 +41,6 @@ interface Feed {
   latestQuote: Quote | null
 }
 
-interface QuoteSheet {
-  fileId: string | null
-  syncedAt: string | null
-  lastError: string | null
-  googleConnected: boolean
-  template: string
-}
-
 interface PendingMark {
   companyId: string
   name: string
@@ -66,7 +58,7 @@ interface Holding { companyId: string; name: string }
 
 const EMPTY = {
   companyId: '', kind: 'listed_equity', symbol: '', exchange: '',
-  quoteCurrency: 'USD', quoteScale: '1', provider: 'google_sheets',
+  quoteCurrency: 'USD', quoteScale: '1', provider: 'manual',
   activeFrom: '', restrictionUntil: '', restrictionDiscount: '',
 }
 
@@ -81,7 +73,6 @@ function basisNote(q: Quote | null): string {
 export function PriceFeedsPanel({ onChanged }: { onChanged?: () => void }) {
   const lf = useLedgerFetch()
   const [feeds, setFeeds] = useState<Feed[]>([])
-  const [sheet, setSheet] = useState<QuoteSheet | null>(null)
   const [holdings, setHoldings] = useState<Holding[]>([])
   const [marks, setMarks] = useState<PendingMark[]>([])
   const [loading, setLoading] = useState(true)
@@ -89,9 +80,9 @@ export function PriceFeedsPanel({ onChanged }: { onChanged?: () => void }) {
   const [error, setError] = useState<string | null>(null)
   const [note, setNote] = useState<string | null>(null)
   const [adding, setAdding] = useState(false)
+  const [canFetch, setCanFetch] = useState(false)
+  const [providers, setProviders] = useState<string[]>(['manual'])
   const [form, setForm] = useState({ ...EMPTY })
-  const [sheetUrl, setSheetUrl] = useState('')
-  const [showTemplate, setShowTemplate] = useState(false)
   const [quoteFor, setQuoteFor] = useState<string | null>(null)
   const [quoteForm, setQuoteForm] = useState({ asOfDate: '', price: '', basis: 'close' })
 
@@ -106,8 +97,8 @@ export function PriceFeedsPanel({ onChanged }: { onChanged?: () => void }) {
     const posData = posRes.ok ? await posRes.json() : null
     const markData = markRes.ok ? await markRes.json() : null
     setFeeds(feedData?.feeds ?? [])
-    setSheet(feedData?.quoteSheet ?? null)
-    setSheetUrl(feedData?.quoteSheet?.fileId ?? '')
+    setCanFetch(!!feedData?.canFetch)
+    setProviders(feedData?.providers ?? ['manual'])
     setHoldings((posData?.positions ?? []).map((p: any) => ({ companyId: p.companyId, name: p.name })))
     setMarks(markData?.marks ?? [])
     setLoading(false)
@@ -163,14 +154,12 @@ export function PriceFeedsPanel({ onChanged }: { onChanged?: () => void }) {
     if (d) { setQuoteFor(null); setQuoteForm({ asOfDate: '', price: '', basis: 'close' }); onChanged?.() }
   }
 
-  async function syncNow() {
+  async function fetchQuotes() {
     const d = await post({ action: 'sync-now' })
     if (d) {
-      setNote(
-        d.stored > 0
-          ? `Stored ${d.stored} ${d.stored === 1 ? 'quote' : 'quotes'} from the sheet.`
-          : 'The sheet was read, but no quote matched a feed. Check the symbols match.',
-      )
+      setNote(d.stored > 0
+        ? `Stored ${d.stored} ${d.stored === 1 ? 'quote' : 'quotes'}.`
+        : 'Nothing new to store.')
       if (d.errors?.length) setError(d.errors.join(' · '))
       onChanged?.()
     }
@@ -250,8 +239,9 @@ export function PriceFeedsPanel({ onChanged }: { onChanged?: () => void }) {
               <Select value={form.provider} onValueChange={v => setForm(f => ({ ...f, provider: v }))}>
                 <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="google_sheets">Google Finance sheet</SelectItem>
-                  <SelectItem value="manual">Entered by hand</SelectItem>
+                  {providers.map(p => (
+                    <SelectItem key={p} value={p}>{p === 'manual' ? 'Entered by hand' : p}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -343,7 +333,7 @@ export function PriceFeedsPanel({ onChanged }: { onChanged?: () => void }) {
                       </span>
                     </td>
                     <td className="px-3 py-2 text-xs text-muted-foreground">
-                      {f.provider === 'google_sheets' ? 'Google Finance sheet' : 'By hand'}
+                      {f.provider === 'manual' ? 'By hand' : f.provider}
                     </td>
                     <td className="px-3 py-2 text-xs text-muted-foreground tabular-nums">{f.active_from}</td>
                     <td className="px-3 py-2 text-right tabular-nums">
@@ -432,71 +422,29 @@ export function PriceFeedsPanel({ onChanged }: { onChanged?: () => void }) {
         </div>
       )}
 
-      {/* --- The Google sheet --------------------------------------------- */}
-      <div className="rounded-lg border p-3 space-y-3">
-        <div>
-          <p className="text-sm font-medium">Google Finance sheet</p>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            Google retired its Finance API in 2012, so the only way to that data is the{' '}
-            <code className="text-[11px]">GOOGLEFINANCE()</code> formula inside a sheet. Keep one sheet of
-            those formulas and this reads its values each weekday evening. It needs no new Google permission —
-            your existing Drive connection covers it.
-          </p>
-        </div>
-
-        {!sheet?.googleConnected && (
-          <div className="rounded border px-3 py-2 text-xs flex items-start gap-2">
-            <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
-            <span>Google isn&rsquo;t connected for this fund yet — connect it in Settings before using a sheet.</span>
+      {/* --- Where a price source would plug in --------------------------- */}
+      <div className="rounded-lg border p-3">
+        <p className="text-sm font-medium">Where the prices come from</p>
+        <p className="text-xs text-muted-foreground mt-1">
+          Quotes are entered by hand today, which is the right answer for a handful of positions —
+          nothing to subscribe to, and the price on the record is the one you checked. A stored quote
+          is stored, sourced and levelled the same way whether a person typed it or a vendor sent it,
+          so connecting a data feed later changes nothing you can see here.
+        </p>
+        {canFetch && (
+          <div className="mt-2">
+            <Button size="sm" variant="outline" disabled={busy} onClick={fetchQuotes}>
+              <RefreshCw className="h-3.5 w-3.5 mr-1" />Fetch the latest quotes
+            </Button>
           </div>
         )}
-
-        <div className="flex flex-wrap items-end gap-2">
-          <div className="flex-1 min-w-[16rem]">
-            <Label className="text-xs">Sheet link</Label>
-            <Input className="mt-1" value={sheetUrl} placeholder="https://docs.google.com/spreadsheets/d/…"
-              onChange={e => setSheetUrl(e.target.value)} />
-          </div>
-          <Button size="sm" variant="outline" disabled={busy}
-            onClick={() => post({ action: 'set-sheet', url: sheetUrl })}>Save</Button>
-          <Button size="sm" variant="outline" disabled={busy || !sheet?.fileId} onClick={syncNow}>
-            <RefreshCw className="h-3.5 w-3.5 mr-1" />Sync now
-          </Button>
-        </div>
-
-        {sheet?.syncedAt && (
-          <p className="text-xs text-muted-foreground">
-            Last synced {new Date(sheet.syncedAt).toLocaleString()}.
-          </p>
-        )}
-        {sheet?.lastError && (
-          <div className="rounded border border-warning/40 bg-warning/10 px-3 py-2 text-xs flex items-start gap-2">
-            <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" /><span>{sheet.lastError}</span>
-          </div>
-        )}
-
-        <div>
-          <Button size="sm" variant="ghost" className="text-xs h-7 px-0"
-            onClick={() => setShowTemplate(t => !t)}>
-            {showTemplate ? 'Hide' : 'Show'} the sheet template
-          </Button>
-          {showTemplate && sheet && (
-            <div className="mt-2 space-y-2">
-              <p className="text-xs text-muted-foreground">
-                Paste this into the first two rows of a new sheet, then replace the ticker and add one row per
-                holding. It reads the last <em>trading day&rsquo;s</em> official close with its real date, so
-                weekends and holidays take care of themselves — and it earns Level 1, which a bare delayed
-                quote would not.
-              </p>
-              <pre className="text-[11px] bg-muted/50 rounded p-2 overflow-x-auto whitespace-pre">{sheet.template}</pre>
-              <p className="text-[11px] text-muted-foreground">
-                Splits are not in this data. Enter a share split on the holding&rsquo;s page — otherwise the
-                share count stays pre-split while the price goes post-split and the position halves.
-              </p>
-            </div>
-          )}
-        </div>
+        <p className="text-[11px] text-muted-foreground mt-2">
+          Note that no data feed carries corporate actions for free. Enter a share split on the
+          holding&rsquo;s page — otherwise the share count stays pre-split while the price goes
+          post-split, and the position halves.
+        </p>
       </div>
+
     </div>
   )
 }

@@ -78,6 +78,7 @@ export const ROUTE_DOMAINS: Record<string, RouteAccess> = {
   'api/accounting/quickbooks/import': { domain: 'accounting' },
   'api/accounting/quickbooks/tie-out': { domain: 'accounting' },
   'api/accounting/fund-timeseries': { domain: 'accounting' },
+  'api/accounting/crypto-wallets': { domain: 'accounting' },
   'api/accounting/price-feeds': { domain: 'accounting' },
   'api/accounting/quote-marks': { domain: 'accounting' },
   'api/accounting/investments': { domain: 'accounting' },
@@ -418,7 +419,6 @@ export const UNGATED_ROUTES: Record<string, string> = {
 
   // Service-triggered: shared CRON_SECRET, fail-closed if unset.
   'api/cron/affinity-sync': 'Cron: CRON_SECRET.',
-  'api/cron/quote-sync': 'Cron: CRON_SECRET.',
   'api/cron/deal-research': 'Cron: CRON_SECRET.',
   'api/cron/deals-digest': 'Cron: CRON_SECRET.',
   'api/cron/memo-agent-worker': 'Cron: CRON_SECRET.',

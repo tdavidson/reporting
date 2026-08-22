@@ -27,10 +27,14 @@ export interface QuoteResult {
 
 export interface ProviderContext {
   fundId: string
-  /** Fund-level provider configuration, e.g. the Google Sheet a fund keeps its quotes in. */
-  quoteSheetFileId?: string | null
-  /** Resolves an OAuth access token for the fund, lazily — most providers never call it. */
-  accessToken?: () => Promise<string | null>
+  /**
+   * Whatever a registered adapter needs to authenticate — an API key, a token resolver.
+   * Deliberately open: the credential model belongs to the vendor, and pinning a shape here
+   * before there is a vendor would just be a guess that the first real adapter has to undo.
+   * Follow the repo's existing pattern when one lands — a `*_encrypted` column on
+   * `fund_settings` under the fund DEK, as the Claude and Resend keys already do.
+   */
+  credentials?: Record<string, unknown>
 }
 
 export interface QuoteProvider {

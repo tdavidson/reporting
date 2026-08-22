@@ -11,10 +11,11 @@ import { PeriodPicker } from '@/components/accounting/period-picker'
 import type { PeriodPreset } from '@/lib/accounting/statement-period'
 import { EmptyState } from '@/components/ui/empty-state'
 import { PriceFeedsPanel } from './price-feeds-panel'
+import { WalletsPanel } from './wallets-panel'
 
 interface SoiRow {
   name: string
-  holdingType?: 'company' | 'fund'
+  holdingType?: 'company' | 'fund' | 'crypto'
   cost: number
   fairValue: number
   pctOfNetAssets: number
@@ -140,7 +141,9 @@ export function ScheduleOfInvestmentsView() {
     // so a single table would render half its columns blank for every row. The ledger control
     // total below still covers both — only the display is split.
     const fundRows = soi.rows.filter(r => r.holdingType === 'fund')
-    const companyRows = soi.rows.filter(r => r.holdingType !== 'fund')
+    const cryptoRows = soi.rows.filter(r => r.holdingType === 'crypto')
+    // Everything else, including rows from before the discriminator existed.
+    const companyRows = soi.rows.filter(r => r.holdingType !== 'fund' && r.holdingType !== 'crypto')
     // The Level column appears only once something is ABOVE Level 3. A wholly private book is
     // Level 3 by construction, and a column repeating "3" on every row is noise that makes the
     // one number a reader should notice harder to find.
@@ -341,7 +344,10 @@ export function ScheduleOfInvestmentsView() {
 
       {([
         ['Underlying funds', fundRows] as const,
-        [fundRows.length > 0 ? 'Direct investments' : 'Investment', companyRows] as const,
+        // A token has a quantity and a price, so it shares the table's shape — but no industry,
+        // stage or country, so it gets its own heading rather than three blank columns.
+        ['Digital assets', cryptoRows] as const,
+        [(fundRows.length > 0 || cryptoRows.length > 0) ? 'Direct investments' : 'Investment', companyRows] as const,
       ]).filter(([, rs]) => rs.length > 0).map(([heading, rs]) => (
       <div key={heading} className="border rounded-lg overflow-x-auto">
         <table className="w-full text-sm whitespace-nowrap">
@@ -397,8 +403,8 @@ export function ScheduleOfInvestmentsView() {
       </div>
       ))}
 
-      {/* Both sections together, against the ledger — the control total is unchanged by the split. */}
-      {fundRows.length > 0 && companyRows.length > 0 && (
+      {/* Every section together, against the ledger — the control total is unchanged by the split. */}
+      {[fundRows, cryptoRows, companyRows].filter(rs => rs.length > 0).length > 1 && (
         <div className="border rounded-lg px-3 py-2 flex items-center justify-between text-sm font-semibold">
           <span>Total investments</span>
           <span className="tabular-nums">{fmt(soi.totalCost)} cost · {fmt(soi.totalFairValue)} fair value</span>
@@ -420,6 +426,12 @@ export function ScheduleOfInvestmentsView() {
       {soi.source === 'tracker' && (
         <div className="border-t pt-5">
           <PriceFeedsPanel onChanged={load} />
+        </div>
+      )}
+
+      {soi.source === 'tracker' && (
+        <div className="border-t pt-5">
+          <WalletsPanel onChanged={load} />
         </div>
       )}
       </>

@@ -109,9 +109,13 @@ export function normalizeSecurityType(value: unknown): string | null {
 export interface SoiPosition {
   companyId: string
   name: string
-  /** 'fund' for a fund-of-funds holding. Company-shaped columns (shares, stage) are empty for
-   *  those, so the view renders them as their own section rather than in one mixed table. */
-  holdingType: 'company' | 'fund'
+  /**
+   * What kind of thing this holding is, so the view can section the schedule rather than render
+   * one mixed table. 'fund' has no shares or stage at all; 'crypto' has a quantity and a price
+   * but no industry, stage or country, and reporting a token under "Direct investments" with
+   * three blank columns states something false about it.
+   */
+  holdingType: 'company' | 'fund' | 'crypto'
   industry: string | null
   /** ASC 946 geography band. Null until companies.country is populated. */
   country: string | null
@@ -144,8 +148,9 @@ export interface SoiPosition {
 export interface SoiCompany {
   id: string
   name: string
-  /** Added by the fund-of-funds migration; defaults to 'company' for every existing row. */
-  holding_type?: 'company' | 'fund' | null
+  /** Added by the fund-of-funds migration; defaults to 'company' for every existing row.
+   *  'crypto' added by 20260822000000. */
+  holding_type?: 'company' | 'fund' | 'crypto' | null
   status: CompanyStatus
   industry: string[] | null
   stage: string | null
@@ -230,7 +235,9 @@ export function buildSoiPositions(
     positions.push({
       companyId: company.id,
       name: company.name,
-      holdingType: company.holding_type === 'fund' ? 'fund' : 'company',
+      holdingType: company.holding_type === 'fund' || company.holding_type === 'crypto'
+        ? company.holding_type
+        : 'company',
       industry: company.industry?.[0] ?? null,
       country: company.country ?? null,
       stage: company.stage ?? null,

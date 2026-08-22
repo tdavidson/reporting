@@ -28,6 +28,7 @@ import type { FundPosition } from '@/lib/portfolio/fof-metrics'
 import { loadFofData, ledgerCarryingByHolding } from '@/lib/portfolio/fof-load'
 import { fofCloseIssues } from '@/lib/portfolio/fof-valuation'
 import { quoteCloseIssues, type PriceFeed, type PriceObservation, type QuotedPosition } from '@/lib/portfolio/quotes'
+import { walletCloseIssues, type Wallet, type WalletBalance } from '@/lib/portfolio/wallets'
 import { buildSoiPositions, type SoiCompany } from './soi'
 import { fundCurrency } from './currency'
 import { accountIdByCode, ensureCapitalAccounts, persistEntry } from './persist'
@@ -440,6 +441,61 @@ async function loadQuoteCloseInputs(
   return { positions, feeds, observations, currency }
 }
 
+/**
+ * Watched wallets and what the chain says they hold.
+ *
+ * Returns null for a fund with no wallets, so a book holding no digital assets runs the query
+ * count it ran before. Same posture as the FoF and quoted loaders above.
+ */
+async function loadWalletCloseInputs(
+  admin: SupabaseClient,
+  fundId: string,
+  group: string,
+  asOf: string,
+): Promise<{
+  positions: { companyId: string; name: string; units: number }[]
+  wallets: Wallet[]
+  balances: WalletBalance[]
+} | null> {
+  const { data: walletRows } = await (admin as any)
+    .from('crypto_wallets').select('*').eq('fund_id', fundId)
+  const rows = ((walletRows as any[]) ?? [])
+  if (rows.length === 0) return null
+
+  const wallets: Wallet[] = rows.map(w => ({
+    id: w.id,
+    companyId: w.company_id,
+    chain: w.chain,
+    address: w.address,
+    label: w.label,
+    active: w.active !== false,
+    verifiedAt: w.verified_at,
+    verificationMethod: w.verification_method,
+  }))
+
+  const [{ data: balRows }, { data: txnRows }, { data: companyRows }] = await Promise.all([
+    (admin as any).from('crypto_wallet_balances').select('*').eq('fund_id', fundId).lte('as_of_date', asOf),
+    (admin as any).from('investment_transactions').select('*').eq('fund_id', fundId),
+    (admin as any).from('companies').select('*').eq('fund_id', fundId),
+  ])
+
+  const balances: WalletBalance[] = ((balRows as any[]) ?? []).map(b => ({
+    walletId: b.wallet_id,
+    asOfDate: b.as_of_date,
+    units: Number(b.units),
+    blockHeight: b.block_height,
+  }))
+
+  // Cut the history at the period end, then read the units through the same roll-up everything
+  // else uses — so the quantity compared against the chain is SPLIT-ADJUSTED and matches what
+  // the schedule of investments reports for the same date.
+  const upTo = ((txnRows as any[]) ?? []).filter(t => !t.transaction_date || t.transaction_date <= asOf)
+  const soi = buildSoiPositions(upTo, ((companyRows as any[]) ?? []) as SoiCompany[], group, new Date(asOf))
+  const positions = soi.map(p => ({ companyId: p.companyId, name: p.name, units: p.shares ?? 0 }))
+
+  return { positions, wallets, balances }
+}
+
 /** Pre-close checks over the whole span. */
 async function checkReadiness(
   admin: SupabaseClient,
@@ -504,6 +560,17 @@ async function checkReadiness(
   if (quoted) {
     const issues = quoteCloseIssues(
       quoted.positions, quoted.feeds, quoted.observations, end, quoted.currency,
+    )
+    blockers.push(...issues.blockers)
+    warnings.push(...issues.warnings)
+  }
+
+  // Watched wallets. Warnings only, never blockers — see lib/portfolio/wallets.ts for why a
+  // quantity disagreement is a decision the fund makes rather than a stop.
+  const walletInputs = await loadWalletCloseInputs(admin, fundId, group, end)
+  if (walletInputs) {
+    const issues = walletCloseIssues(
+      walletInputs.positions, walletInputs.wallets, walletInputs.balances, end,
     )
     blockers.push(...issues.blockers)
     warnings.push(...issues.warnings)

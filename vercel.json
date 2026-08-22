@@ -36,9 +36,6 @@
     },
     "app/api/cron/deal-research/route.ts": {
       "maxDuration": 300
-    },
-    "app/api/cron/quote-sync/route.ts": {
-      "maxDuration": 60
     }
   },
   "crons": [
@@ -57,10 +54,6 @@
     {
       "path": "/api/cron/deal-research",
       "schedule": "*/10 * * * *"
-    },
-    {
-      "path": "/api/cron/quote-sync",
-      "schedule": "30 22 * * 1-5"
     }
   ]
 }

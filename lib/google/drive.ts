@@ -232,23 +232,6 @@ export function parseDriveFolderUrl(url: string): string | null {
   return m ? m[1] : null
 }
 
-/**
- * Extract a Google Sheets (or any Drive file) ID from a URL like
- *   https://docs.google.com/spreadsheets/d/<id>/edit#gid=0
- *   https://drive.google.com/file/d/<id>/view
- * A bare id is accepted as-is, because people paste the id as readily as the link.
- * Returns null if it looks like neither.
- */
-export function parseDriveFileUrl(url: string): string | null {
-  const trimmed = url.trim()
-  if (!trimmed) return null
-  const m = trimmed.match(/\/d\/([a-zA-Z0-9_-]+)/)
-  if (m) return m[1]
-  // A bare id: Drive ids are long, and the character class excludes anything URL-shaped, so a
-  // mistyped link fails here rather than being stored as an id that can never resolve.
-  if (/^[a-zA-Z0-9_-]{20,}$/.test(trimmed)) return trimmed
-  return null
-}
 
 /**
  * Resolve a folder's display name from its ID. Used when a partner pastes a
