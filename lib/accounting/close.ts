@@ -27,6 +27,9 @@ import { loadPostedLedger, loadOwnership, loadEntityNames } from './load'
 import type { FundPosition } from '@/lib/portfolio/fof-metrics'
 import { loadFofData, ledgerCarryingByHolding } from '@/lib/portfolio/fof-load'
 import { fofCloseIssues } from '@/lib/portfolio/fof-valuation'
+import { quoteCloseIssues, type PriceFeed, type PriceObservation, type QuotedPosition } from '@/lib/portfolio/quotes'
+import { buildSoiPositions, type SoiCompany } from './soi'
+import { fundCurrency } from './currency'
 import { accountIdByCode, ensureCapitalAccounts, persistEntry } from './persist'
 import { allocateAmount } from './allocation'
 import { postingsInPeriod } from './statements'
@@ -366,6 +369,77 @@ async function loadFofCloseInputs(
   }
 }
 
+/**
+ * The quoted half of the close's inputs — positions priced by a feed rather than by a round.
+ *
+ * Returns null for a fund that has no feeds, so a purely private book runs exactly the query
+ * count it ran before and none of this code path executes. Same shape as the FoF loader above,
+ * for the same reason: the check itself is pure, and lives in lib/portfolio/quotes.ts.
+ */
+async function loadQuoteCloseInputs(
+  admin: SupabaseClient,
+  fundId: string,
+  group: string,
+  asOf: string,
+): Promise<{
+  positions: QuotedPosition[]
+  feeds: PriceFeed[]
+  observations: PriceObservation[]
+  currency: string
+} | null> {
+  const { data: feedRows } = await (admin as any)
+    .from('price_feeds')
+    .select('*')
+    .eq('fund_id', fundId)
+  const feeds = ((feedRows as any[]) ?? []).map(f => ({
+    id: f.id,
+    companyId: f.company_id,
+    kind: f.kind,
+    symbol: f.symbol,
+    exchange: f.exchange,
+    quoteCurrency: f.quote_currency,
+    quoteScale: Number(f.quote_scale ?? 1),
+    activeFrom: f.active_from,
+    activeUntil: f.active_until,
+    restrictionUntil: f.restriction_until,
+    restrictionDiscount: f.restriction_discount == null ? null : Number(f.restriction_discount),
+  })) as PriceFeed[]
+  if (feeds.length === 0) return null
+
+  const [{ data: obsRows }, { data: txnRows }, { data: companyRows }, ledger, currency] = await Promise.all([
+    (admin as any).from('price_observations').select('*').eq('fund_id', fundId).lte('as_of_date', asOf),
+    (admin as any).from('investment_transactions').select('*').eq('fund_id', fundId),
+    (admin as any).from('companies').select('*').eq('fund_id', fundId),
+    loadPostedLedger(admin, fundId, group, asOf),
+    fundCurrency(admin, fundId),
+  ])
+
+  const observations = ((obsRows as any[]) ?? []).map(o => ({
+    feedId: o.feed_id,
+    asOfDate: o.as_of_date,
+    price: Number(o.price),
+    basis: o.basis,
+  })) as PriceObservation[]
+
+  // Transactions are cut at the period end BEFORE the roll-up sees them. Without this the
+  // position would be valued on share counts — and splits — that had not happened yet, so a
+  // re-close of an earlier period would not reproduce.
+  const upTo = ((txnRows as any[]) ?? []).filter(t => !t.transaction_date || t.transaction_date <= asOf)
+  // buildSoiPositions runs through computeSummary, so `shares` arrives SPLIT-ADJUSTED — which is
+  // what a quote must be multiplied by (lib/splits.ts).
+  const soi = buildSoiPositions(upTo, ((companyRows as any[]) ?? []) as SoiCompany[], group, new Date(asOf))
+  const carrying = ledgerCarryingByHolding(ledger.accounts, ledger.postings)
+
+  const positions: QuotedPosition[] = soi.map(p => ({
+    companyId: p.companyId,
+    name: p.name,
+    shares: p.shares ?? 0,
+    ledgerCarrying: carrying.get(p.companyId) ?? 0,
+  }))
+
+  return { positions, feeds, observations, currency }
+}
+
 /** Pre-close checks over the whole span. */
 async function checkReadiness(
   admin: SupabaseClient,
@@ -420,6 +494,17 @@ async function checkReadiness(
   const fof = await loadFofCloseInputs(admin, fundId, group, end)
   if (fof) {
     const issues = fofCloseIssues(fof.positions, fof.ledgerCarrying, end)
+    blockers.push(...issues.blockers)
+    warnings.push(...issues.warnings)
+  }
+
+  // Quoted positions. Skipped entirely for a fund with no price feeds, so a private book is
+  // unaffected — same posture as the FoF block above.
+  const quoted = await loadQuoteCloseInputs(admin, fundId, group, end)
+  if (quoted) {
+    const issues = quoteCloseIssues(
+      quoted.positions, quoted.feeds, quoted.observations, end, quoted.currency,
+    )
     blockers.push(...issues.blockers)
     warnings.push(...issues.warnings)
   }

@@ -78,6 +78,8 @@ export const ROUTE_DOMAINS: Record<string, RouteAccess> = {
   'api/accounting/quickbooks/import': { domain: 'accounting' },
   'api/accounting/quickbooks/tie-out': { domain: 'accounting' },
   'api/accounting/fund-timeseries': { domain: 'accounting' },
+  'api/accounting/price-feeds': { domain: 'accounting' },
+  'api/accounting/quote-marks': { domain: 'accounting' },
   'api/accounting/investments': { domain: 'accounting' },
   'api/accounting/journal': { domain: 'accounting' },
   'api/accounting/journal/bulk-post': { domain: 'accounting' },

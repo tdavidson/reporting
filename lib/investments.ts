@@ -1,16 +1,22 @@
 import type { InvestmentTransaction, CompanyStatus } from '@/lib/types/database'
 import type { CompanyInvestmentSummary, InvestmentRoundSummary } from '@/lib/types/investments'
 import { xirr, type CashFlow } from '@/lib/xirr'
+import { splitAdjust } from '@/lib/splits'
 
 // ---------------------------------------------------------------------------
 // Compute summary from raw transactions
 // ---------------------------------------------------------------------------
 
 export function computeSummary(
-  transactions: InvestmentTransaction[],
+  rawTransactions: InvestmentTransaction[],
   companyStatus: CompanyStatus,
   asOfDate: Date = new Date()
 ): CompanyInvestmentSummary {
+  // Restate the history in today's shares BEFORE anything reads a share count or a per-share
+  // price. Splits are applied once, here, so nothing downstream has to know they exist — see
+  // lib/splits.ts for why this is a pre-pass and not a branch in the roll-up.
+  const transactions = splitAdjust(rawTransactions)
+
   let totalInvested = 0
   let totalShares = 0
   let totalRealized = 0

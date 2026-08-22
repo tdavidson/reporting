@@ -14,6 +14,8 @@
 // guessing would post to the wrong books. Those return a reason instead of an entry.
 // Same for `round_info`: it is a price signal, not a fund transaction. The mark it
 // implies flows through the position's fair value, which the tie-out will surface.
+// A `split` is refused for a different reason: it changes the share count and the price by
+// offsetting factors, so the position's value does not move and there is nothing to post.
 //
 // NOTHING HERE MAY THROW INTO THE CALLER. Recording an investment must not fail because
 // the ledger hiccuped — the caller reports `LedgerDraftResult` alongside the saved
@@ -323,6 +325,13 @@ export async function draftEntryForTransaction(
 
     if (!companyId) return skip('No company on the transaction.')
     if (!entryDate) return skip('No transaction date — the ledger needs one to place the entry in a period.')
+    // A split is checked BEFORE the vehicle test, because it is never a ledger entry however it
+    // is tagged. It restates the share count and the per-share price by offsetting factors and
+    // moves the position's value by exactly zero — there is nothing to debit or credit. Booking
+    // one would post a balanced pair of zero-value postings and make the tie-out lie.
+    if (txn.transaction_type === 'split') {
+      return skip('A split restates the share count without changing value — no entry to book.')
+    }
     if (!group) {
       return skip(
         'This row has no vehicle, so it is company-wide pricing rather than a fund transaction. ' +

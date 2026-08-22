@@ -198,6 +198,8 @@ export interface SoiRow {
   sharePrice?: number | null
   unrealized?: number
   moic?: number | null
+  /** ASC 820 fair value hierarchy. Undecorated rows read as Level 3. */
+  valuationLevel?: 1 | 2 | 3
   // Per-company value breakdown from the tracker (source: 'tracker' rows only).
   /** Gross capital deployed, before exits. */
   invested?: number
@@ -237,6 +239,9 @@ export interface ScheduleOfInvestments {
   byIndustry: SoiGroup[]
   byGeography: SoiGroup[]
   byAssetType: SoiGroup[]
+  /** ASC 820 leveling. EMPTY for a wholly private book, where every position is Level 3 and
+   *  the breakout would restate the total on a single line. */
+  byLevel: SoiGroup[]
 }
 
 function groupBy(rows: SoiRow[], key: (row: SoiRow) => string, netAssets: number): SoiGroup[] {
@@ -348,6 +353,13 @@ export function scheduleOfInvestments(
     byIndustry: fromTracker ? groupBy(rows, x => x.industry || 'Unclassified', netAssets) : [],
     byGeography: fromTracker ? groupBy(rows, x => x.country || 'Unclassified', netAssets) : [],
     byAssetType: fromTracker ? groupBy(rows, x => x.assetType || 'Unclassified', netAssets) : [],
+    // ASC 820 leveling. Emitted ONLY when something is above Level 3: a wholly private book is
+    // entirely Level 3 by construction, and a table restating the total on one line tells the
+    // reader nothing. The disclosure earns its place the moment one position is quoted, because
+    // then the reader cannot otherwise tell which is which.
+    byLevel: fromTracker && rows.some(x => (x.valuationLevel ?? 3) !== 3)
+      ? groupBy(rows, x => `Level ${x.valuationLevel ?? 3}`, netAssets)
+      : [],
   }
 }
 

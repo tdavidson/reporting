@@ -23,6 +23,8 @@ interface SoiRow {
   shares?: number | null
   sharePrice?: number | null
   moic?: number | null
+  /** ASC 820 fair value hierarchy. Absent reads as Level 3. */
+  valuationLevel?: 1 | 2 | 3
   // Present once the company has its own 1100-<id> / 1200-<id> accounts.
   ledgerCost?: number
   ledgerFairValue?: number
@@ -57,6 +59,8 @@ interface Soi {
   byIndustry: SoiGroup[]
   byGeography: SoiGroup[]
   byAssetType: SoiGroup[]
+  /** Empty for a wholly private book, where every position is Level 3. */
+  byLevel: SoiGroup[]
 }
 
 export function ScheduleOfInvestmentsView() {
@@ -136,6 +140,10 @@ export function ScheduleOfInvestmentsView() {
     // total below still covers both — only the display is split.
     const fundRows = soi.rows.filter(r => r.holdingType === 'fund')
     const companyRows = soi.rows.filter(r => r.holdingType !== 'fund')
+    // The Level column appears only once something is ABOVE Level 3. A wholly private book is
+    // Level 3 by construction, and a column repeating "3" on every row is noise that makes the
+    // one number a reader should notice harder to find.
+    const showLevel = (soi.byLevel?.length ?? 0) > 0
 
     const groupTable = (title: string, groups: SoiGroup[]) => (
       <div className="border rounded-lg overflow-x-auto">
@@ -341,6 +349,7 @@ export function ScheduleOfInvestmentsView() {
               <th className="text-left px-3 py-2 font-medium">{heading}</th>
               <th className="text-left px-3 py-2 font-medium">Industry</th>
               <th className="text-left px-3 py-2 font-medium">Type</th>
+              {showLevel && <th className="text-left px-3 py-2 font-medium">Level</th>}
               <th className="text-right px-3 py-2 font-medium">Shares</th>
               <th className="text-right px-3 py-2 font-medium">Price</th>
               <th className="text-right px-3 py-2 font-medium">Cost</th>
@@ -362,6 +371,9 @@ export function ScheduleOfInvestmentsView() {
                 </td>
                 <td className="px-3 py-2 text-xs text-muted-foreground">{r.industry ?? '—'}</td>
                 <td className="px-3 py-2 text-xs text-muted-foreground">{r.assetType ?? '—'}</td>
+                {showLevel && (
+                  <td className="px-3 py-2 text-xs text-muted-foreground tabular-nums">{r.valuationLevel ?? 3}</td>
+                )}
                 <td className="px-3 py-2 text-right tabular-nums text-xs">{num(r.shares)}</td>
                 <td className="px-3 py-2 text-right tabular-nums text-xs">{r.sharePrice == null ? '—' : formatSharePrice(r.sharePrice, currency)}</td>
                 <td className="px-3 py-2 text-right tabular-nums">{fmt(r.cost)}</td>
@@ -373,7 +385,7 @@ export function ScheduleOfInvestmentsView() {
           </tbody>
           <tfoot>
             <tr className="border-t bg-muted/30 font-semibold">
-              <td className="px-3 py-2" colSpan={5}>Total</td>
+              <td className="px-3 py-2" colSpan={showLevel ? 6 : 5}>Total</td>
               <td className="px-3 py-2 text-right tabular-nums">{fmt(rs.reduce((a, r) => a + r.cost, 0))}</td>
               <td className="px-3 py-2 text-right tabular-nums">{fmt(rs.reduce((a, r) => a + r.fairValue, 0))}</td>
               <td />
@@ -397,6 +409,8 @@ export function ScheduleOfInvestmentsView() {
           {soi.byIndustry.length > 0 && groupTable('By industry', soi.byIndustry)}
           {soi.byAssetType.length > 0 && groupTable('By asset type', soi.byAssetType)}
           {soi.byGeography.length > 0 && groupTable('By geography', soi.byGeography)}
+          {/* ASC 820. Present only once a position is priced by something other than judgement. */}
+          {(soi.byLevel?.length ?? 0) > 0 && groupTable('By fair value level', soi.byLevel)}
         </div>
       )}
       </>

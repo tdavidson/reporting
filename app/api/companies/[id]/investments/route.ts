@@ -83,7 +83,24 @@ export async function GET(
 // POST — create a new transaction
 // ---------------------------------------------------------------------------
 
-const VALID_TYPES = ['investment', 'proceeds', 'unrealized_gain_change', 'round_info']
+const VALID_TYPES = ['investment', 'proceeds', 'unrealized_gain_change', 'round_info', 'split']
+
+/**
+ * A split row is meaningless without a positive ratio and a date, and the DB enforces both.
+ * Validated here too so the caller gets a sentence instead of a raw constraint violation
+ * surfacing as "An unexpected error occurred" — the same reason security_type is checked below.
+ */
+function splitError(body: any): string | null {
+  if (body.transaction_type !== 'split') return null
+  const ratio = Number(body.split_ratio)
+  if (!Number.isFinite(ratio) || ratio <= 0) {
+    return 'A split needs a positive split_ratio — new shares per old share (2-for-1 forward = 2, 1-for-10 reverse = 0.1).'
+  }
+  if (!body.transaction_date) {
+    return 'A split needs a transaction_date — its effective date places it in the share history.'
+  }
+  return null
+}
 
 export async function POST(
   req: NextRequest,
@@ -123,6 +140,9 @@ export async function POST(
     return NextResponse.json({ error: 'Invalid transaction_type' }, { status: 400 })
   }
 
+  const splitProblem = splitError(body)
+  if (splitProblem) return NextResponse.json({ error: splitProblem }, { status: 400 })
+
   // security_type is CHECK-constrained. Unvalidated, a bad value reached Postgres and came back as
   // a raw constraint violation the user saw as "An unexpected error occurred" — so say what's wrong
   // here instead. Normalizing first keeps "Convertible Note" from an API caller working.
@@ -161,6 +181,9 @@ export async function POST(
       interest_converted: body.interest_converted ?? 0,
       shares_acquired: body.shares_acquired ?? null,
       share_price: body.share_price ?? null,
+      // New shares per old share. Only ever set on a `split` row; the roll-up applies it to
+      // every row dated before it (lib/splits.ts).
+      split_ratio: body.split_ratio ?? null,
       cost_basis_exited: body.cost_basis_exited ?? null,
       proceeds_received: body.proceeds_received ?? null,
       proceeds_escrow: body.proceeds_escrow ?? 0,

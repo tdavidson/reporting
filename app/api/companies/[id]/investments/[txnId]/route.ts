@@ -44,9 +44,9 @@ export async function PATCH(
   const body = await req.json()
 
   // A mis-typed row can be reclassified on edit (e.g. a "Round" that should be a "Valuation
-  // Update"). Only the four DB types are valid; the UI's "conversion" is already translated to
+  // Update"). Only the DB types are valid; the UI's "conversion" is already translated to
   // 'investment' + converts_from before it reaches here.
-  const VALID_TYPES = ['investment', 'proceeds', 'unrealized_gain_change', 'round_info']
+  const VALID_TYPES = ['investment', 'proceeds', 'unrealized_gain_change', 'round_info', 'split']
   if ('transaction_type' in body && !VALID_TYPES.includes(body.transaction_type)) {
     return NextResponse.json({ error: 'Invalid transaction_type' }, { status: 400 })
   }
@@ -81,6 +81,9 @@ export async function PATCH(
     'transaction_type',
     'round_name', 'transaction_date', 'notes',
     'investment_cost', 'interest_converted', 'shares_acquired', 'share_price',
+    // Corrigible on edit: a split announced at the wrong ratio is a share count that is wrong
+    // everywhere until it is fixed. The DB constraints still enforce positive-and-dated.
+    'split_ratio',
     'cost_basis_exited', 'proceeds_received', 'proceeds_escrow',
     'proceeds_written_off', 'proceeds_per_share',
     'unrealized_value_change', 'current_share_price',

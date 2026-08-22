@@ -10,6 +10,7 @@
 // in the codebase; this is deliberately not another one.
 
 import { computeSummary } from '@/lib/investments'
+import type { FairValueLevel } from '@/lib/portfolio/quotes'
 import type { InvestmentTransaction, CompanyStatus } from '@/lib/types/database'
 
 const r = (n: number) => Math.round(n * 100) / 100
@@ -33,6 +34,8 @@ export const SECURITY_LABELS: Record<string, string> = {
   warrant: 'Warrant',
   option: 'Option',
   llc_units: 'LLC units',
+  listed_equity: 'Listed equity',
+  digital_asset: 'Digital asset',
   other: 'Other',
 }
 
@@ -68,6 +71,17 @@ const SECURITY_ALIASES: Record<string, string> = {
   membership_units: 'llc_units',
   llc_interests: 'llc_units',
   simple_agreement_for_future_equity: 'safe',
+  // Quoted instruments. "Stock" and "equity" stay unmapped above because they cannot
+  // distinguish common from preferred; these spellings are unambiguous about the MARKET the
+  // instrument trades in, which is the distinction that matters for the leveling breakout.
+  listed: 'listed_equity',
+  public_equity: 'listed_equity',
+  listed_shares: 'listed_equity',
+  publicly_traded: 'listed_equity',
+  crypto: 'digital_asset',
+  cryptocurrency: 'digital_asset',
+  token: 'digital_asset',
+  digital_assets: 'digital_asset',
 }
 
 /**
@@ -118,6 +132,13 @@ export interface SoiPosition {
   totalValue: number
   unrealized: number
   moic: number | null
+  /**
+   * ASC 820 fair value hierarchy. Absent here and stamped on afterwards by
+   * `withFairValueLevels`, because leveling depends on a PRICE FEED and a date, neither of
+   * which the tracker knows about — buildSoiPositions stays a pure function of transactions.
+   * Undecorated positions read as Level 3, which is what every private holding is.
+   */
+  valuationLevel?: FairValueLevel
 }
 
 export interface SoiCompany {
@@ -159,12 +180,19 @@ function assetTypeOf(txns: InvestmentTransaction[], hasShares: boolean, hasPrice
  * Untagged `round_info` / `unrealized_gain_change` rows are company-wide pricing
  * signals (a later round the fund didn't participate in), so they count for every
  * vehicle holding that company — without them the position marks at entry price.
+ *
+ * A `split` is company-wide by NATURE, not just by convention: the issuer splits its
+ * stock and every holder's share count changes, so an untagged split must reach every
+ * vehicle. Left out, a vehicle keeps pre-split shares while its price goes post-split
+ * and the position silently halves.
  */
 export function txnsForVehicle(txns: InvestmentTransaction[], vehicle: string): InvestmentTransaction[] {
   const inVehicle = txns.filter(t => t.portfolio_group === vehicle)
   const priceSignals = txns.filter(t =>
     !t.portfolio_group &&
-    (t.transaction_type === 'unrealized_gain_change' || t.transaction_type === 'round_info')
+    (t.transaction_type === 'unrealized_gain_change' ||
+     t.transaction_type === 'round_info' ||
+     t.transaction_type === 'split')
   )
   return [...inVehicle, ...priceSignals]
 }
