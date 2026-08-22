@@ -74,6 +74,12 @@ export const DEFAULT_CHART: ChartAccountSeed[] = [
   // NOT for preferred dividends: those accrue to the liquidation preference and reach the
   // statements through the fair-value mark, never as income. See migration 20260714000007.
   { code: '4110', name: 'Note interest income', type: 'income', subtype: 'note_interest_income' },
+  // Income a POSITION produced in a form that is neither a coupon nor a dividend — a staking
+  // reward, an airdrop. Its own line because it is neither: 4100 is treasury yield and 4110 is a
+  // contractual coupon, and a reward the protocol paid is a third thing an LP can reasonably ask
+  // to see separately. Kept firmly out of 4200: it is income, not appreciation, and booking it
+  // as a mark both inflates unrealized and leaves the units with no basis to sell against.
+  { code: '4120', name: 'Staking and other portfolio income', type: 'income', subtype: 'portfolio_income' },
   { code: '4200', name: 'Change in unrealized appreciation', type: 'income', subtype: 'unrealized' },
   // The counterpart to 1250. Kept out of 4200 so the income statement can say how much
   // of the period's gain was the portfolio and how much was the dollar.

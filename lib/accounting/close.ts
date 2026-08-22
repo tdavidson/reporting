@@ -29,6 +29,7 @@ import { loadFofData, ledgerCarryingByHolding } from '@/lib/portfolio/fof-load'
 import { fofCloseIssues } from '@/lib/portfolio/fof-valuation'
 import { quoteCloseIssues, type PriceFeed, type PriceObservation, type QuotedPosition } from '@/lib/portfolio/quotes'
 import { walletCloseIssues, type Wallet, type WalletBalance } from '@/lib/portfolio/wallets'
+import { lotIssues, isLotMethod, type LotMethod } from '@/lib/portfolio/lots'
 import { buildSoiPositions, type SoiCompany } from './soi'
 import { fundCurrency } from './currency'
 import { accountIdByCode, ensureCapitalAccounts, persistEntry } from './persist'
@@ -78,6 +79,7 @@ const SUBTYPE_TO_SOURCE: Record<string, string> = {
   realized_gain: 'realized_gain',
   unrealized: 'valuation',
   interest_income: 'income',
+  portfolio_income: 'income',
   equity_method: 'income',
 }
 
@@ -496,6 +498,50 @@ async function loadWalletCloseInputs(
   return { positions, wallets, balances }
 }
 
+/**
+ * Disposals whose recorded cost basis disagrees with the fund's own lot policy.
+ *
+ * Loaded per HOLDING rather than in one pass, because lots are consumed per holding and pooling
+ * them across the portfolio would let a sale of one asset draw basis from another.
+ *
+ * Returns an empty list for a fund with no unit-bearing disposals, which is most funds — a
+ * venture book exits whole positions and records the basis outright.
+ */
+async function loadLotIssues(
+  admin: SupabaseClient,
+  fundId: string,
+  group: string,
+  asOf: string,
+): Promise<string[]> {
+  const [{ data: settings }, { data: txnRows }, { data: companyRows }] = await Promise.all([
+    (admin as any).from('fund_settings').select('lot_method').eq('fund_id', fundId).maybeSingle(),
+    (admin as any).from('investment_transactions').select('*').eq('fund_id', fundId),
+    (admin as any).from('companies').select('id, name, holding_type').eq('fund_id', fundId),
+  ])
+  const raw = (settings as any)?.lot_method
+  const method: LotMethod = isLotMethod(raw) ? raw : 'fifo'
+
+  const upTo = ((txnRows as any[]) ?? []).filter(t => !t.transaction_date || t.transaction_date <= asOf)
+  const names = new Map(((companyRows as any[]) ?? []).map(c => [c.id as string, c.name as string]))
+
+  const byCompany = new Map<string, any[]>()
+  for (const t of upTo) {
+    // Company-wide rows carry no vehicle; vehicle-tagged rows must match this one, or a sale in
+    // one fund would consume lots bought by another.
+    if (t.portfolio_group && t.portfolio_group !== group) continue
+    if (!byCompany.has(t.company_id)) byCompany.set(t.company_id, [])
+    byCompany.get(t.company_id)!.push(t)
+  }
+
+  const out: string[] = []
+  for (const [companyId, txns] of Array.from(byCompany.entries())) {
+    for (const issue of lotIssues(txns, method, names.get(companyId) ?? 'A holding')) {
+      out.push(issue.message)
+    }
+  }
+  return out
+}
+
 /** Pre-close checks over the whole span. */
 async function checkReadiness(
   admin: SupabaseClient,
@@ -575,6 +621,11 @@ async function checkReadiness(
     blockers.push(...issues.blockers)
     warnings.push(...issues.warnings)
   }
+
+  // Cost basis on partial disposals. Warnings, not blockers: the recorded figure is what the
+  // books use and a fund may have a deliberate reason for it, so this reports the disagreement
+  // rather than overruling it. See lib/portfolio/lots.ts.
+  warnings.push(...await loadLotIssues(admin, fundId, group, end))
 
   if (bankRows.length > 0) {
     const total = roundCents(bankRows.reduce((s, t) => s + Number(t.amount), 0))

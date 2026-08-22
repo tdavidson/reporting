@@ -10,6 +10,7 @@ import { computeSummary } from '@/lib/investments'
 import { draftEntryForTransaction } from '@/lib/accounting/from-portfolio'
 import { validateConversionLink } from '@/lib/accounting/conversion-link'
 import { normalizeSecurityType, SECURITY_TYPES } from '@/lib/accounting/soi'
+import { disposalBasis, isLotMethod, type LotMethod } from '@/lib/portfolio/lots'
 import { ensureVehiclesByName } from '@/lib/accounting/vehicle-id'
 
 // ---------------------------------------------------------------------------
@@ -76,14 +77,57 @@ export async function GET(
     }
   }
 
-  return NextResponse.json({ transactions: txns, summary, portfolioGroups, groupSummaries })
+  // The fund's lot policy and what it makes of the disposals already recorded. The form uses it
+  // to prefill a new disposal's basis; nothing here overwrites what a row already records.
+  const { data: fundSettings } = await admin
+    .from('fund_settings' as any).select('lot_method').eq('fund_id', company.fund_id).maybeSingle()
+  const rawMethod = (fundSettings as any)?.lot_method
+  const lotMethod: LotMethod = isLotMethod(rawMethod) ? rawMethod : 'fifo'
+
+  return NextResponse.json({
+    transactions: txns,
+    summary,
+    portfolioGroups,
+    groupSummaries,
+    lotMethod,
+    lots: disposalBasis(txns, lotMethod),
+  })
 }
 
 // ---------------------------------------------------------------------------
 // POST — create a new transaction
 // ---------------------------------------------------------------------------
 
-const VALID_TYPES = ['investment', 'proceeds', 'unrealized_gain_change', 'round_info', 'split']
+const VALID_TYPES = ['investment', 'proceeds', 'unrealized_gain_change', 'round_info', 'split', 'income']
+
+const INCOME_KINDS = ['staking', 'airdrop', 'dividend', 'other']
+const INCOME_SETTLEMENTS = ['cash', 'in_kind']
+
+/**
+ * An income row is meaningless without its kind, settlement and amount, and in-kind income
+ * without units recognises a value that landed nowhere. The database enforces all of it;
+ * validated here too so the caller gets a sentence rather than a raw constraint violation.
+ */
+function incomeError(body: any): string | null {
+  if (body.transaction_type !== 'income') return null
+  if (!INCOME_KINDS.includes(body.income_kind)) {
+    return `income_kind must be one of: ${INCOME_KINDS.join(', ')}.`
+  }
+  if (!INCOME_SETTLEMENTS.includes(body.income_settlement)) {
+    return `income_settlement must be one of: ${INCOME_SETTLEMENTS.join(', ')} — cash income lands in the bank, in-kind income lands in the position.`
+  }
+  const amount = Number(body.income_amount)
+  if (!Number.isFinite(amount) || amount < 0) {
+    return 'Enter the income amount — its fair value on the day it was received.'
+  }
+  if (!body.transaction_date) {
+    return 'Income needs a date — its fair value on that day becomes the basis of any units received.'
+  }
+  if (body.income_settlement === 'in_kind' && !(Number(body.shares_acquired) > 0)) {
+    return 'In-kind income needs the number of units received — the units are the income.'
+  }
+  return null
+}
 
 /**
  * A split row is meaningless without a positive ratio and a date, and the DB enforces both.
@@ -143,6 +187,9 @@ export async function POST(
   const splitProblem = splitError(body)
   if (splitProblem) return NextResponse.json({ error: splitProblem }, { status: 400 })
 
+  const incomeProblem = incomeError(body)
+  if (incomeProblem) return NextResponse.json({ error: incomeProblem }, { status: 400 })
+
   // security_type is CHECK-constrained. Unvalidated, a bad value reached Postgres and came back as
   // a raw constraint violation the user saw as "An unexpected error occurred" — so say what's wrong
   // here instead. Normalizing first keeps "Convertible Note" from an API caller working.
@@ -184,6 +231,14 @@ export async function POST(
       // New shares per old share. Only ever set on a `split` row; the roll-up applies it to
       // every row dated before it (lib/splits.ts).
       split_ratio: body.split_ratio ?? null,
+      // Income the position produced. `income_amount` is its fair value on the day, which for
+      // in-kind income also becomes the cost basis of the units received.
+      income_kind: body.transaction_type === 'income' ? body.income_kind : null,
+      income_settlement: body.transaction_type === 'income' ? body.income_settlement : null,
+      income_amount: body.transaction_type === 'income' ? body.income_amount : null,
+      // Acquisition costs — gas, brokerage — capitalised into basis. NOT transfer gas or
+      // custody fees, which are partnership expenses (see migration 20260822000001).
+      fee_amount: body.fee_amount ?? null,
       cost_basis_exited: body.cost_basis_exited ?? null,
       proceeds_received: body.proceeds_received ?? null,
       proceeds_escrow: body.proceeds_escrow ?? 0,

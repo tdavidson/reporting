@@ -15,6 +15,7 @@ import {
   computeFxRevaluation, buildFxRevaluationPayload, derivePriorFxRate, deriveLocalSharePrice,
   deriveOriginalCurrency, deriveOriginalPositionValue, formatFxRate,
 } from '@/lib/fx'
+import { LOT_METHOD_LABELS, isLotMethod } from '@/lib/portfolio/lots'
 import type { FxRevaluationResult } from '@/lib/fx'
 import { SECURITY_LABELS } from '@/lib/accounting/soi'
 import { useCanRead } from '@/components/access-context'
@@ -30,7 +31,7 @@ interface Props {
 
 // 'conversion' is a UI-only mode: it is stored as an `investment` row carrying
 // `converts_from_txn_id` (the SAFE/note it converted). See handleSave.
-type TransactionType = 'investment' | 'conversion' | 'proceeds' | 'unrealized_gain_change' | 'round_info' | 'split'
+type TransactionType = 'investment' | 'conversion' | 'proceeds' | 'unrealized_gain_change' | 'round_info' | 'split' | 'income'
 
 const TYPE_LABELS: Record<TransactionType, string> = {
   investment: 'Investment',
@@ -39,6 +40,7 @@ const TYPE_LABELS: Record<TransactionType, string> = {
   unrealized_gain_change: 'Valuation Update',
   round_info: 'Round',
   split: 'Share split',
+  income: 'Income',
 }
 
 function fmtNum(val: number | null | undefined): string {
@@ -67,6 +69,13 @@ const EMPTY_FORM: Record<string, string> = {
   interest_converted: '',
   // New shares per old share on a `split` row. Only this type writes it.
   split_ratio: '',
+  // Income the position produced. `income_amount` is its fair value on the day received, which
+  // for in-kind income also becomes the cost basis of the units.
+  income_kind: 'staking',
+  income_settlement: 'in_kind',
+  income_amount: '',
+  // Acquisition costs capitalised into basis — gas, brokerage. Not transfer gas or custody fees.
+  fee_amount: '',
   // Convertible-note terms. `interest_rate` is the only rate the ledger accrues on;
   // `dividend_rate` (preferred) accrues to the liquidation preference and never hits the books.
   security_type: '',
@@ -111,6 +120,9 @@ export function CompanyInvestments({ companyId, companyStatus, portfolioGroups, 
 
   const [transactions, setTransactions] = useState<InvestmentTransaction[]>([])
   const [summary, setSummary] = useState<CompanyInvestmentSummary | null>(null)
+  // The fund's lot policy, and what it makes of the disposals already recorded. Used to PROPOSE
+  // a basis on a new disposal — never to restate one that is already on the books.
+  const [lotMethod, setLotMethod] = useState<string>('fifo')
   const [groupSummaries, setGroupSummaries] = useState<Record<string, CompanyInvestmentSummary> | null>(null)
   const [loading, setLoading] = useState(true)
   const [expanded, setExpanded] = useState(true)
@@ -238,6 +250,7 @@ export function CompanyInvestments({ companyId, companyStatus, portfolioGroups, 
         setTransactions(data.transactions)
         setSummary(data.summary)
         setGroupSummaries(data.groupSummaries ?? null)
+        if (data.lotMethod) setLotMethod(data.lotMethod)
       }
     } finally {
       setLoading(false)
@@ -402,6 +415,21 @@ export function CompanyInvestments({ companyId, companyStatus, portfolioGroups, 
       setError('Select the SAFE or note being converted.')
       return
     }
+    if (form.transaction_type === 'income') {
+      const amount = parseFloat(form.income_amount)
+      if (!Number.isFinite(amount) || amount < 0) {
+        setError('Enter the income amount — its fair value on the day you received it.')
+        return
+      }
+      if (!form.transaction_date) {
+        setError('Enter the date the income was received — its value on that day becomes the basis of any units.')
+        return
+      }
+      if (form.income_settlement === 'in_kind' && !(parseFloat(form.shares_acquired) > 0)) {
+        setError('Enter how many units arrived — for in-kind income the units are the income.')
+        return
+      }
+    }
     if (form.transaction_type === 'split') {
       const ratio = parseFloat(form.split_ratio)
       if (!Number.isFinite(ratio) || ratio <= 0) {
@@ -448,6 +476,10 @@ export function CompanyInvestments({ companyId, companyStatus, portfolioGroups, 
       // Only a split carries a ratio. Sent as null otherwise so reclassifying a row away from
       // 'split' clears it rather than leaving a ratio that would still restate every earlier row.
       split_ratio: form.transaction_type === 'split' ? numOrNull(form.split_ratio) : null,
+      income_kind: form.transaction_type === 'income' ? form.income_kind : null,
+      income_settlement: form.transaction_type === 'income' ? form.income_settlement : null,
+      income_amount: form.transaction_type === 'income' ? numOrNull(form.income_amount) : null,
+      fee_amount: numOrNull(form.fee_amount),
       postmoney_valuation: numOrNull(form.postmoney_valuation),
       ownership_pct: numOrNull(form.ownership_pct),
       cost_basis_exited: numOrNull(form.cost_basis_exited),
@@ -737,6 +769,7 @@ export function CompanyInvestments({ companyId, companyStatus, portfolioGroups, 
                     <SelectItem value="unrealized_gain_change">Valuation Update</SelectItem>
                     <SelectItem value="round_info">Round</SelectItem>
                     <SelectItem value="split">Share split</SelectItem>
+                    <SelectItem value="income">Income (staking, airdrop, dividend)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -1036,6 +1069,20 @@ export function CompanyInvestments({ companyId, companyStatus, portfolioGroups, 
                     value={form.cost_basis_exited}
                     onChange={e => setForm(f => ({ ...f, cost_basis_exited: e.target.value }))}
                   />
+                  {/* Left blank this field defaults to nothing, which keeps the full cost on the
+                      books and reports the entire proceeds as gain — an overstated NAV and an
+                      overstated return in one stroke. Say so, rather than letting it pass. */}
+                  {!form.cost_basis_exited && (
+                    <p className="mt-1 text-sm text-warning">
+                      Without a cost basis the whole proceeds report as gain, and the position keeps
+                      cost it no longer holds.
+                    </p>
+                  )}
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Your fund&rsquo;s policy is <span className="font-medium">{isLotMethod(lotMethod) ? LOT_METHOD_LABELS[lotMethod] : lotMethod}</span>.
+                    The close reports any disposal whose recorded basis differs from it — deliberate is fine,
+                    it only says the two differ.
+                  </p>
                 </div>
                 <div>
                   <Label>Proceeds Received ({symbol.trim()})</Label>
@@ -1127,6 +1174,96 @@ export function CompanyInvestments({ companyId, companyStatus, portfolioGroups, 
                 </div>
               </div>
             )}
+
+            {txnType === 'income' && (() => {
+              const inKind = form.income_settlement === 'in_kind'
+              const amount = parseFloat(form.income_amount)
+              const unitsIn = parseFloat(form.shares_acquired)
+              return (
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label>What produced it</Label>
+                      <Select value={form.income_kind} onValueChange={v => setForm(f => ({
+                        ...f,
+                        income_kind: v,
+                        // A dividend is usually cash; a staking reward or airdrop arrives in kind.
+                        // Only a nudge — either settlement stays selectable below.
+                        income_settlement: v === 'dividend' ? 'cash' : 'in_kind',
+                      }))}>
+                        <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="staking">Staking reward</SelectItem>
+                          <SelectItem value="airdrop">Airdrop</SelectItem>
+                          <SelectItem value="dividend">Dividend</SelectItem>
+                          <SelectItem value="other">Other portfolio income</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label>How it settled</Label>
+                      <Select value={form.income_settlement} onValueChange={v => setForm(f => ({ ...f, income_settlement: v }))}>
+                        <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="in_kind">In kind — more units</SelectItem>
+                          <SelectItem value="cash">Cash — into the bank</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label>Value when received ({symbol.trim()})</Label>
+                      <Input
+                        className="mt-1"
+                        type="number"
+                        step="any"
+                        value={form.income_amount}
+                        onChange={e => setForm(f => ({ ...f, income_amount: e.target.value }))}
+                      />
+                    </div>
+                    {inKind && (
+                      <div>
+                        <Label>Units received</Label>
+                        <Input
+                          className="mt-1"
+                          type="number"
+                          step="any"
+                          value={form.shares_acquired}
+                          onChange={e => setForm(f => ({ ...f, shares_acquired: e.target.value }))}
+                        />
+                      </div>
+                    )}
+                  </div>
+                  {/* Says what the row will DO. Recording this as a Valuation Update instead is
+                      the mistake it exists to prevent, and the consequence — income counted
+                      twice — is invisible until an exit reports a gain that was never there. */}
+                  <div className="rounded-lg border bg-muted/30 px-3 py-2 text-xs space-y-1">
+                    <p>
+                      Booked as <span className="font-medium">income</span>, not appreciation — it
+                      reaches the statement of operations rather than change in unrealized.
+                    </p>
+                    {inKind ? (
+                      <p>
+                        {Number.isFinite(unitsIn) && unitsIn > 0 && Number.isFinite(amount) ? (
+                          <>
+                            The position gains <span className="tabular-nums font-medium">{unitsIn}</span> units
+                            carrying <span className="tabular-nums font-medium">{amount}</span> of cost basis
+                            {unitsIn > 0 && amount >= 0 && (
+                              <> (<span className="tabular-nums">{(amount / unitsIn).toLocaleString('en-US', { maximumFractionDigits: 8 })}</span> each)</>
+                            )}. Selling them later nets against that basis instead of reporting the
+                            whole proceeds as gain.
+                          </>
+                        ) : (
+                          <>The units carry their value on the day as cost basis, so a later sale nets
+                            against it rather than reporting the whole proceeds as gain.</>
+                        )}
+                      </p>
+                    ) : (
+                      <p>Cash income changes no position — it lands in the bank and on the income statement.</p>
+                    )}
+                  </div>
+                </div>
+              )
+            })()}
 
             {txnType === 'split' && (() => {
               const ratio = parseFloat(form.split_ratio)

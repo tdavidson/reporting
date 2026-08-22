@@ -11,6 +11,7 @@ import { dbError } from '@/lib/api-error'
 import { logActivity } from '@/lib/activity'
 import { DEFAULT_FEATURE_VISIBILITY } from '@/lib/types/features'
 import { forgetFundCurrency } from '@/lib/accounting/currency'
+import { isLotMethod, LOT_METHODS } from '@/lib/portfolio/lots'
 import { validateOllamaUrl } from '@/lib/validate-url'
 import type { FeatureKey, FeatureVisibility, FeatureVisibilityMap } from '@/lib/types/features'
 
@@ -32,7 +33,7 @@ export async function GET() {
 
   const [{ data: fund }, { data: settings }, { data: senders }] = await Promise.all([
     admin.from('funds').select('id, name, logo_url, address').eq('id', membership.fund_id).single(),
-    (admin as any).from('fund_settings').select('postmark_inbound_address, postmark_webhook_token, postmark_webhook_token_encrypted, encryption_key_encrypted, retain_resolved_reviews, resolved_reviews_ttl_days, claude_api_key_encrypted, claude_model, ai_summary_prompt, google_refresh_token_encrypted, google_drive_folder_id, google_drive_folder_name, google_client_id, google_client_secret_encrypted, outbound_email_provider, asks_email_provider, approval_email_subject, approval_email_body, system_email_from_name, system_email_from_address, resend_api_key_encrypted, postmark_server_token_encrypted, inbound_email_provider, mailgun_inbound_domain, mailgun_signing_key_encrypted, mailgun_api_key_encrypted, mailgun_sending_domain, file_storage_provider, openai_api_key_encrypted, openai_model, default_ai_provider, openrouter_api_key_encrypted, openrouter_model, openrouter_base_url, analytics_fathom_site_id, analytics_ga_measurement_id, currency, disable_user_tracking, feature_visibility, deal_thesis, deal_screening_prompt, deal_intake_enabled, deal_submission_token, lp_portal_enabled').eq('fund_id', membership.fund_id).single(),
+    (admin as any).from('fund_settings').select('postmark_inbound_address, postmark_webhook_token, postmark_webhook_token_encrypted, encryption_key_encrypted, retain_resolved_reviews, resolved_reviews_ttl_days, claude_api_key_encrypted, claude_model, ai_summary_prompt, google_refresh_token_encrypted, google_drive_folder_id, google_drive_folder_name, google_client_id, google_client_secret_encrypted, outbound_email_provider, asks_email_provider, approval_email_subject, approval_email_body, system_email_from_name, system_email_from_address, resend_api_key_encrypted, postmark_server_token_encrypted, inbound_email_provider, mailgun_inbound_domain, mailgun_signing_key_encrypted, mailgun_api_key_encrypted, mailgun_sending_domain, file_storage_provider, openai_api_key_encrypted, openai_model, default_ai_provider, openrouter_api_key_encrypted, openrouter_model, openrouter_base_url, analytics_fathom_site_id, analytics_ga_measurement_id, currency, lot_method, disable_user_tracking, feature_visibility, deal_thesis, deal_screening_prompt, deal_intake_enabled, deal_submission_token, lp_portal_enabled').eq('fund_id', membership.fund_id).single(),
     admin.from('authorized_senders').select('id, email, label, created_at').eq('fund_id', membership.fund_id).order('email'),
   ])
 
@@ -123,6 +124,7 @@ export async function GET() {
     analyticsFathomSiteId: settings?.analytics_fathom_site_id ?? null,
     analyticsGaMeasurementId: settings?.analytics_ga_measurement_id ?? null,
     currency: settings?.currency ?? 'USD',
+    lotMethod: settings?.lot_method ?? 'fifo',
     disableUserTracking: settings?.disable_user_tracking ?? false,
     featureVisibility: { ...DEFAULT_FEATURE_VISIBILITY, ...(settings?.feature_visibility as Partial<FeatureVisibilityMap> | null) },
     dealThesis: settings?.deal_thesis ?? null,
@@ -162,7 +164,7 @@ export async function PATCH(req: NextRequest) {
   if (!membership) return NextResponse.json({ error: 'No fund found' }, { status: 404 })
 
   const body = await req.json()
-  const { fundName, fundLogo, fundAddress, postmarkInboundAddress, claudeApiKey, claudeModel, retainResolvedReviews, resolvedReviewsTtlDays, googleClientId, googleClientSecret, aiSummaryPrompt, displayName, outboundEmailProvider, asksEmailProvider, approvalEmailSubject, approvalEmailBody, systemEmailFromName, systemEmailFromAddress, resendApiKey, postmarkServerToken, inboundEmailProvider, mailgunInboundDomain, mailgunSigningKey, mailgunApiKey, mailgunSendingDomain, fileStorageProvider, openaiApiKey, openaiModel, defaultAIProvider, openrouterApiKey, openrouterModel, openrouterBaseUrl, analyticsFathomSiteId, analyticsGaMeasurementId, analyticsCustomHeadScript, currency, disableUserTracking, featureVisibility, dealThesis, dealScreeningPrompt, dealIntakeEnabled, lpPortalEnabled, affinityMcpEnabled, agentApiEnabled } = body
+  const { fundName, fundLogo, fundAddress, postmarkInboundAddress, claudeApiKey, claudeModel, retainResolvedReviews, resolvedReviewsTtlDays, googleClientId, googleClientSecret, aiSummaryPrompt, displayName, outboundEmailProvider, asksEmailProvider, approvalEmailSubject, approvalEmailBody, systemEmailFromName, systemEmailFromAddress, resendApiKey, postmarkServerToken, inboundEmailProvider, mailgunInboundDomain, mailgunSigningKey, mailgunApiKey, mailgunSendingDomain, fileStorageProvider, openaiApiKey, openaiModel, defaultAIProvider, openrouterApiKey, openrouterModel, openrouterBaseUrl, analyticsFathomSiteId, analyticsGaMeasurementId, analyticsCustomHeadScript, currency, lotMethod, disableUserTracking, featureVisibility, dealThesis, dealScreeningPrompt, dealIntakeEnabled, lpPortalEnabled, affinityMcpEnabled, agentApiEnabled } = body
 
   // Update display name on fund_members (any user can do this)
   if (displayName !== undefined) {
@@ -182,7 +184,7 @@ export async function PATCH(req: NextRequest) {
     openaiApiKey !== undefined || openaiModel !== undefined || defaultAIProvider !== undefined ||
     openrouterApiKey !== undefined || openrouterModel !== undefined || openrouterBaseUrl !== undefined ||
     analyticsFathomSiteId !== undefined || analyticsGaMeasurementId !== undefined ||
-    analyticsCustomHeadScript !== undefined || currency !== undefined ||
+    analyticsCustomHeadScript !== undefined || currency !== undefined || lotMethod !== undefined ||
     disableUserTracking !== undefined || featureVisibility !== undefined ||
     dealThesis !== undefined || dealScreeningPrompt !== undefined ||
     dealIntakeEnabled !== undefined || lpPortalEnabled !== undefined || affinityMcpEnabled !== undefined ||
@@ -501,6 +503,19 @@ export async function PATCH(req: NextRequest) {
     // The ledger denominates every posting in the fund's currency and memoizes it. Drop the
     // memo, or entries written for the rest of this process's life would carry the old one.
     forgetFundCurrency(membership.fund_id)
+  }
+
+  // Which purchase lot a disposal draws its basis from. A POLICY ELECTION, applied consistently:
+  // changing it does not restate anything already recorded — every cost_basis_exited on the books
+  // stays exactly as it was — it changes what the close proposes and reconciles against from here.
+  if (lotMethod !== undefined) {
+    if (!isLotMethod(lotMethod)) {
+      return NextResponse.json(
+        { error: `Unsupported lot method. Choose one of: ${LOT_METHODS.join(', ')}.` },
+        { status: 400 },
+      )
+    }
+    settingsUpdates.lot_method = lotMethod
   }
 
   if (disableUserTracking !== undefined) {

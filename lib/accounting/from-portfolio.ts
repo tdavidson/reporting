@@ -35,13 +35,18 @@ const ESCROW_RECEIVABLE = '1350'
 const REALIZED_GAIN = '4000'
 const UNREALIZED_INCOME = '4200'
 const FX_INCOME = '4300'
+// Income a position produced. A dividend is interest-and-dividend income; a staking reward or
+// an airdrop is portfolio income the position generated. Different lines on the statement of
+// operations, so different accounts — see lib/accounting/chart.ts.
+const DIVIDEND_INCOME = '4100'
+const PORTFOLIO_INCOME = '4120'
 
 export interface LedgerDraftResult {
   /** A draft entry was created and is waiting in the journal. */
   drafted: boolean
   entryId?: string
   /** What kind of entry, for the message shown back. */
-  kind?: 'investment' | 'valuation' | 'fx_revaluation' | 'proceeds' | 'conversion'
+  kind?: 'investment' | 'valuation' | 'fx_revaluation' | 'proceeds' | 'conversion' | 'income'
   amount?: number
   vehicle?: string
   /** Why nothing was drafted — always set when `drafted` is false. */
@@ -419,8 +424,55 @@ export async function draftEntryForTransaction(
     }
 
     // ---- A purchase: cash out, cost on the books. --------------------------
+    // ---- Income the position produced. --------------------------------------
+    //
+    // Two shapes, and the difference is what gets debited. CASH income lands in the bank and
+    // changes no position. IN-KIND income lands in the POSITION: more units, whose fair value on
+    // the day becomes their cost — which is precisely what stops the same value being reported
+    // again as realized gain when they are eventually sold.
+    //
+    // Either way the credit is INCOME, never 4200. Booking a reward as a mark inflates change-in-
+    // unrealized with something that is not appreciation, and leaves the units with no basis.
+    else if (txn.transaction_type === 'income') {
+      const row = txn as any
+      const incomeAmount = roundCents(num(row.income_amount))
+      if (incomeAmount === 0) return skip('The income has no amount — nothing to book.')
+
+      const incomeCode = row.income_kind === 'dividend' ? DIVIDEND_INCOME : PORTFOLIO_INCOME
+      const incomeId = codes.get(incomeCode)
+      if (!incomeId) {
+        return skip(`${group} is missing account ${incomeCode} — re-sync the chart of accounts to book portfolio income.`)
+      }
+
+      const inKind = row.income_settlement === 'in_kind'
+      // Acquisition costs on an in-kind receipt capitalise with it; on cash income there is
+      // nothing to capitalise into, so a fee there would be an expense and is not booked here.
+      const fee = inKind ? roundCents(num(row.fee_amount)) : 0
+      const debitId = inKind ? a.costId : cashId
+      const label = row.income_kind === 'dividend' ? 'Dividend'
+        : row.income_kind === 'staking' ? 'Staking income'
+        : row.income_kind === 'airdrop' ? 'Airdrop'
+        : 'Portfolio income'
+
+      amount = incomeAmount
+      kind = 'income'
+      entry = {
+        fundId,
+        entryDate,
+        sourceType: 'income',
+        memo: `${label} — ${companyName}`,
+        postings: [
+          { accountId: debitId, amount: roundCents(incomeAmount + fee), currency: 'USD', lpEntityId: null },
+          { accountId: incomeId, amount: roundCents(-incomeAmount), currency: 'USD', lpEntityId: null },
+          // A fee paid to receive income is cash out; without this the entry does not balance.
+          ...(fee !== 0 ? [{ accountId: cashId, amount: roundCents(-fee), currency: 'USD', lpEntityId: null }] : []),
+        ],
+      }
+    }
+
     else if (txn.transaction_type === 'investment') {
-      const cost = num(txn.investment_cost)
+      // Acquisition costs capitalise into the position rather than hitting the income statement.
+      const cost = roundCents(num(txn.investment_cost) + num((txn as any).fee_amount))
       if (cost === 0) return skip('The investment has no cost — nothing to book.')
       amount = cost
       kind = 'investment'

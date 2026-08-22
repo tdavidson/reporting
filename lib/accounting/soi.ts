@@ -128,8 +128,11 @@ export interface SoiPosition {
   /** Remaining cost basis (cost less any basis exited). */
   cost: number
   fairValue: number
-  /** Gross capital deployed into the company, before exits (computeSummary.totalInvested). */
+  /** Gross capital deployed into the company, before exits (computeSummary.totalInvested).
+   *  Excludes income received in kind, which is basis but not a contribution. */
   invested: number
+  /** Income the position produced since inception — cash and in kind. */
+  income: number
   /** Realized proceeds returned to the fund (computeSummary.totalRealized). */
   distributions: number
   /** Total value = distributions + fairValue (residual). The TVPI numerator per holding. */
@@ -225,7 +228,11 @@ export function buildSoiPositions(
 
     const s = computeSummary(relevant, company.status, asOf)
     const exited = s.rounds.reduce((sum, rd) => sum + Math.abs(rd.costBasisExited ?? 0), 0)
-    const cost = r(s.totalInvested - exited)
+    // Income basis counts as COST even though it is not invested capital. A staking reward or an
+    // airdrop is recognised at fair value on receipt, and that value is the units' basis — leave
+    // it out and the schedule understates cost, while selling those units later reports the whole
+    // proceeds as gain on top of the income already recognised.
+    const cost = r(s.totalInvested + s.totalIncomeBasis - exited)
     // unrealizedValue, not fmv: fmv reports PROCEEDS for an exited company, which is
     // not a carrying value and would misstate the balance sheet.
     const fairValue = r(s.unrealizedValue)
@@ -248,6 +255,7 @@ export function buildSoiPositions(
       cost,
       fairValue,
       invested: r(s.totalInvested),
+      income: r(s.totalIncome),
       distributions: r(s.totalRealized),
       totalValue: r(s.totalRealized + s.unrealizedValue),
       unrealized: r(fairValue - cost),

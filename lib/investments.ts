@@ -18,6 +18,8 @@ export function computeSummary(
   const transactions = splitAdjust(rawTransactions)
 
   let totalInvested = 0
+  let totalIncomeBasis = 0
+  let totalIncome = 0
   let totalShares = 0
   let totalRealized = 0
   let totalWrittenOff = 0
@@ -55,7 +57,7 @@ export function computeSummary(
   for (const txn of transactions) {
     if (txn.transaction_type === 'investment') {
       const isConversion = !!(txn as { converts_from_txn_id?: string | null }).converts_from_txn_id
-      totalInvested += txn.investment_cost ?? 0
+      totalInvested += (txn.investment_cost ?? 0) + Number((txn as any).fee_amount ?? 0)
       totalShares += txn.shares_acquired ?? 0
       // Interest that rolled into equity at conversion is real cost basis (it was recognized as
       // income while accruing, and now capitalizes into the position). It is NOT cash, so it is
@@ -72,7 +74,11 @@ export function computeSummary(
 
       // On a conversion row, interest_converted capitalizes into the round's basis alongside any
       // new cash; on an ordinary row it is tracked separately (interestConverted) but not as cost.
-      const rowBasis = (txn.investment_cost ?? 0) + (isConversion ? (txn.interest_converted ?? 0) : 0)
+      // Acquisition costs — gas, brokerage — capitalise into the position's basis rather than
+      // hitting the income statement. See migration 20260822000001 for what does NOT belong here.
+      const rowBasis = (txn.investment_cost ?? 0)
+        + (isConversion ? (txn.interest_converted ?? 0) : 0)
+        + Number((txn as any).fee_amount ?? 0)
       const roundName = txn.round_name ?? 'Unknown'
       const existing = roundMap.get(roundName)
       if (existing) {
@@ -105,6 +111,55 @@ export function computeSummary(
         if (!latestSharePriceDate || txn.transaction_date > latestSharePriceDate) {
           latestSharePrice = txn.share_price
           latestSharePriceDate = txn.transaction_date
+        }
+      }
+    }
+
+    // Income the POSITION produced — a staking reward, an airdrop, a dividend.
+    //
+    // NOT a valuation change, which is what recording one as a mark used to make it. Income is
+    // income: it belongs on the statement of operations, not in change-in-unrealized, and
+    // treating it as appreciation both inflates the unrealized line and — because a mark adds
+    // no basis — reports the same value again as realized gain when the units are sold.
+    if (txn.transaction_type === 'income') {
+      const row = txn as any
+      const amount = Number(row.income_amount ?? 0)
+      totalIncome += amount
+
+      if (row.income_settlement === 'in_kind') {
+        // Received in kind: more units, and their fair value on the day becomes their cost.
+        // That basis is what a later disposal nets against.
+        const units = txn.shares_acquired ?? 0
+        const rowBasis = amount + Number(row.fee_amount ?? 0)
+        totalIncomeBasis += rowBasis
+        totalShares += units
+
+        // Into the round like any other acquisition, so fair value (shares x price) and the
+        // remaining-basis test both see them. NOT pushed as a cash flow: no capital was
+        // deployed, and an outflow here would understate the IRR of a position that did well.
+        const roundName = txn.round_name ?? 'Unknown'
+        const existing = roundMap.get(roundName)
+        if (existing) {
+          existing.investmentCost += rowBasis
+          existing.sharesAcquired += units
+          if (!existing.date && txn.transaction_date) existing.date = txn.transaction_date
+        } else {
+          roundMap.set(roundName, {
+            roundName,
+            date: txn.transaction_date,
+            investmentCost: rowBasis,
+            sharesAcquired: units,
+            sharePrice: null,
+            currentSharePrice: null,
+            currentValue: 0,
+            interestConverted: 0,
+            unrealizedValueChange: 0,
+            costBasisExited: 0,
+            totalRealized: 0,
+            totalEscrow: 0,
+            proceedsDate: null,
+            grossIrr: null,
+          })
         }
       }
     }
@@ -238,6 +293,8 @@ export function computeSummary(
 
   return {
     totalInvested,
+    totalIncomeBasis,
+    totalIncome,
     totalShares,
     totalRealized,
     totalWrittenOff,
