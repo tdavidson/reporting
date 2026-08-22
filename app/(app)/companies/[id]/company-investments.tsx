@@ -30,7 +30,7 @@ interface Props {
 
 // 'conversion' is a UI-only mode: it is stored as an `investment` row carrying
 // `converts_from_txn_id` (the SAFE/note it converted). See handleSave.
-type TransactionType = 'investment' | 'conversion' | 'proceeds' | 'unrealized_gain_change' | 'round_info'
+type TransactionType = 'investment' | 'conversion' | 'proceeds' | 'unrealized_gain_change' | 'round_info' | 'split'
 
 const TYPE_LABELS: Record<TransactionType, string> = {
   investment: 'Investment',
@@ -38,6 +38,7 @@ const TYPE_LABELS: Record<TransactionType, string> = {
   proceeds: 'Proceeds',
   unrealized_gain_change: 'Valuation Update',
   round_info: 'Round',
+  split: 'Share split',
 }
 
 function fmtNum(val: number | null | undefined): string {
@@ -64,6 +65,8 @@ const EMPTY_FORM: Record<string, string> = {
   notes: '',
   investment_cost: '',
   interest_converted: '',
+  // New shares per old share on a `split` row. Only this type writes it.
+  split_ratio: '',
   // Convertible-note terms. `interest_rate` is the only rate the ledger accrues on;
   // `dividend_rate` (preferred) accrues to the liquidation preference and never hits the books.
   security_type: '',
@@ -399,6 +402,20 @@ export function CompanyInvestments({ companyId, companyStatus, portfolioGroups, 
       setError('Select the SAFE or note being converted.')
       return
     }
+    if (form.transaction_type === 'split') {
+      const ratio = parseFloat(form.split_ratio)
+      if (!Number.isFinite(ratio) || ratio <= 0) {
+        setError('Enter the split ratio — new shares per old share. A 2-for-1 forward split is 2; a 1-for-10 reverse split is 0.1.')
+        return
+      }
+      // The effective date places the split in the share history: rows before it are restated,
+      // rows on or after it are already in new shares. Without one there is nothing to restate
+      // against, which is why the database refuses it too.
+      if (!form.transaction_date) {
+        setError('Enter the effective date of the split — it decides which purchases get restated.')
+        return
+      }
+    }
 
     setSaving(true)
     setError(null)
@@ -428,6 +445,9 @@ export function CompanyInvestments({ companyId, companyStatus, portfolioGroups, 
       dividend_rate: rateOrNull(form.dividend_rate),
       shares_acquired: numOrNull(form.shares_acquired),
       share_price: numOrNull(form.share_price),
+      // Only a split carries a ratio. Sent as null otherwise so reclassifying a row away from
+      // 'split' clears it rather than leaving a ratio that would still restate every earlier row.
+      split_ratio: form.transaction_type === 'split' ? numOrNull(form.split_ratio) : null,
       postmoney_valuation: numOrNull(form.postmoney_valuation),
       ownership_pct: numOrNull(form.ownership_pct),
       cost_basis_exited: numOrNull(form.cost_basis_exited),
@@ -716,6 +736,7 @@ export function CompanyInvestments({ companyId, companyStatus, portfolioGroups, 
                     <SelectItem value="proceeds">Proceeds</SelectItem>
                     <SelectItem value="unrealized_gain_change">Valuation Update</SelectItem>
                     <SelectItem value="round_info">Round</SelectItem>
+                    <SelectItem value="split">Share split</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -1106,6 +1127,60 @@ export function CompanyInvestments({ companyId, companyStatus, portfolioGroups, 
                 </div>
               </div>
             )}
+
+            {txnType === 'split' && (() => {
+              const ratio = parseFloat(form.split_ratio)
+              const valid = Number.isFinite(ratio) && ratio > 0
+              return (
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label>Split ratio</Label>
+                      <Input
+                        className="mt-1"
+                        type="number"
+                        step="any"
+                        value={form.split_ratio}
+                        onChange={e => setForm(f => ({ ...f, split_ratio: e.target.value }))}
+                        placeholder="e.g. 2 for a 2-for-1"
+                      />
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        New shares per old share. A 2-for-1 forward split is <span className="tabular-nums">2</span>;
+                        a 1-for-10 reverse split is <span className="tabular-nums">0.1</span>.
+                      </p>
+                    </div>
+                    <div>
+                      <Label>Effective date</Label>
+                      <p className="mt-3 text-xs text-muted-foreground">
+                        Set it in <span className="font-medium">Transaction Date</span> above. Purchases before
+                        that date are restated; a purchase on or after it already trades in new shares.
+                      </p>
+                    </div>
+                  </div>
+                  {/* Says what the row will DO, in shares, before it is saved. A split is the one
+                      entry whose ratio is easy to invert by accident, and a reversed ratio does not
+                      look wrong afterwards — it looks like a position that quietly changed size. */}
+                  <div className="rounded-lg border bg-muted/30 px-3 py-2 text-xs">
+                    {valid ? (
+                      <span>
+                        Every share held before this date becomes{' '}
+                        <span className="tabular-nums font-medium">{ratio}</span>{' '}
+                        {ratio === 1 ? 'share' : 'shares'}, and per-share prices are divided by the same
+                        number. The position&rsquo;s value does not change, and nothing is posted to the ledger.
+                        {' '}A holding of <span className="tabular-nums">1,000</span> shares becomes{' '}
+                        <span className="tabular-nums font-medium">
+                          {(1000 * ratio).toLocaleString('en-US', { maximumFractionDigits: 4 })}
+                        </span>.
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground">
+                        Enter a ratio to see what this will do to the share count.
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )
+            })()}
 
             {txnType === 'unrealized_gain_change' && (
               <div className="space-y-4">
@@ -1707,7 +1782,13 @@ function TransactionTable({
                       </td>
                     )}
                     <td className="px-3 py-2 text-right tabular-nums">
-                      {txn.transaction_type === 'investment' ? fmtNum(txn.shares_acquired) : '-'}
+                      {txn.transaction_type === 'investment'
+                        ? fmtNum(txn.shares_acquired)
+                        : txn.transaction_type === 'split'
+                        // The ratio belongs in the shares column: a split is an event about the
+                        // share count, and it has nothing to put in any of the money columns.
+                        ? `× ${fmtNum((txn as { split_ratio?: number | null }).split_ratio)}`
+                        : '-'}
                     </td>
                     <td className="px-3 py-2 text-right tabular-nums">
                       {txn.transaction_type === 'investment'

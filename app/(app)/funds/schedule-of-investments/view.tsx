@@ -10,6 +10,7 @@ import { useLedgerFetch } from '@/components/accounting-vehicle'
 import { PeriodPicker } from '@/components/accounting/period-picker'
 import type { PeriodPreset } from '@/lib/accounting/statement-period'
 import { EmptyState } from '@/components/ui/empty-state'
+import { PriceFeedsPanel } from './price-feeds-panel'
 
 interface SoiRow {
   name: string
@@ -411,6 +412,14 @@ export function ScheduleOfInvestmentsView() {
           {soi.byGeography.length > 0 && groupTable('By geography', soi.byGeography)}
           {/* ASC 820. Present only once a position is priced by something other than judgement. */}
           {(soi.byLevel?.length ?? 0) > 0 && groupTable('By fair value level', soi.byLevel)}
+        </div>
+      )}
+
+      {/* Feeds sit under the schedule they change. `load` re-runs the statements fetch, so
+          attaching a feed or storing a quote re-levels the table above without a page reload. */}
+      {soi.source === 'tracker' && (
+        <div className="border-t pt-5">
+          <PriceFeedsPanel onChanged={load} />
         </div>
       )}
       </>

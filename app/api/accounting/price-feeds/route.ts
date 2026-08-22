@@ -6,6 +6,9 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { assertReadAccess, assertWriteAccess } from '@/lib/api-helpers'
 import { dbError } from '@/lib/api-error'
 import { logActivity } from '@/lib/activity'
+import { parseDriveFileUrl } from '@/lib/google/drive'
+import { syncFundQuotes } from '@/lib/portfolio/quote-sync'
+import { PROVIDER_NAMES, SHEET_TEMPLATE } from '@/lib/portfolio/quote-providers'
 
 /**
  * Price feeds — the link between a holding and an observable price — and the quotes stored
@@ -28,10 +31,13 @@ export async function GET(_req: NextRequest) {
   const gate = await assertReadAccess(admin, user.id)
   if (gate instanceof NextResponse) return gate
 
-  const [{ data: feeds, error }, { data: observations }] = await Promise.all([
+  const [{ data: feeds, error }, { data: observations }, { data: settings }] = await Promise.all([
     (admin as any).from('price_feeds').select('*').eq('fund_id', gate.fundId).order('symbol'),
     (admin as any).from('price_observations').select('*').eq('fund_id', gate.fundId)
       .order('as_of_date', { ascending: false }),
+    (admin as any).from('fund_settings')
+      .select('quote_sheet_file_id, quote_sheet_synced_at, quote_sheet_last_error, google_refresh_token_encrypted')
+      .eq('fund_id', gate.fundId).maybeSingle(),
   ])
   if (error) return dbError(error, 'price-feeds-get')
 
@@ -42,6 +48,16 @@ export async function GET(_req: NextRequest) {
 
   return NextResponse.json({
     feeds: ((feeds as any[]) ?? []).map(f => ({ ...f, latestQuote: latest.get(f.id) ?? null })),
+    providers: PROVIDER_NAMES,
+    quoteSheet: {
+      fileId: (settings as any)?.quote_sheet_file_id ?? null,
+      syncedAt: (settings as any)?.quote_sheet_synced_at ?? null,
+      lastError: (settings as any)?.quote_sheet_last_error ?? null,
+      // Whether the fund can reach Google at all. Without it the sheet route cannot work, and
+      // saying so up front beats a sync that silently stores nothing.
+      googleConnected: !!(settings as any)?.google_refresh_token_encrypted,
+      template: SHEET_TEMPLATE,
+    },
   })
 }
 
@@ -106,6 +122,35 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ observation: obs })
   }
 
+  if (body?.action === 'set-sheet') {
+    // An empty value CLEARS the sheet — the way a fund stops using this route without having to
+    // delete its feeds, which would take their history with them.
+    const raw = typeof body.url === 'string' ? body.url.trim() : ''
+    const fileId = raw ? parseDriveFileUrl(raw) : null
+    if (raw && !fileId) {
+      return NextResponse.json(
+        { error: 'That does not look like a Google Sheets link. Paste the URL from the browser bar, or the file id itself.' },
+        { status: 400 },
+      )
+    }
+    const { error } = await (admin as any)
+      .from('fund_settings')
+      .update({ quote_sheet_file_id: fileId, quote_sheet_last_error: null })
+      .eq('fund_id', gate.fundId)
+    if (error) return dbError(error, 'price-feeds-set-sheet')
+
+    logActivity(admin, gate.fundId, user.id, 'price_feed.set_sheet', { fileId })
+    return NextResponse.json({ fileId })
+  }
+
+  if (body?.action === 'sync-now') {
+    // The same work the cron does, on demand — so a fund can prove the sheet is readable at the
+    // moment they set it up rather than finding out at the next close.
+    const today = new Date().toISOString().slice(0, 10)
+    const result = await syncFundQuotes(admin, gate.fundId, today)
+    return NextResponse.json(result)
+  }
+
   // --- create-feed (the default action) ---
   const { companyId, kind, symbol } = body
   if (!companyId) return NextResponse.json({ error: 'companyId is required.' }, { status: 400 })
@@ -162,7 +207,7 @@ export async function POST(req: NextRequest) {
       contract_address: body.contractAddress ?? null,
       quote_currency: body.quoteCurrency ?? 'USD',
       quote_scale: scale,
-      provider: body.provider ?? 'manual',
+      provider: PROVIDER_NAMES.includes(body.provider) ? body.provider : 'manual',
       provider_id: body.providerId ?? null,
       active_from: body.activeFrom,
       active_until: body.activeUntil ?? null,

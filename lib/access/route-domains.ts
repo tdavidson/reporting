@@ -418,6 +418,7 @@ export const UNGATED_ROUTES: Record<string, string> = {
 
   // Service-triggered: shared CRON_SECRET, fail-closed if unset.
   'api/cron/affinity-sync': 'Cron: CRON_SECRET.',
+  'api/cron/quote-sync': 'Cron: CRON_SECRET.',
   'api/cron/deal-research': 'Cron: CRON_SECRET.',
   'api/cron/deals-digest': 'Cron: CRON_SECRET.',
   'api/cron/memo-agent-worker': 'Cron: CRON_SECRET.',
