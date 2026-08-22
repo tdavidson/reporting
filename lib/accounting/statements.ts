@@ -187,9 +187,9 @@ export interface SoiRow {
   pctOfNetAssets: number
   // Present only when the row came from the portfolio tracker (source: 'tracker').
   companyId?: string
-  /** 'fund' for a fund-of-funds holding, so the view can render those as their own section
-   *  instead of a mixed table where half the columns are blank. */
-  holdingType?: 'company' | 'fund'
+  /** Sections the schedule so a fund holding or a token is not reported in a company table
+   *  with half its columns blank. */
+  holdingType?: 'company' | 'fund' | 'crypto'
   industry?: string | null
   country?: string | null
   stage?: string | null
@@ -198,6 +198,8 @@ export interface SoiRow {
   sharePrice?: number | null
   unrealized?: number
   moic?: number | null
+  /** ASC 820 fair value hierarchy. Undecorated rows read as Level 3. */
+  valuationLevel?: 1 | 2 | 3
   // Per-company value breakdown from the tracker (source: 'tracker' rows only).
   /** Gross capital deployed, before exits. */
   invested?: number
@@ -237,6 +239,9 @@ export interface ScheduleOfInvestments {
   byIndustry: SoiGroup[]
   byGeography: SoiGroup[]
   byAssetType: SoiGroup[]
+  /** ASC 820 leveling. EMPTY for a wholly private book, where every position is Level 3 and
+   *  the breakout would restate the total on a single line. */
+  byLevel: SoiGroup[]
 }
 
 function groupBy(rows: SoiRow[], key: (row: SoiRow) => string, netAssets: number): SoiGroup[] {
@@ -348,6 +353,13 @@ export function scheduleOfInvestments(
     byIndustry: fromTracker ? groupBy(rows, x => x.industry || 'Unclassified', netAssets) : [],
     byGeography: fromTracker ? groupBy(rows, x => x.country || 'Unclassified', netAssets) : [],
     byAssetType: fromTracker ? groupBy(rows, x => x.assetType || 'Unclassified', netAssets) : [],
+    // ASC 820 leveling. Emitted ONLY when something is above Level 3: a wholly private book is
+    // entirely Level 3 by construction, and a table restating the total on one line tells the
+    // reader nothing. The disclosure earns its place the moment one position is quoted, because
+    // then the reader cannot otherwise tell which is which.
+    byLevel: fromTracker && rows.some(x => (x.valuationLevel ?? 3) !== 3)
+      ? groupBy(rows, x => `Level ${x.valuationLevel ?? 3}`, netAssets)
+      : [],
   }
 }
 

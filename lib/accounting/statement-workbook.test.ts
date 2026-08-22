@@ -44,7 +44,7 @@ function fixture(): StatementPackage {
       scheduleOfInvestments: {
         rows: [], totalCost: 0, totalFairValue: 0, netAssets: -250, source: 'ledger',
         ledgerCost: 0, ledgerFairValue: 0, costVariance: 0, fairValueVariance: 0,
-        byIndustry: [], byGeography: [], byAssetType: [],
+        byIndustry: [], byGeography: [], byAssetType: [], byLevel: [],
       },
       changesInPartnersCapital: {
         partners: [{ id: 'lp1', name: 'Acme LP', ...emptyAccount(), beginning: 0, expenses: 250, ending: -250 }],

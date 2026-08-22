@@ -10,10 +10,12 @@ import { useLedgerFetch } from '@/components/accounting-vehicle'
 import { PeriodPicker } from '@/components/accounting/period-picker'
 import type { PeriodPreset } from '@/lib/accounting/statement-period'
 import { EmptyState } from '@/components/ui/empty-state'
+import { PriceFeedsPanel } from './price-feeds-panel'
+import { WalletsPanel } from './wallets-panel'
 
 interface SoiRow {
   name: string
-  holdingType?: 'company' | 'fund'
+  holdingType?: 'company' | 'fund' | 'crypto'
   cost: number
   fairValue: number
   pctOfNetAssets: number
@@ -23,6 +25,8 @@ interface SoiRow {
   shares?: number | null
   sharePrice?: number | null
   moic?: number | null
+  /** ASC 820 fair value hierarchy. Absent reads as Level 3. */
+  valuationLevel?: 1 | 2 | 3
   // Present once the company has its own 1100-<id> / 1200-<id> accounts.
   ledgerCost?: number
   ledgerFairValue?: number
@@ -57,6 +61,8 @@ interface Soi {
   byIndustry: SoiGroup[]
   byGeography: SoiGroup[]
   byAssetType: SoiGroup[]
+  /** Empty for a wholly private book, where every position is Level 3. */
+  byLevel: SoiGroup[]
 }
 
 export function ScheduleOfInvestmentsView() {
@@ -135,7 +141,13 @@ export function ScheduleOfInvestmentsView() {
     // so a single table would render half its columns blank for every row. The ledger control
     // total below still covers both — only the display is split.
     const fundRows = soi.rows.filter(r => r.holdingType === 'fund')
-    const companyRows = soi.rows.filter(r => r.holdingType !== 'fund')
+    const cryptoRows = soi.rows.filter(r => r.holdingType === 'crypto')
+    // Everything else, including rows from before the discriminator existed.
+    const companyRows = soi.rows.filter(r => r.holdingType !== 'fund' && r.holdingType !== 'crypto')
+    // The Level column appears only once something is ABOVE Level 3. A wholly private book is
+    // Level 3 by construction, and a column repeating "3" on every row is noise that makes the
+    // one number a reader should notice harder to find.
+    const showLevel = (soi.byLevel?.length ?? 0) > 0
 
     const groupTable = (title: string, groups: SoiGroup[]) => (
       <div className="border rounded-lg overflow-x-auto">
@@ -332,7 +344,10 @@ export function ScheduleOfInvestmentsView() {
 
       {([
         ['Underlying funds', fundRows] as const,
-        [fundRows.length > 0 ? 'Direct investments' : 'Investment', companyRows] as const,
+        // A token has a quantity and a price, so it shares the table's shape — but no industry,
+        // stage or country, so it gets its own heading rather than three blank columns.
+        ['Digital assets', cryptoRows] as const,
+        [(fundRows.length > 0 || cryptoRows.length > 0) ? 'Direct investments' : 'Investment', companyRows] as const,
       ]).filter(([, rs]) => rs.length > 0).map(([heading, rs]) => (
       <div key={heading} className="border rounded-lg overflow-x-auto">
         <table className="w-full text-sm whitespace-nowrap">
@@ -341,6 +356,7 @@ export function ScheduleOfInvestmentsView() {
               <th className="text-left px-3 py-2 font-medium">{heading}</th>
               <th className="text-left px-3 py-2 font-medium">Industry</th>
               <th className="text-left px-3 py-2 font-medium">Type</th>
+              {showLevel && <th className="text-left px-3 py-2 font-medium">Level</th>}
               <th className="text-right px-3 py-2 font-medium">Shares</th>
               <th className="text-right px-3 py-2 font-medium">Price</th>
               <th className="text-right px-3 py-2 font-medium">Cost</th>
@@ -362,6 +378,9 @@ export function ScheduleOfInvestmentsView() {
                 </td>
                 <td className="px-3 py-2 text-xs text-muted-foreground">{r.industry ?? '—'}</td>
                 <td className="px-3 py-2 text-xs text-muted-foreground">{r.assetType ?? '—'}</td>
+                {showLevel && (
+                  <td className="px-3 py-2 text-xs text-muted-foreground tabular-nums">{r.valuationLevel ?? 3}</td>
+                )}
                 <td className="px-3 py-2 text-right tabular-nums text-xs">{num(r.shares)}</td>
                 <td className="px-3 py-2 text-right tabular-nums text-xs">{r.sharePrice == null ? '—' : formatSharePrice(r.sharePrice, currency)}</td>
                 <td className="px-3 py-2 text-right tabular-nums">{fmt(r.cost)}</td>
@@ -373,7 +392,7 @@ export function ScheduleOfInvestmentsView() {
           </tbody>
           <tfoot>
             <tr className="border-t bg-muted/30 font-semibold">
-              <td className="px-3 py-2" colSpan={5}>Total</td>
+              <td className="px-3 py-2" colSpan={showLevel ? 6 : 5}>Total</td>
               <td className="px-3 py-2 text-right tabular-nums">{fmt(rs.reduce((a, r) => a + r.cost, 0))}</td>
               <td className="px-3 py-2 text-right tabular-nums">{fmt(rs.reduce((a, r) => a + r.fairValue, 0))}</td>
               <td />
@@ -384,8 +403,8 @@ export function ScheduleOfInvestmentsView() {
       </div>
       ))}
 
-      {/* Both sections together, against the ledger — the control total is unchanged by the split. */}
-      {fundRows.length > 0 && companyRows.length > 0 && (
+      {/* Every section together, against the ledger — the control total is unchanged by the split. */}
+      {[fundRows, cryptoRows, companyRows].filter(rs => rs.length > 0).length > 1 && (
         <div className="border rounded-lg px-3 py-2 flex items-center justify-between text-sm font-semibold">
           <span>Total investments</span>
           <span className="tabular-nums">{fmt(soi.totalCost)} cost · {fmt(soi.totalFairValue)} fair value</span>
@@ -397,6 +416,22 @@ export function ScheduleOfInvestmentsView() {
           {soi.byIndustry.length > 0 && groupTable('By industry', soi.byIndustry)}
           {soi.byAssetType.length > 0 && groupTable('By asset type', soi.byAssetType)}
           {soi.byGeography.length > 0 && groupTable('By geography', soi.byGeography)}
+          {/* ASC 820. Present only once a position is priced by something other than judgement. */}
+          {(soi.byLevel?.length ?? 0) > 0 && groupTable('By fair value level', soi.byLevel)}
+        </div>
+      )}
+
+      {/* Feeds sit under the schedule they change. `load` re-runs the statements fetch, so
+          attaching a feed or storing a quote re-levels the table above without a page reload. */}
+      {soi.source === 'tracker' && (
+        <div className="border-t pt-5">
+          <PriceFeedsPanel onChanged={load} />
+        </div>
+      )}
+
+      {soi.source === 'tracker' && (
+        <div className="border-t pt-5">
+          <WalletsPanel onChanged={load} />
         </div>
       )}
       </>

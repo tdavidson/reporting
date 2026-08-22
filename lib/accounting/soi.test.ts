@@ -126,3 +126,39 @@ describe('buildSoiPositions', () => {
     expect(positions[0].assetType).toBe('Convertible / SAFE')
   })
 })
+
+describe('digital-asset holdings', () => {
+  it('sections a crypto holding away from the company table', () => {
+    // A token has a quantity and a price but no industry, stage or country. Reported under
+    // "Direct investments" it would state three blank facts about itself.
+    const txns = [
+      {
+        id: 't1', company_id: 'eth', fund_id: 'f', transaction_type: 'investment',
+        transaction_date: '2026-01-15', round_name: 'Purchase', portfolio_group: 'Fund I',
+        investment_cost: 30_000, shares_acquired: 10, share_price: 3_000,
+      },
+    ] as any[]
+    const companies = [
+      { id: 'eth', name: 'Ether', holding_type: 'crypto', status: 'active', industry: null, stage: null, portfolio_group: ['Fund I'] },
+    ] as any[]
+
+    const [position] = buildSoiPositions(txns, companies, 'Fund I')
+    expect(position.holdingType).toBe('crypto')
+    expect(position.shares).toBe(10)
+    expect(position.cost).toBe(30_000)
+  })
+
+  it('still reads a holding with no discriminator as a company', () => {
+    const txns = [
+      {
+        id: 't1', company_id: 'c1', fund_id: 'f', transaction_type: 'investment',
+        transaction_date: '2026-01-15', round_name: 'Seed', portfolio_group: 'Fund I',
+        investment_cost: 100, shares_acquired: 10, share_price: 10,
+      },
+    ] as any[]
+    const companies = [
+      { id: 'c1', name: 'Acme', status: 'active', industry: null, stage: null, portfolio_group: ['Fund I'] },
+    ] as any[]
+    expect(buildSoiPositions(txns, companies, 'Fund I')[0].holdingType).toBe('company')
+  })
+})

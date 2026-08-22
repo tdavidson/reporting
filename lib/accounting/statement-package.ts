@@ -16,6 +16,7 @@ import {
 } from './statements'
 import { loadPostedLedger, loadEntityNames, type SourcedPosting } from './load'
 import { buildSoiPositions, type SoiCompany } from './soi'
+import { withFairValueLevels, type PriceFeed, type PriceObservation } from '@/lib/portfolio/quotes'
 import { loadFofRaw, computeFofFromRaw, type FofRawData } from '@/lib/portfolio/fof-load'
 import { commitmentSchedule, performanceTable, type CommitmentSchedule, type PerformanceTable } from '@/lib/portfolio/fof-exhibits'
 import { valuationBasisNote, type ValuationBasisRow } from '@/lib/portfolio/fof-valuation'
@@ -72,6 +73,10 @@ export interface LedgerData {
   /** Fund-of-funds positions as of the LATEST date; recomputed per window in computePayload.
    *  Empty for a fund that holds no funds. */
   fofRaw: FofRawData | null
+  /** Price feeds and their stored quotes, for ASC 820 leveling. Both empty for a fund that
+   *  holds nothing quoted, which levels every position at 3 — the correct answer. */
+  feeds: PriceFeed[]
+  observations: PriceObservation[]
   /** Min entryDate across postings — the inception bound for comparison stepping. */
   earliest: string | null
 }
@@ -88,7 +93,11 @@ export function earliestPostingDate(postings: { entryDate?: string | null }[]): 
 
 /** One DB load, reused across every period window. */
 export async function loadLedgerData(admin: SupabaseClient, fundId: string, group: string): Promise<LedgerData> {
-  const [{ accounts, postings, capitalPostings, sourcedPostings }, names, { data: txns }, { data: companies }, fofRaw] = await Promise.all([
+  const [
+    { accounts, postings, capitalPostings, sourcedPostings }, names,
+    { data: txns }, { data: companies }, fofRaw,
+    { data: feedRows }, { data: obsRows },
+  ] = await Promise.all([
     loadPostedLedger(admin, fundId, group),
     loadEntityNames(admin, fundId, group),
     admin.from('investment_transactions' as any).select('*').eq('fund_id', fundId).order('transaction_date', { ascending: true }),
@@ -97,10 +106,31 @@ export async function loadLedgerData(admin: SupabaseClient, fundId: string, grou
     // holding_type — see SoiPosition.holdingType — rather than by excluding either here.
     admin.from('companies' as any).select('*').eq('fund_id', fundId),
     loadFofRaw(admin, fundId),
+    (admin as any).from('price_feeds').select('*').eq('fund_id', fundId),
+    (admin as any).from('price_observations').select('*').eq('fund_id', fundId),
   ])
   return {
     accounts, postings, capitalPostings, sourcedPostings, names,
     fofRaw,
+    feeds: ((feedRows as any[]) ?? []).map(f => ({
+      id: f.id,
+      companyId: f.company_id,
+      kind: f.kind,
+      symbol: f.symbol,
+      exchange: f.exchange,
+      quoteCurrency: f.quote_currency,
+      quoteScale: Number(f.quote_scale ?? 1),
+      activeFrom: f.active_from,
+      activeUntil: f.active_until,
+      restrictionUntil: f.restriction_until,
+      restrictionDiscount: f.restriction_discount == null ? null : Number(f.restriction_discount),
+    })) as PriceFeed[],
+    observations: ((obsRows as any[]) ?? []).map(o => ({
+      feedId: o.feed_id,
+      asOfDate: o.as_of_date,
+      price: Number(o.price),
+      basis: o.basis,
+    })) as PriceObservation[],
     txns: (txns as any[]) ?? [],
     companies: (companies as any[]) ?? [],
     group,
@@ -120,9 +150,18 @@ export function computePayload(data: LedgerData, period: StatementPeriod): State
   const itdCapitalAccounts = computeCapitalAccounts(data.capitalPostings, { end: period.end })
   const nav = totalNav(itdCapitalAccounts)
 
-  const positions = buildSoiPositions(
-    data.txns, data.companies as SoiCompany[], data.group,
-    period.end ? new Date(period.end) : undefined,
+  // Levelled AS OF THE PERIOD END, not today: a position inside its lock-up at 31 March is
+  // Level 2 in the Q1 statements however unrestricted it has since become, and a company that
+  // listed in June is Level 3 in every statement struck before it.
+  const positions = withFairValueLevels(
+    buildSoiPositions(
+      data.txns, data.companies as SoiCompany[], data.group,
+      period.end ? new Date(period.end) : undefined,
+    ),
+    // `?? []` because a LedgerData assembled before feeds existed genuinely has none, and no
+    // feeds is a MEANINGFUL state rather than a missing input: every position levels at 3.
+    data.feeds ?? [], data.observations ?? [],
+    period.end ?? new Date().toISOString().slice(0, 10),
   )
 
   const bal = accountBalances(cumulative)

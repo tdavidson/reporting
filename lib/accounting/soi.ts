@@ -10,6 +10,7 @@
 // in the codebase; this is deliberately not another one.
 
 import { computeSummary } from '@/lib/investments'
+import type { FairValueLevel } from '@/lib/portfolio/quotes'
 import type { InvestmentTransaction, CompanyStatus } from '@/lib/types/database'
 
 const r = (n: number) => Math.round(n * 100) / 100
@@ -33,6 +34,8 @@ export const SECURITY_LABELS: Record<string, string> = {
   warrant: 'Warrant',
   option: 'Option',
   llc_units: 'LLC units',
+  listed_equity: 'Listed equity',
+  digital_asset: 'Digital asset',
   other: 'Other',
 }
 
@@ -68,6 +71,17 @@ const SECURITY_ALIASES: Record<string, string> = {
   membership_units: 'llc_units',
   llc_interests: 'llc_units',
   simple_agreement_for_future_equity: 'safe',
+  // Quoted instruments. "Stock" and "equity" stay unmapped above because they cannot
+  // distinguish common from preferred; these spellings are unambiguous about the MARKET the
+  // instrument trades in, which is the distinction that matters for the leveling breakout.
+  listed: 'listed_equity',
+  public_equity: 'listed_equity',
+  listed_shares: 'listed_equity',
+  publicly_traded: 'listed_equity',
+  crypto: 'digital_asset',
+  cryptocurrency: 'digital_asset',
+  token: 'digital_asset',
+  digital_assets: 'digital_asset',
 }
 
 /**
@@ -95,9 +109,13 @@ export function normalizeSecurityType(value: unknown): string | null {
 export interface SoiPosition {
   companyId: string
   name: string
-  /** 'fund' for a fund-of-funds holding. Company-shaped columns (shares, stage) are empty for
-   *  those, so the view renders them as their own section rather than in one mixed table. */
-  holdingType: 'company' | 'fund'
+  /**
+   * What kind of thing this holding is, so the view can section the schedule rather than render
+   * one mixed table. 'fund' has no shares or stage at all; 'crypto' has a quantity and a price
+   * but no industry, stage or country, and reporting a token under "Direct investments" with
+   * three blank columns states something false about it.
+   */
+  holdingType: 'company' | 'fund' | 'crypto'
   industry: string | null
   /** ASC 946 geography band. Null until companies.country is populated. */
   country: string | null
@@ -110,21 +128,32 @@ export interface SoiPosition {
   /** Remaining cost basis (cost less any basis exited). */
   cost: number
   fairValue: number
-  /** Gross capital deployed into the company, before exits (computeSummary.totalInvested). */
+  /** Gross capital deployed into the company, before exits (computeSummary.totalInvested).
+   *  Excludes income received in kind, which is basis but not a contribution. */
   invested: number
+  /** Income the position produced since inception — cash and in kind. */
+  income: number
   /** Realized proceeds returned to the fund (computeSummary.totalRealized). */
   distributions: number
   /** Total value = distributions + fairValue (residual). The TVPI numerator per holding. */
   totalValue: number
   unrealized: number
   moic: number | null
+  /**
+   * ASC 820 fair value hierarchy. Absent here and stamped on afterwards by
+   * `withFairValueLevels`, because leveling depends on a PRICE FEED and a date, neither of
+   * which the tracker knows about — buildSoiPositions stays a pure function of transactions.
+   * Undecorated positions read as Level 3, which is what every private holding is.
+   */
+  valuationLevel?: FairValueLevel
 }
 
 export interface SoiCompany {
   id: string
   name: string
-  /** Added by the fund-of-funds migration; defaults to 'company' for every existing row. */
-  holding_type?: 'company' | 'fund' | null
+  /** Added by the fund-of-funds migration; defaults to 'company' for every existing row.
+   *  'crypto' added by 20260822000000. */
+  holding_type?: 'company' | 'fund' | 'crypto' | null
   status: CompanyStatus
   industry: string[] | null
   stage: string | null
@@ -159,12 +188,19 @@ function assetTypeOf(txns: InvestmentTransaction[], hasShares: boolean, hasPrice
  * Untagged `round_info` / `unrealized_gain_change` rows are company-wide pricing
  * signals (a later round the fund didn't participate in), so they count for every
  * vehicle holding that company — without them the position marks at entry price.
+ *
+ * A `split` is company-wide by NATURE, not just by convention: the issuer splits its
+ * stock and every holder's share count changes, so an untagged split must reach every
+ * vehicle. Left out, a vehicle keeps pre-split shares while its price goes post-split
+ * and the position silently halves.
  */
 export function txnsForVehicle(txns: InvestmentTransaction[], vehicle: string): InvestmentTransaction[] {
   const inVehicle = txns.filter(t => t.portfolio_group === vehicle)
   const priceSignals = txns.filter(t =>
     !t.portfolio_group &&
-    (t.transaction_type === 'unrealized_gain_change' || t.transaction_type === 'round_info')
+    (t.transaction_type === 'unrealized_gain_change' ||
+     t.transaction_type === 'round_info' ||
+     t.transaction_type === 'split')
   )
   return [...inVehicle, ...priceSignals]
 }
@@ -192,7 +228,11 @@ export function buildSoiPositions(
 
     const s = computeSummary(relevant, company.status, asOf)
     const exited = s.rounds.reduce((sum, rd) => sum + Math.abs(rd.costBasisExited ?? 0), 0)
-    const cost = r(s.totalInvested - exited)
+    // Income basis counts as COST even though it is not invested capital. A staking reward or an
+    // airdrop is recognised at fair value on receipt, and that value is the units' basis — leave
+    // it out and the schedule understates cost, while selling those units later reports the whole
+    // proceeds as gain on top of the income already recognised.
+    const cost = r(s.totalInvested + s.totalIncomeBasis - exited)
     // unrealizedValue, not fmv: fmv reports PROCEEDS for an exited company, which is
     // not a carrying value and would misstate the balance sheet.
     const fairValue = r(s.unrealizedValue)
@@ -202,7 +242,9 @@ export function buildSoiPositions(
     positions.push({
       companyId: company.id,
       name: company.name,
-      holdingType: company.holding_type === 'fund' ? 'fund' : 'company',
+      holdingType: company.holding_type === 'fund' || company.holding_type === 'crypto'
+        ? company.holding_type
+        : 'company',
       industry: company.industry?.[0] ?? null,
       country: company.country ?? null,
       stage: company.stage ?? null,
@@ -213,6 +255,7 @@ export function buildSoiPositions(
       cost,
       fairValue,
       invested: r(s.totalInvested),
+      income: r(s.totalIncome),
       distributions: r(s.totalRealized),
       totalValue: r(s.totalRealized + s.unrealizedValue),
       unrealized: r(fairValue - cost),

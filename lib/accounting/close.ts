@@ -27,6 +27,11 @@ import { loadPostedLedger, loadOwnership, loadEntityNames } from './load'
 import type { FundPosition } from '@/lib/portfolio/fof-metrics'
 import { loadFofData, ledgerCarryingByHolding } from '@/lib/portfolio/fof-load'
 import { fofCloseIssues } from '@/lib/portfolio/fof-valuation'
+import { quoteCloseIssues, type PriceFeed, type PriceObservation, type QuotedPosition } from '@/lib/portfolio/quotes'
+import { walletCloseIssues, type Wallet, type WalletBalance } from '@/lib/portfolio/wallets'
+import { lotIssues, isLotMethod, type LotMethod } from '@/lib/portfolio/lots'
+import { buildSoiPositions, type SoiCompany } from './soi'
+import { fundCurrency } from './currency'
 import { accountIdByCode, ensureCapitalAccounts, persistEntry } from './persist'
 import { allocateAmount } from './allocation'
 import { postingsInPeriod } from './statements'
@@ -74,6 +79,7 @@ const SUBTYPE_TO_SOURCE: Record<string, string> = {
   realized_gain: 'realized_gain',
   unrealized: 'valuation',
   interest_income: 'income',
+  portfolio_income: 'income',
   equity_method: 'income',
 }
 
@@ -366,6 +372,176 @@ async function loadFofCloseInputs(
   }
 }
 
+/**
+ * The quoted half of the close's inputs — positions priced by a feed rather than by a round.
+ *
+ * Returns null for a fund that has no feeds, so a purely private book runs exactly the query
+ * count it ran before and none of this code path executes. Same shape as the FoF loader above,
+ * for the same reason: the check itself is pure, and lives in lib/portfolio/quotes.ts.
+ */
+async function loadQuoteCloseInputs(
+  admin: SupabaseClient,
+  fundId: string,
+  group: string,
+  asOf: string,
+): Promise<{
+  positions: QuotedPosition[]
+  feeds: PriceFeed[]
+  observations: PriceObservation[]
+  currency: string
+} | null> {
+  const { data: feedRows } = await (admin as any)
+    .from('price_feeds')
+    .select('*')
+    .eq('fund_id', fundId)
+  const feeds = ((feedRows as any[]) ?? []).map(f => ({
+    id: f.id,
+    companyId: f.company_id,
+    kind: f.kind,
+    symbol: f.symbol,
+    exchange: f.exchange,
+    quoteCurrency: f.quote_currency,
+    quoteScale: Number(f.quote_scale ?? 1),
+    activeFrom: f.active_from,
+    activeUntil: f.active_until,
+    restrictionUntil: f.restriction_until,
+    restrictionDiscount: f.restriction_discount == null ? null : Number(f.restriction_discount),
+  })) as PriceFeed[]
+  if (feeds.length === 0) return null
+
+  const [{ data: obsRows }, { data: txnRows }, { data: companyRows }, ledger, currency] = await Promise.all([
+    (admin as any).from('price_observations').select('*').eq('fund_id', fundId).lte('as_of_date', asOf),
+    (admin as any).from('investment_transactions').select('*').eq('fund_id', fundId),
+    (admin as any).from('companies').select('*').eq('fund_id', fundId),
+    loadPostedLedger(admin, fundId, group, asOf),
+    fundCurrency(admin, fundId),
+  ])
+
+  const observations = ((obsRows as any[]) ?? []).map(o => ({
+    feedId: o.feed_id,
+    asOfDate: o.as_of_date,
+    price: Number(o.price),
+    basis: o.basis,
+  })) as PriceObservation[]
+
+  // Transactions are cut at the period end BEFORE the roll-up sees them. Without this the
+  // position would be valued on share counts — and splits — that had not happened yet, so a
+  // re-close of an earlier period would not reproduce.
+  const upTo = ((txnRows as any[]) ?? []).filter(t => !t.transaction_date || t.transaction_date <= asOf)
+  // buildSoiPositions runs through computeSummary, so `shares` arrives SPLIT-ADJUSTED — which is
+  // what a quote must be multiplied by (lib/splits.ts).
+  const soi = buildSoiPositions(upTo, ((companyRows as any[]) ?? []) as SoiCompany[], group, new Date(asOf))
+  const carrying = ledgerCarryingByHolding(ledger.accounts, ledger.postings)
+
+  const positions: QuotedPosition[] = soi.map(p => ({
+    companyId: p.companyId,
+    name: p.name,
+    shares: p.shares ?? 0,
+    ledgerCarrying: carrying.get(p.companyId) ?? 0,
+  }))
+
+  return { positions, feeds, observations, currency }
+}
+
+/**
+ * Watched wallets and what the chain says they hold.
+ *
+ * Returns null for a fund with no wallets, so a book holding no digital assets runs the query
+ * count it ran before. Same posture as the FoF and quoted loaders above.
+ */
+async function loadWalletCloseInputs(
+  admin: SupabaseClient,
+  fundId: string,
+  group: string,
+  asOf: string,
+): Promise<{
+  positions: { companyId: string; name: string; units: number }[]
+  wallets: Wallet[]
+  balances: WalletBalance[]
+} | null> {
+  const { data: walletRows } = await (admin as any)
+    .from('crypto_wallets').select('*').eq('fund_id', fundId)
+  const rows = ((walletRows as any[]) ?? [])
+  if (rows.length === 0) return null
+
+  const wallets: Wallet[] = rows.map(w => ({
+    id: w.id,
+    companyId: w.company_id,
+    chain: w.chain,
+    address: w.address,
+    label: w.label,
+    active: w.active !== false,
+    verifiedAt: w.verified_at,
+    verificationMethod: w.verification_method,
+  }))
+
+  const [{ data: balRows }, { data: txnRows }, { data: companyRows }] = await Promise.all([
+    (admin as any).from('crypto_wallet_balances').select('*').eq('fund_id', fundId).lte('as_of_date', asOf),
+    (admin as any).from('investment_transactions').select('*').eq('fund_id', fundId),
+    (admin as any).from('companies').select('*').eq('fund_id', fundId),
+  ])
+
+  const balances: WalletBalance[] = ((balRows as any[]) ?? []).map(b => ({
+    walletId: b.wallet_id,
+    asOfDate: b.as_of_date,
+    units: Number(b.units),
+    blockHeight: b.block_height,
+  }))
+
+  // Cut the history at the period end, then read the units through the same roll-up everything
+  // else uses — so the quantity compared against the chain is SPLIT-ADJUSTED and matches what
+  // the schedule of investments reports for the same date.
+  const upTo = ((txnRows as any[]) ?? []).filter(t => !t.transaction_date || t.transaction_date <= asOf)
+  const soi = buildSoiPositions(upTo, ((companyRows as any[]) ?? []) as SoiCompany[], group, new Date(asOf))
+  const positions = soi.map(p => ({ companyId: p.companyId, name: p.name, units: p.shares ?? 0 }))
+
+  return { positions, wallets, balances }
+}
+
+/**
+ * Disposals whose recorded cost basis disagrees with the fund's own lot policy.
+ *
+ * Loaded per HOLDING rather than in one pass, because lots are consumed per holding and pooling
+ * them across the portfolio would let a sale of one asset draw basis from another.
+ *
+ * Returns an empty list for a fund with no unit-bearing disposals, which is most funds — a
+ * venture book exits whole positions and records the basis outright.
+ */
+async function loadLotIssues(
+  admin: SupabaseClient,
+  fundId: string,
+  group: string,
+  asOf: string,
+): Promise<string[]> {
+  const [{ data: settings }, { data: txnRows }, { data: companyRows }] = await Promise.all([
+    (admin as any).from('fund_settings').select('lot_method').eq('fund_id', fundId).maybeSingle(),
+    (admin as any).from('investment_transactions').select('*').eq('fund_id', fundId),
+    (admin as any).from('companies').select('id, name, holding_type').eq('fund_id', fundId),
+  ])
+  const raw = (settings as any)?.lot_method
+  const method: LotMethod = isLotMethod(raw) ? raw : 'fifo'
+
+  const upTo = ((txnRows as any[]) ?? []).filter(t => !t.transaction_date || t.transaction_date <= asOf)
+  const names = new Map(((companyRows as any[]) ?? []).map(c => [c.id as string, c.name as string]))
+
+  const byCompany = new Map<string, any[]>()
+  for (const t of upTo) {
+    // Company-wide rows carry no vehicle; vehicle-tagged rows must match this one, or a sale in
+    // one fund would consume lots bought by another.
+    if (t.portfolio_group && t.portfolio_group !== group) continue
+    if (!byCompany.has(t.company_id)) byCompany.set(t.company_id, [])
+    byCompany.get(t.company_id)!.push(t)
+  }
+
+  const out: string[] = []
+  for (const [companyId, txns] of Array.from(byCompany.entries())) {
+    for (const issue of lotIssues(txns, method, names.get(companyId) ?? 'A holding')) {
+      out.push(issue.message)
+    }
+  }
+  return out
+}
+
 /** Pre-close checks over the whole span. */
 async function checkReadiness(
   admin: SupabaseClient,
@@ -423,6 +599,33 @@ async function checkReadiness(
     blockers.push(...issues.blockers)
     warnings.push(...issues.warnings)
   }
+
+  // Quoted positions. Skipped entirely for a fund with no price feeds, so a private book is
+  // unaffected — same posture as the FoF block above.
+  const quoted = await loadQuoteCloseInputs(admin, fundId, group, end)
+  if (quoted) {
+    const issues = quoteCloseIssues(
+      quoted.positions, quoted.feeds, quoted.observations, end, quoted.currency,
+    )
+    blockers.push(...issues.blockers)
+    warnings.push(...issues.warnings)
+  }
+
+  // Watched wallets. Warnings only, never blockers — see lib/portfolio/wallets.ts for why a
+  // quantity disagreement is a decision the fund makes rather than a stop.
+  const walletInputs = await loadWalletCloseInputs(admin, fundId, group, end)
+  if (walletInputs) {
+    const issues = walletCloseIssues(
+      walletInputs.positions, walletInputs.wallets, walletInputs.balances, end,
+    )
+    blockers.push(...issues.blockers)
+    warnings.push(...issues.warnings)
+  }
+
+  // Cost basis on partial disposals. Warnings, not blockers: the recorded figure is what the
+  // books use and a fund may have a deliberate reason for it, so this reports the disagreement
+  // rather than overruling it. See lib/portfolio/lots.ts.
+  warnings.push(...await loadLotIssues(admin, fundId, group, end))
 
   if (bankRows.length > 0) {
     const total = roundCents(bankRows.reduce((s, t) => s + Number(t.amount), 0))

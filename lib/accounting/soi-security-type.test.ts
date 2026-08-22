@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { readFileSync } from 'fs'
+import { readdirSync, readFileSync } from 'fs'
 import { join } from 'path'
 
 import { SECURITY_LABELS, SECURITY_TYPES, isSecurityType, normalizeSecurityType } from './soi'
@@ -16,12 +16,19 @@ import { SECURITY_LABELS, SECURITY_TYPES, isSecurityType, normalizeSecurityType 
  */
 describe('SECURITY_LABELS vs the database CHECK constraint', () => {
   it('lists exactly the values the constraint accepts', () => {
-    const sql = readFileSync(
-      join(__dirname, '../../supabase/migrations/20260712000000_soi_country_security_type.sql'),
-      'utf8',
-    )
-    const check = sql.match(/security_type in \(([\s\S]*?)\)\)/)
-    expect(check, 'could not find the security_type CHECK in the migration').toBeTruthy()
+    // The LATEST migration that defines the constraint wins, found by scanning rather than
+    // naming a file. Historical migrations are never edited (see CLAUDE.md), so adding an
+    // instrument means a NEW migration re-declaring the check — and a test pinned to the
+    // original filename would keep asserting against a constraint the database no longer has.
+    const dir = join(__dirname, '../../supabase/migrations')
+    const check = readdirSync(dir)
+      .filter(f => f.endsWith('.sql'))
+      .sort()
+      .reduce<RegExpMatchArray | null>((latest, file) => {
+        const m = readFileSync(join(dir, file), 'utf8').match(/security_type in \(([\s\S]*?)\)\)/)
+        return m ?? latest
+      }, null)
+    expect(check, 'could not find the security_type CHECK in any migration').toBeTruthy()
 
     const allowed = (check![1].match(/'[^']+'/g) ?? []).map(m => m.slice(1, -1))
     expect(allowed.length).toBeGreaterThan(0)
