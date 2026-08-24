@@ -93,7 +93,14 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <DemoSessionGuard />
           <div className="bg-info text-white text-center text-xs py-1.5 px-4 shrink-0 flex items-center justify-center gap-3">
             <span>Viewing demo &mdash; read only</span>
-            <a href="/api/auth/logout" className="underline underline-offset-2 hover:text-white/80">Exit demo</a>
+            {/* POST, not a link: /api/auth/logout exports only POST, so a GET falls through to
+                Next's 405 handler — a body-less response with no Content-Type, which Chrome
+                cannot render and turns into a download named "logout". The session also
+                survived, because a download never unloads the page and DemoSessionGuard's
+                beforeunload beacon never fired. */}
+            <form action="/api/auth/logout" method="POST">
+              <button type="submit" className="underline underline-offset-2 hover:text-white/80">Exit demo</button>
+            </form>
           </div>
         </>
       )}
