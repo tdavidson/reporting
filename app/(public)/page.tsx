@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { CalendlyButton } from '@/components/calendly-button'
 import { SubscriptionInquiryButton } from '@/components/subscription-inquiry-modal'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { parseSiteContent, resolveIcon, type SiteContent, type SiteTier, type SiteLinks } from '@/lib/marketing/content'
+import { parseSiteContent, resolveIcon, type SiteCallout, type SiteTier, type SiteLinks } from '@/lib/marketing/content'
 import { renderInlineMarkdown } from '@/lib/marketing/markdown'
 
 export const metadata = ogMetadata({
@@ -46,11 +46,13 @@ function HeroCtas({ links }: { links: SiteLinks }) {
 }
 
 /**
- * The "hire me" callout. Rendered twice — once under the hero CTAs at the
- * subtitle's width, once beside the About box at the foot of the page — so the
- * markup lives in one place and the two stay identical.
+ * The "hire me" callout. One component, two placements — under the hero CTAs and
+ * beside the About box — each fed by its own JSON field (`heroCallout` /
+ * `cfoCallout`) so the two can make different asks. `centredBadge` pins the badge
+ * to the middle of the top edge, which is what the hero's full-measure card wants;
+ * the narrower About card keeps it left, aligned with the padding.
  */
-function CfoCallout({ callout, className = '' }: { callout: NonNullable<SiteContent['cfoCallout']>; className?: string }) {
+function CfoCallout({ callout, className = '', centredBadge = false }: { callout: SiteCallout; className?: string; centredBadge?: boolean }) {
   return (
     <a
       href={callout.href}
@@ -59,7 +61,7 @@ function CfoCallout({ callout, className = '' }: { callout: NonNullable<SiteCont
       className={`relative rounded-card border border-brand-200 bg-brand-50 dark:border-brand-800 dark:bg-brand-950 p-7 flex flex-col transition-colors duration-200 ease-out-soft hover:bg-brand-100 dark:hover:bg-brand-900 ${className}`}
     >
       {callout.badge && (
-        <span className="absolute -top-3 left-6 bg-brand text-brand-foreground text-eyebrow uppercase px-2.5 py-1 rounded-full">
+        <span className={`absolute -top-3 bg-brand text-brand-foreground text-eyebrow uppercase px-2.5 py-1 rounded-full ${centredBadge ? 'left-1/2 -translate-x-1/2' : 'left-6'}`}>
           {callout.badge}
         </span>
       )}
@@ -88,6 +90,7 @@ export default async function HomePage() {
   const { data } = await (admin as any).from('site_content').select('content').eq('id', true).maybeSingle()
   const content = parseSiteContent(data?.content)
   if (!content) redirect('/auth')
+  const heroCallout = content.heroCallout ?? content.cfoCallout
 
   return (
     <div className="px-6 md:px-8 pb-12 pt-8 md:pt-16">
@@ -104,10 +107,10 @@ export default async function HomePage() {
         </h1>
         <p className="text-lede text-muted-foreground max-w-[640px] mx-auto mt-7 text-pretty">{content.hero.subtitle}</p>
         <HeroCtas links={content.links} />
-        {/* Same callout as the foot of the page, pulled up under the CTAs at the
-            subtitle's measure so the ask is visible above the fold. */}
-        {content.cfoCallout && (
-          <CfoCallout callout={content.cfoCallout} className="mt-12 max-w-[640px] mx-auto text-left" />
+        {/* The above-the-fold ask, at the subtitle's measure. Falls back to the
+            foot-of-page callout when the JSON only defines one. */}
+        {heroCallout && (
+          <CfoCallout callout={heroCallout} centredBadge className="mt-12 max-w-[640px] mx-auto text-left" />
         )}
       </section>
 

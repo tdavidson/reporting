@@ -20,6 +20,8 @@ export interface SiteAbout { name: string; photo?: string; bio: string; links: A
 /** `features` points at the marketing site's product page (hemrock.com/reporting);
  *  the others are the repo and the read-only demo. All three feed the hero CTA row. */
 export interface SiteLinks { github?: string; x?: string; demo?: string; features?: string }
+/** A highlighted "hire me" card: an anchor with an optional badge and heading. */
+export interface SiteCallout { badge?: string; title?: string; text: string; href: string }
 
 export interface SiteContent {
   /** `emphasis` renders after the title in the display italic, in the brand accent
@@ -33,8 +35,12 @@ export interface SiteContent {
   faqs: SiteFaq[]
   about: SiteAbout
   links: SiteLinks
-  /** Optional personal CTA rendered as a highlighted (amber) card in the About section. */
-  cfoCallout?: { badge?: string; title?: string; text: string; href: string }
+  /** Optional personal CTA rendered as a highlighted card beside the About box.
+   *  Its own field, separate from `heroCallout`, so the two can say different things. */
+  cfoCallout?: SiteCallout
+  /** The same card pulled up under the hero CTAs. Independent copy; falls back to
+   *  `cfoCallout` when absent so JSON that only sets one still shows both cards. */
+  heroCallout?: SiteCallout
 }
 
 // Allowlist of icons the JSON may reference by name. JSON can't hold components.
@@ -117,6 +123,15 @@ function about(v: unknown): SiteAbout {
   }
 }
 
+function callout(v: unknown): SiteCallout | null {
+  if (!isObj(v) || !nonEmpty(v.text) || !nonEmpty(v.href)) return null
+  return {
+    text: v.text, href: v.href,
+    ...(nonEmpty(v.badge) ? { badge: v.badge } : {}),
+    ...(nonEmpty(v.title) ? { title: v.title } : {}),
+  }
+}
+
 function links(v: unknown): SiteLinks {
   if (!isObj(v)) return {}
   const out: SiteLinks = {}
@@ -138,6 +153,8 @@ export function parseSiteContent(raw: unknown): SiteContent | null {
   if (productGroups.length === 0) return null
 
   const pricingRaw = isObj(raw.pricing) ? raw.pricing : {}
+  const foot = callout(raw.cfoCallout)
+  const top = callout(raw.heroCallout)
   return {
     hero: {
       title: hero.title,
@@ -154,15 +171,7 @@ export function parseSiteContent(raw: unknown): SiteContent | null {
     faqs: arr(raw.faqs).map(faq).filter((f): f is SiteFaq => f !== null),
     about: about(raw.about),
     links: links(raw.links),
-    ...(isObj(raw.cfoCallout) && nonEmpty(raw.cfoCallout.text) && nonEmpty(raw.cfoCallout.href)
-      ? {
-          cfoCallout: {
-            text: raw.cfoCallout.text,
-            href: raw.cfoCallout.href,
-            ...(nonEmpty(raw.cfoCallout.badge) ? { badge: raw.cfoCallout.badge } : {}),
-            ...(nonEmpty(raw.cfoCallout.title) ? { title: raw.cfoCallout.title } : {}),
-          },
-        }
-      : {}),
+    ...(foot ? { cfoCallout: foot } : {}),
+    ...(top ? { heroCallout: top } : {}),
   }
 }
