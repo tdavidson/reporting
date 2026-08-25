@@ -99,18 +99,18 @@ export default async function HomePage() {
           properties read as one product. The emphasis phrase is the page's one
           flourish and the only place the brand accent appears above the fold. */}
       <section className="mb-20 md:mb-28 text-center">
-        <h1 className="font-display text-display font-semibold max-w-3xl mx-auto text-balance">
+        <h1 className="font-display text-display font-semibold max-w-3xl mx-auto text-balance text-center">
           {content.hero.title}
           {content.hero.emphasis && (
             <>{' '}<em className="italic text-brand-700 dark:text-brand-400">{content.hero.emphasis}</em></>
           )}
         </h1>
-        <p className="text-lede text-muted-foreground max-w-[640px] mx-auto mt-7 text-pretty">{content.hero.subtitle}</p>
+        <p className="text-lede text-muted-foreground max-w-[640px] mx-auto mt-7 text-pretty text-center">{content.hero.subtitle}</p>
         <HeroCtas links={content.links} />
         {/* The above-the-fold ask, at the subtitle's measure. Falls back to the
             foot-of-page callout when the JSON only defines one. */}
         {heroCallout && (
-          <CfoCallout callout={heroCallout} centredBadge className="mt-12 max-w-[640px] mx-auto text-left" />
+          <CfoCallout callout={heroCallout} centredBadge className="mt-12 max-w-[640px] mx-auto text-center" />
         )}
       </section>
 
