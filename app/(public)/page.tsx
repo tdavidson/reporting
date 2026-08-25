@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { CalendlyButton } from '@/components/calendly-button'
 import { SubscriptionInquiryButton } from '@/components/subscription-inquiry-modal'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { parseSiteContent, resolveIcon, type SiteTier, type SiteLinks } from '@/lib/marketing/content'
+import { parseSiteContent, resolveIcon, type SiteContent, type SiteTier, type SiteLinks } from '@/lib/marketing/content'
 import { renderInlineMarkdown } from '@/lib/marketing/markdown'
 
 export const metadata = ogMetadata({
@@ -45,6 +45,30 @@ function HeroCtas({ links }: { links: SiteLinks }) {
   )
 }
 
+/**
+ * The "hire me" callout. Rendered twice — once under the hero CTAs at the
+ * subtitle's width, once beside the About box at the foot of the page — so the
+ * markup lives in one place and the two stay identical.
+ */
+function CfoCallout({ callout, className = '' }: { callout: NonNullable<SiteContent['cfoCallout']>; className?: string }) {
+  return (
+    <a
+      href={callout.href}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={`relative rounded-card border border-brand-200 bg-brand-50 dark:border-brand-800 dark:bg-brand-950 p-7 flex flex-col transition-colors duration-200 ease-out-soft hover:bg-brand-100 dark:hover:bg-brand-900 ${className}`}
+    >
+      {callout.badge && (
+        <span className="absolute -top-3 left-6 bg-brand text-brand-foreground text-eyebrow uppercase px-2.5 py-1 rounded-full">
+          {callout.badge}
+        </span>
+      )}
+      {callout.title && <h3 className="text-base font-medium mb-2">{callout.title}</h3>}
+      <p className="text-sm text-muted-foreground">{renderInlineMarkdown(callout.text)}</p>
+    </a>
+  )
+}
+
 function TierCta({ tier, featured }: { tier: SiteTier; featured?: boolean }) {
   if (tier.cta.kind === 'calendly' && tier.cta.href) {
     return <CalendlyButton url={tier.cta.href} className="w-full"><Calendar className="h-4 w-4 mr-1.5" />{tier.cta.label}</CalendlyButton>
@@ -80,6 +104,11 @@ export default async function HomePage() {
         </h1>
         <p className="text-lede text-muted-foreground max-w-[640px] mx-auto mt-7 text-pretty">{content.hero.subtitle}</p>
         <HeroCtas links={content.links} />
+        {/* Same callout as the foot of the page, pulled up under the CTAs at the
+            subtitle's measure so the ask is visible above the fold. */}
+        {content.cfoCallout && (
+          <CfoCallout callout={content.cfoCallout} className="mt-12 max-w-[640px] mx-auto text-left" />
+        )}
       </section>
 
       {/* Proof strip. Both reference sites lead with figures; absent from the JSON
@@ -218,22 +247,7 @@ export default async function HomePage() {
             )}
             {/* Was an amber alert box, which read as a validation warning. Amber is
                 the app's warning colour; this is an invitation, so it takes the brand. */}
-            {content.cfoCallout && (
-              <a
-                href={content.cfoCallout.href}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="relative rounded-card border border-brand-200 bg-brand-50 dark:border-brand-800 dark:bg-brand-950 p-7 flex flex-col transition-colors duration-200 ease-out-soft hover:bg-brand-100 dark:hover:bg-brand-900"
-              >
-                {content.cfoCallout.badge && (
-                  <span className="absolute -top-3 left-6 bg-brand text-brand-foreground text-eyebrow uppercase px-2.5 py-1 rounded-full">
-                    {content.cfoCallout.badge}
-                  </span>
-                )}
-                {content.cfoCallout.title && <h3 className="text-base font-medium mb-2">{content.cfoCallout.title}</h3>}
-                <p className="text-sm text-muted-foreground">{renderInlineMarkdown(content.cfoCallout.text)}</p>
-              </a>
-            )}
+            {content.cfoCallout && <CfoCallout callout={content.cfoCallout} />}
           </div>
         </section>
       )}
