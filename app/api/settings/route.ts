@@ -31,9 +31,27 @@ export async function GET() {
 
   if (!membership) return NextResponse.json({ error: 'No fund found' }, { status: 404 })
 
+  // `select('*')`, deliberately, rather than naming the ~45 columns this route serves.
+  //
+  // Postgres rejects a SELECT that names one column it doesn't have (42703), and
+  // supabase-js reports that as `{ data: null }` without throwing — so with an explicit
+  // column list, a single unapplied migration made EVERY field on the settings page fall
+  // through to its `?? default`. A configured Claude key read as "no key configured", the
+  // inbound-email provider as "None (disabled)", Google Drive as "None (database only)",
+  // and `feature_visibility` as the defaults — all while the row sat intact in the table,
+  // one Save away from being overwritten with those blanks. (That was `lot_method`, from
+  // 20260822000001_income_and_lot_basis.sql, on a database that hadn't run it.)
+  //
+  // A star select can't fail that way: it returns whatever columns exist, so a column
+  // added by a pending migration is simply `undefined` and degrades to its own default,
+  // leaving every other setting correct. The response below is still an explicit
+  // allowlist — nothing reaches the client just because it's in the table — so the cost
+  // is a few unread columns on the wire, which is the right trade for a settings page
+  // that can't silently blank itself. Anything genuinely secret is stored encrypted and
+  // exposed here only as a `!!has…` boolean, as before.
   const [{ data: fund }, { data: settings }, { data: senders }] = await Promise.all([
     admin.from('funds').select('id, name, logo_url, address').eq('id', membership.fund_id).single(),
-    (admin as any).from('fund_settings').select('postmark_inbound_address, postmark_webhook_token, postmark_webhook_token_encrypted, encryption_key_encrypted, retain_resolved_reviews, resolved_reviews_ttl_days, claude_api_key_encrypted, claude_model, ai_summary_prompt, google_refresh_token_encrypted, google_drive_folder_id, google_drive_folder_name, google_client_id, google_client_secret_encrypted, outbound_email_provider, asks_email_provider, approval_email_subject, approval_email_body, system_email_from_name, system_email_from_address, resend_api_key_encrypted, postmark_server_token_encrypted, inbound_email_provider, mailgun_inbound_domain, mailgun_signing_key_encrypted, mailgun_api_key_encrypted, mailgun_sending_domain, file_storage_provider, openai_api_key_encrypted, openai_model, default_ai_provider, openrouter_api_key_encrypted, openrouter_model, openrouter_base_url, analytics_fathom_site_id, analytics_ga_measurement_id, currency, lot_method, disable_user_tracking, feature_visibility, deal_thesis, deal_screening_prompt, deal_intake_enabled, deal_submission_token, lp_portal_enabled').eq('fund_id', membership.fund_id).single(),
+    (admin as any).from('fund_settings').select('*').eq('fund_id', membership.fund_id).maybeSingle(),
     admin.from('authorized_senders').select('id, email, label, created_at').eq('fund_id', membership.fund_id).order('email'),
   ])
 
@@ -55,33 +73,6 @@ export async function GET() {
       webhookToken = settings.postmark_webhook_token ?? ''
     }
   }
-
-  // Read on its own, tolerating a missing column. `affinity_mcp_enabled` ships in the
-  // Affinity migration, which a given deployment may not have run yet — and one absent
-  // column in the SELECT above would fail the whole query and take the entire settings
-  // page down with it.
-  let affinityMcpEnabled = false
-  try {
-    const { data: aff } = await (admin as any)
-      .from('fund_settings')
-      .select('affinity_mcp_enabled')
-      .eq('fund_id', membership.fund_id)
-      .maybeSingle()
-    affinityMcpEnabled = !!aff?.affinity_mcp_enabled
-  } catch { /* migration not applied — the feature is simply off */ }
-
-  // The master switch for the whole agent surface (MCP + REST + API keys + OAuth).
-  // Same tolerate-a-missing-column posture as above: a deployment that hasn't run
-  // the OAuth migration reads `false` rather than failing the settings page.
-  let agentApiEnabled = false
-  try {
-    const { data: agentRow } = await (admin as any)
-      .from('fund_settings')
-      .select('agent_api_enabled')
-      .eq('fund_id', membership.fund_id)
-      .maybeSingle()
-    agentApiEnabled = !!agentRow?.agent_api_enabled
-  } catch { /* migration not applied — the surface is simply off */ }
 
   return NextResponse.json({
     fundId: fund?.id,
@@ -134,8 +125,9 @@ export async function GET() {
     // one is active; the plaintext URL is surfaced once, from the mint response.
     hasSubmissionToken: !!settings?.deal_submission_token,
     lpPortalEnabled: settings?.lp_portal_enabled ?? false,
-    affinityMcpEnabled,
-    agentApiEnabled,
+    // Both ship in later migrations; absent, they read as off — see the star select above.
+    affinityMcpEnabled: !!settings?.affinity_mcp_enabled,
+    agentApiEnabled: !!settings?.agent_api_enabled,
     displayName: membership.display_name ?? '',
     isAdmin: membership.role === 'admin',
     userId: user.id,
