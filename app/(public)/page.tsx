@@ -110,7 +110,7 @@ export default async function HomePage() {
         {/* The above-the-fold ask, at the subtitle's measure. Falls back to the
             foot-of-page callout when the JSON only defines one. */}
         {heroCallout && (
-          <CfoCallout callout={heroCallout} centredBadge className="mt-12 max-w-[640px] mx-auto text-center" />
+          <CfoCallout callout={heroCallout} centredBadge className="mt-16 md:mt-20 max-w-[640px] mx-auto text-center" />
         )}
       </section>
 
