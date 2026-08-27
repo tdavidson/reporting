@@ -39,6 +39,16 @@ export const DEFAULT_CHART: ChartAccountSeed[] = [
   // holdback. Recognizing it as a RECEIVABLE at exit puts the two back in agreement, and the
   // receivable clears when the money actually lands.
   { code: '1350', name: 'Escrow receivable', type: 'asset', subtype: 'escrow_receivable' },
+  // TAX-BOOK ASSETS. These carry postings in the `tax` book only — they are where a
+  // book-to-tax adjustment puts the debit when it reverses an expense book took and tax
+  // capitalises. They sit in the shared chart because the chart is per VEHICLE, not per book,
+  // and an overlay entry has to reach a real account like any other.
+  //
+  // 1400 amortizes (§709, 180 months); 1450 never does. Keeping them apart is the same
+  // distinction as 5200 vs 5250, carried onto the balance sheet — a single "deferred costs"
+  // account would lose the one fact that decides whether the balance ever unwinds.
+  { code: '1400', name: 'Deferred organizational costs (tax)', type: 'asset', subtype: 'deferred_org_costs' },
+  { code: '1450', name: 'Capitalized syndication costs (tax)', type: 'asset', subtype: 'capitalized_syndication' },
 
   // Liabilities
   { code: '2000', name: 'Accrued expenses', type: 'liability', subtype: 'accrued' },
