@@ -118,6 +118,10 @@ export const ROUTE_DOMAINS: Record<string, RouteAccess> = {
   // split arrives with the K-1 allocation. Gated on `tax_reporting` so a fund keeping books but
   // not issuing K-1s never sees it.
   'api/accounting/tax-adjustments': { domain: 'accounting', feature: 'tax_reporting' },
+  // Tax forms, unlike the adjustments above, are PER PARTNER — the payload is partner names,
+  // legal names, countries and TIN last-fours. That is lp_capital data, and gating it as
+  // `accounting` would let someone reconcile the bank read the partner register.
+  'api/accounting/tax-forms': { domain: 'lp_capital', feature: 'tax_reporting' },
   'api/accounting/entities': { domain: 'lp_capital' },
   'api/accounting/lp-events': { domain: 'lp_capital' },
   'api/accounting/lp-events/import': { domain: 'lp_capital' },
