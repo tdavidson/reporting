@@ -36,6 +36,7 @@ import { DEALS_TOOL_MANIFEST } from '@/lib/agent/deals-tools-manifest'
 import { DEALS_HANDLERS } from '@/lib/agent/deals-tools'
 import { LP_TOOL_MANIFEST } from '@/lib/agent/lp-tools-manifest'
 import { LP_HANDLERS } from '@/lib/agent/lp-tools'
+import { ACTUAL_BOOK } from './books'
 
 export interface AgentToolContext {
   admin: SupabaseClient
@@ -104,7 +105,7 @@ const HANDLERS: Record<string, AgentToolHandler> = {
   list_journal: async ({ admin, fundId, portfolioGroup }, input) => {
     const limit = Math.min(Number(input?.limit ?? 100), 500)
     const vehicleId = await vehicleIdByName(admin, fundId, portfolioGroup)
-    const { data } = await admin.from('journal_entries' as any).select('*, journal_postings(*)').eq('fund_id', fundId).eq('vehicle_id', vehicleId).order('entry_date', { ascending: false }).limit(limit)
+    const { data } = await admin.from('journal_entries' as any).select('*, journal_postings(*)').eq('book', ACTUAL_BOOK).eq('fund_id', fundId).eq('vehicle_id', vehicleId).order('entry_date', { ascending: false }).limit(limit)
     return data ?? []
   },
 

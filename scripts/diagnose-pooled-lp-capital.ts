@@ -10,6 +10,7 @@
 //   4. What would the trial balance look like once the phantoms are gone?
 
 import { createAdminClient } from '@/lib/supabase/admin'
+import { ACTUAL_BOOK } from '@/lib/accounting/books'
 
 const group = process.argv[2]
 if (!group) { console.error('usage: diagnose-pooled-lp-capital.ts "<vehicle name>"'); process.exit(1) }
@@ -42,6 +43,7 @@ async function main() {
   // --- 2. Postings on the pooled account --------------------------------------
   const { data: entries } = await admin.from('journal_entries')
     .select('id, entry_date, memo, source_type, status, journal_postings(id, account_id, amount, lp_entity_id)')
+    .eq('book', ACTUAL_BOOK)
     .eq('fund_id', fundId).eq('vehicle_id', vehicleId).eq('status', 'posted')
     .order('entry_date', { ascending: true })
 

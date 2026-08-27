@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 // portfolio domain, investments feature (lib/access/route-domains.ts).
 import { assertReadAccess, assertWriteAccess } from '@/lib/api-helpers'
+import { ACTUAL_BOOK } from '@/lib/accounting/books'
 
 // One fund holding and its terms.
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
@@ -133,6 +134,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: { id: stri
     const { count: postingCount } = await admin
       .from('journal_postings' as any)
       .select('id', { count: 'exact', head: true })
+      .eq('book', ACTUAL_BOOK)
       .eq('fund_id', gate.fundId)
       .in('account_id', acctIds)
 

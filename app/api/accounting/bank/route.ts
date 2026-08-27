@@ -11,6 +11,7 @@ import { RECEIVABLE_CODE, DISTRIBUTION_PAYABLE_CODE } from '@/lib/accounting/cha
 import { loadEntityNames } from '@/lib/accounting/load'
 import { closedPeriodRanges, dateInAnyClosedPeriod } from '@/lib/accounting/periods'
 import { dbError } from '@/lib/api-error'
+import { ACTUAL_BOOK } from '@/lib/accounting/books'
 
 // GET — list a vehicle's staged bank transactions.
 export async function GET(req: NextRequest) {
@@ -63,6 +64,7 @@ export async function GET(req: NextRequest) {
     const { data: postings } = await admin
       .from('journal_postings' as any)
       .select('journal_entry_id, account_id, lp_entity_id')
+      .eq('book', ACTUAL_BOOK)
       .eq('fund_id', gate.fundId)
       .in('journal_entry_id', entryIds)
 
@@ -133,6 +135,7 @@ export async function POST(req: NextRequest) {
     const { data: entries } = await admin
       .from('journal_entries' as any)
       .select('id, status, entry_date')
+      .eq('book', ACTUAL_BOOK)
       .eq('fund_id', gate.fundId)
       .in('id', entryIds)
 
@@ -218,6 +221,7 @@ export async function POST(req: NextRequest) {
     const { data: postings } = await admin
       .from('journal_postings' as any)
       .select('id, account_id')
+      .eq('book', ACTUAL_BOOK)
       .eq('journal_entry_id', entryId)
     const nonCash = ((postings as any[]) ?? []).filter(p => p.account_id !== cashId)
     if (nonCash.length !== 1) return NextResponse.json({ error: 'This entry has a custom allocation — edit it in the Journal.' }, { status: 400 })
@@ -249,7 +253,7 @@ export async function POST(req: NextRequest) {
   if (action === 'unpost') {
     if ((txn as any).status !== 'reconciled') return NextResponse.json({ error: 'Only a posted transaction can be unposted' }, { status: 400 })
     if (entryId) {
-      const { data: entry } = await admin.from('journal_entries' as any).select('entry_date').eq('id', entryId).eq('fund_id', gate.fundId).maybeSingle()
+      const { data: entry } = await admin.from('journal_entries' as any).select('entry_date').eq('book', ACTUAL_BOOK).eq('id', entryId).eq('fund_id', gate.fundId).maybeSingle()
       const date = (entry as any)?.entry_date
       if (date) {
         const closed = await closedPeriodRanges(admin, gate.fundId, group)
@@ -267,7 +271,7 @@ export async function POST(req: NextRequest) {
   if (action === 'restore') {
     if ((txn as any).status !== 'ignored') return NextResponse.json({ error: 'Only an ignored transaction can be restored' }, { status: 400 })
     if (entryId) {
-      const { data: entry } = await admin.from('journal_entries' as any).select('entry_date').eq('id', entryId).eq('fund_id', gate.fundId).maybeSingle()
+      const { data: entry } = await admin.from('journal_entries' as any).select('entry_date').eq('book', ACTUAL_BOOK).eq('id', entryId).eq('fund_id', gate.fundId).maybeSingle()
       const date = (entry as any)?.entry_date
       if (date) {
         const closed = await closedPeriodRanges(admin, gate.fundId, group)

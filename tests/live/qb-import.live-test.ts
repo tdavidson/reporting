@@ -11,6 +11,7 @@ import { fetchAllRows } from '@/lib/accounting/load'
 import { trialBalance } from '@/lib/accounting/statements'
 import { runBulkDraftAction } from '@/lib/accounting/journal-bulk'
 import type { Account, Posting } from '@/lib/accounting/types'
+import { ACTUAL_BOOK } from '@/lib/accounting/books'
 
 /**
  * END-TO-END QuickBooks migration against the LIVE database. Not part of `npm test` — see
@@ -37,6 +38,7 @@ const createdRefs: string[] = []
 afterAll(async () => {
   const { data: entries } = await admin.from('journal_entries')
     .select('id').eq('fund_id', fundId).ilike('memo', `%${SMOKE}%`)
+    .eq('book', ACTUAL_BOOK)
   const ids = (entries ?? []).map((e: any) => e.id)
   if (ids.length) {
     await admin.from('journal_postings').delete().in('journal_entry_id', ids)
@@ -54,7 +56,7 @@ afterAll(async () => {
 
   const counts: Record<string, number> = {}
   for (const [k, q] of [
-    ['entries', admin.from('journal_entries').select('id', { count: 'exact', head: true }).ilike('memo', `%${SMOKE}%`)],
+    ['entries', admin.from('journal_entries').select('id', { count: 'exact', head: true }).eq('book', ACTUAL_BOOK).ilike('memo', `%${SMOKE}%`)],
     ['mappings', admin.from('qb_account_mappings').select('id', { count: 'exact', head: true }).ilike('qb_account', `%${SMOKE}%`)],
     ['companies', admin.from('companies').select('id', { count: 'exact', head: true }).ilike('name', `%${SMOKE}%`)],
     ['chart', admin.from('chart_of_accounts').select('id', { count: 'exact', head: true }).ilike('name', `%${SMOKE}%`)],
@@ -165,6 +167,7 @@ describe('QuickBooks migration — live database', { timeout: 60_000 }, () => {
 
     const { data: written } = await admin.from('journal_entries')
       .select('id, status, source_type, source_ref, memo').eq('fund_id', fundId).in('source_ref', createdRefs)
+      .eq('book', ACTUAL_BOOK)
     console.log('[import]', JSON.stringify((written ?? []).map((w: any) => ({ status: w.status, src: w.source_type, memo: w.memo }))))
     expect((written ?? []).length).toBe(2)
     expect((written ?? []).every((w: any) => w.status === 'draft')).toBe(true)
@@ -172,7 +175,7 @@ describe('QuickBooks migration — live database', { timeout: 60_000 }, () => {
 
     // Postings balance, per entry.
     for (const w of (written ?? [])) {
-      const { data: ps } = await admin.from('journal_postings').select('amount').eq('journal_entry_id', w.id)
+      const { data: ps } = await admin.from('journal_postings').select('amount').eq('book', ACTUAL_BOOK).eq('journal_entry_id', w.id)
       const net = (ps ?? []).reduce((a: number, p: any) => a + Number(p.amount), 0)
       expect(Math.abs(net)).toBeLessThan(0.005)
     }
@@ -183,6 +186,7 @@ describe('QuickBooks migration — live database', { timeout: 60_000 }, () => {
     const refs = transactions.map(qbSourceRef)
     const { data: present } = await admin.from('journal_entries')
       .select('source_ref').eq('fund_id', fundId).eq('vehicle_id', vehicleId).in('source_ref', refs)
+      .eq('book', ACTUAL_BOOK)
     const already = new Set((present ?? []).map((r: any) => r.source_ref))
     const toCreate = refs.filter(r => !already.has(r))
     console.log('[reimport] refs:', refs.length, 'already present:', already.size, 'would create:', toCreate.length)
@@ -210,6 +214,7 @@ describe('QuickBooks migration — live database', { timeout: 60_000 }, () => {
     // fund's real history. Real callers scope by date instead.
     const { data: mine } = await admin.from('journal_entries')
       .select('id').eq('fund_id', fundId).in('source_ref', createdRefs)
+      .eq('book', ACTUAL_BOOK)
     const entryIds = (mine ?? []).map((e: any) => e.id)
 
     const acctRows = await fetchAllRows((f, t) => admin.from('chart_of_accounts')
@@ -217,6 +222,7 @@ describe('QuickBooks migration — live database', { timeout: 60_000 }, () => {
       .eq('fund_id', fundId).eq('vehicle_id', vehicleId).range(f, t))
     const { data: postingRows } = await admin.from('journal_postings')
       .select('account_id, amount, currency').in('journal_entry_id', entryIds)
+      .eq('book', ACTUAL_BOOK)
 
     const accounts: Account[] = (acctRows as any[]).map(a => ({
       id: a.id, fundId, code: a.code, name: a.name, type: a.type, subtype: a.subtype, companyId: a.company_id ?? null,
@@ -235,6 +241,7 @@ describe('QuickBooks migration — live database', { timeout: 60_000 }, () => {
     // and posted through the EXISTING bulk-post path, not a QuickBooks-specific one.
     const { data: before } = await admin.from('journal_entries')
       .select('id, status').eq('fund_id', fundId).in('source_ref', createdRefs)
+      .eq('book', ACTUAL_BOOK)
     expect((before ?? []).every((e: any) => e.status === 'draft')).toBe(true)
 
     const result = await runBulkDraftAction(admin, {
@@ -249,6 +256,7 @@ describe('QuickBooks migration — live database', { timeout: 60_000 }, () => {
 
     const { data: after } = await admin.from('journal_entries')
       .select('id, status').eq('fund_id', fundId).in('source_ref', createdRefs)
+      .eq('book', ACTUAL_BOOK)
     expect((after ?? []).every((e: any) => e.status === 'posted')).toBe(true)
   })
 
@@ -271,6 +279,7 @@ describe('QuickBooks migration — live database', { timeout: 60_000 }, () => {
 
     const { data: posted } = await admin.from('journal_entries')
       .select('id').eq('fund_id', fundId).eq('status', 'posted').in('source_ref', createdRefs)
+      .eq('book', ACTUAL_BOOK)
     const entryIds = (posted ?? []).map((e: any) => e.id)
     expect(entryIds).toHaveLength(2)
 
@@ -279,6 +288,7 @@ describe('QuickBooks migration — live database', { timeout: 60_000 }, () => {
       .eq('fund_id', fundId).eq('vehicle_id', vehicleId).range(f, t))
     const { data: postingRows } = await admin.from('journal_postings')
       .select('account_id, amount, currency').in('journal_entry_id', entryIds)
+      .eq('book', ACTUAL_BOOK)
 
     const accounts: Account[] = (acctRows as any[]).map(a => ({
       id: a.id, fundId, code: a.code, name: a.name, type: a.type, subtype: a.subtype, companyId: a.company_id ?? null,

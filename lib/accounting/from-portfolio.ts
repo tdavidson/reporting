@@ -29,6 +29,7 @@ import { closedPeriodRanges, dateInAnyClosedPeriod } from './periods'
 import { vehicleIdByName } from './vehicle-id'
 import { roundCents } from './ledger'
 import type { JournalEntry, Posting } from './types'
+import { ACTUAL_BOOK } from './books'
 
 const CASH = '1000'
 const ESCROW_RECEIVABLE = '1350'
@@ -97,6 +98,7 @@ export async function retractEntriesForTransaction(
     const { data: entries } = await admin
       .from('journal_entries' as any)
       .select('id, status, entry_date, portfolio_group')
+      .eq('book', ACTUAL_BOOK)
       .eq('fund_id', fundId)
       .eq('source_ref', txnRef(txnId))
       .neq('status', 'void')

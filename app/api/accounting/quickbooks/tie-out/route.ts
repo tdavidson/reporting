@@ -9,6 +9,7 @@ import { fetchAllRows } from '@/lib/accounting/load'
 import { trialBalance } from '@/lib/accounting/statements'
 import { parseQbTrialBalance, compareTrialBalance } from '@/lib/accounting/quickbooks/tie-out'
 import type { Account, Posting } from '@/lib/accounting/types'
+import { ACTUAL_BOOK } from '@/lib/accounting/books'
 
 /**
  * Step 4: our trial balance against QuickBooks', account by account, at one period end.
@@ -53,11 +54,13 @@ export async function POST(req: NextRequest) {
       .eq('fund_id', gate.fundId).eq('vehicle_id', vehicleId).range(f, t)),
     fetchAllRows((f, t) => admin.from('journal_entries' as any)
       .select('id, status, entry_date')
+      .eq('book', ACTUAL_BOOK)
       .eq('fund_id', gate.fundId).eq('vehicle_id', vehicleId)
       .in('status', ['posted', 'draft'])
       .lte('entry_date', body.asOf).range(f, t)),
     fetchAllRows((f, t) => admin.from('journal_postings' as any)
       .select('journal_entry_id, account_id, amount, currency')
+      .eq('book', ACTUAL_BOOK)
       .eq('fund_id', gate.fundId).eq('vehicle_id', vehicleId).range(f, t)),
     (admin as any).from('qb_account_mappings')
       .select('qb_account, account_code, excluded')

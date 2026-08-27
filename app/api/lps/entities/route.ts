@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { assertWriteAccess } from '@/lib/api-helpers'
 import { dbError } from '@/lib/api-error'
+import { ACTUAL_BOOK } from '@/lib/accounting/books'
 
 // ---------------------------------------------------------------------------
 // GET — list all entities for this fund
@@ -174,6 +175,7 @@ export async function DELETE(req: NextRequest) {
   const [{ count: postingCount }, { count: callLineCount }] = await Promise.all([
     admin.from('journal_postings' as any)
       .select('id', { count: 'exact', head: true })
+      .eq('book', ACTUAL_BOOK)
       .eq('fund_id', writeCheck.fundId)
       .eq('lp_entity_id', id),
     admin.from('capital_call_lines' as any)

@@ -15,6 +15,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { vehicleIdByName } from './vehicle-id'
 import { fetchAllRows } from './load'
 import { roundCents } from './ledger'
+import { ACTUAL_BOOK } from './books'
 
 export interface StrandedCapital {
   /** Postings sitting on a pooled LP capital account. */
@@ -94,6 +95,7 @@ export async function loadStrandedCapital(
     (admin as any)
       .from('journal_postings')
       .select('id, amount, lp_entity_id, journal_entries!inner(status)')
+      .eq('book', ACTUAL_BOOK)
       .eq('fund_id', fundId)
       .in('account_id', pooledIds)
       .range(f, t),

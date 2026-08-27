@@ -19,6 +19,7 @@ import { ensureCapitalAccounts } from './persist'
 import { closedPeriodRanges, dateInAnyClosedPeriod } from './periods'
 import { loadCommitmentEvents } from './terms'
 import { fetchAllRows } from './load'
+import { ACTUAL_BOOK } from './books'
 
 /**
  * Every LP that should have a per-LP capital account for this vehicle: anyone with a
@@ -92,6 +93,7 @@ async function scan(admin: SupabaseClient, fundId: string, group: string) {
     admin
       .from('journal_postings' as any)
       .select('id, amount, lp_entity_id, journal_entries!inner(entry_date, status)')
+      .eq('book', ACTUAL_BOOK)
       .eq('fund_id', fundId)
       .in('account_id', pooledIds)
       .neq('journal_entries.status', 'void')

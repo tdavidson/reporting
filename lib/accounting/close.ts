@@ -60,6 +60,7 @@ import { vehicleIdByName } from './vehicle-id'
 import { loadStrandedCapital } from './pooled-capital-check'
 import { roundCents } from './ledger'
 import type { Account, JournalEntry, Posting } from './types'
+import { ACTUAL_BOOK } from './books'
 
 /** The undistributed-earnings bridge. */
 const BRIDGE_CODE = '3200'
@@ -555,6 +556,7 @@ async function checkReadiness(
   const [{ data: drafts }, { data: bankTxns }] = await Promise.all([
     admin.from('journal_entries' as any)
       .select('id, entry_date')
+      .eq('book', ACTUAL_BOOK)
       .eq('fund_id', fundId).eq('vehicle_id', vehicleId)
       .eq('status', 'draft')
       .gte('entry_date', start).lte('entry_date', end),
@@ -986,9 +988,9 @@ async function removeSupersededPeriods(
     if (p.status === 'closed') continue
 
     const [{ count: entryCount }, { count: closeCount }] = await Promise.all([
-      admin.from('journal_entries' as any).select('id', { count: 'exact', head: true })
+      admin.from('journal_entries' as any).select('id', { count: 'exact', head: true }).eq('book', ACTUAL_BOOK)
         .eq('fund_id', fundId).eq('period_id', p.id),
-      admin.from('journal_entries' as any).select('id', { count: 'exact', head: true })
+      admin.from('journal_entries' as any).select('id', { count: 'exact', head: true }).eq('book', ACTUAL_BOOK)
         .eq('fund_id', fundId).eq('source_ref', `close:${p.id}`),
     ])
     if ((entryCount ?? 0) > 0 || (closeCount ?? 0) > 0) continue
@@ -1317,13 +1319,14 @@ export async function loadCloseEntries(
   const { data: entries } = await admin
     .from('journal_entries' as any)
     .select('id, entry_date, memo, source_type')
+    .eq('book', ACTUAL_BOOK)
     .eq('fund_id', fundId).eq('vehicle_id', vehicleId).eq('source_ref', `close:${periodId}`).eq('status', 'posted')
     .order('entry_date', { ascending: true })
   const entryRows = (entries as any[]) ?? []
   if (entryRows.length === 0) return []
 
   const [{ data: postings }, { data: accts }, { data: ents }] = await Promise.all([
-    admin.from('journal_postings' as any).select('journal_entry_id, account_id, amount, lp_entity_id').eq('fund_id', fundId).in('journal_entry_id', entryRows.map(e => e.id)),
+    admin.from('journal_postings' as any).select('journal_entry_id, account_id, amount, lp_entity_id').eq('book', ACTUAL_BOOK).eq('fund_id', fundId).in('journal_entry_id', entryRows.map(e => e.id)),
     admin.from('chart_of_accounts' as any).select('id, code, name').eq('fund_id', fundId).eq('vehicle_id', vehicleId),
     admin.from('lp_entities' as any).select('id, entity_name').eq('fund_id', fundId),
   ])
@@ -1436,6 +1439,7 @@ async function voidCloseEntries(
   const { data: entries, error: findErr } = await admin
     .from('journal_entries' as any)
     .select('id')
+    .eq('book', ACTUAL_BOOK)
     .eq('fund_id', fundId)
     .eq('vehicle_id', vehicleId)
     .eq('source_ref', `close:${periodId}`)

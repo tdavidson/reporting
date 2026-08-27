@@ -23,6 +23,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import type { CapitalPosting } from './capital-account'
 import { vehicleIdByName, type VehicleIdMap } from './vehicle-id'
 import { roundCents } from './ledger'
+import { ACTUAL_BOOK } from './books'
 
 const TOLERANCE = 0.005
 
@@ -250,6 +251,7 @@ export async function lastDataDate(
     const { data } = await admin
       .from('journal_entries' as any)
       .select('entry_date')
+      .eq('book', ACTUAL_BOOK)
       .eq('fund_id', fundId).eq('vehicle_id', vehicleId).eq('status', 'posted')
       .order('entry_date', { ascending: false }).limit(1).maybeSingle()
     return (data as any)?.entry_date ?? null

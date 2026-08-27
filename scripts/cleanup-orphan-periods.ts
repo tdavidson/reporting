@@ -14,6 +14,7 @@
 // overlapping, NOT closed, no journal entry pointing at it, and no `close:<id>` entries.
 
 import { createAdminClient } from '@/lib/supabase/admin'
+import { ACTUAL_BOOK } from '@/lib/accounting/books'
 
 const APPLY = process.argv.includes('--apply')
 const vehicleArg = process.argv.slice(2).find(a => !a.startsWith('--'))
@@ -45,9 +46,9 @@ async function main() {
       if (p.status === 'closed') continue // real history — a human decides
 
       const [{ count: entryCount }, { count: closeCount }] = await Promise.all([
-        admin.from('journal_entries').select('id', { count: 'exact', head: true })
+        admin.from('journal_entries').select('id', { count: 'exact', head: true }).eq('book', ACTUAL_BOOK)
           .eq('fund_id', v.fund_id).eq('period_id', p.id),
-        admin.from('journal_entries').select('id', { count: 'exact', head: true })
+        admin.from('journal_entries').select('id', { count: 'exact', head: true }).eq('book', ACTUAL_BOOK)
           .eq('fund_id', v.fund_id).eq('source_ref', `close:${p.id}`),
       ])
       const label = `${v.name}: ${p.period_start} → ${p.period_end} [${p.status}] ${p.label ?? ''}`
