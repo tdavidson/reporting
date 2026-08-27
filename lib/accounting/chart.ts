@@ -74,7 +74,14 @@ export const DEFAULT_CHART: ChartAccountSeed[] = [
   { code: '4000', name: 'Realized gain/(loss) on investments', type: 'income', subtype: 'realized_gain' },
   // Cash sitting in the bank, and dividends actually received. TREASURY income — it says
   // nothing about how the portfolio is doing.
-  { code: '4100', name: 'Interest and dividend income', type: 'income', subtype: 'interest_income' },
+  // INTEREST AND DIVIDENDS ARE SEPARATE ACCOUNTS because they are separate K-1 boxes — interest
+  // is box 5, dividends are 6a, and the qualified part of dividends is 6b. One combined account
+  // meant the tax side had to INFER the split by subtracting tagged portfolio income from the
+  // total, which silently misclassified any dividend booked straight to the ledger without a
+  // matching portfolio row. The account is the auditable source; the portfolio tag is now a
+  // cross-check against it.
+  { code: '4100', name: 'Interest income', type: 'income', subtype: 'interest_income' },
+  { code: '4130', name: 'Dividend income', type: 'income', subtype: 'dividend_income' },
   // Interest EARNED BY A PORTFOLIO POSITION — a convertible note accruing at its coupon. This is
   // investment income, and keeping it apart from 4100 is the whole point: an LP reading the
   // income statement can then tell yield the portfolio produced from yield the bank account

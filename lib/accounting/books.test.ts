@@ -20,22 +20,16 @@ const ROOTS = ['app', 'lib', 'scripts', 'tests']
 const EXT = ['.ts', '.tsx']
 
 /**
- * Reads that deliberately span every book.
+ * Reads that want every book and say so with no filter at all.
  *
- * Empty today, and that is the correct starting state: every existing caller is actual-book by
- * policy — bank reconciliation, capital-call booking, notices, the period close, statements as
- * filed. The first genuine entries here will be the tax-basis reads (item L, the K-1 allocation)
- * and the journal's book switch, each of which reads a book it was ASKED for rather than
- * assuming one.
+ * Empty, and likely to stay that way. A read spanning several books declares them with
+ * `.in('book', [...])`, which the filter below accepts — the K-1 loader's tax-basis read is the
+ * standing example, and it needs no exemption because it states its intent in the query.
  *
- * An entry is `file:line` plus a reason. The reason is the point of the list.
+ * This list is for the case that cannot: a read that genuinely wants whatever books exist. An
+ * entry is `file:line` plus a reason. Prefer naming the books.
  */
-const CROSS_BOOK_READS: Record<string, string> = {
-  'lib/accounting/k1-load.ts:81':
-    'Tax-basis capital IS actual + tax adjustments. Reading either book alone here gives a ' +
-    'number that is precisely wrong, so this one reads both by design — it is the overlay the ' +
-    'tax book exists to provide.',
-}
+const CROSS_BOOK_READS: Record<string, string> = {}
 
 interface Site {
   file: string
@@ -56,7 +50,10 @@ function walk(dir: string, out: string[] = []): string[] {
 
 const FROM_RE = /\.from\(\s*['"](journal_entries|journal_postings)['"]/
 const WRITE_RE = /\.(insert|update|upsert|delete)\(/
-const FILTER_RE = /\.eq\(\s*['"]book['"]\s*,/
+// A read must SAY which books it wants: `.eq` for one, `.in` for several. Silence is the failure
+// this guards — not breadth. Keying the exemption list by line number instead would have made
+// every edit above a query break the test it was meant to protect.
+const FILTER_RE = /\.(eq|in)\(\s*['"]book['"]\s*,/
 
 /**
  * Every query against the two journal tables, classified.
@@ -103,9 +100,10 @@ describe('ledger book filter', () => {
 
     expect(
       unguarded,
-      'These reads would silently include tax-book adjusting entries. Add ' +
-        "`.eq('book', ACTUAL_BOOK)` (lib/accounting/books.ts), or — if the query genuinely " +
-        'wants every book — add it to CROSS_BOOK_READS with the reason.',
+      'These reads would silently include tax-book adjusting entries. Say which books they ' +
+        "want: `.eq('book', ACTUAL_BOOK)` (lib/accounting/books.ts) for the real ledger, or " +
+        "`.in('book', [...])` to span several — or, failing both, add it to CROSS_BOOK_READS " +
+        'with the reason.',
     ).toEqual([])
   })
 

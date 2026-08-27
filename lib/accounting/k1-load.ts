@@ -18,13 +18,19 @@ import { vehicleIdByName } from './vehicle-id'
 import { disposalBasis, isLotMethod, type LotMethod } from '@/lib/portfolio/lots'
 import { splitGains, type DisposalGain, type GainSplit } from './holding-period'
 import type { FundYearCharacter, PartnerYearActivity } from './k1-allocation'
+import {
+  summarizeQualifiedDividends,
+  type DividendFact,
+  type QualifiedDividendSummary,
+} from './qualified-dividends'
 
 /** Income accounts, by the character a K-1 wants them under. */
 const INCOME_CODES = {
   realizedGain: '4000',
-  interestAndDividends: '4100',
+  interest: '4100',
   noteInterest: '4110',
   portfolioIncome: '4120',
+  dividends: '4130',
 } as const
 
 const EXPENSE_CODES = {
@@ -127,13 +133,13 @@ export async function loadK1Year(
   const expenseOn = (code: string) =>
     roundCents(posted.filter(r => inYear(r) && onCode(r, code)).reduce((s, r) => s + Number(r.amount), 0))
 
-  const dividends = await loadDividendIncome(admin, fundId, vehicleId, yearStart, yearEnd)
-  const interestAndDividends = incomeOn(INCOME_CODES.interestAndDividends)
-
-  // 4100 is "Interest AND dividend income" — one account for two K-1 boxes. The portfolio side
-  // can tell them apart, because a dividend arrives as an `income` transaction tagged as one.
-  // Whatever 4100 holds beyond those tagged dividends is interest.
-  const interest = roundCents(interestAndDividends - dividends + incomeOn(INCOME_CODES.noteInterest))
+  // Interest and dividends have their OWN accounts now, so both come straight off the ledger
+  // rather than one being inferred from the other. The tagged portfolio rows become a cross-check
+  // (below) instead of the classifier.
+  const dividends = incomeOn(INCOME_CODES.dividends)
+  const interest = roundCents(incomeOn(INCOME_CODES.interest) + incomeOn(INCOME_CODES.noteInterest))
+  const taggedDividends = await loadDividendIncome(admin, fundId, vehicleId, yearStart, yearEnd)
+  const qualified = await loadQualifiedDividends(admin, fundId, yearStart, yearEnd)
 
   const gains = await loadRealizedGainSplit(admin, fundId, vehicleId, taxYear)
 
@@ -145,15 +151,33 @@ export async function loadK1Year(
       expenseOn(EXPENSE_CODES.interest),
   )
 
-  const notDerivable: { line: string; reason: string }[] = [
-    {
+  const notDerivable: { line: string; reason: string }[] = []
+
+  // The portfolio tags no longer classify anything, but they still know something the ledger
+  // does not: that a dividend happened. A gap between the two means one was booked somewhere
+  // other than 4130 — very likely 4100, where it will report as interest.
+  if (roundCents(taggedDividends - dividends) !== 0) {
+    notDerivable.push({
+      line: 'Dividends (6a)',
+      reason:
+        `The portfolio records ${taggedDividends.toFixed(2)} of dividend income for this year, ` +
+        `but account 4130 holds ${dividends.toFixed(2)}. The difference was booked to another ` +
+        'account — most likely 4100, where it will be reported as interest — and needs ' +
+        'reclassifying by journal entry.',
+    })
+  }
+  if (qualified.uncertain !== 0) {
+    notDerivable.push({
       line: 'Qualified dividends (6b)',
       reason:
-        'Whether a dividend is qualified depends on the payer and on the holding period of the ' +
-        'shares at the dividend date. Neither is in these books, so this is left for the ' +
-        'preparer rather than reported as nil.',
-    },
-  ]
+        `${qualified.uncertain.toFixed(2)} of dividends could not be classified. ` +
+        qualified.verdicts
+          .filter(v => v.verdict === 'uncertain')
+          .map(v => v.reason)
+          .slice(0, 3)
+          .join(' '),
+    })
+  }
   if (gains.undetermined !== 0) {
     notDerivable.push({
       line: 'Short/long-term split (8, 9a)',
@@ -167,7 +191,7 @@ export async function loadK1Year(
     fund: {
       interest,
       ordinaryDividends: dividends,
-      qualifiedDividends: 0,
+      qualifiedDividends: qualified.qualified,
       shortTermGain: gains.shortTerm,
       longTermGain: gains.longTerm,
       otherIncome: incomeOn(INCOME_CODES.portfolioIncome),
@@ -278,4 +302,73 @@ async function loadRealizedGainSplit(
   }
 
   return splitGains(disposals)
+}
+
+/**
+ * Every dividend in the year, with the two facts §1(h)(11) turns on: who paid it, and how long
+ * the stock had been held.
+ *
+ * Lots come from the full transaction history, because a dividend in this year is paid on stock
+ * that may have been bought in any prior one.
+ */
+async function loadQualifiedDividends(
+  admin: SupabaseClient,
+  fundId: string,
+  yearStart: string,
+  yearEnd: string,
+): Promise<QualifiedDividendSummary> {
+  const { data: rows } = await admin
+    .from('investment_transactions' as any)
+    .select('id, company_id, income_amount, transaction_date')
+    .eq('fund_id', fundId)
+    .eq('transaction_type', 'income')
+    .eq('income_kind', 'dividend')
+    .gte('transaction_date', yearStart)
+    .lte('transaction_date', yearEnd)
+  const dividendRows = (rows as any[]) ?? []
+  if (dividendRows.length === 0) return summarizeQualifiedDividends([])
+
+  const companyIds = Array.from(new Set(dividendRows.map(r => r.company_id).filter(Boolean)))
+  const { data: companies } = await admin
+    .from('companies' as any)
+    .select('id, country, holding_type')
+    .eq('fund_id', fundId)
+    .in('id', companyIds)
+  const byCompany = new Map(((companies as any[]) ?? []).map(c => [c.id as string, c]))
+
+  // Acquisitions only: a lot is created by buying, and by in-kind income whose fair value became
+  // its basis. Disposals do not create holding period, they end it.
+  const acquisitions = await fetchAllRows<any>((from, to) =>
+    admin
+      .from('investment_transactions' as any)
+      .select('company_id, transaction_date, shares_acquired, transaction_type')
+      .eq('fund_id', fundId)
+      .in('company_id', companyIds)
+      .range(from, to),
+  )
+  const lotsByCompany = new Map<string, { acquired: string; units: number }[]>()
+  for (const t of acquisitions) {
+    if (t.transaction_type !== 'investment' && t.transaction_type !== 'income') continue
+    const units = Number(t.shares_acquired ?? 0)
+    if (!(units > 0) || !t.transaction_date) continue
+    const list = lotsByCompany.get(t.company_id) ?? []
+    list.push({ acquired: t.transaction_date, units })
+    lotsByCompany.set(t.company_id, list)
+  }
+
+  const facts: DividendFact[] = dividendRows.map(r => {
+    const company = byCompany.get(r.company_id)
+    return {
+      id: r.id,
+      companyId: r.company_id,
+      date: r.transaction_date,
+      amount: Number(r.income_amount ?? 0),
+      payerCountry: company?.country ?? null,
+      holdingType: company?.holding_type ?? null,
+      // Only lots that existed on the dividend date can have been held for it.
+      lots: (lotsByCompany.get(r.company_id) ?? []).filter(l => l.acquired <= r.transaction_date),
+    }
+  })
+
+  return summarizeQualifiedDividends(facts)
 }
