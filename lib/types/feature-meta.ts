@@ -23,4 +23,5 @@ export const FEATURE_META: Record<FeatureKey, { label: string; description: stri
   diligence: { label: 'Diligence', description: 'Pre-investment record-keeping and AI-assisted memo drafting', href: '/support#diligence' },
   accounting: { label: 'Accounting', description: 'Double-entry ledger, capital accounts, schedule of investments, and financial statements. When on, a vehicle can keep its own books — its LP capital is then derived from the ledger instead of pasted.', href: '/support#accounting' },
   gp_economics: { label: 'GP economics', description: 'Carry terms, carry accrued and paid per partner, per-deal carry, and GP entity ownership. Split out of Accounting so someone can reconcile the bank without seeing the partners’ carry.', href: '/support#accounting' },
+  tax_reporting: { label: 'Tax reporting', description: 'Schedule K-1 packages per vehicle and tax year, the partner allocation behind them, and delivery to the LP portal. Derived from the capital accounts, so it needs Accounting on and the books set up.', href: '/support#accounting' },
 }

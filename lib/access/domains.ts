@@ -131,9 +131,21 @@ export const DOMAIN_META: Record<Domain, DomainMeta> = {
   },
   accounting: {
     label: 'Fund accounting',
-    description: 'Bank, journal, chart of accounts, periods, statements, schedule of investments.',
+    description:
+      'Bank, journal, chart of accounts, periods, statements, schedule of investments, and the K-1 packages derived from them.',
     primaryFeature: 'accounting',
-    features: ['accounting'],
+    /**
+     * `tax_reporting` lives here rather than in a domain of its own for the same reason
+     * `lp_capital` is `impliedBy: 'accounting'`: a K-1 is derived from the partner capital
+     * accounts, and those accounts ARE the chart of accounts. Every figure a K-1 carries is
+     * already legible to anyone holding this grant — from the trial balance, the ledger export,
+     * or the statement of changes in partners' capital. A separate grant would suggest a boundary
+     * that does not exist.
+     *
+     * The feature key still earns its place: it decides whether the fund does tax reporting AT
+     * ALL, independently of whether it keeps books.
+     */
+    features: ['accounting', 'tax_reporting'],
   },
   lp_capital: {
     label: 'LP capital',
