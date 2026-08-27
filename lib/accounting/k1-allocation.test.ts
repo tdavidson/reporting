@@ -173,13 +173,29 @@ describe('tie-out', () => {
   })
 
   it('nets carried interest out of what a partner earned', () => {
-    // Carry moves between partners; it is not income leaving the fund.
+    // Carry moves between partners; it is not income leaving the fund. With the recipient
+    // present, both sides tie.
+    const res = allocateK1({
+      fund: { ...NO_CHARACTER, longTermGain: 1_000_000 },
+      partners: [
+        partner({ lpEntityId: 'lp-a', realizedGains: 1_000_000, carriedInterest: 200_000 }),
+        partner({ lpEntityId: 'gp', carriedInterest: -200_000 }),
+      ],
+    })
+    expect(res.partners[0].capitalAccount.netIncome).toBe(800_000)
+    expect(res.partners[0].tieOut.variance).toBe(0)
+  })
+
+  it('reports carry whose recipient is missing rather than losing it', () => {
+    // A partner bears carry and nobody in the list receives it — a vehicle loaded without its GP.
+    // The character taken off them has no home, and saying so beats a fund total that quietly
+    // falls 200,000 short.
     const res = allocateK1({
       fund: { ...NO_CHARACTER, longTermGain: 1_000_000 },
       partners: [partner({ lpEntityId: 'lp-a', realizedGains: 1_000_000, carriedInterest: 200_000 })],
     })
-    expect(res.partners[0].capitalAccount.netIncome).toBe(800_000)
-    expect(res.partners[0].tieOut.variance).toBe(200_000)
+    expect(res.partners[0].lines.longTermGain).toBe(800_000)
+    expect(res.unallocated.longTermGain).toBe(200_000)
   })
 })
 
@@ -223,5 +239,114 @@ describe('box numbers', () => {
     expect(K1_BOX.shortTermGain).toBe('8')
     expect(K1_BOX.longTermGain).toBe('9a')
     expect(K1_BOX.distributionsCash).toBe('19A')
+  })
+})
+
+describe('carry moves character, not just money', () => {
+  // A fund with 1,000,000 of long-term gain, of which the GP takes 200,000 as carry.
+  const fund: FundYearCharacter = { ...NO_CHARACTER, longTermGain: 1_000_000 }
+
+  it('gives a pure carry recipient real K-1 lines, not a tie-out variance', () => {
+    // The defect this fixes: a GP with no capital of their own has no income or gain bucket, so
+    // every character line resolved to zero and their whole carry landed in the variance.
+    const res = allocateK1({
+      fund,
+      partners: [
+        partner({ lpEntityId: 'lp', realizedGains: 1_000_000, carriedInterest: 200_000 }),
+        partner({ lpEntityId: 'gp', carriedInterest: -200_000 }),
+      ],
+    })
+    const gp = res.partners.find(p => p.lpEntityId === 'gp')!
+    expect(gp.lines.longTermGain).toBe(200_000)
+    expect(gp.tieOut.variance).toBe(0)
+  })
+
+  it('takes the same character away from the partner who bore it', () => {
+    const res = allocateK1({
+      fund,
+      partners: [
+        partner({ lpEntityId: 'lp', realizedGains: 1_000_000, carriedInterest: 200_000 }),
+        partner({ lpEntityId: 'gp', carriedInterest: -200_000 }),
+      ],
+    })
+    const lp = res.partners.find(p => p.lpEntityId === 'lp')!
+    expect(lp.lines.longTermGain).toBe(800_000)
+    expect(lp.tieOut.variance).toBe(0)
+  })
+
+  it('keeps the fund whole: what one partner loses another gains', () => {
+    const res = allocateK1({
+      fund,
+      partners: [
+        partner({ lpEntityId: 'lp', realizedGains: 1_000_000, carriedInterest: 200_000 }),
+        partner({ lpEntityId: 'gp', carriedInterest: -200_000 }),
+      ],
+    })
+    const total = res.partners.reduce((s, p) => s + p.lines.longTermGain, 0)
+    expect(total).toBe(1_000_000)
+  })
+
+  it('carries the profit MIX, not just the largest line', () => {
+    // Carry out of a book that is 75% long-term gain and 25% interest arrives as both.
+    const res = allocateK1({
+      fund: { ...NO_CHARACTER, longTermGain: 750_000, interest: 250_000 },
+      partners: [
+        partner({ lpEntityId: 'lp', operatingIncome: 250_000, realizedGains: 750_000, carriedInterest: 200_000 }),
+        partner({ lpEntityId: 'gp', carriedInterest: -200_000 }),
+      ],
+    })
+    const gp = res.partners.find(p => p.lpEntityId === 'gp')!
+    expect(gp.lines.longTermGain).toBe(150_000)
+    expect(gp.lines.interest).toBe(50_000)
+  })
+
+  it('does not hand the GP a share of the management fee', () => {
+    // Carry is computed on profit. Letting a deduction ride along in the transfer would give the
+    // recipient a share of an expense they never bore.
+    const res = allocateK1({
+      fund: { ...NO_CHARACTER, longTermGain: 1_000_000, deductions: 100_000 },
+      partners: [
+        partner({ lpEntityId: 'lp', realizedGains: 1_000_000, expenses: 100_000, carriedInterest: 200_000 }),
+        partner({ lpEntityId: 'gp', carriedInterest: -200_000 }),
+      ],
+    })
+    const gp = res.partners.find(p => p.lpEntityId === 'gp')!
+    expect(gp.lines.deductions).toBe(0)
+  })
+
+  it('splits carry across several recipients by what each received', () => {
+    const res = allocateK1({
+      fund,
+      partners: [
+        partner({ lpEntityId: 'lp', realizedGains: 1_000_000, carriedInterest: 200_000 }),
+        partner({ lpEntityId: 'gp-a', carriedInterest: -150_000 }),
+        partner({ lpEntityId: 'gp-b', carriedInterest: -50_000 }),
+      ],
+    })
+    expect(res.partners.find(p => p.lpEntityId === 'gp-a')!.lines.longTermGain).toBe(150_000)
+    expect(res.partners.find(p => p.lpEntityId === 'gp-b')!.lines.longTermGain).toBe(50_000)
+  })
+
+  it('leaves carry out of uncharacterised income in the variance, honestly', () => {
+    // Nothing to move: the fund allocated carry out of income nobody classified. Reporting that
+    // as a variance is more useful than inventing a character for it.
+    const res = allocateK1({
+      fund: NO_CHARACTER,
+      partners: [
+        partner({ lpEntityId: 'lp', realizedGains: 1_000_000, carriedInterest: 200_000 }),
+        partner({ lpEntityId: 'gp', carriedInterest: -200_000 }),
+      ],
+    })
+    const gp = res.partners.find(p => p.lpEntityId === 'gp')!
+    expect(gp.lines.longTermGain).toBe(0)
+    expect(gp.tieOut.variance).toBe(-200_000)
+  })
+
+  it('changes nothing for a fund with no carry', () => {
+    const res = allocateK1({
+      fund,
+      partners: [partner({ lpEntityId: 'lp', realizedGains: 1_000_000 })],
+    })
+    expect(res.partners[0].lines.longTermGain).toBe(1_000_000)
   })
 })

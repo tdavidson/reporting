@@ -210,10 +210,33 @@ export function allocateK1(input: AllocateK1Input): AllocateK1Result {
     if (left !== 0) unallocated[s.category] = left
   }
 
+  // CARRY MOVES CHARACTER, NOT JUST MONEY.
+  //
+  // Carried interest is a reallocation of PROFIT between partners, and profit arrives already
+  // characterised. So a GP taking 20% of a long-term gain reports long-term gain — that is the
+  // whole basis on which carry is taxed the way it is.
+  //
+  // Allocating by bucket alone got this wrong in a way that looked fine: a pure carry recipient
+  // has no operating income and no realized gains of their own, so every character line resolved
+  // to zero for them, and their entire carry landed in the tie-out variance instead of on a K-1
+  // line. The transfer below is what puts it back.
+  const carryTransfer = transferCarryCharacter(partners, allocatedByCategory)
+
+  // CONSERVATION. Carry taken off one partner has to land on another. If the partner list does
+  // not include the recipient — a carry recipient with no capital account of their own, a
+  // vehicle loaded without its GP — the character would simply disappear from every K-1 and the
+  // fund's total would quietly fall short. Report the residue instead.
+  for (const c of K1_CATEGORIES) {
+    let residue = 0
+    for (const shift of Array.from(carryTransfer.values())) residue = roundCents(residue + (shift[c] ?? 0))
+    // A negative residue means more was taken than given: that much character has no home.
+    if (residue !== 0) unallocated[c] = roundCents((unallocated[c] ?? 0) - residue)
+  }
+
   const out: PartnerK1[] = partners.map(p => {
     const lines = emptyLines()
     for (const [category, map] of Array.from(allocatedByCategory.entries())) {
-      lines[category] = roundCents(map.get(p.lpEntityId) ?? 0)
+      lines[category] = roundCents((map.get(p.lpEntityId) ?? 0) + (carryTransfer.get(p.lpEntityId)?.[category] ?? 0))
     }
 
     // Distributions are the partner's own frozen amounts, not a share of anything — they were
@@ -257,4 +280,58 @@ export function capitalAccountFoots(k1: PartnerK1): { expected: number; actual: 
   const { beginning, contributions, distributions, netIncome, ending } = k1.capitalAccount
   const expected = roundCents(beginning + contributions - distributions + netIncome)
   return { expected, actual: ending, variance: roundCents(ending - expected) }
+}
+
+/**
+ * Move each partner's character by the carry they bore or received.
+ *
+ * Carry is a share of PROFIT, so it takes the mix of the profit it came out of — the income and
+ * gain lines the bucket allocation just produced, in proportion. A partner who bore 100 of carry
+ * out of a book that was 80% long-term gain gives up 80 of long-term gain and 20 of whatever else;
+ * the recipient picks up exactly that.
+ *
+ * Deductions are excluded from the mix on purpose: carry is computed on profit, and treating a
+ * deduction as something carry can transfer would hand the GP a share of the management fee.
+ *
+ * `carriedInterest` is signed as the capital account holds it — positive means the partner's
+ * capital was debited (they bore it), negative means they received it. The transfer is the
+ * negation, so it lands on the right side without the caller having to think about it.
+ */
+function transferCarryCharacter(
+  partners: PartnerYearActivity[],
+  allocated: Map<K1Category, Map<string, number>>,
+): Map<string, Partial<Record<K1Category, number>>> {
+  const out = new Map<string, Partial<Record<K1Category, number>>>()
+
+  const totalCarry = roundCents(
+    partners.reduce((s, p) => s + Math.max(0, p.carriedInterest), 0),
+  )
+  if (totalCarry === 0) return out
+
+  // The profit pool, by character, as allocated before any transfer.
+  const PROFIT: K1Category[] = ['interest', 'ordinaryDividends', 'otherIncome', 'shortTermGain', 'longTermGain']
+  const poolByCategory = new Map<K1Category, number>()
+  let pool = 0
+  for (const c of PROFIT) {
+    const total = roundCents(
+      Array.from((allocated.get(c) ?? new Map()).values()).reduce((s, v) => s + v, 0),
+    )
+    poolByCategory.set(c, total)
+    pool = roundCents(pool + total)
+  }
+  // No characterised profit to move. The carry is still real — it shows up as a tie-out variance,
+  // which is the honest report: the fund allocated carry out of income nobody classified.
+  if (pool === 0) return out
+
+  for (const p of partners) {
+    const carry = roundCents(p.carriedInterest)
+    if (carry === 0) continue
+    const shift: Partial<Record<K1Category, number>> = {}
+    for (const c of PROFIT) {
+      const share = roundCents((-carry * (poolByCategory.get(c) ?? 0)) / pool)
+      if (share !== 0) shift[c] = share
+    }
+    out.set(p.lpEntityId, shift)
+  }
+  return out
 }
