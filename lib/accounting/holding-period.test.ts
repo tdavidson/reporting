@@ -1,5 +1,13 @@
 import { describe, it, expect } from 'vitest'
-import { isLongTerm, splitDisposalGain, splitGains, totalGain, type DisposalGain } from './holding-period'
+import {
+  API_YEARS,
+  isHeldMoreThan,
+  isLongTerm,
+  splitDisposalGain,
+  splitGains,
+  totalGain,
+  type DisposalGain,
+} from './holding-period'
 import type { DisposalBasis } from '@/lib/portfolio/lots'
 
 function disposal(over: Partial<DisposalBasis> & Pick<DisposalBasis, 'date'>): DisposalBasis {
@@ -85,7 +93,7 @@ describe('splitDisposalGain', () => {
       proceeds: 500_000,
       basis: disposal({ date: '2026-06-30', recordedBasis: 200_000, allocations: [] }),
     })
-    expect(s).toEqual({ shortTerm: 0, longTerm: 0, undetermined: 300_000 })
+    expect(s).toEqual({ shortTerm: 0, longTerm: 0, longTermWithinApiPeriod: 0, undetermined: 300_000 })
   })
 
   it('prefers the recorded basis over the computed one', () => {
@@ -166,6 +174,70 @@ describe('splitGains', () => {
   })
 
   it('is empty for a year with no disposals', () => {
-    expect(splitGains([])).toEqual({ shortTerm: 0, longTerm: 0, undetermined: 0 })
+    expect(splitGains([])).toEqual({ shortTerm: 0, longTerm: 0, longTermWithinApiPeriod: 0, undetermined: 0 })
+  })
+})
+
+describe('the §1061 three-year band', () => {
+  it('marks long-term gain from an asset held under three years', () => {
+    // Long-term to every ordinary partner, short-term to a carry recipient.
+    const s = splitDisposalGain({
+      proceeds: 300_000,
+      basis: disposal({
+        date: '2026-06-30',
+        recordedBasis: 100_000,
+        allocations: [{ lotTxnId: 'a', lotDate: '2024-06-01', units: 100, cost: 100_000 }],
+      }),
+    })
+    expect(s.longTerm).toBe(200_000)
+    expect(s.longTermWithinApiPeriod).toBe(200_000)
+  })
+
+  it('leaves gain from an asset held over three years outside the band', () => {
+    const s = splitDisposalGain({
+      proceeds: 300_000,
+      basis: disposal({
+        date: '2026-06-30',
+        recordedBasis: 100_000,
+        allocations: [{ lotTxnId: 'a', lotDate: '2020-01-01', units: 100, cost: 100_000 }],
+      }),
+    })
+    expect(s.longTerm).toBe(200_000)
+    expect(s.longTermWithinApiPeriod).toBe(0)
+  })
+
+  it('applies the day-after convention at three years too', () => {
+    expect(isHeldMoreThan('2023-06-30', '2026-06-30', API_YEARS)).toBe(false)
+    expect(isHeldMoreThan('2023-06-30', '2026-07-01', API_YEARS)).toBe(true)
+  })
+
+  it('splits one disposal across both sides of the three-year line', () => {
+    const s = splitDisposalGain({
+      proceeds: 400_000,
+      basis: disposal({
+        date: '2026-06-30',
+        recordedBasis: 200_000,
+        allocations: [
+          { lotTxnId: 'old', lotDate: '2019-01-01', units: 50, cost: 100_000 },
+          { lotTxnId: 'mid', lotDate: '2024-06-01', units: 50, cost: 100_000 },
+        ],
+      }),
+    })
+    expect(s.longTerm).toBe(200_000)
+    expect(s.longTermWithinApiPeriod).toBe(100_000)
+  })
+
+  it('never counts short-term gain in the band', () => {
+    // The band is a subset of LONG-term gain. Gain already short-term needs no recharacterising.
+    const s = splitDisposalGain({
+      proceeds: 200_000,
+      basis: disposal({
+        date: '2026-06-30',
+        recordedBasis: 100_000,
+        allocations: [{ lotTxnId: 'a', lotDate: '2026-01-01', units: 100, cost: 100_000 }],
+      }),
+    })
+    expect(s.shortTerm).toBe(100_000)
+    expect(s.longTermWithinApiPeriod).toBe(0)
   })
 })

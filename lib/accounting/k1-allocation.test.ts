@@ -16,6 +16,7 @@ const NO_CHARACTER: FundYearCharacter = {
   qualifiedDividends: 0,
   shortTermGain: 0,
   longTermGain: 0,
+  longTermGainWithinApiPeriod: 0,
   otherIncome: 0,
   deductions: 0,
 }
@@ -348,5 +349,89 @@ describe('carry moves character, not just money', () => {
       partners: [partner({ lpEntityId: 'lp', realizedGains: 1_000_000 })],
     })
     expect(res.partners[0].lines.longTermGain).toBe(1_000_000)
+  })
+})
+
+describe('§1061 three-year rule for carry recipients', () => {
+  // 1,000,000 of long-term gain, 400,000 of it from assets held one to three years.
+  const fund: FundYearCharacter = {
+    ...NO_CHARACTER,
+    longTermGain: 1_000_000,
+    longTermGainWithinApiPeriod: 400_000,
+  }
+  const withCarry = () => [
+    partner({ lpEntityId: 'lp', realizedGains: 1_000_000, carriedInterest: 200_000 }),
+    partner({ lpEntityId: 'gp', carriedInterest: -200_000 }),
+  ]
+
+  it('recharacterises the carry recipient’s share of the one-to-three-year band', () => {
+    // The GP receives 200,000 of long-term gain, 40% of which came from assets held under three
+    // years. That 80,000 is short-term to them and long-term to everyone else.
+    const res = allocateK1({ fund, partners: withCarry() })
+    const gp = res.partners.find(p => p.lpEntityId === 'gp')!
+    expect(gp.lines.longTermGain).toBe(120_000)
+    expect(gp.lines.shortTermGain).toBe(80_000)
+    expect(gp.lines.section1061Recharacterized).toBe(80_000)
+  })
+
+  it('leaves the partner who bore the carry entirely alone', () => {
+    // §1061 is a recharacterisation for the API holder, not a reallocation between partners.
+    const res = allocateK1({ fund, partners: withCarry() })
+    const lp = res.partners.find(p => p.lpEntityId === 'lp')!
+    expect(lp.lines.longTermGain).toBe(800_000)
+    expect(lp.lines.shortTermGain).toBe(0)
+    expect(lp.lines.section1061Recharacterized).toBe(0)
+  })
+
+  it('conserves total capital gain even though the long/short mix moves', () => {
+    const res = allocateK1({ fund, partners: withCarry() })
+    const total = res.partners.reduce((s, p) => s + p.lines.longTermGain + p.lines.shortTermGain, 0)
+    expect(total).toBe(1_000_000)
+  })
+
+  it('does nothing when every asset was held more than three years', () => {
+    const res = allocateK1({
+      fund: { ...fund, longTermGainWithinApiPeriod: 0 },
+      partners: withCarry(),
+    })
+    const gp = res.partners.find(p => p.lpEntityId === 'gp')!
+    expect(gp.lines.longTermGain).toBe(200_000)
+    expect(gp.lines.section1061Recharacterized).toBe(0)
+  })
+
+  it('recharacterises the lot when nothing was held three years', () => {
+    const res = allocateK1({
+      fund: { ...fund, longTermGainWithinApiPeriod: 1_000_000 },
+      partners: withCarry(),
+    })
+    const gp = res.partners.find(p => p.lpEntityId === 'gp')!
+    expect(gp.lines.longTermGain).toBe(0)
+    expect(gp.lines.shortTermGain).toBe(200_000)
+  })
+
+  it('spares a GP’s own capital-interest gain — the statutory exception, for free', () => {
+    // This GP committed real money AND takes carry. The return on their capital reached them
+    // through their own gain bucket and never passed through the carry transfer, so only the
+    // carry is recharacterised.
+    const res = allocateK1({
+      fund,
+      partners: [
+        partner({ lpEntityId: 'lp', realizedGains: 900_000, carriedInterest: 200_000 }),
+        partner({ lpEntityId: 'gp', realizedGains: 100_000, carriedInterest: -200_000 }),
+      ],
+    })
+    const gp = res.partners.find(p => p.lpEntityId === 'gp')!
+    // 100,000 of capital-interest gain stays long-term; only the 200,000 of carry is tested.
+    expect(gp.lines.section1061Recharacterized).toBe(80_000)
+    expect(gp.lines.longTermGain).toBe(220_000)
+  })
+
+  it('is disclosed as a subset of short-term gain, not added on top', () => {
+    // The recharacterised amount is already inside box 8. Counting it again would overstate the
+    // partner's income by exactly the recharacterisation.
+    expect(K1_SUBSET_OF.section1061Recharacterized).toBe('shortTermGain')
+    const res = allocateK1({ fund, partners: withCarry() })
+    const gp = res.partners.find(p => p.lpEntityId === 'gp')!
+    expect(gp.tieOut.variance).toBe(0)
   })
 })

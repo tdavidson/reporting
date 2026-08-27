@@ -194,6 +194,7 @@ export async function loadK1Year(
       qualifiedDividends: qualified.qualified,
       shortTermGain: gains.shortTerm,
       longTermGain: gains.longTerm,
+      longTermGainWithinApiPeriod: gains.longTermWithinApiPeriod,
       otherIncome: incomeOn(INCOME_CODES.portfolioIncome),
       deductions,
     },

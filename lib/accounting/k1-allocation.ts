@@ -36,6 +36,7 @@ export type K1Category =
   | 'qualifiedDividends'
   | 'shortTermGain'
   | 'longTermGain'
+  | 'section1061Recharacterized'
   | 'otherIncome'
   | 'deductions'
   | 'distributionsCash'
@@ -48,6 +49,8 @@ export const K1_BOX: Record<K1Category, string> = {
   qualifiedDividends: '6b',
   shortTermGain: '8',
   longTermGain: '9a',
+  // Reported to an API holder as a statement attached to the K-1 rather than in a numbered box.
+  section1061Recharacterized: '20AH',
   otherIncome: '11',
   deductions: '13',
   distributionsCash: '19A',
@@ -66,6 +69,10 @@ export const K1_CATEGORIES = Object.keys(K1_BOX) as K1Category[]
  */
 export const K1_SUBSET_OF: Partial<Record<K1Category, K1Category>> = {
   qualifiedDividends: 'ordinaryDividends',
+  // Already reflected in the recipient's short-term line; disclosed separately so a preparer can
+  // see how much of their short-term gain is there because of §1061 rather than because the fund
+  // held the asset briefly.
+  section1061Recharacterized: 'shortTermGain',
 }
 
 export type K1Lines = Record<K1Category, number>
@@ -82,6 +89,13 @@ export interface FundYearCharacter {
   qualifiedDividends: number
   shortTermGain: number
   longTermGain: number
+  /**
+   * The part of `longTermGain` from assets held one to three years — a SUBSET, never an addition.
+   *
+   * Long-term to an ordinary partner and short-term to a carry recipient, because §1061 measures
+   * an applicable partnership interest against three years rather than one.
+   */
+  longTermGainWithinApiPeriod: number
   otherIncome: number
   /** Investment expenses and management fee. Positive reduces income. */
   deductions: number
@@ -220,7 +234,14 @@ export function allocateK1(input: AllocateK1Input): AllocateK1Result {
   // has no operating income and no realized gains of their own, so every character line resolved
   // to zero for them, and their entire carry landed in the tie-out variance instead of on a K-1
   // line. The transfer below is what puts it back.
-  const carryTransfer = transferCarryCharacter(partners, allocatedByCategory)
+  // What fraction of the fund's long-term gain sits inside the three-year band. Computed once
+  // from the fund total rather than per partner: §1061 tests the asset's holding period, which is
+  // a fact about the fund's disposals and not about who was allocated the gain.
+  const apiShare =
+    fund.longTermGain !== 0
+      ? Math.min(1, Math.max(0, fund.longTermGainWithinApiPeriod / fund.longTermGain))
+      : 0
+  const carryTransfer = transferCarryCharacter(partners, allocatedByCategory, apiShare)
 
   // CONSERVATION. Carry taken off one partner has to land on another. If the partner list does
   // not include the recipient — a carry recipient with no capital account of their own, a
@@ -235,8 +256,15 @@ export function allocateK1(input: AllocateK1Input): AllocateK1Result {
 
   const out: PartnerK1[] = partners.map(p => {
     const lines = emptyLines()
+    const shift = carryTransfer.get(p.lpEntityId) ?? {}
     for (const [category, map] of Array.from(allocatedByCategory.entries())) {
-      lines[category] = roundCents((map.get(p.lpEntityId) ?? 0) + (carryTransfer.get(p.lpEntityId)?.[category] ?? 0))
+      lines[category] = roundCents((map.get(p.lpEntityId) ?? 0) + (shift[category] ?? 0))
+    }
+    // The transfer can name categories the bucket allocation never produced — §1061's disclosure
+    // line has no fund-level amount to split, it only exists once carry moves. Iterating the
+    // allocated map alone silently dropped it.
+    for (const category of Object.keys(shift) as K1Category[]) {
+      if (!allocatedByCategory.has(category)) lines[category] = roundCents(shift[category] ?? 0)
     }
 
     // Distributions are the partner's own frozen amounts, not a share of anything — they were
@@ -300,6 +328,8 @@ export function capitalAccountFoots(k1: PartnerK1): { expected: number; actual: 
 function transferCarryCharacter(
   partners: PartnerYearActivity[],
   allocated: Map<K1Category, Map<string, number>>,
+  /** Fraction of the fund's long-term gain that came from assets held one to three years. */
+  apiShare: number,
 ): Map<string, Partial<Record<K1Category, number>>> {
   const out = new Map<string, Partial<Record<K1Category, number>>>()
 
@@ -330,6 +360,29 @@ function transferCarryCharacter(
     for (const c of PROFIT) {
       const share = roundCents((-carry * (poolByCategory.get(c) ?? 0)) / pool)
       if (share !== 0) shift[c] = share
+    }
+
+    // §1061. A carry recipient holds an APPLICABLE PARTNERSHIP INTEREST, and their long-term
+    // treatment is measured against three years rather than one. Gain on an asset held between
+    // one and three years is long-term to every other partner and short-term to them.
+    //
+    // Applied ONLY to the carry transfer, which is exactly the statutory capital-interest
+    // exception: a GP who also committed real money keeps ordinary one-year treatment on the
+    // return to that capital, because that gain reached them through their own bucket and never
+    // passed through here. The structure gives that for free rather than needing a rule.
+    //
+    // Note this does NOT conserve the long/short split across the fund, and should not: §1061 is
+    // a recharacterisation for one holder, not a reallocation between them. Total capital gain is
+    // unchanged; the partner who bore the carry keeps their own long-term treatment.
+    const received = carry < 0
+    const ltShift = shift.longTermGain ?? 0
+    if (received && ltShift > 0 && apiShare > 0) {
+      const recharacterized = roundCents(ltShift * apiShare)
+      if (recharacterized !== 0) {
+        shift.longTermGain = roundCents(ltShift - recharacterized)
+        shift.shortTermGain = roundCents((shift.shortTermGain ?? 0) + recharacterized)
+        shift.section1061Recharacterized = recharacterized
+      }
     }
     out.set(p.lpEntityId, shift)
   }
