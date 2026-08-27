@@ -30,7 +30,12 @@ const EXT = ['.ts', '.tsx']
  *
  * An entry is `file:line` plus a reason. The reason is the point of the list.
  */
-const CROSS_BOOK_READS: Record<string, string> = {}
+const CROSS_BOOK_READS: Record<string, string> = {
+  'lib/accounting/k1-load.ts:81':
+    'Tax-basis capital IS actual + tax adjustments. Reading either book alone here gives a ' +
+    'number that is precisely wrong, so this one reads both by design — it is the overlay the ' +
+    'tax book exists to provide.',
+}
 
 interface Site {
   file: string
