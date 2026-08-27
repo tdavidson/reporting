@@ -10,6 +10,7 @@ import { closedPeriodRanges, dateInAnyClosedPeriod } from './periods'
 import { fundCurrency } from './currency'
 import { vehicleIdByName } from './vehicle-id'
 import type { JournalEntry } from './types'
+import { ACTUAL_BOOK, type LedgerBook } from './books'
 
 /** code → account_id for the vehicle's chart. */
 export async function accountIdByCode(admin: SupabaseClient, fundId: string, group: string): Promise<Map<string, string>> {
@@ -79,7 +80,17 @@ export async function persistEntry(
   group: string,
   userId: string | null,
   entry: JournalEntry,
-  status: 'draft' | 'posted' = 'posted'
+  status: 'draft' | 'posted' = 'posted',
+  /**
+   * Which set of books. Defaults to the real ledger, so every existing caller is unchanged.
+   *
+   * A non-actual book is exempt from the closed-period check below, matching the database
+   * trigger (20260827000000_ledger_books.sql). Book-to-tax adjustments are dated INSIDE the
+   * periods they adjust — that is what they are for — and those periods are closed by
+   * definition. If this check and that trigger ever disagree, this one is the bug: the database
+   * is the boundary and this is the friendlier error.
+   */
+  book: LedgerBook = ACTUAL_BOOK,
 ): Promise<{ entryId: string } | { error: string }> {
   // DENOMINATE THE ENTRY IN THE FUND'S CURRENCY, here, at the one place everything is written.
   //
@@ -99,10 +110,13 @@ export async function persistEntry(
     return { error: (e as Error).message }
   }
 
-  // Locking: refuse to post into a closed period (reopen it to amend).
-  const closed = await closedPeriodRanges(admin, fundId, group)
-  if (dateInAnyClosedPeriod(closed, entry.entryDate)) {
-    return { error: `The period covering ${entry.entryDate} is closed — reopen it to post here` }
+  // Locking: refuse to post into a closed period (reopen it to amend). Actual book only — see
+  // the `book` parameter.
+  if (book === ACTUAL_BOOK) {
+    const closed = await closedPeriodRanges(admin, fundId, group)
+    if (dateInAnyClosedPeriod(closed, entry.entryDate)) {
+      return { error: `The period covering ${entry.entryDate} is closed — reopen it to post here` }
+    }
   }
 
   // A vehicle name that isn't in the registry resolves to null, and `vehicle_id` is
@@ -167,6 +181,7 @@ export async function persistEntry(
       // entries `close:<periodId>` so reopening can find and void exactly those.
       source_ref: entry.sourceRef ?? null,
       status,
+      book,
       created_by: userId,
       posted_at: status === 'posted' ? new Date().toISOString() : null,
     })

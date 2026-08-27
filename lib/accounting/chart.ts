@@ -89,6 +89,18 @@ export const DEFAULT_CHART: ChartAccountSeed[] = [
   { code: '5000', name: 'Management fee', type: 'expense', subtype: 'management_fee' },
   { code: '5100', name: 'Partnership expenses', type: 'expense', subtype: 'partnership_expense' },
   { code: '5200', name: 'Organizational expenses', type: 'expense', subtype: 'organizational_expense' },
+  // SYNDICATION COSTS ARE NOT ORGANIZATIONAL COSTS, and the difference is permanent.
+  //
+  // Organizational costs (forming the entity) are deductible for tax — $5,000 immediately,
+  // phased out above $50,000, the rest amortized over 180 months under §709. Syndication costs
+  // (selling the interests: placement fees, the offering memorandum, marketing) are NEVER
+  // deductible and never amortized. Both are ordinary expenses for book.
+  //
+  // Without this account the two land together in 5200, and the tax book then amortizes
+  // something that should sit permanently in capital — a difference that never reverses,
+  // understating taxable income every year, forever. Splitting them at the point of entry is
+  // the only way the book-to-tax adjustment can be derived instead of guessed.
+  { code: '5250', name: 'Syndication costs', type: 'expense', subtype: 'syndication_cost' },
   { code: '5300', name: 'Interest expense', type: 'expense', subtype: 'interest_expense' },
 ]
 
