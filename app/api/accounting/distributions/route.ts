@@ -43,10 +43,22 @@ export async function POST(req: NextRequest) {
   }
 
   if (body?.action === 'declare') {
+    // Character is optional: omitting it leaves the distribution uncharacterised, which is a
+    // legitimate state and the one every pre-existing row is in. Supplying a partial split is
+    // not — declareDistribution refuses anything that doesn't sum to the declared total.
+    const c = body?.character
     const result = await declareDistribution(admin, gate.fundId, group, user.id, {
       distributionDate: String(body?.distributionDate ?? ''),
       description: body?.description ?? null,
       lines: Array.isArray(body?.lines) ? body.lines : [],
+      kind: body?.kind,
+      character: c
+        ? {
+            returnOfCapital: Number(c.returnOfCapital ?? 0),
+            realizedGain: Number(c.realizedGain ?? 0),
+            income: Number(c.income ?? 0),
+          }
+        : undefined,
     })
     if ('error' in result) return NextResponse.json({ error: result.error }, { status: 400 })
     return NextResponse.json(result)

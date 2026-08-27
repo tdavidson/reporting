@@ -19,6 +19,16 @@ import { buildDistributionDeclarationEntry } from './entries'
 import { loadPostedLedger, loadEntityNames } from './load'
 import { computeCapitalAccounts } from './capital-account'
 import { vehicleIdByName } from './vehicle-id'
+import {
+  UNCHARACTERISED,
+  characterForLine,
+  characterFromRow,
+  isDistributionKind,
+  isUncharacterised,
+  validateCharacter,
+  type DistributionCharacter,
+  type DistributionKind,
+} from './distribution-character'
 
 export interface DistributionLineInput { lpEntityId: string; amount: number }
 
@@ -27,6 +37,10 @@ export interface DeclareDistributionInput {
   description?: string | null
   scope?: 'fund_wide' | 'per_lp'
   lines: DistributionLineInput[]
+  /** K-1 box 19 form. Defaults to cash, which is every distribution this app can yet produce. */
+  kind?: DistributionKind
+  /** Return of capital / realized gain / income. Omitted or all-zero leaves it uncharacterised. */
+  character?: DistributionCharacter
 }
 
 /**
@@ -62,6 +76,16 @@ export async function declareDistribution(
   if (lines.length === 0) return { error: 'A distribution needs at least one partner with a positive amount' }
   if (!input.distributionDate) return { error: 'A distribution date is required' }
 
+  // Validate the character BEFORE anything is posted: a split that disagrees with what the
+  // partners are being told they will receive is two claims about one wire, and the cheap moment
+  // to refuse is before the journal entry exists.
+  const character = input.character ?? UNCHARACTERISED
+  const declaredTotal = roundCents(lines.reduce((s, l) => s + Number(l.amount), 0))
+  const characterProblem = validateCharacter(character, declaredTotal)
+  if (characterProblem) return { error: characterProblem.error }
+
+  const kind: DistributionKind = isDistributionKind(input.kind) ? input.kind : 'cash'
+
   const codes = await accountIdByCode(admin, fundId, group)
   const payableId = codes.get(DISTRIBUTION_PAYABLE_CODE)
   if (!payableId) {
@@ -95,6 +119,10 @@ export async function declareDistribution(
       scope: input.scope === 'per_lp' ? 'per_lp' : 'fund_wide',
       status: 'declared',
       journal_entry_id: result.entryId,
+      kind,
+      char_return_of_capital: character.returnOfCapital,
+      char_realized_gain: character.realizedGain,
+      char_income: character.income,
       created_by: userId,
     })
     .select('id')
@@ -122,8 +150,17 @@ export interface DeclaredDistribution {
   date: string
   description: string | null
   total: number
-  /** What each partner was DECLARED, frozen at declaration. */
-  lines: { lpEntityId: string; name: string; amount: number }[]
+  /** K-1 box 19 form. */
+  kind: DistributionKind
+  /** The three buckets as declared. All zero = never characterised, which is not the same as nil. */
+  character: DistributionCharacter
+  /** False when the distribution predates the character columns, or was declared without a split. */
+  characterised: boolean
+  /**
+   * What each partner was DECLARED, frozen at declaration, with their share of each character
+   * bucket derived from it — never stored, so the two cannot disagree.
+   */
+  lines: { lpEntityId: string; name: string; amount: number; character: DistributionCharacter }[]
 }
 
 /**
@@ -142,7 +179,7 @@ export async function listDistributions(
   const [{ data: rows }, names] = await Promise.all([
     (admin as any)
       .from('distributions')
-      .select('id, distribution_date, description, status, journal_entry_id, distribution_lines(lp_entity_id, amount)')
+      .select('id, distribution_date, description, status, journal_entry_id, kind, char_return_of_capital, char_realized_gain, char_income, distribution_lines(lp_entity_id, amount)')
       .eq('fund_id', fundId)
       .eq('vehicle_id', vehicleId)
       .order('distribution_date', { ascending: false })
@@ -151,18 +188,23 @@ export async function listDistributions(
   ])
 
   return ((rows as any[]) ?? []).map(d => {
-    const lines = (d.distribution_lines ?? []).map((l: any) => ({
+    const character = characterFromRow(d)
+    const rawLines = (d.distribution_lines ?? []).map((l: any) => ({
       lpEntityId: l.lp_entity_id,
       name: names.get(l.lp_entity_id) ?? l.lp_entity_id,
       amount: roundCents(Number(l.amount)),
     }))
+    const total = roundCents(rawLines.reduce((s: number, l: any) => s + l.amount, 0))
     return {
       distributionId: d.id,
       entryId: d.journal_entry_id,
       date: d.distribution_date,
       description: d.description ?? null,
-      total: roundCents(lines.reduce((s: number, l: any) => s + l.amount, 0)),
-      lines,
+      total,
+      kind: isDistributionKind(d.kind) ? d.kind : 'cash',
+      character,
+      characterised: !isUncharacterised(character),
+      lines: rawLines.map((l: any) => ({ ...l, character: characterForLine(character, l.amount, total) })),
     }
   })
 }
