@@ -5,6 +5,8 @@ import { assertReadAccess, assertWriteAccess } from '@/lib/api-helpers'
 import { dbError } from '@/lib/api-error'
 import { rateLimit } from '@/lib/rate-limit'
 import {
+  compareLegalName,
+  currentForm,
   defaultExpiry,
   isTaxFormType,
   partnerFormStatus,
@@ -58,10 +60,22 @@ export async function GET(req: NextRequest) {
       expiresOn: r.expires_on,
       subjectToBackupWithholding: r.subject_to_backup_withholding,
     }))
+    // The link between a form and a partner is an attachment someone made from a dropdown, and
+    // the identifying number is deliberately not stored — so the legal name on the form is the
+    // check that it landed on the right person. Reported, not enforced: an individual's form
+    // legitimately carries their own name while the partner record carries their trust.
+    const current = currentForm(rows.map((r, i) => ({
+      formType: r.form_type,
+      signedDate: r.signed_date,
+      expiresOn: r.expires_on,
+      legalName: r.legal_name as string | null,
+      index: i,
+    })))
     return {
       lpEntityId: e.id,
       name: e.entity_name,
       status: partnerFormStatus(e.id, records, asOf),
+      nameMatch: compareLegalName(current?.legalName, e.entity_name),
       forms: rows,
     }
   })
@@ -72,6 +86,9 @@ export async function GET(req: NextRequest) {
     // The count a K-1 run has to clear. Surfaced here so the gap is answerable in one place
     // rather than discovered one partner at a time.
     blocked: partners.filter(p => p.status.blocker).length,
+    // Forms whose name disagrees with the partner they are filed against. Not blockers — a
+    // prompt to look before a K-1 goes out under the wrong certification.
+    nameMismatches: partners.filter(p => p.nameMatch === 'differs').length,
   })
 }
 
@@ -126,6 +143,22 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'tinLast4 must be exactly four digits' }, { status: 400 })
   }
 
+  // THE DOCUMENT MUST BELONG TO THIS FUND. `documentId` arrives from a request body and was
+  // being written verbatim — the same cross-tenant hole persistEntry closes on account and
+  // partner ids. A foreign id here would attach another fund's document to this partner's tax
+  // record, and the portal would then serve it.
+  let documentId: string | null = null
+  if (typeof body?.documentId === 'string' && body.documentId) {
+    const { data: doc } = await admin
+      .from('lp_documents' as any)
+      .select('id')
+      .eq('fund_id', gate.fundId)
+      .eq('id', body.documentId)
+      .maybeSingle()
+    if (!doc) return NextResponse.json({ error: 'Unknown document for this fund' }, { status: 400 })
+    documentId = body.documentId
+  }
+
   const row = {
     fund_id: gate.fundId,
     lp_entity_id: lpEntityId,
@@ -144,7 +177,7 @@ export async function POST(req: NextRequest) {
       typeof body?.expiresOn === 'string'
         ? body.expiresOn
         : defaultExpiry(body.formType, signedDate),
-    document_id: typeof body?.documentId === 'string' ? body.documentId : null,
+    document_id: documentId,
     notes: typeof body?.notes === 'string' ? body.notes.slice(0, 2000) : null,
     created_by: user.id,
   }

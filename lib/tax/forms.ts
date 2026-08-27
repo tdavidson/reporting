@@ -147,3 +147,63 @@ export function partnerFormStatus(
     blocker,
   }
 }
+
+// ---------------------------------------------------------------------------
+// Attaching a form to the right partner
+// ---------------------------------------------------------------------------
+//
+// The identifying number is not stored, so the link between a form and a partner IS the
+// attachment — someone picked a partner from a list. That is one dropdown away from being wrong,
+// and a K-1 issued against the wrong partner's certification is the kind of error nobody notices
+// until a notice arrives.
+//
+// So the two facts that are recorded — the legal name on the form, and the last four digits —
+// earn their place by being CHECKED against the partner they were attached to, rather than
+// merely stored next to them.
+
+export type NameMatch = 'exact' | 'close' | 'differs' | 'unknown'
+
+/**
+ * Strip the parts of an entity name that legitimately vary between a fund's records and a tax
+ * form: case, punctuation, spacing, and the entity suffix. "Redwood Capital, LLC" and
+ * "Redwood Capital LLC" are the same filer; "Redwood Capital" and "Redwood Holdings" are not.
+ */
+export function normalizeEntityName(name: string): string {
+  return (
+    name
+      .toLowerCase()
+      // Dots CLOSE UP rather than becoming spaces, so "L.P." reads as "lp" and the suffix list
+      // below can see it. Splitting on the dot first turns it into "l p", which matches nothing
+      // — the bug this ordering exists to avoid.
+      .replace(/\./g, '')
+      .replace(/[,'’"()]/g, ' ')
+      .replace(/\b(llc|lp|llp|inc|incorporated|corp|corporation|ltd|limited|co|company|trust|foundation)\b/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+  )
+}
+
+/**
+ * How well the name on the form matches the partner it is attached to.
+ *
+ * Three outcomes rather than a score, because a score invites a threshold nobody can defend.
+ * `close` means the names agree once suffixes and punctuation are set aside — the ordinary case,
+ * since a fund records "Redwood Capital" and the form says "Redwood Capital Partners, L.P."
+ * `differs` is not an error: an individual's form legitimately carries their own name while the
+ * partner record carries their trust or their LLC. It is a prompt to look, not a refusal.
+ */
+export function compareLegalName(
+  formLegalName: string | null | undefined,
+  partnerName: string | null | undefined,
+): NameMatch {
+  if (!formLegalName || !partnerName) return 'unknown'
+  if (formLegalName.trim() === partnerName.trim()) return 'exact'
+
+  const a = normalizeEntityName(formLegalName)
+  const b = normalizeEntityName(partnerName)
+  if (!a || !b) return 'unknown'
+  if (a === b) return 'close'
+  // One containing the other covers "Redwood Capital" against "Redwood Capital Partners".
+  if (a.includes(b) || b.includes(a)) return 'close'
+  return 'differs'
+}

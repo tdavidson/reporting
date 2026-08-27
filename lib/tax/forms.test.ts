@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import {
   EXPIRING_SOON_DAYS,
+  compareLegalName,
+  normalizeEntityName,
   currentForm,
   defaultExpiry,
   expectedForm,
@@ -158,5 +160,46 @@ describe('type guards', () => {
     expect(isTaxFormType('w4')).toBe(false)
     expect(isUsPersonForm('w9')).toBe(true)
     expect(isUsPersonForm('w8ben')).toBe(false)
+  })
+})
+
+describe('compareLegalName', () => {
+  it('is exact when the strings match', () => {
+    expect(compareLegalName('Redwood Capital LLC', 'Redwood Capital LLC')).toBe('exact')
+  })
+
+  it('is close when only punctuation or an entity suffix differs', () => {
+    // The ordinary case: a fund's register and a tax form spell the same filer differently.
+    expect(compareLegalName('Redwood Capital, L.P.', 'Redwood Capital LP')).toBe('close')
+    expect(compareLegalName('Redwood Capital', 'Redwood Capital Trust')).toBe('close')
+  })
+
+  it('is close when one name contains the other', () => {
+    expect(compareLegalName('Redwood Capital Partners', 'Redwood Capital')).toBe('close')
+  })
+
+  it('flags genuinely different names', () => {
+    // The dropdown-slip this exists to catch: a form filed against the wrong partner.
+    expect(compareLegalName('Redwood Holdings', 'Cedar Capital')).toBe('differs')
+  })
+
+  it('is unknown when either side is missing rather than guessing', () => {
+    expect(compareLegalName(null, 'Redwood Capital')).toBe('unknown')
+    expect(compareLegalName('Redwood Capital', undefined)).toBe('unknown')
+  })
+
+  it('is unknown when a name is nothing but a suffix', () => {
+    expect(compareLegalName('LLC', 'Redwood Capital')).toBe('unknown')
+  })
+})
+
+describe('normalizeEntityName', () => {
+  it('strips case, punctuation and the entity suffix', () => {
+    expect(normalizeEntityName('Redwood Capital, L.P.')).toBe('redwood capital')
+    expect(normalizeEntityName('REDWOOD CAPITAL INC.')).toBe('redwood capital')
+  })
+
+  it('leaves a distinguishing word alone', () => {
+    expect(normalizeEntityName('Redwood Holdings LLC')).toBe('redwood holdings')
   })
 })
