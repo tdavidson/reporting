@@ -122,6 +122,8 @@ export const ROUTE_DOMAINS: Record<string, RouteAccess> = {
   // legal names, countries and TIN last-fours. That is lp_capital data, and gating it as
   // `accounting` would let someone reconcile the bank read the partner register.
   'api/accounting/tax-forms': { domain: 'lp_capital', feature: 'tax_reporting' },
+  // Per-partner K-1 lines and capital accounts — lp_capital for the same reason as tax-forms.
+  'api/accounting/k1-packages': { domain: 'lp_capital', feature: 'tax_reporting' },
   'api/accounting/entities': { domain: 'lp_capital' },
   'api/accounting/lp-events': { domain: 'lp_capital' },
   'api/accounting/lp-events/import': { domain: 'lp_capital' },
