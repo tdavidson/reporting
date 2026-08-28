@@ -124,6 +124,8 @@ export const ROUTE_DOMAINS: Record<string, RouteAccess> = {
   'api/accounting/tax-forms': { domain: 'lp_capital', feature: 'tax_reporting' },
   // Per-partner K-1 lines and capital accounts — lp_capital for the same reason as tax-forms.
   'api/accounting/k1-packages': { domain: 'lp_capital', feature: 'tax_reporting' },
+  // Read-level: exporting reports what the package already holds, it does not generate.
+  'api/accounting/k1-packages/export': { domain: 'lp_capital', feature: 'tax_reporting', level: 'read' },
   'api/accounting/entities': { domain: 'lp_capital' },
   'api/accounting/lp-events': { domain: 'lp_capital' },
   'api/accounting/lp-events/import': { domain: 'lp_capital' },
