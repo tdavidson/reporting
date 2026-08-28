@@ -100,40 +100,20 @@ create table public.k1_lines (
 
 create index k1_lines_package_idx on public.k1_lines (package_id, lp_entity_id);
 
--- 1. Grants. No anon: these are per-partner tax figures. Follows lp_tax_forms.
-grant select, insert, update, delete on public.k1_packages to authenticated, service_role;
-grant select, insert, update, delete on public.k1_partners to authenticated, service_role;
-grant select, insert, update, delete on public.k1_lines    to authenticated, service_role;
+-- 1. Grants. SERVICE ROLE ONLY, reads included — see the reasoning in the lp_tax_forms migration
+--    (20260827000003). Short version: these are per-partner tax figures, the routes that serve
+--    them are gated on the `lp_capital` domain and the `tax_reporting` feature, and a
+--    "fund members read their fund's rows" grant would hand every one of those figures to a
+--    member the middleware refuses. Also no Data API writes: a finalised package is immutable by
+--    trigger below, and a browser-side UPDATE grant is a way around the route that enforces it.
+grant select, insert, update, delete on public.k1_packages to service_role;
+grant select, insert, update, delete on public.k1_partners to service_role;
+grant select, insert, update, delete on public.k1_lines    to service_role;
 
--- 2. RLS.
+-- 2. RLS. On, with no anon/authenticated policies, so the deny survives a later stray grant.
 alter table public.k1_packages enable row level security;
 alter table public.k1_partners enable row level security;
 alter table public.k1_lines    enable row level security;
-
--- 3. Policies — read for fund members, writes for admins, matching the rest of LP capital.
-create policy "Fund members read their fund's k1 packages"
-  on public.k1_packages for select to authenticated
-  using (exists (select 1 from fund_members fm where fm.fund_id = k1_packages.fund_id and fm.user_id = auth.uid()));
-create policy "Fund admins manage their fund's k1 packages"
-  on public.k1_packages for all to authenticated
-  using (exists (select 1 from fund_members fm where fm.fund_id = k1_packages.fund_id and fm.user_id = auth.uid() and fm.role = 'admin'))
-  with check (exists (select 1 from fund_members fm where fm.fund_id = k1_packages.fund_id and fm.user_id = auth.uid() and fm.role = 'admin'));
-
-create policy "Fund members read their fund's k1 partners"
-  on public.k1_partners for select to authenticated
-  using (exists (select 1 from fund_members fm where fm.fund_id = k1_partners.fund_id and fm.user_id = auth.uid()));
-create policy "Fund admins manage their fund's k1 partners"
-  on public.k1_partners for all to authenticated
-  using (exists (select 1 from fund_members fm where fm.fund_id = k1_partners.fund_id and fm.user_id = auth.uid() and fm.role = 'admin'))
-  with check (exists (select 1 from fund_members fm where fm.fund_id = k1_partners.fund_id and fm.user_id = auth.uid() and fm.role = 'admin'));
-
-create policy "Fund members read their fund's k1 lines"
-  on public.k1_lines for select to authenticated
-  using (exists (select 1 from fund_members fm where fm.fund_id = k1_lines.fund_id and fm.user_id = auth.uid()));
-create policy "Fund admins manage their fund's k1 lines"
-  on public.k1_lines for all to authenticated
-  using (exists (select 1 from fund_members fm where fm.fund_id = k1_lines.fund_id and fm.user_id = auth.uid() and fm.role = 'admin'))
-  with check (exists (select 1 from fund_members fm where fm.fund_id = k1_lines.fund_id and fm.user_id = auth.uid() and fm.role = 'admin'));
 
 -- ---------------------------------------------------------------------------
 -- A final package does not change.

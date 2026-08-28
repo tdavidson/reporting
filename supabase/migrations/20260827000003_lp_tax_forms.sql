@@ -70,33 +70,30 @@ create table public.lp_tax_forms (
 create index lp_tax_forms_entity_idx on public.lp_tax_forms (fund_id, lp_entity_id, signed_date desc);
 create index lp_tax_forms_expiry_idx on public.lp_tax_forms (fund_id, expires_on);
 
--- 1. Grants. NO anon access at all: this is partner identity data, and the default template's
---    `grant select to anon` is wrong for it. Follows lp_accounts (20260624000001), not the
---    ordinary table pattern.
-grant select, insert, update, delete on public.lp_tax_forms to authenticated, service_role;
+-- 1. Grants. SERVICE ROLE ONLY — no anon, no authenticated, for reads or writes.
+--
+--    Two reasons, and the second is the one that is easy to get wrong.
+--
+--    Writes: NEXT_PUBLIC_SUPABASE_ANON_KEY ships to the browser and createBrowserClient is in
+--    use, so an INSERT/UPDATE/DELETE grant to `authenticated` is a write path around every check
+--    in the route — the same hole 20260714000004 closed on the ledger. Every write to this table
+--    goes through createAdminClient() behind a gated route; the Data API has no business
+--    accepting one.
+--
+--    Reads: a "fund members read their fund's rows" policy is the WRONG SHAPE for this table.
+--    Access here is not one axis but two (lib/access/effective.ts): the route is gated on the
+--    `lp_capital` domain and the `tax_reporting` feature, so a member holding only `portfolio`
+--    is refused by the middleware. A blanket member-level SELECT grant hands that same member
+--    legal names, TIN last-four, country and state straight from the browser console — the grants
+--    silently vetoing the access model, which is exactly the bug plans/plan-access-control.md
+--    exists to prevent. Rather than restate the domain rules in SQL (two places to keep in
+--    agreement, one of which nobody reads), this table is not on the Data API at all.
+grant select, insert, update, delete on public.lp_tax_forms to service_role;
 
--- 2. RLS.
+-- 2. RLS. On, with no policies for anon/authenticated — belt to the grants' braces, so a later
+--    `grant select ... to authenticated` still denies every row until someone writes a policy
+--    that answers the domain question above.
 alter table public.lp_tax_forms enable row level security;
-
--- 3. Policies. Read for fund members, writes for admins — the same shape as lp_entities itself,
---    since a tax form is an attribute of the partner record.
-create policy "Fund members read their fund's tax forms"
-  on public.lp_tax_forms for select to authenticated
-  using (exists (
-    select 1 from fund_members fm
-    where fm.fund_id = lp_tax_forms.fund_id and fm.user_id = auth.uid()
-  ));
-
-create policy "Fund admins manage their fund's tax forms"
-  on public.lp_tax_forms for all to authenticated
-  using (exists (
-    select 1 from fund_members fm
-    where fm.fund_id = lp_tax_forms.fund_id and fm.user_id = auth.uid() and fm.role = 'admin'
-  ))
-  with check (exists (
-    select 1 from fund_members fm
-    where fm.fund_id = lp_tax_forms.fund_id and fm.user_id = auth.uid() and fm.role = 'admin'
-  ));
 
 comment on column public.lp_tax_forms.tin_last4 is
   'Last four digits only. The full number stays in the signed form; see the migration header.';

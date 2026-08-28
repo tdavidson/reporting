@@ -31,16 +31,12 @@ create table public.tax_year_closes (
 
 create index tax_year_closes_lookup_idx on public.tax_year_closes (fund_id, vehicle_id, tax_year, status);
 
-grant select, insert, update, delete on public.tax_year_closes to authenticated, service_role;
+-- Service role only, reads included — see 20260827000003 for the reasoning. This one has a second
+-- reason of its own: a row in this table IS the lock that the triggers below consult. A Data API
+-- write grant would let a fund admin reopen a closed tax year from a browser console, which is
+-- precisely the state change closeTaxYear() gates on outstanding K-1 dependencies.
+grant select, insert, update, delete on public.tax_year_closes to service_role;
 alter table public.tax_year_closes enable row level security;
-
-create policy "Fund members read their fund's tax year closes"
-  on public.tax_year_closes for select to authenticated
-  using (exists (select 1 from fund_members fm where fm.fund_id = tax_year_closes.fund_id and fm.user_id = auth.uid()));
-create policy "Fund admins manage their fund's tax year closes"
-  on public.tax_year_closes for all to authenticated
-  using (exists (select 1 from fund_members fm where fm.fund_id = tax_year_closes.fund_id and fm.user_id = auth.uid() and fm.role = 'admin'))
-  with check (exists (select 1 from fund_members fm where fm.fund_id = tax_year_closes.fund_id and fm.user_id = auth.uid() and fm.role = 'admin'));
 
 -- ---------------------------------------------------------------------------
 -- The lock itself.

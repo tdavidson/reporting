@@ -28,14 +28,39 @@ create table public.k1_delivery_consents (
   -- has to demonstrate the recipient can access the format.
   format_description text not null default 'PDF',
 
+  -- When the partner consented — WHICH IS NOT ALWAYS WHEN THE ROW WAS WRITTEN. A manager
+  -- entering a consent signed last month is recording that date, not today's.
   consented_at timestamptz not null default now(),
-  -- Who acted, and from where. An electronic consent with no trail is an assertion.
+
+  -- HOW THIS CONSENT REACHED US, and it decides what the rest of the trail may contain.
+  --
+  -- 'lp_portal' — the partner acted for themselves, while logged in. Their account id, their IP
+  -- and their user agent are all genuinely theirs, and together they are the attestation.
+  --
+  -- 'gp_recorded' — the manager is entering a consent given somewhere else: a signed form, a
+  -- reply to an email. The trail here is that document. It is NOT the request headers: those
+  -- belong to the manager sitting in the admin UI, and writing them into a field labelled
+  -- `consent_ip` would manufacture evidence that the partner clicked something they never
+  -- clicked — a worse record than an honestly empty one, because it reads as proof. The check
+  -- constraint below makes that mistake impossible rather than merely discouraged.
+  source text not null default 'gp_recorded' check (source in ('lp_portal', 'gp_recorded')),
+
+  -- Who acted, and from where. Only ever populated on the 'lp_portal' path.
   consented_by_account uuid references public.lp_accounts(id) on delete set null,
   consent_ip           text,
   consent_user_agent   text,
 
+  -- The 'gp_recorded' path's trail: the signed consent itself, and room to say where it came
+  -- from when there is no document to attach.
+  evidence_document_id uuid references public.lp_documents(id) on delete set null,
+  evidence_note        text,
+
   withdrawn_at timestamptz,
-  created_at   timestamptz not null default now()
+  created_at   timestamptz not null default now(),
+
+  constraint k1_delivery_consents_trail_matches_source check (
+    source = 'lp_portal' or (consent_ip is null and consent_user_agent is null)
+  )
 );
 
 create index k1_delivery_consents_entity_idx
@@ -92,7 +117,23 @@ begin
       using errcode = 'check_violation';
   end if;
 
-  select status into v_status from public.k1_delivery_consents where id = new.consent_id;
+  -- THE CONSENT MUST BE THIS PARTNER'S, IN THIS FUND. Checking only that *a* granted consent
+  -- exists at that id is not a check at all: consent is personal, so one partner's consent
+  -- cannot furnish another's K-1, and a consent belonging to a different fund cannot furnish
+  -- anything here. Both predicates are on the lookup rather than asserted afterwards, so a row
+  -- that fails either one is indistinguishable from no row — which is the answer we want.
+  select status into v_status
+  from public.k1_delivery_consents
+  where id = new.consent_id
+    and lp_entity_id = new.lp_entity_id
+    and fund_id = new.fund_id;
+
+  if not found then
+    raise exception
+      'That consent does not belong to this partner in this fund. Electronic delivery relies on the recipient''s own consent.'
+      using errcode = 'check_violation';
+  end if;
+
   if v_status is distinct from 'granted' then
     raise exception 'That K-1 delivery consent has been withdrawn; it cannot support a new electronic delivery.'
       using errcode = 'check_violation';
@@ -106,27 +147,18 @@ create trigger k1_deliveries_require_consent
   before insert or update on public.k1_deliveries
   for each row execute function public.assert_k1_delivery_consented();
 
-grant select, insert, update, delete on public.k1_delivery_consents to authenticated, service_role;
-grant select, insert, update, delete on public.k1_deliveries to authenticated, service_role;
+-- Service role only, reads included — see 20260827000003 for the reasoning. Both tables have a
+-- particular reason beyond the domain one: a consent record is EVIDENCE. Its whole value is that
+-- nobody could have written it except through the act of consenting, and a browser-reachable
+-- INSERT grant on `authenticated` would let a fund admin manufacture one — the exact fact the
+-- record exists to attest. A delivery row is the other half of the same evidence: it is the
+-- fund's own record of having furnished a K-1, and a row written from a browser console is one
+-- no route, and no person, ever stood behind.
+grant select, insert, update, delete on public.k1_delivery_consents to service_role;
+grant select, insert, update, delete on public.k1_deliveries to service_role;
 
 alter table public.k1_delivery_consents enable row level security;
 alter table public.k1_deliveries enable row level security;
-
-create policy "Fund members read their fund's K-1 consents"
-  on public.k1_delivery_consents for select to authenticated
-  using (exists (select 1 from fund_members fm where fm.fund_id = k1_delivery_consents.fund_id and fm.user_id = auth.uid()));
-create policy "Fund admins manage their fund's K-1 consents"
-  on public.k1_delivery_consents for all to authenticated
-  using (exists (select 1 from fund_members fm where fm.fund_id = k1_delivery_consents.fund_id and fm.user_id = auth.uid() and fm.role = 'admin'))
-  with check (exists (select 1 from fund_members fm where fm.fund_id = k1_delivery_consents.fund_id and fm.user_id = auth.uid() and fm.role = 'admin'));
-
-create policy "Fund members read their fund's K-1 deliveries"
-  on public.k1_deliveries for select to authenticated
-  using (exists (select 1 from fund_members fm where fm.fund_id = k1_deliveries.fund_id and fm.user_id = auth.uid()));
-create policy "Fund admins manage their fund's K-1 deliveries"
-  on public.k1_deliveries for all to authenticated
-  using (exists (select 1 from fund_members fm where fm.fund_id = k1_deliveries.fund_id and fm.user_id = auth.uid() and fm.role = 'admin'))
-  with check (exists (select 1 from fund_members fm where fm.fund_id = k1_deliveries.fund_id and fm.user_id = auth.uid() and fm.role = 'admin'));
 
 comment on table public.k1_delivery_consents is
   'Affirmative consent to receive a K-1 electronically. Stored verbatim, with a trail, because '

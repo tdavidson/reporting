@@ -47,16 +47,11 @@ create table public.received_k1s (
 
 create index received_k1s_year_idx on public.received_k1s (fund_id, vehicle_id, tax_year, status);
 
-grant select, insert, update, delete on public.received_k1s to authenticated, service_role;
+-- Service role only, reads included — see 20260827000003. A Data API write grant here would also
+-- be a way to mark an outstanding upstream K-1 'received' without going through the route, and
+-- the tax-year close believes this table.
+grant select, insert, update, delete on public.received_k1s to service_role;
 alter table public.received_k1s enable row level security;
-
-create policy "Fund members read their fund's received K-1s"
-  on public.received_k1s for select to authenticated
-  using (exists (select 1 from fund_members fm where fm.fund_id = received_k1s.fund_id and fm.user_id = auth.uid()));
-create policy "Fund admins manage their fund's received K-1s"
-  on public.received_k1s for all to authenticated
-  using (exists (select 1 from fund_members fm where fm.fund_id = received_k1s.fund_id and fm.user_id = auth.uid() and fm.role = 'admin'))
-  with check (exists (select 1 from fund_members fm where fm.fund_id = received_k1s.fund_id and fm.user_id = auth.uid() and fm.role = 'admin'));
 
 comment on table public.received_k1s is
   'Which underlying funds still owe us a K-1 for a tax year. Read by the tax-year close, so a '

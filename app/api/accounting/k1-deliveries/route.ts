@@ -17,6 +17,25 @@ import {
 // The paper list is the deliverable rather than an error state — a fund with three LPs who never
 // responded still has three envelopes to post, and this is what says which three.
 
+// A document id arriving in a request body belongs to whoever sent it until proven otherwise.
+// lp_documents is cross-fund, so an unchecked id would attach another fund's file to this fund's
+// consent record — the same hole the tax-forms route closes on its own `documentId`.
+async function resolveFundDocument(
+  admin: ReturnType<typeof createAdminClient>,
+  fundId: string,
+  raw: unknown,
+): Promise<string | null | NextResponse> {
+  if (typeof raw !== 'string' || !raw) return null
+  const { data } = await admin
+    .from('lp_documents' as any)
+    .select('id')
+    .eq('fund_id', fundId)
+    .eq('id', raw)
+    .maybeSingle()
+  if (!data) return NextResponse.json({ error: 'Unknown document for this fund' }, { status: 400 })
+  return raw
+}
+
 export async function GET(req: NextRequest) {
   const supabase = createClient()
   const admin = createAdminClient()
@@ -98,19 +117,36 @@ export async function POST(req: NextRequest) {
 
   // Recording a consent the partner gave. The disclosure is stored VERBATIM rather than by
   // reference, so the text agreed to cannot be edited afterwards.
+  //
+  // THIS IS THE GP-RECORDED PATH, and it is recorded as such. The manager is entering a consent
+  // the partner gave somewhere else — on a signed form, in a reply to an email — so the trail is
+  // that document. It is NOT this request's IP and user agent: those are the manager's, sitting
+  // in the admin UI, and storing them as the partner's consent trail would fabricate the one
+  // thing the record exists to attest. When the LP portal grows a self-serve consent screen, it
+  // writes `source: 'lp_portal'` with the partner's own account id, and only then do the headers
+  // mean what the columns say.
   if (body?.action === 'consent') {
+    const evidenceDocumentId = await resolveFundDocument(admin, gate.fundId, body?.evidenceDocumentId)
+    if (evidenceDocumentId instanceof NextResponse) return evidenceDocumentId
+
     const { data, error } = await admin
       .from('k1_delivery_consents' as any)
       .insert({
         fund_id: gate.fundId,
         lp_entity_id: lpEntityId,
         status: 'granted',
+        source: 'gp_recorded',
         disclosure_text: typeof body?.disclosureText === 'string' && body.disclosureText.trim()
           ? body.disclosureText
           : DEFAULT_CONSENT_DISCLOSURE,
         format_description: typeof body?.formatDescription === 'string' ? body.formatDescription : 'PDF',
-        consent_ip: req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? null,
-        consent_user_agent: req.headers.get('user-agent'),
+        // The date the partner consented, which is not always today — a form signed last month
+        // was consented to last month, and the delivery record has to be able to say so.
+        ...(typeof body?.consentedAt === 'string' && body.consentedAt
+          ? { consented_at: body.consentedAt }
+          : {}),
+        evidence_document_id: evidenceDocumentId,
+        evidence_note: typeof body?.evidenceNote === 'string' ? body.evidenceNote.slice(0, 2000) : null,
       })
       .select('*')
       .single()
@@ -119,16 +155,22 @@ export async function POST(req: NextRequest) {
   }
 
   if (body?.action === 'withdraw') {
+    const evidenceDocumentId = await resolveFundDocument(admin, gate.fundId, body?.evidenceDocumentId)
+    if (evidenceDocumentId instanceof NextResponse) return evidenceDocumentId
+
     const { data, error } = await admin
       .from('k1_delivery_consents' as any)
       .insert({
         fund_id: gate.fundId,
         lp_entity_id: lpEntityId,
         status: 'withdrawn',
+        source: 'gp_recorded',
         // A withdrawal records the disclosure that was in force when it was withdrawn, so the
         // row is self-describing rather than pointing at whatever the current text happens to be.
         disclosure_text: typeof body?.disclosureText === 'string' ? body.disclosureText : DEFAULT_CONSENT_DISCLOSURE,
         withdrawn_at: new Date().toISOString(),
+        evidence_document_id: evidenceDocumentId,
+        evidence_note: typeof body?.evidenceNote === 'string' ? body.evidenceNote.slice(0, 2000) : null,
       })
       .select('*')
       .single()
