@@ -126,6 +126,11 @@ export const ROUTE_DOMAINS: Record<string, RouteAccess> = {
   'api/accounting/k1-packages': { domain: 'lp_capital', feature: 'tax_reporting' },
   // Read-level: exporting reports what the package already holds, it does not generate.
   'api/accounting/k1-packages/export': { domain: 'lp_capital', feature: 'tax_reporting', level: 'read' },
+  // The tax book's lock. `accounting` rather than `lp_capital`: closing a year is a books
+  // operation and its payload is state and blockers, not per-partner figures.
+  'api/accounting/tax-year': { domain: 'accounting', feature: 'tax_reporting' },
+  // Which underlying funds still owe us a K-1. Portfolio-level holdings, not partner data.
+  'api/accounting/received-k1s': { domain: 'accounting', feature: 'tax_reporting' },
   'api/accounting/entities': { domain: 'lp_capital' },
   'api/accounting/lp-events': { domain: 'lp_capital' },
   'api/accounting/lp-events/import': { domain: 'lp_capital' },
