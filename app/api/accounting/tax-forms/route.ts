@@ -40,7 +40,7 @@ export async function GET(req: NextRequest) {
     admin.from('lp_entities' as any).select('id, entity_name').eq('fund_id', gate.fundId),
     admin
       .from('lp_tax_forms' as any)
-      .select('id, lp_entity_id, form_type, tin_type, tin_last4, legal_name, tax_classification, country, treaty_claimed, subject_to_backup_withholding, signed_date, expires_on, document_id, notes')
+      .select('id, lp_entity_id, form_type, tin_type, tin_last4, legal_name, tax_classification, country, state, treaty_claimed, subject_to_backup_withholding, signed_date, expires_on, document_id, notes')
       .eq('fund_id', gate.fundId),
   ])
   if (error) return dbError(error, 'tax-forms')
@@ -168,6 +168,10 @@ export async function POST(req: NextRequest) {
     legal_name: typeof body?.legalName === 'string' ? body.legalName.slice(0, 300) : null,
     tax_classification: CLASSIFICATIONS.includes(body?.taxClassification) ? body.taxClassification : null,
     country: typeof body?.country === 'string' ? body.country.slice(0, 100) : null,
+    // Two letters, upper-cased here so the state worklist can group on it without normalising.
+    state: typeof body?.state === 'string' && /^[A-Za-z]{2}$/.test(body.state.trim())
+      ? body.state.trim().toUpperCase()
+      : null,
     treaty_claimed: !!body?.treatyClaimed,
     subject_to_backup_withholding: !!body?.subjectToBackupWithholding,
     signed_date: signedDate,

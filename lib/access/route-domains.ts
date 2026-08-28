@@ -130,6 +130,9 @@ export const ROUTE_DOMAINS: Record<string, RouteAccess> = {
   'api/accounting/k1-packages/pdf': { domain: 'lp_capital', feature: 'tax_reporting', level: 'read' },
   // Furnishing, and the consent that makes electronic furnishing valid. Per partner.
   'api/accounting/k1-deliveries': { domain: 'lp_capital', feature: 'tax_reporting' },
+  // Which states have partners, and how much was allocated to each. Per-partner residence and
+  // income, so lp_capital.
+  'api/accounting/state-worklist': { domain: 'lp_capital', feature: 'tax_reporting', level: 'read' },
   // The tax book's lock. `accounting` rather than `lp_capital`: closing a year is a books
   // operation and its payload is state and blockers, not per-partner figures.
   'api/accounting/tax-year': { domain: 'accounting', feature: 'tax_reporting' },
