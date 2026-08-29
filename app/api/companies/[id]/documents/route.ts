@@ -44,28 +44,46 @@ export async function GET(
 
   const { data: documents, error } = await admin
     .from('company_documents' as any)
-    .select('id, filename, file_type, file_size, has_native_content, created_at')
+    .select('id, filename, file_type, file_size, has_native_content, storage_path, extracted_text, created_at')
     .eq('company_id', params.id)
     .order('created_at', { ascending: false }) as { data: any[] | null; error: { message: string } | null }
 
   if (error) return dbError(error, 'companies-id-documents')
 
   // Tag uploaded documents with source
-  const uploadDocs = (documents ?? []).map(d => ({ ...d, source: 'upload' as const }))
+  const uploadDocs = (documents ?? []).map(({ storage_path, extracted_text, ...d }) => ({
+    ...d,
+    source: 'upload' as const,
+    has_readable_content: !!extracted_text || !!storage_path,
+  }))
 
   // Fetch email attachments from inbound_emails
   const { data: emails } = await admin
     .from('inbound_emails')
-    .select('id, subject, raw_payload, received_at')
+    .select('id, from_address, subject, raw_payload, received_at')
     .eq('company_id', params.id)
-    .gt('attachments_count', 0)
     .in('processing_status', ['success', 'needs_review'])
     .order('received_at', { ascending: false }) as { data: any[] | null }
 
-  const emailAttachments: any[] = []
+  const emailHistory: any[] = []
   for (const email of emails ?? []) {
     const payload = email.raw_payload as Record<string, unknown> | null
     if (!payload) continue
+    const textBody = typeof payload.TextBody === 'string' ? payload.TextBody.trim() : ''
+    if (textBody) {
+      emailHistory.push({
+        id: `email-body-${email.id}`,
+        email_id: email.id,
+        filename: email.subject || '(no subject)',
+        file_type: 'message/rfc822',
+        file_size: new TextEncoder().encode(textBody).length,
+        created_at: email.received_at,
+        source: 'email_body' as const,
+        email_subject: email.subject,
+        email_from: email.from_address,
+        text_content: textBody,
+      })
+    }
     const attachments = (payload.Attachments ?? []) as Array<{
       Name: string
       ContentType: string
@@ -73,20 +91,23 @@ export async function GET(
     }>
     for (let i = 0; i < attachments.length; i++) {
       const att = attachments[i]
-      emailAttachments.push({
+      emailHistory.push({
         id: `email-${email.id}-${i}`,
+        email_id: email.id,
+        attachment_index: i,
         filename: att.Name,
         file_type: att.ContentType,
         file_size: att.ContentLength,
         created_at: email.received_at,
         source: 'email' as const,
         email_subject: email.subject,
+        email_from: email.from_address,
       })
     }
   }
 
   // Combine and sort by date descending
-  const combined = [...uploadDocs, ...emailAttachments].sort(
+  const combined = [...uploadDocs, ...emailHistory].sort(
     (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
   )
 

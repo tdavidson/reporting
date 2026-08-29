@@ -2,72 +2,49 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Button } from '@/components/ui/button'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { Loader2 } from 'lucide-react'
-
-const STATUSES = [
-  { value: 'success', label: 'Success' },
-  { value: 'needs_review', label: 'Review' },
-  { value: 'not_processed', label: 'Skipped' },
-  { value: 'failed', label: 'Failed' },
-] as const
+import { toast } from 'sonner'
+import { Button } from '@/components/ui/button'
+import { useConfirm } from '@/components/confirm-dialog'
 
 export function ChangeStatusButton({ emailId, currentStatus }: { emailId: string; currentStatus: string }) {
   const router = useRouter()
-  const [selected, setSelected] = useState(currentStatus)
+  const confirm = useConfirm()
   const [saving, setSaving] = useState(false)
 
-  const hasChanged = selected !== currentStatus
+  if (currentStatus === 'not_processed') {
+    return <span className="text-xs text-muted-foreground">Already skipped</span>
+  }
 
-  async function handleSave() {
+  async function skip() {
+    const ok = await confirm({
+      title: 'Skip email',
+      description: 'Mark this email as intentionally skipped? You can still process it later.',
+      confirmLabel: 'Skip email',
+    })
+    if (!ok) return
+
     setSaving(true)
     try {
       const res = await fetch(`/api/emails/${emailId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ processing_status: selected }),
+        body: JSON.stringify({ processing_status: 'not_processed' }),
       })
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}))
-        throw new Error(data.error || 'Failed to update status')
-      }
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error ?? 'Failed to skip email')
       router.refresh()
+      toast.success('Email skipped')
     } catch (err) {
-      console.error(err)
+      toast.error(err instanceof Error ? err.message : 'Failed to skip email')
     } finally {
       setSaving(false)
     }
   }
 
   return (
-    <div className="flex items-center gap-2 shrink-0">
-      <Select value={selected} onValueChange={setSelected}>
-        <SelectTrigger className="h-8 w-32 text-xs">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {STATUSES.map(s => (
-            <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-      {hasChanged && (
-        <Button
-          size="sm"
-          onClick={handleSave}
-          disabled={saving}
-          className="h-8"
-        >
-          {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Save'}
-        </Button>
-      )}
-    </div>
+    <Button variant="outline" size="sm" onClick={skip} disabled={saving}>
+      {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Skip email'}
+    </Button>
   )
 }

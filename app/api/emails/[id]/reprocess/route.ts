@@ -9,6 +9,8 @@ import type { InboundEmail } from '@/lib/types/database'
 import { dbError } from '@/lib/api-error'
 import { rateLimit } from '@/lib/rate-limit'
 
+export const maxDuration = 300
+
 export async function POST(
   _req: NextRequest,
   { params }: { params: { id: string } }
@@ -72,22 +74,34 @@ export async function POST(
     email.raw_payload as unknown as PostmarkPayload
   ) as unknown as PostmarkPayload
 
-  // Re-run pipeline asynchronously — return immediately
-  runPipeline(admin, emailId, fundId, hydratedPayload).catch(
-    async err => {
-      const raw = err instanceof Error ? err.message : String(err)
-      console.error(`[reprocess] Pipeline error for email ${emailId}:`, err)
-      const message = describePipelineError(raw)
-      await admin
-        .from('inbound_emails')
-        .update({ processing_status: 'failed', processing_error: message })
-        .eq('id', emailId)
-    }
-  )
+  // Keep the request alive until the pipeline reaches a terminal state. A
+  // fire-and-forget promise can be terminated when a serverless response ends.
+  try {
+    await runPipeline(admin, emailId, fundId, hydratedPayload)
+  } catch (err) {
+    const raw = err instanceof Error ? err.message : String(err)
+    console.error(`[reprocess] Pipeline error for email ${emailId}:`, err)
+    const message = describePipelineError(raw)
+    await admin
+      .from('inbound_emails')
+      .update({ processing_status: 'failed', processing_error: message })
+      .eq('id', emailId)
+  }
 
   revalidateTag('review-badge')
 
-  return NextResponse.json({ ok: true, message: 'Reprocessing started' })
+  const { data: result } = await admin
+    .from('inbound_emails')
+    .select('processing_status, processing_error')
+    .eq('id', emailId)
+    .maybeSingle()
+
+  return NextResponse.json({
+    ok: true,
+    message: 'Reprocessing finished',
+    processing_status: result?.processing_status ?? 'failed',
+    processing_error: result?.processing_error ?? null,
+  })
 }
 
 function describePipelineError(raw: string): string {

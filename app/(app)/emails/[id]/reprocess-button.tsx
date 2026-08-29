@@ -11,7 +11,6 @@ export function ReprocessButton({ emailId }: { emailId: string }) {
   const router = useRouter()
   const confirm = useConfirm()
   const [loading, setLoading] = useState(false)
-  const [done, setDone] = useState(false)
 
   async function handleClick() {
     const ok = await confirm({
@@ -28,9 +27,13 @@ export function ReprocessButton({ emailId }: { emailId: string }) {
         const d = await res.json()
         throw new Error(d.error ?? 'Failed to reprocess')
       }
-      setDone(true)
-      // Refresh page after a short delay to show updated status
-      setTimeout(() => router.refresh(), 1500)
+      const data = await res.json()
+      router.refresh()
+      if (data.processing_status === 'failed') {
+        toast.error(data.processing_error ?? 'Email processing failed again')
+      } else {
+        toast.success(`Email processing finished: ${String(data.processing_status).replace('_', ' ')}`)
+      }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Error reprocessing email')
     } finally {
@@ -43,11 +46,11 @@ export function ReprocessButton({ emailId }: { emailId: string }) {
       variant="outline"
       size="sm"
       onClick={handleClick}
-      disabled={loading || done}
+      disabled={loading}
       className="gap-1.5 shrink-0"
     >
       <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-      {done ? 'Processing…' : 'Process'}
+      {loading ? 'Processing…' : 'Process'}
     </Button>
   )
 }

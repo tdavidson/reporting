@@ -153,8 +153,6 @@ export async function PATCH(
   const body = await req.json()
   const { companyId, processing_status } = body as { companyId?: string; processing_status?: string }
 
-  const VALID_STATUSES = ['success', 'needs_review', 'failed', 'not_processed']
-
   const updates: Record<string, unknown> = {}
 
   if (companyId !== undefined) {
@@ -174,8 +172,10 @@ export async function PATCH(
   }
 
   if (processing_status !== undefined) {
-    if (!VALID_STATUSES.includes(processing_status)) {
-      return NextResponse.json({ error: `Invalid status. Must be one of: ${VALID_STATUSES.join(', ')}` }, { status: 400 })
+    // Success, failure, and review are pipeline outcomes. The only manual
+    // override is intentionally declining to process an email.
+    if (processing_status !== 'not_processed') {
+      return NextResponse.json({ error: 'Emails can only be manually marked as skipped' }, { status: 400 })
     }
     updates.processing_status = processing_status
     // Clear error when manually changing status

@@ -3,6 +3,9 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { assertWriteAccess } from '@/lib/api-helpers'
 import { dbError } from '@/lib/api-error'
+import { scanFileAsync } from '@/lib/security/scan-file'
+
+const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024
 
 export async function POST(
   req: NextRequest,
@@ -33,6 +36,9 @@ export async function POST(
   if (storagePath.includes('..') || !storagePath.startsWith(`${params.id}/`)) {
     return NextResponse.json({ error: 'Invalid storage path' }, { status: 400 })
   }
+  if (!Number.isFinite(contentLength) || contentLength < 0 || contentLength > MAX_ATTACHMENT_BYTES) {
+    return NextResponse.json({ error: 'Invalid attachment size' }, { status: 400 })
+  }
 
   // Fetch the email to get current raw_payload
   const { data: emailData, error } = await supabase
@@ -55,11 +61,33 @@ export async function POST(
     return NextResponse.json({ error: 'Not found' }, { status: 404 })
   }
 
+  // The browser's accept= filter and MIME value are attacker-controlled. Pull
+  // the just-uploaded object back through the trusted server and apply the
+  // same executable, magic-byte, EICAR, and ZIP-bomb checks as inbound mail.
+  const { data: storedFile, error: downloadError } = await admin.storage
+    .from('email-attachments')
+    .download(storagePath)
+  if (downloadError || !storedFile) {
+    await admin.storage.from('email-attachments').remove([storagePath])
+    return NextResponse.json({ error: 'Uploaded attachment could not be verified' }, { status: 400 })
+  }
+  const buffer = Buffer.from(await storedFile.arrayBuffer())
+  if (buffer.length !== contentLength) {
+    await admin.storage.from('email-attachments').remove([storagePath])
+    return NextResponse.json({ error: 'Attachment size does not match uploaded content' }, { status: 400 })
+  }
+  const scan = await scanFileAsync(buffer, filename, contentType)
+  if (!scan.safe) {
+    await admin.storage.from('email-attachments').remove([storagePath])
+    return NextResponse.json({ error: `File rejected: ${scan.reason}` }, { status: 400 })
+  }
+
   const rawPayload = ((emailData as Record<string, unknown>).raw_payload ?? {}) as Record<string, unknown>
   const existingAttachments = (rawPayload.Attachments ?? []) as Array<Record<string, unknown>>
 
   // Append metadata-only attachment entry (no Content — file is in Storage)
   const newAttachment = {
+    AttachmentId: crypto.randomUUID(),
     Name: filename,
     ContentType: contentType,
     ContentLength: contentLength,
@@ -79,7 +107,10 @@ export async function POST(
     })
     .eq('id', params.id)
 
-  if (updateError) return dbError(updateError, 'emails-id-attachments')
+  if (updateError) {
+    await admin.storage.from('email-attachments').remove([storagePath])
+    return dbError(updateError, 'emails-id-attachments')
+  }
 
   return NextResponse.json({ ok: true, filename })
 }
