@@ -19,7 +19,7 @@ interface ReviewItem {
   created_at: string
   company: { id: string; name: string } | null
   metric: { id: string; name: string; unit: string | null; value_type: string } | null
-  email: { id: string; subject: string | null; received_at: string; from_address: string } | null
+  email: { id: string; subject: string | null; received_at: string; from_address: string; diligence_deal_id?: string | null } | null
 }
 
 interface NeedsReviewEmail {
@@ -44,6 +44,7 @@ const ISSUE_LABELS: Record<string, string> = {
   metric_not_found: 'Metric Not Found',
   company_not_identified: 'Unidentified Company',
   duplicate_period: 'Duplicate Period',
+  diligence_intake_pending: 'Diligence Match',
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -53,6 +54,7 @@ const STATUS_COLORS: Record<string, string> = {
   metric_not_found: 'bg-muted text-muted-foreground border-border',
   company_not_identified: 'bg-destructive-subtle text-destructive border-destructive',
   duplicate_period: 'bg-warning-subtle text-warning border-warning',
+  diligence_intake_pending: 'bg-warning-subtle text-warning border-warning',
 }
 
 export default function ReviewPage() {
@@ -119,6 +121,18 @@ export default function ReviewPage() {
     } finally {
       setResolving(prev => ({ ...prev, [item.id]: false }))
       setEditingId(null)
+    }
+  }
+
+  async function rejectDiligence(item: ReviewItem) {
+    if (!item.email) return
+    setResolving(prev => ({ ...prev, [item.id]: true }))
+    try {
+      const res = await fetch(`/api/emails/${item.email.id}/accept-to-diligence`, { method: 'DELETE' })
+      if (!res.ok) throw new Error('Failed to reject diligence match')
+      load({ silent: true })
+    } finally {
+      setResolving(prev => ({ ...prev, [item.id]: false }))
     }
   }
 
@@ -234,7 +248,22 @@ export default function ReviewPage() {
                 {/* Actions */}
                 {!isEditing && (
                   <div className="flex flex-wrap gap-2 pt-1">
-                    {item.issue_type === 'new_company_detected' || item.issue_type === 'company_not_identified' ? (
+                    {item.issue_type === 'diligence_intake_pending' ? (
+                      <>
+                        {item.email?.diligence_deal_id && (
+                          <Button size="sm" asChild className="gap-1.5">
+                            <Link href={`/diligence/${item.email.diligence_deal_id}?tab=data-room`}>
+                              <Check className="h-3.5 w-3.5" />
+                              Review &amp; accept
+                            </Link>
+                          </Button>
+                        )}
+                        <Button size="sm" variant="outline" onClick={() => rejectDiligence(item)} disabled={isResolving} className="gap-1.5">
+                          <X className="h-3.5 w-3.5" />
+                          Reject match
+                        </Button>
+                      </>
+                    ) : item.issue_type === 'new_company_detected' || item.issue_type === 'company_not_identified' ? (
                       <Button size="sm" variant="outline" onClick={() => resolve(item, 'rejected')} disabled={isResolving} className="gap-1.5">
                         <X className="h-3.5 w-3.5" />
                         Dismiss

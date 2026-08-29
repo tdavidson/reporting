@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import Link from 'next/link'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -27,7 +28,7 @@ interface ReviewItem {
   created_at: string
   company: { id: string; name: string } | null
   metric: { id: string; name: string; unit: string | null; value_type: string } | null
-  email: { id: string; subject: string | null; received_at: string; from_address: string } | null
+  email: { id: string; subject: string | null; received_at: string; from_address: string; diligence_deal_id: string | null } | null
 }
 
 interface ReviewData {
@@ -62,6 +63,7 @@ const ISSUE_LABELS: Record<string, string> = {
   metric_not_found: 'Metric Not Found',
   company_not_identified: 'Unidentified Company',
   duplicate_period: 'Duplicate Period',
+  diligence_intake_pending: 'Diligence Match',
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -71,6 +73,7 @@ const STATUS_COLORS: Record<string, string> = {
   metric_not_found: 'bg-muted text-muted-foreground border-border',
   company_not_identified: 'bg-destructive-subtle text-destructive border-destructive',
   duplicate_period: 'bg-warning-subtle text-warning border-warning',
+  diligence_intake_pending: 'bg-info-subtle text-info border-info',
 }
 
 // ---------------------------------------------------------------------------
@@ -442,6 +445,34 @@ export function EmailReviewModal({
     }
   }
 
+  async function rejectDiligenceMatch(item: ReviewItem) {
+    if (!item.email) return
+    setResolving(prev => ({ ...prev, [item.id]: true }))
+    try {
+      const res = await fetch(`/api/emails/${item.email.id}/accept-to-diligence`, {
+        method: 'DELETE',
+      })
+      if (!res.ok) {
+        const data = await res.json()
+        throw new Error(data.error ?? 'Failed to reject diligence match')
+      }
+      setReviewData(prev => prev ? {
+        ...prev,
+        total: prev.total - 1,
+        counts: {
+          ...prev.counts,
+          [item.issue_type]: (prev.counts[item.issue_type] ?? 1) - 1,
+        },
+        items: prev.items.filter(i => i.id !== item.id),
+      } : prev)
+      toast.success('Diligence match rejected')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Error rejecting diligence match')
+    } finally {
+      setResolving(prev => ({ ...prev, [item.id]: false }))
+    }
+  }
+
   function startEdit(item: ReviewItem) {
     setEditingId(item.id)
     setEditValue(item.extracted_value ?? '')
@@ -520,7 +551,9 @@ export function EmailReviewModal({
                       editValue={editValue}
                       onEditValueChange={setEditValue}
                       onAccept={() => resolve(item, 'accepted')}
-                      onReject={() => resolve(item, 'rejected')}
+                      onReject={() => item.issue_type === 'diligence_intake_pending'
+                        ? rejectDiligenceMatch(item)
+                        : resolve(item, 'rejected')}
                       onStartEdit={() => startEdit(item)}
                       onCancelEdit={() => setEditingId(null)}
                       onSubmitEdit={() => resolve(item, 'manually_corrected', editValue)}
@@ -864,6 +897,7 @@ function ReviewCard({
   const isNewCompany = item.issue_type === 'new_company_detected'
   const isUnidentified = item.issue_type === 'company_not_identified'
   const isMetricNotFound = item.issue_type === 'metric_not_found'
+  const isDiligenceIntake = item.issue_type === 'diligence_intake_pending'
 
   return (
     <div className="rounded-card border bg-card p-4 space-y-3">
@@ -930,7 +964,22 @@ function ReviewCard({
       {!editing && (
         <div className="flex flex-wrap gap-2 pt-1">
           {/* new_company_detected and company_not_identified are handled by the Company section above */}
-          {isNewCompany || isUnidentified ? (
+          {isDiligenceIntake ? (
+            <>
+              {item.email?.diligence_deal_id && (
+                <Button size="sm" asChild className="gap-1.5">
+                  <Link href={`/diligence/${item.email.diligence_deal_id}?tab=data-room`}>
+                    <Check className="h-3.5 w-3.5" />
+                    Review &amp; accept
+                  </Link>
+                </Button>
+              )}
+              <Button size="sm" variant="outline" onClick={onReject} disabled={resolving} className="gap-1.5">
+                <X className="h-3.5 w-3.5" />
+                Reject match
+              </Button>
+            </>
+          ) : isNewCompany || isUnidentified ? (
             <Button size="sm" variant="outline" onClick={onReject} disabled={resolving} className="gap-1.5">
               <X className="h-3.5 w-3.5" />
               Dismiss

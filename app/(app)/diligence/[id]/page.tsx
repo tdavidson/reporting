@@ -7,7 +7,7 @@ import { DealDetail } from './deal-detail'
 
 export const metadata: Metadata = { title: 'Deal' }
 
-export default async function DiligenceDealPage({ params }: { params: { id: string } }) {
+export default async function DiligenceDealPage({ params, searchParams }: { params: { id: string }; searchParams?: { tab?: string } }) {
   const supabase = createClient()
   const user = await getUser()
   if (!user) redirect('/auth')
@@ -62,6 +62,7 @@ export default async function DiligenceDealPage({ params }: { params: { id: stri
       latestDraft={latestDraft as any}
       isAdmin={(membership as any).role === 'admin'}
       currentUserId={user.id}
+      initialTab={searchParams?.tab === 'data-room' ? 'Data Room' : 'Checklist'}
     />
   )
 }

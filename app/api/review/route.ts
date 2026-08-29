@@ -9,7 +9,9 @@ type ReviewRow = Pick<
 > & {
   companies: Pick<Company, 'id' | 'name'> | null
   metrics: Pick<Metric, 'id' | 'name' | 'unit' | 'value_type'> | null
-  inbound_emails: Pick<InboundEmail, 'id' | 'subject' | 'received_at' | 'from_address'> | null
+  inbound_emails: (Pick<InboundEmail, 'id' | 'subject' | 'received_at' | 'from_address'> & {
+    diligence_deal_id: string | null
+  }) | null
 }
 
 export async function GET() {
@@ -25,7 +27,7 @@ export async function GET() {
       id, issue_type, extracted_value, context_snippet, created_at,
       companies ( id, name ),
       metrics ( id, name, unit, value_type ),
-      inbound_emails ( id, subject, received_at, from_address )
+      inbound_emails ( id, subject, received_at, from_address, diligence_deal_id )
     `)
     .is('resolution', null)
     .order('created_at', { ascending: false })

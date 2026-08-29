@@ -15,9 +15,10 @@ export function AttachmentList({ emailId, attachments }: { emailId: string; atta
   const [deletingIndex, setDeletingIndex] = useState<number | null>(null)
 
   async function remove(index: number, name: string) {
+    const displayName = name.length > 100 ? `${name.slice(0, 48)}…${name.slice(-48)}` : name
     const ok = await confirm({
       title: 'Delete attachment',
-      description: `Delete “${name}” from this email? It will no longer be included when the email is reprocessed. Copies previously exported to Drive or diligence are not removed.`,
+      description: `Delete “${displayName}” from this email? It will no longer be included when the email is reprocessed. Copies previously exported to Drive or diligence are not removed.`,
       confirmLabel: 'Delete',
       variant: 'destructive',
     })

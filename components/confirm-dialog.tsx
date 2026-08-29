@@ -65,11 +65,12 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
             <DialogTitle>{options.title ?? 'Confirm'}</DialogTitle>
             <DialogDescription>{options.description}</DialogDescription>
           </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={handleCancel}>
+          <DialogFooter className="min-w-0 flex-wrap">
+            <Button className="max-w-full" variant="outline" onClick={handleCancel}>
               {options.cancelLabel ?? 'Cancel'}
             </Button>
             <Button
+              className="max-w-full"
               variant={options.variant ?? 'default'}
               onClick={handleConfirm}
             >

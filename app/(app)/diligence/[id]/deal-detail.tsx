@@ -81,16 +81,17 @@ const STATUS_LABEL: Record<string, string> = {
 const STATUS_OPTIONS: Deal['deal_status'][] = ['invested', 'active', 'passed']
 const statusLabel = (s: string) => STATUS_LABEL[s] ?? s
 
-export function DealDetail({ deal: initial, initialDocuments, latestDraft, isAdmin, currentUserId }: {
+export function DealDetail({ deal: initial, initialDocuments, latestDraft, isAdmin, currentUserId, initialTab = 'Checklist' }: {
   deal: Deal
   initialDocuments: DiligenceDocument[]
   latestDraft: LatestDraft
   isAdmin: boolean
   currentUserId: string
+  initialTab?: Tab
 }) {
   const router = useRouter()
   const [deal, setDeal] = useState(initial)
-  const [activeTab, setActiveTab] = useState<Tab>('Checklist')
+  const [activeTab, setActiveTab] = useState<Tab>(initialTab)
   // Documents live here (not inside Data Room) so the Checklist tab's
   // doc-count gate and the Data Room list stay in sync after an import/upload.
   const [documents, setDocuments] = useState(initialDocuments)

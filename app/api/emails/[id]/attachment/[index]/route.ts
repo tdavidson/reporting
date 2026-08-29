@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { assertWriteAccess } from '@/lib/api-helpers'
-import type { Json } from '@/lib/types/database'
 
 /**
  * Download an attachment from an inbound email. Linked from the deal-detail
@@ -90,60 +89,16 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
   }
 
   const requestedKey = req.nextUrl.searchParams.get('key')
-  let targetFingerprint: string | null = null
-  let attachment: Record<string, unknown> | null = null
-  let updated = false
-
-  // Optimistic compare-and-swap prevents two tabs from overwriting each
-  // other's raw_payload edits. Stable StoragePath/AttachmentId keys also mean
-  // an index shift can never cause the wrong attachment to be removed.
-  for (let attempt = 0; attempt < 3 && !updated; attempt++) {
-    const { data: email } = await admin
-      .from('inbound_emails')
-      .select('id, raw_payload')
-      .eq('id', params.id)
-      .eq('fund_id', writeCheck.fundId)
-      .maybeSingle()
-    if (!email) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-
-    const payload = ((email as any).raw_payload ?? {}) as Record<string, unknown>
-    const attachments = Array.isArray(payload.Attachments)
-      ? payload.Attachments as Array<Record<string, unknown>>
-      : []
-    if (attempt === 0 && !attachments[idx]) {
-      return NextResponse.json({ error: 'Attachment not found' }, { status: 404 })
-    }
-
-    if (!targetFingerprint) targetFingerprint = attachmentFingerprint(attachments[idx])
-    const targetIndex = attachments.findIndex(att =>
-      requestedKey
-        ? att.AttachmentId === requestedKey || att.StoragePath === requestedKey
-        : attachmentFingerprint(att) === targetFingerprint
-    )
-    if (targetIndex < 0) return NextResponse.json({ error: 'Attachment no longer exists' }, { status: 409 })
-
-    attachment = attachments[targetIndex]
-    const remaining = attachments.filter((_, index) => index !== targetIndex)
-    const { data: changed, error: updateError } = await admin
-      .from('inbound_emails')
-      .update({
-        raw_payload: { ...payload, Attachments: remaining } as Json,
-        attachments_count: remaining.length,
-      })
-      .eq('id', params.id)
-      .eq('fund_id', writeCheck.fundId)
-      .eq('raw_payload', payload as Record<string, Json | undefined>)
-      .select('id')
-      .maybeSingle()
-    if (updateError) return NextResponse.json({ error: updateError.message }, { status: 500 })
-    updated = !!changed
+  const { data: deleted, error: deleteError } = await (supabase as any).rpc(
+    'delete_email_attachment',
+    { p_email_id: params.id, p_attachment_index: idx, p_attachment_key: requestedKey }
+  ) as { data: { storage_path?: string | null } | null; error: { message: string } | null }
+  if (deleteError) {
+    const notFound = deleteError.message.includes('not found')
+    return NextResponse.json({ error: deleteError.message }, { status: notFound ? 404 : 400 })
   }
 
-  if (!updated || !attachment) {
-    return NextResponse.json({ error: 'Attachment changed while deleting; please try again' }, { status: 409 })
-  }
-
-  const storagePath = typeof attachment.StoragePath === 'string' ? attachment.StoragePath : null
+  const storagePath = deleted?.storage_path ?? null
   if (storagePath?.startsWith(`${params.id}/`)) {
     const { error: removeError } = await admin.storage.from('email-attachments').remove([storagePath])
     if (removeError) {
@@ -152,9 +107,4 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
   }
 
   return NextResponse.json({ ok: true })
-}
-
-function attachmentFingerprint(attachment: Record<string, unknown> | undefined): string {
-  if (!attachment) return ''
-  return [attachment.Name, attachment.ContentType, attachment.ContentLength].map(String).join('\u0000')
 }
