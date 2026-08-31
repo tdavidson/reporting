@@ -43,6 +43,10 @@ describe('rollUp', () => {
     const m = rollUp([], 500_000, [], null)
     expect(m).toMatchObject({ paidIn: 0, nav: 0, dpi: null, tvpi: null, irr: null })
     expect(m.committed).toBe(500_000)
+    // A fund that has closed commitments but not yet called — or whose commitments were entered
+    // before the first position paste — has NO capital accounts, and every dollar is uncalled.
+    // Reporting Committed 500k / Called 0 / Uncalled 0 contradicts itself.
+    expect(m.uncalled).toBe(500_000)
   })
 
   it('ratios are null (not zero, not Infinity) when nothing has been called', () => {

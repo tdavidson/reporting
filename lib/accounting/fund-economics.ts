@@ -87,7 +87,15 @@ export function rollUp(
   flows: CashFlow[],
   asOf: Date | null,
 ): FundMetrics {
-  if (accounts.length === 0) return { ...EMPTY, committed: roundCents(committed) }
+  // No capital accounts: nothing has been called, so the WHOLE commitment is uncalled. Called
+  // capital genuinely requires a capital source — ledger postings or dated lp_positions — and a
+  // vehicle with neither correctly reports 0 called. But `uncalled` is commitment − paid-in,
+  // which here is the whole commitment, not 0. Leaving EMPTY's 0 in place made a fund that had
+  // closed but not yet called report Committed 18.5M / Called 0 / Uncalled 0.
+  if (accounts.length === 0) {
+    const c = roundCents(committed)
+    return { ...EMPTY, committed: c, uncalled: c }
+  }
 
   const paidIn = roundCents(accounts.reduce((s, a) => s + a.contributions, 0))
   // Distributions are stored negative on a capital account (it is a credit balance).
