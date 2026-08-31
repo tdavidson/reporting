@@ -34,9 +34,15 @@ interface SoiRow {
   // Per-company value breakdown (tracker rows). invested = gross deployed; distributions = realized
   // proceeds; totalValue = distributions + fairValue (residual).
   invested?: number; distributions?: number; totalValue?: number
+  /** Present on tracker rows. Lets an exited, proceeds-only bar be labelled. */
+  status?: 'active' | 'exited' | 'written-off'
+  /** invested, split by lib/accounting/soi.ts. new + followOn === invested. */
+  investedNew?: number; investedFollowOn?: number
 }
 interface Soi {
-  rows: SoiRow[]; totalCost: number; totalFairValue: number; netAssets: number
+  rows: SoiRow[];
+  /** Fully-realized companies — not on the schedule, but part of the ITD picture. */
+  realizedRows?: SoiRow[]; totalCost: number; totalFairValue: number; netAssets: number
   source: 'tracker' | 'ledger'; byIndustry: SoiGroup[]; byGeography: SoiGroup[]; byAssetType: SoiGroup[]
 }
 interface TsPoint {
@@ -166,7 +172,7 @@ export function FundDetailView({ vehicle, vehicleId }: { vehicle: string; vehicl
 
       {/* Investment breakdown — from the schedule of investments (tracker rows). Hidden entirely
           when the vehicle tracks no per-company detail, rather than showing an empty placeholder. */}
-      {soi && soi.source === 'tracker' && soi.rows.length > 0 && (
+      {soi && soi.source === 'tracker' && (soi.rows.length > 0 || (soi.realizedRows?.length ?? 0) > 0) && (
         <div className="grid gap-4 lg:grid-cols-2">
           <BreakdownChart title="By industry" groups={soi.byIndustry} fmt={fmt} fmtFull={fmtFull} />
           <BreakdownChart
@@ -176,7 +182,10 @@ export function FundDetailView({ vehicle, vehicleId }: { vehicle: string; vehicl
             fmtFull={fmtFull}
           />
           <div className="lg:col-span-2">
-            <TopHoldings rows={soi.rows} fmt={fmt} fmtFull={fmtFull} />
+            {/* Realized companies are NOT on the schedule (ASC 946 reports holdings), but this
+                chart ranks on invested capital and proceeds inception-to-date — where an exited
+                company is exactly the row you most want to see. */}
+            <TopHoldings rows={[...soi.rows, ...(soi.realizedRows ?? [])]} fmt={fmt} fmtFull={fmtFull} />
           </div>
         </div>
       )}
@@ -573,6 +582,11 @@ function holdingParts(r: SoiRow) {
   const invested = r.invested ?? r.cost
   return {
     invested,
+    // Fall back to treating the whole position as new capital when the split is absent, so an
+    // older cached payload renders one honest bar rather than an empty one.
+    investedNew: r.investedNew ?? invested,
+    investedFollowOn: r.investedFollowOn ?? 0,
+    exited: r.status === 'exited' || r.status === 'written-off',
     proceeds,
     residual,
     // Unrealized gain on the still-held position: residual value above invested cost. Can be
@@ -598,8 +612,15 @@ function holdingSegments(h: Holding, metric: HoldingMetric): { label: string; va
     if (metric === 'total') segs.push({ label: 'Proceeds', value: h.proceeds, color: HOLDING_HUE.proceeds })
     return segs
   }
-  const color = metric === 'invested' ? HOLDING_HUE.invested : HOLDING_HUE.proceeds
-  return [{ label: metric, value: h[metric], color }]
+  if (metric === 'invested') {
+    // New = solid, follow-on = the 50% tint of the same slot, so the pairing holds in either
+    // theme. Same hues the cash-flows chart uses for the same distinction.
+    return [
+      { label: 'New capital', value: h.investedNew, color: INVEST_NEW },
+      { label: 'Follow-on', value: h.investedFollowOn, color: INVEST_FOLLOW },
+    ]
+  }
+  return [{ label: 'Proceeds', value: h.proceeds, color: HOLDING_HUE.proceeds }]
 }
 
 function TopHoldings({
@@ -611,10 +632,12 @@ function TopHoldings({
   // the whole portfolio is shown.
   const ranked = useMemo(() => {
     const parts = rows.map(r => ({ name: r.name, ...holdingParts(r) }))
-    return parts.sort((a, b) => b[metric] - a[metric])
+    // Rows with nothing to show on THIS metric are dropped: an exited company has no residual
+    // value, and a tail of zero-width bars is noise, not information.
+    return parts.filter(h => h[metric] > 0).sort((a, b) => b[metric] - a[metric])
   }, [rows, metric])
   const max = ranked.reduce((mx, h) => Math.max(mx, h[metric]), 0)
-  const fundTotal = rows.reduce((s, r) => s + holdingParts(r)[metric], 0)
+  const fundTotal = ranked.reduce((s, h) => s + h[metric], 0)
   if (ranked.length === 0) return null
 
   const toggle = (
@@ -645,7 +668,12 @@ function TopHoldings({
             { label: 'Invested capital', color: HOLDING_HUE.invested },
             { label: 'Unrealized gains', color: HOLDING_HUE.residual },
           ]
-        : []
+        : metric === 'invested'
+          ? [
+              { label: 'New capital', color: INVEST_NEW },
+              { label: 'Follow-on', color: INVEST_FOLLOW },
+            ]
+          : []
 
   return (
     <ChartCard title="Largest holdings" action={toggle}>
@@ -661,7 +689,12 @@ function TopHoldings({
       <div className="space-y-2">
         {ranked.map(h => (
           <div key={h.name} className="flex items-center gap-3 text-sm">
-            <div className="w-40 shrink-0 truncate" title={h.name}>{h.name}</div>
+            <div className="w-40 shrink-0 flex items-center gap-1.5 min-w-0" title={h.name}>
+              <span className="truncate">{h.name}</span>
+              {h.exited && (
+                <span className="shrink-0 rounded-sm border px-1 text-[10px] leading-4 text-muted-foreground">Exited</span>
+              )}
+            </div>
             <div className="flex-1 min-w-0">
               <div className="h-4 rounded-sm bg-muted/50 overflow-hidden flex">
                 {holdingSegments(h, metric).map(seg => (
