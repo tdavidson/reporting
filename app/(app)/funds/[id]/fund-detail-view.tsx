@@ -132,6 +132,38 @@ export function FundDetailView({ vehicle, vehicleId }: { vehicle: string; vehicl
   // so its charts stay on the gross (deal-level) view only. This is the switch for that everywhere.
   const isAccounting = econ?.source === 'ledger'
 
+  // WHICH BASIS THE RATIOS ARE ON.
+  //
+  // rollUp's TVPI/DPI/IRR come from CAPITAL ACCOUNTS in both the 'ledger' and 'events' cases —
+  // both are LP-level, so both are already net of fees. The only deal-level (gross) numbers live
+  // in the timeseries. A vehicle with no capital accounts at all has null ratios, and for it the
+  // honest answer is the gross triple, not three dashes.
+  const lastTs = ts?.points[ts.points.length - 1] ?? null
+  const grossTvpi = lastTs && lastTs.investedCapital > 0
+    ? (lastTs.proceeds + lastTs.portfolioValue) / lastTs.investedCapital : null
+  const grossDpi = lastTs && lastTs.investedCapital > 0 ? lastTs.proceeds / lastTs.investedCapital : null
+  const grossIrr = lastTs?.grossIrr ?? null
+  const hasNet = !!m && m.tvpi != null
+  const basis: 'net' | 'fund' | 'gross' =
+    !hasNet && ts?.hasGross ? 'gross' : effectiveLens === 'lp' ? 'net' : 'fund'
+  const prefix = basis === 'net' ? 'Net ' : basis === 'gross' ? 'Gross ' : 'Fund '
+  const basisNote =
+    basis === 'net'
+      ? 'Net to LP — after management fees, expenses and accrued carried interest.'
+      : basis === 'gross'
+        ? 'Gross, deal level — portfolio cash flows and carrying value, before fund fees and expenses.'
+        : 'Whole fund — after fees and expenses, before carried interest is carved to the GP.'
+  const showTvpi = basis === 'gross' ? grossTvpi : m?.tvpi ?? null
+  const showDpi = basis === 'gross' ? grossDpi : m?.dpi ?? null
+  const netIrr = basis === 'gross' ? null : m?.irr ?? null
+  // The ONE case where the row mixes bases: a vehicle that HAS capital accounts but whose net
+  // IRR is null for want of time spread (a single-cutover tracking vehicle pins the terminal
+  // value to the contribution date, so no rate exists). Each box is labelled, and a real number
+  // the GP can act on beats a dash.
+  const irrIsGross = netIrr == null && grossIrr != null
+  const showIrr = netIrr ?? grossIrr
+  const irrLabel = irrIsGross ? 'Gross IRR' : `${prefix}IRR`
+
   // The page body — loading, not-found, or the metrics + charts. Rendered inside
   // <AccountingBody> below, so the Analyst panel slides in beside it while the header above
   // stays full width.
@@ -156,10 +188,16 @@ export function FundDetailView({ vehicle, vehicleId }: { vehicle: string; vehicl
         <MetricBox label="Uncalled" value={fmt(m.uncalled)} />
         <MetricBox label="Distributed" value={fmt(m.distributions)} />
         <MetricBox label="NAV" value={fmt(m.nav)} />
-        <MetricBox label="TVPI" value={moic(m.tvpi)} />
-        <MetricBox label="DPI" value={moic(m.dpi)} />
-        <MetricBox label="IRR" value={irrPct(m.irr)} />
+        <MetricBox label={`${prefix}TVPI`} value={moic(showTvpi)} />
+        <MetricBox label={`${prefix}DPI`} value={moic(showDpi)} />
+        <MetricBox label={irrLabel} value={irrPct(showIrr)} />
       </div>
+
+      {/* "Net of fees, gross of carry" is not recoverable from a three-letter label. */}
+      <p className="-mt-3 text-xs text-muted-foreground">
+        {basisNote}
+        {irrIsGross && ' IRR is shown gross — the capital accounts do not span enough time to derive a net rate.'}
+      </p>
 
       {/* Growth over time — two charts. Hidden entirely (rather than shown as an empty box) when the
           vehicle has no dated ledger activity — e.g. it isn't kept on fund accounting. */}
