@@ -24,8 +24,13 @@ const txn = (o: any) => ({
   proceeds_escrow: o.proceeds_escrow ?? null,
   proceeds_written_off: o.proceeds_written_off ?? null,
   interest_converted: o.interest_converted ?? null,
+  converts_from_txn_id: o.converts_from_txn_id ?? null,
+  fee_amount: o.fee_amount ?? null,
   portfolio_group: o.portfolio_group ?? null,
 }) as any
+
+/** An investment into the default company, in the vehicle `co()` belongs to. */
+const inv = (o: any = {}) => txn({ ...o, transaction_type: 'investment', portfolio_group: 'Acme SPV LP' })
 
 describe('txnsForVehicle', () => {
   it('matches the vehicle EXACTLY — never as a substring', () => {
@@ -160,5 +165,47 @@ describe('digital-asset holdings', () => {
       { id: 'c1', name: 'Acme', status: 'active', industry: null, stage: null, portfolio_group: ['Fund I'] },
     ] as any[]
     expect(buildSoiPositions(txns, companies, 'Fund I')[0].holdingType).toBe('company')
+  })
+})
+
+describe('new vs follow-on split', () => {
+  it('the earliest investment is new capital, every later one is follow-on', () => {
+    const txns = [
+      inv({ transaction_date: '2024-03-01', investment_cost: 500_000 }),
+      inv({ transaction_date: '2025-06-01', investment_cost: 250_000 }),
+      inv({ transaction_date: '2026-01-15', investment_cost: 100_000 }),
+    ]
+    const [p] = buildSoiPositions(txns, [co()], 'Acme SPV LP')
+    expect(p.investedNew).toBe(500_000)
+    expect(p.investedFollowOn).toBe(350_000)
+  })
+
+  it('new + follow-on ties to invested exactly', () => {
+    const txns = [
+      inv({ transaction_date: '2024-03-01', investment_cost: 333_333.33 }),
+      inv({ transaction_date: '2025-06-01', investment_cost: 166_666.67 }),
+    ]
+    const [p] = buildSoiPositions(txns, [co()], 'Acme SPV LP')
+    expect(p.investedNew + p.investedFollowOn).toBeCloseTo(p.invested, 2)
+  })
+
+  it('a single-investment company is 100% new', () => {
+    const [p] = buildSoiPositions([inv({ transaction_date: '2024-03-01', investment_cost: 400_000 })], [co()], 'Acme SPV LP')
+    expect(p.investedNew).toBe(400_000)
+    expect(p.investedFollowOn).toBe(0)
+  })
+
+  // DELIBERATE: a SAFE-to-equity conversion row is chronologically later, so its capitalized
+  // interest classifies as follow-on though it is not new money. The timeseries chart already
+  // behaves this way; pinning it here keeps the two charts agreeing.
+  it('capitalized conversion interest classifies as follow-on', () => {
+    const safe = inv({ id: 'safe1', transaction_date: '2024-03-01', investment_cost: 500_000, round_name: 'SAFE' })
+    const conv = inv({
+      transaction_date: '2025-06-01', investment_cost: 0, interest_converted: 25_000,
+      round_name: 'Series A', converts_from_txn_id: 'safe1',
+    })
+    const [p] = buildSoiPositions([safe, conv], [co()], 'Acme SPV LP')
+    expect(p.investedNew).toBe(500_000)
+    expect(p.investedFollowOn).toBe(25_000)
   })
 })

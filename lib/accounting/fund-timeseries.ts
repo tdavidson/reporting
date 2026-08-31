@@ -80,6 +80,22 @@ export interface FundTimeseriesPoint {
 export interface InvTxnLite { date: string | null; cost: number }
 
 /**
+ * Classify one company's investment rows into new vs follow-on capital.
+ *
+ * The first (earliest-dated) investment into a company is NEW capital; every later investment
+ * into that same company is FOLLOW-ON. Stable sort, so the classification is deterministic and
+ * can be pinned by a test.
+ *
+ * Exported because two surfaces need the SAME rule: the quarterly series below, and the
+ * per-position split in lib/accounting/soi.ts. Two implementations would drift.
+ */
+export function classifyNewFollowOn<T extends { date: string | null }>(txns: T[]): (T & { isNew: boolean })[] {
+  return [...txns]
+    .sort((a, b) => (a.date ?? '').localeCompare(b.date ?? ''))
+    .map((t, i) => ({ ...t, isNew: i === 0 }))
+}
+
+/**
  * Cumulative new vs follow-on capital at each quarter end. The first (earliest-dated) investment
  * into a company is NEW capital; every later investment into that same company is FOLLOW-ON.
  * Pure and deterministic so the classification can be pinned by a test. `cost` must be defined the
@@ -89,12 +105,7 @@ export function buildNewFollowOnSeries(
   companies: InvTxnLite[][],
   quarters: string[],
 ): { newInvested: number; followOnInvested: number }[] {
-  const classified = companies.map(txns =>
-    // Stable sort by date; the first row is the initial (new) check, the rest are follow-ons.
-    [...txns]
-      .sort((a, b) => (a.date ?? '').localeCompare(b.date ?? ''))
-      .map((t, i) => ({ ...t, isNew: i === 0 })),
-  )
+  const classified = companies.map(txns => classifyNewFollowOn(txns))
   return quarters.map(q => {
     let newInvested = 0, followOnInvested = 0
     for (const txns of classified) {

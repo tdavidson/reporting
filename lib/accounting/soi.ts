@@ -10,6 +10,7 @@
 // in the codebase; this is deliberately not another one.
 
 import { computeSummary } from '@/lib/investments'
+import { classifyNewFollowOn } from './fund-timeseries'
 import type { FairValueLevel } from '@/lib/portfolio/quotes'
 import type { InvestmentTransaction, CompanyStatus } from '@/lib/types/database'
 
@@ -131,6 +132,10 @@ export interface SoiPosition {
   /** Gross capital deployed into the company, before exits (computeSummary.totalInvested).
    *  Excludes income received in kind, which is basis but not a contribution. */
   invested: number
+  /** The portion of `invested` that was this company's FIRST check. new + followOn === invested. */
+  investedNew: number
+  /** Every later check into the same company. */
+  investedFollowOn: number
   /** Income the position produced since inception — cash and in kind. */
   income: number
   /** Realized proceeds returned to the fund (computeSummary.totalRealized). */
@@ -227,6 +232,24 @@ export function buildSoiPositions(
     if (!relevant.some(t => t.transaction_type === 'investment' && t.portfolio_group === vehicle)) continue
 
     const s = computeSummary(relevant, company.status, asOf)
+
+    // New vs follow-on, on the SAME rule the fund-timeseries chart uses — the earliest-dated
+    // investment is new capital, every later one is follow-on.
+    //
+    // The per-row cost must be defined exactly as computeSummary defines totalInvested —
+    // investment_cost + fee_amount, plus interest_converted on a conversion row — or the split
+    // will not tie to `invested` and the stacked bars will not sum to their own total.
+    const investRows = relevant
+      .filter(t => t.transaction_type === 'investment')
+      .map(t => ({
+        date: t.transaction_date,
+        cost: (t.investment_cost ?? 0)
+          + Number((t as { fee_amount?: number | null }).fee_amount ?? 0)
+          + ((t as { converts_from_txn_id?: string | null }).converts_from_txn_id ? (t.interest_converted ?? 0) : 0),
+      }))
+    const classified = classifyNewFollowOn(investRows)
+    const investedNew = r(classified.filter(t => t.isNew).reduce((sum, t) => sum + t.cost, 0))
+    const investedFollowOn = r(classified.filter(t => !t.isNew).reduce((sum, t) => sum + t.cost, 0))
     const exited = s.rounds.reduce((sum, rd) => sum + Math.abs(rd.costBasisExited ?? 0), 0)
     // Income basis counts as COST even though it is not invested capital. A staking reward or an
     // airdrop is recognised at fair value on receipt, and that value is the units' basis — leave
@@ -255,6 +278,8 @@ export function buildSoiPositions(
       cost,
       fairValue,
       invested: r(s.totalInvested),
+      investedNew,
+      investedFollowOn,
       income: r(s.totalIncome),
       distributions: r(s.totalRealized),
       totalValue: r(s.totalRealized + s.unrealizedValue),
