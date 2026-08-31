@@ -153,16 +153,26 @@ export function computePayload(data: LedgerData, period: StatementPeriod): State
   // Levelled AS OF THE PERIOD END, not today: a position inside its lock-up at 31 March is
   // Level 2 in the Q1 statements however unrestricted it has since become, and a company that
   // listed in June is Level 3 in every statement struck before it.
-  const positions = withFairValueLevels(
+  //
+  // Built WITH realized companies, then PARTITIONED: `scheduleOfInvestments` receives only live
+  // holdings, so the statutory schedule, its subtotals and its ledger tie-out are unchanged.
+  // The realized ones ride along separately for inception-to-date consumers.
+  const allPositions = withFairValueLevels(
     buildSoiPositions(
       data.txns, data.companies as SoiCompany[], data.group,
       period.end ? new Date(period.end) : undefined,
+      { includeRealized: true },
     ),
     // `?? []` because a LedgerData assembled before feeds existed genuinely has none, and no
     // feeds is a MEANINGFUL state rather than a missing input: every position levels at 3.
     data.feeds ?? [], data.observations ?? [],
     period.end ?? new Date().toISOString().slice(0, 10),
   )
+  const isRealized = (p: { cost: number; fairValue: number }) => p.cost === 0 && p.fairValue === 0
+  const positions = allPositions.filter(p => !isRealized(p))
+  // pctOfNetAssets is 0 by construction: a realized position has no fair value to be a
+  // percentage of. Stated rather than left undefined, because SoiRow requires it.
+  const realizedRows = allPositions.filter(isRealized).map(p => ({ ...p, pctOfNetAssets: 0 }))
 
   const bal = accountBalances(cumulative)
   const gpEnding = data.gpAccount ? normalBalance(data.gpAccount, bal.get(data.gpAccount.id) ?? 0) : 0
@@ -173,7 +183,10 @@ export function computePayload(data: LedgerData, period: StatementPeriod): State
     trialBalance: trialBalance(data.accounts, cumulative),
     balanceSheet: balanceSheet(data.accounts, cumulative),
     incomeStatement: incomeStatement(data.accounts, inPeriod),
-    scheduleOfInvestments: scheduleOfInvestments(data.accounts, cumulative, nav, positions),
+    scheduleOfInvestments: {
+      ...scheduleOfInvestments(data.accounts, cumulative, nav, positions),
+      realizedRows,
+    },
     changesInPartnersCapital: changesInPartnersCapital(capitalAccounts, data.names, gpEnding),
     // Absent for a fund holding no funds, so a non-FoF package is unchanged.
     ...(data.fofRaw ? { fof: fofExhibits(data.fofRaw, period.end) } : {}),

@@ -210,13 +210,25 @@ export function txnsForVehicle(txns: InvestmentTransaction[], vehicle: string): 
   return [...inVehicle, ...priceSignals]
 }
 
-/** One SOI position per company the vehicle holds. Companies with no remaining basis
- *  and no value (fully exited / written off) are dropped. */
+/**
+ * One SOI position per company the vehicle holds.
+ *
+ * Companies with no remaining basis and no value (fully exited / written off) are DROPPED by
+ * default, because an ASC 946 schedule reports HOLDINGS and an exited company is not one — it
+ * would appear as an all-zeros row at 0% of net assets.
+ *
+ * `includeRealized` keeps them, for callers reporting inception-to-date rather than a position
+ * at a date: the fund detail page's Largest holdings chart ranks on invested capital and
+ * proceeds, where an exited company is exactly the row you most want to see. Such a caller must
+ * NOT feed the result to `scheduleOfInvestments()` as its `positions` — see statement-package.ts,
+ * which partitions before it does.
+ */
 export function buildSoiPositions(
   txns: InvestmentTransaction[],
   companies: SoiCompany[],
   vehicle: string,
-  asOf?: Date
+  asOf?: Date,
+  opts?: { includeRealized?: boolean },
 ): SoiPosition[] {
   const byCompany = new Map<string, InvestmentTransaction[]>()
   for (const t of txns) {
@@ -259,7 +271,13 @@ export function buildSoiPositions(
     // unrealizedValue, not fmv: fmv reports PROCEEDS for an exited company, which is
     // not a carrying value and would misstate the balance sheet.
     const fairValue = r(s.unrealizedValue)
-    if (cost === 0 && fairValue === 0) continue
+    // Fully realized: no remaining basis, no carrying value. Kept only for an ITD caller, and
+    // only when there is something to report — invested capital or proceeds. A company with
+    // neither was never really held.
+    if (cost === 0 && fairValue === 0) {
+      const worthKeeping = opts?.includeRealized && (s.totalInvested !== 0 || s.totalRealized !== 0)
+      if (!worthKeeping) continue
+    }
 
     const shares = s.totalShares || null
     positions.push({

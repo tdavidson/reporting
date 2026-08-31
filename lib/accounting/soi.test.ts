@@ -209,3 +209,35 @@ describe('new vs follow-on split', () => {
     expect(p.investedFollowOn).toBe(25_000)
   })
 })
+
+describe('includeRealized', () => {
+  // A company sold in full: no remaining basis, no carrying value, but real invested capital
+  // and real proceeds. The statutory schedule must not show it; the fund detail chart must.
+  const exited = () => [
+    inv({ transaction_date: '2023-01-10', investment_cost: 300_000 }),
+    txn({
+      transaction_type: 'proceeds', transaction_date: '2026-05-01', portfolio_group: 'Acme SPV LP',
+      proceeds_received: 900_000, cost_basis_exited: 300_000,
+    }),
+  ]
+
+  it('drops a fully-realized company by default', () => {
+    expect(buildSoiPositions(exited(), [co({ status: 'exited' })], 'Acme SPV LP')).toHaveLength(0)
+  })
+
+  it('keeps it when includeRealized is set, with its invested and proceeds intact', () => {
+    const rows = buildSoiPositions(exited(), [co({ status: 'exited' })], 'Acme SPV LP', undefined, { includeRealized: true })
+    expect(rows).toHaveLength(1)
+    expect(rows[0].invested).toBe(300_000)
+    expect(rows[0].investedNew).toBe(300_000)
+    expect(rows[0].distributions).toBe(900_000)
+    expect(rows[0].fairValue).toBe(0)
+    expect(rows[0].status).toBe('exited')
+  })
+
+  it('still drops a company with neither invested capital nor proceeds', () => {
+    const nothing = [inv({ transaction_date: '2024-01-01', investment_cost: 0 })]
+    const rows = buildSoiPositions(nothing, [co()], 'Acme SPV LP', undefined, { includeRealized: true })
+    expect(rows).toHaveLength(0)
+  })
+})

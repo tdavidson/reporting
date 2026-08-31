@@ -42,7 +42,7 @@ function fixture(): StatementPackage {
         netIncome: -250,
       },
       scheduleOfInvestments: {
-        rows: [], totalCost: 0, totalFairValue: 0, netAssets: -250, source: 'ledger',
+        rows: [], realizedRows: [], totalCost: 0, totalFairValue: 0, netAssets: -250, source: 'ledger',
         ledgerCost: 0, ledgerFairValue: 0, costVariance: 0, fairValueVariance: 0,
         byIndustry: [], byGeography: [], byAssetType: [], byLevel: [],
       },

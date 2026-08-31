@@ -7,6 +7,7 @@ import { NORMAL_SIDE } from './types'
 import type { CapitalAccount } from './capital-account'
 import { ACTIVITY_FIELDS, emptyAccount } from './capital-account'
 import { apportionCents } from './allocation'
+import type { CompanyStatus } from '@/lib/types/database'
 
 function r(n: number): number {
   return Math.round((n + Number.EPSILON) * 100) / 100
@@ -193,6 +194,9 @@ export interface SoiRow {
   industry?: string | null
   country?: string | null
   stage?: string | null
+  /** So an inception-to-date consumer can label an exited row; a proceeds-only bar is
+   *  otherwise unreadable. Absent on ledger-sourced rows, which know no company status. */
+  status?: CompanyStatus
   assetType?: string
   shares?: number | null
   sharePrice?: number | null
@@ -225,6 +229,16 @@ export interface SoiGroup {
 }
 export interface ScheduleOfInvestments {
   rows: SoiRow[]
+  /**
+   * Fully-realized companies — invested capital and proceeds, no remaining position.
+   *
+   * NOT part of the schedule: excluded from `rows`, from every subtotal, and from the ledger
+   * tie-out, because ASC 946 reports holdings. Present so an inception-to-date consumer (the
+   * fund detail page's Largest holdings chart) can show what the fund actually did. Populated
+   * by computePayload, which is the only caller that knows which positions were realized;
+   * `scheduleOfInvestments()` itself always returns it empty.
+   */
+  realizedRows: SoiRow[]
   totalCost: number
   totalFairValue: number
   netAssets: number
@@ -342,6 +356,9 @@ export function scheduleOfInvestments(
 
   return {
     rows,
+    // Always empty here. The partition needs to know which positions were realized, which only
+    // computePayload does — it builds them with `includeRealized` and splits before calling in.
+    realizedRows: [],
     totalCost,
     totalFairValue,
     netAssets: r(netAssets),
