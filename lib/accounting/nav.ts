@@ -4,7 +4,7 @@
 
 import {
   Landmark, Users, ScrollText, Gauge,
-  Lock, Layers, FileText,
+  Lock, Layers, FileText, Target,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import type { Domain } from '@/lib/access/domains'
@@ -79,12 +79,9 @@ export const ACCOUNTING_SECTIONS: AccountingSection[] = [
     desc: 'Schedule of investments, commitments and liquidity, and per-fund performance for the underlying funds.',
     requiresFof: true,
   },
-  {
-    href: '/funds/migrate',
-    label: 'Migrate from QuickBooks',
-    icon: Landmark,
-    desc: 'Import a QuickBooks general ledger, map its accounts to this chart, and tie every period out before cutting over.',
-  },
+  // NOTE: /funds/migrate is deliberately NOT listed. Importing a QuickBooks general
+  // ledger is a one-time event at the start of a vehicle's life, not a place you work —
+  // so it's linked from Admin, alongside the rest of the onboarding.
   {
     href: '/funds/fof-quarter',
     label: 'Quarterly close (funds)',
@@ -97,6 +94,12 @@ export const ACCOUNTING_SECTIONS: AccountingSection[] = [
     label: 'Schedule of investments',
     icon: Layers,
     desc: 'Each investment at cost and fair value, with its share of net assets.',
+  },
+  {
+    href: '/funds/construction',
+    label: 'Portfolio construction',
+    icon: Target,
+    desc: 'How much investable capital is left, how many more deals fit, and what exit the portfolio needs to return the fund.',
   },
   {
     href: '/funds/statements',

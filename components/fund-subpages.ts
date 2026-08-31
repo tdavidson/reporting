@@ -6,7 +6,7 @@
  *  client-reference proxy on the server, so calling `.has()` there throws
  *  "Attempted to call has() from the server but has is on the client". */
 export const FUND_SUBPAGE_SLUGS = new Set([
-  'status', 'bank', 'journal', 'periods', 'statements', 'capital-accounts',
+  'status', 'bank', 'journal', 'periods', 'statements', 'capital-accounts', 'construction',
   'schedule-of-investments', 'allocation-terms', 'opening-balances', 'lp-events',
   'fof-quarter', 'fof-report', 'migrate',
 ])
