@@ -69,6 +69,8 @@ export const ROUTE_DOMAINS: Record<string, RouteAccess> = {
   'api/accounting/fof-grid': { domain: 'accounting' },
   'api/accounting/fof-grid/confirm': { domain: 'accounting' },
   'api/accounting/fof-marks': { domain: 'accounting' },
+  // GET reads the plan, PUT writes it — `requiredLevel` derives read/write from the method.
+  'api/accounting/construction': { domain: 'accounting' },
   'api/accounting/fund-economics': { domain: 'accounting' },
   // QuickBooks migration. `mapping/discover` is its own route file and therefore needs its
   // own entry — route-domains.test.ts matches on the route path, not on a prefix.
