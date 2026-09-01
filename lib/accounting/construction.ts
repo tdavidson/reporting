@@ -369,8 +369,10 @@ export interface PositionReturn {
   forecast: ConstructionPositionForecast
   /** Active-company mark, or realized gross proceeds for an exited company. */
   currentValue: number
-  /** Forecast proceeds, or today's total value until an exit is entered. */
-  estimatedReturn: number
+  /** Current total value / invested, using realized proceeds for an exited company. */
+  currentMoic: number | null
+  /** Future forecast proceeds only; realized proceeds remain separate. */
+  estimatedReturn: number | null
   estimatedMoic: number | null
   exitToReturnFund: number | null
   isForecasted: boolean
@@ -527,18 +529,20 @@ export function constructionModel(
       : storedForecast
     const isForecasted = !isExited && forecast.ownershipAtExit > 0 && forecast.expectedExitValue > 0
     const currentValue = r(isExited ? actual.distributions : actual.currentValue)
-    const estimatedReturn = isExited
-      ? r(actual.distributions)
-      : isForecasted
-      ? r(actual.distributions + forecast.ownershipAtExit * forecast.expectedExitValue)
-      : currentValue
+    const currentMoic = actual.investedTotal > 0
+      ? (isExited ? actual.distributions : currentValue) / actual.investedTotal
+      : null
+    const estimatedReturn = isForecasted
+      ? r(forecast.ownershipAtExit * forecast.expectedExitValue)
+      : null
     const invested = actual.investedTotal + forecast.plannedFollowOn
     return {
       actual,
       forecast,
       currentValue,
+      currentMoic,
       estimatedReturn,
-      estimatedMoic: invested > 0 ? estimatedReturn / invested : null,
+      estimatedMoic: estimatedReturn != null && invested > 0 ? estimatedReturn / invested : null,
       exitToReturnFund: !isExited && forecast.ownershipAtExit > 0
         ? r(actuals.committedCapital / forecast.ownershipAtExit)
         : null,
@@ -560,7 +564,7 @@ export function constructionModel(
     ? r(a.targetFundMultiple * actuals.committedCapital)
     : null
 
-  const estimatedExistingValue = r(positionReturns.reduce((s, p) => s + p.estimatedReturn, 0))
+  const estimatedExistingValue = r(positionReturns.reduce((s, p) => s + (p.estimatedReturn ?? 0), 0))
   const estimatedFutureValue = r(stageReturns.reduce((s, st) => s + (st.estimatedReturn ?? 0), 0))
   const estimatedPortfolioValue = r(estimatedExistingValue + estimatedFutureValue)
   const projectedInvested = r(deployedTotal + plannedCost)

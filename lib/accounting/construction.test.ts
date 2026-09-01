@@ -315,6 +315,18 @@ describe('inline portfolio forecast', () => {
     expect(m.returns.estimatedPortfolioValue).toBe(4_000_000)
   })
 
+  it('keeps realized proceeds separate from forecasted proceeds', () => {
+    const partiallyRealized = { ...position, distributions: 300_000 }
+    const m = constructionModel(ACT({ positions: [partiallyRealized] }), A({
+      ...RUN_OUT,
+      positionForecasts: [{ companyId: 'company-1', plannedFollowOn: 200_000, ownershipAtExit: 0.02, expectedExitValue: 100_000_000 }],
+    }), NOW)
+    expect(m.returns.positions[0].currentMoic).toBe(1.5)
+    expect(m.returns.positions[0].actual.distributions).toBe(300_000)
+    expect(m.returns.positions[0].estimatedReturn).toBe(2_000_000)
+    expect(m.returns.positions[0].estimatedMoic).toBe(2.5)
+  })
+
   it('keeps direct inline dollar and ownership inputs through validation', () => {
     const parsed = parseAssumptions({
       positionForecasts: [{ companyId: 'company-1', plannedFollowOn: 200_000, ownershipAtExit: 0.02, expectedExitValue: 100_000_000 }],
@@ -353,12 +365,14 @@ describe('inline portfolio forecast', () => {
       positionForecasts: [{ companyId: 'company-1', plannedFollowOn: 200_000, ownershipAtExit: 0.02, expectedExitValue: 100_000_000 }],
     }), NOW)
     expect(m.returns.positions[0].currentValue).toBe(1_200_000)
-    expect(m.returns.positions[0].estimatedReturn).toBe(1_200_000)
-    expect(m.returns.positions[0].estimatedMoic).toBe(2)
+    expect(m.returns.positions[0].currentMoic).toBe(2)
+    expect(m.returns.positions[0].estimatedReturn).toBeNull()
+    expect(m.returns.positions[0].estimatedMoic).toBeNull()
     expect(m.returns.positions[0].exitToReturnFund).toBeNull()
     expect(m.returns.positions[0].forecast.plannedFollowOn).toBe(0)
     expect(m.capital.plannedExistingFollowOn).toBe(0)
     expect(m.returns.currentPortfolioValue).toBe(1_200_000)
+    expect(m.returns.estimatedExistingValue).toBe(0)
   })
 })
 

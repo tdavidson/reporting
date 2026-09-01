@@ -33,7 +33,7 @@ function positionSortValue(row: PositionReturn, key: PortfolioSortKey): string |
     case 'postMoney': return actual.currentPostMoney
     case 'currentValue': return row.currentValue
     case 'realizedProceeds': return actual.distributions
-    case 'currentMoic': return actual.currentMoic
+    case 'currentMoic': return row.currentMoic
     case 'ownershipAtExit': return forecast.ownershipAtExit
     case 'expectedExit': return forecast.expectedExitValue
     case 'forecastReturn': return row.estimatedReturn
@@ -149,7 +149,7 @@ export function ConstructionView({ vehicle, vehicleId }: { vehicle: string; vehi
           <Metric label="Available after plan" value={fmt(model.capital.gap ?? model.capital.remaining)} sub={`${fmt(model.capital.plannedCost)} still planned`} />
           <Metric label="Portfolio" value={`${model.capital.companyCount + a.stages.length}${a.targetPortfolioSize > 0 ? ` / ${a.targetPortfolioSize}` : ''}`} sub={`${model.capital.companyCount} current · ${a.stages.length} planned`} />
           <Metric label="New / follow-on" value={<span className="text-xl">{fmt(model.capital.projectedNew)} / {fmt(model.capital.projectedFollowOn)}</span>} sub="Actual plus planned capital" />
-          <Metric label="Estimated proceeds" value={fmt(model.returns.estimatedPortfolioValue)} sub={`Gross proceeds to the fund · ${fmt(model.returns.currentPortfolioValue)} current value`} />
+          <Metric label="Estimated proceeds" value={fmt(model.returns.estimatedPortfolioValue)} sub="Forecasted gross proceeds to the fund" />
           <Metric label="Forecasted gross MOIC" value={multiple(model.returns.estimatedGrossMoic)} sub={model.returns.requiredPortfolioValue == null ? 'Set a target below' : `${fmt(model.returns.requiredPortfolioValue)} required proceeds`} />
         </div>
 
@@ -189,7 +189,7 @@ export function ConstructionView({ vehicle, vehicleId }: { vehicle: string; vehi
                       <MoneyCell full={fmtFull(actual.currentPostMoney)}>{fmt(actual.currentPostMoney)}</MoneyCell>
                       <MoneyCell full={fmtFull(row.currentValue)}>{fmt(row.currentValue)}</MoneyCell>
                       <MoneyCell full={fmtFull(actual.distributions)}>{fmt(actual.distributions)}</MoneyCell>
-                      <td className="px-2 py-2.5 text-right tabular-nums">{multiple(actual.currentMoic)}</td>
+                      <td className="px-2 py-2.5 text-right tabular-nums">{multiple(row.currentMoic)}</td>
                       {isExited
                         ? <><td className="px-2 py-2.5 text-right text-muted-foreground">—</td><td className="px-2 py-2.5 text-right text-muted-foreground">—</td></>
                         : <><td className="px-2 py-2"><InlinePercent ariaLabel={`Ownership at exit for ${actual.name}`} value={forecast.ownershipAtExit} onChange={v => setPositionForecast(actual.companyId, { ownershipAtExit: v })} className="ml-auto" /></td><td className="px-2 py-2"><InlineNumber ariaLabel={`Expected exit for ${actual.name}`} value={forecast.expectedExitValue} onChange={v => setPositionForecast(actual.companyId, { expectedExitValue: v })} placeholder="Exit value" className="ml-auto" /></td></>}
