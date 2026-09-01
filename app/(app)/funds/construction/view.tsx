@@ -30,7 +30,7 @@ function positionSortValue(row: PositionReturn, key: PortfolioSortKey): string |
   const { actual } = row
   switch (key) {
     case 'name': return actual.name
-    case 'initialCheck': return actual.investedTotal
+    case 'initialCheck': return actual.investedTotal + row.forecast.plannedFollowOn
     case 'currentValue': return row.currentValue
     case 'realizedProceeds': return actual.distributions
     case 'forecastReturn': return row.estimatedReturn
@@ -41,7 +41,7 @@ function positionSortValue(row: PositionReturn, key: PortfolioSortKey): string |
 function stageSortValue(row: StageReturn, key: PortfolioSortKey): string | number | null {
   switch (key) {
     case 'name': return row.label
-    case 'initialCheck': return 0
+    case 'initialCheck': return row.allocation
     case 'currentValue': return null
     case 'realizedProceeds': return null
     case 'forecastReturn': return row.estimatedReturn
@@ -177,10 +177,9 @@ export function ConstructionView({ vehicle, vehicleId }: { vehicle: string; vehi
                   ? <tr><td colSpan={6} className="px-3 py-6 text-center text-muted-foreground">No portfolio investments are recorded for this vehicle.</td></tr>
                   : sortedPositions.map(row => {
                     const { actual } = row
-                    const isExited = actual.status === 'exited'
                     return <tr key={actual.companyId} className="border-b hover:bg-muted/20">
                       <td className="px-3 py-2"><div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1"><Link href={`/companies/${actual.companyId}`} className="min-w-0 truncate font-medium hover:underline" title={actual.name}>{actual.name}</Link>{actual.status === 'exited' ? <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">Exited</span> : <Button size="sm" variant="ghost" className="h-6 shrink-0 px-1.5 text-[10px]" onClick={() => setForecastEditor({ kind: 'position', companyId: actual.companyId })}>Edit forecast</Button>}</div></td>
-                      <MoneyCell full={fmtFull(actual.investedTotal)}>{fmt(actual.investedTotal)}</MoneyCell>
+                      <MoneyCell full={fmtFull(actual.investedTotal + row.forecast.plannedFollowOn)}>{fmt(actual.investedTotal + row.forecast.plannedFollowOn)}</MoneyCell>
                       <MoneyCell full={fmtFull(row.currentValue)}>{fmt(row.currentValue)}</MoneyCell>
                       <MoneyCell full={fmtFull(actual.distributions)}>{fmt(actual.distributions)}</MoneyCell>
                       <MoneyCell full={fmtFull(row.estimatedReturn)}>{fmt(row.estimatedReturn)}</MoneyCell>
@@ -191,7 +190,7 @@ export function ConstructionView({ vehicle, vehicleId }: { vehicle: string; vehi
                 <Band label={`Remaining portfolio forecast · ${a.stages.length} deals`} />
                 {sortedStages.map(stage => <tr key={stage.key} className="border-b bg-muted/5 hover:bg-muted/20">
                     <td className="px-3 py-2"><div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1"><span className="min-w-0 truncate font-medium" title={stage.label || 'New investment'}>{stage.label || 'New investment'}</span><Button size="sm" variant="ghost" className="h-6 shrink-0 px-1.5 text-[10px]" onClick={() => setForecastEditor({ kind: 'stage', key: stage.key })}>Edit forecast</Button></div></td>
-                    <td className="px-2 py-2.5 text-right text-muted-foreground">—</td>
+                    <MoneyCell full={fmtFull(stage.allocation)}>{fmt(stage.allocation)}</MoneyCell>
                     <td className="px-2 py-2.5 text-right text-muted-foreground">—</td>
                     <td className="px-2 py-2.5 text-right text-muted-foreground">—</td>
                     <MoneyCell full={fmtFull(stage.estimatedReturn)}>{fmt(stage.estimatedReturn)}</MoneyCell>
@@ -200,7 +199,7 @@ export function ConstructionView({ vehicle, vehicleId }: { vehicle: string; vehi
               </tbody>
               <tfoot><tr className="bg-muted/40 font-semibold">
                 <td className="bg-muted px-3 py-2.5">Projected portfolio</td>
-                <td className="px-2 py-2.5 text-right tabular-nums">{fmt(model.capital.deployedTotal)}</td>
+                <td className="px-2 py-2.5 text-right tabular-nums">{fmt(model.capital.deployedTotal + model.capital.plannedCost)}</td>
                 <td className="px-2 py-2.5 text-right tabular-nums">{fmt(model.returns.currentPortfolioValue)}</td>
                 <td className="px-2 py-2.5 text-right tabular-nums">{fmt(model.returns.positions.reduce((sum, row) => sum + row.actual.distributions, 0))}</td>
                 <td className="px-2 py-2.5 text-right tabular-nums">{fmt(model.returns.estimatedPortfolioValue)}</td>
