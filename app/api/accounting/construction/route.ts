@@ -7,7 +7,7 @@ import { vehicleIdByName } from '@/lib/accounting/vehicle-id'
 import { fundEconomics } from '@/lib/accounting/fund-economics'
 import { loadPostedLedger } from '@/lib/accounting/load'
 import { accountBalances, normalBalance } from '@/lib/accounting/ledger'
-import { buildSoiPositions, type SoiCompany } from '@/lib/accounting/soi'
+import { buildSoiPositions, txnsForVehicle, type SoiCompany } from '@/lib/accounting/soi'
 import { parseAssumptions, type ConstructionActuals } from '@/lib/accounting/construction'
 import type { Account } from '@/lib/accounting/types'
 import type { InvestmentTransaction } from '@/lib/types/database'
@@ -71,6 +71,40 @@ async function loadActuals(
     undefined,
     { includeRealized: true },
   )
+  const allTxns = (txnRes.data ?? []) as InvestmentTransaction[]
+  const byCompany = new Map<string, InvestmentTransaction[]>()
+  for (const txn of allTxns) {
+    const list = byCompany.get(txn.company_id) ?? []
+    list.push(txn)
+    byCompany.set(txn.company_id, list)
+  }
+
+  const constructionPositions = positions.map(position => {
+    const relevant = txnsForVehicle(byCompany.get(position.companyId) ?? [], group)
+      .sort((x, y) => (x.transaction_date ?? '').localeCompare(y.transaction_date ?? ''))
+    const firstInvestment = relevant.find(t => t.transaction_type === 'investment')
+    let currentOwnership: number | null = null
+    let currentPostMoney: number | null = null
+    for (const txn of relevant) {
+      if (txn.ownership_pct != null) currentOwnership = Number(txn.ownership_pct) / 100
+      const postMoney = txn.latest_postmoney_valuation ?? txn.postmoney_valuation
+      if (postMoney != null) currentPostMoney = Number(postMoney)
+    }
+    return {
+      companyId: position.companyId,
+      name: position.name,
+      stage: firstInvestment?.round_name ?? position.stage,
+      status: position.status,
+      investedInitial: position.investedNew,
+      investedFollowOn: position.investedFollowOn,
+      investedTotal: position.invested,
+      currentValue: position.totalValue,
+      currentMoic: position.moic,
+      currentOwnership,
+      currentPostMoney,
+      distributions: position.distributions,
+    }
+  })
 
   return {
     vintageYear: econ?.vintageYear ?? null,
@@ -84,8 +118,9 @@ async function loadActuals(
       deployedInitial: positions.reduce((s, p) => s + p.investedNew, 0),
       deployedFollowOn: positions.reduce((s, p) => s + p.investedFollowOn, 0),
       companyCount: positions.length,
-      currentValue: positions.reduce((s, p) => s + p.fairValue, 0),
+      currentValue: positions.reduce((s, p) => s + p.totalValue, 0),
       nav: econ?.fund.nav ?? 0,
+      positions: constructionPositions,
     },
   }
 }
@@ -106,6 +141,7 @@ function fromRow(row: Record<string, unknown>) {
     targetFundMultiple: Number(row.target_fund_multiple),
     sensitivityOwnerships: (row.sensitivity_ownerships as number[] | null)?.map(Number) ?? [],
     stages: row.stages,
+    positionForecasts: row.position_forecasts,
   }
 }
 
@@ -181,6 +217,7 @@ export async function PUT(req: NextRequest) {
     target_fund_multiple: a.targetFundMultiple,
     sensitivity_ownerships: a.sensitivityOwnerships,
     stages: a.stages,
+    position_forecasts: a.positionForecasts,
     updated_at: new Date().toISOString(),
   }, { onConflict: 'fund_id,vehicle_id' })
 

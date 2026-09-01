@@ -97,11 +97,12 @@ describe('parseAssumptions', () => {
     expect(a.stages[0].key).toBe('seed')
   })
 
-  it('drops a stage with a zero post-money, which would divide to Infinity', () => {
+  it('keeps an incomplete stage through autosave without dividing by zero', () => {
     const a = parseAssumptions({
       stages: [{ key: 'x', label: 'X', deals: 1, initialCheck: 500_000, initialPostMoney: 0, followOnMultiple: 1, dilutionFactor: 0.3 }],
     }, 2020)
-    expect(a.stages).toHaveLength(0)
+    expect(a.stages).toHaveLength(1)
+    expect(constructionModel(ACT(), A({ stages: a.stages }), NOW).returns.stages[0].initialOwnership).toBe(0)
   })
 
   it('rejects a fee basis outside the CHECK constraint', () => {
@@ -246,6 +247,67 @@ describe('constructionModel — returns', () => {
   })
 })
 
+describe('inline portfolio forecast', () => {
+  const position = {
+    companyId: 'company-1', name: 'Known Co', stage: 'Seed', status: 'active',
+    investedInitial: 500_000, investedFollowOn: 100_000, investedTotal: 600_000,
+    currentValue: 900_000, currentMoic: 1.5, currentOwnership: 0.03,
+    currentPostMoney: 30_000_000, distributions: 0,
+  }
+
+  it('rolls company follow-ons and remaining deals into new/follow-on capital', () => {
+    const m = constructionModel(ACT({ positions: [position] }), A({
+      ...RUN_OUT,
+      positionForecasts: [{ companyId: 'company-1', plannedFollowOn: 200_000, ownershipAtExit: 0.02, expectedExitValue: 100_000_000 }],
+      stages: [{
+        key: 'seed', label: 'Seed', deals: 2, initialCheck: 500_000,
+        initialPostMoney: 10_000_000, followOnMultiple: 0, followOnCheck: 250_000,
+        dilutionFactor: 0, ownershipAtExit: 0.02, expectedExitValue: 50_000_000,
+      }],
+    }), NOW)
+
+    expect(m.capital.plannedExistingFollowOn).toBe(200_000)
+    expect(m.capital.plannedNewCapital).toBe(1_000_000)
+    expect(m.capital.plannedNewFollowOn).toBe(500_000)
+    expect(m.capital.plannedCost).toBe(1_700_000)
+    expect(m.capital.projectedNew).toBe(9_000_000)
+    expect(m.capital.projectedFollowOn).toBe(2_200_000)
+  })
+
+  it('updates company, remaining-portfolio, and total return metrics from inline inputs', () => {
+    const m = constructionModel(ACT({ positions: [position], currentValue: 900_000 }), A({
+      ...RUN_OUT,
+      positionForecasts: [{ companyId: 'company-1', plannedFollowOn: 200_000, ownershipAtExit: 0.02, expectedExitValue: 100_000_000 }],
+      stages: [{
+        key: 'seed', label: 'Seed', deals: 2, initialCheck: 500_000,
+        initialPostMoney: 10_000_000, followOnMultiple: 0, followOnCheck: 250_000,
+        dilutionFactor: 0, ownershipAtExit: 0.02, expectedExitValue: 50_000_000,
+      }],
+    }), NOW)
+
+    expect(m.returns.positions[0].estimatedReturn).toBe(2_000_000)
+    expect(m.returns.positions[0].estimatedMoic).toBe(2.5)
+    expect(m.returns.estimatedExistingValue).toBe(2_000_000)
+    expect(m.returns.estimatedFutureValue).toBe(2_000_000)
+    expect(m.returns.estimatedPortfolioValue).toBe(4_000_000)
+  })
+
+  it('keeps direct inline dollar and ownership inputs through validation', () => {
+    const parsed = parseAssumptions({
+      positionForecasts: [{ companyId: 'company-1', plannedFollowOn: 200_000, ownershipAtExit: 0.02, expectedExitValue: 100_000_000 }],
+      stages: [{
+        key: 'seed', label: 'Seed', deals: 2, initialCheck: 500_000,
+        initialPostMoney: 10_000_000, followOnMultiple: 0, followOnCheck: 250_000,
+        dilutionFactor: 0, ownershipAtExit: 0.02, expectedExitValue: 50_000_000,
+      }],
+    }, null)
+    expect(parsed.positionForecasts[0].plannedFollowOn).toBe(200_000)
+    expect(parsed.stages[0].followOnCheck).toBe(250_000)
+    expect(parsed.stages[0].ownershipAtExit).toBe(0.02)
+    expect(parsed.stages[0].expectedExitValue).toBe(50_000_000)
+  })
+})
+
 // The model this replaces, end to end. If these drift, the page and the GP's spreadsheet
 // disagree about the same fund — the failure that matters most.
 describe('Fund III, against the source workbook', () => {
@@ -311,14 +373,12 @@ describe('an unplanned vehicle', () => {
 })
 
 describe('blankStage', () => {
-  it('is empty apart from its label, and survives parseAssumptions only once priced', () => {
+  it('is empty apart from its label and survives autosave before it is priced', () => {
     const s = blankStage('Seed')
     expect(s.label).toBe('Seed')
     expect(s.deals).toBe(0)
     expect(s.initialCheck).toBe(0)
-    // A zero post-money would divide to Infinity, so an unpriced row is dropped on the way in —
-    // the page keeps it in local state until the GP fills it, and only then does it persist.
-    expect(parseAssumptions({ stages: [s] }, null).stages).toEqual([])
+    expect(parseAssumptions({ stages: [s] }, null).stages).toHaveLength(1)
     expect(parseAssumptions({ stages: [{ ...s, initialPostMoney: 10_000_000 }] }, null).stages).toHaveLength(1)
   })
 

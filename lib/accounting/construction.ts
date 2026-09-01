@@ -38,8 +38,25 @@ export interface ConstructionStage {
   initialPostMoney: number
   /** Follow-on dollars per initial dollar. 1 = reserve a second check the size of the first. */
   followOnMultiple: number
+  /** Direct dollar input used by the inline table; falls back to initialCheck × multiple. */
+  followOnCheck?: number
   /** Fraction of initial ownership surviving to exit. 0.3 = diluted to 30% of entry ownership. */
   dilutionFactor: number
+  /** Direct exit-ownership input; falls back to initial ownership × dilution factor. */
+  ownershipAtExit?: number
+  /** Expected company exit value. Zero means the exit has not been forecast yet. */
+  expectedExitValue?: number
+}
+
+/** Forward-looking assumptions layered onto one company the fund already owns. */
+export interface ConstructionPositionForecast {
+  companyId: string
+  /** Additional capital still expected to go into this company. */
+  plannedFollowOn: number
+  /** Expected fund ownership at exit, expressed as a decimal (2% = 0.02). */
+  ownershipAtExit: number
+  /** Expected company exit value. */
+  expectedExitValue: number
 }
 
 export interface ConstructionAssumptions {
@@ -57,6 +74,25 @@ export interface ConstructionAssumptions {
   targetFundMultiple: number
   sensitivityOwnerships: number[]
   stages: ConstructionStage[]
+  positionForecasts: ConstructionPositionForecast[]
+}
+
+/** One existing portfolio company, derived from the tracker and never accepted from the client. */
+export interface ConstructionPositionActual {
+  companyId: string
+  name: string
+  stage: string | null
+  status: string
+  investedInitial: number
+  investedFollowOn: number
+  investedTotal: number
+  /** Residual fair value plus any realized proceeds. */
+  currentValue: number
+  currentMoic: number | null
+  /** Most recently recorded ownership, expressed as a decimal. */
+  currentOwnership: number | null
+  currentPostMoney: number | null
+  distributions: number
 }
 
 export interface ConstructionActuals {
@@ -77,6 +113,8 @@ export interface ConstructionActuals {
   companyCount: number
   currentValue: number
   nav: number
+  /** Optional for backwards-compatible callers; the API always supplies it. */
+  positions?: ConstructionPositionActual[]
 }
 
 /**
@@ -107,6 +145,7 @@ export const DEFAULT_ASSUMPTIONS: ConstructionAssumptions = {
   targetFundMultiple: 0,
   sensitivityOwnerships: [0.01, 0.02, 0.03],
   stages: [],
+  positionForecasts: [],
 }
 
 /** A new, empty stage row for the page's "Add stage" control. Named, and nothing else. */
@@ -118,7 +157,10 @@ export function blankStage(label = ''): ConstructionStage {
     initialCheck: 0,
     initialPostMoney: 0,
     followOnMultiple: 0,
+    followOnCheck: 0,
     dilutionFactor: 0,
+    ownershipAtExit: 0,
+    expectedExitValue: 0,
   }
 }
 
@@ -134,9 +176,9 @@ const nullableNum = (v: unknown): number | null =>
  * Read a stored row (or nothing) into a complete, valid assumptions object.
  *
  * There is no zod in this repo, so this is THE validation boundary: everything reaching
- * `constructionModel` has been through here, which is why the model itself does no defensive
- * checking. A malformed stage is DROPPED rather than coerced — a stage with a zero
- * `initialPostMoney` would divide to Infinity and quietly report an infinite ownership.
+ * `constructionModel` has been through here. Structurally malformed rows are dropped, while a
+ * valid but incomplete row is retained so a newly added forecast survives autosave. The model
+ * explicitly treats a zero post-money as zero ownership rather than dividing by zero.
  */
 export function parseAssumptions(raw: unknown, vintageYear: number | null): ConstructionAssumptions {
   const o = (raw ?? {}) as Record<string, unknown>
@@ -151,7 +193,7 @@ export function parseAssumptions(raw: unknown, vintageYear: number | null): Cons
           typeof s?.label === 'string' &&
           Number.isFinite(s?.deals) &&
           Number.isFinite(s?.initialCheck) &&
-          Number.isFinite(s?.initialPostMoney) && (s.initialPostMoney as number) > 0 &&
+          Number.isFinite(s?.initialPostMoney) &&
           Number.isFinite(s?.followOnMultiple) &&
           Number.isFinite(s?.dilutionFactor))
         .map(s => ({
@@ -161,9 +203,23 @@ export function parseAssumptions(raw: unknown, vintageYear: number | null): Cons
           initialCheck: s.initialCheck as number,
           initialPostMoney: s.initialPostMoney as number,
           followOnMultiple: s.followOnMultiple as number,
+          followOnCheck: Number.isFinite(s.followOnCheck) ? Math.max(0, s.followOnCheck as number) : undefined,
           dilutionFactor: s.dilutionFactor as number,
+          ownershipAtExit: Number.isFinite(s.ownershipAtExit) ? Math.max(0, s.ownershipAtExit as number) : undefined,
+          expectedExitValue: num(s.expectedExitValue, 0),
         }))
     : []
+
+  const rawPositionForecasts = Array.isArray(o.positionForecasts) ? o.positionForecasts : []
+  const positionForecasts: ConstructionPositionForecast[] = rawPositionForecasts
+    .map(f => f as Record<string, unknown>)
+    .filter(f => typeof f.companyId === 'string' && f.companyId.length > 0)
+    .map(f => ({
+      companyId: f.companyId as string,
+      plannedFollowOn: Math.max(0, num(f.plannedFollowOn, 0)),
+      ownershipAtExit: Math.max(0, num(f.ownershipAtExit, 0)),
+      expectedExitValue: Math.max(0, num(f.expectedExitValue, 0)),
+    }))
 
   const sens = Array.isArray(o.sensitivityOwnerships)
     ? (o.sensitivityOwnerships as unknown[]).filter((n): n is number => typeof n === 'number' && Number.isFinite(n) && n > 0)
@@ -189,6 +245,7 @@ export function parseAssumptions(raw: unknown, vintageYear: number | null): Cons
     targetFundMultiple: num(o.targetFundMultiple, DEFAULT_ASSUMPTIONS.targetFundMultiple),
     sensitivityOwnerships: sens.length > 0 ? sens : DEFAULT_ASSUMPTIONS.sensitivityOwnerships,
     stages,
+    positionForecasts,
   }
 }
 
@@ -275,6 +332,16 @@ export interface CapitalBlock {
   plannedNewDeals: number | null
   /** What the stage mix would cost: Σ deals × check × (1 + followOnMultiple). */
   plannedCost: number
+  /** Follow-on dollars entered against companies already in the portfolio. */
+  plannedExistingFollowOn: number
+  /** New checks in the remaining-portfolio plan. */
+  plannedNewCapital: number
+  /** Follow-on reserves in the remaining-portfolio plan. */
+  plannedNewFollowOn: number
+  /** Actual plus planned new capital. */
+  projectedNew: number
+  /** Actual plus all planned follow-on capital. */
+  projectedFollowOn: number
   /** remaining − plannedCost. Negative means the mix does not fit. Null with no mix stated. */
   gap: number | null
   /** remaining ÷ plannedNewDeals. Null when there are no deals left to do. */
@@ -290,6 +357,21 @@ export interface StageReturn extends ConstructionStage {
   exitToReturnFund: number
   /** deals × check × (1 + followOnMultiple) — what this band consumes. */
   allocation: number
+  plannedInitial: number
+  plannedFollowOn: number
+  /** Expected proceeds from all deals in the row. */
+  estimatedReturn: number | null
+  estimatedMoic: number | null
+}
+
+export interface PositionReturn {
+  actual: ConstructionPositionActual
+  forecast: ConstructionPositionForecast
+  /** Forecast proceeds, or today's total value until an exit is entered. */
+  estimatedReturn: number
+  estimatedMoic: number | null
+  exitToReturnFund: number | null
+  isForecasted: boolean
 }
 
 export interface SensitivityRow {
@@ -317,6 +399,14 @@ export interface ReturnsBlock {
   avgExitForTargetReturn: number | null
   exitToReturnFund: number | null
   sensitivity: SensitivityRow[]
+  positions: PositionReturn[]
+  currentPortfolioValue: number
+  estimatedExistingValue: number
+  estimatedFutureValue: number
+  estimatedPortfolioValue: number
+  estimatedGrossMoic: number | null
+  /** Estimated portfolio value less the return target. */
+  targetGap: number | null
 }
 
 export interface ConstructionResult {
@@ -360,9 +450,13 @@ export function constructionModel(
   // yet", not "a portfolio of nothing" — so it yields null rather than a negative deal count.
   const hasTarget = a.targetPortfolioSize > 0
   const hasMix = a.stages.length > 0
+  const hasPlan = hasMix || a.positionForecasts.some(f => f.plannedFollowOn > 0)
   const plannedNewDeals = hasTarget ? a.targetPortfolioSize - actuals.companyCount : null
-  const plannedCost = r(a.stages.reduce((s, st) => s + st.deals * st.initialCheck * (1 + st.followOnMultiple), 0))
-  const gap = hasMix ? r(remaining - plannedCost) : null
+  const plannedExistingFollowOn = r(a.positionForecasts.reduce((s, f) => s + f.plannedFollowOn, 0))
+  const plannedNewCapital = r(a.stages.reduce((s, st) => s + st.deals * st.initialCheck, 0))
+  const plannedNewFollowOn = r(a.stages.reduce((s, st) => s + st.deals * (st.followOnCheck ?? st.initialCheck * st.followOnMultiple), 0))
+  const plannedCost = r(plannedExistingFollowOn + plannedNewCapital + plannedNewFollowOn)
+  const gap = hasPlan ? r(remaining - plannedCost) : null
   const stageDeals = a.stages.reduce((s, st) => s + st.deals, 0)
 
   if (!actuals.ledgerAvailable) {
@@ -374,7 +468,7 @@ export function constructionModel(
   // Only warn about a plan that EXISTS. An unconfigured page is not a fund in trouble, and
   // shouting at someone who has not filled the form in yet trains them to ignore the warnings.
   if (gap != null && gap < 0) {
-    warnings.push(`The stage mix needs more capital than remains — it is short by ${usd(Math.abs(gap))}.`)
+    warnings.push(`The portfolio plan needs more capital than remains — it is short by ${usd(Math.abs(gap))}.`)
   }
   if (hasMix && plannedNewDeals != null && stageDeals !== plannedNewDeals) {
     warnings.push(`The stage mix plans ${stageDeals} deals, but ${plannedNewDeals} remain to reach a portfolio of ${a.targetPortfolioSize}.`)
@@ -387,27 +481,72 @@ export function constructionModel(
   // dilution assumption stays something the GP STATES rather than something the model infers
   // from a reserve number. Revisit only if the two are observed to drift in practice.
   const stageReturns: StageReturn[] = a.stages.map(st => {
-    // parseAssumptions has already dropped any stage with a non-positive post-money, so this
-    // cannot divide by zero — the guard is belt-and-braces for a hand-built literal in a test.
+    // Incomplete rows persist while the user fills them. A zero post-money therefore means the
+    // ownership is not priced yet, never Infinity.
     const initialOwnership = st.initialPostMoney > 0 ? st.initialCheck / st.initialPostMoney : 0
-    const ownershipAtExit = initialOwnership * st.dilutionFactor
+    const ownershipAtExit = st.ownershipAtExit ?? initialOwnership * st.dilutionFactor
+    const plannedInitial = r(st.deals * st.initialCheck)
+    const plannedFollowOn = r(st.deals * (st.followOnCheck ?? st.initialCheck * st.followOnMultiple))
+    const allocation = r(plannedInitial + plannedFollowOn)
+    const estimatedReturn = (st.expectedExitValue ?? 0) > 0 && ownershipAtExit > 0
+      ? r(st.deals * (st.expectedExitValue ?? 0) * ownershipAtExit)
+      : null
     return {
       ...st,
       initialOwnership,
       ownershipAtExit,
       exitToReturnFund: ownershipAtExit > 0 ? r(actuals.committedCapital / ownershipAtExit) : 0,
-      allocation: r(st.deals * st.initialCheck * (1 + st.followOnMultiple)),
+      allocation,
+      plannedInitial,
+      plannedFollowOn,
+      estimatedReturn,
+      estimatedMoic: estimatedReturn != null && allocation > 0 ? estimatedReturn / allocation : null,
     }
   })
 
+  const forecasts = new Map(a.positionForecasts.map(f => [f.companyId, f]))
+  const positionReturns: PositionReturn[] = (actuals.positions ?? []).map(actual => {
+    const forecast = forecasts.get(actual.companyId) ?? {
+      companyId: actual.companyId,
+      plannedFollowOn: 0,
+      ownershipAtExit: actual.currentOwnership ?? 0,
+      expectedExitValue: 0,
+    }
+    const isForecasted = forecast.ownershipAtExit > 0 && forecast.expectedExitValue > 0
+    const estimatedReturn = isForecasted
+      ? r(actual.distributions + forecast.ownershipAtExit * forecast.expectedExitValue)
+      : r(actual.currentValue)
+    const invested = actual.investedTotal + forecast.plannedFollowOn
+    return {
+      actual,
+      forecast,
+      estimatedReturn,
+      estimatedMoic: invested > 0 ? estimatedReturn / invested : null,
+      exitToReturnFund: forecast.ownershipAtExit > 0
+        ? r(actuals.committedCapital / forecast.ownershipAtExit)
+        : null,
+      isForecasted,
+    }
+  })
+
+  const forecastedExisting = positionReturns.filter(p => p.forecast.ownershipAtExit > 0)
   const totalStageDeals = stageReturns.reduce((s, st) => s + st.deals, 0)
-  const wAvgOwnershipAtExit = totalStageDeals > 0
-    ? stageReturns.reduce((s, st) => s + st.ownershipAtExit * st.deals, 0) / totalStageDeals
+  const ownershipDealCount = totalStageDeals + forecastedExisting.length
+  const wAvgOwnershipAtExit = ownershipDealCount > 0
+    ? (
+        stageReturns.reduce((s, st) => s + st.ownershipAtExit * st.deals, 0) +
+        forecastedExisting.reduce((s, p) => s + p.forecast.ownershipAtExit, 0)
+      ) / ownershipDealCount
     : null
 
   const requiredPortfolioValue = a.targetFundMultiple > 0
     ? r(a.targetFundMultiple * actuals.committedCapital)
     : null
+
+  const estimatedExistingValue = r(positionReturns.reduce((s, p) => s + p.estimatedReturn, 0))
+  const estimatedFutureValue = r(stageReturns.reduce((s, st) => s + (st.estimatedReturn ?? 0), 0))
+  const estimatedPortfolioValue = r(estimatedExistingValue + estimatedFutureValue)
+  const projectedInvested = r(deployedTotal + plannedCost)
 
   const exitFor = (ownership: number): SensitivityRow => ({
     ownershipAtExit: ownership,
@@ -440,6 +579,13 @@ export function constructionModel(
         ? [{ ...exitFor(wAvgOwnershipAtExit), isWeightedAverage: true }]
         : []),
     ],
+    positions: positionReturns,
+    currentPortfolioValue: r(actuals.currentValue),
+    estimatedExistingValue,
+    estimatedFutureValue,
+    estimatedPortfolioValue,
+    estimatedGrossMoic: projectedInvested > 0 ? estimatedPortfolioValue / projectedInvested : null,
+    targetGap: requiredPortfolioValue == null ? null : r(estimatedPortfolioValue - requiredPortfolioValue),
   }
 
   return {
@@ -462,6 +608,11 @@ export function constructionModel(
       companyCount: actuals.companyCount,
       plannedNewDeals,
       plannedCost,
+      plannedExistingFollowOn,
+      plannedNewCapital,
+      plannedNewFollowOn,
+      projectedNew: r(actuals.deployedInitial + plannedNewCapital),
+      projectedFollowOn: r(actuals.deployedFollowOn + plannedExistingFollowOn + plannedNewFollowOn),
       gap,
       avgPerRemainingDeal: plannedNewDeals != null && plannedNewDeals > 0 ? r(remaining / plannedNewDeals) : null,
     },
