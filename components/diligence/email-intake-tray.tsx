@@ -114,9 +114,21 @@ export function EmailIntakeTray({
 
   async function reject(email: PendingEmail) {
     setBusyId(email.id)
+    setError(null)
     try {
-      await fetch(`/api/emails/${email.id}/accept-to-diligence`, { method: 'DELETE' })
+      const res = await fetch(`/api/emails/${email.id}/reroute`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to: 'reporting' }),
+      })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setError(body.error ?? 'Could not process the email as reporting.')
+        return
+      }
       setEmails(prev => prev.filter(e => e.id !== email.id))
+    } catch {
+      setError('Could not process the email as reporting.')
     } finally {
       setBusyId(null)
     }
@@ -163,8 +175,9 @@ export function EmailIntakeTray({
                       : <Check className="h-3.5 w-3.5 mr-1" />}
                     {busy ? '' : 'Accept'}
                   </Button>
-                  <Button size="sm" variant="ghost" onClick={() => reject(email)} disabled={busy}>
+                  <Button size="sm" variant="outline" onClick={() => reject(email)} disabled={busy} className="gap-1.5">
                     <X className="h-3.5 w-3.5" />
+                    Not diligence — report
                   </Button>
                 </div>
               </div>

@@ -124,12 +124,16 @@ export default function ReviewPage() {
     }
   }
 
-  async function rejectDiligence(item: ReviewItem) {
+  async function processDiligenceAsReporting(item: ReviewItem) {
     if (!item.email) return
     setResolving(prev => ({ ...prev, [item.id]: true }))
     try {
-      const res = await fetch(`/api/emails/${item.email.id}/accept-to-diligence`, { method: 'DELETE' })
-      if (!res.ok) throw new Error('Failed to reject diligence match')
+      const res = await fetch(`/api/emails/${item.email.id}/reroute`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to: 'reporting' }),
+      })
+      if (!res.ok) throw new Error('Failed to process email as reporting')
       load({ silent: true })
     } finally {
       setResolving(prev => ({ ...prev, [item.id]: false }))
@@ -258,9 +262,9 @@ export default function ReviewPage() {
                             </Link>
                           </Button>
                         )}
-                        <Button size="sm" variant="outline" onClick={() => rejectDiligence(item)} disabled={isResolving} className="gap-1.5">
+                        <Button size="sm" variant="outline" onClick={() => processDiligenceAsReporting(item)} disabled={isResolving} className="gap-1.5">
                           <X className="h-3.5 w-3.5" />
-                          Reject match
+                          Not diligence — process as reporting
                         </Button>
                       </>
                     ) : item.issue_type === 'new_company_detected' || item.issue_type === 'company_not_identified' ? (

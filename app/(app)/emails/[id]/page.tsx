@@ -7,9 +7,7 @@ import type { InboundEmail } from '@/lib/types/database'
 
 export const metadata: Metadata = { title: 'Email' }
 import { ChevronLeft } from 'lucide-react'
-import { ReprocessButton } from './reprocess-button'
-import { RerouteButton } from './reroute-button'
-import { ChangeStatusButton } from './change-status-button'
+import { ProcessingActions } from './processing-actions'
 import { UploadDocumentButton } from './upload-document-button'
 import { SaveToDriveButton } from './save-to-drive-button'
 import { CollapsibleJson } from './collapsible-json'
@@ -283,16 +281,6 @@ export default async function EmailDetailPage({ params }: { params: { id: string
       <section className="pt-2 border-t space-y-4">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
           <div>
-            <p className="text-sm font-medium">Skip email</p>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              Mark this email as intentionally skipped. Success, review, and failure are set only by processing.
-            </p>
-          </div>
-          <ChangeStatusButton emailId={email.id} currentStatus={email.processing_status ?? 'pending'} />
-        </div>
-
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
-          <div>
             <p className="text-sm font-medium">Upload document</p>
             <p className="text-xs text-muted-foreground mt-0.5">
               If the report was linked rather than attached, upload it here so it can be processed with the email.
@@ -315,16 +303,13 @@ export default async function EmailDetailPage({ params }: { params: { id: string
 
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
           <div>
-            <p className="text-sm font-medium">Process email</p>
+            <p className="text-sm font-medium">Process or skip</p>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Runs the full pipeline on the stored payload. Existing reviews and metric
-              values from this email will be replaced.
+              Choose the destination yourself, let classification decide, or intentionally skip the email.
+              An explicit destination will not be overridden by classification.
             </p>
           </div>
-          <div className="flex gap-2 shrink-0">
-            <RerouteButton emailId={email.id} currentTarget={(email as any).routed_to ?? null} />
-            <ReprocessButton emailId={email.id} />
-          </div>
+          <ProcessingActions emailId={email.id} />
         </div>
       </section>
     </div>

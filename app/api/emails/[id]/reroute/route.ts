@@ -80,7 +80,15 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   // Update routed_to first; the destination pipeline may set this again on success.
   await admin
     .from('inbound_emails')
-    .update({ routed_to: target, processing_status: 'processing', processing_error: null, claude_response: null, metrics_extracted: 0 })
+    .update({
+      routed_to: target,
+      processing_status: 'processing',
+      processing_error: null,
+      claude_response: null,
+      metrics_extracted: 0,
+      diligence_deal_id: null,
+      diligence_intake_status: 'rejected',
+    } as any)
     .eq('id', emailId)
 
   const payload = (emailData as any).raw_payload as PostmarkPayload
@@ -128,7 +136,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
   const hydrated = (await hydrateAttachments(payload as any)) as PostmarkPayload
   try {
-    await runPipeline(admin, emailId, fundId, hydrated, fundMember)
+    await runPipeline(admin, emailId, fundId, hydrated, fundMember, { forcedRoute: target })
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Unknown error'
     await admin

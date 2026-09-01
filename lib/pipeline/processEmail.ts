@@ -53,7 +53,8 @@ export async function runPipeline(
   emailId: string,
   fundId: string,
   payload: PostmarkPayload,
-  fundMember?: { userId: string } | null
+  fundMember?: { userId: string } | null,
+  options?: { forcedRoute?: 'reporting' | 'interactions' },
 ): Promise<void> {
   const warnings: string[] = []
 
@@ -64,22 +65,24 @@ export async function runPipeline(
   // acted on (active routing) or merely recorded (shadow mode — when
   // deal_intake_enabled is false). A classifier failure must never break the
   // existing reporting/interactions pipeline; on error we fall through.
-  const dealsSettings = await loadDealsSettings(supabase, fundId)
-  let routingDecision: RoutingDecision = 'shadow'
+  let routingDecision: RoutingDecision = options?.forcedRoute ?? 'shadow'
   let classification: ClassificationResultStored | null = null
-  try {
-    // Classifier runs on the deal_classify feature model (defaults to a fast
-    // model; honors a per-feature override and the legacy routing_model field).
-    const cls = await getFeatureProvider(supabase, fundId, 'deal_classify')
-    classification = await classifyAndStore(
-      supabase, emailId, fundId, payload, extracted.emailBody, fundMember,
-      cls.provider, cls.providerType, cls.model, null
-    )
-    if (classification) {
-      routingDecision = decideRoute(classification, dealsSettings)
+  if (!options?.forcedRoute) {
+    const dealsSettings = await loadDealsSettings(supabase, fundId)
+    try {
+      // Classifier runs on the deal_classify feature model (defaults to a fast
+      // model; honors a per-feature override and the legacy routing_model field).
+      const cls = await getFeatureProvider(supabase, fundId, 'deal_classify')
+      classification = await classifyAndStore(
+        supabase, emailId, fundId, payload, extracted.emailBody, fundMember,
+        cls.provider, cls.providerType, cls.model, null
+      )
+      if (classification) {
+        routingDecision = decideRoute(classification, dealsSettings)
+      }
+    } catch (err) {
+      console.error('[pipeline] Classifier failed (non-blocking):', err)
     }
-  } catch (err) {
-    console.error('[pipeline] Classifier failed (non-blocking):', err)
   }
 
   // Branch on classifier decision when intake is enabled.
@@ -121,7 +124,7 @@ export async function runPipeline(
       context_snippet:
         `Matched to a deal in diligence (${classification.diligence_match_basis ?? 'classifier'}, ` +
         `confidence ${classification.confidence.toFixed(2)}). ${classification.reasoning} ` +
-        `Accept it to add the email and its attachments to the deal's data room.`,
+        `Add it to the deal's data room, or process it as portfolio reporting if the company is no longer in diligence.`,
     })
 
     await finalizeEmail(supabase, emailId, { status: 'needs_review' })
@@ -240,7 +243,10 @@ export async function runPipeline(
       console.error('[pipeline] File storage save failed (non-blocking):', msg)
       warnings.push(describeStorageError(msg))
     }
-    await finalizeEmail(supabase, emailId, { status: 'not_processed', metricsExtracted: 0, warnings })
+    // The email was identified and filed successfully even if this company has no configured
+    // metrics yet. "Skipped" is a human decision; lack of metric definitions is not a failure to
+    // process and should not hide the email from the company's reporting history.
+    await finalizeEmail(supabase, emailId, { status: 'success', metricsExtracted: 0, warnings })
     if (fundMember) {
       try {
         await maybeExtractInteraction(supabase, fundId, emailId, companyId, fundMember.userId, payload, extracted.emailBody, provider, providerType, model)

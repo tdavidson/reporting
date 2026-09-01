@@ -74,10 +74,19 @@ export async function POST(
     email.raw_payload as unknown as PostmarkPayload
   ) as unknown as PostmarkPayload
 
+  const senderEmail = (hydratedPayload.FromFull?.Email ?? hydratedPayload.From ?? '').trim().toLowerCase()
+  const { data: memberRow } = await admin.rpc('is_fund_member_by_email', {
+    p_fund_id: fundId,
+    p_email: senderEmail,
+  })
+  const fundMember = (memberRow as any)?.[0]
+    ? { userId: (memberRow as any)[0].user_id as string }
+    : null
+
   // Keep the request alive until the pipeline reaches a terminal state. A
   // fire-and-forget promise can be terminated when a serverless response ends.
   try {
-    await runPipeline(admin, emailId, fundId, hydratedPayload)
+    await runPipeline(admin, emailId, fundId, hydratedPayload, fundMember)
   } catch (err) {
     const raw = err instanceof Error ? err.message : String(err)
     console.error(`[reprocess] Pipeline error for email ${emailId}:`, err)

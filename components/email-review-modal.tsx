@@ -445,16 +445,18 @@ export function EmailReviewModal({
     }
   }
 
-  async function rejectDiligenceMatch(item: ReviewItem) {
+  async function processDiligenceAsReporting(item: ReviewItem) {
     if (!item.email) return
     setResolving(prev => ({ ...prev, [item.id]: true }))
     try {
-      const res = await fetch(`/api/emails/${item.email.id}/accept-to-diligence`, {
-        method: 'DELETE',
+      const res = await fetch(`/api/emails/${item.email.id}/reroute`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to: 'reporting' }),
       })
       if (!res.ok) {
         const data = await res.json()
-        throw new Error(data.error ?? 'Failed to reject diligence match')
+        throw new Error(data.error ?? 'Failed to process email as reporting')
       }
       setReviewData(prev => prev ? {
         ...prev,
@@ -465,9 +467,9 @@ export function EmailReviewModal({
         },
         items: prev.items.filter(i => i.id !== item.id),
       } : prev)
-      toast.success('Diligence match rejected')
+      toast.success('Email processed as reporting')
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Error rejecting diligence match')
+      toast.error(err instanceof Error ? err.message : 'Error processing email as reporting')
     } finally {
       setResolving(prev => ({ ...prev, [item.id]: false }))
     }
@@ -552,7 +554,7 @@ export function EmailReviewModal({
                       onEditValueChange={setEditValue}
                       onAccept={() => resolve(item, 'accepted')}
                       onReject={() => item.issue_type === 'diligence_intake_pending'
-                        ? rejectDiligenceMatch(item)
+                        ? processDiligenceAsReporting(item)
                         : resolve(item, 'rejected')}
                       onStartEdit={() => startEdit(item)}
                       onCancelEdit={() => setEditingId(null)}
@@ -976,7 +978,7 @@ function ReviewCard({
               )}
               <Button size="sm" variant="outline" onClick={onReject} disabled={resolving} className="gap-1.5">
                 <X className="h-3.5 w-3.5" />
-                Reject match
+                Not diligence — process as reporting
               </Button>
             </>
           ) : isNewCompany || isUnidentified ? (
