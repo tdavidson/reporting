@@ -70,7 +70,6 @@ export interface ConstructionAssumptions {
   targetPortfolioSize: number
   existingReservePool: number
   targetFundMultiple: number
-  sensitivityOwnerships: number[]
   stages: ConstructionStage[]
   positionForecasts: ConstructionPositionForecast[]
 }
@@ -126,8 +125,8 @@ export interface ConstructionActuals {
  * would have had to notice the numbers were wrong before they could correct them. A blank field
  * asks a question; a wrong default answers one nobody asked.
  *
- * `sensitivityOwnerships` is the one survivor: 1% / 2% / 3% is the AXIS of a what-if table, not
- * a claim about this fund. It is still editable.
+ * Ownership sensitivity is derived from the live portfolio plan rather than stored as a
+ * separate strategy assumption.
  */
 export const DEFAULT_ASSUMPTIONS: ConstructionAssumptions = {
   feeAnnualRate: 0,
@@ -141,7 +140,6 @@ export const DEFAULT_ASSUMPTIONS: ConstructionAssumptions = {
   targetPortfolioSize: 0,
   existingReservePool: 0,
   targetFundMultiple: 0,
-  sensitivityOwnerships: [0.01, 0.02, 0.03],
   stages: [],
   positionForecasts: [],
 }
@@ -224,10 +222,6 @@ export function parseAssumptions(raw: unknown, vintageYear: number | null): Cons
       expectedExitValue: Math.max(0, num(f.expectedExitValue, 0)),
     }))
 
-  const sens = Array.isArray(o.sensitivityOwnerships)
-    ? (o.sensitivityOwnerships as unknown[]).filter((n): n is number => typeof n === 'number' && Number.isFinite(n) && n > 0)
-    : []
-
   return {
     feeAnnualRate: num(o.feeAnnualRate, DEFAULT_ASSUMPTIONS.feeAnnualRate),
     feeBasis: basis,
@@ -246,7 +240,6 @@ export function parseAssumptions(raw: unknown, vintageYear: number | null): Cons
     targetPortfolioSize: num(o.targetPortfolioSize, DEFAULT_ASSUMPTIONS.targetPortfolioSize),
     existingReservePool: num(o.existingReservePool, 0),
     targetFundMultiple: num(o.targetFundMultiple, DEFAULT_ASSUMPTIONS.targetFundMultiple),
-    sensitivityOwnerships: sens.length > 0 ? sens : DEFAULT_ASSUMPTIONS.sensitivityOwnerships,
     stages,
     positionForecasts,
   }
@@ -374,6 +367,8 @@ export interface StageReturn extends ConstructionStage {
 export interface PositionReturn {
   actual: ConstructionPositionActual
   forecast: ConstructionPositionForecast
+  /** Active-company mark, or realized gross proceeds for an exited company. */
+  currentValue: number
   /** Forecast proceeds, or today's total value until an exit is entered. */
   estimatedReturn: number
   estimatedMoic: number | null
@@ -460,9 +455,11 @@ export function constructionModel(
   // yet", not "a portfolio of nothing" — so it yields null rather than a negative deal count.
   const hasTarget = a.targetPortfolioSize > 0
   const hasMix = a.stages.length > 0
-  const hasPlan = hasMix || a.positionForecasts.some(f => f.plannedFollowOn > 0)
+  const exitedCompanyIds = new Set((actuals.positions ?? []).filter(p => p.status === 'exited').map(p => p.companyId))
+  const activePositionForecasts = a.positionForecasts.filter(f => !exitedCompanyIds.has(f.companyId))
+  const hasPlan = hasMix || activePositionForecasts.some(f => f.plannedFollowOn > 0)
   const plannedNewDeals = hasTarget ? a.targetPortfolioSize - actuals.companyCount : null
-  const plannedExistingFollowOn = r(a.positionForecasts.reduce((s, f) => s + f.plannedFollowOn, 0))
+  const plannedExistingFollowOn = r(activePositionForecasts.reduce((s, f) => s + f.plannedFollowOn, 0))
   const plannedNewCapital = r(a.stages.reduce((s, st) => s + st.initialCheck, 0))
   const plannedNewFollowOn = r(a.stages.reduce((s, st) => s + (st.followOnCheck ?? st.initialCheck * st.followOnMultiple), 0))
   const plannedCost = r(plannedExistingFollowOn + plannedNewCapital + plannedNewFollowOn)
@@ -518,23 +515,31 @@ export function constructionModel(
 
   const forecasts = new Map(a.positionForecasts.map(f => [f.companyId, f]))
   const positionReturns: PositionReturn[] = (actuals.positions ?? []).map(actual => {
-    const forecast = forecasts.get(actual.companyId) ?? {
+    const storedForecast = forecasts.get(actual.companyId) ?? {
       companyId: actual.companyId,
       plannedFollowOn: 0,
       ownershipAtExit: actual.currentOwnership ?? 0,
       expectedExitValue: 0,
     }
-    const isForecasted = forecast.ownershipAtExit > 0 && forecast.expectedExitValue > 0
-    const estimatedReturn = isForecasted
+    const isExited = actual.status === 'exited'
+    const forecast = isExited
+      ? { companyId: actual.companyId, plannedFollowOn: 0, ownershipAtExit: 0, expectedExitValue: 0 }
+      : storedForecast
+    const isForecasted = !isExited && forecast.ownershipAtExit > 0 && forecast.expectedExitValue > 0
+    const currentValue = r(isExited ? actual.distributions : actual.currentValue)
+    const estimatedReturn = isExited
+      ? r(actual.distributions)
+      : isForecasted
       ? r(actual.distributions + forecast.ownershipAtExit * forecast.expectedExitValue)
-      : r(actual.currentValue)
+      : currentValue
     const invested = actual.investedTotal + forecast.plannedFollowOn
     return {
       actual,
       forecast,
+      currentValue,
       estimatedReturn,
       estimatedMoic: invested > 0 ? estimatedReturn / invested : null,
-      exitToReturnFund: forecast.ownershipAtExit > 0
+      exitToReturnFund: !isExited && forecast.ownershipAtExit > 0
         ? r(actuals.committedCapital / forecast.ownershipAtExit)
         : null,
       isForecasted,
@@ -585,14 +590,21 @@ export function constructionModel(
     exitToReturnFund: wAvgOwnershipAtExit && wAvgOwnershipAtExit > 0
       ? r(actuals.committedCapital / wAvgOwnershipAtExit)
       : null,
-    sensitivity: [
-      ...a.sensitivityOwnerships.map(exitFor),
-      ...(wAvgOwnershipAtExit && wAvgOwnershipAtExit > 0
-        ? [{ ...exitFor(wAvgOwnershipAtExit), isWeightedAverage: true }]
-        : []),
-    ],
+    sensitivity: wAvgOwnershipAtExit && wAvgOwnershipAtExit > 0
+      ? [-0.02, -0.01, 0, 0.01, 0.02]
+          .map(offset => ({
+            ownership: offset === 0
+              ? wAvgOwnershipAtExit
+              : Math.round((wAvgOwnershipAtExit + offset) * 100_000_000) / 100_000_000,
+            offset,
+          }))
+          .filter(({ ownership }) => ownership > 0)
+          .map(({ ownership, offset }) => ({ ...exitFor(ownership), isWeightedAverage: offset === 0 }))
+      : [],
     positions: positionReturns,
-    currentPortfolioValue: r(actuals.currentValue),
+    currentPortfolioValue: actuals.positions == null
+      ? r(actuals.currentValue)
+      : r(positionReturns.reduce((s, p) => s + p.currentValue, 0)),
     estimatedExistingValue,
     estimatedFutureValue,
     estimatedPortfolioValue,

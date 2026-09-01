@@ -79,8 +79,6 @@ describe('parseAssumptions', () => {
     expect(a.targetFundMultiple).toBe(0)
     expect(a.feeAnnualRate).toBe(0)
     expect(a.feeTermYears).toBe(0)
-    // The one survivor: the axis of a what-if table, not a claim about this fund.
-    expect(a.sensitivityOwnerships).toEqual([0.01, 0.02, 0.03])
   })
 
   it('leaves the fee clock empty when there is no vintage either', () => {
@@ -253,14 +251,14 @@ describe('constructionModel — returns', () => {
     expect(m.returns.impliedMultipleOnInvested).toBeCloseTo(6.59, 2)
   })
 
-  it('bands the sensitivity across the given ownerships plus the weighted average', () => {
-    const m = constructionModel(ACT(), A({ ...RUN_OUT, stages: MIX, targetFundMultiple: 5, targetPortfolioSize: 20, sensitivityOwnerships: [0.01, 0.02, 0.03] }), NOW)
-    expect(m.returns.sensitivity).toHaveLength(4)   // three stated + the weighted average
-    expect(m.returns.sensitivity[3].isWeightedAverage).toBe(true)
-    const onePct = m.returns.sensitivity[0]
-    expect(onePct.ownershipAtExit).toBe(0.01)
-    expect(onePct.avgExitForTargetReturn).toBeCloseTo(462_500_000, 0)  // workbook B63
-    expect(onePct.exitToReturnFund).toBeCloseTo(1_850_000_000, 0)      // workbook B64
+  it('bands sensitivity one and two percentage points around the portfolio plan', () => {
+    const stages = [{
+      key: 'seed', label: 'Seed', initialCheck: 500_000, initialPostMoney: 10_000_000,
+      followOnMultiple: 0, dilutionFactor: 0, ownershipAtExit: 0.05,
+    }]
+    const m = constructionModel(ACT(), A({ ...RUN_OUT, stages, targetFundMultiple: 5, targetPortfolioSize: 20 }), NOW)
+    expect(m.returns.sensitivity.map(row => row.ownershipAtExit)).toEqual([0.03, 0.04, 0.05, 0.06, 0.07])
+    expect(m.returns.sensitivity.find(row => row.isWeightedAverage)?.ownershipAtExit).toBe(0.05)
   })
 
   it('is null rather than Infinity when the mix has no deals', () => {
@@ -345,6 +343,23 @@ describe('inline portfolio forecast', () => {
     expect(m.returns.stages[0].currentValue).toBe(750_000)
     expect(m.returns.stages[0].currentMoic).toBe(1)
   })
+
+  it('uses recorded gross proceeds for exited companies and ignores stale forecasts', () => {
+    const exited = {
+      ...position, status: 'exited', currentValue: 2_000_000, distributions: 1_200_000,
+    }
+    const m = constructionModel(ACT({ positions: [exited], currentValue: 2_000_000 }), A({
+      ...RUN_OUT,
+      positionForecasts: [{ companyId: 'company-1', plannedFollowOn: 200_000, ownershipAtExit: 0.02, expectedExitValue: 100_000_000 }],
+    }), NOW)
+    expect(m.returns.positions[0].currentValue).toBe(1_200_000)
+    expect(m.returns.positions[0].estimatedReturn).toBe(1_200_000)
+    expect(m.returns.positions[0].estimatedMoic).toBe(2)
+    expect(m.returns.positions[0].exitToReturnFund).toBeNull()
+    expect(m.returns.positions[0].forecast.plannedFollowOn).toBe(0)
+    expect(m.capital.plannedExistingFollowOn).toBe(0)
+    expect(m.returns.currentPortfolioValue).toBe(1_200_000)
+  })
 })
 
 // The model this replaces, end to end. If these drift, the page and the GP's spreadsheet
@@ -369,7 +384,8 @@ describe('Fund III, against the source workbook', () => {
     expect(m.returns.requiredPortfolioValue).toBe(92_500_000)        // workbook B61
     expect(m.returns.wAvgOwnershipAtExit).toBeCloseTo(0.0134, 4)     // workbook G71 / F62
     expect(m.returns.exitToReturnFund).toBeCloseTo(1_377_992_745, -4) // workbook F64
-    expect(m.returns.sensitivity[0].exitToReturnFund).toBeCloseTo(1_850_000_000, 0) // workbook B64
+    expect(m.returns.sensitivity.find(row => row.isWeightedAverage)?.exitToReturnFund)
+      .toBeCloseTo(m.returns.exitToReturnFund!, 2)
   })
 })
 

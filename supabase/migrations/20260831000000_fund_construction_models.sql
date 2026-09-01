@@ -37,10 +37,10 @@ create table public.fund_construction_models (
   target_portfolio_size integer not null default 0,
   existing_reserve_pool numeric not null default 0,
 
-  -- Return targets. `sensitivity_ownerships` keeps its 1/2/3% default: that is the AXIS of a
-  -- what-if table, not a claim about this fund.
+  -- Return targets. The legacy sensitivity array stays empty; current sensitivity bands are
+  -- derived from the portfolio plan in lib/accounting/construction.ts.
   target_fund_multiple   numeric   not null default 0,
-  sensitivity_ownerships numeric[] not null default '{0.01,0.02,0.03}',
+  sensitivity_ownerships numeric[] not null default '{}',
 
   -- A short ORDERED list, edited as a unit and never filtered or joined on, so jsonb rather
   -- than a child table. Shape, validated by parseAssumptions() in lib/accounting/construction.ts:

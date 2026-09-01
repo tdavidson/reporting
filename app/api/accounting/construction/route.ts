@@ -98,7 +98,9 @@ async function loadActuals(
       investedInitial: position.investedNew,
       investedFollowOn: position.investedFollowOn,
       investedTotal: position.invested,
-      currentValue: position.totalValue,
+      // An exited position has no residual mark: its current value on construction is the gross
+      // proceeds recorded in its investment details.
+      currentValue: position.status === 'exited' ? position.distributions : position.totalValue,
       currentMoic: position.moic,
       currentOwnership,
       currentPostMoney,
@@ -118,7 +120,7 @@ async function loadActuals(
       deployedInitial: positions.reduce((s, p) => s + p.investedNew, 0),
       deployedFollowOn: positions.reduce((s, p) => s + p.investedFollowOn, 0),
       companyCount: positions.length,
-      currentValue: positions.reduce((s, p) => s + p.totalValue, 0),
+      currentValue: constructionPositions.reduce((s, p) => s + p.currentValue, 0),
       nav: econ?.fund.nav ?? 0,
       positions: constructionPositions,
     },
@@ -139,7 +141,6 @@ function fromRow(row: Record<string, unknown>) {
     targetPortfolioSize: Number(row.target_portfolio_size),
     existingReservePool: Number(row.existing_reserve_pool),
     targetFundMultiple: Number(row.target_fund_multiple),
-    sensitivityOwnerships: (row.sensitivity_ownerships as number[] | null)?.map(Number) ?? [],
     stages: row.stages,
     positionForecasts: row.position_forecasts,
   }
@@ -215,7 +216,6 @@ export async function PUT(req: NextRequest) {
     target_portfolio_size: a.targetPortfolioSize,
     existing_reserve_pool: a.existingReservePool,
     target_fund_multiple: a.targetFundMultiple,
-    sensitivity_ownerships: a.sensitivityOwnerships,
     stages: a.stages,
     position_forecasts: a.positionForecasts,
     updated_at: new Date().toISOString(),

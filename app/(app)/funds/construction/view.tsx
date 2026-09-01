@@ -22,7 +22,7 @@ import {
 
 type SaveState = 'idle' | 'saving' | 'saved' | 'error'
 type PortfolioSortKey = 'name' | 'initialCheck' | 'followOn' | 'postMoney' | 'currentValue' |
-  'currentMoic' | 'ownershipAtExit' | 'expectedExit' | 'forecastReturn' | 'forecastMoic' | 'exitToReturnFund'
+  'realizedProceeds' | 'currentMoic' | 'ownershipAtExit' | 'expectedExit' | 'forecastReturn' | 'forecastMoic' | 'exitToReturnFund'
 
 function positionSortValue(row: PositionReturn, key: PortfolioSortKey): string | number | null {
   const { actual, forecast } = row
@@ -31,7 +31,8 @@ function positionSortValue(row: PositionReturn, key: PortfolioSortKey): string |
     case 'initialCheck': return actual.investedInitial
     case 'followOn': return actual.investedFollowOn + forecast.plannedFollowOn
     case 'postMoney': return actual.currentPostMoney
-    case 'currentValue': return actual.currentValue
+    case 'currentValue': return row.currentValue
+    case 'realizedProceeds': return actual.distributions
     case 'currentMoic': return actual.currentMoic
     case 'ownershipAtExit': return forecast.ownershipAtExit
     case 'expectedExit': return forecast.expectedExitValue
@@ -48,6 +49,7 @@ function stageSortValue(row: StageReturn, key: PortfolioSortKey): string | numbe
     case 'followOn': return row.plannedFollowOn
     case 'postMoney': return row.initialPostMoney
     case 'currentValue': return row.currentValue
+    case 'realizedProceeds': return null
     case 'currentMoic': return row.currentMoic
     case 'ownershipAtExit': return row.ownershipAtExit
     case 'expectedExit': return row.expectedExitValue ?? 0
@@ -147,8 +149,8 @@ export function ConstructionView({ vehicle, vehicleId }: { vehicle: string; vehi
           <Metric label="Available after plan" value={fmt(model.capital.gap ?? model.capital.remaining)} sub={`${fmt(model.capital.plannedCost)} still planned`} />
           <Metric label="Portfolio" value={`${model.capital.companyCount + a.stages.length}${a.targetPortfolioSize > 0 ? ` / ${a.targetPortfolioSize}` : ''}`} sub={`${model.capital.companyCount} current · ${a.stages.length} planned`} />
           <Metric label="New / follow-on" value={<span className="text-xl">{fmt(model.capital.projectedNew)} / {fmt(model.capital.projectedFollowOn)}</span>} sub="Actual plus planned capital" />
-          <Metric label="Estimated return" value={fmt(model.returns.estimatedPortfolioValue)} sub={`${fmt(model.returns.currentPortfolioValue)} current value`} />
-          <Metric label="Forecast gross MOIC" value={multiple(model.returns.estimatedGrossMoic)} sub={model.returns.requiredPortfolioValue == null ? 'Set a target below' : `${fmt(model.returns.requiredPortfolioValue)} target value`} />
+          <Metric label="Estimated proceeds" value={fmt(model.returns.estimatedPortfolioValue)} sub={`Gross proceeds to the fund · ${fmt(model.returns.currentPortfolioValue)} current value`} />
+          <Metric label="Forecasted gross MOIC" value={multiple(model.returns.estimatedGrossMoic)} sub={model.returns.requiredPortfolioValue == null ? 'Set a target below' : `${fmt(model.returns.requiredPortfolioValue)} required proceeds`} />
         </div>
 
         {model.warnings.map((w, i) => <div key={i} className="flex items-start gap-2 rounded-card border border-warning/40 bg-warning-subtle p-3 text-sm text-warning"><AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />{w}</div>)}
@@ -163,8 +165,9 @@ export function ConstructionView({ vehicle, vehicleId }: { vehicle: string; vehi
                 <SortTh label="Portfolio company / plan" sortKey="name" sort={sort} onSort={key => setSort(s => nextSort(s, key, 'asc'))} className="sticky left-0 z-10 bg-muted" />
                 {([
                   ['Initial check', 'initialCheck'], ['Follow-on', 'followOn'], ['Post-money', 'postMoney'],
-                  ['Current value', 'currentValue'], ['Current MOIC', 'currentMoic'], ['Ownership at exit', 'ownershipAtExit'],
-                  ['Expected exit', 'expectedExit'], ['Forecast return', 'forecastReturn'], ['Forecast MOIC', 'forecastMoic'],
+                  ['Current value', 'currentValue'], ['Realized proceeds', 'realizedProceeds'], ['Current MOIC', 'currentMoic'],
+                  ['Ownership at exit', 'ownershipAtExit'], ['Expected exit', 'expectedExit'],
+                  ['Forecasted proceeds', 'forecastReturn'], ['Forecasted gross MOIC', 'forecastMoic'],
                   ['Exit to return fund', 'exitToReturnFund'],
                 ] as [string, PortfolioSortKey][]).map(([label, key]) => <SortTh key={key} label={label} sortKey={key} sort={sort} onSort={key => setSort(s => nextSort(s, key))} align="right" className="px-2" />)}
                 <th className="w-10" />
@@ -172,19 +175,24 @@ export function ConstructionView({ vehicle, vehicleId }: { vehicle: string; vehi
               <tbody>
                 <Band label={`Existing portfolio companies · ${model.returns.positions.length}`} />
                 {model.returns.positions.length === 0
-                  ? <tr><td colSpan={12} className="px-3 py-6 text-center text-muted-foreground">No portfolio investments are recorded for this vehicle.</td></tr>
+                  ? <tr><td colSpan={13} className="px-3 py-6 text-center text-muted-foreground">No portfolio investments are recorded for this vehicle.</td></tr>
                   : sortedPositions.map(row => {
                     const { actual, forecast } = row
+                    const isExited = actual.status === 'exited'
                     const totalFollowOn = actual.investedFollowOn + forecast.plannedFollowOn
                     return <tr key={actual.companyId} className="border-b hover:bg-muted/20">
                       <td className="sticky left-0 z-[1] bg-card px-3 py-2"><Link href={`/companies/${actual.companyId}`} className="font-medium hover:underline">{actual.name}</Link>{actual.status === 'exited' && <span className="ml-2 rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">Exited</span>}</td>
                       <MoneyCell full={fmtFull(actual.investedInitial)}>{fmt(actual.investedInitial)}</MoneyCell>
-                      <td className="px-2 py-2"><InlineNumber ariaLabel={`Total follow-on for ${actual.name}`} value={totalFollowOn} onChange={v => setPositionForecast(actual.companyId, { plannedFollowOn: Math.max(0, v - actual.investedFollowOn) })} className="ml-auto" /></td>
+                      {isExited
+                        ? <MoneyCell full={fmtFull(actual.investedFollowOn)}>{fmt(actual.investedFollowOn)}</MoneyCell>
+                        : <td className="px-2 py-2"><InlineNumber ariaLabel={`Total follow-on for ${actual.name}`} value={totalFollowOn} onChange={v => setPositionForecast(actual.companyId, { plannedFollowOn: Math.max(0, v - actual.investedFollowOn) })} className="ml-auto" /></td>}
                       <MoneyCell full={fmtFull(actual.currentPostMoney)}>{fmt(actual.currentPostMoney)}</MoneyCell>
-                      <MoneyCell full={fmtFull(actual.currentValue)}>{fmt(actual.currentValue)}</MoneyCell>
+                      <MoneyCell full={fmtFull(row.currentValue)}>{fmt(row.currentValue)}</MoneyCell>
+                      <MoneyCell full={fmtFull(actual.distributions)}>{fmt(actual.distributions)}</MoneyCell>
                       <td className="px-2 py-2.5 text-right tabular-nums">{multiple(actual.currentMoic)}</td>
-                      <td className="px-2 py-2"><InlinePercent ariaLabel={`Ownership at exit for ${actual.name}`} value={forecast.ownershipAtExit} onChange={v => setPositionForecast(actual.companyId, { ownershipAtExit: v })} className="ml-auto" /></td>
-                      <td className="px-2 py-2"><InlineNumber ariaLabel={`Expected exit for ${actual.name}`} value={forecast.expectedExitValue} onChange={v => setPositionForecast(actual.companyId, { expectedExitValue: v })} placeholder="Exit value" className="ml-auto" /></td>
+                      {isExited
+                        ? <><td className="px-2 py-2.5 text-right text-muted-foreground">—</td><td className="px-2 py-2.5 text-right text-muted-foreground">—</td></>
+                        : <><td className="px-2 py-2"><InlinePercent ariaLabel={`Ownership at exit for ${actual.name}`} value={forecast.ownershipAtExit} onChange={v => setPositionForecast(actual.companyId, { ownershipAtExit: v })} className="ml-auto" /></td><td className="px-2 py-2"><InlineNumber ariaLabel={`Expected exit for ${actual.name}`} value={forecast.expectedExitValue} onChange={v => setPositionForecast(actual.companyId, { expectedExitValue: v })} placeholder="Exit value" className="ml-auto" /></td></>}
                       <MoneyCell full={fmtFull(row.estimatedReturn)}>{fmt(row.estimatedReturn)}</MoneyCell>
                       <td className="px-2 py-2.5 text-right tabular-nums">{multiple(row.estimatedMoic)}</td>
                       <MoneyCell full={fmtFull(row.exitToReturnFund)}>{fmt(row.exitToReturnFund)}</MoneyCell><td />
@@ -200,6 +208,7 @@ export function ConstructionView({ vehicle, vehicleId }: { vehicle: string; vehi
                     <td className="px-2 py-2"><InlineNumber ariaLabel={`Follow-on for ${stage.label}`} value={followOnCheck} onChange={v => setStage(stage.key, { followOnCheck: v })} className="ml-auto" /></td>
                     <td className="px-2 py-2"><InlineNumber ariaLabel={`Post-money for ${stage.label}`} value={stage.initialPostMoney} onChange={v => setStage(stage.key, { initialPostMoney: v })} className="ml-auto" /></td>
                     <MoneyCell full={fmtFull(stage.currentValue)}>{fmt(stage.currentValue)}</MoneyCell>
+                    <td className="px-2 py-2.5 text-right text-muted-foreground">—</td>
                     <td className="px-2 py-2.5 text-right tabular-nums">{multiple(stage.currentMoic)}</td>
                     <td className="px-2 py-2"><InlinePercent ariaLabel={`Ownership at exit for ${stage.label}`} value={stage.ownershipAtExit} onChange={v => setStage(stage.key, { ownershipAtExit: v })} className="ml-auto" /></td>
                     <td className="px-2 py-2"><InlineNumber ariaLabel={`Expected exit for ${stage.label}`} value={stage.expectedExitValue ?? 0} onChange={v => setStage(stage.key, { expectedExitValue: v })} className="ml-auto" /></td>
@@ -213,7 +222,7 @@ export function ConstructionView({ vehicle, vehicleId }: { vehicle: string; vehi
               <tfoot><tr className="bg-muted/40 font-semibold">
                 <td className="sticky left-0 bg-muted px-3 py-2.5">Projected portfolio</td>
                 <td className="px-2 py-2.5 text-right tabular-nums">{fmt(model.capital.projectedNew)}</td><td className="px-2 py-2.5 text-right tabular-nums">{fmt(model.capital.projectedFollowOn)}</td><td />
-                <td className="px-2 py-2.5 text-right tabular-nums">{fmt(model.returns.currentPortfolioValue + model.capital.plannedNewCapital + model.capital.plannedNewFollowOn)}</td><td />
+                <td className="px-2 py-2.5 text-right tabular-nums">{fmt(model.returns.currentPortfolioValue + model.capital.plannedNewCapital + model.capital.plannedNewFollowOn)}</td><td className="px-2 py-2.5 text-right tabular-nums">{fmt(model.returns.positions.reduce((sum, row) => sum + row.actual.distributions, 0))}</td><td />
                 <td className="px-2 py-2.5 text-right tabular-nums">{pct(model.returns.wAvgOwnershipAtExit)}</td><td /><td className="px-2 py-2.5 text-right tabular-nums">{fmt(model.returns.estimatedPortfolioValue)}</td><td className="px-2 py-2.5 text-right tabular-nums">{multiple(model.returns.estimatedGrossMoic)}</td><td /><td />
               </tr></tfoot>
             </table>
@@ -231,7 +240,10 @@ export function ConstructionView({ vehicle, vehicleId }: { vehicle: string; vehi
                 ['Partnership expenses', -model.capital.expensesIncurred, 'incurred'], ['Partnership expenses', -model.capital.expensesProjected, 'projected'],
                 ['Management fees', -model.capital.feesIncurred, 'incurred'], ['Management fees', -model.capital.feesProjected, 'projected'],
               ] as [string, number, string | null][]).map(([label, value, tag], i) => <tr key={i} className="border-b last:border-b-0"><td className="py-2">{label}{tag && <span className="ml-2 text-xs text-muted-foreground">{tag}</span>}</td><td className="py-2 text-right tabular-nums" title={fmtFull(value)}>{fmt(value)}</td></tr>)}
-              <tr className="font-semibold"><td className="pt-3">Investable</td><td className="pt-3 text-right tabular-nums" title={fmtFull(model.capital.investable)}>{fmt(model.capital.investable)}</td></tr>
+              <tr className="font-semibold"><td className="pt-3 pb-2">Investable</td><td className="pt-3 pb-2 text-right tabular-nums" title={fmtFull(model.capital.investable)}>{fmt(model.capital.investable)}</td></tr>
+              <tr className="border-t"><td className="py-2">New invested</td><td className="py-2 text-right tabular-nums" title={fmtFull(-model.capital.deployedInitial)}>{fmt(-model.capital.deployedInitial)}</td></tr>
+              <tr className="border-b"><td className="py-2">Follow-on invested</td><td className="py-2 text-right tabular-nums" title={fmtFull(-model.capital.deployedFollowOn)}>{fmt(-model.capital.deployedFollowOn)}</td></tr>
+              <tr className="font-semibold"><td className="pt-3">Reserved for investment</td><td className="pt-3 text-right tabular-nums" title={fmtFull(model.capital.remaining + model.capital.existingReservePool)}>{fmt(model.capital.remaining + model.capital.existingReservePool)}</td></tr>
             </tbody></table>
             <div className="mt-4 grid grid-cols-2 gap-3 border-t pt-4 md:grid-cols-3">
               <PercentField label="Annual fee rate" value={a.feeAnnualRate} onChange={v => setA({ ...a, feeAnnualRate: v })} />
@@ -246,11 +258,11 @@ export function ConstructionView({ vehicle, vehicleId }: { vehicle: string; vehi
             <h2 className="text-base font-medium">Return target</h2><p className="mt-1 text-sm text-muted-foreground">How the inline company forecasts compare with the fund target.</p>
             <div className="mt-4 grid grid-cols-2 gap-3 border-b pb-4">
               <NumberField label="Target companies" value={a.targetPortfolioSize} step="1" onChange={v => setA({ ...a, targetPortfolioSize: v })} />
-              <NumberField label="Target fund MOIC" value={a.targetFundMultiple} step="0.25" suffix="x" onChange={v => setA({ ...a, targetFundMultiple: v })} />
+              <NumberField label="Target net MOIC" value={a.targetFundMultiple} step="0.25" suffix="x" onChange={v => setA({ ...a, targetFundMultiple: v })} />
             </div>
             <div className="mt-4 grid grid-cols-2 gap-4">
-              <SmallStat label="Required portfolio value" value={fmt(model.returns.requiredPortfolioValue)} /><SmallStat label="Estimated portfolio value" value={fmt(model.returns.estimatedPortfolioValue)} />
-              <SmallStat label="Multiple on investable" value={multiple(model.returns.impliedMultipleOnInvested)} />
+              <SmallStat label="Required proceeds" value={fmt(model.returns.requiredPortfolioValue)} /><SmallStat label="Estimated proceeds" value={fmt(model.returns.estimatedPortfolioValue)} />
+              <SmallStat label="Gross multiple" value={multiple(model.returns.impliedMultipleOnInvested)} />
               <SmallStat label="Gap to target" value={model.returns.targetGap == null ? '—' : model.returns.targetGap >= 0 ? `+${fmt(model.returns.targetGap)}` : fmt(model.returns.targetGap)} tone={model.returns.targetGap == null ? 'default' : model.returns.targetGap >= 0 ? 'success' : 'warning'} />
             </div>
             <div className="mt-4 overflow-x-auto border-t pt-4"><table className="w-full text-sm"><thead><tr className="border-b bg-muted/50 text-left"><th className="px-2 py-2 font-medium">Ownership at exit</th><th className="px-2 py-2 font-medium text-right">Average exit for target</th><th className="px-2 py-2 font-medium text-right">Exit to return fund</th></tr></thead><tbody>
@@ -267,7 +279,7 @@ export function ConstructionView({ vehicle, vehicleId }: { vehicle: string; vehi
   </div>
 }
 
-function Band({ label }: { label: string }) { return <tr className="border-b bg-muted/20"><td colSpan={12} className="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</td></tr> }
+function Band({ label }: { label: string }) { return <tr className="border-b bg-muted/20"><td colSpan={13} className="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</td></tr> }
 function MoneyCell({ children, full }: { children: ReactNode; full: string }) { return <td className="px-2 py-2.5 text-right tabular-nums" title={full}>{children}</td> }
 function InlineNumber({ value, onChange, ariaLabel, placeholder, step = 'any', className }: { value: number; onChange: (v: number) => void; ariaLabel: string; placeholder?: string; step?: string; className?: string }) {
   return <Input aria-label={ariaLabel} type="number" min="0" step={step} value={value || ''} placeholder={placeholder} onChange={e => onChange(Math.max(0, Number(e.target.value)))} className={cn('h-8 w-28 text-right tabular-nums', className)} />
