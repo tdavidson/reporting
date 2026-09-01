@@ -79,26 +79,47 @@ export interface ConstructionActuals {
   nav: number
 }
 
-export const DEFAULT_STAGES: ConstructionStage[] = [
-  { key: 'pre_seed', label: 'Pre-seed', deals: 5, initialCheck: 500_000, initialPostMoney: 7_000_000, followOnMultiple: 1, dilutionFactor: 0.3 },
-  { key: 'seed', label: 'Seed', deals: 10, initialCheck: 500_000, initialPostMoney: 11_000_000, followOnMultiple: 1, dilutionFactor: 0.3 },
-  { key: 'post_seed', label: 'Post-seed', deals: 5, initialCheck: 250_000, initialPostMoney: 20_000_000, followOnMultiple: 1, dilutionFactor: 0.4 },
-]
-
+/**
+ * NO STRATEGY DEFAULTS.
+ *
+ * Every field describing what THIS fund intends — the stage mix, how many companies it is
+ * building toward, what multiple it is underwriting to, its fee terms — starts empty. The first
+ * version of this shipped a pre-seed/seed/post-seed mix at $500k checks into $7M post-money and
+ * a 20-company target, which were one firm's parameters lifted from the workbook this model
+ * replaces. Presented as a default they read as neutral, and a fund with a different strategy
+ * would have had to notice the numbers were wrong before they could correct them. A blank field
+ * asks a question; a wrong default answers one nobody asked.
+ *
+ * `sensitivityOwnerships` is the one survivor: 1% / 2% / 3% is the AXIS of a what-if table, not
+ * a claim about this fund. It is still editable.
+ */
 export const DEFAULT_ASSUMPTIONS: ConstructionAssumptions = {
-  feeAnnualRate: 0.02,
+  feeAnnualRate: 0,
   feeBasis: 'committed',
-  feeTermYears: 10,
+  feeTermYears: 0,
   feeStartDate: '',
   feeStepDownYear: null,
   feeStepDownRate: null,
   annualPartnershipExpense: 0,
   remainingOrgCosts: 0,
-  targetPortfolioSize: 20,
+  targetPortfolioSize: 0,
   existingReservePool: 0,
-  targetFundMultiple: 3,
+  targetFundMultiple: 0,
   sensitivityOwnerships: [0.01, 0.02, 0.03],
-  stages: DEFAULT_STAGES,
+  stages: [],
+}
+
+/** A new, empty stage row for the page's "Add stage" control. Named, and nothing else. */
+export function blankStage(label = ''): ConstructionStage {
+  return {
+    key: `stage_${Math.random().toString(36).slice(2, 8)}`,
+    label,
+    deals: 0,
+    initialCheck: 0,
+    initialPostMoney: 0,
+    followOnMultiple: 0,
+    dilutionFactor: 0,
+  }
 }
 
 const FEE_BASES: FeeBasis[] = ['committed', 'invested', 'nav']
@@ -142,7 +163,7 @@ export function parseAssumptions(raw: unknown, vintageYear: number | null): Cons
           followOnMultiple: s.followOnMultiple as number,
           dilutionFactor: s.dilutionFactor as number,
         }))
-    : DEFAULT_STAGES
+    : []
 
   const sens = Array.isArray(o.sensitivityOwnerships)
     ? (o.sensitivityOwnerships as unknown[]).filter((n): n is number => typeof n === 'number' && Number.isFinite(n) && n > 0)
@@ -250,11 +271,12 @@ export interface CapitalBlock {
   remaining: number
 
   companyCount: number
-  plannedNewDeals: number
+  /** Null until a target portfolio size is stated — NOT a negative number derived from 0. */
+  plannedNewDeals: number | null
   /** What the stage mix would cost: Σ deals × check × (1 + followOnMultiple). */
   plannedCost: number
-  /** remaining − plannedCost. Negative means the mix does not fit. */
-  gap: number
+  /** remaining − plannedCost. Negative means the mix does not fit. Null with no mix stated. */
+  gap: number | null
   /** remaining ÷ plannedNewDeals. Null when there are no deals left to do. */
   avgPerRemainingDeal: number | null
 }
@@ -272,7 +294,8 @@ export interface StageReturn extends ConstructionStage {
 
 export interface SensitivityRow {
   ownershipAtExit: number
-  avgExitForTargetReturn: number
+  /** Null until a target multiple and portfolio size are both stated. */
+  avgExitForTargetReturn: number | null
   exitToReturnFund: number
   /** The row derived from the stage mix rather than stated. */
   isWeightedAverage: boolean
@@ -280,7 +303,8 @@ export interface SensitivityRow {
 
 export interface ReturnsBlock {
   targetFundMultiple: number
-  requiredPortfolioValue: number
+  /** Null until a target multiple is stated. 0× is not a target, it is an unanswered question. */
+  requiredPortfolioValue: number | null
   /**
    * The same required value expressed against INVESTABLE capital rather than committed. A "5x
    * fund" is 5× committed, but only ~76% of committed is ever invested — so the portfolio has to
@@ -332,9 +356,13 @@ export function constructionModel(
   const investable = r(actuals.committedCapital - lifetimeFees - lifetimeExpenses)
   const remaining = r(investable - deployedTotal - a.existingReservePool)
 
-  const plannedNewDeals = a.targetPortfolioSize - actuals.companyCount
+  // Nothing is assumed about the plan until the GP states it. A target of 0 is "not answered
+  // yet", not "a portfolio of nothing" — so it yields null rather than a negative deal count.
+  const hasTarget = a.targetPortfolioSize > 0
+  const hasMix = a.stages.length > 0
+  const plannedNewDeals = hasTarget ? a.targetPortfolioSize - actuals.companyCount : null
   const plannedCost = r(a.stages.reduce((s, st) => s + st.deals * st.initialCheck * (1 + st.followOnMultiple), 0))
-  const gap = r(remaining - plannedCost)
+  const gap = hasMix ? r(remaining - plannedCost) : null
   const stageDeals = a.stages.reduce((s, st) => s + st.deals, 0)
 
   if (!actuals.ledgerAvailable) {
@@ -343,10 +371,12 @@ export function constructionModel(
       'Investable capital is overstated until you enter lifetime figures.',
     )
   }
-  if (gap < 0) {
+  // Only warn about a plan that EXISTS. An unconfigured page is not a fund in trouble, and
+  // shouting at someone who has not filled the form in yet trains them to ignore the warnings.
+  if (gap != null && gap < 0) {
     warnings.push(`The stage mix needs more capital than remains — it is short by ${usd(Math.abs(gap))}.`)
   }
-  if (stageDeals !== plannedNewDeals) {
+  if (hasMix && plannedNewDeals != null && stageDeals !== plannedNewDeals) {
     warnings.push(`The stage mix plans ${stageDeals} deals, but ${plannedNewDeals} remain to reach a portfolio of ${a.targetPortfolioSize}.`)
   }
 
@@ -375,14 +405,16 @@ export function constructionModel(
     ? stageReturns.reduce((s, st) => s + st.ownershipAtExit * st.deals, 0) / totalStageDeals
     : null
 
-  const requiredPortfolioValue = r(a.targetFundMultiple * actuals.committedCapital)
+  const requiredPortfolioValue = a.targetFundMultiple > 0
+    ? r(a.targetFundMultiple * actuals.committedCapital)
+    : null
 
   const exitFor = (ownership: number): SensitivityRow => ({
     ownershipAtExit: ownership,
     // What the AVERAGE portfolio company must exit at, if every one of them reaches the target.
-    avgExitForTargetReturn: a.targetPortfolioSize > 0
+    avgExitForTargetReturn: requiredPortfolioValue != null && a.targetPortfolioSize > 0
       ? r(requiredPortfolioValue / ownership / a.targetPortfolioSize)
-      : 0,
+      : null,
     // What ONE company must exit at for the fund's stake in it to return the whole fund.
     exitToReturnFund: r(actuals.committedCapital / ownership),
     isWeightedAverage: false,
@@ -391,12 +423,12 @@ export function constructionModel(
   const returns: ReturnsBlock = {
     targetFundMultiple: a.targetFundMultiple,
     requiredPortfolioValue,
-    impliedMultipleOnInvested: investable > 0
+    impliedMultipleOnInvested: requiredPortfolioValue != null && investable > 0
       ? Math.round((requiredPortfolioValue / investable) * 100) / 100
       : null,
     stages: stageReturns,
     wAvgOwnershipAtExit,
-    avgExitForTargetReturn: wAvgOwnershipAtExit && wAvgOwnershipAtExit > 0 && a.targetPortfolioSize > 0
+    avgExitForTargetReturn: requiredPortfolioValue != null && wAvgOwnershipAtExit && wAvgOwnershipAtExit > 0 && a.targetPortfolioSize > 0
       ? r(requiredPortfolioValue / wAvgOwnershipAtExit / a.targetPortfolioSize)
       : null,
     exitToReturnFund: wAvgOwnershipAtExit && wAvgOwnershipAtExit > 0
@@ -431,7 +463,7 @@ export function constructionModel(
       plannedNewDeals,
       plannedCost,
       gap,
-      avgPerRemainingDeal: plannedNewDeals > 0 ? r(remaining / plannedNewDeals) : null,
+      avgPerRemainingDeal: plannedNewDeals != null && plannedNewDeals > 0 ? r(remaining / plannedNewDeals) : null,
     },
     returns,
     warnings,

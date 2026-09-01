@@ -1,15 +1,16 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Loader2, AlertTriangle } from 'lucide-react'
+import { Loader2, AlertTriangle, Plus, X } from 'lucide-react'
 import { useCurrency, formatCurrency, formatCurrencyFull } from '@/components/currency-context'
 import { useVehicle, FundSwitcher } from '@/components/accounting-vehicle'
 import { AnalystToggleButton } from '@/components/analyst-button'
 import { AccountingBody } from '@/components/accounting-chrome'
 import { Input } from '@/components/ui/input'
 import { EmptyState } from '@/components/ui/empty-state'
+import { Button } from '@/components/ui/button'
 import {
-  constructionModel, parseAssumptions, DEFAULT_ASSUMPTIONS,
+  constructionModel, parseAssumptions, DEFAULT_ASSUMPTIONS, blankStage,
   type ConstructionActuals, type ConstructionAssumptions, type ConstructionStage,
 } from '@/lib/accounting/construction'
 
@@ -68,6 +69,12 @@ export function ConstructionView({ vehicle, vehicleId }: { vehicle: string; vehi
 
   const setStage = useCallback((i: number, patch: Partial<ConstructionStage>) => {
     setA(prev => ({ ...prev, stages: prev.stages.map((s, j) => (j === i ? { ...s, ...patch } : s)) }))
+  }, [])
+  const addStage = useCallback(() => {
+    setA(prev => ({ ...prev, stages: [...prev.stages, blankStage()] }))
+  }, [])
+  const removeStage = useCallback((i: number) => {
+    setA(prev => ({ ...prev, stages: prev.stages.filter((_, j) => j !== i) }))
   }, [])
 
   const body = loading ? (
@@ -145,7 +152,7 @@ export function ConstructionView({ vehicle, vehicleId }: { vehicle: string; vehi
           <Stat label="Reserved for existing" value={fmt(model.capital.existingReservePool)} />
           <Stat label="Remaining" value={fmt(model.capital.remaining)} />
           <Stat label="Companies" value={String(model.capital.companyCount)} />
-          <Stat label="Deals still to do" value={String(model.capital.plannedNewDeals)} />
+          <Stat label="Deals still to do" value={model.capital.plannedNewDeals?.toString() ?? '—'} />
           <Stat label="Stage mix cost" value={fmt(model.capital.plannedCost)} />
           <Stat label="Gap" value={fmt(model.capital.gap)} />
         </div>
@@ -165,33 +172,65 @@ export function ConstructionView({ vehicle, vehicleId }: { vehicle: string; vehi
              actuals are deliberately not stage-classified (round_name is free text). */}
       <section className="rounded-card border p-4 space-y-3">
         <h2 className="text-base font-medium">Stage mix — the deals still to do</h2>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm whitespace-nowrap">
-            <thead>
-              <tr className="border-b bg-muted/50 text-left">
-                {['Stage', 'Deals', 'Initial check', 'Post-money', 'Follow-on ×', 'Dilution', 'Initial own.', 'Own. at exit', 'Exit to return fund', 'Allocation'].map(h => (
-                  <th key={h} className="px-2 py-2 font-medium">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {model.returns.stages.map((s, i) => (
-                <tr key={s.key} className="border-b last:border-b-0">
-                  <td className="px-2 py-1.5">{s.label}</td>
-                  <td className="px-2 py-1.5"><Num value={s.deals} step="1" onChange={v => setStage(i, { deals: v })} /></td>
-                  <td className="px-2 py-1.5"><Num value={s.initialCheck} step="50000" onChange={v => setStage(i, { initialCheck: v })} /></td>
-                  <td className="px-2 py-1.5"><Num value={s.initialPostMoney} step="500000" onChange={v => setStage(i, { initialPostMoney: v })} /></td>
-                  <td className="px-2 py-1.5"><Num value={s.followOnMultiple} step="0.1" onChange={v => setStage(i, { followOnMultiple: v })} /></td>
-                  <td className="px-2 py-1.5"><Num value={s.dilutionFactor} step="0.05" onChange={v => setStage(i, { dilutionFactor: v })} /></td>
-                  <td className="px-2 py-1.5 tabular-nums text-muted-foreground">{pct(s.initialOwnership)}</td>
-                  <td className="px-2 py-1.5 tabular-nums text-muted-foreground">{pct(s.ownershipAtExit)}</td>
-                  <td className="px-2 py-1.5 tabular-nums text-muted-foreground">{fmt(s.exitToReturnFund)}</td>
-                  <td className="px-2 py-1.5 tabular-nums">{fmt(s.allocation)}</td>
+        {a.stages.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            No stage mix yet. Add the bands you plan to invest in — how many deals, at what check
+            and post-money — and the ownership, exit and allocation columns derive themselves.
+          </p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm whitespace-nowrap">
+              <thead>
+                <tr className="border-b bg-muted/50 text-left">
+                  {['Stage', 'Deals', 'Initial check', 'Post-money', 'Follow-on ×', 'Dilution', 'Initial own.', 'Own. at exit', 'Exit to return fund', 'Allocation', ''].map((h, i) => (
+                    <th key={i} className="px-2 py-2 font-medium">{h}</th>
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {/* Rendered from the ASSUMPTIONS, not the model's derived stages: a row with no
+                    post-money yet is dropped by parseAssumptions (it would divide to Infinity),
+                    so a freshly added row would vanish as you typed if this read the model. The
+                    derived columns look themselves up by key and show "—" until the row prices. */}
+                {a.stages.map((s, i) => {
+                  const d = model.returns.stages.find(x => x.key === s.key) ?? null
+                  return (
+                    <tr key={s.key} className="border-b last:border-b-0">
+                      <td className="px-2 py-1.5">
+                        <Input
+                          value={s.label} placeholder="Stage name"
+                          onChange={e => setStage(i, { label: e.target.value })}
+                          className="h-8 w-32"
+                        />
+                      </td>
+                      <td className="px-2 py-1.5"><Num value={s.deals} step="1" onChange={v => setStage(i, { deals: v })} /></td>
+                      <td className="px-2 py-1.5"><Num value={s.initialCheck} step="50000" onChange={v => setStage(i, { initialCheck: v })} /></td>
+                      <td className="px-2 py-1.5"><Num value={s.initialPostMoney} step="500000" onChange={v => setStage(i, { initialPostMoney: v })} /></td>
+                      <td className="px-2 py-1.5"><Num value={s.followOnMultiple} step="0.1" onChange={v => setStage(i, { followOnMultiple: v })} /></td>
+                      <td className="px-2 py-1.5"><Num value={s.dilutionFactor} step="0.05" onChange={v => setStage(i, { dilutionFactor: v })} /></td>
+                      <td className="px-2 py-1.5 tabular-nums text-muted-foreground">{d ? pct(d.initialOwnership) : '—'}</td>
+                      <td className="px-2 py-1.5 tabular-nums text-muted-foreground">{d ? pct(d.ownershipAtExit) : '—'}</td>
+                      <td className="px-2 py-1.5 tabular-nums text-muted-foreground">{d ? fmt(d.exitToReturnFund) : '—'}</td>
+                      <td className="px-2 py-1.5 tabular-nums">{d ? fmt(d.allocation) : '—'}</td>
+                      <td className="px-2 py-1.5">
+                        <button
+                          onClick={() => removeStage(i)}
+                          aria-label={`Remove ${s.label || 'stage'}`}
+                          className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+        <Button size="sm" variant="outline" onClick={addStage}>
+          <Plus className="h-3.5 w-3.5 mr-1" />Add stage
+        </Button>
         <p className="text-xs text-muted-foreground">
           Dilution is the fraction of entry ownership surviving to exit — an assumption you state,
           not one derived from the follow-on reserve.
@@ -211,8 +250,9 @@ export function ConstructionView({ vehicle, vehicleId }: { vehicle: string; vehi
           <Stat label="Weighted ownership at exit" value={pct(model.returns.wAvgOwnershipAtExit)} />
         </div>
         <p className="text-xs text-muted-foreground">
-          The target multiple is on committed capital, but only {fmt(model.capital.investable)} of it is
-          investable — so the portfolio has to clear the multiple on invested, not the headline one.
+          {model.returns.requiredPortfolioValue == null
+            ? 'Set a target fund multiple to see the portfolio value it implies and the exits that reach it.'
+            : `The target multiple is on committed capital, but only ${fmt(model.capital.investable)} of it is investable — so the portfolio has to clear the multiple on invested, not the headline one.`}
         </p>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-2 border-t">
           <Field

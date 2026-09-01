@@ -15,10 +15,15 @@ create table public.fund_construction_models (
 
   -- Fee terms, for projecting the fees not yet incurred. `fee_basis` mirrors FeeBasis in
   -- lib/accounting/fees.ts, so the projection reuses those semantics rather than inventing new.
-  fee_annual_rate    numeric not null default 0.02,
+  --
+  -- EVERY STRATEGY COLUMN DEFAULTS TO ZERO OR EMPTY, matching DEFAULT_ASSUMPTIONS in
+  -- lib/accounting/construction.ts. A default rate, term, portfolio size or stage mix would be
+  -- one firm's strategy asserted about every fund — read as neutral, and silently wrong for
+  -- anyone else. A blank field asks a question; a wrong default answers one nobody asked.
+  fee_annual_rate    numeric not null default 0,
   fee_basis          text    not null default 'committed'
                      check (fee_basis in ('committed', 'invested', 'nav')),
-  fee_term_years     numeric not null default 10,
+  fee_term_years     numeric not null default 0,
   -- The fee clock. Null falls back to 1 January of the vehicle's vintage_year at read time.
   fee_start_date     date,
   fee_step_down_year numeric,
@@ -29,11 +34,12 @@ create table public.fund_construction_models (
   remaining_org_costs        numeric not null default 0,
 
   -- Construction.
-  target_portfolio_size integer not null default 20,
+  target_portfolio_size integer not null default 0,
   existing_reserve_pool numeric not null default 0,
 
-  -- Return targets.
-  target_fund_multiple   numeric   not null default 3,
+  -- Return targets. `sensitivity_ownerships` keeps its 1/2/3% default: that is the AXIS of a
+  -- what-if table, not a claim about this fund.
+  target_fund_multiple   numeric   not null default 0,
   sensitivity_ownerships numeric[] not null default '{0.01,0.02,0.03}',
 
   -- A short ORDERED list, edited as a unit and never filtered or joined on, so jsonb rather

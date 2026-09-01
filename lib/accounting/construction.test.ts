@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  DEFAULT_ASSUMPTIONS, parseAssumptions, projectRemainingFees, constructionModel,
+  DEFAULT_ASSUMPTIONS, parseAssumptions, projectRemainingFees, constructionModel, blankStage,
   type ConstructionAssumptions, type ConstructionActuals,
 } from './construction'
 
@@ -63,12 +63,21 @@ describe('projectRemainingFees', () => {
 })
 
 describe('parseAssumptions', () => {
-  it('fills every default for an absent row and derives the fee clock from vintage', () => {
+  // NO STRATEGY DEFAULTS. An unplanned vehicle states nothing about its own strategy — no stage
+  // mix, no portfolio target, no target multiple, no fee terms. The first version shipped one
+  // firm's parameters here, which read as neutral and would have been silently wrong for anyone
+  // else. The fee CLOCK is still derived from the recorded vintage: that is the fund's own data,
+  // not an assumption about it.
+  it('states nothing about strategy for an absent row, but derives the fee clock from vintage', () => {
     const a = parseAssumptions(null, 2020)
     expect(a.feeStartDate).toBe('2020-01-01')
-    expect(a.targetPortfolioSize).toBe(20)
+    expect(a.stages).toEqual([])
+    expect(a.targetPortfolioSize).toBe(0)
+    expect(a.targetFundMultiple).toBe(0)
+    expect(a.feeAnnualRate).toBe(0)
+    expect(a.feeTermYears).toBe(0)
+    // The one survivor: the axis of a what-if table, not a claim about this fund.
     expect(a.sensitivityOwnerships).toEqual([0.01, 0.02, 0.03])
-    expect(a.stages).toHaveLength(3)
   })
 
   it('leaves the fee clock empty when there is no vintage either', () => {
@@ -219,7 +228,7 @@ describe('constructionModel — returns', () => {
   })
 
   it('bands the sensitivity across the given ownerships plus the weighted average', () => {
-    const m = constructionModel(ACT(), A({ ...RUN_OUT, stages: MIX, targetFundMultiple: 5, sensitivityOwnerships: [0.01, 0.02, 0.03] }), NOW)
+    const m = constructionModel(ACT(), A({ ...RUN_OUT, stages: MIX, targetFundMultiple: 5, targetPortfolioSize: 20, sensitivityOwnerships: [0.01, 0.02, 0.03] }), NOW)
     expect(m.returns.sensitivity).toHaveLength(4)   // three stated + the weighted average
     expect(m.returns.sensitivity[3].isWeightedAverage).toBe(true)
     const onePct = m.returns.sensitivity[0]
@@ -260,5 +269,60 @@ describe('Fund III, against the source workbook', () => {
     expect(m.returns.wAvgOwnershipAtExit).toBeCloseTo(0.0134, 4)     // workbook G71 / F62
     expect(m.returns.exitToReturnFund).toBeCloseTo(1_377_992_745, -4) // workbook F64
     expect(m.returns.sensitivity[0].exitToReturnFund).toBeCloseTo(1_850_000_000, 0) // workbook B64
+  })
+})
+
+// An unconfigured vehicle must read as unanswered, not as a fund in trouble. Shouting at someone
+// who has not filled the form in yet trains them to ignore the warnings that matter.
+describe('an unplanned vehicle', () => {
+  const BLANK = () => constructionModel(ACT(), parseAssumptions(null, null), NOW)
+
+  it('reports no deal count rather than a negative one', () => {
+    // targetPortfolioSize 0 − 18 companies would be −18, which is not a fact about anything.
+    expect(BLANK().capital.plannedNewDeals).toBeNull()
+    expect(BLANK().capital.avgPerRemainingDeal).toBeNull()
+  })
+
+  it('reports no gap rather than claiming the whole fund is unspent', () => {
+    expect(BLANK().capital.gap).toBeNull()
+  })
+
+  it('reports no required portfolio value rather than zero', () => {
+    const m = BLANK()
+    expect(m.returns.requiredPortfolioValue).toBeNull()
+    expect(m.returns.impliedMultipleOnInvested).toBeNull()
+    expect(m.returns.avgExitForTargetReturn).toBeNull()
+    expect(m.returns.sensitivity.every(row => row.avgExitForTargetReturn === null)).toBe(true)
+  })
+
+  it('raises no stage-mix warnings at all', () => {
+    expect(BLANK().warnings).toEqual([])
+  })
+
+  it('still reports what IS known — capital committed, deployed and investable', () => {
+    const m = BLANK()
+    expect(m.capital.committedCapital).toBe(18_500_000)
+    expect(m.capital.deployedTotal).toBe(9_500_000)
+    expect(m.capital.companyCount).toBe(18)
+    // No fee terms stated, so nothing is projected — only what the ledger actually incurred.
+    expect(m.capital.feesProjected).toBe(0)
+    expect(m.capital.investable).toBeCloseTo(14_036_660, 2)
+  })
+})
+
+describe('blankStage', () => {
+  it('is empty apart from its label, and survives parseAssumptions only once priced', () => {
+    const s = blankStage('Seed')
+    expect(s.label).toBe('Seed')
+    expect(s.deals).toBe(0)
+    expect(s.initialCheck).toBe(0)
+    // A zero post-money would divide to Infinity, so an unpriced row is dropped on the way in —
+    // the page keeps it in local state until the GP fills it, and only then does it persist.
+    expect(parseAssumptions({ stages: [s] }, null).stages).toEqual([])
+    expect(parseAssumptions({ stages: [{ ...s, initialPostMoney: 10_000_000 }] }, null).stages).toHaveLength(1)
+  })
+
+  it('gives each row a distinct key, so React keys and edits do not collide', () => {
+    expect(blankStage().key).not.toBe(blankStage().key)
   })
 })
