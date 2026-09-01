@@ -211,19 +211,19 @@ export function FundDetailView({ vehicle, vehicleId }: { vehicle: string; vehicl
       {/* Investment breakdown — from the schedule of investments (tracker rows). Hidden entirely
           when the vehicle tracks no per-company detail, rather than showing an empty placeholder. */}
       {soi && soi.source === 'tracker' && (soi.rows.length > 0 || (soi.realizedRows?.length ?? 0) > 0) && (
-        <div className="grid gap-4 lg:grid-cols-2">
-          <BreakdownChart title="By industry" groups={soi.byIndustry} fmt={fmt} fmtFull={fmtFull} />
-          <BreakdownChart
-            title={soi.byAssetType.length > 1 ? 'By asset type' : 'By geography'}
-            groups={soi.byAssetType.length > 1 ? soi.byAssetType : soi.byGeography}
-            fmt={fmt}
-            fmtFull={fmtFull}
-          />
-          <div className="lg:col-span-2">
-            {/* Realized companies are NOT on the schedule (ASC 946 reports holdings), but this
-                chart ranks on invested capital and proceeds inception-to-date — where an exited
-                company is exactly the row you most want to see. */}
-            <TopHoldings rows={[...soi.rows, ...(soi.realizedRows ?? [])]} fmt={fmt} fmtFull={fmtFull} />
+        <div className="space-y-4">
+          {/* Realized companies are NOT on the schedule (ASC 946 reports holdings), but this
+              chart ranks on invested capital and proceeds inception-to-date — where an exited
+              company is exactly the row you most want to see. */}
+          <TopHoldings rows={[...soi.rows, ...(soi.realizedRows ?? [])]} fmt={fmt} fmtFull={fmtFull} />
+          <div className="grid gap-4 lg:grid-cols-2">
+            <BreakdownChart title="By industry" groups={soi.byIndustry} fmt={fmt} fmtFull={fmtFull} />
+            <BreakdownChart
+              title={soi.byAssetType.length > 1 ? 'By asset type' : 'By geography'}
+              groups={soi.byAssetType.length > 1 ? soi.byAssetType : soi.byGeography}
+              fmt={fmt}
+              fmtFull={fmtFull}
+            />
           </div>
         </div>
       )}
@@ -595,12 +595,13 @@ function BreakdownChart({
   )
 }
 
-// ── Largest holdings — horizontal bars, with a toggle for the value dimension ──
+// ── Portfolio — horizontal bars, with toggles for the metric and bar scale ────────
 
 // At the holding (deal) level, realized cash is PROCEEDS. "Distributions" is a net/LP concept that
 // only appears under the net-metrics toggle — and an LP-tracking vehicle has no net metrics at all —
 // so this gross, per-company chart always says proceeds.
 type HoldingMetric = 'total' | 'invested' | 'residual' | 'proceeds'
+type HoldingBarMode = 'value' | 'share'
 
 const HOLDING_METRICS: { key: HoldingMetric; label: string }[] = [
   { key: 'total', label: 'Total value' },
@@ -665,6 +666,7 @@ function TopHoldings({
   rows, fmt, fmtFull,
 }: { rows: SoiRow[]; fmt: (v: number) => string; fmtFull: (v: number) => string }) {
   const [metric, setMetric] = useState<HoldingMetric>('total')
+  const [barMode, setBarMode] = useState<HoldingBarMode>('value')
 
   // "Largest holdings by X": rank every company on the selected metric, largest first. No cap —
   // the whole portfolio is shown.
@@ -679,16 +681,33 @@ function TopHoldings({
   if (ranked.length === 0) return null
 
   const toggle = (
-    <div className="inline-flex rounded-md border p-0.5 text-xs">
-      {HOLDING_METRICS.map(mo => (
-        <button
-          key={mo.key}
-          onClick={() => setMetric(mo.key)}
-          className={`px-2 py-1 rounded ${metric === mo.key ? 'bg-muted font-medium' : 'text-muted-foreground'}`}
-        >
-          {mo.label}
-        </button>
-      ))}
+    <div className="flex flex-wrap items-center justify-end gap-2">
+      <div className="inline-flex rounded-md border p-0.5 text-xs" role="group" aria-label="Holding metric">
+        {HOLDING_METRICS.map(mo => (
+          <button
+            type="button"
+            key={mo.key}
+            aria-pressed={metric === mo.key}
+            onClick={() => setMetric(mo.key)}
+            className={`px-2 py-1 rounded ${metric === mo.key ? 'bg-muted font-medium' : 'text-muted-foreground'}`}
+          >
+            {mo.label}
+          </button>
+        ))}
+      </div>
+      <div className="inline-flex rounded-md border p-0.5 text-xs" role="group" aria-label="Bar scale">
+        {(['value', 'share'] as const).map(mode => (
+          <button
+            type="button"
+            key={mode}
+            aria-pressed={barMode === mode}
+            onClick={() => setBarMode(mode)}
+            className={`px-2 py-1 rounded capitalize ${barMode === mode ? 'bg-muted font-medium' : 'text-muted-foreground'}`}
+          >
+            {mode}
+          </button>
+        ))}
+      </div>
     </div>
   )
 
@@ -714,7 +733,7 @@ function TopHoldings({
           : []
 
   return (
-    <ChartCard title="Largest holdings" action={toggle}>
+    <ChartCard title="Portfolio" action={toggle}>
       {legendItems.length > 0 && (
         <div className="mb-3 flex items-center gap-4 text-xs text-muted-foreground">
           {legendItems.map(item => (
@@ -724,6 +743,12 @@ function TopHoldings({
           ))}
         </div>
       )}
+      <div className="mb-1 flex items-center gap-3 text-[10px] font-medium uppercase tracking-wide text-muted-foreground/70">
+        <div className="w-40 shrink-0" />
+        <div className="flex-1 min-w-0" />
+        <div className="w-24 shrink-0 text-right">Total</div>
+        <div className="w-12 shrink-0 text-right">Share</div>
+      </div>
       <div className="space-y-2">
         {ranked.map(h => (
           <div key={h.name} className="flex items-center gap-3 text-sm">
@@ -736,7 +761,16 @@ function TopHoldings({
             <div className="flex-1 min-w-0">
               <div className="h-4 rounded-sm bg-muted/50 overflow-hidden flex">
                 {holdingSegments(h, metric).map(seg => (
-                  <div key={seg.label} className="h-full" style={{ width: max && seg.value > 0 ? `${(seg.value / max) * 100}%` : '0%', background: seg.color }} />
+                  <div
+                    key={seg.label}
+                    className="h-full"
+                    style={{
+                      width: (barMode === 'value' ? max : fundTotal) && seg.value > 0
+                        ? `${(seg.value / (barMode === 'value' ? max : fundTotal)) * 100}%`
+                        : '0%',
+                      background: seg.color,
+                    }}
+                  />
                 ))}
               </div>
             </div>

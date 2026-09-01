@@ -44,7 +44,11 @@ export interface ConstructionStage {
   ownershipAtExit?: number
   /** Expected company exit value. Zero means the exit has not been forecast yet. */
   expectedExitValue?: number
+  /** Direct return multiple used when the fund forecasts every company by MOIC. */
+  forecastMoic?: number
 }
+
+export type ReturnForecastMethod = 'ownership' | 'moic'
 
 /** Forward-looking assumptions layered onto one company the fund already owns. */
 export interface ConstructionPositionForecast {
@@ -55,6 +59,8 @@ export interface ConstructionPositionForecast {
   ownershipAtExit: number
   /** Expected company exit value. */
   expectedExitValue: number
+  /** Direct return multiple used when the fund forecasts every company by MOIC. */
+  forecastMoic?: number
 }
 
 export interface ConstructionAssumptions {
@@ -68,8 +74,9 @@ export interface ConstructionAssumptions {
   annualPartnershipExpense: number
   remainingOrgCosts: number
   targetPortfolioSize: number
-  existingReservePool: number
   targetFundMultiple: number
+  /** One method applies to every existing and planned portfolio company. */
+  returnForecastMethod: ReturnForecastMethod
   stages: ConstructionStage[]
   positionForecasts: ConstructionPositionForecast[]
 }
@@ -95,6 +102,10 @@ export interface ConstructionPositionActual {
 export interface ConstructionActuals {
   /** From the commitment events or lp_positions — does NOT require fund accounting. */
   committedCapital: number
+  /** From capital accounts. Optional for backwards-compatible pure-model callers. */
+  calledCapital?: number
+  /** From capital accounts. Optional for backwards-compatible pure-model callers. */
+  uncalledCapital?: number
   /**
    * Ledger-only, all three. On an LP-tracking vehicle they come back as 0, which would overstate
    * investable capital — so `ledgerAvailable` says so, and the model warns rather than implying
@@ -138,8 +149,8 @@ export const DEFAULT_ASSUMPTIONS: ConstructionAssumptions = {
   annualPartnershipExpense: 0,
   remainingOrgCosts: 0,
   targetPortfolioSize: 0,
-  existingReservePool: 0,
   targetFundMultiple: 0,
+  returnForecastMethod: 'ownership',
   stages: [],
   positionForecasts: [],
 }
@@ -156,6 +167,7 @@ export function blankStage(label = ''): ConstructionStage {
     dilutionFactor: 0,
     ownershipAtExit: 0,
     expectedExitValue: 0,
+    forecastMoic: 0,
   }
 }
 
@@ -207,6 +219,7 @@ export function parseAssumptions(raw: unknown, vintageYear: number | null): Cons
             dilutionFactor: s.dilutionFactor as number,
             ownershipAtExit: Number.isFinite(s.ownershipAtExit) ? Math.max(0, s.ownershipAtExit as number) : undefined,
             expectedExitValue: num(s.expectedExitValue, 0),
+            forecastMoic: Math.max(0, num(s.forecastMoic, 0)),
           }))
         })
     : []
@@ -220,6 +233,7 @@ export function parseAssumptions(raw: unknown, vintageYear: number | null): Cons
       plannedFollowOn: Math.max(0, num(f.plannedFollowOn, 0)),
       ownershipAtExit: Math.max(0, num(f.ownershipAtExit, 0)),
       expectedExitValue: Math.max(0, num(f.expectedExitValue, 0)),
+      forecastMoic: Math.max(0, num(f.forecastMoic, 0)),
     }))
 
   return {
@@ -238,8 +252,8 @@ export function parseAssumptions(raw: unknown, vintageYear: number | null): Cons
     annualPartnershipExpense: num(o.annualPartnershipExpense, 0),
     remainingOrgCosts: num(o.remainingOrgCosts, 0),
     targetPortfolioSize: num(o.targetPortfolioSize, DEFAULT_ASSUMPTIONS.targetPortfolioSize),
-    existingReservePool: num(o.existingReservePool, 0),
     targetFundMultiple: num(o.targetFundMultiple, DEFAULT_ASSUMPTIONS.targetFundMultiple),
+    returnForecastMethod: o.returnForecastMethod === 'moic' ? 'moic' : 'ownership',
     stages,
     positionForecasts,
   }
@@ -306,6 +320,8 @@ export function projectRemainingFees(
 
 export interface CapitalBlock {
   committedCapital: number
+  calledCapital: number
+  uncalledCapital: number
   feesIncurred: number
   feesProjected: number
   lifetimeFees: number
@@ -314,6 +330,9 @@ export interface CapitalBlock {
   expensesIncurred: number
   expensesProjected: number
   lifetimeExpenses: number
+  incurredExpenses: number
+  projectedExpenses: number
+  totalExpenses: number
   investable: number
   /** Whether the incurred figures came from a ledger at all. */
   ledgerAvailable: boolean
@@ -321,7 +340,6 @@ export interface CapitalBlock {
   deployedInitial: number
   deployedFollowOn: number
   deployedTotal: number
-  existingReservePool: number
   remaining: number
 
   companyCount: number
@@ -367,7 +385,7 @@ export interface StageReturn extends ConstructionStage {
 export interface PositionReturn {
   actual: ConstructionPositionActual
   forecast: ConstructionPositionForecast
-  /** Active-company mark, or realized gross proceeds for an exited company. */
+  /** Residual value. Zero for a fully exited company. */
   currentValue: number
   /** Current total value / invested, using realized proceeds for an exited company. */
   currentMoic: number | null
@@ -383,6 +401,8 @@ export interface SensitivityRow {
   /** Null until a target multiple and portfolio size are both stated. */
   avgExitForTargetReturn: number | null
   exitToReturnFund: number
+  /** Forecasted net fund MOIC if the portfolio exits at this average ownership. */
+  netMoic: number | null
   /** The row derived from the portfolio plan rather than stated. */
   isWeightedAverage: boolean
 }
@@ -408,7 +428,11 @@ export interface ReturnsBlock {
   estimatedExistingValue: number
   estimatedFutureValue: number
   estimatedPortfolioValue: number
+  /** Realized proceeds plus all active-company and planned-deal forecast proceeds. */
+  forecastedTotalValue: number
   estimatedGrossMoic: number | null
+  /** Forecasted total value divided by committed capital. */
+  estimatedNetMoic: number | null
   /** Estimated portfolio value less the return target. */
   targetGap: number | null
 }
@@ -449,9 +473,12 @@ export function constructionModel(
   const lifetimeExpenses = r(
     actuals.orgCostsIncurred + orgCostsProjected + actuals.partnershipExpensesIncurred + expensesProjected,
   )
+  const incurredExpenses = r(actuals.managementFeesIncurred + actuals.orgCostsIncurred + actuals.partnershipExpensesIncurred)
+  const projectedExpenses = r(feesProjected + orgCostsProjected + expensesProjected)
+  const totalExpenses = r(incurredExpenses + projectedExpenses)
 
-  const investable = r(actuals.committedCapital - lifetimeFees - lifetimeExpenses)
-  const remaining = r(investable - deployedTotal - a.existingReservePool)
+  const investable = r(actuals.committedCapital - totalExpenses)
+  const remaining = r(investable - deployedTotal)
 
   // Nothing is assumed about the plan until the GP states it. A target of 0 is "not answered
   // yet", not "a portfolio of nothing" — so it yields null rather than a negative deal count.
@@ -497,9 +524,12 @@ export function constructionModel(
     const plannedInitial = r(st.initialCheck)
     const plannedFollowOn = r(st.followOnCheck ?? st.initialCheck * st.followOnMultiple)
     const allocation = r(plannedInitial + plannedFollowOn)
-    const estimatedReturn = (st.expectedExitValue ?? 0) > 0 && ownershipAtExit > 0
-      ? r((st.expectedExitValue ?? 0) * ownershipAtExit)
-      : null
+    const forecastMoic = Math.max(0, st.forecastMoic ?? 0)
+    const estimatedReturn = a.returnForecastMethod === 'moic'
+      ? forecastMoic > 0 && allocation > 0 ? r(allocation * forecastMoic) : null
+      : (st.expectedExitValue ?? 0) > 0 && ownershipAtExit > 0
+        ? r((st.expectedExitValue ?? 0) * ownershipAtExit)
+        : null
     return {
       ...st,
       initialOwnership,
@@ -508,10 +538,13 @@ export function constructionModel(
       allocation,
       plannedInitial,
       plannedFollowOn,
+      forecastMoic,
       currentValue: allocation,
       currentMoic: allocation > 0 ? 1 : null,
       estimatedReturn,
-      estimatedMoic: estimatedReturn != null && allocation > 0 ? estimatedReturn / allocation : null,
+      estimatedMoic: estimatedReturn != null && allocation > 0
+        ? a.returnForecastMethod === 'moic' ? forecastMoic : estimatedReturn / allocation
+        : null,
     }
   })
 
@@ -522,27 +555,34 @@ export function constructionModel(
       plannedFollowOn: 0,
       ownershipAtExit: actual.currentOwnership ?? 0,
       expectedExitValue: 0,
+      forecastMoic: 0,
     }
     const isExited = actual.status === 'exited'
     const forecast = isExited
-      ? { companyId: actual.companyId, plannedFollowOn: 0, ownershipAtExit: 0, expectedExitValue: 0 }
+      ? { companyId: actual.companyId, plannedFollowOn: 0, ownershipAtExit: 0, expectedExitValue: 0, forecastMoic: 0 }
       : storedForecast
-    const isForecasted = !isExited && forecast.ownershipAtExit > 0 && forecast.expectedExitValue > 0
-    const currentValue = r(isExited ? actual.distributions : actual.currentValue)
+    const isForecasted = !isExited && (a.returnForecastMethod === 'moic'
+      ? (forecast.forecastMoic ?? 0) > 0
+      : forecast.ownershipAtExit > 0 && forecast.expectedExitValue > 0)
+    const currentValue = r(isExited ? 0 : actual.currentValue)
     const currentMoic = actual.investedTotal > 0
       ? (isExited ? actual.distributions : currentValue) / actual.investedTotal
       : null
-    const estimatedReturn = isForecasted
-      ? r(forecast.ownershipAtExit * forecast.expectedExitValue)
-      : null
     const invested = actual.investedTotal + forecast.plannedFollowOn
+    const estimatedReturn = isForecasted
+      ? a.returnForecastMethod === 'moic'
+        ? r(invested * (forecast.forecastMoic ?? 0))
+        : r(forecast.ownershipAtExit * forecast.expectedExitValue)
+      : null
     return {
       actual,
       forecast,
       currentValue,
       currentMoic,
       estimatedReturn,
-      estimatedMoic: estimatedReturn != null && invested > 0 ? estimatedReturn / invested : null,
+      estimatedMoic: estimatedReturn != null && invested > 0
+        ? a.returnForecastMethod === 'moic' ? forecast.forecastMoic ?? 0 : estimatedReturn / invested
+        : null,
       exitToReturnFund: !isExited && forecast.ownershipAtExit > 0
         ? r(actuals.committedCapital / forecast.ownershipAtExit)
         : null,
@@ -567,6 +607,8 @@ export function constructionModel(
   const estimatedExistingValue = r(positionReturns.reduce((s, p) => s + (p.estimatedReturn ?? 0), 0))
   const estimatedFutureValue = r(stageReturns.reduce((s, st) => s + (st.estimatedReturn ?? 0), 0))
   const estimatedPortfolioValue = r(estimatedExistingValue + estimatedFutureValue)
+  const realizedPortfolioValue = r(positionReturns.reduce((s, p) => s + p.actual.distributions, 0))
+  const forecastedTotalValue = r(realizedPortfolioValue + estimatedPortfolioValue)
   const projectedInvested = r(deployedTotal + plannedCost)
 
   const exitFor = (ownership: number): SensitivityRow => ({
@@ -577,6 +619,13 @@ export function constructionModel(
       : null,
     // What ONE company must exit at for the fund's stake in it to return the whole fund.
     exitToReturnFund: r(actuals.committedCapital / ownership),
+    // Hold company exit values constant and move the plan's average ownership to this scenario.
+    // Realized proceeds do not scale: they have already happened.
+    netMoic: actuals.committedCapital > 0 && wAvgOwnershipAtExit && wAvgOwnershipAtExit > 0
+      ? a.returnForecastMethod === 'ownership'
+        ? (realizedPortfolioValue + estimatedPortfolioValue * ownership / wAvgOwnershipAtExit) / actuals.committedCapital
+        : forecastedTotalValue / actuals.committedCapital
+      : null,
     isWeightedAverage: false,
   })
 
@@ -612,13 +661,17 @@ export function constructionModel(
     estimatedExistingValue,
     estimatedFutureValue,
     estimatedPortfolioValue,
-    estimatedGrossMoic: projectedInvested > 0 ? estimatedPortfolioValue / projectedInvested : null,
-    targetGap: requiredPortfolioValue == null ? null : r(estimatedPortfolioValue - requiredPortfolioValue),
+    forecastedTotalValue,
+    estimatedGrossMoic: projectedInvested > 0 ? forecastedTotalValue / projectedInvested : null,
+    estimatedNetMoic: actuals.committedCapital > 0 ? forecastedTotalValue / actuals.committedCapital : null,
+    targetGap: requiredPortfolioValue == null ? null : r(forecastedTotalValue - requiredPortfolioValue),
   }
 
   return {
     capital: {
       committedCapital: r(actuals.committedCapital),
+      calledCapital: r(actuals.calledCapital ?? 0),
+      uncalledCapital: r(actuals.uncalledCapital ?? Math.max(0, actuals.committedCapital - (actuals.calledCapital ?? 0))),
       feesIncurred: r(actuals.managementFeesIncurred),
       feesProjected,
       lifetimeFees,
@@ -627,12 +680,14 @@ export function constructionModel(
       expensesIncurred: r(actuals.partnershipExpensesIncurred),
       expensesProjected,
       lifetimeExpenses,
+      incurredExpenses,
+      projectedExpenses,
+      totalExpenses,
       investable,
       ledgerAvailable: actuals.ledgerAvailable,
       deployedInitial: r(actuals.deployedInitial),
       deployedFollowOn: r(actuals.deployedFollowOn),
       deployedTotal,
-      existingReservePool: r(a.existingReservePool),
       remaining,
       companyCount: actuals.companyCount,
       plannedNewDeals,

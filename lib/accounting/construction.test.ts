@@ -118,6 +118,21 @@ describe('parseAssumptions', () => {
   it('rejects a fee basis outside the CHECK constraint', () => {
     expect(parseAssumptions({ feeBasis: 'moon' }, 2020).feeBasis).toBe('committed')
   })
+
+  it('validates the global return method and keeps direct MOIC forecasts', () => {
+    const parsed = parseAssumptions({
+      returnForecastMethod: 'moic',
+      positionForecasts: [{ companyId: 'company-1', forecastMoic: 3.5 }],
+      stages: [{
+        key: 'seed', label: 'Seed', initialCheck: 500_000, initialPostMoney: 10_000_000,
+        followOnMultiple: 0, dilutionFactor: 0, forecastMoic: 4,
+      }],
+    }, null)
+    expect(parsed.returnForecastMethod).toBe('moic')
+    expect(parsed.positionForecasts[0].forecastMoic).toBe(3.5)
+    expect(parsed.stages[0].forecastMoic).toBe(4)
+    expect(parseAssumptions({ returnForecastMethod: 'invalid' }, null).returnForecastMethod).toBe('ownership')
+  })
 })
 
 // Fund III, as the workbook states it. The fee term is deliberately RUN OUT (start 2010,
@@ -130,6 +145,8 @@ const RUN_OUT = { feeStartDate: '2010-01-01', feeTermYears: 10 } as const
 
 const ACT = (over: Partial<ConstructionActuals> = {}): ConstructionActuals => ({
   committedCapital: 18_500_000,
+  calledCapital: 12_000_000,
+  uncalledCapital: 6_500_000,
   managementFeesIncurred: 3_745_945,     // workbook B53
   orgCostsIncurred: 49_241,              // workbook B51
   partnershipExpensesIncurred: 668_154,  // workbook B52
@@ -149,6 +166,11 @@ describe('constructionModel — capital', () => {
     expect(m.capital.lifetimeFees).toBeCloseTo(3_745_945, 2)
     expect(m.capital.lifetimeExpenses).toBeCloseTo(717_395, 2)
     expect(m.capital.investable).toBeCloseTo(14_036_660, 2)  // workbook B54
+    expect(m.capital.calledCapital).toBe(12_000_000)
+    expect(m.capital.uncalledCapital).toBe(6_500_000)
+    expect(m.capital.incurredExpenses).toBe(4_463_340)
+    expect(m.capital.projectedExpenses).toBe(0)
+    expect(m.capital.totalExpenses).toBe(4_463_340)
   })
 
   it('adds projected fees to incurred ones when the term is still running', () => {
@@ -172,10 +194,10 @@ describe('constructionModel — capital', () => {
     )
   })
 
-  it('remaining is investable less deployed less the reserve pool', () => {
-    const m = constructionModel(ACT(), A({ ...RUN_OUT, existingReservePool: 1_500_000 }), NOW)
-    // 14,036,660 − 9,500,000 − 1,500,000
-    expect(m.capital.remaining).toBeCloseTo(3_036_660, 2)
+  it('remaining is investable less deployed capital', () => {
+    const m = constructionModel(ACT(), A(RUN_OUT), NOW)
+    // 14,036,660 − 9,500,000
+    expect(m.capital.remaining).toBeCloseTo(4_536_660, 2)
     expect(m.capital.deployedTotal).toBe(9_500_000)
   })
 
@@ -186,11 +208,11 @@ describe('constructionModel — capital', () => {
   })
 
   it('costs the stage mix and reports the gap', () => {
-    // 2 seed deals × 500k × (1 + 1.0 follow-on) = 2M planned against 3,036,660 remaining.
+    // 2 seed deals × 500k × (1 + 1.0 follow-on) = 2M planned against 4,536,660 remaining.
     const stages = dealRows(2, { key: 'seed', label: 'Seed', initialCheck: 500_000, initialPostMoney: 11_000_000, followOnMultiple: 1, dilutionFactor: 0.3 })
-    const m = constructionModel(ACT(), A({ ...RUN_OUT, stages, existingReservePool: 1_500_000, targetPortfolioSize: 20 }), NOW)
+    const m = constructionModel(ACT(), A({ ...RUN_OUT, stages, targetPortfolioSize: 20 }), NOW)
     expect(m.capital.plannedCost).toBe(2_000_000)
-    expect(m.capital.gap).toBeCloseTo(1_036_660, 2)
+    expect(m.capital.gap).toBeCloseTo(2_536_660, 2)
     expect(m.warnings).toEqual([])
   })
 
@@ -325,6 +347,39 @@ describe('inline portfolio forecast', () => {
     expect(m.returns.positions[0].actual.distributions).toBe(300_000)
     expect(m.returns.positions[0].estimatedReturn).toBe(2_000_000)
     expect(m.returns.positions[0].estimatedMoic).toBe(2.5)
+    expect(m.returns.forecastedTotalValue).toBe(2_300_000)
+    expect(m.returns.estimatedNetMoic).toBeCloseTo(2_300_000 / 18_500_000, 8)
+  })
+
+  it('uses direct MOIC for every existing and planned company when selected', () => {
+    const m = constructionModel(ACT({ positions: [position] }), A({
+      ...RUN_OUT,
+      returnForecastMethod: 'moic',
+      positionForecasts: [{ companyId: 'company-1', plannedFollowOn: 200_000, ownershipAtExit: 0.02, expectedExitValue: 100_000_000, forecastMoic: 3 }],
+      stages: [{
+        key: 'seed', label: 'Seed', initialCheck: 500_000, initialPostMoney: 10_000_000,
+        followOnMultiple: 0, followOnCheck: 250_000, dilutionFactor: 0,
+        ownershipAtExit: 0.02, expectedExitValue: 50_000_000, forecastMoic: 4,
+      }],
+    }), NOW)
+    expect(m.returns.positions[0].estimatedReturn).toBe(2_400_000)
+    expect(m.returns.positions[0].estimatedMoic).toBe(3)
+    expect(m.returns.stages[0].estimatedReturn).toBe(3_000_000)
+    expect(m.returns.stages[0].estimatedMoic).toBe(4)
+    expect(m.returns.estimatedPortfolioValue).toBe(5_400_000)
+    expect(m.returns.estimatedNetMoic).toBeCloseTo(5_400_000 / 18_500_000, 8)
+  })
+
+  it('shows net MOIC for each ownership sensitivity scenario', () => {
+    const partiallyRealized = { ...position, distributions: 300_000 }
+    const m = constructionModel(ACT({ positions: [partiallyRealized] }), A({
+      ...RUN_OUT,
+      positionForecasts: [{ companyId: 'company-1', plannedFollowOn: 0, ownershipAtExit: 0.02, expectedExitValue: 100_000_000 }],
+    }), NOW)
+    const base = m.returns.sensitivity.find(row => row.isWeightedAverage)!
+    const upside = m.returns.sensitivity.find(row => row.ownershipAtExit === 0.04)!
+    expect(base.netMoic).toBeCloseTo(2_300_000 / 18_500_000, 8)
+    expect(upside.netMoic).toBeCloseTo(4_300_000 / 18_500_000, 8)
   })
 
   it('keeps direct inline dollar and ownership inputs through validation', () => {
@@ -364,15 +419,17 @@ describe('inline portfolio forecast', () => {
       ...RUN_OUT,
       positionForecasts: [{ companyId: 'company-1', plannedFollowOn: 200_000, ownershipAtExit: 0.02, expectedExitValue: 100_000_000 }],
     }), NOW)
-    expect(m.returns.positions[0].currentValue).toBe(1_200_000)
+    expect(m.returns.positions[0].currentValue).toBe(0)
     expect(m.returns.positions[0].currentMoic).toBe(2)
     expect(m.returns.positions[0].estimatedReturn).toBeNull()
     expect(m.returns.positions[0].estimatedMoic).toBeNull()
     expect(m.returns.positions[0].exitToReturnFund).toBeNull()
     expect(m.returns.positions[0].forecast.plannedFollowOn).toBe(0)
     expect(m.capital.plannedExistingFollowOn).toBe(0)
-    expect(m.returns.currentPortfolioValue).toBe(1_200_000)
+    expect(m.returns.currentPortfolioValue).toBe(0)
     expect(m.returns.estimatedExistingValue).toBe(0)
+    expect(m.returns.forecastedTotalValue).toBe(1_200_000)
+    expect(m.returns.estimatedNetMoic).toBeCloseTo(1_200_000 / 18_500_000, 8)
   })
 })
 

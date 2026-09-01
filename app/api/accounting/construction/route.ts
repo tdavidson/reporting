@@ -98,9 +98,9 @@ async function loadActuals(
       investedInitial: position.investedNew,
       investedFollowOn: position.investedFollowOn,
       investedTotal: position.invested,
-      // An exited position has no residual mark: its current value on construction is the gross
-      // proceeds recorded in its investment details.
-      currentValue: position.status === 'exited' ? position.distributions : position.totalValue,
+      // A fully exited position has no residual value. Its cash is reported separately as
+      // realized proceeds and still participates in realized MOIC and fund return calculations.
+      currentValue: position.status === 'exited' ? 0 : position.totalValue,
       currentMoic: position.moic,
       currentOwnership,
       currentPostMoney,
@@ -113,6 +113,8 @@ async function loadActuals(
     vehicleId: econ?.id ?? null,
     actuals: {
       committedCapital: econ?.fund.committed ?? 0,
+      calledCapital: econ?.fund.paidIn ?? 0,
+      uncalledCapital: econ?.fund.uncalled ?? 0,
       managementFeesIncurred,
       orgCostsIncurred,
       partnershipExpensesIncurred,
@@ -138,9 +140,11 @@ function fromRow(row: Record<string, unknown>) {
     feeStepDownRate: row.fee_step_down_rate == null ? null : Number(row.fee_step_down_rate),
     annualPartnershipExpense: Number(row.annual_partnership_expense),
     remainingOrgCosts: Number(row.remaining_org_costs),
-    targetPortfolioSize: Number(row.target_portfolio_size),
-    existingReservePool: Number(row.existing_reserve_pool),
-    targetFundMultiple: Number(row.target_fund_multiple),
+    // Target-company and target-return controls are retired from the current analysis. Leave the
+    // legacy columns in place for a reversible rollout, but do not let old values drive warnings.
+    targetPortfolioSize: 0,
+    targetFundMultiple: 0,
+    returnForecastMethod: row.return_forecast_method,
     stages: row.stages,
     positionForecasts: row.position_forecasts,
   }
@@ -213,9 +217,12 @@ export async function PUT(req: NextRequest) {
     fee_step_down_rate: a.feeStepDownRate,
     annual_partnership_expense: a.annualPartnershipExpense,
     remaining_org_costs: a.remainingOrgCosts,
-    target_portfolio_size: a.targetPortfolioSize,
-    existing_reserve_pool: a.existingReservePool,
-    target_fund_multiple: a.targetFundMultiple,
+    target_portfolio_size: 0,
+    // Clear the retired buffer on the next save while retaining the legacy column until every
+    // deployed environment has crossed this release.
+    existing_reserve_pool: 0,
+    target_fund_multiple: 0,
+    return_forecast_method: a.returnForecastMethod,
     stages: a.stages,
     position_forecasts: a.positionForecasts,
     updated_at: new Date().toISOString(),
