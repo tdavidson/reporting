@@ -23,17 +23,15 @@ const r = (n: number) => Math.round(n * 100) / 100
 const MS_PER_YEAR = 365.25 * 24 * 60 * 60 * 1000
 
 /**
- * One band of the FORWARD-LOOKING portfolio.
+ * One deal in the FORWARD-LOOKING portfolio.
  *
  * Actuals are not stage-classified: `investment_transactions.round_name` is free text
  * ("Seed", "Pre-Seed Extension", "SAFE") and normalising it is a guess that would silently
- * mis-weight the whole return model. So a stage describes deals not yet done.
+ * mis-weight the whole return model. So a row describes one deal not yet done.
  */
 export interface ConstructionStage {
   key: string
   label: string
-  /** How many NEW deals to do in this band. */
-  deals: number
   initialCheck: number
   initialPostMoney: number
   /** Follow-on dollars per initial dollar. 1 = reserve a second check the size of the first. */
@@ -120,7 +118,7 @@ export interface ConstructionActuals {
 /**
  * NO STRATEGY DEFAULTS.
  *
- * Every field describing what THIS fund intends — the stage mix, how many companies it is
+ * Every field describing what THIS fund intends — the planned deals, how many companies it is
  * building toward, what multiple it is underwriting to, its fee terms — starts empty. The first
  * version of this shipped a pre-seed/seed/post-seed mix at $500k checks into $7M post-money and
  * a 20-company target, which were one firm's parameters lifted from the workbook this model
@@ -148,12 +146,11 @@ export const DEFAULT_ASSUMPTIONS: ConstructionAssumptions = {
   positionForecasts: [],
 }
 
-/** A new, empty stage row for the page's "Add stage" control. Named, and nothing else. */
+/** A new, empty deal row for the page's "Add forecast row" control. Named, and nothing else. */
 export function blankStage(label = ''): ConstructionStage {
   return {
     key: `stage_${Math.random().toString(36).slice(2, 8)}`,
     label,
-    deals: 0,
     initialCheck: 0,
     initialPostMoney: 0,
     followOnMultiple: 0,
@@ -191,23 +188,29 @@ export function parseAssumptions(raw: unknown, vintageYear: number | null): Cons
         .filter(s =>
           typeof s?.key === 'string' &&
           typeof s?.label === 'string' &&
-          Number.isFinite(s?.deals) &&
           Number.isFinite(s?.initialCheck) &&
           Number.isFinite(s?.initialPostMoney) &&
           Number.isFinite(s?.followOnMultiple) &&
           Number.isFinite(s?.dilutionFactor))
-        .map(s => ({
-          key: s.key as string,
-          label: s.label as string,
-          deals: s.deals as number,
-          initialCheck: s.initialCheck as number,
-          initialPostMoney: s.initialPostMoney as number,
-          followOnMultiple: s.followOnMultiple as number,
-          followOnCheck: Number.isFinite(s.followOnCheck) ? Math.max(0, s.followOnCheck as number) : undefined,
-          dilutionFactor: s.dilutionFactor as number,
-          ownershipAtExit: Number.isFinite(s.ownershipAtExit) ? Math.max(0, s.ownershipAtExit as number) : undefined,
-          expectedExitValue: num(s.expectedExitValue, 0),
-        }))
+        // Older versions stored one aggregate row with an editable deal count. Expand it at
+        // the validation boundary so each saved deal keeps its economics while the current
+        // model can consistently treat one entered row as one company.
+        .flatMap(s => {
+          const legacyCount = Number.isFinite(s.deals)
+            ? Math.max(1, Math.floor(s.deals as number))
+            : 1
+          return Array.from({ length: legacyCount }, (_, i) => ({
+            key: i === 0 ? s.key as string : `${s.key}__${i + 1}`,
+            label: s.label as string,
+            initialCheck: s.initialCheck as number,
+            initialPostMoney: s.initialPostMoney as number,
+            followOnMultiple: s.followOnMultiple as number,
+            followOnCheck: Number.isFinite(s.followOnCheck) ? Math.max(0, s.followOnCheck as number) : undefined,
+            dilutionFactor: s.dilutionFactor as number,
+            ownershipAtExit: Number.isFinite(s.ownershipAtExit) ? Math.max(0, s.ownershipAtExit as number) : undefined,
+            expectedExitValue: num(s.expectedExitValue, 0),
+          }))
+        })
     : []
 
   const rawPositionForecasts = Array.isArray(o.positionForecasts) ? o.positionForecasts : []
@@ -314,6 +317,7 @@ export interface CapitalBlock {
   feesProjected: number
   lifetimeFees: number
   orgCostsIncurred: number
+  orgCostsProjected: number
   expensesIncurred: number
   expensesProjected: number
   lifetimeExpenses: number
@@ -330,7 +334,7 @@ export interface CapitalBlock {
   companyCount: number
   /** Null until a target portfolio size is stated — NOT a negative number derived from 0. */
   plannedNewDeals: number | null
-  /** What the stage mix would cost: Σ deals × check × (1 + followOnMultiple). */
+  /** What the deal rows would cost: Σ check + follow-on. */
   plannedCost: number
   /** Follow-on dollars entered against companies already in the portfolio. */
   plannedExistingFollowOn: number
@@ -355,11 +359,14 @@ export interface StageReturn extends ConstructionStage {
   ownershipAtExit: number
   /** The exit valuation at which this stage's ownership alone returns the whole fund. */
   exitToReturnFund: number
-  /** deals × check × (1 + followOnMultiple) — what this band consumes. */
+  /** Initial check plus reserved follow-on — what this deal consumes. */
   allocation: number
   plannedInitial: number
   plannedFollowOn: number
-  /** Expected proceeds from all deals in the row. */
+  /** A planned deal begins at cost until a mark exists. */
+  currentValue: number
+  currentMoic: number | null
+  /** Expected proceeds from this deal. */
   estimatedReturn: number | null
   estimatedMoic: number | null
 }
@@ -379,7 +386,7 @@ export interface SensitivityRow {
   /** Null until a target multiple and portfolio size are both stated. */
   avgExitForTargetReturn: number | null
   exitToReturnFund: number
-  /** The row derived from the stage mix rather than stated. */
+  /** The row derived from the portfolio plan rather than stated. */
   isWeightedAverage: boolean
 }
 
@@ -394,7 +401,7 @@ export interface ReturnsBlock {
    */
   impliedMultipleOnInvested: number | null
   stages: StageReturn[]
-  /** Deal-count-weighted. Null when the mix has no deals — never Infinity. */
+  /** Deal-weighted. Null when the plan has no deals — never Infinity. */
   wAvgOwnershipAtExit: number | null
   avgExitForTargetReturn: number | null
   exitToReturnFund: number | null
@@ -421,8 +428,8 @@ const usd = (n: number) =>
 /**
  * The whole model. `today` is a parameter so a test can pin a date.
  *
- * The warnings are the point of the page, not decoration: a stage mix that costs more than
- * remains, or whose deal counts do not add up to the deals still to do, is a plan that will not
+ * The warnings are the point of the page, not decoration: a portfolio plan that costs more than
+ * remains, or whose entered deals do not add up to the deals still to do, is a plan that will not
  * happen. The spreadsheet this replaces could not tell its author either of those things.
  */
 export function constructionModel(
@@ -440,8 +447,11 @@ export function constructionModel(
 
   // Remaining years of expense run-rate, bounded at 0 — a fund past its term accrues no more.
   const remainingYears = Math.max(0, a.feeTermYears - yearsElapsed(a, today))
-  const expensesProjected = r(a.annualPartnershipExpense * remainingYears + a.remainingOrgCosts)
-  const lifetimeExpenses = r(actuals.orgCostsIncurred + actuals.partnershipExpensesIncurred + expensesProjected)
+  const orgCostsProjected = r(a.remainingOrgCosts)
+  const expensesProjected = r(a.annualPartnershipExpense * remainingYears)
+  const lifetimeExpenses = r(
+    actuals.orgCostsIncurred + orgCostsProjected + actuals.partnershipExpensesIncurred + expensesProjected,
+  )
 
   const investable = r(actuals.committedCapital - lifetimeFees - lifetimeExpenses)
   const remaining = r(investable - deployedTotal - a.existingReservePool)
@@ -453,11 +463,11 @@ export function constructionModel(
   const hasPlan = hasMix || a.positionForecasts.some(f => f.plannedFollowOn > 0)
   const plannedNewDeals = hasTarget ? a.targetPortfolioSize - actuals.companyCount : null
   const plannedExistingFollowOn = r(a.positionForecasts.reduce((s, f) => s + f.plannedFollowOn, 0))
-  const plannedNewCapital = r(a.stages.reduce((s, st) => s + st.deals * st.initialCheck, 0))
-  const plannedNewFollowOn = r(a.stages.reduce((s, st) => s + st.deals * (st.followOnCheck ?? st.initialCheck * st.followOnMultiple), 0))
+  const plannedNewCapital = r(a.stages.reduce((s, st) => s + st.initialCheck, 0))
+  const plannedNewFollowOn = r(a.stages.reduce((s, st) => s + (st.followOnCheck ?? st.initialCheck * st.followOnMultiple), 0))
   const plannedCost = r(plannedExistingFollowOn + plannedNewCapital + plannedNewFollowOn)
   const gap = hasPlan ? r(remaining - plannedCost) : null
-  const stageDeals = a.stages.reduce((s, st) => s + st.deals, 0)
+  const stageDeals = a.stages.length
 
   if (!actuals.ledgerAvailable) {
     warnings.push(
@@ -471,7 +481,7 @@ export function constructionModel(
     warnings.push(`The portfolio plan needs more capital than remains — it is short by ${usd(Math.abs(gap))}.`)
   }
   if (hasMix && plannedNewDeals != null && stageDeals !== plannedNewDeals) {
-    warnings.push(`The stage mix plans ${stageDeals} deals, but ${plannedNewDeals} remain to reach a portfolio of ${a.targetPortfolioSize}.`)
+    warnings.push(`The portfolio plan contains ${stageDeals} deals, but ${plannedNewDeals} remain to reach a portfolio of ${a.targetPortfolioSize}.`)
   }
 
   // ── The return model ────────────────────────────────────────────────────────
@@ -485,11 +495,11 @@ export function constructionModel(
     // ownership is not priced yet, never Infinity.
     const initialOwnership = st.initialPostMoney > 0 ? st.initialCheck / st.initialPostMoney : 0
     const ownershipAtExit = st.ownershipAtExit ?? initialOwnership * st.dilutionFactor
-    const plannedInitial = r(st.deals * st.initialCheck)
-    const plannedFollowOn = r(st.deals * (st.followOnCheck ?? st.initialCheck * st.followOnMultiple))
+    const plannedInitial = r(st.initialCheck)
+    const plannedFollowOn = r(st.followOnCheck ?? st.initialCheck * st.followOnMultiple)
     const allocation = r(plannedInitial + plannedFollowOn)
     const estimatedReturn = (st.expectedExitValue ?? 0) > 0 && ownershipAtExit > 0
-      ? r(st.deals * (st.expectedExitValue ?? 0) * ownershipAtExit)
+      ? r((st.expectedExitValue ?? 0) * ownershipAtExit)
       : null
     return {
       ...st,
@@ -499,6 +509,8 @@ export function constructionModel(
       allocation,
       plannedInitial,
       plannedFollowOn,
+      currentValue: allocation,
+      currentMoic: allocation > 0 ? 1 : null,
       estimatedReturn,
       estimatedMoic: estimatedReturn != null && allocation > 0 ? estimatedReturn / allocation : null,
     }
@@ -530,11 +542,11 @@ export function constructionModel(
   })
 
   const forecastedExisting = positionReturns.filter(p => p.forecast.ownershipAtExit > 0)
-  const totalStageDeals = stageReturns.reduce((s, st) => s + st.deals, 0)
+  const totalStageDeals = stageReturns.length
   const ownershipDealCount = totalStageDeals + forecastedExisting.length
   const wAvgOwnershipAtExit = ownershipDealCount > 0
     ? (
-        stageReturns.reduce((s, st) => s + st.ownershipAtExit * st.deals, 0) +
+        stageReturns.reduce((s, st) => s + st.ownershipAtExit, 0) +
         forecastedExisting.reduce((s, p) => s + p.forecast.ownershipAtExit, 0)
       ) / ownershipDealCount
     : null
@@ -595,6 +607,7 @@ export function constructionModel(
       feesProjected,
       lifetimeFees,
       orgCostsIncurred: r(actuals.orgCostsIncurred),
+      orgCostsProjected,
       expensesIncurred: r(actuals.partnershipExpensesIncurred),
       expensesProjected,
       lifetimeExpenses,

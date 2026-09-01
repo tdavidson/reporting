@@ -44,7 +44,8 @@ create table public.fund_construction_models (
 
   -- A short ORDERED list, edited as a unit and never filtered or joined on, so jsonb rather
   -- than a child table. Shape, validated by parseAssumptions() in lib/accounting/construction.ts:
-  --   [{ key, label, deals, initialCheck, initialPostMoney, followOnMultiple, dilutionFactor }]
+  -- Each object is one planned deal (legacy aggregate rows are expanded by parseAssumptions):
+  --   [{ key, label, initialCheck, initialPostMoney, followOnMultiple, dilutionFactor }]
   stages jsonb not null default '[]'::jsonb,
 
   created_at timestamptz not null default now(),

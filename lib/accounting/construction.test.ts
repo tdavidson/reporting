@@ -13,6 +13,9 @@ const A = (over: Partial<ConstructionAssumptions> = {}): ConstructionAssumptions
   ...over,
 })
 
+const dealRows = (count: number, row: Omit<ConstructionAssumptions['stages'][number], 'key'> & { key?: string }) =>
+  Array.from({ length: count }, (_, i) => ({ ...row, key: `${row.key ?? 'deal'}_${i + 1}` }))
+
 // Elapsed time is measured in 365.25-day years, so a "5 year" gap is 5.002 of them and the fee
 // lands ~760 off a hand-calculated round number. These assert the magnitude to within $5,000
 // rather than pretending the calendar is tidy. The EXACT waterfall is pinned in the capital
@@ -89,7 +92,7 @@ describe('parseAssumptions', () => {
   it('drops a malformed stage rather than producing NaN downstream', () => {
     const a = parseAssumptions({
       stages: [
-        { key: 'seed', label: 'Seed', deals: 10, initialCheck: 500_000, initialPostMoney: 11_000_000, followOnMultiple: 1, dilutionFactor: 0.3 },
+        { key: 'seed', label: 'Seed', initialCheck: 500_000, initialPostMoney: 11_000_000, followOnMultiple: 1, dilutionFactor: 0.3 },
         { key: 'junk' },
       ],
     }, 2020)
@@ -97,9 +100,18 @@ describe('parseAssumptions', () => {
     expect(a.stages[0].key).toBe('seed')
   })
 
+  it('expands legacy aggregate rows into one row per deal', () => {
+    const a = parseAssumptions({
+      stages: [{ key: 'seed', label: 'Seed', deals: 3, initialCheck: 500_000, initialPostMoney: 11_000_000, followOnMultiple: 1, dilutionFactor: 0.3 }],
+    }, 2020)
+    expect(a.stages).toHaveLength(3)
+    expect(a.stages.map(s => s.key)).toEqual(['seed', 'seed__2', 'seed__3'])
+    expect(a.stages.every(s => s.initialCheck === 500_000)).toBe(true)
+  })
+
   it('keeps an incomplete stage through autosave without dividing by zero', () => {
     const a = parseAssumptions({
-      stages: [{ key: 'x', label: 'X', deals: 1, initialCheck: 500_000, initialPostMoney: 0, followOnMultiple: 1, dilutionFactor: 0.3 }],
+      stages: [{ key: 'x', label: 'X', initialCheck: 500_000, initialPostMoney: 0, followOnMultiple: 1, dilutionFactor: 0.3 }],
     }, 2020)
     expect(a.stages).toHaveLength(1)
     expect(constructionModel(ACT(), A({ stages: a.stages }), NOW).returns.stages[0].initialOwnership).toBe(0)
@@ -149,6 +161,19 @@ describe('constructionModel — capital', () => {
     expect(running.capital.investable).toBeLessThan(18_500_000 - 1_895_945 - 717_395)
   })
 
+  it('reports projected organizational costs separately from partnership expenses', () => {
+    const m = constructionModel(ACT(), A({
+      feeStartDate: '2024-01-01', feeTermYears: 3,
+      annualPartnershipExpense: 100_000, remainingOrgCosts: 250_000,
+    }), NOW)
+    expect(m.capital.orgCostsProjected).toBe(250_000)
+    expect(m.capital.expensesProjected).toBeCloseTo(200_000, -3)
+    expect(m.capital.lifetimeExpenses).toBeCloseTo(
+      ACT().orgCostsIncurred + 250_000 + ACT().partnershipExpensesIncurred + m.capital.expensesProjected,
+      2,
+    )
+  })
+
   it('remaining is investable less deployed less the reserve pool', () => {
     const m = constructionModel(ACT(), A({ ...RUN_OUT, existingReservePool: 1_500_000 }), NOW)
     // 14,036,660 − 9,500,000 − 1,500,000
@@ -164,7 +189,7 @@ describe('constructionModel — capital', () => {
 
   it('costs the stage mix and reports the gap', () => {
     // 2 seed deals × 500k × (1 + 1.0 follow-on) = 2M planned against 3,036,660 remaining.
-    const stages = [{ key: 'seed', label: 'Seed', deals: 2, initialCheck: 500_000, initialPostMoney: 11_000_000, followOnMultiple: 1, dilutionFactor: 0.3 }]
+    const stages = dealRows(2, { key: 'seed', label: 'Seed', initialCheck: 500_000, initialPostMoney: 11_000_000, followOnMultiple: 1, dilutionFactor: 0.3 })
     const m = constructionModel(ACT(), A({ ...RUN_OUT, stages, existingReservePool: 1_500_000, targetPortfolioSize: 20 }), NOW)
     expect(m.capital.plannedCost).toBe(2_000_000)
     expect(m.capital.gap).toBeCloseTo(1_036_660, 2)
@@ -172,14 +197,14 @@ describe('constructionModel — capital', () => {
   })
 
   it('warns when the mix costs more than remains', () => {
-    const stages = [{ key: 'seed', label: 'Seed', deals: 2, initialCheck: 2_000_000, initialPostMoney: 11_000_000, followOnMultiple: 1, dilutionFactor: 0.3 }]
+    const stages = dealRows(2, { key: 'seed', label: 'Seed', initialCheck: 2_000_000, initialPostMoney: 11_000_000, followOnMultiple: 1, dilutionFactor: 0.3 })
     const m = constructionModel(ACT(), A({ ...RUN_OUT, stages, targetPortfolioSize: 20 }), NOW)
     expect(m.capital.gap).toBeLessThan(0)
     expect(m.warnings.some(w => w.includes('more capital than remains'))).toBe(true)
   })
 
-  it('warns when the stage deal counts do not add up to the deals still to do', () => {
-    const stages = [{ key: 'seed', label: 'Seed', deals: 7, initialCheck: 100_000, initialPostMoney: 11_000_000, followOnMultiple: 0, dilutionFactor: 0.3 }]
+  it('warns when the entered deals do not add up to the deals still to do', () => {
+    const stages = dealRows(7, { key: 'seed', label: 'Seed', initialCheck: 100_000, initialPostMoney: 11_000_000, followOnMultiple: 0, dilutionFactor: 0.3 })
     const m = constructionModel(ACT(), A({ ...RUN_OUT, stages, targetPortfolioSize: 20 }), NOW)
     expect(m.warnings.some(w => w.includes('7 deals') && w.includes('2'))).toBe(true)
   })
@@ -196,18 +221,18 @@ describe('constructionModel — capital', () => {
 
 describe('constructionModel — returns', () => {
   const MIX = [
-    { key: 'pre_seed', label: 'Pre-seed', deals: 5, initialCheck: 500_000, initialPostMoney: 7_000_000, followOnMultiple: 1, dilutionFactor: 0.3 },
-    { key: 'seed', label: 'Seed', deals: 10, initialCheck: 500_000, initialPostMoney: 11_000_000, followOnMultiple: 1, dilutionFactor: 0.3 },
-    { key: 'post_seed', label: 'Post-seed', deals: 5, initialCheck: 250_000, initialPostMoney: 20_000_000, followOnMultiple: 1, dilutionFactor: 0.4 },
+    ...dealRows(5, { key: 'pre_seed', label: 'Pre-seed', initialCheck: 500_000, initialPostMoney: 7_000_000, followOnMultiple: 1, dilutionFactor: 0.3 }),
+    ...dealRows(10, { key: 'seed', label: 'Seed', initialCheck: 500_000, initialPostMoney: 11_000_000, followOnMultiple: 1, dilutionFactor: 0.3 }),
+    ...dealRows(5, { key: 'post_seed', label: 'Post-seed', initialCheck: 250_000, initialPostMoney: 20_000_000, followOnMultiple: 1, dilutionFactor: 0.4 }),
   ]
 
   it('derives initial and exit ownership per stage', () => {
     const m = constructionModel(ACT(), A({ ...RUN_OUT, stages: MIX }), NOW)
-    const preSeed = m.returns.stages.find(s => s.key === 'pre_seed')!
+    const preSeed = m.returns.stages.find(s => s.key === 'pre_seed_1')!
     expect(preSeed.initialOwnership).toBeCloseTo(0.0714286, 6)   // 500k / 7M
     expect(preSeed.ownershipAtExit).toBeCloseTo(0.0214286, 6)    // × 0.3
     expect(preSeed.exitToReturnFund).toBeCloseTo(863_333_333, -3) // 18.5M / 0.0214286
-    expect(preSeed.allocation).toBe(5_000_000)                    // 5 × 500k × 2
+    expect(preSeed.allocation).toBe(1_000_000)                    // one 500k check + one 500k follow-on
   })
 
   it('weights ownership at exit by deal count', () => {
@@ -259,11 +284,11 @@ describe('inline portfolio forecast', () => {
     const m = constructionModel(ACT({ positions: [position] }), A({
       ...RUN_OUT,
       positionForecasts: [{ companyId: 'company-1', plannedFollowOn: 200_000, ownershipAtExit: 0.02, expectedExitValue: 100_000_000 }],
-      stages: [{
-        key: 'seed', label: 'Seed', deals: 2, initialCheck: 500_000,
+      stages: dealRows(2, {
+        key: 'seed', label: 'Seed', initialCheck: 500_000,
         initialPostMoney: 10_000_000, followOnMultiple: 0, followOnCheck: 250_000,
         dilutionFactor: 0, ownershipAtExit: 0.02, expectedExitValue: 50_000_000,
-      }],
+      }),
     }), NOW)
 
     expect(m.capital.plannedExistingFollowOn).toBe(200_000)
@@ -278,11 +303,11 @@ describe('inline portfolio forecast', () => {
     const m = constructionModel(ACT({ positions: [position], currentValue: 900_000 }), A({
       ...RUN_OUT,
       positionForecasts: [{ companyId: 'company-1', plannedFollowOn: 200_000, ownershipAtExit: 0.02, expectedExitValue: 100_000_000 }],
-      stages: [{
-        key: 'seed', label: 'Seed', deals: 2, initialCheck: 500_000,
+      stages: dealRows(2, {
+        key: 'seed', label: 'Seed', initialCheck: 500_000,
         initialPostMoney: 10_000_000, followOnMultiple: 0, followOnCheck: 250_000,
         dilutionFactor: 0, ownershipAtExit: 0.02, expectedExitValue: 50_000_000,
-      }],
+      }),
     }), NOW)
 
     expect(m.returns.positions[0].estimatedReturn).toBe(2_000_000)
@@ -302,9 +327,23 @@ describe('inline portfolio forecast', () => {
       }],
     }, null)
     expect(parsed.positionForecasts[0].plannedFollowOn).toBe(200_000)
+    expect(parsed.stages).toHaveLength(2)
     expect(parsed.stages[0].followOnCheck).toBe(250_000)
     expect(parsed.stages[0].ownershipAtExit).toBe(0.02)
     expect(parsed.stages[0].expectedExitValue).toBe(50_000_000)
+  })
+
+  it('starts each planned deal at cost and a 1.00x current MOIC', () => {
+    const m = constructionModel(ACT(), A({
+      ...RUN_OUT,
+      stages: [{
+        key: 'seed', label: 'Seed', initialCheck: 500_000,
+        initialPostMoney: 10_000_000, followOnMultiple: 0, followOnCheck: 250_000,
+        dilutionFactor: 0, ownershipAtExit: 0.02, expectedExitValue: 50_000_000,
+      }],
+    }), NOW)
+    expect(m.returns.stages[0].currentValue).toBe(750_000)
+    expect(m.returns.stages[0].currentMoic).toBe(1)
   })
 })
 
@@ -317,9 +356,9 @@ describe('Fund III, against the source workbook', () => {
       A({
         ...RUN_OUT,
         stages: [
-          { key: 'pre_seed', label: 'Pre-seed', deals: 5, initialCheck: 500_000, initialPostMoney: 7_000_000, followOnMultiple: 1, dilutionFactor: 0.3 },
-          { key: 'seed', label: 'Seed', deals: 10, initialCheck: 500_000, initialPostMoney: 11_000_000, followOnMultiple: 1, dilutionFactor: 0.3 },
-          { key: 'post_seed', label: 'Post-seed', deals: 5, initialCheck: 250_000, initialPostMoney: 20_000_000, followOnMultiple: 1, dilutionFactor: 0.4 },
+          ...dealRows(5, { key: 'pre_seed', label: 'Pre-seed', initialCheck: 500_000, initialPostMoney: 7_000_000, followOnMultiple: 1, dilutionFactor: 0.3 }),
+          ...dealRows(10, { key: 'seed', label: 'Seed', initialCheck: 500_000, initialPostMoney: 11_000_000, followOnMultiple: 1, dilutionFactor: 0.3 }),
+          ...dealRows(5, { key: 'post_seed', label: 'Post-seed', initialCheck: 250_000, initialPostMoney: 20_000_000, followOnMultiple: 1, dilutionFactor: 0.4 }),
         ],
         targetFundMultiple: 5,
         targetPortfolioSize: 20,
@@ -376,7 +415,6 @@ describe('blankStage', () => {
   it('is empty apart from its label and survives autosave before it is priced', () => {
     const s = blankStage('Seed')
     expect(s.label).toBe('Seed')
-    expect(s.deals).toBe(0)
     expect(s.initialCheck).toBe(0)
     expect(parseAssumptions({ stages: [s] }, null).stages).toHaveLength(1)
     expect(parseAssumptions({ stages: [{ ...s, initialPostMoney: 10_000_000 }] }, null).stages).toHaveLength(1)
