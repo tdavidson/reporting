@@ -128,7 +128,8 @@ export function ConstructionView({ vehicle, vehicleId }: { vehicle: string; vehi
     setA(prev => {
       const actual = actuals?.positions?.find(p => p.companyId === companyId)
       const current = prev.positionForecasts.find(f => f.companyId === companyId) ?? {
-        companyId, plannedFollowOn: 0, ownershipAtExit: actual?.currentOwnership ?? 0, expectedExitValue: 0, forecastMoic: 0,
+        companyId, plannedFollowOn: 0, ownershipAtExit: actual?.currentOwnership ?? 0,
+        additionalDilution: 0, expectedExitValue: 0, forecastMoic: 0, returnMethod: 'ownership' as const,
       }
       return { ...prev, positionForecasts: [...prev.positionForecasts.filter(f => f.companyId !== companyId), { ...current, ...patch }] }
     })
@@ -157,72 +158,53 @@ export function ConstructionView({ vehicle, vehicleId }: { vehicle: string; vehi
         {model.warnings.map((w, i) => <div key={i} className="flex items-start gap-2 rounded-card border border-warning/40 bg-warning-subtle p-3 text-sm text-warning"><AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />{w}</div>)}
 
         <section className="rounded-card border bg-card shadow-sm dark:shadow-none dark:border">
-          <div className="flex flex-wrap items-start justify-between gap-3 border-b p-4">
+          <div className="border-b p-4">
             <div><h2 className="text-lg font-medium">Portfolio plan</h2><p className="mt-1 text-sm text-muted-foreground">Review every current company, then forecast the investments still to make. All totals update as you edit.</p></div>
-            <div className="inline-flex rounded-md border p-0.5 text-xs" role="group" aria-label="Return forecast method">
-              {([
-                ['ownership', 'Ownership × exit'],
-                ['moic', 'Forecasted MOIC'],
-              ] as const).map(([method, label]) => (
-                <button
-                  type="button"
-                  key={method}
-                  aria-pressed={a.returnForecastMethod === method}
-                  onClick={() => setA({ ...a, returnForecastMethod: method })}
-                  className={cn('rounded px-2 py-1', a.returnForecastMethod === method ? 'bg-muted font-medium' : 'text-muted-foreground')}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[760px] text-sm whitespace-nowrap">
+          <div>
+            <table className="w-full table-fixed text-xs">
               <thead><tr className="border-b bg-muted/50 text-left">
-                <SortTh label="Portfolio company / plan" sortKey="name" sort={sort} onSort={key => setSort(s => nextSort(s, key, 'asc'))} className="sticky left-0 z-10 bg-muted" />
+                <SortTh label="Portfolio company / plan" sortKey="name" sort={sort} onSort={key => setSort(s => nextSort(s, key, 'asc'))} className="w-[28%] bg-muted [white-space:normal]" />
                 {([
                   ['Total invested capital', 'initialCheck'], ['Current value', 'currentValue'],
                   ['Realized proceeds', 'realizedProceeds'], ['Forecasted proceeds', 'forecastReturn'],
                   ['Forecasted gross MOIC', 'forecastMoic'],
-                ] as [string, PortfolioSortKey][]).map(([label, key]) => <SortTh key={key} label={label} sortKey={key} sort={sort} onSort={key => setSort(s => nextSort(s, key))} align="right" className="px-2" />)}
-                <th className="w-28 px-3 py-2 text-right font-medium">Forecast</th>
+                ] as [string, PortfolioSortKey][]).map(([label, key]) => <SortTh key={key} label={label} sortKey={key} sort={sort} onSort={key => setSort(s => nextSort(s, key))} align="right" className="px-2 leading-tight [white-space:normal]" />)}
               </tr></thead>
               <tbody>
                 <Band label={`Existing portfolio companies · ${model.returns.positions.length}`} />
                 {model.returns.positions.length === 0
-                  ? <tr><td colSpan={7} className="px-3 py-6 text-center text-muted-foreground">No portfolio investments are recorded for this vehicle.</td></tr>
+                  ? <tr><td colSpan={6} className="px-3 py-6 text-center text-muted-foreground">No portfolio investments are recorded for this vehicle.</td></tr>
                   : sortedPositions.map(row => {
                     const { actual } = row
                     const isExited = actual.status === 'exited'
                     return <tr key={actual.companyId} className="border-b hover:bg-muted/20">
-                      <td className="sticky left-0 z-[1] bg-card px-3 py-2"><Link href={`/companies/${actual.companyId}`} className="font-medium hover:underline">{actual.name}</Link>{actual.status === 'exited' && <span className="ml-2 rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">Exited</span>}</td>
+                      <td className="px-3 py-2"><div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1"><Link href={`/companies/${actual.companyId}`} className="min-w-0 truncate font-medium hover:underline" title={actual.name}>{actual.name}</Link>{actual.status === 'exited' ? <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">Exited</span> : <Button size="sm" variant="ghost" className="h-6 shrink-0 px-1.5 text-[10px]" onClick={() => setForecastEditor({ kind: 'position', companyId: actual.companyId })}>Edit forecast</Button>}</div></td>
                       <MoneyCell full={fmtFull(actual.investedTotal)}>{fmt(actual.investedTotal)}</MoneyCell>
                       <MoneyCell full={fmtFull(row.currentValue)}>{fmt(row.currentValue)}</MoneyCell>
                       <MoneyCell full={fmtFull(actual.distributions)}>{fmt(actual.distributions)}</MoneyCell>
                       <MoneyCell full={fmtFull(row.estimatedReturn)}>{fmt(row.estimatedReturn)}</MoneyCell>
                       <td className="px-2 py-2.5 text-right tabular-nums">{multiple(row.estimatedMoic)}</td>
-                      <td className="px-3 py-2 text-right">{isExited ? <span className="text-muted-foreground">—</span> : <Button size="sm" variant="outline" onClick={() => setForecastEditor({ kind: 'position', companyId: actual.companyId })}>Edit forecast</Button>}</td>
                     </tr>
                   })}
 
                 <Band label={`Remaining portfolio forecast · ${a.stages.length} deals`} />
                 {sortedStages.map(stage => <tr key={stage.key} className="border-b bg-muted/5 hover:bg-muted/20">
-                    <td className="sticky left-0 z-[1] bg-card px-3 py-2 font-medium">{stage.label || 'New investment'}</td>
+                    <td className="px-3 py-2"><div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1"><span className="min-w-0 truncate font-medium" title={stage.label || 'New investment'}>{stage.label || 'New investment'}</span><Button size="sm" variant="ghost" className="h-6 shrink-0 px-1.5 text-[10px]" onClick={() => setForecastEditor({ kind: 'stage', key: stage.key })}>Edit forecast</Button></div></td>
                     <td className="px-2 py-2.5 text-right text-muted-foreground">—</td>
                     <td className="px-2 py-2.5 text-right text-muted-foreground">—</td>
                     <td className="px-2 py-2.5 text-right text-muted-foreground">—</td>
                     <MoneyCell full={fmtFull(stage.estimatedReturn)}>{fmt(stage.estimatedReturn)}</MoneyCell>
                     <td className="px-2 py-2.5 text-right tabular-nums">{multiple(stage.estimatedMoic)}</td>
-                    <td className="px-3 py-2 text-right"><Button size="sm" variant="outline" onClick={() => setForecastEditor({ kind: 'stage', key: stage.key })}>Edit forecast</Button></td>
                   </tr>)}
               </tbody>
               <tfoot><tr className="bg-muted/40 font-semibold">
-                <td className="sticky left-0 bg-muted px-3 py-2.5">Projected portfolio</td>
+                <td className="bg-muted px-3 py-2.5">Projected portfolio</td>
                 <td className="px-2 py-2.5 text-right tabular-nums">{fmt(model.capital.deployedTotal)}</td>
                 <td className="px-2 py-2.5 text-right tabular-nums">{fmt(model.returns.currentPortfolioValue)}</td>
                 <td className="px-2 py-2.5 text-right tabular-nums">{fmt(model.returns.positions.reduce((sum, row) => sum + row.actual.distributions, 0))}</td>
                 <td className="px-2 py-2.5 text-right tabular-nums">{fmt(model.returns.estimatedPortfolioValue)}</td>
-                <td className="px-2 py-2.5 text-right tabular-nums">{multiple(model.returns.estimatedGrossMoic)}</td><td />
+                <td className="px-2 py-2.5 text-right tabular-nums">{multiple(model.returns.estimatedGrossMoic)}</td>
               </tr></tfoot>
             </table>
           </div>
@@ -300,7 +282,6 @@ export function ConstructionView({ vehicle, vehicleId }: { vehicle: string; vehi
         {(editingPosition || editingStage) && <ForecastEditorDialog
           position={editingPosition}
           stage={editingStage}
-          method={a.returnForecastMethod}
           fmt={fmt}
           multiple={multiple}
           onClose={() => setForecastEditor(null)}
@@ -317,27 +298,51 @@ export function ConstructionView({ vehicle, vehicleId }: { vehicle: string; vehi
   </div>
 }
 
-function Band({ label }: { label: string }) { return <tr className="border-b bg-muted/20"><td colSpan={7} className="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</td></tr> }
+function Band({ label }: { label: string }) { return <tr className="border-b bg-muted/20"><td colSpan={6} className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</td></tr> }
 function ForecastEditorDialog({
-  position, stage, method, fmt, multiple, onClose, onPositionChange, onStageChange, onRemoveStage,
+  position, stage, fmt, multiple, onClose, onPositionChange, onStageChange, onRemoveStage,
 }: {
-  position: PositionReturn | null; stage: StageReturn | null; method: ReturnForecastMethod
+  position: PositionReturn | null; stage: StageReturn | null
   fmt: (v: number | null) => string; multiple: (v: number | null) => string
   onClose: () => void; onPositionChange: (patch: Partial<ConstructionPositionForecast>) => void
   onStageChange: (patch: Partial<ConstructionStage>) => void; onRemoveStage?: () => void
 }) {
   const name = position?.actual.name ?? stage?.label ?? 'Investment forecast'
   const forecast = position?.forecast
+  const method: ReturnForecastMethod = position?.returnMethod ?? stage?.returnMethod ?? 'ownership'
+  const postMoney = position?.actual.currentPostMoney ?? stage?.initialPostMoney ?? null
+  const currentOwnership = position?.actual.currentOwnership ?? stage?.initialOwnership ?? null
+  const additionalDilution = forecast?.additionalDilution ?? stage?.additionalDilution ?? 0
+  const forecastOwnership = forecast?.ownershipAtExit ?? stage?.ownershipAtExit ?? null
+  const exitValue = position?.forecastExitValue ?? stage?.forecastExitValue ?? 0
+  const exitToReturnFund = position?.exitToReturnFund ?? (stage && stage.exitToReturnFund > 0 ? stage.exitToReturnFund : null)
+  const currentMoic = position?.currentMoic ?? stage?.currentMoic ?? null
   const forecastedProceeds = position?.estimatedReturn ?? stage?.estimatedReturn ?? null
   const forecastedMoic = position?.estimatedMoic ?? stage?.estimatedMoic ?? null
+  const setMethod = (next: ReturnForecastMethod) => position
+    ? onPositionChange({ returnMethod: next })
+    : onStageChange({ returnMethod: next })
+  const setAdditionalDilution = (value: number) => position
+    ? onPositionChange({ additionalDilution: Math.min(1, value) })
+    : onStageChange({ additionalDilution: Math.min(1, value) })
   return <Dialog open onOpenChange={open => { if (!open) onClose() }}>
-    <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
+    <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
       <DialogHeader>
         <DialogTitle>{name}</DialogTitle>
         <DialogDescription>Edit this investment and return forecast. Changes save automatically.</DialogDescription>
       </DialogHeader>
 
       {stage && <label className="text-xs text-muted-foreground">Forecast name<Input value={stage.label} onChange={e => onStageChange({ label: e.target.value })} placeholder="Company or plan name" className="mt-1 h-9" /></label>}
+
+      <div className="space-y-3 rounded-md border p-4">
+        <div><h3 className="text-base font-medium">Current position</h3><p className="mt-0.5 text-xs text-muted-foreground">The latest position data used as the starting point for this forecast.</p></div>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <ForecastStat label="Post-money valuation" value={fmt(postMoney)} />
+          <ForecastStat label="Current ownership" value={currentOwnership == null ? '—' : `${(currentOwnership * 100).toFixed(2)}%`} />
+          <ForecastStat label="Current value" value={fmt(position?.currentValue ?? stage?.currentValue ?? null)} />
+          <ForecastStat label="Current MOIC" value={multiple(currentMoic)} />
+        </div>
+      </div>
 
       <div className="space-y-3 rounded-md border p-4">
         <div><h3 className="text-base font-medium">Investment forecast</h3><p className="mt-0.5 text-xs text-muted-foreground">Capital that is still expected to be invested.</p></div>
@@ -351,14 +356,23 @@ function ForecastEditorDialog({
       </div>
 
       <div className="space-y-3 rounded-md border p-4">
-        <div><h3 className="text-base font-medium">Return forecast</h3><p className="mt-0.5 text-xs text-muted-foreground">{method === 'ownership' ? 'Proceeds are ownership at exit multiplied by company exit value.' : 'Proceeds are forecasted gross MOIC multiplied by invested capital.'}</p></div>
-        {method === 'ownership' ? <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <PercentField label="Ownership at exit" value={forecast?.ownershipAtExit ?? stage?.ownershipAtExit ?? 0} onChange={v => position ? onPositionChange({ ownershipAtExit: v }) : onStageChange({ ownershipAtExit: v })} />
-          <NumberField label="Expected company exit value" value={forecast?.expectedExitValue ?? stage?.expectedExitValue ?? 0} onChange={v => position ? onPositionChange({ expectedExitValue: v }) : onStageChange({ expectedExitValue: v })} />
-        </div> : <NumberField label="Forecasted gross MOIC" value={forecast?.forecastMoic ?? stage?.forecastMoic ?? 0} step="0.1" suffix="x" onChange={v => position ? onPositionChange({ forecastMoic: v }) : onStageChange({ forecastMoic: v })} />}
-        <div className="grid grid-cols-2 gap-3 border-t pt-3">
-          <div><p className="text-xs text-muted-foreground">Forecasted proceeds</p><p className="mt-1 font-semibold tabular-nums">{fmt(forecastedProceeds)}</p></div>
-          <div><p className="text-xs text-muted-foreground">Forecasted gross MOIC</p><p className="mt-1 font-semibold tabular-nums">{multiple(forecastedMoic)}</p></div>
+        <div><h3 className="text-base font-medium">Return forecast</h3><p className="mt-0.5 text-xs text-muted-foreground">Choose how this deal forecasts proceeds. The method applies only to this company.</p></div>
+        <div role="group" aria-label="Forecast proceeds method" className="inline-flex rounded-md border bg-muted/30 p-0.5">
+          <Button type="button" size="sm" variant={method === 'ownership' ? 'secondary' : 'ghost'} className="h-7 text-xs" aria-pressed={method === 'ownership'} onClick={() => setMethod('ownership')}>Ownership × exit</Button>
+          <Button type="button" size="sm" variant={method === 'moic' ? 'secondary' : 'ghost'} className="h-7 text-xs" aria-pressed={method === 'moic'} onClick={() => setMethod('moic')}>Forecasted MOIC</Button>
+        </div>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <PercentField label="Additional dilution" value={additionalDilution} onChange={setAdditionalDilution} />
+          <div className="rounded-md bg-muted/40 px-3 py-2"><p className="text-xs text-muted-foreground">Forecasted ownership</p><p className="mt-1 font-medium tabular-nums">{forecastOwnership == null ? '—' : `${(forecastOwnership * 100).toFixed(2)}%`}</p></div>
+          {method === 'ownership'
+            ? <NumberField label="Exit value" value={exitValue} onChange={v => position ? onPositionChange({ expectedExitValue: v }) : onStageChange({ expectedExitValue: v })} />
+            : <NumberField label="Forecasted gross MOIC" value={forecast?.forecastMoic || stage?.forecastMoic || forecastedMoic || 0} step="0.1" suffix="x" onChange={v => position ? onPositionChange({ forecastMoic: v }) : onStageChange({ forecastMoic: v })} />}
+        </div>
+        <div className="grid grid-cols-2 gap-3 border-t pt-3 sm:grid-cols-4">
+          <ForecastStat label="Forecasted proceeds at exit" value={fmt(forecastedProceeds)} emphasis />
+          <ForecastStat label="Exit value to return fund" value={fmt(exitToReturnFund)} />
+          <ForecastStat label="Current MOIC" value={multiple(currentMoic)} />
+          <ForecastStat label="Forecasted MOIC" value={multiple(forecastedMoic)} emphasis />
         </div>
       </div>
 
@@ -368,6 +382,9 @@ function ForecastEditorDialog({
       </DialogFooter>
     </DialogContent>
   </Dialog>
+}
+function ForecastStat({ label, value, emphasis = false }: { label: string; value: string; emphasis?: boolean }) {
+  return <div className="min-w-0 rounded-md bg-muted/40 px-3 py-2"><p className="text-xs leading-tight text-muted-foreground">{label}</p><p className={cn('mt-1 truncate tabular-nums', emphasis ? 'font-semibold' : 'font-medium')} title={value}>{value}</p></div>
 }
 function CapitalPlanningRow({
   label, value, committed, fmt, fmtFull, emphasis = false, indent = false,

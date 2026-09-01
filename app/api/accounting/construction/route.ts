@@ -144,7 +144,6 @@ function fromRow(row: Record<string, unknown>) {
     // legacy columns in place for a reversible rollout, but do not let old values drive warnings.
     targetPortfolioSize: 0,
     targetFundMultiple: 0,
-    returnForecastMethod: row.return_forecast_method,
     stages: row.stages,
     positionForecasts: row.position_forecasts,
   }
@@ -222,7 +221,6 @@ export async function PUT(req: NextRequest) {
     // deployed environment has crossed this release.
     existing_reserve_pool: 0,
     target_fund_multiple: 0,
-    return_forecast_method: a.returnForecastMethod,
     stages: a.stages,
     position_forecasts: a.positionForecasts,
     updated_at: new Date().toISOString(),

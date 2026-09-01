@@ -42,10 +42,14 @@ export interface ConstructionStage {
   dilutionFactor: number
   /** Direct exit-ownership input; falls back to initial ownership × dilution factor. */
   ownershipAtExit?: number
+  /** Additional dilution from current/entry ownership to exit, expressed as a decimal. */
+  additionalDilution?: number
   /** Expected company exit value. Zero means the exit has not been forecast yet. */
   expectedExitValue?: number
   /** Direct return multiple used when the fund forecasts every company by MOIC. */
   forecastMoic?: number
+  /** How this deal's proceeds are forecast. */
+  returnMethod?: ReturnForecastMethod
 }
 
 export type ReturnForecastMethod = 'ownership' | 'moic'
@@ -57,10 +61,14 @@ export interface ConstructionPositionForecast {
   plannedFollowOn: number
   /** Expected fund ownership at exit, expressed as a decimal (2% = 0.02). */
   ownershipAtExit: number
+  /** Additional dilution from current ownership to exit, expressed as a decimal. */
+  additionalDilution?: number
   /** Expected company exit value. */
   expectedExitValue: number
   /** Direct return multiple used when the fund forecasts every company by MOIC. */
   forecastMoic?: number
+  /** How this deal's proceeds are forecast. */
+  returnMethod?: ReturnForecastMethod
 }
 
 export interface ConstructionAssumptions {
@@ -75,8 +83,6 @@ export interface ConstructionAssumptions {
   remainingOrgCosts: number
   targetPortfolioSize: number
   targetFundMultiple: number
-  /** One method applies to every existing and planned portfolio company. */
-  returnForecastMethod: ReturnForecastMethod
   stages: ConstructionStage[]
   positionForecasts: ConstructionPositionForecast[]
 }
@@ -150,7 +156,6 @@ export const DEFAULT_ASSUMPTIONS: ConstructionAssumptions = {
   remainingOrgCosts: 0,
   targetPortfolioSize: 0,
   targetFundMultiple: 0,
-  returnForecastMethod: 'ownership',
   stages: [],
   positionForecasts: [],
 }
@@ -166,8 +171,10 @@ export function blankStage(label = ''): ConstructionStage {
     followOnCheck: 0,
     dilutionFactor: 0,
     ownershipAtExit: 0,
+    additionalDilution: 0,
     expectedExitValue: 0,
     forecastMoic: 0,
+    returnMethod: 'ownership',
   }
 }
 
@@ -218,8 +225,12 @@ export function parseAssumptions(raw: unknown, vintageYear: number | null): Cons
             followOnCheck: Number.isFinite(s.followOnCheck) ? Math.max(0, s.followOnCheck as number) : undefined,
             dilutionFactor: s.dilutionFactor as number,
             ownershipAtExit: Number.isFinite(s.ownershipAtExit) ? Math.max(0, s.ownershipAtExit as number) : undefined,
+            additionalDilution: Number.isFinite(s.additionalDilution)
+              ? Math.min(1, Math.max(0, s.additionalDilution as number))
+              : undefined,
             expectedExitValue: num(s.expectedExitValue, 0),
             forecastMoic: Math.max(0, num(s.forecastMoic, 0)),
+            returnMethod: s.returnMethod === 'moic' ? 'moic' : 'ownership',
           }))
         })
     : []
@@ -232,8 +243,12 @@ export function parseAssumptions(raw: unknown, vintageYear: number | null): Cons
       companyId: f.companyId as string,
       plannedFollowOn: Math.max(0, num(f.plannedFollowOn, 0)),
       ownershipAtExit: Math.max(0, num(f.ownershipAtExit, 0)),
+      additionalDilution: Number.isFinite(f.additionalDilution)
+        ? Math.min(1, Math.max(0, f.additionalDilution as number))
+        : undefined,
       expectedExitValue: Math.max(0, num(f.expectedExitValue, 0)),
       forecastMoic: Math.max(0, num(f.forecastMoic, 0)),
+      returnMethod: f.returnMethod === 'moic' ? 'moic' : 'ownership',
     }))
 
   return {
@@ -253,7 +268,6 @@ export function parseAssumptions(raw: unknown, vintageYear: number | null): Cons
     remainingOrgCosts: num(o.remainingOrgCosts, 0),
     targetPortfolioSize: num(o.targetPortfolioSize, DEFAULT_ASSUMPTIONS.targetPortfolioSize),
     targetFundMultiple: num(o.targetFundMultiple, DEFAULT_ASSUMPTIONS.targetFundMultiple),
-    returnForecastMethod: o.returnForecastMethod === 'moic' ? 'moic' : 'ownership',
     stages,
     positionForecasts,
   }
@@ -380,6 +394,9 @@ export interface StageReturn extends ConstructionStage {
   /** Expected proceeds from this deal. */
   estimatedReturn: number | null
   estimatedMoic: number | null
+  /** Exit value used by the ownership method, including the automatic at-cost default. */
+  forecastExitValue: number
+  returnMethod: ReturnForecastMethod
 }
 
 export interface PositionReturn {
@@ -392,6 +409,9 @@ export interface PositionReturn {
   /** Future forecast proceeds only; realized proceeds remain separate. */
   estimatedReturn: number | null
   estimatedMoic: number | null
+  /** Exit value used by the ownership method, including the automatic current-value default. */
+  forecastExitValue: number
+  returnMethod: ReturnForecastMethod
   exitToReturnFund: number | null
   isForecasted: boolean
 }
@@ -520,31 +540,47 @@ export function constructionModel(
     // Incomplete rows persist while the user fills them. A zero post-money therefore means the
     // ownership is not priced yet, never Infinity.
     const initialOwnership = st.initialPostMoney > 0 ? st.initialCheck / st.initialPostMoney : 0
-    const ownershipAtExit = st.ownershipAtExit ?? initialOwnership * st.dilutionFactor
     const plannedInitial = r(st.initialCheck)
     const plannedFollowOn = r(st.followOnCheck ?? st.initialCheck * st.followOnMultiple)
     const allocation = r(plannedInitial + plannedFollowOn)
-    const forecastMoic = Math.max(0, st.forecastMoic ?? 0)
-    const estimatedReturn = a.returnForecastMethod === 'moic'
-      ? forecastMoic > 0 && allocation > 0 ? r(allocation * forecastMoic) : null
-      : (st.expectedExitValue ?? 0) > 0 && ownershipAtExit > 0
-        ? r((st.expectedExitValue ?? 0) * ownershipAtExit)
-        : null
+    const legacyOwnership = st.ownershipAtExit ?? initialOwnership * st.dilutionFactor
+    const additionalDilution = st.additionalDilution != null
+      ? Math.min(1, Math.max(0, st.additionalDilution))
+      : initialOwnership > 0 && legacyOwnership > 0
+        ? Math.min(1, Math.max(0, 1 - legacyOwnership / initialOwnership))
+        : 0
+    const ownershipAtExit = initialOwnership > 0
+      ? initialOwnership * (1 - additionalDilution)
+      : legacyOwnership
+    const returnMethod: ReturnForecastMethod = st.returnMethod === 'moic' ? 'moic' : 'ownership'
+    // An untouched planned deal starts at cost: its exit value is the valuation at which the
+    // forecast ownership returns the planned allocation before any additional dilution.
+    const forecastExitValue = (st.expectedExitValue ?? 0) > 0
+      ? st.expectedExitValue ?? 0
+      : initialOwnership > 0 ? allocation / initialOwnership : 0
+    const defaultMoic = allocation > 0 ? 1 : 0
+    const forecastMoic = (st.forecastMoic ?? 0) > 0 ? st.forecastMoic ?? 0 : defaultMoic
+    const estimatedReturn = returnMethod === 'moic'
+      ? allocation > 0 ? r(allocation * forecastMoic) : null
+      : forecastExitValue > 0 && ownershipAtExit > 0
+        ? r(forecastExitValue * ownershipAtExit)
+        : allocation > 0 ? allocation : null
     return {
       ...st,
       initialOwnership,
       ownershipAtExit,
+      additionalDilution,
       exitToReturnFund: ownershipAtExit > 0 ? r(actuals.committedCapital / ownershipAtExit) : 0,
       allocation,
       plannedInitial,
       plannedFollowOn,
       forecastMoic,
+      forecastExitValue,
+      returnMethod,
       currentValue: allocation,
       currentMoic: allocation > 0 ? 1 : null,
       estimatedReturn,
-      estimatedMoic: estimatedReturn != null && allocation > 0
-        ? a.returnForecastMethod === 'moic' ? forecastMoic : estimatedReturn / allocation
-        : null,
+      estimatedMoic: estimatedReturn != null && allocation > 0 ? estimatedReturn / allocation : null,
     }
   })
 
@@ -554,48 +590,69 @@ export function constructionModel(
       companyId: actual.companyId,
       plannedFollowOn: 0,
       ownershipAtExit: actual.currentOwnership ?? 0,
+      additionalDilution: 0,
       expectedExitValue: 0,
       forecastMoic: 0,
+      returnMethod: 'ownership' as const,
     }
     const isExited = actual.status === 'exited'
-    const forecast = isExited
-      ? { companyId: actual.companyId, plannedFollowOn: 0, ownershipAtExit: 0, expectedExitValue: 0, forecastMoic: 0 }
-      : storedForecast
-    const isForecasted = !isExited && (a.returnForecastMethod === 'moic'
-      ? (forecast.forecastMoic ?? 0) > 0
-      : forecast.ownershipAtExit > 0 && forecast.expectedExitValue > 0)
     const currentValue = r(isExited ? 0 : actual.currentValue)
     const currentMoic = actual.investedTotal > 0
       ? (isExited ? actual.distributions : currentValue) / actual.investedTotal
       : null
-    const invested = actual.investedTotal + forecast.plannedFollowOn
-    const estimatedReturn = isForecasted
-      ? a.returnForecastMethod === 'moic'
-        ? r(invested * (forecast.forecastMoic ?? 0))
-        : r(forecast.ownershipAtExit * forecast.expectedExitValue)
-      : null
+    const currentOwnership = actual.currentOwnership ?? 0
+    const legacyOwnership = storedForecast.ownershipAtExit || currentOwnership
+    const additionalDilution = storedForecast.additionalDilution != null
+      ? Math.min(1, Math.max(0, storedForecast.additionalDilution))
+      : currentOwnership > 0 && legacyOwnership > 0
+        ? Math.min(1, Math.max(0, 1 - legacyOwnership / currentOwnership))
+        : 0
+    const forecastOwnership = currentOwnership > 0
+      ? currentOwnership * (1 - additionalDilution)
+      : legacyOwnership
+    const returnMethod: ReturnForecastMethod = storedForecast.returnMethod === 'moic' ? 'moic' : 'ownership'
+    const plannedFollowOn = isExited ? 0 : storedForecast.plannedFollowOn
+    const invested = actual.investedTotal + plannedFollowOn
+    // No input is required for the base case: zero dilution plus the implied current exit value
+    // produces forecast proceeds equal to current value.
+    const forecastExitValue = storedForecast.expectedExitValue > 0
+      ? storedForecast.expectedExitValue
+      : currentOwnership > 0 ? currentValue / currentOwnership : 0
+    const defaultMoic = invested > 0 ? currentValue / invested : 0
+    const forecastMoic = (storedForecast.forecastMoic ?? 0) > 0 ? storedForecast.forecastMoic ?? 0 : defaultMoic
+    const estimatedReturn = isExited
+      ? null
+      : returnMethod === 'moic'
+        ? invested > 0 ? r(invested * forecastMoic) : currentValue
+        : forecastOwnership > 0 && forecastExitValue > 0
+          ? r(forecastOwnership * forecastExitValue)
+          : currentValue
+    const forecast: ConstructionPositionForecast = isExited
+      ? { companyId: actual.companyId, plannedFollowOn: 0, ownershipAtExit: 0, additionalDilution: 0, expectedExitValue: 0, forecastMoic: 0, returnMethod }
+      : { ...storedForecast, plannedFollowOn, ownershipAtExit: forecastOwnership, additionalDilution, forecastMoic, returnMethod }
     return {
       actual,
       forecast,
       currentValue,
       currentMoic,
       estimatedReturn,
-      estimatedMoic: estimatedReturn != null && invested > 0
-        ? a.returnForecastMethod === 'moic' ? forecast.forecastMoic ?? 0 : estimatedReturn / invested
+      estimatedMoic: estimatedReturn != null && invested > 0 ? estimatedReturn / invested : null,
+      forecastExitValue,
+      returnMethod,
+      exitToReturnFund: !isExited && forecastOwnership > 0
+        ? r(actuals.committedCapital / forecastOwnership)
         : null,
-      exitToReturnFund: !isExited && forecast.ownershipAtExit > 0
-        ? r(actuals.committedCapital / forecast.ownershipAtExit)
-        : null,
-      isForecasted,
+      isForecasted: !isExited,
     }
   })
 
-  const forecastedExisting = positionReturns.filter(p => p.forecast.ownershipAtExit > 0)
-  const totalStageDeals = stageReturns.length
+  const forecastedExisting = positionReturns.filter(p => p.returnMethod === 'ownership' && p.forecast.ownershipAtExit > 0)
+  const ownershipStages = stageReturns.filter(st => st.returnMethod === 'ownership')
+  const totalStageDeals = ownershipStages.length
   const ownershipDealCount = totalStageDeals + forecastedExisting.length
   const wAvgOwnershipAtExit = ownershipDealCount > 0
     ? (
-        stageReturns.reduce((s, st) => s + st.ownershipAtExit, 0) +
+        ownershipStages.reduce((s, st) => s + st.ownershipAtExit, 0) +
         forecastedExisting.reduce((s, p) => s + p.forecast.ownershipAtExit, 0)
       ) / ownershipDealCount
     : null
@@ -607,6 +664,11 @@ export function constructionModel(
   const estimatedExistingValue = r(positionReturns.reduce((s, p) => s + (p.estimatedReturn ?? 0), 0))
   const estimatedFutureValue = r(stageReturns.reduce((s, st) => s + (st.estimatedReturn ?? 0), 0))
   const estimatedPortfolioValue = r(estimatedExistingValue + estimatedFutureValue)
+  const ownershipEstimatedValue = r(
+    positionReturns.filter(p => p.returnMethod === 'ownership').reduce((s, p) => s + (p.estimatedReturn ?? 0), 0) +
+    ownershipStages.reduce((s, st) => s + (st.estimatedReturn ?? 0), 0),
+  )
+  const moicEstimatedValue = r(estimatedPortfolioValue - ownershipEstimatedValue)
   const realizedPortfolioValue = r(positionReturns.reduce((s, p) => s + p.actual.distributions, 0))
   const forecastedTotalValue = r(realizedPortfolioValue + estimatedPortfolioValue)
   const projectedInvested = r(deployedTotal + plannedCost)
@@ -622,9 +684,7 @@ export function constructionModel(
     // Hold company exit values constant and move the plan's average ownership to this scenario.
     // Realized proceeds do not scale: they have already happened.
     netMoic: actuals.committedCapital > 0 && wAvgOwnershipAtExit && wAvgOwnershipAtExit > 0
-      ? a.returnForecastMethod === 'ownership'
-        ? (realizedPortfolioValue + estimatedPortfolioValue * ownership / wAvgOwnershipAtExit) / actuals.committedCapital
-        : forecastedTotalValue / actuals.committedCapital
+      ? (realizedPortfolioValue + moicEstimatedValue + ownershipEstimatedValue * ownership / wAvgOwnershipAtExit) / actuals.committedCapital
       : null,
     isWeightedAverage: false,
   })

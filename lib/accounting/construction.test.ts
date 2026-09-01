@@ -119,19 +119,22 @@ describe('parseAssumptions', () => {
     expect(parseAssumptions({ feeBasis: 'moon' }, 2020).feeBasis).toBe('committed')
   })
 
-  it('validates the global return method and keeps direct MOIC forecasts', () => {
+  it('validates per-deal return methods, dilution, and direct MOIC forecasts', () => {
     const parsed = parseAssumptions({
-      returnForecastMethod: 'moic',
-      positionForecasts: [{ companyId: 'company-1', forecastMoic: 3.5 }],
+      positionForecasts: [{ companyId: 'company-1', forecastMoic: 3.5, additionalDilution: 0.2, returnMethod: 'moic' }],
       stages: [{
         key: 'seed', label: 'Seed', initialCheck: 500_000, initialPostMoney: 10_000_000,
-        followOnMultiple: 0, dilutionFactor: 0, forecastMoic: 4,
+        followOnMultiple: 0, dilutionFactor: 0, forecastMoic: 4, additionalDilution: 2,
+        returnMethod: 'moic',
       }],
     }, null)
-    expect(parsed.returnForecastMethod).toBe('moic')
     expect(parsed.positionForecasts[0].forecastMoic).toBe(3.5)
+    expect(parsed.positionForecasts[0].additionalDilution).toBe(0.2)
+    expect(parsed.positionForecasts[0].returnMethod).toBe('moic')
     expect(parsed.stages[0].forecastMoic).toBe(4)
-    expect(parseAssumptions({ returnForecastMethod: 'invalid' }, null).returnForecastMethod).toBe('ownership')
+    expect(parsed.stages[0].additionalDilution).toBe(1)
+    expect(parsed.stages[0].returnMethod).toBe('moic')
+    expect(parseAssumptions({ positionForecasts: [{ companyId: 'company-1', returnMethod: 'invalid' }] }, null).positionForecasts[0].returnMethod).toBe('ownership')
   })
 })
 
@@ -351,15 +354,14 @@ describe('inline portfolio forecast', () => {
     expect(m.returns.estimatedNetMoic).toBeCloseTo(2_300_000 / 18_500_000, 8)
   })
 
-  it('uses direct MOIC for every existing and planned company when selected', () => {
+  it('uses direct MOIC independently for each existing and planned company', () => {
     const m = constructionModel(ACT({ positions: [position] }), A({
       ...RUN_OUT,
-      returnForecastMethod: 'moic',
-      positionForecasts: [{ companyId: 'company-1', plannedFollowOn: 200_000, ownershipAtExit: 0.02, expectedExitValue: 100_000_000, forecastMoic: 3 }],
+      positionForecasts: [{ companyId: 'company-1', plannedFollowOn: 200_000, ownershipAtExit: 0.02, expectedExitValue: 100_000_000, forecastMoic: 3, returnMethod: 'moic' }],
       stages: [{
         key: 'seed', label: 'Seed', initialCheck: 500_000, initialPostMoney: 10_000_000,
         followOnMultiple: 0, followOnCheck: 250_000, dilutionFactor: 0,
-        ownershipAtExit: 0.02, expectedExitValue: 50_000_000, forecastMoic: 4,
+        ownershipAtExit: 0.02, expectedExitValue: 50_000_000, forecastMoic: 4, returnMethod: 'moic',
       }],
     }), NOW)
     expect(m.returns.positions[0].estimatedReturn).toBe(2_400_000)
@@ -368,6 +370,31 @@ describe('inline portfolio forecast', () => {
     expect(m.returns.stages[0].estimatedMoic).toBe(4)
     expect(m.returns.estimatedPortfolioValue).toBe(5_400_000)
     expect(m.returns.estimatedNetMoic).toBeCloseTo(5_400_000 / 18_500_000, 8)
+  })
+
+  it('defaults forecasted proceeds to current value without requiring an input', () => {
+    const m = constructionModel(ACT({ positions: [position] }), A({ ...RUN_OUT }), NOW)
+    const result = m.returns.positions[0]
+    expect(result.estimatedReturn).toBe(900_000)
+    expect(result.estimatedMoic).toBe(1.5)
+    expect(result.forecastExitValue).toBe(30_000_000)
+    expect(result.forecast.ownershipAtExit).toBe(0.03)
+    expect(result.forecast.additionalDilution).toBe(0)
+  })
+
+  it('calculates forecast ownership and required fund-return exit from additional dilution', () => {
+    const m = constructionModel(ACT({ positions: [position] }), A({
+      ...RUN_OUT,
+      positionForecasts: [{
+        companyId: 'company-1', plannedFollowOn: 0, ownershipAtExit: 0,
+        additionalDilution: 0.25, expectedExitValue: 100_000_000, returnMethod: 'ownership',
+      }],
+    }), NOW)
+    const result = m.returns.positions[0]
+    expect(result.forecast.ownershipAtExit).toBeCloseTo(0.0225, 8)
+    expect(result.estimatedReturn).toBe(2_250_000)
+    expect(result.exitToReturnFund).toBeCloseTo(18_500_000 / 0.0225, 2)
+    expect(result.estimatedMoic).toBe(3.75)
   })
 
   it('shows net MOIC for each ownership sensitivity scenario', () => {
