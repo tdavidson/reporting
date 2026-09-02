@@ -73,7 +73,13 @@ export function ConstructionView({ vehicle, vehicleId }: { vehicle: string; vehi
   const [loadError, setLoadError] = useState<string | null>(null)
   const [sort, setSort] = useState<SortState | null>(null)
   const [forecastEditor, setForecastEditor] = useState<ForecastEditor | null>(null)
-  const [expenseGroupsOpen, setExpenseGroupsOpen] = useState({ incurred: true, projected: true, total: true })
+  const [capitalGroupsOpen, setCapitalGroupsOpen] = useState({
+    committed: true,
+    incurred: true,
+    projected: true,
+    total: true,
+    invested: true,
+  })
   const g = `group=${encodeURIComponent(vehicle)}`
 
   useEffect(() => {
@@ -216,9 +222,17 @@ export function ConstructionView({ vehicle, vehicleId }: { vehicle: string; vehi
             <table className="mt-3 w-full text-sm">
               <thead><tr className="border-b text-xs text-muted-foreground"><th className="py-2 text-left font-medium">Capital</th><th className="py-2 text-right font-medium">Amount</th><th className="w-24 py-2 text-right font-medium">% committed</th></tr></thead>
               <tbody>
-                <CapitalPlanningRow label="Committed capital" value={model.capital.committedCapital} committed={model.capital.committedCapital} fmt={fmt} fmtFull={fmtFull} emphasis />
-                <CapitalPlanningRow label="Called capital" value={model.capital.calledCapital} committed={model.capital.committedCapital} fmt={fmt} fmtFull={fmtFull} indent />
-                <CapitalPlanningRow label="Uncalled capital" value={model.capital.uncalledCapital} committed={model.capital.committedCapital} fmt={fmt} fmtFull={fmtFull} indent />
+                <CapitalPlanningGroup
+                  label="Committed capital"
+                  value={model.capital.committedCapital}
+                  items={[
+                    ['Called capital', model.capital.calledCapital],
+                    ['Uncalled capital', model.capital.uncalledCapital],
+                  ]}
+                  open={capitalGroupsOpen.committed}
+                  onToggle={() => setCapitalGroupsOpen(s => ({ ...s, committed: !s.committed }))}
+                  committed={model.capital.committedCapital} fmt={fmt} fmtFull={fmtFull}
+                />
                 <CapitalPlanningGroup
                   label="Incurred expenses"
                   value={model.capital.incurredExpenses}
@@ -227,8 +241,8 @@ export function ConstructionView({ vehicle, vehicleId }: { vehicle: string; vehi
                     ['Partnership expenses', model.capital.expensesIncurred],
                     ['Management fees', model.capital.feesIncurred],
                   ]}
-                  open={expenseGroupsOpen.incurred}
-                  onToggle={() => setExpenseGroupsOpen(s => ({ ...s, incurred: !s.incurred }))}
+                  open={capitalGroupsOpen.incurred}
+                  onToggle={() => setCapitalGroupsOpen(s => ({ ...s, incurred: !s.incurred }))}
                   committed={model.capital.committedCapital} fmt={fmt} fmtFull={fmtFull}
                 />
                 <CapitalPlanningGroup
@@ -239,8 +253,8 @@ export function ConstructionView({ vehicle, vehicleId }: { vehicle: string; vehi
                     ['Partnership expenses', model.capital.expensesProjected],
                     ['Management fees', model.capital.feesProjected],
                   ]}
-                  open={expenseGroupsOpen.projected}
-                  onToggle={() => setExpenseGroupsOpen(s => ({ ...s, projected: !s.projected }))}
+                  open={capitalGroupsOpen.projected}
+                  onToggle={() => setCapitalGroupsOpen(s => ({ ...s, projected: !s.projected }))}
                   committed={model.capital.committedCapital} fmt={fmt} fmtFull={fmtFull}
                 />
                 <CapitalPlanningGroup
@@ -251,13 +265,21 @@ export function ConstructionView({ vehicle, vehicleId }: { vehicle: string; vehi
                     ['Partnership expenses', model.capital.expensesIncurred + model.capital.expensesProjected],
                     ['Management fees', model.capital.feesIncurred + model.capital.feesProjected],
                   ]}
-                  open={expenseGroupsOpen.total}
-                  onToggle={() => setExpenseGroupsOpen(s => ({ ...s, total: !s.total }))}
+                  open={capitalGroupsOpen.total}
+                  onToggle={() => setCapitalGroupsOpen(s => ({ ...s, total: !s.total }))}
                   committed={model.capital.committedCapital} fmt={fmt} fmtFull={fmtFull}
                 />
-                <CapitalPlanningRow label="Invested capital" value={model.capital.deployedTotal} committed={model.capital.committedCapital} fmt={fmt} fmtFull={fmtFull} emphasis />
-                <CapitalPlanningRow label="New invested" value={model.capital.deployedInitial} committed={model.capital.committedCapital} fmt={fmt} fmtFull={fmtFull} indent />
-                <CapitalPlanningRow label="Follow-on invested" value={model.capital.deployedFollowOn} committed={model.capital.committedCapital} fmt={fmt} fmtFull={fmtFull} indent />
+                <CapitalPlanningGroup
+                  label="Invested capital"
+                  value={model.capital.deployedTotal}
+                  items={[
+                    ['New invested', model.capital.deployedInitial],
+                    ['Follow-on invested', model.capital.deployedFollowOn],
+                  ]}
+                  open={capitalGroupsOpen.invested}
+                  onToggle={() => setCapitalGroupsOpen(s => ({ ...s, invested: !s.invested }))}
+                  committed={model.capital.committedCapital} fmt={fmt} fmtFull={fmtFull}
+                />
                 <CapitalPlanningRow label="Reserved for investment" value={model.capital.remaining} committed={model.capital.committedCapital} fmt={fmt} fmtFull={fmtFull} emphasis />
                 {model.capital.plannedCost > 0 && <CapitalPlanningRow label="Forecasted investment" value={model.capital.plannedCost} committed={model.capital.committedCapital} fmt={fmt} fmtFull={fmtFull} indent />}
               </tbody>

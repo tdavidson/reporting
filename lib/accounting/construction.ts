@@ -308,8 +308,18 @@ export function projectRemainingFees(
 ): number {
   if (!a.feeStartDate) return 0
 
-  const elapsed = yearsElapsed(a, today)
-  if (a.feeTermYears - elapsed <= 0) return 0
+  return projectFeesFromFundYear(a, committedCapital, deployedTotal, nav, yearsElapsed(a, today))
+}
+
+/** Project fees from a stated fund year through the end of the term. */
+function projectFeesFromFundYear(
+  a: ConstructionAssumptions,
+  committedCapital: number,
+  deployedTotal: number,
+  nav: number,
+  fromFundYear: number,
+): number {
+  if (a.feeTermYears - fromFundYear <= 0) return 0
 
   const basisAmount =
     a.feeBasis === 'invested' ? deployedTotal :
@@ -319,7 +329,7 @@ export function projectRemainingFees(
   // Walk the remaining term year by year. `yr` is the fund year (1-based) the slice sits in; a
   // partial first or last slice charges pro-rata.
   let fees = 0
-  let cursor = elapsed
+  let cursor = fromFundYear
   while (cursor < a.feeTermYears) {
     const yr = Math.floor(cursor) + 1
     const sliceEnd = Math.min(Math.floor(cursor) + 1, a.feeTermYears)
@@ -483,13 +493,21 @@ export function constructionModel(
   // ── Investable capital ──────────────────────────────────────────────────────
   const deployedTotal = r(actuals.deployedInitial + actuals.deployedFollowOn)
 
-  const feesProjected = projectRemainingFees(a, actuals.committedCapital, deployedTotal, actuals.nav, today)
+  // With books, the ledger supplies historical actuals and the projection begins today. Without
+  // books, incurred comes back as zero because it is unknown, not because the fund paid nothing;
+  // cover the entire stated term in the projected bucket so historical costs are not omitted.
+  const feesProjected = actuals.ledgerAvailable
+    ? projectRemainingFees(a, actuals.committedCapital, deployedTotal, actuals.nav, today)
+    : projectFeesFromFundYear(a, actuals.committedCapital, deployedTotal, actuals.nav, 0)
   const lifetimeFees = r(actuals.managementFeesIncurred + feesProjected)
 
-  // Remaining years of expense run-rate, bounded at 0 — a fund past its term accrues no more.
-  const remainingYears = Math.max(0, a.feeTermYears - yearsElapsed(a, today))
+  // A ledger-backed vehicle needs only its remaining run-rate. A tracking-only vehicle has no
+  // historical expense actuals, so its projection covers the full stated term instead.
+  const expenseProjectionYears = actuals.ledgerAvailable
+    ? Math.max(0, a.feeTermYears - yearsElapsed(a, today))
+    : Math.max(0, a.feeTermYears)
   const orgCostsProjected = r(a.remainingOrgCosts)
-  const expensesProjected = r(a.annualPartnershipExpense * remainingYears)
+  const expensesProjected = r(a.annualPartnershipExpense * expenseProjectionYears)
   const lifetimeExpenses = r(
     actuals.orgCostsIncurred + orgCostsProjected + actuals.partnershipExpensesIncurred + expensesProjected,
   )
@@ -517,8 +535,8 @@ export function constructionModel(
 
   if (!actuals.ledgerAvailable) {
     warnings.push(
-      'Fees and expenses are not on the ledger for this vehicle, so only what you enter is counted. ' +
-      'Investable capital is overstated until you enter lifetime figures.',
+      'Fees and expenses are not on the ledger for this vehicle, so projected management fees ' +
+      'and partnership expenses cover the full stated fund term.',
     )
   }
   // Only warn about a plan that EXISTS. An unconfigured page is not a fund in trouble, and

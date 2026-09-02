@@ -232,13 +232,28 @@ describe('constructionModel — capital', () => {
     expect(m.warnings.some(w => w.includes('7 deals') && w.includes('2'))).toBe(true)
   })
 
-  it('does not derive 0 fees from an absent ledger', () => {
+  it('projects the full fee and expense term when historical actuals have no ledger', () => {
     const m = constructionModel(
       ACT({ ledgerAvailable: false, managementFeesIncurred: 0, orgCostsIncurred: 0, partnershipExpensesIncurred: 0 }),
-      A(RUN_OUT), NOW,
+      A({ ...RUN_OUT, annualPartnershipExpense: 100_000 }), NOW,
     )
     expect(m.capital.ledgerAvailable).toBe(false)
+    // The fee clock has run out, but without books zero incurred means unknown. The projected
+    // bucket therefore carries all 10 years: 18.5M × 2% × 10, plus 100k × 10.
+    expect(m.capital.feesProjected).toBe(3_700_000)
+    expect(m.capital.expensesProjected).toBe(1_000_000)
+    expect(m.capital.incurredExpenses).toBe(0)
+    expect(m.capital.projectedExpenses).toBe(4_700_000)
     expect(m.warnings.some(w => w.includes('not on the ledger'))).toBe(true)
+  })
+
+  it('applies fee step-downs across the full term when there is no ledger or fee clock', () => {
+    const m = constructionModel(
+      ACT({ ledgerAvailable: false, managementFeesIncurred: 0, orgCostsIncurred: 0, partnershipExpensesIncurred: 0 }),
+      A({ feeStartDate: '', feeStepDownYear: 6, feeStepDownRate: 0.015 }), NOW,
+    )
+    // Years 1–5 at 2%, then years 6–10 at 1.5%.
+    expect(m.capital.feesProjected).toBe(3_237_500)
   })
 })
 
