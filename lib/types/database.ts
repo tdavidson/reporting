@@ -1398,6 +1398,11 @@ export type Database = {
           finished_at: string | null
           enqueued_by: string | null
           lock_version: number
+          // Added by 20260519000000_call_transcripts.sql and missing from this file until now —
+          // the generated types had drifted behind the schema.
+          external_job_id: string | null
+          // Added by 20260903120000_transcription_callback_tokens.sql (SEC-010).
+          callback_token_hash: string | null
         }
         Insert: {
           id?: string
@@ -1416,6 +1421,8 @@ export type Database = {
           finished_at?: string | null
           enqueued_by?: string | null
           lock_version?: number
+          external_job_id?: string | null
+          callback_token_hash?: string | null
         }
         Update: {
           id?: string
@@ -1434,6 +1441,8 @@ export type Database = {
           finished_at?: string | null
           enqueued_by?: string | null
           lock_version?: number
+          external_job_id?: string | null
+          callback_token_hash?: string | null
         }
         Relationships: []
       }

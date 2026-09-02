@@ -1,5 +1,6 @@
 import crypto from 'crypto'
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { tokenAllowedAt, type OAuthAudience } from './audience'
 
 /**
  * OAuth 2.1 authorization-server primitives for the MCP endpoint.
@@ -309,20 +310,27 @@ export interface ResolvedAccessToken {
   fundId: string
   clientId: string
   scope: string
+  /** RFC 8707: the boundary this token was issued for. Null when the client claimed none. */
+  resource: string | null
 }
 
 /**
- * Verify an access token presented at the MCP endpoint. Returns null for anything
- * unusable — unknown, expired, revoked — so the caller emits one undifferentiated
- * 401 and a prober learns nothing from the difference.
+ * Verify an access token presented at a protected boundary. Returns null for anything
+ * unusable — unknown, expired, revoked, or issued for a DIFFERENT boundary — so the caller
+ * emits one undifferentiated 401 and a prober learns nothing from the difference.
+ *
+ * `audience` is the boundary doing the asking (SEC-009). Omitting it keeps the old behaviour of
+ * accepting any token, which is why it is a required decision at each call site rather than a
+ * default: see lib/oauth/audience.ts.
  */
 export async function resolveAccessToken(
   admin: SupabaseClient,
-  token: string
+  token: string,
+  audience?: OAuthAudience
 ): Promise<ResolvedAccessToken | null> {
   const { data } = await (admin as any)
     .from('oauth_tokens')
-    .select('user_id, fund_id, client_id, scope, expires_at, revoked_at')
+    .select('user_id, fund_id, client_id, scope, resource, expires_at, revoked_at')
     .eq('token_hash', hashToken(token))
     .eq('kind', 'access')
     .maybeSingle()
@@ -331,11 +339,15 @@ export async function resolveAccessToken(
   if ((data as any).revoked_at) return null
   if (new Date((data as any).expires_at).getTime() < Date.now()) return null
 
+  const resource = (data as any).resource ?? null
+  if (audience && !tokenAllowedAt(resource, audience)) return null
+
   return {
     userId: (data as any).user_id,
     fundId: (data as any).fund_id,
     clientId: (data as any).client_id,
     scope: (data as any).scope ?? 'read',
+    resource,
   }
 }
 

@@ -2,7 +2,11 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import type { AccessContext } from '@/lib/access/effective'
 import type { Domain } from '@/lib/access/domains'
 
-export type ActionType = 'update_company_metric' | 'record_investment' | 'issue_capital_call'
+export type ActionType =
+  | 'update_company_metric'
+  | 'record_investment'
+  | 'issue_capital_call'
+  | 'update_portfolio_construction'
 
 export type PendingActionStatus = 'pending' | 'approved' | 'applied' | 'rejected' | 'failed'
 

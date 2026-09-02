@@ -1,7 +1,7 @@
 import puppeteer from 'puppeteer-core'
 import { pdfFontCss, PDF_SANS, PDF_DISPLAY } from '@/lib/pdf-fonts'
 import { displayFontOf } from '@/lib/theme'
-import { sanitizeBasicHtml } from '@/lib/sanitize'
+import { sanitizeLetterHtml } from '@/lib/sanitize'
 import { lpRatios } from '@/lib/lp-metrics'
 import { generateLiveReport } from '@/lib/accounting/live-report'
 import { lastDataDates } from '@/lib/accounting/lp-positions'
@@ -553,7 +553,7 @@ export function buildLetterHtml(opts: {
     : ''
 
   // GP-authored table HTML — scrub before embedding in the rendered page.
-  const tableHtml = sanitizeBasicHtml(portfolioTableHtml) || ''
+  const tableHtml = sanitizeLetterHtml(portfolioTableHtml) || ''
 
   const footer = `${asOfFormatted ? `As of ${esc(asOfFormatted)}. ` : ''}This letter is provided to limited partners for informational purposes. All figures are reported net of expenses, including estimated carried interest.`
 

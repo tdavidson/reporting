@@ -105,6 +105,11 @@ describe('route access registry', () => {
     })
     expect(leaks.map(([r]) => r)).toEqual([])
   })
+
+  it('keeps fund-wide Google connection routes administrator-only', () => {
+    expect(ROUTE_DOMAINS['api/auth/google']).toEqual({ domain: 'admin' })
+    expect(ROUTE_DOMAINS['api/auth/google/callback']).toEqual({ domain: 'admin' })
+  })
 })
 
 /**

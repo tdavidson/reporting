@@ -3,6 +3,27 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { encrypt } from '@/lib/crypto'
 import { getGoogleCredentials } from '@/lib/google/credentials'
+import { assertAdminAccess } from '@/lib/api-helpers'
+import {
+  consumeGoogleOAuthTransaction,
+  GOOGLE_OAUTH_STATE_COOKIE,
+} from '@/lib/google/oauth-state'
+
+function redirectAndClearState(req: NextRequest, target: string) {
+  const response = NextResponse.redirect(new URL(target, req.url))
+  response.cookies.set(GOOGLE_OAUTH_STATE_COOKIE, '', {
+    httpOnly: true,
+    maxAge: 0,
+    path: '/api/auth/google/callback',
+    sameSite: 'lax',
+    secure: process.env.NODE_ENV === 'production',
+  })
+  return response
+}
+
+function withError(returnTo: string, code: string): string {
+  return `${returnTo}${returnTo.includes('?') ? '&' : '?'}drive_error=${code}`
+}
 
 export async function GET(req: NextRequest) {
   const supabase = createClient()
@@ -13,45 +34,32 @@ export async function GET(req: NextRequest) {
   const stateParam = req.nextUrl.searchParams.get('state')
   const error = req.nextUrl.searchParams.get('error')
 
-  if (error) {
-    return NextResponse.redirect(new URL('/settings?drive_error=consent_denied', req.url))
-  }
+  if (!stateParam) return redirectAndClearState(req, '/settings?drive_error=missing_params')
+  const encryptionKey = process.env.ENCRYPTION_KEY
+  if (!encryptionKey) return redirectAndClearState(req, '/settings?drive_error=server_error')
+  const transaction = consumeGoogleOAuthTransaction({
+    cookie: req.cookies.get(GOOGLE_OAUTH_STATE_COOKIE)?.value,
+    encryptionKey,
+    state: stateParam,
+    userId: user.id,
+  })
+  if (!transaction) return redirectAndClearState(req, '/settings?drive_error=invalid_state')
+  const { codeVerifier, fundId, returnTo } = transaction
+  if (error) return redirectAndClearState(req, withError(returnTo, 'consent_denied'))
+  if (!code) return redirectAndClearState(req, withError(returnTo, 'missing_params'))
 
-  if (!code || !stateParam) {
-    return NextResponse.redirect(new URL('/settings?drive_error=missing_params', req.url))
-  }
-
-  // Decode state to get fund_id and return_to
-  let fundId: string
-  let returnTo = '/settings'
-  try {
-    const state = JSON.parse(Buffer.from(stateParam, 'base64url').toString())
-    fundId = state.fund_id
-    // Prevent open redirect — only allow relative paths
-    if (state.return_to && typeof state.return_to === 'string' && state.return_to.startsWith('/') && !state.return_to.startsWith('//')) {
-      returnTo = state.return_to
-    }
-  } catch {
-    return NextResponse.redirect(new URL('/settings?drive_error=invalid_state', req.url))
-  }
-
-  // Verify user has access to this fund
+  // Re-check current admin membership at callback time; starting a flow never grants a durable
+  // right to finish it after demotion or removal.
   const admin = createAdminClient()
-  const { data: membership } = await admin
-    .from('fund_members')
-    .select('fund_id')
-    .eq('user_id', user.id)
-    .eq('fund_id', fundId)
-    .maybeSingle()
-
-  if (!membership) {
-    return NextResponse.redirect(new URL('/settings?drive_error=forbidden', req.url))
+  const access = await assertAdminAccess(admin, user.id)
+  if (access instanceof NextResponse || access.fundId !== fundId) {
+    return redirectAndClearState(req, '/settings?drive_error=forbidden')
   }
 
   // Get Google credentials from DB or env
   const creds = await getGoogleCredentials(admin, fundId)
   if (!creds) {
-    return NextResponse.redirect(new URL(`${returnTo}?drive_error=not_configured`, req.url))
+    return redirectAndClearState(req, withError(returnTo, 'not_configured'))
   }
 
   // Must produce the same string as /api/auth/google built — Google enforces
@@ -78,19 +86,20 @@ export async function GET(req: NextRequest) {
       code,
       grant_type: 'authorization_code',
       redirect_uri: redirectUri,
+      code_verifier: codeVerifier,
     }),
   })
 
   if (!tokenRes.ok) {
     console.error('[google-oauth] Token exchange failed:', await tokenRes.text())
-    return NextResponse.redirect(new URL(`${returnTo}?drive_error=token_exchange_failed`, req.url))
+    return redirectAndClearState(req, withError(returnTo, 'token_exchange_failed'))
   }
 
   const tokens = await tokenRes.json()
   const refreshToken = tokens.refresh_token
 
   if (!refreshToken) {
-    return NextResponse.redirect(new URL(`${returnTo}?drive_error=no_refresh_token`, req.url))
+    return redirectAndClearState(req, withError(returnTo, 'no_refresh_token'))
   }
 
   // Encrypt and store refresh token using the fund's encryption key
@@ -101,12 +110,12 @@ export async function GET(req: NextRequest) {
     .single()
 
   if (!settings?.encryption_key_encrypted) {
-    return NextResponse.redirect(new URL(`${returnTo}?drive_error=no_encryption_key`, req.url))
+    return redirectAndClearState(req, withError(returnTo, 'no_encryption_key'))
   }
 
   const kek = process.env.ENCRYPTION_KEY
   if (!kek) {
-    return NextResponse.redirect(new URL(`${returnTo}?drive_error=server_error`, req.url))
+    return redirectAndClearState(req, withError(returnTo, 'server_error'))
   }
 
   // Decrypt the DEK, then encrypt the refresh token with it
@@ -114,11 +123,12 @@ export async function GET(req: NextRequest) {
   const dek = decrypt(settings.encryption_key_encrypted, kek)
   const encryptedRefreshToken = encrypt(refreshToken, dek)
 
-  await admin
+  const { error: updateError } = await admin
     .from('fund_settings')
     .update({ google_refresh_token_encrypted: encryptedRefreshToken })
     .eq('fund_id', fundId)
+  if (updateError) return redirectAndClearState(req, withError(returnTo, 'save_failed'))
 
   const separator = returnTo.includes('?') ? '&' : '?'
-  return NextResponse.redirect(new URL(`${returnTo}${separator}google_connected=true`, req.url))
+  return redirectAndClearState(req, `${returnTo}${separator}google_connected=true`)
 }

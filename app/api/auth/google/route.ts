@@ -2,6 +2,12 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getGoogleCredentials } from '@/lib/google/credentials'
+import { assertAdminAccess } from '@/lib/api-helpers'
+import {
+  createGoogleOAuthTransaction,
+  GOOGLE_OAUTH_STATE_COOKIE,
+  GOOGLE_OAUTH_STATE_TTL_SECONDS,
+} from '@/lib/google/oauth-state'
 
 export async function GET(req: NextRequest) {
   const supabase = createClient()
@@ -9,15 +15,10 @@ export async function GET(req: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const admin = createAdminClient()
-  const { data: membership } = await admin
-    .from('fund_members')
-    .select('fund_id')
-    .eq('user_id', user.id)
-    .maybeSingle()
+  const access = await assertAdminAccess(admin, user.id)
+  if (access instanceof NextResponse) return access
 
-  if (!membership) return NextResponse.json({ error: 'No fund found' }, { status: 403 })
-
-  const creds = await getGoogleCredentials(admin, membership.fund_id)
+  const creds = await getGoogleCredentials(admin, access.fundId)
   if (!creds) {
     return NextResponse.json({
       error: 'Google OAuth not configured. Add your Google Client ID and Client Secret in Settings.',
@@ -38,19 +39,22 @@ export async function GET(req: NextRequest) {
   }
   const redirectUri = `${baseUrl}/api/auth/google/callback`
 
-  // Pass return_to in state so callback knows where to redirect.
-  // Cap the length and re-validate the open-redirect guard so a very long or
-  // malformed `return_to` query param can't blow past Google's URL-length
-  // limit on the auth request (silent OAuth failure) or smuggle a protocol-
-  // relative redirect target.
+  // Keep navigation state out of the authorization URL. The callback recovers it from the
+  // encrypted, HttpOnly transaction cookie after validating the one-time nonce and current user.
   const rawReturnTo = req.nextUrl.searchParams.get('return_to') ?? ''
   const returnTo = rawReturnTo.startsWith('/') && !rawReturnTo.startsWith('//')
     ? rawReturnTo.slice(0, 200)
     : '/settings'
-  const state = Buffer.from(JSON.stringify({
-    fund_id: membership.fund_id,
-    return_to: returnTo,
-  })).toString('base64url')
+  const encryptionKey = process.env.ENCRYPTION_KEY
+  if (!encryptionKey) {
+    return NextResponse.json({ error: 'Server misconfiguration: ENCRYPTION_KEY not set' }, { status: 500 })
+  }
+  const transaction = createGoogleOAuthTransaction({
+    encryptionKey,
+    fundId: access.fundId,
+    returnTo,
+    userId: user.id,
+  })
 
   const params = new URLSearchParams({
     client_id: creds.clientId,
@@ -70,8 +74,18 @@ export async function GET(req: NextRequest) {
     // account picker first, useful when the browser has multiple Google
     // sessions and the default isn't the one that should own the connection.
     prompt: 'consent select_account',
-    state,
+    state: transaction.state,
+    code_challenge: transaction.codeChallenge,
+    code_challenge_method: 'S256',
   })
 
-  return NextResponse.redirect(`https://accounts.google.com/o/oauth2/v2/auth?${params}`)
+  const response = NextResponse.redirect(`https://accounts.google.com/o/oauth2/v2/auth?${params}`)
+  response.cookies.set(GOOGLE_OAUTH_STATE_COOKIE, transaction.cookie, {
+    httpOnly: true,
+    maxAge: GOOGLE_OAUTH_STATE_TTL_SECONDS,
+    path: '/api/auth/google/callback',
+    sameSite: 'lax',
+    secure: process.env.NODE_ENV === 'production',
+  })
+  return response
 }

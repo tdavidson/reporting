@@ -137,7 +137,21 @@ export async function scanFileAsync(buffer: Buffer, filename: string, contentTyp
         return { safe: false, reason: `ZIP compression ratio too high: ${Math.round(totalUncompressed / buffer.length)}:1 (max ${MAX_ZIP_RATIO}:1)` }
       }
     } catch {
-      // If we can't parse the ZIP, the file will likely fail downstream anyway
+      // SEC-008: FAIL CLOSED.
+      //
+      // This used to swallow the error on the reasoning that an unparseable ZIP "will likely fail
+      // downstream anyway" — but downstream is a parser, not a scanner, and the scan is what the
+      // caller was told happened. Every bomb check above lives inside this try, so a file crafted
+      // to break JSZip skipped entry counts, uncompressed size and compression ratio, and then
+      // came back `safe: true`. The one input that defeats the analysis was the one input the
+      // analysis approved.
+      //
+      // A genuine .docx that cannot be opened is not a usable document either, so refusing it
+      // costs nothing a user wanted.
+      return {
+        safe: false,
+        reason: 'ZIP-based file could not be parsed for archive-bomb analysis',
+      }
     }
   }
 

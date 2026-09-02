@@ -25,7 +25,6 @@ import { listPeriods } from './periods'
 import { closeThrough } from './close'
 import { summarizeBankRec, type BankTxnState } from './bank'
 import { accountBalances } from './ledger'
-import { listVehicles } from './load'
 import type { SupabaseClient as _Sb } from '@supabase/supabase-js'
 import type { JournalEntry, Posting } from './types'
 import { PORTFOLIO_TOOL_MANIFEST } from '@/lib/agent/portfolio-tools-manifest'
@@ -36,6 +35,11 @@ import { DEALS_TOOL_MANIFEST } from '@/lib/agent/deals-tools-manifest'
 import { DEALS_HANDLERS } from '@/lib/agent/deals-tools'
 import { LP_TOOL_MANIFEST } from '@/lib/agent/lp-tools-manifest'
 import { LP_HANDLERS } from '@/lib/agent/lp-tools'
+import { CONSTRUCTION_TOOL_MANIFEST } from '@/lib/agent/construction-tools-manifest'
+import { CONSTRUCTION_HANDLERS } from '@/lib/agent/construction-tools'
+import { resolveVehicle } from './vehicle-resolver'
+
+export { resolveVehicle } from './vehicle-resolver'
 
 export interface AgentToolContext {
   admin: SupabaseClient
@@ -244,6 +248,7 @@ export const AGENT_TOOLS: AgentTool[] = [
   ...bind(DILIGENCE_TOOL_MANIFEST, DILIGENCE_HANDLERS),
   ...bind(DEALS_TOOL_MANIFEST, DEALS_HANDLERS),
   ...bind(LP_TOOL_MANIFEST, LP_HANDLERS),
+  ...bind(CONSTRUCTION_TOOL_MANIFEST, CONSTRUCTION_HANDLERS),
 ]
 
 export function getTool(name: string): AgentTool | undefined {
@@ -315,28 +320,6 @@ export function accessDomainForCall(tool: AgentToolMeta, input: unknown): Domain
  *
  * Validating once, here, closes it everywhere instead of per-callee.
  */
-export async function resolveVehicle(admin: _Sb, fundId: string, requested?: string): Promise<string> {
-  const vehicles = await listVehicles(admin, fundId)
-
-  if (requested) {
-    const match = vehicles.find(v => v === requested)
-      // Tolerate case/whitespace, since these names come from URLs and hand-typed args.
-      ?? vehicles.find(v => v.trim().toLowerCase() === requested.trim().toLowerCase())
-    if (!match) {
-      throw new Error(
-        vehicles.length > 0
-          ? `Unknown vehicle "${requested}". This fund has: ${vehicles.join(', ')}`
-          : `Unknown vehicle "${requested}" — this fund has no vehicles yet.`
-      )
-    }
-    return match
-  }
-
-  if (vehicles.length === 1) return vehicles[0]
-  if (vehicles.length === 0) throw new Error('No vehicles found for this fund')
-  throw new Error(`Specify a vehicle — this fund has several: ${vehicles.join(', ')}`)
-}
-
 /**
  * The vehicle a tool call runs against. Portfolio tools get an empty string: they never
  * read `ctx.portfolioGroup` (they take `vehicle` from their own input as a filter), and

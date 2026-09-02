@@ -11,13 +11,14 @@ interface PreviewResult {
   summary: string
   details: Record<string, unknown>
 }
+/** The shared service's DTO (lib/pending-actions/service.ts), which is camelCase. */
 interface PendingActionRow {
   id: string
   domain: string
-  action_type: string
+  actionType: string
   preview: PreviewResult
-  created_at: string
-  created_via: string | null
+  createdAt: string
+  createdVia: string | null
 }
 
 const ACTION_LABELS: Record<string, string> = {
@@ -42,9 +43,18 @@ export default function PendingActionsPage() {
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await fetch('/api/pending-actions')
-      if (!res.ok) throw new Error('Failed to load')
-      setRows(await res.json())
+      // The queue is paginated now that it goes through the shared service. Nothing about this
+      // page is a page-at-a-time experience — it is a to-do list — so walk the cursor to the end.
+      const collected: PendingActionRow[] = []
+      let cursor: string | null = null
+      do {
+        const res: Response = await fetch(`/api/pending-actions${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''}`)
+        if (!res.ok) throw new Error('Failed to load')
+        const page: { actions: PendingActionRow[]; nextCursor: string | null } = await res.json()
+        collected.push(...page.actions)
+        cursor = page.nextCursor
+      } while (cursor)
+      setRows(collected)
     } catch {
       setRows([])
     } finally {
@@ -111,11 +121,11 @@ export default function PendingActionsPage() {
                   <div key={row.id} className="rounded-card border bg-card p-4 space-y-3">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium">
-                        {ACTION_LABELS[row.action_type] ?? row.action_type}
+                        {ACTION_LABELS[row.actionType] ?? row.actionType}
                       </span>
                       <span className="text-sm font-medium">{row.preview.summary}</span>
                       <span className="ml-auto text-xs text-muted-foreground">
-                        {row.created_via ?? 'analyst'} · {new Date(row.created_at).toLocaleDateString()}
+                        {row.createdVia ?? 'analyst'} · {new Date(row.createdAt).toLocaleDateString()}
                       </span>
                     </div>
 

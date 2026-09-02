@@ -1,0 +1,349 @@
+// Server-side portfolio-construction service. Transports authenticate, authorize, and translate
+// their own contracts; all database loading, row mapping, validation, persistence, and model
+// calculation live here so the web route and every agent surface share one implementation.
+
+import type { SupabaseClient } from '@supabase/supabase-js'
+import { fundEconomics } from './fund-economics'
+import { loadPostedLedger } from './load'
+import { accountBalances, normalBalance } from './ledger'
+import { buildSoiPositions, txnsForVehicle, type SoiCompany } from './soi'
+import { resolveVehicle } from './vehicle-resolver'
+import {
+  constructionModel,
+  parseAssumptions,
+  type ConstructionActuals,
+  type ConstructionAssumptions,
+  type ConstructionPositionForecast,
+  type ConstructionResult,
+  type ConstructionStage,
+} from './construction'
+import type { Account } from './types'
+import type { InvestmentTransaction } from '@/lib/types/database'
+
+export interface ConstructionServiceContext {
+  admin: SupabaseClient
+  fundId: string
+}
+
+export type ConstructionAssumptionsInput = ConstructionAssumptions
+
+export interface ConstructionAssumptionsRow {
+  fee_annual_rate?: unknown
+  fee_basis?: unknown
+  fee_term_years?: unknown
+  fee_start_date?: unknown
+  fee_step_down_year?: unknown
+  fee_step_down_rate?: unknown
+  annual_partnership_expense?: unknown
+  remaining_org_costs?: unknown
+  stages?: unknown
+  position_forecasts?: unknown
+}
+
+/** The canonical camelCase result shared by tools and future versioned APIs. */
+export interface ConstructionModelResponse {
+  vehicle: string
+  vehicleId: string | null
+  vintageYear: number | null
+  ledgerAvailable: boolean
+  actuals: ConstructionActuals
+  assumptions: ConstructionAssumptions
+  forecast: ConstructionResult
+  positions: ConstructionResult['returns']['positions']
+  warnings: string[]
+  asOf: string
+}
+
+/** Database snake_case to the application model accepted by parseAssumptions. */
+export function mapConstructionAssumptionsRow(row: ConstructionAssumptionsRow): Record<string, unknown> {
+  return {
+    feeAnnualRate: Number(row.fee_annual_rate),
+    feeBasis: row.fee_basis,
+    feeTermYears: Number(row.fee_term_years),
+    feeStartDate: row.fee_start_date ?? '',
+    feeStepDownYear: row.fee_step_down_year == null ? null : Number(row.fee_step_down_year),
+    feeStepDownRate: row.fee_step_down_rate == null ? null : Number(row.fee_step_down_rate),
+    annualPartnershipExpense: Number(row.annual_partnership_expense),
+    remainingOrgCosts: Number(row.remaining_org_costs),
+    // Retired controls stay neutral until their legacy columns are removed.
+    targetPortfolioSize: 0,
+    targetFundMultiple: 0,
+    stages: row.stages,
+    positionForecasts: row.position_forecasts,
+  }
+}
+
+const finite = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value)
+const plainObject = (value: unknown): value is Record<string, unknown> =>
+  !!value && typeof value === 'object' && !Array.isArray(value)
+
+function invalid(field: string): never {
+  throw new Error(`Invalid portfolio-construction assumption: ${field}`)
+}
+
+function validateStage(value: unknown, index: number): asserts value is ConstructionStage {
+  if (!plainObject(value)) invalid(`stages[${index}] must be an object`)
+  for (const field of ['key', 'label'] as const) {
+    if (typeof value[field] !== 'string') invalid(`stages[${index}].${field} must be a string`)
+  }
+  for (const field of ['initialCheck', 'initialPostMoney', 'followOnMultiple', 'dilutionFactor'] as const) {
+    if (!finite(value[field]) || (value[field] as number) < 0) {
+      invalid(`stages[${index}].${field} must be a non-negative finite number`)
+    }
+  }
+  for (const field of ['followOnCheck', 'ownershipAtExit', 'expectedExitValue', 'forecastMoic'] as const) {
+    if (value[field] != null && (!finite(value[field]) || (value[field] as number) < 0)) {
+      invalid(`stages[${index}].${field} must be a non-negative finite number`)
+    }
+  }
+  if (value.additionalDilution != null
+    && (!finite(value.additionalDilution) || value.additionalDilution < 0 || value.additionalDilution > 1)) {
+    invalid(`stages[${index}].additionalDilution must be between 0 and 1`)
+  }
+  if (value.returnMethod != null && value.returnMethod !== 'ownership' && value.returnMethod !== 'moic') {
+    invalid(`stages[${index}].returnMethod must be ownership or moic`)
+  }
+}
+
+function validatePositionForecast(
+  value: unknown,
+  index: number,
+): asserts value is ConstructionPositionForecast {
+  if (!plainObject(value)) invalid(`positionForecasts[${index}] must be an object`)
+  if (typeof value.companyId !== 'string' || !value.companyId) {
+    invalid(`positionForecasts[${index}].companyId must be a stable company id`)
+  }
+  for (const field of ['plannedFollowOn', 'ownershipAtExit', 'expectedExitValue', 'forecastMoic'] as const) {
+    if (!finite(value[field]) || (value[field] as number) < 0) {
+      invalid(`positionForecasts[${index}].${field} must be a non-negative finite number`)
+    }
+  }
+  if (value.additionalDilution != null
+    && (!finite(value.additionalDilution) || value.additionalDilution < 0 || value.additionalDilution > 1)) {
+    invalid(`positionForecasts[${index}].additionalDilution must be between 0 and 1`)
+  }
+  if (value.returnMethod != null && value.returnMethod !== 'ownership' && value.returnMethod !== 'moic') {
+    invalid(`positionForecasts[${index}].returnMethod must be ownership or moic`)
+  }
+}
+
+/** Strict write boundary. The tolerant parser remains appropriate for old stored rows. */
+export function validateConstructionAssumptions(
+  raw: unknown,
+  vintageYear: number | null,
+): ConstructionAssumptions {
+  if (!plainObject(raw)) invalid('body must be an object')
+  const allowed = new Set([
+    'feeAnnualRate', 'feeBasis', 'feeTermYears', 'feeStartDate', 'feeStepDownYear',
+    'feeStepDownRate', 'annualPartnershipExpense', 'remainingOrgCosts', 'targetPortfolioSize',
+    'targetFundMultiple', 'stages', 'positionForecasts',
+  ])
+  const unknown = Object.keys(raw).filter(field => !allowed.has(field))
+  if (unknown.length > 0) invalid(`unknown fields: ${unknown.join(', ')}`)
+  if ('feeBasis' in raw && !['committed', 'invested', 'nav'].includes(String(raw.feeBasis))) {
+    invalid('feeBasis must be committed, invested, or nav')
+  }
+  if ('feeStartDate' in raw && typeof raw.feeStartDate !== 'string') {
+    invalid('feeStartDate must be a string')
+  }
+  for (const field of [
+    'feeAnnualRate', 'feeTermYears', 'annualPartnershipExpense', 'remainingOrgCosts',
+    'targetPortfolioSize', 'targetFundMultiple',
+  ] as const) {
+    if (field in raw && (!finite(raw[field]) || (raw[field] as number) < 0)) {
+      invalid(`${field} must be a non-negative finite number`)
+    }
+  }
+  for (const field of ['feeStepDownYear', 'feeStepDownRate'] as const) {
+    if (raw[field] != null && (!finite(raw[field]) || (raw[field] as number) < 0)) {
+      invalid(`${field} must be null or a non-negative finite number`)
+    }
+  }
+  if ('stages' in raw) {
+    if (!Array.isArray(raw.stages)) invalid('stages must be an array')
+    raw.stages.forEach(validateStage)
+  }
+  if ('positionForecasts' in raw) {
+    if (!Array.isArray(raw.positionForecasts)) invalid('positionForecasts must be an array')
+    raw.positionForecasts.forEach(validatePositionForecast)
+  }
+  return parseAssumptions(raw, vintageYear)
+}
+
+/** ITD expense balance in the account's normal (positive) sense. */
+function expenseTotal(accounts: Account[], balances: Map<string, number>, subtype: string): number {
+  return accounts
+    .filter(account => account.type === 'expense' && account.subtype === subtype)
+    .reduce((sum, account) => sum + normalBalance(account, balances.get(account.id) ?? 0), 0)
+}
+
+async function loadConstructionActuals(
+  admin: SupabaseClient,
+  fundId: string,
+  vehicle: string,
+): Promise<{ actuals: ConstructionActuals; vintageYear: number | null; vehicleId: string | null }> {
+  const [vehicles, ledger, transactionResult, companyResult] = await Promise.all([
+    fundEconomics(admin, fundId),
+    loadPostedLedger(admin, fundId, vehicle).catch(() => null),
+    (admin as any).from('investment_transactions').select('*').eq('fund_id', fundId),
+    (admin as any).from('companies')
+      .select('id, name, holding_type, status, industry, stage, country, portfolio_group')
+      .eq('fund_id', fundId),
+  ])
+
+  const economics = vehicles.find(item => item.vehicle === vehicle) ?? null
+  const ledgerAvailable = !!ledger && ledger.accounts.length > 0
+  let managementFeesIncurred = 0
+  let orgCostsIncurred = 0
+  let partnershipExpensesIncurred = 0
+  if (ledger && ledgerAvailable) {
+    const balances = accountBalances(ledger.postings)
+    managementFeesIncurred = expenseTotal(ledger.accounts, balances, 'management_fee')
+    orgCostsIncurred = expenseTotal(ledger.accounts, balances, 'organizational_expense')
+    partnershipExpensesIncurred = expenseTotal(ledger.accounts, balances, 'partnership_expense')
+  }
+
+  const allTransactions = (transactionResult.data ?? []) as InvestmentTransaction[]
+  const positions = buildSoiPositions(
+    allTransactions,
+    (companyResult.data ?? []) as SoiCompany[],
+    vehicle,
+    undefined,
+    { includeRealized: true },
+  )
+  const transactionsByCompany = new Map<string, InvestmentTransaction[]>()
+  for (const transaction of allTransactions) {
+    const transactions = transactionsByCompany.get(transaction.company_id) ?? []
+    transactions.push(transaction)
+    transactionsByCompany.set(transaction.company_id, transactions)
+  }
+
+  const constructionPositions = positions.map(position => {
+    const relevant = txnsForVehicle(transactionsByCompany.get(position.companyId) ?? [], vehicle)
+      .sort((left, right) => (left.transaction_date ?? '').localeCompare(right.transaction_date ?? ''))
+    const firstInvestment = relevant.find(transaction => transaction.transaction_type === 'investment')
+    let currentOwnership: number | null = null
+    let currentPostMoney: number | null = null
+    for (const transaction of relevant) {
+      if (transaction.ownership_pct != null) currentOwnership = Number(transaction.ownership_pct) / 100
+      const postMoney = transaction.latest_postmoney_valuation ?? transaction.postmoney_valuation
+      if (postMoney != null) currentPostMoney = Number(postMoney)
+    }
+    return {
+      companyId: position.companyId,
+      name: position.name,
+      stage: firstInvestment?.round_name ?? position.stage,
+      status: position.status,
+      investedInitial: position.investedNew,
+      investedFollowOn: position.investedFollowOn,
+      investedTotal: position.invested,
+      currentValue: position.status === 'exited' ? 0 : position.totalValue,
+      currentMoic: position.moic,
+      currentOwnership,
+      currentPostMoney,
+      distributions: position.distributions,
+    }
+  })
+
+  return {
+    vintageYear: economics?.vintageYear ?? null,
+    vehicleId: economics?.id ?? null,
+    actuals: {
+      committedCapital: economics?.fund.committed ?? 0,
+      calledCapital: economics?.fund.paidIn ?? 0,
+      uncalledCapital: economics?.fund.uncalled ?? 0,
+      managementFeesIncurred,
+      orgCostsIncurred,
+      partnershipExpensesIncurred,
+      ledgerAvailable,
+      deployedInitial: positions.reduce((sum, position) => sum + position.investedNew, 0),
+      deployedFollowOn: positions.reduce((sum, position) => sum + position.investedFollowOn, 0),
+      companyCount: positions.length,
+      currentValue: constructionPositions.reduce((sum, position) => sum + position.currentValue, 0),
+      nav: economics?.fund.nav ?? 0,
+      positions: constructionPositions,
+    },
+  }
+}
+
+async function loadStoredAssumptions(
+  ctx: ConstructionServiceContext,
+  vehicleId: string | null,
+  vintageYear: number | null,
+): Promise<ConstructionAssumptions> {
+  if (!vehicleId) return parseAssumptions(null, vintageYear)
+  const { data, error } = await (ctx.admin as any)
+    .from('fund_construction_models')
+    .select('*')
+    .eq('fund_id', ctx.fundId)
+    .eq('vehicle_id', vehicleId)
+    .maybeSingle()
+  if (error) throw new Error(error.message)
+  return parseAssumptions(data ? mapConstructionAssumptionsRow(data) : null, vintageYear)
+}
+
+function constructionResponse(args: {
+  vehicle: string
+  vehicleId: string | null
+  vintageYear: number | null
+  actuals: ConstructionActuals
+  assumptions: ConstructionAssumptions
+}): ConstructionModelResponse {
+  const now = new Date()
+  const forecast = constructionModel(args.actuals, args.assumptions, now)
+  return {
+    vehicle: args.vehicle,
+    vehicleId: args.vehicleId,
+    vintageYear: args.vintageYear,
+    ledgerAvailable: args.actuals.ledgerAvailable,
+    actuals: args.actuals,
+    assumptions: args.assumptions,
+    forecast,
+    positions: forecast.returns.positions,
+    warnings: forecast.warnings,
+    asOf: now.toISOString(),
+  }
+}
+
+export async function getConstructionModel(
+  ctx: ConstructionServiceContext,
+  input: { vehicle: string },
+): Promise<ConstructionModelResponse> {
+  const vehicle = await resolveVehicle(ctx.admin, ctx.fundId, input.vehicle)
+  const { actuals, vintageYear, vehicleId } = await loadConstructionActuals(ctx.admin, ctx.fundId, vehicle)
+  const assumptions = await loadStoredAssumptions(ctx, vehicleId, vintageYear)
+  return constructionResponse({ vehicle, vehicleId, vintageYear, actuals, assumptions })
+}
+
+export async function updateConstructionAssumptions(
+  ctx: ConstructionServiceContext,
+  input: { vehicle: string; assumptions: ConstructionAssumptionsInput },
+): Promise<ConstructionModelResponse> {
+  const vehicle = await resolveVehicle(ctx.admin, ctx.fundId, input.vehicle)
+  const { actuals, vintageYear, vehicleId } = await loadConstructionActuals(ctx.admin, ctx.fundId, vehicle)
+  if (!vehicleId) {
+    throw new Error('This vehicle has no registry row, so a construction model cannot be stored for it.')
+  }
+  // Validate before constructing or awaiting the write query.
+  const assumptions = validateConstructionAssumptions(input.assumptions, vintageYear)
+  const { error } = await (ctx.admin as any).from('fund_construction_models').upsert({
+    fund_id: ctx.fundId,
+    vehicle_id: vehicleId,
+    fee_annual_rate: assumptions.feeAnnualRate,
+    fee_basis: assumptions.feeBasis,
+    fee_term_years: assumptions.feeTermYears,
+    fee_start_date: assumptions.feeStartDate || null,
+    fee_step_down_year: assumptions.feeStepDownYear,
+    fee_step_down_rate: assumptions.feeStepDownRate,
+    annual_partnership_expense: assumptions.annualPartnershipExpense,
+    remaining_org_costs: assumptions.remainingOrgCosts,
+    target_portfolio_size: 0,
+    existing_reserve_pool: 0,
+    target_fund_multiple: 0,
+    stages: assumptions.stages,
+    position_forecasts: assumptions.positionForecasts,
+    updated_at: new Date().toISOString(),
+  }, { onConflict: 'fund_id,vehicle_id' })
+  if (error) throw new Error(error.message)
+  return constructionResponse({ vehicle, vehicleId, vintageYear, actuals, assumptions })
+}

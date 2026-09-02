@@ -4,9 +4,9 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { testDeepgramConnection } from '@/lib/transcription/deepgram'
 
 /**
- * Admin connection test for call transcription. Verifies the Deepgram API
- * key works and reports whether the webhook environment is configured —
- * lets an admin confirm transcription is set up without uploading a file.
+ * Admin connection test for call transcription. Verifies the Deepgram API key works and reports
+ * whether a callback base URL is resolvable — lets an admin confirm transcription is set up
+ * without uploading a file.
  */
 export async function GET() {
   const supabase = createClient()
@@ -24,9 +24,9 @@ export async function GET() {
 
   const deepgram = await testDeepgramConnection()
 
-  // The webhook needs a shared secret and a resolvable base URL, or Deepgram
-  // callbacks have nowhere authenticated to land. Surface that here too.
-  const webhookSecretSet = !!process.env.TRANSCRIPTION_WEBHOOK_SECRET
+  // The webhook needs a resolvable base URL or Deepgram callbacks have nowhere to land. There is
+  // no shared secret to check any more: each job mints its own callback token (SEC-010), so the
+  // credential is per-transcription and cannot be misconfigured independently of the job.
   const webhookUrlResolvable = !!(
     process.env.TRANSCRIPTION_WEBHOOK_URL ||
     process.env.NEXT_PUBLIC_SITE_URL ||
@@ -36,8 +36,7 @@ export async function GET() {
 
   return NextResponse.json({
     deepgram,
-    webhook_secret_set: webhookSecretSet,
     webhook_url_resolvable: webhookUrlResolvable,
-    ready: deepgram.ok && webhookSecretSet && webhookUrlResolvable,
+    ready: deepgram.ok && webhookUrlResolvable,
   })
 }

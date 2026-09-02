@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { encrypt } from '@/lib/crypto'
+import { decrypt, encrypt } from '@/lib/crypto'
 import { rateLimit, getClientIp } from '@/lib/rate-limit'
 import { randomBytes } from 'crypto'
 
@@ -16,7 +16,7 @@ export async function GET() {
   // Check if user already has a fund
   const { data: membership } = await admin
     .from('fund_members')
-    .select('fund_id')
+    .select('fund_id, role')
     .eq('user_id', user.id)
     .maybeSingle()
 
@@ -25,6 +25,11 @@ export async function GET() {
   }
 
   const fundId = membership.fund_id
+  // A member who joined an existing fund is already onboarded. Do not expose fund-wide setup
+  // credentials or invite them into administrator-only integration configuration.
+  if (membership.role !== 'admin') {
+    return NextResponse.json({ step: 'complete', fundId, webhookToken: null })
+  }
 
   // Get fund settings to determine progress
   const { data: settings } = await admin
@@ -84,31 +89,55 @@ export async function POST(req: NextRequest) {
   // Check if user already has a fund — return it instead of creating a duplicate
   const { data: existing } = await admin
     .from('fund_members')
-    .select('fund_id')
+    .select('fund_id, role')
     .eq('user_id', user.id)
     .maybeSingle()
 
   if (existing) {
-    // Update fund name and API key on the existing fund
-    await admin.from('funds').update({ name: fundName.trim() }).eq('id', existing.fund_id)
-
+    if (existing.role !== 'admin') {
+      return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
+    }
     const kek = process.env.ENCRYPTION_KEY
-    if (kek) {
-      const dek = randomBytes(32).toString('hex')
-      await admin
+    if (!kek) {
+      return NextResponse.json({ error: 'Server misconfiguration: ENCRYPTION_KEY not set' }, { status: 500 })
+    }
+    const { data: settings, error: settingsError } = await admin
+      .from('fund_settings')
+      .select('encryption_key_encrypted, postmark_webhook_token')
+      .eq('fund_id', existing.fund_id)
+      .maybeSingle()
+    if (settingsError || !settings) {
+      return NextResponse.json({ error: 'Fund settings not found' }, { status: 500 })
+    }
+
+    // Reuse the existing DEK. Rotating it while rewriting only the Claude key would permanently
+    // orphan every other integration credential encrypted with the previous key.
+    let dek: string
+    let encryptionKeyEncrypted = settings.encryption_key_encrypted
+    try {
+      if (encryptionKeyEncrypted) {
+        dek = decrypt(encryptionKeyEncrypted, kek)
+      } else {
+        dek = randomBytes(32).toString('hex')
+        encryptionKeyEncrypted = encrypt(dek, kek)
+      }
+    } catch {
+      return NextResponse.json({ error: 'Existing fund encryption key is invalid' }, { status: 500 })
+    }
+
+    const [{ error: fundError }, { error: updateError }] = await Promise.all([
+      admin.from('funds').update({ name: fundName.trim() }).eq('id', existing.fund_id),
+      admin
         .from('fund_settings')
         .update({
           claude_api_key_encrypted: encrypt(claudeApiKey.trim(), dek),
-          encryption_key_encrypted: encrypt(dek, kek),
+          encryption_key_encrypted: encryptionKeyEncrypted,
         })
-        .eq('fund_id', existing.fund_id)
+        .eq('fund_id', existing.fund_id),
+    ])
+    if (fundError || updateError) {
+      return NextResponse.json({ error: 'Failed to update fund settings' }, { status: 500 })
     }
-
-    const { data: settings } = await admin
-      .from('fund_settings')
-      .select('postmark_webhook_token')
-      .eq('fund_id', existing.fund_id)
-      .single()
 
     return NextResponse.json({
       fundId: existing.fund_id,

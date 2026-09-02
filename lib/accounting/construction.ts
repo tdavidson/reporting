@@ -400,6 +400,7 @@ export interface PositionReturn {
   currentMoic: number | null
   /** Future forecast proceeds only; realized proceeds remain separate. */
   estimatedReturn: number | null
+  /** (Realized proceeds + forecast proceeds) / total invested capital. */
   estimatedMoic: number | null
   /** Exit value used by the ownership method, including the automatic current-value default. */
   forecastExitValue: number
@@ -630,7 +631,12 @@ export function constructionModel(
       currentValue,
       currentMoic,
       estimatedReturn,
-      estimatedMoic: estimatedReturn != null && invested > 0 ? estimatedReturn / invested : null,
+      // Gross MOIC is a whole-deal measure. Realized proceeds stay in their own table column, but
+      // they still belong in the numerator alongside any remaining forecast proceeds. A fully
+      // exited deal therefore reports its realized MOIC instead of a blank forecast multiple.
+      estimatedMoic: invested > 0
+        ? (actual.distributions + (estimatedReturn ?? 0)) / invested
+        : null,
       forecastExitValue,
       returnMethod,
       exitToReturnFund: !isExited && forecastOwnership > 0

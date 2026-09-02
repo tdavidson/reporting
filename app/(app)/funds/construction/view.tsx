@@ -156,7 +156,7 @@ export function ConstructionView({ vehicle, vehicleId }: { vehicle: string; vehi
       <div className="space-y-6">
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-5">
           <Metric label="Invested capital" value={fmt(model.capital.deployedTotal)} sub={`${pct(model.capital.deployedTotal / model.capital.committedCapital)} of committed capital`} />
-          <Metric label="Available after plan" value={fmt(model.capital.gap ?? model.capital.remaining)} sub={`${fmt(model.capital.plannedCost)} still planned`} />
+          <Metric label="Available after plan" value={fmt(model.capital.gap ?? model.capital.remaining)} sub={`${fmt(model.capital.plannedCost)} already in plan`} />
           <Metric label="Portfolio" value={`${model.capital.companyCount + a.stages.length}`} sub={`${model.capital.companyCount} current · ${a.stages.length} planned`} />
           <Metric label="Gross MOIC" value={multiple(model.returns.estimatedGrossMoic)} sub="Invested and forecasted capital" />
           <Metric label="Net MOIC" value={multiple(model.returns.estimatedNetMoic)} sub="Invested and forecasted capital" />

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { assertWriteAccess } from '@/lib/api-helpers'
+import { assertAdminAccess } from '@/lib/api-helpers'
 
 interface Sender {
   email: string
@@ -15,8 +15,8 @@ export async function POST(req: NextRequest) {
 
   const admin = createAdminClient()
 
-  const writeCheck = await assertWriteAccess(admin, user.id)
-  if (writeCheck instanceof NextResponse) return writeCheck
+  const access = await assertAdminAccess(admin, user.id)
+  if (access instanceof NextResponse) return access
 
   const { fundId, senders } = await req.json() as { fundId: string; senders: Sender[] }
 
@@ -24,15 +24,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
   }
 
-  // Verify the fund belongs to this user
-  const { data: membership } = await admin
-    .from('fund_members')
-    .select('id')
-    .eq('fund_id', fundId)
-    .eq('user_id', user.id)
-    .maybeSingle()
-
-  if (!membership) {
+  if (fundId !== access.fundId) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 

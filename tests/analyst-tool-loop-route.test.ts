@@ -125,6 +125,14 @@ describe('analyst route — tool loop vs createChat', () => {
     expect(createChat).not.toHaveBeenCalled()
     expect(json.reply).toBe('hi')
     expect(json.toolCalls).toEqual([{ name: 'list_accounts' }])
+    expect(json).toMatchObject({
+      conversationId: 'conv1',
+      proposals: [],
+      vehicle: 'Fund IV',
+      scope: 'accounting:Fund IV',
+      stagedActions: [],
+      blocks: [],
+    })
   })
 
   it('falls back to createChat when the provider lacks tool support', async () => {

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { resolveVehicle } from './agent-tools'
+import { resolveVehicle } from './vehicle-resolver'
 
 /**
  * Resolve the vehicle (portfolio_group) for a request: the explicit value, or the

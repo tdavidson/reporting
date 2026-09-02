@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { resolveLpAccess } from '@/lib/api-helpers'
 import { logLpAccessEvent } from '@/lib/lp-access-log'
-import { sanitizeBasicHtml } from '@/lib/sanitize'
+import { sanitizeLetterHtml } from '@/lib/sanitize'
 
 /**
  * LP portal — one shared, finalized LP letter. Isolation: resolveLpAccess →
@@ -42,7 +42,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   if (!letter || letter.status === 'generating') return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   // Defense-in-depth: scrub the GP-authored HTML before it reaches the LP browser.
-  letter.portfolio_table_html = sanitizeBasicHtml(letter.portfolio_table_html)
+  letter.portfolio_table_html = sanitizeLetterHtml(letter.portfolio_table_html)
 
   await logLpAccessEvent(admin, {
     fundId,

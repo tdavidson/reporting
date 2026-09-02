@@ -6,6 +6,11 @@ describe('write-action registry', () => {
     expect(getWriteAction('update_company_metric')?.domain).toBe('portfolio')
     expect(getWriteAction('record_investment')?.domain).toBe('portfolio')
     expect(getWriteAction('issue_capital_call')?.domain).toBe('lp_capital')
+    expect(getWriteAction('update_portfolio_construction')?.domain).toBe('accounting')
+  })
+
+  it('requires accounting write access to stage construction changes', () => {
+    expect(getWriteAction('update_portfolio_construction')?.stageAccess).toBe('write')
   })
 
   it('carries the investments feature on record_investment', () => {

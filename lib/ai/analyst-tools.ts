@@ -19,6 +19,13 @@ export interface StagedActionRecord {
   preview: PreviewResult
 }
 
+/** A successfully completed read tool, retained for deterministic presentation builders. */
+export interface CompletedAnalystTool {
+  name: string
+  input: Record<string, unknown>
+  result: unknown
+}
+
 export interface AnalystToolDeps {
   admin: SupabaseClient
   fundId: string
@@ -27,14 +34,16 @@ export interface AnalystToolDeps {
   vehicle?: string
   /**
    * Expose WRITE actions as drafting tools. They never execute from the model — a call runs the
-   * read-only preview and stages a `pending_actions` row for human approval. Drafting a write needs
-   * domain READ; approving it (elsewhere) needs domain WRITE.
+   * read-only preview and stages a `pending_actions` row for human approval. Drafting normally
+   * needs domain READ; an action may require WRITE. Approval always requires WRITE.
    */
   enableDrafts?: boolean
   /** Recorded on staged rows, e.g. 'analyst'. */
   createdVia?: string | null
   /** Executor pushes each staged write here (when provided) for the caller to render. */
   stagedActions?: StagedActionRecord[]
+  /** Executor pushes validated read results here; never populated for failed or write tools. */
+  completedTools?: CompletedAnalystTool[]
 }
 
 /**
@@ -54,10 +63,10 @@ export function buildAnalystTools(deps: AnalystToolDeps): { tools: ToolDefinitio
     inputSchema: t.inputSchema,
   }))
 
-  // Write actions appear as DRAFTING tools when the caller can at least read the domain.
+  // Write actions appear as drafting tools only when the caller clears that action's stage level.
   if (deps.enableDrafts) {
     for (const [name, action] of Object.entries(WRITE_ACTIONS)) {
-      if (!hasAccess(deps.access, action.domain, 'read', action.accessFeature)) continue
+      if (!hasAccess(deps.access, action.domain, action.stageAccess ?? 'read', action.accessFeature)) continue
       tools.push({ name, description: action.description, inputSchema: action.inputSchema })
     }
   }
@@ -67,7 +76,7 @@ export function buildAnalystTools(deps: AnalystToolDeps): { tools: ToolDefinitio
     if (deps.enableDrafts) {
       const action = getWriteAction(call.name)
       if (action) {
-        if (!hasAccess(deps.access, action.domain, 'read', action.accessFeature)) {
+        if (!hasAccess(deps.access, action.domain, action.stageAccess ?? 'read', action.accessFeature)) {
           return JSON.stringify({ error: 'Access denied' })
         }
         if (!deps.userId) return JSON.stringify({ error: 'Sign in required to stage an action' })
@@ -113,6 +122,7 @@ export function buildAnalystTools(deps: AnalystToolDeps): { tools: ToolDefinitio
         { admin: deps.admin, fundId: deps.fundId, portfolioGroup, userId: deps.userId, access: deps.access },
         call.input,
       )
+      deps.completedTools?.push({ name: call.name, input: call.input, result })
       return JSON.stringify(result)
     } catch (e) {
       return JSON.stringify({ error: (e as Error).message })

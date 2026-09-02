@@ -5,6 +5,7 @@ import { logAIUsage } from '@/lib/ai/usage'
 import { uploadTranscriptToDrive } from '@/lib/memo-agent/render/gdoc'
 import { parseDriveFolderUrl } from '@/lib/google/drive'
 import { dbError } from '@/lib/api-error'
+import { hashCallbackToken } from '@/lib/transcription/callback-token'
 
 /**
  * Deepgram callback endpoint. Receives the transcript for a prerecorded
@@ -21,57 +22,50 @@ import { dbError } from '@/lib/api-error'
  *      a partner explicitly Processes the transcript when they want it in
  *      the draft.
  *
- * Auth is a shared secret carried in the path; Deepgram's prerecorded
- * callbacks aren't signed, so this is the simplest defensible scheme. Don't
- * leak the URL — anyone with the secret can write transcript content to any
- * job referenced by a tag they can guess.
+ * AUTH (SEC-010). Deepgram does not sign prerecorded callbacks, so the URL is the only channel we
+ * have to authenticate with. It used to carry one shared secret for every job, which meant two
+ * things: the secret was copied into every proxy access log and tracing span that records a path,
+ * and whoever read it there could write transcript content to ANY job whose id they could guess.
+ *
+ * Now the path carries a token minted for THIS job (lib/transcription/callback-token.ts). The token
+ * is the job lookup — not a gate in front of a lookup by a guessable tag — so it authenticates and
+ * addresses in one step, and it is cleared once the callback is processed. A leaked URL is worth
+ * one already-finished job.
+ *
+ * The shared secret is gone. It survived one deployment as a fallback so that transcriptions
+ * submitted by the previous release still landed, and was removed immediately afterwards —
+ * TRANSCRIPTION_WEBHOOK_SECRET is no longer read anywhere and can be deleted from the environment.
  */
-export async function POST(req: NextRequest, { params }: { params: { secret: string } }) {
-  const expected = process.env.TRANSCRIPTION_WEBHOOK_SECRET
-  if (!expected) {
-    return NextResponse.json({ error: 'TRANSCRIPTION_WEBHOOK_SECRET not configured' }, { status: 500 })
-  }
-  if (!timingSafeEqual(params.secret, expected)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+const JOB_COLUMNS = 'id, fund_id, deal_id, payload, status'
 
+interface CallbackJob {
+  id: string
+  fund_id: string
+  deal_id: string
+  payload: Record<string, unknown>
+  status: string
+}
+
+export async function POST(req: NextRequest, { params }: { params: { token: string } }) {
   const body = await req.json().catch(() => null)
   if (!body) return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
 
   const parsed = parseCallbackPayload(body)
-  if (!parsed.request_id && !parsed.external_ref) {
-    return NextResponse.json({ error: 'Callback missing request_id and tag' }, { status: 400 })
-  }
-
   const admin = createAdminClient()
 
-  // Prefer the tag (our job id) — it's what we set; the Deepgram request_id
-  // is the secondary lookup if the tag was lost in transit.
-  let job: {
-    id: string
-    fund_id: string
-    deal_id: string
-    payload: Record<string, unknown>
-    status: string
-  } | null = null
+  // The token IS the lookup. Presenting it proves the caller was told about this specific job,
+  // which is what the shared secret could never establish.
+  const { data: byToken } = await admin
+    .from('memo_agent_jobs')
+    .select(JOB_COLUMNS)
+    .eq('callback_token_hash', hashCallbackToken(params.token))
+    .maybeSingle()
 
-  if (parsed.external_ref) {
-    const { data } = await admin
-      .from('memo_agent_jobs')
-      .select('id, fund_id, deal_id, payload, status')
-      .eq('id', parsed.external_ref)
-      .maybeSingle()
-    job = (data as any) ?? null
-  }
-  if (!job && parsed.request_id) {
-    const { data } = await admin
-      .from('memo_agent_jobs')
-      .select('id, fund_id, deal_id, payload, status')
-      .eq('external_job_id', parsed.request_id)
-      .maybeSingle()
-    job = (data as any) ?? null
-  }
-  if (!job) return NextResponse.json({ error: 'No matching job' }, { status: 404 })
+  // One 401 for a wrong token, an unknown job, and a spent token alike, so none of the three can be
+  // told apart from outside. Deliberately not a 400 about a missing tag: answering the payload
+  // before the credential told an unauthenticated caller which half they had wrong.
+  const job = (byToken as unknown as CallbackJob | null) ?? null
+  if (!job) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   if (job.status === 'success') {
     // Idempotency: if Deepgram retries, don't double-write.
@@ -212,6 +206,9 @@ export async function POST(req: NextRequest, { params }: { params: { secret: str
         utterances: parsed.utterances.length,
         duration_seconds: parsed.duration_seconds,
       } as any,
+      // Single use: the callback has landed, so the token in that URL is spent. Whatever logs
+      // recorded the path now hold a credential that opens nothing.
+      callback_token_hash: null,
     })
     .eq('id', job.id)
 
@@ -237,15 +234,10 @@ async function markFailed(admin: ReturnType<typeof createAdminClient>, jobId: st
       error,
       finished_at: new Date().toISOString(),
       progress_message: 'failed',
+      // Spent either way — a failed callback is still a delivered one, and the job is terminal.
+      callback_token_hash: null,
     })
     .eq('id', jobId)
-}
-
-function timingSafeEqual(a: string, b: string): boolean {
-  if (a.length !== b.length) return false
-  let mismatch = 0
-  for (let i = 0; i < a.length; i++) mismatch |= a.charCodeAt(i) ^ b.charCodeAt(i)
-  return mismatch === 0
 }
 
 // Storage keys must be ASCII-safe — Supabase rejects spaces, brackets, and

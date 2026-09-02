@@ -323,6 +323,8 @@ export const ROUTE_DOMAINS: Record<string, RouteAccess> = {
   'api/settings/deal-submission-token': { domain: 'admin' },
   'api/settings/drive': { domain: 'admin' },
   'api/settings/drive/folders': { domain: 'admin' },
+  'api/auth/google': { domain: 'admin' },
+  'api/auth/google/callback': { domain: 'admin' },
   'api/settings/senders': { domain: 'admin' },
   'api/settings/senders/[id]': { domain: 'admin' },
   'api/settings/site-content': { domain: 'admin' },
@@ -388,10 +390,19 @@ export const OPTIONAL_ROUTES = new Set<string>([
  * authenticates by some other means or serves no fund data — "it seemed fine" is not a reason.
  */
 export const UNGATED_ROUTES: Record<string, string> = {
+  // Stable native/external boundary. Each authenticated route accepts OAuth only and resolves
+  // the token owner's live fund membership and grants in-handler; metadata is public discovery.
+  'api/v1/meta': 'Public instance discovery; contains no fund-specific data.',
+  'api/v1/me': 'OAuth-only v1 endpoint with live principal access checks in-handler.',
+  'api/v1/chat': 'OAuth-only; shared Analyst orchestration enforces the token owner\'s live access.',
+  'api/v1/conversations': 'OAuth-only; queries are scoped to the token user and fund in-handler.',
+  'api/v1/conversations/[id]': 'OAuth-only; reads and deletes are scoped to token user and fund.',
+  'api/v1/pending-actions': 'OAuth-only; rows are fund-scoped and filtered by live domain access.',
+  'api/v1/pending-actions/[id]/approve': 'OAuth-only; requires token write scope and live domain write access.',
+  'api/v1/pending-actions/[id]/reject': 'OAuth-only; requires token write scope and live domain write access.',
+
   // Pre-authentication, or the act of authenticating.
   'api/auth/branding': 'Pre-auth: login page branding.',
-  'api/auth/google': 'OAuth start.',
-  'api/auth/google/callback': 'OAuth callback.',
   'api/auth/logout': 'Ends a session.',
   'api/auth/signup': 'Pre-auth by definition.',
   'api/setup': 'First-run bootstrap, before any fund exists.',
@@ -426,7 +437,7 @@ export const UNGATED_ROUTES: Record<string, string> = {
   'api/cron/memo-agent-worker': 'Cron: CRON_SECRET.',
 
   // Inbound from third parties, authenticated by a token in the path or a provider signature.
-  'api/webhooks/transcription/[secret]': 'Inbound webhook: path secret.',
+  'api/webhooks/transcription/[token]': 'Inbound webhook: per-job single-use callback token in the path (SEC-010).',
   'api/inbound-email': 'Inbound email webhook.',
   'api/inbound-email/mailgun': 'Inbound email webhook (Mailgun).',
   'api/public/submit/[token]': 'Public deal-submission form; path token.',

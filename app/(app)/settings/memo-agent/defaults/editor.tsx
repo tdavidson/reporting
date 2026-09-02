@@ -160,7 +160,6 @@ export function DefaultsEditor({ embedded, section }: { embedded?: boolean; sect
   const [dgTesting, setDgTesting] = useState(false)
   const [dgResult, setDgResult] = useState<{
     deepgram: { ok: boolean; detail: string }
-    webhook_secret_set: boolean
     webhook_url_resolvable: boolean
     ready: boolean
   } | null>(null)
@@ -281,7 +280,6 @@ export function DefaultsEditor({ embedded, section }: { embedded?: boolean; sect
     } catch (err) {
       setDgResult({
         deepgram: { ok: false, detail: err instanceof Error ? err.message : 'Test failed' },
-        webhook_secret_set: false,
         webhook_url_resolvable: false,
         ready: false,
       })
@@ -481,11 +479,6 @@ export function DefaultsEditor({ embedded, section }: { embedded?: boolean; sect
             {dgResult && (
               <div className="rounded-card border bg-muted/20 p-3 space-y-1.5 text-xs">
                 <ResultRow ok={dgResult.deepgram.ok} label="Deepgram API" detail={dgResult.deepgram.detail} />
-                <ResultRow
-                  ok={dgResult.webhook_secret_set}
-                  label="Webhook secret"
-                  detail={dgResult.webhook_secret_set ? 'TRANSCRIPTION_WEBHOOK_SECRET is set.' : 'TRANSCRIPTION_WEBHOOK_SECRET is missing.'}
-                />
                 <ResultRow
                   ok={dgResult.webhook_url_resolvable}
                   label="Webhook URL"

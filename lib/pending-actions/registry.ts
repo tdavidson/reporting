@@ -4,16 +4,22 @@ import type { ActionType, ActionDeps, PreviewResult } from './types'
 import { previewMetricValue, writeMetricValue } from './metric-value'
 import { previewRecordInvestment, executeRecordInvestment } from './investment'
 import { previewIssueCapitalCall, executeIssueCapitalCall } from './capital-call'
+import {
+  previewUpdatePortfolioConstruction,
+  executeUpdatePortfolioConstruction,
+} from './construction'
 
 /**
  * One write action the Analyst may DRAFT. Each maps to the access `domain` (+ optional feature)
  * that gates it, a JSON Schema the model fills in, a read-only `preview`, and the real `execute`
- * that runs only on human approval. `domain`/`accessFeature` are the authorization answer: drafting
- * needs `read`, approving needs `write` (enforced in the approval endpoint).
+ * that runs only on human approval. `domain`/`accessFeature` are the authorization answer;
+ * `stageAccess` may require write for especially consequential plans, and approval always does.
  */
 export interface WriteAction {
   domain: Domain
   accessFeature?: FeatureKey
+  /** Permission required to create the draft; approval always requires write. Defaults to read. */
+  stageAccess?: 'read' | 'write'
   description: string
   inputSchema: Record<string, unknown>
   preview: (deps: ActionDeps, input: any) => Promise<PreviewResult>
@@ -85,6 +91,74 @@ export const WRITE_ACTIONS: Record<ActionType, WriteAction> = {
     },
     preview: previewIssueCapitalCall,
     execute: executeIssueCapitalCall,
+  },
+  update_portfolio_construction: {
+    domain: 'accounting',
+    // Unlike conversational suggestions, changing a fund plan is only draftable by a writer.
+    stageAccess: 'write',
+    description:
+      'Propose changes to the forward-looking portfolio-construction assumptions for one vehicle. ' +
+      'This stages a preview for human approval and does not save the model immediately.',
+    inputSchema: {
+      type: 'object',
+      required: ['vehicle'],
+      additionalProperties: false,
+      properties: {
+        vehicle: { type: 'string', description: 'Investment vehicle name.' },
+        feeAnnualRate: { type: 'number', minimum: 0 },
+        feeBasis: { type: 'string', enum: ['committed', 'invested', 'nav'] },
+        feeTermYears: { type: 'number', minimum: 0 },
+        feeStartDate: { type: 'string' },
+        feeStepDownYear: { type: ['number', 'null'], minimum: 0 },
+        feeStepDownRate: { type: ['number', 'null'], minimum: 0 },
+        annualPartnershipExpense: { type: 'number', minimum: 0 },
+        remainingOrgCosts: { type: 'number', minimum: 0 },
+        targetPortfolioSize: { type: 'number', minimum: 0 },
+        targetFundMultiple: { type: 'number', minimum: 0 },
+        stages: {
+          type: 'array',
+          items: {
+            type: 'object',
+            required: ['key', 'label', 'initialCheck', 'initialPostMoney', 'followOnMultiple', 'dilutionFactor'],
+            additionalProperties: false,
+            properties: {
+              key: { type: 'string' },
+              label: { type: 'string' },
+              initialCheck: { type: 'number', minimum: 0 },
+              initialPostMoney: { type: 'number', minimum: 0 },
+              followOnMultiple: { type: 'number', minimum: 0 },
+              followOnCheck: { type: 'number', minimum: 0 },
+              dilutionFactor: { type: 'number', minimum: 0 },
+              ownershipAtExit: { type: 'number', minimum: 0 },
+              additionalDilution: { type: 'number', minimum: 0, maximum: 1 },
+              expectedExitValue: { type: 'number', minimum: 0 },
+              forecastMoic: { type: 'number', minimum: 0 },
+              returnMethod: { type: 'string', enum: ['ownership', 'moic'] },
+            },
+          },
+        },
+        positionForecasts: {
+          type: 'object',
+          description: 'Forecast changes keyed by stable company UUID.',
+          propertyNames: { format: 'uuid' },
+          additionalProperties: {
+            type: 'object',
+            additionalProperties: false,
+            properties: {
+              plannedFollowOn: { type: 'number', minimum: 0 },
+              ownershipAtExit: { type: 'number', minimum: 0 },
+              additionalDilution: { type: 'number', minimum: 0, maximum: 1 },
+              expectedExitValue: { type: 'number', minimum: 0 },
+              forecastMoic: { type: 'number', minimum: 0 },
+              returnMethod: { type: 'string', enum: ['ownership', 'moic'] },
+            },
+          },
+        },
+        explanation: { type: 'string', description: 'Optional explanation supplied by the user.' },
+      },
+    },
+    preview: previewUpdatePortfolioConstruction,
+    execute: executeUpdatePortfolioConstruction,
   },
 }
 

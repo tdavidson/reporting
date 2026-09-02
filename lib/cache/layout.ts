@@ -1,4 +1,5 @@
 import { unstable_cache } from 'next/cache'
+import { DOMAINS, type Domain } from '@/lib/access/domains'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { checkForUpdate } from '@/lib/version'
 import { loadFofActive } from '@/lib/portfolio/fof'
@@ -49,19 +50,46 @@ export const getPendingRequests = unstable_cache(
   { tags: ['pending-requests'], revalidate: 60 }
 )
 
-export const getPendingActionsBadge = unstable_cache(
-  async (fundId: string) => {
+/**
+ * Pending actions waiting in this fund, COUNTED PER DOMAIN.
+ *
+ * Not a single number, because the queue spans domains and the viewer may not be able to open all
+ * of them: the page itself filters each row by whether the caller can read its domain, so a badge
+ * counting every row promises a queue that isn't there. Splitting the count is what lets the cache
+ * stay keyed on the fund — one entry, shared by everyone — while the per-viewer filtering happens
+ * outside it. Keying the cache on the user instead would have been a cache entry per member for a
+ * number that changes on the same schedule for all of them.
+ *
+ * `pending_actions.domain` is the row's own declared domain, the same value the approval path
+ * re-resolves write access against.
+ */
+export const getPendingActionCountsByDomain = unstable_cache(
+  async (fundId: string): Promise<Record<string, number>> => {
     const admin = createAdminClient()
-    const { count } = await admin
+    const { data } = await admin
       .from('pending_actions' as any)
-      .select('id', { count: 'exact', head: true })
+      .select('domain')
       .eq('status', 'pending')
       .eq('fund_id', fundId)
-    return count ?? 0
+
+    const counts: Record<string, number> = {}
+    for (const row of (data ?? []) as unknown as { domain: string | null }[]) {
+      if (!row.domain) continue
+      counts[row.domain] = (counts[row.domain] ?? 0) + 1
+    }
+    return counts
   },
   ['pending-actions-badge'],
   { tags: ['pending-actions-badge'], revalidate: 60 }
 )
+
+/** Sum the per-domain counts down to what this viewer can actually open. */
+export function pendingActionsBadgeFor(
+  counts: Record<string, number>,
+  canRead: (domain: Domain) => boolean,
+): number {
+  return DOMAINS.reduce((total, domain) => (canRead(domain) ? total + (counts[domain] ?? 0) : total), 0)
+}
 
 /**
  * Is this a fund of funds? Derived — true when at least one holding is itself a fund. There is

@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { Loader2, ArrowLeft, Download } from 'lucide-react'
 import { AccessHistory } from '@/components/portal/access-history'
+import { sanitizeLetterHtml } from '@/lib/sanitize'
 
 interface Letter {
   id: string
@@ -81,8 +82,10 @@ export default function PortalLetterDetailPage() {
           <div className="whitespace-pre-wrap text-sm leading-relaxed">{letter.full_draft}</div>
         )}
         {letter.portfolio_table_html && (
-          // GP-authored letter content, rendered as-is.
-          <div className="text-sm overflow-x-auto [&_table]:w-full [&_th]:text-left [&_th]:px-2 [&_th]:py-1 [&_td]:px-2 [&_td]:py-1 [&_td]:border-t" dangerouslySetInnerHTML={{ __html: letter.portfolio_table_html }} />
+          // GP-authored letter content. Sanitized again here, even though /api/portal/letters/[id] already did it on the way
+          // out. This is the last boundary before an LP's browser executes it, and it is the one
+          // that cannot be bypassed by someone adding a second way to fetch a letter.
+          <div className="text-sm overflow-x-auto [&_table]:w-full [&_th]:text-left [&_th]:px-2 [&_th]:py-1 [&_td]:px-2 [&_td]:py-1 [&_td]:border-t" dangerouslySetInnerHTML={{ __html: sanitizeLetterHtml(letter.portfolio_table_html) ?? '' }} />
         )}
         {!letter.full_draft && !letter.portfolio_table_html && (
           <p className="text-sm text-muted-foreground italic">This letter has no content.</p>

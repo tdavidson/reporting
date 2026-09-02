@@ -7,7 +7,8 @@ import {
   getReviewBadge,
   getNotesBadge,
   getPendingRequests,
-  getPendingActionsBadge,
+  getPendingActionCountsByDomain,
+  pendingActionsBadgeFor,
   getFundData,
   getFundSettings,
   getMembership,
@@ -15,7 +16,7 @@ import {
   getUpdateAvailable,
   getFofActive,
 } from '@/lib/cache/layout'
-import { accessContextFrom } from '@/lib/access/effective'
+import { accessContextFrom, hasAccess } from '@/lib/access/effective'
 import { DEFAULT_FEATURE_VISIBILITY } from '@/lib/types/features'
 import type { FeatureVisibilityMap } from '@/lib/types/features'
 import { themeCssVars, type FundTheme } from '@/lib/theme'
@@ -43,10 +44,14 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   const isAdmin = membership?.role === 'admin'
   const isViewer = membership?.role === 'viewer'
-  const [pendingRequestCount, updateAvailable, pendingActionsBadge] = await Promise.all([
+  const [pendingRequestCount, updateAvailable, pendingActionCounts] = await Promise.all([
     isAdmin ? getPendingRequests(fund.id) : Promise.resolve(0),
     isAdmin ? getUpdateAvailable() : Promise.resolve(false),
-    isAdmin ? getPendingActionsBadge(fund.id) : Promise.resolve(0),
+    // Not admin-gated any more. A member with grants can open /pending-actions and see their
+    // readable rows, so withholding the badge from them hid a queue they were meant to act on;
+    // and giving admins the raw total counted rows a fund-level switch had turned off for
+    // everyone. The count is now resolved against the same access the page filters by.
+    getPendingActionCountsByDomain(fund.id),
   ])
 
   const featureVisibility = { ...DEFAULT_FEATURE_VISIBILITY, ...(fundSettings?.feature_visibility as Partial<FeatureVisibilityMap> | null) }
@@ -60,7 +65,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // The resolver's INPUTS go to the client, which runs the same effectiveAccess the server does.
   // Not a precomputed answer per domain: that has to pick one feature key per domain, and several
   // span more than one — which made the nav hide pages the user could actually open.
-  const { role, features, grants, defaults } = accessContextFrom({
+  const accessContext = accessContextFrom({
     fundId: fund.id,
     userId: user.id,
     role: membership?.role,
@@ -68,7 +73,14 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     grants: domainGrants.grants,
     defaults: domainGrants.defaults,
   })
+  const { role, features, grants, defaults } = accessContext
   const domainAccess = { role, features, grants, defaults }
+
+  // Resolved AFTER the access context exists, because the whole point is that the number matches
+  // what the queue will actually show this person.
+  const pendingActionsBadge = pendingActionsBadgeFor(pendingActionCounts, domain =>
+    hasAccess(accessContext, domain, 'read'),
+  )
 
   const fundCurrency = fundSettings?.currency ?? 'USD'
   const configuredProviders = [

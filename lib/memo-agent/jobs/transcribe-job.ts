@@ -1,5 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { submitForTranscription } from '@/lib/transcription/deepgram'
+import { hashCallbackToken, mintCallbackToken } from '@/lib/transcription/callback-token'
 
 type Admin = ReturnType<typeof createAdminClient>
 
@@ -78,7 +79,15 @@ export async function runTranscribeJob(admin: Admin, job: TranscribeJob): Promis
     throw new Error(`Failed to sign recording URL: ${signErr?.message ?? 'unknown'}`)
   }
 
-  const callbackUrl = resolveCallbackUrl()
+  // SEC-010: one credential per job, not one for the endpoint. Stored as a hash, put in the URL
+  // in the clear because that URL is the only channel Deepgram gives us to authenticate with.
+  const callbackToken = mintCallbackToken()
+  await admin
+    .from('memo_agent_jobs')
+    .update({ callback_token_hash: hashCallbackToken(callbackToken) })
+    .eq('id', job.id)
+
+  const callbackUrl = resolveCallbackUrl(callbackToken)
 
   await admin
     .from('memo_agent_jobs')
@@ -102,25 +111,27 @@ export async function runTranscribeJob(admin: Admin, job: TranscribeJob): Promis
   return { awaiting_callback: true, external_job_id: request_id, document_id: row.id }
 }
 
-function resolveCallbackUrl(): string {
-  // Prefer explicit override (lets a dev tunnel point at localhost via ngrok).
+/**
+ * Where Deepgram should call back, carrying this job's single-use token.
+ *
+ * `TRANSCRIPTION_WEBHOOK_URL` remains an override for a dev tunnel (ngrok at localhost); the token
+ * is appended to it either way, so the override cannot accidentally opt out of the credential.
+ */
+function resolveCallbackUrl(token: string): string {
   const explicit = process.env.TRANSCRIPTION_WEBHOOK_URL
-  if (explicit) return explicit
+  const origin = explicit
+    ? explicit.replace(/\/api\/webhooks\/transcription.*$/, '')
+    : (() => {
+        const base = process.env.NEXT_PUBLIC_SITE_URL
+          ?? process.env.VERCEL_PROJECT_PRODUCTION_URL
+          ?? process.env.VERCEL_URL
+        if (!base) {
+          throw new Error('No webhook base URL configured (set TRANSCRIPTION_WEBHOOK_URL or NEXT_PUBLIC_SITE_URL)')
+        }
+        return base.startsWith('http') ? base : `https://${base}`
+      })()
 
-  const base = process.env.NEXT_PUBLIC_SITE_URL
-    ?? process.env.VERCEL_PROJECT_PRODUCTION_URL
-    ?? process.env.VERCEL_URL
-  if (!base) {
-    throw new Error('No webhook base URL configured (set TRANSCRIPTION_WEBHOOK_URL or NEXT_PUBLIC_SITE_URL)')
-  }
-  const origin = base.startsWith('http') ? base : `https://${base}`
-  const secret = process.env.TRANSCRIPTION_WEBHOOK_SECRET
-  if (!secret) {
-    throw new Error('TRANSCRIPTION_WEBHOOK_SECRET not configured')
-  }
-  // The shared secret lives in the URL path so Deepgram (which doesn't sign
-  // request bodies for prerecorded callbacks) can be authenticated cheaply.
-  return `${origin.replace(/\/$/, '')}/api/webhooks/transcription/${encodeURIComponent(secret)}`
+  return `${origin.replace(/\/$/, '')}/api/webhooks/transcription/${encodeURIComponent(token)}`
 }
 
 export function isAwaitingCallback(value: unknown): value is AwaitingCallback {

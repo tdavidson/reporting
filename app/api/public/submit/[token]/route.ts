@@ -5,7 +5,7 @@ import { getFeatureProvider } from '@/lib/ai/feature-provider'
 import { extractAttachmentText, type PostmarkPayload } from '@/lib/parsing/extractAttachmentText'
 import { processDeal } from '@/lib/pipeline/processDeal'
 import type { PostmarkPayload as PipelinePayload } from '@/lib/pipeline/processEmail'
-import { rateLimit } from '@/lib/rate-limit'
+import { getClientIp, rateLimit } from '@/lib/rate-limit'
 import { scanFileAsync } from '@/lib/security/scan-file'
 import { hashSubmissionToken } from '@/lib/deals/submission-token'
 
@@ -18,8 +18,12 @@ const MAX_FILE_BYTES = 10 * 1024 * 1024
 const MIN_PITCH_LEN = 50
 
 export async function POST(req: NextRequest, { params }: { params: { token: string } }) {
-  const ip = (req.headers.get('x-forwarded-for') ?? '').split(',')[0]?.trim() || 'unknown'
-  const limited = await rateLimit({ key: `public-submit:${ip}`, limit: 5, windowSeconds: 3600 })
+  // SEC-008: `x-forwarded-for` is caller-supplied. This is the one endpoint on the site that an
+  // unauthenticated stranger can post to, and reading its own rate-limit key out of a header the
+  // caller writes means the limit is a suggestion: send a different XFF each time and the bucket is
+  // always empty. `getClientIp` reads only the headers the PLATFORM injects from the TCP
+  // connection, and falls back to a single shared 'unknown' bucket when there are none.
+  const limited = await rateLimit({ key: `public-submit:${getClientIp(req)}`, limit: 5, windowSeconds: 3600 })
   if (limited) return limited
 
   const admin = createAdminClient()

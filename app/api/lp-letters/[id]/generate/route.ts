@@ -6,6 +6,7 @@ import { createFundAIProvider } from '@/lib/ai'
 import { logAIUsage } from '@/lib/ai/usage'
 import { aggregatePortfolioData } from '@/lib/lp-letters/aggregate'
 import { buildPortfolioTableHtml, generateAllNarratives, assembleFullDraft } from '@/lib/lp-letters/generate'
+import { sanitizeLetterHtml } from '@/lib/sanitize'
 import { DEFAULT_STYLE_GUIDE } from '@/lib/lp-letters/default-template'
 import { logActivity } from '@/lib/activity'
 import { rateLimit } from '@/lib/rate-limit'
@@ -58,8 +59,13 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
       letter.portfolio_group, letter.is_year_end
     )
 
-    // Build portfolio table
-    const portfolioTableHtml = buildPortfolioTableHtml(preview)
+    // Build portfolio table.
+    //
+    // Sanitized on the way IN as well as on the way out. The generator escapes the database strings
+    // it interpolates, so this is not distrust of it — it is the persistence half of SEC-004: what
+    // lands in `lp_letters.portfolio_table_html` should already be safe, so a future reader that
+    // forgets to sanitize is not the whole defense. The render boundaries sanitize too.
+    const portfolioTableHtml = sanitizeLetterHtml(buildPortfolioTableHtml(preview)) ?? ''
 
     // Generate narratives
     const { provider, model, providerType } = await createFundAIProvider(admin, fundId)

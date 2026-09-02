@@ -108,7 +108,9 @@ export async function resolveAgentAuth(admin: SupabaseClient, req: Request): Pro
     // Imported lazily so the REST agent route, which has no OAuth surface, doesn't
     // pull the OAuth store into its bundle.
     const { resolveAccessToken } = await import('@/lib/oauth/store')
-    const resolved = await resolveAccessToken(admin, token)
+    // SEC-009: 'mcp' is the boundary this resolver serves, and it is the resource the discovery
+    // document advertises. A token minted for /api/v1 does not open the agent tools.
+    const resolved = await resolveAccessToken(admin, token, 'mcp')
     if (!resolved) return null
 
     const { data: membership } = await admin

@@ -80,8 +80,18 @@ describe('agent tool registry', () => {
       'lp_snapshot', 'lp_live_report', 'lp_reconcile_snapshot', 'lp_statement',
       'diligence_ask', 'diligence_checklist', 'diligence_evidence',
       'deals_list_inbound',
+      'portfolio_construction',
     ]) {
       expect(getTool(name), name).toBeTruthy()
     }
+  })
+
+  it('exposes construction as a fund-scoped, accounting-read tool', () => {
+    const tool = getTool('portfolio_construction')!
+    expect(tool.scope).toBe('read')
+    expect(tool.domain).toBe('portfolio')
+    expect(tool.accessDomain).toBe('accounting')
+    expect(tool.inputSchema.required).toEqual(['vehicle'])
+    expect(isLedgerTool(tool)).toBe(false)
   })
 })

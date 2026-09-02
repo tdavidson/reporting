@@ -109,6 +109,15 @@ describe('tool access domains', () => {
     // MCP even to a fund with accounting switched off entirely.
     expect(accessDomainFor(getTool('fund_performance')!)).toBe('accounting')
   })
+
+  it('sends portfolio construction to accounting while keeping it fund-scoped', () => {
+    const tool = getTool('portfolio_construction')!
+    expect(accessDomainFor(tool)).toBe('accounting')
+    expect(authorizeToolUse('read', key('member', ['read']), ctx('member', {}), accessDomainFor(tool)))
+      .toMatch(/Fund accounting/)
+    expect(authorizeToolUse('read', key('member', ['read']), ctx('member', { accounting: 'read' }), accessDomainFor(tool)))
+      .toBeNull()
+  })
 })
 
 describe('tool feature keys — hidden/off must reach MCP too', () => {

@@ -1,36 +1,35 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { assertReadAccess } from '@/lib/api-helpers'
-import { loadAccessContext, hasAccess } from '@/lib/access/effective'
-import { getWriteAction } from '@/lib/pending-actions/registry'
+import { resolveBrowserPrincipal } from '@/lib/pending-actions/browser-principal'
+import { listPendingActions, PendingActionServiceError } from '@/lib/pending-actions/service'
 
 /**
- * The fund's pending-action queue. A fund's queue spans domains, so the route itself is ungated
- * (UNGATED_ROUTES) and each row is filtered here by whether the caller can READ its domain —
- * approving still requires WRITE, enforced in the approve endpoint.
+ * The fund's pending-action queue.
+ *
+ * A queue spans domains, so the route itself is ungated (UNGATED_ROUTES) and each ROW is filtered
+ * by whether the caller can READ its domain; approving still requires WRITE. That filter used to
+ * be written out again here, beside the copy in the service — two implementations of one rule, one
+ * of which would eventually stop matching. Now there is the one.
+ *
+ * Paginated, unlike the version this replaces, which selected every pending row. The client walks
+ * the cursor to the end.
  */
-export async function GET() {
-  const supabase = createClient()
+export async function GET(req: Request) {
   const admin = createAdminClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const principal = await resolveBrowserPrincipal(admin)
+  if (principal instanceof NextResponse) return principal
 
-  const gate = await assertReadAccess(admin, user.id)
-  if (gate instanceof NextResponse) return gate
-  const access = await loadAccessContext(admin, gate.fundId, user.id, gate.role)
+  const url = new URL(req.url)
+  const cursor = url.searchParams.get('cursor')
 
-  const { data: rows } = await admin
-    .from('pending_actions' as any)
-    .select('*')
-    .eq('fund_id', gate.fundId)
-    .eq('status', 'pending')
-    .order('created_at', { ascending: false })
-
-  const visible = ((rows ?? []) as unknown as Array<{ action_type: string }>).filter(row => {
-    const action = getWriteAction(row.action_type)
-    return action ? hasAccess(access, action.domain, 'read', action.accessFeature) : false
-  })
-
-  return NextResponse.json(visible)
+  try {
+    const { actions, nextCursor } = await listPendingActions(admin, principal, { limit: 50, cursor })
+    return NextResponse.json({ actions, nextCursor })
+  } catch (error) {
+    if (error instanceof PendingActionServiceError) {
+      return NextResponse.json({ error: error.message }, { status: error.status })
+    }
+    console.error('[pending-actions] list failed', error)
+    return NextResponse.json({ error: 'The queue could not be loaded.' }, { status: 500 })
+  }
 }
