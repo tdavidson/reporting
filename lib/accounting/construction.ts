@@ -20,8 +20,6 @@ import type { FeeBasis } from './fees'
 
 const r = (n: number) => Math.round(n * 100) / 100
 
-const MS_PER_YEAR = 365.25 * 24 * 60 * 60 * 1000
-
 /**
  * One deal in the FORWARD-LOOKING portfolio.
  *
@@ -74,8 +72,9 @@ export interface ConstructionPositionForecast {
 export interface ConstructionAssumptions {
   feeAnnualRate: number
   feeBasis: FeeBasis
+  /** Number of future years included in the management-fee and partnership-expense forecast. */
   feeTermYears: number
-  /** ISO date. The fee clock's start. Empty means no clock, and no fees are projected. */
+  /** Legacy persisted field retained for row compatibility; it no longer drives the forecast. */
   feeStartDate: string
   feeStepDownYear: number | null
   feeStepDownRate: number | null
@@ -194,7 +193,7 @@ const nullableNum = (v: unknown): number | null =>
  * valid but incomplete row is retained so a newly added forecast survives autosave. The model
  * explicitly treats a zero post-money as zero ownership rather than dividing by zero.
  */
-export function parseAssumptions(raw: unknown, vintageYear: number | null): ConstructionAssumptions {
+export function parseAssumptions(raw: unknown, _vintageYear: number | null): ConstructionAssumptions {
   const o = (raw ?? {}) as Record<string, unknown>
   const basis = FEE_BASES.includes(o.feeBasis as FeeBasis) ? (o.feeBasis as FeeBasis) : 'committed'
 
@@ -255,13 +254,11 @@ export function parseAssumptions(raw: unknown, vintageYear: number | null): Cons
     feeAnnualRate: num(o.feeAnnualRate, DEFAULT_ASSUMPTIONS.feeAnnualRate),
     feeBasis: basis,
     feeTermYears: num(o.feeTermYears, DEFAULT_ASSUMPTIONS.feeTermYears),
-    // The fee clock defaults to 1 January of the vintage year — the closest thing the schema has
-    // to a fund start date. Empty when there is no vintage either: the model then projects no
-    // remaining fees, and the GP is asked for the date rather than shown a number derived from
-    // a fiction.
+    // Retain old persisted dates for storage compatibility. Forecasting is driven directly by
+    // feeTermYears, which is the user-entered number of future years to model.
     feeStartDate: typeof o.feeStartDate === 'string' && o.feeStartDate
       ? o.feeStartDate
-      : vintageYear ? `${vintageYear}-01-01` : '',
+      : '',
     feeStepDownYear: nullableNum(o.feeStepDownYear),
     feeStepDownRate: nullableNum(o.feeStepDownRate),
     annualPartnershipExpense: num(o.annualPartnershipExpense, 0),
@@ -273,21 +270,8 @@ export function parseAssumptions(raw: unknown, vintageYear: number | null): Cons
   }
 }
 
-/** Years (fractional) between two dates. */
-function yearsBetween(from: Date, to: Date): number {
-  return (to.getTime() - from.getTime()) / MS_PER_YEAR
-}
-
-/** Fund years elapsed since the fee clock started. 0 when there is no clock. */
-function yearsElapsed(a: ConstructionAssumptions, today: Date): number {
-  if (!a.feeStartDate) return 0
-  const start = new Date(a.feeStartDate)
-  if (Number.isNaN(start.getTime())) return 0
-  return Math.max(0, yearsBetween(start, today))
-}
-
 /**
- * Management fees NOT YET INCURRED, over the remainder of the fee term.
+ * Management fees not yet incurred, over the user-entered forward forecast term.
  *
  * Reuses lib/accounting/fees.ts's semantics — fee = basis × rate × periodFraction — but at the
  * FUND level rather than per LP. This is a planning number over a ten-year horizon, and per-LP
@@ -297,18 +281,16 @@ function yearsElapsed(a: ConstructionAssumptions, today: Date): number {
  * Each remaining year is charged at its OWN rate, so a step-down lands on the right years rather
  * than being averaged across the whole remaining term.
  *
- * Returns 0 when the term has run out or the fee clock has no start date.
+ * Returns 0 when no forecast years remain.
  */
 export function projectRemainingFees(
   a: ConstructionAssumptions,
   committedCapital: number,
   deployedTotal: number,
   nav: number,
-  today: Date,
+  _today: Date = new Date(),
 ): number {
-  if (!a.feeStartDate) return 0
-
-  return projectFeesFromFundYear(a, committedCapital, deployedTotal, nav, yearsElapsed(a, today))
+  return projectFeesFromFundYear(a, committedCapital, deployedTotal, nav, 0)
 }
 
 /** Project fees from a stated fund year through the end of the term. */
@@ -477,7 +459,8 @@ const usd = (n: number) =>
   n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })
 
 /**
- * The whole model. `today` is a parameter so a test can pin a date.
+ * The whole model. The retained date parameter keeps existing callers compatible; projections
+ * themselves use the explicit forward term rather than an inferred start date.
  *
  * The warnings are the point of the page, not decoration: a portfolio plan that costs more than
  * remains, or whose entered deals do not add up to the deals still to do, is a plan that will not
@@ -486,26 +469,19 @@ const usd = (n: number) =>
 export function constructionModel(
   actuals: ConstructionActuals,
   a: ConstructionAssumptions,
-  today: Date = new Date(),
+  _today: Date = new Date(),
 ): ConstructionResult {
   const warnings: string[] = []
 
   // ── Investable capital ──────────────────────────────────────────────────────
   const deployedTotal = r(actuals.deployedInitial + actuals.deployedFollowOn)
 
-  // With books, the ledger supplies historical actuals and the projection begins today. Without
-  // books, incurred comes back as zero because it is unknown, not because the fund paid nothing;
-  // cover the entire stated term in the projected bucket so historical costs are not omitted.
-  const feesProjected = actuals.ledgerAvailable
-    ? projectRemainingFees(a, actuals.committedCapital, deployedTotal, actuals.nav, today)
-    : projectFeesFromFundYear(a, actuals.committedCapital, deployedTotal, actuals.nav, 0)
+  // The entered term is always forward-looking: it is the number of years from now to forecast,
+  // regardless of whether historical actuals come from the ledger or the portfolio tracker.
+  const feesProjected = projectRemainingFees(a, actuals.committedCapital, deployedTotal, actuals.nav)
   const lifetimeFees = r(actuals.managementFeesIncurred + feesProjected)
 
-  // A ledger-backed vehicle needs only its remaining run-rate. A tracking-only vehicle has no
-  // historical expense actuals, so its projection covers the full stated term instead.
-  const expenseProjectionYears = actuals.ledgerAvailable
-    ? Math.max(0, a.feeTermYears - yearsElapsed(a, today))
-    : Math.max(0, a.feeTermYears)
+  const expenseProjectionYears = Math.max(0, a.feeTermYears)
   const orgCostsProjected = r(a.remainingOrgCosts)
   const expensesProjected = r(a.annualPartnershipExpense * expenseProjectionYears)
   const lifetimeExpenses = r(

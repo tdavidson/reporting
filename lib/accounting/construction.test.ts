@@ -16,52 +16,39 @@ const A = (over: Partial<ConstructionAssumptions> = {}): ConstructionAssumptions
 const dealRows = (count: number, row: Omit<ConstructionAssumptions['stages'][number], 'key'> & { key?: string }) =>
   Array.from({ length: count }, (_, i) => ({ ...row, key: `${row.key ?? 'deal'}_${i + 1}` }))
 
-// Elapsed time is measured in 365.25-day years, so a "5 year" gap is 5.002 of them and the fee
-// lands ~760 off a hand-calculated round number. These assert the magnitude to within $5,000
-// rather than pretending the calendar is tidy. The EXACT waterfall is pinned in the capital
-// tests below, which use a fee term that has already run out.
 describe('projectRemainingFees', () => {
-  it('charges the remaining years at the flat rate', () => {
-    // 10-year term from 2020-01-01; ~5 years remain at 2025-01-01. ≈ 5 × 2% × 18.5M.
-    expect(projectRemainingFees(A(), 18_500_000, 0, 0, new Date('2025-01-01'))).toBeCloseTo(1_850_000, -4)
+  it('charges the entered forward forecast years at the flat rate', () => {
+    // A fund three years into a ten-year life enters 7: 7 future years × 2% × 18.5M.
+    expect(projectRemainingFees(A({ feeTermYears: 7 }), 18_500_000, 0, 0, new Date('2025-01-01'))).toBe(2_590_000)
   })
 
   it('honours the step-down', () => {
-    // Years 6-10 at 1.5% instead of 2%: ≈ 5 × 1.5% × 18.5M.
+    // Forecast years 1-5 at 2%, then years 6-10 at 1.5%.
     const stepped = projectRemainingFees(
       A({ feeStepDownYear: 6, feeStepDownRate: 0.015 }), 18_500_000, 0, 0, new Date('2025-01-01'),
     )
-    expect(stepped).toBeCloseTo(1_387_500, -4)
+    expect(stepped).toBe(3_237_500)
     // And it is genuinely lower than the flat-rate projection, not merely near a constant.
     expect(stepped).toBeLessThan(projectRemainingFees(A(), 18_500_000, 0, 0, new Date('2025-01-01')))
   })
 
-  it('applies the step-down only from its year, not to the whole remaining term', () => {
-    // Standing at year 2, years 2-7 are at 2% and 8-10 at 1.5%: strictly between a flat 2%
-    // projection and a flat 1.5% one.
-    const at2 = new Date('2022-01-01')
-    const stepped = projectRemainingFees(A({ feeStepDownYear: 8, feeStepDownRate: 0.015 }), 18_500_000, 0, 0, at2)
-    expect(stepped).toBeLessThan(projectRemainingFees(A(), 18_500_000, 0, 0, at2))
-    expect(stepped).toBeGreaterThan(projectRemainingFees(A({ feeAnnualRate: 0.015 }), 18_500_000, 0, 0, at2))
+  it('does not infer elapsed years from the legacy fee start date', () => {
+    const withOldDate = projectRemainingFees(A({ feeTermYears: 7, feeStartDate: '2020-01-01' }), 18_500_000, 0, 0, new Date('2025-01-01'))
+    const withoutDate = projectRemainingFees(A({ feeTermYears: 7, feeStartDate: '' }), 18_500_000, 0, 0, new Date('2035-01-01'))
+    expect(withOldDate).toBe(withoutDate)
   })
 
-  it('is zero once the term has run', () => {
-    expect(projectRemainingFees(A(), 18_500_000, 0, 0, new Date('2031-01-01'))).toBe(0)
+  it('is zero when no forecast years remain', () => {
+    expect(projectRemainingFees(A({ feeTermYears: 0 }), 18_500_000, 0, 0, new Date('2025-01-01'))).toBe(0)
   })
 
-  it('is zero when there is no fee clock to start from', () => {
-    expect(projectRemainingFees(A({ feeStartDate: '' }), 18_500_000, 0, 0, new Date('2025-01-01'))).toBe(0)
-  })
-
-  it('charges a partial remaining year', () => {
-    // ~9.5 years elapsed at 2029-07-01, so ~0.5 remain: ≈ 0.5 × 2% × 18.5M.
-    expect(projectRemainingFees(A(), 18_500_000, 0, 0, new Date('2029-07-01'))).toBeCloseTo(185_000, -4)
+  it('charges a fractional forecast year', () => {
+    expect(projectRemainingFees(A({ feeTermYears: 0.5 }), 18_500_000, 0, 0, new Date('2029-07-01'))).toBe(185_000)
   })
 
   it('bases on invested capital when the basis says so', () => {
-    // ≈ 5 remaining years × 2% × 8M deployed.
-    expect(projectRemainingFees(A({ feeBasis: 'invested' }), 18_500_000, 8_000_000, 0, new Date('2025-01-01')))
-      .toBeCloseTo(800_000, -4)
+    expect(projectRemainingFees(A({ feeBasis: 'invested', feeTermYears: 7 }), 18_500_000, 8_000_000, 0, new Date('2025-01-01')))
+      .toBe(1_120_000)
   })
 })
 
@@ -69,11 +56,10 @@ describe('parseAssumptions', () => {
   // NO STRATEGY DEFAULTS. An unplanned vehicle states nothing about its own strategy — no stage
   // mix, no portfolio target, no target multiple, no fee terms. The first version shipped one
   // firm's parameters here, which read as neutral and would have been silently wrong for anyone
-  // else. The fee CLOCK is still derived from the recorded vintage: that is the fund's own data,
-  // not an assumption about it.
-  it('states nothing about strategy for an absent row, but derives the fee clock from vintage', () => {
+  // else.
+  it('states nothing about strategy for an absent row', () => {
     const a = parseAssumptions(null, 2020)
-    expect(a.feeStartDate).toBe('2020-01-01')
+    expect(a.feeStartDate).toBe('')
     expect(a.stages).toEqual([])
     expect(a.targetPortfolioSize).toBe(0)
     expect(a.targetFundMultiple).toBe(0)
@@ -81,9 +67,7 @@ describe('parseAssumptions', () => {
     expect(a.feeTermYears).toBe(0)
   })
 
-  it('leaves the fee clock empty when there is no vintage either', () => {
-    // Better than guessing a start date: projectRemainingFees then projects nothing, and the
-    // GP is asked for the date rather than shown a number derived from a fiction.
+  it('does not infer a hidden fee clock from vintage', () => {
     expect(parseAssumptions(null, null).feeStartDate).toBe('')
   })
 
@@ -138,13 +122,11 @@ describe('parseAssumptions', () => {
   })
 })
 
-// Fund III, as the workbook states it. The fee term is deliberately RUN OUT (start 2010,
-// 10-year term, "today" 2025) so feesProjected is exactly 0 and the whole lifetime fee arrives
-// as an incurred actual. The waterfall is then exact, and independent of the 365.25-day year
-// arithmetic that projectRemainingFees is separately pinned on above. Coupling the two would
-// make a waterfall test fail for a fee-projection reason.
+// Fund III, as the workbook states it. No future fee years are entered, so feesProjected is
+// exactly 0 and the whole lifetime fee arrives as an incurred actual. The waterfall is then
+// independent of fee-projection assumptions.
 const NOW = new Date('2025-01-01')
-const RUN_OUT = { feeStartDate: '2010-01-01', feeTermYears: 10 } as const
+const RUN_OUT = { feeTermYears: 0 } as const
 
 const ACT = (over: Partial<ConstructionActuals> = {}): ConstructionActuals => ({
   committedCapital: 18_500_000,
@@ -186,11 +168,11 @@ describe('constructionModel — capital', () => {
 
   it('reports projected organizational costs separately from partnership expenses', () => {
     const m = constructionModel(ACT(), A({
-      feeStartDate: '2024-01-01', feeTermYears: 3,
+      feeTermYears: 3,
       annualPartnershipExpense: 100_000, remainingOrgCosts: 250_000,
     }), NOW)
     expect(m.capital.orgCostsProjected).toBe(250_000)
-    expect(m.capital.expensesProjected).toBeCloseTo(200_000, -3)
+    expect(m.capital.expensesProjected).toBe(300_000)
     expect(m.capital.lifetimeExpenses).toBeCloseTo(
       ACT().orgCostsIncurred + 250_000 + ACT().partnershipExpensesIncurred + m.capital.expensesProjected,
       2,
@@ -235,11 +217,10 @@ describe('constructionModel — capital', () => {
   it('projects the full fee and expense term when historical actuals have no ledger', () => {
     const m = constructionModel(
       ACT({ ledgerAvailable: false, managementFeesIncurred: 0, orgCostsIncurred: 0, partnershipExpensesIncurred: 0 }),
-      A({ ...RUN_OUT, annualPartnershipExpense: 100_000 }), NOW,
+      A({ ...RUN_OUT, feeTermYears: 10, annualPartnershipExpense: 100_000 }), NOW,
     )
     expect(m.capital.ledgerAvailable).toBe(false)
-    // The fee clock has run out, but without books zero incurred means unknown. The projected
-    // bucket therefore carries all 10 years: 18.5M × 2% × 10, plus 100k × 10.
+    // The entered horizon carries all 10 future years: 18.5M × 2% × 10, plus 100k × 10.
     expect(m.capital.feesProjected).toBe(3_700_000)
     expect(m.capital.expensesProjected).toBe(1_000_000)
     expect(m.capital.incurredExpenses).toBe(0)
@@ -247,7 +228,7 @@ describe('constructionModel — capital', () => {
     expect(m.warnings.some(w => w.includes('not on the ledger'))).toBe(true)
   })
 
-  it('applies fee step-downs across the full term when there is no ledger or fee clock', () => {
+  it('applies fee step-downs across the entered forecast horizon', () => {
     const m = constructionModel(
       ACT({ ledgerAvailable: false, managementFeesIncurred: 0, orgCostsIncurred: 0, partnershipExpensesIncurred: 0 }),
       A({ feeStartDate: '', feeStepDownYear: 6, feeStepDownRate: 0.015 }), NOW,

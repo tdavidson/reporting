@@ -233,7 +233,7 @@ export function ConstructionView({ vehicle, vehicleId }: { vehicle: string; vehi
                   label="Actual expenses"
                   value={model.capital.incurredExpenses}
                   items={[
-                    ['Organizational costs', model.capital.orgCostsIncurred],
+                    ['Organizational expenses', model.capital.orgCostsIncurred],
                     ['Partnership expenses', model.capital.expensesIncurred],
                     ['Management fees', model.capital.feesIncurred],
                   ]}
@@ -245,7 +245,7 @@ export function ConstructionView({ vehicle, vehicleId }: { vehicle: string; vehi
                   label="Projected expenses"
                   value={model.capital.projectedExpenses}
                   items={[
-                    ['Organizational costs', model.capital.orgCostsProjected],
+                    ['Organizational expenses', model.capital.orgCostsProjected],
                     ['Partnership expenses', model.capital.expensesProjected],
                     ['Management fees', model.capital.feesProjected],
                   ]}
@@ -257,7 +257,7 @@ export function ConstructionView({ vehicle, vehicleId }: { vehicle: string; vehi
                   label="Total expenses"
                   value={model.capital.totalExpenses}
                   items={[
-                    ['Organizational costs', model.capital.orgCostsIncurred + model.capital.orgCostsProjected],
+                    ['Organizational expenses', model.capital.orgCostsIncurred + model.capital.orgCostsProjected],
                     ['Partnership expenses', model.capital.expensesIncurred + model.capital.expensesProjected],
                     ['Management fees', model.capital.feesIncurred + model.capital.feesProjected],
                   ]}
@@ -289,18 +289,24 @@ export function ConstructionView({ vehicle, vehicleId }: { vehicle: string; vehi
               </div>
               {expenseInputsOpen && <div className="mt-3 rounded-lg border bg-muted/30 px-3">
                 <div className="grid gap-3 border-b py-3 sm:grid-cols-[minmax(0,1fr)_10rem] sm:items-center">
-                  <p className="text-sm">Organizational costs</p>
-                  <NumberField label="Remaining" value={a.remainingOrgCosts} onChange={v => setA({ ...a, remainingOrgCosts: v })} />
+                  <div><p className="text-sm">Organizational expenses</p><p className="mt-0.5 text-xs text-muted-foreground">Projected one-time costs</p></div>
+                  <NumberField label="Projected one-time costs" hideLabel value={a.remainingOrgCosts} onChange={v => setA({ ...a, remainingOrgCosts: v })} />
                 </div>
                 <div className="grid gap-3 border-b py-3 sm:grid-cols-[minmax(0,1fr)_10rem] sm:items-center">
-                  <p className="text-sm">Partnership expenses</p>
-                  <NumberField label="Annual" value={a.annualPartnershipExpense} onChange={v => setA({ ...a, annualPartnershipExpense: v })} />
+                  <div><p className="text-sm">Partnership expenses</p><p className="mt-0.5 text-xs text-muted-foreground">Annual expenses, for term below</p></div>
+                  <NumberField label="Annual expenses, for term below" hideLabel value={a.annualPartnershipExpense} onChange={v => setA({ ...a, annualPartnershipExpense: v })} />
                 </div>
-                <div className="grid gap-3 py-3 sm:grid-cols-[minmax(0,1fr)_minmax(18rem,20rem)] sm:items-center">
+                <div className="py-3">
                   <p className="text-sm">Management fees</p>
-                  <div className="grid grid-cols-2 gap-3">
-                    <PercentField label="Annual rate" value={a.feeAnnualRate} onChange={v => setA({ ...a, feeAnnualRate: v })} />
-                    <NumberField label="Term (years)" value={a.feeTermYears} step="0.5" onChange={v => setA({ ...a, feeTermYears: v })} />
+                  <div className="mt-2 space-y-2">
+                    <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_10rem] sm:items-center">
+                      <p className="text-xs text-muted-foreground">Annual rate</p>
+                      <PercentField label="Annual rate" hideLabel value={a.feeAnnualRate} onChange={v => setA({ ...a, feeAnnualRate: v })} />
+                    </div>
+                    <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_10rem] sm:items-center">
+                      <p className="text-xs text-muted-foreground">Forecast years remaining</p>
+                      <NumberField label="Forecast years remaining" hideLabel value={a.feeTermYears} step="0.5" onChange={v => setA({ ...a, feeTermYears: v })} />
+                    </div>
                   </div>
                 </div>
               </div>}
@@ -450,11 +456,11 @@ function CapitalPlanningGroup({
 }
 function MoneyCell({ children, full }: { children: ReactNode; full: string }) { return <td className="px-3 py-2 text-right tabular-nums" title={full}>{children}</td> }
 const NO_NUMBER_SPINNERS = '[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none'
-function NumberField({ label, value, onChange, step = 'any', suffix }: { label: string; value: number; onChange: (v: number) => void; step?: string; suffix?: string }) {
-  return <label className="text-xs text-muted-foreground">{label}<div className="relative mt-1"><Input type="number" min="0" step={step} value={value || ''} onChange={e => onChange(Math.max(0, Number(e.target.value)))} className={cn('h-9 tabular-nums', NO_NUMBER_SPINNERS, suffix && 'pr-7')} />{suffix && <span className="pointer-events-none absolute right-2.5 top-2 text-xs">{suffix}</span>}</div></label>
+function NumberField({ label, value, onChange, step = 'any', suffix, hideLabel = false }: { label: string; value: number; onChange: (v: number) => void; step?: string; suffix?: string; hideLabel?: boolean }) {
+  return <label className="text-xs text-muted-foreground"><span className={hideLabel ? 'sr-only' : undefined}>{label}</span><div className={cn('relative', !hideLabel && 'mt-1')}><Input type="number" min="0" step={step} value={value || ''} onChange={e => onChange(Math.max(0, Number(e.target.value)))} className={cn('h-9 tabular-nums', NO_NUMBER_SPINNERS, suffix && 'pr-7')} />{suffix && <span className="pointer-events-none absolute right-2.5 top-2 text-xs">{suffix}</span>}</div></label>
 }
-function PercentField({ label, value, onChange }: { label: string; value: number; onChange: (v: number) => void }) {
-  return <label className="text-xs text-muted-foreground">{label}<div className="relative mt-1"><Input type="number" min="0" step="0.1" value={value ? Number((value * 100).toFixed(4)) : ''} onChange={e => onChange(Math.max(0, Number(e.target.value)) / 100)} className={cn('h-9 pr-7 tabular-nums', NO_NUMBER_SPINNERS)} /><span className="pointer-events-none absolute right-2.5 top-2 text-xs">%</span></div></label>
+function PercentField({ label, value, onChange, hideLabel = false }: { label: string; value: number; onChange: (v: number) => void; hideLabel?: boolean }) {
+  return <label className="text-xs text-muted-foreground"><span className={hideLabel ? 'sr-only' : undefined}>{label}</span><div className={cn('relative', !hideLabel && 'mt-1')}><Input type="number" min="0" step="0.1" value={value ? Number((value * 100).toFixed(4)) : ''} onChange={e => onChange(Math.max(0, Number(e.target.value)) / 100)} className={cn('h-9 pr-7 tabular-nums', NO_NUMBER_SPINNERS)} /><span className="pointer-events-none absolute right-2.5 top-2 text-xs">%</span></div></label>
 }
 function SaveIndicator({ state }: { state: SaveState }) {
   if (state === 'saving') return <span className="flex items-center gap-1.5 text-xs text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" />Saving…</span>
