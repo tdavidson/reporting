@@ -188,9 +188,9 @@ export function CapitalRollforwardTable({
         <thead>
           <tr className="border-b bg-muted/50">
             <SortTh label="Partner" sortKey="name" sort={sort} onSort={onSort} align="left" />
-            {commitmentCols.map(c => <SortTh key={c.key} label={c.label} sortKey={c.key} sort={sort} onSort={onSort} align="right" className="border-l" />)}
-            {columns.map((c, i) => <SortTh key={c.key} label={c.label} sortKey={c.key} sort={sort} onSort={onSort} align="right" className={i === 0 ? 'border-l' : ''} />)}
-            {metrics && METRIC_COLUMNS.map((c, i) => <SortTh key={c.key} label={c.label} sortKey={c.key} sort={sort} onSort={onSort} align="right" className={i === 0 ? 'border-l' : ''} />)}
+            {commitmentCols.map(c => <SortTh key={c.key} label={c.label} sortKey={c.key} sort={sort} onSort={onSort} align="right" />)}
+            {columns.map(c => <SortTh key={c.key} label={c.label} sortKey={c.key} sort={sort} onSort={onSort} align="right" />)}
+            {metrics && METRIC_COLUMNS.map(c => <SortTh key={c.key} label={c.label} sortKey={c.key} sort={sort} onSort={onSort} align="right" />)}
             {editable && <th className="px-3 py-2" />}
           </tr>
         </thead>
@@ -207,9 +207,9 @@ export function CapitalRollforwardTable({
         <tfoot>
           <tr className="border-t bg-muted/30 font-semibold">
             <td className="px-3 py-2">Total</td>
-            {commitmentCols.map(c => <td key={c.key} className="px-3 py-2 text-right tabular-nums border-l">{fmt(commitTotals[c.key])}</td>)}
-            {columns.map((c, i) => <td key={c.key} className={`px-3 py-2 text-right tabular-nums ${i === 0 ? 'border-l' : ''}`}>{fmt(totals[c.key])}</td>)}
-            {metrics && METRIC_COLUMNS.map((c, i) => <td key={c.key} className={`px-3 py-2 text-right tabular-nums text-muted-foreground ${i === 0 ? 'border-l' : ''}`}>{metricTotal(c.key)}</td>)}
+            {commitmentCols.map(c => <td key={c.key} className="px-3 py-2 text-right tabular-nums">{fmt(commitTotals[c.key])}</td>)}
+            {columns.map(c => <td key={c.key} className="px-3 py-2 text-right tabular-nums">{fmt(totals[c.key])}</td>)}
+            {metrics && METRIC_COLUMNS.map(c => <td key={c.key} className="px-3 py-2 text-right tabular-nums text-muted-foreground">{metricTotal(c.key)}</td>)}
             {editable && <td />}
           </tr>
         </tfoot>
@@ -292,17 +292,17 @@ function RollforwardRow({
           {rowErr && <p className="text-sm text-destructive mt-1">{rowErr}</p>}
         </td>
         {commitmentCols.map(c => (
-          <td key={c.key} className="px-3 py-1.5 text-right tabular-nums border-l">
+          <td key={c.key} className="px-3 py-1.5 text-right tabular-nums">
             {c.key === 'commitment' ? inp('commitment') : c.key === 'called' ? inp('calledCapital') : fmt(r[c.key])}
           </td>
         ))}
-        {accountCols.map((c, i) => (
-          <td key={c.key} className={`px-3 py-1.5 text-right tabular-nums ${i === 0 ? 'border-l' : ''}`}>
+        {accountCols.map(c => (
+          <td key={c.key} className="px-3 py-1.5 text-right tabular-nums">
             {c.key === 'distributions' ? inp('distributions') : c.key === 'ending' ? inp('nav') : fmt(a[c.key])}
           </td>
         ))}
-        {metrics && METRIC_COLUMNS.map((c, i) => (
-          <td key={c.key} className={`px-3 py-1.5 text-right tabular-nums ${i === 0 ? 'border-l' : ''} text-muted-foreground`}>
+        {metrics && METRIC_COLUMNS.map(c => (
+          <td key={c.key} className="px-3 py-1.5 text-right tabular-nums text-muted-foreground">
             {c.key === 'netIrr' ? inp('irr', 'w-20') : metricCell(c.key)}
           </td>
         ))}
@@ -329,13 +329,13 @@ function RollforwardRow({
         </div>
       </td>
       {commitmentCols.map(c => (
-        <td key={c.key} className={`px-3 py-2 text-right tabular-nums border-l ${Math.abs(r[c.key]) > 0.004 ? '' : 'text-muted-foreground'}`}>{fmt(r[c.key])}</td>
+        <td key={c.key} className={`px-3 py-2 text-right tabular-nums ${Math.abs(r[c.key]) > 0.004 ? '' : 'text-muted-foreground'}`}>{fmt(r[c.key])}</td>
       ))}
-      {accountCols.map((c, i) => (
-        <td key={c.key} className={`px-3 py-2 text-right tabular-nums ${i === 0 ? 'border-l' : ''} ${c.key === 'ending' ? 'font-semibold' : ''} ${c.key === 'unclassified' && Math.abs(a[c.key]) > 0.004 ? 'text-warning' : ''}`}>{fmt(a[c.key])}</td>
+      {accountCols.map(c => (
+        <td key={c.key} className={`px-3 py-2 text-right tabular-nums ${c.key === 'ending' ? 'font-semibold' : ''} ${c.key === 'unclassified' && Math.abs(a[c.key]) > 0.004 ? 'text-warning' : ''}`}>{fmt(a[c.key])}</td>
       ))}
-      {metrics && METRIC_COLUMNS.map((c, i) => (
-        <td key={c.key} className={`px-3 py-2 text-right tabular-nums text-muted-foreground ${i === 0 ? 'border-l' : ''}`}>{metricCell(c.key)}</td>
+      {metrics && METRIC_COLUMNS.map(c => (
+        <td key={c.key} className="px-3 py-2 text-right tabular-nums text-muted-foreground">{metricCell(c.key)}</td>
       ))}
       {editable && <td />}
     </tr>
