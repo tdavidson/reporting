@@ -73,6 +73,7 @@ export function ConstructionView({ vehicle, vehicleId }: { vehicle: string; vehi
   const [loadError, setLoadError] = useState<string | null>(null)
   const [sort, setSort] = useState<SortState | null>(null)
   const [forecastEditor, setForecastEditor] = useState<ForecastEditor | null>(null)
+  const [expenseInputsOpen, setExpenseInputsOpen] = useState(false)
   const [capitalGroupsOpen, setCapitalGroupsOpen] = useState({
     committed: false,
     incurred: false,
@@ -165,48 +166,46 @@ export function ConstructionView({ vehicle, vehicleId }: { vehicle: string; vehi
 
         <section className="overflow-hidden rounded-card border bg-card shadow-sm dark:shadow-none dark:border">
           <div className="overflow-x-auto">
-            <table className="w-full table-fixed text-xs">
-              <thead><tr className="border-b bg-muted/50 text-left text-xs text-muted-foreground">
-                <SortTh label="Investment" sortKey="name" sort={sort} onSort={key => setSort(s => nextSort(s, key, 'asc'))} className="w-[28%] !font-normal [white-space:normal]" />
+            <table className="w-full whitespace-nowrap text-sm">
+              <thead><tr className="border-b bg-muted/50">
+                <SortTh label="Investment" sortKey="name" sort={sort} onSort={key => setSort(s => nextSort(s, key, 'asc'))} />
                 {([
                   ['Total invested capital', 'initialCheck'], ['Current value', 'currentValue'],
                   ['Realized proceeds', 'realizedProceeds'], ['Forecasted proceeds', 'forecastReturn'],
                   ['Gross MOIC', 'forecastMoic'],
-                ] as [string, PortfolioSortKey][]).map(([label, key]) => <SortTh key={key} label={label} sortKey={key} sort={sort} onSort={key => setSort(s => nextSort(s, key))} align="right" className="!font-normal leading-tight [white-space:normal]" />)}
+                ] as [string, PortfolioSortKey][]).map(([label, key]) => <SortTh key={key} label={label} sortKey={key} sort={sort} onSort={key => setSort(s => nextSort(s, key))} align="right" />)}
               </tr></thead>
               <tbody>
-                <Band label={`Existing portfolio companies · ${model.returns.positions.length}`} />
                 {model.returns.positions.length === 0
                   ? <tr><td colSpan={6} className="px-3 py-6 text-center text-muted-foreground">No portfolio investments are recorded for this vehicle.</td></tr>
                   : sortedPositions.map(row => {
                     const { actual } = row
                     return <tr key={actual.companyId} className="group border-b hover:bg-muted/20">
-                      <td className="px-3 py-2"><div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1"><Link href={`/companies/${actual.companyId}`} className="min-w-0 truncate font-medium hover:underline" title={actual.name}>{actual.name}</Link>{actual.status === 'exited' ? <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">Exited</span> : <button type="button" title="Edit forecast" aria-label={`Edit forecast for ${actual.name}`} className="shrink-0 text-muted-foreground opacity-0 transition-opacity hover:text-foreground focus:opacity-100 group-hover:opacity-100" onClick={() => setForecastEditor({ kind: 'position', companyId: actual.companyId })}><Pencil className="h-3.5 w-3.5" /></button>}</div></td>
+                      <td className="px-3 py-2"><div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1"><Link href={`/companies/${actual.companyId}`} className="min-w-0 truncate hover:underline" title={actual.name}>{actual.name}</Link>{actual.status === 'exited' ? <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">Exited</span> : <button type="button" title="Edit forecast" aria-label={`Edit forecast for ${actual.name}`} className="shrink-0 text-muted-foreground opacity-0 transition-opacity hover:text-foreground focus:opacity-100 group-hover:opacity-100" onClick={() => setForecastEditor({ kind: 'position', companyId: actual.companyId })}><Pencil className="h-3.5 w-3.5" /></button>}</div></td>
                       <MoneyCell full={fmtFull(actual.investedTotal + row.forecast.plannedFollowOn)}>{fmt(actual.investedTotal + row.forecast.plannedFollowOn)}</MoneyCell>
                       <MoneyCell full={fmtFull(row.currentValue)}>{fmt(row.currentValue)}</MoneyCell>
                       <MoneyCell full={fmtFull(actual.distributions)}>{fmt(actual.distributions)}</MoneyCell>
                       <MoneyCell full={fmtFull(row.estimatedReturn)}>{fmt(row.estimatedReturn)}</MoneyCell>
-                      <td className="px-2 py-2.5 text-right tabular-nums">{multiple(row.estimatedMoic)}</td>
+                      <td className="px-3 py-2 text-right tabular-nums">{multiple(row.estimatedMoic)}</td>
                     </tr>
                   })}
 
-                <Band label={`Remaining portfolio forecast · ${a.stages.length} deals`} />
-                {sortedStages.map(stage => <tr key={stage.key} className="group border-b bg-muted/5 hover:bg-muted/20">
-                    <td className="px-3 py-2"><div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1"><span className="min-w-0 truncate font-medium" title={stage.label || 'New investment'}>{stage.label || 'New investment'}</span><button type="button" title="Edit forecast" aria-label={`Edit forecast for ${stage.label || 'new investment'}`} className="shrink-0 text-muted-foreground opacity-0 transition-opacity hover:text-foreground focus:opacity-100 group-hover:opacity-100" onClick={() => setForecastEditor({ kind: 'stage', key: stage.key })}><Pencil className="h-3.5 w-3.5" /></button></div></td>
+                {sortedStages.map(stage => <tr key={stage.key} className="group border-b hover:bg-muted/20">
+                    <td className="px-3 py-2"><div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1"><span className="min-w-0 truncate" title={stage.label || 'New investment'}>{stage.label || 'New investment'}</span><button type="button" title="Edit forecast" aria-label={`Edit forecast for ${stage.label || 'new investment'}`} className="shrink-0 text-muted-foreground opacity-0 transition-opacity hover:text-foreground focus:opacity-100 group-hover:opacity-100" onClick={() => setForecastEditor({ kind: 'stage', key: stage.key })}><Pencil className="h-3.5 w-3.5" /></button></div></td>
                     <MoneyCell full={fmtFull(stage.allocation)}>{fmt(stage.allocation)}</MoneyCell>
-                    <td className="px-2 py-2.5 text-right text-muted-foreground">—</td>
-                    <td className="px-2 py-2.5 text-right text-muted-foreground">—</td>
+                    <td className="px-3 py-2 text-right text-muted-foreground">—</td>
+                    <td className="px-3 py-2 text-right text-muted-foreground">—</td>
                     <MoneyCell full={fmtFull(stage.estimatedReturn)}>{fmt(stage.estimatedReturn)}</MoneyCell>
-                    <td className="px-2 py-2.5 text-right tabular-nums">{multiple(stage.estimatedMoic)}</td>
+                    <td className="px-3 py-2 text-right tabular-nums">{multiple(stage.estimatedMoic)}</td>
                   </tr>)}
               </tbody>
               <tfoot><tr className="bg-muted/40 font-semibold">
                 <td className="bg-muted px-3 py-2.5">Projected portfolio</td>
-                <td className="px-2 py-2.5 text-right tabular-nums">{fmt(model.capital.deployedTotal + model.capital.plannedCost)}</td>
-                <td className="px-2 py-2.5 text-right tabular-nums">{fmt(model.returns.currentPortfolioValue)}</td>
-                <td className="px-2 py-2.5 text-right tabular-nums">{fmt(model.returns.positions.reduce((sum, row) => sum + row.actual.distributions, 0))}</td>
-                <td className="px-2 py-2.5 text-right tabular-nums">{fmt(model.returns.estimatedPortfolioValue)}</td>
-                <td className="px-2 py-2.5 text-right tabular-nums">{multiple(model.returns.estimatedGrossMoic)}</td>
+                <td className="px-3 py-2 text-right tabular-nums">{fmt(model.capital.deployedTotal + model.capital.plannedCost)}</td>
+                <td className="px-3 py-2 text-right tabular-nums">{fmt(model.returns.currentPortfolioValue)}</td>
+                <td className="px-3 py-2 text-right tabular-nums">{fmt(model.returns.positions.reduce((sum, row) => sum + row.actual.distributions, 0))}</td>
+                <td className="px-3 py-2 text-right tabular-nums">{fmt(model.returns.estimatedPortfolioValue)}</td>
+                <td className="px-3 py-2 text-right tabular-nums">{multiple(model.returns.estimatedGrossMoic)}</td>
               </tr></tfoot>
             </table>
           </div>
@@ -217,7 +216,7 @@ export function ConstructionView({ vehicle, vehicleId }: { vehicle: string; vehi
           <section className="rounded-card border bg-card p-4 shadow-sm dark:shadow-none dark:border">
             <h2 className="text-base font-medium">Capital planning</h2><p className="mt-1 text-sm text-muted-foreground">Capital calls, expenses, investments, and reserves as a share of committed capital.</p>
             <table className="mt-3 w-full text-sm">
-              <thead><tr className="border-b bg-muted/50 text-xs text-muted-foreground"><th className="px-3 py-2 text-left font-normal">Capital</th><th className="px-3 py-2 text-right font-normal">Amount</th><th className="w-24 px-3 py-2 text-right font-normal">% committed</th></tr></thead>
+              <thead><tr className="border-b bg-muted/50"><th className="px-3 py-2 text-left font-medium">Capital</th><th className="px-3 py-2 text-right font-medium">Amount</th><th className="w-32 whitespace-nowrap px-3 py-2 text-right font-medium">% committed</th></tr></thead>
               <tbody>
                 <CapitalPlanningGroup
                   label="Committed capital"
@@ -281,28 +280,36 @@ export function ConstructionView({ vehicle, vehicleId }: { vehicle: string; vehi
                 {model.capital.plannedCost > 0 && <CapitalPlanningRow label="Forecasted investment" value={model.capital.plannedCost} committed={model.capital.committedCapital} fmt={fmt} fmtFull={fmtFull} indent />}
               </tbody>
             </table>
-            <div className="mt-4 border-t">
-              <div className="grid gap-3 border-b py-3 sm:grid-cols-[minmax(0,1fr)_12rem] sm:items-center">
-                <p className="text-sm">Organizational costs</p>
-                <NumberField label="Remaining" value={a.remainingOrgCosts} onChange={v => setA({ ...a, remainingOrgCosts: v })} />
+            <div className="mt-4 border-t pt-3">
+              <div className="flex items-center justify-between gap-3">
+                <Button size="sm" variant="outline" onClick={() => setExpenseInputsOpen(open => !open)}>
+                  <Pencil className="mr-1 h-3.5 w-3.5" />{expenseInputsOpen ? 'Close expense plan' : 'Edit expense plan'}
+                </Button>
+                <SaveIndicator state={saveState} />
               </div>
-              <div className="grid gap-3 border-b py-3 sm:grid-cols-[minmax(0,1fr)_12rem] sm:items-center">
-                <p className="text-sm">Partnership expenses</p>
-                <NumberField label="Annual" value={a.annualPartnershipExpense} onChange={v => setA({ ...a, annualPartnershipExpense: v })} />
-              </div>
-              <div className="grid gap-3 py-3 sm:grid-cols-[minmax(0,1fr)_minmax(20rem,24rem)] sm:items-center">
-                <p className="text-sm">Management fees</p>
-                <div className="grid grid-cols-2 gap-3">
-                  <PercentField label="Annual rate" value={a.feeAnnualRate} onChange={v => setA({ ...a, feeAnnualRate: v })} />
-                  <NumberField label="Term (years)" value={a.feeTermYears} step="0.5" onChange={v => setA({ ...a, feeTermYears: v })} />
+              {expenseInputsOpen && <div className="mt-3 rounded-lg border bg-muted/30 px-3">
+                <div className="grid gap-3 border-b py-3 sm:grid-cols-[minmax(0,1fr)_10rem] sm:items-center">
+                  <p className="text-sm">Organizational costs</p>
+                  <NumberField label="Remaining" value={a.remainingOrgCosts} onChange={v => setA({ ...a, remainingOrgCosts: v })} />
                 </div>
-              </div>
+                <div className="grid gap-3 border-b py-3 sm:grid-cols-[minmax(0,1fr)_10rem] sm:items-center">
+                  <p className="text-sm">Partnership expenses</p>
+                  <NumberField label="Annual" value={a.annualPartnershipExpense} onChange={v => setA({ ...a, annualPartnershipExpense: v })} />
+                </div>
+                <div className="grid gap-3 py-3 sm:grid-cols-[minmax(0,1fr)_minmax(18rem,20rem)] sm:items-center">
+                  <p className="text-sm">Management fees</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <PercentField label="Annual rate" value={a.feeAnnualRate} onChange={v => setA({ ...a, feeAnnualRate: v })} />
+                    <NumberField label="Term (years)" value={a.feeTermYears} step="0.5" onChange={v => setA({ ...a, feeTermYears: v })} />
+                  </div>
+                </div>
+              </div>}
             </div>
           </section>
 
           <section className="rounded-card border bg-card p-4 shadow-sm dark:shadow-none dark:border">
             <h2 className="text-base font-medium">Return analysis</h2><p className="mt-1 text-sm text-muted-foreground">Fund outcomes across ownership-at-exit scenarios.</p>
-            <div className="mt-4 overflow-x-auto"><table className="w-full text-sm"><thead><tr className="border-b bg-muted/50 text-xs text-muted-foreground"><th className="px-3 py-2 text-left font-normal">Ownership at exit</th><th className="px-3 py-2 text-right font-normal">Exit to return fund</th><th className="px-3 py-2 text-right font-normal">Net MOIC</th></tr></thead><tbody>
+            <div className="mt-4 overflow-x-auto"><table className="w-full text-sm"><thead><tr className="border-b bg-muted/50"><th className="px-3 py-2 text-left font-medium">Ownership at exit</th><th className="px-3 py-2 text-right font-medium">Exit to return fund</th><th className="px-3 py-2 text-right font-medium">Net MOIC</th></tr></thead><tbody>
               {model.returns.sensitivity.map((row, i) => <tr key={i} className={cn('border-b last:border-b-0', row.isWeightedAverage && 'font-medium')}><td className="px-2 py-2 tabular-nums">{pct(row.ownershipAtExit)}{row.isWeightedAverage && <span className="ml-2 text-xs font-normal text-muted-foreground">from portfolio plan</span>}</td><td className="px-2 py-2 text-right tabular-nums">{fmt(row.exitToReturnFund)}</td><td className="px-2 py-2 text-right tabular-nums">{multiple(row.netMoic)}</td></tr>)}
               {model.returns.sensitivity.length === 0 && <tr><td colSpan={3} className="px-2 py-8 text-center text-muted-foreground">Add ownership forecasts to see return scenarios.</td></tr>}
             </tbody></table></div>
@@ -327,7 +334,6 @@ export function ConstructionView({ vehicle, vehicleId }: { vehicle: string; vehi
   </div>
 }
 
-function Band({ label }: { label: string }) { return <tr className="border-b bg-muted/20"><td colSpan={6} className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</td></tr> }
 function ForecastEditorDialog({
   position, stage, fmt, multiple, onClose, onPositionChange, onStageChange, onRemoveStage,
 }: {
@@ -442,7 +448,7 @@ function CapitalPlanningGroup({
     {open && items.map(([itemLabel, itemValue]) => <CapitalPlanningRow key={itemLabel} label={itemLabel} value={itemValue} committed={committed} fmt={fmt} fmtFull={fmtFull} indent />)}
   </>
 }
-function MoneyCell({ children, full }: { children: ReactNode; full: string }) { return <td className="px-2 py-2.5 text-right tabular-nums" title={full}>{children}</td> }
+function MoneyCell({ children, full }: { children: ReactNode; full: string }) { return <td className="px-3 py-2 text-right tabular-nums" title={full}>{children}</td> }
 const NO_NUMBER_SPINNERS = '[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none'
 function NumberField({ label, value, onChange, step = 'any', suffix }: { label: string; value: number; onChange: (v: number) => void; step?: string; suffix?: string }) {
   return <label className="text-xs text-muted-foreground">{label}<div className="relative mt-1"><Input type="number" min="0" step={step} value={value || ''} onChange={e => onChange(Math.max(0, Number(e.target.value)))} className={cn('h-9 tabular-nums', NO_NUMBER_SPINNERS, suffix && 'pr-7')} />{suffix && <span className="pointer-events-none absolute right-2.5 top-2 text-xs">{suffix}</span>}</div></label>
