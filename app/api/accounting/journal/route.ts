@@ -13,6 +13,7 @@ import { closedPeriodRanges, dateInAnyClosedPeriod } from '@/lib/accounting/peri
 import { fundCurrency } from '@/lib/accounting/currency'
 import { resolvePeriod, customPeriod, type PeriodPreset } from '@/lib/accounting/statement-period'
 import type { JournalEntry, Posting } from '@/lib/accounting/types'
+import { ACTUAL_BOOK } from '@/lib/accounting/books'
 
 // GET — the vehicle's journal entries with postings, or a single entry via ?id=.
 export async function GET(req: NextRequest) {
@@ -29,6 +30,7 @@ export async function GET(req: NextRequest) {
   const base = admin
     .from('journal_entries' as any)
     .select('*, journal_postings(*)')
+    .eq('book', ACTUAL_BOOK)
     .eq('fund_id', gate.fundId)
     .eq('vehicle_id', vehicleId)
 
@@ -93,6 +95,7 @@ export async function PUT(req: NextRequest) {
   const { data: existing } = await admin
     .from('journal_entries' as any)
     .select('id, status, entry_date')
+    .eq('book', ACTUAL_BOOK)
     .eq('id', id).eq('fund_id', gate.fundId).eq('vehicle_id', vehicleId)
     .maybeSingle()
   if (!existing) return NextResponse.json({ error: 'Entry not found' }, { status: 404 })
@@ -117,7 +120,7 @@ export async function PUT(req: NextRequest) {
 
   // Insert the new postings first, then drop the old ones — so a failure never
   // leaves the entry without lines.
-  const { data: oldRows } = await admin.from('journal_postings' as any).select('id').eq('journal_entry_id', id)
+  const { data: oldRows } = await admin.from('journal_postings' as any).select('id').eq('book', ACTUAL_BOOK).eq('journal_entry_id', id)
   const oldIds = ((oldRows as any[]) ?? []).map(r => r.id)
   const { error: insErr } = await admin.from('journal_postings' as any).insert(
     normalized.map(p => ({ fund_id: gate.fundId, portfolio_group: group, vehicle_id: vehicleId, journal_entry_id: id, account_id: p.accountId, amount: p.amount, currency: p.currency, lp_entity_id: p.lpEntityId ?? null }))
@@ -126,7 +129,7 @@ export async function PUT(req: NextRequest) {
   if (oldIds.length) await admin.from('journal_postings' as any).delete().in('id', oldIds)
   await admin.from('journal_entries' as any).update({ entry_date: newDate, memo: memo ?? null }).eq('id', id).eq('fund_id', gate.fundId)
 
-  const { data: full } = await admin.from('journal_entries' as any).select('*, journal_postings(*)').eq('id', id).single()
+  const { data: full } = await admin.from('journal_entries' as any).select('*, journal_postings(*)').eq('id', id).eq('book', ACTUAL_BOOK).single()
   return NextResponse.json(full ?? { id })
 }
 
@@ -160,7 +163,7 @@ export async function POST(req: NextRequest) {
   const result = await persistEntry(admin, gate.fundId, group, user.id, entry, status === 'posted' ? 'posted' : 'draft')
   if ('error' in result) return NextResponse.json({ error: result.error }, { status: 400 })
 
-  const { data: full } = await admin.from('journal_entries' as any).select('*, journal_postings(*)').eq('id', result.entryId).single()
+  const { data: full } = await admin.from('journal_entries' as any).select('*, journal_postings(*)').eq('book', ACTUAL_BOOK).eq('id', result.entryId).single()
   return NextResponse.json(full ?? { id: result.entryId })
 }
 
@@ -193,6 +196,7 @@ export async function PATCH(req: NextRequest) {
   const { data: existing } = await admin
     .from('journal_entries' as any)
     .select('id, status, entry_date')
+    .eq('book', ACTUAL_BOOK)
     .eq('id', id).eq('fund_id', gate.fundId).eq('vehicle_id', vehicleId)
     .maybeSingle()
   if (!existing) return NextResponse.json({ error: 'Entry not found' }, { status: 404 })

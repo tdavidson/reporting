@@ -274,7 +274,11 @@ export function suggestCategory(t: ParsedTxn): Category {
   // e.g. brokerage margin interest → the dedicated 5300 Interest expense account).
   if (/interest|dividend/i.test(text)) {
     return t.amount >= 0
-      ? { accountCode: '4100', sourceType: 'income', label: 'Interest / dividend income', confidence: 'high' }
+      ? (/dividend/i.test(text)
+          // Two K-1 boxes, so two accounts. The word in the bank line is the only signal there
+          // is at this point, and it is a better one than lumping both into interest.
+          ? { accountCode: '4130', sourceType: 'income', label: 'Dividend income', confidence: 'high' }
+          : { accountCode: '4100', sourceType: 'income', label: 'Interest income', confidence: 'high' })
       : { accountCode: '5300', sourceType: 'partnership_expense', label: 'Interest expense', confidence: 'high' }
   }
   for (const r of RULES) {

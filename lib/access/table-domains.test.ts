@@ -36,7 +36,7 @@ const migrationSources = readdirSync(MIGRATIONS)
  */
 const liveTables = (() => {
   const live: Record<string, true> = {}
-  const create = /create\s+table\s+(?:if\s+not\s+exists\s+)?(?:public\.)?([a-zA-Z_]+)/gi
+  const create = /create\s+table\s+(?:if\s+not\s+exists\s+)?(?:public\.)?([a-zA-Z0-9_]+)/gi
   const drop = /drop\s+table\s+(?:if\s+exists\s+)?([^;]+);/gi
   // Filename order is apply order, so a table dropped and later recreated ends up correct.
   for (const { sql } of migrationSources) {

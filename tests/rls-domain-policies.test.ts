@@ -40,12 +40,20 @@ const orderedMigrations = readdirSync(MIGRATIONS)
 
 const allSql = orderedMigrations.map(m => m.sql).join('\n')
 
-/** The arms of a `case <x> when 'a' then 'b' ... end` block in one of the lookup functions. */
+/**
+ * The arms of a `case <x> when 'a' then 'b' ... end` block in one of the lookup functions — from
+ * the LAST migration that defines it. `create or replace function` means a later migration can
+ * re-state the table (feature_default learned `tax_reporting` that way), and what Postgres runs is
+ * the final definition, not the first.
+ */
 function caseArms(fnName: string): Record<string, string> {
-  const start = sql.indexOf(`create or replace function public.${fnName}(`)
-  expect(start, `${fnName} is missing from the migration`).toBeGreaterThan(-1)
-  const end = sql.indexOf('$$;', start)
-  const body = sql.slice(start, end)
+  const marker = `create or replace function public.${fnName}(`
+  const defining = orderedMigrations.filter(m => m.sql.includes(marker))
+  expect(defining.length, `${fnName} is not defined by any migration`).toBeGreaterThan(0)
+  const last = defining[defining.length - 1].sql
+  const start = last.lastIndexOf(marker)
+  const end = last.indexOf('$$;', start)
+  const body = last.slice(start, end)
   const arms: Record<string, string> = {}
   const re = /when\s+'([a-z_]+)'\s+then\s+'([a-z_]+)'/gi
   let m: RegExpExecArray | null
@@ -177,7 +185,7 @@ describe('SEC-002 domain RLS migration', () => {
     const createdBy: Record<string, string> = {}
     for (const file of files) {
       const src = readFileSync(path.join(MIGRATIONS, file), 'utf8')
-      const re = /create\s+table\s+(?:if\s+not\s+exists\s+)?(?:public\.)?([a-zA-Z_]+)/gi
+      const re = /create\s+table\s+(?:if\s+not\s+exists\s+)?(?:public\.)?([a-zA-Z0-9_]+)/gi
       let m: RegExpExecArray | null
       while ((m = re.exec(src)) !== null) {
         const name = m[1].toLowerCase()

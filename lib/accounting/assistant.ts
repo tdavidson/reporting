@@ -17,6 +17,7 @@ import { lpCapitalSummary } from './capital-calls'
 import { ENTRY_SOURCE_TYPES } from './source-types'
 import { loadVehicleGpLinks } from './gp-links'
 import type { JournalEntry, Posting } from './types'
+import { ACTUAL_BOOK } from './books'
 
 export interface AssistantProposalPosting { accountCode: string; amount: number; lpEntity?: string | null }
 export interface AssistantProposal {
@@ -38,6 +39,7 @@ async function vehicleBooks(admin: SupabaseClient, fundId: string, group: string
     loadPostedLedger(admin, fundId, group),
     admin.from('journal_entries' as any)
       .select('id, entry_date, memo, source_type, status, journal_postings(account_id, amount)')
+      .eq('book', ACTUAL_BOOK)
       .eq('fund_id', fundId).eq('vehicle_id', vehicleId).neq('status', 'void')
       .order('entry_date', { ascending: false }).limit(full ? 40 : 12),
   ])
@@ -242,7 +244,7 @@ export async function applyProposal(
     if (!vehicleId) return { error: `Unknown vehicle "${group}".` }
 
     const { data: existing } = await admin.from('journal_entries' as any)
-      .select('id, status, entry_date').eq('id', proposal.entryId).eq('fund_id', fundId).eq('vehicle_id', vehicleId).maybeSingle()
+      .select('id, status, entry_date').eq('id', proposal.entryId).eq('fund_id', fundId).eq('vehicle_id', vehicleId).eq('book', ACTUAL_BOOK).maybeSingle()
     if (!existing) return { error: 'Entry to edit not found' }
 
     // THE GUARDS THE CREATE PATH GETS FOR FREE FROM persistEntry, AND THIS PATH USED TO SKIP.
@@ -275,7 +277,7 @@ export async function applyProposal(
       await admin.from('bank_transactions' as any).update({ status: 'drafted' }).eq('journal_entry_id', proposal.entryId).eq('fund_id', fundId)
     }
 
-    const { data: oldRows } = await admin.from('journal_postings' as any).select('id').eq('journal_entry_id', proposal.entryId)
+    const { data: oldRows } = await admin.from('journal_postings' as any).select('id').eq('book', ACTUAL_BOOK).eq('journal_entry_id', proposal.entryId)
     const { error: insErr } = await admin.from('journal_postings' as any).insert(
       postings.map(p => ({ fund_id: fundId, portfolio_group: group, vehicle_id: vehicleId, journal_entry_id: proposal.entryId, account_id: p.accountId, amount: p.amount, currency: p.currency, lp_entity_id: p.lpEntityId }))
     )

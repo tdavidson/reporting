@@ -42,11 +42,11 @@ export const PRODUCT_META: Record<ProductKey, ProductMeta> = {
   },
   fund_operations: {
     label: 'Fund Operations',
-    description: 'Fund accounting, GP economics and carry, and compliance.',
+    description: 'Fund accounting, tax reporting, GP economics and carry, and compliance.',
     order: 4,
     shipsOn: false,
     domains: ['accounting', 'gp_economics', 'compliance'],
-    features: ['accounting', 'gp_economics', 'compliance'],
+    features: ['accounting', 'tax_reporting', 'gp_economics', 'compliance'],
   },
 }
 

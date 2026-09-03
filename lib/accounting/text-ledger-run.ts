@@ -9,6 +9,7 @@ import { serializeLedger, parseLedgerText, textAccountName, codeFromAccountName,
 import { persistEntry } from './persist'
 import { vehicleIdByName } from './vehicle-id'
 import { isBalanced } from './ledger'
+import { ACTUAL_BOOK } from './books'
 
 async function loadAccounts(admin: SupabaseClient, fundId: string, group: string): Promise<Account[]> {
   const vehicleId = await vehicleIdByName(admin, fundId, group)
@@ -24,6 +25,7 @@ export async function exportLedgerText(admin: SupabaseClient, fundId: string, gr
   let q = admin
     .from('journal_entries' as any)
     .select('id, entry_date, memo, source_type, status, journal_postings(account_id, amount, currency)')
+    .eq('book', ACTUAL_BOOK)
     .eq('fund_id', fundId)
     .eq('vehicle_id', vehicleId)
     .neq('status', 'void')

@@ -13,6 +13,7 @@ import { loadCapitalSource, type CapitalSource } from './capital-source'
 import { nextCloseStart } from './close'
 import { vehicleIdByName } from './vehicle-id'
 import { roundCents } from './ledger'
+import { ACTUAL_BOOK } from './books'
 
 export type IssueLevel = 'blocker' | 'warning' | 'info'
 
@@ -100,7 +101,7 @@ export async function vehicleStatus(
     loadOwnership(admin, fundId, group),
     loadHistoryMode(admin, fundId, group),
     loadAllocationBasis(admin, fundId, group),
-    admin.from('journal_entries' as any).select('id, status').eq('fund_id', fundId).eq('vehicle_id', vehicleId).neq('status', 'void'),
+    admin.from('journal_entries' as any).select('id, status').eq('book', ACTUAL_BOOK).eq('fund_id', fundId).eq('vehicle_id', vehicleId).neq('status', 'void'),
     admin.from('bank_transactions' as any).select('id, status').eq('fund_id', fundId).eq('vehicle_id', vehicleId),
     admin.from('fiscal_periods' as any).select('period_end, label').eq('fund_id', fundId).eq('vehicle_id', vehicleId).eq('status', 'closed').order('period_end', { ascending: false }).limit(1),
     admin.from('investment_transactions' as any).select('*').eq('fund_id', fundId),

@@ -17,6 +17,7 @@ import { DISTRIBUTION_PAYABLE_CODE } from './chart'
 import { roundCents } from './ledger'
 import { closedPeriodRanges, dateInAnyClosedPeriod } from './periods'
 import type { JournalEntry } from './types'
+import { ACTUAL_BOOK } from './books'
 
 async function getTxn(admin: SupabaseClient, fundId: string, group: string, txnId: string) {
   const vehicleId = await vehicleIdByName(admin, fundId, group)
@@ -127,6 +128,7 @@ async function retireEntry(
   const { data: entry } = await admin
     .from('journal_entries' as any)
     .select('status')
+    .eq('book', ACTUAL_BOOK)
     .eq('id', entryId)
     .eq('fund_id', fundId)
     .maybeSingle()
@@ -295,6 +297,7 @@ export async function linkInflowToEntry(
   const { data: target } = await admin
     .from('journal_entries' as any)
     .select('id, status, entry_date')
+    .eq('book', ACTUAL_BOOK)
     .eq('id', entryId).eq('fund_id', fundId).eq('vehicle_id', vehicleId)
     .maybeSingle()
   if (!target) return { error: 'Entry not found' }
@@ -355,6 +358,7 @@ export async function capitalCallCandidates(admin: SupabaseClient, fundId: strin
   const { data: entries } = await admin
     .from('journal_entries' as any)
     .select('id, entry_date, memo, status, journal_postings(account_id, amount)')
+    .eq('book', ACTUAL_BOOK)
     .eq('fund_id', fundId)
     .eq('vehicle_id', vehicleId)
     .eq('source_type', 'capital_call')

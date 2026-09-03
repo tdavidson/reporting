@@ -30,6 +30,7 @@ import { lpCapitalSummary } from '@/lib/accounting/capital-calls'
 import { closedPeriodRanges, dateInAnyClosedPeriod } from '@/lib/accounting/periods'
 import { reopenPeriodWithReversal, closePeriodWithAllocation } from '@/lib/accounting/close'
 import { RECEIVABLE_CODE } from '@/lib/accounting/chart'
+import { ACTUAL_BOOK } from '@/lib/accounting/books'
 
 const group = process.argv[2]
 const APPLY = process.argv.includes('--apply')
@@ -54,6 +55,7 @@ async function main() {
 
   const { data: entries } = await admin.from('journal_entries')
     .select('id, entry_date, memo, source_type, status, journal_postings(id, account_id, amount, lp_entity_id)')
+    .eq('book', ACTUAL_BOOK)
     .eq('fund_id', fundId).eq('vehicle_id', vehicleId).eq('status', 'posted')
     .order('entry_date', { ascending: true })
   const rows = (entries as any[]) ?? []

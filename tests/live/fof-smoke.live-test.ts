@@ -7,6 +7,7 @@ import { periodEndMarks } from '@/lib/portfolio/fof-valuation'
 import { commitmentSchedule, performanceTable } from '@/lib/portfolio/fof-exhibits'
 import { ensureInvestmentAccounts } from '@/lib/accounting/investments'
 import { loadPostedLedger } from '@/lib/accounting/load'
+import { ACTUAL_BOOK } from '@/lib/accounting/books'
 
 /**
  * END-TO-END smoke test against the LIVE database.
@@ -114,6 +115,7 @@ describe('fund holding deletion — live database', { timeout: 30_000 }, () => {
     const acctIds = (acctRows ?? []).map((a: any) => a.id)
     const { count: postings } = await admin.from('journal_postings')
       .select('id', { count: 'exact', head: true }).eq('fund_id', fid).in('account_id', acctIds)
+      .eq('book', ACTUAL_BOOK)
     expect(postings).toBe(0)   // nothing posted, so the delete is allowed
 
     await admin.from('fund_holding_terms').delete().eq('company_id', cid)
@@ -210,12 +212,14 @@ describe('FoF register — live database', { timeout: 30_000 }, () => {
 
     const { data: entries } = await admin.from('journal_entries')
       .select('id, status, memo').eq('fund_id', fundId).eq('source_ref', `txn:${txnId}`)
+      .eq('book', ACTUAL_BOOK)
     entryIds = (entries ?? []).map((e: any) => e.id)
     console.log('[ledger] entries drafted:', entryIds.length, (entries ?? [])[0]?.status, (entries ?? [])[0]?.memo)
     expect(entryIds.length).toBeGreaterThan(0)
 
     const { data: postings } = await admin.from('journal_postings')
       .select('amount').in('journal_entry_id', entryIds)
+      .eq('book', ACTUAL_BOOK)
     const net = (postings ?? []).reduce((a: number, p: any) => a + Number(p.amount), 0)
     expect(Math.abs(net)).toBeLessThan(0.005)   // balanced
   })

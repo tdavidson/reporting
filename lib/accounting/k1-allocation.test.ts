@@ -1,0 +1,437 @@
+import { describe, it, expect } from 'vitest'
+import {
+  K1_BOX,
+  K1_SUBSET_OF,
+  allocateK1,
+  capitalAccountFoots,
+  emptyLines,
+  incomeTotal,
+  type FundYearCharacter,
+  type PartnerYearActivity,
+} from './k1-allocation'
+
+const NO_CHARACTER: FundYearCharacter = {
+  interest: 0,
+  ordinaryDividends: 0,
+  qualifiedDividends: 0,
+  shortTermGain: 0,
+  longTermGain: 0,
+  longTermGainWithinApiPeriod: 0,
+  otherIncome: 0,
+  deductions: 0,
+}
+
+function partner(over: Partial<PartnerYearActivity> & Pick<PartnerYearActivity, 'lpEntityId'>): PartnerYearActivity {
+  return {
+    beginningCapital: 0,
+    contributions: 0,
+    distributions: 0,
+    operatingIncome: 0,
+    realizedGains: 0,
+    expenses: 0,
+    carriedInterest: 0,
+    endingCapital: 0,
+    ...over,
+  }
+}
+
+describe('allocateK1', () => {
+  it('splits character in proportion to the bucket it came from', () => {
+    // The close allocated operating income 75/25. Interest and dividends follow that split,
+    // because they ARE that income — not a separate thing to re-allocate.
+    const res = allocateK1({
+      fund: { ...NO_CHARACTER, interest: 40_000, ordinaryDividends: 60_000 },
+      partners: [
+        partner({ lpEntityId: 'lp-a', operatingIncome: 75_000 }),
+        partner({ lpEntityId: 'lp-b', operatingIncome: 25_000 }),
+      ],
+    })
+    const [a, b] = res.partners
+    expect(a.lines.interest).toBe(30_000)
+    expect(b.lines.interest).toBe(10_000)
+    expect(a.lines.ordinaryDividends).toBe(45_000)
+    expect(b.lines.ordinaryDividends).toBe(15_000)
+  })
+
+  it('splits gains by the gain bucket, not by the income bucket', () => {
+    // A partner can take a different share of gains than of income — the close's per-category
+    // participation is exactly why these are separate buckets.
+    const res = allocateK1({
+      fund: { ...NO_CHARACTER, longTermGain: 1_000_000 },
+      partners: [
+        partner({ lpEntityId: 'lp-a', operatingIncome: 90_000, realizedGains: 500_000 }),
+        partner({ lpEntityId: 'lp-b', operatingIncome: 10_000, realizedGains: 500_000 }),
+      ],
+    })
+    expect(res.partners[0].lines.longTermGain).toBe(500_000)
+    expect(res.partners[1].lines.longTermGain).toBe(500_000)
+  })
+
+  it('ties every split to the fund total, to the cent', () => {
+    // Three partners and an amount that does not divide: the remainder must land somewhere
+    // rather than vanish.
+    const res = allocateK1({
+      fund: { ...NO_CHARACTER, interest: 100 },
+      partners: [
+        partner({ lpEntityId: 'a', operatingIncome: 1 }),
+        partner({ lpEntityId: 'b', operatingIncome: 1 }),
+        partner({ lpEntityId: 'c', operatingIncome: 1 }),
+      ],
+    })
+    const total = res.partners.reduce((s, p) => s + p.lines.interest, 0)
+    expect(Math.round(total * 100) / 100).toBe(100)
+  })
+
+  it('reports fund income that has no bucket to follow instead of dropping it', () => {
+    // Dividends in a year no partner was allocated operating income. Silently omitting them is
+    // the failure this guards against.
+    const res = allocateK1({
+      fund: { ...NO_CHARACTER, ordinaryDividends: 25_000 },
+      partners: [partner({ lpEntityId: 'lp-a', realizedGains: 500_000 })],
+    })
+    expect(res.unallocated.ordinaryDividends).toBe(25_000)
+    expect(res.partners[0].lines.ordinaryDividends).toBe(0)
+  })
+
+  it('splits a loss by magnitude of participation', () => {
+    const res = allocateK1({
+      fund: { ...NO_CHARACTER, shortTermGain: -200_000 },
+      partners: [
+        partner({ lpEntityId: 'lp-a', realizedGains: -150_000 }),
+        partner({ lpEntityId: 'lp-b', realizedGains: -50_000 }),
+      ],
+    })
+    expect(res.partners[0].lines.shortTermGain).toBe(-150_000)
+    expect(res.partners[1].lines.shortTermGain).toBe(-50_000)
+  })
+
+  it('takes distributions from the partner, not from a share', () => {
+    // Distributions were declared per partner and frozen. They are not re-derived here.
+    const res = allocateK1({
+      fund: NO_CHARACTER,
+      partners: [partner({ lpEntityId: 'lp-a', distributions: 250_000 })],
+    })
+    expect(res.partners[0].lines.distributionsCash).toBe(250_000)
+  })
+
+  it('splits distributions by K-1 box 19 form when the kinds are known', () => {
+    const res = allocateK1({
+      fund: NO_CHARACTER,
+      partners: [
+        partner({
+          lpEntityId: 'lp-a',
+          distributions: 300_000,
+          distributionsByKind: { cash: 200_000, property: 90_000, other: 10_000 },
+        }),
+      ],
+    })
+    const l = res.partners[0].lines
+    expect([l.distributionsCash, l.distributionsProperty, l.distributionsOther]).toEqual([
+      200_000, 90_000, 10_000,
+    ])
+  })
+
+  it('treats an unsplit distribution as cash, which is what box 19 A covers', () => {
+    const res = allocateK1({
+      fund: NO_CHARACTER,
+      partners: [partner({ lpEntityId: 'lp-a', distributions: 100_000 })],
+    })
+    expect(res.partners[0].lines.distributionsCash).toBe(100_000)
+  })
+})
+
+describe('qualified dividends are a subset, not an addition', () => {
+  it('is declared as a subset of ordinary dividends', () => {
+    expect(K1_SUBSET_OF.qualifiedDividends).toBe('ordinaryDividends')
+  })
+
+  it('is excluded from the income total, so it cannot double-count', () => {
+    const lines = emptyLines()
+    lines.ordinaryDividends = 60_000
+    lines.qualifiedDividends = 45_000
+    expect(incomeTotal(lines)).toBe(60_000)
+  })
+})
+
+describe('tie-out', () => {
+  it('agrees when the character covers the allocated activity', () => {
+    const res = allocateK1({
+      fund: { ...NO_CHARACTER, interest: 100_000, longTermGain: 400_000, deductions: 50_000 },
+      partners: [
+        partner({ lpEntityId: 'lp-a', operatingIncome: 100_000, realizedGains: 400_000, expenses: 50_000 }),
+      ],
+    })
+    expect(res.partners[0].tieOut.variance).toBe(0)
+  })
+
+  it('reports a variance rather than correcting it', () => {
+    // The fund characterised only half its income. The K-1 says so; it does not invent the rest.
+    const res = allocateK1({
+      fund: { ...NO_CHARACTER, interest: 50_000 },
+      partners: [partner({ lpEntityId: 'lp-a', operatingIncome: 100_000 })],
+    })
+    expect(res.partners[0].tieOut).toEqual({ computed: 50_000, fromCapital: 100_000, variance: -50_000 })
+  })
+
+  it('nets carried interest out of what a partner earned', () => {
+    // Carry moves between partners; it is not income leaving the fund. With the recipient
+    // present, both sides tie.
+    const res = allocateK1({
+      fund: { ...NO_CHARACTER, longTermGain: 1_000_000 },
+      partners: [
+        partner({ lpEntityId: 'lp-a', realizedGains: 1_000_000, carriedInterest: 200_000 }),
+        partner({ lpEntityId: 'gp', carriedInterest: -200_000 }),
+      ],
+    })
+    expect(res.partners[0].capitalAccount.netIncome).toBe(800_000)
+    expect(res.partners[0].tieOut.variance).toBe(0)
+  })
+
+  it('reports carry whose recipient is missing rather than losing it', () => {
+    // A partner bears carry and nobody in the list receives it — a vehicle loaded without its GP.
+    // The character taken off them has no home, and saying so beats a fund total that quietly
+    // falls 200,000 short.
+    const res = allocateK1({
+      fund: { ...NO_CHARACTER, longTermGain: 1_000_000 },
+      partners: [partner({ lpEntityId: 'lp-a', realizedGains: 1_000_000, carriedInterest: 200_000 })],
+    })
+    expect(res.partners[0].lines.longTermGain).toBe(800_000)
+    expect(res.unallocated.longTermGain).toBe(200_000)
+  })
+})
+
+describe('capitalAccountFoots', () => {
+  it('foots when the roll-forward is consistent', () => {
+    const res = allocateK1({
+      fund: { ...NO_CHARACTER, interest: 100_000 },
+      partners: [
+        partner({
+          lpEntityId: 'lp-a',
+          beginningCapital: 1_000_000,
+          contributions: 500_000,
+          distributions: 200_000,
+          operatingIncome: 100_000,
+          endingCapital: 1_400_000,
+        }),
+      ],
+    })
+    expect(capitalAccountFoots(res.partners[0]).variance).toBe(0)
+  })
+
+  it('reports a roll-forward that does not foot instead of forcing it', () => {
+    const res = allocateK1({
+      fund: NO_CHARACTER,
+      partners: [
+        partner({ lpEntityId: 'lp-a', beginningCapital: 1_000_000, endingCapital: 1_050_000 }),
+      ],
+    })
+    expect(capitalAccountFoots(res.partners[0])).toEqual({
+      expected: 1_000_000,
+      actual: 1_050_000,
+      variance: 50_000,
+    })
+  })
+})
+
+describe('box numbers', () => {
+  it('maps every category to the box a preparer will look for', () => {
+    expect(K1_BOX.interest).toBe('5')
+    expect(K1_BOX.qualifiedDividends).toBe('6b')
+    expect(K1_BOX.shortTermGain).toBe('8')
+    expect(K1_BOX.longTermGain).toBe('9a')
+    expect(K1_BOX.distributionsCash).toBe('19A')
+  })
+})
+
+describe('carry moves character, not just money', () => {
+  // A fund with 1,000,000 of long-term gain, of which the GP takes 200,000 as carry.
+  const fund: FundYearCharacter = { ...NO_CHARACTER, longTermGain: 1_000_000 }
+
+  it('gives a pure carry recipient real K-1 lines, not a tie-out variance', () => {
+    // The defect this fixes: a GP with no capital of their own has no income or gain bucket, so
+    // every character line resolved to zero and their whole carry landed in the variance.
+    const res = allocateK1({
+      fund,
+      partners: [
+        partner({ lpEntityId: 'lp', realizedGains: 1_000_000, carriedInterest: 200_000 }),
+        partner({ lpEntityId: 'gp', carriedInterest: -200_000 }),
+      ],
+    })
+    const gp = res.partners.find(p => p.lpEntityId === 'gp')!
+    expect(gp.lines.longTermGain).toBe(200_000)
+    expect(gp.tieOut.variance).toBe(0)
+  })
+
+  it('takes the same character away from the partner who bore it', () => {
+    const res = allocateK1({
+      fund,
+      partners: [
+        partner({ lpEntityId: 'lp', realizedGains: 1_000_000, carriedInterest: 200_000 }),
+        partner({ lpEntityId: 'gp', carriedInterest: -200_000 }),
+      ],
+    })
+    const lp = res.partners.find(p => p.lpEntityId === 'lp')!
+    expect(lp.lines.longTermGain).toBe(800_000)
+    expect(lp.tieOut.variance).toBe(0)
+  })
+
+  it('keeps the fund whole: what one partner loses another gains', () => {
+    const res = allocateK1({
+      fund,
+      partners: [
+        partner({ lpEntityId: 'lp', realizedGains: 1_000_000, carriedInterest: 200_000 }),
+        partner({ lpEntityId: 'gp', carriedInterest: -200_000 }),
+      ],
+    })
+    const total = res.partners.reduce((s, p) => s + p.lines.longTermGain, 0)
+    expect(total).toBe(1_000_000)
+  })
+
+  it('carries the profit MIX, not just the largest line', () => {
+    // Carry out of a book that is 75% long-term gain and 25% interest arrives as both.
+    const res = allocateK1({
+      fund: { ...NO_CHARACTER, longTermGain: 750_000, interest: 250_000 },
+      partners: [
+        partner({ lpEntityId: 'lp', operatingIncome: 250_000, realizedGains: 750_000, carriedInterest: 200_000 }),
+        partner({ lpEntityId: 'gp', carriedInterest: -200_000 }),
+      ],
+    })
+    const gp = res.partners.find(p => p.lpEntityId === 'gp')!
+    expect(gp.lines.longTermGain).toBe(150_000)
+    expect(gp.lines.interest).toBe(50_000)
+  })
+
+  it('does not hand the GP a share of the management fee', () => {
+    // Carry is computed on profit. Letting a deduction ride along in the transfer would give the
+    // recipient a share of an expense they never bore.
+    const res = allocateK1({
+      fund: { ...NO_CHARACTER, longTermGain: 1_000_000, deductions: 100_000 },
+      partners: [
+        partner({ lpEntityId: 'lp', realizedGains: 1_000_000, expenses: 100_000, carriedInterest: 200_000 }),
+        partner({ lpEntityId: 'gp', carriedInterest: -200_000 }),
+      ],
+    })
+    const gp = res.partners.find(p => p.lpEntityId === 'gp')!
+    expect(gp.lines.deductions).toBe(0)
+  })
+
+  it('splits carry across several recipients by what each received', () => {
+    const res = allocateK1({
+      fund,
+      partners: [
+        partner({ lpEntityId: 'lp', realizedGains: 1_000_000, carriedInterest: 200_000 }),
+        partner({ lpEntityId: 'gp-a', carriedInterest: -150_000 }),
+        partner({ lpEntityId: 'gp-b', carriedInterest: -50_000 }),
+      ],
+    })
+    expect(res.partners.find(p => p.lpEntityId === 'gp-a')!.lines.longTermGain).toBe(150_000)
+    expect(res.partners.find(p => p.lpEntityId === 'gp-b')!.lines.longTermGain).toBe(50_000)
+  })
+
+  it('leaves carry out of uncharacterised income in the variance, honestly', () => {
+    // Nothing to move: the fund allocated carry out of income nobody classified. Reporting that
+    // as a variance is more useful than inventing a character for it.
+    const res = allocateK1({
+      fund: NO_CHARACTER,
+      partners: [
+        partner({ lpEntityId: 'lp', realizedGains: 1_000_000, carriedInterest: 200_000 }),
+        partner({ lpEntityId: 'gp', carriedInterest: -200_000 }),
+      ],
+    })
+    const gp = res.partners.find(p => p.lpEntityId === 'gp')!
+    expect(gp.lines.longTermGain).toBe(0)
+    expect(gp.tieOut.variance).toBe(-200_000)
+  })
+
+  it('changes nothing for a fund with no carry', () => {
+    const res = allocateK1({
+      fund,
+      partners: [partner({ lpEntityId: 'lp', realizedGains: 1_000_000 })],
+    })
+    expect(res.partners[0].lines.longTermGain).toBe(1_000_000)
+  })
+})
+
+describe('§1061 three-year rule for carry recipients', () => {
+  // 1,000,000 of long-term gain, 400,000 of it from assets held one to three years.
+  const fund: FundYearCharacter = {
+    ...NO_CHARACTER,
+    longTermGain: 1_000_000,
+    longTermGainWithinApiPeriod: 400_000,
+  }
+  const withCarry = () => [
+    partner({ lpEntityId: 'lp', realizedGains: 1_000_000, carriedInterest: 200_000 }),
+    partner({ lpEntityId: 'gp', carriedInterest: -200_000 }),
+  ]
+
+  it('recharacterises the carry recipient’s share of the one-to-three-year band', () => {
+    // The GP receives 200,000 of long-term gain, 40% of which came from assets held under three
+    // years. That 80,000 is short-term to them and long-term to everyone else.
+    const res = allocateK1({ fund, partners: withCarry() })
+    const gp = res.partners.find(p => p.lpEntityId === 'gp')!
+    expect(gp.lines.longTermGain).toBe(120_000)
+    expect(gp.lines.shortTermGain).toBe(80_000)
+    expect(gp.lines.section1061Recharacterized).toBe(80_000)
+  })
+
+  it('leaves the partner who bore the carry entirely alone', () => {
+    // §1061 is a recharacterisation for the API holder, not a reallocation between partners.
+    const res = allocateK1({ fund, partners: withCarry() })
+    const lp = res.partners.find(p => p.lpEntityId === 'lp')!
+    expect(lp.lines.longTermGain).toBe(800_000)
+    expect(lp.lines.shortTermGain).toBe(0)
+    expect(lp.lines.section1061Recharacterized).toBe(0)
+  })
+
+  it('conserves total capital gain even though the long/short mix moves', () => {
+    const res = allocateK1({ fund, partners: withCarry() })
+    const total = res.partners.reduce((s, p) => s + p.lines.longTermGain + p.lines.shortTermGain, 0)
+    expect(total).toBe(1_000_000)
+  })
+
+  it('does nothing when every asset was held more than three years', () => {
+    const res = allocateK1({
+      fund: { ...fund, longTermGainWithinApiPeriod: 0 },
+      partners: withCarry(),
+    })
+    const gp = res.partners.find(p => p.lpEntityId === 'gp')!
+    expect(gp.lines.longTermGain).toBe(200_000)
+    expect(gp.lines.section1061Recharacterized).toBe(0)
+  })
+
+  it('recharacterises the lot when nothing was held three years', () => {
+    const res = allocateK1({
+      fund: { ...fund, longTermGainWithinApiPeriod: 1_000_000 },
+      partners: withCarry(),
+    })
+    const gp = res.partners.find(p => p.lpEntityId === 'gp')!
+    expect(gp.lines.longTermGain).toBe(0)
+    expect(gp.lines.shortTermGain).toBe(200_000)
+  })
+
+  it('spares a GP’s own capital-interest gain — the statutory exception, for free', () => {
+    // This GP committed real money AND takes carry. The return on their capital reached them
+    // through their own gain bucket and never passed through the carry transfer, so only the
+    // carry is recharacterised.
+    const res = allocateK1({
+      fund,
+      partners: [
+        partner({ lpEntityId: 'lp', realizedGains: 900_000, carriedInterest: 200_000 }),
+        partner({ lpEntityId: 'gp', realizedGains: 100_000, carriedInterest: -200_000 }),
+      ],
+    })
+    const gp = res.partners.find(p => p.lpEntityId === 'gp')!
+    // 100,000 of capital-interest gain stays long-term; only the 200,000 of carry is tested.
+    expect(gp.lines.section1061Recharacterized).toBe(80_000)
+    expect(gp.lines.longTermGain).toBe(220_000)
+  })
+
+  it('is disclosed as a subset of short-term gain, not added on top', () => {
+    // The recharacterised amount is already inside box 8. Counting it again would overstate the
+    // partner's income by exactly the recharacterisation.
+    expect(K1_SUBSET_OF.section1061Recharacterized).toBe('shortTermGain')
+    const res = allocateK1({ fund, partners: withCarry() })
+    const gp = res.partners.find(p => p.lpEntityId === 'gp')!
+    expect(gp.tieOut.variance).toBe(0)
+  })
+})

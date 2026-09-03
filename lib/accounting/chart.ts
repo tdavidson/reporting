@@ -39,6 +39,16 @@ export const DEFAULT_CHART: ChartAccountSeed[] = [
   // holdback. Recognizing it as a RECEIVABLE at exit puts the two back in agreement, and the
   // receivable clears when the money actually lands.
   { code: '1350', name: 'Escrow receivable', type: 'asset', subtype: 'escrow_receivable' },
+  // TAX-BOOK ASSETS. These carry postings in the `tax` book only — they are where a
+  // book-to-tax adjustment puts the debit when it reverses an expense book took and tax
+  // capitalises. They sit in the shared chart because the chart is per VEHICLE, not per book,
+  // and an overlay entry has to reach a real account like any other.
+  //
+  // 1400 amortizes (§709, 180 months); 1450 never does. Keeping them apart is the same
+  // distinction as 5200 vs 5250, carried onto the balance sheet — a single "deferred costs"
+  // account would lose the one fact that decides whether the balance ever unwinds.
+  { code: '1400', name: 'Deferred organizational costs (tax)', type: 'asset', subtype: 'deferred_org_costs' },
+  { code: '1450', name: 'Capitalized syndication costs (tax)', type: 'asset', subtype: 'capitalized_syndication' },
 
   // Liabilities
   { code: '2000', name: 'Accrued expenses', type: 'liability', subtype: 'accrued' },
@@ -64,7 +74,14 @@ export const DEFAULT_CHART: ChartAccountSeed[] = [
   { code: '4000', name: 'Realized gain/(loss) on investments', type: 'income', subtype: 'realized_gain' },
   // Cash sitting in the bank, and dividends actually received. TREASURY income — it says
   // nothing about how the portfolio is doing.
-  { code: '4100', name: 'Interest and dividend income', type: 'income', subtype: 'interest_income' },
+  // INTEREST AND DIVIDENDS ARE SEPARATE ACCOUNTS because they are separate K-1 boxes — interest
+  // is box 5, dividends are 6a, and the qualified part of dividends is 6b. One combined account
+  // meant the tax side had to INFER the split by subtracting tagged portfolio income from the
+  // total, which silently misclassified any dividend booked straight to the ledger without a
+  // matching portfolio row. The account is the auditable source; the portfolio tag is now a
+  // cross-check against it.
+  { code: '4100', name: 'Interest income', type: 'income', subtype: 'interest_income' },
+  { code: '4130', name: 'Dividend income', type: 'income', subtype: 'dividend_income' },
   // Interest EARNED BY A PORTFOLIO POSITION — a convertible note accruing at its coupon. This is
   // investment income, and keeping it apart from 4100 is the whole point: an LP reading the
   // income statement can then tell yield the portfolio produced from yield the bank account
@@ -89,6 +106,18 @@ export const DEFAULT_CHART: ChartAccountSeed[] = [
   { code: '5000', name: 'Management fee', type: 'expense', subtype: 'management_fee' },
   { code: '5100', name: 'Partnership expenses', type: 'expense', subtype: 'partnership_expense' },
   { code: '5200', name: 'Organizational expenses', type: 'expense', subtype: 'organizational_expense' },
+  // SYNDICATION COSTS ARE NOT ORGANIZATIONAL COSTS, and the difference is permanent.
+  //
+  // Organizational costs (forming the entity) are deductible for tax — $5,000 immediately,
+  // phased out above $50,000, the rest amortized over 180 months under §709. Syndication costs
+  // (selling the interests: placement fees, the offering memorandum, marketing) are NEVER
+  // deductible and never amortized. Both are ordinary expenses for book.
+  //
+  // Without this account the two land together in 5200, and the tax book then amortizes
+  // something that should sit permanently in capital — a difference that never reverses,
+  // understating taxable income every year, forever. Splitting them at the point of entry is
+  // the only way the book-to-tax adjustment can be derived instead of guessed.
+  { code: '5250', name: 'Syndication costs', type: 'expense', subtype: 'syndication_cost' },
   { code: '5300', name: 'Interest expense', type: 'expense', subtype: 'interest_expense' },
 ]
 

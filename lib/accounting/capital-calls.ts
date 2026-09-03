@@ -36,6 +36,7 @@ import { allocateAmount } from './allocation'
 import { vehicleIdByName } from './vehicle-id'
 import { roundCents } from './ledger'
 import { RECEIVABLE_CODE, DISTRIBUTION_PAYABLE_CODE } from './chart'
+import { ACTUAL_BOOK } from './books'
 
 // Re-exported for the callers that have always imported it from here.
 export { RECEIVABLE_CODE }
@@ -390,6 +391,7 @@ async function ledgerMovements(
   const { data: rows } = await admin
     .from('journal_postings' as any)
     .select('amount, journal_entries!inner(entry_date, memo, source_type, status)')
+    .eq('book', ACTUAL_BOOK)
     .eq('fund_id', fundId)
     .eq('account_id', (acct as any).id)
 

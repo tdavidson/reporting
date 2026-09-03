@@ -29,16 +29,17 @@ import { closedPeriodRanges, dateInAnyClosedPeriod } from './periods'
 import { vehicleIdByName } from './vehicle-id'
 import { roundCents } from './ledger'
 import type { JournalEntry, Posting } from './types'
+import { ACTUAL_BOOK } from './books'
 
 const CASH = '1000'
 const ESCROW_RECEIVABLE = '1350'
 const REALIZED_GAIN = '4000'
 const UNREALIZED_INCOME = '4200'
 const FX_INCOME = '4300'
-// Income a position produced. A dividend is interest-and-dividend income; a staking reward or
+// Income a position produced. A dividend has its own account (K-1 box 6a); a staking reward or
 // an airdrop is portfolio income the position generated. Different lines on the statement of
 // operations, so different accounts — see lib/accounting/chart.ts.
-const DIVIDEND_INCOME = '4100'
+const DIVIDEND_INCOME = '4130'
 const PORTFOLIO_INCOME = '4120'
 
 export interface LedgerDraftResult {
@@ -97,6 +98,7 @@ export async function retractEntriesForTransaction(
     const { data: entries } = await admin
       .from('journal_entries' as any)
       .select('id, status, entry_date, portfolio_group')
+      .eq('book', ACTUAL_BOOK)
       .eq('fund_id', fundId)
       .eq('source_ref', txnRef(txnId))
       .neq('status', 'void')

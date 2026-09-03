@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { closedPeriodRanges, dateInAnyClosedPeriod } from './periods'
+import { ACTUAL_BOOK } from './books'
 
 // Shared machinery behind the journal's two bulk actions — post many drafts, void many
 // drafts. Both page the same way, scope the same way and guard the same way; only the
@@ -68,6 +69,7 @@ export async function runBulkDraftAction(
   let query = (admin as any)
     .from('journal_entries')
     .select('id, entry_date, journal_postings(amount)')
+    .eq('book', ACTUAL_BOOK)
     .eq('fund_id', fundId)
     .eq('vehicle_id', vehicleId)
     .eq('status', 'draft')

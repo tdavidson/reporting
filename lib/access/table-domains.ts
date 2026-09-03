@@ -240,6 +240,21 @@ export const TABLE_RULES: Record<string, TableRule> = {
   demo_sessions: { scope: 'service', note: 'Anonymous demo telemetry, written server-side.' },
   memo_agent_jobs: { scope: 'service', note: 'Already locked down by 20260509000002_memo_agent_jobs_lockdown.sql.' },
   api_idempotency_keys: { scope: 'service', note: 'Stored response bodies for /api/v1 financial approvals, replayed on retry.' },
+  // ---- Tax reporting (merged from the SPV branch, 2026-09-03) ----------------------------------
+  // Every one of these is service-role only by the branch's own security pass, and for a reason
+  // worth keeping: a K-1 line is a partner's allocated income, a tax form carries legal name and
+  // TIN last-four, and a delivery consent is a legal fact about electronic delivery. A "fund
+  // members read their fund's rows" policy is the wrong shape for all of them — the routes that
+  // serve them gate on `lp_capital`/`accounting` + the `tax_reporting` feature, and a browser-side
+  // grant would hand every figure to a member the middleware would have refused.
+  lp_tax_forms: { scope: 'service', note: 'W-9/W-8 facts per partner: legal name, TIN last-four, country, state.' },
+  k1_packages: { scope: 'service', note: 'A tax year’s K-1 package; frozen once issued.' },
+  k1_partners: { scope: 'service', note: 'Per-partner K-1 header within a package.' },
+  k1_lines: { scope: 'service', note: 'Per-partner allocated income by K-1 box.' },
+  tax_year_closes: { scope: 'service', note: 'Closed tax years; reopening must go through the route, never a console.' },
+  received_k1s: { scope: 'service', note: 'K-1s received from underlying funds, gating the close.' },
+  k1_deliveries: { scope: 'service', note: 'Electronic K-1 delivery records.' },
+  k1_delivery_consents: { scope: 'service', note: 'A partner’s consent to electronic delivery — a legal fact, never manufacturable from a browser.' },
 
   // ---- Deliberately public -------------------------------------------------------------------
   site_content: { scope: 'public', note: 'The marketing page renders it unauthenticated. Admin-written.' },

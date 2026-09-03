@@ -7,6 +7,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Account, AccountType, Posting } from './types'
 import type { CapitalPosting } from './capital-account'
 import { vehicleIdByName, type VehicleIdMap } from './vehicle-id'
+import { ACTUAL_BOOK } from './books'
 
 export type SourcedPosting = Posting & { sourceType: string | null; entryId: string; memo: string | null }
 
@@ -66,11 +67,11 @@ export async function loadLedgerRowsBatch(
   const [acctRows, entryRows, postingRows] = await Promise.all([
     fetchAllRows((f, t) => admin.from('chart_of_accounts' as any).select('id, code, name, type, subtype, lp_entity_id, company_id, vehicle_id').eq('fund_id', fundId).in('vehicle_id', vehicleIds).range(f, t)),
     fetchAllRows((f, t) => {
-      let q = admin.from('journal_entries' as any).select('id, source_type, status, entry_date, memo, vehicle_id').eq('fund_id', fundId).in('vehicle_id', vehicleIds).eq('status', 'posted')
+      let q = admin.from('journal_entries' as any).select('id, source_type, status, entry_date, memo, vehicle_id').eq('book', ACTUAL_BOOK).eq('fund_id', fundId).in('vehicle_id', vehicleIds).eq('status', 'posted')
       if (asOf) q = q.lte('entry_date', asOf)
       return q.range(f, t)
     }),
-    fetchAllRows((f, t) => admin.from('journal_postings' as any).select('journal_entry_id, account_id, amount, currency, lp_entity_id, vehicle_id').eq('fund_id', fundId).in('vehicle_id', vehicleIds).range(f, t)),
+    fetchAllRows((f, t) => admin.from('journal_postings' as any).select('journal_entry_id, account_id, amount, currency, lp_entity_id, vehicle_id').eq('book', ACTUAL_BOOK).eq('fund_id', fundId).in('vehicle_id', vehicleIds).range(f, t)),
   ])
 
   for (const r of (acctRows as any[])) out.get(r.vehicle_id)?.acctRows.push(r)
@@ -151,11 +152,11 @@ export async function loadPostedLedger(
   const [acctRows, entryRows, postingRows] = await Promise.all([
     fetchAllRows((f, t) => admin.from('chart_of_accounts' as any).select('id, code, name, type, subtype, lp_entity_id, company_id').eq('fund_id', fundId).eq('vehicle_id', vehicleId).range(f, t)),
     fetchAllRows((f, t) => {
-      let q = admin.from('journal_entries' as any).select('id, source_type, status, entry_date, memo').eq('fund_id', fundId).eq('vehicle_id', vehicleId).eq('status', 'posted')
+      let q = admin.from('journal_entries' as any).select('id, source_type, status, entry_date, memo').eq('book', ACTUAL_BOOK).eq('fund_id', fundId).eq('vehicle_id', vehicleId).eq('status', 'posted')
       if (asOf) q = q.lte('entry_date', asOf)
       return q.range(f, t)
     }),
-    fetchAllRows((f, t) => admin.from('journal_postings' as any).select('journal_entry_id, account_id, amount, currency, lp_entity_id').eq('fund_id', fundId).eq('vehicle_id', vehicleId).range(f, t)),
+    fetchAllRows((f, t) => admin.from('journal_postings' as any).select('journal_entry_id, account_id, amount, currency, lp_entity_id').eq('book', ACTUAL_BOOK).eq('fund_id', fundId).eq('vehicle_id', vehicleId).range(f, t)),
   ])
   return assembleLoadedLedger(fundId, {
     acctRows: acctRows as any[],

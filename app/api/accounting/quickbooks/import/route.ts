@@ -9,6 +9,7 @@ import { accountIdByCode, persistEntry } from '@/lib/accounting/persist'
 import { BULK_BATCH } from '@/lib/accounting/journal-bulk'
 import { parseQbJournal } from '@/lib/accounting/quickbooks/parse-journal'
 import { buildEntries } from '@/lib/accounting/quickbooks/build-entries'
+import { ACTUAL_BOOK } from '@/lib/accounting/books'
 
 /**
  * Step 3: import the Journal export as DRAFT journal entries.
@@ -74,6 +75,7 @@ export async function POST(req: NextRequest) {
     const chunk = refs.slice(i, i + BULK_BATCH)
     const { data } = await admin.from('journal_entries' as any)
       .select('source_ref')
+      .eq('book', ACTUAL_BOOK)
       .eq('fund_id', gate.fundId).eq('vehicle_id', vehicleId)
       .in('source_ref', chunk)
     for (const r of ((data as any[]) ?? [])) present.add(r.source_ref)

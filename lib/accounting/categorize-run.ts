@@ -11,6 +11,7 @@ import { accountIdByCode } from './persist'
 import { vehicleIdByName } from './vehicle-id'
 import { buildCategorizePrompt, parseCategorizations, type TxnToCategorize } from './categorize-ai'
 import { ENTRY_SOURCE_TYPES } from './source-types'
+import { ACTUAL_BOOK } from './books'
 
 export interface CategorizeResult {
   considered: number
@@ -90,6 +91,7 @@ export async function runCategorization(
     const { data: entry } = await admin
       .from('journal_entries' as any)
       .select('status')
+      .eq('book', ACTUAL_BOOK)
       .eq('id', t.journal_entry_id)
       .eq('fund_id', fundId)
       .maybeSingle()
@@ -102,6 +104,7 @@ export async function runCategorization(
     const { data: postings } = await admin
       .from('journal_postings' as any)
       .select('id, account_id')
+      .eq('book', ACTUAL_BOOK)
       .eq('journal_entry_id', t.journal_entry_id)
     const nonCash = ((postings as any[]) ?? []).filter(p => p.account_id !== cashId)
     if (nonCash.length !== 1) continue
