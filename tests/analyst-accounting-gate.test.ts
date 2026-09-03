@@ -256,7 +256,7 @@ describe('unified Analyst — accounting is access-scoped', () => {
     expect(system).toContain('CAPITAL CALL NOTICE — $3,750,000')
   })
 
-  it('does not read an attached document for an ungranted member — it never reaches extraction', async () => {
+  it('gives an ungranted member their document as plain source material, never as books to record against', async () => {
     memberWith({})
 
     const { status, system } = await post({
@@ -266,8 +266,10 @@ describe('unified Analyst — accounting is access-scoped', () => {
     })
 
     expect(status).toBe(200)
-    expect(extractText).not.toHaveBeenCalled()
-    expect(system).not.toContain('SOURCE DOCUMENT')
+    expect(system).toContain('=== SOURCE DOCUMENT: call-notice.pdf ===')
+    expect(system).not.toContain('=== ACCOUNTING:')
+    expect(system).not.toContain('default to proposing ONE balanced entry')
+    expect(system).not.toContain('DRAFTING ENTRIES')
   })
 
   it('rejects an attachment it cannot read rather than answering as if it had it', async () => {

@@ -134,12 +134,21 @@ export function MobileNav({
           and a bar with no padding of its own ends up with its labels against the
           gesture bar. The floor is what gives the gap today; the inset wins the day the
           app does go edge-to-edge — including left/right, which is where a landscape
-          handset puts its notch — without any of this needing to be found again. */}
+          handset puts its notch — without any of this needing to be found again.
+
+          That 0.75rem is for the INSTALLED app, where the bar meets the gesture strip.
+          In a browser tab Safari's own toolbar already sits under the bar, and the same
+          padding read as the tabs floating too high in it — more room below the labels
+          than above the icons. So the browser gets 0.25rem, which centres the tab row
+          in the bar, and display-mode picks the installed value. The spacer above keeps
+          the larger figure for both: reserving 0.5rem more than the bar uses in a tab is
+          harmless, reserving less is not. */}
       <nav
         aria-label="Primary"
         className={
           'md:hidden fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background ' +
-          'pb-[max(0.75rem,env(safe-area-inset-bottom))] ' +
+          'pb-[max(0.25rem,env(safe-area-inset-bottom))] ' +
+          '[@media(display-mode:standalone)]:pb-[max(0.75rem,env(safe-area-inset-bottom))] ' +
           'pl-[max(0.75rem,env(safe-area-inset-left))] pr-[max(0.75rem,env(safe-area-inset-right))]'
         }
       >

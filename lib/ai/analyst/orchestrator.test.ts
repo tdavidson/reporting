@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   conversationBelongsToPrincipal: vi.fn(),
   loadConversationMemory: vi.fn(),
   persistConversation: vi.fn(),
+  extractText: vi.fn(),
 }))
 
 vi.mock('@/lib/accounting/construction-service', async importOriginal => ({
@@ -35,6 +36,7 @@ vi.mock('@/lib/ai/context-builder', () => ({
   buildCompanyContext: async () => null,
   buildDealContext: async () => null,
 }))
+vi.mock('@/lib/memo-agent/extract-text', () => ({ extractText: mocks.extractText }))
 vi.mock('./conversation-store', () => ({
   conversationBelongsToPrincipal: mocks.conversationBelongsToPrincipal,
   loadConversationMemory: mocks.loadConversationMemory,
@@ -174,6 +176,37 @@ describe('runAnalyst', () => {
 
     expect(mocks.buildPortfolioContext).not.toHaveBeenCalled()
     expect(adminFrom).not.toHaveBeenCalledWith('companies')
+  })
+
+  it('puts an attached document in front of the model outside accounting scope', async () => {
+    mocks.extractText.mockResolvedValue('Capital call notice: $250,000 due 2026-09-15.')
+    const portfolioPrincipal = {
+      ...principal,
+      access: { ...access, grants: { portfolio: 'read' as const } },
+    }
+    await runAnalyst(portfolioPrincipal, {
+      messages: [{ role: 'user', content: 'What does this say?' }],
+      document: { name: 'notice.pdf', format: 'pdf', base64: Buffer.from('%PDF-1.4').toString('base64') },
+    }, { admin, isRateLimited: async () => false })
+
+    expect(mocks.extractText).toHaveBeenCalledWith(expect.any(Buffer), 'pdf')
+    const system = mocks.createToolLoop.mock.calls[0][0].system as string
+    expect(system).toContain('=== SOURCE DOCUMENT: notice.pdf ===')
+    expect(system).toContain('Capital call notice: $250,000 due 2026-09-15.')
+  })
+
+  it('rejects an unreadable attachment outside accounting scope instead of ignoring it', async () => {
+    const portfolioPrincipal = {
+      ...principal,
+      access: { ...access, grants: { portfolio: 'read' as const } },
+    }
+    await expect(runAnalyst(portfolioPrincipal, {
+      messages: [{ role: 'user', content: 'What does this say?' }],
+      document: { name: 'photo.png', format: 'png', base64: Buffer.from('x').toString('base64') },
+    }, { admin, isRateLimited: async () => false })).rejects.toMatchObject({
+      status: 400,
+      code: 'INVALID_DOCUMENT',
+    })
   })
 
   it('refuses an explicit company scope without portfolio access', async () => {

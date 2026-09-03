@@ -1,10 +1,11 @@
 'use client'
 
 import { useState, useRef, useEffect, type ReactNode } from 'react'
-import { Sparkles, Send, X, Save, Clock, Plus, Trash2, ArrowLeft, Paperclip, ArrowUp } from 'lucide-react'
+import { Sparkles, Send, X, Save, Clock, Plus, Trash2, ArrowLeft, Paperclip, ArrowUp, Copy, Check, Cpu, Upload } from 'lucide-react'
 import { Markdown } from '@/components/markdown'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { useAnalystContext, type AnalystDomain } from '@/components/analyst-context'
 import { AnalystProposals, type Proposal } from '@/components/analyst-proposals'
 import { AnalystPendingActions, type StagedAction } from '@/components/analyst-pending-actions'
@@ -63,6 +64,10 @@ export interface AnalystConversationProps {
   suggestions?: string[]
 }
 
+const ACCEPTED_DOCUMENTS = '.pdf,.docx,.xlsx,.xls,.md,.txt,.csv'
+/** The row of controls under an answer: quiet icons that only assert themselves on hover. */
+const actionIconClass = 'flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50'
+
 export function AnalystConversation({
   variant = 'panel',
   onClose,
@@ -97,14 +102,18 @@ export function AnalystConversation({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [savingIdx, setSavingIdx] = useState<number | null>(null)
+  // Which answer was just copied, so its button can say so for a moment.
+  const [copiedIdx, setCopiedIdx] = useState<number | null>(null)
+  const [attachOpen, setAttachOpen] = useState(false)
   // Drafted entries for a given assistant message, by its index in `messages`. Deliberately not
   // persisted with the conversation — a stale draft from a reloaded thread shouldn't be
   // applicable against books that have moved on since.
   const [proposals, setProposals] = useState<Record<number, Proposal[]>>({})
   const [stagedActions, setStagedActions] = useState<Record<number, StagedAction[]>>({})
-  // An attached source document (accounting scope only) — a capital-call notice, invoice, or wire
-  // confirmation the Analyst drafts an entry from. It stays attached until removed, so follow-ups
-  // ("now attribute it to Cranmore") still see it; the server re-extracts it each turn.
+  // An attached source document — in accounting scope a capital-call notice or invoice the Analyst
+  // drafts an entry from, anywhere else plain source material for the question. It stays attached
+  // until removed, so follow-ups ("now attribute it to Cranmore") still see it; the server
+  // re-extracts it each turn.
   const [doc, setDoc] = useState<{ name: string; format: string; base64: string } | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
@@ -154,8 +163,19 @@ export function AnalystConversation({
       let binary = ''
       for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i])
       setDoc({ name: file.name, format, base64: btoa(binary) })
+      setAttachOpen(false)
     } catch {
       setError('Could not read that file.')
+    }
+  }
+
+  async function handleCopy(i: number, text: string) {
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopiedIdx(i)
+      setTimeout(() => setCopiedIdx(current => (current === i ? null : current)), 1500)
+    } catch {
+      setError('Could not copy to the clipboard.')
     }
   }
 
@@ -288,67 +308,59 @@ export function AnalystConversation({
     </div>
   )
 
-  const modelPicker = availableModels.length > 0 && !showHistory && (
-    <Select
-      value={modelKey}
-      onValueChange={(val) => {
-        if (val === 'auto') {
-          setSelectedModel(null)
-        } else {
-          const model = availableModels.find(m => `${m.provider}:${m.id}` === val)
-          if (model) setSelectedModel(model)
-        }
-      }}
-    >
-      <SelectTrigger className={isPage ? 'h-8 w-36 text-xs' : 'h-7 flex-1 min-w-0 text-[11px]'}>
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent>
-        <SelectItem value="auto">Auto</SelectItem>
-        {availableModels.map((m) => (
-          <SelectItem key={`${m.provider}:${m.id}`} value={`${m.provider}:${m.id}`}>
-            {m.name}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
-  )
+  /** One picker, two faces: the panel header shows the model's name; the row under an answer
+   *  shows only an icon and hides the trigger's chevron, so it sits among the other icons. */
+  function renderModelPicker(face: 'labelled' | 'icon') {
+    if (availableModels.length === 0 || showHistory) return null
+    return (
+      <Select
+        value={modelKey}
+        onValueChange={(val) => {
+          if (val === 'auto') {
+            setSelectedModel(null)
+          } else {
+            const model = availableModels.find(m => `${m.provider}:${m.id}` === val)
+            if (model) setSelectedModel(model)
+          }
+        }}
+      >
+        {face === 'icon' ? (
+          <SelectTrigger
+            aria-label="Switch model"
+            title={`Model: ${selectedModel ? selectedModel.name : 'Auto'}`}
+            className={`${actionIconClass} justify-center border-0 shadow-none [&>svg:last-child]:hidden`}
+          >
+            <span className="flex"><Cpu className="h-3.5 w-3.5" /></span>
+          </SelectTrigger>
+        ) : (
+          <SelectTrigger className="h-7 flex-1 min-w-0 text-[11px]">
+            <SelectValue />
+          </SelectTrigger>
+        )}
+        <SelectContent>
+          <SelectItem value="auto">Auto</SelectItem>
+          {availableModels.map((m) => (
+            <SelectItem key={`${m.provider}:${m.id}`} value={`${m.provider}:${m.id}`}>
+              {m.name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    )
+  }
 
-  // No h1 here on purpose. An "Analyst" title above a "What would you like to do?" hero was two
-  // titles for one page, and the hero is the better of the two — it says what the page is FOR.
-  // So the page header is the action group alone, in the same outline-button idiom every other
-  // page's toolbar uses; the panel keeps its compact icon row, where labels would not fit.
-  const pageHeader = (
-    <div className="flex items-center justify-end gap-2 mb-4">
-        {modelPicker}
-        <Button
-          variant="outline"
-          size="sm"
-          className="gap-1.5 h-8 py-2 text-muted-foreground hover:text-foreground"
-          onClick={handleShowHistory}
-        >
-          <Clock className="h-3.5 w-3.5" />
-          History
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          className="gap-1.5 h-8 py-2 text-muted-foreground hover:text-foreground"
-          onClick={startNewConversation}
-        >
-          <Plus className="h-3.5 w-3.5" />
-          New
-        </Button>
-    </div>
-  )
-
+  // The page has no header at all. On an empty thread there is nothing to copy, switch, or go
+  // back to, and a toolbar floating above "What would you like to do?" was the first thing the
+  // eye landed on. Once there is a thread, the controls live under each answer, next to the
+  // thing they act on. The panel keeps its compact header: it has a title and a close button to
+  // house anyway, and its answers are too narrow to carry a full row.
   const panelHeader = (
     <div className="flex items-center gap-2 px-4 py-3">
       <h2 className="text-base font-medium text-muted-foreground flex items-center gap-1.5 shrink-0">
         <Sparkles className="h-3.5 w-3.5" />
         Analyst
       </h2>
-      {modelPicker}
+      {renderModelPicker('labelled')}
       <div className="flex items-center gap-1 shrink-0 ml-auto">
         <button
           onClick={handleShowHistory}
@@ -445,16 +457,40 @@ export function AnalystConversation({
               <Markdown>{msg.content}</Markdown>
               {proposals[i] && <AnalystProposals proposals={proposals[i]} vehicle={vehicle} />}
               {stagedActions[i] && <AnalystPendingActions actions={stagedActions[i]} />}
-              {companyId && (
+              <div className="flex items-center gap-0.5 pt-1">
                 <button
-                  onClick={() => handleSaveAsSummary(i)}
-                  disabled={savingIdx === i}
-                  className="inline-flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground"
+                  type="button"
+                  onClick={() => handleCopy(i, msg.content)}
+                  title={copiedIdx === i ? 'Copied' : 'Copy'}
+                  aria-label="Copy answer"
+                  className={actionIconClass}
                 >
-                  <Save className="h-3 w-3" />
-                  {savingIdx === i ? 'Saving...' : 'Save as Summary'}
+                  {copiedIdx === i ? <Check className="h-3.5 w-3.5 text-success" /> : <Copy className="h-3.5 w-3.5" />}
                 </button>
-              )}
+                {isPage && (
+                  <>
+                    {renderModelPicker('icon')}
+                    <button type="button" onClick={startNewConversation} title="New conversation" aria-label="New conversation" className={actionIconClass}>
+                      <Plus className="h-3.5 w-3.5" />
+                    </button>
+                    <button type="button" onClick={handleShowHistory} title="Conversation history" aria-label="Conversation history" className={actionIconClass}>
+                      <Clock className="h-3.5 w-3.5" />
+                    </button>
+                  </>
+                )}
+                {companyId && (
+                  <button
+                    type="button"
+                    onClick={() => handleSaveAsSummary(i)}
+                    disabled={savingIdx === i}
+                    title="Save as Summary"
+                    aria-label="Save as Summary"
+                    className={actionIconClass}
+                  >
+                    <Save className={`h-3.5 w-3.5 ${savingIdx === i ? 'animate-pulse' : ''}`} />
+                  </button>
+                )}
+              </div>
             </div>
           )
         )}
@@ -464,26 +500,55 @@ export function AnalystConversation({
     </div>
   )
 
-  const attachment = vehicle && (
-    <div className="mb-2">
-      {doc ? (
-        <span className="inline-flex max-w-full items-center gap-1.5 rounded border bg-accent/50 px-2 py-1 text-[11px]">
-          <Paperclip className="h-3 w-3 shrink-0 text-muted-foreground" />
-          <span className="truncate">{doc.name}</span>
-          <button onClick={() => setDoc(null)} className="text-muted-foreground hover:text-foreground" aria-label="Remove document">
-            <X className="h-3 w-3" />
-          </button>
-        </span>
-      ) : (
+  const fileInput = <input type="file" accept={ACCEPTED_DOCUMENTS} onChange={handleFile} className="hidden" />
+
+  const attachedChip = doc && (
+    <span className="inline-flex max-w-full items-center gap-1.5 rounded border bg-accent/50 px-2 py-1 text-[11px]">
+      <Paperclip className="h-3 w-3 shrink-0 text-muted-foreground" />
+      <span className="truncate">{doc.name}</span>
+      <button onClick={() => setDoc(null)} className="text-muted-foreground hover:text-foreground" aria-label="Remove document">
+        <X className="h-3 w-3" />
+      </button>
+    </span>
+  )
+
+  // The panel's attach control is the chip itself; the page's is the + inside the composer, which
+  // opens a dialog so the accepted formats and size limit are said once, up front, rather than
+  // discovered from a 400 after the upload.
+  const attachment = (
+    <div className="mb-2 empty:hidden">
+      {doc ? attachedChip : !isPage && (
         <label className="inline-flex cursor-pointer items-center gap-1.5 rounded border px-2 py-1 text-[11px] text-muted-foreground hover:bg-accent">
           <Paperclip className="h-3 w-3" />
           Attach document
-          <input type="file" accept=".pdf,.docx,.xlsx,.xls,.md,.txt,.csv" onChange={handleFile} className="hidden" />
+          {fileInput}
         </label>
       )}
     </div>
   )
 
+  const attachDialog = (
+    <Dialog open={attachOpen} onOpenChange={setAttachOpen}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Attach a document</DialogTitle>
+          <DialogDescription>
+            PDF, Word, Excel, Markdown, CSV or plain text, up to 10MB. It stays attached to this
+            conversation until you remove it.
+          </DialogDescription>
+        </DialogHeader>
+        <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-card border border-dashed px-4 py-8 text-sm text-muted-foreground transition-colors duration-200 ease-out-soft hover:bg-accent hover:text-foreground">
+          <Upload className="h-5 w-5" />
+          Choose a file
+          {fileInput}
+        </label>
+      </DialogContent>
+    </Dialog>
+  )
+
+  // Both textareas are 16px below md and 14px above. iOS Safari zooms the whole page into any
+  // field smaller than 16px on focus, and does not zoom back out: the composer grew past the
+  // screen edge, the send button slid off it, and the answer came back at the same magnification.
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
@@ -496,6 +561,15 @@ export function AnalystConversation({
    *  clear of the send button rather than reserving a band of empty rows below it. */
   const largeComposer = (
     <div className="relative rounded-card border bg-muted/40 focus-within:ring-1 focus-within:ring-ring transition-colors duration-200 ease-out-soft">
+      <button
+        type="button"
+        onClick={() => setAttachOpen(true)}
+        title={doc ? `Attached: ${doc.name}` : 'Attach a document'}
+        aria-label="Attach a document"
+        className="absolute bottom-2 left-2 flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+      >
+        <Plus className="h-4 w-4" />
+      </button>
       <textarea
         ref={inputRef}
         value={input}
@@ -503,7 +577,7 @@ export function AnalystConversation({
         onKeyDown={onKeyDown}
         placeholder={inputPlaceholder(scope)}
         rows={1}
-        className="block w-full resize-none overflow-y-auto bg-transparent px-4 py-3 pr-14 text-sm leading-relaxed placeholder:text-muted-foreground focus-visible:outline-none"
+        className="block w-full resize-none overflow-y-auto bg-transparent py-3 pl-12 pr-14 text-base leading-relaxed placeholder:text-muted-foreground focus-visible:outline-none md:text-sm"
       />
       <Button
         size="icon"
@@ -526,7 +600,7 @@ export function AnalystConversation({
         onKeyDown={onKeyDown}
         placeholder={inputPlaceholder(scope)}
         rows={1}
-        className="block w-full resize-none overflow-y-auto rounded-md border bg-transparent px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+        className="block w-full resize-none overflow-y-auto rounded-md border bg-transparent px-3 py-2 text-base placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring md:text-sm"
       />
       <Button
         size="icon"
@@ -558,6 +632,21 @@ export function AnalystConversation({
     </div>
   )
 
+  // The hero has no toolbar, so this is how past conversations are reached before the first
+  // answer puts the history icon under it. A text link, not a button: it is a way out of the
+  // page, not one of the things the page invites you to do.
+  const historyLink = (
+    <p className="text-center">
+      <button
+        type="button"
+        onClick={handleShowHistory}
+        className="text-xs text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
+      >
+        See conversation history
+      </button>
+    </p>
+  )
+
   const composerBlock = (
     <div className={isPage ? threadColumn : 'px-4 py-3'}>
       {attachment}
@@ -574,15 +663,16 @@ export function AnalystConversation({
   if (isPage) {
     return (
       <div className="flex flex-col h-full">
-        {pageHeader}
+        {attachDialog}
         {showHistory ? (
           <div className="flex flex-col flex-1 min-h-0">{historyView}</div>
         ) : heroLayout ? (
-          <div className={`flex flex-1 flex-col gap-6 pt-6 ${threadColumn}`}>
+          <div className={`flex flex-1 flex-col gap-6 px-2 pt-6 md:px-0 ${threadColumn}`}>
             {hero}
             <div className="space-y-4">
               {composerBlock}
               {suggestionChips}
+              {historyLink}
             </div>
             {belowComposer}
           </div>

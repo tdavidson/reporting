@@ -211,6 +211,21 @@ export async function runAnalyst(
     }
   }
 
+  // An attached document is read once, before any scope decides what to do with it. Accounting
+  // scope pairs it with the entry-drafting guide; every other scope gets it as plain source
+  // material. Either way a document the server can't read is an error the user sees, never a
+  // silent drop — a file the Analyst ignored while appearing to have received it is worse than
+  // no attachment at all.
+  let documentBlock = ''
+  const documentName = request.document?.name ?? 'attachment'
+  if (request.document?.base64) {
+    const document = await extractAttachment(request.document)
+    if ('error' in document) {
+      throw new AnalystRequestError(document.error, 400, 'INVALID_DOCUMENT')
+    }
+    documentBlock = document.text
+  }
+
   let accountingGroup: string | null = null
   if (scopeInput.vehicle && hasAccess(principal.access, 'accounting', 'read')) {
     await enforceRateLimit(deps, {
@@ -218,15 +233,6 @@ export async function runAnalyst(
       limit: 10,
       windowSeconds: 300,
     })
-
-    let documentBlock = ''
-    if (request.document?.base64) {
-      const document = await extractAttachment(request.document)
-      if ('error' in document) {
-        throw new AnalystRequestError(document.error, 400, 'INVALID_DOCUMENT')
-      }
-      documentBlock = document.text
-    }
 
     const options = {
       includeRelatedEntities: hasAccess(principal.access, 'gp_economics', 'read'),
@@ -236,7 +242,8 @@ export async function runAnalyst(
       const books = await buildAccountingContext(deps.admin, principal.fundId, group, options)
       systemPrompt += `\n\n=== ACCOUNTING: ${group} ===\n${accountingAnalystGuide(options)}\n\n${books}`
       if (documentBlock) {
-        systemPrompt += `\n\n=== SOURCE DOCUMENT: ${request.document?.name ?? 'attachment'} ===\n${documentBlock}\n\n${ACCOUNTING_DOCUMENT_GUIDE}`
+        systemPrompt += `\n\n=== SOURCE DOCUMENT: ${documentName} ===\n${documentBlock}\n\n${ACCOUNTING_DOCUMENT_GUIDE}`
+        documentBlock = ''
       }
       if (hasAccess(principal.access, 'accounting', 'write')) {
         systemPrompt += `\n\n${ACCOUNTING_DRAFTING_PROTOCOL}`
@@ -272,6 +279,15 @@ export async function runAnalyst(
     } catch (error) {
       console.error('[analyst] diligence context skipped:', error)
     }
+  }
+
+  if (documentBlock) {
+    await enforceRateLimit(deps, {
+      key: `ai-analyst-doc:${principal.userId}`,
+      limit: 10,
+      windowSeconds: 300,
+    })
+    systemPrompt += `\n\n=== SOURCE DOCUMENT: ${documentName} ===\n${documentBlock}\n\n${SOURCE_DOCUMENT_GUIDE}`
   }
 
   const conversationScope: string | null = accountingGroup
@@ -431,6 +447,9 @@ export async function runAnalyst(
     )
   }
 }
+
+/** The general-scope counterpart of ACCOUNTING_DOCUMENT_GUIDE: read the file, don't draft from it. */
+const SOURCE_DOCUMENT_GUIDE = `The SOURCE DOCUMENT above was attached by the user with their question. Treat it as source material: answer from it, quote or cite it where that helps, and relate it to the fund data you have when the user asks. If the document does not contain what the user is asking about, say so plainly rather than guessing.`
 
 const DOCUMENT_FORMATS = ['pdf', 'docx', 'xlsx', 'xls', 'md', 'markdown', 'txt', 'csv']
 const MAX_DOCUMENT_BYTES = 10 * 1024 * 1024

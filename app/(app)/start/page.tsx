@@ -30,8 +30,11 @@ export default function StartPage() {
   const prompts = suggestedPrompts(access)
   const actions = createActions(access)
 
+  // Desktop only. Adding a company or vehicle and importing documents are sit-down jobs —
+  // forms and file pickers — and on a phone the buttons pushed the footer up past the tab bar
+  // while offering nothing a thumb would start.
   const shortcuts = actions.length > 0 && (
-    <div className="space-y-3">
+    <div className="hidden space-y-3 md:block">
       <p className="text-center text-xs text-muted-foreground">Or start from here:</p>
       <div className="flex flex-wrap justify-center gap-2">
         {actions.map(a => {
@@ -78,7 +81,10 @@ export default function StartPage() {
   }
 
   return (
-    <div className="flex h-full min-h-[32rem] w-full flex-col px-4 pb-8 pt-4 md:pl-8 md:pr-4 md:pt-8">
+    // On a phone the page claims the whole visible viewport (100svh less the header and the tab
+    // bar's reserved strip, ~8.5rem), so the footer starts below the fold instead of peeking out
+    // above the tab bar when the hero is shorter than the screen.
+    <div className="flex h-full min-h-[calc(100svh-8.5rem)] w-full flex-col px-4 pb-8 pt-4 md:min-h-[32rem] md:pl-8 md:pr-4 md:pt-8">
       <AnalystConversation
         variant="page"
         autoFocus
