@@ -22,28 +22,44 @@ export async function GET() {
   const vehicles = await listMancoVehicles(admin, gate.fundId)
   if (vehicles.length === 0) return NextResponse.json([])
 
-  // "Is the chart seeded" decides whether the landing page offers Set up or Open, and it is one
-  // query for all of them rather than one each — a firm can run half a dozen management entities
-  // (one per fund family, one per jurisdiction) and N+1 on a landing page is how that gets slow.
-  const expected = chartForVehicleKind(MANCO_KIND).length
+  // WHICH MANCO ACCOUNTS ARE MISSING, not merely whether a chart exists.
+  //
+  // "Has it any accounts at all" is the wrong question, and a vehicle CONVERTED from a fund to a
+  // management company is why: it arrives here carrying a full fund chart — investments at cost,
+  // partners' capital, unrealized appreciation — and not one of the accounts a management company
+  // needs. A test for emptiness reads that as set up, offers Open instead of Set up books, and
+  // leaves it with no salaries account and no way to ask for one.
+  //
+  // Comparing CODES instead makes the button mean "seed what is missing", which is also what the
+  // seeder does. It stays correct for a firm that has added accounts of its own (extra codes are
+  // not missing ones), and it is one query for every entity rather than one each.
+  const chart = chartForVehicleKind(MANCO_KIND)
   const { data: accounts } = await admin
     .from('chart_of_accounts' as any)
-    .select('vehicle_id')
+    .select('vehicle_id, code')
     .eq('fund_id', gate.fundId)
     .in('vehicle_id', vehicles.map(v => v.id))
-  const counted = new Map<string, number>()
+  const codes = new Map<string, Set<string>>()
   for (const a of ((accounts as any[]) ?? [])) {
-    counted.set(a.vehicle_id, (counted.get(a.vehicle_id) ?? 0) + 1)
+    const set = codes.get(a.vehicle_id) ?? new Set<string>()
+    set.add(a.code as string)
+    codes.set(a.vehicle_id, set)
   }
 
-  return NextResponse.json(vehicles.map(v => ({
-    ...v,
-    accountCount: counted.get(v.id) ?? 0,
-    // Seeded, not "complete": the seed is additive and a firm may have added accounts of its own,
-    // so the question is whether a chart exists at all, not whether it matches ours exactly.
-    chartSeeded: (counted.get(v.id) ?? 0) > 0,
-    expectedAccounts: expected,
-  })))
+  return NextResponse.json(vehicles.map(v => {
+    const have = codes.get(v.id) ?? new Set<string>()
+    const missing = chart.filter(a => !have.has(a.code)).length
+    return {
+      ...v,
+      accountCount: have.size,
+      missingAccounts: missing,
+      chartSeeded: missing === 0,
+      // A chart that exists but is not the manco one — the converted-vehicle case. The landing page
+      // says so, because "Set up books" on an entity that plainly has accounts needs an explanation.
+      convertedFromOtherChart: missing > 0 && have.size > 0,
+      expectedAccounts: chart.length,
+    }
+  }))
 }
 
 /**

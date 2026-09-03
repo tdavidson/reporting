@@ -19,7 +19,11 @@ interface Manco {
   name: string
   active: boolean
   accountCount: number
+  /** Manco accounts this entity's chart is still missing. Zero means ready. */
+  missingAccounts: number
   chartSeeded: boolean
+  /** It HAS a chart, but not this one — a vehicle converted from a fund keeps the fund's. */
+  convertedFromOtherChart: boolean
   expectedAccounts: number
 }
 
@@ -88,7 +92,12 @@ export function MancoListView() {
               <p className="mt-1 text-caption text-muted-foreground">
                 {m.chartSeeded
                   ? `${m.accountCount} accounts`
-                  : 'No chart of accounts yet — set one up to start keeping its books.'}
+                  : m.convertedFromOtherChart
+                    // Converted from a fund (or a GP entity), so it carries that chart and none of
+                    // the accounts a management company needs. Seeding is additive — the existing
+                    // accounts and everything posted to them stay exactly where they are.
+                    ? `${m.accountCount} accounts, but ${m.missingAccounts} management-company accounts are missing — adding them leaves the existing ones untouched.`
+                    : 'No chart of accounts yet — set one up to start keeping its books.'}
               </p>
             </div>
 
@@ -101,7 +110,7 @@ export function MancoListView() {
             ) : (
               <Button size="sm" onClick={() => setUp(m)} disabled={busy === m.id}>
                 {busy === m.id ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : null}
-                Set up books
+                {m.convertedFromOtherChart ? 'Add missing accounts' : 'Set up books'}
               </Button>
             )}
           </div>
