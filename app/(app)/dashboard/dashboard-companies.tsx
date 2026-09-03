@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { DashboardTable } from './dashboard-table'
 import { AddCompanyButton } from '@/components/add-company-button'
 import { useCurrency, getCurrencySymbol } from '@/components/currency-context'
+import { matchesVehicle, vehicleFilterOptions } from './vehicle-filter'
 
 interface ActiveMetric {
   id: string
@@ -74,6 +75,7 @@ function formatCurrency(v: number): string {
 export function DashboardCompanies({ companies, allGroups, canAdd }: Props) {
   const [view, setView] = useState<'cards' | 'table'>('cards')
   const [statusFilter, setStatusFilter] = useState<string>('active')
+  const [vehicleFilter, setVehicleFilter] = useState<string>('')
   const [sortMode, setSortMode] = useState<SortMode>('investDate')
   const [alphaSortAsc, setAlphaSortAsc] = useState(true)
   const [investDateSortAsc, setInvestDateSortAsc] = useState(false) // newest first by default
@@ -83,8 +85,13 @@ export function DashboardCompanies({ companies, allGroups, canAdd }: Props) {
     if (statusFilter) {
       result = result.filter(c => c.status === statusFilter)
     }
+    if (vehicleFilter) {
+      result = result.filter(c => matchesVehicle(c, vehicleFilter))
+    }
     return result
-  }, [companies, statusFilter])
+  }, [companies, statusFilter, vehicleFilter])
+
+  const vehicleOptions = useMemo(() => vehicleFilterOptions(allGroups, companies), [allGroups, companies])
 
   function sortCompanies(list: Company[]) {
     if (sortMode === 'alpha') {
@@ -111,7 +118,7 @@ export function DashboardCompanies({ companies, allGroups, canAdd }: Props) {
   return (
     <div>
       {/* Filter bar */}
-      {filtered.length > 0 && (
+      {companies.length > 0 && (
         <div className="flex items-center gap-2 flex-wrap mb-4">
           {canAdd && <AddCompanyButton />}
           <select
@@ -124,6 +131,19 @@ export function DashboardCompanies({ companies, allGroups, canAdd }: Props) {
             <option value="exited">Exited</option>
             <option value="written-off">Written Off</option>
           </select>
+          {vehicleOptions.length > 0 && (
+            <select
+              value={vehicleFilter}
+              onChange={e => setVehicleFilter(e.target.value)}
+              aria-label="Filter by vehicle"
+              className="h-8 max-w-[14rem] rounded-md border border-input bg-background px-3 text-xs"
+            >
+              <option value="">All Vehicles</option>
+              {vehicleOptions.map(o => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
+          )}
           <div className="ml-auto flex items-center gap-1">
             <Button
               variant={sortMode === 'alpha' ? 'secondary' : 'ghost'}
