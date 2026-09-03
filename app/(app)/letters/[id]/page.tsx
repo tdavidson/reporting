@@ -727,8 +727,12 @@ export default function LetterEditorPage() {
               {tableHtml && (
                 <div className="rounded-card border p-4">
                   <h2 className="font-medium text-base mb-3">Portfolio Companies</h2>
+                  {/* Not markdown — sanitized HTML from buildTableHtml. The `prose` classes that
+                      used to lead this list did nothing (@tailwindcss/typography isn't installed);
+                      the [&_…] selectors are what actually styles the table. tabular-nums so the
+                      currency and MOIC columns line up, per CLAUDE.md. */}
                   <div
-                    className="prose prose-sm dark:prose-invert max-w-none [&_table]:w-full [&_table]:text-xs [&_th]:px-2 [&_th]:py-1.5 [&_td]:px-2 [&_td]:py-1.5 [&_th]:border [&_td]:border [&_thead]:bg-muted/50"
+                    className="overflow-x-auto tabular-nums [&_table]:w-full [&_table]:text-xs [&_th]:px-2 [&_th]:py-1.5 [&_td]:px-2 [&_td]:py-1.5 [&_th]:border [&_td]:border [&_thead]:bg-muted/50"
                     dangerouslySetInnerHTML={{ __html: tableHtml }}
                   />
                 </div>

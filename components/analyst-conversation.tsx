@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, type ReactNode } from 'react'
 import { Sparkles, Send, X, Save, Clock, Plus, Trash2, ArrowLeft, Paperclip, ArrowUp } from 'lucide-react'
-import ReactMarkdown from 'react-markdown'
+import { Markdown } from '@/components/markdown'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useAnalystContext, type AnalystDomain } from '@/components/analyst-context'
@@ -236,42 +236,82 @@ export function AnalystConversation({
   const modelKey = selectedModel ? `${selectedModel.provider}:${selectedModel.id}` : 'auto'
   const scope: Scope = { dealId, companyId, vehicle, domain }
   const isPage = variant === 'page'
+  // The page runs at the app's full page width so its header lines up with every other page's;
+  // the thread itself still reads in a measure, centred the way Claude and ChatGPT centre theirs.
+  // The panel is already narrower than the measure, so it caps nothing.
+  const readableColumn = isPage ? 'mx-auto w-full max-w-readable' : ''
   // The page opens on an empty thread and is meant to look like an invitation rather than an empty
   // transcript: hero, composer, shortcuts, vertically centred. The moment there is a thread it
   // becomes an ordinary conversation.
   const heroLayout = isPage && messages.length === 0 && !showHistory && !loading
 
-  const header = (
-    <div className={`flex items-center gap-2 ${isPage ? 'px-1 py-2' : 'px-4 py-3'}`}>
+  const modelPicker = availableModels.length > 0 && !showHistory && (
+    <Select
+      value={modelKey}
+      onValueChange={(val) => {
+        if (val === 'auto') {
+          setSelectedModel(null)
+        } else {
+          const model = availableModels.find(m => `${m.provider}:${m.id}` === val)
+          if (model) setSelectedModel(model)
+        }
+      }}
+    >
+      <SelectTrigger className={isPage ? 'h-8 w-36 text-xs' : 'h-7 flex-1 min-w-0 text-[11px]'}>
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value="auto">Auto</SelectItem>
+        {availableModels.map((m) => (
+          <SelectItem key={`${m.provider}:${m.id}`} value={`${m.provider}:${m.id}`}>
+            {m.name}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  )
+
+  // The page header is the app's standard one — h1 + description on the left, an action group on
+  // the right — so /start reads as a page rather than a panel that grew. The model picker and the
+  // two conversation controls are ordinary outline actions there, matching every other page's
+  // toolbar; the panel keeps its compact icon row, where a labelled button would not fit.
+  const pageHeader = (
+    <div className="flex items-end justify-between gap-3 mb-6">
+      <div className="space-y-1 min-w-0 flex-1">
+        <h1 className="text-2xl font-semibold tracking-tight">Analyst</h1>
+        <p className="text-sm text-muted-foreground">{emptyState(scope)}</p>
+      </div>
+      <div className="flex items-center gap-2 shrink-0">
+        {modelPicker}
+        <Button
+          variant="outline"
+          size="sm"
+          className="gap-1.5 h-8 py-2 text-muted-foreground hover:text-foreground"
+          onClick={handleShowHistory}
+        >
+          <Clock className="h-3.5 w-3.5" />
+          History
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          className="gap-1.5 h-8 py-2 text-muted-foreground hover:text-foreground"
+          onClick={startNewConversation}
+        >
+          <Plus className="h-3.5 w-3.5" />
+          New
+        </Button>
+      </div>
+    </div>
+  )
+
+  const panelHeader = (
+    <div className="flex items-center gap-2 px-4 py-3">
       <h2 className="text-base font-medium text-muted-foreground flex items-center gap-1.5 shrink-0">
         <Sparkles className="h-3.5 w-3.5" />
         Analyst
       </h2>
-      {availableModels.length > 0 && !showHistory && (
-        <Select
-          value={modelKey}
-          onValueChange={(val) => {
-            if (val === 'auto') {
-              setSelectedModel(null)
-            } else {
-              const model = availableModels.find(m => `${m.provider}:${m.id}` === val)
-              if (model) setSelectedModel(model)
-            }
-          }}
-        >
-          <SelectTrigger className={`h-7 text-[11px] min-w-0 ${isPage ? 'w-40' : 'flex-1'}`}>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="auto">Auto</SelectItem>
-            {availableModels.map((m) => (
-              <SelectItem key={`${m.provider}:${m.id}`} value={`${m.provider}:${m.id}`}>
-                {m.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      )}
+      {modelPicker}
       <div className="flex items-center gap-1 shrink-0 ml-auto">
         <button
           onClick={handleShowHistory}
@@ -298,6 +338,7 @@ export function AnalystConversation({
 
   const historyView = (
     <div className={`flex-1 overflow-y-auto pb-3 ${isPage ? 'px-1' : 'px-4'}`}>
+     <div className={readableColumn}>
       <div className="flex items-center gap-2 mb-3">
         <button onClick={() => setShowHistory(false)} className="p-1 rounded hover:bg-muted">
           <ArrowLeft className="h-3.5 w-3.5 text-muted-foreground" />
@@ -334,53 +375,49 @@ export function AnalystConversation({
           ))}
         </div>
       )}
+     </div>
     </div>
   )
 
+  // Two speakers, two shapes — the convention every chat UI has converged on, and the reason the
+  // "You" / "Analyst" labels are gone: the question is a right-aligned bubble that stops short of
+  // the full measure, the answer is unadorned prose running the whole column. Reading a long
+  // answer no longer means finding the speaker label first, and a short question no longer looks
+  // like the start of one. Shared by both variants: the panel is the same thread, narrower.
   const transcript = (
-    <div ref={scrollRef} className={`flex-1 overflow-y-auto pb-3 space-y-3 ${isPage ? 'px-1' : 'px-4'}`}>
-      {messages.length === 0 && !loading && !isPage && (
-        <p className="text-xs text-muted-foreground">{emptyState(scope)}</p>
-      )}
-      {messages.map((msg, i) => (
-        <div key={i}>
-          <div className="flex items-center gap-2 mb-0.5">
-            <span className="text-xs font-medium">{msg.role === 'user' ? 'You' : 'Analyst'}</span>
-          </div>
-          {msg.role === 'assistant' ? (
-            <div className="text-sm prose prose-sm dark:prose-invert max-w-none prose-p:my-1 prose-ul:my-1 prose-ol:my-1 prose-li:my-0 prose-headings:my-2 prose-pre:my-1">
-              <ReactMarkdown>{msg.content}</ReactMarkdown>
+    <div ref={scrollRef} className={`flex-1 overflow-y-auto ${isPage ? 'px-1 pb-6' : 'px-4 pb-3'}`}>
+      <div className={`${readableColumn} ${isPage ? 'space-y-6' : 'space-y-4'}`}>
+        {messages.length === 0 && !loading && !isPage && (
+          <p className="text-xs text-muted-foreground">{emptyState(scope)}</p>
+        )}
+        {messages.map((msg, i) =>
+          msg.role === 'user' ? (
+            <div key={i} className="flex justify-end">
+              <div className="max-w-[85%] rounded-card bg-muted px-4 py-2.5 text-sm whitespace-pre-wrap">
+                {msg.content}
+              </div>
             </div>
           ) : (
-            <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
-          )}
-          {msg.role === 'assistant' && proposals[i] && (
-            <AnalystProposals proposals={proposals[i]} vehicle={vehicle} />
-          )}
-          {msg.role === 'assistant' && stagedActions[i] && (
-            <AnalystPendingActions actions={stagedActions[i]} />
-          )}
-          {msg.role === 'assistant' && companyId && (
-            <button
-              onClick={() => handleSaveAsSummary(i)}
-              disabled={savingIdx === i}
-              className="mt-1 inline-flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground"
-            >
-              <Save className="h-3 w-3" />
-              {savingIdx === i ? 'Saving...' : 'Save as Summary'}
-            </button>
-          )}
-        </div>
-      ))}
-      {loading && (
-        <div>
-          <div className="flex items-center gap-2 mb-0.5">
-            <span className="text-xs font-medium">Analyst</span>
-          </div>
-          <p className="text-sm text-muted-foreground">Thinking...</p>
-        </div>
-      )}
-      {error && <p className="text-sm text-destructive">{error}</p>}
+            <div key={i} className="space-y-2">
+              <Markdown>{msg.content}</Markdown>
+              {proposals[i] && <AnalystProposals proposals={proposals[i]} vehicle={vehicle} />}
+              {stagedActions[i] && <AnalystPendingActions actions={stagedActions[i]} />}
+              {companyId && (
+                <button
+                  onClick={() => handleSaveAsSummary(i)}
+                  disabled={savingIdx === i}
+                  className="inline-flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground"
+                >
+                  <Save className="h-3 w-3" />
+                  {savingIdx === i ? 'Saving...' : 'Save as Summary'}
+                </button>
+              )}
+            </div>
+          )
+        )}
+        {loading && <p className="text-sm text-muted-foreground animate-pulse">Thinking...</p>}
+        {error && <p className="text-sm text-destructive">{error}</p>}
+      </div>
     </div>
   )
 
@@ -459,7 +496,7 @@ export function AnalystConversation({
   )
 
   const suggestionChips = suggestions && suggestions.length > 0 && messages.length === 0 && (
-    <div className="flex flex-wrap justify-center gap-2">
+    <div className={`flex flex-wrap justify-center gap-2 ${readableColumn}`}>
       {suggestions.map(s => (
         <button
           key={s}
@@ -477,7 +514,7 @@ export function AnalystConversation({
   )
 
   const composerBlock = (
-    <div className={isPage ? '' : 'px-4 py-3'}>
+    <div className={isPage ? readableColumn : 'px-4 py-3'}>
       {attachment}
       {isPage ? largeComposer : smallComposer}
     </div>
@@ -492,11 +529,11 @@ export function AnalystConversation({
   if (isPage) {
     return (
       <div className="flex flex-col h-full">
-        {header}
+        {pageHeader}
         {showHistory ? (
           <div className="flex flex-col flex-1 min-h-0">{historyView}</div>
         ) : heroLayout ? (
-          <div className="flex flex-1 flex-col justify-center gap-8 py-10">
+          <div className={`flex flex-1 flex-col justify-center gap-8 py-10 ${readableColumn}`}>
             {hero}
             <div className="space-y-4">
               {composerBlock}
@@ -518,7 +555,7 @@ export function AnalystConversation({
   return (
     <div className="flex flex-col h-full">
       <div className="max-h-[80vh] lg:max-h-[calc(100vh-6rem)] rounded-lg border bg-card flex flex-col flex-1">
-        {header}
+        {panelHeader}
         {showHistory ? historyView : (
           <>
             {transcript}

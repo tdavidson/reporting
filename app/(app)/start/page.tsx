@@ -49,17 +49,26 @@ export default function StartPage() {
     </div>
   )
 
+  // Not the page title — AnalystConversation renders that, in the app's standard header
+  // construct. This is the empty thread's invitation, and it steps down a size accordingly.
   const hero = (
-    <h1 className="text-center text-2xl font-semibold tracking-tight">
+    <p className="text-center text-xl font-medium tracking-tight text-foreground">
       What would you like to do?
-    </h1>
+    </p>
   )
 
   // No AI key configured means no chat to put front and centre. Rather than render a composer that
   // will only ever answer with an error, the page keeps its shortcuts and says why.
   if (!hasAIKey) {
     return (
-      <div className="mx-auto flex h-full min-h-[32rem] max-w-readable flex-col justify-center gap-8 p-6 md:p-10">
+      <div className="w-full px-4 pb-8 pt-4 md:pl-8 md:pr-4 md:pt-8">
+        <div className="mb-6 space-y-1">
+          <h1 className="text-2xl font-semibold tracking-tight">Analyst</h1>
+          <p className="text-sm text-muted-foreground">
+            Ask about your portfolio, compare companies, or get high-level insights across all investments.
+          </p>
+        </div>
+        <div className="mx-auto flex min-h-[26rem] max-w-readable flex-col justify-center gap-8">
         {hero}
         <p className="text-center text-sm text-muted-foreground">
           Add an AI provider key in{' '}
@@ -67,12 +76,13 @@ export default function StartPage() {
           to ask the Analyst questions from here.
         </p>
         {shortcuts}
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="mx-auto flex h-full min-h-[32rem] max-w-readable flex-col p-6 md:p-10">
+    <div className="flex h-full min-h-[32rem] w-full flex-col px-4 pb-8 pt-4 md:pl-8 md:pr-4 md:pt-8">
       <AnalystConversation
         variant="page"
         autoFocus

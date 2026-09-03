@@ -3,6 +3,7 @@ import { createClient, getUser } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { resolvePageAccess, canViewPage } from '@/lib/access/page-gate'
 import { APP_VERSION, checkForUpdate, getInstallationId } from '@/lib/version'
+import { Markdown } from '@/components/markdown'
 
 export const metadata = { title: 'Updates' }
 
@@ -74,9 +75,10 @@ export default async function UpdatesPage() {
       {update?.hasUpdate && update.body && (
         <div className="rounded-card border p-6 space-y-3">
           <h2 className="text-lg font-semibold">Release Notes</h2>
-          <div className="prose prose-sm dark:prose-invert max-w-none whitespace-pre-wrap">
-            {update.body}
-          </div>
+          {/* GitHub hands these back as markdown — headings, bullets, links, bold. They were
+              being printed verbatim, so a release note read as one run of text with stray #
+              and * characters in it. */}
+          <Markdown>{update.body}</Markdown>
           <a
             href={update.htmlUrl}
             target="_blank"
