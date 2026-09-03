@@ -15,7 +15,7 @@ export async function GET(req: NextRequest) {
   const gate = await assertReadAccess(admin, user.id)
   if (gate instanceof NextResponse) return gate
 
-  const group = await resolveGroupOr400(admin, gate.fundId, req.nextUrl.searchParams.get('group'))
+  const group = await resolveGroupOr400(admin, gate, req.nextUrl.searchParams.get('group'))
   if (group instanceof NextResponse) return group
   const vehicleId = await vehicleIdByName(admin, gate.fundId, group)
 
@@ -40,7 +40,7 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ error: 'rows[] is required' }, { status: 400 })
   }
 
-  const group = await resolveGroupOr400(admin, gate.fundId, body?.group ?? null)
+  const group = await resolveGroupOr400(admin, gate, body?.group ?? null)
   if (group instanceof NextResponse) return group
   const vehicleId = await vehicleIdByName(admin, gate.fundId, group)
 

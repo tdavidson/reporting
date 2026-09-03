@@ -16,6 +16,7 @@ ledger, capital accounts, bank feed, periods).
 
 - [Setting up a vehicle](#setting-up-a-vehicle) — prerequisites and the three onboarding scenarios
 - [Going live & keeping the books](#going-live--keeping-the-books)
+- [Management companies](#management-companies) — the firm's own books, and intercompany
 - [Double-entry reference](#double-entry-reference) — how each entry type is booked
 - [The capital-account roll-forward](#the-capital-account-roll-forward)
 - [Verifying the books](#verifying-the-books) — the checks that should always hold
@@ -125,6 +126,154 @@ Everything is per-vehicle from there, so the same company can run an SPV and a f
 - **Amend a closed period:** Periods → *Reopen*, post the fix, close & lock again.
 - **Statements at any date:** the **Financial statements** page has an *As of* control so every
   statement can be viewed at a chosen date.
+
+---
+
+# Management companies
+
+A **management company** is the firm's own operating entity: it employs the team, collects the
+management fee and pays the rent. It is not an investment vehicle, and the difference runs deeper
+than a label — it has no commitments, no NAV, no TVPI and no partners in the LP sense, so almost
+everything on this page above does not apply to it.
+
+It is therefore a vehicle **kind** of its own (`manco`), with its own chart, its own section of the
+app (**Management company** in the nav, switched on in Settings → *Feature visibility*), and — this
+is the part worth reading carefully — **its own access grant**.
+
+## Why a separate grant
+
+Everywhere else in this system, related things share a grant when one is derivable from the other:
+a K-1 is derived from the capital accounts, which ARE the ledger, so `tax_reporting` sits inside
+`accounting` rather than pretending to a boundary that does not exist.
+
+A management company is the opposite case. Its ledger carries **salaries, bonuses and partner
+draws**, and none of that appears anywhere in a fund's trial balance — the fund sees one number,
+the management fee it pays. The boundary is real, so it is enforced rather than described:
+
+- `management_company` is a domain of its own, seeded at **`none`** for every existing member. An
+  admin grants it deliberately, per person. (Every other domain was seeded at `write`, because it
+  was describing behaviour that already existed. This one has none to preserve.)
+- A manco is **excluded from `listVehicles`**, which is what `resolveVehicle` resolves against — so
+  every accounting route, every MCP tool, the Analyst's context and the pending-action builders
+  refuse it by default, without having been changed. Two callers opt in
+  (`lib/accounting/http-vehicle.ts`) and both check the grant immediately.
+- Reaching a manco's ledger through the shared accounting pages needs **both** grants:
+  `management_company` because the books are the firm's, and `accounting` because those pages call
+  `/api/accounting/*`. A manco-only bookkeeper gets the dashboard, the chart, the statements and
+  intercompany — all `/api/manco/*` — and needs fund accounting only to hand-author journal entries.
+
+`tests/manco-vehicle-domain.test.ts` pins all of it.
+
+## Setting one up
+
+1. **Settings → Feature visibility → Management company** (ships `off`).
+2. **Management company → Add** — or add a vehicle of type *Management company* anywhere vehicles
+   are managed.
+3. **Set up books** seeds the chart below. There is no cutover / full-history choice and no capital
+   accounts to create: those are about LPs.
+4. Import the QuickBooks general ledger from the entity's page if there is history to bring in. The
+   mapping proposer knows the manco vocabulary — payroll, benefits, occupancy, technology — so most
+   accounts arrive already matched.
+
+## Chart of accounts (the management-company seed)
+
+| Code | Account | Type | Normal side |
+|---|---|---|---|
+| 1000 / 1050 | Cash — operating / reserve | asset | debit |
+| 1100 | Accounts receivable | asset | debit |
+| 1300 | Prepaid expenses | asset | debit |
+| 1350 | Security deposits | asset | debit |
+| 1400 / 1450 | Furniture and equipment / accumulated depreciation | asset | debit |
+| **1900** | **Due from affiliates** | asset | debit |
+| 1900-`<id>` | Due from `<vehicle>` (one per counterparty) | asset | debit |
+| 2000 / 2100 | Accounts payable / accrued expenses | liability | credit |
+| 2150 | Accrued compensation | liability | credit |
+| 2200 | Payroll liabilities | liability | credit |
+| 2400 | Deferred management fee revenue | liability | credit |
+| 2500 | Note payable | liability | credit |
+| **2900** | **Due to affiliates** | liability | credit |
+| 2900-`<id>` | Due to `<vehicle>` (one per counterparty) | liability | credit |
+| 3000 / 3100 | Members' capital / member distributions | equity | credit |
+| 3200 | **Undistributed earnings (bridge)** | equity | credit |
+| 4000 | Management fee income | income | credit |
+| 4100 | Expense reimbursement income | income | credit |
+| 4200 / 4900 | Interest income / other income | income | credit |
+| 5000 / 5010 / 5020 / 5030 | Salaries / payroll taxes / benefits / bonus | expense | debit |
+| 5100 | Rent and occupancy | expense | debit |
+| 5200 / 5210 / 5220 | Legal / audit and tax / fund administration | expense | debit |
+| 5300 / 5400 / 5500 | Technology / travel / marketing | expense | debit |
+| 5600 / 5700 | Insurance / office and general | expense | debit |
+| 5800 / 5900 | Depreciation / interest expense | expense | debit |
+
+Three of these are decisions rather than lines, and they are why a fund chart cannot be reused:
+
+- **Compensation is four accounts, not one.** "What does a head cost us" is 5000+5010+5020; "what
+  did we pay out on last year's performance" is 5030. Rolled together, neither question can be
+  answered again from the ledger.
+- **2400 exists because the fee is billed before it is earned.** A quarterly fee charged in advance
+  lands on 1 January for a quarter that has not happened. Recognising all of it in January
+  overstates Q1 revenue by two thirds; 2400 holds the unearned part and releases it monthly.
+- **1900 and 2900 never net.** What the funds owe the firm and what the firm owes them are balances
+  with different counterparties settling on different dates, and each has to be confirmed against
+  another entity's books. A net figure matches neither side.
+
+3200 is the same bridge the fund chart uses, and a manco needs it for the same reason: the period
+close flattens the P&L into it and rolls the result into members' capital.
+
+## Intercompany transactions
+
+A charge between two vehicles of the same firm is **one economic fact and two ledgers**. Entered as
+two ordinary journal entries, nothing knows they are the same charge: the firm's receivable and the
+fund's payable are independent numbers that agree only while both were typed correctly, and when
+they stop agreeing there is no way to tell which one moved.
+
+So *Record a charge* on the management company's page writes **both sides in one action**, each
+entry tagged `source_ref = intercompany:<id>`, with the pair recorded in
+`intercompany_transactions`.
+
+**Accrual** (management fee, expense reimbursement, allocated cost, other):
+
+```
+payee (the firm)   Dr 1900-<payer>   Cr 4000 Management fee income
+payer (the fund)   Dr 5000 Management fee   Cr 2900-<payee>
+```
+
+**Settlement**, when the cash actually moves — a separate event, often a separate quarter:
+
+```
+payee   Dr 1000 Cash        Cr 1900-<payer>
+payer   Dr 2900-<payee>     Cr 1000 Cash
+```
+
+**Advances and repayments** move cash as they are recorded, so they have one event and no
+settlement of their own — an advance is cleared by recording a repayment, because that is what
+happened.
+
+Two things follow from the design and are worth knowing:
+
+- The **balance** shown per counterparty is read off the ledger (the 1900-`<id>` / 2900-`<id>`
+  accounts), never summed from the register. A manual correcting entry — how half of all
+  intercompany disputes are actually resolved — is reflected without anyone amending a row.
+- Both sides post **or neither does**. If the payer's entry fails (a closed period on the fund's
+  books is the realistic case), the payee's entry is voided and the charge is removed.
+
+Each side's accounts are resolved from **its own chart by subtype**, so a fund, a GP entity and
+another management company can all be the counterparty. Where a side has no defensible account for
+the charge, the post is refused with a message naming what is missing — a charge in the wrong income
+account still balances, so nothing downstream would ever flag it.
+
+Neither `capital_contribution` nor equity funding is an intercompany charge: funding an affiliate is
+equity, not a balance one side can demand back, and it is booked as an ordinary entry against
+members' capital on both sets of books.
+
+## What a management company does NOT get
+
+No capital accounts, no capital calls, no schedule of investments, no allocation terms, no
+waterfall, no LP statements, no K-1s. It has no limited partners. Its period close rolls the
+operating result into members' capital and nothing else.
+
+It is also excluded from the `/funds` overview, the fund switcher, and per-vehicle performance
+roll-ups. Every column there would be a dash.
 
 ---
 

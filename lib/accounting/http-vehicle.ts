@@ -1,19 +1,64 @@
 import { NextResponse } from 'next/server'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { resolveVehicle } from './vehicle-resolver'
+import { assertVehicleDomain, assertMancoVehicle, type VehicleGate } from './vehicle-domain'
 
 /**
- * Resolve the vehicle (portfolio_group) for a request: the explicit value, or the
- * fund's sole vehicle. Returns a 400 NextResponse when it's ambiguous/missing.
+ * Resolve the vehicle (portfolio_group) for a request AND check the caller may have it: the
+ * explicit value, or the fund's sole vehicle. Returns a NextResponse when it's ambiguous/missing
+ * (400) or when the vehicle belongs to a domain this caller doesn't hold (403).
+ *
+ * The access check lives here rather than in each route because this is the one line every
+ * accounting route already has. `/api/accounting/*` is gated on `accounting` by the middleware,
+ * which is the right answer for a fund vehicle and the wrong one for a management company — a
+ * manco's ledger is in the same tables, so that grant would serve the firm's payroll to anyone who
+ * can reconcile a bank account. `assertVehicleDomain` is what makes the `management_company`
+ * domain mean something; see lib/accounting/vehicle-domain.ts for the full rule.
+ *
+ * It takes the whole gate, not just `fundId`, because the check needs to know who is asking and at
+ * what level — and a signature that can't be called without them is the only version a new route
+ * cannot get wrong.
  */
 export async function resolveGroupOr400(
+  admin: SupabaseClient,
+  gate: VehicleGate,
+  requested?: string | null
+): Promise<string | NextResponse> {
+  let group: string
+  try {
+    // Opt in to management companies, then check the grant immediately below. These are the only
+    // two callers that opt in; see the note on resolveVehicle for why the default is to exclude them.
+    group = await resolveVehicle(admin, gate.fundId, requested ?? undefined, { includeManagementCompanies: true })
+  } catch (e) {
+    return NextResponse.json({ error: (e as Error).message }, { status: 400 })
+  }
+  const denied = await assertVehicleDomain(admin, gate, group)
+  if (denied) return denied
+  return group
+}
+
+/**
+ * The same, for the management-company module's own routes (`/api/manco/*`): resolve the vehicle
+ * and require that it IS a management company.
+ *
+ * Those routes are gated on `management_company`, so the caller holds the right grant — but a
+ * grant says nothing about which vehicle they named, and without this a manco route would read a
+ * fund's books for someone who was never given the `accounting` grant. Same hole, other direction.
+ *
+ * A manco is never the fund's "sole vehicle" in any interesting case, so `requested` is required
+ * here rather than defaulted: silently resolving to whatever single vehicle exists would, on a
+ * fund that has no manco at all, produce a confusing 400 about the wrong vehicle.
+ */
+export async function resolveMancoGroupOr400(
   admin: SupabaseClient,
   fundId: string,
   requested?: string | null
 ): Promise<string | NextResponse> {
-  try {
-    return await resolveVehicle(admin, fundId, requested ?? undefined)
-  } catch (e) {
-    return NextResponse.json({ error: (e as Error).message }, { status: 400 })
+  const group = (requested ?? '').trim()
+  if (!group) {
+    return NextResponse.json({ error: 'A management company is required (group=…)' }, { status: 400 })
   }
+  const wrong = await assertMancoVehicle(admin, fundId, group)
+  if (wrong) return wrong
+  return group
 }

@@ -24,6 +24,7 @@ export default function SupportPage() {
       <li><a href="#diligence" className="hover:text-foreground underline underline-offset-4">Diligence</a></li>
       <li><a href="#investments" className="hover:text-foreground underline underline-offset-4">Investments</a></li>
       <li><a href="#funds" className="hover:text-foreground underline underline-offset-4">Funds</a></li>
+      <li><a href="#management-company" className="hover:text-foreground underline underline-offset-4">Management company</a></li>
       <li><a href="#letters" className="hover:text-foreground underline underline-offset-4">Letters</a></li>
       <li><a href="#lps" className="hover:text-foreground underline underline-offset-4">LPs</a></li>
       <li><a href="#compliance" className="hover:text-foreground underline underline-offset-4">Compliance</a></li>
@@ -773,6 +774,66 @@ export default function SupportPage() {
           <p className="text-muted-foreground">
             Cash flows can be added individually from the Funds page. The same computed metrics also
             appear in the group summary table on the Investments page.
+          </p>
+        </div>
+
+        <div id="management-company">
+          <h2 className="text-base font-medium mb-2 flex items-center gap-2">
+            <Briefcase className="h-4 w-4 text-muted-foreground" />
+            Management company
+          </h2>
+          <p className="text-muted-foreground mb-2">
+            The management company is the firm&rsquo;s own operating entity &mdash; the company that
+            employs the team, collects the management fee and pays the rent &mdash; as opposed to the
+            funds it manages. It gets its own section rather than a row on the Funds page because it
+            is a different kind of thing: it has no commitments, no NAV, no TVPI and no limited
+            partners, so every column of a fund performance table would be a dash. Switch it on in
+            Settings &rarr; Feature visibility, then add a vehicle of type{' '}
+            <strong>Management company</strong> and choose <strong>Set up books</strong> to seed its
+            chart of accounts.
+          </p>
+          <p className="text-muted-foreground mb-2">
+            <strong>Its chart of accounts is its own.</strong> Cash, receivables, prepaid and fixed
+            assets, payables, payroll liabilities, deferred fee revenue, members&rsquo; capital and
+            draws, fee and reimbursement income, and an operating expense structure that begins with
+            four separate compensation accounts &mdash; salaries, payroll taxes, benefits, and bonus.
+            They are kept apart because &ldquo;what does a head cost us&rdquo; and &ldquo;what did we
+            pay out on last year&rsquo;s performance&rdquo; are different questions, and once they are
+            booked together neither can be answered from the ledger again.
+          </p>
+          <p className="text-muted-foreground mb-2">
+            <strong>The dashboard</strong> answers the four questions a firm asks about its own
+            operating entity: how much cash there is and how long it lasts (burn excludes depreciation,
+            which is not money leaving the building); what came in and went out{' '}
+            <strong>by quarter</strong>, with the empty quarters drawn rather than skipped, because a
+            fee that never arrived should look like a hole and not a flat line; where the money goes,
+            ranked by account; and who owes whom.
+          </p>
+          <p className="text-muted-foreground mb-2">
+            <strong>Intercompany.</strong> Recording a charge &mdash; a management fee, an expense
+            reimbursement, an allocated cost, an advance &mdash; posts <em>both sides</em> in one
+            action: the receivable and the fee income on the management company, the expense and the
+            payable on the fund, linked so the two can be reconciled. Settlement is a separate step,
+            because the cash usually moves in a different quarter from the charge. Balances are shown
+            per counterparty with due-from and due-to kept apart rather than netted, and they are read
+            from the ledger rather than summed from the register &mdash; so a correcting journal entry
+            is reflected without anyone having to amend a record as well.
+          </p>
+          <p className="text-muted-foreground mb-2">
+            <strong>The books themselves are the same tools a fund uses</strong>, scoped to this
+            entity: the journal, the bank feed, financial statements, the period close, and the
+            QuickBooks general-ledger import. The import&rsquo;s account mapping knows the
+            management-company vocabulary, so payroll, benefits, occupancy and technology accounts
+            arrive already matched rather than needing a dropdown each.
+          </p>
+          <p className="text-muted-foreground">
+            <strong>Access is granted separately.</strong> A management company&rsquo;s ledger carries
+            salaries, bonuses and partner draws, and none of that appears anywhere in a fund&rsquo;s
+            books &mdash; the fund sees one number, the fee it pays. So Management company is its own
+            access grant, it starts at <em>no access</em> for everyone, and granting someone fund
+            accounting does not hand them the partners&rsquo; compensation. The rule is enforced by the
+            entity rather than the page: an accounting request for a management company is refused
+            whatever the caller&rsquo;s accounting grant says.
           </p>
         </div>
 

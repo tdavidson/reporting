@@ -3,11 +3,13 @@
 import { Filter, CheckSquare, Square } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { VEHICLE_KINDS, VEHICLE_KIND_LABELS_PLURAL } from '@/lib/vehicle-kinds'
 
-export const VEHICLE_KINDS = ['fund', 'spv', 'direct', 'associate', 'other'] as const
-export const KIND_LABELS: Record<string, string> = {
-  fund: 'Funds', spv: 'SPVs', direct: 'Direct deals', associate: 'GP / associate entities', other: 'Other',
-}
+// Re-exported rather than redeclared: these were a second copy of the kind vocabulary, and the
+// filter bar showing a different set of kinds from the one the create modal can produce is a bug
+// with no error message.
+export { VEHICLE_KINDS }
+export const KIND_LABELS: Record<string, string> = VEHICLE_KIND_LABELS_PLURAL
 
 const STATUS_OPTIONS: { value: string; label: string }[] = [
   { value: '', label: 'All' },

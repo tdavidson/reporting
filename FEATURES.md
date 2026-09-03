@@ -149,6 +149,24 @@ Accounting gives each of your vehicles — a fund, an SPV, a direct deal, a GP e
 
 **AI assistant.** An assistant scoped to the accounting section — read the books, interpret a statement, reconcile an account, draft an entry. It proposes; it never posts. Everything it produces lands as a draft for you to review. There is also an API-key-authenticated agent endpoint (REST and MCP) so an external agent can work against your books.
 
+## Management company
+
+The firm's own operating entity, on its own books — the company that employs the team, collects the management fee and pays the rent, as opposed to the funds it manages. Off by default; switch it on in Settings → *Feature visibility*.
+
+It is a separate section rather than another row on the Funds page because it is a different kind of thing. A management company has no commitments, no NAV, no TVPI and no limited partners, so every column of a fund performance table is a dash — and the questions a firm actually asks about it are different ones.
+
+**Its own chart of accounts.** Seeded when you set one up: cash, receivables, prepaid and fixed assets, payables, payroll liabilities, deferred fee revenue, members' capital and draws, fee and reimbursement income, and an operating expense structure that starts with four separate compensation accounts. A fund chart offers partners' capital, investments at cost and unrealized appreciation, and no salaries line at all.
+
+**The dashboard.** Cash across each bank account, monthly cash burn (depreciation excluded, because it is not money leaving the building) and the runway that implies; revenue and expenses **by quarter**, with the empty quarters drawn rather than skipped — a manco's revenue arrives in four lumps a year, so a missed or late fee should look like a hole, not a flat line; and expenses ranked by account with each one's share.
+
+**Intercompany.** A charge between two entities of the same firm is recorded once and posts **both sides** — the receivable and the fee income on the management company, the expense and the payable on the fund — linked so they can be reconciled, with a separate settlement when the cash actually moves. Balances are shown per counterparty, due-from and due-to kept apart rather than netted, and read from the ledger rather than summed from the register, so a manual correcting entry is reflected without anyone amending a row.
+
+**The same books everything else uses.** Journal, bank feed, financial statements, period close and the QuickBooks general-ledger import are the same tools a fund uses, scoped to the entity — the import's mapping proposer knows the management-company vocabulary, so payroll, benefits, occupancy and technology accounts arrive already matched.
+
+**Its own access grant.** A management company's ledger carries salaries, bonuses and partner draws, and unlike a K-1 none of it is derivable from a fund's books. So it is a separate grant, granted per person, and it starts at *no access* for everyone — granting someone fund accounting does not hand them the partners' compensation. Enforced by the vehicle, not just the page: an accounting API asked for a management company refuses it.
+
+> The chart in full, the intercompany entries in T-account form, and how the boundary is enforced: [ACCOUNTING](./ACCOUNTING.md#management-companies)
+
 ## Compliance
 
 Compliance helps fund managers stay on top of regulatory filings, tax deadlines, internal compliance requirements, and fund reporting obligations. It provides a calendar-based view of everything due throughout the year, tailored to your fund's specific profile and registration status.

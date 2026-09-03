@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
   if (gate instanceof NextResponse) return gate
 
   const sp = req.nextUrl.searchParams
-  const group = await resolveGroupOr400(admin, gate.fundId, sp.get('group'))
+  const group = await resolveGroupOr400(admin, gate, sp.get('group'))
   if (group instanceof NextResponse) return group
 
   const lp = sp.get('lp')

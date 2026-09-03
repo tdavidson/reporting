@@ -34,7 +34,7 @@ export async function GET(req: NextRequest) {
   const gate = await assertReadAccess(admin, user.id)
   if (gate instanceof NextResponse) return gate
 
-  const group = await resolveGroupOr400(admin, gate.fundId, req.nextUrl.searchParams.get('group'))
+  const group = await resolveGroupOr400(admin, gate, req.nextUrl.searchParams.get('group'))
   if (group instanceof NextResponse) return group
   const asOf = req.nextUrl.searchParams.get('asOf') ?? new Date().toISOString().slice(0, 10)
 

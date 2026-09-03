@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
     : []
   if (names.length === 0) return NextResponse.json({ error: 'holdings[] is required' }, { status: 400 })
 
-  const group = await resolveGroupOr400(admin, gate.fundId, body?.group ?? null)
+  const group = await resolveGroupOr400(admin, gate, body?.group ?? null)
   if (group instanceof NextResponse) return group
 
   // Match case-insensitively against EVERY holding, not just fund ones: if the name already

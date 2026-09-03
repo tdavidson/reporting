@@ -5,14 +5,9 @@ import { Plus, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import { VEHICLE_KIND_OPTIONS } from '@/lib/vehicle-kinds'
 
-const KINDS = [
-  { value: 'fund', label: 'Fund' },
-  { value: 'spv', label: 'SPV' },
-  { value: 'direct', label: 'Direct deal' },
-  { value: 'associate', label: 'GP / associate entity' },
-  { value: 'other', label: 'Other' },
-]
+const KINDS = VEHICLE_KIND_OPTIONS
 
 /** Create an investment vehicle (fund / SPV / direct deal / …) from a modal. */
 export function AddVehicleButton({ onCreated }: { onCreated?: () => void }) {

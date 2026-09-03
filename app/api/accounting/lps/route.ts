@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
   if (gate instanceof NextResponse) return gate
 
   const body = await req.json().catch(() => ({}))
-  const group = await resolveGroupOr400(admin, gate.fundId, body?.group ?? req.nextUrl.searchParams.get('group'))
+  const group = await resolveGroupOr400(admin, gate, body?.group ?? req.nextUrl.searchParams.get('group'))
   if (group instanceof NextResponse) return group
 
   const name = String(body?.name ?? '').trim()
@@ -152,7 +152,7 @@ export async function PATCH(req: NextRequest) {
   if (gate instanceof NextResponse) return gate
 
   const body = await req.json().catch(() => ({}))
-  const group = await resolveGroupOr400(admin, gate.fundId, body?.group ?? req.nextUrl.searchParams.get('group'))
+  const group = await resolveGroupOr400(admin, gate, body?.group ?? req.nextUrl.searchParams.get('group'))
   if (group instanceof NextResponse) return group
 
   const entityId = String(body?.entityId ?? '').trim()

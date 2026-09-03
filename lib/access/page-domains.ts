@@ -34,7 +34,7 @@ export interface PageDomain {
    * The gate this page calls, when it isn't the standard `canViewPage(page, '<domain>')`.
    * Section guards resolve the same context for a whole subtree.
    */
-  gate?: 'requireAccountingAccess'
+  gate?: 'requireAccountingAccess' | 'requireMancoAccess' | 'requireMancoLedgerAccess'
 }
 
 /** Keyed by path under app/(app), without the trailing /page.tsx. */
@@ -101,6 +101,22 @@ export const PAGE_DOMAINS: Record<string, PageDomain> = {
   'funds/fof-quarter': { domain: 'accounting', gate: 'requireAccountingAccess' },
   'funds/fof-report': { domain: 'accounting', gate: 'requireAccountingAccess' },
   'funds/migrate': { domain: 'accounting', gate: 'requireAccountingAccess' },
+
+  // ── Management company ─────────────────────────────────────────────────────
+  // Its own section and its own guard (app/(app)/manco/guard.ts), because a manco's ledger carries
+  // firm payroll and none of it is derivable from a fund's books — see DOMAIN_META.
+  //
+  // The five ledger subpages claim `requireMancoLedgerAccess`, which checks `management_company`
+  // AND `accounting`. They render the SHARED accounting views, whose API calls the middleware gates
+  // on `accounting`; admitting someone without it would render a page whose every request 403s.
+  // The domain recorded here is the one that decides whether the page is reachable AT ALL.
+  'manco': { domain: 'management_company', gate: 'requireMancoAccess' },
+  'manco/[id]': { domain: 'management_company', gate: 'requireMancoAccess' },
+  'manco/[id]/bank': { domain: 'management_company', gate: 'requireMancoLedgerAccess' },
+  'manco/[id]/journal': { domain: 'management_company', gate: 'requireMancoLedgerAccess' },
+  'manco/[id]/migrate': { domain: 'management_company', gate: 'requireMancoLedgerAccess' },
+  'manco/[id]/periods': { domain: 'management_company', gate: 'requireMancoLedgerAccess' },
+  'manco/[id]/statements': { domain: 'management_company', gate: 'requireMancoLedgerAccess' },
 
   // ── Administration ─────────────────────────────────────────────────────────
   'usage': { domain: 'admin' },

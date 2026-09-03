@@ -15,7 +15,7 @@ export async function GET(req: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const gate = await assertReadAccess(admin, user.id)
   if (gate instanceof NextResponse) return gate
-  const group = await resolveGroupOr400(admin, gate.fundId, req.nextUrl.searchParams.get('group'))
+  const group = await resolveGroupOr400(admin, gate, req.nextUrl.searchParams.get('group'))
   if (group instanceof NextResponse) return group
   return NextResponse.json(await capitalCallCandidates(admin, gate.fundId, group))
 }
@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
   if (gate instanceof NextResponse) return gate
 
   const { id, mode, entryId, lpEntityId, perLp, group: bodyGroup } = await req.json().catch(() => ({}))
-  const group = await resolveGroupOr400(admin, gate.fundId, bodyGroup ?? req.nextUrl.searchParams.get('group'))
+  const group = await resolveGroupOr400(admin, gate, bodyGroup ?? req.nextUrl.searchParams.get('group'))
   if (group instanceof NextResponse) return group
   if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 })
 

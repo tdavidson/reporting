@@ -20,6 +20,7 @@ export type Domain =
   | 'dealflow'
   | 'diligence'
   | 'accounting'
+  | 'management_company'
   | 'lp_capital'
   | 'gp_economics'
   | 'lp_relations'
@@ -38,6 +39,7 @@ export const DOMAINS: Domain[] = [
   'dealflow',
   'diligence',
   'accounting',
+  'management_company',
   'lp_capital',
   'gp_economics',
   'lp_relations',
@@ -146,6 +148,34 @@ export const DOMAIN_META: Record<Domain, DomainMeta> = {
      * ALL, independently of whether it keeps books.
      */
     features: ['accounting', 'tax_reporting'],
+  },
+  management_company: {
+    label: 'Management company',
+    description:
+      "The firm's own operating books: cash, payroll and compensation, the quarterly management-fee cycle, and intercompany balances with the funds it manages.",
+    primaryFeature: 'management_company',
+    features: ['management_company'],
+    /**
+     * ITS OWN DOMAIN, AND DELIBERATELY NOT `impliedBy: 'accounting'`.
+     *
+     * The `lp_capital` note explains why an implication is sometimes the only honest answer: a
+     * fund's chart of accounts has one capital account per partner, NAMED for them, so granting
+     * the books has already granted partner capital, and pretending otherwise would be a lie told
+     * to an admin who trusts the checkbox.
+     *
+     * A management company is the opposite case. It is a SEPARATE LEGAL ENTITY with a separate
+     * ledger, and what that ledger carries — salaries, bonuses, partner draws — appears nowhere in
+     * the fund's trial balance, chart, journal or capital accounts. The fund sees one number, the
+     * management fee it pays. So the boundary here is real, and a grant can enforce it without
+     * pretending.
+     *
+     * That is only true while it is ENFORCED per vehicle, not per route: the manco's books live in
+     * the same `journal_entries`/`chart_of_accounts` tables as every fund's, so `/api/accounting/*`
+     * would serve them to anyone holding `accounting`. `assertVehicleDomain`
+     * (lib/accounting/vehicle-domain.ts) is what stops that — it resolves the vehicle's `kind` on
+     * every accounting request and requires THIS grant when the vehicle is a management company.
+     * tests/manco-vehicle-domain.test.ts pins it.
+     */
   },
   lp_capital: {
     label: 'LP capital',

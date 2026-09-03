@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const gate = await assertReadAccess(admin, user.id)
   if (gate instanceof NextResponse) return gate
-  const group = await resolveGroupOr400(admin, gate.fundId, req.nextUrl.searchParams.get('group'))
+  const group = await resolveGroupOr400(admin, gate, req.nextUrl.searchParams.get('group'))
   if (group instanceof NextResponse) return group
 
   const [ownership, names] = await Promise.all([loadOwnership(admin, gate.fundId, group), loadEntityNames(admin, gate.fundId, group)])
@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
   if (gate instanceof NextResponse) return gate
 
   const body = await req.json().catch(() => ({}))
-  const group = await resolveGroupOr400(admin, gate.fundId, body?.group ?? req.nextUrl.searchParams.get('group'))
+  const group = await resolveGroupOr400(admin, gate, body?.group ?? req.nextUrl.searchParams.get('group'))
   if (group instanceof NextResponse) return group
 
   const adminInput = (body?.admin ?? {}) as Record<string, AdminCapitalAccount>

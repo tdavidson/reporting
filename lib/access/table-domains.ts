@@ -156,6 +156,22 @@ export const TABLE_RULES: Record<string, TableRule> = {
   price_feeds: { scope: 'fund', domain: 'accounting' },
   price_observations: { scope: 'fund', domain: 'accounting' },
 
+  // ---- Management company --------------------------------------------------------------------
+  // NOTE the tables that are NOT here. A management company's ledger lives in the same
+  // `journal_entries` / `journal_postings` / `chart_of_accounts` rows as every fund's, filed under
+  // its own `vehicle_id`, so RLS on those tables cannot separate the two: a per-row rule would have
+  // to join fund_vehicles on every posting, on the hot path, to answer a question the application
+  // already answers per request. The boundary is drawn at the request instead — `assertVehicleDomain`
+  // (lib/accounting/vehicle-domain.ts) resolves the vehicle's kind before any accounting route runs
+  // and requires `management_company` for a manco.
+  //
+  // That is a real limitation and worth stating plainly: a member holding `accounting` who skips
+  // Next.js and queries PostgREST directly can still read the manco's postings, exactly as SEC-002
+  // describes for any table gated at the wrong grain. Closing it means moving the manco's ledger to
+  // its own tables or teaching the RLS predicate about vehicle kind; until then this table — the one
+  // thing that is manco-only by construction — is gated where it can be.
+  intercompany_transactions: { scope: 'fund', domain: 'management_company' },
+
   // ---- LP capital --------------------------------------------------------------------------
   lp_entities: { scope: 'fund', domain: 'lp_capital' },
   lp_investors: { scope: 'fund', domain: 'lp_capital' },

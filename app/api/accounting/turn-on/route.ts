@@ -6,12 +6,13 @@ import { assertWriteAccess } from '@/lib/api-helpers'
 import { dbError } from '@/lib/api-error'
 import { resolveGroupOr400 } from '@/lib/accounting/http-vehicle'
 import { vehicleIdByName } from '@/lib/accounting/vehicle-id'
-import { DEFAULT_CHART, GP_ENTITY_CHART } from '@/lib/accounting/chart'
+import { chartForVehicleKind } from '@/lib/accounting/chart'
 import { bootstrapOpeningBalances } from '@/lib/accounting/bootstrap'
 import { positionDates } from '@/lib/accounting/lp-positions'
 import { saveHistoryMode } from '@/lib/accounting/terms'
 import { committedLpIds } from '@/lib/accounting/attribute-lp-capital'
 import { ensureCapitalAccounts } from '@/lib/accounting/persist'
+import { isMancoKind } from '@/lib/accounting/vehicle-domain'
 
 // POST — turn on fund accounting for a vehicle in ONE action. Seeds the chart (by kind), carries the
 // latest pasted snapshot in as opening balances (cutover), and flips the producer to the ledger.
@@ -24,7 +25,7 @@ export async function POST(req: NextRequest) {
   const gate = await assertWriteAccess(admin, user.id)
   if (gate instanceof NextResponse) return gate
   const body = await req.json().catch(() => ({}))
-  const group = await resolveGroupOr400(admin, gate.fundId, body?.group ?? req.nextUrl.searchParams.get('group'))
+  const group = await resolveGroupOr400(admin, gate, body?.group ?? req.nextUrl.searchParams.get('group'))
   if (group instanceof NextResponse) return group
 
   const vehicleId = await vehicleIdByName(admin, gate.fundId, group)
@@ -32,7 +33,18 @@ export async function POST(req: NextRequest) {
 
   // 1. Seed the chart by kind (associate → GP chart; else the standard fund chart). Additive.
   const { data: veh } = await admin.from('fund_vehicles' as any).select('kind').eq('fund_id', gate.fundId).eq('id', vehicleId).maybeSingle()
-  const chart = (veh as any)?.kind === 'associate' ? GP_ENTITY_CHART : DEFAULT_CHART
+  // A management company is set up at /api/manco/setup, not here. Everything below this line is
+  // about LPs — per-partner capital accounts, the pasted-snapshot cutover, and flipping the vehicle's
+  // capital source to the ledger — and a manco has no partners in the sense any of it means. Running
+  // it against one would seed nothing, book nothing, and then record capital_source='ledger' on an
+  // entity whose LP capital is not a concept, so refuse rather than half-succeed.
+  if (isMancoKind((veh as any)?.kind)) {
+    return NextResponse.json(
+      { error: 'That is a management company — set it up under Management company, not Funds.' },
+      { status: 400 },
+    )
+  }
+  const chart = chartForVehicleKind((veh as any)?.kind)
   const { data: existing } = await admin
     .from('chart_of_accounts' as any)
     .select('code').eq('fund_id', gate.fundId).eq('vehicle_id', vehicleId)

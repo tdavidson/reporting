@@ -73,7 +73,9 @@ describe('page access registry', () => {
       .filter(([key]) => serverPages.includes(key))
       .filter(([key, entry]) => {
         const src = source(key)
-        if (entry.gate === 'requireAccountingAccess') return !src.includes('requireAccountingAccess(')
+        // A named section guard resolves the same context for a whole subtree, so the page proves
+        // it by calling the guard rather than canViewPage directly.
+        if (entry.gate) return !src.includes(`${entry.gate}(`)
         const call = entry.feature
           ? `canViewPage(page, '${entry.domain}', '${entry.feature}')`
           : `canViewPage(page, '${entry.domain}')`

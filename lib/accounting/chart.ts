@@ -156,6 +156,167 @@ export const GP_ENTITY_CHART: ChartAccountSeed[] = [
   { code: '5000', name: 'Operating expenses', type: 'expense', subtype: 'operating_expense' },
 ]
 
+/**
+ * The two intercompany parents, and the ONE thing every chart in this file agrees on.
+ *
+ * A charge between two vehicles books a receivable on one and a payable on the other, and the two
+ * vehicles may hold entirely different charts — a manco's on one side, a fund's or a GP entity's
+ * on the other. Rather than teach the intercompany code three chart layouts, both sides resolve
+ * their leg through these codes, and `ensureIntercompanyAccounts` creates them (and the
+ * per-counterparty sub-account beneath) on whichever chart is missing them.
+ *
+ * 1900/2900 because they are the only asset and liability codes unused by DEFAULT_CHART,
+ * GP_ENTITY_CHART and MANAGEMENT_COMPANY_CHART alike. Reusing the fund chart's 2300 would have put
+ * an intercompany payable directly under "Distributions payable" on an LP-facing balance sheet.
+ */
+export const INTERCOMPANY_RECEIVABLE_CODE = '1900'
+export const INTERCOMPANY_PAYABLE_CODE = '2900'
+export const INTERCOMPANY_RECEIVABLE_SUBTYPE = 'intercompany_receivable'
+export const INTERCOMPANY_PAYABLE_SUBTYPE = 'intercompany_payable'
+
+/**
+ * Starter chart for a MANAGEMENT COMPANY — the firm's operating entity, as opposed to any
+ * fund it manages.
+ *
+ * A manco is a normal business that happens to have one customer per fund. Its revenue is the
+ * management fee, its costs are people and offices, and its balance sheet is mostly cash,
+ * receivables from the funds, and what it owes its staff. None of the fund chart applies: there
+ * are no investments at cost, no unrealized appreciation, no partners' capital per LP, no
+ * schedule of investments, and nothing to allocate to anybody. Seeding DEFAULT_CHART on a manco
+ * (what happened before `kind = 'manco'` existed) offers all of that and offers no salaries
+ * account at all, which is the one line that matters most.
+ *
+ * Three deliberate choices, since a chart is mostly a set of decisions about what to keep apart:
+ *
+ * 1. COMPENSATION IS FOUR ACCOUNTS, not one. Salaries, employer payroll taxes, benefits and
+ *    incentive compensation behave differently, are budgeted separately, and are asked about
+ *    separately ("what does a head cost us?" is 5000+5010+5020; "what did we pay out on last
+ *    year's performance?" is 5030). Rolling them together destroys all three answers and cannot
+ *    be undone from the ledger afterwards.
+ *
+ * 2. THE FEE IS BILLED BEFORE IT IS EARNED, so 2400 exists. Management fees are almost always
+ *    charged quarterly IN ADVANCE: the cash lands on 1 January for a quarter that has not
+ *    happened. Recognising all of it as January income overstates Q1 revenue by two thirds and
+ *    understates the liability to the fund by the same amount. 2400 holds the unearned part and
+ *    releases it monthly, which is also what makes the quarterly revenue cycle on the manco
+ *    dashboard mean anything.
+ *
+ * 3. INTERCOMPANY IS TWO ACCOUNTS AND THEY NEVER NET. 1200 is what the funds owe the manco, 2300
+ *    is what the manco owes them (an expense it paid on their behalf, an advance). Presenting the
+ *    net is how an intercompany balance stops reconciling: the two sides are with different
+ *    counterparties, settle on different dates, and each has to agree to a matching payable or
+ *    receivable on another entity's books. lib/accounting/intercompany.ts posts both sides of
+ *    every charge against exactly these codes.
+ */
+export const MANAGEMENT_COMPANY_CHART: ChartAccountSeed[] = [
+  // Assets
+  { code: '1000', name: 'Cash \u2014 operating', type: 'asset', subtype: 'cash' },
+  // A firm with a real balance keeps a second account; giving it its own code means the operating
+  // balance on the dashboard is the runway number rather than the runway plus the reserve.
+  { code: '1050', name: 'Cash \u2014 reserve', type: 'asset', subtype: 'cash' },
+  { code: '1100', name: 'Accounts receivable', type: 'asset', subtype: 'receivable' },
+  { code: '1300', name: 'Prepaid expenses', type: 'asset', subtype: 'prepaid' },
+  { code: '1350', name: 'Security deposits', type: 'asset', subtype: 'deposit' },
+  { code: '1400', name: 'Furniture, fixtures and equipment', type: 'asset', subtype: 'fixed_asset' },
+  // Contra-asset: carries a CREDIT balance on an asset account, which is correct and intended.
+  // Kept separate from 1400 so the gross cost of what the firm owns stays visible after it has
+  // been written down to nothing.
+  { code: '1450', name: 'Accumulated depreciation', type: 'asset', subtype: 'accumulated_depreciation' },
+  // See note 3. 1900/2900 rather than a code next to the receivables, because these two are the
+  // ONLY accounts every chart in this file has to agree on — `ensureIntercompanyAccounts` creates
+  // `1900-<vehicle>` / `2900-<vehicle>` sub-accounts under them on a fund's chart and a GP entity's
+  // as well as here, and 1900/2900 are the only codes free in all three.
+  { code: '1900', name: 'Due from affiliates', type: 'asset', subtype: INTERCOMPANY_RECEIVABLE_SUBTYPE },
+
+  // Liabilities
+  { code: '2000', name: 'Accounts payable', type: 'liability', subtype: 'accounts_payable' },
+  { code: '2100', name: 'Accrued expenses', type: 'liability', subtype: 'accrued' },
+  // Bonuses declared and unpaid at year end are usually the largest single liability a manco
+  // carries, and they are not an "accrued expense" in any useful sense \u2014 they are owed to named
+  // people on a known date.
+  { code: '2150', name: 'Accrued compensation', type: 'liability', subtype: 'accrued_compensation' },
+  // Withholding and the employer's share, between payroll and the tax deposit. Money the firm is
+  // holding for somebody else; never its own.
+  { code: '2200', name: 'Payroll liabilities', type: 'liability', subtype: 'payroll_liability' },
+  // See note 2.
+  { code: '2400', name: 'Deferred management fee revenue', type: 'liability', subtype: 'deferred_revenue' },
+  { code: '2500', name: 'Note payable', type: 'liability', subtype: 'note_payable' },
+  { code: '2900', name: 'Due to affiliates', type: 'liability', subtype: INTERCOMPANY_PAYABLE_SUBTYPE },
+
+  // Equity \u2014 members'/partners' capital in the firm, not LP capital in a fund.
+  { code: '3000', name: "Members' capital", type: 'equity', subtype: 'members_capital' },
+  // Draws are a CONTRA-EQUITY account, kept apart from 3000 so a year's distributions to the
+  // partners can be read off the books instead of inferred from the movement in capital.
+  { code: '3100', name: 'Member distributions', type: 'equity', subtype: 'member_distributions' },
+  // The same bridge the fund and GP charts use: the period close offsets each P&L account here
+  // and rolls the total into capital. Without it a manco cannot close a period at all.
+  { code: '3200', name: 'Undistributed earnings (bridge)', type: 'equity', subtype: 'undistributed_earnings' },
+
+  // Income
+  { code: '4000', name: 'Management fee income', type: 'income', subtype: 'management_fee_income' },
+  // A fee the funds reimburse rather than pay \u2014 an allocated cost, a shared-services charge.
+  // Distinct from 4000 because it is cost recovery, not revenue: it moves with headcount and
+  // spending, not with committed capital, and a firm reading "fee income" wants the fee.
+  { code: '4100', name: 'Expense reimbursement income', type: 'income', subtype: 'reimbursement_income' },
+  { code: '4200', name: 'Interest income', type: 'income', subtype: 'interest_income' },
+  { code: '4900', name: 'Other income', type: 'income', subtype: 'other_income' },
+
+  // Expenses \u2014 compensation first, because it is most of them. See note 1.
+  { code: '5000', name: 'Salaries and wages', type: 'expense', subtype: 'salaries' },
+  { code: '5010', name: 'Payroll taxes', type: 'expense', subtype: 'payroll_taxes' },
+  { code: '5020', name: 'Employee benefits', type: 'expense', subtype: 'benefits' },
+  { code: '5030', name: 'Bonus and incentive compensation', type: 'expense', subtype: 'incentive_compensation' },
+  { code: '5100', name: 'Rent and occupancy', type: 'expense', subtype: 'occupancy' },
+  { code: '5200', name: 'Legal fees', type: 'expense', subtype: 'legal' },
+  { code: '5210', name: 'Audit, tax and accounting fees', type: 'expense', subtype: 'professional_fees' },
+  { code: '5220', name: 'Fund administration', type: 'expense', subtype: 'fund_administration' },
+  { code: '5300', name: 'Technology and software', type: 'expense', subtype: 'technology' },
+  { code: '5400', name: 'Travel and entertainment', type: 'expense', subtype: 'travel' },
+  { code: '5500', name: 'Marketing and business development', type: 'expense', subtype: 'marketing' },
+  { code: '5600', name: 'Insurance', type: 'expense', subtype: 'insurance' },
+  { code: '5700', name: 'Office and general', type: 'expense', subtype: 'office' },
+  // Non-cash, and the manco dashboard subtracts it back out when it shows cash burn \u2014 which is
+  // only possible because it has a code of its own.
+  { code: '5800', name: 'Depreciation and amortization', type: 'expense', subtype: 'depreciation' },
+  { code: '5900', name: 'Interest expense', type: 'expense', subtype: 'interest_expense' },
+]
+
+/** Codes the management-company chart guarantees, for the surfaces that post to them by code. */
+export const MANCO_CODES = {
+  cash: '1000',
+  deferredRevenue: '2400',
+  managementFeeIncome: '4000',
+  reimbursementIncome: '4100',
+  bridge: '3200',
+} as const
+
+
+/**
+ * The intercompany sub-account code for a counterparty vehicle, e.g. 1900-<vehicle>.
+ *
+ * Same shape and same reason as `lpCapitalCode`: one account per counterparty, so a balance can be
+ * read per entity rather than as a single pooled number nobody can reconcile — and reconciling is
+ * the entire job of an intercompany account. The 8-character prefix is a vehicle id, unique enough
+ * within one fund's chart and short enough to read in a picker.
+ */
+export function intercompanyCode(base: string, counterpartyVehicleId: string): string {
+  return `${base}-${counterpartyVehicleId.slice(0, 8)}`
+}
+
+/**
+ * Which starter chart a vehicle gets, from its `fund_vehicles.kind`.
+ *
+ * One function rather than the ternary that used to sit in both the chart route and the turn-on
+ * route: two copies of "which chart" is how a third kind gets added to one of them and not the
+ * other, and the symptom of that is a vehicle seeded with the wrong accounts, discovered months
+ * later by an accountant looking for a line that was never created.
+ */
+export function chartForVehicleKind(kind: string | null | undefined): ChartAccountSeed[] {
+  if (kind === 'manco') return MANAGEMENT_COMPANY_CHART
+  if (kind === 'associate') return GP_ENTITY_CHART
+  return DEFAULT_CHART
+}
+
 /** The per-LP capital account code for an entity, e.g. 3100-<entity>. */
 export function lpCapitalCode(lpEntityId: string): string {
   return `3100-${lpEntityId.slice(0, 8)}`

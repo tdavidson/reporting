@@ -1,5 +1,19 @@
 import { NextResponse } from 'next/server'
 import type { SupabaseClient } from '@supabase/supabase-js'
+import type { VehicleGate } from '@/lib/accounting/vehicle-domain'
+
+/**
+ * What every gate helper here hands back: the caller's tenant, their role, WHO they are, and the
+ * level the route asked for by choosing this helper rather than another.
+ *
+ * The last two fields exist for one reason. Fund accounting is the only area where the grant a
+ * request needs depends on the ROW rather than the route — a management company's ledger sits in
+ * the same tables as a fund's — so `resolveGroupOr400` has to re-resolve access once it knows
+ * which vehicle is being served, and it can only do that if the gate told it who is asking and how
+ * much they asked for. Carrying both on the gate means no call site has to remember to pass them,
+ * and no future route can quietly get it wrong. See lib/accounting/vehicle-domain.ts.
+ */
+export type FundGate = VehicleGate
 
 /**
  * Resolve the caller's fund WITHOUT any role gate — the single-fund-per-user lookup that ~100
@@ -11,7 +25,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 export async function resolveFund(
   admin: SupabaseClient,
   userId: string
-): Promise<{ fundId: string; role: string } | NextResponse> {
+): Promise<FundGate | NextResponse> {
   const { data: membership, error } = await admin
     .from('fund_members')
     .select('fund_id, role')
@@ -22,7 +36,7 @@ export async function resolveFund(
     return NextResponse.json({ error: 'Internal error' }, { status: 500 })
   }
   if (!membership) return NextResponse.json({ error: 'No fund found' }, { status: 403 })
-  return { fundId: membership.fund_id, role: membership.role }
+  return { fundId: membership.fund_id, role: membership.role, userId, need: 'read' }
 }
 
 /**
@@ -38,7 +52,7 @@ export async function resolveFund(
 export async function assertWriteAccess(
   admin: SupabaseClient,
   userId: string
-): Promise<{ fundId: string; role: string } | NextResponse> {
+): Promise<FundGate | NextResponse> {
   const { data: membership, error } = await admin
     .from('fund_members')
     .select('fund_id, role')
@@ -59,7 +73,7 @@ export async function assertWriteAccess(
       { status: 403 }
     )
 
-  return { fundId: membership.fund_id, role: membership.role }
+  return { fundId: membership.fund_id, role: membership.role, userId, need: 'write' }
 }
 
 /**
@@ -84,7 +98,7 @@ export async function assertWriteAccess(
 export async function assertReadAccess(
   admin: SupabaseClient,
   userId: string
-): Promise<{ fundId: string; role: string } | NextResponse> {
+): Promise<FundGate | NextResponse> {
   return resolveFund(admin, userId)
 }
 
@@ -100,7 +114,7 @@ export async function assertReadAccess(
 export async function assertAdminAccess(
   admin: SupabaseClient,
   userId: string
-): Promise<{ fundId: string; role: string } | NextResponse> {
+): Promise<FundGate | NextResponse> {
   const { data: membership, error } = await admin
     .from('fund_members')
     .select('fund_id, role')
@@ -115,7 +129,7 @@ export async function assertAdminAccess(
   if (membership.role !== 'admin')
     return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
 
-  return { fundId: membership.fund_id, role: membership.role }
+  return { fundId: membership.fund_id, role: membership.role, userId, need: 'write' }
 }
 
 /**
