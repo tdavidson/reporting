@@ -12,7 +12,7 @@ import { dbError } from '@/lib/api-error'
  * auth_user_id + status = 'active'. Idempotent.
  */
 export async function POST() {
-  const supabase = createClient()
+  const supabase = await createClient()
   const admin = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

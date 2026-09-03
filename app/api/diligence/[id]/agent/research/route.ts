@@ -4,8 +4,9 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { kickWorker } from '@/lib/memo-agent/kick'
 import { enforceCapsForStage } from '@/lib/memo-agent/cost'
 
-export async function POST(_req: NextRequest, { params }: { params: { id: string } }) {
-  const supabase = createClient()
+export async function POST(_req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 

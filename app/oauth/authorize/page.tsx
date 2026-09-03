@@ -26,10 +26,11 @@ import { ConsentForm } from './consent-form'
 export const dynamic = 'force-dynamic'
 
 interface Props {
-  searchParams: Record<string, string | string[] | undefined>
+  searchParams: Promise<Record<string, string | string[] | undefined>>
 }
 
-export default async function AuthorizePage({ searchParams }: Props) {
+export default async function AuthorizePage(props: Props) {
+  const searchParams = await props.searchParams;
   const q = (k: string): string | null => {
     const v = searchParams[k]
     return typeof v === 'string' && v.trim() ? v.trim() : null
@@ -45,7 +46,7 @@ export default async function AuthorizePage({ searchParams }: Props) {
   const resource = q('resource')
 
   // Require a signed-in human BEFORE anything else, and come back here afterwards.
-  const supabase = createClient()
+  const supabase = await createClient()
   const user = await getUser()
   if (!user) {
     const self = `/oauth/authorize?${new URLSearchParams(

@@ -146,7 +146,7 @@ describe('GET /api/v1/pending-actions', () => {
 
 describe('POST /api/v1/pending-actions/:id/approve', () => {
   it('requires an Idempotency-Key before it does anything', async () => {
-    const response = await approveRoute(post(), { params: { id: 'action-1' } })
+    const response = await approveRoute(post(), { params: Promise.resolve({ id: 'action-1' }) })
     expect(response.status).toBe(400)
     expect((await response.json()).error.code).toBe('IDEMPOTENCY_KEY_REQUIRED')
     expect(mocks.approvePendingAction).not.toHaveBeenCalled()
@@ -154,7 +154,7 @@ describe('POST /api/v1/pending-actions/:id/approve', () => {
 
   it('refuses a read-only token however wide the user’s own grants are', async () => {
     mocks.resolveV1Principal.mockResolvedValue(principal(['read']))
-    const response = await approveRoute(post('key-1'), { params: { id: 'action-1' } })
+    const response = await approveRoute(post('key-1'), { params: Promise.resolve({ id: 'action-1' }) })
     expect(response.status).toBe(403)
     expect((await response.json()).error.code).toBe('WRITE_SCOPE_REQUIRED')
     expect(mocks.approvePendingAction).not.toHaveBeenCalled()
@@ -162,11 +162,11 @@ describe('POST /api/v1/pending-actions/:id/approve', () => {
   })
 
   it('approves once and replays the stored response on a retry with the same key', async () => {
-    const first = await approveRoute(post('key-1'), { params: { id: 'action-1' } })
+    const first = await approveRoute(post('key-1'), { params: Promise.resolve({ id: 'action-1' }) })
     expect(first.status).toBe(200)
     expect(await first.json()).toMatchObject({ ok: true, action: { status: 'applied' } })
 
-    const retry = await approveRoute(post('key-1'), { params: { id: 'action-1' } })
+    const retry = await approveRoute(post('key-1'), { params: Promise.resolve({ id: 'action-1' }) })
     expect(retry.status).toBe(200)
     expect(retry.headers.get('idempotent-replay')).toBe('true')
     expect(await retry.json()).toMatchObject({ ok: true, action: { status: 'applied' } })
@@ -176,19 +176,19 @@ describe('POST /api/v1/pending-actions/:id/approve', () => {
   })
 
   it('gives the retry a fresh request id while replaying the same body', async () => {
-    const first = await (await approveRoute(post('key-1'), { params: { id: 'action-1' } })).json()
-    const retry = await (await approveRoute(post('key-1'), { params: { id: 'action-1' } })).json()
+    const first = await (await approveRoute(post('key-1'), { params: Promise.resolve({ id: 'action-1' }) })).json()
+    const retry = await (await approveRoute(post('key-1'), { params: Promise.resolve({ id: 'action-1' }) })).json()
     expect(retry.requestId).not.toBe(first.requestId)
     expect(retry.ok).toBe(true)
   })
 
   it('refuses a key reused for a different action rather than approving it', async () => {
-    await approveRoute(post('key-1'), { params: { id: 'action-1' } })
+    await approveRoute(post('key-1'), { params: Promise.resolve({ id: 'action-1' }) })
     const other = new Request('https://reporting.test/api/v1/pending-actions/action-2/approve', {
       method: 'POST',
       headers: { Authorization: 'Bearer mcp_at_valid', 'Idempotency-Key': 'key-1' },
     })
-    const response = await approveRoute(other, { params: { id: 'action-2' } })
+    const response = await approveRoute(other, { params: Promise.resolve({ id: 'action-2' }) })
     expect(response.status).toBe(409)
     expect((await response.json()).error.code).toBe('IDEMPOTENCY_KEY_REUSED')
     expect(mocks.approvePendingAction).toHaveBeenCalledTimes(1)
@@ -198,11 +198,11 @@ describe('POST /api/v1/pending-actions/:id/approve', () => {
     mocks.approvePendingAction.mockRejectedValueOnce(
       new PendingActionServiceError('Action execution failed.', 422, 'ACTION_FAILED'),
     )
-    const failed = await approveRoute(post('key-1'), { params: { id: 'action-1' } })
+    const failed = await approveRoute(post('key-1'), { params: Promise.resolve({ id: 'action-1' }) })
     expect(failed.status).toBe(422)
     expect(mocks.rows.size).toBe(0)
 
-    const retry = await approveRoute(post('key-1'), { params: { id: 'action-1' } })
+    const retry = await approveRoute(post('key-1'), { params: Promise.resolve({ id: 'action-1' }) })
     expect(retry.status).toBe(200)
     expect(mocks.approvePendingAction).toHaveBeenCalledTimes(2)
   })
@@ -211,7 +211,7 @@ describe('POST /api/v1/pending-actions/:id/approve', () => {
     mocks.approvePendingAction.mockRejectedValue(
       new PendingActionServiceError('Pending action not found.', 404, 'NOT_FOUND'),
     )
-    const response = await approveRoute(post('key-1'), { params: { id: 'action-1' } })
+    const response = await approveRoute(post('key-1'), { params: Promise.resolve({ id: 'action-1' }) })
     expect(response.status).toBe(404)
     expect((await response.json()).error.code).toBe('NOT_FOUND')
   })
@@ -220,15 +220,16 @@ describe('POST /api/v1/pending-actions/:id/approve', () => {
 describe('POST /api/v1/pending-actions/:id/reject', () => {
   it('also requires a write-scoped token', async () => {
     mocks.resolveV1Principal.mockResolvedValue(principal(['read']))
-    const response = await rejectRoute(post('key-1'), { params: { id: 'action-1' } })
+    const response = await rejectRoute(post('key-1'), { params: Promise.resolve({ id: 'action-1' }) })
     expect(response.status).toBe(403)
     expect(mocks.rejectPendingAction).not.toHaveBeenCalled()
   })
 
   it('rejects through the shared service and refreshes the badge', async () => {
-    const response = await rejectRoute(post(), { params: { id: 'action-1' } })
+    const response = await rejectRoute(post(), { params: Promise.resolve({ id: 'action-1' }) })
     expect(response.status).toBe(200)
     expect(await response.json()).toMatchObject({ ok: true, action: { status: 'rejected' } })
-    expect(mocks.revalidateTag).toHaveBeenCalledWith('pending-actions-badge')
+    // Immediate expiry, not stale-while-revalidate — see lib/cache/tags.ts for why.
+    expect(mocks.revalidateTag).toHaveBeenCalledWith('pending-actions-badge', { expire: 0 })
   })
 })

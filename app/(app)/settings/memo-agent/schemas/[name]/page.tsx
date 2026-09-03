@@ -9,8 +9,9 @@ import { SchemaEditor } from './schema-editor'
 
 export const metadata: Metadata = { title: 'Schema editor' }
 
-export default async function SchemaEditorPage({ params }: { params: { name: string } }) {
-  const supabase = createClient()
+export default async function SchemaEditorPage(props: { params: Promise<{ name: string }> }) {
+  const params = await props.params;
+  const supabase = await createClient()
   const user = await getUser()
   if (!user) redirect('/auth')
 

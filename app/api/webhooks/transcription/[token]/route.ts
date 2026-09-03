@@ -46,7 +46,8 @@ interface CallbackJob {
   status: string
 }
 
-export async function POST(req: NextRequest, { params }: { params: { token: string } }) {
+export async function POST(req: NextRequest, props: { params: Promise<{ token: string }> }) {
+  const params = await props.params;
   const body = await req.json().catch(() => null)
   if (!body) return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
 
@@ -244,9 +245,9 @@ async function markFailed(admin: ReturnType<typeof createAdminClient>, jobId: st
 // other characters common in recording filenames (e.g. "Call [PHI redacted]").
 // Used only for the object key; the human-readable file_name keeps the original.
 function sanitize(name: string): string {
-  return name.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 200)
+  return name.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 200);
 }
 
 function stripExtension(name: string): string {
-  return name.replace(/\.[^.]+$/, '')
+  return name.replace(/\.[^.]+$/, '');
 }

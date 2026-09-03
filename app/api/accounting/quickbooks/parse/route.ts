@@ -15,7 +15,7 @@ import { proposeMapping, type ChartAccount } from '@/lib/accounting/quickbooks/p
  * which is the point — a confident wrong mapping misstates a whole account for years.
  */
 export async function POST(req: NextRequest) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const admin = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

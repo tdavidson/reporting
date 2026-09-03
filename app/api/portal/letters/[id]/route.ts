@@ -10,8 +10,9 @@ import { sanitizeLetterHtml } from '@/lib/sanitize'
  * the letter must be shared with one of the LP's investors → the fund's portal
  * must be on → the letter must be final.
  */
-export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
-  const supabase = createClient()
+export async function GET(_req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
+  const supabase = await createClient()
   const admin = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

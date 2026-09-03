@@ -17,7 +17,7 @@ import { dbError } from '@/lib/api-error'
 import { rateLimit } from '@/lib/rate-limit'
 
 // Verify the company belongs to the user's fund
-async function verifyCompanyAccess(supabase: ReturnType<typeof createClient>, admin: ReturnType<typeof createAdminClient>, userId: string, companyId: string) {
+async function verifyCompanyAccess(supabase: Awaited<ReturnType<typeof createClient>>, admin: ReturnType<typeof createAdminClient>, userId: string, companyId: string) {
   const { data: membership } = await admin
     .from('fund_members')
     .select('fund_id, role')
@@ -42,11 +42,9 @@ async function verifyCompanyAccess(supabase: ReturnType<typeof createClient>, ad
 // GET — return the most recent stored summary (if any)
 // ---------------------------------------------------------------------------
 
-export async function GET(
-  _req: NextRequest,
-  { params }: { params: { id: string } }
-) {
-  const supabase = createClient()
+export async function GET(_req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
@@ -85,11 +83,9 @@ export async function GET(
 // DELETE — wipe all stored summaries so the next generate is fresh
 // ---------------------------------------------------------------------------
 
-export async function DELETE(
-  _req: NextRequest,
-  { params }: { params: { id: string } }
-) {
-  const supabase = createClient()
+export async function DELETE(_req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
@@ -115,11 +111,9 @@ export async function DELETE(
 // POST — generate a new AI summary and persist it
 // ---------------------------------------------------------------------------
 
-export async function POST(
-  req: NextRequest,
-  { params }: { params: { id: string } }
-) {
-  const supabase = createClient()
+export async function POST(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
@@ -371,11 +365,9 @@ ${documentsBlock ? '\nYou also have access to supplementary documents (strategy 
 // PUT — save analyst-drafted text as a company summary
 // ---------------------------------------------------------------------------
 
-export async function PUT(
-  req: NextRequest,
-  { params }: { params: { id: string } }
-) {
-  const supabase = createClient()
+export async function PUT(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 

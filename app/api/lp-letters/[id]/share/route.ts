@@ -13,7 +13,7 @@ import { dbError } from '@/lib/api-error'
  */
 
 async function adminCtx(letterId: string) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const admin = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) }
@@ -32,7 +32,8 @@ async function adminCtx(letterId: string) {
   return { admin, user, fundId: writeCheck.fundId as string, letterId }
 }
 
-export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(_req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const ctx = await adminCtx(params.id)
   if ('error' in ctx) return ctx.error
   const { admin, fundId, letterId } = ctx
@@ -46,7 +47,8 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   return NextResponse.json({ lp_investor_ids: (data ?? []).map((r: any) => r.lp_investor_id) })
 }
 
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const ctx = await adminCtx(params.id)
   if ('error' in ctx) return ctx.error
   const { admin, user, fundId, letterId } = ctx
@@ -90,7 +92,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   return NextResponse.json({ ok: true, lp_investor_ids: target })
 }
 
-export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const ctx = await adminCtx(params.id)
   if ('error' in ctx) return ctx.error
   const { admin, fundId, letterId } = ctx

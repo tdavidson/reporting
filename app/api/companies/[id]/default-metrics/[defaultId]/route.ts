@@ -8,8 +8,12 @@ import { dbError } from '@/lib/api-error'
 // (so seed/sync skip it here); `{ excluded: false }` clears it. Neither creates or deletes a metric
 // already on the company — excluding only governs future seeding.
 
-export async function PATCH(req: NextRequest, { params }: { params: { id: string; defaultId: string } }) {
-  const supabase = createClient()
+export async function PATCH(
+  req: NextRequest,
+  props: { params: Promise<{ id: string; defaultId: string }> }
+) {
+  const params = await props.params;
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 

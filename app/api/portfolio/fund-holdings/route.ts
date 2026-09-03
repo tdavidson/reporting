@@ -10,7 +10,7 @@ import { computeFundPositions } from '@/lib/portfolio/fof-metrics'
 // Nothing here is stored — see lib/portfolio/fof-metrics.ts for why carrying value is a
 // roll-forward rather than a column.
 export async function GET(req: NextRequest) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const admin = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -66,7 +66,7 @@ export async function GET(req: NextRequest) {
 // POST — create a fund holding and its terms in one call.
 // { name, managerName?, vintageYear?, strategy?, commitment?, commitmentDate?, fundSize?, geography? }
 export async function POST(req: NextRequest) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const admin = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

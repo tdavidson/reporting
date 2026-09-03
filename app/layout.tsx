@@ -1,5 +1,7 @@
 import type { Metadata, Viewport } from 'next'
 import Script from 'next/script'
+import { headers } from 'next/headers'
+import { NONCE_HEADER } from '@/lib/security/csp'
 import { Hanken_Grotesk, Plus_Jakarta_Sans, Inter, Newsreader, Source_Serif_4, Libre_Caslon_Display } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import { SpeedInsights } from '@vercel/speed-insights/next'
@@ -101,11 +103,16 @@ export const viewport: Viewport = {
   ],
 }
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
+  // Set by proxy.ts per response. Absent on paths the proxy does not run on (none that render
+  // this layout), in which case the script goes out un-nonced and the report-only policy records
+  // it — which is the right outcome for a path that was supposed to be covered.
+  const nonce = (await headers()).get(NONCE_HEADER) ?? undefined
+
   return (
     <html lang="en" suppressHydrationWarning className={`${inter.variable} ${newsreader.variable} ${sourceSerif.variable} ${libreCaslon.variable} ${hankenGrotesk.variable} ${plusJakarta.variable}`}>
       <head>
@@ -148,7 +155,7 @@ export default function RootLayout({
             does not merely skip registration — it unregisters whatever is already
             installed, so setting it and redeploying is a complete way out without
             asking anyone to clear site data. */}
-        <Script id="sw-register" strategy="afterInteractive">{
+        <Script id="sw-register" strategy="afterInteractive" nonce={nonce}>{
           process.env.NEXT_PUBLIC_DISABLE_SW === 'true'
             ? `if ('serviceWorker' in navigator) {
                  navigator.serviceWorker.getRegistrations().then(function (regs) {

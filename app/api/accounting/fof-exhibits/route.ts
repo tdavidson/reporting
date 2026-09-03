@@ -17,7 +17,7 @@ import { fofSoiPositions, commitmentSchedule, performanceTable } from '@/lib/por
  * disagree with each other about a partner's unfunded commitment.
  */
 export async function GET(req: NextRequest) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const admin = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

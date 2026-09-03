@@ -4,9 +4,39 @@ import { matchRoute } from '@/lib/access/match-route'
 import { ROUTE_DOMAINS, UNGATED_ROUTES, requiredLevel } from '@/lib/access/route-domains'
 import { hasAccess, resolveAccessContext } from '@/lib/access/effective'
 import { DOMAIN_META } from '@/lib/access/domains'
+import { buildReportOnlyCsp, generateNonce, NONCE_HEADER, REPORT_ONLY_HEADER } from '@/lib/security/csp'
 
-export async function middleware(request: NextRequest) {
-  let supabaseResponse = NextResponse.next({ request })
+export async function proxy(request: NextRequest) {
+  const { pathname } = request.nextUrl
+  const isApiRoute = pathname.startsWith('/api')
+
+  // A per-response nonce for the report-only CSP (lib/security/csp.ts). Pages only: an API
+  // response carries no scripts, and the enforcing policy from next.config.mjs still applies to
+  // everything. Set on the REQUEST so Next nonces its own bootstrap scripts and layouts can read
+  // it, and on the RESPONSE so the browser evaluates it.
+  const nonce = isApiRoute ? null : generateNonce()
+  const reportOnlyCsp = nonce
+    ? buildReportOnlyCsp(nonce, { development: process.env.NODE_ENV === 'development' })
+    : null
+
+  // Built fresh each time rather than once: Supabase's cookie refresh below mutates
+  // `request.cookies`, and a Headers object snapshotted before that would carry the stale cookie.
+  const forward = () => {
+    if (!nonce || !reportOnlyCsp) return NextResponse.next({ request })
+    const headers = new Headers(request.headers)
+    // Next takes the nonce from the request's `content-security-policy` header FIRST and falls
+    // back to the report-only one (app-render.js). A client can send the enforcing header on its
+    // own request, so drop it: the nonce the app sees must be the one minted here, never one the
+    // caller chose. Self-only today; load-bearing the day the strict policy is promoted.
+    headers.delete('content-security-policy')
+    headers.set(NONCE_HEADER, nonce)
+    headers.set(REPORT_ONLY_HEADER, reportOnlyCsp)
+    const response = NextResponse.next({ request: { headers } })
+    response.headers.set(REPORT_ONLY_HEADER, reportOnlyCsp)
+    return response
+  }
+
+  let supabaseResponse = forward()
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -18,7 +48,7 @@ export async function middleware(request: NextRequest) {
         },
         setAll(cookiesToSet: { name: string; value: string; options?: Record<string, unknown> }[]) {
           cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
-          supabaseResponse = NextResponse.next({ request })
+          supabaseResponse = forward()
           cookiesToSet.forEach(({ name, value, options }) =>
             supabaseResponse.cookies.set(name, value, options)
           )
@@ -31,9 +61,7 @@ export async function middleware(request: NextRequest) {
   // Do not add logic between createServerClient and getUser().
   const { data: { user } } = await supabase.auth.getUser()
 
-  const { pathname } = request.nextUrl
   const isAuthRoute = pathname.startsWith('/auth')
-  const isApiRoute = pathname.startsWith('/api')
 
   // Marketing site routes require both env vars to be set
   const marketingEnabled =

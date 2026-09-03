@@ -17,7 +17,7 @@ import { lastDataDates } from '@/lib/accounting/lp-positions'
 const ratio = (n: number, d: number): number | null => (d > 0 ? n / d : null)
 
 export async function GET(req: NextRequest) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const admin = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

@@ -14,7 +14,7 @@ const ACCOUNT_TYPES = ['asset', 'liability', 'equity', 'income', 'expense'] as c
 
 // GET — list the vehicle's chart of accounts.
 export async function GET(req: NextRequest) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const admin = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -38,7 +38,7 @@ export async function GET(req: NextRequest) {
 // backfills any standard account added since, so it is also the way an existing vehicle picks up
 // a new one (e.g. 2300 Distributions payable). Never touches existing or custom accounts.
 export async function POST(req: NextRequest) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const admin = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -109,7 +109,7 @@ export async function POST(req: NextRequest) {
 // trial balance, balance sheet and statements — an account with a balance that vanished from the
 // financials would be a way to misstate them. It simply stops being offered for NEW postings.
 export async function PATCH(req: NextRequest) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const admin = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

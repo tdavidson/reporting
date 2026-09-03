@@ -8,7 +8,7 @@ import { AnalyticsView } from './analytics-view'
 export const metadata: Metadata = { title: 'Diligence Analytics' }
 
 export default async function AnalyticsPage() {
-  const supabase = createClient()
+  const supabase = await createClient()
   const user = await getUser()
   if (!user) redirect('/auth')
 

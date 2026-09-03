@@ -9,7 +9,7 @@ import { DEFAULT_STATUSES } from '@/lib/deals/statuses'
 export const metadata: Metadata = { title: 'Deals' }
 
 export default async function DealsPage() {
-  const supabase = createClient()
+  const supabase = await createClient()
   const user = await getUser()
   if (!user) redirect('/auth')
 

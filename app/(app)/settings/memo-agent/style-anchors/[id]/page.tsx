@@ -7,8 +7,9 @@ import { AnchorEditor } from './editor'
 
 export const metadata: Metadata = { title: 'Reference memo' }
 
-export default async function StyleAnchorEditorPage({ params }: { params: { id: string } }) {
-  const supabase = createClient()
+export default async function StyleAnchorEditorPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
+  const supabase = await createClient()
   const user = await getUser()
   if (!user) redirect('/auth')
 

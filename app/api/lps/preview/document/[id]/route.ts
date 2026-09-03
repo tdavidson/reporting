@@ -6,8 +6,9 @@ import { createAdminClient } from '@/lib/supabase/admin'
  * Admin-only: signed download URL for a document, for the "view as LP" preview.
  * Scoped to the admin's own fund (the doc must belong to it).
  */
-export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
-  const supabase = createClient()
+export async function GET(_req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
+  const supabase = await createClient()
   const admin = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

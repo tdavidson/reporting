@@ -5,8 +5,12 @@ import { dbError } from '@/lib/api-error'
 
 const VALID_STATUSES = ['open', 'ignore', 'done'] as const
 
-export async function PATCH(req: NextRequest, { params }: { params: { id: string; itemId: string } }) {
-  const supabase = createClient()
+export async function PATCH(
+  req: NextRequest,
+  props: { params: Promise<{ id: string; itemId: string }> }
+) {
+  const params = await props.params;
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 

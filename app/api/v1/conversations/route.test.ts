@@ -113,7 +113,7 @@ describe('GET /api/v1/conversations', () => {
 describe('GET /api/v1/conversations/:id', () => {
   it('returns the full conversation for its owner', async () => {
     mocks.getConversation.mockResolvedValue({ id: 'c1', messages: [{ role: 'user', content: 'Hi' }] })
-    const response = await detail(get('/c1'), { params: { id: 'c1' } })
+    const response = await detail(get('/c1'), { params: Promise.resolve({ id: 'c1' }) })
     const body = await response.json()
     expect(response.status).toBe(200)
     expect(body.conversation.messages).toHaveLength(1)
@@ -122,7 +122,7 @@ describe('GET /api/v1/conversations/:id', () => {
 
   it('answers 404 for another user’s conversation — a 403 would confirm it exists', async () => {
     mocks.getConversation.mockResolvedValue(null)
-    const response = await detail(get('/someone-elses'), { params: { id: 'someone-elses' } })
+    const response = await detail(get('/someone-elses'), { params: Promise.resolve({ id: 'someone-elses' }) })
     expect(response.status).toBe(404)
     expect((await response.json()).error.code).toBe('NOT_FOUND')
   })
@@ -131,7 +131,7 @@ describe('GET /api/v1/conversations/:id', () => {
 describe('DELETE /api/v1/conversations/:id', () => {
   it('deletes only through the principal-scoped helper', async () => {
     mocks.deleteConversation.mockResolvedValue(true)
-    const response = await remove(get('/c1'), { params: { id: 'c1' } })
+    const response = await remove(get('/c1'), { params: Promise.resolve({ id: 'c1' }) })
     expect(response.status).toBe(200)
     expect(await response.json()).toMatchObject({ ok: true })
     expect(mocks.deleteConversation).toHaveBeenCalledWith({ tag: 'admin' }, principal, 'c1')
@@ -139,7 +139,7 @@ describe('DELETE /api/v1/conversations/:id', () => {
 
   it('reports a conversation it did not own as not found, having deleted nothing', async () => {
     mocks.deleteConversation.mockResolvedValue(false)
-    const response = await remove(get('/c9'), { params: { id: 'c9' } })
+    const response = await remove(get('/c9'), { params: Promise.resolve({ id: 'c9' }) })
     expect(response.status).toBe(404)
   })
 })

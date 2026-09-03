@@ -15,7 +15,7 @@ import type { AnalystPrincipal } from '@/lib/ai/analyst/types'
 export async function resolveBrowserPrincipal(
   admin: SupabaseClient,
 ): Promise<AnalystPrincipal | NextResponse> {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 

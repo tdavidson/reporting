@@ -3,7 +3,11 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { dbError } from '@/lib/api-error'
 
-export async function GET(_req: NextRequest, { params }: { params: { id: string; draftId: string } }) {
+export async function GET(
+  _req: NextRequest,
+  props: { params: Promise<{ id: string; draftId: string }> }
+) {
+  const params = await props.params;
   const guard = await ensureMember()
   if ('error' in guard) return guard.error
   const { admin, fundId } = guard
@@ -33,7 +37,11 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string;
  * Edits mutate the draft in-place; they don't branch it. To create a new
  * draft version, partners use the agent's Re-run draft action.
  */
-export async function PATCH(req: NextRequest, { params }: { params: { id: string; draftId: string } }) {
+export async function PATCH(
+  req: NextRequest,
+  props: { params: Promise<{ id: string; draftId: string }> }
+) {
+  const params = await props.params;
   const guard = await ensureMember()
   if ('error' in guard) return guard.error
   const { admin, fundId } = guard
@@ -191,7 +199,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 }
 
 async function ensureMember() {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) }
   const admin = createAdminClient()

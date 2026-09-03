@@ -13,7 +13,7 @@ export const maxDuration = 120
 // statement and stream it back. GP-side PREVIEW only: nothing is stored and nothing
 // is shared. Publishing (which freezes and delivers it) is the POST /publish route.
 export async function GET(req: NextRequest) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const admin = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

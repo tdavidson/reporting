@@ -7,7 +7,8 @@ import { requestId, v1Error, v1Json } from '@/lib/api-v1/response'
 // explicitly keeps `next build` from probing it as a static route and logging the bailout.
 export const dynamic = 'force-dynamic'
 
-export async function GET(req: Request, { params }: { params: { id: string } }) {
+export async function GET(req: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const requestID = requestId()
   const admin = createAdminClient()
   try {
@@ -22,7 +23,8 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
   }
 }
 
-export async function DELETE(req: Request, { params }: { params: { id: string } }) {
+export async function DELETE(req: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const requestID = requestId()
   const admin = createAdminClient()
   try {

@@ -2,20 +2,21 @@ import { withBotId } from 'botid/next/config'
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  experimental: {
-    serverComponentsExternalPackages: ['@sparticuz/chromium', 'puppeteer-core'],
-    // Include the memo-agent default schema files in the serverless function
-    // bundle. Without this, `fs.readFile` calls inside `ensureDefaults` silently
-    // return null in production (the YAML/MD files aren't traced), so a fresh
-    // fund sees every schema marked "not yet seeded" and the schema editor loads
-    // empty content. The trace is keyed `/**` so every route that imports
-    // firm-schemas.ts gets the files — schemas page, agent stages, render job.
-    //
-    // NOTE: on Next 14 this must live under `experimental`. It became a
-    // top-level config key in Next 15 — move it out when upgrading.
-    outputFileTracingIncludes: {
-      '/**': ['./lib/memo-agent/defaults/**/*'],
-    },
+  // Turbopack infers the workspace root from the nearest lockfile, and a stray package-lock.json
+  // in a parent directory (a developer's ~/Documents, say) makes it guess wrong and warn on every
+  // build. The root is this directory; say so.
+  turbopack: { root: import.meta.dirname },
+  // Both were `experimental.*` on Next 14 and are top-level on 16. `serverComponentsExternalPackages`
+  // was also renamed to `serverExternalPackages`.
+  serverExternalPackages: ['@sparticuz/chromium', 'puppeteer-core'],
+  // Include the memo-agent default schema files in the serverless function
+  // bundle. Without this, `fs.readFile` calls inside `ensureDefaults` silently
+  // return null in production (the YAML/MD files aren't traced), so a fresh
+  // fund sees every schema marked "not yet seeded" and the schema editor loads
+  // empty content. The trace is keyed `/**` so every route that imports
+  // firm-schemas.ts gets the files — schemas page, agent stages, render job.
+  outputFileTracingIncludes: {
+    '/**': ['./lib/memo-agent/defaults/**/*'],
   },
   // OAuth discovery lives at /.well-known/*, but Next's app router will not route
   // a literal dot-prefixed directory — so the well-known paths are rewritten onto

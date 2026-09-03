@@ -4,8 +4,9 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { getSchemaHistory } from '@/lib/memo-agent/firm-schemas'
 import { SCHEMA_NAMES, type SchemaName } from '@/lib/memo-agent/validate'
 
-export async function GET(_req: NextRequest, { params }: { params: { name: string } }) {
-  const supabase = createClient()
+export async function GET(_req: NextRequest, props: { params: Promise<{ name: string }> }) {
+  const params = await props.params;
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 

@@ -26,7 +26,8 @@ export const metadata: Metadata = { title: 'Fund' }
  * works. Every fund page owns its own header (fund switcher + Analyst) and wraps its body in
  * <AccountingBody>; there is no shared vehicle-selector bar — the URL pins the vehicle.
  */
-export default async function FundDetailPage({ params }: { params: { id: string } }) {
+export default async function FundDetailPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   // An old bare subpage link (/funds/journal) now falls through to this dynamic route with
   // the slug in the id slot — bounce it to the overview rather than "vehicle not found".
   if (FUND_SUBPAGE_SLUGS.has(params.id)) redirect('/funds')

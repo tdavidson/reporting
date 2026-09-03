@@ -5,7 +5,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Clock } from 'lucide-react'
 
 export default async function PendingPage() {
-  const supabase = createClient()
+  const supabase = await createClient()
   const user = await getUser()
   if (!user) redirect('/auth')
 

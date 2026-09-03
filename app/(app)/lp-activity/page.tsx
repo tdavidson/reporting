@@ -8,7 +8,7 @@ import { LpActivityDashboard } from './lp-activity-dashboard'
 export const metadata: Metadata = { title: 'LP Activity' }
 
 export default async function LpActivityPage() {
-  const supabase = createClient()
+  const supabase = await createClient()
   const user = await getUser()
   if (!user) redirect('/auth')
 

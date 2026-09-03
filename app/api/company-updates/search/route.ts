@@ -12,7 +12,7 @@ import { SearchParamsError, parseSearchParams, searchCompanyUpdates } from '@/li
  * caller's fund. Invalid input is a 400, not an empty page.
  */
 export async function GET(req: NextRequest) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 

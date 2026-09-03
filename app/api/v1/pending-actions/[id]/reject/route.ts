@@ -1,17 +1,18 @@
-import { revalidateTag } from 'next/cache'
+import { expireTag } from '@/lib/cache/tags'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requireV1Write, resolveV1Principal, V1PrincipalError } from '@/lib/api-v1/principal'
 import { requestId, v1Error, v1Json } from '@/lib/api-v1/response'
 import { PendingActionServiceError, rejectPendingAction } from '@/lib/pending-actions/service'
 
-export async function POST(req: Request, { params }: { params: { id: string } }) {
+export async function POST(req: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const requestID = requestId()
   const admin = createAdminClient()
   try {
     const principal = await resolveV1Principal(admin, req)
     requireV1Write(principal)
     const result = await rejectPendingAction(admin, principal, params.id)
-    revalidateTag('pending-actions-badge')
+    expireTag('pending-actions-badge')
     return v1Json(result, { requestId: requestID })
   } catch (error) {
     if (error instanceof V1PrincipalError || error instanceof PendingActionServiceError) {

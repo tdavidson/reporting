@@ -9,7 +9,7 @@ import { assertWriteAccess } from '@/lib/api-helpers'
  * all snapshots. Powers "select all investors in a fund/SPV" in the Share modal.
  */
 export async function GET() {
-  const supabase = createClient()
+  const supabase = await createClient()
   const admin = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

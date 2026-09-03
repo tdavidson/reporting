@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { revalidateTag } from 'next/cache'
+import { expireTag } from '@/lib/cache/tags'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { resolveBrowserPrincipal } from '@/lib/pending-actions/browser-principal'
 import { PendingActionServiceError, rejectPendingAction } from '@/lib/pending-actions/service'
@@ -9,14 +9,15 @@ import { PendingActionServiceError, rejectPendingAction } from '@/lib/pending-ac
  * the row's domain WRITE, mirroring approve — and it goes through the same service, which claims
  * the row conditionally rather than reading it and hoping it is still pending.
  */
-export async function POST(_req: Request, { params }: { params: { id: string } }) {
+export async function POST(_req: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const admin = createAdminClient()
   const principal = await resolveBrowserPrincipal(admin)
   if (principal instanceof NextResponse) return principal
 
   try {
     const result = await rejectPendingAction(admin, principal, params.id)
-    revalidateTag('pending-actions-badge')
+    expireTag('pending-actions-badge')
     return NextResponse.json({ ok: true, replayed: result.replayed })
   } catch (error) {
     if (error instanceof PendingActionServiceError) {

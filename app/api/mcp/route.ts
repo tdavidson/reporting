@@ -10,6 +10,8 @@
  * deprecated in any breaking sense — existing keys and configs keep running — but
  * everything new (the OAuth resource metadata, the settings UI) points here.
  */
+// Reviewed for the Next 16 async-params change: neither handler takes route `params` — the route
+// has no dynamic segment, and the `params` they do read are the JSON-RPC body's.
 export { POST, GET } from '@/app/api/accounting/mcp/route'
 
 export const runtime = 'nodejs'

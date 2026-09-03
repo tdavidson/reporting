@@ -14,8 +14,9 @@ import { logLpAccessEvent } from '@/lib/lp-access-log'
  * in-portal viewer) and logs a `view` event; the default forces a download and
  * logs a `download` event.
  */
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
-  const supabase = createClient()
+export async function GET(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
+  const supabase = await createClient()
   const admin = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

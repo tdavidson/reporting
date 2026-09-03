@@ -10,8 +10,9 @@ import { SearchParamsError, listCompanyUpdates } from '@/lib/company-updates/sea
  * /api/company-updates/[id]/artifacts/[artifactId]. Gated `portfolio` by the middleware; the fund
  * is resolved from membership and the company is checked against it before anything is read.
  */
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
-  const supabase = createClient()
+export async function GET(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 

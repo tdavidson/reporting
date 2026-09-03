@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { revalidateTag } from 'next/cache'
+import { expireTag } from '@/lib/cache/tags'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { ACCENT_PRESETS, FONT_OPTIONS, DISPLAY_FONT_OPTIONS, isValidHsl, type FundTheme } from '@/lib/theme'
 import { dbError } from '@/lib/api-error'
 
 async function ctx() {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) }
   const admin = createAdminClient()
@@ -46,6 +46,6 @@ export async function PATCH(req: NextRequest) {
 
   const { error } = await (c.admin as any).from('fund_settings').update({ theme }).eq('fund_id', c.fundId)
   if (error) return dbError(error, 'settings-theme')
-  revalidateTag('fund-settings')
+  expireTag('fund-settings')
   return NextResponse.json({ ok: true, theme })
 }

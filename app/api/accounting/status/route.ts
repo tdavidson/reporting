@@ -7,7 +7,7 @@ import { vehicleStatus } from '@/lib/accounting/status'
 
 // GET — onboarding state, close position, and everything needing attention for a vehicle.
 export async function GET(req: NextRequest) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const admin = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

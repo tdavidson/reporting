@@ -10,7 +10,7 @@ import { resolvePeriod, customPeriod, type PeriodPreset } from '@/lib/accounting
 // Optional ?preset= / ?start=&end= scopes the period roll-forward; the inception-to-date
 // roll-forward is always returned alongside it.
 export async function GET(req: NextRequest) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const admin = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

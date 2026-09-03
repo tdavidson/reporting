@@ -9,7 +9,7 @@ import { proRataDistribution, declareDistribution, listDistributions } from '@/l
 
 // GET — declared distributions for the vehicle, newest first.
 export async function GET(req: NextRequest) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const admin = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
 //   declare: { distributionDate, description?, lines: [{ lpEntityId, amount }] }
 //            → Dr each partner's capital, Cr 2300 Distributions payable
 export async function POST(req: NextRequest) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const admin = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

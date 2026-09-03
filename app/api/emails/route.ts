@@ -14,7 +14,7 @@ type EmailListRow = Pick<
 > & { companies: Pick<Company, 'id' | 'name'> | null }
 
 export async function GET(req: NextRequest) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const {
     data: { user },
   } = await supabase.auth.getUser()

@@ -92,7 +92,7 @@ export async function DELETE() {
 }
 
 async function ensureMember() {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) }
   const admin = createAdminClient()

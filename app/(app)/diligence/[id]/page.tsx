@@ -7,8 +7,12 @@ import { DealDetail } from './deal-detail'
 
 export const metadata: Metadata = { title: 'Deal' }
 
-export default async function DiligenceDealPage({ params, searchParams }: { params: { id: string }; searchParams?: { tab?: string } }) {
-  const supabase = createClient()
+export default async function DiligenceDealPage(
+  props: { params: Promise<{ id: string }>; searchParams?: Promise<{ tab?: string }> }
+) {
+  const searchParams = await props.searchParams;
+  const params = await props.params;
+  const supabase = await createClient()
   const user = await getUser()
   if (!user) redirect('/auth')
 

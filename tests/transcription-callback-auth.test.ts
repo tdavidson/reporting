@@ -86,7 +86,7 @@ const call = (pathValue: string, body: Record<string, unknown> = {}) =>
       body: JSON.stringify(body),
       headers: { 'Content-Type': 'application/json' },
     }) as any,
-    { params: { token: pathValue } },
+    { params: Promise.resolve({ token: pathValue }) },
   )
 
 beforeEach(() => {

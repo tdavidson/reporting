@@ -5,8 +5,9 @@ import { createClient, getUser } from '@/lib/supabase/server'
 import { resolvePageAccess, canViewPage } from '@/lib/access/page-gate'
 import { ArrowLeft } from 'lucide-react'
 
-export async function generateMetadata({ params }: { params: { id: string } }): Promise<Metadata> {
-  const supabase = createClient()
+export async function generateMetadata(props: { params: Promise<{ id: string }> }): Promise<Metadata> {
+  const params = await props.params;
+  const supabase = await createClient()
   // Runs BEFORE the page body, so it needs the same gate: the title is a company name, and a
   // member without `portfolio` would otherwise read it off the browser tab on their way to being
   // redirected. Falls back to the generic title rather than 404ing — metadata is not the place to
@@ -58,12 +59,13 @@ function formatHighlightValue(value: number, metric: Metric, fundCurrency: strin
     : `${formatted} ${unit}`
 }
 
-export default async function CompanyDetailPage({
-  params,
-}: {
-  params: { id: string }
-}) {
-  const supabase = createClient()
+export default async function CompanyDetailPage(
+  props: {
+    params: Promise<{ id: string }>
+  }
+) {
+  const params = await props.params;
+  const supabase = await createClient()
   const user = await getUser()
   if (!user) redirect('/auth')
 

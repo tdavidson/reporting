@@ -9,7 +9,7 @@ import { exportLedgerText, postLedgerText } from '@/lib/accounting/text-ledger-r
 
 // GET — the vehicle's ledger serialized to plain-text double-entry.
 export async function GET(req: NextRequest) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const admin = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
 // POST — parse authored text and persist each balanced entry.
 // Body: { text, status?: 'draft'|'posted', group? }
 export async function POST(req: NextRequest) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const admin = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

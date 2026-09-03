@@ -26,7 +26,7 @@ vi.mock('@supabase/ssr', () => ({
   }),
 }))
 
-import { middleware } from '@/middleware'
+import { proxy as middleware } from '@/proxy'
 import { DEFAULT_FEATURE_VISIBILITY } from '@/lib/types/features'
 
 let role = 'member'

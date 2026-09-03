@@ -9,7 +9,7 @@ import { StyleAnchorsLibrary } from './library'
 export const metadata: Metadata = { title: 'Example memos' }
 
 export default async function StyleAnchorsPage() {
-  const supabase = createClient()
+  const supabase = await createClient()
   const user = await getUser()
   if (!user) redirect('/auth')
 

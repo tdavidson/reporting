@@ -5,7 +5,11 @@ import { dbError } from '@/lib/api-error'
 
 const VALID_PARSE_STATUSES = ['pending', 'parsed', 'partial', 'failed', 'skipped'] as const
 
-export async function PATCH(req: NextRequest, { params }: { params: { id: string; docId: string } }) {
+export async function PATCH(
+  req: NextRequest,
+  props: { params: Promise<{ id: string; docId: string }> }
+) {
+  const params = await props.params;
   const guard = await ensureMember()
   if ('error' in guard) return guard.error
   const { admin, fundId } = guard
@@ -39,7 +43,11 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   return NextResponse.json({ ok: true })
 }
 
-export async function DELETE(_req: NextRequest, { params }: { params: { id: string; docId: string } }) {
+export async function DELETE(
+  _req: NextRequest,
+  props: { params: Promise<{ id: string; docId: string }> }
+) {
+  const params = await props.params;
   const guard = await ensureMember()
   if ('error' in guard) return guard.error
   const { admin, fundId } = guard
@@ -74,7 +82,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: { id: stri
 }
 
 async function ensureMember() {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) }
   const admin = createAdminClient()

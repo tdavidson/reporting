@@ -11,8 +11,9 @@ import { createAdminClient } from '@/lib/supabase/admin'
  * If the inbound deal already has a promoted_diligence_id, returns 409 with
  * the existing id rather than double-creating.
  */
-export async function POST(_req: NextRequest, { params }: { params: { id: string } }) {
-  const supabase = createClient()
+export async function POST(_req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 

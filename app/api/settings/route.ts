@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { revalidateTag } from 'next/cache'
+import { expireTag } from '@/lib/cache/tags'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { assertWriteAccess } from '@/lib/api-helpers'
@@ -17,7 +17,7 @@ import type { FeatureKey, FeatureVisibility, FeatureVisibilityMap } from '@/lib/
 
 // GET — returns fund settings (safe fields only)
 export async function GET() {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
@@ -138,7 +138,7 @@ export async function GET() {
 
 // PATCH — update fund settings
 export async function PATCH(req: NextRequest) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
@@ -574,15 +574,15 @@ export async function PATCH(req: NextRequest) {
 
   logActivity(admin, membership.fund_id, user.id, 'settings.update', {})
 
-  revalidateTag('fund-data')
-  revalidateTag('fund-settings')
+  expireTag('fund-data')
+  expireTag('fund-settings')
 
   return NextResponse.json({ ok: true })
 }
 
 // DELETE — delete all fund data
 export async function DELETE(req: NextRequest) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 

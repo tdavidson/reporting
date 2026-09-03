@@ -31,7 +31,7 @@ async function computeOverview(admin: any, fundId: string, investorId: string) {
  * before turning the portal on; the live state is returned as `portal_enabled`.
  */
 export async function GET(req: NextRequest) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const admin = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

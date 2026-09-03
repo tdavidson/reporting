@@ -4,7 +4,8 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { ensureDefaults, getActiveSchema, saveSchema } from '@/lib/memo-agent/firm-schemas'
 import { SCHEMA_NAMES, type SchemaName } from '@/lib/memo-agent/validate'
 
-export async function GET(_req: NextRequest, { params }: { params: { name: string } }) {
+export async function GET(_req: NextRequest, props: { params: Promise<{ name: string }> }) {
+  const params = await props.params;
   const guard = await ensureAdmin()
   if ('error' in guard) return guard.error
   const { admin, fundId } = guard
@@ -21,7 +22,8 @@ export async function GET(_req: NextRequest, { params }: { params: { name: strin
   return NextResponse.json({ schema })
 }
 
-export async function PUT(req: NextRequest, { params }: { params: { name: string } }) {
+export async function PUT(req: NextRequest, props: { params: Promise<{ name: string }> }) {
+  const params = await props.params;
   const guard = await ensureAdmin()
   if ('error' in guard) return guard.error
   const { admin, fundId, userId } = guard
@@ -68,7 +70,7 @@ interface AdminGuard {
 }
 
 async function ensureAdmin(): Promise<AdminGuard | { error: NextResponse }> {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) }
 

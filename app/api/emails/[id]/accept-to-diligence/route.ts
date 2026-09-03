@@ -27,7 +27,8 @@ export const maxDuration = 120
 
 const MAX_BYTES = 100 * 1024 * 1024  // diligence-documents bucket cap
 
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const guard = await ensureMember()
   if ('error' in guard) return guard.error
   const { admin, fundId, userId } = guard
@@ -287,7 +288,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   })
 }
 
-export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(_req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const guard = await ensureMember()
   if ('error' in guard) return guard.error
   const { admin, fundId } = guard
@@ -362,11 +364,11 @@ function htmlToText(html: string): string {
     .replace(/&quot;/g, '"')
     .replace(/&#39;/g, "'")
     .replace(/\n{3,}/g, '\n\n')
-    .trim()
+    .trim();
 }
 
 async function ensureMember() {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) }
   const admin = createAdminClient()

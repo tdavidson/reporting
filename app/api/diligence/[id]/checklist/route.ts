@@ -21,7 +21,8 @@ interface ChecklistRow {
   updated_at: string
 }
 
-export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(_req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const guard = await ensureMember()
   if ('error' in guard) return guard.error
   const { admin, fundId } = guard
@@ -42,7 +43,8 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
  *   { mode: 'replace', text }  → parse text + replace all existing items.
  *   { mode: 'add', label, sectionLabel? }  → append a single partner-added item.
  */
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const guard = await ensureMember()
   if ('error' in guard) return guard.error
   const { admin, fundId } = guard
@@ -257,7 +259,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
  * PATCH — partial update to a single checklist item.
  *   { itemId, label? | status? | agent_notes? | not_applicable? }
  */
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const guard = await ensureMember()
   if ('error' in guard) return guard.error
   const { admin, fundId } = guard
@@ -294,7 +297,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   return NextResponse.json({ item: data })
 }
 
-export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const guard = await ensureMember()
   if ('error' in guard) return guard.error
   const { admin, fundId } = guard
@@ -314,7 +318,7 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
 }
 
 async function ensureMember() {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) }
   const admin = createAdminClient()

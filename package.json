@@ -7,7 +7,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest",
     "generate:types": "node scripts/generate-memo-agent-types.mjs"
@@ -22,7 +22,7 @@
     "@radix-ui/react-slot": "^1.2.4",
     "@radix-ui/react-switch": "^1.2.6",
     "@radix-ui/react-tabs": "^1.1.13",
-    "@sparticuz/chromium": "^143.0.4",
+    "@sparticuz/chromium": "^149.0.0",
     "@supabase/ssr": "^0.5.0",
     "@supabase/supabase-js": "^2",
     "@vercel/analytics": "^2.0.1",
@@ -39,14 +39,14 @@
     "jszip": "^3.10.1",
     "lucide-react": "^0.575.0",
     "mailgun.js": "^12.7.0",
-    "mammoth": "^1.11.0",
-    "next": "14.2.35",
+    "mammoth": "^1.12.2",
+    "next": "^16.3.4",
     "next-themes": "^0.4.6",
     "openai": "^6.25.0",
     "postmark": "^4.0.7",
-    "puppeteer-core": "^24.39.0",
-    "react": "^18",
-    "react-dom": "^18",
+    "puppeteer-core": "^25.9.0",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
     "react-markdown": "^10.1.0",
     "recharts": "^3.7.0",
     "remark-gfm": "^4.0.1",
@@ -60,11 +60,11 @@
   "devDependencies": {
     "@types/js-yaml": "^4.0.9",
     "@types/node": "^20",
-    "@types/react": "^18",
-    "@types/react-dom": "^18",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.5",
     "autoprefixer": "^10",
-    "eslint": "^8",
-    "eslint-config-next": "14.2.35",
+    "eslint": "^9.39.5",
+    "eslint-config-next": "^16.3.4",
     "json-schema-to-typescript": "^15.0.4",
     "postcss": "^8",
     "tailwindcss": "^3",
@@ -72,6 +72,6 @@
     "vitest": "^3.2.4"
   },
   "engines": {
-    "node": ">=22"
+    "node": ">=22.17"
   }
 }

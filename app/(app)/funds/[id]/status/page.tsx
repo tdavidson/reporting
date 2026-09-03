@@ -6,7 +6,8 @@ import { StatusView } from '../../status/view'
 
 export const metadata: Metadata = { title: 'Admin' }
 
-export default async function StatusPage({ params }: { params: { id: string } }) {
+export default async function StatusPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const { fundId } = await requireAccountingAccess()
   const { vehicle, vehicleId } = await resolveVehicleParam(fundId, params.id)
   return (

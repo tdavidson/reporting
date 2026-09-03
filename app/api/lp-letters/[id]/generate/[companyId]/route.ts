@@ -10,8 +10,12 @@ import { DEFAULT_STYLE_GUIDE } from '@/lib/lp-letters/default-template'
 import type { CompanyNarrative } from '@/lib/types/database'
 import { rateLimit } from '@/lib/rate-limit'
 
-export async function POST(_req: NextRequest, { params }: { params: { id: string; companyId: string } }) {
-  const supabase = createClient()
+export async function POST(
+  _req: NextRequest,
+  props: { params: Promise<{ id: string; companyId: string }> }
+) {
+  const params = await props.params;
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 

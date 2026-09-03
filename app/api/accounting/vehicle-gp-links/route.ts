@@ -12,7 +12,7 @@ import { vehicleIdByName } from '@/lib/accounting/vehicle-id'
 // GET ?group= — this vehicle's current GP links, the entities eligible to be added, and this
 // vehicle's own LP partners (to pick "as which partner").
 export async function GET(req: NextRequest) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const admin = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -69,7 +69,7 @@ export async function GET(req: NextRequest) {
 
 // POST { group, gpVehicleId, lpEntityId? } — add (or update the partner on) a GP link.
 export async function POST(req: NextRequest) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const admin = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -120,7 +120,7 @@ export async function POST(req: NextRequest) {
 
 // DELETE { id } — remove a link.
 export async function DELETE(req: NextRequest) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const admin = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

@@ -7,8 +7,9 @@ import { DealDetail } from './deal-detail'
 
 export const metadata: Metadata = { title: 'Deal' }
 
-export default async function DealPage({ params }: { params: { id: string } }) {
-  const supabase = createClient()
+export default async function DealPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
+  const supabase = await createClient()
   const user = await getUser()
   if (!user) redirect('/auth')
 

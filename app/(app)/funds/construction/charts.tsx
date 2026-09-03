@@ -115,7 +115,7 @@ export function ValueSourcesChart({ model, fmt, fmtFull }: { model: Construction
     return [
       { name: 'Realized proceeds', value: Math.max(0, sources.realizedProceeds), color: sliceFill(0) },
       { name: 'Invested capital at work', value: invested, color: sliceFill(1) },
-      { name: 'Forecast gain', value: Math.max(0, gain), color: sliceFill(2) },
+      { name: 'Unrealized gains', value: Math.max(0, gain), color: sliceFill(2) },
     ].filter(d => d.value > 0.5)
   }, [sources])
 

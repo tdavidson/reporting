@@ -12,8 +12,9 @@ import { dbError } from '@/lib/api-error'
  * to decide without opening the email: who sent it, the subject, a body preview,
  * and the attachment list (so the reviewer can pick which files to take).
  */
-export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
-  const supabase = createClient()
+export async function GET(_req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
@@ -74,5 +75,5 @@ function stripHtml(html: string): string {
     .replace(/<script[\s\S]*?<\/script>/gi, '')
     .replace(/<[^>]+>/g, ' ')
     .replace(/\s{2,}/g, ' ')
-    .trim()
+    .trim();
 }

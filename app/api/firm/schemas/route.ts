@@ -4,7 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { ensureDefaults, getActiveSchemas } from '@/lib/memo-agent/firm-schemas'
 
 export async function GET() {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 

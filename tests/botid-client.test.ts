@@ -65,12 +65,12 @@ describe('BotId client-side protection', () => {
     // unauthenticated request like any other: without this exclusion it is redirected to
     // /auth, the browser gets HTML where it asked for JavaScript and refuses it on MIME
     // type, and BotId has no token to issue — so checkBotId() fails everyone closed.
-    const matcher = read('middleware.ts').split('matcher:')[1]
+    const matcher = read('proxy.ts').split('matcher:')[1]
     expect(matcher).toContain(BOTID_PATH_PREFIX)
   })
 
   it('pins BOTID_PATH_PREFIX to the prefix botid actually rewrites', () => {
-    // The constant is duplicated into middleware.ts (config.matcher must be statically
+    // The constant is duplicated into proxy.ts (config.matcher must be statically
     // analysable). If a botid upgrade moves this path, both copies are silently wrong and
     // the demo breaks the same way again — so read it off the installed package.
     const vendor = read('node_modules/botid/dist/next/config/index.mjs')

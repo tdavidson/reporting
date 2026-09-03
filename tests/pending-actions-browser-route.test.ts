@@ -108,7 +108,7 @@ function principal(level: 'read' | 'write' | 'none') {
 }
 
 const post = () => new Request('https://reporting.test/api/pending-actions/action-1/approve', { method: 'POST' })
-const params = { params: { id: 'action-1' } }
+const params = { params: Promise.resolve({ id: 'action-1' }) }
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -139,7 +139,8 @@ describe('POST /api/pending-actions/:id/approve', () => {
     expect(response.status).toBe(200)
     expect(await response.json()).toMatchObject({ ok: true, result: { callId: 'call-1' } })
     expect(table[0]).toMatchObject({ status: 'applied', approved_by: 'user-1' })
-    expect(mocks.revalidateTag).toHaveBeenCalledWith('pending-actions-badge')
+    // Immediate expiry, not stale-while-revalidate — see lib/cache/tags.ts for why.
+    expect(mocks.revalidateTag).toHaveBeenCalledWith('pending-actions-badge', { expire: 0 })
   })
 
   it('re-checks CURRENT write access — staging only needed read', async () => {
@@ -199,7 +200,7 @@ describe('POST /api/pending-actions/:id/approve', () => {
   })
 
   it('404s an unknown id', async () => {
-    const response = await approve(post(), { params: { id: 'no-such-action' } })
+    const response = await approve(post(), { params: Promise.resolve({ id: 'no-such-action' }) })
     expect(response.status).toBe(404)
     expect(mocks.execute).not.toHaveBeenCalled()
   })

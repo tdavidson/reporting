@@ -11,7 +11,7 @@ import { previewCloseThrough, closeThrough, reopenPeriodWithReversal, loadCloseE
 // GET — list a vehicle's fiscal periods, or (?entriesFor=<periodId>) the allocation
 // transactions a specific closed period posted.
 export async function GET(req: NextRequest) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const admin = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -32,7 +32,7 @@ export async function GET(req: NextRequest) {
 //   { action: 'close',   endDate } → close every month through it, in order
 //   { action: 'reopen',  id }      → void that period's allocation, unlock (newest first)
 export async function POST(req: NextRequest) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const admin = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

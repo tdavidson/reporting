@@ -9,8 +9,9 @@ import { getCompanyUpdate } from '@/lib/company-updates/search'
  * period provenance, extraction status and warnings, and artifact METADATA. Artifact text is
  * loaded on demand from the artifact route so a multi-megabyte spreadsheet never rides along.
  */
-export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
-  const supabase = createClient()
+export async function GET(_req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 

@@ -24,7 +24,7 @@ import { resolvePageAccess, canViewPage } from '@/lib/access/page-gate'
  *   - member without         → redirected, as before.
  */
 export async function requireAccountingAccess(): Promise<{ fundId: string; role: string }> {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/auth')
 

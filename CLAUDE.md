@@ -74,7 +74,8 @@ This repo's owner runs `supabase db push` themselves. AI assistants only create 
 explicit `UNGATED_ROUTES` entry with the reason it needs no grant. `lib/access/route-domains.test.ts`
 fails when a route is in neither, so a new route cannot ship without answering the question.
 
-The gate itself is `gateApiRequest` in `middleware.ts` — it resolves every `/api` request through
+The gate itself is `gateApiRequest` in `proxy.ts` (Next 16 renamed `middleware` to `proxy`; same
+role, Node runtime) — it resolves every `/api` request through
 `effectiveAccess` before the handler runs (one round trip, via the `access_context` RPC). **Do not**
 re-implement a role check in a route and consider it done: the reason this model exists is that 137
 of 263 routes checked only fund membership and never looked at role. Add the registry entry; the

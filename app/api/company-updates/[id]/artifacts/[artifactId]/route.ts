@@ -12,8 +12,12 @@ import { getCompanyUpdate, getCompanyUpdateArtifact } from '@/lib/company-update
  * Download disposition mirrors /api/emails/[id]/attachment/[index]: inline only for PDFs and a
  * raster-image allowlist; everything else is forced to download.
  */
-export async function GET(req: NextRequest, { params }: { params: { id: string; artifactId: string } }) {
-  const supabase = createClient()
+export async function GET(
+  req: NextRequest,
+  props: { params: Promise<{ id: string; artifactId: string }> }
+) {
+  const params = await props.params;
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 

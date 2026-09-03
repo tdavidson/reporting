@@ -10,7 +10,7 @@ import { assertWriteAccess } from '@/lib/api-helpers'
  * path so the browser can't write outside the fund's folder.
  */
 export async function POST(req: NextRequest) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const admin = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

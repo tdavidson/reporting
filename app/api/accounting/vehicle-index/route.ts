@@ -8,7 +8,7 @@ import { listVehiclesWithId } from '@/lib/accounting/load'
 // fund-first links. Distinct from /api/accounting/vehicles (names only), which external API
 // keys and MCP configs already depend on and must keep its string[] shape.
 export async function GET() {
-  const supabase = createClient()
+  const supabase = await createClient()
   const admin = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

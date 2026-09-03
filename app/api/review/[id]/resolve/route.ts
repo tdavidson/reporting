@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { revalidateTag } from 'next/cache'
+import { expireTag } from '@/lib/cache/tags'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { assertWriteAccess } from '@/lib/api-helpers'
@@ -21,11 +21,9 @@ type ReviewRow = Pick<
   | 'resolution'
 >
 
-export async function POST(
-  req: NextRequest,
-  { params }: { params: { id: string } }
-) {
-  const supabase = createClient()
+export async function POST(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
+  const supabase = await createClient()
   const {
     data: { user },
   } = await supabase.auth.getUser()
@@ -192,7 +190,7 @@ export async function POST(
 
   logActivity(admin, review.fund_id, user.id, 'review.resolve', { reviewId: params.id, resolution })
 
-  revalidateTag('review-badge')
+  expireTag('review-badge')
 
   return NextResponse.json({ ok: true })
 }

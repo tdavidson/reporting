@@ -106,7 +106,7 @@ async function resolveSendItem(admin: any, fundId: string, siteUrl: string, kind
  * GET ?kind=&id=  →  { portalEnabled, itemTitle, investors: [{ id, name }] }
  */
 export async function GET(req: NextRequest) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const admin = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -143,7 +143,7 @@ export async function GET(req: NextRequest) {
  * POST { kind, id, lp_investor_ids: string[], subject, message, delivery }
  */
 export async function POST(req: NextRequest) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const admin = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { revalidateTag } from 'next/cache'
+import { expireTag } from '@/lib/cache/tags'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { assertWriteAccess } from '@/lib/api-helpers'
@@ -8,7 +8,7 @@ import { logActivity } from '@/lib/activity'
 import { parseMentions, parseCompanyMentions, parseGroupMentions } from '@/lib/notes/mentions'
 
 export async function GET(req: NextRequest) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
@@ -122,7 +122,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const admin = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -212,7 +212,7 @@ export async function POST(req: NextRequest) {
 
   logActivity(admin, membership.fund_id, user.id, 'note.create', {})
 
-  revalidateTag('notes-badge')
+  expireTag('notes-badge')
 
   // Fire-and-forget notification
   sendNoteNotificationsAsync(admin, membership.fund_id, {

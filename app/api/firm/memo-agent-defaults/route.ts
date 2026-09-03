@@ -139,7 +139,7 @@ function parseCap(v: unknown): number | null {
 
 // Diligence settings are open to any fund member, not admin-only.
 async function ensureAdmin() {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) }
   const admin = createAdminClient()

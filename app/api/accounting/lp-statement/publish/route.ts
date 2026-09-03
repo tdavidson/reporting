@@ -24,7 +24,7 @@ export const maxDuration = 300
 // point-in-time record, and re-rendering it from the ledger would silently change a
 // statement an LP already has if a period were later reopened or an entry amended.
 export async function POST(req: NextRequest) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const admin = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

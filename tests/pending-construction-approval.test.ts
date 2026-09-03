@@ -115,8 +115,8 @@ describe('construction pending-action decisions', () => {
   })
 
   it('executes once and a repeated approval cannot execute again', async () => {
-    const first = await approve(new Request('https://reporting.test'), { params: { id: 'action-1' } })
-    const second = await approve(new Request('https://reporting.test'), { params: { id: 'action-1' } })
+    const first = await approve(new Request('https://reporting.test'), { params: Promise.resolve({ id: 'action-1' }) })
+    const second = await approve(new Request('https://reporting.test'), { params: Promise.resolve({ id: 'action-1' }) })
 
     expect(first.status).toBe(200)
     // The retry now REPLAYS the stored result instead of 404ing. A phone or a double click cannot
@@ -130,7 +130,7 @@ describe('construction pending-action decisions', () => {
 
   it('re-checks live write access and refuses approval after access is removed', async () => {
     mocks.loadAccessContext.mockResolvedValue(access('read'))
-    const response = await approve(new Request('https://reporting.test'), { params: { id: 'action-1' } })
+    const response = await approve(new Request('https://reporting.test'), { params: Promise.resolve({ id: 'action-1' }) })
 
     expect(response.status).toBe(403)
     expect(mocks.execute).not.toHaveBeenCalled()
@@ -138,7 +138,7 @@ describe('construction pending-action decisions', () => {
   })
 
   it('rejects without executing the staged update', async () => {
-    const response = await reject(new Request('https://reporting.test'), { params: { id: 'action-1' } })
+    const response = await reject(new Request('https://reporting.test'), { params: Promise.resolve({ id: 'action-1' }) })
 
     expect(response.status).toBe(200)
     expect(mocks.execute).not.toHaveBeenCalled()

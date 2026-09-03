@@ -12,7 +12,7 @@ export const runtime = 'nodejs'
 // POST — AI-categorize staged (drafted) bank transactions and re-point their
 // draft entries. Body: { ids?: string[] } — omit to categorize all drafted rows.
 export async function POST(req: NextRequest) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const admin = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

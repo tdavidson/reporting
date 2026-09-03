@@ -12,7 +12,7 @@ import { dbError } from '@/lib/api-error'
  * the "share with a vehicle" picker for LP documents.
  */
 export async function GET() {
-  const supabase = createClient()
+  const supabase = await createClient()
   const admin = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

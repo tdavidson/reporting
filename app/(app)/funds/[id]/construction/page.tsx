@@ -16,8 +16,9 @@ export const metadata: Metadata = { title: 'Portfolio construction' }
  * NOT the ledger forecast (plans/plan-forecast.md), which compiles hypotheticals into journal
  * postings. Nothing here touches a journal.
  */
-export default async function ConstructionPage({ params }: { params: { id: string } }) {
-  const { fundId } = await requireAccountingAccess()
-  const { vehicle, vehicleId } = await resolveVehicleParam(fundId, params.id)
-  return <ConstructionView vehicle={vehicle} vehicleId={vehicleId} />
+export default async function ConstructionPage(props: { params: Promise<{ id: string }> }) {
+ const params = await props.params;
+ const { fundId } = await requireAccountingAccess()
+ const { vehicle, vehicleId } = await resolveVehicleParam(fundId, params.id)
+ return <ConstructionView vehicle={vehicle} vehicleId={vehicleId} />
 }

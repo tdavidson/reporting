@@ -14,7 +14,7 @@ import { buildSoiPositions, type SoiCompany } from '@/lib/accounting/soi'
 // GET — each tracked position for the vehicle, alongside what the LEDGER carries for
 // it. The gap between the two is what needs booking.
 export async function GET(req: NextRequest) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const admin = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -62,7 +62,7 @@ export async function GET(req: NextRequest) {
 //   { action: 'mark', companyId, companyName, fairValue, entryDate, memo? }
 //                                                            → mark ONE company (0 = write-off)
 export async function POST(req: NextRequest) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const admin = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

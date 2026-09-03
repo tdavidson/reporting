@@ -8,7 +8,7 @@ import { Markdown } from '@/components/markdown'
 export const metadata = { title: 'Updates' }
 
 export default async function UpdatesPage() {
-  const supabase = createClient()
+  const supabase = await createClient()
   const user = await getUser()
   if (!user) redirect('/auth')
 

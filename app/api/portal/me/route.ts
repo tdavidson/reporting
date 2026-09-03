@@ -7,7 +7,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
  * active LP account? Used to show a "switch to LP portal" link for dual users.
  */
 export async function GET() {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ isLp: false })
 

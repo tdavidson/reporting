@@ -6,7 +6,8 @@ import { MigrateView } from '../../migrate/view'
 
 export const metadata: Metadata = { title: 'Migrate from QuickBooks' }
 
-export default async function MigratePage({ params }: { params: { id: string } }) {
+export default async function MigratePage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const { fundId } = await requireAccountingAccess()
   const { vehicle, vehicleId } = await resolveVehicleParam(fundId, params.id)
   return (

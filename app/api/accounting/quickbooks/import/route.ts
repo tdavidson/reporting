@@ -23,7 +23,7 @@ import { buildEntries } from '@/lib/accounting/quickbooks/build-entries'
  * POST — { text, group?, dryRun?, sourceLabel? }
  */
 export async function POST(req: NextRequest) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const admin = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -128,7 +128,7 @@ export async function POST(req: NextRequest) {
 
 // GET — the import history for this vehicle, so a third pass can see what the second did.
 export async function GET(req: NextRequest) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const admin = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

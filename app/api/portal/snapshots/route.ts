@@ -9,7 +9,7 @@ import { resolveLpAccess } from '@/lib/api-helpers'
  * LP. Scoped strictly to their investor rows via resolveLpAccess; never consults fund_members.
  */
 export async function GET() {
-  const supabase = createClient()
+  const supabase = await createClient()
   const admin = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

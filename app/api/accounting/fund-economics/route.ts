@@ -11,7 +11,7 @@ import { fundEconomics } from '@/lib/accounting/fund-economics'
 // as-of: the terminal value in the IRR lands on that date, not on today.
 
 export async function GET(req: NextRequest) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const admin = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

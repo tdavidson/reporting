@@ -239,7 +239,7 @@ function readMeta(form: FormData): ReadMetaResult {
 }
 
 async function ensureAdmin() {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) }
   const admin = createAdminClient()

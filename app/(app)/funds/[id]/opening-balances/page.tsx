@@ -7,7 +7,8 @@ import { SnapshotCutover } from '../../opening-balances/snapshot-cutover'
 
 export const metadata: Metadata = { title: 'Opening balances' }
 
-export default async function OpeningBalancesPage({ params }: { params: { id: string } }) {
+export default async function OpeningBalancesPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const { fundId } = await requireAccountingAccess()
   const { vehicle, vehicleId } = await resolveVehicleParam(fundId, params.id)
   return (

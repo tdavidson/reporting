@@ -8,7 +8,7 @@ import { vehicleIdByName } from '@/lib/accounting/vehicle-id'
 
 // The saved QuickBooks → chart mapping for one vehicle.
 export async function GET(req: NextRequest) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const admin = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
 
 // PUT — { group?, rows: [{ qbAccount, accountCode, excluded?, note? }] }
 export async function PUT(req: NextRequest) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const admin = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

@@ -28,7 +28,7 @@ export default async function PortalLayout({ children }: { children: React.React
   const themeVars = themeCssVars(fund?.theme ?? null)
   const fundName = fund?.name ?? 'Investor Portal'
 
-  const supabase = createClient()
+  const supabase = await createClient()
   const user = await getUser()
 
   // Best-effort login/session tracking (throttled to one event per 30 min).

@@ -17,7 +17,8 @@ import {
 const MAX_FILE_BYTES = 10 * 1024 * 1024
 const MIN_PITCH_LEN = 50
 
-export async function POST(req: NextRequest, { params }: { params: { token: string } }) {
+export async function POST(req: NextRequest, props: { params: Promise<{ token: string }> }) {
+  const params = await props.params;
   // SEC-008: `x-forwarded-for` is caller-supplied. This is the one endpoint on the site that an
   // unauthenticated stranger can post to, and reading its own rate-limit key out of a header the
   // caller writes means the limit is a suggestion: send a different XFF each time and the bucket is

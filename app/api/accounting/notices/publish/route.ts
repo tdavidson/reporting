@@ -29,7 +29,7 @@ interface NoticeLine { lpEntityId: string; amount: number }
 // payable both decay as money moves, so deriving a notice from the ledger would restate what a
 // partner was told every time somebody paid.
 export async function POST(req: NextRequest) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const admin = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

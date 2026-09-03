@@ -27,7 +27,7 @@ const METHODS = ['signed_message', 'test_transaction', 'custodian_statement']
 
 // GET — every wallet, its latest reading, and how that compares with the books.
 export async function GET(req: NextRequest) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const admin = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -83,7 +83,7 @@ export async function GET(req: NextRequest) {
 //   { action: 'record-balance', walletId, asOfDate, units, blockHeight? }
 //   { action: 'verify', walletId, method, note? }
 export async function POST(req: NextRequest) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const admin = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -214,7 +214,7 @@ export async function POST(req: NextRequest) {
 
 // DELETE — stop watching an address (?id=). Its readings cascade.
 export async function DELETE(req: NextRequest) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const admin = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

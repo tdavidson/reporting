@@ -18,7 +18,7 @@ export const maxDuration = 120
  * Starting a job is an admin action: it is a fund-wide reprocessing cost, not a portfolio read.
  */
 export async function POST(req: NextRequest) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
@@ -85,7 +85,7 @@ export async function POST(req: NextRequest) {
 
 /** GET ?job=<id> → that job's status; GET → recent jobs for the fund. Any portfolio reader. */
 export async function GET(req: NextRequest) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 

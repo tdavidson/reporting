@@ -1,4 +1,4 @@
-import { revalidateTag } from 'next/cache'
+import { expireTag } from '@/lib/cache/tags'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requireV1Write, resolveV1Principal, V1PrincipalError } from '@/lib/api-v1/principal'
 import { requestId, v1Error, v1Json } from '@/lib/api-v1/response'
@@ -13,7 +13,8 @@ import { approvePendingAction, PendingActionServiceError } from '@/lib/pending-a
 
 const ENDPOINT = 'POST /api/v1/pending-actions/:id/approve'
 
-export async function POST(req: Request, { params }: { params: { id: string } }) {
+export async function POST(req: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const requestID = requestId()
   const key = idempotencyKeyFrom(req)
   if (!key) {
@@ -41,7 +42,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
     try {
       const result = await approvePendingAction(admin, principal, params.id)
-      revalidateTag('pending-actions-badge')
+      expireTag('pending-actions-badge')
       await completeIdempotentRequest(admin, principal, { endpoint: ENDPOINT, key, status: 200, body: result })
       return v1Json(result, { requestId: requestID })
     } catch (error) {

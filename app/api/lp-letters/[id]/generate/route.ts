@@ -11,8 +11,9 @@ import { DEFAULT_STYLE_GUIDE } from '@/lib/lp-letters/default-template'
 import { logActivity } from '@/lib/activity'
 import { rateLimit } from '@/lib/rate-limit'
 
-export async function POST(_req: NextRequest, { params }: { params: { id: string } }) {
-  const supabase = createClient()
+export async function POST(_req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 

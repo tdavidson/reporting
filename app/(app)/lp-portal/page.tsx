@@ -8,7 +8,7 @@ import { LpPortalDashboard } from './lp-portal-dashboard'
 export const metadata: Metadata = { title: 'LP Documents' }
 
 export default async function LpPortalPage() {
-  const supabase = createClient()
+  const supabase = await createClient()
   const user = await getUser()
   if (!user) redirect('/auth')
 

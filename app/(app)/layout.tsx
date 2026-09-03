@@ -1,5 +1,7 @@
 import { redirect } from 'next/navigation'
 import Script from 'next/script'
+import { headers } from 'next/headers'
+import { NONCE_HEADER } from '@/lib/security/csp'
 import { createClient, getUser } from '@/lib/supabase/server'
 import { AppShell } from '@/components/app-shell'
 import { DemoSessionGuard } from '@/components/demo-session-guard'
@@ -22,8 +24,9 @@ import type { FeatureVisibilityMap } from '@/lib/types/features'
 import { themeCssVars, type FundTheme } from '@/lib/theme'
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
+  const nonce = (await headers()).get(NONCE_HEADER) ?? undefined
   // Auth — uncached (uses cookies)
-  const supabase = createClient()
+  const supabase = await createClient()
   const user = await getUser()
   if (!user) redirect('/auth')
 
@@ -142,12 +145,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       </div>
 
       {fathomSiteId && (
-        <Script src="https://cdn.usefathom.com/script.js" data-site={fathomSiteId} strategy="afterInteractive" defer />
+        <Script src="https://cdn.usefathom.com/script.js" data-site={fathomSiteId} strategy="afterInteractive" defer nonce={nonce} />
       )}
       {gaMeasurementId && (
         <>
-          <Script src={`https://www.googletagmanager.com/gtag/js?id=${gaMeasurementId}`} strategy="afterInteractive" />
-          <Script id="ga-config" strategy="afterInteractive">{`window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config',${JSON.stringify(gaMeasurementId)});`}</Script>
+          <Script src={`https://www.googletagmanager.com/gtag/js?id=${gaMeasurementId}`} strategy="afterInteractive" nonce={nonce} />
+          <Script id="ga-config" strategy="afterInteractive" nonce={nonce}>{`window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config',${JSON.stringify(gaMeasurementId)});`}</Script>
         </>
       )}
     </div>

@@ -16,7 +16,7 @@ import type { JournalEntry, Posting } from '@/lib/accounting/types'
 
 // GET — the vehicle's journal entries with postings, or a single entry via ?id=.
 export async function GET(req: NextRequest) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const admin = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -73,7 +73,7 @@ export async function GET(req: NextRequest) {
 // PUT — replace a DRAFT entry's postings (and date/memo). Posted entries are
 // immutable; reverse or void them instead.
 export async function PUT(req: NextRequest) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const admin = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -132,7 +132,7 @@ export async function PUT(req: NextRequest) {
 
 // POST — create a balanced journal entry with its postings.
 export async function POST(req: NextRequest) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const admin = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -173,7 +173,7 @@ export async function POST(req: NextRequest) {
 //            this to drafts via its Ignore action; the journal simply couldn't reach it.
 // All are refused if the entry falls in a closed period (reopen it first).
 export async function PATCH(req: NextRequest) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const admin = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

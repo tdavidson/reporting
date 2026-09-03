@@ -6,7 +6,8 @@ import { SubmitForm } from './submit-form'
 
 export const metadata: Metadata = { title: 'Submit a pitch' }
 
-export default async function SubmitPage({ params }: { params: { token: string } }) {
+export default async function SubmitPage(props: { params: Promise<{ token: string }> }) {
+  const params = await props.params;
   const admin = createAdminClient()
   const { data: settings } = await admin
     .from('fund_settings')

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { revalidateTag } from 'next/cache'
+import { expireTag } from '@/lib/cache/tags'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { assertWriteAccess } from '@/lib/api-helpers'
@@ -11,11 +11,9 @@ import { rateLimit } from '@/lib/rate-limit'
 
 export const maxDuration = 300
 
-export async function POST(
-  _req: NextRequest,
-  { params }: { params: { id: string } }
-) {
-  const supabase = createClient()
+export async function POST(_req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
+  const supabase = await createClient()
   const {
     data: { user },
   } = await supabase.auth.getUser()
@@ -97,7 +95,7 @@ export async function POST(
       .eq('id', emailId)
   }
 
-  revalidateTag('review-badge')
+  expireTag('review-badge')
 
   const { data: result } = await admin
     .from('inbound_emails')

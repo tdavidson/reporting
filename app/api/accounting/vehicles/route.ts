@@ -8,7 +8,7 @@ import { listVehicles } from '@/lib/accounting/load'
 // creation/management lives at the fund level (/api/vehicles), since vehicles
 // aren't accounting-specific.
 export async function GET() {
-  const supabase = createClient()
+  const supabase = await createClient()
   const admin = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

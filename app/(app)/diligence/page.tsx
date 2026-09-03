@@ -8,7 +8,7 @@ import { DiligenceIndex } from './diligence-index'
 export const metadata: Metadata = { title: 'Diligence' }
 
 export default async function DiligencePage() {
-  const supabase = createClient()
+  const supabase = await createClient()
   const user = await getUser()
   if (!user) redirect('/auth')
 

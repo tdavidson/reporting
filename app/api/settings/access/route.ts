@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { assertAdminAccess } from '@/lib/api-helpers'
 import { dbError } from '@/lib/api-error'
-import { revalidateTag } from 'next/cache'
+import { expireTag } from '@/lib/cache/tags'
 import { DOMAINS, DOMAIN_META, type Domain } from '@/lib/access/domains'
 
 // Per-user, per-domain access grants, and the fund's per-domain default for new members.
@@ -24,7 +24,7 @@ const LEVELS = ['none', 'read', 'write']
 const GRANTABLE = DOMAINS.filter(d => !DOMAIN_META[d].adminOnly)
 
 export async function GET() {
-  const supabase = createClient()
+  const supabase = await createClient()
   const admin = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -72,7 +72,7 @@ export async function GET() {
 }
 
 export async function PATCH(req: NextRequest) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const admin = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -123,7 +123,7 @@ export async function PATCH(req: NextRequest) {
       .eq('user_id', targetId)
     if (error) return dbError(error, 'settings-access-role')
 
-    revalidateTag('membership')
+    expireTag('membership')
     return NextResponse.json({ ok: true })
   }
 
@@ -163,6 +163,6 @@ export async function PATCH(req: NextRequest) {
   // The layout caches grants to render the nav; without this the sidebar keeps offering a link
   // for up to five minutes after access is revoked. The API refuses it immediately either way —
   // the middleware re-resolves live — but a link that 403s is a bad way to learn that.
-  revalidateTag('domain-grants')
+  expireTag('domain-grants')
   return NextResponse.json({ ok: true })
 }

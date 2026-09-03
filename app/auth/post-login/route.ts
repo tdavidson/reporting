@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
   // Prevent open redirect — only allow relative paths.
   if (!next.startsWith('/') || next.startsWith('//')) next = '/'
 
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) {
     return NextResponse.redirect(`${origin}/auth?error=${encodeURIComponent('Your session expired. Please sign in again.')}`)

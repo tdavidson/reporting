@@ -6,8 +6,9 @@ import { assertReadAccess, assertWriteAccess } from '@/lib/api-helpers'
 import { confirmFundCapitalEvent } from '@/lib/portfolio/fof-register'
 
 // The register for one fund holding: calls and distributions RECEIVED from the manager.
-export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
-  const supabase = createClient()
+export async function GET(_req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
+  const supabase = await createClient()
   const admin = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -24,8 +25,9 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
 // POST — record a notice as a DRAFT. Nothing posts until it is confirmed.
 // { kind, eventDate, amount, dueDate?, noticeNumber?, description?, vehicleId?,
 //   purposeInvestments?/purposeFees?/purposeExpenses? | charReturnOfCapital?/charRealizedGain?/charIncome?/recallableAmount? }
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
-  const supabase = createClient()
+export async function POST(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
+  const supabase = await createClient()
   const admin = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -76,8 +78,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
 // PATCH — confirm a draft, producing its investment_transactions row and a draft ledger entry.
 // { eventId }
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
-  const supabase = createClient()
+export async function PATCH(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params
+  const supabase = await createClient()
   const admin = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

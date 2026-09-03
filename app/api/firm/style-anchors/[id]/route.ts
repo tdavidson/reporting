@@ -8,7 +8,8 @@ const OUTCOMES = ['invested', 'passed', 'lost_competitive', 'withdrew', 'unknown
 const CONVICTIONS = ['high', 'medium', 'low', 'mixed'] as const
 const QUARTERS = ['Q1', 'Q2', 'Q3', 'Q4'] as const
 
-export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(_req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const guard = await ensureAdmin()
   if ('error' in guard) return guard.error
   const { admin, fundId } = guard
@@ -25,7 +26,8 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   return NextResponse.json(data)
 }
 
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const guard = await ensureAdmin()
   if ('error' in guard) return guard.error
   const { admin, fundId } = guard
@@ -83,7 +85,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   return NextResponse.json({ ok: true })
 }
 
-export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(_req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const guard = await ensureAdmin()
   if ('error' in guard) return guard.error
   const { admin, fundId } = guard
@@ -113,7 +116,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: { id: stri
 }
 
 async function ensureAdmin() {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) }
   const admin = createAdminClient()

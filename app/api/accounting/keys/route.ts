@@ -17,7 +17,7 @@ async function member(admin: SupabaseClient, userId: string) {
 
 // GET — list the CALLER'S OWN API keys (never returns the hash or the token).
 export async function GET() {
-  const supabase = createClient()
+  const supabase = await createClient()
   const admin = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -37,7 +37,7 @@ export async function GET() {
 // POST — mint a new key owned by the caller. Non-admins can only mint read keys;
 // admins may mint read or read+write. A user may hold multiple keys.
 export async function POST(req: NextRequest) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const admin = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -80,7 +80,7 @@ export async function POST(req: NextRequest) {
 
 // DELETE ?id= — revoke one of the caller's own keys.
 export async function DELETE(req: NextRequest) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const admin = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

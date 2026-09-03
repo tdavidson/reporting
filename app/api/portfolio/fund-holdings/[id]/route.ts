@@ -5,8 +5,9 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { assertReadAccess, assertWriteAccess } from '@/lib/api-helpers'
 
 // One fund holding and its terms.
-export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
-  const supabase = createClient()
+export async function GET(_req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
+  const supabase = await createClient()
   const admin = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -48,8 +49,9 @@ const TERM_FIELDS: Record<string, string> = {
 
 // PATCH — the terms. Upsert, because a holding created outside this route (QuickBooks
 // discovery, an import) may have no terms row yet.
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
-  const supabase = createClient()
+export async function PATCH(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
+  const supabase = await createClient()
   const admin = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -81,8 +83,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 // REFUSED once anything has posted. A register row carrying an investment_transaction_id is
 // represented in the ledger; deleting the holding behind the ledger's back leaves postings
 // referencing a holding that no longer exists.
-export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
-  const supabase = createClient()
+export async function DELETE(_req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
+  const supabase = await createClient()
   const admin = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

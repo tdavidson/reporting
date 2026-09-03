@@ -8,7 +8,7 @@ import { DefaultsEditor } from './editor'
 export const metadata: Metadata = { title: 'Diligence Defaults' }
 
 export default async function DefaultsPage() {
-  const supabase = createClient()
+  const supabase = await createClient()
   const user = await getUser()
   if (!user) redirect('/auth')
 

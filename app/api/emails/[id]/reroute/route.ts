@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { revalidateTag } from 'next/cache'
+import { expireTag } from '@/lib/cache/tags'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { runPipeline, type PostmarkPayload } from '@/lib/pipeline/processEmail'
@@ -12,8 +12,9 @@ import { assertDomainAccess } from '@/lib/access/gate'
 import { domainForRerouteTarget, isRerouteTarget, type RerouteTarget } from '@/lib/access/reroute-targets'
 import { removeCompanyUpdate } from '@/lib/company-updates/capture'
 
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
-  const supabase = createClient()
+export async function POST(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
@@ -102,7 +103,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       .from('inbound_emails')
       .update({ processing_status: 'not_processed', routed_to: 'audit' })
       .eq('id', emailId)
-    revalidateTag('fund-data')
+    expireTag('fund-data')
     return NextResponse.json({ ok: true })
   }
 
@@ -125,7 +126,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         .eq('id', emailId)
       return NextResponse.json({ error: msg }, { status: 500 })
     }
-    revalidateTag('fund-data')
+    expireTag('fund-data')
     return NextResponse.json({ ok: true })
   }
 
@@ -150,6 +151,6 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     return NextResponse.json({ error: msg }, { status: 500 })
   }
 
-  revalidateTag('fund-data')
+  expireTag('fund-data')
   return NextResponse.json({ ok: true })
 }

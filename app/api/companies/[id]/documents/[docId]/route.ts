@@ -6,9 +6,10 @@ import { dbError } from '@/lib/api-error'
 
 export async function GET(
   _req: NextRequest,
-  { params }: { params: { id: string; docId: string } }
+  props: { params: Promise<{ id: string; docId: string }> }
 ) {
-  const supabase = createClient()
+  const params = await props.params;
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
@@ -54,9 +55,10 @@ export async function GET(
 
 export async function DELETE(
   _req: NextRequest,
-  { params }: { params: { id: string; docId: string } }
+  props: { params: Promise<{ id: string; docId: string }> }
 ) {
-  const supabase = createClient()
+  const params = await props.params;
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 

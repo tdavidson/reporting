@@ -11,7 +11,8 @@ import { redirect } from 'next/navigation'
  * the accounting API, and moving it would break the fund API keys and MCP configs already
  * pointed at it for no benefit a user would ever see.
  */
-export default function AccountingRedirect({ params }: { params: { rest?: string[] } }) {
-  const rest = params.rest?.length ? `/${params.rest.join('/')}` : ''
-  redirect(`/funds${rest}`)
+export default async function AccountingRedirect(props: { params: Promise<{ rest?: string[] }> }) {
+ const params = await props.params;
+ const rest = params.rest?.length ? `/${params.rest.join('/')}` : ''
+ redirect(`/funds${rest}`)
 }

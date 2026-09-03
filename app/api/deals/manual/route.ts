@@ -33,7 +33,7 @@ const MAX_FILES = 10
  *   - files[]        (optional, repeated) — up to MAX_FILES, each up to MAX_FILE_BYTES
  */
 export async function POST(req: NextRequest) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 

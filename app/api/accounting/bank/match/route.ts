@@ -9,7 +9,7 @@ import { bookCapitalCallFromInflow, bookDistributionFromOutflow, linkInflowToEnt
 
 // GET — capital-call entries an inflow can be matched to (unlinked, with amount).
 export async function GET(req: NextRequest) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const admin = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -31,7 +31,7 @@ export async function GET(req: NextRequest) {
 // with no lp_entity_id — money leaves the fund and no LP's capital account, statement, or
 // roll-forward ever records receiving it.
 export async function POST(req: NextRequest) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const admin = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

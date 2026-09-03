@@ -5,8 +5,9 @@ import { assertWriteAccess } from '@/lib/api-helpers'
 import type { ReportingCadence, ValueType } from '@/lib/types/database'
 import { dbError } from '@/lib/api-error'
 
-export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
-  const supabase = createClient()
+export async function GET(_req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
@@ -55,8 +56,9 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   return NextResponse.json(metrics)
 }
 
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
-  const supabase = createClient()
+export async function POST(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 

@@ -8,9 +8,10 @@ import type { AccessContext } from '@/lib/access/effective'
 
 export async function GET(
   _req: NextRequest,
-  { params }: { params: { id: string; metricId: string } }
+  props: { params: Promise<{ id: string; metricId: string }> }
 ) {
-  const supabase = createClient()
+  const params = await props.params;
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
@@ -41,9 +42,10 @@ export async function GET(
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: { id: string; metricId: string } }
+  props: { params: Promise<{ id: string; metricId: string }> }
 ) {
-  const supabase = createClient()
+  const params = await props.params;
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 

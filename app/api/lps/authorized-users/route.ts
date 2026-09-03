@@ -18,7 +18,7 @@ import { dbError } from '@/lib/api-error'
  */
 
 async function adminCtx() {
-  const supabase = createClient()
+  const supabase = await createClient()
   const admin = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) }

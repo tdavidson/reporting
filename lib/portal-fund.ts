@@ -16,7 +16,7 @@ export interface PortalFund {
  * or no fund can be resolved (the portal then falls back to a generic header).
  */
 export async function getPortalFund(): Promise<PortalFund | null> {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null
 

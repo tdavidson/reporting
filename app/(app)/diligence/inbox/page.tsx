@@ -8,7 +8,7 @@ import { InboxView } from './inbox-view'
 export const metadata: Metadata = { title: 'Memo Inbox' }
 
 export default async function InboxPage() {
-  const supabase = createClient()
+  const supabase = await createClient()
   const user = await getUser()
   if (!user) redirect('/auth')
 

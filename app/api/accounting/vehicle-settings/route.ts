@@ -13,7 +13,7 @@ import { dbError } from '@/lib/api-error'
 // call — an SPV's bank details are a standing fact, and re-typing them into every call is how
 // one notice goes out with a stale account number.
 export async function GET(req: NextRequest) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const admin = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -33,7 +33,7 @@ export async function GET(req: NextRequest) {
 
 // PATCH — { wireInstructions }
 export async function PATCH(req: NextRequest) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const admin = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

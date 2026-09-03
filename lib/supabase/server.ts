@@ -3,8 +3,14 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import type { Database } from '@/lib/types/database'
 
-export function createClient() {
-  const cookieStore = cookies()
+/**
+ * Async as of Next 16: `cookies()` returns a Promise and the synchronous shim that Next 15 kept for
+ * the transition is gone. Every caller awaits this. The codemod offered `UnsafeUnwrappedCookies`
+ * here instead — a cast that compiles and then throws at runtime in 16 — which is why this is done
+ * by hand.
+ */
+export async function createClient() {
+  const cookieStore = await cookies()
 
   return createServerClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -47,6 +53,7 @@ export function createClient() {
  * before this one exists, and it is what refreshes the session cookie.
  */
 export const getUser = cache(async () => {
-  const { data: { user } } = await createClient().auth.getUser()
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
   return user
 })

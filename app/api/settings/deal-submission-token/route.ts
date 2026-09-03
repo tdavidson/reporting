@@ -12,7 +12,7 @@ import { hashSubmissionToken } from '@/lib/deals/submission-token'
  */
 
 export async function POST(_req: NextRequest) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
@@ -39,7 +39,7 @@ export async function POST(_req: NextRequest) {
 }
 
 export async function DELETE(_req: NextRequest) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 

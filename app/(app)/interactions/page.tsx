@@ -8,7 +8,7 @@ import { InteractionsContent } from './interactions-content'
 export const metadata: Metadata = { title: 'Interactions' }
 
 export default async function InteractionsPage() {
-  const supabase = createClient()
+  const supabase = await createClient()
   const user = await getUser()
   if (!user) redirect('/auth')
 

@@ -6,7 +6,8 @@ import { FofQuarterView } from '../../fof-quarter/view'
 
 export const metadata: Metadata = { title: 'Quarterly close — underlying funds' }
 
-export default async function FofQuarterPage({ params }: { params: { id: string } }) {
+export default async function FofQuarterPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const { fundId } = await requireAccountingAccess()
   const { vehicle, vehicleId } = await resolveVehicleParam(fundId, params.id)
   return (

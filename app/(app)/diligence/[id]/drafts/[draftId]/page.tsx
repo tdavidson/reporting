@@ -8,8 +8,9 @@ import { buildSourceLabels } from '@/lib/memo-agent/render/source-labels'
 
 export const metadata: Metadata = { title: 'Memo draft' }
 
-export default async function DraftPage({ params }: { params: { id: string; draftId: string } }) {
-  const supabase = createClient()
+export default async function DraftPage(props: { params: Promise<{ id: string; draftId: string }> }) {
+  const params = await props.params;
+  const supabase = await createClient()
   const user = await getUser()
   if (!user) redirect('/auth')
 

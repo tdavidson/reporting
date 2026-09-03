@@ -7,8 +7,9 @@ import { QAChat } from './qa-chat'
 
 export const metadata: Metadata = { title: 'Q&A' }
 
-export default async function QAPage({ params }: { params: { id: string } }) {
-  const supabase = createClient()
+export default async function QAPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
+  const supabase = await createClient()
   const user = await getUser()
   if (!user) redirect('/auth')
 

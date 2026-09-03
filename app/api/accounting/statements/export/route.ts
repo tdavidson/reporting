@@ -12,7 +12,7 @@ import { buildStatementWorkbook } from '@/lib/accounting/statement-workbook'
 // gating, and the SAME computed package as /api/accounting/statements — this route
 // only changes the serialization (workbook instead of JSON).
 export async function GET(req: NextRequest) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const admin = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

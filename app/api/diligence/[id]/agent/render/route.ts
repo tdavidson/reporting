@@ -10,8 +10,9 @@ const VALID_FORMATS = ['markdown', 'docx', 'gdoc'] as const
  * signed download URL; gdoc returns a Google Doc view link. The render-job
  * helper is shared so a future async path can reuse it.
  */
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
-  const supabase = createClient()
+export async function POST(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 

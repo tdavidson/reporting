@@ -15,8 +15,9 @@ const ASSESSABLE_STATUSES = new Set(['unknown', 'partial', 'missing'])
  * there's nothing new to ingest, runs just the checklist checks against the
  * existing ingest output. The cron worker picks the job up within ~1 minute.
  */
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
-  const supabase = createClient()
+export async function POST(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 

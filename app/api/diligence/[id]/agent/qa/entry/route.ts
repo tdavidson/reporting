@@ -14,7 +14,7 @@ import { dbError } from '@/lib/api-error'
  */
 
 async function resolve(req: NextRequest, dealId: string) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) }
 
@@ -42,7 +42,8 @@ async function resolve(req: NextRequest, dealId: string) {
   return { admin, fundId, draftId: (draft as any).id as string, entries }
 }
 
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const r = await resolve(req, params.id)
   if ('error' in r) return r.error
   const { admin, fundId, draftId, entries } = r
@@ -62,7 +63,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   return NextResponse.json({ ok: true })
 }
 
-export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const r = await resolve(req, params.id)
   if ('error' in r) return r.error
   const { admin, fundId, draftId, entries } = r

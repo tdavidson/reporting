@@ -16,8 +16,12 @@ import { assertWriteAccess } from '@/lib/api-helpers'
  *     HTML/SVG and MIME-confusion payloads out of an inline browser context.
  *   - Signed URLs are short-lived (60s) so they can't be leaked or shared.
  */
-export async function GET(req: NextRequest, { params }: { params: { id: string; index: string } }) {
-  const supabase = createClient()
+export async function GET(
+  req: NextRequest,
+  props: { params: Promise<{ id: string; index: string }> }
+) {
+  const params = await props.params;
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
@@ -74,8 +78,12 @@ export async function GET(req: NextRequest, { params }: { params: { id: string; 
   return NextResponse.redirect(signed.signedUrl, 302)
 }
 
-export async function DELETE(req: NextRequest, { params }: { params: { id: string; index: string } }) {
-  const supabase = createClient()
+export async function DELETE(
+  req: NextRequest,
+  props: { params: Promise<{ id: string; index: string }> }
+) {
+  const params = await props.params;
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 

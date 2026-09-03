@@ -8,7 +8,7 @@ export const metadata: Metadata = { title: 'Offline' }
  *
  * Must stay fully static — it renders from the cache with nothing reachable, so it
  * cannot read cookies, call the database, or resolve the fund's theme. It is also
- * reachable anonymously (see middleware.ts), because the worker fetches it at install
+ * reachable anonymously (see proxy.ts), because the worker fetches it at install
  * time, which can happen before anyone has signed in.
  *
  * Reload is a plain form submit rather than an onClick, so this needs no client

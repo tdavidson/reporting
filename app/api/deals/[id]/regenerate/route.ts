@@ -6,8 +6,9 @@ import { extractAttachmentText, type AttachmentResult } from '@/lib/parsing/extr
 import { analyzeDeal, DEFAULT_SCREENING_PROMPT } from '@/lib/claude/analyzeDeal'
 import type { PostmarkPayload } from '@/lib/pipeline/processEmail'
 
-export async function POST(_req: NextRequest, { params }: { params: { id: string } }) {
-  const supabase = createClient()
+export async function POST(_req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 

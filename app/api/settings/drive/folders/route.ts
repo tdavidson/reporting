@@ -49,7 +49,7 @@ async function getDriveAccess(userId: string) {
 }
 
 export async function GET(req: NextRequest) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
@@ -75,7 +75,7 @@ export async function GET(req: NextRequest) {
 // save endpoints (fund: /api/settings/drive, company: /api/companies/[id]),
 // where the appropriate write permission is enforced.
 export async function PATCH(req: NextRequest) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
@@ -102,7 +102,7 @@ export async function PATCH(req: NextRequest) {
 
 // POST — create a folder in the user's Drive root and set it as the target
 export async function POST(req: NextRequest) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 

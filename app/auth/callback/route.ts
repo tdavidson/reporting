@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(`${origin}/auth?error=${encodeURIComponent('Invalid or expired link. Please try again.')}`)
   }
 
-  const supabase = createClient()
+  const supabase = await createClient()
   const { error } = await supabase.auth.exchangeCodeForSession(code)
   if (!error) {
     const { data: { user } } = await supabase.auth.getUser()

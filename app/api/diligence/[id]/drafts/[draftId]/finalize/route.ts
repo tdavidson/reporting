@@ -8,8 +8,12 @@ import { dbError } from '@/lib/api-error'
  * finalized_by. The DB constraint (`finalize_consistency`) enforces all three
  * change together. Once finalized, PATCH on the draft returns 409.
  */
-export async function POST(_req: NextRequest, { params }: { params: { id: string; draftId: string } }) {
-  const supabase = createClient()
+export async function POST(
+  _req: NextRequest,
+  props: { params: Promise<{ id: string; draftId: string }> }
+) {
+  const params = await props.params;
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 

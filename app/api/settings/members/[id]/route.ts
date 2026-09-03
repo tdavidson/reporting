@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { revalidateTag } from 'next/cache'
+import { expireTag } from '@/lib/cache/tags'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { assertWriteAccess } from '@/lib/api-helpers'
 import { sendApprovalEmail } from '@/lib/email'
 import { dbError } from '@/lib/api-error'
 
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
-  const supabase = createClient()
+export async function PATCH(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
@@ -80,14 +81,15 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     sendApprovalEmail(admin, request.fund_id, request.email, fundName).catch(() => {})
   }
 
-  revalidateTag('pending-requests')
-  revalidateTag('membership')
+  expireTag('pending-requests')
+  expireTag('membership')
 
   return NextResponse.json({ ok: true })
 }
 
-export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
-  const supabase = createClient()
+export async function DELETE(_req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
@@ -138,7 +140,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: { id: stri
     return dbError(error, 'settings-members')
   }
 
-  revalidateTag('membership')
+  expireTag('membership')
 
   return NextResponse.json({ ok: true })
 }

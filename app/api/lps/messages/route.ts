@@ -6,7 +6,7 @@ import { dbError } from '@/lib/api-error'
 
 // GP-admin inbox for LP portal "Contact" messages (lib/api: lp_messages).
 async function requireAdmin() {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) }
   const admin = createAdminClient() as any
@@ -18,7 +18,7 @@ async function requireAdmin() {
 
 export async function GET() {
   // Reads allowed for admins and the read-only demo viewer (writes stay admin-only).
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const admin = createAdminClient() as any

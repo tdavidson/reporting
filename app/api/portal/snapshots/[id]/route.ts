@@ -11,8 +11,9 @@ import { logLpAccessEvent } from '@/lib/lp-access-log'
  *   2. the snapshot must be shared with at least one of those investors,
  *   3. investments are filtered to those investors' entities for this snapshot.
  */
-export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
-  const supabase = createClient()
+export async function GET(_req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
+  const supabase = await createClient()
   const admin = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

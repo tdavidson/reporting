@@ -17,7 +17,8 @@ import { dbError } from '@/lib/api-error'
  * as them, so what it can see is exactly what that real person can see.
  */
 
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const guard = await ensureDeal(params.id)
   if ('error' in guard) return guard.error
   const { admin, fundId, userId, deal } = guard
@@ -74,7 +75,8 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   })
 }
 
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const guard = await ensureDeal(params.id)
   if ('error' in guard) return guard.error
   const { admin, fundId, userId } = guard
@@ -125,7 +127,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   })
 }
 
-export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(_req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const guard = await ensureDeal(params.id)
   if ('error' in guard) return guard.error
   const { admin, fundId } = guard
@@ -148,7 +151,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: { id: stri
 }
 
 async function ensureDeal(dealId: string) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) }
 

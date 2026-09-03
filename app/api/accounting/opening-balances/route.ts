@@ -13,7 +13,7 @@ import type { Posting, JournalEntry } from '@/lib/accounting/types'
 // Capital in nets against cash (offset defaults to 1000); the investment purchase
 // is booked separately. Body: { entryDate, offsetAccountCode?, group?, balances }
 export async function POST(req: NextRequest) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const admin = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

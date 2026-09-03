@@ -33,7 +33,7 @@ async function portalEnabled(admin: any, fundId: string): Promise<boolean> {
 
 // GET → { available }: whether the LP can use the analyst (their fund has AI configured). Gates the UI.
 export async function GET() {
-  const supabase = createClient()
+  const supabase = await createClient()
   const admin = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ available: false })
@@ -54,7 +54,7 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const admin = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

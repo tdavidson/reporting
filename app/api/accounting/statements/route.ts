@@ -18,7 +18,7 @@ import { buildStatementPackage } from '@/lib/accounting/statement-package'
 // The load + compute lives in buildStatementPackage so the on-screen statements and
 // the Excel workpaper export (statements/export) can never disagree.
 export async function GET(req: NextRequest) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const admin = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

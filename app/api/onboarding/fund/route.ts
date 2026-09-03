@@ -7,7 +7,7 @@ import { randomBytes } from 'crypto'
 
 // GET — check onboarding status so the UI can resume where the user left off
 export async function GET() {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
@@ -75,7 +75,7 @@ export async function POST(req: NextRequest) {
   const limited = await rateLimit({ key: `onboard-fund:${getClientIp(req)}`, limit: 5, windowSeconds: 300 })
   if (limited) return limited
 
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 

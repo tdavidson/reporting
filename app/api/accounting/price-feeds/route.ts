@@ -23,7 +23,7 @@ const BASES = ['close', 'intraday', 'indicative']
 
 // GET — every feed for the fund, each with its most recent stored quote.
 export async function GET(_req: NextRequest) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const admin = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -55,7 +55,7 @@ export async function GET(_req: NextRequest) {
 //   { action: 'create-feed', companyId, kind, symbol, ... }
 //   { action: 'record-quote', feedId, asOfDate, price, basis? }
 export async function POST(req: NextRequest) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const admin = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -197,7 +197,7 @@ export async function POST(req: NextRequest) {
 
 // DELETE — remove a feed (?id=). Its observations cascade.
 export async function DELETE(req: NextRequest) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const admin = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

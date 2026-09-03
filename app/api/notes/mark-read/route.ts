@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { revalidateTag } from 'next/cache'
+import { expireTag } from '@/lib/cache/tags'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 
 export async function POST(req: NextRequest) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
@@ -50,7 +50,7 @@ export async function POST(req: NextRequest) {
     .from('note_reads' as any)
     .upsert(rows, { onConflict: 'user_id,note_id', ignoreDuplicates: true })
 
-  revalidateTag('notes-badge')
+  expireTag('notes-badge')
 
   return NextResponse.json({ ok: true })
 }

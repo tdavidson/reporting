@@ -56,8 +56,9 @@ const WEB_SEARCH_USD = 0.01
  * Per-deal AI usage report: tokens + estimated cost (from ai_usage_logs) and
  * processing time (from memo_agent_jobs durations). Optional ?days=N window.
  */
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
-  const supabase = createClient()
+export async function GET(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 

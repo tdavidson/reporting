@@ -79,8 +79,9 @@ function formatValue(mv: MetricRow, metric: MetricDef | null): string {
 // Page (server component)
 // ---------------------------------------------------------------------------
 
-export default async function EmailDetailPage({ params }: { params: { id: string } }) {
-  const supabase = createClient()
+export default async function EmailDetailPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
+  const supabase = await createClient()
   const user = await getUser()
   if (!user) redirect('/auth')
 

@@ -31,7 +31,7 @@ function refererOrigin(value: string | null): string | null {
 
 /** Vercel's geo header is trusted, but shaped-checked so the column only ever holds a code. */
 function countryCode(value: string | null): string | null {
-  return value && /^[A-Z]{2}$/.test(value) ? value : null
+  return value && /^[A-Z]{2}$/.test(value) ? value : null;
 }
 
 /**
@@ -61,7 +61,7 @@ export async function startDemo(): Promise<StartDemoResult> {
   if (!marketingEnabled) return { ok: false, error: 'Demo is not available.' }
   if (!email || !password) return { ok: false, error: 'Demo is not configured.' }
 
-  const requestHeaders = headers()
+  const requestHeaders = await headers()
 
   // 2. BotId — defence in depth, never the guarantee. It is a Vercel product, so on any other
   //    host it is unavailable; a self-hoster must get a working demo, not a broken one. Any
@@ -85,9 +85,9 @@ export async function startDemo(): Promise<StartDemoResult> {
   })
   if (limited) return { ok: false, error: 'Too many requests. Please try again shortly.' }
 
-  // 4. Mint. createClient() writes cookies through next/headers — that succeeds in a server
+  // 4. Mint. await createClient() writes cookies through next/headers — that succeeds in a server
   //    action and only no-ops in a Server Component, which is what makes this approach work.
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data, error } = await supabase.auth.signInWithPassword({ email, password })
   if (error || !data.user) {
     // Supabase's own message can describe account state; log it, don't show it.

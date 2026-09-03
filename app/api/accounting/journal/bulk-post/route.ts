@@ -16,7 +16,7 @@ import { readBulkScope, runBulkDraftAction } from '@/lib/accounting/journal-bulk
 // period; everything else comes back in `skipped` with a reason. Returns { posted, skipped,
 // hasMore, cursor } — the client loops with afterId=cursor while hasMore is true.
 export async function POST(req: NextRequest) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const admin = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

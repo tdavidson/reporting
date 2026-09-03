@@ -22,7 +22,8 @@ interface EnrichedNote {
   updatedAt: string
 }
 
-export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(_req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const guard = await ensureMember()
   if ('error' in guard) return guard.error
   const { admin, fundId } = guard
@@ -41,7 +42,8 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   return NextResponse.json(enriched)
 }
 
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const guard = await ensureMember()
   if ('error' in guard) return guard.error
   const { admin, fundId, userId } = guard
@@ -109,7 +111,7 @@ async function enrichAuthors(notes: RawNote[], fundId: string): Promise<Enriched
 }
 
 async function ensureMember() {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) }
   const admin = createAdminClient()

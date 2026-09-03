@@ -12,8 +12,9 @@ export const maxDuration = 120
  * web view: the letter must be shared with one of the signed-in LP's investors,
  * the fund's portal must be on, and the letter must not be mid-generation.
  */
-export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
-  const supabase = createClient()
+export async function GET(_req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
+  const supabase = await createClient()
   const admin = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

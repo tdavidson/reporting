@@ -12,8 +12,9 @@ import { dbError } from '@/lib/api-error'
  * explicitly. That is a deliberate human decision to spend the money, so it
  * bypasses the fit gate — but not the enabled flag.
  */
-export async function POST(_req: NextRequest, { params }: { params: { id: string } }) {
-  const supabase = createClient()
+export async function POST(_req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 

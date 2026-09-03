@@ -8,7 +8,7 @@ import { applyDefaultsToAllCompanies } from '@/lib/metrics/seed-default-metrics'
 // (company_id, slug)) — safe to run repeatedly; a "Sync to all companies" button.
 
 export async function POST() {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 

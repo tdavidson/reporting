@@ -7,7 +7,7 @@ import { loadEntityNames, loadOwnership } from '@/lib/accounting/load'
 
 // GET — a vehicle's LP entities with committed capital.
 export async function GET(req: NextRequest) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const admin = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

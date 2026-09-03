@@ -28,7 +28,7 @@ vi.mock('@supabase/ssr', () => ({
   }),
 }))
 
-import { middleware } from '@/middleware'
+import { proxy as middleware } from '@/proxy'
 
 const req = (pathname: string) =>
   ({

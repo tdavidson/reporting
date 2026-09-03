@@ -21,7 +21,7 @@ const SCHEMA_LABELS: Record<SchemaName, { label: string; description: string }> 
 }
 
 export default async function SchemasIndexPage() {
-  const supabase = createClient()
+  const supabase = await createClient()
   const user = await getUser()
   if (!user) redirect('/auth')
 

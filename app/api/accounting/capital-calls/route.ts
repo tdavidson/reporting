@@ -10,7 +10,7 @@ import { issueCapitalCall, proRataCall, lpCapitalSummary, listCapitalCalls } fro
 // GET — the per-LP capital summary (commitment/called/funded/outstanding) plus
 // the issued-call history for the vehicle.
 export async function GET(req: NextRequest) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const admin = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -30,7 +30,7 @@ export async function GET(req: NextRequest) {
 //   preview: { total } → per-LP pro-rata split by commitment (to edit before issuing)
 //   issue:   { callDate, description, scope, lines: [{ lpEntityId, amount }] }
 export async function POST(req: NextRequest) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const admin = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

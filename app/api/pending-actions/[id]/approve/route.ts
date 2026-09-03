@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { revalidateTag } from 'next/cache'
+import { expireTag } from '@/lib/cache/tags'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { resolveBrowserPrincipal } from '@/lib/pending-actions/browser-principal'
 import { approvePendingAction, PendingActionServiceError } from '@/lib/pending-actions/service'
@@ -20,20 +20,21 @@ import { approvePendingAction, PendingActionServiceError } from '@/lib/pending-a
  * The HTTP shape is unchanged — `{ ok: true, result }`, or a status with `{ error }` — because the
  * pending-actions page and the Analyst cards read exactly that.
  */
-export async function POST(_req: Request, { params }: { params: { id: string } }) {
+export async function POST(_req: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const admin = createAdminClient()
   const principal = await resolveBrowserPrincipal(admin)
   if (principal instanceof NextResponse) return principal
 
   try {
     const result = await approvePendingAction(admin, principal, params.id)
-    revalidateTag('pending-actions-badge')
+    expireTag('pending-actions-badge')
     return NextResponse.json({ ok: true, result: result.result, replayed: result.replayed })
   } catch (error) {
     if (error instanceof PendingActionServiceError) {
       // The service marks the row 'failed' before throwing ACTION_FAILED, so the queue is already
       // consistent by the time the browser sees this.
-      revalidateTag('pending-actions-badge')
+      expireTag('pending-actions-badge')
       return NextResponse.json({ ok: false, error: error.message }, { status: error.status })
     }
     console.error('[pending-actions] approve failed', error)
