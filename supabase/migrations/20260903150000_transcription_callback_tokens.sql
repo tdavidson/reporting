@@ -1,5 +1,13 @@
 -- SEC-010: give each transcription callback its own credential.
 --
+-- RENAMED from 20260903120000. That version was taken twice — by this file and by
+-- 20260903120000_company_updates_lifecycle_search.sql, written the same day in parallel work.
+-- Supabase keys `supabase_migrations.schema_migrations` on the version string, so a FRESH install
+-- would record the first of the two and silently skip the second: the schema you get depends on
+-- which filename sorts first, which is not a property anyone should rely on. Both had already run
+-- on the live database, so this rename is a no-op there — every statement below is idempotent, and
+-- the next push simply records it under a version of its own.
+--
 -- The Deepgram callback URL carried ONE shared secret, in the path:
 --
 --   https://…/api/webhooks/transcription/<TRANSCRIPTION_WEBHOOK_SECRET>
