@@ -1,8 +1,7 @@
 'use client'
 
-import { useEffect, useState, useCallback, useRef } from 'react'
-import { Sparkles, RefreshCw, Upload, Loader2, History, ChevronDown, X } from 'lucide-react'
-import { createClient } from '@/lib/supabase/client'
+import { useEffect, useState, useCallback } from 'react'
+import { Sparkles, RefreshCw, Loader2, History, ChevronDown, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 interface HistoryEntry {
@@ -21,27 +20,19 @@ interface SummaryData {
 
 interface Props {
   companyId: string
-  fundId: string
   hasClaudeKey?: boolean
   hasOpenAIKey?: boolean
   defaultAIProvider?: string
 }
 
-const ACCEPTED_TYPES = '.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.csv,.jpg,.jpeg,.png'
-const MAX_FILE_SIZE = 20 * 1024 * 1024 // 20 MB
-const TEXT_ONLY_THRESHOLD = 10 * 1024 * 1024 // 10 MB, files above this get text-only extraction
-
-export function CompanySummary({ companyId, fundId, hasClaudeKey, hasOpenAIKey, defaultAIProvider }: Props) {
+export function CompanySummary({ companyId, hasClaudeKey, hasOpenAIKey, defaultAIProvider }: Props) {
   const [data, setData] = useState<SummaryData | null>(null)
   const [loading, setLoading] = useState(true)
   const [generating, setGenerating] = useState(false)
-  const [uploading, setUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [warning, setWarning] = useState<string | null>(null)
   const [selectedProvider, setSelectedProvider] = useState<string>(defaultAIProvider ?? 'anthropic')
   const [historyOpen, setHistoryOpen] = useState(false)
   const [viewingHistoryId, setViewingHistoryId] = useState<string | null>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const showProviderToggle = hasClaudeKey && hasOpenAIKey
 
@@ -82,62 +73,6 @@ export function CompanySummary({ companyId, fundId, hasClaudeKey, hasOpenAIKey, 
       setError('Unable to generate summary at this time.')
     } finally {
       setGenerating(false)
-    }
-  }
-
-  async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
-
-    if (file.size > MAX_FILE_SIZE) {
-      setError('File exceeds 50 MB limit')
-      return
-    }
-
-    const isOversized = file.size > TEXT_ONLY_THRESHOLD
-
-    setUploading(true)
-    setError(null)
-    setWarning(null)
-
-    try {
-      const supabase = createClient()
-      const storagePath = `${fundId}/${companyId}/${crypto.randomUUID()}-${file.name}`
-
-      const { error: uploadError } = await supabase
-        .storage
-        .from('company-documents')
-        .upload(storagePath, file)
-
-      if (uploadError) {
-        setError(`Upload failed: ${uploadError.message}`)
-        return
-      }
-
-      const fileExt = file.name.split('.').pop()
-      const res = await fetch(`/api/companies/${companyId}/documents`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          storagePath,
-          filename: file.name,
-          fileType: file.type || `application/${fileExt}`,
-          fileSize: file.size,
-          ...(isOversized ? { textOnly: true } : {}),
-        }),
-      })
-
-      if (!res.ok) {
-        const data = await res.json()
-        setError(data.error ?? 'Failed to register document')
-      } else if (isOversized) {
-        setWarning('File exceeds 10 MB, only extracted text was stored.')
-      }
-    } catch {
-      setError('Upload failed')
-    } finally {
-      setUploading(false)
-      if (fileInputRef.current) fileInputRef.current.value = ''
     }
   }
 
@@ -182,13 +117,6 @@ export function CompanySummary({ companyId, fundId, hasClaudeKey, hasOpenAIKey, 
   if (!data?.summary) {
     return (
       <div className="rounded-card border border-dashed bg-card p-5 mb-6">
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept={ACCEPTED_TYPES}
-          onChange={handleUpload}
-          className="hidden"
-        />
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Sparkles className="h-3.5 w-3.5 text-muted-foreground" />
@@ -206,20 +134,6 @@ export function CompanySummary({ companyId, fundId, hasClaudeKey, hasOpenAIKey, 
                 <option value="openai">OpenAI</option>
               </select>
             )}
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={uploading}
-              className="text-muted-foreground"
-            >
-              {uploading ? (
-                <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
-              ) : (
-                <Upload className="h-3.5 w-3.5 mr-1.5" />
-              )}
-              {uploading ? 'Uploading…' : 'Upload'}
-            </Button>
             <Button size="sm" variant="outline" onClick={generate} disabled={generating} className="text-muted-foreground">
               <Sparkles className="h-3.5 w-3.5 mr-1.5" />
               {generating ? 'Analyzing…' : 'Analyze'}
@@ -236,9 +150,6 @@ export function CompanySummary({ companyId, fundId, hasClaudeKey, hasOpenAIKey, 
         {error && (
           <p className="text-sm text-destructive mt-3">{error}</p>
         )}
-        {warning && (
-          <p className="text-sm text-warning mt-3">{warning}</p>
-        )}
       </div>
     )
   }
@@ -248,13 +159,6 @@ export function CompanySummary({ companyId, fundId, hasClaudeKey, hasOpenAIKey, 
 
   return (
     <div className="rounded-card border bg-card p-5 mb-6">
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept={ACCEPTED_TYPES}
-        onChange={handleUpload}
-        className="hidden"
-      />
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           <Sparkles className="h-3.5 w-3.5 text-muted-foreground" />
@@ -292,21 +196,6 @@ export function CompanySummary({ companyId, fundId, hasClaudeKey, hasOpenAIKey, 
               <option value="openai">OpenAI</option>
             </select>
           )}
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={uploading}
-            title="Upload document"
-            className="text-muted-foreground"
-          >
-            {uploading ? (
-              <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
-            ) : (
-              <Upload className="h-3.5 w-3.5 mr-1.5" />
-            )}
-            {uploading ? 'Uploading…' : 'Upload'}
-          </Button>
           <Button
             size="sm"
             variant="ghost"
@@ -386,9 +275,6 @@ export function CompanySummary({ companyId, fundId, hasClaudeKey, hasOpenAIKey, 
       )}
       {error && (
         <p className="text-sm text-destructive mt-3 pt-3 border-t">{error}</p>
-      )}
-      {warning && (
-        <p className="text-sm text-warning mt-3 pt-3 border-t">{warning}</p>
       )}
     </div>
   )

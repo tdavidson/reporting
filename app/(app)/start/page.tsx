@@ -7,6 +7,7 @@ import { useAnalystContext } from '@/components/analyst-context'
 import { AnalystConversation } from '@/components/analyst-conversation'
 import { AddCompanyButton } from '@/components/add-company-button'
 import { AddVehicleButton } from '@/components/add-vehicle-button'
+import { ImportDocumentsButton } from '@/components/import-documents'
 import { createActions, suggestedPrompts } from '@/lib/start/quick-actions'
 
 /**
@@ -42,6 +43,7 @@ export default function StartPage() {
             )
           }
           if (a.id === 'add-company') return <AddCompanyButton key={a.id} />
+          if (a.id === 'import-documents') return <ImportDocumentsButton key={a.id} />
           if (a.id === 'add-vehicle') return <AddVehicleButton key={a.id} />
           return null
         })}

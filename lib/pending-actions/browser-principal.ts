@@ -27,5 +27,6 @@ export async function resolveBrowserPrincipal(
     fundId: gate.fundId,
     role: gate.role,
     access: await loadAccessContext(admin, gate.fundId, user.id, gate.role),
+    credentialKind: 'cookie',
   }
 }

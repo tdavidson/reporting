@@ -1,8 +1,13 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
-import { FileText, Trash2, Loader2, ChevronDown, ChevronRight, FileSpreadsheet, FileImage, File, Mail, ExternalLink, Download } from 'lucide-react'
+import { useEffect, useState, useCallback, useRef } from 'react'
+import { FileText, Trash2, Loader2, ChevronDown, ChevronRight, FileSpreadsheet, FileImage, File, Mail, ExternalLink, Download, Upload } from 'lucide-react'
+import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
+
+const ACCEPTED_TYPES = '.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.csv,.jpg,.jpeg,.png'
+const MAX_FILE_SIZE = 20 * 1024 * 1024 // 20 MB
+const TEXT_ONLY_THRESHOLD = 10 * 1024 * 1024 // 10 MB, files above this get text-only extraction
 
 interface Document {
   id: string
@@ -36,6 +41,7 @@ interface DocumentDetail {
 
 interface Props {
   companyId: string
+  fundId: string
   storageProvider?: string | null
   googleDriveFolderId?: string | null
   /**
@@ -73,8 +79,11 @@ function FileIcon({ fileType, source }: { fileType: string; source: string }) {
   return <File className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
 }
 
-export function CompanyDocuments({ companyId, storageProvider, googleDriveFolderId, includeEmailHistory = true }: Props) {
+export function CompanyDocuments({ companyId, fundId, storageProvider, googleDriveFolderId, includeEmailHistory = true }: Props) {
   const [documents, setDocuments] = useState<Document[]>([])
+  const [uploading, setUploading] = useState(false)
+  const [warning, setWarning] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const [loading, setLoading] = useState(true)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [expanded, setExpanded] = useState(true)
@@ -120,6 +129,54 @@ export function CompanyDocuments({ companyId, storageProvider, googleDriveFolder
     }
   }
 
+  /** Upload straight to the company-documents bucket, then register it so text is extracted. */
+  async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (file.size > MAX_FILE_SIZE) {
+      setError('File exceeds 20 MB limit')
+      return
+    }
+    const isOversized = file.size > TEXT_ONLY_THRESHOLD
+    setUploading(true)
+    setError(null)
+    setWarning(null)
+    try {
+      const supabase = createClient()
+      const storagePath = `${fundId}/${companyId}/${crypto.randomUUID()}-${file.name}`
+      const { error: uploadError } = await supabase.storage.from('company-documents').upload(storagePath, file)
+      if (uploadError) {
+        setError(`Upload failed: ${uploadError.message}`)
+        return
+      }
+      const fileExt = file.name.split('.').pop()
+      const res = await fetch(`/api/companies/${companyId}/documents`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          storagePath,
+          filename: file.name,
+          fileType: file.type || `application/${fileExt}`,
+          fileSize: file.size,
+          ...(isOversized ? { textOnly: true } : {}),
+        }),
+      })
+      if (!res.ok) {
+        const data = await res.json()
+        setError(data.error ?? 'Failed to register document')
+      } else {
+        if (isOversized) setWarning('File exceeds 10 MB, only extracted text was stored.')
+        setExpanded(true)
+        await load()
+      }
+    } catch {
+      setError('Upload failed')
+    } finally {
+      setUploading(false)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
+
   async function handleDelete(docId: string) {
     setDeletingId(docId)
     setError(null)
@@ -159,6 +216,7 @@ export function CompanyDocuments({ companyId, storageProvider, googleDriveFolder
 
   return (
     <div className="mt-6">
+      <input ref={fileInputRef} type="file" accept={ACCEPTED_TYPES} onChange={handleUpload} className="hidden" />
       <div className="flex items-center justify-between mb-2">
         <button
           onClick={() => setExpanded(!expanded)}
@@ -171,10 +229,24 @@ export function CompanyDocuments({ companyId, storageProvider, googleDriveFolder
             <span className="text-xs bg-muted rounded-full px-1.5 py-0.5">{documents.length}</span>
           )}
         </button>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={uploading}
+          title="Upload a document for this company"
+          className="text-muted-foreground"
+        >
+          {uploading ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Upload className="h-3.5 w-3.5 mr-1.5" />}
+          {uploading ? 'Uploading…' : 'Upload'}
+        </Button>
       </div>
 
       {error && (
         <p className="text-sm text-destructive mb-2">{error}</p>
+      )}
+      {warning && (
+        <p className="text-sm text-warning mb-2">{warning}</p>
       )}
 
       {expanded && documents.length > 0 && (
@@ -293,8 +365,8 @@ export function CompanyDocuments({ companyId, storageProvider, googleDriveFolder
       {expanded && documents.length === 0 && (
         <p className="text-xs text-muted-foreground px-3 py-2">
           {includeEmailHistory
-            ? 'No documents or email activity yet. Upload files from the Analyst above, or process an email for this company.'
-            : 'No uploaded documents yet. Upload files from the Analyst above.'}
+            ? 'No documents or email activity yet. Upload a file here, or process an email for this company.'
+            : 'No uploaded documents yet. Upload a file here.'}
         </p>
       )}
     </div>

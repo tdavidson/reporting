@@ -42,6 +42,8 @@ export interface ClaimedArtifact {
   id: string
   fund_id: string
   update_id: string
+  ordinal: number
+  attachment_key: string
   filename: string
   detected_content_type: string | null
   declared_content_type: string | null
@@ -104,12 +106,7 @@ export async function runOcrBatch(
 }
 
 async function ocrOneArtifact(admin: OcrAdmin, artifact: ClaimedArtifact, engine: OcrEngine): Promise<'complete' | 'no_text'> {
-  if (!artifact.storage_path) {
-    throw new Error('Source bytes are not stored; OCR cannot run on a descriptor-only attachment.')
-  }
-  const { data, error } = await admin.storage.from('email-attachments').download(artifact.storage_path)
-  if (error || !data) throw new Error(`Could not download ${artifact.storage_path}: ${error?.message ?? 'no data'}`)
-  const buffer = Buffer.from(await data.arrayBuffer())
+  const buffer = await loadArtifactBytes(admin, artifact)
   const contentType = artifact.detected_content_type ?? artifact.declared_content_type ?? ''
 
   let parsed: ParsedContent
@@ -145,6 +142,40 @@ async function ocrOneArtifact(admin: OcrAdmin, artifact: ClaimedArtifact, engine
   })
   if (applyError) throw new Error(`Could not apply OCR result: ${applyError.message}`)
   return parsed.text ? 'complete' : 'no_text'
+}
+
+/**
+ * The artifact's original bytes: from storage when the attachment was written there, otherwise
+ * from the base64 Content still inline in the source email's stored payload (older ingestion kept
+ * it there). Only the one attachment's Content is selected, by ordinal, so a large email does not
+ * have to be served whole.
+ */
+export async function loadArtifactBytes(admin: OcrAdmin, artifact: ClaimedArtifact): Promise<Buffer> {
+  if (artifact.storage_path) {
+    const { data, error } = await admin.storage.from('email-attachments').download(artifact.storage_path)
+    if (error || !data) throw new Error(`Could not download ${artifact.storage_path}: ${error?.message ?? 'no data'}`)
+    return Buffer.from(await data.arrayBuffer())
+  }
+  const { data: update } = await admin
+    .from('company_updates')
+    .select('source_email_id')
+    .eq('id', artifact.update_id)
+    .eq('fund_id', artifact.fund_id)
+    .maybeSingle()
+  const emailId = (update as { source_email_id?: string } | null)?.source_email_id
+  if (!emailId) throw new Error('Source bytes are not stored and the source email could not be found.')
+  const { data: inline, error } = await admin
+    .from('inbound_emails')
+    .select(`content:raw_payload->Attachments->${artifact.ordinal}->>Content, name:raw_payload->Attachments->${artifact.ordinal}->>Name`)
+    .eq('id', emailId)
+    .eq('fund_id', artifact.fund_id)
+    .maybeSingle()
+  if (error) throw new Error(`Could not read inline attachment bytes: ${error.message}`)
+  const row = inline as { content?: string | null; name?: string | null } | null
+  if (!row?.content || row.name !== artifact.filename) {
+    throw new Error('Source bytes are not stored; OCR cannot run on a descriptor-only attachment.')
+  }
+  return Buffer.from(row.content.replace(/\s/g, ''), 'base64')
 }
 
 export async function ocrImage(buffer: Buffer, mediaType: string, engine: OcrEngine): Promise<ParsedContent> {

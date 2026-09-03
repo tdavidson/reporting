@@ -59,6 +59,26 @@ describe('redirect_uri matching', () => {
     expect(redirectUriAllowed(client, 'https://claude.ai.evil.com/api/mcp/auth_callback')).toBe(false)
     expect(redirectUriAllowed(client, 'https://evil.com/api/mcp/auth_callback')).toBe(false)
   })
+
+  // Registration now accepts reverse-DNS native schemes so an iOS app can exist at all
+  // (lib/oauth/redirect-uri.ts). Widening what may be REGISTERED must not widen what may be
+  // REDIRECTED TO: this is still verbatim comparison against the stored string, and it is the last
+  // thing standing between an authorization code and whoever asked for it.
+  const nativeClient = { ...client, redirect_uris: ['com.hemrock.reporting://oauth'] }
+
+  it('accepts a registered native scheme exactly', () => {
+    expect(redirectUriAllowed(nativeClient, 'com.hemrock.reporting://oauth')).toBe(true)
+  })
+
+  it('rejects near-misses on a native scheme as flatly as on an https one', () => {
+    // A different app claiming a neighbouring scheme, a suffix, a query, a different case.
+    expect(redirectUriAllowed(nativeClient, 'com.hemrock.reporting.evil://oauth')).toBe(false)
+    expect(redirectUriAllowed(nativeClient, 'com.hemrock.reporting://oauth/steal')).toBe(false)
+    expect(redirectUriAllowed(nativeClient, 'com.hemrock.reporting://oauth?x=1')).toBe(false)
+    expect(redirectUriAllowed(nativeClient, 'COM.HEMROCK.REPORTING://oauth')).toBe(false)
+    // …and the https URI the same client did NOT register.
+    expect(redirectUriAllowed(nativeClient, 'https://claude.ai/api/mcp/auth_callback')).toBe(false)
+  })
 })
 
 describe('scope ceiling', () => {

@@ -16,7 +16,16 @@ function fakeAdmin(claimed: any[], options: { applyError?: string } = {}) {
   return {
     applies,
     client: {
-      from() { throw new Error('unexpected table access') },
+      // No inline bytes on the source email: the descriptor-only fallback finds nothing.
+      from(table: string) {
+        return {
+          select() {
+            const q: any = { eq: () => q }
+            q.maybeSingle = async () => ({ data: table === 'company_updates' ? { source_email_id: 'e1' } : { content: null, name: null }, error: null })
+            return q
+          },
+        }
+      },
       async rpc(name: string, args: any) {
         if (name === 'company_update_ocr_claim') return { data: claimed, error: null }
         if (name === 'company_update_artifact_apply_ocr') {
@@ -55,7 +64,7 @@ describe('Company Update OCR path', () => {
   })
 
   it('merges OCR pages into a scanned PDF and marks them in text and locators', async () => {
-    const artifact = { id: 'a1', fund_id: 'f1', update_id: 'u1', filename: 'scan.pdf', detected_content_type: 'application/pdf', declared_content_type: null, storage_path: 'e/0_scan.pdf', ocr_attempts: 1, metadata: {} }
+    const artifact = { id: 'a1', fund_id: 'f1', update_id: 'u1', ordinal: 0, attachment_key: 'storage:e/0_scan.pdf', filename: 'scan.pdf', detected_content_type: 'application/pdf', declared_content_type: null, storage_path: 'e/0_scan.pdf', ocr_attempts: 1, metadata: {} }
     const parsed = await ocrPdf(minimalPdf(''), artifact, fakeEngine())
     expect(parsed.status).toBe('complete')
     expect(parsed.text).toContain('[Page 1 (OCR)]')
@@ -64,7 +73,7 @@ describe('Company Update OCR path', () => {
   })
 
   it('records pages OCR could not read instead of calling the document complete', async () => {
-    const artifact = { id: 'a1', fund_id: 'f1', update_id: 'u1', filename: 'scan.pdf', detected_content_type: 'application/pdf', declared_content_type: null, storage_path: 'e/0_scan.pdf', ocr_attempts: 1, metadata: {} }
+    const artifact = { id: 'a1', fund_id: 'f1', update_id: 'u1', ordinal: 0, attachment_key: 'storage:e/0_scan.pdf', filename: 'scan.pdf', detected_content_type: 'application/pdf', declared_content_type: null, storage_path: 'e/0_scan.pdf', ocr_attempts: 1, metadata: {} }
     const parsed = await ocrPdf(minimalPdf(''), artifact, fakeEngine({ transcribePdfPages: async () => ({}) }))
     expect(parsed.status).toBe('failed')
     expect(parsed.warnings.join(' ')).toMatch(/OCR found no readable text on page 1/)
@@ -106,5 +115,51 @@ describe('Company Update OCR path', () => {
   it('parses page-delimited transcription output and ignores pages it did not ask for', () => {
     const parsed = parsePageDelimited('preamble\n=== PAGE 2 ===\nTwo\n=== PAGE 3 ===\n[NO TEXT]\n=== PAGE 9 ===\nNine', [2, 3])
     expect(parsed).toEqual({ 2: 'Two', 3: '' })
+  })
+})
+
+describe('OCR bytes for attachments never written to storage', () => {
+  const base = { id: 'a', fund_id: 'f1', update_id: 'u1', ordinal: 1, attachment_key: 'ordinal:1', filename: 'chart.png', detected_content_type: 'image/png', declared_content_type: null, storage_path: null, ocr_attempts: 1, metadata: {} }
+  function inlineAdmin(row: any) {
+    const selects: string[] = []
+    return {
+      selects,
+      client: {
+        rpc: async () => ({ data: null, error: null }),
+        storage: { from: () => ({ download: async () => { throw new Error('not expected') } }) },
+        from: (table: string) => ({
+          select: (cols: string) => {
+            selects.push(cols)
+            const q: any = { eq: () => q }
+            q.maybeSingle = async () => ({ data: table === 'company_updates' ? { source_email_id: 'e1' } : row, error: null })
+            return q
+          },
+        }),
+      },
+    }
+  }
+
+  it('reads the one attachment\'s inline Content by ordinal from the source email', async () => {
+    const { loadArtifactBytes } = await import('./ocr')
+    const admin = inlineAdmin({ content: pngBytes().toString('base64'), name: 'chart.png' })
+    const bytes = await loadArtifactBytes(admin.client as any, base)
+    expect(bytes.equals(pngBytes())).toBe(true)
+    expect(admin.selects.some(s => s.includes('raw_payload->Attachments->1->>Content'))).toBe(true)
+  })
+
+  it('refuses inline bytes whose filename does not match the artifact', async () => {
+    const { loadArtifactBytes } = await import('./ocr')
+    const admin = inlineAdmin({ content: pngBytes().toString('base64'), name: 'other.png' })
+    await expect(loadArtifactBytes(admin.client as any, base)).rejects.toThrow(/not stored/)
+  })
+})
+
+describe('OCR pages count as read whatever their length', () => {
+  it('keeps a short chart-title transcription as the page text instead of re-queuing it', async () => {
+    const { assemblePdfPages } = await import('./extraction')
+    const parsed = assemblePdfPages(['A full page of selectable text that is clearly long enough to count.', 'Revenue by cohort'], 2, { ocrPages: [2], ocrEngine: 'fake' })
+    expect(parsed.status).toBe('complete')
+    expect(parsed.metadata).toMatchObject({ ocrNeededPages: [], pagesWithText: 2, ocrPages: [2] })
+    expect(parsed.chunks.map(c => c.locator)).toEqual([expect.objectContaining({ page: 1 }), expect.objectContaining({ page: 2, ocr: true })])
   })
 })

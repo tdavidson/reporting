@@ -1,4 +1,10 @@
-import { API_VERSION, PRESENTATION_BLOCKS_VERSION, SERVER_VERSION } from '@/lib/api-v1/constants'
+import {
+  API_VERSION,
+  PRESENTATION_BLOCKS_VERSION,
+  SERVER_VERSION,
+  SUPPORTS_CHAT_STREAMING,
+  SUPPORTS_PUBLIC_DEMO,
+} from '@/lib/api-v1/constants'
 import { requestId, v1Json } from '@/lib/api-v1/response'
 
 export const dynamic = 'force-dynamic'
@@ -17,8 +23,10 @@ export async function GET() {
     },
     capabilities: {
       chat: true,
+      chatStreaming: SUPPORTS_CHAT_STREAMING,
       structuredBlocksVersion: PRESENTATION_BLOCKS_VERSION,
       pendingActions: true,
+      publicDemo: SUPPORTS_PUBLIC_DEMO,
     },
   }, {
     requestId: id,

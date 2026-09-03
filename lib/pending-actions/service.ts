@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { hasAccess } from '@/lib/access/effective'
-import type { AnalystPrincipal } from '@/lib/ai/analyst/types'
+import { isRestrictedCredential, type AnalystPrincipal } from '@/lib/ai/analyst/types'
 import { getWriteAction } from './registry'
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
@@ -111,6 +111,12 @@ async function loadAction(admin: SupabaseClient, fundId: string, id: string): Pr
 }
 
 function authorizeDecision(principal: AnalystPrincipal, row: PendingActionRow) {
+  // A restricted credential changes nothing, whatever its grants say. Checked here rather than at
+  // each route so approve and reject cannot diverge, and stated as a property of the credential so
+  // no request body can assert its way past it.
+  if (isRestrictedCredential(principal)) {
+    throw new PendingActionServiceError('This credential cannot decide pending actions.', 403, 'RESTRICTED_CREDENTIAL')
+  }
   const action = getWriteAction(row.action_type)
   if (!action) throw new PendingActionServiceError('Unknown pending-action type.', 400, 'UNKNOWN_ACTION_TYPE')
   if (!hasAccess(principal.access, action.domain, 'write', action.accessFeature)) {

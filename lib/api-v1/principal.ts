@@ -64,6 +64,9 @@ export async function resolveV1Principal(
     fundId: resolved.fundId,
     role: membership.role,
     access,
+    // Server-set, from the credential that was actually presented. Phase 8's demo exchange will
+    // mint 'demo' here; nothing a client sends can reach this field.
+    credentialKind: 'oauth',
     clientId: resolved.clientId,
     scopes,
   }

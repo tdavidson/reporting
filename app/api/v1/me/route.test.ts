@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   resolveV1Principal: vi.fn(),
   member: { data: { display_name: 'Ada' }, error: null } as any,
   fund: { data: { name: 'Hemrock Ventures' }, error: null } as any,
+  settings: { data: { default_ai_provider: 'anthropic', claude_api_key_encrypted: 'enc', openai_api_key_encrypted: null }, error: null } as any,
 }))
 
 vi.mock('@/lib/supabase/admin', () => ({
@@ -19,7 +20,11 @@ vi.mock('@/lib/supabase/admin', () => ({
       const chain: any = {
         select: () => chain,
         eq: () => chain,
-        maybeSingle: async () => (table === 'funds' ? mocks.fund : mocks.member),
+        maybeSingle: async () => {
+          if (table === 'funds') return mocks.fund
+          if (table === 'fund_settings') return mocks.settings
+          return mocks.member
+        },
       }
       return chain
     },
@@ -58,6 +63,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   mocks.member = { data: { display_name: 'Ada' }, error: null }
   mocks.fund = { data: { name: 'Hemrock Ventures' }, error: null }
+  mocks.settings = { data: { default_ai_provider: 'anthropic', claude_api_key_encrypted: 'enc', openai_api_key_encrypted: null }, error: null }
 })
 
 describe('GET /api/v1/me', () => {
@@ -102,6 +108,72 @@ describe('GET /api/v1/me', () => {
     mocks.resolveV1Principal.mockResolvedValue(principal({ role: 'admin', features: { accounting: 'everyone' } }))
     const raw = JSON.stringify(await (await GET(request())).json())
     expect(raw).not.toMatch(/token|secret|api_key|apiKey|featureVisibility|fund_member_access/i)
+  })
+
+  it('names the AI provider without disclosing anything about the key', async () => {
+    mocks.resolveV1Principal.mockResolvedValue(principal())
+    const body = await (await GET(request())).json()
+    expect(body.aiProvider).toEqual({ displayName: 'Anthropic Claude', configured: true })
+  })
+
+  it('reports a fund with no provider configured, rather than letting chat fail mysteriously', async () => {
+    mocks.resolveV1Principal.mockResolvedValue(principal())
+    mocks.settings = { data: { default_ai_provider: 'openai', claude_api_key_encrypted: 'enc', openai_api_key_encrypted: null }, error: null }
+    const body = await (await GET(request())).json()
+    // The DEFAULT provider is what chat will use, so an OpenAI default with only a Claude key
+    // configured is not configured.
+    expect(body.aiProvider).toEqual({ displayName: 'OpenAI', configured: false })
+  })
+
+  it('reports the credential kind the server resolved', async () => {
+    mocks.resolveV1Principal.mockResolvedValue({ ...principal(), credentialKind: 'oauth' })
+    const body = await (await GET(request())).json()
+    expect(body.credentialKind).toBe('oauth')
+    expect(body.isDemo).toBe(false)
+  })
+
+  it('marks a demo credential, and says it can neither stage nor approve', async () => {
+    mocks.resolveV1Principal.mockResolvedValue({
+      ...principal({ grants: { accounting: 'write' }, features: { accounting: 'everyone' } }),
+      credentialKind: 'demo',
+      scopes: ['read', 'write'],
+    })
+    const body = await (await GET(request())).json()
+    expect(body.credentialKind).toBe('demo')
+    expect(body.isDemo).toBe(true)
+    // Grants and scope both say write; the credential says no, and the credential wins.
+    expect(body.canStageActions).toBe(false)
+    expect(body.canApproveActions).toBe(false)
+  })
+
+  it('reports a read-only TOKEN as unable to stage, whatever the user’s grants allow', async () => {
+    mocks.resolveV1Principal.mockResolvedValue({
+      ...principal({ grants: { accounting: 'write' }, features: { accounting: 'everyone' } }),
+      scopes: ['read'],
+    })
+    const body = await (await GET(request())).json()
+    expect(body.access.accounting).toBe('write')
+    expect(body.canStageActions).toBe(false)
+    expect(body.canApproveActions).toBe(false)
+  })
+
+  it('reports a write-scoped member with write grants as able to stage and approve', async () => {
+    mocks.resolveV1Principal.mockResolvedValue({
+      ...principal({ grants: { accounting: 'write' }, features: { accounting: 'everyone' } }),
+      scopes: ['read', 'write'],
+    })
+    const body = await (await GET(request())).json()
+    expect(body.canStageActions).toBe(true)
+    expect(body.canApproveActions).toBe(true)
+  })
+
+  it('reports a member who can write nowhere as unable to approve', async () => {
+    mocks.resolveV1Principal.mockResolvedValue({
+      ...principal({ grants: { portfolio: 'read' } }),
+      scopes: ['read', 'write'],
+    })
+    const body = await (await GET(request())).json()
+    expect(body.canApproveActions).toBe(false)
   })
 
   it('passes an authentication failure through as the v1 envelope', async () => {

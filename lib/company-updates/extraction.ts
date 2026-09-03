@@ -274,7 +274,10 @@ export function assemblePdfPages(
   options: { ocrPages?: number[]; ocrEngine?: string } = {},
 ): ParsedContent {
   const ocrPages = new Set(options.ocrPages ?? [])
-  const textless = pages.flatMap((page, index) => (isNearlyTextless(page) ? [index + 1] : []))
+  // A page OCR has already read is read: its transcription IS the page's text, however short
+  // (a chart title), so it is neither queued again nor dropped from the chunks.
+  const unread = (page: string, index: number) => !ocrPages.has(index + 1) && isNearlyTextless(page)
+  const textless = pages.flatMap((page, index) => (unread(page, index) ? [index + 1] : []))
   const pagesWithText = pages.length - textless.length
   const text = pages
     .map((page, index) => {
@@ -285,7 +288,7 @@ export function assemblePdfPages(
     .join('\n\n')
     .trim()
   const chunks = pages.flatMap((page, index) => {
-    if (isNearlyTextless(page)) return []
+    if (unread(page, index) || !page) return []
     const number = index + 1
     const locator: Record<string, unknown> = { page: number }
     if (ocrPages.has(number)) locator.ocr = true

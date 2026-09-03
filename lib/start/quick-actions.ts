@@ -59,7 +59,7 @@ const SUGGESTED_PROMPTS: SuggestedPrompt[] = [
 
 const CREATE_ACTIONS: CreateAction[] = [
   { id: 'add-company', label: 'Add a company', kind: 'modal', domain: 'portfolio' },
-  { id: 'import', label: 'Import data', kind: 'link', href: '/import', domain: 'portfolio', feature: 'imports' },
+  { id: 'import-documents', label: 'Import documents', kind: 'modal', domain: 'portfolio', feature: 'imports' },
   { id: 'add-deal', label: 'Add a deal', kind: 'link', href: '/deals', domain: 'dealflow', feature: 'deals' },
   { id: 'add-vehicle', label: 'Add a vehicle', kind: 'modal', domain: 'accounting' },
 ]

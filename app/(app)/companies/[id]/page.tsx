@@ -205,7 +205,6 @@ export default async function CompanyDetailPage({
             <>
               <CompanySummary
                 companyId={company.id}
-                fundId={company.fund_id}
                 hasClaudeKey={!!fundSettings?.claude_api_key_encrypted}
                 hasOpenAIKey={!!fundSettings?.openai_api_key_encrypted}
                 defaultAIProvider={fundSettings?.default_ai_provider ?? 'anthropic'}
@@ -229,6 +228,7 @@ export default async function CompanyDetailPage({
 
           <CompanyDocuments
             companyId={company.id}
+            fundId={company.fund_id}
             storageProvider={fundSettings?.file_storage_provider ?? null}
             googleDriveFolderId={fundSettings?.google_drive_folder_id ?? null}
             includeEmailHistory={!hasCapturedUpdates}

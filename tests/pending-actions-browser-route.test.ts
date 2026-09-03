@@ -150,6 +150,23 @@ describe('POST /api/pending-actions/:id/approve', () => {
     expect(table[0].status).toBe('pending')
   })
 
+  it('refuses a RESTRICTED credential outright, whatever its grants and scope say', async () => {
+    // The demo case, ahead of Phase 8 issuing one. The restriction is a property of the credential,
+    // so it is checked in the shared service and cannot be asserted away by a request body.
+    mocks.principal = { ...principal('write'), credentialKind: 'demo' }
+    const response = await approve(post(), params)
+    expect(response.status).toBe(403)
+    expect((await response.json()).error).toMatch(/cannot decide pending actions/i)
+    expect(mocks.execute).not.toHaveBeenCalled()
+    expect(table[0].status).toBe('pending')
+  })
+
+  it('refuses a restricted credential at reject too, not only at approve', async () => {
+    mocks.principal = { ...principal('write'), credentialKind: 'demo' }
+    expect((await reject(post(), params)).status).toBe(403)
+    expect(table[0].status).toBe('pending')
+  })
+
   it('refuses when the grant has been revoked since the action was staged', async () => {
     mocks.principal = principal('none')
     expect((await approve(post(), params)).status).toBe(403)

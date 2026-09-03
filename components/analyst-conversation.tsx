@@ -159,9 +159,17 @@ export function AnalystConversation({
     }
   }
 
+  // Per-answer meta (when it was asked, how long the answer took, which model answered), keyed by
+  // the answer's index like `proposals`. Not persisted: a reloaded conversation shows none.
+  const [turnMeta, setTurnMeta] = useState<Record<number, { at: number; ms: number; model: string | null }>>({})
+  useEffect(() => {
+    if (messages.length === 0) setTurnMeta({})
+  }, [messages.length])
+
   async function handleSend() {
     // With a document attached, "record this" is implied — no typing required.
     if ((!input.trim() && !doc) || loading) return
+    const startedAt = Date.now()
     const userMessage = {
       role: 'user' as const,
       content: input.trim() || `Draft the entry that records ${doc?.name ?? 'the attached document'}.`,
@@ -193,6 +201,10 @@ export function AnalystConversation({
         return
       }
       setMessages(prev => [...prev, { role: 'assistant', content: data.reply }])
+      setTurnMeta(prev => ({
+        ...prev,
+        [newMessages.length]: { at: startedAt, ms: Date.now() - startedAt, model: modelLabel(data.model) },
+      }))
       if (Array.isArray(data.proposals) && data.proposals.length > 0) {
         setProposals(prev => ({ ...prev, [newMessages.length]: data.proposals }))
       }
@@ -255,12 +267,26 @@ export function AnalystConversation({
   // question is scannable at a glance. The ANSWER stays at the reading measure inside it, so the
   // gap between the two shapes is real rather than a few pixels of inset. The panel is narrower
   // than either, so it caps nothing.
-  const threadColumn = isPage ? 'mx-auto w-full max-w-4xl' : ''
+  const threadColumn = isPage ? 'mx-auto w-full max-w-3xl' : ''
   const answerColumn = isPage ? 'max-w-readable' : ''
   // The page opens on an empty thread and is meant to look like an invitation rather than an empty
   // transcript: hero, composer, shortcuts, vertically centred. The moment there is a thread it
   // becomes an ordinary conversation.
   const heroLayout = isPage && messages.length === 0 && !showHistory && !loading
+
+  /** Human name for a model the server reports it used; falls back to the raw id. */
+  function modelLabel(model: { id?: string; provider?: string } | null | undefined): string | null {
+    if (!model?.id) return null
+    return availableModels.find(m => m.id === model.id && (!model.provider || m.provider === model.provider))?.name ?? model.id
+  }
+  const firstTurn = Object.values(turnMeta).sort((a, b) => a.at - b.at)[0]
+  const threadMeta = isPage && messages.length > 0 && (
+    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+      <span>{new Date(firstTurn?.at ?? Date.now()).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}</span>
+      <span aria-hidden>·</span>
+      <span>{selectedModel ? selectedModel.name : `Auto${firstTurn?.model ? ` (${firstTurn.model})` : ''}`}</span>
+    </div>
+  )
 
   const modelPicker = availableModels.length > 0 && !showHistory && (
     <Select
@@ -293,7 +319,7 @@ export function AnalystConversation({
   // So the page header is the action group alone, in the same outline-button idiom every other
   // page's toolbar uses; the panel keeps its compact icon row, where labels would not fit.
   const pageHeader = (
-    <div className="flex items-center justify-end gap-2 mb-2">
+    <div className="flex items-center justify-end gap-2 mb-4">
         {modelPicker}
         <Button
           variant="outline"
@@ -401,6 +427,7 @@ export function AnalystConversation({
         {messages.length === 0 && !loading && !isPage && (
           <p className="text-xs text-muted-foreground">{emptyState(scope)}</p>
         )}
+        {threadMeta}
         {messages.map((msg, i) =>
           msg.role === 'user' ? (
             <div key={i} className="flex justify-end">
@@ -410,6 +437,11 @@ export function AnalystConversation({
             </div>
           ) : (
             <div key={i} className={`space-y-2 ${answerColumn}`}>
+              {turnMeta[i] && (
+                <p className="text-xs text-muted-foreground tabular-nums">
+                  {(turnMeta[i].ms / 1000).toFixed(1)}s{turnMeta[i].model ? ` · ${turnMeta[i].model}` : ''}
+                </p>
+              )}
               <Markdown>{msg.content}</Markdown>
               {proposals[i] && <AnalystProposals proposals={proposals[i]} vehicle={vehicle} />}
               {stagedActions[i] && <AnalystPendingActions actions={stagedActions[i]} />}

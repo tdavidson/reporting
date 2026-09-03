@@ -5,8 +5,9 @@
 //   npx tsx --env-file=.env.local scripts/backfill-company-updates.ts --fund <fund_id> --full [--reprocess] [--concurrency 3]
 //   npx tsx --env-file=.env.local scripts/backfill-company-updates.ts --resume <job_id> [--retry-failed]
 //   npx tsx --env-file=.env.local scripts/backfill-company-updates.ts --status <job_id>
-//   npx tsx --env-file=.env.local scripts/backfill-company-updates.ts --fund <fund_id> --ocr [limit]
-//     (drains the fund's OCR queue with its configured vision model — this spends model tokens)
+//   npx tsx --env-file=.env.local scripts/backfill-company-updates.ts --fund <fund_id> --ocr [limit] [--requeue failed|partial]
+//     (drains the fund's OCR queue with its configured vision model — this spends model tokens;
+//      --requeue failed re-queues OCR failures, --requeue partial re-queues OCR'd PDFs still partial)
 //
 // Resumable: a job's items live in company_update_backfill_items; re-running with --resume claims
 // whatever is still pending (including transient failures returned to the queue). Safe alongside
@@ -48,6 +49,18 @@ async function main() {
   if (flag('ocr')) {
     if (!fundId) throw new Error('--fund <fund_id> is required with --ocr')
     const limit = Number.parseInt(arg('ocr') ?? '', 10) || 10
+    const requeue = arg('requeue')
+    if (requeue === 'failed' || requeue === 'partial') {
+      let q = admin.from('company_update_artifacts')
+        .update({ ocr_status: 'pending', ocr_attempts: 0, ocr_error: null, ocr_updated_at: new Date().toISOString() })
+        .eq('fund_id', fundId)
+      q = requeue === 'failed'
+        ? q.eq('ocr_status', 'failed')
+        : q.eq('ocr_status', 'complete').eq('extraction_status', 'partial').eq('detected_content_type', 'application/pdf')
+      const { data, error } = await q.select('id')
+      if (error) throw new Error(`Could not requeue: ${error.message}`)
+      console.log(`Requeued ${(data ?? []).length} artifact(s) for OCR.`)
+    }
     let totals = { claimed: 0, completed: 0, failed: 0, retried: 0 }
     for (;;) {
       const result = await runOcrBatch(admin, { fundId, limit: Math.min(limit - totals.claimed, 5) })

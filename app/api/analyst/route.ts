@@ -65,6 +65,8 @@ export async function POST(req: NextRequest) {
     // Preserve the web contract while extending it with safely ignorable versioned blocks.
     return NextResponse.json({
       reply: result.reply,
+      // Which model actually answered (Auto resolves server-side), for the transcript's meta line.
+      model: result.usage ? { id: result.usage.model, provider: result.usage.provider } : null,
       conversationId: result.conversationId,
       proposals: result.proposals,
       vehicle: result.vehicle,

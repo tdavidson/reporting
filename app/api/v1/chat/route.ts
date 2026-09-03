@@ -1,5 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { runAnalyst } from '@/lib/ai/analyst/orchestrator'
+import { isRestrictedCredential } from '@/lib/ai/analyst/types'
 import { AnalystRequestError, type AnalystDomain } from '@/lib/ai/analyst/types'
 import { getConversation } from '@/lib/api-v1/conversations'
 import { resolveV1Principal, V1PrincipalError } from '@/lib/api-v1/principal'
@@ -82,7 +83,9 @@ export async function POST(req: Request) {
       messages,
       conversationId,
       scope: parseScope(body.scope),
-      allowDrafts: principal.scopes.includes('write'),
+      // Two ceilings, both server-side: the token's scope, and the credential's kind. A demo
+      // credential never stages, so the model is never offered a write tool to stage with.
+      allowDrafts: principal.scopes.includes('write') && !isRestrictedCredential(principal),
     }, {
       admin,
       isRateLimited: spec => limited(`api-v1:${principal.fundId}:${spec.key}`, spec.limit, spec.windowSeconds),

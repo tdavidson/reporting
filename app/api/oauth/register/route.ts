@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { registerClient } from '@/lib/oauth/store'
+import { validateRedirectUri } from '@/lib/oauth/redirect-uri'
 import { rateLimit, getClientIp } from '@/lib/rate-limit'
 
 /**
@@ -17,7 +18,7 @@ import { rateLimit, getClientIp } from '@/lib/rate-limit'
  * person's fund and capped by THEIR role. An unused registration is an inert row.
  *
  * What it is NOT allowed to be is an open redirect, so redirect_uris are validated
- * here and then exact-matched at both /authorize and /token.
+ * here (lib/oauth/redirect-uri.ts) and then exact-matched at both /authorize and /token.
  */
 
 export const dynamic = 'force-dynamic'
@@ -47,26 +48,12 @@ export async function POST(req: NextRequest) {
     return err('invalid_redirect_uri', `At most ${MAX_REDIRECT_URIS} redirect URIs`)
   }
 
+  // The policy, and the reasoning behind admitting native schemes, lives in lib/oauth/redirect-uri.ts.
   const uris: string[] = []
   for (const raw of redirectUris) {
-    if (typeof raw !== 'string') return err('invalid_redirect_uri', 'redirect_uris must be strings')
-
-    let parsed: URL
-    try {
-      parsed = new URL(raw)
-    } catch {
-      return err('invalid_redirect_uri', `Not a valid URL: ${raw}`)
-    }
-
-    // https only, with a localhost carve-out for desktop/CLI clients that loop
-    // back to 127.0.0.1. Anything else — javascript:, data:, plain http to a
-    // remote host — is a credential-exfiltration channel, not a callback.
-    const isLoopback = parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1' || parsed.hostname === '[::1]'
-    const ok = parsed.protocol === 'https:' || (parsed.protocol === 'http:' && isLoopback)
-    if (!ok) {
-      return err('invalid_redirect_uri', 'redirect_uris must be https (or http on loopback)')
-    }
-    uris.push(raw)
+    const verdict = validateRedirectUri(raw)
+    if (!verdict.ok) return err('invalid_redirect_uri', verdict.reason)
+    uris.push(raw as string)
   }
 
   // Public client (PKCE, no secret) is the default and is what Claude registers as.
