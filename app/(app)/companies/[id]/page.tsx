@@ -29,6 +29,7 @@ import { ChatButton, CompanyNotesPanel } from './company-notes'
 import { AnalystButton } from './company-analyst'
 import { AnalystPanel } from '@/components/analyst-panel'
 import { CompanyDocuments } from './company-documents'
+import { CompanyUpdates } from './company-updates'
 import { CompanyInvestments } from './company-investments'
 import { CompanyInteractions } from './company-interactions'
 import { DEFAULT_FEATURE_VISIBILITY } from '@/lib/types/features'
@@ -216,6 +217,10 @@ export default async function CompanyDetailPage({
           {showInvestments && (
             <CompanyInvestments companyId={company.id} companyStatus={company.status as CompanyStatus} portfolioGroups={company.portfolio_group ?? []} adminOnly={featureVisibility.investments === 'admin'} />
           )}
+
+          <div id="updates">
+            <CompanyUpdates companyId={company.id} />
+          </div>
 
           <CompanyDocuments
             companyId={company.id}

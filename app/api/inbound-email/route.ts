@@ -135,6 +135,14 @@ async function handleInbound(req: NextRequest) {
       const scanResult = await scanFileAsync(buffer, att.Name, att.ContentType)
       if (!scanResult.safe) {
         console.warn(`[inbound-email] Skipping unsafe attachment "${att.Name}": ${scanResult.reason}`)
+        // Preserve the source ordinal even though unsafe bytes are not stored. Company Updates
+        // must show a failed artifact rather than silently losing an attachment on reprocessing.
+        updatedAttachments.push({
+          Name: att.Name,
+          ContentType: att.ContentType,
+          ContentLength: att.ContentLength,
+          ContentError: `Safety scan failed: ${scanResult.reason ?? 'unknown reason'}`,
+        })
         continue
       }
 
@@ -287,4 +295,3 @@ async function resolveFund(
 
   return { fundId: senders[0].fund_id, isGlobal: true }
 }
-

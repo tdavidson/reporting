@@ -764,3 +764,48 @@ export function constructionModel(
     warnings,
   }
 }
+
+/**
+ * Where the forecasted total value COMES FROM — the three sources that add up to it.
+ *
+ * `forecastedTotalValue` is one number on the page, and one number cannot say whether a 3x fund
+ * is 3x because a company already exited, because a lot of cost is sitting at carrying value, or
+ * because the forecast is asking for a large gain that has not happened yet. Those are very
+ * different plans. This splits it:
+ *
+ *   realizedProceeds  cash already back from exits and secondaries
+ *   investedAtWork    cost basis still deployed or committed to a plan — the part that is not gain
+ *   forecastGain      what the forecast asks the remaining book to add on top of that cost
+ *
+ * The three sum to `forecastedTotalValue` by construction, so a chart of them can never disagree
+ * with the MOIC printed beside it. An exited company appears ONLY in realizedProceeds: its cost
+ * is not at work any more, and counting it again would double it against a forecast it no longer
+ * has (`estimatedReturn` is null for an exited row).
+ *
+ * `forecastGain` is signed. A marked-down book returns a negative number rather than a floored
+ * zero — the caller decides how to draw that; the model does not misreport the direction.
+ */
+export interface ValueSources {
+  realizedProceeds: number
+  investedAtWork: number
+  forecastGain: number
+  /** Equal to `returns.forecastedTotalValue`. */
+  total: number
+}
+
+export function valueSources(result: ConstructionResult): ValueSources {
+  const { returns } = result
+  const realizedProceeds = r(returns.positions.reduce((s, p) => s + p.actual.distributions, 0))
+  const investedAtWork = r(
+    returns.positions
+      .filter(p => p.isForecasted)
+      .reduce((s, p) => s + p.actual.investedTotal + p.forecast.plannedFollowOn, 0) +
+    returns.stages.reduce((s, st) => s + st.allocation, 0),
+  )
+  return {
+    realizedProceeds,
+    investedAtWork,
+    forecastGain: r(returns.estimatedPortfolioValue - investedAtWork),
+    total: returns.forecastedTotalValue,
+  }
+}

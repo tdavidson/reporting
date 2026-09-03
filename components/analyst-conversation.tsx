@@ -90,6 +90,7 @@ export function AnalystConversation({
     deleteConversation,
     showHistory,
     setShowHistory,
+    ensureModels,
   } = useAnalystContext()
 
   const [input, setInput] = useState('')
@@ -113,6 +114,19 @@ export function AnalystConversation({
       setTimeout(() => inputRef.current?.focus(), 50)
     }
   }, [autoFocus])
+
+  // The picker can't offer models it never asked for. The panel used to be the only thing that
+  // triggered the fetch, which left /start with no picker at all.
+  useEffect(() => { void ensureModels() }, [ensureModels])
+
+  // The composer starts one line tall and grows with what's typed, up to a cap past which it
+  // scrolls — a three-row box standing empty was the largest thing on the page.
+  useEffect(() => {
+    const el = inputRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${Math.min(el.scrollHeight, variant === 'page' ? 240 : 160)}px`
+  }, [input, variant, doc])
 
   // The thread was reset (new conversation, or a scope change cleared it) — the drafts that went
   // with those messages go too, since they're keyed by message index.
@@ -236,10 +250,13 @@ export function AnalystConversation({
   const modelKey = selectedModel ? `${selectedModel.provider}:${selectedModel.id}` : 'auto'
   const scope: Scope = { dealId, companyId, vehicle, domain }
   const isPage = variant === 'page'
-  // The page runs at the app's full page width so its header lines up with every other page's;
-  // the thread itself still reads in a measure, centred the way Claude and ChatGPT centre theirs.
-  // The panel is already narrower than the measure, so it caps nothing.
-  const readableColumn = isPage ? 'mx-auto w-full max-w-readable' : ''
+  // Two widths, doing two different jobs. The THREAD is the wider one: it sets how far a
+  // right-aligned question can travel from the left edge, and that travel is the whole reason a
+  // question is scannable at a glance. The ANSWER stays at the reading measure inside it, so the
+  // gap between the two shapes is real rather than a few pixels of inset. The panel is narrower
+  // than either, so it caps nothing.
+  const threadColumn = isPage ? 'mx-auto w-full max-w-4xl' : ''
+  const answerColumn = isPage ? 'max-w-readable' : ''
   // The page opens on an empty thread and is meant to look like an invitation rather than an empty
   // transcript: hero, composer, shortcuts, vertically centred. The moment there is a thread it
   // becomes an ordinary conversation.
@@ -271,17 +288,12 @@ export function AnalystConversation({
     </Select>
   )
 
-  // The page header is the app's standard one — h1 + description on the left, an action group on
-  // the right — so /start reads as a page rather than a panel that grew. The model picker and the
-  // two conversation controls are ordinary outline actions there, matching every other page's
-  // toolbar; the panel keeps its compact icon row, where a labelled button would not fit.
+  // No h1 here on purpose. An "Analyst" title above a "What would you like to do?" hero was two
+  // titles for one page, and the hero is the better of the two — it says what the page is FOR.
+  // So the page header is the action group alone, in the same outline-button idiom every other
+  // page's toolbar uses; the panel keeps its compact icon row, where labels would not fit.
   const pageHeader = (
-    <div className="flex items-end justify-between gap-3 mb-6">
-      <div className="space-y-1 min-w-0 flex-1">
-        <h1 className="text-2xl font-semibold tracking-tight">Analyst</h1>
-        <p className="text-sm text-muted-foreground">{emptyState(scope)}</p>
-      </div>
-      <div className="flex items-center gap-2 shrink-0">
+    <div className="flex items-center justify-end gap-2 mb-2">
         {modelPicker}
         <Button
           variant="outline"
@@ -301,7 +313,6 @@ export function AnalystConversation({
           <Plus className="h-3.5 w-3.5" />
           New
         </Button>
-      </div>
     </div>
   )
 
@@ -338,7 +349,7 @@ export function AnalystConversation({
 
   const historyView = (
     <div className={`flex-1 overflow-y-auto pb-3 ${isPage ? 'px-1' : 'px-4'}`}>
-     <div className={readableColumn}>
+     <div className={threadColumn}>
       <div className="flex items-center gap-2 mb-3">
         <button onClick={() => setShowHistory(false)} className="p-1 rounded hover:bg-muted">
           <ArrowLeft className="h-3.5 w-3.5 text-muted-foreground" />
@@ -386,19 +397,19 @@ export function AnalystConversation({
   // like the start of one. Shared by both variants: the panel is the same thread, narrower.
   const transcript = (
     <div ref={scrollRef} className={`flex-1 overflow-y-auto ${isPage ? 'px-1 pb-6' : 'px-4 pb-3'}`}>
-      <div className={`${readableColumn} ${isPage ? 'space-y-6' : 'space-y-4'}`}>
+      <div className={`${threadColumn} ${isPage ? 'space-y-6' : 'space-y-4'}`}>
         {messages.length === 0 && !loading && !isPage && (
           <p className="text-xs text-muted-foreground">{emptyState(scope)}</p>
         )}
         {messages.map((msg, i) =>
           msg.role === 'user' ? (
             <div key={i} className="flex justify-end">
-              <div className="max-w-[85%] rounded-card bg-muted px-4 py-2.5 text-sm whitespace-pre-wrap">
+              <div className="max-w-[80%] rounded-card bg-muted px-4 py-2.5 text-sm whitespace-pre-wrap">
                 {msg.content}
               </div>
             </div>
           ) : (
-            <div key={i} className="space-y-2">
+            <div key={i} className={`space-y-2 ${answerColumn}`}>
               <Markdown>{msg.content}</Markdown>
               {proposals[i] && <AnalystProposals proposals={proposals[i]} vehicle={vehicle} />}
               {stagedActions[i] && <AnalystPendingActions actions={stagedActions[i]} />}
@@ -448,7 +459,9 @@ export function AnalystConversation({
     }
   }
 
-  /** The page composer: one filled surface with the send control tucked into its corner. */
+  /** The page composer: one filled surface with the send control tucked into its corner. One row
+   *  tall at rest — the effect above grows it as the question does — and `pr-14` keeps the text
+   *  clear of the send button rather than reserving a band of empty rows below it. */
   const largeComposer = (
     <div className="relative rounded-card border bg-muted/40 focus-within:ring-1 focus-within:ring-ring transition-colors duration-200 ease-out-soft">
       <textarea
@@ -457,15 +470,15 @@ export function AnalystConversation({
         onChange={e => setInput(e.target.value)}
         onKeyDown={onKeyDown}
         placeholder={inputPlaceholder(scope)}
-        rows={3}
-        className="w-full resize-none bg-transparent px-4 pt-4 pb-12 text-sm placeholder:text-muted-foreground focus-visible:outline-none"
+        rows={1}
+        className="block w-full resize-none overflow-y-auto bg-transparent px-4 py-3 pr-14 text-sm leading-relaxed placeholder:text-muted-foreground focus-visible:outline-none"
       />
       <Button
         size="icon"
         onClick={handleSend}
         disabled={(!input.trim() && !doc) || loading}
         aria-label="Send"
-        className="absolute bottom-3 right-3 h-8 w-8 rounded-full"
+        className="absolute bottom-2 right-2 h-8 w-8 rounded-full"
       >
         <ArrowUp className="h-4 w-4" />
       </Button>
@@ -480,8 +493,8 @@ export function AnalystConversation({
         onChange={e => setInput(e.target.value)}
         onKeyDown={onKeyDown}
         placeholder={inputPlaceholder(scope)}
-        rows={2}
-        className="w-full resize-none rounded-md border bg-transparent px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+        rows={1}
+        className="block w-full resize-none overflow-y-auto rounded-md border bg-transparent px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
       />
       <Button
         size="icon"
@@ -496,7 +509,7 @@ export function AnalystConversation({
   )
 
   const suggestionChips = suggestions && suggestions.length > 0 && messages.length === 0 && (
-    <div className={`flex flex-wrap justify-center gap-2 ${readableColumn}`}>
+    <div className={`flex flex-wrap justify-center gap-2 ${threadColumn}`}>
       {suggestions.map(s => (
         <button
           key={s}
@@ -514,7 +527,7 @@ export function AnalystConversation({
   )
 
   const composerBlock = (
-    <div className={isPage ? readableColumn : 'px-4 py-3'}>
+    <div className={isPage ? threadColumn : 'px-4 py-3'}>
       {attachment}
       {isPage ? largeComposer : smallComposer}
     </div>
@@ -533,7 +546,7 @@ export function AnalystConversation({
         {showHistory ? (
           <div className="flex flex-col flex-1 min-h-0">{historyView}</div>
         ) : heroLayout ? (
-          <div className={`flex flex-1 flex-col justify-center gap-8 py-10 ${readableColumn}`}>
+          <div className={`flex flex-1 flex-col gap-6 pt-6 ${threadColumn}`}>
             {hero}
             <div className="space-y-4">
               {composerBlock}

@@ -140,7 +140,12 @@ export async function runAnalyst(
     systemPrompt = context.systemPrompt
     systemPrompt += '\n\nYou are the Analyst for this portfolio company. Answer questions using the data provided below. Reference specific numbers and dates. Do not perform new calculations, only reference pre-computed data. You can also draft or refine company summaries when asked.\n\nKeep responses concise and analytical. Use plain text (no markdown formatting).'
     if (context.metricsBlock) systemPrompt += `\n\n=== QUANTITATIVE DATA ===\n${context.metricsBlock}`
-    if (context.reportContentBlock) systemPrompt += `\n\n=== LATEST REPORT CONTENT ===\n${context.reportContentBlock}`
+    if (context.recentUpdatesBlock) {
+      systemPrompt += `\n\n=== RECENT COMPANY UPDATES (source text) ===\n${context.recentUpdatesBlock}`
+      systemPrompt += '\n\nUse get_updates to search older history, read full updates by id, or page through a long attachment. Cite update ids and attachment locators for anything you state from an update, and say so when extraction of the relevant source was partial or failed.'
+    } else if (context.reportContentBlock) {
+      systemPrompt += `\n\n=== LATEST REPORT CONTENT ===\n${context.reportContentBlock}`
+    }
     if (context.previousSummariesBlock) systemPrompt += `\n\n=== PREVIOUS SUMMARIES ===\n${context.previousSummariesBlock}`
     if (context.documentsBlock) systemPrompt += `\n\n=== DOCUMENTS ===\n${context.documentsBlock}`
     if (context.investmentBlock) systemPrompt += `\n\n=== INVESTMENT DATA ===\n${context.investmentBlock}`

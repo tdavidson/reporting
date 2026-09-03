@@ -186,6 +186,15 @@ export const ROUTE_DOMAINS: Record<string, RouteAccess> = {
   'api/companies/[id]/metrics': { domain: 'portfolio' },
   'api/companies/[id]/metrics/[metricId]/values': { domain: 'portfolio' },
   'api/companies/[id]/summary': { domain: 'portfolio' },
+  // Company Updates: the durable, searchable projection of portfolio-reporting email. Reads are the
+  // company timeline, one update, one artifact's text/original file, portfolio search, and coverage
+  // stats — all portfolio. Starting a backfill is a fund-wide reprocessing cost, so it is `admin`.
+  'api/companies/[id]/updates': { domain: 'portfolio' },
+  'api/company-updates/[id]': { domain: 'portfolio' },
+  'api/company-updates/[id]/artifacts/[artifactId]': { domain: 'portfolio' },
+  'api/company-updates/search': { domain: 'portfolio' },
+  'api/company-updates/status': { domain: 'portfolio' },
+  'api/company-updates/backfill': { domain: 'admin', level: { GET: 'read', POST: 'write' } },
   'api/dashboard/table-data': { domain: 'portfolio' },
   'api/default-metrics': { domain: 'portfolio' },
   'api/default-metrics/[id]': { domain: 'portfolio' },
@@ -435,6 +444,8 @@ export const UNGATED_ROUTES: Record<string, string> = {
   'api/cron/deal-research': 'Cron: CRON_SECRET.',
   'api/cron/deals-digest': 'Cron: CRON_SECRET.',
   'api/cron/memo-agent-worker': 'Cron: CRON_SECRET.',
+  'api/cron/company-updates-ocr': 'Cron: CRON_SECRET.',
+  'api/cron/company-updates-backfill': 'Cron: CRON_SECRET.',
 
   // Inbound from third parties, authenticated by a token in the path or a provider signature.
   'api/webhooks/transcription/[token]': 'Inbound webhook: per-job single-use callback token in the path (SEC-010).',

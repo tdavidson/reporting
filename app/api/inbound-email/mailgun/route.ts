@@ -187,6 +187,13 @@ async function handleMailgunInbound(req: NextRequest) {
       const scanResult = await scanFileAsync(buffer, att.Name, att.ContentType)
       if (!scanResult.safe) {
         console.warn(`[inbound-email/mailgun] Skipping unsafe attachment "${att.Name}": ${scanResult.reason}`)
+        // Keep the descriptor and original ordinal while refusing to persist unsafe bytes.
+        updatedAttachments.push({
+          Name: att.Name,
+          ContentType: att.ContentType,
+          ContentLength: att.ContentLength,
+          ContentError: `Safety scan failed: ${scanResult.reason ?? 'unknown reason'}`,
+        })
         continue
       }
 

@@ -11,6 +11,7 @@ import { computeSummary } from '@/lib/investments'
 import { lpRatios } from '@/lib/lp-metrics'
 import { draftEntryForTransaction } from '@/lib/accounting/from-portfolio'
 import type { AgentToolContext, AgentToolHandler } from '@/lib/accounting/agent-tools'
+import { getUpdates } from '@/lib/company-updates/analyst'
 
 const r2 = (n: number) => Math.round(n * 100) / 100
 
@@ -66,6 +67,14 @@ async function companiesIn(admin: SupabaseClient, fundId: string, vehicle?: stri
 }
 
 export const PORTFOLIO_HANDLERS: Record<string, AgentToolHandler> = {
+  // Company Updates retrieval. Fund-scoped in SQL; the company reference resolves through the
+  // same resolver as every other portfolio tool so a name never silently picks the wrong company.
+  get_updates: async ({ admin, fundId }: AgentToolContext, input: any) =>
+    getUpdates(
+      { admin: admin as any, fundId, resolveCompanyId: async ref => (await resolveCompany(admin, fundId, ref)).id },
+      input ?? {},
+    ),
+
   list_vehicles: async ({ admin, fundId }: AgentToolContext) => {
     const { data } = await (admin as any)
       .from('fund_vehicles').select('name, kind, active').eq('fund_id', fundId).order('name')

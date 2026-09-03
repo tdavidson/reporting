@@ -10,6 +10,7 @@ import { rateLimit } from '@/lib/rate-limit'
 import { assertWriteAccess } from '@/lib/api-helpers'
 import { assertDomainAccess } from '@/lib/access/gate'
 import { domainForRerouteTarget, isRerouteTarget, type RerouteTarget } from '@/lib/access/reroute-targets'
+import { removeCompanyUpdate } from '@/lib/company-updates/capture'
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   const supabase = createClient()
@@ -66,6 +67,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     admin.from('interactions').delete().eq('email_id', emailId).eq('fund_id', fundId),
     admin.from('metric_values').delete().eq('source_email_id', emailId).eq('fund_id', fundId),
     admin.from('parsing_reviews').delete().eq('email_id', emailId).eq('fund_id', fundId),
+    // Artifacts and chunks cascade from this projection row. The reporting destination below
+    // recreates it from the canonical source email; every other destination leaves it absent.
+    removeCompanyUpdate(admin, { emailId, fundId }),
   ])
 
   // Log the correction.

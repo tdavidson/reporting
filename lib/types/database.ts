@@ -338,6 +338,443 @@ export type Database = {
           },
         ]
       }
+      company_update_artifacts: {
+        Row: {
+          attachment_key: string
+          byte_size: number | null
+          company_id: string
+          content_sha256: string | null
+          created_at: string
+          declared_content_type: string | null
+          detected_content_type: string | null
+          extracted_text: string | null
+          extraction_error: string | null
+          extraction_status: string
+          filename: string
+          fund_id: string
+          id: string
+          metadata: Json
+          ocr_attempts: number
+          ocr_error: string | null
+          ocr_status: string
+          ocr_updated_at: string | null
+          ordinal: number
+          parser: string | null
+          parser_version: string | null
+          storage_path: string | null
+          update_id: string
+          updated_at: string
+          warnings: Json
+        }
+        Insert: {
+          attachment_key: string
+          byte_size?: number | null
+          company_id: string
+          content_sha256?: string | null
+          created_at?: string
+          declared_content_type?: string | null
+          detected_content_type?: string | null
+          extracted_text?: string | null
+          extraction_error?: string | null
+          extraction_status?: string
+          filename: string
+          fund_id: string
+          id?: string
+          metadata?: Json
+          ocr_attempts?: number
+          ocr_error?: string | null
+          ocr_status?: string
+          ocr_updated_at?: string | null
+          ordinal: number
+          parser?: string | null
+          parser_version?: string | null
+          storage_path?: string | null
+          update_id: string
+          updated_at?: string
+          warnings?: Json
+        }
+        Update: {
+          attachment_key?: string
+          byte_size?: number | null
+          company_id?: string
+          content_sha256?: string | null
+          created_at?: string
+          declared_content_type?: string | null
+          detected_content_type?: string | null
+          extracted_text?: string | null
+          extraction_error?: string | null
+          extraction_status?: string
+          filename?: string
+          fund_id?: string
+          id?: string
+          metadata?: Json
+          ocr_attempts?: number
+          ocr_error?: string | null
+          ocr_status?: string
+          ocr_updated_at?: string | null
+          ordinal?: number
+          parser?: string | null
+          parser_version?: string | null
+          storage_path?: string | null
+          update_id?: string
+          updated_at?: string
+          warnings?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_update_artifacts_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "company_update_artifacts_fund_id_fkey"
+            columns: ["fund_id"]
+            isOneToOne: false
+            referencedRelation: "funds"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "company_update_artifacts_update_id_fkey"
+            columns: ["update_id"]
+            isOneToOne: false
+            referencedRelation: "company_updates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      company_update_backfill_items: {
+        Row: {
+          attempts: number
+          claimed_at: string | null
+          created_at: string
+          email_id: string
+          error: string | null
+          finished_at: string | null
+          fund_id: string
+          id: string
+          job_id: string
+          result: Json | null
+          status: string
+        }
+        Insert: {
+          attempts?: number
+          claimed_at?: string | null
+          created_at?: string
+          email_id: string
+          error?: string | null
+          finished_at?: string | null
+          fund_id: string
+          id?: string
+          job_id: string
+          result?: Json | null
+          status?: string
+        }
+        Update: {
+          attempts?: number
+          claimed_at?: string | null
+          created_at?: string
+          email_id?: string
+          error?: string | null
+          finished_at?: string | null
+          fund_id?: string
+          id?: string
+          job_id?: string
+          result?: Json | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_update_backfill_items_email_id_fkey"
+            columns: ["email_id"]
+            isOneToOne: false
+            referencedRelation: "inbound_emails"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "company_update_backfill_items_fund_id_fkey"
+            columns: ["fund_id"]
+            isOneToOne: false
+            referencedRelation: "funds"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "company_update_backfill_items_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "company_update_backfill_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      company_update_backfill_jobs: {
+        Row: {
+          concurrency: number
+          counts: Json
+          created_at: string
+          created_by: string | null
+          finished_at: string | null
+          fund_id: string
+          id: string
+          last_error: string | null
+          mode: string
+          parser_version: string
+          plan_cursor: Json | null
+          planned: number
+          reprocess: boolean
+          sample_company_id: string | null
+          sample_limit: number | null
+          started_at: string | null
+          status: string
+          total_eligible: number
+          updated_at: string
+        }
+        Insert: {
+          concurrency?: number
+          counts?: Json
+          created_at?: string
+          created_by?: string | null
+          finished_at?: string | null
+          fund_id: string
+          id?: string
+          last_error?: string | null
+          mode: string
+          parser_version: string
+          plan_cursor?: Json | null
+          planned?: number
+          reprocess?: boolean
+          sample_company_id?: string | null
+          sample_limit?: number | null
+          started_at?: string | null
+          status?: string
+          total_eligible?: number
+          updated_at?: string
+        }
+        Update: {
+          concurrency?: number
+          counts?: Json
+          created_at?: string
+          created_by?: string | null
+          finished_at?: string | null
+          fund_id?: string
+          id?: string
+          last_error?: string | null
+          mode?: string
+          parser_version?: string
+          plan_cursor?: Json | null
+          planned?: number
+          reprocess?: boolean
+          sample_company_id?: string | null
+          sample_limit?: number | null
+          started_at?: string | null
+          status?: string
+          total_eligible?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_update_backfill_jobs_fund_id_fkey"
+            columns: ["fund_id"]
+            isOneToOne: false
+            referencedRelation: "funds"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "company_update_backfill_jobs_sample_company_id_fkey"
+            columns: ["sample_company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      company_update_chunks: {
+        Row: {
+          artifact_id: string | null
+          chunk_kind: string
+          company_id: string
+          content: string
+          created_at: string
+          fund_id: string
+          id: string
+          locator: Json
+          ordinal: number
+          parser_version: string
+          search: unknown | null
+          update_id: string
+        }
+        Insert: {
+          artifact_id?: string | null
+          chunk_kind: string
+          company_id: string
+          content: string
+          created_at?: string
+          fund_id: string
+          id?: string
+          locator?: Json
+          ordinal: number
+          parser_version: string
+          search?: unknown | null
+          update_id: string
+        }
+        Update: {
+          artifact_id?: string | null
+          chunk_kind?: string
+          company_id?: string
+          content?: string
+          created_at?: string
+          fund_id?: string
+          id?: string
+          locator?: Json
+          ordinal?: number
+          parser_version?: string
+          search?: unknown | null
+          update_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_update_chunks_artifact_id_fkey"
+            columns: ["artifact_id"]
+            isOneToOne: false
+            referencedRelation: "company_update_artifacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "company_update_chunks_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "company_update_chunks_fund_id_fkey"
+            columns: ["fund_id"]
+            isOneToOne: false
+            referencedRelation: "funds"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "company_update_chunks_update_id_fkey"
+            columns: ["update_id"]
+            isOneToOne: false
+            referencedRelation: "company_updates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      company_updates: {
+        Row: {
+          body_cleaner_version: string | null
+          body_cleaning_status: string
+          body_current: string | null
+          body_original: string | null
+          body_status: string
+          company_id: string
+          created_at: string
+          extraction_status: string
+          forwarded_sender_email: string | null
+          forwarded_sender_name: string | null
+          fund_id: string
+          id: string
+          parser_version: string | null
+          period_label: string | null
+          period_month: number | null
+          period_quarter: number | null
+          period_source: string | null
+          period_year: number | null
+          received_at: string
+          sender_email: string | null
+          sender_name: string | null
+          source: string
+          source_email_id: string
+          source_route: string
+          subject: string | null
+          updated_at: string
+          warnings: Json
+        }
+        Insert: {
+          body_cleaner_version?: string | null
+          body_cleaning_status?: string
+          body_current?: string | null
+          body_original?: string | null
+          body_status?: string
+          company_id: string
+          created_at?: string
+          extraction_status?: string
+          forwarded_sender_email?: string | null
+          forwarded_sender_name?: string | null
+          fund_id: string
+          id?: string
+          parser_version?: string | null
+          period_label?: string | null
+          period_month?: number | null
+          period_quarter?: number | null
+          period_source?: string | null
+          period_year?: number | null
+          received_at: string
+          sender_email?: string | null
+          sender_name?: string | null
+          source?: string
+          source_email_id: string
+          source_route?: string
+          subject?: string | null
+          updated_at?: string
+          warnings?: Json
+        }
+        Update: {
+          body_cleaner_version?: string | null
+          body_cleaning_status?: string
+          body_current?: string | null
+          body_original?: string | null
+          body_status?: string
+          company_id?: string
+          created_at?: string
+          extraction_status?: string
+          forwarded_sender_email?: string | null
+          forwarded_sender_name?: string | null
+          fund_id?: string
+          id?: string
+          parser_version?: string | null
+          period_label?: string | null
+          period_month?: number | null
+          period_quarter?: number | null
+          period_source?: string | null
+          period_year?: number | null
+          received_at?: string
+          sender_email?: string | null
+          sender_name?: string | null
+          source?: string
+          source_email_id?: string
+          source_route?: string
+          subject?: string | null
+          updated_at?: string
+          warnings?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_updates_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "company_updates_fund_id_fkey"
+            columns: ["fund_id"]
+            isOneToOne: false
+            referencedRelation: "funds"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "company_updates_source_email_id_fkey"
+            columns: ["source_email_id"]
+            isOneToOne: true
+            referencedRelation: "inbound_emails"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       compliance_deadlines: {
         Row: {
           id: string
@@ -2973,6 +3410,9 @@ export type AnalystConversation        = Tables<'analyst_conversations'>
 export type Interaction                = Tables<'interactions'>
 export type LpLetterTemplate           = Tables<'lp_letter_templates'>
 export type LpLetter                   = Tables<'lp_letters'>
+export type CompanyUpdate              = Tables<'company_updates'>
+export type CompanyUpdateArtifact      = Tables<'company_update_artifacts'>
+export type CompanyUpdateChunk         = Tables<'company_update_chunks'>
 
 export interface CompanyNarrative {
   company_id: string

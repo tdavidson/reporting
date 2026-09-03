@@ -119,6 +119,40 @@ export const PORTFOLIO_TOOL_MANIFEST: AgentToolMeta[] = [
     },
   },
   {
+    name: 'get_updates',
+    description:
+      "Portfolio-reporting updates (what companies sent us: the email plus extracted attachment text). " +
+      "One composable retrieval: list a company's history, search across updates with words or \"quoted phrases\", " +
+      'or take each company\'s LATEST update only (mode latest_per_company — current state, never an old mention). ' +
+      'Results are excerpts with source locators (page, slide, sheet/rows, section), exact match counts, a cursor, ' +
+      'and extraction warnings — treat a partial/failed extraction as "could not read", not "did not mention". ' +
+      'Pass ids: [update_id] for the full body and attachment text of specific updates, or artifact: { id, offset } ' +
+      'to page through one long attachment. Text is cut to max_chars and every cut is marked.',
+    scope: 'read',
+    domain: 'portfolio',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        company: COMPANY,
+        query: { type: 'string', description: 'Words, "quoted phrases", OR alternatives, -negations. Identifiers and figures fall back to exact substring matching.' },
+        mode: { type: 'string', enum: ['list', 'search', 'latest_per_company'], description: 'list = newest first with a short preview (default without a query); search = ranked matches (default with a query); latest_per_company = each company\'s most recent update, optionally filtered by query.' },
+        since: { type: 'string', description: 'Inclusive ISO date YYYY-MM-DD' },
+        until: { type: 'string', description: 'Inclusive ISO date YYYY-MM-DD' },
+        order: { type: 'string', enum: ['relevance', 'newest'] },
+        match: { type: 'string', enum: ['auto', 'lexical', 'exact'], description: 'auto (default) tries word matching then exact substring.' },
+        limit: { type: 'number', description: 'Updates per page (1-100; default 10, 50 for latest_per_company)' },
+        cursor: { type: 'string', description: 'next_cursor from a previous call' },
+        ids: { type: 'array', items: { type: 'string' }, description: 'Full retrieval of up to 10 update ids (body + attachment text)' },
+        artifact: {
+          type: 'object',
+          properties: { id: { type: 'string' }, offset: { type: 'number' } },
+          description: 'Read one attachment\'s complete extracted text from a character offset',
+        },
+        max_chars: { type: 'number', description: 'Character budget for returned text (500-60000; default 12000)' },
+      },
+    },
+  },
+  {
     name: 'record_investment',
     description:
       'Record a portfolio transaction (investment | unrealized_gain_change | proceeds | round_info). ' +

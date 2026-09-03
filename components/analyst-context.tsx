@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react'
+import { createContext, useContext, useState, useEffect, useCallback, useRef, type ReactNode } from 'react'
 
 /** Domains the Analyst can be scoped to that have no id of their own (unlike a company or deal). */
 export type AnalystDomain = 'lps' | 'diligence'
@@ -42,6 +42,8 @@ interface AnalystContextValue {
   selectedModel: AnalystModel | null
   setSelectedModel: (model: AnalystModel | null) => void
   availableModels: AnalystModel[]
+  /** Loads the model list if it isn't loaded yet. Safe to call on every mount. */
+  ensureModels: () => Promise<void>
   fundName: string
   hasAIKey: boolean
   conversationId: string | null
@@ -201,37 +203,44 @@ export function AnalystProvider({
     }
   }, [conversationId])
 
-  // Fetch models lazily — only when the analyst panel is first opened
-  const modelsFetched = useCallback(() => availableModels.length > 0, [availableModels])
+  // Models are fetched lazily, but "lazily" used to mean "when the side panel opens" — which is
+  // why the model picker was missing on /start: that page never opens the panel, so the list
+  // stayed empty and the picker rendered nothing. The trigger is now an explicit call any surface
+  // that shows a picker can make, and it is idempotent: an in-flight or completed fetch is not
+  // repeated.
+  const modelsRequested = useRef(false)
+
+  const ensureModels = useCallback(async () => {
+    if (!hasAIKey || modelsRequested.current) return
+    modelsRequested.current = true
+
+    const providerEndpoints: { provider: string; url: string }[] = [
+      { provider: 'anthropic', url: '/api/claude-models' },
+      { provider: 'openai', url: '/api/openai-models' },
+    ].filter(p => configuredProviders.includes(p.provider))
+
+    const results = await Promise.allSettled(
+      providerEndpoints.map(p => fetch(p.url).then(r => r.json()))
+    )
+
+    const models: AnalystModel[] = []
+    results.forEach((res, i) => {
+      if (res.status === 'fulfilled' && Array.isArray(res.value.models)) {
+        for (const m of res.value.models) {
+          models.push({ id: m.id, name: m.name, provider: providerEndpoints[i].provider })
+        }
+      }
+    })
+
+    // A failed fetch should not be permanent — let the next surface that needs the list retry.
+    if (models.length === 0) modelsRequested.current = false
+    setAvailableModels(models)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasAIKey, configuredProviders.join(',')])
 
   useEffect(() => {
-    if (!open || !hasAIKey || modelsFetched()) return
-
-    const fetchModels = async () => {
-      const providerEndpoints: { provider: string; url: string }[] = [
-        { provider: 'anthropic', url: '/api/claude-models' },
-        { provider: 'openai', url: '/api/openai-models' },
-      ].filter(p => configuredProviders.includes(p.provider))
-
-      const results = await Promise.allSettled(
-        providerEndpoints.map(p => fetch(p.url).then(r => r.json()))
-      )
-
-      const models: AnalystModel[] = []
-      results.forEach((res, i) => {
-        if (res.status === 'fulfilled' && Array.isArray(res.value.models)) {
-          for (const m of res.value.models) {
-            models.push({ id: m.id, name: m.name, provider: providerEndpoints[i].provider })
-          }
-        }
-      })
-
-      setAvailableModels(models)
-    }
-
-    fetchModels()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, hasAIKey])
+    if (open) void ensureModels()
+  }, [open, ensureModels])
 
   return (
     <AnalystContext.Provider value={{
@@ -251,6 +260,7 @@ export function AnalystProvider({
       selectedModel,
       setSelectedModel,
       availableModels,
+      ensureModels,
       fundName,
       hasAIKey,
       conversationId,

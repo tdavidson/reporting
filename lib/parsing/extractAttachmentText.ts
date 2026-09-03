@@ -13,6 +13,7 @@ interface PostmarkAttachment {
   Content?: string // base64-encoded — absent when stored in Storage
   ContentLength: number
   StoragePath?: string // path in email-attachments bucket
+  ContentError?: string // why source bytes were deliberately not persisted
 }
 
 // Postmark inbound payload (fields relevant to extraction)
@@ -118,7 +119,7 @@ async function extractSingle(attachment: PostmarkAttachment): Promise<Attachment
       contentType,
       extractedText: '',
       skipped: true,
-      skipReason: 'No content available (attachment may not have been hydrated)',
+      skipReason: attachment.ContentError ?? 'No content available (attachment may not have been hydrated)',
     }
   }
 

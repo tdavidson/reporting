@@ -44,6 +44,8 @@ export const PAGE_DOMAINS: Record<string, PageDomain> = {
   // The company page: the panels inside it (notes, interactions, investments) each ask for their
   // own domain, but the company and its metrics are portfolio.
   'companies/[id]': { domain: 'portfolio' },
+  // Portfolio update search — the Company Updates corpus (reporting email), not the mailbox.
+  'company-updates': { domain: 'portfolio' },
   // The mailbox is portfolio intake, not deal flow — see ROUTE_DOMAINS['api/emails'].
   'emails/[id]': { domain: 'portfolio' },
 

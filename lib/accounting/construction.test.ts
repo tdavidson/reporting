@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  DEFAULT_ASSUMPTIONS, parseAssumptions, projectRemainingFees, constructionModel, blankStage,
+  DEFAULT_ASSUMPTIONS, parseAssumptions, projectRemainingFees, constructionModel, blankStage, valueSources,
   type ConstructionAssumptions, type ConstructionActuals,
 } from './construction'
 
@@ -532,5 +532,65 @@ describe('blankStage', () => {
 
   it('gives each row a distinct key, so React keys and edits do not collide', () => {
     expect(blankStage().key).not.toBe(blankStage().key)
+  })
+})
+
+describe('valueSources', () => {
+  const position = {
+    companyId: 'company-1', name: 'Known Co', stage: 'Seed', status: 'active',
+    investedInitial: 500_000, investedFollowOn: 100_000, investedTotal: 600_000,
+    currentValue: 900_000, currentMoic: 1.5, currentOwnership: 0.03,
+    currentPostMoney: 30_000_000, distributions: 0,
+  }
+
+  // The invariant the chart depends on: the three sources ARE the forecasted total value, so a
+  // stacked bar of them cannot disagree with the MOIC printed above it.
+  it('splits forecasted total value into realized, cost still at work, and forecast gain', () => {
+    const m = constructionModel(ACT({ positions: [position] }), A({
+      ...RUN_OUT,
+      positionForecasts: [{ companyId: 'company-1', plannedFollowOn: 200_000, ownershipAtExit: 0.02, expectedExitValue: 100_000_000 }],
+      stages: dealRows(2, {
+        key: 'seed', label: 'Seed', initialCheck: 500_000,
+        initialPostMoney: 10_000_000, followOnMultiple: 0, followOnCheck: 250_000,
+        dilutionFactor: 0, ownershipAtExit: 0.02, expectedExitValue: 50_000_000,
+      }),
+    }), NOW)
+    const v = valueSources(m)
+
+    // Cost at work = the live position's invested + its planned follow-on, plus both planned deals.
+    expect(v.investedAtWork).toBe(600_000 + 200_000 + 750_000 * 2)
+    expect(v.realizedProceeds).toBe(0)
+    expect(v.total).toBe(m.returns.forecastedTotalValue)
+    expect(v.realizedProceeds + v.investedAtWork + v.forecastGain).toBeCloseTo(v.total, 6)
+  })
+
+  // An exited company's capital is not "at work" — its whole contribution is realized proceeds,
+  // and counting its cost again would double-count it against a forecast it no longer has.
+  it('counts an exited company only through its realized proceeds', () => {
+    const exited = { ...position, status: 'exited', currentValue: 2_000_000, distributions: 1_200_000 }
+    const m = constructionModel(ACT({ positions: [exited], currentValue: 2_000_000 }), A(RUN_OUT), NOW)
+    const v = valueSources(m)
+
+    expect(v.realizedProceeds).toBe(1_200_000)
+    expect(v.investedAtWork).toBe(0)
+    expect(v.forecastGain).toBe(0)
+    expect(v.total).toBe(m.returns.forecastedTotalValue)
+  })
+
+  // A marked-down book reports a NEGATIVE gain rather than a quietly floored zero. The chart
+  // clamps for display; the model does not lie about the direction.
+  it('reports a negative gain when the forecast is below cost', () => {
+    const underwater = { ...position, currentValue: 200_000 }
+    const m = constructionModel(ACT({ positions: [underwater] }), A(RUN_OUT), NOW)
+    const v = valueSources(m)
+
+    expect(v.investedAtWork).toBe(600_000)
+    expect(v.forecastGain).toBeLessThan(0)
+    expect(v.realizedProceeds + v.investedAtWork + v.forecastGain).toBeCloseTo(v.total, 6)
+  })
+
+  it('is all zeroes for an unplanned vehicle', () => {
+    const m = constructionModel(ACT({ positions: [] }), A(RUN_OUT), NOW)
+    expect(valueSources(m)).toEqual({ realizedProceeds: 0, investedAtWork: 0, forecastGain: 0, total: 0 })
   })
 })

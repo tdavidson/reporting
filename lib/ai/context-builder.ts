@@ -4,6 +4,7 @@ import {
   hydrateAttachments,
   type PostmarkPayload,
 } from '@/lib/parsing/extractAttachmentText'
+import { buildRecentUpdatesBlock } from '@/lib/company-updates/analyst'
 
 type Admin = ReturnType<typeof createAdminClient>
 
@@ -143,6 +144,12 @@ export interface CompanyContext {
   currentPeriodLabel: string | null
   systemPrompt: string
   metricsBlock: string
+  /**
+   * Recent Company Updates (source text, budgeted and marked) when the company has a captured
+   * history. Empty for companies not yet backfilled, in which case `reportContentBlock` carries the
+   * legacy re-parse of the latest email. The legacy path goes away after the backfill is validated.
+   */
+  recentUpdatesBlock: string
   reportContentBlock: string
   previousSummariesBlock: string
   documentsBlock: string
@@ -276,9 +283,19 @@ export async function buildCompanyContext(
     currentPeriodLabel = values[values.length - 1].period_label
   }
 
-  // 2. Email body + attachment TEXT only (no binary)
+  // 2. Reporting evidence. Preferred: the Company Updates projection — bounded recent history with
+  // update/artifact ids, extraction status and explicit omission markers, read from stored text
+  // rather than re-downloading and re-parsing attachments on every request. Legacy fallback: the
+  // latest email re-parsed at request time, kept only until the backfill covers this company.
+  let recentUpdatesBlock = ''
+  try {
+    recentUpdatesBlock = await buildRecentUpdatesBlock(admin as any, { fundId: company.fund_id, companyId })
+  } catch (err) {
+    console.error('[context-builder] recent updates unavailable, falling back to legacy parse:', err)
+  }
+
   let reportContentBlock = ''
-  if (latestEmail?.raw_payload) {
+  if (!recentUpdatesBlock && latestEmail?.raw_payload) {
     const payload = await hydrateAttachments(latestEmail.raw_payload as unknown as PostmarkPayload)
     const extracted = await extractAttachmentText(payload)
 
@@ -446,6 +463,7 @@ ${company.current_update ?? ''}
     currentPeriodLabel,
     systemPrompt,
     metricsBlock,
+    recentUpdatesBlock,
     reportContentBlock,
     previousSummariesBlock,
     documentsBlock,

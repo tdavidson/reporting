@@ -17,6 +17,11 @@ import { extractInteraction } from '@/lib/claude/extractInteraction'
 import { classifyEmail, detectForward, type SenderFlags, type AttachmentDescriptor } from '@/lib/pipeline/classifyEmail'
 import { isAuthorizedSender } from '@/lib/pipeline/isAuthorizedSender'
 import { loadActiveDiligenceDeals, matchDiligenceDeal } from '@/lib/pipeline/matchDiligenceDeal'
+import {
+  captureCompanyUpdate,
+  removeCompanyUpdate,
+  updateCompanyUpdatePeriod,
+} from '@/lib/company-updates/capture'
 import type { Json, IssueType, ProcessingStatus } from '@/lib/types/database'
 
 type Supabase = ReturnType<typeof createAdminClient>
@@ -41,6 +46,7 @@ export interface PostmarkPayload {
     Content?: string
     ContentLength: number
     StoragePath?: string
+    ContentError?: string
   }>
 }
 
@@ -83,6 +89,13 @@ export async function runPipeline(
     } catch (err) {
       console.error('[pipeline] Classifier failed (non-blocking):', err)
     }
+  }
+
+  const isPortfolioReporting = routingDecision === 'shadow' || routingDecision === 'reporting'
+  if (!isPortfolioReporting) {
+    // Company Updates is a projection of the reporting mailbox. A reroute must remove the parent
+    // row so artifact and chunk cascades cannot leave stale searchable content behind.
+    await removeCompanyUpdate(supabase, { emailId, fundId })
   }
 
   // Branch on classifier decision when intake is enabled.
@@ -154,7 +167,12 @@ export async function runPipeline(
   // Shadow mode OR explicit reporting/interactions decision → existing flow.
   // Persist routed_to so /emails UI can show the active destination.
   const fallbackRouted = routingDecision === 'shadow' ? 'reporting' : routingDecision
-  await supabase.from('inbound_emails').update({ routed_to: fallbackRouted }).eq('id', emailId)
+  const { error: routeUpdateError } = await supabase
+    .from('inbound_emails')
+    .update({ routed_to: fallbackRouted })
+    .eq('id', emailId)
+    .eq('fund_id', fundId)
+  if (routeUpdateError) throw new Error(`Could not persist email route: ${routeUpdateError.message}`)
 
   // Inbound analysis / portfolio tracking runs on the 'portfolio' feature model
   // (company identification, metric extraction, interaction extraction).
@@ -228,6 +246,17 @@ export async function runPipeline(
     return
   }
 
+  // Capture primary evidence before the configured-metric branch. This deliberately runs for
+  // identified reporting emails even when the company has no metrics configured.
+  if (isPortfolioReporting) {
+    await captureCompanyUpdate(supabase, {
+      emailId,
+      fundId,
+      companyId: companyId!,
+      payload,
+    })
+  }
+
   // Step 6: Extract metrics
   const metrics = await getMetrics(supabase, companyId!)
 
@@ -278,6 +307,14 @@ export async function runPipeline(
     model,
     { admin: supabase, fundId }
   )
+
+  if (isPortfolioReporting) {
+    await updateCompanyUpdatePeriod(supabase, {
+      emailId,
+      fundId,
+      period: metricsResult.reporting_period,
+    })
+  }
 
   // Store the raw Claude response
   await supabase

@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button'
 import { Metric } from '@/components/ui/metric'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { SortTh, compareVals, nextSort, type SortState } from '@/components/sortable-th'
+import { CapitalUsageChart, ValueSourcesChart, ReturnRangeChart } from './charts'
 import { cn } from '@/lib/utils'
 import {
   constructionModel, parseAssumptions, DEFAULT_ASSUMPTIONS, blankStage,
@@ -211,6 +212,15 @@ export function ConstructionView({ vehicle, vehicleId }: { vehicle: string; vehi
           </div>
           <div className="flex items-center justify-between gap-3 border-t p-3"><Button size="sm" variant="outline" onClick={addStage}><Plus className="h-3.5 w-3.5 mr-1" />Add forecast row</Button><SaveIndicator state={saveState} /></div>
         </section>
+
+        {/* The plan in pictures, between the deal table it summarises and the two tables that
+            state it in numbers. All three are compositions or scenarios: the model carries no
+            pacing assumption, so nothing here can honestly have a date axis. */}
+        <div className="grid gap-6 lg:grid-cols-2 xl:grid-cols-3">
+          <CapitalUsageChart model={model} fmt={fmt} fmtFull={fmtFull} />
+          <ValueSourcesChart model={model} fmt={fmt} fmtFull={fmtFull} />
+          <ReturnRangeChart model={model} fmt={fmt} multiple={multiple} />
+        </div>
 
         <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
           <section className="rounded-card border bg-card p-4 shadow-sm dark:shadow-none dark:border">

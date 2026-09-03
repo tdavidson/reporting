@@ -14,6 +14,10 @@ import { AnalystToggleButton } from '@/components/analyst-button'
 import { AccountingBody } from '@/components/accounting-chrome'
 import { Card, CardContent } from '@/components/ui/card'
 import { Metric as MetricBox } from '@/components/ui/metric'
+import {
+  ChartCard, EmptyPlot, AXIS, tooltipStyle, HUE, SLICE, sliceFill,
+  INVEST_NEW, INVEST_FOLLOW, GAINS_HUE, PROCEEDS_HUE,
+} from '@/components/fund-chart-kit'
 
 // The fund detail (lead) page. Everything here is READ-ONLY and derived — the same numbers as the
 // /funds overview (fund-economics), the schedule of investments (statements), and the growth
@@ -56,33 +60,6 @@ interface TsPoint {
 interface Timeseries { points: TsPoint[]; hasGross: boolean }
 
 type Lens = 'lp' | 'fund'
-
-// Categorical hues, assigned in FIXED order from the theme's chart ramp (never cycled).
-const HUE = {
-  chart1: 'hsl(var(--chart-1))',
-  chart2: 'hsl(var(--chart-2))',
-  chart3: 'hsl(var(--chart-3))',
-  chart4: 'hsl(var(--chart-4))',
-  chart5: 'hsl(var(--chart-5))',
-  ink: 'hsl(var(--foreground))',
-  muted: 'hsl(var(--muted-foreground))',
-  surface: 'hsl(var(--background))',
-}
-// Pie slices sit side by side in every combination, so they need the ALL-PAIRS
-// palette, not the adjacent-pairs one the stacked bars use. Only four slots clear
-// that bar in both light and dark (see the note in globals.css) — hence four
-// categorical hues and then "Other" in muted ink. Fixed order, never cycled: a
-// slice keeps its colour as the mix changes.
-const SLICE = ['hsl(var(--cat-1))', 'hsl(var(--cat-4))', 'hsl(var(--cat-5))', 'hsl(var(--cat-6))']
-const sliceFill = (i: number) => SLICE[i] ?? HUE.muted
-
-// Invested capital reads as one hue split by intensity: new = solid, follow-on = a
-// lighter tint of the same slot (so the pairing holds in either theme). Gains and
-// proceeds take their own slots, distinct from it and from each other.
-const INVEST_NEW = HUE.chart3
-const INVEST_FOLLOW = 'hsl(var(--chart-3) / 0.5)'
-const GAINS_HUE = HUE.chart1
-const PROCEEDS_HUE = HUE.chart2
 
 const moic = (v: number | null | undefined) => (v == null ? '—' : `${v.toFixed(2)}x`)
 const irrPct = (v: number | null | undefined) => {
@@ -279,35 +256,6 @@ export function FundDetailView({ vehicle, vehicleId }: { vehicle: string; vehicl
       <AccountingBody>{body}</AccountingBody>
     </>
   )
-}
-
-// ── Shared pieces ───────────────────────────────────────────────────────────
-
-function ChartCard({ title, action, children }: { title: string; action?: React.ReactNode; children: React.ReactNode }) {
-  return (
-    <Card>
-      <CardContent className="pt-4 pb-4 px-4">
-        <div className="flex items-center justify-between gap-2 mb-3">
-          <p className="text-sm font-medium">{title}</p>
-          {action}
-        </div>
-        {children}
-      </CardContent>
-    </Card>
-  )
-}
-
-const AXIS = { fontSize: 11 } as const
-const tooltipStyle = {
-  borderRadius: '6px',
-  border: '1px solid hsl(var(--border))',
-  backgroundColor: 'hsl(var(--popover))',
-  color: 'hsl(var(--popover-foreground))',
-  fontSize: '12px',
-} as const
-
-function EmptyPlot({ label }: { label: string }) {
-  return <div className="flex h-[240px] items-center justify-center text-sm text-muted-foreground">{label}</div>
 }
 
 // ── Fund cash flows per period: signed bars, proceeds up / capital deployed down ──

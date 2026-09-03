@@ -49,12 +49,12 @@ export default function StartPage() {
     </div>
   )
 
-  // Not the page title — AnalystConversation renders that, in the app's standard header
-  // construct. This is the empty thread's invitation, and it steps down a size accordingly.
+  // This IS the page title. There is no separate "Analyst" h1 above it — one page, one title,
+  // and this is the one that says what the page is for.
   const hero = (
-    <p className="text-center text-xl font-medium tracking-tight text-foreground">
+    <h1 className="text-center text-2xl font-semibold tracking-tight">
       What would you like to do?
-    </p>
+    </h1>
   )
 
   // No AI key configured means no chat to put front and centre. Rather than render a composer that
@@ -62,13 +62,7 @@ export default function StartPage() {
   if (!hasAIKey) {
     return (
       <div className="w-full px-4 pb-8 pt-4 md:pl-8 md:pr-4 md:pt-8">
-        <div className="mb-6 space-y-1">
-          <h1 className="text-2xl font-semibold tracking-tight">Analyst</h1>
-          <p className="text-sm text-muted-foreground">
-            Ask about your portfolio, compare companies, or get high-level insights across all investments.
-          </p>
-        </div>
-        <div className="mx-auto flex min-h-[26rem] max-w-readable flex-col justify-center gap-8">
+        <div className="mx-auto flex w-full max-w-4xl flex-col gap-6 pt-6">
         {hero}
         <p className="text-center text-sm text-muted-foreground">
           Add an AI provider key in{' '}
