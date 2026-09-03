@@ -68,3 +68,67 @@ describe('proposeMapping', () => {
     expect(p.confidence).toBe('none')
   })
 })
+
+/**
+ * The management company's QuickBooks import.
+ *
+ * A manco's general ledger is mostly compensation and occupancy — none of which has an analogue on
+ * a fund's chart. Before these rules existed the mapping screen offered `confidence: 'none'` for
+ * essentially every expense account, which is not wrong (a human confirms every proposal) but
+ * makes importing a firm's history twenty dropdowns of manual work.
+ *
+ * The mechanism worth pinning is that NO rule here is chart-kind aware: a rule whose subtype is
+ * absent from the vehicle's chart is skipped, so the same keyword table serves both charts and a
+ * manco rule can never fire on a fund.
+ */
+import { MANAGEMENT_COMPANY_CHART, DEFAULT_CHART } from '../chart'
+
+const asChart = (seed: typeof MANAGEMENT_COMPANY_CHART) =>
+  seed.map((a, i) => ({ id: `id-${i}`, code: a.code, name: a.name, type: a.type, subtype: a.subtype ?? null }))
+
+const MANCO = asChart(MANAGEMENT_COMPANY_CHART)
+const FUND = asChart(DEFAULT_CHART)
+
+const codeFor = (account: string, chart: typeof MANCO) => proposeMapping([qb(account)], chart)[0].code
+
+describe('proposeMapping — management company charts', () => {
+  it('maps the compensation accounts a fund chart has no home for', () => {
+    expect(codeFor('Payroll:Salaries and Wages', MANCO)).toBe('5000')
+    expect(codeFor('Payroll Taxes', MANCO)).toBe('5010')
+    expect(codeFor('Employee Benefits — Health', MANCO)).toBe('5020')
+    expect(codeFor('Annual Bonus', MANCO)).toBe('5030')
+  })
+
+  it('maps the rest of an operating business', () => {
+    expect(codeFor('Office Rent', MANCO)).toBe('5100')
+    expect(codeFor('Software Subscriptions', MANCO)).toBe('5300')
+    expect(codeFor('Travel & Entertainment', MANCO)).toBe('5400')
+    expect(codeFor('Depreciation Expense', MANCO)).toBe('5800')
+  })
+
+  it('sends the management fee to income here and to expense on a fund', () => {
+    // The same QuickBooks account name, and the two entities book it on opposite sides. The rule
+    // for the expense is tried first and simply does not apply to a chart without one.
+    expect(codeFor('Management Fee', MANCO)).toBe('4000')
+    expect(codeFor('Management Fee', FUND)).toBe('5000')
+  })
+
+  it('no longer reads "Operating Expenses" as the operating bank account', () => {
+    // The bug this rule ordering fixes: "operating" was a cash keyword, so the largest expense
+    // account on a manco's books mapped confidently to 1000 Cash — a confident wrong mapping,
+    // which is the one outcome proposeMapping is written to avoid.
+    expect(codeFor('Operating Expenses', MANCO)).not.toBe('1000')
+    // …while an account that really is the bank still maps.
+    expect(codeFor('Operating Account', MANCO)).toBe('1000')
+    expect(codeFor('Bank:Operating', MANCO)).toBe('1000')
+  })
+
+  it("leaves a fund's mappings alone — every manco rule is inert without the subtype", () => {
+    expect(codeFor('Bank:Operating', FUND)).toBe('1000')
+    expect(codeFor('Investments:Acme Ventures III', FUND)).toBe('1100')
+    expect(codeFor('Audit Fees', FUND)).toBe('5100')
+    // A fund chart has no salaries account, so a payroll line stays unmapped rather than landing
+    // somewhere plausible-looking.
+    expect(codeFor('Salaries', FUND)).toBeNull()
+  })
+})

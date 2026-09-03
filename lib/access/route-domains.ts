@@ -103,6 +103,22 @@ export const ROUTE_DOMAINS: Record<string, RouteAccess> = {
   'api/accounting/vehicle-gp-links': { domain: 'accounting' },
   'api/vehicles': { domain: 'accounting' },
 
+  // ── Management company ─────────────────────────────────────────────────────
+  // The firm's own operating entity, on its own books. A separate domain from `accounting`
+  // because a manco ledger carries firm payroll and partner compensation, and — unlike a K-1,
+  // which is derived from the capital accounts — none of it is legible from the fund's books.
+  // See DOMAIN_META.management_company.
+  //
+  // These four routes are the section's own. The shared ledger routes above (journal, bank,
+  // statements, chart, periods) can ALSO serve a management company, and there the grant is
+  // decided by the vehicle rather than the route: `resolveGroupOr400` refuses a manco to a caller
+  // who holds only `accounting`. That is the one place in this registry where the mapping below is
+  // a floor rather than the whole answer — see lib/accounting/vehicle-domain.ts.
+  'api/manco/vehicles': { domain: 'management_company' },
+  'api/manco/overview': { domain: 'management_company' },
+  'api/manco/setup': { domain: 'management_company' },
+  'api/manco/intercompany': { domain: 'management_company' },
+
   // ── GP economics — the carve-out. These used to sit behind the single `accounting` key,
   //    so anyone who could reconcile the bank could read the partners' carry.
   'api/accounting/deal-carry': { domain: 'gp_economics' },

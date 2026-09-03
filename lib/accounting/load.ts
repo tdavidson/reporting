@@ -8,6 +8,7 @@ import type { Account, AccountType, Posting } from './types'
 import type { CapitalPosting } from './capital-account'
 import { vehicleIdByName, type VehicleIdMap } from './vehicle-id'
 import { ACTUAL_BOOK } from './books'
+import { MANCO_KIND } from '@/lib/vehicle-kinds'
 
 export type SourcedPosting = Posting & { sourceType: string | null; entryId: string; memo: string | null }
 
@@ -287,7 +288,19 @@ export function currentOwnership(rows: InvestmentRow[]): Ownership[] {
   }))
 }
 
-/** Distinct vehicles (portfolio_groups) for a fund, from LP + cash-flow data. */
+/**
+ * Distinct INVESTMENT vehicles (portfolio_groups) for a fund, from LP + cash-flow data.
+ *
+ * Management companies are excluded, here and in `listVehiclesWithId`, and that exclusion is the
+ * reason both functions are the single source for the fund switcher, the accounting vehicle picker
+ * and `fundEconomics`. A manco has no commitments, no NAV, no TVPI and no partners: on the fund
+ * overview it is a row of dashes, in the switcher it is an option that takes you to a page with
+ * nothing on it, and in a per-vehicle performance roll-up it is a vehicle whose every metric is
+ * undefined. It has its own section (`/manco`) and its own list (`listMancoVehicles`).
+ *
+ * This filters on the REGISTRY, so a legacy portfolio_group string with no `fund_vehicles` row is
+ * unaffected — it cannot be a management company, because being one requires being set up as one.
+ */
 export async function listVehicles(admin: SupabaseClient, fundId: string): Promise<string[]> {
   // Source of truth: the fund_vehicles registry (active vehicles).
   const { data: vrows } = await admin
@@ -295,6 +308,7 @@ export async function listVehicles(admin: SupabaseClient, fundId: string): Promi
     .select('name')
     .eq('fund_id', fundId)
     .eq('active', true)
+    .neq('kind', MANCO_KIND)
     .order('name')
   const names = ((vrows as any[]) ?? []).map(r => r.name as string).filter(Boolean)
   if (names.length > 0) return names
@@ -322,10 +336,37 @@ export async function listVehiclesWithId(admin: SupabaseClient, fundId: string):
     .select('id, name')
     .eq('fund_id', fundId)
     .eq('active', true)
+    .neq('kind', MANCO_KIND)
     .order('name')
   const rows = ((vrows as any[]) ?? []).filter(r => r.name)
   if (rows.length > 0) return rows.map(r => ({ name: r.name as string, id: (r.id as string) ?? null }))
 
   // Legacy funds not yet in the registry — names only, no id.
   return (await listVehicles(admin, fundId)).map(name => ({ name, id: null }))
+}
+
+/**
+ * The fund's management companies — the other half of `listVehiclesWithId`, for the `/manco`
+ * section's list and switcher.
+ *
+ * INACTIVE ONES ARE INCLUDED, unlike the investment-vehicle list. A manco is deactivated when the
+ * firm winds it down or replaces it, and its books do not stop existing: last year's payroll, the
+ * final distributions and the intercompany balances that have to be settled are all still on it,
+ * and there is no other way to reach them once it drops out of the list. The caller shows the flag;
+ * see app/(app)/manco/view.tsx.
+ */
+export async function listMancoVehicles(
+  admin: SupabaseClient,
+  fundId: string,
+): Promise<{ id: string; name: string; active: boolean }[]> {
+  const { data } = await admin
+    .from('fund_vehicles' as any)
+    .select('id, name, active')
+    .eq('fund_id', fundId)
+    .eq('kind', MANCO_KIND)
+    .order('active', { ascending: false })
+    .order('name')
+  return ((data as any[]) ?? [])
+    .filter(r => r.name)
+    .map(r => ({ id: r.id as string, name: r.name as string, active: !!r.active }))
 }

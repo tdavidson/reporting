@@ -95,7 +95,7 @@ export async function POST(req: NextRequest) {
     })
   }
 
-  const group = await resolveGroupOr400(admin, gate.fundId, body?.group ?? null)
+  const group = await resolveGroupOr400(admin, gate, body?.group ?? null)
   if (group instanceof NextResponse) return group
   const vehicleId = await vehicleIdByName(admin, gate.fundId, group)
 

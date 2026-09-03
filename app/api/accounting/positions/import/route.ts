@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
   if (gate instanceof NextResponse) return gate
 
   const body = await req.json().catch(() => ({}))
-  const group = await resolveGroupOr400(admin, gate.fundId, body?.group)
+  const group = await resolveGroupOr400(admin, gate, body?.group)
   if (group instanceof NextResponse) return group
 
   const asOfDate = String(body?.asOfDate ?? '')

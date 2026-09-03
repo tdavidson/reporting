@@ -84,7 +84,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(result)
   }
 
-  const group = await resolveGroupOr400(admin, gate.fundId, body?.group)
+  const group = await resolveGroupOr400(admin, gate, body?.group)
   if (group instanceof NextResponse) return group
   const taxYear = taxYearOr400(body?.taxYear)
   if (taxYear instanceof NextResponse) return taxYear

@@ -7,7 +7,7 @@ import { assertWriteAccess, assertReadAccess } from '@/lib/api-helpers'
 import { resolveGroupOr400 } from '@/lib/accounting/http-vehicle'
 import { vehicleIdByName } from '@/lib/accounting/vehicle-id'
 import { dbError } from '@/lib/api-error'
-import { DEFAULT_CHART, GP_ENTITY_CHART } from '@/lib/accounting/chart'
+import { chartForVehicleKind } from '@/lib/accounting/chart'
 
 /** The `type` check constraint on chart_of_accounts. */
 const ACCOUNT_TYPES = ['asset', 'liability', 'equity', 'income', 'expense'] as const
@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const gate = await assertReadAccess(admin, user.id)
   if (gate instanceof NextResponse) return gate
-  const group = await resolveGroupOr400(admin, gate.fundId, req.nextUrl.searchParams.get('group'))
+  const group = await resolveGroupOr400(admin, gate, req.nextUrl.searchParams.get('group'))
   if (group instanceof NextResponse) return group
   const vehicleId = await vehicleIdByName(admin, gate.fundId, group)
 
@@ -45,7 +45,7 @@ export async function POST(req: NextRequest) {
   const gate = await assertWriteAccess(admin, user.id)
   if (gate instanceof NextResponse) return gate
   const body = await req.json().catch(() => ({}))
-  const group = await resolveGroupOr400(admin, gate.fundId, body?.group ?? req.nextUrl.searchParams.get('group'))
+  const group = await resolveGroupOr400(admin, gate, body?.group ?? req.nextUrl.searchParams.get('group'))
   if (group instanceof NextResponse) return group
   const vehicleId = await vehicleIdByName(admin, gate.fundId, group)
 
@@ -74,11 +74,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(data)
   }
 
-  // GP / associate entities keep their own books (Investment in Fund, members'
-  // capital, carry) — seed the GP chart for them; every other vehicle gets the
-  // standard fund chart.
+  // The chart follows the vehicle's kind: a GP/associate entity keeps its own books (Investment in
+  // Fund, members' capital, carry), a management company keeps an operating company's (payroll,
+  // occupancy, deferred fee revenue, intercompany), and everything else gets the fund chart.
   const { data: veh } = await admin.from('fund_vehicles' as any).select('kind').eq('fund_id', gate.fundId).eq('id', vehicleId).maybeSingle()
-  const chart = (veh as any)?.kind === 'associate' ? GP_ENTITY_CHART : DEFAULT_CHART
+  const chart = chartForVehicleKind((veh as any)?.kind)
 
   // Additive/idempotent: seed the full chart on first run, and on later runs
   // backfill any accounts the vehicle is missing (e.g. a newly-added standard
@@ -117,7 +117,7 @@ export async function PATCH(req: NextRequest) {
   if (gate instanceof NextResponse) return gate
 
   const body = await req.json().catch(() => ({}))
-  const group = await resolveGroupOr400(admin, gate.fundId, body?.group ?? req.nextUrl.searchParams.get('group'))
+  const group = await resolveGroupOr400(admin, gate, body?.group ?? req.nextUrl.searchParams.get('group'))
   if (group instanceof NextResponse) return group
   const vehicleId = await vehicleIdByName(admin, gate.fundId, group)
 

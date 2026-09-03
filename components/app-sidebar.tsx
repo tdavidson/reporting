@@ -139,6 +139,17 @@ const NAV_ITEMS: NavItem[] = [
     href: '/funds', label: 'Funds', icon: BookOpen, featureKey: 'accounting',
     children: ACCOUNTING_SECTIONS.map(({ href, label, domain, requiresFof }) => ({ href, label, domain, requiresFof })),
   },
+  {
+    // The firm's own operating entity, not an investment vehicle — so its own section rather than
+    // a row on /funds, where every performance column would be a dash. Its feature key gates it
+    // (off by default), and its DOMAIN is separate from `accounting` because a manco's ledger
+    // carries firm payroll. See lib/access/domains.ts.
+    //
+    // No children: the section is a short list of entities, and the pages beneath are per-entity
+    // (/manco/<id>/journal). A subnav here would either need an entity to point at — as the Funds
+    // one does — or offer links that go nowhere, and unlike a fund there is rarely more than one.
+    href: '/manco', label: 'Management company', icon: Briefcase, featureKey: 'management_company',
+  },
   { href: '/usage', label: 'Usage', icon: Users, adminOnly: true, domain: 'admin' },
   { href: '/settings', label: 'Settings', icon: Settings, badgeKey: 'settings' },
   { href: '/support', label: 'Support', icon: LifeBuoy },

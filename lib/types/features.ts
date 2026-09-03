@@ -1,4 +1,4 @@
-export type FeatureKey = 'interactions' | 'investments' | 'notes' | 'lp_letters' | 'imports' | 'asks' | 'lps' | 'lp_tracking' | 'lp_portal' | 'lp_activity' | 'compliance' | 'deals' | 'diligence' | 'accounting' | 'gp_economics' | 'tax_reporting'
+export type FeatureKey = 'interactions' | 'investments' | 'notes' | 'lp_letters' | 'imports' | 'asks' | 'lps' | 'lp_tracking' | 'lp_portal' | 'lp_activity' | 'compliance' | 'deals' | 'diligence' | 'accounting' | 'gp_economics' | 'tax_reporting' | 'management_company'
 
 export type FeatureVisibility = 'everyone' | 'admin' | 'hidden' | 'off'
 
@@ -43,6 +43,16 @@ export const DEFAULT_FEATURE_VISIBILITY: FeatureVisibilityMap = {
   // a fund keeping books need not be issuing K-1s, and a half-built tax year should not appear in
   // the nav of a fund that never asked for one. Off by default, like everything in Fund Operations.
   tax_reporting: 'off',
+  // The management company's own books — the operating entity that employs the team, collects the
+  // management fee and pays the firm's costs. Off by default: most funds on this product keep only
+  // the fund's books, and a manco section in the nav of a firm that never asked for one is noise.
+  //
+  // Unlike `tax_reporting`, this key backs a domain of its OWN (lib/access/domains.ts). A manco
+  // ledger carries firm payroll and partner compensation, and — this is the whole reason — none of
+  // it is derivable from the fund's books the way a K-1 is. Granting someone the fund's ledger
+  // therefore must not hand them the firm's salaries, so the two are separate grants and the
+  // vehicle's `kind` decides which one a request needs (lib/accounting/http-vehicle.ts).
+  management_company: 'off',
 }
 
 /**

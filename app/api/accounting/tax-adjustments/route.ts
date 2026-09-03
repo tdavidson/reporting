@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
   const gate = await assertReadAccess(admin, user.id)
   if (gate instanceof NextResponse) return gate
 
-  const group = await resolveGroupOr400(admin, gate.fundId, req.nextUrl.searchParams.get('group'))
+  const group = await resolveGroupOr400(admin, gate, req.nextUrl.searchParams.get('group'))
   if (group instanceof NextResponse) return group
   const taxYear = taxYearOr400(req.nextUrl.searchParams.get('taxYear'))
   if (taxYear instanceof NextResponse) return taxYear
@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
   if (gate instanceof NextResponse) return gate
 
   const body = await req.json().catch(() => ({}))
-  const group = await resolveGroupOr400(admin, gate.fundId, body?.group)
+  const group = await resolveGroupOr400(admin, gate, body?.group)
   if (group instanceof NextResponse) return group
   const taxYear = taxYearOr400(body?.taxYear != null ? String(body.taxYear) : null)
   if (taxYear instanceof NextResponse) return taxYear

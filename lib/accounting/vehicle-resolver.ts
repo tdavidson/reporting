@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { listVehicles } from './load'
+import { listVehicles, listMancoVehicles } from './load'
 
 export class VehicleResolutionError extends Error {
   readonly code = 'INVALID_VEHICLE'
@@ -9,17 +9,48 @@ export class VehicleResolutionError extends Error {
  * Resolve a vehicle name against the fund's canonical vehicle list. An explicit name is matched
  * case-insensitively (while returning the stored spelling); an omitted name is only valid for a
  * single-vehicle fund.
+ *
+ * MANAGEMENT COMPANIES ARE EXCLUDED UNLESS ASKED FOR, and that default is a security boundary
+ * rather than a tidiness one.
+ *
+ * This function is where every vehicle-scoped surface in the app turns a name into a ledger: the 57
+ * accounting routes, the MCP tools, the Analyst's accounting context, the pending-action builders,
+ * the construction service. All of them are gated on the `accounting` grant, and a management
+ * company's books sit in the same tables as a fund's — so any of them, handed a manco's name, would
+ * have served the firm's payroll to whoever could reconcile a bank account.
+ *
+ * Resolving against `listVehicles` (which omits mancos) means every one of those callers refuses a
+ * management company by DEFAULT, without having been changed and without having to remember. Only a
+ * caller that has actually checked the `management_company` grant opts in, by passing
+ * `includeManagementCompanies` — and today there are exactly two, both in http-vehicle.ts, both of
+ * which run the check immediately afterwards.
+ *
+ * The failure mode when a caller forgets is "unknown vehicle", not "here is the payroll".
  */
 export async function resolveVehicle(
   admin: SupabaseClient,
   fundId: string,
   requested?: string,
+  opts?: {
+    /**
+     * Include management companies in the candidate set. Set ONLY by a caller that then checks the
+     * `management_company` grant — see `assertVehicleDomain`.
+     */
+    includeManagementCompanies?: boolean
+  },
 ): Promise<string> {
   const vehicles = await listVehicles(admin, fundId)
 
   if (requested) {
-    const match = vehicles.find(vehicle => vehicle === requested)
-      ?? vehicles.find(vehicle => vehicle.trim().toLowerCase() === requested.trim().toLowerCase())
+    // A management company is only ever reachable by NAME. It is deliberately absent from the
+    // "which vehicle did you mean" default below, so that a single-fund firm that sets one up does
+    // not suddenly have two candidates and start getting "specify a vehicle" from every page that
+    // used to resolve on its own.
+    const candidates = opts?.includeManagementCompanies
+      ? vehicles.concat((await listMancoVehicles(admin, fundId)).map(m => m.name))
+      : vehicles
+    const match = candidates.find(vehicle => vehicle === requested)
+      ?? candidates.find(vehicle => vehicle.trim().toLowerCase() === requested.trim().toLowerCase())
     if (!match) {
       throw new VehicleResolutionError(
         vehicles.length > 0

@@ -83,7 +83,7 @@ export async function GET(req: NextRequest) {
   const gate = await assertReadAccess(admin, user.id)
   if (gate instanceof NextResponse) return gate
 
-  const group = await resolveGroupOr400(admin, gate.fundId, req.nextUrl.searchParams.get('group'))
+  const group = await resolveGroupOr400(admin, gate, req.nextUrl.searchParams.get('group'))
   if (group instanceof NextResponse) return group
   const asOf = req.nextUrl.searchParams.get('asOf') ?? new Date().toISOString().slice(0, 10)
 
@@ -102,7 +102,7 @@ export async function POST(req: NextRequest) {
   if (gate instanceof NextResponse) return gate
 
   const body = await req.json().catch(() => ({}))
-  const group = await resolveGroupOr400(admin, gate.fundId, body?.group ?? null)
+  const group = await resolveGroupOr400(admin, gate, body?.group ?? null)
   if (group instanceof NextResponse) return group
   const asOf = typeof body?.asOf === 'string' ? body.asOf : new Date().toISOString().slice(0, 10)
 
