@@ -20,6 +20,8 @@ import { buildLpContext, LP_ANALYST_GUIDE } from '@/lib/ai/lp-fund-context'
 import { buildDiligenceContext, DILIGENCE_ANALYST_GUIDE } from '@/lib/diligence/analyst-context'
 import { extractText } from '@/lib/memo-agent/extract-text'
 import { hasAccess } from '@/lib/access/effective'
+import type { ToolExecutor } from '@/lib/ai/types'
+import type { AnalystProgressEvent } from './types'
 import {
   conversationBelongsToPrincipal,
   loadConversationMemory,
@@ -56,6 +58,48 @@ responses concise and analytical. Use plain text (no markdown formatting).`
  * Shared Analyst orchestration. The caller supplies an already-authenticated, live principal;
  * request fields can narrow scope but can never provide or widen identity, fund, role, or access.
  */
+/**
+ * Wrap a tool executor so each call is announced before and after it runs.
+ *
+ * Nothing about the call's arguments or its result crosses this boundary — only the tool's name and
+ * a humanized label. `isError` is reported because "that lookup failed" is useful to a person
+ * waiting, and it says nothing about what was looked up.
+ *
+ * The callback is best-effort: a transport whose client has already disconnected should not turn
+ * into a failed Analyst run, so anything it throws is swallowed.
+ */
+function withProgress(
+  execute: ToolExecutor,
+  onProgress?: (event: AnalystProgressEvent) => void,
+): ToolExecutor {
+  if (!onProgress) return execute
+  const emit = (event: AnalystProgressEvent) => {
+    try {
+      onProgress(event)
+    } catch {
+      /* a broken transport must not fail the run */
+    }
+  }
+  return async call => {
+    const label = toolLabel(call.name)
+    emit({ kind: 'tool.started', tool: call.name, label })
+    try {
+      const result = await execute(call)
+      emit({ kind: 'tool.completed', tool: call.name, label, isError: false })
+      return result
+    } catch (error) {
+      emit({ kind: 'tool.completed', tool: call.name, label, isError: true })
+      throw error
+    }
+  }
+}
+
+/** `list_capital_calls` -> `List capital calls`. A name, not a database detail. */
+export function toolLabel(name: string): string {
+  const words = name.replace(/[_-]+/g, ' ').trim()
+  return words ? words.charAt(0).toUpperCase() + words.slice(1) : 'Working'
+}
+
 export async function runAnalyst(
   principal: AnalystPrincipal,
   request: AnalystRequest,
@@ -322,7 +366,10 @@ export async function runAnalyst(
         system: withTopicalGuardrail(systemPrompt),
         messages,
         tools: analystTools.tools,
-        executeTool: analystTools.executeTool,
+        // The streaming seam. The orchestrator owns the executor, so announcing a tool call needs
+        // no change to the provider layer — which is why coarse progress is cheap and token-level
+        // progress is not.
+        executeTool: withProgress(analystTools.executeTool, request.onProgress),
         maxIterations: 6,
       })
       text = result.text

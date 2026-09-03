@@ -13,8 +13,8 @@ export const PRESENTATION_BLOCKS_VERSION = 1 as const
  * user as the app being broken rather than the server being older.
  */
 
-/** Phase 5 turns this on when POST /api/v1/chat/stream exists. */
-export const SUPPORTS_CHAT_STREAMING = false
+/** POST /api/v1/chat/stream exists as of Phase 5 (coarse events; see lib/api-v1/stream.ts). */
+export const SUPPORTS_CHAT_STREAMING = true
 
 /**
  * Phase 8 turns this on when a demo CREDENTIAL exists.

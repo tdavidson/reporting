@@ -404,6 +404,7 @@ export const UNGATED_ROUTES: Record<string, string> = {
   'api/v1/meta': 'Public instance discovery; contains no fund-specific data.',
   'api/v1/me': 'OAuth-only v1 endpoint with live principal access checks in-handler.',
   'api/v1/chat': 'OAuth-only; shared Analyst orchestration enforces the token owner\'s live access.',
+  'api/v1/chat/stream': 'OAuth-only; same preparation and orchestration as /api/v1/chat, streamed.',
   'api/v1/conversations': 'OAuth-only; queries are scoped to the token user and fund in-handler.',
   'api/v1/conversations/[id]': 'OAuth-only; reads and deletes are scoped to token user and fund.',
   'api/v1/pending-actions': 'OAuth-only; rows are fund-scoped and filtered by live domain access.',

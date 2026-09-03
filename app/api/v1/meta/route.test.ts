@@ -14,7 +14,7 @@ describe('GET /api/v1/meta', () => {
       oauth: { dynamicClientRegistration: true, pkceMethods: ['S256'] },
       capabilities: {
         chat: true,
-        chatStreaming: false,
+        chatStreaming: true,
         structuredBlocksVersion: 1,
         pendingActions: true,
         publicDemo: false,
@@ -28,7 +28,7 @@ describe('GET /api/v1/meta', () => {
     // an affordance that fails on use, which reads as a broken app rather than an older server.
     // Both flip in the phase that implements them: chatStreaming in Phase 5, publicDemo in Phase 8.
     const body = await (await GET()).json()
-    expect(body.capabilities.chatStreaming, 'no POST /api/v1/chat/stream exists yet').toBe(false)
+    expect(body.capabilities.chatStreaming, 'POST /api/v1/chat/stream exists as of Phase 5').toBe(true)
     expect(body.capabilities.publicDemo, 'no demo credential can be obtained through /api/v1').toBe(false)
   })
 })

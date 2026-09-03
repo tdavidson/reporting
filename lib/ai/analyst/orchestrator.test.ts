@@ -41,7 +41,7 @@ vi.mock('./conversation-store', () => ({
   persistConversation: mocks.persistConversation,
 }))
 
-import { runAnalyst } from './orchestrator'
+import { runAnalyst, toolLabel } from './orchestrator'
 
 function query(data: unknown): any {
   const result = { data, error: null }
@@ -184,5 +184,14 @@ describe('runAnalyst', () => {
       status: 403,
       code: 'FORBIDDEN',
     })
+  })
+})
+
+describe('coarse progress for streaming transports', () => {
+  it('turns a tool name into a label a person reads, not a database detail', () => {
+    expect(toolLabel('portfolio_construction')).toBe('Portfolio construction')
+    expect(toolLabel('list_capital_calls')).toBe('List capital calls')
+    expect(toolLabel('company-metrics')).toBe('Company metrics')
+    expect(toolLabel('')).toBe('Working')
   })
 })

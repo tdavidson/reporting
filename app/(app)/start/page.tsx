@@ -64,7 +64,7 @@ export default function StartPage() {
   if (!hasAIKey) {
     return (
       <div className="w-full px-4 pb-8 pt-4 md:pl-8 md:pr-4 md:pt-8">
-        <div className="mx-auto flex w-full max-w-4xl flex-col gap-6 pt-6">
+        <div className="mx-auto flex w-full max-w-4xl flex-col gap-6 pt-12">
         {hero}
         <p className="text-center text-sm text-muted-foreground">
           Add an AI provider key in{' '}

@@ -54,11 +54,34 @@ export interface AnalystDocument {
   base64?: string
 }
 
+/**
+ * Coarse progress from a run in flight, for transports that stream.
+ *
+ * COARSE, deliberately. The provider abstraction returns `Promise<AIResult>` from every method —
+ * Anthropic streams internally and then awaits `finalMessage()` — so there is no token-by-token
+ * output to forward without reshaping `AIProvider` and every caller of it. Tool progress is where
+ * most of the waiting actually is, and it is available without that surgery: the orchestrator
+ * supplies the tool executor, so it can announce each call as it happens.
+ *
+ * `label` is a display string. Tool INPUTS and OUTPUTS are never carried here — a tool argument can
+ * name a company or a vehicle the eventual answer would not have mentioned, and a result preview is
+ * raw database detail. What a viewer learns from these events is that work is happening and roughly
+ * what kind.
+ */
+export type AnalystProgressEvent =
+  | { kind: 'tool.started'; tool: string; label: string }
+  | { kind: 'tool.completed'; tool: string; label: string; isError: boolean }
+
 export interface AnalystRequest {
   messages: ChatMessage[]
   conversationId?: string
   /** Credential ceiling for transports with scoped tokens. Cookie-authenticated web defaults on. */
   allowDrafts?: boolean
+  /**
+   * Called as the run proceeds. Optional and best-effort: a throwing or slow callback must not be
+   * able to fail the run, so the orchestrator swallows what it raises.
+   */
+  onProgress?: (event: AnalystProgressEvent) => void
   scope?: {
     companyId?: string
     dealId?: string
