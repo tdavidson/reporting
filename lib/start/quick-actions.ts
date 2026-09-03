@@ -53,7 +53,7 @@ const SUGGESTED_PROMPTS: SuggestedPrompt[] = [
   { id: 'portfolio-silent', text: 'Which companies have not reported recently?', domain: 'portfolio' },
   { id: 'lp-unfunded', text: 'Who has the largest unfunded commitment?', domain: 'lp_capital', feature: 'lp_tracking' },
   { id: 'dealflow-new', text: 'What came into the pipeline this month?', domain: 'dealflow', feature: 'deals' },
-  { id: 'diligence-stalled', text: 'Which deals are stalled mid-memo?', domain: 'diligence' },
+  { id: 'diligence-stalled', text: 'Which deals are in due diligence?', domain: 'diligence' },
 ]
 
 const CREATE_ACTIONS: CreateAction[] = [

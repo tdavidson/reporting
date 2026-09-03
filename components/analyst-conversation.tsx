@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect, type ReactNode } from 'react'
-import { Sparkles, Send, X, Save, Clock, Plus, Trash2, ArrowLeft, Paperclip, ArrowUp, Copy, Check, Cpu, Upload } from 'lucide-react'
+import { Sparkles, Send, X, Save, Clock, Plus, Trash2, ArrowLeft, Paperclip, ArrowUp, Copy, Check, ChevronDown, Upload } from 'lucide-react'
 import { Markdown } from '@/components/markdown'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -308,8 +308,9 @@ export function AnalystConversation({
     </div>
   )
 
-  /** One picker, two faces: the panel header shows the model's name; the row under an answer
-   *  shows only an icon and hides the trigger's chevron, so it sits among the other icons. */
+  /** One picker, two faces: the panel header is a full select; the row under an answer is a
+   *  quiet text trigger — the model's name and a small chevron — because no glyph says "which
+   *  model" on its own, and the name is the thing you are choosing anyway. */
   function renderModelPicker(face: 'labelled' | 'icon') {
     if (availableModels.length === 0 || showHistory) return null
     return (
@@ -327,10 +328,11 @@ export function AnalystConversation({
         {face === 'icon' ? (
           <SelectTrigger
             aria-label="Switch model"
-            title={`Model: ${selectedModel ? selectedModel.name : 'Auto'}`}
-            className={`${actionIconClass} justify-center border-0 shadow-none [&>svg:last-child]:hidden`}
+            title="Switch model"
+            className={`${actionIconClass} w-auto gap-1 border-0 px-2 text-xs shadow-none [&>svg:last-child]:hidden`}
           >
-            <span className="flex"><Cpu className="h-3.5 w-3.5" /></span>
+            <span>{selectedModel ? selectedModel.name : 'Auto'}</span>
+            <ChevronDown className="h-3 w-3 opacity-60" />
           </SelectTrigger>
         ) : (
           <SelectTrigger className="h-7 flex-1 min-w-0 text-[11px]">

@@ -81,10 +81,11 @@ export default function StartPage() {
   }
 
   return (
-    // On a phone the page claims the whole visible viewport (100svh less the header and the tab
-    // bar's reserved strip, ~8.5rem), so the footer starts below the fold instead of peeking out
-    // above the tab bar when the hero is shorter than the screen.
-    <div className="flex h-full min-h-[calc(100svh-8.5rem)] w-full flex-col px-4 pb-8 pt-4 md:min-h-[32rem] md:pl-8 md:pr-4 md:pt-8">
+    // On a phone the page claims the whole visible viewport less the header (100svh − 5rem), so
+    // the footer starts under the tab bar instead of its top border peeking out above it when the
+    // hero is shorter than the screen. The larger bottom padding keeps the storage note clear of
+    // the bar too.
+    <div className="flex h-full min-h-[calc(100svh-5rem)] w-full flex-col px-4 pb-12 pt-4 md:min-h-[32rem] md:pb-16 md:pl-8 md:pr-4 md:pt-8">
       <AnalystConversation
         variant="page"
         autoFocus

@@ -62,10 +62,11 @@ const TAB_HEIGHT = 'min-h-[3.5rem]'
  * of content. Exported so app-shell.tsx cannot drift from it by a pixel, which is
  * exactly what happened when the two were written out separately.
  *
- * 4.5rem = the 3.5rem tab, the bar's 0.25rem inner padding top and bottom, its 1px top
- * border, and a little clearance — 65px of bar against 72px reserved. On top of that
- * comes the bar's own bottom padding, which is the same max() it uses, so the two
- * cannot disagree about how much room the home indicator is taking.
+ * 4.5rem = the 3.5rem tab, the bar's 0.25rem inner padding above it, its 1px top
+ * border, and clearance — 61px of bar against 72px reserved. On top of that comes
+ * 0.75rem-or-the-inset for the bar's own bottom padding, which the bar itself only
+ * spends when installed (1rem there, none in a browser tab — see the nav's comment),
+ * so the reservation covers the larger of its two shapes.
  *
  * The literal lives in this file so Tailwind's scanner sees it; app-shell only
  * interpolates the constant.
@@ -136,25 +137,29 @@ export function MobileNav({
           app does go edge-to-edge — including left/right, which is where a landscape
           handset puts its notch — without any of this needing to be found again.
 
-          That 0.75rem is for the INSTALLED app, where the bar meets the gesture strip.
-          In a browser tab Safari's own toolbar already sits under the bar, and the same
-          padding read as the tabs floating too high in it — more room below the labels
-          than above the icons. So the browser gets 0.25rem, which centres the tab row
-          in the bar, and display-mode picks the installed value. The spacer above keeps
-          the larger figure for both: reserving 0.5rem more than the bar uses in a tab is
-          harmless, reserving less is not. */}
+          The tab row hugs the BOTTOM of the bar (justify-end, no grid padding below it)
+          rather than floating in its middle, the way a native tab bar does, and the
+          bar's own bottom padding is the whole of the clearance under the labels.
+
+          That clearance depends on where the bar is. In a browser tab Safari's own
+          toolbar sits under it, so the bar needs none of its own — the inset alone,
+          which is 0 today — and any floor read as the tabs sitting too high. Installed,
+          the bar meets the gesture strip and needs the 1rem floor, which lands the
+          labels where the old 0.75rem-plus-centred-row did. display-mode tells the two
+          apart. The spacer above keeps the larger figure for both: reserving more than
+          the bar uses in a tab is harmless, reserving less is not. */}
       <nav
         aria-label="Primary"
         className={
           'md:hidden fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background ' +
-          'pb-[max(0.25rem,env(safe-area-inset-bottom))] ' +
-          '[@media(display-mode:standalone)]:pb-[max(0.75rem,env(safe-area-inset-bottom))] ' +
+          'pb-[env(safe-area-inset-bottom)] ' +
+          '[@media(display-mode:standalone)]:pb-[max(1rem,env(safe-area-inset-bottom))] ' +
           'pl-[max(0.75rem,env(safe-area-inset-left))] pr-[max(0.75rem,env(safe-area-inset-right))]'
         }
       >
         {/* The bar spans the screen; the tabs themselves stay centred and capped, so
             they do not stretch into thumb-hostile corners on a wide handset. */}
-        <div className={`grid ${COLS[Math.min(tabs.length + 1, 5)]} mx-auto max-w-md p-1`}>
+        <div className={`grid ${COLS[Math.min(tabs.length + 1, 5)]} mx-auto max-w-md px-1 pt-1`}>
           {tabs.map(item => {
             const Icon = item.icon
             const active = navItemMatches(item, pathname)
@@ -164,7 +169,7 @@ export function MobileNav({
                 key={item.href}
                 href={item.href}
                 aria-current={active ? 'page' : undefined}
-                className={`relative flex ${TAB_HEIGHT} flex-col items-center justify-center gap-1 px-1 py-1.5 text-[11px] leading-none transition-colors ${
+                className={`relative flex ${TAB_HEIGHT} flex-col items-center justify-end gap-1 px-1 py-1.5 text-[11px] leading-none transition-colors ${
                   active ? 'text-foreground font-medium' : 'text-muted-foreground'
                 }`}
               >
@@ -184,7 +189,7 @@ export function MobileNav({
             onClick={() => setMoreOpen(true)}
             aria-expanded={moreOpen}
             aria-label="More"
-            className={`relative flex ${TAB_HEIGHT} flex-col items-center justify-center gap-1 px-1 py-1.5 text-[11px] leading-none transition-colors ${
+            className={`relative flex ${TAB_HEIGHT} flex-col items-center justify-end gap-1 px-1 py-1.5 text-[11px] leading-none transition-colors ${
               moreOpen ? 'text-foreground font-medium' : 'text-muted-foreground'
             }`}
           >
