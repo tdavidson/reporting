@@ -85,7 +85,7 @@ export default function StartPage() {
     // the footer starts under the tab bar instead of its top border peeking out above it when the
     // hero is shorter than the screen. The larger bottom padding keeps the storage note clear of
     // the bar too.
-    <div className="flex h-full min-h-[calc(100svh-5rem)] w-full flex-col px-4 pb-12 pt-4 md:min-h-[32rem] md:pb-16 md:pl-8 md:pr-4 md:pt-8">
+    <div className="flex h-full min-h-[calc(100svh-5rem)] w-full flex-col px-4 pb-20 pt-4 md:min-h-[32rem] md:pb-16 md:pl-8 md:pr-4 md:pt-8">
       <AnalystConversation
         variant="page"
         autoFocus

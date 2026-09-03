@@ -669,7 +669,7 @@ export function AnalystConversation({
         {showHistory ? (
           <div className="flex flex-col flex-1 min-h-0">{historyView}</div>
         ) : heroLayout ? (
-          <div className={`flex flex-1 flex-col gap-6 px-2 pt-10 md:px-0 md:pt-6 ${threadColumn}`}>
+          <div className={`flex flex-1 flex-col gap-6 px-2 pt-14 md:px-0 md:pt-6 ${threadColumn}`}>
             {hero}
             <div className="space-y-4">
               {composerBlock}
