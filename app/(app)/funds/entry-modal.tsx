@@ -24,6 +24,9 @@ const num = (s: string) => { const n = parseFloat(s); return Number.isFinite(n) 
  *
  * `readOnly` opens a posted entry for viewing without reverting it; unposting from
  * there flips this same modal into edit mode.
+ *
+ * `onPosted` fires after "Save & post" succeeds, with the entry and the first account it
+ * debited, so the caller can take the user to that account's register — the journal does.
  */
 export function EntryModal({
   txnId,
@@ -31,12 +34,14 @@ export function EntryModal({
   readOnly = false,
   onClose,
   onSaved,
+  onPosted,
 }: {
   txnId?: string
   entryId?: string | null
   readOnly?: boolean
   onClose: () => void
   onSaved: () => void
+  onPosted?: (info: { entryId: string; entryDate: string; accountCode: string | null }) => void
 }) {
   const lf = useLedgerFetch()
   const currency = useCurrency()
@@ -134,6 +139,12 @@ export function EntryModal({
     if (thenPost && targetId) {
       const err = await setPosted('post', targetId)
       if (err) { setError(`Saved as a draft, but posting failed: ${err}`); setSaving(false); return }
+      setSaving(false); onSaved(); onClose()
+      // The first debited line is the account the user thinks of as "where it went" — cash for a
+      // receipt, the expense for a bill. Falls back to the first line for an all-credit oddity.
+      const first = lines.find(l => num(l.debit) > 0) ?? lines[0]
+      onPosted?.({ entryId: targetId, entryDate: date, accountCode: (first && acctById.get(first.accountId)?.code) ?? null })
+      return
     }
     setSaving(false); onSaved(); onClose()
   }

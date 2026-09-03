@@ -96,6 +96,20 @@ export function useFundSeg(): string | null {
 }
 
 /**
+ * The base path of the current vehicle's ledger pages — `/funds/<seg>` for an investment
+ * vehicle, `/manco/<id>` for a management company — so a shared view can link to a sibling page
+ * (the register, the journal) and land in the section it is already in. A fund URL for a manco
+ * would bounce to `/manco/<id>` and drop the subpage; see app/(app)/funds/[id]/resolve.ts.
+ */
+export function useVehicleBase(): string | null {
+  const pathname = usePathname()
+  const { vehicleId } = useVehicle()
+  const seg = useFundSeg()
+  if (pathname.startsWith('/manco/') && vehicleId) return `/manco/${vehicleId}`
+  return seg ? `/funds/${seg}` : null
+}
+
+/**
  * A fetch wrapper that scopes every ledger request to the selected vehicle:
  * appends `?group=` to the URL and injects `group` into JSON POST bodies.
  */

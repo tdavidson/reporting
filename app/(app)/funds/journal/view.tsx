@@ -1,11 +1,12 @@
 'use client'
 
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Loader2, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { useLedgerFetch, useFundSeg } from '@/components/accounting-vehicle'
+import { useLedgerFetch, useFundSeg, useVehicleBase } from '@/components/accounting-vehicle'
 import { textAccountName } from '@/lib/accounting/text-ledger'
 import type { Account, AccountType } from '@/lib/accounting/types'
 import { PeriodPicker } from '@/components/accounting/period-picker'
@@ -34,6 +35,8 @@ const PAGE = 50
 export function JournalView() {
   const lf = useLedgerFetch()
   const fundSeg = useFundSeg()
+  const base = useVehicleBase()
+  const router = useRouter()
 
   const [entries, setEntries] = useState<Entry[]>([])
   const [total, setTotal] = useState(0)
@@ -88,6 +91,25 @@ export function JournalView() {
 
   const sel = useMemo(() => summarizeSelection(entries, selected), [entries, selected])
   const rangeLabel = periodTriggerLabel(preset, start, end)
+
+  // Each posting line links to its account's register over the journal's current window, so an
+  // entry is one click from the balance it moved.
+  const registerHref = (code: string | null): string | null => {
+    if (!base || !code) return null
+    const qs = new URLSearchParams({ account: code, preset })
+    if (preset === 'custom') { if (start) qs.set('start', start); if (end) qs.set('end', end) }
+    return `${base}/ledger?${qs}`
+  }
+
+  // After "Save & post": land on the register of the first account debited, with the new entry
+  // highlighted — the answer to "where did that go?" without a second navigation. The window is
+  // the one that contains the entry: this year for a current entry, inception for a back-dated one.
+  const goToRegister = ({ entryId, entryDate, accountCode }: { entryId: string; entryDate: string; accountCode: string | null }) => {
+    if (!base || !accountCode) return
+    const yearStart = `${new Date().getFullYear()}-01-01`
+    const qs = new URLSearchParams({ account: accountCode, preset: entryDate >= yearStart ? 'ytd' : 'itd', highlight: entryId })
+    router.push(`${base}/ledger?${qs}`)
+  }
   // The escalation is only offered when it would be honest: bulk-post filters by date and id,
   // it has no free-text search, so with a query active "all matching" would silently mean
   // something wider than what's on screen.
@@ -332,9 +354,15 @@ export function JournalView() {
                         ? textAccountName({ id: p.account_id, fundId: '', code: p.account_code, name: p.account_name ?? '', type: (p.account_type as AccountType) } as Account)
                         : `Unknown:${p.account_id.slice(0, 8)}`
                       const amt = Number(p.amount)
+                      const href = registerHref(p.account_code)
                       return (
                         <div key={p.id} className="flex items-baseline gap-3 pl-4">
-                          <span className="min-w-0 flex-1 break-all">{name}</span>
+                          {href ? (
+                            // Stops the click reaching the row, which would open the entry instead.
+                            <Link href={href} onClick={ev => ev.stopPropagation()} title="Open this account's register" className="min-w-0 flex-1 break-all hover:underline">{name}</Link>
+                          ) : (
+                            <span className="min-w-0 flex-1 break-all">{name}</span>
+                          )}
                           <span className={`shrink-0 text-right tabular-nums ${amt < 0 ? 'text-muted-foreground' : ''}`}>
                             {amt.toFixed(2)}
                           </span>
@@ -379,6 +407,7 @@ export function JournalView() {
           readOnly={editing.readOnly}
           onClose={() => setEditing(null)}
           onSaved={loadPage}
+          onPosted={goToRegister}
         />
       )}
     </div>

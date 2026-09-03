@@ -3,6 +3,9 @@
 ## Unreleased
 
 Added
+- **General ledger.** A register per account — opening balance, every posted line with what it was booked against, running balance, closing balance — at Funds → General ledger and on the management company's Books. Every statement line, trial balance row and journal posting links to it, and "Save & post" on a journal entry lands on the register of the first account it debited with the entry highlighted. The register is a URL (`?account=1000&preset=ytd`), so it can be sent
+- **Trial balance on screen.** The Financial statements page has a Trial balance tab, with one debit/credit column pair per compared period. It was computed on every load and only ever surfaced as an out-of-balance warning
+- **Type-ahead account picker** (`components/accounting/account-picker.tsx`) — type a code or part of a name; used by the register and ready for the journal entry form
 - **Management company accounting.** A vehicle can now be set up as a *management company* — the firm's own operating entity rather than an investment vehicle — and gets its own section in the nav, switched on in Settings → Feature visibility
 - Its own **chart of accounts**: four separate compensation accounts, payroll liabilities, deferred fee revenue (the fee is billed a quarter before it is earned), members' capital and draws, and an operating-business expense structure. A fund chart has no salaries line at all
 - A **dashboard built around the questions a firm asks about itself**: cash and monthly burn with the runway it implies (depreciation excluded — it is not cash leaving the building), revenue and expenses **by quarter** with the empty quarters drawn rather than skipped, and expenses ranked by account

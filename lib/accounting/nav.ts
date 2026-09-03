@@ -4,7 +4,7 @@
 
 import {
   Landmark, Users, ScrollText, Gauge,
-  Lock, Layers, FileText, Target,
+  Lock, Layers, FileText, Target, Table2,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import type { Domain } from '@/lib/access/domains'
@@ -57,6 +57,12 @@ export const ACCOUNTING_SECTIONS: AccountingSection[] = [
     label: 'Journal',
     icon: ScrollText,
     desc: 'Plain-text double-entry journal entries. Create, view, unpost, and edit all journal entries.',
+  },
+  {
+    href: '/funds/ledger',
+    label: 'General ledger',
+    icon: Table2,
+    desc: 'One account at a time: the balance carried in, every posting with what it was booked against, and the running balance.',
   },
   // NOTE: /funds/opening-balances is deliberately NOT listed. It only applies to
   // the "cutover" onboarding path, and is linked from the setup card there. On a

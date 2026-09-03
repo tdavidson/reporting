@@ -88,6 +88,8 @@ export const ROUTE_DOMAINS: Record<string, RouteAccess> = {
   'api/accounting/journal/bulk-post': { domain: 'accounting' },
   'api/accounting/journal/bulk-void': { domain: 'accounting' },
   'api/accounting/attribute-lp-capital': { domain: 'accounting' },
+  // The account register: the same posted ledger the statements read, one account at a time.
+  'api/accounting/ledger': { domain: 'accounting' },
   'api/accounting/ledger-text': { domain: 'accounting' },
   'api/accounting/opening-balances': { domain: 'accounting' },
   'api/accounting/periods': { domain: 'accounting' },

@@ -1,11 +1,11 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Loader2, Download } from 'lucide-react'
 import { useCurrency, formatCurrencyPrice } from '@/components/currency-context'
 import { Button } from '@/components/ui/button'
-import { useLedgerFetch, useVehicle, useFundSeg } from '@/components/accounting-vehicle'
+import { useLedgerFetch, useVehicle, useFundSeg, useVehicleBase } from '@/components/accounting-vehicle'
 import { type PeriodPreset } from '@/lib/accounting/statement-period'
 import { PeriodPicker } from '@/components/accounting/period-picker'
 import { EmptyState } from '@/components/ui/empty-state'
@@ -81,6 +81,20 @@ export function StatementsView() {
   const lf = useLedgerFetch()
   const { group } = useVehicle()
   const fundSeg = useFundSeg()
+  const base = useVehicleBase()
+  // The statements are the figures; the trial balance is the working paper behind them. Same
+  // package, same period controls — a second lens on it, not a second fetch.
+  const [view, setView] = useState<'statements' | 'trial-balance'>('statements')
+
+  // Every coded line links to its account's register over the same window, so a figure on a
+  // statement is one click from the postings behind it. The register's closing balance for the
+  // window IS the balance-sheet figure, and its activity IS the income-statement one.
+  const registerHref = (code: string): string | null => {
+    if (!base || !code) return null
+    const qs = new URLSearchParams({ account: code, preset })
+    if (preset === 'custom') { if (start) qs.set('start', start); if (end) qs.set('end', end) }
+    return `${base}/ledger?${qs}`
+  }
 
   // Same period params as the on-screen fetch, plus the selected vehicle — the export
   // route computes the identical package and serializes it to a multi-tab .xlsx.
@@ -163,7 +177,11 @@ export function StatementsView() {
         )}
         {m.keys.map(k => (
           <tr key={k.key} className="border-t">
-            <td className="px-3 py-1.5 text-muted-foreground">{k.code ? `${k.code} · ` : ''}{k.name}</td>
+            <td className="px-3 py-1.5 text-muted-foreground">
+              {k.code && registerHref(k.code)
+                ? <Link href={registerHref(k.code)!} className="hover:underline hover:text-foreground" title="Open this account's register">{k.code} · {k.name}</Link>
+                : <>{k.code ? `${k.code} · ` : ''}{k.name}</>}
+            </td>
             {cols.map((c, i) => <td key={i} className="px-3 py-1.5 text-right tabular-nums">{fmtCell(m.amountFor(c, k.key))}</td>)}
           </tr>
         ))}
@@ -203,6 +221,23 @@ export function StatementsView() {
             <Download className="h-4 w-4" />Export workpapers (Excel)
           </span>
         )}
+
+        <div className="inline-flex rounded-md border border-input text-sm" role="tablist" aria-label="Statements or trial balance">
+          <button
+            role="tab" aria-selected={view === 'statements'}
+            onClick={() => setView('statements')}
+            className={`h-9 rounded-l-md px-3 ${view === 'statements' ? 'bg-muted font-medium' : 'text-muted-foreground hover:text-foreground'}`}
+          >
+            Statements
+          </button>
+          <button
+            role="tab" aria-selected={view === 'trial-balance'}
+            onClick={() => setView('trial-balance')}
+            className={`h-9 rounded-r-md border-l border-input px-3 ${view === 'trial-balance' ? 'bg-muted font-medium' : 'text-muted-foreground hover:text-foreground'}`}
+          >
+            Trial balance
+          </button>
+        </div>
 
         <div className="ml-auto flex flex-wrap items-center gap-2">
           <PeriodPicker
@@ -246,7 +281,84 @@ export function StatementsView() {
         >
           No statements yet — the ledger has no posted entries{period?.end ? ` as of ${period.end}` : ''}.
         </EmptyState>
-      ) : (
+      ) : view === 'trial-balance' ? (() => {
+        // Union accounts across the columns by code; a column with no balance shows blank.
+        const keys: { code: string; name: string }[] = []
+        const seen = new Set<string>()
+        for (const c of cols) for (const row of c.trialBalance.rows) {
+          if (!seen.has(row.code)) { seen.add(row.code); keys.push({ code: row.code, name: row.name }) }
+        }
+        keys.sort((a, b) => a.code.localeCompare(b.code))
+        const rowFor = (c: Omit<Data, 'comparisons'>, code: string) => c.trialBalance.rows.find(r => r.code === code)
+        const cell = (v: number | undefined) => (v ? fmt(v) : '')
+        return (
+          <section>
+            <h2 className="text-base font-semibold">Trial balance</h2>
+            <p className="text-xs text-muted-foreground mb-2">
+              Cumulative balances {asOfLabel} — every account with a balance, debits and credits. Click an account for its register.
+            </p>
+            <div className="border rounded-lg overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b bg-muted/50">
+                    <th className="text-left px-3 py-2 font-medium" rowSpan={2}>Account</th>
+                    {cols.map((c, i) => (
+                      <th key={i} colSpan={2} className="text-center px-3 py-1 font-medium whitespace-nowrap border-l">
+                        <div>{c.period.label}</div>
+                        <div className="text-[10px] font-normal text-muted-foreground">{c.period.end ? `as of ${c.period.end}` : 'as of today'}</div>
+                      </th>
+                    ))}
+                  </tr>
+                  <tr className="border-b bg-muted/50 text-xs text-muted-foreground">
+                    {cols.map((_, i) => (
+                      <Fragment key={i}>
+                        <th className="text-right px-3 py-1 font-medium border-l">Debit</th>
+                        <th className="text-right px-3 py-1 font-medium">Credit</th>
+                      </Fragment>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {keys.map(k => (
+                    <tr key={k.code} className="border-t">
+                      <td className="px-3 py-1.5 text-muted-foreground">
+                        {registerHref(k.code)
+                          ? <Link href={registerHref(k.code)!} className="hover:underline hover:text-foreground" title="Open this account's register">{k.code} · {k.name}</Link>
+                          : <>{k.code} · {k.name}</>}
+                      </td>
+                      {cols.map((c, i) => {
+                        const row = rowFor(c, k.code)
+                        return (
+                          <Fragment key={i}>
+                            <td className="px-3 py-1.5 text-right tabular-nums border-l">{cell(row?.debit)}</td>
+                            <td className="px-3 py-1.5 text-right tabular-nums">{cell(row?.credit)}</td>
+                          </Fragment>
+                        )
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr className="border-t bg-muted/30 font-semibold">
+                    <td className="px-3 py-2">Total</td>
+                    {cols.map((c, i) => (
+                      <Fragment key={i}>
+                        <td className="px-3 py-2 text-right tabular-nums border-l">{fmt(c.trialBalance.totalDebits)}</td>
+                        <td className="px-3 py-2 text-right tabular-nums">{fmt(c.trialBalance.totalCredits)}</td>
+                      </Fragment>
+                    ))}
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+            {cols.some(c => !c.trialBalance.balanced) && (
+              <p className="text-sm text-warning mt-1">
+                Out of balance in {cols.filter(c => !c.trialBalance.balanced).map(c => c.period.label).join(', ')} — total debits and credits differ.
+              </p>
+            )}
+          </section>
+        )
+      })() : (
     // ASC 946 order: assets & liabilities, then operations, then cash flows, then
     // changes in partners' capital last — the per-partner detail behind the single
     // capital line on the balance sheet.
