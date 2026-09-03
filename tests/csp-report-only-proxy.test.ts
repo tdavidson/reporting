@@ -80,8 +80,21 @@ describe('report-only CSP on page responses', () => {
     const r = req('/auth')
     r.headers.set('content-security-policy', "script-src 'nonce-ATTACKER'")
     const res = await proxy(r)
-    expect(res.headers.get('x-middleware-request-content-security-policy')).toBeNull()
-    expect(nonceIn(res.headers.get(REPORT_ONLY_HEADER)!)).not.toBe('ATTACKER')
+    const ours = nonceIn(res.headers.get(REPORT_ONLY_HEADER)!)
+    expect(ours).not.toBe('ATTACKER')
+    expect(nonceIn(res.headers.get('x-middleware-request-content-security-policy')!)).toBe(ours)
+  })
+
+  it('hands Next the policy under the header name it reads first (request only, never the response)', async () => {
+    // Vercel did not forward `content-security-policy-report-only` as a request header, so Next
+    // rendered every script un-nonced in production while the layout's x-nonce arrived fine.
+    // `content-security-policy` on the REQUEST is the pattern Next's own CSP guide uses; the
+    // browser never sees request headers, so this enforces nothing.
+    const res = await proxy(req('/auth'))
+    const ours = nonceIn(res.headers.get(REPORT_ONLY_HEADER)!)
+    expect(res.headers.get('x-middleware-request-content-security-policy')).toBe(res.headers.get(REPORT_ONLY_HEADER))
+    expect(nonceIn(res.headers.get('x-middleware-request-content-security-policy')!)).toBe(ours)
+    expect(res.headers.get('content-security-policy')).toBeNull()
   })
 
   it('does not put unsafe-eval in the production policy', async () => {

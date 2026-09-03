@@ -58,7 +58,7 @@ const CURRENCY_OPTIONS = [
   'HKD', 'SEK', 'NOK', 'DKK', 'NZD', 'BRL', 'ZAR', 'ILS', 'KRW',
 ]
 
-const EMPTY_FORM: Record<string, string> = {
+export const EMPTY_FORM: Record<string, string> = {
   transaction_type: 'investment',
   // Set only in 'conversion' mode: the SAFE/note transaction this priced round converts.
   converts_from_txn_id: '',
@@ -110,6 +110,68 @@ const EMPTY_FORM: Record<string, string> = {
   prior_fx_rate: '',
   original_position_value: '',
   portfolio_group: '',
+}
+
+/**
+ * The dialog's form state for an existing row. Every key in EMPTY_FORM MUST come back as a
+ * string: the save handler calls `.trim()` on the numeric fields, so a key this forgets is a
+ * crash on save — which is exactly what happened when split/income/fee fields were added to
+ * the form and the payload but not here. Spreading EMPTY_FORM first makes that impossible to
+ * repeat; the test pins it.
+ */
+export function formFromTransaction(txn: InvestmentTransaction): Record<string, string> {
+  // A conversion is stored as an `investment` row with a converts_from link. Recognize it so the
+  // dialog reopens in Conversion mode with its fields — otherwise editing shows plain-investment
+  // fields and, worse, saving nulls the link (turning it back into a $0-cost investment).
+  const convertsFrom = (txn as any).converts_from_txn_id ?? ''
+  return {
+    ...EMPTY_FORM,
+    transaction_type: convertsFrom ? 'conversion' : txn.transaction_type,
+    converts_from_txn_id: convertsFrom,
+    round_name: txn.round_name ?? '',
+    transaction_date: txn.transaction_date ?? '',
+    notes: txn.notes ?? '',
+    investment_cost: txn.investment_cost?.toString() ?? '',
+    interest_converted: txn.interest_converted?.toString() ?? '',
+    security_type: (txn as any).security_type ?? '',
+    // Stored as fractions, shown as percentages — nobody thinks in 0.08.
+    interest_rate: (txn as any).interest_rate != null ? String(Number((txn as any).interest_rate) * 100) : '',
+    maturity_date: (txn as any).maturity_date ?? '',
+    dividend_rate: (txn as any).dividend_rate != null ? String(Number((txn as any).dividend_rate) * 100) : '',
+    shares_acquired: txn.shares_acquired?.toString() ?? '',
+    share_price: txn.share_price?.toString() ?? '',
+    postmoney_valuation: txn.postmoney_valuation?.toString() ?? '',
+    ownership_pct: txn.ownership_pct?.toString() ?? '',
+    cost_basis_exited: txn.cost_basis_exited?.toString() ?? '',
+    proceeds_received: txn.proceeds_received?.toString() ?? '',
+    proceeds_escrow: txn.proceeds_escrow?.toString() ?? '',
+    proceeds_written_off: txn.proceeds_written_off?.toString() ?? '',
+    proceeds_per_share: txn.proceeds_per_share?.toString() ?? '',
+    exit_valuation: txn.exit_valuation?.toString() ?? '',
+    unrealized_value_change: txn.unrealized_value_change?.toString() ?? '',
+    current_share_price: txn.current_share_price?.toString() ?? '',
+    latest_postmoney_valuation: txn.latest_postmoney_valuation?.toString() ?? '',
+    original_currency: txn.original_currency ?? '',
+    original_investment_cost: txn.original_investment_cost?.toString() ?? '',
+    original_share_price: txn.original_share_price?.toString() ?? '',
+    original_postmoney_valuation: txn.original_postmoney_valuation?.toString() ?? '',
+    original_proceeds_received: txn.original_proceeds_received?.toString() ?? '',
+    original_proceeds_per_share: txn.original_proceeds_per_share?.toString() ?? '',
+    original_exit_valuation: txn.original_exit_valuation?.toString() ?? '',
+    original_unrealized_value_change: txn.original_unrealized_value_change?.toString() ?? '',
+    original_current_share_price: txn.original_current_share_price?.toString() ?? '',
+    original_latest_postmoney_valuation: txn.original_latest_postmoney_valuation?.toString() ?? '',
+    valuation_change_source: txn.valuation_change_source ?? 'mark',
+    fx_rate: txn.fx_rate?.toString() ?? '',
+    prior_fx_rate: txn.prior_fx_rate?.toString() ?? '',
+    original_position_value: txn.original_position_value?.toString() ?? '',
+    portfolio_group: txn.portfolio_group ?? '',
+    split_ratio: (txn as any).split_ratio?.toString() ?? '',
+    income_kind: (txn as any).income_kind ?? EMPTY_FORM.income_kind,
+    income_settlement: (txn as any).income_settlement ?? EMPTY_FORM.income_settlement,
+    income_amount: (txn as any).income_amount?.toString() ?? '',
+    fee_amount: (txn as any).fee_amount?.toString() ?? '',
+  }
 }
 
 export function CompanyInvestments({ companyId, companyStatus, portfolioGroups, adminOnly }: Props) {
@@ -269,52 +331,7 @@ export function CompanyInvestments({ companyId, companyStatus, portfolioGroups, 
 
   function openEdit(txn: InvestmentTransaction) {
     setEditingId(txn.id)
-    // A conversion is stored as an `investment` row with a converts_from link. Recognize it so the
-    // dialog reopens in Conversion mode with its fields — otherwise editing shows plain-investment
-    // fields and, worse, saving nulls the link (turning it back into a $0-cost investment).
-    const convertsFrom = (txn as any).converts_from_txn_id ?? ''
-    setForm({
-      transaction_type: convertsFrom ? 'conversion' : txn.transaction_type,
-      converts_from_txn_id: convertsFrom,
-      round_name: txn.round_name ?? '',
-      transaction_date: txn.transaction_date ?? '',
-      notes: txn.notes ?? '',
-      investment_cost: txn.investment_cost?.toString() ?? '',
-      interest_converted: txn.interest_converted?.toString() ?? '',
-      security_type: (txn as any).security_type ?? '',
-      // Stored as fractions, shown as percentages — nobody thinks in 0.08.
-      interest_rate: (txn as any).interest_rate != null ? String(Number((txn as any).interest_rate) * 100) : '',
-      maturity_date: (txn as any).maturity_date ?? '',
-      dividend_rate: (txn as any).dividend_rate != null ? String(Number((txn as any).dividend_rate) * 100) : '',
-      shares_acquired: txn.shares_acquired?.toString() ?? '',
-      share_price: txn.share_price?.toString() ?? '',
-      postmoney_valuation: txn.postmoney_valuation?.toString() ?? '',
-      ownership_pct: txn.ownership_pct?.toString() ?? '',
-      cost_basis_exited: txn.cost_basis_exited?.toString() ?? '',
-      proceeds_received: txn.proceeds_received?.toString() ?? '',
-      proceeds_escrow: txn.proceeds_escrow?.toString() ?? '',
-      proceeds_written_off: txn.proceeds_written_off?.toString() ?? '',
-      proceeds_per_share: txn.proceeds_per_share?.toString() ?? '',
-      exit_valuation: txn.exit_valuation?.toString() ?? '',
-      unrealized_value_change: txn.unrealized_value_change?.toString() ?? '',
-      current_share_price: txn.current_share_price?.toString() ?? '',
-      latest_postmoney_valuation: txn.latest_postmoney_valuation?.toString() ?? '',
-      original_currency: txn.original_currency ?? '',
-      original_investment_cost: txn.original_investment_cost?.toString() ?? '',
-      original_share_price: txn.original_share_price?.toString() ?? '',
-      original_postmoney_valuation: txn.original_postmoney_valuation?.toString() ?? '',
-      original_proceeds_received: txn.original_proceeds_received?.toString() ?? '',
-      original_proceeds_per_share: txn.original_proceeds_per_share?.toString() ?? '',
-      original_exit_valuation: txn.original_exit_valuation?.toString() ?? '',
-      original_unrealized_value_change: txn.original_unrealized_value_change?.toString() ?? '',
-      original_current_share_price: txn.original_current_share_price?.toString() ?? '',
-      original_latest_postmoney_valuation: txn.original_latest_postmoney_valuation?.toString() ?? '',
-      valuation_change_source: txn.valuation_change_source ?? 'mark',
-      fx_rate: txn.fx_rate?.toString() ?? '',
-      prior_fx_rate: txn.prior_fx_rate?.toString() ?? '',
-      original_position_value: txn.original_position_value?.toString() ?? '',
-      portfolio_group: txn.portfolio_group ?? '',
-    })
+    setForm(formFromTransaction(txn))
     setError(null)
     // An FX revaluation owns its own currency selector, so the generic
     // original-amounts block stays collapsed for those rows.
@@ -1080,8 +1097,7 @@ export function CompanyInvestments({ companyId, companyStatus, portfolioGroups, 
                   )}
                   <p className="mt-1 text-xs text-muted-foreground">
                     Your fund&rsquo;s policy is <span className="font-medium">{isLotMethod(lotMethod) ? LOT_METHOD_LABELS[lotMethod] : lotMethod}</span>.
-                    The close reports any disposal whose recorded basis differs from it — deliberate is fine,
-                    it only says the two differ.
+                    The close reports any disposal whose recorded basis differs from this.
                   </p>
                 </div>
                 <div>

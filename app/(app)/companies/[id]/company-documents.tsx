@@ -363,7 +363,7 @@ export function CompanyDocuments({ companyId, fundId, storageProvider, googleDri
       )}
 
       {expanded && documents.length === 0 && (
-        <p className="text-xs text-muted-foreground px-3 py-2">
+        <p className="text-sm text-muted-foreground">
           {includeEmailHistory
             ? 'No documents or email activity yet. Upload a file here, or process an email for this company.'
             : 'No uploaded documents yet. Upload a file here.'}

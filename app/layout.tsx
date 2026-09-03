@@ -130,6 +130,7 @@ export default async function RootLayout({
           defaultTheme="system"
           enableSystem
           storageKey="portfolio-theme"
+          nonce={nonce}
         >
           <ConfirmProvider>
             {children}

@@ -31,6 +31,14 @@ export async function proxy(request: NextRequest) {
     headers.delete('content-security-policy')
     headers.set(NONCE_HEADER, nonce)
     headers.set(REPORT_ONLY_HEADER, reportOnlyCsp)
+    // ALSO under the enforcing header's name, on the REQUEST only. Next reads its render nonce from
+    // `content-security-policy` first, then `-report-only` — and on Vercel the report-only request
+    // header never reached the function: production rendered every chunk and RSC payload un-nonced
+    // while x-nonce (set the same way, one line up) arrived intact. This is the header name Next's
+    // own CSP guide sets, so it is the one the platform is known to forward. A request header is
+    // never sent to the browser; the response carries only the report-only policy, so nothing is
+    // enforced by this line. Setting it after the delete above is what makes the delete matter.
+    headers.set('content-security-policy', reportOnlyCsp)
     const response = NextResponse.next({ request: { headers } })
     response.headers.set(REPORT_ONLY_HEADER, reportOnlyCsp)
     return response
