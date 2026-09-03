@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Building2, ClipboardCheck, ListChecks, Mail, Upload, Send, Settings, LifeBuoy, PanelLeftClose, PanelLeftOpen, Monitor, Sun, Moon, BarChart3, TrendingUp, Lock, Users, Handshake, ArrowDownCircle, FileText, Briefcase, Crown, ShieldCheck, Lightbulb, Microscope, BookOpen } from 'lucide-react'
+import { Building2, ClipboardCheck, ListChecks, Mail, Upload, Send, Settings, LifeBuoy, PanelLeftClose, PanelLeftOpen, Monitor, Sun, Moon, BarChart3, TrendingUp, Lock, Users, Handshake, ArrowDownCircle, FileText, Briefcase, Crown, ShieldCheck, Lightbulb, Microscope, BookOpen, Sparkles } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { useTheme } from 'next-themes'
@@ -84,6 +84,10 @@ const NAV_ITEMS: NavItem[] = [
   // queue's emails live, so gating it on the Deals product hid the only page that can reprocess an
   // email from every fund running Portfolio Reporting alone. Deal-specific actions inside it gate
   // themselves. See ROUTE_DOMAINS['api/emails'].
+  // The landing page. No domain and no feature key: it is the app's front door, and a member with
+  // no grants still has to be able to reach it. What it OFFERS is filtered per-grant inside the
+  // page (lib/start/quick-actions.ts).
+  { href: '/start', label: 'Start', icon: Sparkles },
   { href: '/emails', label: 'Inbound', icon: Mail, domain: 'portfolio' },
   { href: '/deals', label: 'Deals', icon: Lightbulb, featureKey: 'deals' },
   {

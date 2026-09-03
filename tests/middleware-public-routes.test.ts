@@ -159,3 +159,81 @@ describe('middleware — the PWA shell answers without a session', () => {
     expect(new URL(res.headers.get('location')!).pathname).toBe('/auth/mfa-verify')
   })
 })
+
+/**
+ * Where a signed-in member of the fund actually begins.
+ *
+ * `/` is the post-login destination — both auth callbacks default `next` to it — and it renders
+ * the marketing page. That was right when the only signed-in entry point was a nav click, and
+ * wrong once /start existed: a GP with a session has no use for the pricing tiers, and with the
+ * marketing site switched off the page redirects to /auth, which is a signed-in user being sent
+ * to a login form.
+ *
+ * The redirect lives here rather than in the auth routes because those are not the only way in:
+ * a bookmark, the PWA start_url and the browser's own address bar all arrive at `/` with a
+ * session already set.
+ */
+describe('middleware — a signed-in GP lands on /start', () => {
+  /** fund_members answers `member`, lp_accounts answers `lp`; anything else is empty. */
+  const identity = (member: boolean, lp: string | null) =>
+    from.mockImplementation((table: string) => ({
+      select: () => ({
+        eq: () => ({
+          maybeSingle: async () => {
+            if (table === 'fund_members') return { data: member ? { fund_id: 'f1' } : null }
+            if (table === 'lp_accounts') return { data: lp ? { status: lp } : null }
+            return { data: null }
+          },
+        }),
+      }),
+    }))
+
+  const location = (res: Response) => new URL(res.headers.get('location')!).pathname
+
+  it('sends a GP asking for / to /start', async () => {
+    getUser.mockResolvedValue({ data: { user: { id: 'gp1' } } })
+    identity(true, null)
+    const res = await middleware(req('/'))
+    expect(res.status).toBe(307)
+    expect(location(res)).toBe('/start')
+  })
+
+  it('still serves the marketing page to a signed-out visitor', async () => {
+    // The whole point of the redirect is that it keys on the session, not on the route.
+    const res = await middleware(req('/'))
+    expect(res.status).not.toBe(307)
+  })
+
+  it('redirects a GP even when the marketing site is switched off', async () => {
+    // Without this the (public) page finds no site_content and redirects to /auth — a signed-in
+    // user sent to a login form.
+    vi.stubEnv('NEXT_PUBLIC_ENABLE_MARKETING_SITE', 'false')
+    getUser.mockResolvedValue({ data: { user: { id: 'gp1' } } })
+    identity(true, null)
+    expect(location(await middleware(req('/')))).toBe('/start')
+  })
+
+  it('does not redirect /start itself', async () => {
+    // A landing page that bounces to itself is an infinite loop, not a landing page.
+    getUser.mockResolvedValue({ data: { user: { id: 'gp1' } } })
+    identity(true, null)
+    const res = await middleware(req('/start'))
+    expect(res.status).not.toBe(307)
+  })
+
+  it('leaves an LP-only user on the marketing page', async () => {
+    // LPs are not members of the fund and /start is a GP surface. Their own routing is the
+    // LP/GP split, which owns /portal — this block must not reach past GPs.
+    getUser.mockResolvedValue({ data: { user: { id: 'lp1' } } })
+    identity(false, 'active')
+    const res = await middleware(req('/'))
+    expect(res.status).not.toBe(307)
+  })
+
+  it('sends a GP bounced off the portal to /start, not through / a second time', async () => {
+    // The portal split used to fall back to '/', which now redirects again. One hop, not two.
+    getUser.mockResolvedValue({ data: { user: { id: 'gp1' } } })
+    identity(true, null)
+    expect(location(await middleware(req('/portal/overview')))).toBe('/start')
+  })
+})

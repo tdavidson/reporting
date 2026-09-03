@@ -214,7 +214,7 @@ export function ConstructionView({ vehicle, vehicleId }: { vehicle: string; vehi
 
         <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
           <section className="rounded-card border bg-card p-4 shadow-sm dark:shadow-none dark:border">
-            <h2 className="text-base font-medium">Capital planning</h2><p className="mt-1 text-sm text-muted-foreground">Capital calls, expenses, investments, and reserves as a share of committed capital.</p>
+            <h2 className="text-base font-medium">Capital planning</h2><p className="mt-1 text-sm text-muted-foreground">Capital calls, expenses, investments, and reserves.</p>
             <table className="mt-3 w-full text-sm">
               <thead><tr className="border-b bg-muted/50"><th className="px-3 py-2 text-left font-medium">Capital</th><th className="px-3 py-2 text-right font-medium">Amount</th><th className="w-32 whitespace-nowrap px-3 py-2 text-right font-medium">% committed</th></tr></thead>
               <tbody>

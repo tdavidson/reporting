@@ -128,6 +128,29 @@ export async function middleware(request: NextRequest) {
     }
   }
 
+  // ── Where a signed-in GP begins ──────────────────────────────────────────
+  //
+  // `/` is the post-login destination — both auth callbacks default `next` to it — and it renders
+  // the marketing page. Fine when the only signed-in way in was a nav click; wrong once /start
+  // existed. A member with a session has no use for the pricing tiers, and with the marketing site
+  // switched off the page finds no site_content and redirects to /auth, which is a signed-in user
+  // being sent to a login form.
+  //
+  // It belongs here and not in the auth routes because those are not the only way in: a bookmark,
+  // the PWA start_url and the address bar all arrive at `/` with the session already set. The
+  // extra membership read costs one query on one path.
+  //
+  // GPs only. An LP is not a fund member; the LP/GP split below owns where they go.
+  if (user && isMarketingRoute) {
+    const { data: startMembership } = await supabase
+      .from('fund_members').select('fund_id').eq('user_id', user.id).maybeSingle()
+    if (startMembership) {
+      const url = request.nextUrl.clone()
+      url.pathname = '/start'
+      return NextResponse.redirect(url)
+    }
+  }
+
   // ── Per-domain access gate for the API ───────────────────────────────────
   //
   // THE choke point. Every /api request resolves to a route in lib/access/route-domains.ts and is
@@ -174,7 +197,9 @@ export async function middleware(request: NextRequest) {
       // Only active LPs (incl. active LPs who are also GPs) belong in the portal.
       if (!isActiveLp) {
         const url = request.nextUrl.clone()
-        url.pathname = lpStatus === 'invited' ? '/portal/welcome' : (isGp ? '/' : '/auth')
+        // A GP here goes straight to /start. Sending them to '/' worked, but only by way of the
+        // marketing redirect above — two hops to reach one page.
+        url.pathname = lpStatus === 'invited' ? '/portal/welcome' : (isGp ? '/start' : '/auth')
         if (url.pathname !== pathname) return NextResponse.redirect(url)
       }
     } else if (isActiveLp && !isGp) {
