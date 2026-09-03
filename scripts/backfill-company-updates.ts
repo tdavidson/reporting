@@ -3,8 +3,10 @@
 //   npx tsx --env-file=.env.local scripts/backfill-company-updates.ts --fund <fund_id> --dry-run
 //   npx tsx --env-file=.env.local scripts/backfill-company-updates.ts --fund <fund_id> --sample 25 [--company <company_id>]
 //   npx tsx --env-file=.env.local scripts/backfill-company-updates.ts --fund <fund_id> --full [--reprocess] [--concurrency 3]
-//   npx tsx --env-file=.env.local scripts/backfill-company-updates.ts --resume <job_id>
+//   npx tsx --env-file=.env.local scripts/backfill-company-updates.ts --resume <job_id> [--retry-failed]
 //   npx tsx --env-file=.env.local scripts/backfill-company-updates.ts --status <job_id>
+//   npx tsx --env-file=.env.local scripts/backfill-company-updates.ts --fund <fund_id> --ocr [limit]
+//     (drains the fund's OCR queue with its configured vision model — this spends model tokens)
 //
 // Resumable: a job's items live in company_update_backfill_items; re-running with --resume claims
 // whatever is still pending (including transient failures returned to the queue). Safe alongside
@@ -14,10 +16,12 @@
 
 import { createAdminClient } from '@/lib/supabase/admin'
 import { CAPTURE_VERSION } from '@/lib/company-updates/extraction'
+import { runOcrBatch } from '@/lib/company-updates/ocr'
 import {
   backfillStatus,
   createBackfillJob,
   planBackfillJob,
+  retryFailedItems,
   runBackfillBatch,
   type BackfillMode,
 } from '@/lib/company-updates/backfill'
@@ -41,7 +45,39 @@ async function main() {
     return
   }
 
+  if (flag('ocr')) {
+    if (!fundId) throw new Error('--fund <fund_id> is required with --ocr')
+    const limit = Number.parseInt(arg('ocr') ?? '', 10) || 10
+    let totals = { claimed: 0, completed: 0, failed: 0, retried: 0 }
+    for (;;) {
+      const result = await runOcrBatch(admin, { fundId, limit: Math.min(limit - totals.claimed, 5) })
+      totals = { claimed: totals.claimed + result.claimed, completed: totals.completed + result.completed, failed: totals.failed + result.failed, retried: totals.retried + result.retried }
+      for (const d of result.details) console.log(`  ${d.artifactId}: ${d.outcome}${d.error ? ` — ${d.error}` : ''}`)
+      if (result.claimed === 0 || totals.claimed >= limit) break
+    }
+    console.log('OCR totals:', totals)
+    return
+  }
+
   let jobId = resumeId
+  if (jobId && flag('retry-failed')) {
+    const { data: job } = await admin.from('company_update_backfill_jobs').select('fund_id').eq('id', jobId).maybeSingle()
+    if (!job) throw new Error(`Job ${jobId} not found`)
+    const requeued = await retryFailedItems(admin, { jobId, fundId: job.fund_id })
+    console.log(`Requeued ${requeued} failed item(s).`)
+  }
+  if (jobId) {
+    // Planning is keyset-resumable: finish enumerating before claiming work. For a dry run this IS
+    // the whole job.
+    console.log(`Job ${jobId}: resuming plan…`)
+    const planned = await planBackfillJob({ admin }, jobId)
+    console.log(`Planned ${planned.planned} item(s) of ${planned.total_eligible} eligible.`)
+    print(planned.counts)
+    if (planned.status === 'completed') {
+      console.log(planned.mode === 'dry_run' ? 'Dry run complete — nothing was written.' : 'Nothing left to process.')
+      return
+    }
+  }
   if (!jobId) {
     if (!fundId) throw new Error('--fund <fund_id> is required (or --resume/--status <job_id>)')
     const mode: BackfillMode = flag('dry-run') ? 'dry_run' : arg('sample') ? 'sample' : flag('full') ? 'full' : 'dry_run'

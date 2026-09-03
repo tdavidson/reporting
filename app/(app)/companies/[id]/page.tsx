@@ -132,10 +132,15 @@ export default async function CompanyDetailPage({
     return data?.[0] ?? null
   }
 
-  const [mrrRow, cashRow] = await Promise.all([
+  const [mrrRow, cashRow, capturedUpdates] = await Promise.all([
     mrrMetric ? getLatestValue(mrrMetric.id) : null,
     cashMetric ? getLatestValue(cashMetric.id) : null,
+    // Once the company has captured Company Updates, that section owns reporting mail and the
+    // documents panel drops its legacy email listing. Until the backfill reaches a company, the
+    // legacy listing is still how its email history is reachable.
+    supabase.from('company_updates').select('id', { count: 'exact', head: true }).eq('company_id', params.id),
   ])
+  const hasCapturedUpdates = (capturedUpdates?.count ?? 0) > 0
 
   if (mrrRow && mrrMetric) {
     latestMrr = { value: mrrRow.value_number!, period: mrrRow.period_label, metric: mrrMetric }
@@ -226,6 +231,7 @@ export default async function CompanyDetailPage({
             companyId={company.id}
             storageProvider={fundSettings?.file_storage_provider ?? null}
             googleDriveFolderId={fundSettings?.google_drive_folder_id ?? null}
+            includeEmailHistory={!hasCapturedUpdates}
           />
 
           {showInteractions && (

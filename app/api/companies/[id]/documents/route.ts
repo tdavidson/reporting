@@ -15,7 +15,7 @@ export const maxDuration = 60
 // ---------------------------------------------------------------------------
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: { id: string } }
 ) {
   const supabase = createClient()
@@ -57,13 +57,17 @@ export async function GET(
     has_readable_content: !!extracted_text || !!storage_path,
   }))
 
-  // Fetch email attachments from inbound_emails
-  const { data: emails } = await admin
+  // Email history is the legacy view of reporting mail. Once a company has captured Company
+  // Updates the page shows those instead (richer: extraction status, cleaned body, OCR), and asks
+  // this route for uploads only.
+  const includeEmails = req.nextUrl.searchParams.get('emails') !== '0'
+  const { data: emails } = includeEmails ? await admin
     .from('inbound_emails')
     .select('id, from_address, subject, raw_payload, received_at')
     .eq('company_id', params.id)
     .in('processing_status', ['success', 'needs_review'])
     .order('received_at', { ascending: false }) as { data: any[] | null }
+    : { data: [] as any[] }
 
   const emailHistory: any[] = []
   for (const email of emails ?? []) {

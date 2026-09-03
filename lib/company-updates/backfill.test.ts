@@ -6,7 +6,7 @@ vi.mock('./capture', async importOriginal => {
   return { ...original, captureCompanyUpdate: captureMock }
 })
 
-import { createBackfillJob, isTransient, planBackfillJob, recoverReportingPeriod, runBackfillBatch, summarize, type BackfillJob } from './backfill'
+import { createBackfillJob, isTransient, planBackfillJob, recoverReportingPeriod, retryFailedItems, runBackfillBatch, summarize, type BackfillJob } from './backfill'
 import { CAPTURE_VERSION } from './extraction'
 
 const FUND = '00000000-0000-4000-8000-000000000001'
@@ -41,6 +41,7 @@ function fakeDb(seed: { emails?: any[]; updates?: any[]; metricValues?: any[] } 
     let payload: any = null
     let limitN = Number.POSITIVE_INFINITY
     let countOnly = false
+    let projectAttachments = false
     const rows = () => (table === 'company_update_backfill_jobs' ? jobs : table === 'company_update_backfill_items' ? items : table === 'inbound_emails' ? emails : table === 'company_updates' ? updates : table === 'metric_values' ? seed.metricValues ?? [] : [])
     const run = () => {
       if (action === 'insert') {
@@ -62,13 +63,16 @@ function fakeDb(seed: { emails?: any[]; updates?: any[]; metricValues?: any[] } 
         if (table === 'company_updates') { periodWrites.push({ payload, filters }); return { data: null, error: null } }
         const matched = filterRows(rows(), filters)
         for (const row of matched) Object.assign(row, payload)
-        return { data: matched[0] ?? null, error: null }
+        return { data: table === 'company_update_backfill_items' ? matched : matched[0] ?? null, error: null }
       }
       const matched = filterRows(rows(), filters).sort((a, b) => (`${a.received_at}|${a.id}` < `${b.received_at}|${b.id}` ? -1 : 1)).slice(0, limitN)
-      return countOnly ? { data: null, count: matched.length, error: null } : { data: matched, error: null }
+      const projected = projectAttachments
+        ? matched.map(({ raw_payload, claude_response, ...rest }) => ({ ...rest, attachments: raw_payload?.Attachments ?? null }))
+        : matched
+      return countOnly ? { data: null, count: matched.length, error: null } : { data: projected, error: null }
     }
     const q: any = {
-      select: (_c?: string, opts?: any) => { if (opts?.head) countOnly = true; return q },
+      select: (cols?: string, opts?: any) => { if (opts?.head) countOnly = true; if (cols?.includes('attachments:raw_payload->Attachments')) projectAttachments = true; return q },
       insert: (p: any) => { action = 'insert'; payload = p; return q },
       upsert: (p: any) => { action = 'upsert'; payload = p; return q },
       update: (p: any) => { action = 'update'; payload = p; return q },
@@ -202,6 +206,28 @@ describe('backfill processing', () => {
     expect(outcome.done).toBe(1)
     expect(captureMock).not.toHaveBeenCalled()
     expect(db.items[0]).toMatchObject({ status: 'skipped', result: { reason: 'no longer eligible' } })
+  })
+})
+
+describe('retryFailedItems', () => {
+  it('requeues failed items with a fresh attempt budget and reopens a completed job', async () => {
+    captureMock.mockReset()
+    captureMock.mockRejectedValue(new Error('function setweight(tsvector, text) does not exist'))
+    const db = fakeDb({ emails: [email(1)] })
+    const job = await createBackfillJob({ admin: db.admin as any }, { fundId: FUND, mode: 'full' })
+    await planBackfillJob({ admin: db.admin as any }, job.id)
+    const first = await runBackfillBatch({ admin: db.admin as any, hydrate: async p => p }, { jobId: job.id })
+    expect(first.job.status).toBe('completed')
+    expect(db.items[0].status).toBe('failed')
+
+    expect(await retryFailedItems(db.admin as any, { jobId: job.id, fundId: FUND })).toBe(1)
+    expect(db.items[0]).toMatchObject({ status: 'pending', attempts: 0, error: null })
+    expect(db.jobs[0].status).toBe('running')
+
+    captureMock.mockResolvedValue({ updateId: 'u', extractionStatus: 'complete', artifacts: [] })
+    const second = await runBackfillBatch({ admin: db.admin as any, hydrate: async p => p }, { jobId: job.id })
+    expect(second).toMatchObject({ done: 1, failed: 0 })
+    expect(second.job.status).toBe('completed')
   })
 })
 

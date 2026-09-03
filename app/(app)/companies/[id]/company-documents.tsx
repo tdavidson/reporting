@@ -30,6 +30,11 @@ interface Props {
   companyId: string
   storageProvider?: string | null
   googleDriveFolderId?: string | null
+  /**
+   * Show email bodies/attachments here. False once the company has captured Company Updates —
+   * the Updates section above then owns reporting mail, and this panel is uploads only.
+   */
+  includeEmailHistory?: boolean
 }
 
 function formatFileSize(bytes: number): string {
@@ -54,7 +59,7 @@ function FileIcon({ fileType, source }: { fileType: string; source: string }) {
   return <File className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
 }
 
-export function CompanyDocuments({ companyId, storageProvider, googleDriveFolderId }: Props) {
+export function CompanyDocuments({ companyId, storageProvider, googleDriveFolderId, includeEmailHistory = true }: Props) {
   const [documents, setDocuments] = useState<Document[]>([])
   const [loading, setLoading] = useState(true)
   const [deletingId, setDeletingId] = useState<string | null>(null)
@@ -66,7 +71,7 @@ export function CompanyDocuments({ companyId, storageProvider, googleDriveFolder
 
   const load = useCallback(async () => {
     try {
-      const res = await fetch(`/api/companies/${companyId}/documents`)
+      const res = await fetch(`/api/companies/${companyId}/documents${includeEmailHistory ? '' : '?emails=0'}`)
       if (res.ok) {
         const data = await res.json()
         setDocuments(data.documents)
@@ -74,9 +79,11 @@ export function CompanyDocuments({ companyId, storageProvider, googleDriveFolder
     } finally {
       setLoading(false)
     }
-  }, [companyId])
+  }, [companyId, includeEmailHistory])
 
   useEffect(() => { load() }, [load])
+
+  const title = includeEmailHistory ? 'Documents & activity' : 'Documents'
 
   async function toggleDocument(doc: Document) {
     if (openId === doc.id) {
@@ -126,7 +133,7 @@ export function CompanyDocuments({ companyId, storageProvider, googleDriveFolder
       <div className="mt-6">
         <div className="flex items-center gap-2 mb-2">
           <FileText className="h-3.5 w-3.5 text-muted-foreground" />
-          <span className="text-sm font-medium text-muted-foreground">Documents &amp; activity</span>
+          <span className="text-sm font-medium text-muted-foreground">{title}</span>
         </div>
         <div className="animate-pulse space-y-2">
           <div className="h-8 bg-muted rounded w-full" />
@@ -145,7 +152,7 @@ export function CompanyDocuments({ companyId, storageProvider, googleDriveFolder
         >
           {expanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
           <FileText className="h-3.5 w-3.5" />
-          Documents &amp; activity
+          {title}
           {documents.length > 0 && (
             <span className="text-xs bg-muted rounded-full px-1.5 py-0.5">{documents.length}</span>
           )}
@@ -233,7 +240,9 @@ export function CompanyDocuments({ companyId, storageProvider, googleDriveFolder
 
       {expanded && documents.length > 0 && (
         <p className="text-xs text-muted-foreground/70 px-3 pt-2">
-          Email bodies, attachments, and uploaded documents used for reporting and AI extraction appear here.{' '}
+          {includeEmailHistory
+            ? 'Email bodies, attachments, and uploaded documents used for reporting and AI extraction appear here.'
+            : 'Uploaded documents used for AI context appear here; reporting email lives in Updates above.'}{' '}
           {storageProvider === 'google_drive' && googleDriveFolderId ? (
             <>
               Raw documents can be found in{' '}
@@ -257,7 +266,9 @@ export function CompanyDocuments({ companyId, storageProvider, googleDriveFolder
 
       {expanded && documents.length === 0 && (
         <p className="text-xs text-muted-foreground px-3 py-2">
-          No documents or email activity yet. Upload files from the Analyst above, or process an email for this company.
+          {includeEmailHistory
+            ? 'No documents or email activity yet. Upload files from the Analyst above, or process an email for this company.'
+            : 'No uploaded documents yet. Upload files from the Analyst above.'}
         </p>
       )}
     </div>

@@ -60,11 +60,20 @@ interface EligibleEmail {
   company_id: string
   received_at: string
   routed_to: string | null
+  /** `raw_payload->Attachments` only — planning never loads bodies, which is what timed it out. */
+  attachments: PostmarkPayload['Attachments'] | null
+}
+
+interface ProcessableEmail {
+  id: string
+  company_id: string
+  received_at: string
+  routed_to: string | null
   raw_payload: PostmarkPayload | null
   claude_response: unknown
 }
 
-const PLAN_PAGE = 500
+const PLAN_PAGE = 100
 
 // ─── Job creation and planning ────────────────────────────────────────────────────────────────
 
@@ -133,7 +142,7 @@ export async function planBackfillJob(deps: BackfillDeps, jobId: string): Promis
     for (const email of page) {
       counts.eligible++
       const state = captured.get(email.id)
-      const attachments = email.raw_payload?.Attachments ?? []
+      const attachments = Array.isArray(email.attachments) ? email.attachments : []
       counts.attachments += attachments.length
       for (const attachment of attachments) {
         const type = (attachment.ContentType || 'unknown').split(';')[0].trim().toLowerCase()
@@ -230,7 +239,7 @@ async function processItem(deps: BackfillDeps, job: BackfillJob, item: BackfillI
       .eq('fund_id', job.fund_id)
       .maybeSingle()
     if (error) throw new Error(`Could not load email: ${error.message}`)
-    const email = data as EligibleEmail | null
+    const email = data as ProcessableEmail | null
     if (!email || !email.company_id || effectiveRoute(email.routed_to) !== 'reporting') {
       await patchItem(deps.admin, item, { status: 'skipped', finished_at: nowIso(), result: { reason: 'no longer eligible' } })
       return 'done'
@@ -321,6 +330,31 @@ export async function recoverReportingPeriod(
   return period
 }
 
+/**
+ * Put a job's permanently failed items back in the queue (after a fix), resetting attempts so the
+ * retry cap applies afresh, and reopen the job if it had drained.
+ */
+export async function retryFailedItems(admin: SupabaseAdmin, params: { jobId: string; fundId: string }): Promise<number> {
+  const { data, error } = await admin
+    .from('company_update_backfill_items')
+    .update({ status: 'pending', attempts: 0, error: null, finished_at: null, claimed_at: null })
+    .eq('job_id', params.jobId)
+    .eq('fund_id', params.fundId)
+    .eq('status', 'failed')
+    .select('id')
+  if (error) throw new Error(`Could not requeue failed items: ${error.message}`)
+  const count = ((data ?? []) as unknown[]).length
+  if (count > 0) {
+    const { error: jobError } = await admin
+      .from('company_update_backfill_jobs')
+      .update({ status: 'running', finished_at: null, last_error: null, updated_at: new Date().toISOString() })
+      .eq('id', params.jobId)
+      .eq('fund_id', params.fundId)
+    if (jobError) throw new Error(`Could not reopen backfill job: ${jobError.message}`)
+  }
+  return count
+}
+
 // ─── Status ───────────────────────────────────────────────────────────────────────────────────
 
 export interface BackfillStatus {
@@ -388,7 +422,7 @@ async function eligiblePage(
 ): Promise<EligibleEmail[]> {
   let query = admin
     .from('inbound_emails')
-    .select('id, company_id, received_at, routed_to, raw_payload, claude_response')
+    .select('id, company_id, received_at, routed_to, attachments:raw_payload->Attachments')
     .eq('fund_id', job.fund_id)
     .not('company_id', 'is', null)
     .or('routed_to.eq.reporting,routed_to.is.null')

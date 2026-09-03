@@ -3,7 +3,7 @@
 import { useMemo } from 'react'
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
-  PieChart, Pie, Cell, LineChart, Line, ReferenceLine,
+  PieChart, Pie, Cell, ReferenceLine, LabelList,
 } from 'recharts'
 import {
   ChartCard, EmptyPlot, AXIS, tooltipStyle, HUE, sliceFill,
@@ -161,8 +161,16 @@ export function ValueSourcesChart({ model, fmt, fmtFull }: { model: Construction
 // ── Range of return outcomes ─────────────────────────────────────────────────
 //
 // Net fund MOIC across the ownership-at-exit scenarios the model already derives from the plan.
+// Columns, not a line: the five scenarios are discrete what-ifs (the plan ±1 and ±2 ownership
+// points), and net MOIC is linear in ownership with everything else held, so a line through them
+// is always straight and reads as a trajectory that does not exist. Emphasis form — the plan as
+// entered in the accent hue, the what-ifs in de-emphasis grey — so the eye lands on the one
+// column that is a decision and reads the others as its spread.
+//
 // ONE y-axis: `exitToReturnFund` is a dollar figure on a wholly different scale, so it lives in
 // the tooltip rather than on a second axis.
+
+const WHAT_IF_FILL = 'hsl(var(--muted-foreground) / 0.35)'
 
 export function ReturnRangeChart({ model, fmt, multiple }: { model: ConstructionResult; fmt: Fmt; multiple: (v: number | null) => string }) {
   const { sensitivity, targetFundMultiple } = model.returns
@@ -176,6 +184,7 @@ export function ReturnRangeChart({ model, fmt, multiple }: { model: Construction
   })), [sensitivity])
 
   const hasTarget = targetFundMultiple > 0
+  const last = data.length - 1
 
   return (
     <ChartCard title="Range of return outcomes">
@@ -184,16 +193,17 @@ export function ReturnRangeChart({ model, fmt, multiple }: { model: Construction
       ) : (
         <>
           <ResponsiveContainer width="100%" height={hasTarget ? 176 : 190}>
-            <LineChart data={data} margin={{ top: 8, right: 12, bottom: 0, left: 8 }}>
+            <BarChart data={data} margin={{ top: 16, right: 12, bottom: 0, left: 8 }}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} className="stroke-border" />
               <XAxis dataKey="label" tick={AXIS} tickLine={false} axisLine={false} className="text-muted-foreground" />
               <YAxis tick={AXIS} tickLine={false} axisLine={false} width={40} tickFormatter={v => `${(v as number).toFixed(1)}x`} className="text-muted-foreground" />
               <Tooltip
+                cursor={{ fill: 'hsl(var(--muted) / 0.4)' }}
                 contentStyle={tooltipStyle}
                 labelFormatter={l => `${l} ownership at exit`}
                 formatter={(v: any, _n: any, item: any) => [
                   `${multiple(v as number)} · one exit at ${fmt(item?.payload?.exitToReturnFund ?? null)} returns the fund`,
-                  'Net MOIC',
+                  item?.payload?.isPlan ? 'Net MOIC (plan)' : 'Net MOIC',
                 ]}
               />
               {hasTarget && (
@@ -204,31 +214,32 @@ export function ReturnRangeChart({ model, fmt, multiple }: { model: Construction
                   label={{ value: `Target ${targetFundMultiple}x`, position: 'insideTopLeft', fontSize: 11, fill: HUE.muted }}
                 />
               )}
-              {/* The plan as entered gets the larger dot — every other point is a what-if around it. */}
-              <Line
-                type="monotone"
-                dataKey="netMoic"
-                name="Net MOIC"
-                stroke={HUE.chart1}
-                strokeWidth={2}
-                dot={(props: any) => (
-                  <circle
-                    key={props.index}
-                    cx={props.cx}
-                    cy={props.cy}
-                    r={props.payload?.isPlan ? 5 : 3}
-                    fill={HUE.chart1}
-                    stroke={HUE.surface}
-                    strokeWidth={2}
-                  />
-                )}
-                activeDot={{ r: 6 }}
-              />
-            </LineChart>
+              <Bar dataKey="netMoic" name="Net MOIC" maxBarSize={24} radius={[4, 4, 0, 0]}>
+                {data.map(d => <Cell key={d.label} fill={d.isPlan ? HUE.chart1 : WHAT_IF_FILL} />)}
+                {/* Direct labels on the plan and the two ends only: enough to read the spread
+                    without a number on every column. */}
+                <LabelList
+                  dataKey="netMoic"
+                  position="top"
+                  fontSize={11}
+                  fill={HUE.muted}
+                  formatter={(v: any) => multiple(v as number)}
+                  content={(props: any) => {
+                    const i = props.index as number
+                    if (!(data[i]?.isPlan || i === 0 || i === last)) return null
+                    return (
+                      <text x={props.x + props.width / 2} y={props.y - 4} textAnchor="middle" fontSize={11} fill={data[i]?.isPlan ? HUE.ink : HUE.muted} className="tabular-nums">
+                        {multiple(props.value as number)}
+                      </text>
+                    )
+                  }}
+                />
+              </Bar>
+            </BarChart>
           </ResponsiveContainer>
           <p className="mt-1 text-xs text-muted-foreground">
             Net MOIC on committed capital if the portfolio exits at each average ownership. The
-            larger point is the plan as entered.
+            solid column is the plan as entered; the grey columns move it ±1 and ±2 points.
           </p>
         </>
       )}

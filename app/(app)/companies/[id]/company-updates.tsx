@@ -72,6 +72,7 @@ export function CompanyUpdates({ companyId }: Props) {
   const [openId, setOpenId] = useState<string | null>(null)
   const [details, setDetails] = useState<Record<string, UpdateDetail>>({})
   const [artifactText, setArtifactText] = useState<Record<string, ArtifactDetail>>({})
+  const [previewId, setPreviewId] = useState<string | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -252,6 +253,11 @@ export function CompanyUpdates({ companyId }: Props) {
                               <StatusBadge status={artifact.extraction_status} />
                               <OcrBadge status={artifact.ocr_status} />
                               <span className="ml-auto flex items-center gap-1">
+                                {artifact.has_source_file && canInline(artifact) && (
+                                  <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setPreviewId(previewId === artifact.id ? null : artifact.id)}>
+                                    {previewId === artifact.id ? 'Hide preview' : 'Preview'}
+                                  </Button>
+                                )}
                                 {artifact.has_text && (
                                   <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => showArtifactText(update, artifact)} disabled={busy === artifact.id}>
                                     {busy === artifact.id ? <Loader2 className="h-3 w-3 animate-spin" /> : artifactText[artifact.id] ? 'Hide text' : 'Show text'}
@@ -276,6 +282,11 @@ export function CompanyUpdates({ companyId }: Props) {
                             )}
                             {artifact.detected_content_type && artifact.declared_content_type && artifact.detected_content_type !== artifact.declared_content_type && (
                               <p className="mt-1 text-xs text-muted-foreground">Declared {artifact.declared_content_type}, detected {artifact.detected_content_type}.</p>
+                            )}
+                            {previewId === artifact.id && (
+                              contentTypeOf(artifact).startsWith('image/')
+                                ? <img src={`/api/company-updates/${update.id}/artifacts/${artifact.id}?download=1&disposition=inline`} alt={artifact.filename} className="mt-2 max-h-[32rem] max-w-full mx-auto rounded" />
+                                : <iframe src={`/api/company-updates/${update.id}/artifacts/${artifact.id}?download=1&disposition=inline`} title={artifact.filename} className="mt-2 w-full h-[32rem] rounded bg-white" />
                             )}
                             {artifactText[artifact.id] && (
                               <pre className="mt-2 max-h-96 overflow-auto whitespace-pre-wrap rounded-md bg-muted p-3 text-xs text-foreground">
@@ -304,6 +315,16 @@ export function CompanyUpdates({ companyId }: Props) {
       )}
     </div>
   )
+}
+
+function contentTypeOf(artifact: TimelineArtifact): string {
+  return artifact.detected_content_type ?? artifact.declared_content_type ?? ''
+}
+
+/** Same allowlist the download route enforces for inline disposition. */
+function canInline(artifact: TimelineArtifact): boolean {
+  const type = contentTypeOf(artifact)
+  return type === 'application/pdf' || /^image\/(png|jpeg|gif|webp)$/.test(type)
 }
 
 function BodyView({ detail }: { detail: UpdateDetail }) {
