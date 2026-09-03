@@ -52,7 +52,6 @@ const SUGGESTED_PROMPTS: SuggestedPrompt[] = [
   { id: 'portfolio-quarter', text: 'How is the portfolio doing this quarter?', domain: 'portfolio' },
   { id: 'portfolio-silent', text: 'Which companies have not reported recently?', domain: 'portfolio' },
   { id: 'lp-unfunded', text: 'Who has the largest unfunded commitment?', domain: 'lp_capital', feature: 'lp_tracking' },
-  { id: 'accounting-unreconciled', text: 'What is still unreconciled this month?', domain: 'accounting' },
   { id: 'dealflow-new', text: 'What came into the pipeline this month?', domain: 'dealflow', feature: 'deals' },
   { id: 'diligence-stalled', text: 'Which deals are stalled mid-memo?', domain: 'diligence' },
 ]
