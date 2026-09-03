@@ -8,7 +8,7 @@
  * inspection, which is a SUCCESSFUL item. Reporting periods are recovered from the stored metric
  * result without any model call. Progress and counts live on the job row.
  */
-import { captureCompanyUpdate, effectiveRoute, updateCompanyUpdatePeriod, type SupabaseAdmin } from './capture'
+import { captureCompanyUpdate, effectiveRoute, loadStoredInboundEmail, updateCompanyUpdatePeriod, type SupabaseAdmin } from './capture'
 import { CAPTURE_VERSION } from './extraction'
 import type { PostmarkPayload } from '@/lib/pipeline/processEmail'
 import type { ReportingPeriod } from '@/lib/claude/extractMetrics'
@@ -64,14 +64,6 @@ interface EligibleEmail {
   attachments: PostmarkPayload['Attachments'] | null
 }
 
-interface ProcessableEmail {
-  id: string
-  company_id: string
-  received_at: string
-  routed_to: string | null
-  raw_payload: PostmarkPayload | null
-  claude_response: unknown
-}
 
 const PLAN_PAGE = 100
 
@@ -232,15 +224,16 @@ export async function runBackfillBatch(
 async function processItem(deps: BackfillDeps, job: BackfillJob, item: BackfillItem): Promise<'done' | 'failed' | 'retried'> {
   const nowIso = () => (deps.now?.() ?? new Date()).toISOString()
   try {
-    const { data, error } = await deps.admin
+    // Same loader capture uses, including the descriptor-only fallback for rows too large to serve.
+    const email = await loadStoredInboundEmail(deps.admin, { emailId: item.email_id, fundId: job.fund_id })
+    const { data: extra } = await deps.admin
       .from('inbound_emails')
-      .select('id, company_id, received_at, routed_to, raw_payload, claude_response')
+      .select('claude_response')
       .eq('id', item.email_id)
       .eq('fund_id', job.fund_id)
       .maybeSingle()
-    if (error) throw new Error(`Could not load email: ${error.message}`)
-    const email = data as ProcessableEmail | null
-    if (!email || !email.company_id || effectiveRoute(email.routed_to) !== 'reporting') {
+    const claudeResponse = (extra as { claude_response?: unknown } | null)?.claude_response ?? null
+    if (!email.company_id || effectiveRoute(email.routed_to) !== 'reporting') {
       await patchItem(deps.admin, item, { status: 'skipped', finished_at: nowIso(), result: { reason: 'no longer eligible' } })
       return 'done'
     }
@@ -260,7 +253,7 @@ async function processItem(deps: BackfillDeps, job: BackfillJob, item: BackfillI
       await patchItem(deps.admin, item, { status: 'skipped', finished_at: nowIso(), result: { reason: 'route changed during processing' } })
       return 'done'
     }
-    const period = await recoverReportingPeriod(deps.admin, { fundId: job.fund_id, emailId: email.id, claudeResponse: email.claude_response })
+    const period = await recoverReportingPeriod(deps.admin, { fundId: job.fund_id, emailId: email.id, claudeResponse })
     const result = {
       update_id: capture.updateId,
       extraction_status: capture.extractionStatus,

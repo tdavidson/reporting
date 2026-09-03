@@ -70,16 +70,7 @@ export async function captureCompanyUpdate(
   },
 ): Promise<CaptureResult | null> {
   const { emailId, fundId, companyId, payload } = params
-  const { data, error } = await supabase
-    .from('inbound_emails')
-    .select('id, fund_id, company_id, from_address, subject, received_at, routed_to, raw_payload')
-    .eq('id', emailId)
-    .eq('fund_id', fundId)
-    .maybeSingle()
-  assertNoError(error, 'load canonical inbound email')
-  if (!data) throw new Error(`Company Update source email ${emailId} was not found in fund ${fundId}.`)
-
-  const email = data as StoredInboundEmail
+  const email = await loadStoredInboundEmail(supabase, { emailId, fundId })
   if (effectiveRoute(email.routed_to) !== 'reporting') {
     await removeCompanyUpdate(supabase, { emailId, fundId })
     return null
@@ -207,6 +198,96 @@ export async function captureCompanyUpdate(
       status: row.extraction_status,
       ocrStatus: row.ocr_status,
     })),
+  }
+}
+
+const LOAD_COLUMNS = 'id, fund_id, company_id, from_address, subject, received_at, routed_to'
+const PAYLOAD_SCALARS = ['From', 'To', 'OriginalRecipient', 'Date', 'Subject', 'TextBody', 'HtmlBody', 'MessageID'] as const
+const ATTACHMENT_FIELDS = ['Name', 'ContentType', 'ContentLength', 'StoragePath', 'ContentError'] as const
+const MAX_LITE_ATTACHMENTS = 50
+
+/**
+ * The canonical stored email. Normally one select; when the row is too large to serve (an older
+ * email whose attachment bytes were left base64-inline in raw_payload, which trips the API's
+ * statement timeout), fall back to rebuilding the payload from scalar JSON paths — everything
+ * except attachment Content. Those attachments are then captured as failed artifacts with the
+ * reason, so the update still exists and its body is searchable rather than the whole email
+ * silently missing from the corpus.
+ */
+export async function loadStoredInboundEmail(
+  supabase: SupabaseAdmin,
+  params: { emailId: string; fundId: string },
+): Promise<StoredInboundEmail> {
+  const { emailId, fundId } = params
+  const { data, error } = await supabase
+    .from('inbound_emails')
+    .select(`${LOAD_COLUMNS}, raw_payload`)
+    .eq('id', emailId)
+    .eq('fund_id', fundId)
+    .maybeSingle()
+  if (!error) {
+    if (!data) throw new Error(`Company Update source email ${emailId} was not found in fund ${fundId}.`)
+    return data as StoredInboundEmail
+  }
+  if (!/statement timeout|canceling statement/i.test(error.message ?? '')) {
+    throw new Error(`Could not load canonical inbound email: ${error.message ?? 'database error'}`)
+  }
+
+  const { data: lite, error: liteError } = await supabase
+    .from('inbound_emails')
+    .select(`${LOAD_COLUMNS}, attachments_count, ${PAYLOAD_SCALARS.map(key => `p_${key}:raw_payload->>${key}`).join(', ')}, p_FromFull:raw_payload->FromFull`)
+    .eq('id', emailId)
+    .eq('fund_id', fundId)
+    .maybeSingle()
+  assertNoError(liteError, 'load canonical inbound email (descriptor-only fallback)')
+  if (!lite) throw new Error(`Company Update source email ${emailId} was not found in fund ${fundId}.`)
+
+  const count = Math.min(Number(lite.attachments_count ?? 0), MAX_LITE_ATTACHMENTS)
+  const attachments: NonNullable<PostmarkPayload['Attachments']> = []
+  for (let index = 0; index < count; index++) {
+    const { data: descriptor, error: descriptorError } = await supabase
+      .from('inbound_emails')
+      .select(ATTACHMENT_FIELDS.map(field => `${field}:raw_payload->Attachments->${index}->${field}`).join(', '))
+      .eq('id', emailId)
+      .eq('fund_id', fundId)
+      .maybeSingle()
+    assertNoError(descriptorError, `load attachment ${index} descriptor`)
+    if (!descriptor?.Name) break
+    attachments.push({
+      Name: String(descriptor.Name),
+      ContentType: String(descriptor.ContentType ?? ''),
+      ContentLength: Number(descriptor.ContentLength ?? 0),
+      ...(descriptor.StoragePath ? { StoragePath: String(descriptor.StoragePath) } : {}),
+      ContentError:
+        descriptor.ContentError
+          ? String(descriptor.ContentError)
+          : descriptor.StoragePath
+            ? undefined
+            : 'Attachment bytes are embedded inline in the stored email and are too large to load; the original was never written to storage.',
+    })
+  }
+
+  const payload: PostmarkPayload = {
+    From: lite.p_From ?? lite.from_address,
+    To: lite.p_To ?? '',
+    ...(lite.p_FromFull ? { FromFull: lite.p_FromFull } : {}),
+    ...(lite.p_OriginalRecipient ? { OriginalRecipient: lite.p_OriginalRecipient } : {}),
+    ...(lite.p_Date ? { Date: lite.p_Date } : {}),
+    ...(lite.p_Subject ? { Subject: lite.p_Subject } : {}),
+    ...(lite.p_TextBody ? { TextBody: lite.p_TextBody } : {}),
+    ...(lite.p_HtmlBody ? { HtmlBody: lite.p_HtmlBody } : {}),
+    ...(lite.p_MessageID ? { MessageID: lite.p_MessageID } : {}),
+    Attachments: attachments,
+  }
+  return {
+    id: lite.id,
+    fund_id: lite.fund_id,
+    company_id: lite.company_id,
+    from_address: lite.from_address,
+    subject: lite.subject,
+    received_at: lite.received_at,
+    routed_to: lite.routed_to,
+    raw_payload: payload,
   }
 }
 

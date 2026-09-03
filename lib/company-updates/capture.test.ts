@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { captureCompanyUpdate, updateCompanyUpdatePeriod } from './capture'
+import { captureCompanyUpdate, loadStoredInboundEmail, updateCompanyUpdatePeriod } from './capture'
 import { BODY_CLEANER_VERSION, CAPTURE_VERSION } from './extraction'
 import type { PostmarkPayload } from '@/lib/pipeline/processEmail'
 
@@ -331,3 +331,53 @@ function chain(result: any, filters: Array<[string, unknown]> = []) {
   }
   return query
 }
+
+describe('loadStoredInboundEmail fallback', () => {
+  it('rebuilds the payload without attachment bytes when the full row cannot be served', async () => {
+    const selects: string[] = []
+    const client = {
+      rpc: async () => ({ data: null, error: null }),
+      from(table: string) {
+        if (table !== 'inbound_emails') throw new Error(`unexpected table ${table}`)
+        return {
+          select(cols: string) {
+            selects.push(cols)
+            const q: any = { eq: () => q }
+            q.maybeSingle = async () => {
+              if (cols.includes('raw_payload') && !cols.includes('->')) {
+                return { data: null, error: { message: 'canceling statement due to statement timeout' } }
+              }
+              if (cols.startsWith('Name:')) {
+                return { data: { Name: 'huge.pdf', ContentType: 'application/pdf', ContentLength: 38_101_605, StoragePath: null, ContentError: null }, error: null }
+              }
+              return {
+                data: {
+                  id: 'e1', fund_id: 'fund-1', company_id: 'company-1', from_address: 'a@b.test', subject: 'Big one',
+                  received_at: '2026-02-28T12:50:09Z', routed_to: 'reporting', attachments_count: 1,
+                  p_From: 'Ada <a@b.test>', p_To: 'f@fund.test', p_TextBody: 'Body survives', p_FromFull: { Email: 'a@b.test', Name: 'Ada' },
+                },
+                error: null,
+              }
+            }
+            return q
+          },
+        }
+      },
+    }
+    const email = await loadStoredInboundEmail(client as any, { emailId: 'e1', fundId: 'fund-1' })
+    expect(email.raw_payload?.TextBody).toBe('Body survives')
+    expect(email.raw_payload?.FromFull).toEqual({ Email: 'a@b.test', Name: 'Ada' })
+    expect(email.raw_payload?.Attachments).toEqual([
+      expect.objectContaining({ Name: 'huge.pdf', ContentLength: 38_101_605, ContentError: expect.stringMatching(/too large to load/) }),
+    ])
+    expect(selects.some(s => s.includes('raw_payload->Attachments->0->Name'))).toBe(true)
+  })
+
+  it('does not fall back on errors other than a timeout', async () => {
+    const client = {
+      rpc: async () => ({ data: null, error: null }),
+      from: () => ({ select: () => { const q: any = { eq: () => q, maybeSingle: async () => ({ data: null, error: { message: 'permission denied' } }) }; return q } }),
+    }
+    await expect(loadStoredInboundEmail(client as any, { emailId: 'e1', fundId: 'fund-1' })).rejects.toThrow(/permission denied/)
+  })
+})

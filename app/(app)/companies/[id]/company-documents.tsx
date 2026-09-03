@@ -12,11 +12,19 @@ interface Document {
   has_native_content?: boolean
   has_readable_content?: boolean
   created_at: string
-  source: 'upload' | 'email' | 'email_body'
+  source: 'upload' | 'email' | 'email_body' | 'update_attachment'
   email_id?: string
   attachment_index?: number
+  /** update_attachment: addressed by artifact id, never by filename or index. */
+  artifact_id?: string
+  update_id?: string
+  extraction_status?: 'complete' | 'partial' | 'failed' | 'not_applicable'
+  ocr_status?: string
+  has_source_file?: boolean
   email_subject?: string
   email_from?: string
+  /** Effective route of the source email; non-reporting mail is labelled so it is not mistaken for an update. */
+  email_route?: string
   text_content?: string
 }
 
@@ -43,8 +51,14 @@ function formatFileSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
+/** " · Deals" / " · Interactions" for mail that is not a reporting update. */
+function routeLabel(doc: Document): string {
+  if (!doc.email_route || doc.email_route === 'reporting') return ''
+  return ` · ${doc.email_route.charAt(0).toUpperCase()}${doc.email_route.slice(1)}`
+}
+
 function FileIcon({ fileType, source }: { fileType: string; source: string }) {
-  if (source === 'email' || source === 'email_body') {
+  if (source === 'email' || source === 'email_body' || source === 'update_attachment') {
     return <Mail className="h-3.5 w-3.5 text-info shrink-0" />
   }
   if (fileType === 'application/pdf' || fileType.endsWith('.pdf')) {
@@ -71,7 +85,7 @@ export function CompanyDocuments({ companyId, storageProvider, googleDriveFolder
 
   const load = useCallback(async () => {
     try {
-      const res = await fetch(`/api/companies/${companyId}/documents${includeEmailHistory ? '' : '?emails=0'}`)
+      const res = await fetch(`/api/companies/${companyId}/documents${includeEmailHistory ? '' : '?emails=other'}`)
       if (res.ok) {
         const data = await res.json()
         setDocuments(data.documents)
@@ -168,9 +182,12 @@ export function CompanyDocuments({ companyId, storageProvider, googleDriveFolder
           {documents.map(doc => {
             const isOpen = openId === doc.id
             const detail = details[doc.id]
-            const attachmentUrl = doc.email_id && doc.attachment_index !== undefined
-              ? `/api/emails/${doc.email_id}/attachment/${doc.attachment_index}`
-              : null
+            const attachmentUrl = doc.source === 'update_attachment'
+              ? (doc.has_source_file ? `/api/company-updates/${doc.update_id}/artifacts/${doc.artifact_id}?download=1` : null)
+              : doc.email_id && doc.attachment_index !== undefined
+                ? `/api/emails/${doc.email_id}/attachment/${doc.attachment_index}`
+                : null
+            const inlineUrl = attachmentUrl ? `${attachmentUrl}${attachmentUrl.includes('?') ? '&' : '?'}disposition=inline` : null
             const canInlineAttachment = doc.file_type === 'application/pdf' || /^image\/(png|jpeg|gif|webp)$/.test(doc.file_type)
             return (
               <div key={doc.id} className="rounded-md border bg-card text-sm overflow-hidden">
@@ -184,8 +201,16 @@ export function CompanyDocuments({ companyId, storageProvider, googleDriveFolder
                     {isOpen ? <ChevronDown className="h-3.5 w-3.5 shrink-0" /> : <ChevronRight className="h-3.5 w-3.5 shrink-0" />}
                     <FileIcon fileType={doc.file_type} source={doc.source} />
                     <span className="truncate font-medium">{doc.filename}</span>
-                    {doc.source === 'email_body' && <span className="text-xs text-muted-foreground shrink-0">Email</span>}
-                    {doc.source === 'email' && <span className="text-xs text-muted-foreground shrink-0">Attachment</span>}
+                    {doc.source === 'email_body' && <span className="text-xs text-muted-foreground shrink-0">Email{routeLabel(doc)}</span>}
+                    {doc.source === 'email' && <span className="text-xs text-muted-foreground shrink-0">Attachment{routeLabel(doc)}</span>}
+                    {doc.source === 'update_attachment' && (
+                      <span className="text-xs text-muted-foreground shrink-0">
+                        Attachment
+                        {doc.extraction_status === 'failed' && <span className="text-destructive"> · unreadable</span>}
+                        {doc.extraction_status === 'partial' && <span className="text-warning"> · partly read</span>}
+                        {(doc.ocr_status === 'pending' || doc.ocr_status === 'running') && <span className="text-info"> · OCR queued</span>}
+                      </span>
+                    )}
                     <span className="text-xs text-muted-foreground shrink-0">{formatFileSize(doc.file_size)}</span>
                     <span className="text-xs text-muted-foreground shrink-0">
                       {new Date(doc.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
@@ -215,12 +240,13 @@ export function CompanyDocuments({ companyId, storageProvider, googleDriveFolder
                         <pre className="whitespace-pre-wrap break-words font-sans text-sm max-h-96 overflow-auto">{doc.text_content}</pre>
                       </>
                     )}
-                    {doc.source === 'email' && attachmentUrl && canInlineAttachment && (
+                    {(doc.source === 'email' || doc.source === 'update_attachment') && inlineUrl && canInlineAttachment && (
                       doc.file_type.startsWith('image/')
-                        ? <img src={`${attachmentUrl}?disposition=inline`} alt={doc.filename} className="max-h-[32rem] max-w-full mx-auto rounded" />
-                        : <iframe src={`${attachmentUrl}?disposition=inline`} title={doc.filename} className="w-full h-[32rem] rounded bg-white" />
+                        ? <img src={inlineUrl} alt={doc.filename} className="max-h-[32rem] max-w-full mx-auto rounded" />
+                        : <iframe src={inlineUrl} title={doc.filename} className="w-full h-[32rem] rounded bg-white" />
                     )}
-                    {doc.source === 'email' && !canInlineAttachment && <p className="text-muted-foreground">This file type cannot be previewed safely. Use the download button to open it.</p>}
+                    {(doc.source === 'email' || doc.source === 'update_attachment') && attachmentUrl && !canInlineAttachment && <p className="text-muted-foreground">This file type cannot be previewed safely. Use the download button to open it.</p>}
+                    {doc.source === 'update_attachment' && !attachmentUrl && <p className="text-muted-foreground">The original file was never stored, so it cannot be downloaded or previewed. See the update above for what could be read.</p>}
                     {doc.source === 'upload' && loadingDetailId === doc.id && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
                     {doc.source === 'upload' && detail?.text_content && <pre className="whitespace-pre-wrap break-words font-sans text-sm max-h-96 overflow-auto">{detail.text_content}</pre>}
                     {doc.source === 'upload' && detail?.file_url && detail.previewable && (
@@ -242,7 +268,7 @@ export function CompanyDocuments({ companyId, storageProvider, googleDriveFolder
         <p className="text-xs text-muted-foreground/70 px-3 pt-2">
           {includeEmailHistory
             ? 'Email bodies, attachments, and uploaded documents used for reporting and AI extraction appear here.'
-            : 'Uploaded documents used for AI context appear here; reporting email lives in Updates above.'}{' '}
+            : 'Uploaded documents, every reporting attachment, and email filed here that is not a reporting update (deals, interactions). Reporting email bodies live in Updates above.'}{' '}
           {storageProvider === 'google_drive' && googleDriveFolderId ? (
             <>
               Raw documents can be found in{' '}
