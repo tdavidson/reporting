@@ -9,6 +9,12 @@ import {
 import type { LucideIcon } from 'lucide-react'
 import type { Domain } from '@/lib/access/domains'
 import type { FeatureKey } from '@/lib/types/features'
+import type { VehicleKind } from '@/lib/vehicle-kinds'
+
+/** The sections a vehicle of `kind` shows. Null kind (a legacy vehicle) shows a fund's. */
+export function sectionsForKind(sections: AccountingSection[], kind: string | null | undefined): AccountingSection[] {
+  return sections.filter(s => !s.hideFor || !kind || !s.hideFor.includes(kind as VehicleKind))
+}
 
 export interface AccountingSection {
   href: string
@@ -23,6 +29,13 @@ export interface AccountingSection {
   domain?: Domain
   /** A feature switch the page needs on top of its domain (tax reporting ships off). */
   feature?: FeatureKey
+  /**
+   * Vehicle kinds this page is hidden for — the ones it has no meaning on. An individual has no
+   * capital accounts or portfolio to construct; a GP entity has no schedule of investments.
+   * Hidden means hidden from the nav; the page itself still gates on access and renders what
+   * the data supports, so a URL is not a hole.
+   */
+  hideFor?: VehicleKind[]
   /** Only for a fund of funds — DERIVED from the data (at least one holding is a fund),
    *  never a setting. Consumers filter on it; see lib/portfolio/fof.ts. */
   requiresFof?: boolean
@@ -48,6 +61,7 @@ export const ACCOUNTING_SECTIONS: AccountingSection[] = [
     desc: "Per-partner roll-forward and commitments, plus called and unfunded. Issue capital calls and publish LP capital statements.",
     // Named partners and their commitments — the same tier as the LPs section, reached from here.
     domain: 'lp_capital',
+    hideFor: ['individual'],
   },
   // NOTE: /funds/lp-events is deliberately NOT listed — it now redirects here. LP
   // capital events are not a separate destination: they are one of the two producers a
@@ -93,6 +107,7 @@ export const ACCOUNTING_SECTIONS: AccountingSection[] = [
     icon: Layers,
     desc: 'Schedule of investments, commitments and liquidity, and per-fund performance for the underlying funds.',
     requiresFof: true,
+    hideFor: ['individual'],
   },
   // NOTE: /funds/migrate is deliberately NOT listed. Importing a QuickBooks general
   // ledger is a one-time event at the start of a vehicle's life, not a place you work —
@@ -103,18 +118,21 @@ export const ACCOUNTING_SECTIONS: AccountingSection[] = [
     icon: Layers,
     desc: 'Paste the quarter\u2019s underlying-fund figures, confirm the notices, and book the period-end marks.',
     requiresFof: true,
+    hideFor: ['individual'],
   },
   {
     href: '/funds/schedule-of-investments',
     label: 'Schedule of investments',
     icon: Layers,
     desc: 'Each investment at cost and fair value, with its share of net assets.',
+    hideFor: ['associate'],
   },
   {
     href: '/funds/construction',
     label: 'Portfolio construction',
     icon: Target,
     desc: 'How much investable capital is left, how many more deals fit, and what exit the portfolio needs to return the fund.',
+    hideFor: ['individual', 'associate'],
   },
   {
     href: '/funds/statements',

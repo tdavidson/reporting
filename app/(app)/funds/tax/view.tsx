@@ -31,6 +31,8 @@ interface K1Package { id: string; vehicle_id: string; tax_year: number; version:
 interface TaxFormsReport { asOf: string; blocked: number; nameMismatches: number; partners: { lpEntityId: string; name: string; status: { blocker: string | null; standing?: string }; nameMatch: string }[] }
 interface ReceivedReport { taxYear: number; received: number; outstanding: { companyName?: string; name?: string }[]; amended: { companyName?: string; name?: string }[]; blocker: string | null }
 interface Worklist { summary: string[]; states: { state: string; partners: number; nonresident: boolean }[]; foreign: unknown[]; unknown: unknown[] }
+interface RealizedLot { company: string; acquired: string | null; sold: string; units: number; proceeds: number; basis: number; gain: number; term: 'short' | 'long' | 'undetermined' }
+interface RealizedGains { method: string; disposals: { company: string; sold: string; units: number; proceeds: number; basis: number; gain: number; unmatchedUnits: number; lots: RealizedLot[] }[]; totals: { proceeds: number; basis: number; gain: number; shortTerm: number; longTerm: number; undetermined: number } }
 
 const thisYear = new Date().getFullYear()
 
@@ -57,6 +59,7 @@ export function TaxView() {
   const [forms, setForms] = useState<Fetched<TaxFormsReport> | null>(null)
   const [received, setReceived] = useState<Fetched<ReceivedReport> | null>(null)
   const [worklist, setWorklist] = useState<Fetched<Worklist> | null>(null)
+  const [gains, setGains] = useState<Fetched<RealizedGains> | null>(null)
   const [viewing, setViewing] = useState<{ id: string; book: 'actual' | 'tax' } | null>(null)
 
   const get = useCallback(async <T,>(url: string): Promise<Fetched<T>> => {
@@ -70,7 +73,7 @@ export function TaxView() {
   const load = useCallback(async () => {
     setLoading(true)
     const start = `${year}-01-01`, end = `${year}-12-31`
-    const [s, r, te, aj, f, rk, pk] = await Promise.all([
+    const [s, r, te, aj, f, rk, pk, rg] = await Promise.all([
       get<TaxYearState>(`/api/accounting/tax-year?taxYear=${year}`),
       get<TaxRun>(`/api/accounting/tax-adjustments?taxYear=${year}`),
       get<{ entries: JournalEntryRow[] }>(`/api/accounting/journal?preset=custom&start=${start}&end=${end}&book=tax&limit=200`),
@@ -78,8 +81,9 @@ export function TaxView() {
       get<TaxFormsReport>(`/api/accounting/tax-forms?asOf=${end}`),
       get<ReceivedReport>(`/api/accounting/received-k1s?taxYear=${year}`),
       canSeeK1 ? get<{ packages: K1Package[] }>('/api/accounting/k1-packages') : Promise.resolve<Fetched<{ packages: K1Package[] }>>({ ok: false, status: 403, data: null }),
+      get<RealizedGains>(`/api/accounting/realized-gains?year=${year}`),
     ])
-    setState(s); setRun(r); setForms(f); setReceived(rk)
+    setState(s); setRun(r); setForms(f); setReceived(rk); setGains(rg)
     setTaxEntries(te.data?.entries ?? [])
     setAdjusting(aj.data?.entries ?? [])
     const mine = (pk.data?.packages ?? []).filter(p => p.tax_year === year && (!vehicleId || p.vehicle_id === vehicleId))
@@ -290,7 +294,47 @@ export function TaxView() {
           ))}
         </section>
 
-        {/* 6. Received K-1s */}
+        {/* 6. Realized gains by lot — Schedule D / 8949 */}
+        <section className={`${card} lg:col-span-2`}>
+          <h2 className={h}>Realized gains by lot</h2>
+          <p className="text-xs text-muted-foreground">Each disposal in {year}, the lots it consumed under the {gains?.data?.method ? gains.data.method.toUpperCase() : 'fund’s'} lot method, and whether each lot was held long enough to be long-term. The Schedule D and Form 8949 input; exported in the tax package.</p>
+          {denied(gains, 'Realized gains') ?? (gains?.data && (
+            gains.data.disposals.length === 0
+              ? <p className="text-sm text-muted-foreground">No disposals in {year}.</p>
+              : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-left text-xs text-muted-foreground">
+                        <th className="py-1 pr-2 font-medium">Company</th><th className="py-1 pr-2 font-medium">Acquired</th><th className="py-1 pr-2 font-medium">Sold</th>
+                        <th className="py-1 pr-2 text-right font-medium">Units</th><th className="py-1 pr-2 text-right font-medium">Proceeds</th><th className="py-1 pr-2 text-right font-medium">Basis</th><th className="py-1 pr-2 text-right font-medium">Gain / (loss)</th><th className="py-1 font-medium">Term</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {gains.data.disposals.flatMap(d => d.lots.map((l, i) => (
+                        <tr key={`${d.company}-${d.sold}-${i}`} className="border-t">
+                          <td className="py-1 pr-2">{i === 0 ? d.company : ''}{i === 0 && d.unmatchedUnits > 0 && <span className="ml-1 text-sm text-warning">({d.unmatchedUnits} units without a lot)</span>}</td>
+                          <td className="py-1 pr-2 tabular-nums">{l.acquired ?? <span className="text-muted-foreground">unknown</span>}</td>
+                          <td className="py-1 pr-2 tabular-nums">{l.sold}</td>
+                          <td className="py-1 pr-2 text-right tabular-nums">{l.units}</td>
+                          <td className="py-1 pr-2 text-right tabular-nums">{fmt(l.proceeds)}</td>
+                          <td className="py-1 pr-2 text-right tabular-nums">{fmt(l.basis)}</td>
+                          <td className="py-1 pr-2 text-right tabular-nums">{fmt(l.gain)}</td>
+                          <td className="py-1">{l.term === 'long' ? 'Long-term' : l.term === 'short' ? 'Short-term' : <span className="text-muted-foreground">Undetermined</span>}</td>
+                        </tr>
+                      )))}
+                    </tbody>
+                    <tfoot>
+                      <tr className="border-t font-semibold"><td className="py-1 pr-2" colSpan={4}>Total</td><td className="py-1 pr-2 text-right tabular-nums">{fmt(gains.data.totals.proceeds)}</td><td className="py-1 pr-2 text-right tabular-nums">{fmt(gains.data.totals.basis)}</td><td className="py-1 pr-2 text-right tabular-nums">{fmt(gains.data.totals.gain)}</td><td /></tr>
+                      <tr className="text-muted-foreground"><td className="py-1 pr-2" colSpan={6}>of which short-term / long-term{gains.data.totals.undetermined !== 0 ? ' / undetermined' : ''}</td><td className="py-1 pr-2 text-right tabular-nums">{fmt(gains.data.totals.shortTerm)} / {fmt(gains.data.totals.longTerm)}{gains.data.totals.undetermined !== 0 ? ` / ${fmt(gains.data.totals.undetermined)}` : ''}</td><td /></tr>
+                    </tfoot>
+                  </table>
+                </div>
+              )
+          ))}
+        </section>
+
+        {/* 7. Received K-1s */}
         <section className={card}>
           <h2 className={h}>K-1s owed to this vehicle</h2>
           <p className="text-xs text-muted-foreground">Underlying funds this vehicle holds send their own K-1s; ours cannot be final until they arrive.</p>

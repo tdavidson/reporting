@@ -7,7 +7,7 @@ import type { LucideIcon } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { useTheme } from 'next-themes'
 import { useSidebar } from '@/components/sidebar-context'
-import { ACCOUNTING_SECTIONS } from '@/lib/accounting/nav'
+import { ACCOUNTING_SECTIONS, sectionsForKind } from '@/lib/accounting/nav'
 import { useVehicle, FUND_SUBPAGE_SLUGS } from '@/components/accounting-vehicle'
 import type { FeatureKey, FeatureVisibilityMap } from '@/lib/types/features'
 import { domainForFeature, type Domain } from '@/lib/access/domains'
@@ -253,11 +253,11 @@ export function moreSectionsFor(
  * /funds/<seg>/<page>, with an "Overview" entry for the fund's lead page. Empty until
  * a fund is known — there is nothing to point at.
  */
-export function fundsChildrenFor(fundSeg: string | null, fofActive: boolean): NavChild[] {
+export function fundsChildrenFor(fundSeg: string | null, fofActive: boolean, kind: string | null = null): NavChild[] {
   if (!fundSeg) return []
   return [
     { href: `/funds/${fundSeg}`, label: 'Overview', exact: true },
-    ...ACCOUNTING_SECTIONS.filter(s => !s.requiresFof || fofActive).map(s => ({
+    ...sectionsForKind(ACCOUNTING_SECTIONS, kind).filter(s => !s.requiresFof || fofActive).map(s => ({
       href: `/funds/${fundSeg}/${s.href.slice('/funds/'.length)}`,
       label: s.label,
       domain: s.domain,
@@ -274,10 +274,10 @@ export function visibleChildrenFor(
   item: NavItem,
   isAdmin: boolean,
   access: (domain: Domain, feature?: FeatureKey) => AccessLevel,
-  opts: { fofActive?: boolean; fundSeg?: string | null } = {},
+  opts: { fofActive?: boolean; fundSeg?: string | null; kind?: string | null } = {},
 ): NavChild[] {
   const children = item.href === '/funds'
-    ? fundsChildrenFor(opts.fundSeg ?? null, !!opts.fofActive)
+    ? fundsChildrenFor(opts.fundSeg ?? null, !!opts.fofActive, opts.kind ?? null)
     : item.children
   return (children ?? [])
     .filter(c => canSee(c, isAdmin, access))
@@ -333,8 +333,10 @@ export function AppSidebar({ reviewBadge, settingsBadge, notesBadge, pendingActi
   const [mounted, setMounted] = useState(false)
   useEffect(() => setMounted(true), [])
 
-  // The Funds subnav is fund-first — see useFundSeg / fundsChildrenFor above.
+  // The Funds subnav is fund-first — see useFundSeg / fundsChildrenFor above — and shows the
+  // pages the current vehicle's KIND has a use for (lib/accounting/nav.ts hideFor).
   const fundSeg = useFundSeg()
+  const { kind: vehicleKind } = useVehicle()
 
   const currentTheme = (THEME_CYCLE.includes(theme as typeof THEME_CYCLE[number]) ? theme : 'system') as typeof THEME_CYCLE[number]
   const ThemeIcon = mounted ? THEME_ICONS[currentTheme] : Monitor
@@ -369,7 +371,7 @@ export function AppSidebar({ reviewBadge, settingsBadge, notesBadge, pendingActi
           // (admin gate, per-feature visibility) and the fund-of-funds pages that only
           // exist once the fund holds a fund. Shown only when the parent or any visible
           // child route is active.
-          const visibleChildren = visibleChildrenFor(item, !!isAdmin, access, { fofActive, fundSeg })
+          const visibleChildren = visibleChildrenFor(item, !!isAdmin, access, { fofActive, fundSeg, kind: vehicleKind })
           const childActive = visibleChildren.some(c => pathname === c.href || pathname.startsWith(c.href + '/'))
           // Also keep the section open on any page UNDER its own path (e.g. /funds/allocation-terms,
           // a Funds page that isn't a listed child) — it's still this section, just not in the nav.

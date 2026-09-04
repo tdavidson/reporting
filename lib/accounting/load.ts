@@ -336,19 +336,21 @@ export async function listVehicles(admin: SupabaseClient, fundId: string): Promi
  * fund-first links. Same source and ordering as `listVehicles`, but each entry carries
  * `id` (null for a legacy portfolio_group-only vehicle, which the URL routes on by name).
  */
-export async function listVehiclesWithId(admin: SupabaseClient, fundId: string): Promise<{ name: string; id: string | null }[]> {
+export async function listVehiclesWithId(admin: SupabaseClient, fundId: string): Promise<{ name: string; id: string | null; kind: string | null }[]> {
   const { data: vrows } = await admin
     .from('fund_vehicles' as any)
-    .select('id, name')
+    .select('id, name, kind')
     .eq('fund_id', fundId)
     .eq('active', true)
     .neq('kind', MANCO_KIND)
     .order('name')
   const rows = ((vrows as any[]) ?? []).filter(r => r.name)
-  if (rows.length > 0) return rows.map(r => ({ name: r.name as string, id: (r.id as string) ?? null }))
+  // `kind` rides along so the nav can hide the pages a kind has no use for (an individual has
+  // no capital accounts; a GP entity has no portfolio to construct). See lib/accounting/nav.ts.
+  if (rows.length > 0) return rows.map(r => ({ name: r.name as string, id: (r.id as string) ?? null, kind: (r.kind as string) ?? null }))
 
-  // Legacy funds not yet in the registry — names only, no id.
-  return (await listVehicles(admin, fundId)).map(name => ({ name, id: null }))
+  // Legacy funds not yet in the registry — names only, no id, and a fund's pages.
+  return (await listVehicles(admin, fundId)).map(name => ({ name, id: null, kind: null }))
 }
 
 /**

@@ -6,20 +6,23 @@ import { ChevronsUpDown } from 'lucide-react'
 
 /** One selectable vehicle: its name (the portfolio_group the ledger keys on) and its
  *  stable registry id. `id` is null for legacy vehicles that exist only as a name. */
-export interface VehicleOption { name: string; id: string | null }
+export interface VehicleOption { name: string; id: string | null; kind?: string | null }
 
 interface VehicleCtx {
   /** The selected vehicle's name (portfolio_group). */
   group: string | null
   /** The selected vehicle's registry id (UUID), or null for a legacy name-only vehicle. */
   vehicleId: string | null
+  /** The selected vehicle's kind (fund, spv, individual, …), or null until known / for a legacy
+   *  vehicle. Read from the vehicle index; the nav hides pages a kind has no use for. */
+  kind: string | null
   /** Set both name and id — used by the URL-scoped fund pages and the switcher. */
   setVehicle: (name: string, id: string | null) => void
   /** Set the name only, leaving the id untouched — back-compat for name-only callers. */
   setGroup: (name: string) => void
 }
 const VehicleContext = createContext<VehicleCtx>({
-  group: null, vehicleId: null, setVehicle: () => {}, setGroup: () => {},
+  group: null, vehicleId: null, kind: null, setVehicle: () => {}, setGroup: () => {},
 })
 
 const NAME_KEY = 'acct_vehicle'
@@ -38,6 +41,8 @@ export { FUND_SUBPAGE_SLUGS } from './fund-subpages'
 export function VehicleProvider({ children }: { children: React.ReactNode }) {
   const [group, setGroupState] = useState<string | null>(null)
   const [vehicleId, setVehicleIdState] = useState<string | null>(null)
+  // The fund's vehicles with their kinds, loaded once; the current kind is looked up from it.
+  const [index, setIndex] = useState<VehicleOption[]>([])
 
   const setVehicle = useCallback((name: string, id: string | null) => {
     setGroupState(name)
@@ -64,18 +69,23 @@ export function VehicleProvider({ children }: { children: React.ReactNode }) {
       name = localStorage.getItem(NAME_KEY)
       id = localStorage.getItem(ID_KEY)
     } catch { /* ignore */ }
-    if (name) { setGroupState(name); setVehicleIdState(id); return }
+    if (name) { setGroupState(name); setVehicleIdState(id) }
+    // Always fetched, even when a vehicle is saved: the kind of the saved one comes from here.
     fetch('/api/accounting/vehicle-index')
       .then(r => (r.ok ? r.json() : []))
       .then((vs: VehicleOption[]) => {
-        const first = Array.isArray(vs) ? vs[0] : null
-        if (first) setVehicle(first.name, first.id ?? null)
+        if (!Array.isArray(vs)) return
+        setIndex(vs)
+        const first = vs[0]
+        if (!name && first) setVehicle(first.name, first.id ?? null)
       })
       .catch(() => { /* non-accounting user or no vehicles — leave unset */ })
   }, [setVehicle])
 
+  const kind = index.find(v => (vehicleId && v.id === vehicleId) || (!vehicleId && v.name === group))?.kind ?? null
+
   return (
-    <VehicleContext.Provider value={{ group, vehicleId, setVehicle, setGroup }}>
+    <VehicleContext.Provider value={{ group, vehicleId, kind, setVehicle, setGroup }}>
       {children}
     </VehicleContext.Provider>
   )

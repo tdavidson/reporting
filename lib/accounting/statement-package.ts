@@ -25,6 +25,8 @@ import { resolvePeriod, customPeriod, comparisonPeriods, type PeriodPreset, type
 import { accountBalances, normalBalance } from './ledger'
 import type { Account } from './types'
 import { booksForBasis, basisFromParam, type StatementBasis } from './books'
+import { vehicleKindByName } from './vehicle-domain'
+import { equityLabel } from './vocab'
 
 /** The JSON body the statements route returns — the on-screen statement set. */
 export interface StatementPayload {
@@ -94,6 +96,9 @@ export interface LedgerData {
   observations: PriceObservation[]
   /** Min entryDate across postings — the inception bound for comparison stepping. */
   earliest: string | null
+  /** The vehicle's kind, for the words a statement uses (lib/accounting/vocab.ts). Null for a
+   *  legacy vehicle with no registry row, which reads as a fund. */
+  kind: string | null
 }
 
 /** Min entryDate across postings, ignoring nulls. */
@@ -116,7 +121,7 @@ export async function loadLedgerData(
   const [
     { accounts, postings, capitalPostings, sourcedPostings }, names,
     { data: txns }, { data: companies }, fofRaw,
-    { data: feedRows }, { data: obsRows },
+    { data: feedRows }, { data: obsRows }, kind,
   ] = await Promise.all([
     loadPostedLedger(admin, fundId, group, undefined, undefined, undefined, booksForBasis(opts.basis ?? 'book')),
     loadEntityNames(admin, fundId, group),
@@ -128,9 +133,11 @@ export async function loadLedgerData(
     loadFofRaw(admin, fundId),
     (admin as any).from('price_feeds').select('*').eq('fund_id', fundId),
     (admin as any).from('price_observations').select('*').eq('fund_id', fundId),
+    vehicleKindByName(admin, fundId, group),
   ])
   return {
     accounts, postings, capitalPostings, sourcedPostings, names,
+    kind,
     fofRaw,
     feeds: ((feedRows as any[]) ?? []).map(f => ({
       id: f.id,
@@ -201,7 +208,7 @@ export function computePayload(data: LedgerData, period: StatementPeriod): State
     period,
     asOf: period.end,
     trialBalance: trialBalance(data.accounts, cumulative),
-    balanceSheet: balanceSheet(data.accounts, cumulative),
+    balanceSheet: balanceSheet(data.accounts, cumulative, { equityLabel: equityLabel(data.kind) }),
     incomeStatement: incomeStatement(data.accounts, inPeriod),
     scheduleOfInvestments: {
       ...scheduleOfInvestments(data.accounts, cumulative, nav, positions),

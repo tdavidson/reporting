@@ -12,12 +12,20 @@
  * bundle. That module re-exports these values so the two can't drift.
  */
 
-export const VEHICLE_KINDS = ['fund', 'spv', 'direct', 'associate', 'manco', 'other'] as const
+export const VEHICLE_KINDS = ['fund', 'spv', 'direct', 'associate', 'individual', 'manco', 'other'] as const
 
 export type VehicleKind = (typeof VEHICLE_KINDS)[number]
 
 /** The management company kind. Named, because a bare `'manco'` in a comparison reads as a typo. */
 export const MANCO_KIND: VehicleKind = 'manco'
+
+/**
+ * An individual investing for their own account — an angel, or the single-member LLC they do it
+ * through, which is a disregarded entity for tax and wants the same Schedule D and E inputs.
+ * The investment side of the books is a fund's; the equity side is one owner's, so it closes to
+ * owner's capital with nothing to allocate.
+ */
+export const INDIVIDUAL_KIND: VehicleKind = 'individual'
 
 /** Singular, for a picker: "what is this one thing?" */
 export const VEHICLE_KIND_LABELS: Record<VehicleKind, string> = {
@@ -25,6 +33,7 @@ export const VEHICLE_KIND_LABELS: Record<VehicleKind, string> = {
   spv: 'SPV',
   direct: 'Direct deal',
   associate: 'GP / associate entity',
+  individual: 'Individual / angel',
   manco: 'Management company',
   other: 'Other',
 }
@@ -35,8 +44,19 @@ export const VEHICLE_KIND_LABELS_PLURAL: Record<VehicleKind, string> = {
   spv: 'SPVs',
   direct: 'Direct deals',
   associate: 'GP / associate entities',
+  individual: 'Individuals',
   manco: 'Management companies',
   other: 'Other',
+}
+
+/**
+ * Whether a kind's period close rolls net income into a single owner's equity account rather
+ * than allocating it across partners. True for the management company (members' capital) and
+ * an individual (owner's capital): neither has partners, commitments or a waterfall, and the
+ * partner close would refuse them for want of anyone to allocate to. See lib/accounting/close.ts.
+ */
+export function closesToOwnerEquity(kind: string | null | undefined): boolean {
+  return kind === 'manco' || kind === 'individual'
 }
 
 /** Options for a `<select>`, in the order they should appear. */

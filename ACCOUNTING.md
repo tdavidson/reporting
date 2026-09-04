@@ -134,6 +134,38 @@ Everything is per-vehicle from there, so the same company can run an SPV and a f
 
 ---
 
+# Individuals
+
+An **individual** (`kind = 'individual'`) is a person investing for their own account, or the
+single-member LLC they do it through — an angel. For tax the LLC is disregarded, so the two keep
+the same books.
+
+The investment side of those books is a fund's, code for code: per-company cost and unrealized
+accounts under 1100/1200, marks, the schedule of investments, realized gains by lot. What differs
+is the equity and the expenses:
+
+- **Equity is one owner.** 3000 Owner's capital and 3100 Owner's draws. No GP, no LPs, no
+  commitments, no allocation terms. The pages that exist for partners — Capital accounts,
+  Portfolio construction, the fund-of-funds pages — are hidden.
+- **Expenses are the preparer's lines.** Investment expenses, professional fees, software,
+  travel, home office, dues, education, interest, other — the categories a personal return asks
+  about, so the year-end export keys onto the schedule instead of being reclassified by hand.
+- **The close rolls into owner's capital.** See below. The Tax page's *Realized gains by lot* is
+  the Schedule D and Form 8949 input; the tax package carries it as a CSV.
+
+## The owner's-equity close
+
+A fund's close allocates each P&L category across the partners by their basis. A management
+company and an individual have no partners: net income goes to **one equity account** — members'
+capital for a manco, owner's capital for an individual (both carry the subtype `members_capital`,
+which is how the close finds them) — and there is nothing to split. The close still posts one
+entry per category through the bridge (3200), tagged `close:<period>`, so reopening voids exactly
+those entries and the statement of operations keeps its lines. Carry, note interest on a fund's
+positions and associate economics do not apply and are not run. `lib/accounting/close-owner.ts`
+builds the entries; `closesToOwnerEquity` in `lib/vehicle-kinds.ts` decides which kinds take it.
+
+---
+
 # Management companies
 
 A **management company** is the firm's own operating entity: it employs the team, collects the

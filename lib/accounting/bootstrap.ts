@@ -6,7 +6,8 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { vehicleIdByName } from './vehicle-id'
 import { loadOwnership } from './load'
 import { accountIdByCode, ensureCapitalAccounts, persistEntry } from './persist'
-import { DEFAULT_CHART } from './chart'
+import { chartForVehicleKind } from './chart'
+import { vehicleKindByName } from './vehicle-domain'
 import { roundCents } from './ledger'
 import type { Posting, JournalEntry } from './types'
 
@@ -17,11 +18,13 @@ export async function bootstrapOpeningBalances(
   userId: string | null,
   entryDate: string,
 ): Promise<{ ok: true; entryId: string; lpCount: number; total: number } | { error: string }> {
-  // Seed the default chart for this vehicle if it has none.
+  // Seed the chart for this vehicle's KIND if it has none. This used to seed DEFAULT_CHART
+  // whatever the kind, which handed a GP entity a fund's chart on its first bootstrap.
   const vehicleId = await vehicleIdByName(admin, fundId, group)
   let codes = await accountIdByCode(admin, fundId, group)
   if (codes.size === 0) {
-    const rows = DEFAULT_CHART.map(a => ({ fund_id: fundId, portfolio_group: group, vehicle_id: vehicleId, code: a.code, name: a.name, type: a.type, subtype: a.subtype ?? null }))
+    const kind = await vehicleKindByName(admin, fundId, group)
+    const rows = chartForVehicleKind(kind).map(a => ({ fund_id: fundId, portfolio_group: group, vehicle_id: vehicleId, code: a.code, name: a.name, type: a.type, subtype: a.subtype ?? null }))
     await admin.from('chart_of_accounts' as any).insert(rows)
     codes = await accountIdByCode(admin, fundId, group)
   }

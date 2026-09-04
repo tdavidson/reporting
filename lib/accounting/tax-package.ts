@@ -29,6 +29,8 @@ export interface TaxPackageInputs {
   taxBasisTrialBalanceCsv?: string | null
   /** The book-to-tax adjusting entries themselves (the tax book). Null omits it. */
   taxBookEntriesCsv?: string | null
+  /** Realized gains by lot for the year — Schedule D / 8949. Null omits it. */
+  realizedGainsCsv?: string | null
   /** The finalised K-1 workbook for the year, when one exists and the caller may see it. */
   k1: { workbook: Buffer; version: number } | null
   /** Why the K-1 workbook is absent, for the README. */
@@ -62,6 +64,9 @@ export function taxPackageFiles(i: TaxPackageInputs): TaxPackageFile[] {
   }
   if (i.taxBasisTrialBalanceCsv) {
     files.push({ name: `trial-balance-tax-basis-${y}.csv`, note: 'The trial balance on a tax basis — the ledger plus the book-to-tax adjustments — for Schedule L and M-1.', content: i.taxBasisTrialBalanceCsv })
+  }
+  if (i.realizedGainsCsv) {
+    files.push({ name: `realized-gains-${y}.csv`, note: 'Realized gains by lot: each disposal, the lots it consumed, proceeds, basis, gain, and short- or long-term — the Schedule D / Form 8949 input.', content: i.realizedGainsCsv })
   }
   files.push({ name: 'chart-of-accounts.csv', note: 'The chart: code, name, type, normal side, and the partner or company an account belongs to.', content: i.chartCsv })
   if (i.k1) {

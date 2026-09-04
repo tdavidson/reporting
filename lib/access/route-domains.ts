@@ -105,6 +105,8 @@ export const ROUTE_DOMAINS: Record<string, RouteAccess> = {
   // route, so it carries the same domain (accounting implies lp_capital via DOMAIN_META).
   'api/accounting/statements/export': { domain: 'accounting' },
   'api/accounting/statements/pdf': { domain: 'accounting' },
+  // Realized gains by lot — the Schedule D input; fund-level, no per-partner figure in it.
+  'api/accounting/realized-gains': { domain: 'accounting' },
   // The year's preparer bundle. `accounting` opens it; the K-1 workbook inside is added only
   // after refuseWithoutCarryAccess passes in the handler, since a K-1 package contains the carry.
   'api/accounting/tax-package': { domain: 'accounting' },

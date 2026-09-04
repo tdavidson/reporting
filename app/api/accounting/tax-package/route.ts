@@ -20,6 +20,8 @@ import { vehicleIdByName } from '@/lib/accounting/vehicle-id'
 import { renderHtmlToPdf } from '@/lib/lp-report-pdf'
 import { refuseWithoutCarryAccess } from '@/lib/tax/access'
 import { findFinalK1Package, buildK1WorkbookForPackage } from '@/lib/tax/k1-export'
+import { loadRealizedGains } from '@/lib/accounting/realized-gains-load'
+import { realizedGainsRows } from '@/lib/accounting/realized-gains'
 
 export const runtime = 'nodejs'
 export const maxDuration = 120
@@ -53,7 +55,7 @@ export async function GET(req: NextRequest) {
   const end = `${year}-12-31`
   const generatedAt = new Date().toISOString()
 
-  const [data, taxData, { data: fund }, currency, entries, taxEntries, chart, closed, vehicleId] = await Promise.all([
+  const [data, taxData, { data: fund }, currency, entries, taxEntries, chart, closed, vehicleId, gains] = await Promise.all([
     loadLedgerData(admin, gate.fundId, group),
     // The same ledger read on a tax basis — the overlay spliced in — for the tax-basis trial balance.
     loadLedgerData(admin, gate.fundId, group, { basis: 'tax' }),
@@ -64,6 +66,7 @@ export async function GET(req: NextRequest) {
     loadChartForExport(admin, gate.fundId, group),
     closedPeriodRanges(admin, gate.fundId, group),
     vehicleIdByName(admin, gate.fundId, group),
+    loadRealizedGains(admin, gate.fundId, group, { start, end }),
   ])
   const fundName = fund?.name ?? 'Fund'
 
@@ -114,6 +117,7 @@ export async function GET(req: NextRequest) {
     // preparer reads "no adjusting entries" from an empty file, not from a missing one.
     adjustingEntriesCsv: toCsv(journalRows(entries.filter(e => e.adjusting))),
     taxBookEntriesCsv: taxEntries.length > 0 ? toCsv(journalRows(taxEntries)) : null,
+    realizedGainsCsv: gains.disposals.length > 0 ? toCsv(realizedGainsRows(gains)) : null,
     taxBasisTrialBalanceCsv: taxEntries.length > 0
       ? toCsv(trialBalanceRows(buildStatementPackageFromData(taxData, new URLSearchParams({ start, end, basis: 'tax' })).payload.trialBalance))
       : null,
