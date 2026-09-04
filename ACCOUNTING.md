@@ -64,7 +64,7 @@ Best when volume is low and you want a complete, auditable trail.
 2. **Categorize with AI** to classify the fuzzy rows against the chart.
 3. For each inflow that's a capital call, **Book as call** (allocates per LP by commitment) or
    **Match call** if you already recorded it. Post the drafts.
-4. **Book the investment purchase** on the **Plain text** page (rare, so it's a text entry):
+4. **Book the investment purchase** on the journal's **Plain text** tab (rare, so it's a text entry):
    `Dr Assets:Investments-At-Cost:1100 / Cr Assets:Cash:1000`.
 5. Record each periodic mark: **Journal → New entry → Revalue investment** (enter the new fair
    value; the delta is booked as unrealized, and the close allocates it per LP and moves NAV).
@@ -80,7 +80,7 @@ Best for other vehicles where reconstructing history isn't worth it.
 1. Accounting → home → choose **Cutover opening balance** → pick the cutover date → **Bootstrap
    opening balances**. This reads the vehicle's `lp_investments` and books, as of that date,
    `Dr Cash / Cr each LP's capital` for paid-in − distributions. (Capital in nets against cash.)
-2. **Book the investment purchase** in Plain text so cash moves into the investment
+2. **Book the investment purchase** on the journal's Plain text tab so cash moves into the investment
    (`Dr 1100 / Cr 1000`), leaving ending cash = paid-in − cost.
 3. Run forward from the cutover: book new calls/distributions/fees/marks as they happen.
 
@@ -97,7 +97,7 @@ Greenfield: no history to reconstruct — you're the book of record from first c
 3. Book from **first close forward**:
    - **Capital call**: issue it from **Capital accounts**, then match the wire from the bank feed
      — it ends as `Dr Cash / Cr each LP capital`.
-   - **Investment purchase**: Plain text (`Dr 1100 / Cr 1000`), or a plain entry in the journal.
+   - **Investment purchase**: the journal's Plain text tab (`Dr 1100 / Cr 1000`), or a plain entry.
    - **Management fee / expenses / gains**: **Journal → New entry** (Management fee, Partnership
      expense, Realized gain) as they occur — each shows the entry before it is written.
    - **Revalue** at each reporting date.
@@ -317,7 +317,7 @@ roll-ups. Every column there would be a dash.
 # Double-entry reference
 
 How every entry type is booked, in both T-account form and the plain-text double-entry format you
-author in. Use this to write entries on the **Plain text** page and to verify the books are set up
+author in. Use this to write entries on the journal's **Plain text** tab and to verify the books are set up
 correctly. Everything here matches what the entry builders in `lib/accounting/entries.ts` produce.
 
 ## The two rules that make it all work
@@ -624,7 +624,7 @@ ledger regardless of how lines are labeled. **Fund NAV = sum of every LP's endin
 
 Checks that should always hold — use these to confirm a new setup and to sanity-check a close:
 
-- **Every entry balances.** The Journal and Plain text pages reject unbalanced entries; the trial
+- **Every entry balances.** The journal (the entry form and the Plain text tab) rejects unbalanced entries; the trial
   balance (Financial statements) shows equal total debits and credits.
 - **Balance sheet identity.** Assets = Liabilities + Partners' capital. On the Financial statements
   page the balance-sheet `check` is 0 once the period is closed (before close, the residual equals

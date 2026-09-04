@@ -361,7 +361,7 @@ export async function listVehiclesWithId(admin: SupabaseClient, fundId: string):
  * firm winds it down or replaces it, and its books do not stop existing: last year's payroll, the
  * final distributions and the intercompany balances that have to be settled are all still on it,
  * and there is no other way to reach them once it drops out of the list. The caller shows the flag;
- * see app/(app)/manco/view.tsx.
+ * see components/accounting/firm-vehicles.tsx.
  */
 export async function listMancoVehicles(
   admin: SupabaseClient,

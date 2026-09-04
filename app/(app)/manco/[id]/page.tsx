@@ -31,7 +31,7 @@ export default async function MancoDetailPage(props: { params: Promise<{ id: str
         href="/manco"
         className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground mb-4"
       >
-        <ArrowLeft className="h-3.5 w-3.5" />All management companies
+        <ArrowLeft className="h-3.5 w-3.5" />All entities
       </Link>
       <MancoDetailView vehicle={vehicle} vehicleId={vehicleId} active={active} />
     </div>

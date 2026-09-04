@@ -4,7 +4,7 @@
 
 import {
   Landmark, Users, ScrollText, Gauge,
-  Lock, Layers, FileText, Target, Table2, FileCode,
+  Lock, Layers, FileText, Target, Table2, Upload, ClipboardList, Settings2,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import type { Domain } from '@/lib/access/domains'
@@ -81,12 +81,9 @@ export const ACCOUNTING_SECTIONS: AccountingSection[] = [
     icon: Table2,
     desc: 'One account at a time: the balance carried in, every posting with what it was booked against, and the running balance.',
   },
-  {
-    href: '/funds/text',
-    label: 'Plain text',
-    icon: FileCode,
-    desc: 'Author entries in the double-entry text format, checked against the chart as you type, and post them in one go.',
-  },
+  // NOTE: /funds/text is deliberately NOT listed. Plain-text authoring is a TAB on the journal
+  // page (?tab=text), not a destination of its own: it writes the same entries the journal
+  // lists, and a second page for a second way of typing them was one more place to look.
   // NOTE: /funds/opening-balances is deliberately NOT listed. It only applies to
   // the "cutover" onboarding path, and is linked from the setup card there. On a
   // full-history vehicle, opening balances are derived from the reconstructed ledger —
@@ -150,3 +147,27 @@ export const ACCOUNTING_SECTIONS: AccountingSection[] = [
     feature: 'tax_reporting',
   },
 ]
+
+/**
+ * The subpages a fund has that the nav does NOT list — reached from Admin or from a setup card,
+ * but still a real `/funds/<id>/<slug>` page, and so still in need of a firm-wide landing that
+ * says which vehicle you mean. Same shape as a section so the landing can name them the same way.
+ */
+export const UNLISTED_SECTIONS: AccountingSection[] = [
+  { href: '/funds/migrate', label: 'QuickBooks import', icon: Upload, desc: 'Bring a vehicle\u2019s QuickBooks general ledger in as its opening history.' },
+  { href: '/funds/opening-balances', label: 'Opening balances', icon: ClipboardList, desc: 'Book a vehicle\u2019s balances at its cutover date.' },
+  { href: '/funds/allocation-terms', label: 'Allocation terms', icon: Settings2, desc: 'How a vehicle\u2019s income and expenses are shared between its partners.', domain: 'lp_capital' },
+]
+
+/** The section (listed or not) behind a `/funds/<slug>` URL segment, or null for an unknown slug. */
+export function sectionForSlug(slug: string): AccountingSection | null {
+  return [...ACCOUNTING_SECTIONS, ...UNLISTED_SECTIONS].find(s => s.href === `/funds/${slug}`) ?? null
+}
+
+/**
+ * The subpages a management company has, as `/manco/<id>/<slug>`. A manco keeps double-entry
+ * books like any vehicle — journal, register, bank feed, statements, close, QuickBooks import —
+ * and has none of the partner or portfolio pages. Its lead page (`/manco/<id>`) stands in for Admin.
+ * Pinned by the page files under app/(app)/manco/[id]/.
+ */
+export const MANCO_SECTION_SLUGS = new Set(['bank', 'journal', 'ledger', 'periods', 'statements', 'migrate'])

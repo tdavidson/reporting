@@ -1,35 +1,37 @@
 import type { Metadata } from 'next'
 import { requireMancoAccess } from './guard'
-import { MancoListView } from './view'
 import { AccountingPageHeader, AccountingBody } from '@/components/accounting-chrome'
+import { FirmVehiclesTable } from '@/components/accounting/firm-vehicles'
 
-export const metadata: Metadata = { title: 'Management company' }
+export const metadata: Metadata = { title: 'Management' }
 
 /**
- * The landing page for the Management company section.
+ * The Management landing: every entity the firm keeps books for — funds, SPVs, GP entities,
+ * individuals and the management company — with the state of each one's books, and ONE button to
+ * add another, whatever its kind.
  *
- * Deliberately NOT part of /funds. A management company is not an investment vehicle: it has no
- * commitments, no NAV and no partners, so on the fund overview every column is a dash, and in the
- * fund switcher it is an option leading to a page about a portfolio that does not exist. It is a
- * different kind of thing with a different set of questions, so it gets its own section — which is
- * also what lets its books be gated separately (see lib/access/domains.ts).
+ * It used to be a list of management companies alone, with its own Add button, while funds were
+ * added from the Start page and the investments page and the firm overview lived at a third URL.
+ * Three registries for one fund_vehicles table. This is the one place: the row for a management
+ * company leads to /manco/<id>, the row for anything else to /funds/<id>, and a manco whose chart
+ * is not seeded yet offers "Set up books" where its link would be.
  *
- * The list is short by nature: most firms have one management entity, some have two or three. So
- * this is a list with the state on it, not a dashboard — the dashboard is one click in, on the
- * entity itself.
+ * Gated on `management_company`, as the section always was. The table reads the books through an
+ * `accounting` route and falls back to the management companies alone for a caller without that
+ * grant — the manco-only bookkeeper still sees their entities and can set them up.
  */
 export default async function MancoPage() {
   await requireMancoAccess()
 
   return (
     <div className="pt-4 md:pt-8 pb-8 w-full px-4 md:pl-8 md:pr-4">
-      <AccountingPageHeader title="Management company">
-        The firm&rsquo;s own operating entities &mdash; cash, the quarterly fee cycle, what it
-        spends, and what it is owed by the funds.
+      <AccountingPageHeader title="Management">
+        Every entity the firm keeps books for, and the state of each one&rsquo;s books. Add a fund,
+        SPV, GP entity, individual or management company here.
       </AccountingPageHeader>
 
       <AccountingBody>
-        <MancoListView />
+        <FirmVehiclesTable showAdd />
       </AccountingBody>
     </div>
   )

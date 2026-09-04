@@ -21,8 +21,12 @@ const SAMPLE = `; One transaction per block: DATE FLAG "narration", then indente
  * Author entries as plain text and post them in one go — the power user's journal, and the
  * format the period close snapshots. The parse runs as you type, against this vehicle's chart,
  * so an unknown account or an unbalanced block is named before anything is sent.
+ *
+ * A tab of the journal page (see ../journal/page-view.tsx), not a page of its own. `onPosted`
+ * is called after a clean post so the page can switch back to the list the entries landed in;
+ * it is not called when anything was refused, because the problems are reported here.
  */
-export function TextLedgerView() {
+export function TextLedgerView({ onPosted }: { onPosted?: () => void } = {}) {
   const lf = useLedgerFetch()
   const { group } = useVehicle()
   const [text, setText] = useState('')
@@ -64,6 +68,7 @@ export function TextLedgerView() {
     setResult(`${status === 'posted' ? 'Posted' : 'Saved as drafts'}: ${d.posted} ${d.posted === 1 ? 'entry' : 'entries'}.${problems.length ? ` ${problems.length} problem${problems.length === 1 ? '' : 's'}: ${problems.join('; ')}` : ''}`)
     if (problems.length === 0) setText('')
     setBusy(false)
+    if (problems.length === 0 && d.posted > 0) onPosted?.()
   }
 
   async function showLedger() {
