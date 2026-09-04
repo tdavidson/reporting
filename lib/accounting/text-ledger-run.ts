@@ -4,8 +4,8 @@
 // chart code embedded as the last component; unknown accounts are reported.
 
 import type { SupabaseClient } from '@supabase/supabase-js'
-import type { Account, AccountType, JournalEntry, Posting } from './types'
-import { serializeLedger, parseLedgerText, textAccountName, codeFromAccountName, type TextEntryInput } from './text-ledger'
+import type { Account, AccountType, JournalEntry } from './types'
+import { serializeLedger, parseLedgerText, resolvePostingAccounts, type TextEntryInput } from './text-ledger'
 import { persistEntry } from './persist'
 import { vehicleIdByName } from './vehicle-id'
 import { isBalanced } from './ledger'
@@ -63,22 +63,15 @@ export async function postLedgerText(
   const { entries, errors } = parseLedgerText(text)
   const accounts = await loadAccounts(admin, fundId, group)
 
-  const byName = new Map(accounts.map(a => [textAccountName(a), a.id]))
-  const byCode = new Map(accounts.map(a => [a.code, a.id]))
-  const resolve = (name: string): string | null => byName.get(name) ?? byCode.get(codeFromAccountName(name)) ?? null
-
   const unknownAccounts = new Set<string>()
   let posted = 0
 
   for (const e of entries) {
-    const postings: Posting[] = []
-    let ok = true
-    for (const p of e.postings) {
-      const accountId = resolve(p.account)
-      if (!accountId) { unknownAccounts.add(p.account); ok = false; continue }
-      postings.push({ accountId, amount: p.amount ?? 0, currency: p.currency, lpEntityId: null })
-    }
-    if (!ok) continue
+    // A per-partner capital account carries the partner onto the posting — see
+    // resolvePostingAccounts. Text used to write lpEntityId null, so an entry authored this way
+    // hit the partner's account without attributing to the partner.
+    const { postings, unknown } = resolvePostingAccounts(accounts, e.postings)
+    if (unknown.length > 0) { unknown.forEach(u => unknownAccounts.add(u)); continue }
 
     const entry: JournalEntry = { fundId, entryDate: e.date, memo: e.narration, sourceType: e.sourceType ?? 'manual', postings }
     if (!isBalanced(entry)) { errors.push(`Entry ${e.date} does not balance after resolving accounts`); continue }

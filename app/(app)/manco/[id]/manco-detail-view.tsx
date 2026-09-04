@@ -6,7 +6,7 @@ import {
   ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis,
   CartesianGrid, Tooltip, Legend, ReferenceLine,
 } from 'recharts'
-import { Loader2, ArrowRight, BookOpen, Landmark, FileText, Lock, Upload, Table2 } from 'lucide-react'
+import { Loader2, ArrowRight, BookOpen, Landmark, FileText, Lock, Upload, Table2, FileCode } from 'lucide-react'
 import { useCurrency, formatCurrency, formatCurrencyFull } from '@/components/currency-context'
 import { AccountingBody } from '@/components/accounting-chrome'
 import { AnalystToggleButton } from '@/components/analyst-button'
@@ -262,6 +262,7 @@ function LedgerLinks({ vehicleId }: { vehicleId: string }) {
   const links = [
     { href: `/manco/${vehicleId}/journal`, label: 'Journal', icon: BookOpen, desc: 'Post and review entries.' },
     { href: `/manco/${vehicleId}/ledger`, label: 'General ledger', icon: Table2, desc: 'Each account, opening to closing balance.' },
+    { href: `/manco/${vehicleId}/text`, label: 'Plain text', icon: FileCode, desc: 'Author entries as text and post them in one go.' },
     { href: `/manco/${vehicleId}/bank`, label: 'Bank transactions', icon: Landmark, desc: 'Import a feed and draft entries.' },
     { href: `/manco/${vehicleId}/statements`, label: 'Financial statements', icon: FileText, desc: 'Balance sheet, P&L, cash flows.' },
     { href: `/manco/${vehicleId}/periods`, label: 'Period close', icon: Lock, desc: 'Close and lock a period.' },

@@ -43,7 +43,10 @@ export interface JournalEntry {
   entryDate: string
   memo?: string | null
   sourceType?: string | null
+  /** The system's tag — close:<period>, qb:<hash>, reversal:<entry>. Never typed by a person. */
   sourceRef?: string | null
+  /** The person's own reference — a check number, an invoice, a notice. Free text. */
+  reference?: string | null
   status?: EntryStatus
   postings: Posting[]
 }

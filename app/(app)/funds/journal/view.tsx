@@ -3,9 +3,12 @@
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Loader2, Plus } from 'lucide-react'
+import { Loader2, Plus, ChevronDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { AllocationModal, ALLOCATION_LABELS, type AllocationAction } from '../allocation-modal'
+import { reversedEntryId } from '@/lib/accounting/reversal'
 import { useLedgerFetch, useFundSeg, useVehicle, useVehicleBase } from '@/components/accounting-vehicle'
 import { textAccountName } from '@/lib/accounting/text-ledger'
 import type { Account, AccountType } from '@/lib/accounting/types'
@@ -24,9 +27,15 @@ interface Entry {
   entry_date: string
   memo: string | null
   source_type: string | null
+  source_ref?: string | null
   status: string
+  reference?: string | null
+  reversed_by?: string | null
+  posted_at?: string | null
   journal_postings: Posting[]
 }
+
+const ALLOCATION_ACTIONS: AllocationAction[] = ['management_fee', 'expense', 'gain', 'revalue', 'distribution', 'carry']
 
 // Same action-button style as the bank transactions table.
 const actionBtn = 'shrink-0 rounded border border-input px-2 py-1 font-sans text-xs text-muted-foreground hover:bg-accent hover:text-foreground transition-colors'
@@ -54,6 +63,9 @@ export function JournalView() {
   const [page, setPage] = useState(0)
   // `{ entryId: null }` = a new entry; readOnly = view a posted one without reverting it.
   const [editing, setEditing] = useState<{ entryId: string | null; readOnly?: boolean } | null>(null)
+  // One of the standard entries (fee, expense, gain, revalue, distribution, carry) being built.
+  const [alloc, setAlloc] = useState<AllocationAction | null>(null)
+  const [newOpen, setNewOpen] = useState(false)
   const [posting, setPosting] = useState(false)
   const [postMsg, setPostMsg] = useState<string | null>(null)
   // Ticked entry ids on the current page. `allMatching` is the escalation past it: every
@@ -215,9 +227,53 @@ export function JournalView() {
           no longer drops two date inputs into this row and wraps it. Bulk actions live in the
           selection strip below, and pagination BELOW the table (see footer). */}
       <div className="flex flex-wrap items-center gap-2">
-        <Button size="sm" variant="outline" onClick={() => setEditing({ entryId: null })}>
-          <Plus className="h-4 w-4 mr-1" />New entry
-        </Button>
+        {/* New entry is a menu: a plain entry, or one of the standard entries built from their
+            inputs with a preview, or the two other ways in (a capital call from the capital
+            accounts page, or plain text). */}
+        <Popover open={newOpen} onOpenChange={setNewOpen}>
+          <PopoverTrigger asChild>
+            <Button size="sm" variant="outline">
+              <Plus className="h-4 w-4 mr-1" />New entry<ChevronDown className="ml-1.5 h-3.5 w-3.5 opacity-60" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent align="start" className="w-80 p-2">
+            <div className="space-y-0.5">
+              <button
+                type="button"
+                onClick={() => { setNewOpen(false); setEditing({ entryId: null }) }}
+                className="block w-full rounded-sm px-2 py-1.5 text-left text-sm transition-colors hover:bg-accent hover:text-accent-foreground"
+              >
+                <div>Plain entry</div>
+                <div className="text-xs text-muted-foreground">Any accounts, any amounts — the general journal.</div>
+              </button>
+              <div className="px-2 pt-2 pb-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">From its inputs, with a preview</div>
+              {ALLOCATION_ACTIONS.map(a => (
+                <button
+                  key={a}
+                  type="button"
+                  onClick={() => { setNewOpen(false); setAlloc(a) }}
+                  className="block w-full rounded-sm px-2 py-1.5 text-left text-sm transition-colors hover:bg-accent hover:text-accent-foreground"
+                >
+                  <div>{ALLOCATION_LABELS[a].label}</div>
+                  <div className="text-xs text-muted-foreground">{ALLOCATION_LABELS[a].desc}</div>
+                </button>
+              ))}
+              {base && (
+                <>
+                  <div className="px-2 pt-2 pb-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Elsewhere</div>
+                  <Link href={`${base}/capital-accounts`} className="block rounded-sm px-2 py-1.5 text-sm transition-colors hover:bg-accent hover:text-accent-foreground">
+                    <div>Capital call</div>
+                    <div className="text-xs text-muted-foreground">Issue a call from Capital accounts; it books when the wire arrives.</div>
+                  </Link>
+                  <Link href={`${base}/text`} className="block rounded-sm px-2 py-1.5 text-sm transition-colors hover:bg-accent hover:text-accent-foreground">
+                    <div>Plain text</div>
+                    <div className="text-xs text-muted-foreground">Type entries in the double-entry text format and post them in one go.</div>
+                  </Link>
+                </>
+              )}
+            </div>
+          </PopoverContent>
+        </Popover>
         <Input
           value={search}
           onChange={e => setSearch(e.target.value)}
@@ -323,8 +379,19 @@ export function JournalView() {
         )}
 
         <div className="border rounded-lg divide-y font-mono text-xs">
+          {/* Column heads for the posting lines: the same two columns as the entry form and the
+              register, so an amount reads the same everywhere. */}
+          <div className="flex items-baseline gap-3 px-3 py-1 font-sans text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+            <span className="w-4 shrink-0" />
+            <span className="min-w-0 flex-1">Entry</span>
+            <span className="w-24 shrink-0 text-right">Debit</span>
+            <span className="w-24 shrink-0 text-right">Credit</span>
+            <span className="w-8 shrink-0" />
+            <span className="w-[4.5rem] shrink-0" />
+          </div>
           {entries.map(e => {
             const narration = (e.memo || e.source_type || 'Entry').replace(/"/g, "'")
+            const reversalOf = reversedEntryId(e.source_ref)
             // Readable status marker instead of a cryptic */!/# flag.
             const statusCls = e.status === 'posted'
               ? 'bg-success/15 text-success'
@@ -356,10 +423,16 @@ export function JournalView() {
                     <div className="whitespace-pre-wrap break-words">
                       <span className="text-muted-foreground">{e.entry_date}</span>{' '}
                       <span className={`mr-1 rounded px-1 py-0.5 align-middle font-sans text-[9px] font-medium uppercase tracking-wide ${statusCls}`}>{e.status}</span>{' '}
+                      {e.reference && <span className="text-muted-foreground">#{e.reference} </span>}
                       <span>&quot;{narration}&quot;</span>
+                      {e.reversed_by && <span className="ml-2 rounded bg-warning/15 px-1 py-0.5 align-middle font-sans text-[9px] font-medium uppercase tracking-wide text-warning">reversed</span>}
+                      {reversalOf && <span className="ml-2 rounded bg-muted px-1 py-0.5 align-middle font-sans text-[9px] font-medium uppercase tracking-wide text-muted-foreground">reversal of {reversalOf.slice(0, 8)}</span>}
                     </div>
-                    {e.source_type && (
-                      <div className="text-muted-foreground/70">{'  '}source: &quot;{e.source_type}&quot;</div>
+                    {(e.source_type || e.posted_at) && (
+                      <div className="text-muted-foreground/70">
+                        {'  '}{e.source_type && <>source: &quot;{e.source_type}&quot;</>}
+                        {e.posted_at && <>{e.source_type ? '  ' : ''}posted: {e.posted_at.slice(0, 10)}</>}
+                      </div>
                     )}
                     {/* Aligned by layout, not by padding the name to the longest account
                         in the chart — the per-LP capital accounts are long enough to push
@@ -378,9 +451,9 @@ export function JournalView() {
                           ) : (
                             <span className="min-w-0 flex-1 break-all">{name}</span>
                           )}
-                          <span className={`shrink-0 text-right tabular-nums ${amt < 0 ? 'text-muted-foreground' : ''}`}>
-                            {amt.toFixed(2)}
-                          </span>
+                          {/* Debit and credit columns, as the entry form and the register show them. */}
+                          <span className="w-24 shrink-0 text-right tabular-nums">{amt > 0 ? amt.toFixed(2) : ''}</span>
+                          <span className="w-24 shrink-0 text-right tabular-nums">{amt < 0 ? (-amt).toFixed(2) : ''}</span>
                           <span className="w-8 shrink-0 text-muted-foreground">{p.currency ?? 'USD'}</span>
                         </div>
                       )
@@ -424,6 +497,9 @@ export function JournalView() {
           onSaved={loadPage}
           onPosted={goToRegister}
         />
+      )}
+      {alloc && (
+        <AllocationModal action={alloc} onClose={() => setAlloc(null)} onSaved={loadPage} />
       )}
     </div>
   )

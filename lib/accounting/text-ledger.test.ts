@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { serializeLedger, parseLedgerText, textAccountName, codeFromAccountName } from './text-ledger'
+import { serializeLedger, parseLedgerText, textAccountName, codeFromAccountName, resolvePostingAccounts } from './text-ledger'
 import type { Account } from './types'
 
 const accounts: Account[] = [
@@ -94,5 +94,28 @@ describe('parseLedgerText', () => {
     expect(codeFromAccountName(entries[0].postings[0].account)).toBe('1000')
     expect(entries[0].postings[0].amount).toBe(5_000_000)
     expect(entries[0].postings[1].amount).toBe(-5_000_000)
+  })
+})
+
+describe('resolvePostingAccounts', () => {
+  it('resolves by full name or bare code and carries the partner onto the posting', () => {
+    const { postings, unknown } = resolvePostingAccounts(accounts, [
+      { account: 'Assets:Cash:1000', amount: 100, currency: 'USD' },
+      { account: '3100-aaaa1111', amount: -100, currency: 'USD' },
+    ])
+    expect(unknown).toEqual([])
+    expect(postings).toEqual([
+      { accountId: 'cash', amount: 100, currency: 'USD', lpEntityId: null },
+      { accountId: 'lpA', amount: -100, currency: 'USD', lpEntityId: 'a' },
+    ])
+  })
+
+  it('reports an unknown account rather than guessing', () => {
+    const { postings, unknown } = resolvePostingAccounts(accounts, [
+      { account: 'Assets:Cash:1000', amount: 5, currency: 'USD' },
+      { account: 'Expenses:Rent:5100', amount: -5, currency: 'USD' },
+    ])
+    expect(unknown).toEqual(['Expenses:Rent:5100'])
+    expect(postings).toHaveLength(1)
   })
 })
