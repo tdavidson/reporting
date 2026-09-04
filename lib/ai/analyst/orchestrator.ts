@@ -336,6 +336,12 @@ export async function runAnalyst(
     systemPrompt += `\n\n=== PREVIOUS CONVERSATION MEMORY ===\nRecent discussions with this user (for context continuity):\n${memory}`
   }
 
+  // The channel shapes the answer, never the access: a text gets the same tools and the same
+  // grants as the web panel, and a shorter, plainer reply.
+  const smsChannel = request.channel === 'sms'
+  if (smsChannel) systemPrompt += `\n\n${SMS_CHANNEL_GUIDE}`
+  const maxTokens = smsChannel ? SMS_MAX_TOKENS : 2000
+
   let providerResult: Awaited<ReturnType<typeof createFundAIProviderWithOverride>>
   try {
     providerResult = await createFundAIProviderWithOverride(
@@ -378,7 +384,7 @@ export async function runAnalyst(
       })
       const result = await provider.createToolLoop({
         model,
-        maxTokens: 2000,
+        maxTokens,
         system: withTopicalGuardrail(systemPrompt),
         messages,
         tools: analystTools.tools,
@@ -394,7 +400,7 @@ export async function runAnalyst(
     } else {
       const result = await provider.createChat({
         model,
-        maxTokens: 2000,
+        maxTokens,
         system: withTopicalGuardrail(systemPrompt),
         messages,
       })
@@ -447,6 +453,16 @@ export async function runAnalyst(
     )
   }
 }
+
+/**
+ * Appended when the reply is going to a phone. A text is read on a lock screen: the number the
+ * user asked for comes first, the reasoning after, and nothing that needs a monospace column to
+ * make sense. The cap is a hint — SMS_MAX_TOKENS is the hard ceiling.
+ */
+export const SMS_CHANNEL_GUIDE = `You are replying by text message (SMS). Keep the whole reply under about 600 characters unless the user asks for detail. Lead with the answer — the figure, the date, the name — then at most two or three short sentences of context. Plain text only: no markdown, no bullet lists, no tables, no headings. Use whole sentences a phone can display. If the question needs a table or a long list, give the top items and offer to send the rest.`
+
+/** Enough for a paragraph and a follow-up question; not enough for a memo. */
+export const SMS_MAX_TOKENS = 700
 
 /** The general-scope counterpart of ACCOUNTING_DOCUMENT_GUIDE: read the file, don't draft from it. */
 const SOURCE_DOCUMENT_GUIDE = `The SOURCE DOCUMENT above was attached by the user with their question. Treat it as source material: answer from it, quote or cite it where that helps, and relate it to the fund data you have when the user asks. If the document does not contain what the user is asking about, say so plainly rather than guessing.`

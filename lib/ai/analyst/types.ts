@@ -90,7 +90,15 @@ export interface AnalystRequest {
   }
   model?: { id: string; provider: string }
   document?: AnalystDocument
+  /**
+   * Where the answer is going. Default (absent, or 'web') changes nothing. 'sms' tells the
+   * orchestrator the reply will be read in a text bubble: short, plain, no tables — and it caps
+   * the output tokens to match, so a long-form answer is never generated and then truncated.
+   */
+  channel?: AnalystChannel
 }
+
+export type AnalystChannel = 'web' | 'sms'
 
 export interface AnalystUsageSummary extends TokenUsage {
   provider: string

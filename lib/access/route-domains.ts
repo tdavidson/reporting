@@ -437,6 +437,10 @@ export const ROUTE_DOMAINS: Record<string, RouteAccess> = {
   // Affinity issues ONE KEY PER USER, scoped to that user's own permissions, so each member
   // connects their own. It lives under /settings but it is not administration.
   'api/settings/affinity': { domain: 'portfolio', level: 'any' },
+  // A member's OWN mobile number for texting the Analyst: they link it, verify it, unlink it.
+  // The fund-level provider settings (which number, whose Twilio account) are admin fields on
+  // api/settings; every text is then answered through the Analyst's own per-domain gating.
+  'api/settings/phone': { domain: 'portfolio', level: 'any' },
   // A member's OWN agent credentials: GET lists only their keys, POST mints one for them. The
   // route refuses the read-only demo itself, and every call the key later makes is re-checked
   // against its owner's live grants — so the key can never exceed them. Gating this as admin
@@ -519,6 +523,7 @@ export const UNGATED_ROUTES: Record<string, string> = {
   'api/csp-report': 'Browser-sent CSP violation reports; no credential exists to require. Rate-limited per platform IP, body capped, fields allowlisted before logging.',
   'api/inbound-email': 'Inbound email webhook.',
   'api/inbound-email/mailgun': 'Inbound email webhook (Mailgun).',
+  'api/webhooks/sms/twilio': 'Inbound SMS webhook: X-Twilio-Signature verified under the fund\'s auth token, fund resolved from the texted number; the sender is then identified by a verified analyst_phone_numbers row, never by the body.',
   'api/public/submit/[token]': 'Public deal-submission form; path token.',
 
   // A separate identity model: LP portal accounts, scoped per investor entity by resolveLpAccess.

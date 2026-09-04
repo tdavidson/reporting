@@ -128,6 +128,11 @@ export async function GET() {
     // Both ship in later migrations; absent, they read as off — see the star select above.
     affinityMcpEnabled: !!settings?.affinity_mcp_enabled,
     agentApiEnabled: !!settings?.agent_api_enabled,
+    // Text the Analyst (20260904000006). The auth token is exposed as a boolean like every key.
+    smsProvider: settings?.sms_provider ?? null,
+    smsFromNumber: settings?.sms_from_number ?? '',
+    twilioAccountSid: settings?.twilio_account_sid ?? '',
+    hasTwilioAuthToken: !!settings?.twilio_auth_token_encrypted,
     displayName: membership.display_name ?? '',
     isAdmin: membership.role === 'admin',
     userId: user.id,
@@ -156,7 +161,7 @@ export async function PATCH(req: NextRequest) {
   if (!membership) return NextResponse.json({ error: 'No fund found' }, { status: 404 })
 
   const body = await req.json()
-  const { fundName, fundLogo, fundAddress, postmarkInboundAddress, claudeApiKey, claudeModel, retainResolvedReviews, resolvedReviewsTtlDays, googleClientId, googleClientSecret, aiSummaryPrompt, displayName, outboundEmailProvider, asksEmailProvider, approvalEmailSubject, approvalEmailBody, systemEmailFromName, systemEmailFromAddress, resendApiKey, postmarkServerToken, inboundEmailProvider, mailgunInboundDomain, mailgunSigningKey, mailgunApiKey, mailgunSendingDomain, fileStorageProvider, openaiApiKey, openaiModel, defaultAIProvider, openrouterApiKey, openrouterModel, openrouterBaseUrl, analyticsFathomSiteId, analyticsGaMeasurementId, analyticsCustomHeadScript, currency, lotMethod, disableUserTracking, featureVisibility, dealThesis, dealScreeningPrompt, dealIntakeEnabled, lpPortalEnabled, affinityMcpEnabled, agentApiEnabled } = body
+  const { fundName, fundLogo, fundAddress, postmarkInboundAddress, claudeApiKey, claudeModel, retainResolvedReviews, resolvedReviewsTtlDays, googleClientId, googleClientSecret, aiSummaryPrompt, displayName, outboundEmailProvider, asksEmailProvider, approvalEmailSubject, approvalEmailBody, systemEmailFromName, systemEmailFromAddress, resendApiKey, postmarkServerToken, inboundEmailProvider, mailgunInboundDomain, mailgunSigningKey, mailgunApiKey, mailgunSendingDomain, fileStorageProvider, openaiApiKey, openaiModel, defaultAIProvider, openrouterApiKey, openrouterModel, openrouterBaseUrl, analyticsFathomSiteId, analyticsGaMeasurementId, analyticsCustomHeadScript, currency, lotMethod, disableUserTracking, featureVisibility, dealThesis, dealScreeningPrompt, dealIntakeEnabled, lpPortalEnabled, affinityMcpEnabled, agentApiEnabled, smsProvider, smsFromNumber, twilioAccountSid, twilioAuthToken } = body
 
   // Update display name on fund_members (any user can do this)
   if (displayName !== undefined) {
@@ -180,7 +185,8 @@ export async function PATCH(req: NextRequest) {
     disableUserTracking !== undefined || featureVisibility !== undefined ||
     dealThesis !== undefined || dealScreeningPrompt !== undefined ||
     dealIntakeEnabled !== undefined || lpPortalEnabled !== undefined || affinityMcpEnabled !== undefined ||
-    agentApiEnabled !== undefined
+    agentApiEnabled !== undefined || smsProvider !== undefined || smsFromNumber !== undefined ||
+    twilioAccountSid !== undefined || twilioAuthToken !== undefined
 
   if (hasAdminFields && membership.role !== 'admin') {
     return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
@@ -379,6 +385,51 @@ export async function PATCH(req: NextRequest) {
       settingsUpdates.encryption_key_encrypted = encrypt(dek, kek)
     }
     settingsUpdates.mailgun_signing_key_encrypted = encrypt(mailgunSigningKey.trim(), dek)
+  }
+
+  // ── Text the Analyst: the fund's SMS provider ─────────────────────────────
+  if (smsProvider !== undefined) {
+    if (smsProvider !== null && smsProvider !== '' && smsProvider !== 'twilio') {
+      return NextResponse.json({ error: 'Unsupported text-messaging provider' }, { status: 400 })
+    }
+    settingsUpdates.sms_provider = smsProvider || null
+  }
+  if (smsFromNumber !== undefined) {
+    if (smsFromNumber === null || smsFromNumber === '') {
+      settingsUpdates.sms_from_number = null
+    } else {
+      const { normalizePhoneNumber } = await import('@/lib/messaging/phone')
+      const normalized = typeof smsFromNumber === 'string' ? normalizePhoneNumber(smsFromNumber) : null
+      if (!normalized) return NextResponse.json({ error: 'The texting number must be a phone number in international format, e.g. +14155552671' }, { status: 400 })
+      settingsUpdates.sms_from_number = normalized
+    }
+  }
+  if (twilioAccountSid !== undefined) {
+    const sid = typeof twilioAccountSid === 'string' ? twilioAccountSid.trim() : ''
+    if (sid && !/^AC[0-9a-fA-F]{32}$/.test(sid)) {
+      return NextResponse.json({ error: 'A Twilio Account SID starts with AC and is 34 characters long' }, { status: 400 })
+    }
+    settingsUpdates.twilio_account_sid = sid || null
+  }
+  if (twilioAuthToken !== undefined && typeof twilioAuthToken === 'string' && twilioAuthToken.trim()) {
+    const kek = process.env.ENCRYPTION_KEY
+    if (!kek) return NextResponse.json({ error: 'Server misconfiguration: ENCRYPTION_KEY not set' }, { status: 500 })
+
+    const { data: existing } = await admin
+      .from('fund_settings')
+      .select('encryption_key_encrypted')
+      .eq('fund_id', membership.fund_id)
+      .single()
+
+    let dek: string
+    if (existing?.encryption_key_encrypted) {
+      const { decrypt } = await import('@/lib/crypto')
+      dek = decrypt(existing.encryption_key_encrypted, kek)
+    } else {
+      dek = randomBytes(32).toString('hex')
+      settingsUpdates.encryption_key_encrypted = encrypt(dek, kek)
+    }
+    settingsUpdates.twilio_auth_token_encrypted = encrypt(twilioAuthToken.trim(), dek)
   }
 
   // Update Mailgun API key (encrypted)

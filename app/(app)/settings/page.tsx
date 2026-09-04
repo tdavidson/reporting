@@ -10,6 +10,7 @@ import { AppearanceEditor } from './appearance/editor'
 import { ProfileSection } from './_sections/account/profile-section'
 import { MfaSection } from './_sections/account/mfa-section'
 import { NotificationPreferencesSection } from './_sections/account/notification-preferences-section'
+import { TextAnalystSection } from './_sections/account/text-analyst-section'
 import { VersionSection } from './_sections/fund/version-section'
 import { CurrencySection } from './_sections/fund/currency-section'
 import { FundNameSection } from './_sections/fund/fund-name-section'
@@ -21,6 +22,7 @@ import { AnalyticsSection } from './_sections/fund/analytics-section'
 import { UsageTrackingSection } from './_sections/fund/usage-tracking-section'
 import { AIProvidersSection } from './_sections/platform/ai-providers-section'
 import { InboundEmailSection } from './_sections/platform/inbound-email-section'
+import { TextMessagingSection } from './_sections/platform/text-messaging-section'
 import { StorageSection } from './_sections/platform/storage-section'
 import { MarketingSection } from './_sections/platform/marketing-section'
 import { OutboundEmailSection } from './_sections/platform/outbound-email-section'
@@ -130,6 +132,8 @@ export default function SettingsPage() {
       <ProfileSection displayName={settings.displayName} onSaved={load} />
       <MfaSection />
       <NotificationPreferencesSection />
+      {/* Per-user: each member links their own phone. The fund's provider is in Organization. */}
+      <TextAnalystSection isAdmin={settings.isAdmin} />
       {/* Per-user API/MCP keys, so this lives on the page for all users; the admin on/off
           toggle lives in Organization below. */}
       <Section title="API and MCP">
@@ -187,6 +191,13 @@ export default function SettingsPage() {
               onSaved={load}
             />
             <SendersSection senders={settings.senders} onChanged={load} />
+            <TextMessagingSection
+              provider={settings.smsProvider}
+              fromNumber={settings.smsFromNumber}
+              accountSid={settings.twilioAccountSid}
+              hasAuthToken={settings.hasTwilioAuthToken}
+              onSaved={load}
+            />
             <OutboundEmailSection
               provider={settings.outboundEmailProvider}
               asksProvider={settings.asksEmailProvider}

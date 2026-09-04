@@ -45,6 +45,9 @@
     },
     "app/api/company-updates/backfill/route.ts": {
       "maxDuration": 120
+    },
+    "app/api/webhooks/sms/twilio/route.ts": {
+      "maxDuration": 120
     }
   },
   "crons": [

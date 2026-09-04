@@ -257,6 +257,10 @@ export const TABLE_RULES: Record<string, TableRule> = {
   demo_sessions: { scope: 'service', note: 'Anonymous demo telemetry, written server-side.' },
   memo_agent_jobs: { scope: 'service', note: 'Already locked down by 20260509000002_memo_agent_jobs_lockdown.sql.' },
   api_idempotency_keys: { scope: 'service', note: 'Stored response bodies for /api/v1 financial approvals, replayed on retry.' },
+  // Text the Analyst (20260904000006). The phone number IS the credential: a verified row says
+  // "this number is this member", and the verification hash is a credential in flight.
+  analyst_phone_numbers: { scope: 'service', note: 'A member’s verified mobile number and its pending verification hash. Read only by the settings route and the SMS webhook, both service-role.' },
+  analyst_phone_messages: { scope: 'service', note: 'SMS delivery log and webhook idempotency keys; written server-side only.' },
   // ---- Tax reporting (merged from the SPV branch, 2026-09-03) ----------------------------------
   // Every one of these is service-role only by the branch's own security pass, and for a reason
   // worth keeping: a K-1 line is a partner's allocated income, a tax form carries legal name and

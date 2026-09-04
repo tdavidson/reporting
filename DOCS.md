@@ -193,6 +193,19 @@ To send quarterly reporting requests or system notifications, configure an outbo
 
 You can set different providers for system emails and portfolio asks.
 
+### Optional: Text the Analyst (SMS / iMessage)
+
+Members can text questions to the Analyst from their phone and get answers back as texts. On an iPhone the conversation appears in Messages alongside everything else.
+
+1. Create a [Twilio](https://www.twilio.com) account and buy a phone number with SMS capability. (US numbers need A2P 10DLC registration for reliable delivery; Twilio walks you through it.)
+2. In **Settings > Text messaging**, choose Twilio, enter the number in international format (e.g. `+14155552671`), your Account SID, and your Auth Token. The token is encrypted and stored in your database, like every other key.
+3. Copy the webhook URL shown there — `https://your-app.com/api/webhooks/sms/twilio` — and in the Twilio console open the number under **Phone Numbers > Manage > Active numbers** and set **A message comes in** to that URL as an HTTP POST.
+4. Each member then opens **Settings > Text the Analyst**, enters their mobile number, and types back the six-digit code they receive. That is what ties a phone to an account: an unlinked number that texts the fund's number is told how to link and nothing else.
+
+Every inbound text is verified against Twilio's request signature under your Auth Token before it is read. The Analyst answers as the linked member with their live access, in read-only mode, and the reply is sent back through Twilio from the fund's number. Replies stay short (the model is told it is writing a text), and long ones are split across messages. Texting `NEW` starts a fresh conversation, `HELP` explains the commands, and `STOP` opts the number out until it texts `START`.
+
+Twilio's SMS reach an iPhone as green bubbles. A blue-bubble iMessage bridge (Sendblue, LoopMessage and similar) can be added as a second provider behind the same tables and handler; see `lib/messaging/sms-config.ts`.
+
 ### Optional: Google Drive
 
 To automatically archive processed emails and attachments:

@@ -60,6 +60,10 @@ export interface SettingsData {
   dealIntakeEnabled: boolean
   hasSubmissionToken: boolean
   lpPortalEnabled: boolean
+  smsProvider: string | null
+  smsFromNumber: string
+  twilioAccountSid: string
+  hasTwilioAuthToken: boolean
 }
 
 export type Saved = () => void

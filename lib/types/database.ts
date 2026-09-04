@@ -136,6 +136,129 @@ export type Database = {
           },
         ]
       }
+      analyst_phone_numbers: {
+        Row: {
+          conversation_id: string | null
+          created_at: string
+          fund_id: string
+          id: string
+          last_message_at: string | null
+          opted_out_at: string | null
+          phone_e164: string
+          updated_at: string
+          user_id: string
+          verification_attempts: number
+          verification_code_hash: string | null
+          verification_expires_at: string | null
+          verified_at: string | null
+        }
+        Insert: {
+          conversation_id?: string | null
+          created_at?: string
+          fund_id: string
+          id?: string
+          last_message_at?: string | null
+          opted_out_at?: string | null
+          phone_e164: string
+          updated_at?: string
+          user_id: string
+          verification_attempts?: number
+          verification_code_hash?: string | null
+          verification_expires_at?: string | null
+          verified_at?: string | null
+        }
+        Update: {
+          conversation_id?: string | null
+          created_at?: string
+          fund_id?: string
+          id?: string
+          last_message_at?: string | null
+          opted_out_at?: string | null
+          phone_e164?: string
+          updated_at?: string
+          user_id?: string
+          verification_attempts?: number
+          verification_code_hash?: string | null
+          verification_expires_at?: string | null
+          verified_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "analyst_phone_numbers_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "analyst_conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "analyst_phone_numbers_fund_id_fkey"
+            columns: ["fund_id"]
+            isOneToOne: false
+            referencedRelation: "funds"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      analyst_phone_messages: {
+        Row: {
+          body: string
+          conversation_id: string | null
+          created_at: string
+          direction: string
+          error: string | null
+          fund_id: string
+          id: string
+          phone_e164: string
+          phone_number_id: string | null
+          provider: string
+          provider_message_id: string | null
+          status: string
+        }
+        Insert: {
+          body: string
+          conversation_id?: string | null
+          created_at?: string
+          direction: string
+          error?: string | null
+          fund_id: string
+          id?: string
+          phone_e164: string
+          phone_number_id?: string | null
+          provider: string
+          provider_message_id?: string | null
+          status: string
+        }
+        Update: {
+          body?: string
+          conversation_id?: string | null
+          created_at?: string
+          direction?: string
+          error?: string | null
+          fund_id?: string
+          id?: string
+          phone_e164?: string
+          phone_number_id?: string | null
+          provider?: string
+          provider_message_id?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "analyst_phone_messages_fund_id_fkey"
+            columns: ["fund_id"]
+            isOneToOne: false
+            referencedRelation: "funds"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "analyst_phone_messages_phone_number_id_fkey"
+            columns: ["phone_number_id"]
+            isOneToOne: false
+            referencedRelation: "analyst_phone_numbers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       app_settings: {
         Row: {
           created_at: string | null
@@ -1400,8 +1523,12 @@ export type Database = {
           retain_resolved_reviews: boolean | null
           routing_confidence_threshold: number | null
           routing_model: string | null
+          sms_from_number: string | null
+          sms_provider: string | null
           system_email_from_address: string | null
           system_email_from_name: string | null
+          twilio_account_sid: string | null
+          twilio_auth_token_encrypted: string | null
           updated_at: string | null
         }
         Insert: {
@@ -1453,8 +1580,12 @@ export type Database = {
           retain_resolved_reviews?: boolean | null
           routing_confidence_threshold?: number | null
           routing_model?: string | null
+          sms_from_number?: string | null
+          sms_provider?: string | null
           system_email_from_address?: string | null
           system_email_from_name?: string | null
+          twilio_account_sid?: string | null
+          twilio_auth_token_encrypted?: string | null
           updated_at?: string | null
         }
         Update: {
@@ -1506,8 +1637,12 @@ export type Database = {
           retain_resolved_reviews?: boolean | null
           routing_confidence_threshold?: number | null
           routing_model?: string | null
+          sms_from_number?: string | null
+          sms_provider?: string | null
           system_email_from_address?: string | null
           system_email_from_name?: string | null
+          twilio_account_sid?: string | null
+          twilio_auth_token_encrypted?: string | null
           updated_at?: string | null
         }
         Relationships: [

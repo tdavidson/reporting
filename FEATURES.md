@@ -221,6 +221,8 @@ On **portfolio-wide pages**, the Analyst has access to fund-level data across al
 
 **Team notes as context** — the Analyst incorporates your team's internal discussion notes into its analysis, so it's aware of qualitative observations alongside the quantitative data.
 
+**Text the Analyst** — link your mobile number in Settings and text your questions to the fund's number from your phone. On an iPhone the thread lives in Messages like any other conversation. Replies come back as texts, short and plain: the figure first, then a sentence or two of context. It is the same Analyst — the same data, the same tools, the same per-domain access as the panel — with two differences: it never stages changes (read-only from a phone), and a text continues your last SMS conversation for six hours, after which the next one starts fresh. Reply NEW to start over, HELP for a reminder, STOP to opt out. Linking is a one-time verification: enter your number, type back the six-digit code we text you. An admin sets up the fund's number under Settings → Text messaging (Twilio).
+
 ## Notes
 
 Notes are available on each company's detail page, on the Portfolio dashboard, and on the dedicated Notes page. They provide a lightweight way for team members to share observations, context, and follow-up items.
