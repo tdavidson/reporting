@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useLpPortalEnabled, useIsAdmin } from '@/components/feature-visibility-context'
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
+import { capitalActionFromParam } from '@/lib/accounting/capital-action'
 import { Loader2, Check, AlertTriangle, Landmark, ChevronRight, Share2, Search, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
@@ -61,12 +63,15 @@ export function CapitalAccountsView() {
   const [showShare, setShowShare] = useState(false)
   const [shareSel, setShareSel] = useState<Set<string>>(new Set())
 
-  // Issue-a-call (folded in from the old Capital calls page).
-  const [showCall, setShowCall] = useState(false)
+  // Issue-a-call (folded in from the old Capital calls page). /start links here with
+  // `?action=call|distribution` to arrive with the panel already open on that direction — a
+  // shortcut that lands on a closed panel is only half a shortcut. Read once, at mount.
+  const requested = capitalActionFromParam(useSearchParams().get('action'))
+  const [showCall, setShowCall] = useState(requested != null)
   // The panel does BOTH directions. A call and a distribution take the same inputs — date,
   // description, an amount per partner — and differ only in the pro-rata basis and which
   // obligation they create, so one panel is honest rather than two near-identical ones.
-  const [kind, setKind] = useState<'call' | 'distribution'>('call')
+  const [kind, setKind] = useState<'call' | 'distribution'>(requested ?? 'call')
   const isDist = kind === 'distribution'
   const [mode, setMode] = useState<'fund_wide' | 'per_lp'>('fund_wide')
   const [callDate, setCallDate] = useState('')

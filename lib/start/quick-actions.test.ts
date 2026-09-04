@@ -41,9 +41,66 @@ describe('/start quick actions', () => {
 
   it('requires write for a create action — a viewer gets a form that 403s on save', () => {
     expect(createActions(only('read', 'portfolio', 'accounting'))).toEqual([])
-    const ids = createActions(only('write', 'portfolio', 'accounting')).map(a => a.id)
+    const ids = createActions(only('write', 'portfolio', 'accounting'), { isAdmin: true }).map(a => a.id)
     expect(ids).toContain('add-company')
     expect(ids).toContain('add-vehicle')
+  })
+
+  it('offers Add a vehicle to admins only, whatever the grant says', () => {
+    // A new vehicle is a new set of books: fund setup, not day-to-day entry.
+    expect(createActions(only('write', 'accounting')).map(a => a.id)).not.toContain('add-vehicle')
+    expect(createActions(only('write', 'accounting'), { isAdmin: true }).map(a => a.id)).toContain('add-vehicle')
+  })
+
+  it('leads with Add investment — the action a fund takes most often', () => {
+    const ids = createActions(only('write', 'portfolio')).map(a => a.id)
+    expect(ids[0]).toBe('add-investment')
+  })
+
+  it('gates Add investment on the investments feature, not just the portfolio grant', () => {
+    // The feature switch is the same one the company page and the investments API honour.
+    const noInvestments: Can = (domain, feature) =>
+      domain === 'portfolio' && feature !== 'investments' ? 'write' : 'none'
+    const ids = createActions(noInvestments).map(a => a.id)
+    expect(ids).toContain('add-company')
+    expect(ids).not.toContain('add-investment')
+  })
+
+  it('offers a capital call and a distribution only with lp_capital write, inside a visible Entities section', () => {
+    // They post to /api/accounting/capital-calls and /distributions, which are lp_capital routes:
+    // the accounting grant alone opens the books but not the partners' capital …
+    expect(createActions(only('write', 'accounting')).map(a => a.id)).not.toContain('issue-capital-call')
+    // … and the page they open sits under Entities, so with that section hidden there is nowhere
+    // for the shortcut to go.
+    expect(createActions(only('write', 'lp_capital')).map(a => a.id)).not.toContain('issue-capital-call')
+    const ids = createActions(only('write', 'lp_capital', 'accounting')).map(a => a.id)
+    expect(ids).toContain('issue-capital-call')
+    expect(ids).toContain('declare-distribution')
+  })
+
+  it('follows the LPs visibility setting, not the accounting one, for the capital pair', () => {
+    // The fund's "who sees partner capital" choice is the `lps` feature (lp_capital's primary
+    // feature). The resolver is asked with no feature override, so that setting is what answers —
+    // the same question the nav asks for the Capital accounts entry and the middleware asks for
+    // the routes. Here the accounting feature is wide open and LPs is off: nothing is offered.
+    const lpsOff: Can = (domain, feature) =>
+      domain === 'lp_capital' && feature === undefined ? 'none'
+      : domain === 'accounting' || domain === 'lp_capital' ? 'write'
+      : 'none'
+    expect(createActions(lpsOff).map(a => a.id)).not.toContain('issue-capital-call')
+  })
+
+  it('keeps the capital pair on a row of their own', () => {
+    const groups = new Map(createActions(() => 'write').map(a => [a.id, a.group]))
+    expect(groups.get('issue-capital-call')).toBe('capital')
+    expect(groups.get('declare-distribution')).toBe('capital')
+    expect(groups.get('add-investment')).toBe('create')
+  })
+
+  it('sends the capital actions to the capital accounts page with the panel to open', () => {
+    const byId = new Map(createActions(() => 'write').map(a => [a.id, a]))
+    expect(byId.get('issue-capital-call')?.href).toBe('/funds/capital-accounts?action=call')
+    expect(byId.get('declare-distribution')?.href).toBe('/funds/capital-accounts?action=distribution')
   })
 
   it('gives every link action an href and every modal action none', () => {

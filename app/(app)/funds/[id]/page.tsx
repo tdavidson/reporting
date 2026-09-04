@@ -8,6 +8,7 @@ import { sectionForSlug } from '@/lib/accounting/nav'
 import { isManagementCompany } from '@/lib/vehicle-kinds'
 import { AccountingPageHeader, AccountingBody } from '@/components/accounting-chrome'
 import { FirmVehiclesTable } from '@/components/accounting/firm-vehicles'
+import { capitalActionFromParam, type CapitalAction } from '@/lib/accounting/capital-action'
 import { FundDetailView } from './fund-detail-view'
 import { MancoDetailView } from './manco-detail-view'
 
@@ -42,10 +43,15 @@ export async function generateMetadata(props: { params: Promise<{ id: string }> 
  * the portfolio_group string while the switcher/sidebar route on the id. A legacy vehicle with no
  * registry row is addressed by its name directly, so an un-migrated fund still works.
  */
-export default async function EntityPage(props: { params: Promise<{ id: string }> }) {
+export default async function EntityPage(props: { params: Promise<{ id: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const params = await props.params;
 
-  if (FUND_SUBPAGE_SLUGS.has(params.id)) return <FirmSectionPage slug={params.id} />
+  if (FUND_SUBPAGE_SLUGS.has(params.id)) {
+    // Only the capital accounts landing has a query to forward — see FirmVehiclesTable's `action`.
+    const sp = await props.searchParams
+    const action = params.id === 'capital-accounts' ? capitalActionFromParam(typeof sp.action === 'string' ? sp.action : null) : null
+    return <FirmSectionPage slug={params.id} action={action} />
+  }
 
   const { vehicle, vehicleId, kind, active } = await requireVehicleAccess(params.id)
 
@@ -66,7 +72,7 @@ export default async function EntityPage(props: { params: Promise<{ id: string }
  * each entity's books is what you want to know whichever page you are heading for — and only the
  * row's link changes. Admin is also where an entity is added, so that page carries the button.
  */
-async function FirmSectionPage({ slug }: { slug: string }) {
+async function FirmSectionPage({ slug, action }: { slug: string; action: CapitalAction | null }) {
   await requireAccountingAccess()
 
   // Two slugs are not pages of their own any more: plain-text authoring is a tab on the journal,
@@ -81,7 +87,7 @@ async function FirmSectionPage({ slug }: { slug: string }) {
     <div className="pt-4 md:pt-8 pb-8 w-full">
       <AccountingPageHeader title={section.label}>{section.desc}</AccountingPageHeader>
       <AccountingBody>
-        <FirmVehiclesTable section={slug} showAdd={slug === 'status'} />
+        <FirmVehiclesTable section={slug} showAdd={slug === 'status'} action={action} />
       </AccountingBody>
     </div>
   )

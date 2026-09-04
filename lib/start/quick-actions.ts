@@ -42,6 +42,26 @@ export interface CreateAction extends Gated {
    */
   kind: 'modal' | 'link'
   href?: string
+  /**
+   * Which row of the shortcut strip. Portfolio creation on the first; the capital movements —
+   * a call in, a distribution out — on a second, because they are a different kind of act from
+   * adding a record and read better as their own pair than as the tail of a long row.
+   */
+  group: 'create' | 'capital'
+  /**
+   * Admins only, on top of the grant. Creating a vehicle is fund setup — a new set of books —
+   * and the shortcut strip is not the place to hand that to every member with the accounting
+   * grant, even though the route would let them. The nav shows Entities to those members
+   * regardless; this is about what the front door OFFERS, not what the API allows.
+   */
+  adminOnly?: boolean
+  /**
+   * A second gate that must be READABLE for the action to show, on top of the write gate above.
+   * For an action whose page sits inside another product's section: the capital pair lives under
+   * Entities, so a fund with Entities hidden must not be offered a shortcut into it, whatever the
+   * LPs setting says. Exactly the sidebar's rule — a child shows only when its parent does.
+   */
+  within?: Gated
 }
 
 /**
@@ -57,10 +77,20 @@ const SUGGESTED_PROMPTS: SuggestedPrompt[] = [
 ]
 
 const CREATE_ACTIONS: CreateAction[] = [
-  { id: 'add-company', label: 'Add a company', kind: 'modal', domain: 'portfolio' },
-  { id: 'import-documents', label: 'Import documents', kind: 'modal', domain: 'portfolio', feature: 'imports' },
-  { id: 'add-deal', label: 'Add a deal', kind: 'link', href: '/deals', domain: 'dealflow', feature: 'deals' },
-  { id: 'add-vehicle', label: 'Add a vehicle', kind: 'modal', domain: 'accounting' },
+  // First because it is the thing a fund does most often between reports. Same feature switch
+  // as the company page's Investment Details and the investments API — the modal posts there.
+  { id: 'add-investment', label: 'Add investment', kind: 'modal', domain: 'portfolio', feature: 'investments', group: 'create' },
+  { id: 'add-company', label: 'Add a company', kind: 'modal', domain: 'portfolio', group: 'create' },
+  { id: 'import-documents', label: 'Import documents', kind: 'modal', domain: 'portfolio', feature: 'imports', group: 'create' },
+  { id: 'add-deal', label: 'Add a deal', kind: 'link', href: '/deals', domain: 'dealflow', feature: 'deals', group: 'create' },
+  { id: 'add-vehicle', label: 'Add a vehicle', kind: 'modal', domain: 'accounting', group: 'create', adminOnly: true },
+  // Both live on the capital accounts page as one panel with two directions; `action` tells it
+  // which to open (lib/accounting/capital-action.ts). Gated exactly as that page is in the nav
+  // (lib/accounting/nav.ts): on `lp_capital` with NO feature override, so the LPs visibility
+  // setting — the fund's choice of who sees partner capital — is the one that decides, the same
+  // way it decides for the routes they post to. `within` adds the section they sit in.
+  { id: 'issue-capital-call', label: 'Issue a capital call', kind: 'link', href: '/funds/capital-accounts?action=call', domain: 'lp_capital', within: { domain: 'accounting' }, group: 'capital' },
+  { id: 'declare-distribution', label: 'Declare a distribution', kind: 'link', href: '/funds/capital-accounts?action=distribution', domain: 'lp_capital', within: { domain: 'accounting' }, group: 'capital' },
 ]
 
 const canRead = (can: Can, g: Gated) => {
@@ -80,6 +110,9 @@ export function suggestedPrompts(can: Can, limit = 4): SuggestedPrompt[] {
  * Create shortcuts. Write, not read — offering "Add a company" to a viewer produces a form whose
  * save button 403s, which is worse than not offering it.
  */
-export function createActions(can: Can): CreateAction[] {
-  return CREATE_ACTIONS.filter(a => can(a.domain, a.feature) === 'write')
+export function createActions(can: Can, opts: { isAdmin?: boolean } = {}): CreateAction[] {
+  return CREATE_ACTIONS
+    .filter(a => !a.adminOnly || !!opts.isAdmin)
+    .filter(a => !a.within || canRead(can, a.within))
+    .filter(a => can(a.domain, a.feature) === 'write')
 }

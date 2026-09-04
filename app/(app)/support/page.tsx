@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { Building2, ClipboardCheck, Mail, Upload, Send, Settings, MessageSquare, Monitor, PanelLeftClose, Sparkles, Shield, ShieldCheck, Handshake, Users, ArrowDownCircle, DollarSign, FileText, Briefcase, Crown, Lightbulb, Microscope } from 'lucide-react'
+import { Github, Scale, ExternalLink, Building2, ClipboardCheck, Mail, Upload, Send, Settings, MessageSquare, Monitor, PanelLeftClose, Sparkles, Shield, ShieldCheck, Handshake, Users, ArrowDownCircle, DollarSign, FileText, Briefcase, Crown, Lightbulb, Microscope } from 'lucide-react'
 import { AnalystToggleButton } from '@/components/analyst-button'
 import { AnalystPanel } from '@/components/analyst-panel'
 
@@ -8,6 +8,7 @@ export const metadata: Metadata = { title: 'Support' }
 export default function SupportPage() {
   const tocLinks = (
     <ul className="space-y-1 text-muted-foreground">
+      <li><a href="#links" className="hover:text-foreground underline underline-offset-4">Links</a></li>
       <li><a href="#getting-started" className="hover:text-foreground underline underline-offset-4">Getting Started</a></li>
       <li className="pl-4"><a href="#setup" className="hover:text-foreground underline underline-offset-4">Setup</a></li>
       <li className="pl-4"><a href="#license" className="hover:text-foreground underline underline-offset-4">License</a></li>
@@ -74,6 +75,35 @@ export default function SupportPage() {
               </a>
               .
             </p>
+          </div>
+
+          {/* The links the in-app footer used to carry on every page. It no longer appears on
+              /start, so this is where they are guaranteed to be found. */}
+          <div id="links" className="rounded-card border bg-card p-5">
+            <h2 className="text-base font-medium mb-3">Links</h2>
+            <ul className="flex flex-wrap gap-x-6 gap-y-2 text-muted-foreground">
+              <li>
+                <a href="https://hemrock.com" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 hover:text-foreground transition-colors">
+                  <ExternalLink className="h-3.5 w-3.5" />Hemrock
+                </a>
+              </li>
+              <li>
+                <a href="https://github.com/tdavidson/reporting" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 hover:text-foreground transition-colors">
+                  <Github className="h-3.5 w-3.5" />GitHub
+                </a>
+              </li>
+              <li>
+                <a href="https://github.com/tdavidson/reporting/blob/main/LICENSE.md" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 hover:text-foreground transition-colors">
+                  <Scale className="h-3.5 w-3.5" />License
+                </a>
+              </li>
+              <li>
+                <a href="https://www.hemrock.com/terms" target="_blank" rel="noopener noreferrer" className="hover:text-foreground transition-colors">Terms</a>
+              </li>
+              <li>
+                <a href="https://www.hemrock.com/privacy" target="_blank" rel="noopener noreferrer" className="hover:text-foreground transition-colors">Privacy</a>
+              </li>
+            </ul>
           </div>
 
           {/* Table of contents, inline on mobile only */}

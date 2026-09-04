@@ -8,6 +8,7 @@ import { useCurrency, formatCurrencyFull } from '@/components/currency-context'
 import { useAccess } from '@/components/access-context'
 import { VEHICLE_KIND_LABELS, isVehicleKind, isManagementCompany } from '@/lib/vehicle-kinds'
 import { hasSectionForKind, sectionForSlug } from '@/lib/accounting/nav'
+import { withCapitalAction, type CapitalAction } from '@/lib/accounting/capital-action'
 import { EmptyState } from '@/components/ui/empty-state'
 import { AddVehicleButton } from '@/components/add-vehicle-button'
 
@@ -174,11 +175,18 @@ function summaryFor(section: string | null, rows: Row[]): string | null {
 export function FirmVehiclesTable({
   section = null,
   showAdd = false,
+  action = null,
 }: {
   /** The subpage each row leads to (`journal`, `bank`, …), or null for the entity's lead page. */
   section?: string | null
   /** Offer the one Add vehicle button — the firm-wide Admin page carries it. */
   showAdd?: boolean
+  /**
+   * Carried onto each row's link. /start sends "issue a capital call" to the firm-wide capital
+   * accounts landing, which is this table; without forwarding, picking the entity would drop the
+   * request and land on a closed panel.
+   */
+  action?: CapitalAction | null
 }) {
   const currency = useCurrency()
   const access = useAccess()
@@ -303,7 +311,7 @@ export function FirmVehiclesTable({
               // A management company whose chart is not the manco chart yet has nothing to open:
               // its row offers the setup step where the link would be.
               const needsSetup = !!m && !m.chartSeeded
-              const target = section ? `${base}/${section}` : base
+              const target = withCapitalAction(section ? `${base}/${section}` : base, action)
               const cell = (label: string | number, href: string, warn = false) => (
                 needsSetup
                   ? <span className={warn ? 'text-warning' : undefined}>{label}</span>

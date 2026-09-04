@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { EMPTY_FORM, formFromTransaction } from './company-investments'
+import { EMPTY_FORM, formFromTransaction } from '@/components/investment-transaction-form'
 import type { InvestmentTransaction } from '@/lib/types/database'
 
 // The save handler calls `.trim()` on every numeric form field, so a key the edit path forgets

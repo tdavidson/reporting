@@ -140,3 +140,13 @@ Every API route resolves `fund_id` from `auth.getUser()` → `fund_members` look
 ### Admin client vs user-context client
 
 Most write operations use `createAdminClient()` (service role) with manual `.eq('fund_id', ...)` filters. RLS is in place on most tables as a secondary defense but the dominant security boundary is application code, not RLS. When adding new endpoints, follow the same pattern: admin client for writes, manual fund scoping, RLS policies still recommended for defense in depth.
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+# This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->
