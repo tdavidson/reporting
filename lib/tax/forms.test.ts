@@ -111,7 +111,7 @@ describe('partnerFormStatus', () => {
   it('blocks a partner with no form', () => {
     const s = partnerFormStatus('lp-a', [], '2026-08-27')
     expect(s.standing).toBe('missing')
-    expect(s.blocker).toContain('No signed tax form')
+    expect(s.blocker).toBe('No tax form on file.')
   })
 
   it('blocks a partner whose W-8 has lapsed, and says what it costs', () => {

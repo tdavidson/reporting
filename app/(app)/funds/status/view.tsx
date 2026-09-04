@@ -92,7 +92,6 @@ export function StatusView() {
           href="/lps/capital"
           className="flex items-center gap-3 rounded-card border p-3 transition-colors hover:bg-muted/30"
         >
-          <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
           <div className="min-w-0 flex-1">
             <p className="text-sm font-medium">LP capital tracking</p>
             <p className="text-xs text-muted-foreground mt-0.5">
@@ -100,17 +99,13 @@ export function StatusView() {
               paid-in, distributions, NAV — on the LP capital tracking page.
             </p>
           </div>
+          <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
         </Link>
         {/* Adopting fund accounting is the setup flow itself — seed the chart, book opening
             balances, then activate. The flip to the ledger is the LAST step of AccountingSetup
-            (guarded against an empty chart); there is no separate mode switch. */}
-        <div className="space-y-2">
-          <p className="text-xs text-muted-foreground">
-            To move this vehicle to <strong>Fund Accounting</strong>, seed its chart of accounts and
-            book opening balances below, then use <strong>Activate fund accounting</strong> at the end.
-          </p>
-          <AccountingSetup alwaysShow />
-        </div>
+            (guarded against an empty chart); there is no separate mode switch. The box explains
+            itself, so there is no preamble above it. */}
+        <AccountingSetup alwaysShow />
       </div>
     )
   }

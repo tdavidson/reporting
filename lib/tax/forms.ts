@@ -134,7 +134,7 @@ export function partnerFormStatus(
 
   let blocker: string | null = null
   if (standing === 'missing') {
-    blocker = 'No signed tax form on file. A K-1 issued against it has no certified taxpayer identification behind it.'
+    blocker = 'No tax form on file.'
   } else if (standing === 'expired') {
     blocker = `${TAX_FORM_LABEL[current!.formType]} expired ${current!.expiresOn}. A foreign partner without a valid W-8 is withheld on at 30% rather than at a treaty rate.`
   }

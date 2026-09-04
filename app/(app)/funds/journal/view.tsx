@@ -10,6 +10,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { AllocationModal, ALLOCATION_LABELS, type AllocationAction } from '../allocation-modal'
 import { reversedEntryId } from '@/lib/accounting/reversal'
 import { useLedgerFetch, useVehicle, useVehicleBase } from '@/components/accounting-vehicle'
+import { useCanRead } from '@/components/access-context'
 import { hasSectionForKind } from '@/lib/accounting/nav'
 import { textAccountName } from '@/lib/accounting/text-ledger'
 import type { Account, AccountType } from '@/lib/accounting/types'
@@ -21,6 +22,7 @@ import { chunkIds, describeSkipped, summarizeSelection } from '@/lib/accounting/
 import { DownloadMenu } from '@/components/accounting/download-menu'
 import { EntryModal } from '../entry-modal'
 import { EmptyState } from '@/components/ui/empty-state'
+import { NoBooksState, useChartExists } from '@/components/accounting/no-books'
 
 interface Posting { id: string; account_id: string; account_code: string | null; account_name: string | null; account_type: string | null; amount: number; currency: string | null; lp_entity_id: string | null }
 interface Entry {
@@ -50,6 +52,10 @@ export function JournalView({ onPlainText }: { onPlainText?: () => void } = {}) 
   const lf = useLedgerFetch()
   const base = useVehicleBase()
   const { kind, group } = useVehicle()
+  const hasChart = useChartExists()
+  // The tax book only has entries once the tax run has written them; with tax reporting off it
+  // is always empty, so the selector is not offered.
+  const taxOn = useCanRead('accounting', 'tax_reporting')
   const router = useRouter()
 
   const [entries, setEntries] = useState<Entry[]>([])
@@ -230,6 +236,11 @@ export function JournalView({ onPlainText }: { onPlainText?: () => void } = {}) 
       })
   }, [lf, loadPage, allMatching, sel.draftIds, rangeLabel, preset, start, end])
 
+  // A journal entry has nothing to post to without a chart of accounts.
+  if (hasChart === false) {
+    return <NoBooksState>No accounts are set up for this entity yet, so there is nothing to post journal entries to.</NoBooksState>
+  }
+
   return (
     <div className="space-y-4">
       {/* One row, always. The period control is a single popover trigger, so picking Custom
@@ -309,16 +320,18 @@ export function JournalView({ onPlainText }: { onPlainText?: () => void } = {}) 
           <option value="posted">Posted</option>
           <option value="void">Voided</option>
         </select>
-        <select
-          value={book}
-          onChange={e => { setBook(e.target.value as 'actual' | 'tax'); setPage(0); clearSelection() }}
-          aria-label="Book"
-          title="The ledger, or the book-to-tax adjusting entries the tax run wrote"
-          className="h-9 rounded-md border border-input bg-background px-2 text-sm"
-        >
-          <option value="actual">Book</option>
-          <option value="tax">Tax book</option>
-        </select>
+        {taxOn && (
+          <select
+            value={book}
+            onChange={e => { setBook(e.target.value as 'actual' | 'tax'); setPage(0); clearSelection() }}
+            aria-label="Book"
+            title="The ledger, or the book-to-tax adjusting entries the tax run wrote"
+            className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+          >
+            <option value="actual">Book</option>
+            <option value="tax">Tax book</option>
+          </select>
+        )}
         <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
           <input type="checkbox" checked={adjustingOnly} onChange={e => { setAdjustingOnly(e.target.checked); setPage(0) }} />
           Adjusting only

@@ -25,6 +25,8 @@ export interface FirmVehicleRow {
   totalDebits: number
   /** Whether the vehicle has any postings at all. */
   empty: boolean
+  /** Cash on hand: the balance of every `cash`-subtype account (operating, reserve, …). */
+  cash: number
   /** Investments at cost, from the ledger's investment control accounts. */
   investmentsAtCost: number
   /** Investments at carrying value — cost plus the mark plus FX. What the schedule of
@@ -56,6 +58,8 @@ export async function loadFirmOverview(
     // Net assets are only used for the percent-of-net-assets column, which no consumer of this
     // row reads, so 0 is passed rather than computing a balance sheet for every vehicle.
     const soi = scheduleOfInvestments(ledger.accounts, ledger.postings, 0)
+    const cashIds = new Set(ledger.accounts.filter(a => a.subtype === 'cash').map(a => a.id))
+    const cash = tb.rows.filter(row => cashIds.has(row.accountId)).reduce((sum, row) => sum + row.balance, 0)
     // Per-vehicle counts read by id where the vehicle is registered; a legacy name-only vehicle
     // has nothing to count against, so its counts read zero and its ledger still loads by name.
     const counts = v.id ? await vehicleCounts(admin, fundId, v.id) : { closedThrough: null, lastEntryDate: null, posted: 0, drafts: 0, openBank: 0 }
@@ -69,6 +73,7 @@ export async function loadFirmOverview(
       trialBalanced: tb.balanced,
       totalDebits: tb.totalDebits,
       empty: ledger.postings.length === 0,
+      cash,
       investmentsAtCost: soi.totalCost,
       investmentsAtValue: soi.totalFairValue,
     }

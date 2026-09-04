@@ -8,6 +8,7 @@ import { useCurrency, formatCurrencyPrice } from '@/components/currency-context'
 import { useLedgerFetch } from '@/components/accounting-vehicle'
 import { EntryModal } from '../entry-modal'
 import { EmptyState } from '@/components/ui/empty-state'
+import { NoBooksState } from '@/components/accounting/no-books'
 
 interface Txn { id: string; txn_date: string; amount: number; description: string; counterparty: string | null; status: string; suggested_account_code: string | null; journal_entry_id: string | null; entry_account_code: string | null; entry_account_name: string | null; entry_is_split: boolean; settled_lp_entity_id: string | null; settled_lp_name: string | null }
 interface Rec { bankEndingBalance: number; ledgerCashBalance: number; difference: number; matchedCount: number; unmatchedCount: number; unmatchedTotal: number; tiesOut: boolean }
@@ -170,6 +171,12 @@ export function BankView() {
       setCsv(await file.text())
     }
     e.target.value = ''
+  }
+
+  // Without a chart there is no 1000 Cash to post an import against; the import would fail on
+  // submit, so say so up front and point at Admin.
+  if (!loading && accounts.length === 0) {
+    return <NoBooksState>No accounts are set up for this entity yet, so there is nothing to post bank transactions against.</NoBooksState>
   }
 
   return (

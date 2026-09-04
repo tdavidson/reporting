@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
-import { Loader2, Download } from 'lucide-react'
+import { Loader2, Download, ChevronRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useCurrency, formatCurrencyPrice } from '@/components/currency-context'
 import { useLedgerFetch, useVehicle, useVehicleBase } from '@/components/accounting-vehicle'
@@ -10,6 +10,7 @@ import { useCanRead, useCanWrite } from '@/components/access-context'
 import { EmptyState } from '@/components/ui/empty-state'
 import { EntryModal } from '../entry-modal'
 import { TaxPackageLink } from '@/components/accounting/download-menu'
+import { TaxFormRecord } from '@/components/accounting/tax-form-record'
 
 // The tax page: the year's book-to-tax work, in the order a preparer does it.
 //
@@ -28,7 +29,7 @@ interface Proposal { kind: string; amount: number; permanent: boolean; label: st
 interface TaxRun { taxYear: number; proposals: Proposal[]; entryIds: string[]; skipped: { reason?: string; kind?: string }[]; voided: number; missingAccounts: string[] }
 interface JournalEntryRow { id: string; entry_date: string; memo: string | null; source_type: string | null; status: string; reference?: string | null; journal_postings: { id: string; account_code: string | null; account_name: string | null; amount: number }[] }
 interface K1Package { id: string; vehicle_id: string; tax_year: number; version: number; status: string; finalized_at: string | null; warnings: { kind: string; detail: string }[] | null }
-interface TaxFormsReport { asOf: string; blocked: number; nameMismatches: number; partners: { lpEntityId: string; name: string; status: { blocker: string | null; standing?: string }; nameMatch: string }[] }
+interface TaxFormsReport { asOf: string; blocked: number; nameMismatches: number; partners: { lpEntityId: string; name: string; investorId: string | null; status: { blocker: string | null; standing?: string }; nameMatch: string }[] }
 interface ReceivedReport { taxYear: number; received: number; outstanding: { companyName?: string; name?: string }[]; amended: { companyName?: string; name?: string }[]; blocker: string | null }
 interface Worklist { summary: string[]; states: { state: string; partners: number; nonresident: boolean }[]; foreign: unknown[]; unknown: unknown[] }
 interface RealizedLot { company: string; acquired: string | null; sold: string; units: number; proceeds: number; basis: number; gain: number; term: 'short' | 'long' | 'undetermined' }
@@ -289,10 +290,26 @@ export function TaxView() {
                 {forms.data.blocked === 0 ? 'Every partner has a current form on file.' : <span className="text-warning">{forms.data.blocked} partner{forms.data.blocked === 1 ? '' : 's'} without a valid form — a K-1 cannot be finalised until they are.</span>}
                 {forms.data.nameMismatches > 0 && <span className="text-muted-foreground"> {forms.data.nameMismatches} form{forms.data.nameMismatches === 1 ? '' : 's'} carry a name that differs from the partner record.</span>}
               </p>
-              {forms.data.partners.filter(p => p.status.blocker).length > 0 && (
-                <ul className="text-sm">
-                  {forms.data.partners.filter(p => p.status.blocker).map(p => <li key={p.lpEntityId}><span className="font-medium">{p.name}</span> <span className="text-muted-foreground">— {p.status.blocker}</span></li>)}
-                </ul>
+              {forms.data.blocked > 0 && (
+                // Collapsed by default: a fund with a couple of hundred partners and no forms
+                // on file yet would otherwise run this card the length of the page.
+                <details className="group">
+                  <summary className="flex cursor-pointer list-none items-center gap-1 text-sm font-medium">
+                    <ChevronRight className="h-4 w-4 text-muted-foreground transition-transform group-open:rotate-90" />
+                    Show the {forms.data.blocked} partner{forms.data.blocked === 1 ? '' : 's'}
+                  </summary>
+                  <ul className="mt-2 text-sm space-y-1">
+                    {forms.data.partners.filter(p => p.status.blocker).map(p => (
+                      <li key={p.lpEntityId}>
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                          <span className="font-medium">{p.name}</span>
+                          <span className="text-muted-foreground">— {p.status.blocker}</span>
+                          {canWrite && <TaxFormRecord lpEntityId={p.lpEntityId} investorId={p.investorId} partnerName={p.name} onSaved={() => { setNotice(`Recorded a tax form for ${p.name}.`); load() }} />}
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </details>
               )}
             </>
           ))}

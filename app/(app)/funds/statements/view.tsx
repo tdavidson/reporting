@@ -6,6 +6,7 @@ import { Loader2 } from 'lucide-react'
 import { useCurrency, formatCurrencyPrice } from '@/components/currency-context'
 import { Button } from '@/components/ui/button'
 import { useLedgerFetch, useVehicle, useFundSeg, useVehicleBase } from '@/components/accounting-vehicle'
+import { useCanRead } from '@/components/access-context'
 import { type PeriodPreset } from '@/lib/accounting/statement-period'
 import { PeriodPicker } from '@/components/accounting/period-picker'
 import { DownloadMenu, TaxPackageLink } from '@/components/accounting/download-menu'
@@ -71,6 +72,9 @@ const CAP_COLS: { key: keyof PartnerRow; label: string }[] = [
 
 export function StatementsView() {
   const currency = useCurrency()
+  // A tax basis is the ledger plus the book-to-tax adjusting entries the tax run writes. With tax
+  // reporting off there are none, so the option would read identically to book — hide it.
+  const taxOn = useCanRead('accounting', 'tax_reporting')
   const fmt = (v: number) => formatCurrencyPrice(v, currency)
   const [data, setData] = useState<Data | null>(null)
   const [loading, setLoading] = useState(true)
@@ -252,16 +256,18 @@ export function StatementsView() {
           </button>
         </div>
 
-        <select
-          value={basis}
-          onChange={e => setBasis(e.target.value as 'book' | 'tax')}
-          aria-label="Basis"
-          title="Book: the ledger as kept. Tax basis: the ledger plus the book-to-tax adjusting entries."
-          className="h-9 rounded-md border border-input bg-background px-2 text-sm"
-        >
-          <option value="book">Book basis</option>
-          <option value="tax">Tax basis</option>
-        </select>
+        {taxOn && (
+          <select
+            value={basis}
+            onChange={e => setBasis(e.target.value as 'book' | 'tax')}
+            aria-label="Basis"
+            title="Book: the ledger as kept. Tax basis: the ledger plus the book-to-tax adjusting entries."
+            className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+          >
+            <option value="book">Book basis</option>
+            <option value="tax">Tax basis</option>
+          </select>
+        )}
 
         <div className="ml-auto flex flex-wrap items-center gap-2">
           <PeriodPicker

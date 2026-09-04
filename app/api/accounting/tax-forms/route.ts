@@ -37,7 +37,7 @@ export async function GET(req: NextRequest) {
   const asOf = req.nextUrl.searchParams.get('asOf') ?? new Date().toISOString().slice(0, 10)
 
   const [{ data: entities }, { data: forms, error }] = await Promise.all([
-    admin.from('lp_entities' as any).select('id, entity_name').eq('fund_id', gate.fundId),
+    admin.from('lp_entities' as any).select('id, entity_name, investor_id').eq('fund_id', gate.fundId),
     admin
       .from('lp_tax_forms' as any)
       .select('id, lp_entity_id, form_type, tin_type, tin_last4, legal_name, tax_classification, country, state, treaty_claimed, subject_to_backup_withholding, signed_date, expires_on, document_id, notes')
@@ -74,6 +74,9 @@ export async function GET(req: NextRequest) {
     return {
       lpEntityId: e.id,
       name: e.entity_name,
+      // The investor behind the partner, so a signed form uploaded from the tax page can be filed
+      // as that investor's document rather than a fund-wide one every LP would see.
+      investorId: (e.investor_id as string | null) ?? null,
       status: partnerFormStatus(e.id, records, asOf),
       nameMatch: compareLegalName(current?.legalName, e.entity_name),
       forms: rows,

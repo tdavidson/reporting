@@ -5,6 +5,7 @@ import { Loader2, Lock, Unlock, AlertTriangle, ChevronRight } from 'lucide-react
 import { Button } from '@/components/ui/button'
 import { useCurrency, formatCurrencyPrice } from '@/components/currency-context'
 import { useLedgerFetch } from '@/components/accounting-vehicle'
+import { NoBooksState, useChartExists } from '@/components/accounting/no-books'
 
 interface Period { id: string; period_start: string; period_end: string; label: string | null; status: string; closed_at: string | null }
 interface CloseEntryLine { accountCode: string; accountName: string; lpName: string | null; amount: number }
@@ -58,6 +59,7 @@ function quickEnds(): { key: string; label: string; end: string }[] {
 }
 
 export function PeriodsView() {
+  const hasChart = useChartExists()
   const currency = useCurrency()
   const fmt = (v: number) => formatCurrencyPrice(v, currency)
   const [periods, setPeriods] = useState<Period[]>([])
@@ -120,6 +122,11 @@ export function PeriodsView() {
     setBusy(false)
     if (!ok) { setError(data.error ?? 'Could not reopen'); return }
     load()
+  }
+
+  // A close allocates the ledger's income to partners; with no chart there is no ledger to close.
+  if (hasChart === false) {
+    return <NoBooksState>No accounts are set up for this entity yet, so there is nothing to close.</NoBooksState>
   }
 
   return (

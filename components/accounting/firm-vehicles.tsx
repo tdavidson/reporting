@@ -35,7 +35,7 @@ interface Row {
   id: string | null; name: string; kind: string | null
   closedThrough: string | null; lastEntryDate: string | null
   postedEntries: number; draftEntries: number; openBankRows: number
-  trialBalanced: boolean; totalDebits: number; empty: boolean
+  trialBalanced: boolean; totalDebits: number; empty: boolean; cash: number
   investmentsAtCost: number; investmentsAtValue: number
 }
 interface Overview { vehicles: Row[]; mancoOmitted: boolean }
@@ -91,6 +91,10 @@ const BANK_OPEN: Col = {
   key: 'bank', label: 'Bank open', align: 'right',
   cell: (r, link) => link(r.openBankRows, '/bank', r.openBankRows > 0),
 }
+const CASH: Col = {
+  key: 'cash', label: 'Cash', align: 'right',
+  cell: (r, link, money) => (r.empty ? dash : link(money(r.cash), '/bank')),
+}
 const TOTAL_DEBITS: Col = {
   key: 'debits', label: 'Trial balance', align: 'right',
   cell: (r, link, money) => (r.empty ? dash : link(money(r.totalDebits), '/statements')),
@@ -121,7 +125,7 @@ const ALL: Col[] = [CLOSED, LAST_ENTRY, POSTED, DRAFTS, BANK_OPEN, TOTAL_DEBITS,
 const COLUMNS: Record<string, Col[]> = {
   status: ALL,
   journal: [DRAFTS, POSTED, LAST_ENTRY],
-  bank: [BANK_OPEN, LAST_ENTRY, CLOSED],
+  bank: [BANK_OPEN, CASH, CLOSED],
   ledger: [POSTED, LAST_ENTRY, TOTAL_DEBITS],
   text: [DRAFTS, POSTED, LAST_ENTRY],
   periods: [CLOSED, DRAFTS, TIES],
@@ -250,7 +254,7 @@ export function FirmVehiclesTable({
     rows.push({
       id: m.id, name: m.name, kind: 'manco',
       closedThrough: null, lastEntryDate: null, postedEntries: 0, draftEntries: 0, openBankRows: 0,
-      trialBalanced: true, totalDebits: 0, empty: true,
+      trialBalanced: true, totalDebits: 0, empty: true, cash: 0,
       investmentsAtCost: 0, investmentsAtValue: 0,
     })
   }
