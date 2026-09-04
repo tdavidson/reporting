@@ -6,7 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Loader2, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { useLedgerFetch, useFundSeg, useVehicleBase } from '@/components/accounting-vehicle'
+import { useLedgerFetch, useFundSeg, useVehicle, useVehicleBase } from '@/components/accounting-vehicle'
 import { textAccountName } from '@/lib/accounting/text-ledger'
 import type { Account, AccountType } from '@/lib/accounting/types'
 import { PeriodPicker } from '@/components/accounting/period-picker'
@@ -14,6 +14,7 @@ import {
   customPeriod, periodTriggerLabel, resolvePeriod, type PeriodPreset,
 } from '@/lib/accounting/statement-period'
 import { chunkIds, describeSkipped, summarizeSelection } from '@/lib/accounting/journal-selection'
+import { DownloadMenu } from '@/components/accounting/download-menu'
 import { EntryModal } from '../entry-modal'
 import { EmptyState } from '@/components/ui/empty-state'
 
@@ -110,6 +111,19 @@ export function JournalView() {
     const qs = new URLSearchParams({ account: accountCode, preset: entryDate >= yearStart ? 'ytd' : 'itd', highlight: entryId })
     router.push(`${base}/ledger?${qs}`)
   }
+
+  // Export what the list shows: the same window and the same status filter. The search box is
+  // not applied — an export is the whole window, not the rows a query happened to match.
+  const { group } = useVehicle()
+  const exportQs = new URLSearchParams({ preset })
+  if (preset === 'custom') { if (start) exportQs.set('start', start); if (end) exportQs.set('end', end) }
+  exportQs.set('status', status)
+  if (group) exportQs.set('group', group)
+  const exports = [
+    { label: 'Journal (CSV)', note: 'One row per posting line, debit and credit columns.', href: `/api/accounting/journal/export?${exportQs}&format=csv` },
+    { label: 'Journal (Excel)', href: `/api/accounting/journal/export?${exportQs}&format=xlsx` },
+    { label: 'Journal for QuickBooks (CSV)', note: 'The layout of QuickBooks’ Journal report — loads into QuickBooks, or back in here.', href: `/api/accounting/journal/export?${exportQs}&format=quickbooks` },
+  ]
   // The escalation is only offered when it would be honest: bulk-post filters by date and id,
   // it has no free-text search, so with a query active "all matching" would silently mean
   // something wider than what's on screen.
@@ -221,7 +235,8 @@ export function JournalView() {
           <option value="void">Voided</option>
         </select>
         {error && <span className="text-sm text-warning">{error}</span>}
-        <div className="ml-auto">
+        <div className="ml-auto flex items-center gap-2">
+          <DownloadMenu items={exports} label="Export" disabled={loading || (entries.length === 0 && total === 0)} />
           <PeriodPicker
             preset={preset} onPreset={p => { setPreset(p); setPage(0) }}
             start={start} end={end}

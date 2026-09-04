@@ -55,6 +55,12 @@ export interface StatementPackage {
   accounts: Account[]
   /** Postings within the period window, entry-tagged — the GL-detail rows. */
   inPeriodSourced: SourcedPosting[]
+  /**
+   * EVERY posted posting, entry-tagged — what the GL detail needs to carry a balance in at the
+   * window start and run it forward. Optional so a package assembled without it (older callers,
+   * test fixtures) still builds; the GL detail then opens every account at zero.
+   */
+  allSourced?: SourcedPosting[]
   /** Prior-period payloads, most-recent-first, present only when ?compare= was passed. */
   comparisons?: StatementPayload[]
 }
@@ -212,7 +218,14 @@ export async function buildStatementPackage(
   sp: URLSearchParams,
 ): Promise<StatementPackage> {
   const data = await loadLedgerData(admin, fundId, group)
+  return buildStatementPackageFromData(data, sp)
+}
 
+/**
+ * The same, over ledger data already in hand — for a caller that needs the package AND the raw
+ * ledger (the tax package builds the general ledger from the same load) without a second trip.
+ */
+export function buildStatementPackageFromData(data: LedgerData, sp: URLSearchParams): StatementPackage {
   const preset = sp.get('preset') as PeriodPreset | null
   const asOf = sp.get('asOf')
   const asOfDate = asOf && /^\d{4}-\d{2}-\d{2}$/.test(asOf) ? new Date(asOf) : undefined
@@ -230,7 +243,7 @@ export async function buildStatementPackage(
     comparisons = comparisonPeriods(period, count, data.earliest).map(p => computePayload(data, p))
   }
 
-  return { payload, accounts: data.accounts, inPeriodSourced, comparisons }
+  return { payload, accounts: data.accounts, inPeriodSourced, allSourced: data.sourcedPostings, comparisons }
 }
 
 /**

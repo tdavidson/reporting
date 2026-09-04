@@ -2,12 +2,13 @@
 
 import { Fragment, useEffect, useState } from 'react'
 import Link from 'next/link'
-import { Loader2, Download } from 'lucide-react'
+import { Loader2 } from 'lucide-react'
 import { useCurrency, formatCurrencyPrice } from '@/components/currency-context'
 import { Button } from '@/components/ui/button'
 import { useLedgerFetch, useVehicle, useFundSeg, useVehicleBase } from '@/components/accounting-vehicle'
 import { type PeriodPreset } from '@/lib/accounting/statement-period'
 import { PeriodPicker } from '@/components/accounting/period-picker'
+import { DownloadMenu, TaxPackageLink } from '@/components/accounting/download-menu'
 import { EmptyState } from '@/components/ui/empty-state'
 
 interface Section { label: string; rows: { code: string; name: string; amount: number }[]; total: number }
@@ -105,8 +106,17 @@ export function StatementsView() {
   }
   if (group) exportQs.set('group', group)
   if (compare !== '0') exportQs.set('compare', compare)
-  const exportUrl = `/api/accounting/statements/export?${exportQs}`
   const canExport = !loading && !!data && data.trialBalance.rows.length > 0
+  // The journal and chart exports take the window but not the comparison.
+  const windowQs = new URLSearchParams(exportQs)
+  windowQs.delete('compare')
+  const downloads = [
+    { label: 'Workpapers (Excel)', note: 'Trial balance, statements, capital, schedule of investments, cash flows, GL detail.', href: `/api/accounting/statements/export?${exportQs}` },
+    { label: 'Statements (PDF)', note: 'The statement set as a document, one per page.', href: `/api/accounting/statements/pdf?${exportQs}` },
+    { label: 'Journal (CSV)', note: 'Every posted entry in the period, one row per line.', href: `/api/accounting/journal/export?${windowQs}&format=csv` },
+    { label: 'Journal for QuickBooks (CSV)', note: 'The same journal in the layout of QuickBooks’ Journal report.', href: `/api/accounting/journal/export?${windowQs}&format=quickbooks` },
+    { label: 'Chart of accounts (CSV)', href: `/api/accounting/chart/export${group ? `?group=${encodeURIComponent(group)}` : ''}` },
+  ]
 
   useEffect(() => {
     setLoading(true)
@@ -209,18 +219,9 @@ export function StatementsView() {
           pushed RIGHT via ml-auto, matching /funds/capital-accounts. Each statement's subheader
           below already states its as-of / covering dates, so there is no explainer line here. */}
       <div className="flex flex-wrap items-center gap-2">
-        {canExport ? (
-          <a
-            href={exportUrl}
-            className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md border border-input bg-background text-sm hover:bg-muted"
-          >
-            <Download className="h-4 w-4" />Export workpapers (Excel)
-          </a>
-        ) : (
-          <span className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md border border-input text-sm text-muted-foreground opacity-50">
-            <Download className="h-4 w-4" />Export workpapers (Excel)
-          </span>
-        )}
+        <DownloadMenu items={downloads} disabled={!canExport}>
+          <TaxPackageLink group={group} />
+        </DownloadMenu>
 
         <div className="inline-flex rounded-md border border-input text-sm" role="tablist" aria-label="Statements or trial balance">
           <button

@@ -87,6 +87,9 @@ export const ROUTE_DOMAINS: Record<string, RouteAccess> = {
   'api/accounting/journal': { domain: 'accounting' },
   'api/accounting/journal/bulk-post': { domain: 'accounting' },
   'api/accounting/journal/bulk-void': { domain: 'accounting' },
+  // The journal as a file (CSV, Excel, or QuickBooks' Journal layout) — a read of the same rows.
+  'api/accounting/journal/export': { domain: 'accounting' },
+  'api/accounting/chart/export': { domain: 'accounting' },
   'api/accounting/attribute-lp-capital': { domain: 'accounting' },
   // The account register: the same posted ledger the statements read, one account at a time.
   'api/accounting/ledger': { domain: 'accounting' },
@@ -98,6 +101,10 @@ export const ROUTE_DOMAINS: Record<string, RouteAccess> = {
   // The Excel workpaper export ships the exact same computed package as the statements
   // route, so it carries the same domain (accounting implies lp_capital via DOMAIN_META).
   'api/accounting/statements/export': { domain: 'accounting' },
+  'api/accounting/statements/pdf': { domain: 'accounting' },
+  // The year's preparer bundle. `accounting` opens it; the K-1 workbook inside is added only
+  // after refuseWithoutCarryAccess passes in the handler, since a K-1 package contains the carry.
+  'api/accounting/tax-package': { domain: 'accounting' },
   'api/accounting/status': { domain: 'accounting' },
   'api/accounting/vehicles': { domain: 'accounting' },
   'api/accounting/vehicle-index': { domain: 'accounting' },
