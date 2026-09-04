@@ -61,7 +61,7 @@ export const ACCOUNTING_SECTIONS: AccountingSection[] = [
     desc: "Per-partner roll-forward and commitments, plus called and unfunded. Issue capital calls and publish LP capital statements.",
     // Named partners and their commitments — the same tier as the LPs section, reached from here.
     domain: 'lp_capital',
-    hideFor: ['individual'],
+    hideFor: ['individual', 'manco'],
   },
   // NOTE: /funds/lp-events is deliberately NOT listed — it now redirects here. LP
   // capital events are not a separate destination: they are one of the two producers a
@@ -104,7 +104,7 @@ export const ACCOUNTING_SECTIONS: AccountingSection[] = [
     icon: Layers,
     desc: 'Schedule of investments, commitments and liquidity, and per-fund performance for the underlying funds.',
     requiresFof: true,
-    hideFor: ['individual', 'associate'],
+    hideFor: ['individual', 'associate', 'manco'],
   },
   // NOTE: /funds/migrate is deliberately NOT listed. Importing a QuickBooks general
   // ledger is a one-time event at the start of a vehicle's life, not a place you work —
@@ -115,14 +115,14 @@ export const ACCOUNTING_SECTIONS: AccountingSection[] = [
     icon: Layers,
     desc: 'Paste the quarter\u2019s underlying-fund figures, confirm the notices, and book the period-end marks.',
     requiresFof: true,
-    hideFor: ['individual', 'associate'],
+    hideFor: ['individual', 'associate', 'manco'],
   },
   {
     href: '/funds/schedule-of-investments',
     label: 'Schedule of investments',
     icon: Layers,
     desc: 'Each investment at cost and fair value, with its share of net assets.',
-    hideFor: ['associate'],
+    hideFor: ['associate', 'manco'],
   },
   {
     href: '/funds/construction',
@@ -131,7 +131,7 @@ export const ACCOUNTING_SECTIONS: AccountingSection[] = [
     desc: 'How much investable capital is left, how many more deals fit, and what exit the portfolio needs to return the fund.',
     // A fund-sized programme: an SPV holds one deal, a GP entity holds a fund, an individual
     // has no reserve model to construct.
-    hideFor: ['individual', 'associate', 'spv'],
+    hideFor: ['individual', 'associate', 'spv', 'manco'],
   },
   {
     href: '/funds/statements',
@@ -145,6 +145,7 @@ export const ACCOUNTING_SECTIONS: AccountingSection[] = [
     icon: Landmark,
     desc: 'The year’s book-to-tax adjustments, adjusting entries, K-1 package, partner tax forms, and the tax package for the preparer.',
     feature: 'tax_reporting',
+    hideFor: ['manco'],
   },
 ]
 
@@ -159,24 +160,13 @@ export const UNLISTED_SECTIONS: AccountingSection[] = [
   { href: '/funds/allocation-terms', label: 'Allocation terms', icon: Settings2, desc: 'How a vehicle\u2019s income and expenses are shared between its partners.', domain: 'lp_capital' },
 ]
 
+/** Does an entity of `kind` have the `/funds/<id>/<slug>` page? Unknown slugs are assumed real. */
+export function hasSectionForKind(slug: string, kind: string | null | undefined): boolean {
+  const s = sectionForSlug(slug)
+  return !s || sectionsForKind([s], kind).length > 0
+}
+
 /** The section (listed or not) behind a `/funds/<slug>` URL segment, or null for an unknown slug. */
 export function sectionForSlug(slug: string): AccountingSection | null {
   return [...ACCOUNTING_SECTIONS, ...UNLISTED_SECTIONS].find(s => s.href === `/funds/${slug}`) ?? null
 }
-
-/**
- * The subpages a management company has, as `/manco/<id>/<slug>`. A manco keeps double-entry
- * books like any vehicle — journal, register, bank feed, statements, close, QuickBooks import —
- * and has none of the partner or portfolio pages. Its lead page (`/manco/<id>`) stands in for Admin.
- * Pinned by the page files under app/(app)/manco/[id]/.
- */
-export const MANCO_SECTION_SLUGS = new Set(['bank', 'journal', 'ledger', 'periods', 'statements', 'migrate'])
-
-/**
- * The manco sections the NAV lists, in the order a fund lists them — the same objects, filtered,
- * so a label or a domain is written once. `migrate` is deliberately absent for the same reason it
- * is absent from a fund's subnav: importing a QuickBooks ledger happens once, at the start of an
- * entity's life, so it is linked from the entity's lead page rather than sitting in the nav.
- */
-export const MANCO_SECTIONS: AccountingSection[] =
-  ACCOUNTING_SECTIONS.filter(s => MANCO_SECTION_SLUGS.has(s.href.slice('/funds/'.length)))

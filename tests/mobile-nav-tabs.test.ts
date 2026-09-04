@@ -8,7 +8,6 @@ import {
   navSectionsFor,
   visibleChildrenFor,
   fundSegFromPath,
-  mancoSegFromPath,
   type NavItem,
 } from '@/components/app-sidebar'
 import type { Domain } from '@/lib/access/domains'
@@ -177,7 +176,7 @@ describe('visibleChildrenFor', () => {
     // Outside a fund: every child is the firm-wide landing for its section (/funds/journal lists
     // every entity and asks which one), and there is no Overview — there is no fund to overview.
     // It used to offer nothing here and fall back to the browser's last vehicle, which after a
-    // visit to a management company was the manco.
+    // visit to a management company was that manco.
     const firmWide = visibleChildrenFor(section('/funds'), true, allowAll, { fundSeg: null })
     expect(firmWide.length).toBeGreaterThan(0)
     expect(firmWide.map(c => c.label)).not.toContain('Overview')
@@ -189,27 +188,6 @@ describe('visibleChildrenFor', () => {
     // Every other child hangs off the same fund, not off /funds itself — a child at
     // /funds/journal would open the wrong vehicle's ledger.
     for (const child of children.slice(1)) expect(child.href.startsWith('/funds/abc/')).toBe(true)
-  })
-
-  it('gives Management the same entity-first subnav once the URL names an entity', () => {
-    // The gap this closes: from /manco/<id>/journal the sidebar offered nothing, so the only way
-    // to that entity's other books was back out to its lead page and in through the Books card.
-    expect(visibleChildrenFor(section('/manco'), true, allowAll, { mancoSeg: null })).toEqual([])
-
-    const children = visibleChildrenFor(section('/manco'), true, allowAll, { mancoSeg: 'm1' })
-    expect(children[0]).toMatchObject({ href: '/manco/m1', label: 'Overview', exact: true })
-    for (const child of children.slice(1)) expect(child.href.startsWith('/manco/m1/')).toBe(true)
-    expect(children.map(c => c.label)).toContain('Journal')
-    // Pages a management company does not have never appear, whatever the fund's vehicles do.
-    expect(children.map(c => c.label)).not.toContain('Capital accounts')
-    expect(children.map(c => c.label)).not.toContain('Schedule of investments')
-  })
-
-  it('hides the manco books from someone who holds the manco grant but not accounting', () => {
-    // They render the shared accounting views and redirect without `accounting`, so offering
-    // them would be a link to a page whose every request 403s.
-    const children = visibleChildrenFor(section('/manco'), true, allowOnly('management_company'), { mancoSeg: 'm1' })
-    expect(children.map(c => c.href)).toEqual(['/manco/m1'])
   })
 
   it('applies a vehicle kind only inside that vehicle — the firm-wide list shows every section', () => {
@@ -232,9 +210,9 @@ describe('visibleChildrenFor', () => {
 /**
  * Which fund the Funds subnav points at is read from the URL and nowhere else.
  *
- * The bug this pins: the segment used to fall back to the vehicle in context, and the manco pages
- * pin THEIR entity to that context — so from /manco/<id>/journal, "Funds → Bank" was built as
- * /funds/<manco id>/bank, which the fund route bounces to /manco/<id> with the subpage dropped.
+ * The bug this pins: the segment used to fall back to whichever vehicle was last in context, and
+ * every entity page pins its own entity there — so after opening a management company, the subnav
+ * built its links for the manco and "Entities → Bank" opened the manco's bank page.
  */
 describe('fundSegFromPath', () => {
   const id = '11111111-2222-3333-4444-555555555555'
@@ -248,23 +226,8 @@ describe('fundSegFromPath', () => {
     expect(fundSegFromPath('/funds')).toBeNull()
     expect(fundSegFromPath('/funds/journal')).toBeNull()
     expect(fundSegFromPath('/funds/status')).toBeNull()
+    // Every entity lives under /funds now; /manco is a redirect and names no fund.
     expect(fundSegFromPath(`/manco/${id}/journal`)).toBeNull()
     expect(fundSegFromPath('/dashboard')).toBeNull()
-  })
-})
-
-describe('mancoSegFromPath', () => {
-  const id = '11111111-2222-3333-4444-555555555555'
-
-  it('takes the entity from a management-company URL', () => {
-    expect(mancoSegFromPath(`/manco/${id}`)).toBe(id)
-    expect(mancoSegFromPath(`/manco/${id}/journal`)).toBe(id)
-  })
-
-  it('finds no entity on the landing, a section slug, or a fund URL', () => {
-    expect(mancoSegFromPath('/manco')).toBeNull()
-    // /manco/journal is the firm-wide question, and redirects to /funds/journal to answer it.
-    expect(mancoSegFromPath('/manco/journal')).toBeNull()
-    expect(mancoSegFromPath(`/funds/${id}/journal`)).toBeNull()
   })
 })

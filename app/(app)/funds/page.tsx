@@ -3,10 +3,10 @@ import { requireAccountingAccess } from './guard'
 import { FundOverview } from './fund-overview'
 import { AccountingPageHeader, AccountingBody } from '@/components/accounting-chrome'
 
-export const metadata: Metadata = { title: 'Funds' }
+export const metadata: Metadata = { title: 'Entities' }
 
 /**
- * The fund overview — the landing page for the whole accounting section.
+ * The entity overview — the landing page for the whole accounting section.
  *
  * Performance per vehicle, derived from the ledger. The subpages (capital accounts,
  * statements, journal, …) are reached from the sidebar subnav, so this page does NOT repeat
@@ -27,8 +27,9 @@ export default async function AccountingPage() {
     // so the title goes all the way to the top with the toggle inline at its right, and the Analyst
     // panel opens below it rather than level with it. AccountingChrome steps aside on this route.
     <div className="pt-4 md:pt-8 pb-8 w-full">
-      <AccountingPageHeader title="Funds">
-        Performance per vehicle, derived from fund accounting or LP capital accounts.
+      <AccountingPageHeader title="Entities">
+        Performance per investment vehicle, derived from fund accounting or LP capital accounts.
+        Management companies have no NAV to report, so they are on Admin with every entity&rsquo;s books.
       </AccountingPageHeader>
 
       <AccountingBody>

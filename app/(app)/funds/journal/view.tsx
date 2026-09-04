@@ -10,6 +10,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { AllocationModal, ALLOCATION_LABELS, type AllocationAction } from '../allocation-modal'
 import { reversedEntryId } from '@/lib/accounting/reversal'
 import { useLedgerFetch, useVehicle, useVehicleBase } from '@/components/accounting-vehicle'
+import { hasSectionForKind } from '@/lib/accounting/nav'
 import { textAccountName } from '@/lib/accounting/text-ledger'
 import type { Account, AccountType } from '@/lib/accounting/types'
 import { PeriodPicker } from '@/components/accounting/period-picker'
@@ -48,6 +49,7 @@ const PAGE = 50
 export function JournalView({ onPlainText }: { onPlainText?: () => void } = {}) {
   const lf = useLedgerFetch()
   const base = useVehicleBase()
+  const { kind, group } = useVehicle()
   const router = useRouter()
 
   const [entries, setEntries] = useState<Entry[]>([])
@@ -134,7 +136,6 @@ export function JournalView({ onPlainText }: { onPlainText?: () => void } = {}) 
 
   // Export what the list shows: the same window and the same status filter. The search box is
   // not applied — an export is the whole window, not the rows a query happened to match.
-  const { group } = useVehicle()
   const exportQs = new URLSearchParams({ preset })
   if (preset === 'custom') { if (start) exportQs.set('start', start); if (end) exportQs.set('end', end) }
   exportQs.set('status', status)
@@ -269,8 +270,9 @@ export function JournalView({ onPlainText }: { onPlainText?: () => void } = {}) 
               {(base || onPlainText) && (
                 <>
                   <div className="px-2 pt-2 pb-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Elsewhere</div>
-                  {/* A manco has no capital accounts page; its base is /manco/<id>. */}
-                  {base && !base.startsWith('/manco/') && (
+                  {/* Only where the entity has partners to call from — a management company
+                      and an individual have none. Same rule the nav uses. */}
+                  {base && hasSectionForKind('capital-accounts', kind) && (
                     <Link href={`${base}/capital-accounts`} className="block rounded-sm px-2 py-1.5 text-sm transition-colors hover:bg-accent hover:text-accent-foreground">
                       <div>Capital call</div>
                       <div className="text-xs text-muted-foreground">Issue a call from Capital accounts; it books when the wire arrives.</div>

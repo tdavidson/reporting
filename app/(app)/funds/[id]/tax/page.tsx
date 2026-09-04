@@ -1,28 +1,19 @@
 import type { Metadata } from 'next'
-import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
-import { resolvePageAccess, canViewPage } from '@/lib/access/page-gate'
-import { resolveVehicleParam } from '../resolve'
+import { requireVehicleAccess } from '../../guard'
 import { FundSubpageChrome } from '@/components/fund-subpage-chrome'
 import { TaxView } from '../../tax/view'
 
 export const metadata: Metadata = { title: 'Tax' }
 
 /**
- * The year's tax work for a vehicle. Gated on the accounting domain AND the tax_reporting
- * feature — the section guard checks the domain alone, and this page is the one that must not
- * render when the fund has tax reporting switched off: every route behind it is gated on the
- * feature, and a page of 403s is worse than a redirect.
+ * The year's tax work for an entity. Gated on the accounting domain AND the tax_reporting
+ * feature — the entity gate takes the feature for exactly this reason: every route behind this
+ * page is gated on it, and a page of 403s is worse than a redirect. The entity's own grant is
+ * checked there too, so a management company still needs `management_company`.
  */
 export default async function TaxPage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/auth')
-  const page = await resolvePageAccess(user.id)
-  if (!page || !canViewPage(page, 'accounting', 'tax_reporting')) redirect('/dashboard')
-
-  const { vehicle, vehicleId } = await resolveVehicleParam(page.fundId, params.id)
+  const { vehicle, vehicleId } = await requireVehicleAccess(params.id, { feature: 'tax_reporting' })
   return (
     <div className="pt-4 md:pt-8 pb-8 w-full">
       <FundSubpageChrome

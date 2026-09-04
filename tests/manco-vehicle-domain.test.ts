@@ -165,16 +165,47 @@ describe('the manco module stands on its own grant', () => {
     }
   })
 
-  it('gates every manco page on the domain, with the ledger pages needing accounting too', () => {
-    const pages = Object.entries(PAGE_DOMAINS).filter(([k]) => k === 'manco' || k.startsWith('manco/'))
-    expect(pages.length).toBeGreaterThan(1)
-    for (const [key, entry] of pages) {
-      expect(entry.domain, `${key}`).toBe('management_company')
-    }
-    // The shared ledger views call /api/accounting/*, which the middleware gates on `accounting`.
-    // Admitting someone without it would render a page whose every request 403s.
-    const guard = read('app/(app)/manco/guard.ts')
-    expect(guard).toContain("canViewPage(page, 'management_company')")
-    expect(guard).toContain("canViewPage(page, 'accounting')")
+  it('gates every ENTITY page on the domain, demanding management_company for a manco', () => {
+    // The page twin of the rule above, and it moved when the manco stopped being a section of
+    // its own: a management company is addressed as /funds/<id>/journal now, the same page a
+    // fund uses, so "which grant does this page need" is no longer answerable from the path. It
+    // is answered from the ENTITY, in the one call every entity page makes to find out which
+    // vehicle it is rendering.
+    const guard = read('app/(app)/funds/guard.ts')
+    const fn = guard.slice(guard.indexOf('export async function requireVehicleAccess'))
+    expect(fn).toContain("canViewPage(page, 'accounting', opts.feature)")
+    expect(fn).toContain("canViewPage(page, 'management_company')")
+    expect(fn).toContain('isManagementCompany(resolved.kind)')
+    // The refusal must not be reachable around: the check sits before the only return.
+    expect(fn.indexOf('isManagementCompany(resolved.kind)')).toBeLessThan(fn.indexOf('return {'))
+  })
+
+  it('leaves no entity page able to resolve a vehicle without that gate', () => {
+    // The structural half, and the reason the resolver is private to the guard. A page that
+    // resolved the vehicle itself would render a manco's payroll with the fund grant, which is
+    // exactly the hole assertVehicleDomain closes on the API side.
+    const entityPages = sourceFiles(path.join(ROOT, 'app', '(app)', 'funds'))
+      .filter(f => f.endsWith(`${path.sep}page.tsx`) && f.includes(`${path.sep}[id]${path.sep}`))
+    expect(entityPages.length).toBeGreaterThan(10)
+
+    const ungated = entityPages.filter(f => {
+      const src = readFileSync(f, 'utf8')
+      // A pure redirect renders nothing and resolves nothing.
+      if (/^\s*import \{ redirect \}/m.test(src) && !src.includes('requireVehicleAccess')) {
+        return /\.from\(['"]|resolvePageAccess/.test(src)
+      }
+      return !src.includes('requireVehicleAccess(')
+    }).map(f => path.relative(ROOT, f))
+    expect(ungated, `resolve an entity without requireVehicleAccess: ${ungated.join(', ')}`).toEqual([])
+  })
+
+  it('keeps the management company out of every shared vehicle list, section or no section', () => {
+    // Merging the sections did NOT merge the lists. `listVehiclesWithId` still excludes mancos,
+    // so the switcher/sidebar route that wants them has to ask for them and check the grant —
+    // see app/api/accounting/vehicle-index/route.ts — rather than the exclusion being relaxed.
+    const index = read('app/api/accounting/vehicle-index/route.ts')
+    expect(index).toContain("hasAccess(ctx, 'management_company', 'read')")
+    expect(index.indexOf("hasAccess(ctx, 'management_company', 'read')"))
+      .toBeLessThan(index.indexOf('listMancoVehicles(admin'))
   })
 })

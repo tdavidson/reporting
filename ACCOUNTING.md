@@ -92,7 +92,7 @@ Greenfield: no history to reconstruct — you're the book of record from first c
 
 1. **Create the vehicle's LP data first** so it appears in the selector: in the **LPs** section add
    the investors/entities and their commitments under the new `portfolio_group` (or import them).
-   Set the vehicle's economics on its admin status page (**Funds → the vehicle → Status**, `/funds/[id]/status`): vintage on the vehicle record, plus carry terms (rate, preferred return, catch-up, and the receiving GP entity) and allocation terms (each partner's commitment, including the GP's, and who bears fees, expenses, and carry).
+   Set the vehicle's economics on its admin status page (**Entities → the vehicle → Admin**, `/funds/[id]/status`): vintage on the vehicle record, plus carry terms (rate, preferred return, catch-up, and the receiving GP entity) and allocation terms (each partner's commitment, including the GP's, and who bears fees, expenses, and carry).
 2. Pick the new vehicle → Accounting → home → **Seed the chart of accounts**.
 3. Book from **first close forward**:
    - **Capital call**: issue it from **Capital accounts**, then match the wire from the bank feed
@@ -173,9 +173,15 @@ management fee and pays the rent. It is not an investment vehicle, and the diffe
 than a label — it has no commitments, no NAV, no TVPI and no partners in the LP sense, so almost
 everything on this page above does not apply to it.
 
-It is therefore a vehicle **kind** of its own (`manco`), with its own chart, its own section of the
-app (**Management company** in the nav, switched on in Settings → *Feature visibility*), and — this
-is the part worth reading carefully — **its own access grant**.
+It is therefore a vehicle **kind** of its own (`manco`), with its own chart, its own lead page —
+cash, the quarterly fee cycle, where the money goes, and what the funds owe it, in place of the
+performance page a fund gets — and, this being the part worth reading carefully, **its own access
+grant** (switched on in Settings → *Feature visibility*).
+
+It is not a section of its own. It was, while its pages were a parallel copy of the fund ones; a
+manco keeps double-entry books like any other entity, so those are the same pages now and it is a
+row in **Entities** addressed the same way (`/funds/<id>/journal`). The grant did not move with the
+URL, because the grant never depended on it — see below.
 
 ## Why a separate grant
 
@@ -196,16 +202,23 @@ the management fee it pays. The boundary is real, so it is enforced rather than 
   (`lib/accounting/http-vehicle.ts`) and both check the grant immediately.
 - Reaching a manco's ledger through the shared accounting pages needs **both** grants:
   `management_company` because the books are the firm's, and `accounting` because those pages call
-  `/api/accounting/*`. A manco-only bookkeeper gets the dashboard, the chart, the statements and
-  intercompany — all `/api/manco/*` — and needs fund accounting only to hand-author journal entries.
+  `/api/accounting/*`. A manco-only bookkeeper gets the entity list and its lead page — the
+  dashboard, the chart, the statements and intercompany, all `/api/manco/*` — and needs fund
+  accounting to open the ledger pages.
+- Because every entity now shares one set of pages, "which grant does this page need" is no longer
+  answerable from the URL. It is answered from the **entity**: `requireVehicleAccess`
+  (`app/(app)/funds/guard.ts`) resolves the vehicle every entity page has to resolve anyway, and
+  demands `management_company` when that vehicle is a manco. It is the page twin of
+  `assertVehicleDomain`, and it is deliberately the same shape — the check lives inside the call a
+  page cannot skip, so a new page under `/funds/[id]` cannot forget it.
 
 `tests/manco-vehicle-domain.test.ts` pins all of it.
 
 ## Setting one up
 
 1. **Settings → Feature visibility → Management company** (ships `off`).
-2. **Management company → Add** — or add a vehicle of type *Management company* anywhere vehicles
-   are managed.
+2. **Entities → Admin → Add vehicle**, type *Management company*. It is the same button that adds
+   a fund; the type decides the chart, the pages and the grant.
 3. **Set up books** seeds the chart below. There is no cutover / full-history choice and no capital
    accounts to create: those are about LPs.
 4. Import the QuickBooks general ledger from the entity's page if there is history to bring in. The

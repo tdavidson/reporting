@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { useCurrency, formatCurrencyFull } from '@/components/currency-context'
 import { useAccess } from '@/components/access-context'
 import { VEHICLE_KIND_LABELS, isVehicleKind, isManagementCompany } from '@/lib/vehicle-kinds'
-import { MANCO_SECTION_SLUGS, sectionForSlug, sectionsForKind } from '@/lib/accounting/nav'
+import { hasSectionForKind, sectionForSlug } from '@/lib/accounting/nav'
 import { EmptyState } from '@/components/ui/empty-state'
 import { AddVehicleButton } from '@/components/add-vehicle-button'
 
@@ -20,8 +20,10 @@ import { AddVehicleButton } from '@/components/add-vehicle-button'
 // closed through, drafts waiting, bank rows open, whether the trial balance ties. So one table,
 // with each row linking to the section you clicked, replaces a page nobody would go to on purpose.
 //
-// It is also the Management landing (every vehicle, every kind, one Add vehicle button), which is
-// the same table with the rows linking to each entity's lead page.
+// Management companies are rows in it like anything else. They were a section of their own while
+// their pages were a parallel copy of the fund ones; the pages are shared now, so the only thing
+// left that is particular to a manco is that its chart has to be seeded before there is anything
+// to open — which is the button on its row.
 
 interface Row {
   id: string | null; name: string; kind: string | null
@@ -39,18 +41,18 @@ interface MancoState {
 
 const kindLabel = (k: string | null) => (k && isVehicleKind(k) ? VEHICLE_KIND_LABELS[k] : 'Fund')
 
-/** Where a row's pages live: /funds/<id>/… for a vehicle, /manco/<id>/… for a management company. */
+/** Where a row's pages live. Every entity is addressed the same way, management company included. */
 function baseFor(r: { id: string | null; name: string; kind: string | null }): string {
-  const seg = r.id ?? encodeURIComponent(r.name)
-  return isManagementCompany(r.kind) ? `/manco/${seg}` : `/funds/${seg}`
+  return `/funds/${r.id ?? encodeURIComponent(r.name)}`
 }
 
-/** Does this vehicle have a `<section>` page at all? Null section = the lead page, which everything has. */
+/**
+ * Does this entity have a `<section>` page at all? Null section = the lead page, which every
+ * entity has. Answered by the section's own `hideFor`, so a management company is filtered by
+ * the same rule as an individual or a GP entity rather than by a list of its own.
+ */
 function hasSection(r: { kind: string | null }, section: string | null): boolean {
-  if (!section) return true
-  if (isManagementCompany(r.kind)) return MANCO_SECTION_SLUGS.has(section)
-  const s = sectionForSlug(section)
-  return !s || sectionsForKind([s], r.kind).length > 0
+  return !section || hasSectionForKind(section, r.kind)
 }
 
 export function FirmVehiclesTable({
@@ -59,7 +61,7 @@ export function FirmVehiclesTable({
 }: {
   /** The subpage each row leads to (`journal`, `bank`, …), or null for the entity's lead page. */
   section?: string | null
-  /** Offer the one Add vehicle button — on the Management landing and the firm-wide Admin page. */
+  /** Offer the one Add vehicle button — the firm-wide Admin page carries it. */
   showAdd?: boolean
 }) {
   const currency = useCurrency()

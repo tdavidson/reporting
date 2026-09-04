@@ -2,12 +2,12 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Building2, ClipboardCheck, ListChecks, Mail, Upload, Send, Settings, LifeBuoy, PanelLeftClose, PanelLeftOpen, Monitor, Sun, Moon, BarChart3, TrendingUp, Lock, Users, Handshake, ArrowDownCircle, FileText, Briefcase, Crown, ShieldCheck, Lightbulb, Microscope, BookOpen, Sparkles } from 'lucide-react'
+import { Building2, ClipboardCheck, ListChecks, Mail, Upload, Send, Settings, LifeBuoy, PanelLeftClose, PanelLeftOpen, Monitor, Sun, Moon, BarChart3, TrendingUp, Lock, Users, Handshake, ArrowDownCircle, FileText, Crown, ShieldCheck, Lightbulb, Microscope, BookOpen, Sparkles } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { useTheme } from 'next-themes'
 import { useSidebar } from '@/components/sidebar-context'
-import { ACCOUNTING_SECTIONS, MANCO_SECTIONS, sectionsForKind } from '@/lib/accounting/nav'
+import { ACCOUNTING_SECTIONS, sectionsForKind } from '@/lib/accounting/nav'
 import { useVehicle, FUND_SUBPAGE_SLUGS } from '@/components/accounting-vehicle'
 import type { FeatureKey, FeatureVisibilityMap } from '@/lib/types/features'
 import { domainForFeature, type Domain } from '@/lib/access/domains'
@@ -129,27 +129,18 @@ const NAV_ITEMS: NavItem[] = [
     ],
   },
   {
-    // Relabelled from "Accounting" to "Funds": the landing page is now the fund overview —
-    // performance per vehicle, derived from the ledger — and the ledger pages are what you
-    // click into. The old /funds page (typed-in numbers, estimated carry) redirects here.
+    // "Entities", not "Funds", because it is every entity the firm keeps books for — funds,
+    // SPVs, GP entities, individuals AND the management company. The manco had a section of its
+    // own while its pages were a parallel copy of these ones; they are the same pages now, so it
+    // is one more kind of row. What it is NOT is one more grant: `requireVehicleAccess` still
+    // refuses a management company to a caller holding only `accounting`, because the boundary
+    // was always the entity's kind rather than the URL prefix.
     //
     // No `adminOnly` — the featureKey already gates it (defaults to 'off', and a fund
     // that turns it on to 'admin' still only shows it to admins). Hard-coding adminOnly
     // on top of that also hid it from the read-only demo viewer, who should see the books.
-    href: '/funds', label: 'Funds', icon: BookOpen, featureKey: 'accounting',
+    href: '/funds', label: 'Entities', icon: BookOpen, featureKey: 'accounting',
     children: ACCOUNTING_SECTIONS.map(({ href, label, domain, requiresFof, feature }) => ({ href, label, domain, requiresFof, featureKey: feature })),
-  },
-  {
-    // The firm's own operating entity, not an investment vehicle — so its own section rather than
-    // a row on /funds, where every performance column would be a dash. Its feature key gates it
-    // (off by default), and its DOMAIN is separate from `accounting` because a manco's ledger
-    // carries firm payroll. See lib/access/domains.ts.
-    //
-    // Its children are entity-first, exactly as the Funds ones are inside a fund: once the URL
-    // names a management company they point at that entity's pages (/manco/<id>/journal), and
-    // outside one there are none — /manco IS the list of entities, and the firm-wide view of any
-    // one section lives under Funds, which lists management companies too. See mancoChildrenFor.
-    href: '/manco', label: 'Management', icon: Briefcase, featureKey: 'management_company',
   },
   { href: '/usage', label: 'Usage', icon: Users, adminOnly: true, domain: 'admin' },
   { href: '/settings', label: 'Settings', icon: Settings, badgeKey: 'settings' },
@@ -281,13 +272,11 @@ export function visibleChildrenFor(
   item: NavItem,
   isAdmin: boolean,
   access: (domain: Domain, feature?: FeatureKey) => AccessLevel,
-  opts: { fofActive?: boolean; fundSeg?: string | null; mancoSeg?: string | null; kind?: string | null } = {},
+  opts: { fofActive?: boolean; fundSeg?: string | null; kind?: string | null } = {},
 ): NavChild[] {
   const children = item.href === '/funds'
     ? fundsChildrenFor(opts.fundSeg ?? null, !!opts.fofActive, opts.kind ?? null)
-    : item.href === '/manco'
-      ? mancoChildrenFor(opts.mancoSeg ?? null)
-      : item.children
+    : item.children
   return (children ?? [])
     .filter(c => canSee(c, isAdmin, access))
     .filter(c => !c.requiresFof || !!opts.fofActive)
@@ -305,41 +294,6 @@ export function fundSegFromPath(pathname: string): string | null {
 
 export function useFundSeg(): string | null {
   return fundSegFromPath(usePathname())
-}
-
-/** The same, for the management company in the URL. Null anywhere outside one. */
-export function mancoSegFromPath(pathname: string): string | null {
-  const match = pathname.match(/^\/manco\/([^/]+)/)
-  return match && !FUND_SUBPAGE_SLUGS.has(match[1]) ? match[1] : null
-}
-
-/**
- * The Management section's children: an entity's own pages once the URL names one, and nothing
- * before that.
- *
- * The manco half of fundsChildrenFor, and it stops where that one carries on. There is no
- * firm-wide `/manco/<section>` to fall back to, because there is nothing for it to add: the
- * firm-wide landing under Funds already lists every entity a section applies to, management
- * companies included, and `/manco` itself is the list of entities. What was missing was the other
- * half — inside /manco/<id>/journal the sidebar offered no way to that entity's other pages, so
- * the only route between them was back out to its lead page and in through the Books card.
- *
- * The sections carry `accounting` explicitly. These pages render the SHARED accounting views, so
- * they need that grant on top of `management_company` (the parent's) and redirect without it —
- * see app/(app)/manco/guard.ts. A child that offered them anyway would be the link-to-a-403 the
- * nav rules exist to prevent.
- */
-export function mancoChildrenFor(mancoSeg: string | null): NavChild[] {
-  if (!mancoSeg) return []
-  return [
-    { href: `/manco/${mancoSeg}`, label: 'Overview', exact: true },
-    ...MANCO_SECTIONS.map(s => ({
-      href: `/manco/${mancoSeg}/${s.href.slice('/funds/'.length)}`,
-      label: s.label,
-      domain: s.domain ?? ('accounting' as Domain),
-      featureKey: s.feature,
-    })),
-  ]
 }
 
 export type { NavItem, NavChild }
@@ -383,9 +337,6 @@ export function AppSidebar({ reviewBadge, settingsBadge, notesBadge, pendingActi
   // (lib/accounting/nav.ts hideFor); the kind comes from the context the fund pages pin to
   // their URL, and fundsChildrenFor ignores it whenever there is no fund in the URL.
   const fundSeg = useFundSeg()
-  // The Management subnav is entity-first the same way, and read from the URL for the same
-  // reason — the context is pinned by whichever entity's page was open last.
-  const mancoSeg = mancoSegFromPath(pathname)
   const { kind: vehicleKind } = useVehicle()
 
   const currentTheme = (THEME_CYCLE.includes(theme as typeof THEME_CYCLE[number]) ? theme : 'system') as typeof THEME_CYCLE[number]
@@ -421,7 +372,7 @@ export function AppSidebar({ reviewBadge, settingsBadge, notesBadge, pendingActi
           // (admin gate, per-feature visibility) and the fund-of-funds pages that only
           // exist once the fund holds a fund. Shown only when the parent or any visible
           // child route is active.
-          const visibleChildren = visibleChildrenFor(item, !!isAdmin, access, { fofActive, fundSeg, mancoSeg, kind: vehicleKind })
+          const visibleChildren = visibleChildrenFor(item, !!isAdmin, access, { fofActive, fundSeg, kind: vehicleKind })
           const childActive = visibleChildren.some(c => pathname === c.href || pathname.startsWith(c.href + '/'))
           // Also keep the section open on any page UNDER its own path (e.g. /funds/allocation-terms,
           // a Funds page that isn't a listed child) — it's still this section, just not in the nav.
