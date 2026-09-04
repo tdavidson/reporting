@@ -1,25 +1,11 @@
-import type { Metadata } from 'next'
-import { requireAccountingAccess } from '../../guard'
-import { resolveVehicleParam } from '../resolve'
-import { FundSubpageChrome } from '@/components/fund-subpage-chrome'
-import { TextLedgerView } from '../../text/view'
+import { redirect } from 'next/navigation'
 
-export const metadata: Metadata = { title: 'Plain text' }
-
-export default async function TextLedgerPage(props: { params: Promise<{ id: string }> }) {
-  const params = await props.params
-  const { fundId } = await requireAccountingAccess()
-  const { vehicle, vehicleId } = await resolveVehicleParam(fundId, params.id)
-  return (
-    <div className="pt-4 md:pt-8 pb-8 w-full">
-      <FundSubpageChrome
-        title="Plain text"
-        description="Author entries in the double-entry text format and post them in one go. See ACCOUNTING.md for the format."
-        vehicle={vehicle}
-        vehicleId={vehicleId}
-      >
-        <TextLedgerView />
-      </FundSubpageChrome>
-    </div>
-  )
+/**
+ * Plain-text authoring moved onto the journal page as a tab. This keeps the old URL working —
+ * the docs and a few bookmarks pointed here — and renders nothing itself, so it needs no gate:
+ * the journal page it lands on gates the vehicle.
+ */
+export default async function TextLedgerRedirect(props: { params: Promise<{ id: string }> }) {
+  const { id } = await props.params
+  redirect(`/funds/${id}/journal?tab=text`)
 }

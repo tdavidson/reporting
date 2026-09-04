@@ -297,9 +297,9 @@ export function StatementsView() {
         <div className="flex items-center gap-2 text-muted-foreground text-sm"><Loader2 className="h-4 w-4 animate-spin" />Loading…</div>
       ) : !data || data.trialBalance.rows.length === 0 ? (
         <EmptyState
-          action={fundSeg && (
+          action={base && (
             <Button size="sm" variant="outline" asChild>
-              <Link href={`/funds/${fundSeg}/journal`}>Open journal</Link>
+              <Link href={`${base}/journal`}>Open journal</Link>
             </Button>
           )}
         >

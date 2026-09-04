@@ -1,19 +1,19 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import Link from 'next/link'
 import {
   ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis,
   CartesianGrid, Tooltip, Legend, ReferenceLine,
 } from 'recharts'
-import { Loader2, ArrowRight, BookOpen, Landmark, FileText, Lock, Upload, Table2, FileCode } from 'lucide-react'
+import { Loader2 } from 'lucide-react'
 import { useCurrency, formatCurrency, formatCurrencyFull } from '@/components/currency-context'
+import { useVehicle, FundSwitcher } from '@/components/accounting-vehicle'
 import { AccountingBody } from '@/components/accounting-chrome'
 import { AnalystToggleButton } from '@/components/analyst-button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Metric as MetricBox } from '@/components/ui/metric'
 import { ChartCard, EmptyPlot, AXIS, tooltipStyle, HUE } from '@/components/fund-chart-kit'
-import { IntercompanyPanel } from './intercompany-panel'
+import { IntercompanyPanel } from '@/components/accounting/intercompany-panel'
 
 // The management company dashboard. Everything here is READ-ONLY and derived from the manco's own
 // ledger — see lib/accounting/manco-overview.ts for what each figure means and why.
@@ -66,6 +66,14 @@ export function MancoDetailView({
   active: boolean
 }) {
   const currency = useCurrency()
+  const { setVehicle } = useVehicle()
+
+  // Pin the section's vehicle context to this URL, exactly as the fund detail page does. It is
+  // what tells the sidebar this entity's KIND, and the subnav is built from that — without it a
+  // management company would be offered a fund's pages (capital accounts, schedule of
+  // investments) that it has no partners or portfolio for.
+  useEffect(() => { setVehicle(vehicle, vehicleId) }, [vehicle, vehicleId, setVehicle])
+
   const fmt = (v: number) => formatCurrency(v, currency)
   const fmtFull = (v: number) => formatCurrencyFull(v, currency)
 
@@ -109,6 +117,7 @@ export function MancoDetailView({
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
+          <FundSwitcher />
           <AnalystToggleButton />
         </div>
       </div>
@@ -241,54 +250,9 @@ export function MancoDetailView({
               onChanged={load}
             />
 
-            <LedgerLinks vehicleId={vehicleId} />
           </div>
         )}
       </AccountingBody>
     </>
-  )
-}
-
-/**
- * The manco's ledger pages.
- *
- * These are the SHARED accounting views, scoped to this vehicle — the same journal, bank feed,
- * statements, period close and QuickBooks import a fund uses, because a management company's books
- * are double-entry books like any other and a second implementation of them would be a second set
- * of bugs. They need the fund-accounting grant as well as this one; a viewer without it is
- * redirected back here rather than shown a page whose every request 403s (see ../guard.ts).
- */
-function LedgerLinks({ vehicleId }: { vehicleId: string }) {
-  const links = [
-    { href: `/manco/${vehicleId}/journal`, label: 'Journal', icon: BookOpen, desc: 'Post and review entries.' },
-    { href: `/manco/${vehicleId}/ledger`, label: 'General ledger', icon: Table2, desc: 'Each account, opening to closing balance.' },
-    { href: `/manco/${vehicleId}/text`, label: 'Plain text', icon: FileCode, desc: 'Author entries as text and post them in one go.' },
-    { href: `/manco/${vehicleId}/bank`, label: 'Bank transactions', icon: Landmark, desc: 'Import a feed and draft entries.' },
-    { href: `/manco/${vehicleId}/statements`, label: 'Financial statements', icon: FileText, desc: 'Balance sheet, P&L, cash flows.' },
-    { href: `/manco/${vehicleId}/periods`, label: 'Period close', icon: Lock, desc: 'Close and lock a period.' },
-    { href: `/manco/${vehicleId}/migrate`, label: 'QuickBooks import', icon: Upload, desc: 'Bring in the general ledger history.' },
-  ]
-  return (
-    <Card>
-      <CardContent className="pt-4 pb-4 px-4">
-        <p className="text-sm font-medium mb-3">Books</p>
-        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-          {links.map(l => (
-            <Link
-              key={l.href}
-              href={l.href}
-              className="flex items-start gap-3 rounded-lg border p-3 hover:bg-muted/50"
-            >
-              <l.icon className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
-              <div className="min-w-0">
-                <p className="text-sm font-medium">{l.label}</p>
-                <p className="text-caption text-muted-foreground">{l.desc}</p>
-              </div>
-              <ArrowRight className="ml-auto mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-            </Link>
-          ))}
-        </div>
-      </CardContent>
-    </Card>
   )
 }

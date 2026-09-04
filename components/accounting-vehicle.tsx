@@ -106,16 +106,15 @@ export function useFundSeg(): string | null {
 }
 
 /**
- * The base path of the current vehicle's ledger pages — `/funds/<seg>` for an investment
- * vehicle, `/manco/<id>` for a management company — so a shared view can link to a sibling page
- * (the register, the journal) and land in the section it is already in. A fund URL for a manco
- * would bounce to `/manco/<id>` and drop the subpage; see app/(app)/funds/[id]/resolve.ts.
+ * The base path of the current entity's ledger pages, so a shared view can link to a sibling page
+ * (the register, the journal) and land on the entity it is already showing.
+ *
+ * It used to branch: `/manco/<id>` for a management company, `/funds/<seg>` for everything else,
+ * because the manco had a parallel set of pages. There is one set now — a management company is
+ * an entity in the Entities section like any other — so there is one shape of URL.
  */
 export function useVehicleBase(): string | null {
-  const pathname = usePathname()
-  const { vehicleId } = useVehicle()
   const seg = useFundSeg()
-  if (pathname.startsWith('/manco/') && vehicleId) return `/manco/${vehicleId}`
   return seg ? `/funds/${seg}` : null
 }
 

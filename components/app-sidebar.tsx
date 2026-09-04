@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Building2, ClipboardCheck, ListChecks, Mail, Upload, Send, Settings, LifeBuoy, PanelLeftClose, PanelLeftOpen, Monitor, Sun, Moon, BarChart3, TrendingUp, Lock, Users, Handshake, ArrowDownCircle, FileText, Briefcase, Crown, ShieldCheck, Lightbulb, Microscope, BookOpen, Sparkles } from 'lucide-react'
+import { Building2, ClipboardCheck, ListChecks, Mail, Upload, Send, Settings, LifeBuoy, PanelLeftClose, PanelLeftOpen, Monitor, Sun, Moon, BarChart3, TrendingUp, Lock, Users, Handshake, ArrowDownCircle, FileText, Crown, ShieldCheck, Lightbulb, Microscope, BookOpen, Sparkles } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { useTheme } from 'next-themes'
@@ -129,26 +129,18 @@ const NAV_ITEMS: NavItem[] = [
     ],
   },
   {
-    // Relabelled from "Accounting" to "Funds": the landing page is now the fund overview —
-    // performance per vehicle, derived from the ledger — and the ledger pages are what you
-    // click into. The old /funds page (typed-in numbers, estimated carry) redirects here.
+    // "Entities", not "Funds", because it is every entity the firm keeps books for — funds,
+    // SPVs, GP entities, individuals AND the management company. The manco had a section of its
+    // own while its pages were a parallel copy of these ones; they are the same pages now, so it
+    // is one more kind of row. What it is NOT is one more grant: `requireVehicleAccess` still
+    // refuses a management company to a caller holding only `accounting`, because the boundary
+    // was always the entity's kind rather than the URL prefix.
     //
     // No `adminOnly` — the featureKey already gates it (defaults to 'off', and a fund
     // that turns it on to 'admin' still only shows it to admins). Hard-coding adminOnly
     // on top of that also hid it from the read-only demo viewer, who should see the books.
-    href: '/funds', label: 'Funds', icon: BookOpen, featureKey: 'accounting',
+    href: '/funds', label: 'Entities', icon: BookOpen, featureKey: 'accounting',
     children: ACCOUNTING_SECTIONS.map(({ href, label, domain, requiresFof, feature }) => ({ href, label, domain, requiresFof, featureKey: feature })),
-  },
-  {
-    // The firm's own operating entity, not an investment vehicle — so its own section rather than
-    // a row on /funds, where every performance column would be a dash. Its feature key gates it
-    // (off by default), and its DOMAIN is separate from `accounting` because a manco's ledger
-    // carries firm payroll. See lib/access/domains.ts.
-    //
-    // No children: the section is a short list of entities, and the pages beneath are per-entity
-    // (/manco/<id>/journal). A subnav here would either need an entity to point at — as the Funds
-    // one does — or offer links that go nowhere, and unlike a fund there is rarely more than one.
-    href: '/manco', label: 'Management', icon: Briefcase, featureKey: 'management_company',
   },
   { href: '/usage', label: 'Usage', icon: Users, adminOnly: true, domain: 'admin' },
   { href: '/settings', label: 'Settings', icon: Settings, badgeKey: 'settings' },
@@ -249,21 +241,27 @@ export function moreSectionsFor(
 }
 
 /**
- * The Funds section's children, which are fund-first: every one points at
- * /funds/<seg>/<page>, with an "Overview" entry for the fund's lead page. Empty until
- * a fund is known — there is nothing to point at.
+ * The Funds section's children. Two shapes, decided by the URL alone:
+ *
+ *   - Inside a fund (/funds/<id>/…): fund-first — every child points at /funds/<id>/<page>, with
+ *     an "Overview" entry for the fund's lead page, and the pages the vehicle's kind has no use
+ *     for left out.
+ *   - Anywhere else: firm-wide — every child points at /funds/<page>, the landing that lists
+ *     every entity and asks which one you mean.
+ *
+ * It used to fall back to the vehicle the browser last had in context, which made the subnav a
+ * guess: after a visit to a management company the context WAS the manco, so "Funds → Bank" led
+ * to the manco's bank page. The URL is the only thing the user can see, so it is the only input.
  */
 export function fundsChildrenFor(fundSeg: string | null, fofActive: boolean, kind: string | null = null): NavChild[] {
-  if (!fundSeg) return []
-  return [
-    { href: `/funds/${fundSeg}`, label: 'Overview', exact: true },
-    ...sectionsForKind(ACCOUNTING_SECTIONS, kind).filter(s => !s.requiresFof || fofActive).map(s => ({
-      href: `/funds/${fundSeg}/${s.href.slice('/funds/'.length)}`,
-      label: s.label,
-      domain: s.domain,
-      featureKey: s.feature,
-    })),
-  ]
+  const sections = sectionsForKind(ACCOUNTING_SECTIONS, fundSeg ? kind : null).filter(s => !s.requiresFof || fofActive)
+  const children: NavChild[] = sections.map(s => ({
+    href: fundSeg ? `/funds/${fundSeg}/${s.href.slice('/funds/'.length)}` : s.href,
+    label: s.label,
+    domain: s.domain,
+    featureKey: s.feature,
+  }))
+  return fundSeg ? [{ href: `/funds/${fundSeg}`, label: 'Overview', exact: true }, ...children] : children
 }
 
 /**
@@ -285,16 +283,17 @@ export function visibleChildrenFor(
 }
 
 /**
- * Which fund the Funds subnav points at: the one in the URL when we are under a fund,
- * else the selected vehicle from context (its id, or its name for a legacy vehicle
- * with no registry id).
+ * Which fund the Funds subnav points at: the one in the URL when we are under a fund, else
+ * none — and none means the firm-wide pages, not a guess from the vehicle context. See
+ * fundsChildrenFor for why the context is deliberately not consulted here.
  */
-export function useFundSeg(): string | null {
-  const pathname = usePathname()
-  const { vehicleId, group } = useVehicle()
+export function fundSegFromPath(pathname: string): string | null {
   const fundMatch = pathname.match(/^\/funds\/([^/]+)/)
-  const pathFundSeg = fundMatch && !FUND_SUBPAGE_SLUGS.has(fundMatch[1]) ? fundMatch[1] : null
-  return pathFundSeg ?? vehicleId ?? (group ? encodeURIComponent(group) : null)
+  return fundMatch && !FUND_SUBPAGE_SLUGS.has(fundMatch[1]) ? fundMatch[1] : null
+}
+
+export function useFundSeg(): string | null {
+  return fundSegFromPath(usePathname())
 }
 
 export type { NavItem, NavChild }
@@ -333,8 +332,10 @@ export function AppSidebar({ reviewBadge, settingsBadge, notesBadge, pendingActi
   const [mounted, setMounted] = useState(false)
   useEffect(() => setMounted(true), [])
 
-  // The Funds subnav is fund-first — see useFundSeg / fundsChildrenFor above — and shows the
-  // pages the current vehicle's KIND has a use for (lib/accounting/nav.ts hideFor).
+  // The Funds subnav is fund-first inside a fund and firm-wide elsewhere — see useFundSeg /
+  // fundsChildrenFor above. Inside a fund it shows the pages that vehicle's KIND has a use for
+  // (lib/accounting/nav.ts hideFor); the kind comes from the context the fund pages pin to
+  // their URL, and fundsChildrenFor ignores it whenever there is no fund in the URL.
   const fundSeg = useFundSeg()
   const { kind: vehicleKind } = useVehicle()
 

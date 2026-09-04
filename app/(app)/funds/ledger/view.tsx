@@ -135,15 +135,20 @@ export function LedgerView() {
           </div>
 
           <div className="border rounded-lg overflow-x-auto">
-            <table className="w-full text-sm">
+            {/* Fixed layout: the date and the three amount columns take a set width each, and
+                Entry and Against split what is left evenly. Auto layout gave Against, whose
+                lines were unwrappable, everything it asked for and squeezed the memo into the
+                remainder. The min width keeps the split honest on a phone, where the wrapper
+                scrolls instead. */}
+            <table className="w-full min-w-[48rem] table-fixed text-sm">
               <thead>
                 <tr className="border-b bg-muted/50 text-xs">
-                  <th className="text-left px-3 py-2 font-medium whitespace-nowrap">Date</th>
+                  <th className="w-28 text-left px-3 py-2 font-medium whitespace-nowrap">Date</th>
                   <th className="text-left px-3 py-2 font-medium">Entry</th>
                   <th className="text-left px-3 py-2 font-medium">Against</th>
-                  <th className="text-right px-3 py-2 font-medium">Debit</th>
-                  <th className="text-right px-3 py-2 font-medium">Credit</th>
-                  <th className="text-right px-3 py-2 font-medium">Balance</th>
+                  <th className="w-32 text-right px-3 py-2 font-medium">Debit</th>
+                  <th className="w-32 text-right px-3 py-2 font-medium">Credit</th>
+                  <th className="w-36 text-right px-3 py-2 font-medium">Balance</th>
                 </tr>
               </thead>
               <tbody>
@@ -167,15 +172,15 @@ export function LedgerView() {
                       className={`border-b last:border-b-0 cursor-pointer hover:bg-muted/30 ${isHighlight ? 'bg-primary/10' : ''}`}
                     >
                       <td className="px-3 py-1.5 tabular-nums whitespace-nowrap align-top">{l.entryDate ?? '—'}</td>
-                      <td className="px-3 py-1.5 align-top">
+                      <td className="px-3 py-1.5 align-top break-words">
                         <div>{l.memo || <span className="text-muted-foreground">(no memo)</span>}</div>
                         {l.sourceType && l.sourceType !== 'manual' && (
                           <div className="text-[11px] text-muted-foreground">{l.sourceType.replace(/_/g, ' ')}</div>
                         )}
                       </td>
-                      <td className="px-3 py-1.5 align-top text-muted-foreground">
+                      <td className="px-3 py-1.5 align-top break-words text-muted-foreground">
                         {l.counterAccounts.map(c => (
-                          <div key={c.id} className="whitespace-nowrap"><span className="tabular-nums">{c.code}</span> {c.name}</div>
+                          <div key={c.id}><span className="tabular-nums">{c.code}</span> {c.name}</div>
                         ))}
                       </td>
                       <td className="px-3 py-1.5 text-right tabular-nums align-top">{l.debit ? fmt(l.debit) : ''}</td>

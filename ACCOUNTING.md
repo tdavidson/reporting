@@ -64,7 +64,7 @@ Best when volume is low and you want a complete, auditable trail.
 2. **Categorize with AI** to classify the fuzzy rows against the chart.
 3. For each inflow that's a capital call, **Book as call** (allocates per LP by commitment) or
    **Match call** if you already recorded it. Post the drafts.
-4. **Book the investment purchase** on the **Plain text** page (rare, so it's a text entry):
+4. **Book the investment purchase** on the journal's **Plain text** tab (rare, so it's a text entry):
    `Dr Assets:Investments-At-Cost:1100 / Cr Assets:Cash:1000`.
 5. Record each periodic mark: **Journal → New entry → Revalue investment** (enter the new fair
    value; the delta is booked as unrealized, and the close allocates it per LP and moves NAV).
@@ -80,7 +80,7 @@ Best for other vehicles where reconstructing history isn't worth it.
 1. Accounting → home → choose **Cutover opening balance** → pick the cutover date → **Bootstrap
    opening balances**. This reads the vehicle's `lp_investments` and books, as of that date,
    `Dr Cash / Cr each LP's capital` for paid-in − distributions. (Capital in nets against cash.)
-2. **Book the investment purchase** in Plain text so cash moves into the investment
+2. **Book the investment purchase** on the journal's Plain text tab so cash moves into the investment
    (`Dr 1100 / Cr 1000`), leaving ending cash = paid-in − cost.
 3. Run forward from the cutover: book new calls/distributions/fees/marks as they happen.
 
@@ -92,12 +92,12 @@ Greenfield: no history to reconstruct — you're the book of record from first c
 
 1. **Create the vehicle's LP data first** so it appears in the selector: in the **LPs** section add
    the investors/entities and their commitments under the new `portfolio_group` (or import them).
-   Set the vehicle's economics on its admin status page (**Funds → the vehicle → Status**, `/funds/[id]/status`): vintage on the vehicle record, plus carry terms (rate, preferred return, catch-up, and the receiving GP entity) and allocation terms (each partner's commitment, including the GP's, and who bears fees, expenses, and carry).
+   Set the vehicle's economics on its admin status page (**Entities → the vehicle → Admin**, `/funds/[id]/status`): vintage on the vehicle record, plus carry terms (rate, preferred return, catch-up, and the receiving GP entity) and allocation terms (each partner's commitment, including the GP's, and who bears fees, expenses, and carry).
 2. Pick the new vehicle → Accounting → home → **Seed the chart of accounts**.
 3. Book from **first close forward**:
    - **Capital call**: issue it from **Capital accounts**, then match the wire from the bank feed
      — it ends as `Dr Cash / Cr each LP capital`.
-   - **Investment purchase**: Plain text (`Dr 1100 / Cr 1000`), or a plain entry in the journal.
+   - **Investment purchase**: the journal's Plain text tab (`Dr 1100 / Cr 1000`), or a plain entry.
    - **Management fee / expenses / gains**: **Journal → New entry** (Management fee, Partnership
      expense, Realized gain) as they occur — each shows the entry before it is written.
    - **Revalue** at each reporting date.
@@ -173,9 +173,15 @@ management fee and pays the rent. It is not an investment vehicle, and the diffe
 than a label — it has no commitments, no NAV, no TVPI and no partners in the LP sense, so almost
 everything on this page above does not apply to it.
 
-It is therefore a vehicle **kind** of its own (`manco`), with its own chart, its own section of the
-app (**Management company** in the nav, switched on in Settings → *Feature visibility*), and — this
-is the part worth reading carefully — **its own access grant**.
+It is therefore a vehicle **kind** of its own (`manco`), with its own chart, its own lead page —
+cash, the quarterly fee cycle, where the money goes, and what the funds owe it, in place of the
+performance page a fund gets — and, this being the part worth reading carefully, **its own access
+grant** (switched on in Settings → *Feature visibility*).
+
+It is not a section of its own. It was, while its pages were a parallel copy of the fund ones; a
+manco keeps double-entry books like any other entity, so those are the same pages now and it is a
+row in **Entities** addressed the same way (`/funds/<id>/journal`). The grant did not move with the
+URL, because the grant never depended on it — see below.
 
 ## Why a separate grant
 
@@ -196,16 +202,23 @@ the management fee it pays. The boundary is real, so it is enforced rather than 
   (`lib/accounting/http-vehicle.ts`) and both check the grant immediately.
 - Reaching a manco's ledger through the shared accounting pages needs **both** grants:
   `management_company` because the books are the firm's, and `accounting` because those pages call
-  `/api/accounting/*`. A manco-only bookkeeper gets the dashboard, the chart, the statements and
-  intercompany — all `/api/manco/*` — and needs fund accounting only to hand-author journal entries.
+  `/api/accounting/*`. A manco-only bookkeeper gets the entity list and its lead page — the
+  dashboard, the chart, the statements and intercompany, all `/api/manco/*` — and needs fund
+  accounting to open the ledger pages.
+- Because every entity now shares one set of pages, "which grant does this page need" is no longer
+  answerable from the URL. It is answered from the **entity**: `requireVehicleAccess`
+  (`app/(app)/funds/guard.ts`) resolves the vehicle every entity page has to resolve anyway, and
+  demands `management_company` when that vehicle is a manco. It is the page twin of
+  `assertVehicleDomain`, and it is deliberately the same shape — the check lives inside the call a
+  page cannot skip, so a new page under `/funds/[id]` cannot forget it.
 
 `tests/manco-vehicle-domain.test.ts` pins all of it.
 
 ## Setting one up
 
 1. **Settings → Feature visibility → Management company** (ships `off`).
-2. **Management company → Add** — or add a vehicle of type *Management company* anywhere vehicles
-   are managed.
+2. **Entities → Admin → Add vehicle**, type *Management company*. It is the same button that adds
+   a fund; the type decides the chart, the pages and the grant.
 3. **Set up books** seeds the chart below. There is no cutover / full-history choice and no capital
    accounts to create: those are about LPs.
 4. Import the QuickBooks general ledger from the entity's page if there is history to bring in. The
@@ -317,7 +330,7 @@ roll-ups. Every column there would be a dash.
 # Double-entry reference
 
 How every entry type is booked, in both T-account form and the plain-text double-entry format you
-author in. Use this to write entries on the **Plain text** page and to verify the books are set up
+author in. Use this to write entries on the journal's **Plain text** tab and to verify the books are set up
 correctly. Everything here matches what the entry builders in `lib/accounting/entries.ts` produce.
 
 ## The two rules that make it all work
@@ -624,7 +637,7 @@ ledger regardless of how lines are labeled. **Fund NAV = sum of every LP's endin
 
 Checks that should always hold — use these to confirm a new setup and to sanity-check a close:
 
-- **Every entry balances.** The Journal and Plain text pages reject unbalanced entries; the trial
+- **Every entry balances.** The journal (the entry form and the Plain text tab) rejects unbalanced entries; the trial
   balance (Financial statements) shows equal total debits and credits.
 - **Balance sheet identity.** Assets = Liabilities + Partners' capital. On the Financial statements
   page the balance-sheet `check` is 0 once the period is closed (before close, the residual equals

@@ -5,11 +5,20 @@ import { Plus, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
-import { VEHICLE_KIND_OPTIONS } from '@/lib/vehicle-kinds'
+import { VEHICLE_KIND_OPTIONS, isManagementCompany } from '@/lib/vehicle-kinds'
 
 const KINDS = VEHICLE_KIND_OPTIONS
 
-/** Create an investment vehicle (fund / SPV / direct deal / …) from a modal. */
+/**
+ * Create a vehicle of any kind — fund, SPV, direct deal, GP entity, individual, management
+ * company — from one modal. There used to be a second button for management companies alone; the
+ * kind picker already listed them, so the two were one form with one option pre-chosen.
+ *
+ * The one thing that follows the kind is WHICH route is posted to. `/api/vehicles` is gated on
+ * `accounting` and `/api/manco/vehicles` on `management_company`, and each grant is the one that
+ * lets the caller SEE what they just made — so a management company goes to the manco route, which
+ * is what lets a manco-only bookkeeper add one, and refuses one to someone who could not open it.
+ */
 export function AddVehicleButton({ onCreated }: { onCreated?: () => void }) {
   const [open, setOpen] = useState(false)
   const [name, setName] = useState('')
@@ -20,12 +29,19 @@ export function AddVehicleButton({ onCreated }: { onCreated?: () => void }) {
   async function create() {
     if (!name.trim()) return
     setBusy(true); setErr(null)
-    const res = await fetch('/api/vehicles', {
+    const manco = isManagementCompany(kind)
+    const res = await fetch(manco ? '/api/manco/vehicles' : '/api/vehicles', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: name.trim(), kind }),
+      body: JSON.stringify(manco ? { name: name.trim() } : { name: name.trim(), kind }),
     })
     setBusy(false)
-    if (!res.ok) { setErr((await res.json().catch(() => ({}))).error ?? 'Could not create vehicle'); return }
+    if (!res.ok) {
+      const fallback = res.status === 403
+        ? (manco ? 'Adding a management company needs the Management company grant' : 'Adding a vehicle needs the Fund accounting grant')
+        : 'Could not create vehicle'
+      setErr((await res.json().catch(() => ({}))).error ?? fallback)
+      return
+    }
     setName(''); setKind('fund'); setOpen(false)
     onCreated?.()
   }
@@ -39,12 +55,12 @@ export function AddVehicleButton({ onCreated }: { onCreated?: () => void }) {
       </DialogTrigger>
       <DialogContent className="sm:max-w-sm">
         <DialogHeader>
-          <DialogTitle>Add investment vehicle</DialogTitle>
+          <DialogTitle>Add vehicle</DialogTitle>
         </DialogHeader>
         <div className="space-y-3">
           <div className="space-y-1">
             <label className="text-xs text-muted-foreground">Name</label>
-            <Input value={name} onChange={e => setName(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') create() }} placeholder="e.g. Fund IV, SPV — Acme" autoFocus />
+            <Input value={name} onChange={e => setName(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') create() }} placeholder="e.g. Fund IV, SPV — Acme, Hemrock Management LLC" autoFocus />
           </div>
           <div className="space-y-1">
             <label className="text-xs text-muted-foreground">Type</label>

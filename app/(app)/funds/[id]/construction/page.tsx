@@ -1,6 +1,5 @@
 import type { Metadata } from 'next'
-import { requireAccountingAccess } from '../../guard'
-import { resolveVehicleParam } from '../resolve'
+import { requireVehicleAccess } from '../../guard'
 import { ConstructionView } from '../../construction/view'
 
 export const metadata: Metadata = { title: 'Portfolio construction' }
@@ -18,7 +17,6 @@ export const metadata: Metadata = { title: 'Portfolio construction' }
  */
 export default async function ConstructionPage(props: { params: Promise<{ id: string }> }) {
  const params = await props.params;
- const { fundId } = await requireAccountingAccess()
- const { vehicle, vehicleId } = await resolveVehicleParam(fundId, params.id)
+ const { vehicle, vehicleId } = await requireVehicleAccess(params.id)
  return <ConstructionView vehicle={vehicle} vehicleId={vehicleId} />
 }

@@ -302,7 +302,7 @@ export function currentOwnership(rows: InvestmentRow[]): Ownership[] {
  * and `fundEconomics`. A manco has no commitments, no NAV, no TVPI and no partners: on the fund
  * overview it is a row of dashes, in the switcher it is an option that takes you to a page with
  * nothing on it, and in a per-vehicle performance roll-up it is a vehicle whose every metric is
- * undefined. It has its own section (`/manco`) and its own list (`listMancoVehicles`).
+ * undefined. It has its own list (`listMancoVehicles`) and its own grant.
  *
  * This filters on the REGISTRY, so a legacy portfolio_group string with no `fund_vehicles` row is
  * unaffected — it cannot be a management company, because being one requires being set up as one.
@@ -354,14 +354,14 @@ export async function listVehiclesWithId(admin: SupabaseClient, fundId: string):
 }
 
 /**
- * The fund's management companies — the other half of `listVehiclesWithId`, for the `/manco`
+ * The fund's management companies — the other half of `listVehiclesWithId`, for the entities
  * section's list and switcher.
  *
  * INACTIVE ONES ARE INCLUDED, unlike the investment-vehicle list. A manco is deactivated when the
  * firm winds it down or replaces it, and its books do not stop existing: last year's payroll, the
  * final distributions and the intercompany balances that have to be settled are all still on it,
  * and there is no other way to reach them once it drops out of the list. The caller shows the flag;
- * see app/(app)/manco/view.tsx.
+ * see components/accounting/firm-vehicles.tsx.
  */
 export async function listMancoVehicles(
   admin: SupabaseClient,

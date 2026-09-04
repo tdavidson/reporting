@@ -7,6 +7,7 @@ import {
   moreSectionsFor,
   navSectionsFor,
   visibleChildrenFor,
+  fundSegFromPath,
   type NavItem,
 } from '@/components/app-sidebar'
 import type { Domain } from '@/lib/access/domains'
@@ -171,8 +172,16 @@ describe('visibleChildrenFor', () => {
     expect(hrefs).not.toContain('/lps/preview')
   })
 
-  it('builds the Funds sub-pages fund-first, and offers none until a fund is known', () => {
-    expect(visibleChildrenFor(section('/funds'), true, allowAll, { fundSeg: null })).toEqual([])
+  it('builds the Funds sub-pages firm-wide until the URL is inside a fund, then fund-first', () => {
+    // Outside a fund: every child is the firm-wide landing for its section (/funds/journal lists
+    // every entity and asks which one), and there is no Overview — there is no fund to overview.
+    // It used to offer nothing here and fall back to the browser's last vehicle, which after a
+    // visit to a management company was that manco.
+    const firmWide = visibleChildrenFor(section('/funds'), true, allowAll, { fundSeg: null })
+    expect(firmWide.length).toBeGreaterThan(0)
+    expect(firmWide.map(c => c.label)).not.toContain('Overview')
+    for (const child of firmWide) expect(child.href).toMatch(/^\/funds\/[a-z-]+$/)
+    expect(firmWide.map(c => c.href)).toContain('/funds/journal')
 
     const children = visibleChildrenFor(section('/funds'), true, allowAll, { fundSeg: 'abc' })
     expect(children[0]).toMatchObject({ href: '/funds/abc', label: 'Overview', exact: true })
@@ -181,10 +190,44 @@ describe('visibleChildrenFor', () => {
     for (const child of children.slice(1)) expect(child.href.startsWith('/funds/abc/')).toBe(true)
   })
 
+  it('applies a vehicle kind only inside that vehicle — the firm-wide list shows every section', () => {
+    // An individual has no capital accounts page, so inside one the child is gone…
+    const inside = visibleChildrenFor(section('/funds'), true, allowAll, { fundSeg: 'abc', kind: 'individual' }).map(c => c.label)
+    expect(inside).not.toContain('Capital accounts')
+    // …but a stale kind in context must not trim the firm-wide list, which spans every kind.
+    const firmWide = visibleChildrenFor(section('/funds'), true, allowAll, { fundSeg: null, kind: 'individual' }).map(c => c.label)
+    expect(firmWide).toContain('Capital accounts')
+  })
+
   it('offers the fund-of-funds pages only once the fund holds a fund', () => {
     const without = visibleChildrenFor(section('/dashboard'), true, allowAll).map(c => c.href)
     const with_ = visibleChildrenFor(section('/dashboard'), true, allowAll, { fofActive: true }).map(c => c.href)
     expect(without).not.toContain('/fund-holdings')
     expect(with_).toContain('/fund-holdings')
+  })
+})
+
+/**
+ * Which fund the Funds subnav points at is read from the URL and nowhere else.
+ *
+ * The bug this pins: the segment used to fall back to whichever vehicle was last in context, and
+ * every entity page pins its own entity there — so after opening a management company, the subnav
+ * built its links for the manco and "Entities → Bank" opened the manco's bank page.
+ */
+describe('fundSegFromPath', () => {
+  const id = '11111111-2222-3333-4444-555555555555'
+
+  it('takes the fund from a fund URL', () => {
+    expect(fundSegFromPath(`/funds/${id}`)).toBe(id)
+    expect(fundSegFromPath(`/funds/${id}/bank`)).toBe(id)
+  })
+
+  it('finds no fund on a firm-wide page, the overview, or a management company', () => {
+    expect(fundSegFromPath('/funds')).toBeNull()
+    expect(fundSegFromPath('/funds/journal')).toBeNull()
+    expect(fundSegFromPath('/funds/status')).toBeNull()
+    // Every entity lives under /funds now; /manco is a redirect and names no fund.
+    expect(fundSegFromPath(`/manco/${id}/journal`)).toBeNull()
+    expect(fundSegFromPath('/dashboard')).toBeNull()
   })
 })
