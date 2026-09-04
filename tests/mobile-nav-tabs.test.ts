@@ -8,6 +8,7 @@ import {
   navSectionsFor,
   visibleChildrenFor,
   fundSegFromPath,
+  mancoSegFromPath,
   type NavItem,
 } from '@/components/app-sidebar'
 import type { Domain } from '@/lib/access/domains'
@@ -190,6 +191,27 @@ describe('visibleChildrenFor', () => {
     for (const child of children.slice(1)) expect(child.href.startsWith('/funds/abc/')).toBe(true)
   })
 
+  it('gives Management the same entity-first subnav once the URL names an entity', () => {
+    // The gap this closes: from /manco/<id>/journal the sidebar offered nothing, so the only way
+    // to that entity's other books was back out to its lead page and in through the Books card.
+    expect(visibleChildrenFor(section('/manco'), true, allowAll, { mancoSeg: null })).toEqual([])
+
+    const children = visibleChildrenFor(section('/manco'), true, allowAll, { mancoSeg: 'm1' })
+    expect(children[0]).toMatchObject({ href: '/manco/m1', label: 'Overview', exact: true })
+    for (const child of children.slice(1)) expect(child.href.startsWith('/manco/m1/')).toBe(true)
+    expect(children.map(c => c.label)).toContain('Journal')
+    // Pages a management company does not have never appear, whatever the fund's vehicles do.
+    expect(children.map(c => c.label)).not.toContain('Capital accounts')
+    expect(children.map(c => c.label)).not.toContain('Schedule of investments')
+  })
+
+  it('hides the manco books from someone who holds the manco grant but not accounting', () => {
+    // They render the shared accounting views and redirect without `accounting`, so offering
+    // them would be a link to a page whose every request 403s.
+    const children = visibleChildrenFor(section('/manco'), true, allowOnly('management_company'), { mancoSeg: 'm1' })
+    expect(children.map(c => c.href)).toEqual(['/manco/m1'])
+  })
+
   it('applies a vehicle kind only inside that vehicle — the firm-wide list shows every section', () => {
     // An individual has no capital accounts page, so inside one the child is gone…
     const inside = visibleChildrenFor(section('/funds'), true, allowAll, { fundSeg: 'abc', kind: 'individual' }).map(c => c.label)
@@ -228,5 +250,21 @@ describe('fundSegFromPath', () => {
     expect(fundSegFromPath('/funds/status')).toBeNull()
     expect(fundSegFromPath(`/manco/${id}/journal`)).toBeNull()
     expect(fundSegFromPath('/dashboard')).toBeNull()
+  })
+})
+
+describe('mancoSegFromPath', () => {
+  const id = '11111111-2222-3333-4444-555555555555'
+
+  it('takes the entity from a management-company URL', () => {
+    expect(mancoSegFromPath(`/manco/${id}`)).toBe(id)
+    expect(mancoSegFromPath(`/manco/${id}/journal`)).toBe(id)
+  })
+
+  it('finds no entity on the landing, a section slug, or a fund URL', () => {
+    expect(mancoSegFromPath('/manco')).toBeNull()
+    // /manco/journal is the firm-wide question, and redirects to /funds/journal to answer it.
+    expect(mancoSegFromPath('/manco/journal')).toBeNull()
+    expect(mancoSegFromPath(`/funds/${id}/journal`)).toBeNull()
   })
 })

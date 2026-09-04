@@ -1,7 +1,9 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
+import { redirect } from 'next/navigation'
 import { ArrowLeft } from 'lucide-react'
 import { requireMancoAccess } from '../guard'
+import { FUND_SUBPAGE_SLUGS } from '@/components/fund-subpages'
 import { resolveMancoParam } from './resolve'
 import { MancoDetailView } from './manco-detail-view'
 
@@ -23,6 +25,14 @@ export const metadata: Metadata = { title: 'Management company' }
 export default async function MancoDetailPage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params
   const { fundId } = await requireMancoAccess()
+
+  // A SECTION slug in the entity slot (/manco/journal) — a hand-built URL, or a link from before
+  // the section had a firm-wide landing. It asks "which entity's journal?", which is the question
+  // /funds/journal answers, and that page lists management companies alongside the funds. This
+  // does not weaken resolveMancoParam's 404 for a non-manco VEHICLE id: the slug set is static and
+  // says nothing about which vehicles this fund holds.
+  if (FUND_SUBPAGE_SLUGS.has(params.id)) redirect(`/funds/${params.id}`)
+
   const { vehicle, vehicleId, active } = await resolveMancoParam(fundId, params.id)
 
   return (

@@ -171,3 +171,12 @@ export function sectionForSlug(slug: string): AccountingSection | null {
  * Pinned by the page files under app/(app)/manco/[id]/.
  */
 export const MANCO_SECTION_SLUGS = new Set(['bank', 'journal', 'ledger', 'periods', 'statements', 'migrate'])
+
+/**
+ * The manco sections the NAV lists, in the order a fund lists them — the same objects, filtered,
+ * so a label or a domain is written once. `migrate` is deliberately absent for the same reason it
+ * is absent from a fund's subnav: importing a QuickBooks ledger happens once, at the start of an
+ * entity's life, so it is linked from the entity's lead page rather than sitting in the nav.
+ */
+export const MANCO_SECTIONS: AccountingSection[] =
+  ACCOUNTING_SECTIONS.filter(s => MANCO_SECTION_SLUGS.has(s.href.slice('/funds/'.length)))
