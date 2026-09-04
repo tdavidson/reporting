@@ -129,9 +129,10 @@ export const ACCOUNTING_SECTIONS: AccountingSection[] = [
     label: 'Portfolio construction',
     icon: Target,
     desc: 'How much investable capital is left, how many more deals fit, and what exit the portfolio needs to return the fund.',
-    // A fund-sized programme: an SPV holds one deal, a GP entity holds a fund, an individual
-    // has no reserve model to construct.
-    hideFor: ['individual', 'associate', 'spv', 'manco'],
+    // Any investing entity can forecast what its holdings have to return — an SPV's one deal, an
+    // individual's angel book, a GP entity's fund stake. Only a management company, which holds
+    // no portfolio at all, has nothing to construct.
+    hideFor: ['manco'],
   },
   {
     href: '/funds/statements',

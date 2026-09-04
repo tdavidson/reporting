@@ -15,10 +15,15 @@ import { AddVehicleButton } from '@/components/add-vehicle-button'
 //
 // This is what the separate "Firm overview" page used to be, and the reason it is no longer a page
 // of its own is that it turned out to be the landing for EVERY section. `/funds/journal` has to
-// answer "which vehicle's journal?", and the answer is a table of the vehicles — and once it is a
-// table of the vehicles, the useful columns are the same ones whatever section you came from:
-// closed through, drafts waiting, bank rows open, whether the trial balance ties. So one table,
-// with each row linking to the section you clicked, replaces a page nobody would go to on purpose.
+// answer "which vehicle's journal?", and the answer is a table of the vehicles.
+//
+// But it is one table, not one column set. Asked "which vehicle's journal?", the number that
+// decides is how many drafts are waiting; asked "which vehicle's bank?", it is how many rows are
+// unreconciled; asked "which schedule of investments?", it is what the vehicle holds. Showing all
+// nine columns everywhere made every section's landing identical, so the question you arrived with
+// was the one thing the page did not answer. COLUMNS below maps each section to the two or three
+// figures that answer it; the firm-wide Admin page (section null) keeps the full set, because
+// there the whole state of the books IS the question.
 //
 // Management companies are rows in it like anything else. They were a section of their own while
 // their pages were a parallel copy of the fund ones; the pages are shared now, so the only thing
@@ -30,6 +35,7 @@ interface Row {
   closedThrough: string | null; lastEntryDate: string | null
   postedEntries: number; draftEntries: number; openBankRows: number
   trialBalanced: boolean; totalDebits: number; empty: boolean
+  investmentsAtCost: number; investmentsAtValue: number
 }
 interface Overview { vehicles: Row[]; mancoOmitted: boolean }
 
@@ -53,6 +59,116 @@ function baseFor(r: { id: string | null; name: string; kind: string | null }): s
  */
 function hasSection(r: { kind: string | null }, section: string | null): boolean {
   return !section || hasSectionForKind(section, r.kind)
+}
+
+/** A row's link helper, closed over the row's base path and whether it can be linked at all. */
+type LinkCell = (label: string | number, href: string, warn?: boolean) => React.ReactNode
+
+interface Col {
+  key: string
+  label: string
+  align?: 'right'
+  cell: (r: Row, link: LinkCell, money: (n: number) => string) => React.ReactNode
+}
+
+const dash = <span className="text-muted-foreground">&mdash;</span>
+
+const CLOSED: Col = {
+  key: 'closed', label: 'Closed through',
+  cell: (r, link) => (r.closedThrough ? link(r.closedThrough, '/periods') : <span className="text-muted-foreground">Never</span>),
+}
+const LAST_ENTRY: Col = {
+  key: 'last', label: 'Last entry',
+  cell: r => <span className="text-muted-foreground">{r.lastEntryDate ?? '—'}</span>,
+}
+const POSTED: Col = { key: 'posted', label: 'Posted', align: 'right', cell: (r, link) => link(r.postedEntries, '/journal') }
+const DRAFTS: Col = {
+  key: 'drafts', label: 'Drafts', align: 'right',
+  cell: (r, link) => link(r.draftEntries, '/journal?status=draft', r.draftEntries > 0),
+}
+const BANK_OPEN: Col = {
+  key: 'bank', label: 'Bank open', align: 'right',
+  cell: (r, link) => link(r.openBankRows, '/bank', r.openBankRows > 0),
+}
+const TOTAL_DEBITS: Col = {
+  key: 'debits', label: 'Trial balance', align: 'right',
+  cell: (r, link, money) => (r.empty ? dash : link(money(r.totalDebits), '/statements')),
+}
+const TIES: Col = {
+  key: 'ties', label: 'Ties',
+  cell: r =>
+    r.empty
+      ? <span className="text-muted-foreground">Empty</span>
+      : r.trialBalanced
+        ? <span className="inline-flex items-center gap-1 text-success"><Check className="h-3.5 w-3.5" />Yes</span>
+        : <span className="inline-flex items-center gap-1 text-destructive"><AlertTriangle className="h-3.5 w-3.5" />No</span>,
+}
+const AT_COST: Col = {
+  key: 'cost', label: 'At cost', align: 'right',
+  cell: (r, link, money) => (r.empty ? dash : link(money(r.investmentsAtCost), '/schedule-of-investments')),
+}
+const AT_VALUE: Col = {
+  key: 'value', label: 'At value', align: 'right',
+  cell: (r, link, money) => (r.empty ? dash : link(money(r.investmentsAtValue), '/schedule-of-investments')),
+}
+
+/** The whole state of the books — the firm-wide Admin view, and the fallback for a section
+ *  with no figures of its own (allocation terms, opening balances, a migration). */
+const ALL: Col[] = [CLOSED, LAST_ENTRY, POSTED, DRAFTS, BANK_OPEN, TOTAL_DEBITS, TIES]
+
+/** The two or three figures that answer "which entity?" for each section. */
+const COLUMNS: Record<string, Col[]> = {
+  status: ALL,
+  journal: [DRAFTS, POSTED, LAST_ENTRY],
+  bank: [BANK_OPEN, LAST_ENTRY, CLOSED],
+  ledger: [POSTED, LAST_ENTRY, TOTAL_DEBITS],
+  text: [DRAFTS, POSTED, LAST_ENTRY],
+  periods: [CLOSED, DRAFTS, TIES],
+  statements: [CLOSED, TOTAL_DEBITS, TIES],
+  'capital-accounts': [CLOSED, LAST_ENTRY, POSTED],
+  'schedule-of-investments': [AT_COST, AT_VALUE, LAST_ENTRY],
+  construction: [AT_VALUE, AT_COST, CLOSED],
+  'fof-report': [AT_COST, AT_VALUE, CLOSED],
+  'fof-quarter': [CLOSED, AT_VALUE, LAST_ENTRY],
+  tax: [CLOSED, LAST_ENTRY, TIES],
+}
+
+/**
+ * The one-line summary above the table, counting what THIS section is waiting on. The firm-wide
+ * view counts everything, because there the question is whether the books are done at all.
+ */
+function summaryFor(section: string | null, rows: Row[]): string | null {
+  const live = rows.filter(r => !r.empty)
+  const n = (count: number, one: string, many: string) =>
+    count === 0 ? null : `${count} ${count === 1 ? 'entity' : 'entities'} ${count === 1 ? one : many}`
+  switch (section) {
+    case 'journal':
+    case 'text':
+      return n(live.filter(r => r.draftEntries > 0).length, 'has drafts waiting.', 'have drafts waiting.')
+        ?? 'No drafts waiting anywhere.'
+    case 'bank':
+      return n(live.filter(r => r.openBankRows > 0).length, 'has bank rows to reconcile.', 'have bank rows to reconcile.')
+        ?? 'Every bank row is reconciled.'
+    case 'periods':
+      return n(live.filter(r => !r.closedThrough).length, 'has never been closed.', 'have never been closed.')
+        ?? 'Every entity with postings has been closed at least once.'
+    case 'statements':
+    case 'ledger':
+      return n(live.filter(r => !r.trialBalanced).length, 'does not tie.', 'do not tie.')
+        ?? 'Every trial balance ties.'
+    case 'schedule-of-investments':
+    case 'construction':
+    case 'fof-report':
+    case 'fof-quarter':
+      return n(live.filter(r => r.investmentsAtValue !== 0).length, 'holds investments.', 'hold investments.')
+        ?? 'No entity carries an investment balance.'
+    default: {
+      const open = live.filter(r => r.draftEntries > 0 || r.openBankRows > 0 || !r.trialBalanced)
+      return open.length === 0
+        ? 'Nothing waiting: no drafts, no open bank rows, every trial balance ties.'
+        : `${open.length} of ${rows.length} entities have something waiting.`
+    }
+  }
 }
 
 export function FirmVehiclesTable({
@@ -127,6 +243,7 @@ export function FirmVehiclesTable({
       id: m.id, name: m.name, kind: 'manco',
       closedThrough: null, lastEntryDate: null, postedEntries: 0, draftEntries: 0, openBankRows: 0,
       trialBalanced: true, totalDebits: 0, empty: true,
+      investmentsAtCost: 0, investmentsAtValue: 0,
     })
   }
   const visible = rows.filter(r => hasSection(r, section))
@@ -143,8 +260,10 @@ export function FirmVehiclesTable({
     )
   }
 
-  const open = visible.filter(r => !r.empty && (r.draftEntries > 0 || r.openBankRows > 0 || !r.trialBalanced))
   const sectionLabel = section ? sectionForSlug(section)?.label ?? null : null
+  const cols = (section && COLUMNS[section]) || ALL
+  const summary = data ? summaryFor(section, visible) : null
+  const money = (n: number) => formatCurrencyFull(n, currency)
 
   return (
     <div className="space-y-4">
@@ -153,11 +272,7 @@ export function FirmVehiclesTable({
           {section
             ? <>Pick an entity to open its {sectionLabel ? sectionLabel.toLowerCase() : 'page'}. </>
             : null}
-          {!data
-            ? null
-            : open.length === 0
-              ? 'Nothing waiting: no drafts, no open bank rows, every trial balance ties.'
-              : `${open.length} of ${visible.length} entities have something waiting.`}
+          {summary}
           {data?.mancoOmitted && !canSeeManco && ' Management companies are not shown; that needs the management-company grant.'}
         </p>
         {addButton}
@@ -175,13 +290,9 @@ export function FirmVehiclesTable({
             <tr>
               <th className="text-left px-3 py-2 font-medium">Entity</th>
               <th className="text-left px-3 py-2 font-medium">Kind</th>
-              <th className="text-left px-3 py-2 font-medium">Closed through</th>
-              <th className="text-left px-3 py-2 font-medium">Last entry</th>
-              <th className="text-right px-3 py-2 font-medium">Posted</th>
-              <th className="text-right px-3 py-2 font-medium">Drafts</th>
-              <th className="text-right px-3 py-2 font-medium">Bank open</th>
-              <th className="text-right px-3 py-2 font-medium">Trial balance</th>
-              <th className="text-left px-3 py-2 font-medium">Ties</th>
+              {cols.map(c => (
+                <th key={c.key} className={`px-3 py-2 font-medium ${c.align === 'right' ? 'text-right' : 'text-left'}`}>{c.label}</th>
+              ))}
               <th className="px-3 py-2" />
             </tr>
           </thead>
@@ -214,19 +325,11 @@ export function FirmVehiclesTable({
                     )}
                   </td>
                   <td className="px-3 py-2 text-muted-foreground">{kindLabel(r.kind)}</td>
-                  <td className="px-3 py-2 tabular-nums">{r.closedThrough ? cell(r.closedThrough, '/periods') : <span className="text-muted-foreground">Never</span>}</td>
-                  <td className="px-3 py-2 tabular-nums text-muted-foreground">{r.lastEntryDate ?? '—'}</td>
-                  <td className="px-3 py-2 text-right tabular-nums">{cell(r.postedEntries, '/journal')}</td>
-                  <td className="px-3 py-2 text-right tabular-nums">{cell(r.draftEntries, '/journal?status=draft', r.draftEntries > 0)}</td>
-                  <td className="px-3 py-2 text-right tabular-nums">{cell(r.openBankRows, '/bank', r.openBankRows > 0)}</td>
-                  <td className="px-3 py-2 text-right tabular-nums">{r.empty ? <span className="text-muted-foreground">—</span> : cell(formatCurrencyFull(r.totalDebits, currency), '/statements')}</td>
-                  <td className="px-3 py-2">
-                    {r.empty
-                      ? <span className="text-muted-foreground">Empty</span>
-                      : r.trialBalanced
-                        ? <span className="inline-flex items-center gap-1 text-success"><Check className="h-3.5 w-3.5" />Yes</span>
-                        : <span className="inline-flex items-center gap-1 text-destructive"><AlertTriangle className="h-3.5 w-3.5" />No</span>}
-                  </td>
+                  {cols.map(c => (
+                    <td key={c.key} className={`px-3 py-2 tabular-nums ${c.align === 'right' ? 'text-right' : 'text-left'}`}>
+                      {c.cell(r, cell, money)}
+                    </td>
+                  ))}
                   <td className="px-3 py-2 text-right whitespace-nowrap">
                     {needsSetup ? (
                       <Button size="sm" onClick={() => setUp(m!)} disabled={busy === m!.id}>

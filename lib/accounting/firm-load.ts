@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { listVehiclesWithId, listMancoVehicles, loadPostedLedger } from './load'
-import { trialBalance } from './statements'
+import { trialBalance, scheduleOfInvestments } from './statements'
 import { ACTUAL_BOOK } from './books'
 import { MANCO_KIND } from '@/lib/vehicle-kinds'
 
@@ -25,6 +25,11 @@ export interface FirmVehicleRow {
   totalDebits: number
   /** Whether the vehicle has any postings at all. */
   empty: boolean
+  /** Investments at cost, from the ledger's investment control accounts. */
+  investmentsAtCost: number
+  /** Investments at carrying value — cost plus the mark plus FX. What the schedule of
+   *  investments reports and what portfolio construction plans against. */
+  investmentsAtValue: number
 }
 
 export interface FirmOverview {
@@ -48,6 +53,9 @@ export async function loadFirmOverview(
   const rows = await Promise.all(all.map(async v => {
     const ledger = await loadPostedLedger(admin, fundId, v.name)
     const tb = trialBalance(ledger.accounts, ledger.postings)
+    // Net assets are only used for the percent-of-net-assets column, which no consumer of this
+    // row reads, so 0 is passed rather than computing a balance sheet for every vehicle.
+    const soi = scheduleOfInvestments(ledger.accounts, ledger.postings, 0)
     // Per-vehicle counts read by id where the vehicle is registered; a legacy name-only vehicle
     // has nothing to count against, so its counts read zero and its ledger still loads by name.
     const counts = v.id ? await vehicleCounts(admin, fundId, v.id) : { closedThrough: null, lastEntryDate: null, posted: 0, drafts: 0, openBank: 0 }
@@ -61,6 +69,8 @@ export async function loadFirmOverview(
       trialBalanced: tb.balanced,
       totalDebits: tb.totalDebits,
       empty: ledger.postings.length === 0,
+      investmentsAtCost: soi.totalCost,
+      investmentsAtValue: soi.totalFairValue,
     }
   }))
 
