@@ -32,6 +32,8 @@ interface Entry {
   reference?: string | null
   reversed_by?: string | null
   posted_at?: string | null
+  adjusting?: boolean
+  book?: string
   journal_postings: Posting[]
 }
 
@@ -60,6 +62,10 @@ export function JournalView() {
   // 'all' means draft + posted, NOT literally everything — voided entries are discarded and
   // only come back when you ask for them by name. The API applies the same rule.
   const [status, setStatus] = useState<'all' | 'draft' | 'posted' | 'void'>('all')
+  // Which set of books: the ledger, or the book-to-tax adjusting entries the tax run wrote.
+  const [book, setBook] = useState<'actual' | 'tax'>('actual')
+  // Adjusting entries only — the AJE list a preparer asks for.
+  const [adjustingOnly, setAdjustingOnly] = useState(false)
   const [page, setPage] = useState(0)
   // `{ entryId: null }` = a new entry; readOnly = view a posted one without reverting it.
   const [editing, setEditing] = useState<{ entryId: string | null; readOnly?: boolean } | null>(null)
@@ -91,6 +97,8 @@ export function JournalView() {
     if (preset === 'custom') { if (start) qs.set('start', start); if (end) qs.set('end', end) }
     if (debounced) qs.set('q', debounced)
     if (status !== 'all') qs.set('status', status)
+    if (book === 'tax') qs.set('book', 'tax')
+    if (adjustingOnly) qs.set('adjusting', '1')
     lf(`/api/accounting/journal?${qs}`)
       // A failed request must NOT render as an empty journal. Swallowing the error into
       // `{ entries: [] }` made a hard backend failure look exactly like a fund with no
@@ -99,7 +107,7 @@ export function JournalView() {
       .then(d => { setEntries(Array.isArray(d.entries) ? d.entries : []); setTotal(d.total ?? 0) })
       .catch(e => { setEntries([]); setTotal(0); setError(e?.message ? `Could not load entries — ${e.message}` : 'Could not load entries') })
       .finally(() => setLoading(false))
-  }, [lf, preset, start, end, debounced, status, page])
+  }, [lf, preset, start, end, debounced, status, page, book, adjustingOnly])
   useEffect(() => { loadPage() }, [loadPage])
 
   const sel = useMemo(() => summarizeSelection(entries, selected), [entries, selected])
@@ -290,6 +298,20 @@ export function JournalView() {
           <option value="posted">Posted</option>
           <option value="void">Voided</option>
         </select>
+        <select
+          value={book}
+          onChange={e => { setBook(e.target.value as 'actual' | 'tax'); setPage(0); clearSelection() }}
+          aria-label="Book"
+          title="The ledger, or the book-to-tax adjusting entries the tax run wrote"
+          className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+        >
+          <option value="actual">Book</option>
+          <option value="tax">Tax book</option>
+        </select>
+        <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <input type="checkbox" checked={adjustingOnly} onChange={e => { setAdjustingOnly(e.target.checked); setPage(0) }} />
+          Adjusting only
+        </label>
         {error && <span className="text-sm text-warning">{error}</span>}
         <div className="ml-auto flex items-center gap-2">
           <DownloadMenu items={exports} label="Export" disabled={loading || (entries.length === 0 && total === 0)} />
@@ -425,6 +447,7 @@ export function JournalView() {
                       <span className={`mr-1 rounded px-1 py-0.5 align-middle font-sans text-[9px] font-medium uppercase tracking-wide ${statusCls}`}>{e.status}</span>{' '}
                       {e.reference && <span className="text-muted-foreground">#{e.reference} </span>}
                       <span>&quot;{narration}&quot;</span>
+                      {e.adjusting && <span className="ml-2 rounded bg-muted px-1 py-0.5 align-middle font-sans text-[9px] font-medium uppercase tracking-wide text-muted-foreground">adjusting</span>}
                       {e.reversed_by && <span className="ml-2 rounded bg-warning/15 px-1 py-0.5 align-middle font-sans text-[9px] font-medium uppercase tracking-wide text-warning">reversed</span>}
                       {reversalOf && <span className="ml-2 rounded bg-muted px-1 py-0.5 align-middle font-sans text-[9px] font-medium uppercase tracking-wide text-muted-foreground">reversal of {reversalOf.slice(0, 8)}</span>}
                     </div>
@@ -493,6 +516,7 @@ export function JournalView() {
         <EntryModal
           entryId={editing.entryId}
           readOnly={editing.readOnly}
+          book={book}
           onClose={() => setEditing(null)}
           onSaved={loadPage}
           onPosted={goToRegister}

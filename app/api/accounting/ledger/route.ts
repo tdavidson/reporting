@@ -8,6 +8,7 @@ import { resolveGroupOr400 } from '@/lib/accounting/http-vehicle'
 import { loadPostedLedger } from '@/lib/accounting/load'
 import { accountRegister, findAccount } from '@/lib/accounting/register'
 import { resolvePeriod, customPeriod, type PeriodPreset } from '@/lib/accounting/statement-period'
+import { booksForBasis, basisFromParam } from '@/lib/accounting/statement-package'
 
 // GET — one account's register for the vehicle: the balance carried in, every posted line in the
 // window with its counter-accounts and running balance, and the closing balance.
@@ -36,7 +37,10 @@ export async function GET(req: NextRequest) {
     ? resolvePeriod(preset, asOfDate)
     : customPeriod(sp.get('start'), sp.get('end') ?? asOf)
 
-  const { accounts, sourcedPostings } = await loadPostedLedger(admin, gate.fundId, group)
+  // ?basis=tax reads the ledger plus the book-to-tax overlay, as the statements do.
+  const { accounts, sourcedPostings } = await loadPostedLedger(
+    admin, gate.fundId, group, undefined, undefined, undefined, booksForBasis(basisFromParam(sp.get('basis'))),
+  )
   const chart = accounts
     .map(a => ({ id: a.id, code: a.code, name: a.name, type: a.type, subtype: a.subtype ?? null, lpEntityId: a.lpEntityId ?? null, companyId: a.companyId ?? null }))
     .sort((a, b) => a.code.localeCompare(b.code))

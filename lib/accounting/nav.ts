@@ -8,6 +8,7 @@ import {
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import type { Domain } from '@/lib/access/domains'
+import type { FeatureKey } from '@/lib/types/features'
 
 export interface AccountingSection {
   href: string
@@ -20,6 +21,8 @@ export interface AccountingSection {
    * member who reconciles the bank isn't thereby entitled to. Omitted = accounting.
    */
   domain?: Domain
+  /** A feature switch the page needs on top of its domain (tax reporting ships off). */
+  feature?: FeatureKey
   /** Only for a fund of funds — DERIVED from the data (at least one holding is a fund),
    *  never a setting. Consumers filter on it; see lib/portfolio/fof.ts. */
   requiresFof?: boolean
@@ -118,5 +121,12 @@ export const ACCOUNTING_SECTIONS: AccountingSection[] = [
     label: 'Financial statements',
     icon: FileText,
     desc: 'Balance sheet, income statement, statement of cash flows, and statement of changes in partners capital.',
+  },
+  {
+    href: '/funds/tax',
+    label: 'Tax',
+    icon: Landmark,
+    desc: 'The year’s book-to-tax adjustments, adjusting entries, K-1 package, partner tax forms, and the tax package for the preparer.',
+    feature: 'tax_reporting',
   },
 ]

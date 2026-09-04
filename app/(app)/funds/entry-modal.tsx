@@ -41,6 +41,7 @@ export function EntryModal({
   txnId,
   entryId,
   readOnly = false,
+  book = 'actual',
   onClose,
   onSaved,
   onPosted,
@@ -48,10 +49,13 @@ export function EntryModal({
   txnId?: string
   entryId?: string | null
   readOnly?: boolean
+  /** 'tax' opens a book-to-tax adjusting entry — read-only; the tax run writes those. */
+  book?: 'actual' | 'tax'
   onClose: () => void
   onSaved: () => void
   onPosted?: (info: { entryId: string; entryDate: string; accountCode: string | null }) => void
 }) {
+  const taxBook = book === 'tax'
   const lf = useLedgerFetch()
   const currency = useCurrency()
   const fmt = (v: number) => formatCurrencyPrice(v, currency)
@@ -72,8 +76,9 @@ export function EntryModal({
   // An accrual that should come back out next period: after posting, a reversal draft is
   // created on this date through the same `reverse` action a person would use.
   const [reversesOn, setReversesOn] = useState('')
+  const [adjusting, setAdjusting] = useState(false)
   const [lines, setLines] = useState<Line[]>([])
-  const [editable, setEditable] = useState(!readOnly)
+  const [editable, setEditable] = useState(!readOnly && !taxBook)
   const [meta, setMeta] = useState<Meta | null>(null)
   const [copyOf, setCopyOf] = useState<string | null>(null)
   // The Reverse control on a posted entry: a date, then a choice of draft or post.
@@ -81,7 +86,7 @@ export function EntryModal({
 
   useEffect(() => {
     Promise.all([
-      entryId ? lf(`/api/accounting/journal?id=${entryId}`).then(r => (r.ok ? r.json() : null)) : Promise.resolve(null),
+      entryId ? lf(`/api/accounting/journal?id=${entryId}${taxBook ? '&book=tax' : ''}`).then(r => (r.ok ? r.json() : null)) : Promise.resolve(null),
       lf('/api/accounting/chart').then(r => (r.ok ? r.json() : [])),
     ]).then(([entry, chart]) => {
       setAccounts(Array.isArray(chart) ? chart : [])
@@ -89,6 +94,7 @@ export function EntryModal({
         setDate(entry.entry_date ?? '')
         setMemo(entry.memo ?? '')
         setReference(entry.reference ?? '')
+        setAdjusting(entry.adjusting === true)
         setSourceType(entry.source_type || 'manual')
         setMeta({ status: entry.status, postedAt: entry.posted_at ?? null, sourceRef: entry.source_ref ?? null, reversedBy: entry.reversed_by ?? null })
         setLines((entry.journal_postings ?? []).map((p: PostingRow) => {
@@ -101,7 +107,7 @@ export function EntryModal({
         setLines([newLine(), newLine()])
       }
     }).finally(() => setLoading(false))
-  }, [lf, entryId])
+  }, [lf, entryId, taxBook])
 
   const isNew = !id
   const acctById = new Map(accounts.map(a => [a.id, a]))
@@ -141,7 +147,7 @@ export function EntryModal({
   async function save(thenPost: boolean) {
     setSaving(true); setError(null)
     const postings = lines.map(l => ({ accountId: l.accountId, amount: num(l.debit) > 0 ? num(l.debit) : -num(l.credit), lpEntityId: l.lpEntityId }))
-    const fields = { entryDate: date, memo, reference: reference.trim() || null, sourceType }
+    const fields = { entryDate: date, memo, reference: reference.trim() || null, sourceType, adjusting }
 
     // Create on first save; update thereafter. Always saved as a DRAFT first, so
     // posting is a separate, explicit step — same as every other path.
@@ -350,6 +356,14 @@ export function EntryModal({
               </tfoot>
             </table>
 
+            {(editable || adjusting) && (
+              <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                <input type="checkbox" checked={adjusting} disabled={!editable} onChange={e => setAdjusting(e.target.checked)} />
+                Adjusting entry
+                <span className="text-muted-foreground/70">— a period-end correction, listed on its own for the preparer</span>
+              </label>
+            )}
+
             {editable && (
               <label className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                 Reverses on
@@ -368,7 +382,12 @@ export function EntryModal({
             {/* Pinned footer — stays visible no matter how many lines the entry has;
                 the lines area above scrolls within the modal's max height. */}
             <div className="border-t p-4">
-              {editable ? (
+              {taxBook ? (
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-xs text-muted-foreground">A book-to-tax adjusting entry. The tax run writes and rewrites these; post the year again from the Tax page to change them.</span>
+                  <Button size="sm" variant="outline" onClick={onClose}>Close</Button>
+                </div>
+              ) : editable ? (
                 <div className="flex items-center justify-end gap-2">
                   {/* Only once the entry exists — an unsaved new one is discarded by Cancel.
                       Pushed to the far left so it can't be hit while reaching for Save. */}

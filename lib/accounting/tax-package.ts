@@ -23,8 +23,12 @@ export interface TaxPackageInputs {
   journalCsv: string
   quickbooksJournalCsv: string
   chartCsv: string
-  /** Book adjusting entries, once the journal can flag them (phase 4). Null omits the file. */
+  /** Entries flagged adjusting in the actual book. Null omits the file. */
   adjustingEntriesCsv: string | null
+  /** The trial balance on a tax basis — the ledger plus the book-to-tax overlay. Null omits it. */
+  taxBasisTrialBalanceCsv?: string | null
+  /** The book-to-tax adjusting entries themselves (the tax book). Null omits it. */
+  taxBookEntriesCsv?: string | null
   /** The finalised K-1 workbook for the year, when one exists and the caller may see it. */
   k1: { workbook: Buffer; version: number } | null
   /** Why the K-1 workbook is absent, for the README. */
@@ -51,7 +55,13 @@ export function taxPackageFiles(i: TaxPackageInputs): TaxPackageFile[] {
     { name: `journal-${y}-quickbooks.csv`, note: 'The same journal in the layout of QuickBooks’ Journal report, for loading into QuickBooks or any tool that reads it.', content: i.quickbooksJournalCsv },
   )
   if (i.adjustingEntriesCsv !== null) {
-    files.push({ name: `adjusting-entries-${y}.csv`, note: 'Entries flagged as adjusting, listed on their own.', content: i.adjustingEntriesCsv })
+    files.push({ name: `adjusting-entries-${y}.csv`, note: 'Entries flagged as adjusting in the books, listed on their own.', content: i.adjustingEntriesCsv })
+  }
+  if (i.taxBookEntriesCsv) {
+    files.push({ name: `book-to-tax-adjustments-${y}.csv`, note: 'The book-to-tax adjusting entries in the tax book: unrealized appreciation, carry accrued on unrealized gains, organizational and syndication costs.', content: i.taxBookEntriesCsv })
+  }
+  if (i.taxBasisTrialBalanceCsv) {
+    files.push({ name: `trial-balance-tax-basis-${y}.csv`, note: 'The trial balance on a tax basis — the ledger plus the book-to-tax adjustments — for Schedule L and M-1.', content: i.taxBasisTrialBalanceCsv })
   }
   files.push({ name: 'chart-of-accounts.csv', note: 'The chart: code, name, type, normal side, and the partner or company an account belongs to.', content: i.chartCsv })
   if (i.k1) {

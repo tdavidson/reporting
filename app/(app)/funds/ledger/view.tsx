@@ -39,6 +39,8 @@ export function LedgerView() {
   const [start, setStart] = useState(params.get('start') ?? '')
   const [end, setEnd] = useState(params.get('end') ?? '')
   const [highlight, setHighlight] = useState<string | null>(params.get('highlight'))
+  // Carried from a tax-basis statement link: the register then reads the ledger plus the overlay.
+  const basis = params.get('basis') === 'tax' ? 'tax' : 'book'
   const [data, setData] = useState<Data | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -50,12 +52,13 @@ export function LedgerView() {
     const qs = new URLSearchParams({ preset })
     if (preset === 'custom') { if (start) qs.set('start', start); if (end) qs.set('end', end) }
     if (accountRef) qs.set('account', accountRef)
+    if (basis === 'tax') qs.set('basis', 'tax')
     lf(`/api/accounting/ledger?${qs}`)
       .then(r => r.json().then(d => (r.ok ? d : Promise.reject(new Error(d?.error ?? `Request failed (${r.status})`)))))
       .then(setData)
       .catch(e => { setData(null); setError(e?.message ?? 'Could not load the register') })
       .finally(() => setLoading(false))
-  }, [lf, preset, start, end, accountRef, reloadKey])
+  }, [lf, preset, start, end, accountRef, reloadKey, basis])
 
   // Keep the URL in step with what is on screen, so the register can be bookmarked or sent.
   // Replace, not push: changing the account is not a page the back button should revisit.
@@ -65,9 +68,10 @@ export function LedgerView() {
     qs.set('preset', preset)
     if (preset === 'custom') { if (start) qs.set('start', start); if (end) qs.set('end', end) }
     if (highlight) qs.set('highlight', highlight)
+    if (basis === 'tax') qs.set('basis', 'tax')
     const next = `${pathname}?${qs}`
     if (typeof window !== 'undefined' && window.location.pathname + window.location.search !== next) router.replace(next, { scroll: false })
-  }, [accountRef, preset, start, end, highlight, pathname, router])
+  }, [accountRef, preset, start, end, highlight, basis, pathname, router])
 
   // Scroll the highlighted entry into view once its row exists.
   const highlightRef = useRef<HTMLTableRowElement>(null)
@@ -120,6 +124,7 @@ export function LedgerView() {
               </h2>
               <p className="text-xs text-muted-foreground">
                 {reg.account.type} · {reg.account.normalSide}-normal, so the balance rises on a {reg.account.normalSide}
+                {basis === 'tax' && <span className="ml-2 rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide">tax basis</span>}
                 {loading && <Loader2 className="ml-2 inline h-3 w-3 animate-spin" />}
               </p>
             </div>

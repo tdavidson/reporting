@@ -181,6 +181,7 @@ export async function persistEntry(
       // entries `close:<periodId>` so reopening can find and void exactly those.
       source_ref: entry.sourceRef ?? null,
       reference: entry.reference ?? null,
+      adjusting: entry.adjusting === true,
       status,
       book,
       created_by: userId,

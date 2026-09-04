@@ -7,7 +7,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Account, AccountType, Posting } from './types'
 import type { CapitalPosting } from './capital-account'
 import { vehicleIdByName, type VehicleIdMap } from './vehicle-id'
-import { ACTUAL_BOOK } from './books'
+import { ACTUAL_BOOK, type LedgerBook } from './books'
 import { MANCO_KIND } from '@/lib/vehicle-kinds'
 
 export type SourcedPosting = Posting & { sourceType: string | null; entryId: string; memo: string | null }
@@ -142,7 +142,13 @@ export async function loadPostedLedger(
   group: string,
   asOf?: string,
   idMap?: VehicleIdMap,
-  rows?: LedgerRows
+  rows?: LedgerRows,
+  /**
+   * Which books. The actual book alone by default — the answer every statement, close and
+   * reconciliation wants. `['actual', 'tax']` reads on a TAX BASIS: the real ledger plus the
+   * book-to-tax overlay, spliced here at read time, never stored. See books.ts.
+   */
+  books: LedgerBook[] = [ACTUAL_BOOK],
 ): Promise<LoadedLedger> {
   if (rows) return assembleLoadedLedger(fundId, rows)
   const vehicleId = await vehicleIdByName(admin, fundId, group, idMap)
@@ -153,11 +159,11 @@ export async function loadPostedLedger(
   const [acctRows, entryRows, postingRows] = await Promise.all([
     fetchAllRows((f, t) => admin.from('chart_of_accounts' as any).select('id, code, name, type, subtype, lp_entity_id, company_id').eq('fund_id', fundId).eq('vehicle_id', vehicleId).range(f, t)),
     fetchAllRows((f, t) => {
-      let q = admin.from('journal_entries' as any).select('id, source_type, status, entry_date, memo').eq('book', ACTUAL_BOOK).eq('fund_id', fundId).eq('vehicle_id', vehicleId).eq('status', 'posted')
+      let q = admin.from('journal_entries' as any).select('id, source_type, status, entry_date, memo').in('book', books).eq('fund_id', fundId).eq('vehicle_id', vehicleId).eq('status', 'posted')
       if (asOf) q = q.lte('entry_date', asOf)
       return q.range(f, t)
     }),
-    fetchAllRows((f, t) => admin.from('journal_postings' as any).select('journal_entry_id, account_id, amount, currency, lp_entity_id').eq('book', ACTUAL_BOOK).eq('fund_id', fundId).eq('vehicle_id', vehicleId).range(f, t)),
+    fetchAllRows((f, t) => admin.from('journal_postings' as any).select('journal_entry_id, account_id, amount, currency, lp_entity_id').in('book', books).eq('fund_id', fundId).eq('vehicle_id', vehicleId).range(f, t)),
   ])
   return assembleLoadedLedger(fundId, {
     acctRows: acctRows as any[],

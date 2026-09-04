@@ -39,6 +39,7 @@ export async function GET(req: NextRequest) {
     vehicle: group,
     currency,
     generatedAt: new Date().toISOString(),
+    basisNote: pkg.basis === 'tax' ? 'Tax basis' : null,
   })
   const pdf = await renderHtmlToPdf(html)
 

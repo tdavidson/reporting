@@ -32,6 +32,7 @@ export interface ExportEntry {
   sourceType: string | null
   sourceRef: string | null
   status: string
+  adjusting?: boolean
   postings: ExportPosting[]
 }
 
@@ -48,14 +49,14 @@ export const entryRef = (id: string) => id.slice(0, 8)
 
 const accountLabel = (p: ExportPosting) => `${p.accountCode} · ${p.accountName}`
 
-export const JOURNAL_HEADER = ['Date', 'Entry', 'Status', 'Source', 'Memo', 'Account', 'Account name', 'Debit', 'Credit', 'Currency']
+export const JOURNAL_HEADER = ['Date', 'Entry', 'Status', 'Adjusting', 'Source', 'Memo', 'Account', 'Account name', 'Debit', 'Credit', 'Currency']
 
 export function journalRows(entries: ExportEntry[]): Cell[][] {
   const rows: Cell[][] = [JOURNAL_HEADER]
   for (const e of sortEntries(entries)) {
     for (const p of e.postings) {
       rows.push([
-        e.entryDate, entryRef(e.id), e.status, e.sourceType ?? '', e.memo ?? '',
+        e.entryDate, entryRef(e.id), e.status, e.adjusting ? 'yes' : '', e.sourceType ?? '', e.memo ?? '',
         p.accountCode, p.accountName,
         p.amount > 0 ? p.amount : null,
         p.amount < 0 ? -p.amount : null,
@@ -63,6 +64,16 @@ export function journalRows(entries: ExportEntry[]): Cell[][] {
       ])
     }
   }
+  return rows
+}
+
+export const TRIAL_BALANCE_HEADER = ['Code', 'Account', 'Type', 'Debit', 'Credit']
+
+/** A trial balance as rows — the tax-basis one in the package is this over the spliced books. */
+export function trialBalanceRows(tb: { rows: { code: string; name: string; type: string; debit: number; credit: number }[]; totalDebits: number; totalCredits: number }): Cell[][] {
+  const rows: Cell[][] = [TRIAL_BALANCE_HEADER]
+  for (const r of tb.rows) rows.push([r.code, r.name, r.type, r.debit || null, r.credit || null])
+  rows.push(['', 'Totals', '', tb.totalDebits, tb.totalCredits])
   return rows
 }
 

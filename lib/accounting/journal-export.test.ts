@@ -28,8 +28,14 @@ describe('journalRows', () => {
     const rows = journalRows(entries)
     expect(rows[0][0]).toBe('Date')
     expect(rows.slice(1).map(r => r[0])).toEqual(['2025-01-15', '2025-01-15', '2025-01-15', '2025-03-31', '2025-03-31'])
-    expect(rows[1].slice(5, 9)).toEqual(['1000', 'Cash', 1000, null])
-    expect(rows[2].slice(7, 9)).toEqual([null, 600])
+    expect(rows[1].slice(6, 10)).toEqual(['1000', 'Cash', 1000, null])
+    expect(rows[2].slice(8, 10)).toEqual([null, 600])
+    expect(rows[1][3]).toBe('')
+  })
+
+  it('marks adjusting entries in their own column', () => {
+    const rows = journalRows([{ ...entries[0], adjusting: true }])
+    expect(rows[1][3]).toBe('yes')
   })
 })
 

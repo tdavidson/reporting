@@ -137,7 +137,7 @@ const NAV_ITEMS: NavItem[] = [
     // that turns it on to 'admin' still only shows it to admins). Hard-coding adminOnly
     // on top of that also hid it from the read-only demo viewer, who should see the books.
     href: '/funds', label: 'Funds', icon: BookOpen, featureKey: 'accounting',
-    children: ACCOUNTING_SECTIONS.map(({ href, label, domain, requiresFof }) => ({ href, label, domain, requiresFof })),
+    children: ACCOUNTING_SECTIONS.map(({ href, label, domain, requiresFof, feature }) => ({ href, label, domain, requiresFof, featureKey: feature })),
   },
   {
     // The firm's own operating entity, not an investment vehicle — so its own section rather than
@@ -261,6 +261,7 @@ export function fundsChildrenFor(fundSeg: string | null, fofActive: boolean): Na
       href: `/funds/${fundSeg}/${s.href.slice('/funds/'.length)}`,
       label: s.label,
       domain: s.domain,
+      featureKey: s.feature,
     })),
   ]
 }

@@ -28,6 +28,11 @@ describe('reversalOf', () => {
     expect(isBalanced(r)).toBe(true)
   })
 
+  it('keeps the adjusting flag, so the reversal lists with the adjustments', () => {
+    expect(reversalOf({ ...original, adjusting: true }, '2025-04-01').adjusting).toBe(true)
+    expect(reversalOf(original, '2025-04-01').adjusting).toBe(false)
+  })
+
   it('names the entry by id when it has no memo', () => {
     expect(reversalOf({ ...original, memo: '  ' }, '2025-04-01').memo).toBe('Reversal of entry abcdef12')
   })

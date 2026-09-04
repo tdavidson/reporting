@@ -35,6 +35,7 @@ export interface ReversibleEntry {
   memo?: string | null
   sourceType?: string | null
   reference?: string | null
+  adjusting?: boolean
   postings: Posting[]
 }
 
@@ -50,6 +51,8 @@ export function reversalOf(original: ReversibleEntry, reverseDate: string): Jour
     sourceType: original.sourceType ?? 'manual',
     sourceRef: reversalRef(original.id),
     reference: original.reference ?? null,
+    // The reversal of an adjusting entry is itself an adjustment — it belongs on the same list.
+    adjusting: original.adjusting === true,
     postings: original.postings.map(p => ({
       accountId: p.accountId,
       amount: roundCents(-p.amount),

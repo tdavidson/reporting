@@ -78,6 +78,7 @@ function coverSheet(pkg: StatementPackage, meta: WorkbookMeta): XLSX.WorkSheet {
     ['Accounting workpapers'],
     [],
     ['Vehicle', meta.vehicle],
+    ['Basis', pkg.basis === 'tax' ? 'Tax basis — the ledger plus the book-to-tax adjusting entries' : 'Book — the ledger as kept'],
     ['Period', payload.period.label],
     ['Period start', payload.period.start ?? 'inception'],
     ['Period end (as of)', payload.period.end ?? 'today'],

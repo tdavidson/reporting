@@ -13,7 +13,7 @@ import { closedPeriodRanges, dateInAnyClosedPeriod } from '@/lib/accounting/peri
 import { fundCurrency } from '@/lib/accounting/currency'
 import { resolvePeriod, customPeriod, type PeriodPreset } from '@/lib/accounting/statement-period'
 import type { JournalEntry, Posting } from '@/lib/accounting/types'
-import { ACTUAL_BOOK } from '@/lib/accounting/books'
+import { ACTUAL_BOOK, isLedgerBook, type LedgerBook } from '@/lib/accounting/books'
 import { reversalOf, reversalDateError } from '@/lib/accounting/reversal'
 
 // GET — the vehicle's journal entries with postings, or a single entry via ?id=.
@@ -28,10 +28,15 @@ export async function GET(req: NextRequest) {
   if (group instanceof NextResponse) return group
   const vehicleId = await vehicleIdByName(admin, gate.fundId, group)
 
+  // ?book=tax lists the book-to-tax adjusting entries instead of the ledger. Read-only from the
+  // journal's point of view: they are written and rewritten by the tax run (book-tax-run.ts).
+  const bookParam = req.nextUrl.searchParams.get('book')
+  const book: LedgerBook = isLedgerBook(bookParam) ? bookParam : ACTUAL_BOOK
+
   const base = admin
     .from('journal_entries' as any)
     .select('*, journal_postings(*)')
-    .eq('book', ACTUAL_BOOK)
+    .eq('book', book)
     .eq('fund_id', gate.fundId)
     .eq('vehicle_id', vehicleId)
 
@@ -59,6 +64,10 @@ export async function GET(req: NextRequest) {
     ? [statusParam as string]
     : ['draft', 'posted']
 
+  // ?adjusting=1 lists only entries flagged adjusting — the AJE list; ?adjusting=0 only the rest.
+  const adjParam = sp.get('adjusting')
+  const adjusting = adjParam === '1' || adjParam === 'true' ? true : adjParam === '0' || adjParam === 'false' ? false : null
+
   const { data, error } = await admin.rpc('journal_search' as any, {
     p_fund_id: gate.fundId,
     p_vehicle_id: vehicleId,
@@ -68,6 +77,8 @@ export async function GET(req: NextRequest) {
     p_statuses: statuses,
     p_limit: limit,
     p_offset: offset,
+    p_book: book,
+    p_adjusting: adjusting,
   })
   if (error) return dbError(error, 'accounting-journal')
   return NextResponse.json(data ?? { entries: [], total: 0 })
@@ -132,7 +143,8 @@ export async function PUT(req: NextRequest) {
   )
   if (insErr) return dbError(insErr, 'accounting-journal-update')
   if (oldIds.length) await admin.from('journal_postings' as any).delete().in('id', oldIds)
-  await admin.from('journal_entries' as any).update({ entry_date: newDate, memo: memo ?? null, source_type: sourceType, reference }).eq('id', id).eq('fund_id', gate.fundId)
+  const adjustingPatch = typeof body.adjusting === 'boolean' ? { adjusting: body.adjusting } : {}
+  await admin.from('journal_entries' as any).update({ entry_date: newDate, memo: memo ?? null, source_type: sourceType, reference, ...adjustingPatch }).eq('id', id).eq('fund_id', gate.fundId)
 
   const { data: full } = await admin.from('journal_entries' as any).select('*, journal_postings(*)').eq('id', id).eq('book', ACTUAL_BOOK).single()
   return NextResponse.json(full ?? { id })
@@ -165,7 +177,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Each posting needs an accountId and a numeric amount' }, { status: 400 })
   }
 
-  const entry: JournalEntry = { fundId: gate.fundId, entryDate, memo: memo ?? null, sourceType: sourceType ?? 'manual', sourceRef: sourceRef ?? null, reference, postings: normalized }
+  const entry: JournalEntry = { fundId: gate.fundId, entryDate, memo: memo ?? null, sourceType: sourceType ?? 'manual', sourceRef: sourceRef ?? null, reference, adjusting: body.adjusting === true, postings: normalized }
   const result = await persistEntry(admin, gate.fundId, group, user.id, entry, status === 'posted' ? 'posted' : 'draft')
   if ('error' in result) return NextResponse.json({ error: result.error }, { status: 400 })
 
@@ -201,7 +213,7 @@ export async function PATCH(req: NextRequest) {
 
   const { data: existing } = await admin
     .from('journal_entries' as any)
-    .select('id, status, entry_date, memo, source_type, reference, reversed_by')
+    .select('id, status, entry_date, memo, source_type, reference, reversed_by, adjusting')
     .eq('book', ACTUAL_BOOK)
     .eq('id', id).eq('fund_id', gate.fundId).eq('vehicle_id', vehicleId)
     .maybeSingle()
@@ -237,7 +249,7 @@ export async function PATCH(req: NextRequest) {
       .select('account_id, amount, currency, lp_entity_id')
       .eq('book', ACTUAL_BOOK).eq('journal_entry_id', id)
     const reversal = reversalOf({
-      id, fundId: gate.fundId, entryDate: ex.entry_date, memo: ex.memo, sourceType: ex.source_type, reference: ex.reference,
+      id, fundId: gate.fundId, entryDate: ex.entry_date, memo: ex.memo, sourceType: ex.source_type, reference: ex.reference, adjusting: ex.adjusting === true,
       postings: ((postingRows as any[]) ?? []).map(p => ({ accountId: p.account_id, amount: Number(p.amount), currency: p.currency ?? 'USD', lpEntityId: p.lp_entity_id ?? null })),
     }, reverseDate!)
     const reversalStatus = body.post === true ? 'posted' : 'draft'

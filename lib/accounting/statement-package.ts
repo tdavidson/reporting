@@ -24,6 +24,7 @@ import { computeCapitalAccounts, totalNav } from './capital-account'
 import { resolvePeriod, customPeriod, comparisonPeriods, type PeriodPreset, type StatementPeriod } from './statement-period'
 import { accountBalances, normalBalance } from './ledger'
 import type { Account } from './types'
+import { booksForBasis, basisFromParam, type StatementBasis } from './books'
 
 /** The JSON body the statements route returns — the on-screen statement set. */
 export interface StatementPayload {
@@ -63,7 +64,15 @@ export interface StatementPackage {
   allSourced?: SourcedPosting[]
   /** Prior-period payloads, most-recent-first, present only when ?compare= was passed. */
   comparisons?: StatementPayload[]
+  /**
+   * 'book' (the actual ledger — the default and every existing caller) or 'tax' (actual plus the
+   * book-to-tax overlay, read together). Stated on the workbook cover and the PDF header so a
+   * file never leaves without saying which basis it is on.
+   */
+  basis?: StatementBasis
 }
+
+export { booksForBasis, basisFromParam, type StatementBasis }
 
 export interface LedgerData {
   accounts: Account[]
@@ -98,13 +107,18 @@ export function earliestPostingDate(postings: { entryDate?: string | null }[]): 
 }
 
 /** One DB load, reused across every period window. */
-export async function loadLedgerData(admin: SupabaseClient, fundId: string, group: string): Promise<LedgerData> {
+export async function loadLedgerData(
+  admin: SupabaseClient,
+  fundId: string,
+  group: string,
+  opts: { basis?: StatementBasis } = {},
+): Promise<LedgerData> {
   const [
     { accounts, postings, capitalPostings, sourcedPostings }, names,
     { data: txns }, { data: companies }, fofRaw,
     { data: feedRows }, { data: obsRows },
   ] = await Promise.all([
-    loadPostedLedger(admin, fundId, group),
+    loadPostedLedger(admin, fundId, group, undefined, undefined, undefined, booksForBasis(opts.basis ?? 'book')),
     loadEntityNames(admin, fundId, group),
     admin.from('investment_transactions' as any).select('*').eq('fund_id', fundId).order('transaction_date', { ascending: true }),
     // Every holding, fund and company alike: both carry 1100/1200 balances, so the SOI's
@@ -217,7 +231,7 @@ export async function buildStatementPackage(
   group: string,
   sp: URLSearchParams,
 ): Promise<StatementPackage> {
-  const data = await loadLedgerData(admin, fundId, group)
+  const data = await loadLedgerData(admin, fundId, group, { basis: basisFromParam(sp.get('basis')) })
   return buildStatementPackageFromData(data, sp)
 }
 
@@ -243,7 +257,7 @@ export function buildStatementPackageFromData(data: LedgerData, sp: URLSearchPar
     comparisons = comparisonPeriods(period, count, data.earliest).map(p => computePayload(data, p))
   }
 
-  return { payload, accounts: data.accounts, inPeriodSourced, allSourced: data.sourcedPostings, comparisons }
+  return { payload, accounts: data.accounts, inPeriodSourced, allSourced: data.sourcedPostings, comparisons, basis: basisFromParam(sp.get('basis')) }
 }
 
 /**

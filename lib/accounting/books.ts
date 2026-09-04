@@ -26,3 +26,19 @@ export const ACTUAL_BOOK: LedgerBook = 'actual'
 export function isLedgerBook(v: unknown): v is LedgerBook {
   return typeof v === 'string' && (LEDGER_BOOKS as string[]).includes(v)
 }
+
+/**
+ * The basis a statement is read on. 'book' is the actual ledger — the default, and what every
+ * caller that does not ask gets. 'tax' is the actual ledger PLUS the tax overlay, read together
+ * and spliced at read time; the overlay alone is never a basis, because it holds differences,
+ * not a ledger.
+ */
+export type StatementBasis = 'book' | 'tax'
+
+export function booksForBasis(basis: StatementBasis): LedgerBook[] {
+  return basis === 'tax' ? ['actual', 'tax'] : [ACTUAL_BOOK]
+}
+
+export function basisFromParam(v: string | null | undefined): StatementBasis {
+  return v === 'tax' ? 'tax' : 'book'
+}

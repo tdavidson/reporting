@@ -47,6 +47,8 @@ export interface JournalEntry {
   sourceRef?: string | null
   /** The person's own reference — a check number, an invoice, a notice. Free text. */
   reference?: string | null
+  /** An adjusting entry: a period-end correction, listed on its own for the preparer. */
+  adjusting?: boolean
   status?: EntryStatus
   postings: Posting[]
 }

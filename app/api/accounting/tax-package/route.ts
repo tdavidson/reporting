@@ -11,7 +11,7 @@ import { loadLedgerData, buildStatementPackageFromData } from '@/lib/accounting/
 import { buildStatementWorkbook } from '@/lib/accounting/statement-workbook'
 import { buildStatementsHtml } from '@/lib/accounting/statements-pdf'
 import { loadJournalForExport, loadChartForExport } from '@/lib/accounting/journal-export-load'
-import { journalRows, quickbooksJournalRows, chartRows, generalLedgerRows } from '@/lib/accounting/journal-export'
+import { journalRows, quickbooksJournalRows, chartRows, generalLedgerRows, trialBalanceRows } from '@/lib/accounting/journal-export'
 import { toCsv } from '@/lib/accounting/csv'
 import { buildTaxPackageZip, taxPackageFileName, type TaxPackageInputs } from '@/lib/accounting/tax-package'
 import { fundCurrency } from '@/lib/accounting/currency'
@@ -53,11 +53,14 @@ export async function GET(req: NextRequest) {
   const end = `${year}-12-31`
   const generatedAt = new Date().toISOString()
 
-  const [data, { data: fund }, currency, entries, chart, closed, vehicleId] = await Promise.all([
+  const [data, taxData, { data: fund }, currency, entries, taxEntries, chart, closed, vehicleId] = await Promise.all([
     loadLedgerData(admin, gate.fundId, group),
+    // The same ledger read on a tax basis — the overlay spliced in — for the tax-basis trial balance.
+    loadLedgerData(admin, gate.fundId, group, { basis: 'tax' }),
     admin.from('funds').select('name').eq('id', gate.fundId).maybeSingle() as unknown as Promise<{ data: { name: string } | null }>,
     fundCurrency(admin, gate.fundId),
     loadJournalForExport(admin, gate.fundId, group, { start, end, statuses: ['posted'] }),
+    loadJournalForExport(admin, gate.fundId, group, { start, end, statuses: ['posted'], book: 'tax' }),
     loadChartForExport(admin, gate.fundId, group),
     closedPeriodRanges(admin, gate.fundId, group),
     vehicleIdByName(admin, gate.fundId, group),
@@ -107,7 +110,13 @@ export async function GET(req: NextRequest) {
     journalCsv: toCsv(journalRows(entries)),
     quickbooksJournalCsv: toCsv(quickbooksJournalRows(entries)),
     chartCsv: toCsv(chartRows(chart)),
-    adjustingEntriesCsv: null,
+    // The AJE list: what was flagged adjusting in the books. Present even when empty — a
+    // preparer reads "no adjusting entries" from an empty file, not from a missing one.
+    adjustingEntriesCsv: toCsv(journalRows(entries.filter(e => e.adjusting))),
+    taxBookEntriesCsv: taxEntries.length > 0 ? toCsv(journalRows(taxEntries)) : null,
+    taxBasisTrialBalanceCsv: taxEntries.length > 0
+      ? toCsv(trialBalanceRows(buildStatementPackageFromData(taxData, new URLSearchParams({ start, end, basis: 'tax' })).payload.trialBalance))
+      : null,
     k1, k1Omitted,
   })
 

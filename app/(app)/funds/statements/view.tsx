@@ -86,6 +86,9 @@ export function StatementsView() {
   // The statements are the figures; the trial balance is the working paper behind them. Same
   // package, same period controls — a second lens on it, not a second fetch.
   const [view, setView] = useState<'statements' | 'trial-balance'>('statements')
+  // Book: the ledger as kept. Tax: the ledger plus the book-to-tax adjusting entries, read
+  // together — what Schedule L and M-1 reconcile to. Every fetch and every download carries it.
+  const [basis, setBasis] = useState<'book' | 'tax'>('book')
 
   // Every coded line links to its account's register over the same window, so a figure on a
   // statement is one click from the postings behind it. The register's closing balance for the
@@ -94,6 +97,7 @@ export function StatementsView() {
     if (!base || !code) return null
     const qs = new URLSearchParams({ account: code, preset })
     if (preset === 'custom') { if (start) qs.set('start', start); if (end) qs.set('end', end) }
+    if (basis === 'tax') qs.set('basis', 'tax')
     return `${base}/ledger?${qs}`
   }
 
@@ -106,6 +110,7 @@ export function StatementsView() {
   }
   if (group) exportQs.set('group', group)
   if (compare !== '0') exportQs.set('compare', compare)
+  if (basis === 'tax') exportQs.set('basis', 'tax')
   const canExport = !loading && !!data && data.trialBalance.rows.length > 0
   // The journal and chart exports take the window but not the comparison.
   const windowQs = new URLSearchParams(exportQs)
@@ -126,11 +131,12 @@ export function StatementsView() {
       if (end) qs.set('end', end)
     }
     if (compare !== '0') qs.set('compare', compare)
+    if (basis === 'tax') qs.set('basis', 'tax')
     lf(`/api/accounting/statements?${qs}`)
       .then(r => (r.ok ? r.json() : null))
       .then(setData)
       .finally(() => setLoading(false))
-  }, [lf, preset, start, end, compare])
+  }, [lf, preset, start, end, compare, basis])
 
   // Comparisons arrive most-recent-first and exclude the primary, so most-recent-first
   // columns = [primary, ...comparisons]; oldest-first is that reversed.
@@ -239,6 +245,17 @@ export function StatementsView() {
             Trial balance
           </button>
         </div>
+
+        <select
+          value={basis}
+          onChange={e => setBasis(e.target.value as 'book' | 'tax')}
+          aria-label="Basis"
+          title="Book: the ledger as kept. Tax basis: the ledger plus the book-to-tax adjusting entries."
+          className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+        >
+          <option value="book">Book basis</option>
+          <option value="tax">Tax basis</option>
+        </select>
 
         <div className="ml-auto flex flex-wrap items-center gap-2">
           <PeriodPicker

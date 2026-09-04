@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { fetchAllRows } from './load'
 import { vehicleIdByName } from './vehicle-id'
-import { ACTUAL_BOOK } from './books'
+import { ACTUAL_BOOK, type LedgerBook } from './books'
 import type { ExportEntry } from './journal-export'
 import type { ChartExportAccount } from './journal-export'
 import type { AccountType } from './types'
@@ -17,15 +17,15 @@ export async function loadJournalForExport(
   admin: SupabaseClient,
   fundId: string,
   group: string,
-  opts: { start?: string | null; end?: string | null; statuses?: string[] } = {},
+  opts: { start?: string | null; end?: string | null; statuses?: string[]; adjusting?: boolean; book?: LedgerBook } = {},
 ): Promise<ExportEntry[]> {
   const vehicleId = await vehicleIdByName(admin, fundId, group)
   const statuses = opts.statuses?.length ? opts.statuses : ['posted']
   const rows = await fetchAllRows<any>((f, t) => {
     let q = admin
       .from('journal_entries' as any)
-      .select('id, entry_date, memo, source_type, source_ref, status, journal_postings(id, account_id, amount, currency, chart_of_accounts(code, name))')
-      .eq('book', ACTUAL_BOOK)
+      .select('id, entry_date, memo, source_type, source_ref, status, adjusting, journal_postings(id, account_id, amount, currency, chart_of_accounts(code, name))')
+      .eq('book', opts.book ?? ACTUAL_BOOK)
       .eq('fund_id', fundId)
       .eq('vehicle_id', vehicleId)
       .in('status', statuses)
@@ -33,6 +33,7 @@ export async function loadJournalForExport(
       .order('id', { ascending: true })
     if (opts.start) q = q.gte('entry_date', opts.start)
     if (opts.end) q = q.lte('entry_date', opts.end)
+    if (opts.adjusting !== undefined) q = q.eq('adjusting', opts.adjusting)
     return q.range(f, t)
   })
   return rows.map(r => ({
@@ -42,6 +43,7 @@ export async function loadJournalForExport(
     sourceType: r.source_type ?? null,
     sourceRef: r.source_ref ?? null,
     status: r.status,
+    adjusting: r.adjusting === true,
     postings: ((r.journal_postings as any[]) ?? [])
       .slice()
       .sort((a, b) => String(a.id).localeCompare(String(b.id)))
