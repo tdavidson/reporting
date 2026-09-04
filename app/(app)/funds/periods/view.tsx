@@ -36,6 +36,8 @@ interface Preview {
   months: MonthPreview[]
   totalNetIncome: number
   basis: string
+  /** 'owner' for a management company or an individual: net income to one equity account, no split. */
+  mode?: 'partners' | 'owner'
   readiness: Readiness
   warnings: string[]
 }
@@ -165,8 +167,10 @@ export function PeriodsView() {
               across {preview.months.length} month{preview.months.length === 1 ? '' : 's'}
             </p>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Split pro-rata by {preview.basis === 'capital_balance' ? 'capital-account balance' : 'commitment'} as of each month end.
-              Nothing is posted until you confirm.
+              {preview.mode === 'owner'
+                ? 'Rolled into the owner’s capital account — no partners, nothing to split.'
+                : `Split pro-rata by ${preview.basis === 'capital_balance' ? 'capital-account balance' : 'commitment'} as of each month end.`}
+              {' '}Nothing is posted until you confirm.
             </p>
           </div>
 
@@ -201,7 +205,7 @@ export function PeriodsView() {
                     <span className="tabular-nums text-xs">{fmt(cat.capitalEffect)}</span>
                   </div>
                   <p className="text-[11px] text-muted-foreground mt-0.5">
-                    {cat.accounts.map(a => `${a.code} ${a.name}`).join(', ')} · {cat.lines.filter(l => l.amount !== 0).length} partners
+                    {cat.accounts.map(a => `${a.code} ${a.name}`).join(', ')} · {preview.mode === 'owner' ? 'to the owner’s capital' : `${cat.lines.filter(l => l.amount !== 0).length} partners`}
                   </p>
                 </div>
               ))}

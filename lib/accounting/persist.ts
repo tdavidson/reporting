@@ -180,6 +180,9 @@ export async function persistEntry(
       // Ties an entry back to what produced it — the period close tags its allocation
       // entries `close:<periodId>` so reopening can find and void exactly those.
       source_ref: entry.sourceRef ?? null,
+      reference: entry.reference ?? null,
+      adjusting: entry.adjusting === true,
+      vendor_id: entry.vendorId ?? null,
       status,
       book,
       created_by: userId,

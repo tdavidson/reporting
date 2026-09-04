@@ -66,8 +66,8 @@ Best when volume is low and you want a complete, auditable trail.
    **Match call** if you already recorded it. Post the drafts.
 4. **Book the investment purchase** on the **Plain text** page (rare, so it's a text entry):
    `Dr Assets:Investments-At-Cost:1100 / Cr Assets:Cash:1000`.
-5. Record each periodic mark: **Allocations → Revalue investment** (enter the new fair value; the
-   unrealized change allocates per LP and moves NAV).
+5. Record each periodic mark: **Journal → New entry → Revalue investment** (enter the new fair
+   value; the delta is booked as unrealized, and the close allocates it per LP and moves NAV).
 6. **Reconcile** → *Load from LP snapshot* to prefill the answer-key from `lp_investments`, then
    reconcile the ledger capital accounts against it. Use the statements **As of** control to tie out
    at each historical date.
@@ -95,10 +95,11 @@ Greenfield: no history to reconstruct — you're the book of record from first c
    Set the vehicle's economics on its admin status page (**Funds → the vehicle → Status**, `/funds/[id]/status`): vintage on the vehicle record, plus carry terms (rate, preferred return, catch-up, and the receiving GP entity) and allocation terms (each partner's commitment, including the GP's, and who bears fees, expenses, and carry).
 2. Pick the new vehicle → Accounting → home → **Seed the chart of accounts**.
 3. Book from **first close forward**:
-   - **Capital call**: import the wire from the bank feed and *Book as call*, or use
-     **Allocations → (record the call)** — either way it's `Dr Cash / Cr each LP capital`.
-   - **Investment purchase**: Plain text (`Dr 1100 / Cr 1000`).
-   - **Management fee / expenses / gains**: Allocations actions as they occur.
+   - **Capital call**: issue it from **Capital accounts**, then match the wire from the bank feed
+     — it ends as `Dr Cash / Cr each LP capital`.
+   - **Investment purchase**: Plain text (`Dr 1100 / Cr 1000`), or a plain entry in the journal.
+   - **Management fee / expenses / gains**: **Journal → New entry** (Management fee, Partnership
+     expense, Realized gain) as they occur — each shows the entry before it is written.
    - **Revalue** at each reporting date.
 4. Reconcile cash against the bank feed; close & lock each period.
 
@@ -118,14 +119,50 @@ Everything is per-vehicle from there, so the same company can run an SPV and a f
 
 # Going live & keeping the books
 
-- **Period close (P&L):** Allocations → **Close period** zeroes income/expense into the
-  undistributed-earnings bridge. (Capital accounts are already current.)
+- **Period close (P&L):** **Period close** allocates each month's income and expenses to the
+  partners' capital accounts through the undistributed-earnings bridge, with a preview first.
+- **Correct a posted entry:** open it in the Journal and **Reverse** it — a dated contra-entry
+  lands as a draft, the original stays posted, and the pair nets to zero from that date. Void is
+  for drafts and same-day slips; a reversal is what a preparer expects to see. An accrual can be
+  given a *Reverses on* date when it is entered, and the reversal draft is created for you.
 - **Lock the period:** **Periods** → *Close & lock* the date range. This snapshots the whole ledger
   as plain-text double-entry (the audit record) and **blocks any new posting dated inside the range**
   until you reopen it.
 - **Amend a closed period:** Periods → *Reopen*, post the fix, close & lock again.
 - **Statements at any date:** the **Financial statements** page has an *As of* control so every
   statement can be viewed at a chosen date.
+
+---
+
+# Individuals
+
+An **individual** (`kind = 'individual'`) is a person investing for their own account, or the
+single-member LLC they do it through — an angel. For tax the LLC is disregarded, so the two keep
+the same books.
+
+The investment side of those books is a fund's, code for code: per-company cost and unrealized
+accounts under 1100/1200, marks, the schedule of investments, realized gains by lot. What differs
+is the equity and the expenses:
+
+- **Equity is one owner.** 3000 Owner's capital and 3100 Owner's draws. No GP, no LPs, no
+  commitments, no allocation terms. The pages that exist for partners — Capital accounts,
+  Portfolio construction, the fund-of-funds pages — are hidden.
+- **Expenses are the preparer's lines.** Investment expenses, professional fees, software,
+  travel, home office, dues, education, interest, other — the categories a personal return asks
+  about, so the year-end export keys onto the schedule instead of being reclassified by hand.
+- **The close rolls into owner's capital.** See below. The Tax page's *Realized gains by lot* is
+  the Schedule D and Form 8949 input; the tax package carries it as a CSV.
+
+## The owner's-equity close
+
+A fund's close allocates each P&L category across the partners by their basis. A management
+company and an individual have no partners: net income goes to **one equity account** — members'
+capital for a manco, owner's capital for an individual (both carry the subtype `members_capital`,
+which is how the close finds them) — and there is nothing to split. The close still posts one
+entry per category through the bridge (3200), tagged `close:<period>`, so reopening voids exactly
+those entries and the statement of operations keeps its lines. Carry, note interest on a fund's
+positions and associate economics do not apply and are not run. `lib/accounting/close-owner.ts`
+builds the entries; `closesToOwnerEquity` in `lib/vehicle-kinds.ts` decides which kinds take it.
 
 ---
 
@@ -319,10 +356,14 @@ that LP. In text they read `Equity:Partners-Capital-<Name>:3100-<id>`.
 ## Why the bridge (3200) exists
 
 Fees, expenses, and income need to be in **two** places: the **income statement** (as expense/income)
-*and* each LP's **capital account** (reducing/increasing it). A compound entry does both at once and
-parks the offset in **Undistributed earnings (3200)**. The **period close** later zeroes every
-income/expense account into 3200, netting it back to zero. So during a period both statements are
-correct; at close the temporary accounts flatten and only capital stands.
+*and* each LP's **capital account** (reducing/increasing it). The entry you book — by hand, from the
+journal's New entry menu, or from the bank feed — posts the **P&L side only** (`Dr 5000 / Cr 2100`
+for a fee). The **period close** then posts the capital side for every category in the month: it
+debits or credits each partner's capital account for their share and parks the offset in
+**Undistributed earnings (3200)**. During a period the income statement is right and the capital
+accounts lag by the unclosed month; at close they catch up, and the balance sheet's *unallocated
+earnings* line goes to zero. The T-accounts for entries 4–7 below show the whole economic picture,
+the P&L line and the capital lines together; the capital lines are the close's, not the entry's.
 
 ## Entry types
 

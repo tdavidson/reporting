@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
-import { Loader2, Check, AlertTriangle, Ban, Info, ChevronRight, SlidersHorizontal, Lock, Landmark, Plus, X, Pencil } from 'lucide-react'
+import { Loader2, Check, AlertTriangle, Ban, Info, ChevronRight, SlidersHorizontal, Lock, Landmark, Plus, X, Pencil, FileArchive } from 'lucide-react'
+import { TaxPackageLink } from '@/components/accounting/download-menu'
 import { useCurrency, formatCurrencyPrice } from '@/components/currency-context'
 import { useLedgerFetch, useFundSeg, useVehicle } from '@/components/accounting-vehicle'
 import { VehicleEditModal, type EditableVehicle } from '@/components/vehicle-edit-modal'
@@ -13,6 +14,8 @@ import { PriceFeedsPanel } from './price-feeds-panel'
 import { WalletsPanel } from './wallets-panel'
 import { CarryTerms } from '../allocation-terms/carry-terms'
 import { useCanRead } from '@/components/access-context'
+import { VEHICLE_KIND_LABELS } from '@/lib/vehicle-kinds'
+import { IntercompanyCard } from './intercompany-card'
 import { AllocationTermsView } from '../allocation-terms/view'
 import { CollapsibleSection } from '@/components/collapsible-section'
 import { ChartOfAccountsCard } from '@/components/accounting/chart-of-accounts-card'
@@ -50,6 +53,7 @@ export function StatusView() {
   const fmt = (v: number) => formatCurrencyPrice(v, currency)
   const lf = useLedgerFetch()
   const fundSeg = useFundSeg()
+  const { group } = useVehicle()
   // The status issues carry bare /funds/<page> hrefs (built server-side, where the URL's
   // vehicle id isn't known); rewrite them fund-first for the current vehicle.
   const fundHref = (href: string) => {
@@ -285,6 +289,19 @@ export function StatusView() {
         <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
       </Link>
 
+      {/* Charges between this vehicle and the firm's management company, seen from this side.
+          Renders nothing for a caller without the management-company grant or a firm without one. */}
+      <IntercompanyCard />
+
+      {/* The year's preparer bundle. Lives here beside the other once-a-year work; the same
+          control is in the statements page's Download menu. */}
+      <div className="flex items-start gap-3 rounded-card border p-3">
+        <FileArchive className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+        <div className="min-w-0 flex-1 -mx-2 -my-1.5">
+          <TaxPackageLink group={group} />
+        </div>
+      </div>
+
       {/* Deal-by-deal carry — a reference calculator for American vehicles. gp_economics, for the
           same reason as the carry terms above. Renders to nothing on other vehicles anyway. */}
       {canReadGpEconomics && <DealCarryCard />}
@@ -293,9 +310,9 @@ export function StatusView() {
   )
 }
 
-const KIND_LABELS: Record<string, string> = {
-  fund: 'Fund', spv: 'SPV', direct: 'Direct deal', associate: 'GP / associate entity', other: 'Other',
-}
+// The one vocabulary, from lib/vehicle-kinds.ts — this file used to keep its own copy, which is
+// how a kind added there (manco, then individual) rendered here as a raw string.
+const KIND_LABELS: Record<string, string> = VEHICLE_KIND_LABELS
 
 /**
  * The vehicle's own record — name, type, vintage year, aliases, active — editable in place. Reads

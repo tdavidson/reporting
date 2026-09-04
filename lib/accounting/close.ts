@@ -61,6 +61,10 @@ import { loadStrandedCapital } from './pooled-capital-check'
 import { roundCents } from './ledger'
 import type { Account, JournalEntry, Posting } from './types'
 import { ACTUAL_BOOK } from './books'
+import { closesToOwnerEquity } from '@/lib/vehicle-kinds'
+import { vehicleKindByName } from './vehicle-domain'
+import { ownerCloseEntries } from './close-owner'
+import { ownerNoun } from './vocab'
 
 /** The undistributed-earnings bridge. */
 const BRIDGE_CODE = '3200'
@@ -107,6 +111,13 @@ export interface ClosePreview {
   categories: CloseCategory[]
   /** Basis used to split each category across partners. */
   basis: AllocationBasis
+  /**
+   * 'partners' allocates each category across the partners by basis — a fund. 'owner' rolls net
+   * income into a single equity account with no allocation — a management company or an
+   * individual (lib/vehicle-kinds.ts closesToOwnerEquity). Categories carry no partner lines
+   * in owner mode.
+   */
+  mode: 'partners' | 'owner'
   warnings: string[]
 }
 
@@ -138,16 +149,22 @@ export async function previewClose(
     return { error: 'This period overlaps an already-closed period — reopen it first' }
   }
 
-  const [{ accounts, postings, capitalPostings }, owners, names, basis, terms, commitmentEvents] = await Promise.all([
+  const [{ accounts, postings, capitalPostings }, owners, names, basis, terms, commitmentEvents, kind] = await Promise.all([
     loadPostedLedger(admin, fundId, group),
     loadOwnership(admin, fundId, group),
     loadEntityNames(admin, fundId, group),
     loadAllocationBasis(admin, fundId, group),
     loadPartnerTerms(admin, fundId, group),
     loadCommitmentEvents(admin, fundId, group),
+    vehicleKindByName(admin, fundId, group),
   ])
 
   const warnings: string[] = []
+
+  // OWNER MODE. A management company or an individual has no partners: net income rolls into
+  // one equity account and there is nothing to split, so the partner basis below is not
+  // loaded into anything and its "nobody to allocate to" refusal does not apply.
+  const ownerMode = closesToOwnerEquity(kind)
 
   // The basis amount per partner, as of the PERIOD END — not today. Closing an old
   // period must use the commitments (or balances) that were in force then.
@@ -160,7 +177,7 @@ export async function previewClose(
     // resolveCommitmentMap's events-if-any-positive-else-scalar core, as of the period end.
     // Old periods must use the commitments in force THEN. Warn only when there is no event
     // history at all (migration not pushed), since we then silently rely on the scalar.
-    if (commitmentEvents.length === 0) {
+    if (commitmentEvents.length === 0 && !ownerMode) {
       warnings.push('No commitment history found — falling back to each partner’s current commitment. Push the commitment-events migration to allocate historical periods correctly.')
     }
     basisAmounts = Array.from(
@@ -168,8 +185,8 @@ export async function previewClose(
     ).map(([lpEntityId, commitment]) => ({ lpEntityId, basisAmount: commitment }))
   }
 
-  const eligible = basisAmounts.filter(b => b.basisAmount > 0)
-  if (eligible.length === 0) {
+  const eligible = ownerMode ? [] : basisAmounts.filter(b => b.basisAmount > 0)
+  if (!ownerMode && eligible.length === 0) {
     return { error: basis === 'capital_balance'
       ? 'No partner has a positive capital balance at the period end — nothing to allocate on'
       : 'No partners with a commitment — nothing to allocate to' }
@@ -198,19 +215,28 @@ export async function previewClose(
     const capitalEffect = roundCents(-debitSide)
     if (capitalEffect === 0) continue
 
-    // Terms are per CATEGORY: a partner excluded from management fee still bears its
-    // share of expenses and still receives its share of gains.
-    const weights = allocationWeights(eligible, terms, sourceType as AllocationCategory)
-    if (weights.length === 0) {
-      warnings.push(`No partner participates in ${CATEGORY_LABELS[sourceType] ?? sourceType} — it cannot be allocated and will be skipped.`)
-      continue
-    }
-    const excluded = eligible.length - weights.length
-    if (excluded > 0) {
-      warnings.push(`${excluded} partner(s) excluded from ${CATEGORY_LABELS[sourceType] ?? sourceType}; their share is redistributed across the rest.`)
+    // Owner mode: the category rolls into one equity account, no lines to split.
+    let lines: CloseCategory['lines'] = []
+    if (!ownerMode) {
+      // Terms are per CATEGORY: a partner excluded from management fee still bears its
+      // share of expenses and still receives its share of gains.
+      const weights = allocationWeights(eligible, terms, sourceType as AllocationCategory)
+      if (weights.length === 0) {
+        warnings.push(`No partner participates in ${CATEGORY_LABELS[sourceType] ?? sourceType} — it cannot be allocated and will be skipped.`)
+        continue
+      }
+      const excluded = eligible.length - weights.length
+      if (excluded > 0) {
+        warnings.push(`${excluded} partner(s) excluded from ${CATEGORY_LABELS[sourceType] ?? sourceType}; their share is redistributed across the rest.`)
+      }
+      const split = allocateAmount(capitalEffect, weights)
+      lines = Array.from(split.entries()).map(([lpEntityId, amount]) => ({
+        lpEntityId,
+        name: names.get(lpEntityId) ?? lpEntityId,
+        amount: roundCents(amount),
+      }))
     }
 
-    const split = allocateAmount(capitalEffect, weights)
     categories.push({
       sourceType,
       label: CATEGORY_LABELS[sourceType] ?? sourceType,
@@ -221,11 +247,7 @@ export async function previewClose(
           return { code: a.code, name: a.name, amount: roundCents(amount) }
         })
         .filter(a => a.amount !== 0),
-      lines: Array.from(split.entries()).map(([lpEntityId, amount]) => ({
-        lpEntityId,
-        name: names.get(lpEntityId) ?? lpEntityId,
-        amount: roundCents(amount),
-      })),
+      lines,
     })
   }
 
@@ -250,7 +272,7 @@ export async function previewClose(
     )
   }
 
-  return { periodStart, periodEnd, netIncome, categories, basis, warnings }
+  return { periodStart, periodEnd, netIncome, categories, basis, mode: ownerMode ? 'owner' : 'partners', warnings }
 }
 
 // ---------------------------------------------------------------------------
@@ -341,6 +363,8 @@ export interface CloseThroughPreview {
   months: ClosePreview[]
   totalNetIncome: number
   basis: AllocationBasis
+  /** See ClosePreview.mode. */
+  mode: 'partners' | 'owner'
   readiness: CloseReadiness
   warnings: string[]
 }
@@ -583,8 +607,10 @@ async function checkReadiness(
 
   // Capital stranded on the pooled account means the allocation has nowhere to land for
   // those partners: the close would compute each partner's share from capital balances that
-  // read 0, and lock the period on top of the result. Block, don't warn.
-  const stranded = await loadStrandedCapital(admin, fundId, group)
+  // read 0, and lock the period on top of the result. Block, don't warn. Not a question an
+  // owner's-equity vehicle can be asked — it has one equity account and no partners.
+  const kind = await vehicleKindByName(admin, fundId, group)
+  const stranded = closesToOwnerEquity(kind) ? { stranded: false, message: '' } : await loadStrandedCapital(admin, fundId, group)
   if (stranded.stranded) {
     blockers.push(
       `LP capital is not attributed to partner accounts. ${stranded.message} ` +
@@ -730,6 +756,7 @@ export async function previewCloseThrough(
     warnings.push('No P&L activity in this span — closing will lock the books without allocating anything.')
   }
   const basis = months[0]?.basis ?? 'commitment'
+  const mode = months[0]?.mode ?? 'partners'
   const readiness = await checkReadiness(admin, fundId, group, start, endDate)
 
   return {
@@ -738,6 +765,7 @@ export async function previewCloseThrough(
     months,
     totalNetIncome: roundCents(months.reduce((s, m) => s + m.netIncome, 0)),
     basis,
+    mode,
     readiness,
     warnings,
   }
@@ -857,10 +885,39 @@ export async function closePeriodWithAllocation(
     periodId = (periodRow as any).id
   }
   const sourceRef = `close:${periodId}`
+  const entryIds: string[] = []
+
+  // 2 (owner mode). One entry per category, net income to the single equity account — a
+  // management company's members' capital or an individual's owner's capital. No partner
+  // lines, no carry, no associate economics: none of those exist for these kinds.
+  if (preview.mode === 'owner') {
+    const { data: ownerAcct } = await admin
+      .from('chart_of_accounts' as any)
+      .select('id')
+      .eq('fund_id', fundId).eq('vehicle_id', vehicleId)
+      .eq('subtype', 'members_capital')
+      .maybeSingle()
+    if (!ownerAcct) {
+      await admin.from('fiscal_periods' as any).delete().eq('id', periodId).eq('fund_id', fundId)
+      return { error: "No owner's capital account (subtype members_capital) on this chart — seed the chart for this vehicle's kind first" }
+    }
+    const kind = await vehicleKindByName(admin, fundId, group)
+    const entries = ownerCloseEntries(preview.categories, {
+      fundId, bridgeId, ownerCapitalId: (ownerAcct as any).id, periodStart, periodEnd, sourceRef, label, ownerNoun: ownerNoun(kind),
+    })
+    for (const entry of entries) {
+      const result = await persistEntry(admin, fundId, group, userId, entry, 'posted')
+      if ('error' in result) {
+        await reopenPeriodWithReversal(admin, fundId, group, periodId)
+        await admin.from('fiscal_periods' as any).delete().eq('id', periodId).eq('fund_id', fundId)
+        return { error: `Close failed (${entry.memo}): ${result.error}` }
+      }
+      entryIds.push(result.entryId)
+    }
+  }
 
   // 2. Post one allocation entry per category, tagged so reopening can find them.
-  const entryIds: string[] = []
-  for (const cat of preview.categories) {
+  for (const cat of preview.mode === 'owner' ? [] : preview.categories) {
     const postings: Posting[] = [
       // The bridge takes the whole category; each partner takes their share.
       { accountId: bridgeId, amount: roundCents(cat.capitalEffect), currency: 'USD', lpEntityId: null },
@@ -914,7 +971,9 @@ export async function closePeriodWithAllocation(
   //
   // Without this, every LP's NAV overstates what they would actually receive by the GP's share
   // of the unrealized gain.
-  const carryResult = await accrueCarry(admin, fundId, group, userId, periodEnd, sourceRef)
+  const carryResult = preview.mode === 'owner'
+    ? { entryId: undefined as string | undefined }
+    : await accrueCarry(admin, fundId, group, userId, periodEnd, sourceRef)
   if ('error' in carryResult) {
     await reopenPeriodWithReversal(admin, fundId, group, periodId)
     await admin.from('fiscal_periods' as any).delete().eq('id', periodId).eq('fund_id', fundId)
@@ -928,7 +987,9 @@ export async function closePeriodWithAllocation(
   // each line filed into its matching capital-account bucket and allocated to members. Self-
   // contained: uses this close's own source_ref, reconciles to the served-fund target per line, and
   // reverses with the ordinary vehicle-scoped reopen. A no-op for a normal fund vehicle.
-  const earnedResult = await accrueAssociateEconomics(admin, fundId, group, userId, periodEnd, sourceRef)
+  const earnedResult = preview.mode === 'owner'
+    ? { entryIds: [] as string[] }
+    : await accrueAssociateEconomics(admin, fundId, group, userId, periodEnd, sourceRef)
   if ('error' in earnedResult) {
     await reopenPeriodWithReversal(admin, fundId, group, periodId)
     await admin.from('fiscal_periods' as any).delete().eq('id', periodId).eq('fund_id', fundId)

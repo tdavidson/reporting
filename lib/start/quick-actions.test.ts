@@ -13,10 +13,11 @@ describe('/start quick actions', () => {
     expect(ids).toEqual(['portfolio-quarter', 'portfolio-silent'])
   })
 
-  it('surfaces the accounting and LP questions once those grants exist', () => {
+  it('surfaces the LP question once that grant exists', () => {
+    // There is deliberately no accounting chip: the books are worked on their own pages, not
+    // asked about from the landing page, so the accounting grant alone adds nothing here.
     const ids = suggestedPrompts(only('read', 'portfolio', 'accounting', 'lp_capital')).map(p => p.id)
-    expect(ids).toContain('accounting-unreconciled')
-    expect(ids).toContain('lp-unfunded')
+    expect(ids).toEqual(['portfolio-quarter', 'portfolio-silent', 'lp-unfunded'])
   })
 
   it('shows nothing to a member with no grants at all', () => {

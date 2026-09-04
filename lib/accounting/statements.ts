@@ -122,12 +122,19 @@ export interface BalanceSheet {
  * the capital accounts yet — otherwise the balance sheet simply would not balance,
  * and `check` would silently carry the unclosed P&L.
  */
-export function balanceSheet(accounts: Account[], postings: Posting[]): BalanceSheet {
+export function balanceSheet(
+  accounts: Account[],
+  postings: Posting[],
+  /** The equity label — partners' capital for a fund, members' or owner's for the kinds without
+   *  partners (lib/accounting/vocab.ts). Defaults to the fund's, so every caller is unchanged. */
+  opts: { equityLabel?: string } = {},
+): BalanceSheet {
   const tb = trialBalance(accounts, postings)
   const assets = section('Assets', tb, 'asset')
   const liabilities = section('Liabilities', tb, 'liability')
+  const label = opts.equityLabel ?? "Partners' capital"
 
-  const capitalAccounts = section("Partners' capital", tb, 'equity')
+  const capitalAccounts = section(label, tb, 'equity')
   const income = section('Income', tb, 'income')
   const expenses = section('Expenses', tb, 'expense')
   const netIncome = r(income.total - expenses.total)
@@ -143,7 +150,7 @@ export function balanceSheet(accounts: Account[], postings: Posting[]): BalanceS
   // One line, no per-partner detail: that belongs in the statement of changes.
   const total = r(capitalAccounts.total + netIncome)
   const equity: StatementSection = {
-    label: "Partners' capital",
+    label,
     rows: [],
     total,
   }

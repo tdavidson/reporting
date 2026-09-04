@@ -43,7 +43,14 @@ export interface JournalEntry {
   entryDate: string
   memo?: string | null
   sourceType?: string | null
+  /** The system's tag — close:<period>, qb:<hash>, reversal:<entry>. Never typed by a person. */
   sourceRef?: string | null
+  /** The person's own reference — a check number, an invoice, a notice. Free text. */
+  reference?: string | null
+  /** An adjusting entry: a period-end correction, listed on its own for the preparer. */
+  adjusting?: boolean
+  /** The payee or biller — one per entry. Feeds the 1099 worksheet. */
+  vendorId?: string | null
   status?: EntryStatus
   postings: Posting[]
 }

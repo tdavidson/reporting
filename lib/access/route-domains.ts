@@ -87,7 +87,15 @@ export const ROUTE_DOMAINS: Record<string, RouteAccess> = {
   'api/accounting/journal': { domain: 'accounting' },
   'api/accounting/journal/bulk-post': { domain: 'accounting' },
   'api/accounting/journal/bulk-void': { domain: 'accounting' },
+  // The journal as a file (CSV, Excel, or QuickBooks' Journal layout) — a read of the same rows.
+  'api/accounting/journal/export': { domain: 'accounting' },
+  'api/accounting/chart/export': { domain: 'accounting' },
   'api/accounting/attribute-lp-capital': { domain: 'accounting' },
+  // The standard entries (fee, expense, gain, revalue, distribution, carry) from their inputs —
+  // the agent's allocation tool, reachable from the journal's New entry menu. POST → write.
+  'api/accounting/allocation': { domain: 'accounting' },
+  // The account register: the same posted ledger the statements read, one account at a time.
+  'api/accounting/ledger': { domain: 'accounting' },
   'api/accounting/ledger-text': { domain: 'accounting' },
   'api/accounting/opening-balances': { domain: 'accounting' },
   'api/accounting/periods': { domain: 'accounting' },
@@ -96,6 +104,18 @@ export const ROUTE_DOMAINS: Record<string, RouteAccess> = {
   // The Excel workpaper export ships the exact same computed package as the statements
   // route, so it carries the same domain (accounting implies lp_capital via DOMAIN_META).
   'api/accounting/statements/export': { domain: 'accounting' },
+  'api/accounting/statements/pdf': { domain: 'accounting' },
+  // Realized gains by lot — the Schedule D input; fund-level, no per-partner figure in it.
+  'api/accounting/realized-gains': { domain: 'accounting' },
+  // Vendors (the payee dimension) and cash paid per vendor — the 1099 worksheet.
+  'api/accounting/vendors': { domain: 'accounting' },
+  'api/accounting/vendor-payments': { domain: 'accounting' },
+  // Every entity's books at a glance: closed through, trial balance, drafts, unmatched bank rows.
+  // Management companies appear only for a caller holding that grant — checked in the handler.
+  'api/accounting/firm': { domain: 'accounting' },
+  // The year's preparer bundle. `accounting` opens it; the K-1 workbook inside is added only
+  // after refuseWithoutCarryAccess passes in the handler, since a K-1 package contains the carry.
+  'api/accounting/tax-package': { domain: 'accounting' },
   'api/accounting/status': { domain: 'accounting' },
   'api/accounting/vehicles': { domain: 'accounting' },
   'api/accounting/vehicle-index': { domain: 'accounting' },

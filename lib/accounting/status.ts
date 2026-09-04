@@ -12,6 +12,9 @@ import { loadHistoryMode, loadAllocationBasis, type HistoryMode, type Allocation
 import { loadCapitalSource, type CapitalSource } from './capital-source'
 import { nextCloseStart } from './close'
 import { vehicleIdByName } from './vehicle-id'
+import { vehicleKindByName } from './vehicle-domain'
+import { closesToOwnerEquity } from '@/lib/vehicle-kinds'
+import { equityLabel } from './vocab'
 import { roundCents } from './ledger'
 import { ACTUAL_BOOK } from './books'
 
@@ -96,6 +99,7 @@ export async function vehicleStatus(
     { data: periodRows },
     { data: txns },
     { data: companies },
+    kind,
   ] = await Promise.all([
     loadPostedLedger(admin, fundId, group),
     loadOwnership(admin, fundId, group),
@@ -106,6 +110,7 @@ export async function vehicleStatus(
     admin.from('fiscal_periods' as any).select('period_end, label').eq('fund_id', fundId).eq('vehicle_id', vehicleId).eq('status', 'closed').order('period_end', { ascending: false }).limit(1),
     admin.from('investment_transactions' as any).select('*').eq('fund_id', fundId),
     admin.from('companies' as any).select('*').eq('fund_id', fundId),
+    vehicleKindByName(admin, fundId, group),
   ])
 
   const entries = ((entryRows as any[]) ?? [])
@@ -114,7 +119,7 @@ export async function vehicleStatus(
   const postedCount = entries.filter(e => e.status === 'posted').length
   const bankNeedsAttention = bank.filter(t => t.status === 'unmatched' || t.status === 'drafted').length
 
-  const bs = balanceSheet(accounts, postingsAsOf(postings, null))
+  const bs = balanceSheet(accounts, postingsAsOf(postings, null), { equityLabel: equityLabel(kind) })
   const capitalAccounts = computeCapitalAccounts(capitalPostings)
   const nav = totalNav(capitalAccounts)
 
@@ -237,7 +242,12 @@ export async function vehicleStatus(
   const reconciled = roundCents(nav + bs.partnersCapital.unallocatedEarnings)
   const capitalGap = roundCents(bs.partnersCapital.total - reconciled)
 
-  if (Math.abs(capitalGap) > 0.004) {
+  // An owner's-equity vehicle (a management company, an individual) has no partner accounts to
+  // tie to and nobody to hold a commitment: every check in this block is about partners, and
+  // for those kinds each would fire forever. See lib/vehicle-kinds.ts closesToOwnerEquity.
+  const ownerEquity = closesToOwnerEquity(kind)
+
+  if (!ownerEquity && Math.abs(capitalGap) > 0.004) {
     issues.push({
       level: 'blocker',
       title: "Partners' capital doesn't tie to the sum of the partners",
@@ -251,10 +261,10 @@ export async function vehicleStatus(
     })
   }
 
-  if (partnersWithCommitment === 0 && owners.length > 0) {
+  if (!ownerEquity && partnersWithCommitment === 0 && owners.length > 0) {
     issues.push({ level: 'warning', title: 'No partner has a commitment', detail: 'The close allocates pro-rata by commitment; with none set there is nothing to allocate on.', href: '/funds/status', action: 'Set commitments' })
   }
-  if (owners.length === 0) {
+  if (!ownerEquity && owners.length === 0) {
     issues.push({ level: 'warning', title: 'No partners yet', detail: 'Add the LPs and GP entity that hold capital in this vehicle.', href: '/funds/capital-accounts', action: 'Add partners' })
   }
 

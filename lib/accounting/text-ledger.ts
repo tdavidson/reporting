@@ -7,7 +7,7 @@
 // flipping is needed either direction.
 
 import { roundCents } from './ledger'
-import type { Account, AccountType } from './types'
+import type { Account, AccountType, Posting } from './types'
 
 const ROOT: Record<AccountType, string> = {
   asset: 'Assets',
@@ -100,6 +100,28 @@ export interface ParsedTextEntry {
 export interface ParseTextResult {
   entries: ParsedTextEntry[]
   errors: string[]
+}
+
+/**
+ * Resolve parsed postings against a chart: by full text name (`Root:Slug:Code`) or by the bare
+ * code the last component carries. A per-partner account's `lpEntityId` rides onto the posting,
+ * so an entry authored in text attributes to the partner exactly as one typed in the modal does.
+ * Unknown names are reported, never guessed.
+ */
+export function resolvePostingAccounts(
+  accounts: Account[],
+  postings: ParsedTextPosting[],
+): { postings: Posting[]; unknown: string[] } {
+  const byName = new Map(accounts.map(a => [textAccountName(a), a]))
+  const byCode = new Map(accounts.map(a => [a.code, a]))
+  const out: Posting[] = []
+  const unknown: string[] = []
+  for (const p of postings) {
+    const acct = byName.get(p.account) ?? byCode.get(codeFromAccountName(p.account)) ?? null
+    if (!acct) { unknown.push(p.account); continue }
+    out.push({ accountId: acct.id, amount: p.amount ?? 0, currency: p.currency, lpEntityId: acct.lpEntityId ?? null })
+  }
+  return { postings: out, unknown }
 }
 
 const HEADER_RE = /^(\d{4}-\d{2}-\d{2})\s+([*!])\s+(.*)$/

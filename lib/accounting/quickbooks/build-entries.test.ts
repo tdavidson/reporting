@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildEntries, qbSourceRef } from './build-entries'
+import { buildEntries, qbSourceRef, qbVendorName } from './build-entries'
 import type { QbTransaction } from './parse-journal'
 
 const txn: QbTransaction = {
@@ -99,5 +99,27 @@ describe('buildEntries', () => {
     const { entries, skipped } = buildEntries([txn, bad], MAPPING, IDS, 'fund-1')
     expect(entries).toHaveLength(1)
     expect(skipped).toHaveLength(1)
+  })
+})
+
+describe('vendors on import', () => {
+  const paid: QbTransaction = {
+    date: '2024-02-01', type: 'Check', num: '1042', memo: 'Audit fee',
+    lines: [
+      { account: 'Investments:Acme Ventures III', name: 'Acme Audit LLP', memo: null, debit: 5000, credit: 0 },
+      { account: 'Bank:Operating', name: 'Acme Audit LLP', memo: null, debit: 0, credit: 5000 },
+    ],
+  }
+
+  it('reads the payee from the first named line', () => {
+    expect(qbVendorName(paid)).toBe('Acme Audit LLP')
+    expect(qbVendorName(txn)).toBeNull()
+  })
+
+  it('carries the resolved vendor id onto the entry, case-insensitively, and none without a map', () => {
+    const ids = new Map([['acme audit llp', 'vendor-1']])
+    expect(buildEntries([paid], MAPPING, IDS, 'fund-1', ids).entries[0].vendorId).toBe('vendor-1')
+    expect(buildEntries([paid], MAPPING, IDS, 'fund-1').entries[0].vendorId).toBeNull()
+    expect(buildEntries([txn], MAPPING, IDS, 'fund-1', ids).entries[0].vendorId).toBeNull()
   })
 })

@@ -314,8 +314,67 @@ export function intercompanyCode(base: string, counterpartyVehicleId: string): s
 export function chartForVehicleKind(kind: string | null | undefined): ChartAccountSeed[] {
   if (kind === 'manco') return MANAGEMENT_COMPANY_CHART
   if (kind === 'associate') return GP_ENTITY_CHART
+  if (kind === 'individual') return INDIVIDUAL_CHART
   return DEFAULT_CHART
 }
+
+/**
+ * Starter chart for an INDIVIDUAL — an angel investing for their own account, or the
+ * single-member LLC they do it through (a disregarded entity, so the same books).
+ *
+ * The investment side is the fund chart's, code for code: per-company cost and unrealized
+ * accounts hang off 1100/1200 exactly as they do for a fund, so the schedule of investments, the
+ * marks and the realized-gain lots all work unchanged. What differs is the other two thirds:
+ *
+ *   - EQUITY IS ONE OWNER. Owner's capital (subtype `members_capital`, the same subtype the
+ *     management company closes to, so one owner's-equity close serves both) and owner draws.
+ *     No GP, no LP, no bridge allocation — the close rolls net income straight into 3000.
+ *   - EXPENSES ARE THE PREPARER'S LINES. A fund's chart has partnership and organizational
+ *     expenses; an individual's return asks about investment expenses, professional fees,
+ *     software, travel, home office, dues, education. Seeding those names is what lets the
+ *     year-end export be keyed straight onto the schedule rather than reclassified by hand.
+ *
+ * No 1300 Due from LPs, no 2100 Due to GP, no 5250 syndication: none of those can happen to a
+ * person. The bridge (3200) stays because every close in this codebase posts through it.
+ */
+export const INDIVIDUAL_CHART: ChartAccountSeed[] = [
+  // Assets
+  { code: '1000', name: 'Cash', type: 'asset', subtype: 'cash' },
+  { code: '1100', name: 'Investments at cost', type: 'asset', subtype: 'investment' },
+  { code: '1200', name: 'Unrealized appreciation/(depreciation)', type: 'asset', subtype: 'unrealized' },
+  { code: '1250', name: 'Foreign currency translation', type: 'asset', subtype: 'fx_translation' },
+  { code: '1350', name: 'Escrow receivable', type: 'asset', subtype: 'escrow_receivable' },
+
+  // Liabilities
+  { code: '2000', name: 'Accrued expenses', type: 'liability', subtype: 'accrued' },
+  { code: '2100', name: 'Credit card payable', type: 'liability', subtype: 'credit_card' },
+  { code: '2200', name: 'Loan payable', type: 'liability', subtype: 'loan_payable' },
+
+  // Equity — one owner.
+  { code: '3000', name: "Owner's capital", type: 'equity', subtype: 'members_capital' },
+  { code: '3100', name: "Owner's draws", type: 'equity', subtype: 'member_distributions' },
+  { code: '3200', name: 'Undistributed earnings (bridge)', type: 'equity', subtype: 'undistributed_earnings' },
+
+  // Income — the same lines a fund keeps, because the same things happen to a position.
+  { code: '4000', name: 'Realized gain/(loss) on investments', type: 'income', subtype: 'realized_gain' },
+  { code: '4100', name: 'Interest income', type: 'income', subtype: 'interest_income' },
+  { code: '4110', name: 'Note interest income', type: 'income', subtype: 'note_interest_income' },
+  { code: '4120', name: 'Staking and other portfolio income', type: 'income', subtype: 'portfolio_income' },
+  { code: '4130', name: 'Dividend income', type: 'income', subtype: 'dividend_income' },
+  { code: '4200', name: 'Change in unrealized appreciation', type: 'income', subtype: 'unrealized' },
+  { code: '4300', name: 'Foreign currency translation gain/(loss)', type: 'income', subtype: 'fx_translation' },
+
+  // Expenses — the lines a personal return asks about.
+  { code: '5100', name: 'Investment expenses', type: 'expense', subtype: 'partnership_expense' },
+  { code: '5200', name: 'Professional fees (legal, tax, accounting)', type: 'expense', subtype: 'professional_fees' },
+  { code: '5300', name: 'Software and subscriptions', type: 'expense', subtype: 'technology' },
+  { code: '5400', name: 'Travel and meals', type: 'expense', subtype: 'travel' },
+  { code: '5500', name: 'Home office', type: 'expense', subtype: 'occupancy' },
+  { code: '5600', name: 'Dues and memberships', type: 'expense', subtype: 'dues' },
+  { code: '5700', name: 'Education and events', type: 'expense', subtype: 'education' },
+  { code: '5800', name: 'Interest expense', type: 'expense', subtype: 'interest_expense' },
+  { code: '5900', name: 'Other expenses', type: 'expense', subtype: 'operating_expense' },
+]
 
 /** The per-LP capital account code for an entity, e.g. 3100-<entity>. */
 export function lpCapitalCode(lpEntityId: string): string {

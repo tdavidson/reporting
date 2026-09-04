@@ -82,11 +82,43 @@ describe('buildStatementWorkbook', () => {
     expect(net[2]).toBe(-250)
   })
 
-  it('lists GL detail postings under their account with a per-account total', () => {
+  it('lists GL detail postings under their account, opening to closing balance', () => {
     const rows = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets['GL Detail'], { header: 1 })
-    expect(rows.some(r => r[0] === '5000 · Management fees')).toBe(true)
-    const totalRow = rows.find(r => r[3] === 'Total 5000')!
-    expect(totalRow[4]).toBe(250) // debit column
+    const open = rows.find(r => r[0] === '5000 · Management fees')!
+    expect(open[4]).toBe('Opening balance')
+    expect(open[8]).toBe(0)
+    const close = rows.find(r => r[4] === 'Closing balance 5000')!
+    expect(close[6]).toBe(250) // debit total
+    expect(close[8]).toBe(250) // closing balance, expense is debit-normal
+    // The cash line names the account on the other side of the entry.
+    const cashLine = rows.find(r => r[4] === 'Q1 mgmt fee' && r[7] === 250)!
+    expect(cashLine[5]).toBe('5000')
+  })
+
+  it('carries a balance in from before the period when the whole ledger is supplied', () => {
+    const pkg = fixture()
+    pkg.allSourced = [
+      { entryId: 'e0', accountId: 'cash', amount: 1000, currency: 'USD', lpEntityId: null, sourceType: 'capital_call', entryDate: '2025-12-01', memo: 'Prior year call' },
+      ...pkg.inPeriodSourced,
+    ]
+    const wb2 = buildStatementWorkbook(pkg, { fundName: 'F', vehicle: 'V', generatedAt: '2026-07-20T00:00:00Z' })
+    const rows = XLSX.utils.sheet_to_json<unknown[]>(wb2.Sheets['GL Detail'], { header: 1 })
+    const open = rows.find(r => r[0] === '1000 · Cash')!
+    expect(open[8]).toBe(1000)
+    const close = rows.find(r => r[4] === 'Closing balance 1000')!
+    expect(close[8]).toBe(750)
+    // The prior-year posting itself is not a line in this period's detail.
+    expect(rows.some(r => r[4] === 'Prior year call')).toBe(false)
+  })
+
+  it('adds a debit/credit column pair per comparison period on the trial balance', () => {
+    const pkg = fixture()
+    pkg.comparisons = [pkg.payload]
+    const wb2 = buildStatementWorkbook(pkg, { fundName: 'F', vehicle: 'V', generatedAt: '2026-07-20T00:00:00Z' })
+    const rows = XLSX.utils.sheet_to_json<unknown[]>(wb2.Sheets['Trial Balance'], { header: 1 })
+    expect(rows[0]).toEqual(['Code', 'Account', 'Type', 'Debit YTD 2026', 'Credit YTD 2026', 'Debit YTD 2026', 'Credit YTD 2026'])
+    const totals = rows.find(r => r[1] === 'Totals')!
+    expect(totals.slice(3)).toEqual([250, 250, 250, 250])
   })
 
   it('surfaces the unallocated-earnings warning on the cover', () => {

@@ -30,6 +30,12 @@ export interface SkippedTransaction {
   reason: string
 }
 
+/** The payee a QuickBooks transaction names — the first split line that carries one. */
+export function qbVendorName(t: QbTransaction): string | null {
+  const line = t.lines.find(l => l.name && l.name.trim())
+  return line?.name?.trim() ?? null
+}
+
 export function buildEntries(
   txns: QbTransaction[],
   /** QuickBooks account name → our account code. From the confirmed mapping. */
@@ -37,6 +43,11 @@ export function buildEntries(
   /** Our account code → chart_of_accounts.id. From accountIdByCode(). */
   accountIds: Map<string, string>,
   fundId: string,
+  /**
+   * QuickBooks Name (lower-cased) → vendors.id, for the payee on each entry. Optional: without it
+   * the Name column is read and dropped, as it was before vendors existed.
+   */
+  vendorIdByName?: Map<string, string>,
 ): { entries: JournalEntry[]; skipped: SkippedTransaction[] } {
   const entries: JournalEntry[] = []
   const skipped: SkippedTransaction[] = []
@@ -61,12 +72,14 @@ export function buildEntries(
 
     if (problem) { skipped.push({ transaction: t, reason: problem }); continue }
 
+    const vendorName = qbVendorName(t)
     entries.push({
       fundId,
       entryDate: t.date,
       memo: memoFor(t),
       sourceType: 'quickbooks',
       sourceRef: qbSourceRef(t),
+      vendorId: vendorName && vendorIdByName ? (vendorIdByName.get(vendorName.toLowerCase()) ?? null) : null,
       // Nothing posts on import. Every entry is reviewed on the journal page and posted
       // through the existing bulk-post surface — a bad mapping is then re-runnable rather
       // than needing reversal.
