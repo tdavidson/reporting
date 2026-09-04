@@ -14,6 +14,8 @@ import { PriceFeedsPanel } from './price-feeds-panel'
 import { WalletsPanel } from './wallets-panel'
 import { CarryTerms } from '../allocation-terms/carry-terms'
 import { useCanRead } from '@/components/access-context'
+import { VEHICLE_KIND_LABELS } from '@/lib/vehicle-kinds'
+import { IntercompanyCard } from './intercompany-card'
 import { AllocationTermsView } from '../allocation-terms/view'
 import { CollapsibleSection } from '@/components/collapsible-section'
 import { ChartOfAccountsCard } from '@/components/accounting/chart-of-accounts-card'
@@ -287,6 +289,10 @@ export function StatusView() {
         <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
       </Link>
 
+      {/* Charges between this vehicle and the firm's management company, seen from this side.
+          Renders nothing for a caller without the management-company grant or a firm without one. */}
+      <IntercompanyCard />
+
       {/* The year's preparer bundle. Lives here beside the other once-a-year work; the same
           control is in the statements page's Download menu. */}
       <div className="flex items-start gap-3 rounded-card border p-3">
@@ -304,9 +310,9 @@ export function StatusView() {
   )
 }
 
-const KIND_LABELS: Record<string, string> = {
-  fund: 'Fund', spv: 'SPV', direct: 'Direct deal', associate: 'GP / associate entity', other: 'Other',
-}
+// The one vocabulary, from lib/vehicle-kinds.ts — this file used to keep its own copy, which is
+// how a kind added there (manco, then individual) rendered here as a raw string.
+const KIND_LABELS: Record<string, string> = VEHICLE_KIND_LABELS
 
 /**
  * The vehicle's own record — name, type, vintage year, aliases, active — editable in place. Reads

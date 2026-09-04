@@ -107,7 +107,7 @@ export const ACCOUNTING_SECTIONS: AccountingSection[] = [
     icon: Layers,
     desc: 'Schedule of investments, commitments and liquidity, and per-fund performance for the underlying funds.',
     requiresFof: true,
-    hideFor: ['individual'],
+    hideFor: ['individual', 'associate'],
   },
   // NOTE: /funds/migrate is deliberately NOT listed. Importing a QuickBooks general
   // ledger is a one-time event at the start of a vehicle's life, not a place you work —
@@ -118,7 +118,7 @@ export const ACCOUNTING_SECTIONS: AccountingSection[] = [
     icon: Layers,
     desc: 'Paste the quarter\u2019s underlying-fund figures, confirm the notices, and book the period-end marks.',
     requiresFof: true,
-    hideFor: ['individual'],
+    hideFor: ['individual', 'associate'],
   },
   {
     href: '/funds/schedule-of-investments',
@@ -132,7 +132,9 @@ export const ACCOUNTING_SECTIONS: AccountingSection[] = [
     label: 'Portfolio construction',
     icon: Target,
     desc: 'How much investable capital is left, how many more deals fit, and what exit the portfolio needs to return the fund.',
-    hideFor: ['individual', 'associate'],
+    // A fund-sized programme: an SPV holds one deal, a GP entity holds a fund, an individual
+    // has no reserve model to construct.
+    hideFor: ['individual', 'associate', 'spv'],
   },
   {
     href: '/funds/statements',

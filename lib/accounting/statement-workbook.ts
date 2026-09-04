@@ -150,12 +150,16 @@ function periodHeader(payloads: StatementPayload[]): Row {
   return ['', '', ...payloads.map(p => p.period.label)]
 }
 
+/** The equity's name, as the payload carries it — partners', members' or owner's. */
+const equityLabelOf = (p: StatementPayload) => p.balanceSheet.equity.label || 'Partners’ capital'
+
 function balanceSheetSheet(payloads: StatementPayload[]): XLSX.WorkSheet {
-  const rows: Row[] = [['Statement of assets, liabilities and partners’ capital'], [], periodHeader(payloads)]
+  const label = equityLabelOf(payloads[0])
+  const rows: Row[] = [[`Statement of assets, liabilities and ${label.toLowerCase()}`], [], periodHeader(payloads)]
   rows.push(...sectionRowsMulti(p => p.balanceSheet.assets, payloads))
   rows.push(...sectionRowsMulti(p => p.balanceSheet.liabilities, payloads))
-  // Partners' capital is a single total line — per-partner detail is its own sheet.
-  rows.push(['Partners’ capital', '', ...payloads.map(p => money(p.balanceSheet.equity.total))], [])
+  // Equity is a single total line — per-partner detail is its own sheet.
+  rows.push([label, '', ...payloads.map(p => money(p.balanceSheet.equity.total))], [])
   return sheet(rows, [10, 34, ...payloads.map(() => 16)])
 }
 
@@ -180,7 +184,7 @@ function capitalSheet(payloads: StatementPayload[]): XLSX.WorkSheet {
   if (payloads.length === 1) {
     const c = payloads[0].changesInPartnersCapital
     const header: Row = ['Partner', ...CAP_FIELDS.map(f => CAP_LABELS[f] ?? f)]
-    const rows: Row[] = [['Statement of changes in partners’ capital'], [], header]
+    const rows: Row[] = [[`Statement of changes in ${equityLabelOf(payloads[0]).toLowerCase()}`], [], header]
     for (const p of c.partners) rows.push([p.name, ...CAP_FIELDS.map(f => money(p[f] as number))])
     rows.push(['Total', ...CAP_FIELDS.map(f => money(c.totals[f] as number))])
     return sheet(rows, [28, ...CAP_FIELDS.map(() => 16)])
@@ -193,7 +197,7 @@ function capitalSheet(payloads: StatementPayload[]): XLSX.WorkSheet {
     if (!seen.has(partner.id)) { seen.add(partner.id); partnerRows.push({ id: partner.id, name: partner.name }) }
   }
   const header: Row = ['Partner', ...payloads.map(p => p.period.label)]
-  const rows: Row[] = [['Statement of changes in partners’ capital'], [], header]
+  const rows: Row[] = [[`Statement of changes in ${equityLabelOf(payloads[0]).toLowerCase()}`], [], header]
   for (const { id, name } of partnerRows) {
     rows.push([name, ...payloads.map(p => {
       const partner = p.changesInPartnersCapital.partners.find(pp => pp.id === id)

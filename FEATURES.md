@@ -171,6 +171,8 @@ It is a separate section rather than another row on the Funds page because it is
 
 **The dashboard.** Cash across each bank account, monthly cash burn (depreciation excluded, because it is not money leaving the building) and the runway that implies; revenue and expenses **by quarter**, with the empty quarters drawn rather than skipped — a manco's revenue arrives in four lumps a year, so a missed or late fee should look like a hole, not a flat line; and expenses ranked by account with each one's share.
 
+**Intercompany, from either side.** A fund's or GP entity's Admin page shows its charges with the management company in its own words — they owe us, we owe them, they billed us — with the same record and settle actions, for a member who holds the management-company grant. One set of postings, two points of view.
+
 **Intercompany.** A charge between two entities of the same firm is recorded once and posts **both sides** — the receivable and the fee income on the management company, the expense and the payable on the fund — linked so they can be reconciled, with a separate settlement when the cash actually moves. Balances are shown per counterparty, due-from and due-to kept apart rather than netted, and read from the ledger rather than summed from the register, so a manual correcting entry is reflected without anyone amending a row.
 
 **The same books everything else uses.** Journal, bank feed, financial statements, period close and the QuickBooks general-ledger import are the same tools a fund uses, scoped to the entity — the import's mapping proposer knows the management-company vocabulary, so payroll, benefits, occupancy and technology accounts arrive already matched.

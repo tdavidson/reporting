@@ -152,6 +152,12 @@ export function StatementsView() {
 
   const fmtCell = (v: number | undefined) => (v === undefined ? '' : fmt(v))
 
+  // The equity's name comes with the payload (lib/accounting/vocab.ts): partners' capital on a
+  // fund, members' capital on a management company, owner's equity on an individual.
+  const equityLabel = data?.balanceSheet.equity.label ?? "Partners' capital"
+  const equityWord = equityLabel.charAt(0).toLowerCase() + equityLabel.slice(1)
+  const showPartners = !data || equityLabel === "Partners' capital" || data.changesInPartnersCapital.partners.length > 0
+
   // Header row of period labels for a statement table. With compare='0', cols has
   // length 1 and this renders exactly the single-column header shape used before.
   const PeriodHead = ({ kind }: { kind: 'asOf' | 'over' }) => (
@@ -382,7 +388,7 @@ export function StatementsView() {
     // capital line on the balance sheet.
     <div className="space-y-8">
       <section>
-        <h2 className="text-base font-semibold">Statement of assets, liabilities and partners&rsquo; capital</h2>
+        <h2 className="text-base font-semibold">Statement of assets, liabilities and {equityWord}</h2>
         <p className="text-xs text-muted-foreground mb-2">Balance sheet — {asOfLabel}</p>
         <div className="border rounded-lg overflow-x-auto">
           <table className="w-full text-sm">
@@ -492,11 +498,14 @@ export function StatementsView() {
         </section>
       )}
 
+      {/* An owner's-equity vehicle has no partners to roll forward: the single equity line on the
+          balance sheet is the whole story, and an empty partner table would only raise a question. */}
+      {showPartners && (
       <section>
-        <h2 className="text-base font-semibold">Statement of changes in partners&rsquo; capital</h2>
+        <h2 className="text-base font-semibold">Statement of changes in {equityWord}</h2>
         <p className="text-xs text-muted-foreground mb-2">
           {overLabel} — beginning capital is the balance carried into the period; this is the detail behind the
-          single partners&rsquo; capital line on the balance sheet
+          single {equityWord} line on the balance sheet
         </p>
         {cols.length > 1 ? (() => {
           // Union partners across periods by id; value = that period's ending capital.
@@ -564,6 +573,7 @@ export function StatementsView() {
           </div>
         )}
       </section>
+      )}
     </div>
       )}
     </div>

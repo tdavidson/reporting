@@ -97,13 +97,17 @@ export function buildStatementsHtml(pkg: StatementPackage, meta: StatementsPdfMe
   const asOfLabel = primary.period.end ? `as of ${primary.period.end}` : 'as of today'
   const overLabel = primary.period.preset === 'itd' ? 'since inception' : `for ${primary.period.label}`
 
+  // The equity's name, as the payload carries it — partners', members' or owner's.
+  const equityLabel = primary.balanceSheet.equity.label || 'Partners’ capital'
+  const equityWord = equityLabel.toLowerCase()
+
   // 1. Balance sheet
   const balanceSheet = statement(
-    'Statement of assets, liabilities and partners’ capital', asOfLabel,
+    `Statement of assets, liabilities and ${equityWord}`, asOfLabel,
     `<table><thead>${periodHead('asOf')}</thead><tbody>
       ${section(p => p.balanceSheet.assets)}
       ${section(p => p.balanceSheet.liabilities, { hideEmpty: true })}
-      ${totalRow('Partners’ capital', p => p.balanceSheet.equity.total)}
+      ${totalRow(equityLabel, p => p.balanceSheet.equity.total)}
     </tbody></table>
     ${primary.balanceSheet.partnersCapital.unallocatedEarnings !== 0
       ? `<p style="font-size:10px;color:#a2600e;margin-top:8px;">${m(primary.balanceSheet.partnersCapital.unallocatedEarnings)} of net income is not yet allocated to partners; the period has not been closed.</p>` : ''}
@@ -150,8 +154,9 @@ export function buildStatementsHtml(pkg: StatementPackage, meta: StatementsPdfMe
   const cap = primary.changesInPartnersCapital
   const capFields: (keyof CapitalAccount)[] = ['beginning', ...ACTIVITY_FIELDS.filter(f =>
     cap.partners.some(p => Math.abs(p[f] as number) > 0.004) || Math.abs(cap.totals[f] as number) > 0.004), 'ending']
-  const capital = statement(
-    'Statement of changes in partners’ capital', `${overLabel} — beginning capital is the balance carried into the period`,
+  // An owner's-equity vehicle has no partners to roll forward; the statement is left out.
+  const capital = cap.partners.length === 0 && equityLabel !== "Partners' capital" ? '' : statement(
+    `Statement of changes in ${equityWord}`, `${overLabel} — beginning capital is the balance carried into the period`,
     payloads.length === 1
       ? `<table><thead><tr><th>Partner</th>${capFields.map(f => `<th style="text-align:right;">${esc(CAPITAL_ACCOUNT_LABELS[f] ?? String(f))}</th>`).join('')}</tr></thead>
         <tbody>

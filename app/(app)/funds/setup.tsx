@@ -4,7 +4,8 @@ import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Loader2, Check } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { useLedgerFetch, useFundSeg } from '@/components/accounting-vehicle'
+import { useLedgerFetch, useFundSeg, useVehicle } from '@/components/accounting-vehicle'
+import { closesToOwnerEquity } from '@/lib/vehicle-kinds'
 
 /** Vehicle-scoped onboarding: seed chart, choose full-history or cutover, reconcile. */
 export function AccountingSetup({ alwaysShow = false }: { alwaysShow?: boolean } = {}) {
@@ -41,6 +42,7 @@ export function AccountingSetup({ alwaysShow = false }: { alwaysShow?: boolean }
   const [inv, setInv] = useState<{ booked: boolean; positions: number } | null>(null)
   const lf = useLedgerFetch()
   const fundSeg = useFundSeg()
+  const { kind } = useVehicle()
   const fundHref = (sub: string) => fundSeg ? `/funds/${fundSeg}/${sub}` : '/funds'
 
   const refresh = useCallback(async () => {
@@ -257,7 +259,9 @@ export function AccountingSetup({ alwaysShow = false }: { alwaysShow?: boolean }
             <li><Link href={fundHref('bank')} className="underline underline-offset-2 hover:text-foreground">Import the bank history</Link> (CSV/XLS) — dated cash back to inception.</li>
             <li>Categorize, and match inflows to capital calls / the investment purchase.</li>
             <li><Link href={fundHref('schedule-of-investments')} className="underline underline-offset-2 hover:text-foreground">Replay the investment history</Link> — each purchase and mark posts on the date it happened, so gains land in the period they were earned.</li>
-            <li><Link href={fundHref('status')} className="underline underline-offset-2 hover:text-foreground">Set the allocation terms</Link>, then <Link href={fundHref('periods')} className="underline underline-offset-2 hover:text-foreground">close each period</Link> to allocate P&amp;L to partners.</li>
+            {closesToOwnerEquity(kind)
+              ? <li><Link href={fundHref('periods')} className="underline underline-offset-2 hover:text-foreground">Close each period</Link> to roll net income into the owner&rsquo;s capital.</li>
+              : <li><Link href={fundHref('status')} className="underline underline-offset-2 hover:text-foreground">Set the allocation terms</Link>, then <Link href={fundHref('periods')} className="underline underline-offset-2 hover:text-foreground">close each period</Link> to allocate P&amp;L to partners.</li>}
             <li>Reconcile capital accounts against the LP snapshot (Reconciliation → Load from LP snapshot).</li>
           </ol>
           <p className="text-xs text-muted-foreground">
