@@ -148,7 +148,7 @@ const NAV_ITEMS: NavItem[] = [
     // No children: the section is a short list of entities, and the pages beneath are per-entity
     // (/manco/<id>/journal). A subnav here would either need an entity to point at — as the Funds
     // one does — or offer links that go nowhere, and unlike a fund there is rarely more than one.
-    href: '/manco', label: 'Management company', icon: Briefcase, featureKey: 'management_company',
+    href: '/manco', label: 'Management', icon: Briefcase, featureKey: 'management_company',
   },
   { href: '/usage', label: 'Usage', icon: Users, adminOnly: true, domain: 'admin' },
   { href: '/settings', label: 'Settings', icon: Settings, badgeKey: 'settings' },
