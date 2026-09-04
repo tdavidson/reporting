@@ -13,6 +13,7 @@ import { closedPeriodRanges, dateInAnyClosedPeriod } from '@/lib/accounting/peri
 import { fundCurrency } from '@/lib/accounting/currency'
 import { resolvePeriod, customPeriod, type PeriodPreset } from '@/lib/accounting/statement-period'
 import type { JournalEntry, Posting } from '@/lib/accounting/types'
+import { vendorInFund } from '@/lib/accounting/vendors'
 import { ACTUAL_BOOK, isLedgerBook, type LedgerBook } from '@/lib/accounting/books'
 import { reversalOf, reversalDateError } from '@/lib/accounting/reversal'
 
@@ -116,6 +117,8 @@ export async function PUT(req: NextRequest) {
   // not silently turn it into a "manual" entry that the roll-forward files under Other.
   const sourceType: string = typeof body.sourceType === 'string' && body.sourceType ? body.sourceType : ((existing as any).source_type ?? 'manual')
   const reference = typeof body.reference === 'string' && body.reference.trim() ? body.reference.trim().slice(0, 80) : null
+  // The payee. Absent leaves it alone; null clears it; an id must be one of this fund's vendors.
+  const vendorPatch = 'vendorId' in body ? { vendor_id: await vendorInFund(admin, gate.fundId, body.vendorId) } : {}
 
   // The fund's currency, never a client-supplied one. The ledger is denominated in a single
   // currency by design (see lib/accounting/currency.ts); accepting `p.currency` from the body
@@ -144,7 +147,7 @@ export async function PUT(req: NextRequest) {
   if (insErr) return dbError(insErr, 'accounting-journal-update')
   if (oldIds.length) await admin.from('journal_postings' as any).delete().in('id', oldIds)
   const adjustingPatch = typeof body.adjusting === 'boolean' ? { adjusting: body.adjusting } : {}
-  await admin.from('journal_entries' as any).update({ entry_date: newDate, memo: memo ?? null, source_type: sourceType, reference, ...adjustingPatch }).eq('id', id).eq('fund_id', gate.fundId)
+  await admin.from('journal_entries' as any).update({ entry_date: newDate, memo: memo ?? null, source_type: sourceType, reference, ...adjustingPatch, ...vendorPatch }).eq('id', id).eq('fund_id', gate.fundId)
 
   const { data: full } = await admin.from('journal_entries' as any).select('*, journal_postings(*)').eq('id', id).eq('book', ACTUAL_BOOK).single()
   return NextResponse.json(full ?? { id })
@@ -177,7 +180,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Each posting needs an accountId and a numeric amount' }, { status: 400 })
   }
 
-  const entry: JournalEntry = { fundId: gate.fundId, entryDate, memo: memo ?? null, sourceType: sourceType ?? 'manual', sourceRef: sourceRef ?? null, reference, adjusting: body.adjusting === true, postings: normalized }
+  const vendorId = await vendorInFund(admin, gate.fundId, body.vendorId)
+  const entry: JournalEntry = { fundId: gate.fundId, entryDate, memo: memo ?? null, sourceType: sourceType ?? 'manual', sourceRef: sourceRef ?? null, reference, adjusting: body.adjusting === true, vendorId, postings: normalized }
   const result = await persistEntry(admin, gate.fundId, group, user.id, entry, status === 'posted' ? 'posted' : 'draft')
   if ('error' in result) return NextResponse.json({ error: result.error }, { status: 400 })
 

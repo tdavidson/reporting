@@ -182,6 +182,7 @@ export async function persistEntry(
       source_ref: entry.sourceRef ?? null,
       reference: entry.reference ?? null,
       adjusting: entry.adjusting === true,
+      vendor_id: entry.vendorId ?? null,
       status,
       book,
       created_by: userId,

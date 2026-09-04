@@ -32,6 +32,8 @@ interface TaxFormsReport { asOf: string; blocked: number; nameMismatches: number
 interface ReceivedReport { taxYear: number; received: number; outstanding: { companyName?: string; name?: string }[]; amended: { companyName?: string; name?: string }[]; blocker: string | null }
 interface Worklist { summary: string[]; states: { state: string; partners: number; nonresident: boolean }[]; foreign: unknown[]; unknown: unknown[] }
 interface RealizedLot { company: string; acquired: string | null; sold: string; units: number; proceeds: number; basis: number; gain: number; term: 'short' | 'long' | 'undetermined' }
+interface VendorPaymentRow { vendorId: string; name: string; is1099Eligible: boolean; tinOnFile: boolean; paid: number; entries: number; needsW9: boolean; reportable: boolean }
+interface VendorPayments { rows: VendorPaymentRow[]; totalPaid: number }
 interface RealizedGains { method: string; disposals: { company: string; sold: string; units: number; proceeds: number; basis: number; gain: number; unmatchedUnits: number; lots: RealizedLot[] }[]; totals: { proceeds: number; basis: number; gain: number; shortTerm: number; longTerm: number; undetermined: number } }
 
 const thisYear = new Date().getFullYear()
@@ -60,6 +62,7 @@ export function TaxView() {
   const [received, setReceived] = useState<Fetched<ReceivedReport> | null>(null)
   const [worklist, setWorklist] = useState<Fetched<Worklist> | null>(null)
   const [gains, setGains] = useState<Fetched<RealizedGains> | null>(null)
+  const [payments, setPayments] = useState<Fetched<VendorPayments> | null>(null)
   const [viewing, setViewing] = useState<{ id: string; book: 'actual' | 'tax' } | null>(null)
 
   const get = useCallback(async <T,>(url: string): Promise<Fetched<T>> => {
@@ -73,7 +76,7 @@ export function TaxView() {
   const load = useCallback(async () => {
     setLoading(true)
     const start = `${year}-01-01`, end = `${year}-12-31`
-    const [s, r, te, aj, f, rk, pk, rg] = await Promise.all([
+    const [s, r, te, aj, f, rk, pk, rg, vp] = await Promise.all([
       get<TaxYearState>(`/api/accounting/tax-year?taxYear=${year}`),
       get<TaxRun>(`/api/accounting/tax-adjustments?taxYear=${year}`),
       get<{ entries: JournalEntryRow[] }>(`/api/accounting/journal?preset=custom&start=${start}&end=${end}&book=tax&limit=200`),
@@ -82,8 +85,9 @@ export function TaxView() {
       get<ReceivedReport>(`/api/accounting/received-k1s?taxYear=${year}`),
       canSeeK1 ? get<{ packages: K1Package[] }>('/api/accounting/k1-packages') : Promise.resolve<Fetched<{ packages: K1Package[] }>>({ ok: false, status: 403, data: null }),
       get<RealizedGains>(`/api/accounting/realized-gains?year=${year}`),
+      get<VendorPayments>(`/api/accounting/vendor-payments?year=${year}`),
     ])
-    setState(s); setRun(r); setForms(f); setReceived(rk); setGains(rg)
+    setState(s); setRun(r); setForms(f); setReceived(rk); setGains(rg); setPayments(vp)
     setTaxEntries(te.data?.entries ?? [])
     setAdjusting(aj.data?.entries ?? [])
     const mine = (pk.data?.packages ?? []).filter(p => p.tax_year === year && (!vehicleId || p.vehicle_id === vehicleId))
@@ -334,7 +338,45 @@ export function TaxView() {
           ))}
         </section>
 
-        {/* 7. Received K-1s */}
+        {/* 7. 1099 worksheet — cash paid per vendor */}
+        <section className={card}>
+          <h2 className={h}>1099 worksheet</h2>
+          <p className="text-xs text-muted-foreground">Cash paid to each vendor in {year}, from posted entries that name one. Reportable at $600 and above for a 1099-eligible vendor; a reportable vendor without a TIN on file needs a W-9. Exported in the tax package.</p>
+          {denied(payments, 'Vendor payments') ?? (payments?.data && (
+            payments.data.rows.length === 0
+              ? <p className="text-sm text-muted-foreground">No payments to a vendor in {year}. Pick a vendor on an entry, or import a bank file or QuickBooks journal with payees.</p>
+              : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-left text-xs text-muted-foreground">
+                        <th className="py-1 pr-2 font-medium">Vendor</th><th className="py-1 pr-2 text-right font-medium">Paid</th><th className="py-1 pr-2 text-right font-medium">Entries</th><th className="py-1 font-medium">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {payments.data.rows.map(v => (
+                        <tr key={v.vendorId} className="border-t">
+                          <td className="py-1 pr-2">{v.name}</td>
+                          <td className="py-1 pr-2 text-right tabular-nums">{fmt(v.paid)}</td>
+                          <td className="py-1 pr-2 text-right tabular-nums">{v.entries}</td>
+                          <td className="py-1">
+                            {v.needsW9
+                              ? <span className="text-sm text-warning">Reportable — needs W-9</span>
+                              : v.reportable ? 'Reportable' : v.is1099Eligible ? <span className="text-muted-foreground">Below threshold</span> : <span className="text-muted-foreground">Not 1099-eligible</span>}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot>
+                      <tr className="border-t font-semibold"><td className="py-1 pr-2">Total</td><td className="py-1 pr-2 text-right tabular-nums">{fmt(payments.data.totalPaid)}</td><td colSpan={2} /></tr>
+                    </tfoot>
+                  </table>
+                </div>
+              )
+          ))}
+        </section>
+
+        {/* 8. Received K-1s */}
         <section className={card}>
           <h2 className={h}>K-1s owed to this vehicle</h2>
           <p className="text-xs text-muted-foreground">Underlying funds this vehicle holds send their own K-1s; ours cannot be final until they arrive.</p>

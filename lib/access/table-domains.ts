@@ -143,6 +143,7 @@ export const TABLE_RULES: Record<string, TableRule> = {
   journal_postings: { scope: 'fund', domain: 'accounting' },
   fiscal_periods: { scope: 'fund', domain: 'accounting' },
   bank_transactions: { scope: 'fund', domain: 'accounting' },
+  vendors: { scope: 'fund', domain: 'accounting' },
   allocation_runs: { scope: 'fund', domain: 'accounting' },
   allocation_results: { scope: 'fund', domain: 'accounting' },
   vehicle_accounting_settings: { scope: 'fund', domain: 'accounting' },

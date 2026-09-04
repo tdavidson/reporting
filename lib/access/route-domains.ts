@@ -107,6 +107,12 @@ export const ROUTE_DOMAINS: Record<string, RouteAccess> = {
   'api/accounting/statements/pdf': { domain: 'accounting' },
   // Realized gains by lot — the Schedule D input; fund-level, no per-partner figure in it.
   'api/accounting/realized-gains': { domain: 'accounting' },
+  // Vendors (the payee dimension) and cash paid per vendor — the 1099 worksheet.
+  'api/accounting/vendors': { domain: 'accounting' },
+  'api/accounting/vendor-payments': { domain: 'accounting' },
+  // Every entity's books at a glance: closed through, trial balance, drafts, unmatched bank rows.
+  // Management companies appear only for a caller holding that grant — checked in the handler.
+  'api/accounting/firm': { domain: 'accounting' },
   // The year's preparer bundle. `accounting` opens it; the K-1 workbook inside is added only
   // after refuseWithoutCarryAccess passes in the handler, since a K-1 package contains the carry.
   'api/accounting/tax-package': { domain: 'accounting' },

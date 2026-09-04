@@ -33,6 +33,10 @@ export interface ExportEntry {
   sourceRef: string | null
   status: string
   adjusting?: boolean
+  /** The user's reference (check, invoice). QuickBooks' Num, when present. */
+  reference?: string | null
+  /** The payee. QuickBooks' Name column. */
+  vendorName?: string | null
   postings: ExportPosting[]
 }
 
@@ -49,14 +53,14 @@ export const entryRef = (id: string) => id.slice(0, 8)
 
 const accountLabel = (p: ExportPosting) => `${p.accountCode} · ${p.accountName}`
 
-export const JOURNAL_HEADER = ['Date', 'Entry', 'Status', 'Adjusting', 'Source', 'Memo', 'Account', 'Account name', 'Debit', 'Credit', 'Currency']
+export const JOURNAL_HEADER = ['Date', 'Entry', 'Reference', 'Status', 'Adjusting', 'Source', 'Name', 'Memo', 'Account', 'Account name', 'Debit', 'Credit', 'Currency']
 
 export function journalRows(entries: ExportEntry[]): Cell[][] {
   const rows: Cell[][] = [JOURNAL_HEADER]
   for (const e of sortEntries(entries)) {
     for (const p of e.postings) {
       rows.push([
-        e.entryDate, entryRef(e.id), e.status, e.adjusting ? 'yes' : '', e.sourceType ?? '', e.memo ?? '',
+        e.entryDate, entryRef(e.id), e.reference ?? '', e.status, e.adjusting ? 'yes' : '', e.sourceType ?? '', e.vendorName ?? '', e.memo ?? '',
         p.accountCode, p.accountName,
         p.amount > 0 ? p.amount : null,
         p.amount < 0 ? -p.amount : null,
@@ -81,7 +85,7 @@ export const QUICKBOOKS_HEADER = ['Date', 'Transaction Type', 'Num', 'Name', 'Me
 
 /**
  * QuickBooks' Journal report layout. Every entry is a "Journal Entry"; Num is the entry
- * reference; Name (the payee) is blank until postings carry a counterparty. Debits and credits
+ * reference (the id's prefix when there is none); Name is the payee. Debits and credits
  * are positive magnitudes in two columns, blank where zero.
  */
 export function quickbooksJournalRows(entries: ExportEntry[]): Cell[][] {
@@ -91,8 +95,8 @@ export function quickbooksJournalRows(entries: ExportEntry[]): Cell[][] {
       rows.push([
         i === 0 ? e.entryDate : '',
         i === 0 ? 'Journal Entry' : '',
-        i === 0 ? entryRef(e.id) : '',
-        '',
+        i === 0 ? (e.reference || entryRef(e.id)) : '',
+        e.vendorName ?? '',
         e.memo ?? '',
         accountLabel(p),
         p.amount > 0 ? p.amount : null,

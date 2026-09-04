@@ -28,14 +28,14 @@ describe('journalRows', () => {
     const rows = journalRows(entries)
     expect(rows[0][0]).toBe('Date')
     expect(rows.slice(1).map(r => r[0])).toEqual(['2025-01-15', '2025-01-15', '2025-01-15', '2025-03-31', '2025-03-31'])
-    expect(rows[1].slice(6, 10)).toEqual(['1000', 'Cash', 1000, null])
-    expect(rows[2].slice(8, 10)).toEqual([null, 600])
-    expect(rows[1][3]).toBe('')
+    expect(rows[1].slice(8, 12)).toEqual(['1000', 'Cash', 1000, null])
+    expect(rows[2].slice(10, 12)).toEqual([null, 600])
+    expect(rows[1][4]).toBe('')
   })
 
   it('marks adjusting entries in their own column', () => {
     const rows = journalRows([{ ...entries[0], adjusting: true }])
-    expect(rows[1][3]).toBe('yes')
+    expect(rows[1][4]).toBe('yes')
   })
 })
 
@@ -57,6 +57,15 @@ describe('quickbooksJournalRows', () => {
       ["3100-bbbb · Partners' capital — B", 0, 400],
     ])
     expect(fee.lines.map(l => [l.debit, l.credit])).toEqual([[50, 0], [0, 50]])
+  })
+
+  it('puts the reference in Num and the payee in Name, so QuickBooks reads them as its own', () => {
+    const rows = quickbooksJournalRows([{ ...entries[0], reference: 'INV-42', vendorName: 'Acme Legal LLP' }])
+    expect(rows[1].slice(2, 4)).toEqual(['INV-42', 'Acme Legal LLP'])
+    expect(rows[2].slice(2, 4)).toEqual(['', 'Acme Legal LLP'])
+    const parsed = parseQbJournal(toCsv(rows))
+    expect(parsed.transactions[0].num).toBe('INV-42')
+    expect(parsed.transactions[0].lines.map(l => l.name)).toEqual(['Acme Legal LLP', 'Acme Legal LLP'])
   })
 
   it('blanks date, type and num on continuation lines so the parser groups them', () => {

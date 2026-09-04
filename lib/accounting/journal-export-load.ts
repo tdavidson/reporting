@@ -24,7 +24,7 @@ export async function loadJournalForExport(
   const rows = await fetchAllRows<any>((f, t) => {
     let q = admin
       .from('journal_entries' as any)
-      .select('id, entry_date, memo, source_type, source_ref, status, adjusting, journal_postings(id, account_id, amount, currency, chart_of_accounts(code, name))')
+      .select('id, entry_date, memo, source_type, source_ref, status, adjusting, reference, vendor_id, vendors(name), journal_postings(id, account_id, amount, currency, chart_of_accounts(code, name))')
       .eq('book', opts.book ?? ACTUAL_BOOK)
       .eq('fund_id', fundId)
       .eq('vehicle_id', vehicleId)
@@ -44,6 +44,8 @@ export async function loadJournalForExport(
     sourceRef: r.source_ref ?? null,
     status: r.status,
     adjusting: r.adjusting === true,
+    reference: r.reference ?? null,
+    vendorName: r.vendors?.name ?? null,
     postings: ((r.journal_postings as any[]) ?? [])
       .slice()
       .sort((a, b) => String(a.id).localeCompare(String(b.id)))

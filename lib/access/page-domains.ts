@@ -103,6 +103,7 @@ export const PAGE_DOMAINS: Record<string, PageDomain> = {
   'funds/[id]/schedule-of-investments': { domain: 'accounting', gate: 'requireAccountingAccess' },
   'funds/[id]/statements': { domain: 'accounting', gate: 'requireAccountingAccess' },
   'funds/[id]/status': { domain: 'accounting', gate: 'requireAccountingAccess' },
+  'funds/firm': { domain: 'accounting', gate: 'requireAccountingAccess' },
   'funds/fof-quarter': { domain: 'accounting', gate: 'requireAccountingAccess' },
   'funds/fof-report': { domain: 'accounting', gate: 'requireAccountingAccess' },
   'funds/migrate': { domain: 'accounting', gate: 'requireAccountingAccess' },

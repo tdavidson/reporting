@@ -21,9 +21,11 @@ describe('taxPackageFiles', () => {
   })
 
   it('omits the K-1 and the PDF when they are absent, and adds the tax files when present', () => {
-    const names = taxPackageFiles(base({ statementsPdf: null, adjustingEntriesCsv: 'aje\n', taxBookEntriesCsv: 'tb\n', taxBasisTrialBalanceCsv: 'tb\n' })).map(f => f.name)
+    const names = taxPackageFiles(base({ statementsPdf: null, adjustingEntriesCsv: 'aje\n', taxBookEntriesCsv: 'tb\n', taxBasisTrialBalanceCsv: 'tb\n', realizedGainsCsv: 'rg\n', vendorPaymentsCsv: '1099\n' })).map(f => f.name)
     expect(names).not.toContain('statements-2025.pdf')
     expect(names).toContain('adjusting-entries-2025.csv')
+    expect(names).toContain('realized-gains-2025.csv')
+    expect(names).toContain('1099-worksheet-2025.csv')
     expect(names).toContain('book-to-tax-adjustments-2025.csv')
     expect(names).toContain('trial-balance-tax-basis-2025.csv')
     expect(names.some(n => n.startsWith('k1-'))).toBe(false)

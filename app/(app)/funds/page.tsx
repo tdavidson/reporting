@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import Link from 'next/link'
 import { requireAccountingAccess } from './guard'
 import { FundOverview } from './fund-overview'
 import { AccountingPageHeader, AccountingBody } from '@/components/accounting-chrome'
@@ -26,7 +27,10 @@ export default async function AccountingPage() {
     // so the title goes all the way to the top with the toggle inline at its right, and the Analyst
     // panel opens below it rather than level with it. AccountingChrome steps aside on this route.
     <div className="pt-4 md:pt-8 pb-8 w-full">
-      <AccountingPageHeader title="Funds">
+      <AccountingPageHeader
+        title="Funds"
+        actions={<Link href="/funds/firm" className="text-sm text-primary hover:underline">Firm overview</Link>}
+      >
         Performance per vehicle, derived from fund accounting or LP capital accounts.
       </AccountingPageHeader>
 

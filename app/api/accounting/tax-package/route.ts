@@ -22,6 +22,8 @@ import { refuseWithoutCarryAccess } from '@/lib/tax/access'
 import { findFinalK1Package, buildK1WorkbookForPackage } from '@/lib/tax/k1-export'
 import { loadRealizedGains } from '@/lib/accounting/realized-gains-load'
 import { realizedGainsRows } from '@/lib/accounting/realized-gains'
+import { loadVendorPayments } from '@/lib/accounting/vendor-payments-load'
+import { vendorPaymentsRows } from '@/lib/accounting/vendor-payments'
 
 export const runtime = 'nodejs'
 export const maxDuration = 120
@@ -55,7 +57,7 @@ export async function GET(req: NextRequest) {
   const end = `${year}-12-31`
   const generatedAt = new Date().toISOString()
 
-  const [data, taxData, { data: fund }, currency, entries, taxEntries, chart, closed, vehicleId, gains] = await Promise.all([
+  const [data, taxData, { data: fund }, currency, entries, taxEntries, chart, closed, vehicleId, gains, payments] = await Promise.all([
     loadLedgerData(admin, gate.fundId, group),
     // The same ledger read on a tax basis — the overlay spliced in — for the tax-basis trial balance.
     loadLedgerData(admin, gate.fundId, group, { basis: 'tax' }),
@@ -67,6 +69,7 @@ export async function GET(req: NextRequest) {
     closedPeriodRanges(admin, gate.fundId, group),
     vehicleIdByName(admin, gate.fundId, group),
     loadRealizedGains(admin, gate.fundId, group, { start, end }),
+    loadVendorPayments(admin, gate.fundId, group, year),
   ])
   const fundName = fund?.name ?? 'Fund'
 
@@ -118,6 +121,7 @@ export async function GET(req: NextRequest) {
     adjustingEntriesCsv: toCsv(journalRows(entries.filter(e => e.adjusting))),
     taxBookEntriesCsv: taxEntries.length > 0 ? toCsv(journalRows(taxEntries)) : null,
     realizedGainsCsv: gains.disposals.length > 0 ? toCsv(realizedGainsRows(gains)) : null,
+    vendorPaymentsCsv: payments.rows.length > 0 ? toCsv(vendorPaymentsRows(payments)) : null,
     taxBasisTrialBalanceCsv: taxEntries.length > 0
       ? toCsv(trialBalanceRows(buildStatementPackageFromData(taxData, new URLSearchParams({ start, end, basis: 'tax' })).payload.trialBalance))
       : null,

@@ -12,6 +12,9 @@ import { reversedEntryId } from '@/lib/accounting/reversal'
 interface Acct { id: string; code: string; name: string; type?: string; lp_entity_id: string | null; is_active?: boolean }
 interface PostingRow { id: string; account_id: string; amount: number; lp_entity_id: string | null }
 interface Line { key: string; accountId: string; debit: string; credit: string; lpEntityId: string | null }
+interface VendorOpt { id: string; name: string }
+const NEW_VENDOR = '__new__'
+
 interface Meta { status: string; postedAt: string | null; sourceRef: string | null; reversedBy: string | null }
 
 let seq = 0
@@ -69,6 +72,8 @@ export function EntryModal({
   const [date, setDate] = useState('')
   const [memo, setMemo] = useState('')
   const [reference, setReference] = useState('')
+  const [vendorId, setVendorId] = useState<string | null>(null)
+  const [vendors, setVendors] = useState<VendorOpt[]>([])
   // A string, not the narrowed union: a bank- or import-drafted entry can carry a type outside
   // the picker's list (quickbooks, investment, transfer), and saving it must keep that type
   // rather than quietly relabel it. The picker offers the list plus whatever the entry had.
@@ -88,12 +93,15 @@ export function EntryModal({
     Promise.all([
       entryId ? lf(`/api/accounting/journal?id=${entryId}${taxBook ? '&book=tax' : ''}`).then(r => (r.ok ? r.json() : null)) : Promise.resolve(null),
       lf('/api/accounting/chart').then(r => (r.ok ? r.json() : [])),
-    ]).then(([entry, chart]) => {
+      lf('/api/accounting/vendors').then(r => (r.ok ? r.json() : [])).catch(() => []),
+    ]).then(([entry, chart, vendorList]) => {
       setAccounts(Array.isArray(chart) ? chart : [])
+      setVendors(Array.isArray(vendorList?.vendors) ? vendorList.vendors : [])
       if (entry) {
         setDate(entry.entry_date ?? '')
         setMemo(entry.memo ?? '')
         setReference(entry.reference ?? '')
+        setVendorId(entry.vendor_id ?? null)
         setAdjusting(entry.adjusting === true)
         setSourceType(entry.source_type || 'manual')
         setMeta({ status: entry.status, postedAt: entry.posted_at ?? null, sourceRef: entry.source_ref ?? null, reversedBy: entry.reversed_by ?? null })
@@ -144,10 +152,22 @@ export function EntryModal({
     return res.ok ? null : await errOf(res, `${action} failed`)
   }
 
+  /** The vendor select: pick one, clear it, or add one by name — created on the spot and selected. */
+  async function chooseVendor(value: string) {
+    if (value !== NEW_VENDOR) { setVendorId(value || null); return }
+    const name = window.prompt('Vendor name')?.trim()
+    if (!name) return
+    const res = await lf('/api/accounting/vendors', json({ name }))
+    if (!res.ok) { setError(await errOf(res, 'Could not add the vendor')); return }
+    const v = (await res.json()).vendor as VendorOpt
+    setVendors(prev => (prev.some(x => x.id === v.id) ? prev : [...prev, v].sort((a, b) => a.name.localeCompare(b.name))))
+    setVendorId(v.id)
+  }
+
   async function save(thenPost: boolean) {
     setSaving(true); setError(null)
     const postings = lines.map(l => ({ accountId: l.accountId, amount: num(l.debit) > 0 ? num(l.debit) : -num(l.credit), lpEntityId: l.lpEntityId }))
-    const fields = { entryDate: date, memo, reference: reference.trim() || null, sourceType, adjusting }
+    const fields = { entryDate: date, memo, reference: reference.trim() || null, sourceType, adjusting, vendorId }
 
     // Create on first save; update thereafter. Always saved as a DRAFT first, so
     // posting is a separate, explicit step — same as every other path.
@@ -269,6 +289,15 @@ export function EntryModal({
                 {editable
                   ? <input value={reference} onChange={e => setReference(e.target.value)} placeholder="Check, invoice…" maxLength={80} className="mt-0.5 block w-full rounded border border-input bg-transparent px-2 py-1 text-sm" />
                   : <span className="mt-0.5 block px-2 py-1 text-sm text-foreground">{reference || '—'}</span>}
+              </label>
+              <label className="w-40 text-xs text-muted-foreground">Vendor
+                {editable ? (
+                  <select value={vendorId ?? ''} onChange={e => void chooseVendor(e.target.value)} className="mt-0.5 block w-full rounded border border-input bg-transparent px-2 py-1 text-sm" title="Who was paid — the payee on the 1099 worksheet and QuickBooks' Name column">
+                    <option value="">—</option>
+                    {vendors.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+                    <option value={NEW_VENDOR}>Add vendor…</option>
+                  </select>
+                ) : <span className="mt-0.5 block px-2 py-1 text-sm text-foreground">{vendors.find(v => v.id === vendorId)?.name ?? '—'}</span>}
               </label>
               <label className="text-xs text-muted-foreground">Type
                 {editable ? (

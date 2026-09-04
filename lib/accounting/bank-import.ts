@@ -6,6 +6,7 @@ import { accountIdByCode, persistEntry } from './persist'
 import { vehicleIdByName } from './vehicle-id'
 import { parseTransactionsCsv, dedupHash, legacyDedupHash, suggestCategory, bankEntryPostings } from './bank'
 import type { JournalEntry } from './types'
+import { vendorResolver } from './vendors'
 
 export interface ImportResult {
   imported: number
@@ -30,6 +31,8 @@ export async function importBankTransactions(
   const codes = await accountIdByCode(admin, fundId, group)
   const cashId = codes.get('1000')
   if (!cashId) return { error: 'Seed the chart of accounts first' }
+  // Counterparties become vendors as they arrive, so the 1099 worksheet sees bank-fed spend too.
+  const resolveVendor = vendorResolver(admin, fundId)
 
   const vehicleId = await vehicleIdByName(admin, fundId, group)
   const { data: existing } = await admin.from('bank_transactions' as any).select('dedup_hash').eq('fund_id', fundId).eq('vehicle_id', vehicleId)
@@ -69,6 +72,9 @@ export async function importBankTransactions(
       entryDate: row.date,
       memo: row.description || cat.label,
       sourceType: cat.sourceType,
+      // The feed's counterparty becomes the entry's vendor, created if new — so "what did we
+      // pay this vendor" and the 1099 worksheet see bank-fed payments without anyone retyping.
+      vendorId: await resolveVendor(row.counterparty),
       postings: bankEntryPostings(row.amount, cashId, otherId),
     }
     const result = await persistEntry(admin, fundId, group, userId, entry, 'draft')

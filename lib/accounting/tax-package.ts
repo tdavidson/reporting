@@ -31,6 +31,8 @@ export interface TaxPackageInputs {
   taxBookEntriesCsv?: string | null
   /** Realized gains by lot for the year — Schedule D / 8949. Null omits it. */
   realizedGainsCsv?: string | null
+  /** Cash paid per vendor in the year — the 1099 worksheet. Null omits it. */
+  vendorPaymentsCsv?: string | null
   /** The finalised K-1 workbook for the year, when one exists and the caller may see it. */
   k1: { workbook: Buffer; version: number } | null
   /** Why the K-1 workbook is absent, for the README. */
@@ -67,6 +69,9 @@ export function taxPackageFiles(i: TaxPackageInputs): TaxPackageFile[] {
   }
   if (i.realizedGainsCsv) {
     files.push({ name: `realized-gains-${y}.csv`, note: 'Realized gains by lot: each disposal, the lots it consumed, proceeds, basis, gain, and short- or long-term — the Schedule D / Form 8949 input.', content: i.realizedGainsCsv })
+  }
+  if (i.vendorPaymentsCsv) {
+    files.push({ name: `1099-worksheet-${y}.csv`, note: 'Cash paid per vendor in the year, with 1099 eligibility, whether a TIN is on file, and which rows are reportable.', content: i.vendorPaymentsCsv })
   }
   files.push({ name: 'chart-of-accounts.csv', note: 'The chart: code, name, type, normal side, and the partner or company an account belongs to.', content: i.chartCsv })
   if (i.k1) {

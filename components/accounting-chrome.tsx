@@ -10,7 +10,7 @@ import { AnalystPanel } from '@/components/analyst-panel'
  * Must be rendered ABOVE <AccountingBody>, never inside it: the body shares its row with
  * the Analyst panel, so a header inside it would be squeezed left when the panel opens.
  */
-export function AccountingPageHeader({ title, children }: { title: string; children: React.ReactNode }) {
+export function AccountingPageHeader({ title, actions, children }: { title: string; actions?: React.ReactNode; children: React.ReactNode }) {
   // items-end lowers the Analyst toggle to sit near the subtitle row, matching the fund
   // detail/subpage headers, rather than aligning it to the title.
   return (
@@ -20,6 +20,7 @@ export function AccountingPageHeader({ title, children }: { title: string; child
         <p className="text-sm text-muted-foreground">{children}</p>
       </div>
       <div className="flex items-center gap-2 shrink-0">
+        {actions}
         <AnalystToggleButton />
       </div>
     </div>

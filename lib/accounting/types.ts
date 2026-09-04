@@ -49,6 +49,8 @@ export interface JournalEntry {
   reference?: string | null
   /** An adjusting entry: a period-end correction, listed on its own for the preparer. */
   adjusting?: boolean
+  /** The payee or biller — one per entry. Feeds the 1099 worksheet. */
+  vendorId?: string | null
   status?: EntryStatus
   postings: Posting[]
 }
