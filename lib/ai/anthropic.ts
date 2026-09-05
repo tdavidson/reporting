@@ -1,7 +1,8 @@
 import Anthropic from '@anthropic-ai/sdk'
+import { effortForModel } from './model-families'
 import type {
   AIProvider, AIModel, AIResult, CreateMessageParams, CreateChatParams, ContentBlock,
-  CreateToolLoopParams, ToolLoopResult, ToolCallRecord,
+  CreateToolLoopParams, ToolLoopResult, ToolCallRecord, AIEffort,
 } from './types'
 
 // Anthropic's MCP connector — lets the API connect to a remote MCP server
@@ -47,6 +48,7 @@ export class AnthropicProvider implements AIProvider {
     const stream = this.client.messages.stream({
       model: params.model,
       max_tokens: params.maxTokens,
+      ...outputConfig(params.model, params.effort),
       ...(systemBlocks ? { system: systemBlocks } : {}),
       ...(tools ? { tools: tools as any } : {}),
       messages: [{ role: 'user', content }],
@@ -115,6 +117,7 @@ export class AnthropicProvider implements AIProvider {
     const stream = this.client.messages.stream({
       model: params.model,
       max_tokens: params.maxTokens,
+      ...outputConfig(params.model, params.effort),
       ...(systemBlocks ? { system: systemBlocks } : {}),
       messages,
     })
@@ -198,6 +201,7 @@ export class AnthropicProvider implements AIProvider {
       const request: any = {
         model: params.model,
         max_tokens: params.maxTokens,
+        ...outputConfig(params.model, params.effort),
         ...(systemBlocks ? { system: systemBlocks } : {}),
         ...(toolDefs.length > 0 ? { tools: toolDefs } : {}),
         messages,
@@ -309,6 +313,13 @@ export class AnthropicProvider implements AIProvider {
       .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
       .map(m => ({ id: m.id, name: m.display_name }))
   }
+}
+
+// The effort knob, only for models that have one — older models reject the field, and the
+// resolved "Auto" model may be any of them.
+function outputConfig(model: string, effort: AIEffort | undefined): { output_config?: { effort: AIEffort } } {
+  const accepted = effortForModel('anthropic', model, effort)
+  return accepted ? { output_config: { effort: accepted } } : {}
 }
 
 // Turn a system-prompt string into a single cached text block. Returns

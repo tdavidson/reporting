@@ -9,7 +9,7 @@ import {
   type AnalystDocument,
   type AnalystDomain,
 } from '@/lib/ai/analyst/types'
-import type { ChatMessage } from '@/lib/ai/types'
+import { AI_EFFORTS, type AIEffort, type ChatMessage } from '@/lib/ai/types'
 
 interface LegacyAnalystBody {
   messages?: ChatMessage[]
@@ -19,6 +19,7 @@ interface LegacyAnalystBody {
   document?: AnalystDocument
   domain?: AnalystDomain
   model?: { id: string; provider: string }
+  effort?: AIEffort
   conversationId?: string
 }
 
@@ -56,6 +57,7 @@ export async function POST(req: NextRequest) {
         domain: body.domain,
       },
       model: body.model,
+      effort: AI_EFFORTS.includes(body.effort as AIEffort) ? body.effort : undefined,
       document: body.document,
     }, {
       admin,

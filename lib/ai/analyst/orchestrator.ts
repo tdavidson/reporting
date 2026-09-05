@@ -379,6 +379,7 @@ export async function runAnalyst(
       const result = await provider.createToolLoop({
         model,
         maxTokens: 2000,
+        effort: request.effort,
         system: withTopicalGuardrail(systemPrompt),
         messages,
         tools: analystTools.tools,
@@ -395,6 +396,7 @@ export async function runAnalyst(
       const result = await provider.createChat({
         model,
         maxTokens: 2000,
+        effort: request.effort,
         system: withTopicalGuardrail(systemPrompt),
         messages,
       })

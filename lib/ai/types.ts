@@ -9,11 +9,16 @@ export interface ImageBlock { type: 'image'; mediaType: string; data: string }
 export type ContentBlock = TextBlock | DocumentBlock | ImageBlock
 export type MessageContent = string | ContentBlock[]
 
+/** How hard the model thinks before answering. Providers that lack the knob ignore it. */
+export type AIEffort = 'low' | 'medium' | 'high' | 'max'
+export const AI_EFFORTS: AIEffort[] = ['low', 'medium', 'high', 'max']
+
 export interface CreateMessageParams {
   model: string
   maxTokens: number
   system?: string
   content: MessageContent
+  effort?: AIEffort
   /**
    * Enable provider-side web search. Only honored by Anthropic right now; other
    * providers ignore the flag (the prompt fallback handles graceful degradation).
@@ -68,6 +73,7 @@ export interface CreateChatParams {
   maxTokens: number
   system?: string
   messages: ChatMessage[]
+  effort?: AIEffort
 }
 
 // ---------------------------------------------------------------------------

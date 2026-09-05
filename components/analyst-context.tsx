@@ -1,6 +1,8 @@
 'use client'
 
 import { createContext, useContext, useState, useEffect, useCallback, useRef, type ReactNode } from 'react'
+import { latestPerFamily } from '@/lib/ai/model-families'
+import type { AIEffort } from '@/lib/ai/types'
 
 /** Domains the Analyst can be scoped to that have no id of their own (unlike a company or deal). */
 export type AnalystDomain = 'lps' | 'diligence'
@@ -42,6 +44,10 @@ interface AnalystContextValue {
   selectedModel: AnalystModel | null
   setSelectedModel: (model: AnalystModel | null) => void
   availableModels: AnalystModel[]
+  /** Thinking effort for the next question. Sent with every request; the server drops it for
+   *  models without the knob. */
+  effort: AIEffort
+  setEffort: (effort: AIEffort) => void
   /** Loads the model list if it isn't loaded yet. Safe to call on every mount. */
   ensureModels: () => Promise<void>
   fundName: string
@@ -80,6 +86,7 @@ export function AnalystProvider({
   const [domain, setDomainState] = useState<AnalystDomain | null>(null)
   const [availableModels, setAvailableModels] = useState<AnalystModel[]>([])
   const [selectedModel, setSelectedModel] = useState<AnalystModel | null>(null)
+  const [effort, setEffort] = useState<AIEffort>('high')
   const [conversationId, setConversationId] = useState<string | null>(null)
   const [conversations, setConversations] = useState<ConversationListItem[]>([])
   const [showHistory, setShowHistory] = useState(false)
@@ -234,7 +241,9 @@ export function AnalystProvider({
 
     // A failed fetch should not be permanent — let the next surface that needs the list retry.
     if (models.length === 0) modelsRequested.current = false
-    setAvailableModels(models)
+    // The picker offers the newest of each family — Opus, Sonnet, Haiku — not every dated
+    // snapshot and superseded version the provider still serves.
+    setAvailableModels(latestPerFamily(models))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasAIKey, configuredProviders.join(',')])
 
@@ -260,6 +269,8 @@ export function AnalystProvider({
       selectedModel,
       setSelectedModel,
       availableModels,
+      effort,
+      setEffort,
       ensureModels,
       fundName,
       hasAIKey,

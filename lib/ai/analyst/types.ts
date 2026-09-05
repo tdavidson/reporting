@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { AccessContext } from '@/lib/access/effective'
-import type { ChatMessage, TokenUsage } from '@/lib/ai/types'
+import type { ChatMessage, TokenUsage, AIEffort } from '@/lib/ai/types'
 import type { AssistantProposal } from '@/lib/accounting/assistant'
 import type { StagedActionRecord } from '@/lib/ai/analyst-tools'
 import type { AnalystPresentationBlock } from './response'
@@ -89,6 +89,8 @@ export interface AnalystRequest {
     domain?: AnalystDomain
   }
   model?: { id: string; provider: string }
+  /** Thinking effort. Dropped server-side for models without the knob. */
+  effort?: AIEffort
   document?: AnalystDocument
 }
 

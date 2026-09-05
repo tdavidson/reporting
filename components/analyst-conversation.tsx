@@ -1,6 +1,8 @@
 'use client'
 
 import { useState, useRef, useEffect, type ReactNode } from 'react'
+import { AI_EFFORTS, type AIEffort } from '@/lib/ai/types'
+import { supportsEffort } from '@/lib/ai/model-families'
 import { Sparkles, Send, X, Save, Clock, Plus, Trash2, ArrowLeft, Paperclip, ArrowUp, Copy, Check, ChevronDown, Upload } from 'lucide-react'
 import { Markdown } from '@/components/markdown'
 import { Button } from '@/components/ui/button'
@@ -68,6 +70,9 @@ const ACCEPTED_DOCUMENTS = '.pdf,.docx,.xlsx,.xls,.md,.txt,.csv'
 const ACCEPTED_FORMATS = new Set(ACCEPTED_DOCUMENTS.split(',').map(x => x.slice(1)))
 /** The row of controls under an answer: quiet icons that only assert themselves on hover. */
 const actionIconClass = 'flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50'
+/** The quiet text triggers in the page composer's control row: a name and a small chevron. */
+const composerTriggerClass = 'flex h-8 w-auto items-center gap-1 rounded-md border-0 px-2 text-sm text-muted-foreground shadow-none transition-colors hover:bg-muted hover:text-foreground [&>svg:last-child]:hidden'
+const EFFORT_LABELS: Record<AIEffort, string> = { low: 'Low', medium: 'Medium', high: 'High', max: 'Max' }
 
 export function AnalystConversation({
   variant = 'panel',
@@ -87,6 +92,8 @@ export function AnalystConversation({
     selectedModel,
     setSelectedModel,
     availableModels,
+    effort,
+    setEffort,
     conversationId,
     setConversationId,
     conversations,
@@ -252,6 +259,7 @@ export function AnalystConversation({
           domain: domain ?? undefined,
           document: doc ?? undefined,
           model: selectedModel ? { id: selectedModel.id, provider: selectedModel.provider } : undefined,
+          effort,
           conversationId: conversationId ?? undefined,
         }),
       })
@@ -371,7 +379,7 @@ export function AnalystConversation({
             aria-label="Switch model"
             title="Switch model"
             className={face === 'composer'
-              ? 'flex h-8 w-auto items-center gap-1 rounded-md border-0 px-2 text-sm text-muted-foreground shadow-none transition-colors hover:bg-muted hover:text-foreground [&>svg:last-child]:hidden'
+              ? composerTriggerClass
               : `${actionIconClass} w-auto gap-1 border-0 px-2 text-xs shadow-none [&>svg:last-child]:hidden`}
           >
             <span>{selectedModel ? selectedModel.name : 'Auto'}</span>
@@ -388,6 +396,27 @@ export function AnalystConversation({
             <SelectItem key={`${m.provider}:${m.id}`} value={`${m.provider}:${m.id}`}>
               {m.name}
             </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    )
+  }
+
+  /** Effort sits beside the model in the composer, the way the Claude and ChatGPT composers show
+   *  it. Hidden when the chosen model has no such knob (Haiku, older Sonnets); shown for Auto,
+   *  where the server resolves the model and drops the setting if that model can't take it. */
+  function renderEffortPicker() {
+    if (availableModels.length === 0 || showHistory) return null
+    if (selectedModel && !supportsEffort(selectedModel.provider, selectedModel.id)) return null
+    return (
+      <Select value={effort} onValueChange={val => setEffort(val as AIEffort)}>
+        <SelectTrigger aria-label="Effort" title="How hard the model thinks" className={composerTriggerClass}>
+          <span>{EFFORT_LABELS[effort]}</span>
+          <ChevronDown className="h-3.5 w-3.5 opacity-60" />
+        </SelectTrigger>
+        <SelectContent>
+          {AI_EFFORTS.map(level => (
+            <SelectItem key={level} value={level}>{EFFORT_LABELS[level]}</SelectItem>
           ))}
         </SelectContent>
       </Select>
@@ -640,7 +669,10 @@ export function AnalystConversation({
           <Plus className="h-4 w-4" />
         </button>
         <div className="ml-auto flex items-center gap-3">
-          {renderModelPicker('composer')}
+          <div className="flex items-center">
+            {renderModelPicker('composer')}
+            {renderEffortPicker()}
+          </div>
           <Button
             size="icon"
             onClick={handleSend}
