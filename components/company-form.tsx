@@ -8,7 +8,16 @@ import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { X } from 'lucide-react'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog'
+import { Trash2, X } from 'lucide-react'
 import type { Company } from '@/lib/types/database'
 
 interface Props {
@@ -16,6 +25,7 @@ interface Props {
   initialName?: string
   onSuccess: (company: Company) => void
   onCancel: () => void
+  onDeleted?: () => void
 }
 
 /** A fund-wide default metric template, as returned by GET /api/default-metrics. */
@@ -41,7 +51,7 @@ interface Vehicle {
   active: boolean
 }
 
-export function CompanyForm({ company, initialName, onSuccess, onCancel }: Props) {
+export function CompanyForm({ company, initialName, onSuccess, onCancel, onDeleted }: Props) {
   const isEdit = !!company
 
   const [name, setName] = useState(company?.name ?? initialName ?? '')
@@ -68,6 +78,9 @@ export function CompanyForm({ company, initialName, onSuccess, onCancel }: Props
   const [status, setStatus] = useState(company?.status ?? 'active')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [deleteOpen, setDeleteOpen] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
 
   // Metrics, create-mode only. The fund's default profile has always been copied in on create;
   // this exposes it so you can uncheck the ones that don't apply and add one-offs up front,
@@ -317,6 +330,23 @@ export function CompanyForm({ company, initialName, onSuccess, onCancel }: Props
       setError(err instanceof Error ? err.message : 'Something went wrong')
     } finally {
       setSaving(false)
+    }
+  }
+
+  async function deleteCompany() {
+    if (!company || !onDeleted) return
+    setDeleteError(null)
+    setDeleting(true)
+
+    try {
+      const res = await fetch(`/api/companies/${company.id}`, { method: 'DELETE' })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error ?? 'Failed to delete company')
+      onDeleted()
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : 'Failed to delete company')
+    } finally {
+      setDeleting(false)
     }
   }
 
@@ -669,13 +699,51 @@ export function CompanyForm({ company, initialName, onSuccess, onCancel }: Props
         </div>
       )}
 
-      <div className="flex gap-2 justify-end pt-2">
-        <Button variant="outline" onClick={onCancel} disabled={saving}>
-          Cancel
-        </Button>
-        <Button onClick={submit} disabled={saving}>
-          {saving ? 'Saving…' : isEdit ? 'Save changes' : 'Add company'}
-        </Button>
+      <div className="flex items-center justify-between gap-2 pt-2">
+        {isEdit && onDeleted ? (
+          <Dialog open={deleteOpen} onOpenChange={(open) => {
+            setDeleteOpen(open)
+            if (!open) setDeleteError(null)
+          }}>
+            <DialogTrigger asChild>
+              <Button variant="destructive" disabled={saving || deleting}>
+                <Trash2 />
+                Delete company
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Delete {company.name}?</DialogTitle>
+                <DialogDescription>
+                  This permanently deletes the company and its metrics, updates, notes, documents,
+                  and other company-owned data. Reporting emails and diligence history are retained
+                  but unlinked. This action cannot be undone.
+                </DialogDescription>
+              </DialogHeader>
+              {deleteError && (
+                <Alert variant="destructive">
+                  <AlertDescription>{deleteError}</AlertDescription>
+                </Alert>
+              )}
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setDeleteOpen(false)} disabled={deleting}>
+                  Cancel
+                </Button>
+                <Button variant="destructive" onClick={deleteCompany} disabled={deleting}>
+                  {deleting ? 'Deleting…' : 'Delete company'}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        ) : <span />}
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={onCancel} disabled={saving || deleting}>
+            Cancel
+          </Button>
+          <Button onClick={submit} disabled={saving || deleting}>
+            {saving ? 'Saving…' : isEdit ? 'Save changes' : 'Add company'}
+          </Button>
+        </div>
       </div>
     </div>
   )

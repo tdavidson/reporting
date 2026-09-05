@@ -107,3 +107,122 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
 
   return NextResponse.json(data)
 }
+
+export async function DELETE(_req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const admin = createAdminClient()
+  const writeCheck = await assertWriteAccess(admin, user.id)
+  if (writeCheck instanceof NextResponse) return writeCheck
+
+  // Scope the lookup to the caller's fund and to ordinary portfolio companies. Fund holdings
+  // share the companies table but have a separate delete route with stricter register checks.
+  const { data: company, error: companyError } = await admin
+    .from('companies' as any)
+    .select('id, name, fund_id, holding_type')
+    .eq('id', params.id)
+    .eq('fund_id', writeCheck.fundId)
+    .eq('holding_type', 'company')
+    .maybeSingle() as {
+      data: { id: string; name: string; fund_id: string; holding_type: string | null } | null
+      error: { message: string } | null
+    }
+
+  if (companyError) return dbError(companyError, 'companies-id-delete-lookup')
+  if (!company) return NextResponse.json({ error: 'Company not found' }, { status: 404 })
+
+  // Each investment deletion retracts its mirrored journal entries and refuses closed periods.
+  // Cascading the company row would bypass that accounting safeguard, so require the operator to
+  // remove investment history through its own UI first.
+  const { count: investmentCount, error: investmentError } = await admin
+    .from('investment_transactions' as any)
+    .select('id', { count: 'exact', head: true })
+    .eq('company_id', company.id)
+    .eq('fund_id', company.fund_id)
+
+  if (investmentError) return dbError(investmentError, 'companies-id-delete-investments')
+  if ((investmentCount ?? 0) > 0) {
+    return NextResponse.json({
+      error: `Delete this company's ${investmentCount} investment transaction${investmentCount === 1 ? '' : 's'} first so its accounting entries can be retracted safely.`,
+    }, { status: 409 })
+  }
+
+  // Refuse to orphan any company-specific chart accounts that still carry postings, including
+  // positions bootstrapped directly into the ledger rather than mirrored from the tracker.
+  const { data: accountRows, error: accountError } = await admin
+    .from('chart_of_accounts' as any)
+    .select('id')
+    .eq('company_id', company.id)
+    .eq('fund_id', company.fund_id) as {
+      data: { id: string }[] | null
+      error: { message: string } | null
+    }
+  if (accountError) return dbError(accountError, 'companies-id-delete-accounts')
+
+  const accountIds = (accountRows ?? []).map(account => account.id)
+  if (accountIds.length > 0) {
+    const { count: postingCount, error: postingError } = await admin
+      .from('journal_postings' as any)
+      .select('id', { count: 'exact', head: true })
+      .eq('fund_id', company.fund_id)
+      .in('account_id', accountIds)
+    if (postingError) return dbError(postingError, 'companies-id-delete-postings')
+    if ((postingCount ?? 0) > 0) {
+      return NextResponse.json({
+        error: `This company's accounts still carry ${postingCount} ledger posting${postingCount === 1 ? '' : 's'}. Reverse those entries before deleting the company.`,
+      }, { status: 409 })
+    }
+  }
+
+  // Capture uploaded-file paths before their rows cascade. The database delete is authoritative;
+  // storage cleanup follows it so a transient storage failure can never leave live rows pointing
+  // at files that have already disappeared.
+  const { data: documentRows, error: documentError } = await admin
+    .from('company_documents' as any)
+    .select('storage_path')
+    .eq('company_id', company.id)
+    .eq('fund_id', company.fund_id) as {
+      data: { storage_path: string | null }[] | null
+      error: { message: string } | null
+    }
+  if (documentError) return dbError(documentError, 'companies-id-delete-documents')
+  const storagePaths = (documentRows ?? [])
+    .map(document => document.storage_path)
+    .filter((path): path is string => Boolean(path))
+
+  const { error: deleteError } = await admin
+    .from('companies' as any)
+    .delete()
+    .eq('id', company.id)
+    .eq('fund_id', company.fund_id)
+  if (deleteError) return dbError(deleteError, 'companies-id-delete')
+
+  // ON DELETE SET NULL leaves these empty per-company accounts ready for explicit cleanup.
+  if (accountIds.length > 0) {
+    const { error: accountDeleteError } = await admin
+      .from('chart_of_accounts' as any)
+      .delete()
+      .eq('fund_id', company.fund_id)
+      .in('id', accountIds)
+    if (accountDeleteError) {
+      console.error('[companies-id-delete] Failed to remove empty chart accounts:', accountDeleteError.message)
+    }
+  }
+
+  if (storagePaths.length > 0) {
+    const { error: storageError } = await admin.storage.from('company-documents').remove(storagePaths)
+    if (storageError) {
+      console.error('[companies-id-delete] Failed to remove company document objects:', storageError.message)
+    }
+  }
+
+  logActivity(admin, company.fund_id, user.id, 'company.delete', {
+    companyId: company.id,
+    companyName: company.name,
+  })
+
+  return NextResponse.json({ ok: true })
+}

@@ -35,6 +35,11 @@ export function CompanyEditButton({ company }: { company: Company }) {
             setOpen(false)
             router.refresh()
           }}
+          onDeleted={() => {
+            setOpen(false)
+            router.push('/dashboard')
+            router.refresh()
+          }}
           onCancel={() => setOpen(false)}
         />
       </DialogContent>
