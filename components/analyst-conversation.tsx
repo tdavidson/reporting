@@ -65,6 +65,7 @@ export interface AnalystConversationProps {
 }
 
 const ACCEPTED_DOCUMENTS = '.pdf,.docx,.xlsx,.xls,.md,.txt,.csv'
+const ACCEPTED_FORMATS = new Set(ACCEPTED_DOCUMENTS.split(',').map(x => x.slice(1)))
 /** The row of controls under an answer: quiet icons that only assert themselves on hover. */
 const actionIconClass = 'flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50'
 
@@ -128,13 +129,14 @@ export function AnalystConversation({
   // triggered the fetch, which left /start with no picker at all.
   useEffect(() => { void ensureModels() }, [ensureModels])
 
-  // The composer starts one line tall and grows with what's typed, up to a cap past which it
-  // scrolls — a three-row box standing empty was the largest thing on the page.
+  // The composer grows with what's typed, up to a cap past which it scrolls. The panel starts one
+  // line tall; the page starts at three rows (its `rows` attribute is the floor, since an empty
+  // textarea's scrollHeight is its box height), so the landing page reads as a place to write.
   useEffect(() => {
     const el = inputRef.current
     if (!el) return
     el.style.height = 'auto'
-    el.style.height = `${Math.min(el.scrollHeight, variant === 'page' ? 240 : 160)}px`
+    el.style.height = `${Math.min(el.scrollHeight, variant === 'page' ? 320 : 160)}px`
   }, [input, variant, doc])
 
   // The thread was reset (new conversation, or a scope change cleared it) — the drafts that went
@@ -152,12 +154,15 @@ export function AnalystConversation({
     }
   }, [messages, loading])
 
-  async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    e.target.value = ''
-    if (!file) return
+  // One reader for both ways a file arrives — the picker and a drop onto the composer. The picker
+  // already filters by `accept`; a drop does not, so the format is checked here for both.
+  async function readFile(file: File) {
     setError(null)
     const format = file.name.split('.').pop()?.toLowerCase() ?? ''
+    if (!ACCEPTED_FORMATS.has(format)) {
+      setError(`Can't attach .${format || '?'} files. Use PDF, Word, Excel, Markdown, CSV or plain text.`)
+      return
+    }
     try {
       const bytes = new Uint8Array(await file.arrayBuffer())
       let binary = ''
@@ -167,6 +172,41 @@ export function AnalystConversation({
     } catch {
       setError('Could not read that file.')
     }
+  }
+
+  async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    await readFile(file)
+  }
+
+  // Drag-and-drop onto the page composer. The counter is the standard fix for dragenter/dragleave
+  // firing on every child crossed: the highlight lifts only when the pointer leaves the whole zone.
+  const [dragDepth, setDragDepth] = useState(0)
+  const dragging = dragDepth > 0
+  const hasFiles = (e: React.DragEvent) => Array.from(e.dataTransfer.types).includes('Files')
+  const onDragEnter = (e: React.DragEvent) => {
+    if (!hasFiles(e)) return
+    e.preventDefault()
+    setDragDepth(d => d + 1)
+  }
+  const onDragLeave = (e: React.DragEvent) => {
+    if (!hasFiles(e)) return
+    e.preventDefault()
+    setDragDepth(d => Math.max(0, d - 1))
+  }
+  const onDragOver = (e: React.DragEvent) => {
+    if (!hasFiles(e)) return
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'copy'
+  }
+  const onDrop = (e: React.DragEvent) => {
+    if (!hasFiles(e)) return
+    e.preventDefault()
+    setDragDepth(0)
+    const file = e.dataTransfer.files?.[0]
+    if (file) void readFile(file)
   }
 
   async function handleCopy(i: number, text: string) {
@@ -558,11 +598,24 @@ export function AnalystConversation({
     }
   }
 
-  /** The page composer: one filled surface with the send control tucked into its corner. One row
-   *  tall at rest — the effect above grows it as the question does — and `pr-14` keeps the text
-   *  clear of the send button rather than reserving a band of empty rows below it. */
+  /** The page composer: one filled surface with the send control tucked into its corner. Three
+   *  rows tall at rest — the effect above grows it as the question does — and `pr-14` keeps the
+   *  text clear of the send button. It is also the drop zone: a file dragged over it attaches
+   *  exactly as the + would, and the dashed ring says so while it hovers. */
   const largeComposer = (
-    <div className="relative rounded-card border bg-muted/40 focus-within:ring-1 focus-within:ring-ring transition-colors duration-200 ease-out-soft">
+    <div
+      onDragEnter={onDragEnter}
+      onDragLeave={onDragLeave}
+      onDragOver={onDragOver}
+      onDrop={onDrop}
+      className={`relative rounded-card border bg-muted/40 focus-within:ring-1 focus-within:ring-ring transition-colors duration-200 ease-out-soft ${dragging ? 'border-dashed border-ring bg-accent' : ''}`}
+    >
+      {dragging && (
+        <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center gap-2 rounded-card text-sm text-muted-foreground">
+          <Upload className="h-4 w-4" />
+          Drop to attach
+        </div>
+      )}
       <button
         type="button"
         onClick={() => setAttachOpen(true)}
@@ -578,7 +631,7 @@ export function AnalystConversation({
         onChange={e => setInput(e.target.value)}
         onKeyDown={onKeyDown}
         placeholder={inputPlaceholder(scope)}
-        rows={1}
+        rows={3}
         className="block w-full resize-none overflow-y-auto bg-transparent py-3 pl-12 pr-14 text-base leading-relaxed placeholder:text-muted-foreground focus-visible:outline-none md:text-sm"
       />
       <Button
