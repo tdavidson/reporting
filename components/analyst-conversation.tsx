@@ -683,8 +683,9 @@ export function AnalystConversation({
   /** The page composer: one filled surface, the textarea running its full width and a control row
    *  beneath it — attach on the left, model and send on the right — so the text never has to
    *  route around a button. Two rows tall at rest (the row below makes up the third), and the
-   *  effect above grows it as the question does. It is also the drop zone: a file dragged over it
-   *  attaches exactly as the + would, and the dashed ring says so while it hovers. */
+   *  effect above grows it as the question does, while the resize handle lets someone make more
+   *  room manually. It is also the drop zone: a file dragged over it attaches exactly as the +
+   *  would, and the dashed ring says so while it hovers. */
   const largeComposer = (
     <div
       onDragEnter={onDragEnter}
@@ -706,7 +707,7 @@ export function AnalystConversation({
         onKeyDown={onKeyDown}
         placeholder={inputPlaceholder(scope)}
         rows={2}
-        className="block w-full resize-none overflow-y-auto bg-transparent px-4 pb-1 pt-3 text-base leading-relaxed placeholder:text-muted-foreground focus-visible:outline-none md:text-sm"
+        className="block max-h-80 min-h-[4.5rem] w-full resize-y overflow-y-auto bg-transparent px-4 pb-1 pt-3 text-base leading-relaxed placeholder:text-muted-foreground focus-visible:outline-none md:text-sm"
       />
       <div className="flex items-center gap-1 px-2 pb-2">
         <button
@@ -782,11 +783,13 @@ export function AnalystConversation({
   const pageConversationActions = (
     <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
       <div className="flex items-center gap-1">
-        <Button type="button" variant="ghost" size="sm" onClick={handleStartNewConversation}>
-          <Plus data-icon="inline-start" />
-          New chat
-        </Button>
-        <Button type="button" variant="ghost" size="sm" onClick={handleShowHistory}>
+        {messages.length > 0 && (
+          <Button type="button" variant="outline" size="sm" onClick={handleStartNewConversation}>
+            <Plus data-icon="inline-start" />
+            New chat
+          </Button>
+        )}
+        <Button type="button" variant="outline" size="sm" onClick={handleShowHistory}>
           <Clock data-icon="inline-start" />
           Conversation history
         </Button>
@@ -794,7 +797,7 @@ export function AnalystConversation({
       {suggestions && suggestions.length > 0 && messages.length === 0 && (
         <Button
           type="button"
-          variant="ghost"
+          variant="outline"
           size="sm"
           aria-expanded={showSuggestions}
           aria-controls="analyst-example-questions"

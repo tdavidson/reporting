@@ -60,7 +60,7 @@ export default function StartPage() {
     .filter(g => g.length > 0)
 
   const shortcuts = actions.length > 0 && (
-    <div className="hidden space-y-3 md:block">
+    <div className="hidden space-y-3 pt-4 md:block">
       <p className="text-left text-xs text-muted-foreground">Or start from here:</p>
       {groups.map((group, i) => (
       <div key={i} className="flex flex-wrap justify-start gap-2">
@@ -87,9 +87,14 @@ export default function StartPage() {
   // This IS the page title. There is no separate "Analyst" h1 above it — one page, one title,
   // and this is the one that says what the page is for.
   const hero = (
-    <h1 className="text-left text-2xl font-semibold tracking-tight">
-      What would you like to do?
-    </h1>
+    <div className="space-y-1">
+      <h1 className="text-left text-2xl font-semibold tracking-tight">
+        What would you like to do?
+      </h1>
+      <p className="text-sm text-muted-foreground">
+        Ask the Analyst a question or jump into a common workflow.
+      </p>
+    </div>
   )
 
   // No AI key configured means no chat to put front and centre. Rather than render a composer that
