@@ -60,7 +60,7 @@ export default function StartPage() {
     .filter(g => g.length > 0)
 
   const shortcuts = actions.length > 0 && (
-    <div className="hidden space-y-6 pt-4 md:block">
+    <div className="hidden space-y-3 pt-12 md:block">
       <p className="text-left text-xs text-muted-foreground">Or start from here:</p>
       {groups.map((group, i) => (
       <div key={i} className="flex flex-wrap justify-start gap-2">
