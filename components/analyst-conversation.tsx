@@ -348,10 +348,11 @@ export function AnalystConversation({
     </div>
   )
 
-  /** One picker, two faces: the panel header is a full select; the row under an answer is a
-   *  quiet text trigger — the model's name and a small chevron — because no glyph says "which
-   *  model" on its own, and the name is the thing you are choosing anyway. */
-  function renderModelPicker(face: 'labelled' | 'icon') {
+  /** One picker, three faces: the panel header is a full select; the row under an answer and the
+   *  page composer's control row are quiet text triggers — the model's name and a small chevron —
+   *  because no glyph says "which model" on its own, and the name is the thing you are choosing
+   *  anyway. The composer face is a step larger so it sits level with the + and send controls. */
+  function renderModelPicker(face: 'labelled' | 'icon' | 'composer') {
     if (availableModels.length === 0 || showHistory) return null
     return (
       <Select
@@ -365,14 +366,16 @@ export function AnalystConversation({
           }
         }}
       >
-        {face === 'icon' ? (
+        {face === 'icon' || face === 'composer' ? (
           <SelectTrigger
             aria-label="Switch model"
             title="Switch model"
-            className={`${actionIconClass} w-auto gap-1 border-0 px-2 text-xs shadow-none [&>svg:last-child]:hidden`}
+            className={face === 'composer'
+              ? 'flex h-8 w-auto items-center gap-1 rounded-md border-0 px-2 text-sm text-muted-foreground shadow-none transition-colors hover:bg-muted hover:text-foreground [&>svg:last-child]:hidden'
+              : `${actionIconClass} w-auto gap-1 border-0 px-2 text-xs shadow-none [&>svg:last-child]:hidden`}
           >
             <span>{selectedModel ? selectedModel.name : 'Auto'}</span>
-            <ChevronDown className="h-3 w-3 opacity-60" />
+            <ChevronDown className={face === 'composer' ? 'h-3.5 w-3.5 opacity-60' : 'h-3 w-3 opacity-60'} />
           </SelectTrigger>
         ) : (
           <SelectTrigger className="h-7 flex-1 min-w-0 text-[11px]">
@@ -598,10 +601,11 @@ export function AnalystConversation({
     }
   }
 
-  /** The page composer: one filled surface with the send control tucked into its corner. Three
-   *  rows tall at rest — the effect above grows it as the question does — and `pr-14` keeps the
-   *  text clear of the send button. It is also the drop zone: a file dragged over it attaches
-   *  exactly as the + would, and the dashed ring says so while it hovers. */
+  /** The page composer: one filled surface, the textarea running its full width and a control row
+   *  beneath it — attach on the left, model and send on the right — so the text never has to
+   *  route around a button. Two rows tall at rest (the row below makes up the third), and the
+   *  effect above grows it as the question does. It is also the drop zone: a file dragged over it
+   *  attaches exactly as the + would, and the dashed ring says so while it hovers. */
   const largeComposer = (
     <div
       onDragEnter={onDragEnter}
@@ -616,33 +620,38 @@ export function AnalystConversation({
           Drop to attach
         </div>
       )}
-      <button
-        type="button"
-        onClick={() => setAttachOpen(true)}
-        title={doc ? `Attached: ${doc.name}` : 'Attach a document'}
-        aria-label="Attach a document"
-        className="absolute bottom-2 left-2 flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-      >
-        <Plus className="h-4 w-4" />
-      </button>
       <textarea
         ref={inputRef}
         value={input}
         onChange={e => setInput(e.target.value)}
         onKeyDown={onKeyDown}
         placeholder={inputPlaceholder(scope)}
-        rows={3}
-        className="block w-full resize-none overflow-y-auto bg-transparent py-3 pl-12 pr-14 text-base leading-relaxed placeholder:text-muted-foreground focus-visible:outline-none md:text-sm"
+        rows={2}
+        className="block w-full resize-none overflow-y-auto bg-transparent px-4 pb-1 pt-3 text-base leading-relaxed placeholder:text-muted-foreground focus-visible:outline-none md:text-sm"
       />
-      <Button
-        size="icon"
-        onClick={handleSend}
-        disabled={(!input.trim() && !doc) || loading}
-        aria-label="Send"
-        className="absolute bottom-2 right-2 h-8 w-8 rounded-full"
-      >
-        <ArrowUp className="h-4 w-4" />
-      </Button>
+      <div className="flex items-center gap-1 px-2 pb-2">
+        <button
+          type="button"
+          onClick={() => setAttachOpen(true)}
+          title={doc ? `Attached: ${doc.name}` : 'Attach a document'}
+          aria-label="Attach a document"
+          className="flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        >
+          <Plus className="h-4 w-4" />
+        </button>
+        <div className="ml-auto flex items-center gap-1">
+          {renderModelPicker('composer')}
+          <Button
+            size="icon"
+            onClick={handleSend}
+            disabled={(!input.trim() && !doc) || loading}
+            aria-label="Send"
+            className="h-8 w-8 rounded-full"
+          >
+            <ArrowUp className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
     </div>
   )
 
