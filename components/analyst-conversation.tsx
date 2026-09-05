@@ -639,7 +639,7 @@ export function AnalystConversation({
         >
           <Plus className="h-4 w-4" />
         </button>
-        <div className="ml-auto flex items-center gap-1">
+        <div className="ml-auto flex items-center gap-3">
           {renderModelPicker('composer')}
           <Button
             size="icon"
