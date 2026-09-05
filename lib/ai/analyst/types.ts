@@ -75,6 +75,8 @@ export type AnalystProgressEvent =
 export interface AnalystRequest {
   messages: ChatMessage[]
   conversationId?: string
+  /** Propagates transport cancellation through the orchestration and model request. */
+  signal?: AbortSignal
   /** Credential ceiling for transports with scoped tokens. Cookie-authenticated web defaults on. */
   allowDrafts?: boolean
   /**

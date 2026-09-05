@@ -108,6 +108,7 @@ export async function runAnalyst(
   if (!Array.isArray(request.messages) || request.messages.length === 0) {
     throw new AnalystRequestError('messages array is required', 400, 'INVALID_REQUEST')
   }
+  request.signal?.throwIfAborted()
   if (request.conversationId && !(await conversationBelongsToPrincipal(
     deps.admin,
     principal,
@@ -380,6 +381,7 @@ export async function runAnalyst(
         model,
         maxTokens: 2000,
         effort: request.effort,
+        signal: request.signal,
         system: withTopicalGuardrail(systemPrompt),
         messages,
         tools: analystTools.tools,
@@ -397,12 +399,15 @@ export async function runAnalyst(
         model,
         maxTokens: 2000,
         effort: request.effort,
+        signal: request.signal,
         system: withTopicalGuardrail(systemPrompt),
         messages,
       })
       text = result.text
       usage = result.usage
     }
+
+    request.signal?.throwIfAborted()
 
     await logAIUsage(deps.admin, {
       fundId: principal.fundId,
@@ -416,6 +421,7 @@ export async function runAnalyst(
     const { reply, proposals } = accountingGroup && hasAccess(principal.access, 'accounting', 'write')
       ? extractProposals(text)
       : { reply: text, proposals: [] as AssistantProposal[] }
+    request.signal?.throwIfAborted()
     const conversationId = await persistConversation({
       admin: deps.admin,
       principal,
@@ -440,6 +446,7 @@ export async function runAnalyst(
       usage: { ...usage, provider: providerType, model },
     }
   } catch (error) {
+    if (request.signal?.aborted) throw error
     if (error instanceof AnalystRequestError) throw error
     console.error('[analyst] AI error:', error instanceof Error ? error.message : String(error), error)
     throw new AnalystRequestError(

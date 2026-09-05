@@ -129,9 +129,11 @@ describe('runAnalyst', () => {
   })
 
   it('runs outside a route and builds construction blocks from the completed tool result', async () => {
+    const controller = new AbortController()
     const result = await runAnalyst(principal, {
       messages: [{ role: 'user', content: 'How much capital remains in Fund II?' }],
       scope: { domain: 'funds' },
+      signal: controller.signal,
     }, { admin, isRateLimited: async () => false })
 
     expect(result.reply).toBe('Fund II has $5 million remaining.')
@@ -151,7 +153,25 @@ describe('runAnalyst', () => {
       expect.objectContaining({ fundId: 'fund-1' }),
       { vehicle: 'Fund II' },
     )
+    expect(mocks.createToolLoop).toHaveBeenCalledWith(expect.objectContaining({
+      signal: controller.signal,
+    }))
     expect(mocks.logAIUsage).toHaveBeenCalledTimes(1)
+  })
+
+  it('stops an aborted run before model work or conversation persistence', async () => {
+    const controller = new AbortController()
+    controller.abort()
+
+    await expect(runAnalyst(principal, {
+      messages: [{ role: 'user', content: 'How much capital remains in Fund II?' }],
+      scope: { domain: 'funds' },
+      signal: controller.signal,
+    }, { admin, isRateLimited: async () => false })).rejects.toMatchObject({ name: 'AbortError' })
+
+    expect(mocks.createToolLoop).not.toHaveBeenCalled()
+    expect(mocks.logAIUsage).not.toHaveBeenCalled()
+    expect(mocks.persistConversation).not.toHaveBeenCalled()
   })
 
   it('does not request team notes without the relationships/notes grant', async () => {

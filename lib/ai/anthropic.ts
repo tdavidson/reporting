@@ -45,14 +45,17 @@ export class AnthropicProvider implements AIProvider {
     // (large max_tokens + slow models like Opus, or long web-search runs).
     // `finalMessage()` reassembles the complete response so the rest of the
     // pipeline sees the same shape as the legacy non-streaming call.
-    const stream = this.client.messages.stream({
-      model: params.model,
-      max_tokens: params.maxTokens,
-      ...outputConfig(params.model, params.effort),
-      ...(systemBlocks ? { system: systemBlocks } : {}),
-      ...(tools ? { tools: tools as any } : {}),
-      messages: [{ role: 'user', content }],
-    })
+    const stream = this.client.messages.stream(
+      {
+        model: params.model,
+        max_tokens: params.maxTokens,
+        ...outputConfig(params.model, params.effort),
+        ...(systemBlocks ? { system: systemBlocks } : {}),
+        ...(tools ? { tools: tools as any } : {}),
+        messages: [{ role: 'user', content }],
+      },
+      { signal: params.signal },
+    )
     const response = await stream.finalMessage()
 
     // When web search runs server-side, the response interleaves
@@ -114,13 +117,16 @@ export class AnthropicProvider implements AIProvider {
     const systemBlocks = cacheableSystem(params.system)
 
     // Same streaming-required reason as createMessage above.
-    const stream = this.client.messages.stream({
-      model: params.model,
-      max_tokens: params.maxTokens,
-      ...outputConfig(params.model, params.effort),
-      ...(systemBlocks ? { system: systemBlocks } : {}),
-      messages,
-    })
+    const stream = this.client.messages.stream(
+      {
+        model: params.model,
+        max_tokens: params.maxTokens,
+        ...outputConfig(params.model, params.effort),
+        ...(systemBlocks ? { system: systemBlocks } : {}),
+        messages,
+      },
+      { signal: params.signal },
+    )
     const response = await stream.finalMessage()
 
     const text = response.content
@@ -198,6 +204,7 @@ export class AnthropicProvider implements AIProvider {
     let truncated = false
 
     for (let i = 0; i < maxIterations; i++) {
+      params.signal?.throwIfAborted()
       const request: any = {
         model: params.model,
         max_tokens: params.maxTokens,
@@ -220,10 +227,10 @@ export class AnthropicProvider implements AIProvider {
             url: s.url,
             ...(s.authorizationToken ? { authorization_token: s.authorizationToken } : {}),
           })),
-        })
+        }, { signal: params.signal })
         response = await stream.finalMessage()
       } else {
-        const stream = this.client.messages.stream(request)
+        const stream = this.client.messages.stream(request, { signal: params.signal })
         response = await stream.finalMessage()
       }
 
@@ -258,6 +265,7 @@ export class AnthropicProvider implements AIProvider {
       // in parallel.
       const results: Anthropic.ToolResultBlockParam[] = []
       for (const call of pending) {
+        params.signal?.throwIfAborted()
         const input = (call.input ?? {}) as Record<string, unknown>
         let resultText: string
         let isError = false

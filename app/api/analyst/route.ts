@@ -50,6 +50,7 @@ export async function POST(req: NextRequest) {
     const result = await runAnalyst(principal, {
       messages: body.messages,
       conversationId: body.conversationId,
+      signal: req.signal,
       scope: {
         companyId: body.companyId,
         dealId: body.dealId,
@@ -82,6 +83,7 @@ export async function POST(req: NextRequest) {
       blocks: result.blocks,
     })
   } catch (error) {
+    if (req.signal.aborted) return new NextResponse(null, { status: 499 })
     if (error instanceof AnalystRequestError) {
       const headers = error.retryAfter ? { 'Retry-After': String(error.retryAfter) } : undefined
       return NextResponse.json({ error: error.message }, { status: error.status, headers })

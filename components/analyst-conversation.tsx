@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, type ReactNode } from 'react'
 import { AI_EFFORTS, type AIEffort } from '@/lib/ai/types'
 import { supportsEffort } from '@/lib/ai/model-families'
-import { Sparkles, Send, X, Save, Clock, Plus, Trash2, ArrowLeft, Paperclip, ArrowUp, Copy, Check, ChevronDown, Upload } from 'lucide-react'
+import { Sparkles, Send, X, Save, Clock, Plus, Trash2, ArrowLeft, Paperclip, ArrowUp, Copy, Check, ChevronDown, Upload, Pencil, Square } from 'lucide-react'
 import { Markdown } from '@/components/markdown'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -113,6 +113,8 @@ export function AnalystConversation({
   // Which answer was just copied, so its button can say so for a moment.
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null)
   const [attachOpen, setAttachOpen] = useState(false)
+  const [showSuggestions, setShowSuggestions] = useState(false)
+  const [editingMessageIndex, setEditingMessageIndex] = useState<number | null>(null)
   // Drafted entries for a given assistant message, by its index in `messages`. Deliberately not
   // persisted with the conversation — a stale draft from a reloaded thread shouldn't be
   // applicable against books that have moved on since.
@@ -125,12 +127,15 @@ export function AnalystConversation({
   const [doc, setDoc] = useState<{ name: string; format: string; base64: string } | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
+  const requestControllerRef = useRef<AbortController | null>(null)
 
   useEffect(() => {
     if (autoFocus) {
       setTimeout(() => inputRef.current?.focus(), 50)
     }
   }, [autoFocus])
+
+  useEffect(() => () => requestControllerRef.current?.abort(), [])
 
   // The picker can't offer models it never asked for. The panel used to be the only thing that
   // triggered the fetch, which left /start with no picker at all.
@@ -235,22 +240,33 @@ export function AnalystConversation({
 
   async function handleSend() {
     // With a document attached, "record this" is implied — no typing required.
-    if ((!input.trim() && !doc) || loading) return
+    if ((!input.trim() && !doc) || loading || requestControllerRef.current) return
     const startedAt = Date.now()
+    const editIndex = editingMessageIndex
     const userMessage = {
       role: 'user' as const,
       content: input.trim() || `Draft the entry that records ${doc?.name ?? 'the attached document'}.`,
     }
-    const newMessages = [...messages, userMessage]
+    const newMessages = [...(editIndex === null ? messages : messages.slice(0, editIndex)), userMessage]
+    const controller = new AbortController()
+    requestControllerRef.current = controller
     setMessages(newMessages)
     setInput('')
+    setEditingMessageIndex(null)
+    setShowSuggestions(false)
     setError(null)
     setLoading(true)
+    if (editIndex !== null) {
+      setProposals(prev => Object.fromEntries(Object.entries(prev).filter(([key]) => Number(key) < editIndex)))
+      setStagedActions(prev => Object.fromEntries(Object.entries(prev).filter(([key]) => Number(key) < editIndex)))
+      setTurnMeta(prev => Object.fromEntries(Object.entries(prev).filter(([key]) => Number(key) < editIndex)))
+    }
 
     try {
       const res = await fetch('/api/analyst', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
         body: JSON.stringify({
           messages: newMessages,
           companyId: companyId ?? undefined,
@@ -264,6 +280,7 @@ export function AnalystConversation({
         }),
       })
       const data = await res.json()
+      if (controller.signal.aborted || requestControllerRef.current !== controller) return
       if (!res.ok) {
         setError(data.error ?? 'Request failed')
         return
@@ -284,10 +301,37 @@ export function AnalystConversation({
         setConversationId(data.conversationId)
       }
     } catch {
+      if (controller.signal.aborted) return
       setError('Network error. Please try again.')
     } finally {
-      setLoading(false)
+      if (requestControllerRef.current === controller) {
+        requestControllerRef.current = null
+        setLoading(false)
+      }
     }
+  }
+
+  function handleStop() {
+    requestControllerRef.current?.abort()
+    requestControllerRef.current = null
+    setLoading(false)
+    setError(null)
+  }
+
+  function handleEditAndRetry(index: number) {
+    const message = messages[index]
+    if (!message || message.role !== 'user' || loading) return
+    setInput(message.content)
+    setEditingMessageIndex(index)
+    setShowSuggestions(false)
+    setError(null)
+    inputRef.current?.focus()
+  }
+
+  function cancelEdit() {
+    setInput('')
+    setEditingMessageIndex(null)
+    inputRef.current?.focus()
   }
 
   async function handleSaveAsSummary(idx: number) {
@@ -312,8 +356,19 @@ export function AnalystConversation({
   }
 
   function handleShowHistory() {
+    handleStop()
+    setShowSuggestions(false)
+    setEditingMessageIndex(null)
     loadConversations()
     setShowHistory(true)
+  }
+
+  function handleStartNewConversation() {
+    handleStop()
+    setShowSuggestions(false)
+    setEditingMessageIndex(null)
+    setInput('')
+    startNewConversation()
   }
 
   function formatDate(dateStr: string) {
@@ -335,7 +390,7 @@ export function AnalystConversation({
   // question is scannable at a glance. The ANSWER stays at the reading measure inside it, so the
   // gap between the two shapes is real rather than a few pixels of inset. The panel is narrower
   // than either, so it caps nothing.
-  const threadColumn = isPage ? 'mx-auto w-full max-w-3xl' : ''
+  const threadColumn = isPage ? 'w-full max-w-3xl' : ''
   const answerColumn = isPage ? 'max-w-readable' : ''
   // The page opens on an empty thread and is meant to look like an invitation rather than an empty
   // transcript: hero, composer, shortcuts, vertically centred. The moment there is a thread it
@@ -356,11 +411,10 @@ export function AnalystConversation({
     </div>
   )
 
-  /** One picker, three faces: the panel header is a full select; the row under an answer and the
-   *  page composer's control row are quiet text triggers — the model's name and a small chevron —
-   *  because no glyph says "which model" on its own, and the name is the thing you are choosing
-   *  anyway. The composer face is a step larger so it sits level with the + and send controls. */
-  function renderModelPicker(face: 'labelled' | 'icon' | 'composer') {
+  /** One picker, two faces: the panel header is a full select, while the page composer uses a
+   *  quiet text trigger — the model's name and a small chevron — because no glyph says "which
+   *  model" on its own, and the name is the thing you are choosing anyway. */
+  function renderModelPicker(face: 'labelled' | 'composer') {
     if (availableModels.length === 0 || showHistory) return null
     return (
       <Select
@@ -374,16 +428,14 @@ export function AnalystConversation({
           }
         }}
       >
-        {face === 'icon' || face === 'composer' ? (
+        {face === 'composer' ? (
           <SelectTrigger
             aria-label="Switch model"
             title="Switch model"
-            className={face === 'composer'
-              ? composerTriggerClass
-              : `${actionIconClass} w-auto gap-1 border-0 px-2 text-xs shadow-none [&>svg:last-child]:hidden`}
+            className={composerTriggerClass}
           >
             <span>{selectedModel ? selectedModel.name : 'Auto'}</span>
-            <ChevronDown className={face === 'composer' ? 'h-3.5 w-3.5 opacity-60' : 'h-3 w-3 opacity-60'} />
+            <ChevronDown className="h-3.5 w-3.5 opacity-60" />
           </SelectTrigger>
         ) : (
           <SelectTrigger className="h-7 flex-1 min-w-0 text-[11px]">
@@ -425,9 +477,8 @@ export function AnalystConversation({
 
   // The page has no header at all. On an empty thread there is nothing to copy, switch, or go
   // back to, and a toolbar floating above "What would you like to do?" was the first thing the
-  // eye landed on. Once there is a thread, the controls live under each answer, next to the
-  // thing they act on. The panel keeps its compact header: it has a title and a close button to
-  // house anyway, and its answers are too narrow to carry a full row.
+  // eye landed on. The page's conversation controls live under its composer instead. The panel
+  // keeps its compact header: it has a title and a close button to house anyway.
   const panelHeader = (
     <div className="flex items-center gap-2 px-4 py-3">
       <h2 className="text-base font-medium text-muted-foreground flex items-center gap-1.5 shrink-0">
@@ -516,10 +567,20 @@ export function AnalystConversation({
         {threadMeta}
         {messages.map((msg, i) =>
           msg.role === 'user' ? (
-            <div key={i} className="flex justify-end">
+            <div key={i} className="flex flex-col items-end gap-1">
               <div className="max-w-[80%] rounded-card bg-muted px-4 py-2.5 text-sm whitespace-pre-wrap">
                 {msg.content}
               </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                disabled={loading}
+                onClick={() => handleEditAndRetry(i)}
+              >
+                <Pencil data-icon="inline-start" />
+                Edit and retry
+              </Button>
             </div>
           ) : (
             <div key={i} className={`space-y-2 ${answerColumn}`}>
@@ -541,17 +602,6 @@ export function AnalystConversation({
                 >
                   {copiedIdx === i ? <Check className="h-3.5 w-3.5 text-success" /> : <Copy className="h-3.5 w-3.5" />}
                 </button>
-                {isPage && (
-                  <>
-                    {renderModelPicker('icon')}
-                    <button type="button" onClick={startNewConversation} title="New conversation" aria-label="New conversation" className={actionIconClass}>
-                      <Plus className="h-3.5 w-3.5" />
-                    </button>
-                    <button type="button" onClick={handleShowHistory} title="Conversation history" aria-label="Conversation history" className={actionIconClass}>
-                      <Clock className="h-3.5 w-3.5" />
-                    </button>
-                  </>
-                )}
                 {companyId && (
                   <button
                     type="button"
@@ -675,12 +725,12 @@ export function AnalystConversation({
           </div>
           <Button
             size="icon"
-            onClick={handleSend}
-            disabled={(!input.trim() && !doc) || loading}
-            aria-label="Send"
+            onClick={loading ? handleStop : handleSend}
+            disabled={!loading && !input.trim() && !doc}
+            aria-label={loading ? 'Stop response' : editingMessageIndex !== null ? 'Retry' : 'Send'}
             className="h-8 w-8 rounded-full"
           >
-            <ArrowUp className="h-4 w-4" />
+            {loading ? <Square /> : <ArrowUp />}
           </Button>
         </div>
       </div>
@@ -700,24 +750,25 @@ export function AnalystConversation({
       />
       <Button
         size="icon"
-        onClick={handleSend}
-        disabled={(!input.trim() && !doc) || loading}
-        aria-label="Send"
+        onClick={loading ? handleStop : handleSend}
+        disabled={!loading && !input.trim() && !doc}
+        aria-label={loading ? 'Stop response' : editingMessageIndex !== null ? 'Retry' : 'Send'}
         className="h-auto self-end px-2 py-2"
       >
-        <Send className="h-3.5 w-3.5" />
+        {loading ? <Square /> : <Send />}
       </Button>
     </div>
   )
 
-  const suggestionChips = suggestions && suggestions.length > 0 && messages.length === 0 && (
-    <div className={`flex flex-wrap justify-center gap-2 ${threadColumn}`}>
+  const suggestionChips = showSuggestions && suggestions && suggestions.length > 0 && messages.length === 0 && (
+    <div id="analyst-example-questions" className="mt-2 flex flex-wrap justify-start gap-2">
       {suggestions.map(s => (
         <button
           key={s}
           type="button"
           onClick={() => {
             setInput(s)
+            setShowSuggestions(false)
             inputRef.current?.focus()
           }}
           className="rounded-full border px-3 py-1.5 text-xs text-muted-foreground transition-colors duration-200 ease-out-soft hover:bg-accent hover:text-foreground"
@@ -728,30 +779,62 @@ export function AnalystConversation({
     </div>
   )
 
-  // The hero has no toolbar, so this is how past conversations are reached before the first
-  // answer puts the history icon under it. A text link, not a button: it is a way out of the
-  // page, not one of the things the page invites you to do.
-  const historyLink = (
-    <p className="text-center">
-      <button
-        type="button"
-        onClick={handleShowHistory}
-        className="text-xs text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
-      >
-        See conversation history
-      </button>
-    </p>
+  const pageConversationActions = (
+    <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+      <div className="flex items-center gap-1">
+        <Button type="button" variant="ghost" size="sm" onClick={handleStartNewConversation}>
+          <Plus data-icon="inline-start" />
+          New chat
+        </Button>
+        <Button type="button" variant="ghost" size="sm" onClick={handleShowHistory}>
+          <Clock data-icon="inline-start" />
+          Conversation history
+        </Button>
+      </div>
+      {suggestions && suggestions.length > 0 && messages.length === 0 && (
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          aria-expanded={showSuggestions}
+          aria-controls="analyst-example-questions"
+          onClick={() => setShowSuggestions(open => !open)}
+        >
+          Example questions
+          <ChevronDown data-icon="inline-end" />
+        </Button>
+      )}
+    </div>
   )
 
   const composerBlock = (
     <div className={isPage ? threadColumn : 'px-4 py-3'}>
+      {editingMessageIndex !== null && (
+        <div className="mb-2 flex items-center gap-2 text-xs text-muted-foreground">
+          <Pencil className="size-3.5" />
+          <span>Editing message — send to retry from here.</span>
+          <button
+            type="button"
+            onClick={cancelEdit}
+            className="underline-offset-4 hover:text-foreground hover:underline"
+          >
+            Cancel
+          </button>
+        </div>
+      )}
       {attachment}
-      {isPage ? largeComposer : smallComposer}
+      {isPage ? (
+        <>
+          {largeComposer}
+          {pageConversationActions}
+          {suggestionChips}
+        </>
+      ) : smallComposer}
     </div>
   )
 
   const storageNote = (
-    <p className="text-[10px] text-muted-foreground/60 text-center mt-3 px-4 shrink-0">
+    <p className="mt-3 shrink-0 px-1 text-left text-[10px] text-muted-foreground/60">
       Conversations are stored to provide context and improve AI performance.
     </p>
   )
@@ -763,12 +846,10 @@ export function AnalystConversation({
         {showHistory ? (
           <div className="flex flex-col flex-1 min-h-0">{historyView}</div>
         ) : heroLayout ? (
-          <div className={`flex flex-1 flex-col gap-6 px-2 pt-14 md:px-0 md:pt-6 ${threadColumn}`}>
+          <div className={`flex flex-1 flex-col gap-6 ${threadColumn}`}>
             {hero}
             <div className="space-y-4">
               {composerBlock}
-              {suggestionChips}
-              {historyLink}
             </div>
             {belowComposer}
           </div>

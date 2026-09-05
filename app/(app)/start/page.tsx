@@ -61,9 +61,9 @@ export default function StartPage() {
 
   const shortcuts = actions.length > 0 && (
     <div className="hidden space-y-3 md:block">
-      <p className="text-center text-xs text-muted-foreground">Or start from here:</p>
+      <p className="text-left text-xs text-muted-foreground">Or start from here:</p>
       {groups.map((group, i) => (
-      <div key={i} className="flex flex-wrap justify-center gap-2">
+      <div key={i} className="flex flex-wrap justify-start gap-2">
         {group.map(a => {
           if (a.kind === 'link') {
             const Icon = LINK_ICONS[a.id]
@@ -87,7 +87,7 @@ export default function StartPage() {
   // This IS the page title. There is no separate "Analyst" h1 above it — one page, one title,
   // and this is the one that says what the page is for.
   const hero = (
-    <h1 className="text-center text-2xl font-semibold tracking-tight">
+    <h1 className="text-left text-2xl font-semibold tracking-tight">
       What would you like to do?
     </h1>
   )
@@ -97,9 +97,9 @@ export default function StartPage() {
   if (!hasAIKey) {
     return (
       <div className="w-full px-4 pb-8 pt-4 md:pl-8 md:pr-4 md:pt-8">
-        <div className="mx-auto flex w-full max-w-4xl flex-col gap-6 pt-12">
+        <div className="flex w-full max-w-4xl flex-col gap-6">
         {hero}
-        <p className="text-center text-sm text-muted-foreground">
+        <p className="text-left text-sm text-muted-foreground">
           Add an AI provider key in{' '}
           <Link href="/settings" className="text-brand-700 dark:text-brand-400 hover:underline">Settings</Link>{' '}
           to ask the Analyst questions from here.

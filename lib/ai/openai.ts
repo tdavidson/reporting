@@ -24,12 +24,15 @@ export class OpenAIProvider implements AIProvider {
 
     messages.push({ role: 'user', content: userContent })
 
-    const response = await this.client.chat.completions.create({
-      model: params.model,
-      max_tokens: params.maxTokens,
-      ...reasoningEffort(params.model, params.effort),
-      messages,
-    })
+    const response = await this.client.chat.completions.create(
+      {
+        model: params.model,
+        max_tokens: params.maxTokens,
+        ...reasoningEffort(params.model, params.effort),
+        messages,
+      },
+      { signal: params.signal },
+    )
 
     return {
       text: response.choices[0]?.message?.content ?? '',
@@ -52,12 +55,15 @@ export class OpenAIProvider implements AIProvider {
       messages.push({ role: m.role, content: m.content })
     }
 
-    const response = await this.client.chat.completions.create({
-      model: params.model,
-      max_tokens: params.maxTokens,
-      ...reasoningEffort(params.model, params.effort),
-      messages,
-    })
+    const response = await this.client.chat.completions.create(
+      {
+        model: params.model,
+        max_tokens: params.maxTokens,
+        ...reasoningEffort(params.model, params.effort),
+        messages,
+      },
+      { signal: params.signal },
+    )
 
     return {
       text: response.choices[0]?.message?.content ?? '',
