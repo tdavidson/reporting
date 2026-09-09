@@ -169,7 +169,9 @@ export function computeSummary(
     }
 
     if (txn.transaction_type === 'proceeds') {
-      const proceedsAmount = (txn.proceeds_received ?? 0) + (txn.proceeds_escrow ?? 0)
+      // `proceeds_received` stores gross proceeds realized at the exit. `proceeds_escrow` is a
+      // disclosure of the portion still held back, not an additional amount to add again.
+      const proceedsAmount = txn.proceeds_received ?? 0
       totalRealized += proceedsAmount
       totalWrittenOff += txn.proceeds_written_off ?? 0
 
@@ -188,7 +190,7 @@ export function computeSummary(
         const round = roundMap.get(txn.round_name)
         if (round) {
           if (txn.cost_basis_exited != null) round.costBasisExited += Math.abs(txn.cost_basis_exited)
-          round.totalRealized += txn.proceeds_received ?? 0
+          round.totalRealized += proceedsAmount
           round.totalEscrow += txn.proceeds_escrow ?? 0
           round.escrowOutstanding += txn.proceeds_escrow ?? 0
           if (txn.transaction_date) {
@@ -289,7 +291,7 @@ export function computeSummary(
     } else if (hasInvestment && !hasProceeds) {
       // Investment cash flows exist but proceeds aren't attributed to this round yet.
       // Fall back to round-level totals if we have proceeds date + amounts.
-      const totalRoundProceeds = round.totalRealized + round.totalEscrow
+      const totalRoundProceeds = round.totalRealized
       if (totalRoundProceeds > 0 && round.proceedsDate) {
         round.grossIrr = xirr([...rcf, { date: new Date(round.proceedsDate), amount: totalRoundProceeds }])
       } else if (companyStatus !== 'exited' && round.currentValue > 0) {

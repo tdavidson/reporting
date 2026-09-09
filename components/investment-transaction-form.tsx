@@ -955,7 +955,7 @@ export function InvestmentTransactionForm({ companyId, editing, transactions, su
               </p>
             </div>
             <div>
-              <Label>Proceeds Received ({symbol.trim()})</Label>
+              <Label>Proceeds (gross) ({symbol.trim()})</Label>
               <Input
                 className="mt-1"
                 type="number"

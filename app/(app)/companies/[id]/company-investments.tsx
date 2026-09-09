@@ -508,7 +508,11 @@ function TransactionTable({
                       </td>
                     )}
                     <td className="px-3 py-2 text-right tabular-nums">
-                      {(txn.transaction_type === 'proceeds' || txn.transaction_type === 'escrow_receipt') ? fmt(txn.proceeds_received) : '-'}
+                      {txn.transaction_type === 'proceeds'
+                        ? fmt(txn.proceeds_received)
+                        : txn.transaction_type === 'escrow_receipt'
+                        ? fmt(txn.proceeds_received)
+                        : '-'}
                     </td>
                     {hasEscrow && (
                       <td className="px-3 py-2 text-right tabular-nums">
@@ -683,7 +687,7 @@ function RoundSummaryTable({
     mergedRoundNames.has(round.roundName) ? { ...round, grossIrr: summary.grossIrr } : round,
   )
   const totInvested = rounds.reduce((s, r) => s + r.investmentCost, 0)
-  const totProceeds = rounds.reduce((s, r) => s + r.totalRealized + r.totalEscrow, 0)
+  const totProceeds = rounds.reduce((s, r) => s + r.totalRealized, 0)
   const totEscrow = rounds.reduce((s, r) => s + r.escrowOutstanding, 0)
   const totMoic = totInvested > 0 ? totProceeds / totInvested : null
   const roundGroupMap = new Map<string, string>()
@@ -708,7 +712,7 @@ function RoundSummaryTable({
         </thead>
         <tbody>
           {rounds.map(r => {
-            const roundProceeds = r.totalRealized + r.totalEscrow
+            const roundProceeds = r.totalRealized
             const roundMoic = r.investmentCost > 0 ? roundProceeds / r.investmentCost : null
             return (
               <tr key={r.roundName} className="border-b last:border-b-0">

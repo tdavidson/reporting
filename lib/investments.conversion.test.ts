@@ -81,7 +81,7 @@ describe('computeSummary — SAFE/note conversions', () => {
 
     const withoutReceipt = computeSummary([inv, exit], ACTIVE)
     const s = computeSummary([inv, exit, receipt], ACTIVE)
-    expect(s.totalRealized).toBe(100_000)
+    expect(s.totalRealized).toBe(50_000)
     expect(round(s, 'Series A').totalRealized).toBe(50_000)
     expect(round(s, 'Series A').totalEscrow).toBe(50_000)
     expect(round(s, 'Series A').escrowOutstanding).toBe(30_000)
