@@ -409,10 +409,15 @@ function TransactionTable({
   const hasPostmoney = transactions.some(t => t.postmoney_valuation != null)
   const hasFxRows = transactions.some(t => t.valuation_change_source === 'fx')
   const hasEscrow = transactions.some(t => t.transaction_type === 'proceeds' && (t.proceeds_escrow ?? 0) > 0)
+  const hasInterestConversion = transactions.some(t =>
+    t.transaction_type === 'investment' &&
+    !!(t as { converts_from_txn_id?: string | null }).converts_from_txn_id &&
+    Number(t.interest_converted ?? 0) > 0,
+  )
   let escrowBalance = 0
   const colCount =
     (showGroup ? 1 : 0) +
-    (companyStatus === 'exited' ? 6 + (hasEscrow ? 1 : 0) : 8 + (hasPostmoney ? 1 : 0))
+    (companyStatus === 'exited' ? 6 + (hasInterestConversion ? 1 : 0) + (hasEscrow ? 1 : 0) : 8 + (hasPostmoney ? 1 : 0))
   return (
     <div className="border rounded-lg overflow-hidden">
       <table className="w-full text-sm">
@@ -425,6 +430,7 @@ function TransactionTable({
             {companyStatus === 'exited' ? (
               <>
                 <th className="text-right px-3 py-2 font-medium">Cost</th>
+                {hasInterestConversion && <th className="text-right px-3 py-2 font-medium">Conversion</th>}
                 <th className="text-right px-3 py-2 font-medium">Proceeds</th>
                 {hasEscrow && <th className="text-right px-3 py-2 font-medium">In escrow</th>}
               </>
@@ -494,6 +500,13 @@ function TransactionTable({
                     <td className="px-3 py-2 text-right tabular-nums">
                       {txn.transaction_type === 'investment' ? fmt(txn.investment_cost) : '-'}
                     </td>
+                    {hasInterestConversion && (
+                      <td className="px-3 py-2 text-right tabular-nums">
+                        {(txn as { converts_from_txn_id?: string | null }).converts_from_txn_id && Number(txn.interest_converted ?? 0) > 0
+                          ? fmt(txn.interest_converted)
+                          : '-'}
+                      </td>
+                    )}
                     <td className="px-3 py-2 text-right tabular-nums">
                       {(txn.transaction_type === 'proceeds' || txn.transaction_type === 'escrow_receipt') ? fmt(txn.proceeds_received) : '-'}
                     </td>
@@ -619,7 +632,59 @@ function RoundSummaryTable({
   fmt: (v: number | null | undefined) => string
   fmtMoic: (v: number | null | undefined) => string
 }) {
-  const rounds = summary.rounds
+  // A conversion source and its target can be different tracker rounds even when the target is
+  // the same economic security as an existing purchase (for example, a note converting into the
+  // existing Series Seed Preferred at the same price). Merge only that case. Different security
+  // classes or prices remain separate rows because that distinction is useful for performance.
+  const txnById = new Map(transactions.map(txn => [txn.id, txn]))
+  const convertedSourceToTarget = new Map<string, string>()
+  for (const txn of transactions) {
+    const sourceId = (txn as { converts_from_txn_id?: string | null }).converts_from_txn_id
+    if (txn.transaction_type === 'investment' && sourceId) {
+      const source = txnById.get(sourceId)
+      if (source?.round_name && txn.round_name && source.round_name !== txn.round_name) {
+        const targetPurchase = transactions.find(candidate =>
+          candidate.id !== txn.id &&
+          candidate.transaction_type === 'investment' &&
+          !(candidate as { converts_from_txn_id?: string | null }).converts_from_txn_id &&
+          candidate.round_name === txn.round_name &&
+          candidate.security_type != null &&
+          txn.security_type != null &&
+          candidate.security_type === txn.security_type &&
+          candidate.share_price != null &&
+          txn.share_price != null &&
+          Number(candidate.share_price) === Number(txn.share_price),
+        )
+        if (targetPurchase) convertedSourceToTarget.set(source.round_name, txn.round_name)
+      }
+    }
+  }
+  const mergedRounds = new Map<string, typeof summary.rounds[number]>()
+  const mergedRoundNames = new Set<string>()
+  for (const round of summary.rounds) {
+    let displayName = round.roundName
+    const seen = new Set<string>()
+    while (convertedSourceToTarget.has(displayName) && !seen.has(displayName)) {
+      seen.add(displayName)
+      displayName = convertedSourceToTarget.get(displayName)!
+    }
+    const existing = mergedRounds.get(displayName)
+    if (existing) {
+      existing.investmentCost += round.investmentCost
+      existing.sharesAcquired += round.sharesAcquired
+      existing.totalRealized += round.totalRealized
+      existing.totalEscrow += round.totalEscrow
+      existing.escrowOutstanding += round.escrowOutstanding
+      existing.costBasisExited += round.costBasisExited
+      existing.unrealizedValueChange += round.unrealizedValueChange
+    } else {
+      mergedRounds.set(displayName, { ...round, roundName: displayName })
+    }
+    if (displayName !== round.roundName) mergedRoundNames.add(displayName)
+  }
+  const rounds = Array.from(mergedRounds.values()).map(round =>
+    mergedRoundNames.has(round.roundName) ? { ...round, grossIrr: summary.grossIrr } : round,
+  )
   const totInvested = rounds.reduce((s, r) => s + r.investmentCost, 0)
   const totProceeds = rounds.reduce((s, r) => s + r.totalRealized + r.totalEscrow, 0)
   const totEscrow = rounds.reduce((s, r) => s + r.escrowOutstanding, 0)
@@ -639,7 +704,7 @@ function RoundSummaryTable({
             <th className="text-left px-3 py-2 font-medium">Round</th>
             <th className="text-right px-3 py-2 font-medium">Invested</th>
             <th className="text-right px-3 py-2 font-medium">Proceeds</th>
-            <th className="text-right px-3 py-2 font-medium">In escrow (included)</th>
+            <th className="text-right px-3 py-2 font-medium">In escrow</th>
             <th className="text-right px-3 py-2 font-medium">Gross MOIC</th>
             <th className="text-right px-3 py-2 font-medium">Gross IRR</th>
           </tr>
