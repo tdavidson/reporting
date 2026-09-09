@@ -96,7 +96,7 @@ export async function GET(_req: NextRequest, props: { params: Promise<{ id: stri
 // POST — create a new transaction
 // ---------------------------------------------------------------------------
 
-const VALID_TYPES = ['investment', 'proceeds', 'unrealized_gain_change', 'round_info', 'split', 'income']
+const VALID_TYPES = ['investment', 'proceeds', 'escrow_receipt', 'unrealized_gain_change', 'round_info', 'split', 'income']
 
 const INCOME_KINDS = ['staking', 'airdrop', 'dividend', 'other']
 const INCOME_SETTLEMENTS = ['cash', 'in_kind']

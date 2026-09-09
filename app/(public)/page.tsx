@@ -12,6 +12,7 @@ import { renderInlineMarkdown } from '@/lib/marketing/markdown'
 export const metadata = ogMetadata({
   title: 'Run your fund with Hemrock',
   description: 'Open source portfolio reporting for venture capital firms, accelerators, and angel investors.',
+  path: '/',
 })
 
 /**

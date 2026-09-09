@@ -29,6 +29,7 @@ const TYPE_LABELS: Record<TransactionType, string> = {
   investment: 'Investment',
   conversion: 'Conversion',
   proceeds: 'Proceeds',
+  escrow_receipt: 'Escrow Receipt',
   unrealized_gain_change: 'Valuation Update',
   round_info: 'Round',
   split: 'Share split',
@@ -407,9 +408,10 @@ function TransactionTable({
   if (transactions.length === 0) return null
   const hasPostmoney = transactions.some(t => t.postmoney_valuation != null)
   const hasFxRows = transactions.some(t => t.valuation_change_source === 'fx')
+  const hasEscrow = transactions.some(t => t.transaction_type === 'proceeds' && (t.proceeds_escrow ?? 0) > 0)
   const colCount =
     (showGroup ? 1 : 0) +
-    (companyStatus === 'exited' ? 6 : 8 + (hasPostmoney ? 1 : 0))
+    (companyStatus === 'exited' ? 6 + (hasEscrow ? 1 : 0) : 8 + (hasPostmoney ? 1 : 0))
   return (
     <div className="border rounded-lg overflow-hidden">
       <table className="w-full text-sm">
@@ -423,6 +425,7 @@ function TransactionTable({
               <>
                 <th className="text-right px-3 py-2 font-medium">Cost</th>
                 <th className="text-right px-3 py-2 font-medium">Proceeds</th>
+                {hasEscrow && <th className="text-right px-3 py-2 font-medium">Escrow</th>}
               </>
             ) : (
               <>
@@ -488,8 +491,15 @@ function TransactionTable({
                       {txn.transaction_type === 'investment' ? fmt(txn.investment_cost) : '-'}
                     </td>
                     <td className="px-3 py-2 text-right tabular-nums">
-                      {txn.transaction_type === 'proceeds' ? fmt(txn.proceeds_received) : '-'}
+                      {(txn.transaction_type === 'proceeds' || txn.transaction_type === 'escrow_receipt') ? fmt(txn.proceeds_received) : '-'}
                     </td>
+                    {hasEscrow && (
+                      <td className="px-3 py-2 text-right tabular-nums">
+                        {txn.transaction_type === 'proceeds' && (txn.proceeds_escrow ?? 0) > 0
+                          ? fmt(txn.proceeds_escrow)
+                          : '-'}
+                      </td>
+                    )}
                   </>
                 ) : (
                   <>
@@ -607,9 +617,9 @@ function RoundSummaryTable({
 }) {
   const rounds = summary.rounds
   const totInvested = rounds.reduce((s, r) => s + r.investmentCost, 0)
-  const totRealized = rounds.reduce((s, r) => s + r.totalRealized, 0)
+  const totProceeds = rounds.reduce((s, r) => s + r.totalRealized + r.totalEscrow, 0)
   const totEscrow = rounds.reduce((s, r) => s + r.totalEscrow, 0)
-  const totMoic = totInvested > 0 ? (totRealized + totEscrow) / totInvested : null
+  const totMoic = totInvested > 0 ? totProceeds / totInvested : null
   const roundGroupMap = new Map<string, string>()
   for (const txn of transactions) {
     if (txn.transaction_type === 'investment' && txn.round_name && txn.portfolio_group) {
@@ -625,20 +635,21 @@ function RoundSummaryTable({
             <th className="text-left px-3 py-2 font-medium">Round</th>
             <th className="text-right px-3 py-2 font-medium">Invested</th>
             <th className="text-right px-3 py-2 font-medium">Proceeds</th>
-            <th className="text-right px-3 py-2 font-medium">Escrow</th>
+            <th className="text-right px-3 py-2 font-medium">Escrow (included)</th>
             <th className="text-right px-3 py-2 font-medium">Gross MOIC</th>
             <th className="text-right px-3 py-2 font-medium">Gross IRR</th>
           </tr>
         </thead>
         <tbody>
           {rounds.map(r => {
-            const roundMoic = r.investmentCost > 0 ? (r.totalRealized + r.totalEscrow) / r.investmentCost : null
+            const roundProceeds = r.totalRealized + r.totalEscrow
+            const roundMoic = r.investmentCost > 0 ? roundProceeds / r.investmentCost : null
             return (
               <tr key={r.roundName} className="border-b last:border-b-0">
                 {showGroup && <td className="px-3 py-2 text-xs">{roundGroupMap.get(r.roundName) ?? '-'}</td>}
                 <td className="px-3 py-2">{r.roundName}</td>
                 <td className="px-3 py-2 text-right tabular-nums">{fmt(r.investmentCost)}</td>
-                <td className="px-3 py-2 text-right tabular-nums">{fmt(r.totalRealized)}</td>
+                <td className="px-3 py-2 text-right tabular-nums">{fmt(roundProceeds)}</td>
                 <td className="px-3 py-2 text-right tabular-nums">{r.totalEscrow > 0 ? fmt(r.totalEscrow) : '-'}</td>
                 <td className="px-3 py-2 text-right tabular-nums">{fmtMoicFn(roundMoic)}</td>
                 <td className="px-3 py-2 text-right tabular-nums">
@@ -655,7 +666,7 @@ function RoundSummaryTable({
             {showGroup && <td className="px-3 py-2" />}
             <td className="px-3 py-2">Total</td>
             <td className="px-3 py-2 text-right tabular-nums">{fmt(totInvested)}</td>
-            <td className="px-3 py-2 text-right tabular-nums">{fmt(totRealized)}</td>
+            <td className="px-3 py-2 text-right tabular-nums">{fmt(totProceeds)}</td>
             <td className="px-3 py-2 text-right tabular-nums">{totEscrow > 0 ? fmt(totEscrow) : '-'}</td>
             <td className="px-3 py-2 text-right tabular-nums">{fmtMoicFn(totMoic)}</td>
             <td className="px-3 py-2 text-right tabular-nums">

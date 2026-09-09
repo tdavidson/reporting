@@ -6,6 +6,12 @@ export function ogMetadata(opts: {
   title: string
   description: string
   subtitle?: string
+  /**
+   * Site-relative path of the page, when it should be indexed. Emits an
+   * absolute canonical so `?ref=producthunt` and friends fold into the clean
+   * URL instead of being filed as duplicates.
+   */
+  path?: string
 }): Metadata {
   const ogUrl = new URL('/api/og', BASE_URL)
   ogUrl.searchParams.set('title', opts.title)
@@ -14,6 +20,7 @@ export function ogMetadata(opts: {
   return {
     title: opts.title,
     description: opts.description,
+    ...(opts.path ? { alternates: { canonical: new URL(opts.path, BASE_URL).toString() } } : {}),
     openGraph: {
       title: opts.title,
       description: opts.description,

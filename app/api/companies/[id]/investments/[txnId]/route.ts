@@ -47,7 +47,7 @@ export async function PATCH(
   // A mis-typed row can be reclassified on edit (e.g. a "Round" that should be a "Valuation
   // Update"). Only the DB types are valid; the UI's "conversion" is already translated to
   // 'investment' + converts_from before it reaches here.
-  const VALID_TYPES = ['investment', 'proceeds', 'unrealized_gain_change', 'round_info', 'split', 'income']
+  const VALID_TYPES = ['investment', 'proceeds', 'escrow_receipt', 'unrealized_gain_change', 'round_info', 'split', 'income']
   if ('transaction_type' in body && !VALID_TYPES.includes(body.transaction_type)) {
     return NextResponse.json({ error: 'Invalid transaction_type' }, { status: 400 })
   }

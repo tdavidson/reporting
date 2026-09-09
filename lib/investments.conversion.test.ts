@@ -48,6 +48,9 @@ describe('computeSummary — SAFE/note conversions', () => {
 
     const s = computeSummary([note, conv], ACTIVE)
     expect(s.totalInvested).toBe(129_000)               // 100k principal + 4k interest + 25k new cash
+    expect(s.totalRealized).toBe(0)                     // conversion is a basis transfer, not proceeds
+    expect(round(s, 'Note').investmentCost).toBe(104_000) // principal + capitalized interest
+    expect(round(s, 'Series A').investmentCost).toBe(25_000) // new cash; note basis carries in separately
     expect(s.unrealizedValue).toBe(150_000)
     expect(round(s, 'Note').currentValue).toBe(0)
   })
@@ -67,5 +70,18 @@ describe('computeSummary — SAFE/note conversions', () => {
     const s = computeSummary([inv], ACTIVE)
     expect(s.totalInvested).toBe(100_000)
     expect(s.unrealizedValue).toBe(150_000)
+  })
+
+  it('tracks escrow receipts separately without double-counting gross proceeds', () => {
+    const inv = txn({ id: 'i1', round_name: 'Series A', investment_cost: 100_000, shares_acquired: 50_000, share_price: 3 })
+    const exit = txn({ id: 'p1', transaction_type: 'proceeds', round_name: 'Series A', transaction_date: '2026-06-01',
+      cost_basis_exited: 100_000, proceeds_received: 50_000, proceeds_escrow: 50_000 })
+    const receipt = txn({ id: 'e1', transaction_type: 'escrow_receipt', round_name: 'Series A', transaction_date: '2026-09-01',
+      proceeds_received: 20_000 })
+
+    const s = computeSummary([inv, exit, receipt], ACTIVE)
+    expect(s.totalRealized).toBe(100_000)
+    expect(round(s, 'Series A').totalRealized).toBe(50_000)
+    expect(round(s, 'Series A').totalEscrow).toBe(50_000)
   })
 })

@@ -39,7 +39,7 @@ import type { CompanyInvestmentSummary } from '@/lib/types/investments'
 
 // 'conversion' is a UI-only mode: it is stored as an `investment` row carrying
 // `converts_from_txn_id` (the SAFE/note it converted). See handleSave.
-export type TransactionType = 'investment' | 'conversion' | 'proceeds' | 'unrealized_gain_change' | 'round_info' | 'split' | 'income'
+export type TransactionType = 'investment' | 'conversion' | 'proceeds' | 'escrow_receipt' | 'unrealized_gain_change' | 'round_info' | 'split' | 'income'
 
 export function fmtNum(val: number | null | undefined): string {
   if (val == null) return '-'
@@ -636,6 +636,7 @@ export function InvestmentTransactionForm({ companyId, editing, transactions, su
                 <SelectItem value="investment">Investment</SelectItem>
                 <SelectItem value="conversion">Conversion (SAFE / note → equity)</SelectItem>
                 <SelectItem value="proceeds">Proceeds</SelectItem>
+                <SelectItem value="escrow_receipt">Escrow receipt</SelectItem>
                 <SelectItem value="unrealized_gain_change">Valuation Update</SelectItem>
                 <SelectItem value="round_info">Round</SelectItem>
                 <SelectItem value="split">Share split</SelectItem>
@@ -1004,6 +1005,26 @@ export function InvestmentTransactionForm({ companyId, editing, transactions, su
                 placeholder="Total company exit price"
               />
             </div>
+          </div>
+        )}
+
+        {txnType === 'escrow_receipt' && (
+          <div className="space-y-2">
+            <div>
+              <Label>Escrow Received ({symbol.trim()})</Label>
+              <Input
+                className="mt-1"
+                type="number"
+                min="0"
+                step="any"
+                value={form.proceeds_received}
+                onChange={e => setForm(f => ({ ...f, proceeds_received: e.target.value }))}
+              />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Records cash released from escrow. It does not increase total proceeds again; the
+              original Proceeds entry already includes the escrow balance.
+            </p>
           </div>
         )}
 

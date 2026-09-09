@@ -49,7 +49,9 @@ export function computeSummary(
     const targetRound = t.round_name ?? 'Unknown'
     const sourceRound = src.round_name ?? 'Unknown'
     if (targetRound === sourceRound) continue // nothing to move
-    const carried = src.investment_cost ?? 0
+    // Carta treats converted interest as additional basis in the note before the note converts.
+    // Move principal plus that capitalized interest into the target round.
+    const carried = (src.investment_cost ?? 0) + Number(t.interest_converted ?? 0)
     carriedInByRound.set(targetRound, (carriedInByRound.get(targetRound) ?? 0) + carried)
     carriedOutByRound.set(sourceRound, (carriedOutByRound.get(sourceRound) ?? 0) + carried)
   }
@@ -72,12 +74,12 @@ export function computeSummary(
         roundCashFlows.get(rn)!.push({ ...cf })
       }
 
-      // On a conversion row, interest_converted capitalizes into the round's basis alongside any
-      // new cash; on an ordinary row it is tracked separately (interestConverted) but not as cost.
+      // Converted interest is added to the source note's basis below, then carried into the target
+      // round if this is a cross-round conversion. The conversion row itself contributes only new
+      // cash here, avoiding double-counting the capitalized interest.
       // Acquisition costs — gas, brokerage — capitalise into the position's basis rather than
       // hitting the income statement. See migration 20260822000001 for what does NOT belong here.
       const rowBasis = (txn.investment_cost ?? 0)
-        + (isConversion ? (txn.interest_converted ?? 0) : 0)
         + Number((txn as any).fee_amount ?? 0)
       const roundName = txn.round_name ?? 'Unknown'
       const existing = roundMap.get(roundName)
@@ -166,11 +168,13 @@ export function computeSummary(
 
     if (txn.transaction_type === 'proceeds') {
       const proceedsAmount = (txn.proceeds_received ?? 0) + (txn.proceeds_escrow ?? 0)
+      const cashReceived = txn.proceeds_received ?? 0
       totalRealized += proceedsAmount
       totalWrittenOff += txn.proceeds_written_off ?? 0
 
-      if (txn.transaction_date && proceedsAmount > 0) {
-        const cf = { date: new Date(txn.transaction_date), amount: proceedsAmount }
+      // Escrow is recognized as gross proceeds, but it is not cash until an escrow_receipt row.
+      if (txn.transaction_date && cashReceived > 0) {
+        const cf = { date: new Date(txn.transaction_date), amount: cashReceived }
         cashFlows.push(cf)
         if (txn.round_name) {
           if (!roundCashFlows.has(txn.round_name)) roundCashFlows.set(txn.round_name, [])
@@ -189,6 +193,21 @@ export function computeSummary(
               round.proceedsDate = txn.transaction_date
             }
           }
+        }
+      }
+    }
+
+    // An escrow receipt is a cash-collection event against proceeds already recognized on the
+    // original exit row. It affects cash-flow timing/IRR, but not totalRealized or the round's
+    // gross proceeds, which already include the escrow balance.
+    if (txn.transaction_type === 'escrow_receipt') {
+      const receipt = Number(txn.proceeds_received ?? 0)
+      if (txn.transaction_date && receipt > 0) {
+        const cf = { date: new Date(txn.transaction_date), amount: receipt }
+        cashFlows.push(cf)
+        if (txn.round_name) {
+          if (!roundCashFlows.has(txn.round_name)) roundCashFlows.set(txn.round_name, [])
+          roundCashFlows.get(txn.round_name)!.push({ ...cf })
         }
       }
     }
@@ -214,6 +233,24 @@ export function computeSummary(
           latestSharePriceDate = txn.transaction_date
         }
       }
+    }
+  }
+
+  // Capitalize converted interest into the note's basis before the conversion moves that basis
+  // into the priced round. This is a basis transfer, not a proceeds event: no cash was received
+  // and no realized return should be recognized at conversion.
+  for (const txn of transactions) {
+    const sourceId = (txn as { converts_from_txn_id?: string | null }).converts_from_txn_id
+    const interest = Number(txn.interest_converted ?? 0)
+    if (txn.transaction_type !== 'investment' || !sourceId || interest <= 0 || !txn.transaction_date) continue
+
+    const source = byId.get(sourceId)
+    if (!source || source.transaction_type !== 'investment') continue
+
+    const sourceRoundName = source.round_name ?? 'Unknown'
+    const sourceRound = roundMap.get(sourceRoundName)
+    if (sourceRound) {
+      sourceRound.investmentCost += interest
     }
   }
 
@@ -259,9 +296,10 @@ export function computeSummary(
     } else if (hasInvestment && !hasProceeds) {
       // Investment cash flows exist but proceeds aren't attributed to this round yet.
       // Fall back to round-level totals if we have proceeds date + amounts.
-      const totalRoundProceeds = round.totalRealized + round.totalEscrow
-      if (totalRoundProceeds > 0 && round.proceedsDate) {
-        round.grossIrr = xirr([...rcf, { date: new Date(round.proceedsDate), amount: totalRoundProceeds }])
+      // Only cash received can be used as a terminal cash flow here. Escrow is added when its
+      // dated escrow_receipt row arrives; otherwise it remains a receivable, not cash in hand.
+      if (round.totalRealized > 0 && round.proceedsDate) {
+        round.grossIrr = xirr([...rcf, { date: new Date(round.proceedsDate), amount: round.totalRealized }])
       } else if (companyStatus !== 'exited' && round.currentValue > 0) {
         round.grossIrr = xirr([...rcf, { date: asOfDate, amount: round.currentValue }])
       }

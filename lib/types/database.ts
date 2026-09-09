@@ -3460,5 +3460,5 @@ export type DealStatus         = 'new' | 'reviewing' | 'advancing' | 'met' | 'di
 export type IntroSource        = 'referral' | 'cold' | 'warm_intro' | 'accelerator' | 'demo_day' | 'event' | 'heartbeat' | 'other'
 export type ReviewResolution   = 'accepted' | 'rejected' | 'manually_corrected'
 export type EmailRequestStatus = 'draft' | 'sent' | 'failed'
-export type TransactionType    = 'investment' | 'proceeds' | 'unrealized_gain_change' | 'round_info'
+export type TransactionType    = 'investment' | 'proceeds' | 'escrow_receipt' | 'unrealized_gain_change' | 'round_info'
 export type NotificationLevel  = 'all' | 'mentions' | 'none'
