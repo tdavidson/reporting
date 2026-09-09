@@ -965,7 +965,7 @@ export function InvestmentTransactionForm({ companyId, editing, transactions, su
               />
             </div>
             <div>
-              <Label>Proceeds Escrow ({symbol.trim()})</Label>
+              <Label>In escrow ({symbol.trim()})</Label>
               <Input
                 className="mt-1"
                 type="number"

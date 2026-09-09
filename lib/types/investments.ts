@@ -11,6 +11,8 @@ export interface InvestmentRoundSummary {
   costBasisExited: number
   totalRealized: number
   totalEscrow: number
+  /** Escrow still outstanding after all recorded escrow receipts. */
+  escrowOutstanding: number
   proceedsDate: string | null
   grossIrr: number | null
 }

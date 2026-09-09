@@ -350,10 +350,10 @@ function SummaryLine({
           <span className="font-medium">{(summary.grossIrr * 100).toFixed(1)}%</span>
         </span>
       )}
-      {summary.rounds.reduce((sum, r) => sum + r.totalEscrow, 0) > 0 && (
+      {summary.rounds.reduce((sum, r) => sum + r.escrowOutstanding, 0) > 0 && (
         <span>
-          <span className="text-muted-foreground">Escrow:</span>{' '}
-          <span className="font-medium">{fmt(summary.rounds.reduce((sum, r) => sum + r.totalEscrow, 0))}</span>
+          <span className="text-muted-foreground">In escrow:</span>{' '}
+          <span className="font-medium">{fmt(summary.rounds.reduce((sum, r) => sum + r.escrowOutstanding, 0))}</span>
         </span>
       )}
       {summary.grossIrr != null && Math.abs(summary.grossIrr) >= 0.0005 && summary.unrealizedValue > 0 && (
@@ -409,6 +409,7 @@ function TransactionTable({
   const hasPostmoney = transactions.some(t => t.postmoney_valuation != null)
   const hasFxRows = transactions.some(t => t.valuation_change_source === 'fx')
   const hasEscrow = transactions.some(t => t.transaction_type === 'proceeds' && (t.proceeds_escrow ?? 0) > 0)
+  let escrowBalance = 0
   const colCount =
     (showGroup ? 1 : 0) +
     (companyStatus === 'exited' ? 6 + (hasEscrow ? 1 : 0) : 8 + (hasPostmoney ? 1 : 0))
@@ -425,7 +426,7 @@ function TransactionTable({
               <>
                 <th className="text-right px-3 py-2 font-medium">Cost</th>
                 <th className="text-right px-3 py-2 font-medium">Proceeds</th>
-                {hasEscrow && <th className="text-right px-3 py-2 font-medium">Escrow</th>}
+                {hasEscrow && <th className="text-right px-3 py-2 font-medium">In escrow</th>}
               </>
             ) : (
               <>
@@ -441,6 +442,9 @@ function TransactionTable({
         </thead>
         <tbody>
           {transactions.map(txn => {
+            if (txn.transaction_type === 'proceeds') escrowBalance += Number(txn.proceeds_escrow ?? 0)
+            if (txn.transaction_type === 'escrow_receipt') escrowBalance = Math.max(0, escrowBalance - Number(txn.proceeds_received ?? 0))
+            const escrowAtEnd = escrowBalance
             const round = summary?.rounds.find(r => r.roundName === txn.round_name)
             const isFx = txn.valuation_change_source === 'fx'
             const isOpen = openRows.has(txn.id)
@@ -495,8 +499,8 @@ function TransactionTable({
                     </td>
                     {hasEscrow && (
                       <td className="px-3 py-2 text-right tabular-nums">
-                        {txn.transaction_type === 'proceeds' && (txn.proceeds_escrow ?? 0) > 0
-                          ? fmt(txn.proceeds_escrow)
+                        {(txn.transaction_type === 'proceeds' || txn.transaction_type === 'escrow_receipt')
+                          ? fmt(escrowAtEnd)
                           : '-'}
                       </td>
                     )}
@@ -618,7 +622,7 @@ function RoundSummaryTable({
   const rounds = summary.rounds
   const totInvested = rounds.reduce((s, r) => s + r.investmentCost, 0)
   const totProceeds = rounds.reduce((s, r) => s + r.totalRealized + r.totalEscrow, 0)
-  const totEscrow = rounds.reduce((s, r) => s + r.totalEscrow, 0)
+  const totEscrow = rounds.reduce((s, r) => s + r.escrowOutstanding, 0)
   const totMoic = totInvested > 0 ? totProceeds / totInvested : null
   const roundGroupMap = new Map<string, string>()
   for (const txn of transactions) {
@@ -635,7 +639,7 @@ function RoundSummaryTable({
             <th className="text-left px-3 py-2 font-medium">Round</th>
             <th className="text-right px-3 py-2 font-medium">Invested</th>
             <th className="text-right px-3 py-2 font-medium">Proceeds</th>
-            <th className="text-right px-3 py-2 font-medium">Escrow (included)</th>
+            <th className="text-right px-3 py-2 font-medium">In escrow (included)</th>
             <th className="text-right px-3 py-2 font-medium">Gross MOIC</th>
             <th className="text-right px-3 py-2 font-medium">Gross IRR</th>
           </tr>
@@ -650,7 +654,7 @@ function RoundSummaryTable({
                 <td className="px-3 py-2">{r.roundName}</td>
                 <td className="px-3 py-2 text-right tabular-nums">{fmt(r.investmentCost)}</td>
                 <td className="px-3 py-2 text-right tabular-nums">{fmt(roundProceeds)}</td>
-                <td className="px-3 py-2 text-right tabular-nums">{r.totalEscrow > 0 ? fmt(r.totalEscrow) : '-'}</td>
+                <td className="px-3 py-2 text-right tabular-nums">{r.escrowOutstanding > 0 ? fmt(r.escrowOutstanding) : '-'}</td>
                 <td className="px-3 py-2 text-right tabular-nums">{fmtMoicFn(roundMoic)}</td>
                 <td className="px-3 py-2 text-right tabular-nums">
                   {r.grossIrr != null && Math.abs(r.grossIrr) >= 0.0005

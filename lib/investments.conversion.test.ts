@@ -79,9 +79,12 @@ describe('computeSummary — SAFE/note conversions', () => {
     const receipt = txn({ id: 'e1', transaction_type: 'escrow_receipt', round_name: 'Series A', transaction_date: '2026-09-01',
       proceeds_received: 20_000 })
 
+    const withoutReceipt = computeSummary([inv, exit], ACTIVE)
     const s = computeSummary([inv, exit, receipt], ACTIVE)
     expect(s.totalRealized).toBe(100_000)
     expect(round(s, 'Series A').totalRealized).toBe(50_000)
     expect(round(s, 'Series A').totalEscrow).toBe(50_000)
+    expect(round(s, 'Series A').escrowOutstanding).toBe(30_000)
+    expect(s.grossIrr).toBe(withoutReceipt.grossIrr)
   })
 })

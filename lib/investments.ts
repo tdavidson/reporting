@@ -103,6 +103,7 @@ export function computeSummary(
           costBasisExited: 0,
           totalRealized: 0,
           totalEscrow: 0,
+          escrowOutstanding: 0,
           proceedsDate: null,
           grossIrr: null,
         })
@@ -159,6 +160,7 @@ export function computeSummary(
             costBasisExited: 0,
             totalRealized: 0,
             totalEscrow: 0,
+            escrowOutstanding: 0,
             proceedsDate: null,
             grossIrr: null,
           })
@@ -168,13 +170,13 @@ export function computeSummary(
 
     if (txn.transaction_type === 'proceeds') {
       const proceedsAmount = (txn.proceeds_received ?? 0) + (txn.proceeds_escrow ?? 0)
-      const cashReceived = txn.proceeds_received ?? 0
       totalRealized += proceedsAmount
       totalWrittenOff += txn.proceeds_written_off ?? 0
 
-      // Escrow is recognized as gross proceeds, but it is not cash until an escrow_receipt row.
-      if (txn.transaction_date && cashReceived > 0) {
-        const cf = { date: new Date(txn.transaction_date), amount: cashReceived }
+      // Gross performance recognizes escrow at the original realization date. Escrow receipt
+      // rows are collection history only and do not change the return calculation.
+      if (txn.transaction_date && proceedsAmount > 0) {
+        const cf = { date: new Date(txn.transaction_date), amount: proceedsAmount }
         cashFlows.push(cf)
         if (txn.round_name) {
           if (!roundCashFlows.has(txn.round_name)) roundCashFlows.set(txn.round_name, [])
@@ -188,6 +190,7 @@ export function computeSummary(
           if (txn.cost_basis_exited != null) round.costBasisExited += Math.abs(txn.cost_basis_exited)
           round.totalRealized += txn.proceeds_received ?? 0
           round.totalEscrow += txn.proceeds_escrow ?? 0
+          round.escrowOutstanding += txn.proceeds_escrow ?? 0
           if (txn.transaction_date) {
             if (!round.proceedsDate || txn.transaction_date > round.proceedsDate) {
               round.proceedsDate = txn.transaction_date
@@ -197,19 +200,9 @@ export function computeSummary(
       }
     }
 
-    // An escrow receipt is a cash-collection event against proceeds already recognized on the
-    // original exit row. It affects cash-flow timing/IRR, but not totalRealized or the round's
-    // gross proceeds, which already include the escrow balance.
-    if (txn.transaction_type === 'escrow_receipt') {
-      const receipt = Number(txn.proceeds_received ?? 0)
-      if (txn.transaction_date && receipt > 0) {
-        const cf = { date: new Date(txn.transaction_date), amount: receipt }
-        cashFlows.push(cf)
-        if (txn.round_name) {
-          if (!roundCashFlows.has(txn.round_name)) roundCashFlows.set(txn.round_name, [])
-          roundCashFlows.get(txn.round_name)!.push({ ...cf })
-        }
-      }
+    if (txn.transaction_type === 'escrow_receipt' && txn.round_name) {
+      const round = roundMap.get(txn.round_name)
+      if (round) round.escrowOutstanding = Math.max(0, round.escrowOutstanding - Number(txn.proceeds_received ?? 0))
     }
 
     if (txn.transaction_type === 'unrealized_gain_change') {
@@ -296,10 +289,9 @@ export function computeSummary(
     } else if (hasInvestment && !hasProceeds) {
       // Investment cash flows exist but proceeds aren't attributed to this round yet.
       // Fall back to round-level totals if we have proceeds date + amounts.
-      // Only cash received can be used as a terminal cash flow here. Escrow is added when its
-      // dated escrow_receipt row arrives; otherwise it remains a receivable, not cash in hand.
-      if (round.totalRealized > 0 && round.proceedsDate) {
-        round.grossIrr = xirr([...rcf, { date: new Date(round.proceedsDate), amount: round.totalRealized }])
+      const totalRoundProceeds = round.totalRealized + round.totalEscrow
+      if (totalRoundProceeds > 0 && round.proceedsDate) {
+        round.grossIrr = xirr([...rcf, { date: new Date(round.proceedsDate), amount: totalRoundProceeds }])
       } else if (companyStatus !== 'exited' && round.currentValue > 0) {
         round.grossIrr = xirr([...rcf, { date: asOfDate, amount: round.currentValue }])
       }
