@@ -648,12 +648,9 @@ function RoundSummaryTable({
           candidate.transaction_type === 'investment' &&
           !(candidate as { converts_from_txn_id?: string | null }).converts_from_txn_id &&
           candidate.round_name === txn.round_name &&
-          candidate.security_type != null &&
-          txn.security_type != null &&
-          candidate.security_type === txn.security_type &&
-          candidate.share_price != null &&
-          txn.share_price != null &&
-          Number(candidate.share_price) === Number(txn.share_price),
+          // Using the same canonical round name is an explicit user decision that these belong
+          // together. Different round names remain separate for performance reporting.
+          candidate.round_name === txn.round_name,
         )
         if (targetPurchase) convertedSourceToTarget.set(source.round_name, txn.round_name)
       }
