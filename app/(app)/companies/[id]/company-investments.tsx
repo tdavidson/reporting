@@ -703,7 +703,7 @@ function RoundSummaryTable({
           <tr className="border-b bg-muted/50">
             {showGroup && <th className="text-left px-3 py-2 font-medium">Vehicle</th>}
             <th className="text-left px-3 py-2 font-medium">Round</th>
-            <th className="text-right px-3 py-2 font-medium">Invested</th>
+            <th className="text-right px-3 py-2 font-medium">Cost Basis</th>
             <th className="text-right px-3 py-2 font-medium">Proceeds</th>
             <th className="text-right px-3 py-2 font-medium">In escrow</th>
             <th className="text-right px-3 py-2 font-medium">Gross MOIC</th>
