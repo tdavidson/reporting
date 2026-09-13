@@ -6,6 +6,7 @@ import type { CompanyStatus } from '@/lib/types/database'
 import { dbError } from '@/lib/api-error'
 import { logActivity } from '@/lib/activity'
 import { ensureVehiclesByName } from '@/lib/accounting/vehicle-id'
+import { LEDGER_BOOKS } from '@/lib/accounting/books'
 
 const VALID_STATUSES: CompanyStatus[] = ['active', 'exited', 'written-off']
 
@@ -164,9 +165,11 @@ export async function DELETE(_req: NextRequest, props: { params: Promise<{ id: s
 
   const accountIds = (accountRows ?? []).map(account => account.id)
   if (accountIds.length > 0) {
+    // A posting in ANY book pins the account — tax adjustments included.
     const { count: postingCount, error: postingError } = await admin
       .from('journal_postings' as any)
       .select('id', { count: 'exact', head: true })
+      .in('book', LEDGER_BOOKS)
       .eq('fund_id', company.fund_id)
       .in('account_id', accountIds)
     if (postingError) return dbError(postingError, 'companies-id-delete-postings')

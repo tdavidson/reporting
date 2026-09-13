@@ -83,7 +83,7 @@ export async function POST(req: NextRequest) {
       blocks: result.blocks,
     })
   } catch (error) {
-    if (req.signal.aborted) return new NextResponse(null, { status: 499 })
+    if (req.signal?.aborted) return new NextResponse(null, { status: 499 })
     if (error instanceof AnalystRequestError) {
       const headers = error.retryAfter ? { 'Retry-After': String(error.retryAfter) } : undefined
       return NextResponse.json({ error: error.message }, { status: error.status, headers })
