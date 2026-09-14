@@ -36,11 +36,11 @@ function PublicShell({ children }: { children: React.ReactNode }) {
     <>
       <header className="relative flex items-center justify-between px-6 md:px-8 py-4 shrink-0">
         <div className="flex items-center gap-3">
-          <a href="https://www.hemrock.com" target="_blank" rel="noopener noreferrer" aria-label="Hemrock">
+          <a href="https://www.hemrock.com" target="_blank" rel="noopener noreferrer" aria-label="Portfolio, by Hemrock">
             <HemrockIcon className="h-7 w-7 text-foreground" />
           </a>
           <a href="https://www.hemrock.com" target="_blank" rel="noopener noreferrer" className="font-medium text-sm text-muted-foreground tracking-tight truncate hover:text-foreground transition-colors">
-            Hemrock
+            Portfolio, by Hemrock
           </a>
           <span className="hidden md:inline-block text-caption text-muted-foreground border rounded px-1.5 py-0.5">v{APP_VERSION}</span>
         </div>

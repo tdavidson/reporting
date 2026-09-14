@@ -1,4 +1,4 @@
-# Documentation and Deployment
+# Portfolio, by Hemrock — Documentation and deployment
 
 - Project overview at [README](./README.md)
 - Detailed feature descriptions at [FEATURES](./FEATURES.md)

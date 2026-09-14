@@ -1,4 +1,4 @@
-# Feature descriptions
+# Portfolio, by Hemrock — Feature descriptions
 
 - Project overview at [README](./README.md)
 - Detailed feature descriptions at [FEATURES](./FEATURES.md)

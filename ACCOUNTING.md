@@ -1,4 +1,4 @@
-# Fund accounting
+# Portfolio, by Hemrock — Fund accounting
 
 - Project overview at [README](./README.md)
 - Detailed feature descriptions at [FEATURES](./FEATURES.md)
