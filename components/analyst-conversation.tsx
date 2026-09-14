@@ -780,17 +780,21 @@ export function AnalystConversation({
     </div>
   )
 
+  // Same quiet outline treatment as the "Or start from here" shortcuts below it
+  // (components/add-*-button.tsx), so the row reads as one set of actions.
+  const quietActionClass = 'gap-1.5 h-8 py-2 text-muted-foreground hover:text-foreground'
+
   const pageConversationActions = (
     <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
       <div className="flex items-center gap-1">
         {messages.length > 0 && (
-          <Button type="button" variant="outline" size="sm" onClick={handleStartNewConversation}>
-            <Plus data-icon="inline-start" />
+          <Button type="button" variant="outline" size="sm" onClick={handleStartNewConversation} className={quietActionClass}>
+            <Plus className="h-3.5 w-3.5" />
             New chat
           </Button>
         )}
-        <Button type="button" variant="outline" size="sm" onClick={handleShowHistory}>
-          <Clock data-icon="inline-start" />
+        <Button type="button" variant="outline" size="sm" onClick={handleShowHistory} className={quietActionClass}>
+          <Clock className="h-3.5 w-3.5" />
           Conversation history
         </Button>
       </div>
@@ -802,9 +806,10 @@ export function AnalystConversation({
           aria-expanded={showSuggestions}
           aria-controls="analyst-example-questions"
           onClick={() => setShowSuggestions(open => !open)}
+          className={`${quietActionClass} ${showSuggestions ? 'bg-accent' : ''}`}
         >
           Example questions
-          <ChevronDown data-icon="inline-end" />
+          <ChevronDown className="h-3.5 w-3.5" />
         </Button>
       )}
     </div>
