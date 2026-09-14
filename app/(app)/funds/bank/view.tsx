@@ -295,7 +295,9 @@ export function BankView() {
                     {/* What the ENTRY posts to, not the stored hint — editing an entry in the
                         journal modal never updates `suggested_account_code`, so showing that
                         column left a re-pointed entry displaying its old account. */}
-                    {t.entry_is_split ? (
+                    {t.status === 'ignored' ? (
+                      <span className="text-muted-foreground">Ignored</span>
+                    ) : t.entry_is_split ? (
                       <span className="text-muted-foreground" title="This entry splits across several accounts, so it can't be re-pointed from here — open it with Edit.">
                         Split across several accounts
                       </span>
