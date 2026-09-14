@@ -6,10 +6,11 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { assertWriteAccess, assertReadAccess } from '@/lib/api-helpers'
 import { resolveGroupOr400 } from '@/lib/accounting/http-vehicle'
 import { listPeriods } from '@/lib/accounting/periods'
-import { previewCloseThrough, closeThrough, reopenPeriodWithReversal, loadCloseEntries } from '@/lib/accounting/close'
+import { previewCloseThrough, closeThrough, reopenThrough, loadCloseEntries, nextCloseStart } from '@/lib/accounting/close'
 
-// GET — list a vehicle's fiscal periods, or (?entriesFor=<periodId>) the allocation
-// transactions a specific closed period posted.
+// GET — { periods, nextStart }: a vehicle's fiscal periods plus where the next close would
+// start (the page derives the still-open months from it), or (?entriesFor=<periodId>) the
+// allocation transactions a specific closed period posted.
 export async function GET(req: NextRequest) {
   const supabase = await createClient()
   const admin = createAdminClient()
@@ -23,14 +24,20 @@ export async function GET(req: NextRequest) {
   const entriesFor = req.nextUrl.searchParams.get('entriesFor')
   if (entriesFor) return NextResponse.json(await loadCloseEntries(admin, gate.fundId, group, entriesFor))
 
-  return NextResponse.json(await listPeriods(admin, gate.fundId, group))
+  const [periods, nextStart] = await Promise.all([
+    listPeriods(admin, gate.fundId, group),
+    nextCloseStart(admin, gate.fundId, group),
+  ])
+  return NextResponse.json({ periods, nextStart })
 }
 
 // POST
 //   { action: 'preview', endDate } → what closing THROUGH this date would allocate,
 //                                     month by month (start is derived — no gaps)
 //   { action: 'close',   endDate } → close every month through it, in order
-//   { action: 'reopen',  id }      → void that period's allocation, unlock (newest first)
+//   { action: 'reopen',  id }      → reopen that period and every closed period after it,
+//                                     newest-first, voiding each one's allocation
+//   { action: 'reopen',  fromDate } → same, for every closed period covering or after the date
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
   const admin = createAdminClient()
@@ -50,8 +57,8 @@ export async function POST(req: NextRequest) {
   }
 
   if (body?.action === 'reopen') {
-    if (!body?.id) return NextResponse.json({ error: 'id is required' }, { status: 400 })
-    const result = await reopenPeriodWithReversal(admin, gate.fundId, group, body.id)
+    if (!body?.id && !body?.fromDate) return NextResponse.json({ error: 'id or fromDate is required' }, { status: 400 })
+    const result = await reopenThrough(admin, gate.fundId, group, body.id ? { periodId: String(body.id) } : { fromDate: String(body.fromDate) })
     if ('error' in result) return NextResponse.json({ error: result.error }, { status: 400 })
     return NextResponse.json(result)
   }

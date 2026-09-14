@@ -9,10 +9,14 @@ import { useLedgerFetch } from '@/components/accounting-vehicle'
 
 // Onboarding the portfolio tracker's positions onto the ledger.
 //
-// This is admin, not reporting, so it lives on the Status page rather than on the schedule
-// of investments — the schedule reports what the books say, and this is the action that makes
-// the books say it. It renders NOTHING unless the tracker holds positions the ledger carries
-// none of, which is the one state it exists to resolve.
+// This is admin, not reporting, so it lives in the setup card on the Status page rather than
+// on the schedule of investments — the schedule reports what the books say, and this is the
+// action that makes the books say it. It renders NOTHING unless the tracker holds positions
+// the ledger carries none of, which is the one state it exists to resolve.
+//
+// It is step 3 of AccountingSetup, so it does NOT ask the history-vs-cutover question a
+// second time: step 2 already answered it, and `mode` carries the answer in. The toggle only
+// appears when the card is rendered on its own with no path chosen.
 
 interface HistoryEvent {
   date: string
@@ -37,7 +41,16 @@ interface Soi {
   source: 'tracker' | 'ledger'
 }
 
-export function BootstrapInvestmentsCard() {
+interface Props {
+  /** Fixed by the onboarding path chosen in setup step 2; omit to let the user pick. */
+  mode?: 'history' | 'snapshot'
+  /** The cutover date from setup — the snapshot defaults to it, since that IS the books' first day. */
+  asOf?: string
+  /** Fires after a booking lands so the parent (setup) can refresh its own step state. */
+  onBooked?: () => void
+}
+
+export function BootstrapInvestmentsCard({ mode: fixedMode, asOf, onBooked }: Props = {}) {
   const currency = useCurrency()
   const fmt = (v: number) => formatCurrencyPrice(v, currency)
   const lf = useLedgerFetch()
@@ -45,10 +58,15 @@ export function BootstrapInvestmentsCard() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [note, setNote] = useState<string | null>(null)
-  const [bootDate, setBootDate] = useState(new Date().toISOString().slice(0, 10))
+  // The snapshot date follows the cutover date from setup until the user picks their own.
+  const [pickedDate, setBootDate] = useState<string | null>(null)
+  const bootDate = pickedDate ?? asOf ?? new Date().toISOString().slice(0, 10)
   // Onboarding: replay the dated history (default) vs. book one snapshot (cutover).
-  const [mode, setMode] = useState<'history' | 'snapshot'>('history')
+  const [pickedMode, setMode] = useState<'history' | 'snapshot'>('history')
+  const mode = fixedMode ?? pickedMode
   const [from, setFrom] = useState('')
+  // The partial-replay cutoff is the exception, not the form: hidden until asked for.
+  const [showFrom, setShowFrom] = useState(false)
   const [hist, setHist] = useState<HistoryPreview | null>(null)
   const [showEvents, setShowEvents] = useState(false)
 
@@ -70,7 +88,7 @@ export function BootstrapInvestmentsCard() {
     const data = await res.json()
     setBusy(false)
     if (!res.ok) { setError(data.error ?? 'Failed'); return null }
-    if (reload) load()
+    if (reload) { load(); onBooked?.() }
     return data
   }
 
@@ -124,7 +142,7 @@ export function BootstrapInvestmentsCard() {
             </p>
           </div>
 
-          <div className="flex gap-1 text-xs">
+          {!fixedMode && <div className="flex gap-1 text-xs">
             {([['history', 'Replay the history'], ['snapshot', 'Book a snapshot']] as const).map(([m, label]) => (
               <button
                 key={m}
@@ -134,7 +152,7 @@ export function BootstrapInvestmentsCard() {
                 {label}
               </button>
             ))}
-          </div>
+          </div>}
 
           {/* The default, and the right answer for a fund being built from full history:
               each purchase and each mark posts on the date it actually happened, so the
@@ -143,17 +161,27 @@ export function BootstrapInvestmentsCard() {
           {mode === 'history' && (
             <div className="space-y-2">
               <p className="text-xs text-muted-foreground">
-                Walks the tracker&rsquo;s dated timeline and books each purchase and each mark on its own date.
-                Use this when the vehicle is being built from full history.
+                Books each purchase and each mark on the date it happened, so every gain lands in its own period.
+                {!fixedMode && ' Use this when the vehicle is being built from full history.'}
               </p>
               <div className="flex flex-wrap items-end gap-2">
-                <label className="text-xs text-muted-foreground">Skip everything on or before <span className="text-muted-foreground/70">(optional)</span>
-                  <Input type="date" value={from} onChange={e => { setFrom(e.target.value); setHist(null) }} className="mt-1 h-9 w-40" />
-                </label>
                 <Button size="sm" variant="outline" onClick={previewHistory} disabled={busy}>
                   {busy && !hist ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <History className="h-4 w-4 mr-1" />}
-                  Preview replay
+                  Preview the replay
                 </Button>
+                {showFrom ? (
+                  <label className="text-xs text-muted-foreground">Only replay events after
+                    <Input type="date" value={from} onChange={e => { setFrom(e.target.value); setHist(null) }} className="mt-1 h-9 w-40" />
+                  </label>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setShowFrom(true)}
+                    className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground pb-2"
+                  >
+                    Replay only part of the history
+                  </button>
+                )}
               </div>
 
               {hist && (
@@ -236,9 +264,9 @@ export function BootstrapInvestmentsCard() {
           {mode === 'snapshot' && (
             <div className="space-y-2">
               <p className="text-xs text-muted-foreground">
-                Books one entry putting every position on at its current cost and fair value. Use this when the vehicle&rsquo;s
-                books start at a cutover date and the history before it isn&rsquo;t being reconstructed — the gains all land
-                on the date below, so the close will allocate them to that period.
+                Books one entry putting every position on at its current cost and fair value as of the date below —
+                the gains all land there, so the close will allocate them to that period.
+                {!fixedMode && ' Use this when the vehicle\u2019s books start at a cutover date and the history before it isn\u2019t being reconstructed.'}
               </p>
               <div className="flex flex-wrap items-end gap-2">
                 <label className="text-xs text-muted-foreground">As of

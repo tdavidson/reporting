@@ -146,7 +146,11 @@ export function BankView() {
 
   async function setAccount(id: string, code: string) {
     setMatchError(null)
-    setTxns(prev => prev.map(t => (t.id === id ? { ...t, suggested_account_code: code } : t))) // optimistic
+    // Optimistic — and it must patch the ENTRY columns, not just the hint: the select reads
+    // `entry_account_code` first, so patching `suggested_account_code` alone left the dropdown
+    // showing the old account until the next reload even though the save had gone through.
+    const name = accounts.find(a => a.code === code)?.name ?? null
+    setTxns(prev => prev.map(t => (t.id === id ? { ...t, suggested_account_code: code, entry_account_code: code, entry_account_name: name } : t)))
     const res = await lf('/api/accounting/bank', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'setAccount', id, accountCode: code }) })
     if (!res.ok) {
       // SAY why. Re-pointing is refused when the draft has a custom allocation (more than one

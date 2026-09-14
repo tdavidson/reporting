@@ -49,11 +49,14 @@ describe('comparisonPeriods', () => {
     ])
   })
 
-  it('steps ytd back one year keeping the same as-of month/day', () => {
+  it('compares ytd against FULL prior calendar years, not the same as-of date', () => {
+    // A YTD column reads against the audited full years before it — that's the statement
+    // convention, and a Jul-20 cut of last year is a figure nobody has ever seen.
     const ytd = resolvePeriod('ytd', new Date(Date.UTC(2026, 6, 20))) // 2026-01-01..2026-07-20
-    const prev = comparisonPeriods(ytd, 1, '2000-01-01')
+    const prev = comparisonPeriods(ytd, 2, '2000-01-01')
     expect(prev.map(p => [p.start, p.end, p.label])).toEqual([
-      ['2025-01-01', '2025-07-20', 'YTD 2025'],
+      ['2025-01-01', '2025-12-31', 'FY 2025'],
+      ['2024-01-01', '2024-12-31', 'FY 2024'],
     ])
   })
 
@@ -73,10 +76,10 @@ describe('comparisonPeriods', () => {
     expect(comparisonPeriods(resolvePeriod('ytd'), 3, null)).toEqual([])
   })
 
-  it('clamps a Feb 29 as-of to the last day of Feb in non-leap prior years (ytd)', () => {
+  it('a ytd cut on Feb 29 still compares against whole prior years', () => {
     const ytd = resolvePeriod('ytd', new Date(Date.UTC(2028, 1, 29))) // 2028-01-01..2028-02-29 (2028 is leap)
     const prev = comparisonPeriods(ytd, 2, '2000-01-01')
-    expect(prev[0].end).toBe('2027-02-28') // 2027 not leap → clamp, not 2027-03-01
-    expect(prev[1].end).toBe('2026-02-28') // 2026 not leap → clamp
+    expect(prev[0].end).toBe('2027-12-31')
+    expect(prev[1].end).toBe('2026-12-31')
   })
 })

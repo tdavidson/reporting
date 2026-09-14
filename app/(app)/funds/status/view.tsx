@@ -9,7 +9,6 @@ import { useLedgerFetch, useFundSeg, useVehicle } from '@/components/accounting-
 import { VehicleEditModal, type EditableVehicle } from '@/components/vehicle-edit-modal'
 import { AccountingSetup } from '../setup'
 import { DealCarryCard } from './deal-carry-card'
-import { BootstrapInvestmentsCard } from './bootstrap-investments'
 import { PriceFeedsPanel } from './price-feeds-panel'
 import { WalletsPanel } from './wallets-panel'
 import { CarryTerms } from '../allocation-terms/carry-terms'
@@ -188,11 +187,6 @@ export function StatusView() {
           </div>
         )}
       </div>
-
-      {/* The tracker holds positions the ledger has never been given. Sits with the issues
-          above because that is what it is — an outstanding one, carrying its own fix. It
-          renders to nothing the rest of the time. */}
-      <BootstrapInvestmentsCard />
 
       {/* Where the close got to, and what it would pick up next — the one thing you
           come to this page to find out. Amber when income is sitting unallocated,

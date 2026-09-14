@@ -194,8 +194,8 @@ export async function vehicleStatus(
       level: 'blocker',
       title: 'Investments are not on the ledger',
       detail: `The portfolio tracker holds ${positions.length} ${positions.length === 1 ? 'position' : 'positions'} in this vehicle (${trackerCost.toFixed(2)} at cost, ${trackerFv.toFixed(2)} at fair value), but the ledger carries no investment balance. The balance sheet and the schedule of investments are both wrong until they're booked.`,
-      href: '/funds/schedule-of-investments',
-      action: 'Bootstrap investments',
+      href: '/funds/status#book-investments',
+      action: 'Book investments',
     })
   } else if (soi.source === 'tracker' && (soi.costVariance !== 0 || soi.fairValueVariance !== 0)) {
     issues.push({

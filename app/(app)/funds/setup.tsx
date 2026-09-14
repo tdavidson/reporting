@@ -6,6 +6,7 @@ import { Loader2, Check } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useLedgerFetch, useFundSeg, useVehicle } from '@/components/accounting-vehicle'
 import { closesToOwnerEquity } from '@/lib/vehicle-kinds'
+import { BootstrapInvestmentsCard } from './status/bootstrap-investments'
 
 /** Vehicle-scoped onboarding: seed chart, choose full-history or cutover, reconcile. */
 export function AccountingSetup({ alwaysShow = false }: { alwaysShow?: boolean } = {}) {
@@ -290,9 +291,9 @@ export function AccountingSetup({ alwaysShow = false }: { alwaysShow?: boolean }
           themselves are nobody's job. A vehicle can otherwise finish setup with a
           balance sheet holding no investments at all, which is simply wrong. */}
       {path && inv && inv.positions > 0 && (
-        <div className="flex flex-wrap items-center gap-2 text-sm border-t pt-3">
+        <div id="book-investments" className="text-sm border-t pt-3 space-y-2">
           {inv.booked ? (
-            <>
+            <div className="flex flex-wrap items-center gap-2">
               <Check className="h-4 w-4 text-success shrink-0" />
               <span className="text-muted-foreground">
                 Investments are on the ledger ({inv.positions} {inv.positions === 1 ? 'position' : 'positions'}).
@@ -300,20 +301,19 @@ export function AccountingSetup({ alwaysShow = false }: { alwaysShow?: boolean }
               <Link href={fundHref('schedule-of-investments')} className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2">
                 Schedule of investments
               </Link>
-            </>
+            </div>
           ) : (
             <>
-              <span className="text-muted-foreground">
-                3. Book the {inv.positions} {inv.positions === 1 ? 'investment' : 'investments'} the tracker holds for this vehicle onto the ledger
-                {path === 'full_history'
-                  ? ' — replay the dated history so each mark lands in its own period.'
-                  : ' — one snapshot at the cutover date.'}
-              </span>
-              <Button size="sm" variant="outline" asChild>
-                <Link href={fundHref('schedule-of-investments')}>
-                  {path === 'full_history' ? 'Replay investment history' : 'Book investments'}
-                </Link>
-              </Button>
+              <p className="text-muted-foreground">
+                3. Book the {inv.positions} {inv.positions === 1 ? 'investment' : 'investments'} the tracker holds for this vehicle onto the ledger.
+              </p>
+              {/* The booking itself, inline — the path chosen in step 2 decides HOW (replay the
+                  dated history vs. one snapshot at the cutover date), so it isn't asked again. */}
+              <BootstrapInvestmentsCard
+                mode={path === 'full_history' ? 'history' : 'snapshot'}
+                asOf={path === 'cutover' ? cutoverDate : undefined}
+                onBooked={refresh}
+              />
             </>
           )}
         </div>

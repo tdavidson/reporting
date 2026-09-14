@@ -1483,6 +1483,69 @@ export async function reopenPeriodWithReversal(
 }
 
 /**
+ * Reopen a period AND every closed period after it, newest-first.
+ *
+ * `reopenPeriodWithReversal` refuses out-of-order reopens for a good reason (see there), but
+ * that reason is the system's, not the user's. Asking someone to click "Reopen" once per month
+ * back through two years of closes to reach the one they want is the same as refusing. So this
+ * walks the closed periods from the newest down to the target and reopens each in turn — the
+ * exact order the single-period guard demands. `closeThrough` runs the other way, month by
+ * month forward; this is its mirror.
+ *
+ * Stops at the first failure: everything after the failing period is already open, the
+ * failing one and everything before it are still closed, and the error says which.
+ */
+export async function reopenThrough(
+  admin: SupabaseClient,
+  fundId: string,
+  group: string,
+  target: { periodId: string } | { fromDate: string }
+): Promise<{ ok: true; reopened: number; voided: number } | { error: string }> {
+  const vehicleId = await vehicleIdByName(admin, fundId, group)
+
+  // Either a row ("this period and everything after it") or a date ("every close that
+  // covers this date or comes after it") — the mirror of closing through a date.
+  let cutoff: string
+  if ('periodId' in target) {
+    const { data: row } = await admin
+      .from('fiscal_periods' as any)
+      .select('period_start')
+      .eq('id', target.periodId)
+      .eq('fund_id', fundId)
+      .eq('vehicle_id', vehicleId)
+      .maybeSingle()
+    if (!row) return { error: 'Period not found' }
+    cutoff = (row as any).period_start
+  } else {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(target.fromDate ?? '')) return { error: 'A valid date is required' }
+    cutoff = target.fromDate
+  }
+
+  const { data: closed } = await admin
+    .from('fiscal_periods' as any)
+    .select('id, period_start, period_end, label')
+    .eq('fund_id', fundId)
+    .eq('vehicle_id', vehicleId)
+    .eq('status', 'closed')
+    .gte('period_end', cutoff)
+    .order('period_start', { ascending: false })
+  if (!closed?.length) return { error: 'No closed period covers or follows that date' }
+
+  let reopened = 0
+  let voided = 0
+  for (const p of ((closed as any[]) ?? [])) {
+    const r = await reopenPeriodWithReversal(admin, fundId, group, p.id)
+    if ('error' in r) {
+      const label = p.label ?? `${p.period_start} → ${p.period_end}`
+      return { error: `Reopened ${reopened} ${reopened === 1 ? 'period' : 'periods'}, then ${label} failed: ${r.error}` }
+    }
+    reopened += 1
+    voided += r.voided
+  }
+  return { ok: true, reopened, voided }
+}
+
+/**
  * Void every entry a close posted for this period, found by `source_ref`.
  *
  * Void rather than delete: the allocation is derived and can be recomputed, but the audit

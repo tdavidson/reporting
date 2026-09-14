@@ -45,17 +45,25 @@ interface Preview {
 
 const iso = (d: Date) => d.toISOString().slice(0, 10)
 
-/** Common close-through dates. Any date works; these just save typing. */
-function quickEnds(): { key: string; label: string; end: string }[] {
+/**
+ * The months still open, derived: from where the next close would start through the end
+ * of last month. A month in progress isn't offered — its books aren't finished. These rows
+ * are never stored; a fiscal_periods row only exists once a month has been closed.
+ */
+function openMonths(nextStart: string | null): { period_start: string; period_end: string }[] {
+  if (!nextStart) return []
   const now = new Date()
-  const y = now.getUTCFullYear()
-  const m = now.getUTCMonth()
-  const q = Math.floor(m / 3)
-  return [
-    { key: 'last_month', label: 'End of last month', end: iso(new Date(Date.UTC(y, m, 0))) },
-    { key: 'last_quarter', label: 'End of last quarter', end: iso(new Date(Date.UTC(y, q * 3, 0))) },
-    { key: 'prior_year', label: 'End of prior year', end: `${y - 1}-12-31` },
-  ]
+  const lastMonthEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 0))
+  const out: { period_start: string; period_end: string }[] = []
+  let cursor = new Date(`${nextStart}T00:00:00Z`)
+  while (true) {
+    const y = cursor.getUTCFullYear(), m = cursor.getUTCMonth()
+    const end = new Date(Date.UTC(y, m + 1, 0))
+    if (end > lastMonthEnd) break
+    out.push({ period_start: iso(cursor), period_end: iso(end) })
+    cursor = new Date(Date.UTC(y, m + 1, 1))
+  }
+  return out
 }
 
 export function PeriodsView() {
@@ -64,7 +72,8 @@ export function PeriodsView() {
   const fmt = (v: number) => formatCurrencyPrice(v, currency)
   const [periods, setPeriods] = useState<Period[]>([])
   const [loading, setLoading] = useState(true)
-  const [endDate, setEndDate] = useState(quickEnds()[0].end)
+  const [endDate, setEndDate] = useState('')
+  const [nextStart, setNextStart] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [preview, setPreview] = useState<Preview | null>(null)
@@ -75,7 +84,10 @@ export function PeriodsView() {
 
   const load = useCallback(() => {
     setLoading(true)
-    lf('/api/accounting/periods').then(r => (r.ok ? r.json() : [])).then(d => setPeriods(Array.isArray(d) ? d : [])).finally(() => setLoading(false))
+    lf('/api/accounting/periods').then(r => (r.ok ? r.json() : null)).then(d => {
+      setPeriods(Array.isArray(d?.periods) ? d.periods : [])
+      setNextStart(d?.nextStart ?? null)
+    }).finally(() => setLoading(false))
   }, [lf])
   useEffect(() => { load() }, [load])
 
@@ -93,7 +105,6 @@ export function PeriodsView() {
     if (!ok) { setError(data.error ?? 'Could not preview'); return }
     setPreview(data)
   }
-  const runPreview = () => previewThrough(endDate)
 
   async function confirmClose() {
     setBusy(true); setError(null)
@@ -116,13 +127,32 @@ export function PeriodsView() {
     }
   }
 
+  // Periods reopen newest-first, and the server cascades: reopening a period reopens every
+  // closed period after it too. Say how many BEFORE doing it — two years of months is a lot
+  // to unwind on one click without warning.
+  const [confirmReopen, setConfirmReopen] = useState<string | null>(null)
+  const laterClosed = (id: string) => {
+    const target = periods.find(p => p.id === id)
+    if (!target) return []
+    return periods.filter(p => p.status === 'closed' && p.period_start > target.period_start)
+  }
+
   async function reopen(id: string) {
-    setBusy(true); setError(null)
+    setBusy(true); setError(null); setConfirmReopen(null)
     const { ok, data } = await post({ action: 'reopen', id })
     setBusy(false)
     if (!ok) { setError(data.error ?? 'Could not reopen'); return }
     load()
   }
+
+  // One list: stored rows (closed, plus any left open by a reopen) and the derived open
+  // months, newest first. A stored row wins over a derived one for the same month.
+  const rows: Period[] = [
+    ...periods,
+    ...openMonths(nextStart)
+      .filter(m => !periods.some(p => p.period_start <= m.period_end && p.period_end >= m.period_start))
+      .map(m => ({ id: `open:${m.period_start}`, ...m, label: null, status: 'open', closed_at: null })),
+  ].sort((a, b) => (a.period_end < b.period_end ? 1 : -1))
 
   // A close allocates the ledger's income to partners; with no chart there is no ledger to close.
   if (hasChart === false) {
@@ -131,37 +161,12 @@ export function PeriodsView() {
 
   return (
     <div className="space-y-6 max-w-3xl">
-      <div className="border rounded-card p-4 space-y-3">
-        <p className="text-sm font-medium">Close through a date</p>
+      <div className="space-y-1">
+        <p className="text-sm font-medium">Periods</p>
         <p className="text-xs text-muted-foreground">
-          You pick the end date and each month is closed in order. Preview the allocations per period, review and reopen if you need to make adjustments.
+          Each month is closed in order and locked: preview a month to see what its close would allocate, then confirm.
+          Reopening a month reverses its allocation and reopens every month after it.
         </p>
-
-        <div className="flex flex-wrap gap-1.5">
-          {quickEnds().map(q => (
-            <button
-              key={q.key}
-              onClick={() => { setEndDate(q.end); setPreview(null) }}
-              className={`px-2.5 py-1 text-xs rounded-md border transition-colors ${q.end === endDate ? 'border-foreground/30 bg-accent font-medium' : 'border-border text-muted-foreground hover:text-foreground'}`}
-            >
-              {q.label}
-            </button>
-          ))}
-        </div>
-
-        <div className="flex flex-wrap items-end gap-3">
-          <label className="text-xs text-muted-foreground">Close through
-            <input
-              type="date"
-              value={endDate}
-              onChange={e => { setEndDate(e.target.value); setPreview(null) }}
-              className="mt-1 block border rounded px-2 py-1.5 text-sm bg-transparent"
-            />
-          </label>
-          <Button size="sm" variant="outline" onClick={runPreview} disabled={busy || !endDate}>
-            {busy && !preview && <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />}Preview close
-          </Button>
-        </div>
         {error && <p className="text-sm text-destructive">{error}</p>}
       </div>
 
@@ -233,8 +238,8 @@ export function PeriodsView() {
 
       {loading ? (
         <div className="flex items-center gap-2 text-muted-foreground text-sm"><Loader2 className="h-4 w-4 animate-spin" />Loading…</div>
-      ) : periods.length === 0 ? (
-        <p className="text-sm text-muted-foreground">No periods closed yet.</p>
+      ) : rows.length === 0 ? (
+        <p className="text-sm text-muted-foreground">Nothing to close yet — the ledger has no posted entries in a finished month.</p>
       ) : (
         <div className="border rounded-lg overflow-x-auto">
           <table className="w-full text-sm">
@@ -247,7 +252,7 @@ export function PeriodsView() {
               </tr>
             </thead>
             <tbody>
-              {periods.map(p => {
+              {rows.map(p => {
                 const isClosed = p.status === 'closed'
                 const open = openId === p.id
                 const entries = entriesById[p.id]
@@ -274,14 +279,26 @@ export function PeriodsView() {
                       </td>
                       <td className="px-3 py-2 text-right">
                         {isClosed ? (
-                          <button
-                            onClick={e => { e.stopPropagation(); reopen(p.id) }}
-                            disabled={busy}
-                            title="Void this period's allocation entries and unlock it. Periods reopen newest-first."
-                            className="text-xs text-muted-foreground hover:underline disabled:opacity-50"
-                          >
-                            Reopen &amp; reverse
-                          </button>
+                          confirmReopen === p.id ? (
+                            <span className="inline-flex items-center gap-2 text-xs" onClick={e => e.stopPropagation()}>
+                              <span className="text-warning">
+                                Also reopens the {laterClosed(p.id).length} later {laterClosed(p.id).length === 1 ? 'period' : 'periods'} — each one&rsquo;s allocation is reversed.
+                              </span>
+                              <button onClick={() => reopen(p.id)} disabled={busy} className="font-medium hover:underline disabled:opacity-50">Reopen all</button>
+                              <button onClick={() => setConfirmReopen(null)} disabled={busy} className="text-muted-foreground hover:underline disabled:opacity-50">Cancel</button>
+                            </span>
+                          ) : (
+                            <button
+                              onClick={e => { e.stopPropagation(); laterClosed(p.id).length > 0 ? setConfirmReopen(p.id) : reopen(p.id) }}
+                              disabled={busy}
+                              title={laterClosed(p.id).length > 0
+                                ? `Reopens this period and the ${laterClosed(p.id).length} closed after it, newest-first, reversing each allocation.`
+                                : "Void this period's allocation entries and unlock it."}
+                              className="text-xs text-muted-foreground hover:underline disabled:opacity-50"
+                            >
+                              Reopen
+                            </button>
+                          )
                         ) : (
                           // Closing runs THROUGH a date, so this previews everything from the
                           // last close up to this period's end — which, for the oldest open
