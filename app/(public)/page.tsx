@@ -10,8 +10,8 @@ import { parseSiteContent, resolveIcon, type SiteCallout, type SiteTier, type Si
 import { renderInlineMarkdown } from '@/lib/marketing/markdown'
 
 export const metadata = ogMetadata({
-  title: 'Run your fund with Portfolio',
-  description: 'Open source portfolio reporting for venture capital firms, accelerators, and angel investors.',
+  title: 'Run your investment firm in one place',
+  description: 'Manage deal flow, portfolio reporting, fund operations, LPs, and accounting—without stitching together spreadsheets and point tools.',
   path: '/',
 })
 
@@ -95,12 +95,12 @@ export default async function HomePage() {
 
   return (
     <div className="px-6 md:px-8 pb-12 pt-8 md:pt-16">
-      {/* Hero. Display type at weight 600 — Inter needs the extra weight a
-          serif didn't, and it matches the h1 on hemrock.com so the two
-          properties read as one product. The emphasis phrase is the page's one
-          flourish and the only place the brand accent appears above the fold. */}
+      {/* Hero. A medium display face and deliberately tight leading create the
+          calmer, editorial silhouette of the headline. The emphasis phrase is
+          the page's one flourish and the only place the brand accent appears
+          above the fold. */}
       <section className="mb-20 md:mb-28 text-center">
-        <h1 className="font-display text-display font-semibold max-w-3xl mx-auto text-balance text-center">
+        <h1 className="font-display text-display font-medium leading-[1.06] max-w-3xl mx-auto text-balance text-center">
           {content.hero.title}
           {content.hero.emphasis && (
             <>{' '}<em className="italic text-brand-700 dark:text-brand-400">{content.hero.emphasis}</em></>
