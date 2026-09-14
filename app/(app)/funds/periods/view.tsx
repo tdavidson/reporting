@@ -279,26 +279,16 @@ export function PeriodsView() {
                       </td>
                       <td className="px-3 py-2 text-right">
                         {isClosed ? (
-                          confirmReopen === p.id ? (
-                            <span className="inline-flex items-center gap-2 text-xs" onClick={e => e.stopPropagation()}>
-                              <span className="text-warning">
-                                Also reopens the {laterClosed(p.id).length} later {laterClosed(p.id).length === 1 ? 'period' : 'periods'} — each one&rsquo;s allocation is reversed.
-                              </span>
-                              <button onClick={() => reopen(p.id)} disabled={busy} className="font-medium hover:underline disabled:opacity-50">Reopen all</button>
-                              <button onClick={() => setConfirmReopen(null)} disabled={busy} className="text-muted-foreground hover:underline disabled:opacity-50">Cancel</button>
-                            </span>
-                          ) : (
-                            <button
-                              onClick={e => { e.stopPropagation(); laterClosed(p.id).length > 0 ? setConfirmReopen(p.id) : reopen(p.id) }}
-                              disabled={busy}
-                              title={laterClosed(p.id).length > 0
-                                ? `Reopens this period and the ${laterClosed(p.id).length} closed after it, newest-first, reversing each allocation.`
-                                : "Void this period's allocation entries and unlock it."}
-                              className="text-xs text-muted-foreground hover:underline disabled:opacity-50"
-                            >
-                              Reopen
-                            </button>
-                          )
+                          <button
+                            onClick={e => { e.stopPropagation(); laterClosed(p.id).length > 0 ? setConfirmReopen(confirmReopen === p.id ? null : p.id) : reopen(p.id) }}
+                            disabled={busy}
+                            title={laterClosed(p.id).length > 0
+                              ? `Reopens this period and the ${laterClosed(p.id).length} closed after it, newest-first, reversing each allocation.`
+                              : "Void this period's allocation entries and unlock it."}
+                            className="text-xs text-muted-foreground hover:underline disabled:opacity-50"
+                          >
+                            Reopen
+                          </button>
                         ) : (
                           // Closing runs THROUGH a date, so this previews everything from the
                           // last close up to this period's end — which, for the oldest open
@@ -314,6 +304,33 @@ export function PeriodsView() {
                         )}
                       </td>
                     </tr>
+
+                    {/* Reopening an older month takes every later one with it — a full-width
+                        banner under the row, with real buttons, so the choice reads as one. */}
+                    {isClosed && confirmReopen === p.id && (() => {
+                      const later = laterClosed(p.id)
+                      return (
+                        <tr className="border-b bg-warning/10">
+                          <td colSpan={4} className="px-3 py-2.5">
+                            <div className="flex flex-wrap items-center justify-between gap-3">
+                              <p className="text-sm text-warning flex items-start gap-1.5">
+                                <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+                                <span>
+                                  Reopening {p.label ?? `${p.period_start} → ${p.period_end}`} also reopens the {later.length} later {later.length === 1 ? 'period' : 'periods'}
+                                  {' '}({later[later.length - 1]?.label ?? later[later.length - 1]?.period_start} → {later[0]?.label ?? later[0]?.period_end}). Each one&rsquo;s allocation is reversed; close them again when you&rsquo;re done.
+                                </span>
+                              </p>
+                              <span className="flex items-center gap-2 shrink-0">
+                                <Button size="sm" onClick={() => reopen(p.id)} disabled={busy}>
+                                  {busy && <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />}<Unlock className="h-3.5 w-3.5 mr-1" />Reopen all {later.length + 1}
+                                </Button>
+                                <Button size="sm" variant="outline" onClick={() => setConfirmReopen(null)} disabled={busy}>Cancel</Button>
+                              </span>
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })()}
 
                     {isClosed && open && (
                       <tr className="border-b last:border-b-0 bg-muted/10">
