@@ -31,9 +31,20 @@ export const ACCENT_PRESETS: Array<{ key: string; label: string; hsl: string; fg
 // 'system' keeps its key for themes already stored against it, but the app-wide
 // default is now Inter (globals.css points --font-sans there), so leaving the
 // font unset and picking 'inter' land in the same place.
-export const FONT_OPTIONS: Array<{ key: string; label: string; varName: string | null }> = [
+//
+// `tabular-nums` in the financial tables needs the face to ship `tnum` (or, as
+// Hanken does, permanently tabular digits). Every face here does except DM Sans,
+// whose only figures are proportional — its `note` says so, and the picker shows
+// it, because number columns will not align in it. Check GSUB before adding one.
+// All are loaded in app/layout.tsx (self-hosted at build by next/font) and, apart
+// from Inter, with preload:false so a deployment only fetches the one its theme names.
+export const FONT_OPTIONS: Array<{ key: string; label: string; varName: string | null; note?: string }> = [
   { key: 'system', label: 'Inter (default)', varName: null },
   { key: 'inter', label: 'Inter', varName: '--font-inter' },
+  { key: 'geist', label: 'Geist', varName: '--font-geist' },
+  { key: 'dm-sans', label: 'DM Sans', varName: '--font-dm-sans', note: 'No tabular figures — numbers will not line up in columns.' },
+  { key: 'inter-tight', label: 'Inter Tight', varName: '--font-inter-tight' },
+  { key: 'instrument-sans', label: 'Instrument Sans', varName: '--font-instrument-sans' },
   { key: 'hanken', label: 'Hanken Grotesk', varName: '--font-hanken' },
   { key: 'jakarta', label: 'Plus Jakarta Sans', varName: '--font-jakarta' },
 ]

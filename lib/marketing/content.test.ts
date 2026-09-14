@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseSiteContent, resolveIcon, type SiteContent } from './content'
+import { parseSiteContent, resolveIcon, siteFontCssVars, type SiteContent } from './content'
 import { Circle, Mail } from 'lucide-react'
 
 const valid: SiteContent = {
@@ -24,6 +24,7 @@ const valid: SiteContent = {
   faqs: [{ q: 'Why?', a: 'Because [reasons](https://x.com).' }],
   about: { name: 'Taylor Davidson', bio: 'CFO and investor.', links: [{ label: 'X', href: 'https://x.com/tdavidson' }] },
   links: { github: 'https://github.com/tdavidson/reporting', x: 'https://x.com/tdavidson', demo: 'https://portfolio.hemrock.com/demo' },
+  font: 'geist',
 }
 
 describe('parseSiteContent', () => {
@@ -87,6 +88,25 @@ describe('parseSiteContent', () => {
     const out = parseSiteContent(bad)
     expect(out?.productGroups).toHaveLength(1)
     expect(out?.productGroups[0].key).toBeUndefined()
+  })
+})
+
+describe('site font', () => {
+  it('defaults to geist when the JSON sets no font', () => {
+    const { font: _omit, ...noFont } = valid
+    expect(parseSiteContent(noFont)?.font).toBe('geist')
+    expect(siteFontCssVars('geist')).toBe('--font-sans:var(--font-geist);--font-display:var(--font-geist)')
+  })
+
+  it('accepts any UI font key and rejects unknown ones back to the default', () => {
+    expect(parseSiteContent({ ...valid, font: 'inter-tight' })?.font).toBe('inter-tight')
+    expect(parseSiteContent({ ...valid, font: 'comic-sans' })?.font).toBe('geist')
+    expect(parseSiteContent({ ...valid, font: 42 })?.font).toBe('geist')
+  })
+
+  it('emits no override for the app default (inter / system) so it inherits globals.css', () => {
+    expect(siteFontCssVars('system')).toBe('')
+    expect(siteFontCssVars('inter')).toBe('--font-sans:var(--font-inter);--font-display:var(--font-inter)')
   })
 })
 

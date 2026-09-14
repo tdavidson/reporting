@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from 'next'
 import Script from 'next/script'
 import { headers } from 'next/headers'
 import { NONCE_HEADER } from '@/lib/security/csp'
-import { Hanken_Grotesk, Plus_Jakarta_Sans, Inter, Newsreader, Source_Serif_4, Libre_Caslon_Display } from 'next/font/google'
+import { Hanken_Grotesk, Plus_Jakarta_Sans, Inter, Geist, DM_Sans, Inter_Tight, Instrument_Sans, Newsreader, Source_Serif_4, Libre_Caslon_Display } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import { SpeedInsights } from '@vercel/speed-insights/next'
 import { BotIdClient } from 'botid/client'
@@ -22,8 +22,14 @@ const inter = Inter({ subsets: ['latin'], variable: '--font-inter', display: 'sw
 // can opt in via --font-sans; unset, --font-sans stays on Inter.
 //
 // preload:false on every optional face — only one fund in a deployment uses any
-// given one, so preloading all four would make every page pay for fonts it will
-// never reference. They are fetched on demand when a theme points at them.
+// given one, so preloading them all would make every page pay for fonts it will
+// never reference. They are fetched on demand when a theme points at them. The
+// marketing page's font (site_content.font, default Geist) resolves through the
+// same variables, so it needs no loads of its own.
+const geist = Geist({ subsets: ['latin'], variable: '--font-geist', display: 'swap', preload: false })
+const dmSans = DM_Sans({ subsets: ['latin'], variable: '--font-dm-sans', display: 'swap', preload: false })
+const interTight = Inter_Tight({ subsets: ['latin'], variable: '--font-inter-tight', display: 'swap', preload: false })
+const instrumentSans = Instrument_Sans({ subsets: ['latin'], variable: '--font-instrument-sans', display: 'swap', preload: false })
 const hankenGrotesk = Hanken_Grotesk({ subsets: ['latin'], variable: '--font-hanken', display: 'swap', preload: false })
 const plusJakarta = Plus_Jakarta_Sans({ subsets: ['latin'], variable: '--font-jakarta', display: 'swap', preload: false })
 
@@ -114,7 +120,7 @@ export default async function RootLayout({
   const nonce = (await headers()).get(NONCE_HEADER) ?? undefined
 
   return (
-    <html lang="en" suppressHydrationWarning className={`${inter.variable} ${newsreader.variable} ${sourceSerif.variable} ${libreCaslon.variable} ${hankenGrotesk.variable} ${plusJakarta.variable}`}>
+    <html lang="en" suppressHydrationWarning className={`${inter.variable} ${geist.variable} ${dmSans.variable} ${interTight.variable} ${instrumentSans.variable} ${newsreader.variable} ${sourceSerif.variable} ${libreCaslon.variable} ${hankenGrotesk.variable} ${plusJakarta.variable}`}>
       <head>
         {/* BotId's client half. It must be mounted HERE and not in instrumentation-client.ts:
             that file is a Next 15.3+ entry point and this app is on 14, so it was compiled by

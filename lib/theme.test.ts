@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { rampFor, themeCssVars, foregroundFor, isValidHsl } from './theme'
+import { rampFor, themeCssVars, foregroundFor, isValidHsl, FONT_OPTIONS } from './theme'
 
 /** The evergreen seed. globals.css hardcodes the ramp this produces. */
 const EVERGREEN = '164 72% 50%'
@@ -102,6 +102,13 @@ describe('themeCssVars', () => {
     // 'inter' is the default; storing it as an override would be a no-op.
     expect(themeCssVars({ displayFont: 'inter' })).toBe('')
     expect(themeCssVars({ displayFont: 'not-a-font' })).toBe('')
+  })
+
+  it('maps every new UI face to its own loaded variable, alongside the originals', () => {
+    for (const [key, v] of [['geist', '--font-geist'], ['dm-sans', '--font-dm-sans'], ['inter-tight', '--font-inter-tight'], ['instrument-sans', '--font-instrument-sans'], ['hanken', '--font-hanken'], ['jakarta', '--font-jakarta']]) {
+      expect(themeCssVars({ font: key })).toBe(`--font-sans:var(${v})`)
+    }
+    expect(FONT_OPTIONS.map(o => o.key)).toEqual(['system', 'inter', 'geist', 'dm-sans', 'inter-tight', 'instrument-sans', 'hanken', 'jakarta'])
   })
 
   it('keeps the UI font and the display font independent', () => {

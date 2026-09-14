@@ -164,6 +164,20 @@ Jakarta Sans are both loaded here, and Hanken Grotesk's figures are
 *permanently* tabular (all ten digits share one advance width), so it can't do
 proportional numerals in running text.
 
+`FONT_OPTIONS` (the per-fund "UI font" in Appearance) also offers Geist,
+DM Sans, Inter Tight and Instrument Sans. Geist, Inter Tight and Instrument
+Sans carry `tnum`, so `tabular-nums` keeps working in the tables. **DM Sans
+does not** — its only figures are proportional, so number columns will not
+align in it; the picker says so next to the option. They load with
+`preload: false` and are fetched only when a theme names them. The UI font never reaches the
+server-rendered PDFs, which stay on embedded Inter whatever the fund chose.
+
+The public marketing page is not a tenant surface, so it has its own font
+(`site_content.font`, chosen in Settings → Marketing), **Geist** by default.
+`app/(public)/layout.tsx` sets `--font-sans` *and* `--font-display` on a
+wrapper — the page has no separate report face, so headings follow the body —
+and the fund theme never applies out there.
+
 Named steps, defined in `tailwind.config.ts`. Each carries its own line-height
 and tracking, so an eyebrow can't be reassembled wrongly by hand:
 

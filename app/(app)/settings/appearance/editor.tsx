@@ -118,7 +118,10 @@ export function AppearanceEditor() {
           <select value={font} onChange={e => setFont(e.target.value)} className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm">
             {FONT_OPTIONS.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
           </select>
-          <p className="text-[10px] text-muted-foreground mt-1">Body text, tables and controls.</p>
+          <p className="text-[10px] text-muted-foreground mt-1">
+            {FONT_OPTIONS.find(o => o.key === font)?.note ? <span className="text-warning">{FONT_OPTIONS.find(o => o.key === font)?.note} </span> : null}
+            Body text, tables and controls.
+          </p>
         </div>
         <div>
           <div className="text-xs font-medium mb-1">Report font</div>

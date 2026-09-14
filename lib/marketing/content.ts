@@ -1,6 +1,13 @@
 import { Circle, Mail, Upload, LineChart, BarChart3, StickyNote, MessageCircle, Handshake, Briefcase, Microscope, FileText, Calculator, Lock, FolderOpen, ShieldCheck, Database, Brain, ShieldUser, Users, Lightbulb, Send, Play, Github, Crown, Landmark, Receipt, Percent, Eye, Coins, Search } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { orderedProducts, type ProductKey } from '@/lib/access/products'
+import { FONT_OPTIONS } from '@/lib/theme'
+
+/** The marketing page's own typeface, independent of any fund's theme. Geist
+ *  by default — the public page is Hemrock's, not a tenant's, so it does not
+ *  inherit the app's Inter default; it is set from Settings → Marketing. */
+export const SITE_FONT_DEFAULT = 'geist'
+
 
 export interface SiteFeature { title: string; text: string; screenshot?: string; icon?: string }
 export interface SiteProductGroup {
@@ -41,6 +48,21 @@ export interface SiteContent {
   /** The same card pulled up under the hero CTAs. Independent copy; falls back to
    *  `cfoCallout` when absent so JSON that only sets one still shows both cards. */
   heroCallout?: SiteCallout
+  /** UI font key (lib/theme FONT_OPTIONS) for the whole public page — body and
+   *  headings both. Unknown keys fall back to SITE_FONT_DEFAULT. */
+  font: string
+}
+
+/** CSS-variable overrides that put the marketing page in `key`. Both axes move
+ *  together: the page has no separate report face, so its headings follow the
+ *  body. Empty for 'system', which has no variable and inherits globals.css. */
+export function siteFontCssVars(key: string): string {
+  const v = FONT_OPTIONS.find(o => o.key === key)?.varName
+  return v ? `--font-sans:var(${v});--font-display:var(${v})` : ''
+}
+
+function siteFont(v: unknown): string {
+  return isStr(v) && FONT_OPTIONS.some(o => o.key === v) ? v : SITE_FONT_DEFAULT
 }
 
 // Allowlist of icons the JSON may reference by name. JSON can't hold components.
@@ -171,6 +193,7 @@ export function parseSiteContent(raw: unknown): SiteContent | null {
     faqs: arr(raw.faqs).map(faq).filter((f): f is SiteFaq => f !== null),
     about: about(raw.about),
     links: links(raw.links),
+    font: siteFont(raw.font),
     ...(foot ? { cfoCallout: foot } : {}),
     ...(top ? { heroCallout: top } : {}),
   }
