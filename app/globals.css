@@ -51,7 +51,7 @@
     background-size: 0.875rem 0.875rem;
   }
   .dark select:not([multiple]):not([size]):not(.appearance-none) {
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23A8A59F' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23A2A6AE' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
   }
 
   :root {
@@ -181,41 +181,44 @@
     --ease-expo: cubic-bezier(0.16, 1, 0.3, 1);
   }
   .dark {
-    --background: 40 6% 11%;
-    --foreground: 40 8% 96%;
-    --card: 40 6% 14%;
-    --card-foreground: 40 8% 96%;
-    --popover: 40 6% 14%;
-    --popover-foreground: 40 8% 96%;
-    --primary: 40 8% 96%;
-    --primary-foreground: 40 8% 11%;
-    --secondary: 40 5% 18%;
-    --secondary-foreground: 40 8% 96%;
-    --muted: 40 5% 18%;
-    --muted-foreground: 40 5% 64%;
-    --accent: 40 5% 18%;
-    --accent-foreground: 40 8% 96%;
-    --border: 40 5% 22%;
-    --input: 40 5% 18%;
+    /* Dark neutrals match hemrock.com and nevermodel-site: paper #121316, ink
+       #f2f2f4, muted #a2a6ae, rule #26282d. Cool and near-black, where light
+       mode stays warm. */
+    --background: 225 10% 8%;
+    --foreground: 240 8% 95%;
+    --card: 225 9% 10%;
+    --card-foreground: 240 8% 95%;
+    --popover: 225 9% 10%;
+    --popover-foreground: 240 8% 95%;
+    --primary: 240 8% 95%;
+    --primary-foreground: 225 10% 8%;
+    --secondary: 223 8% 14%;
+    --secondary-foreground: 240 8% 95%;
+    --muted: 223 8% 14%;
+    --muted-foreground: 220 7% 66%;
+    --accent: 223 8% 14%;
+    --accent-foreground: 240 8% 95%;
+    --border: 223 8% 16%;
+    --input: 223 8% 16%;
     --ring: 164 39.6% 44%;
 
     /* The ramp is not re-declared in dark mode — the stops are absolute. What
        changes is which stop each role uses: 500 for accent text (5.14 on the
        dark surface) where light mode uses 700, and 900/950 for tinted surfaces. */
     --brand: 164 39.6% 44%;
-    --brand-foreground: 40 8% 11%;
+    --brand-foreground: 225 10% 8%;
 
     --success: 152 45% 60%;
-    --success-foreground: 40 8% 11%;
+    --success-foreground: 225 10% 8%;
     --success-subtle: 152 30% 16%;
     --warning: 32 75% 62%;
-    --warning-foreground: 40 8% 11%;
+    --warning-foreground: 225 10% 8%;
     --warning-subtle: 32 40% 16%;
     --info: 212 65% 66%;
-    --info-foreground: 40 8% 11%;
+    --info-foreground: 225 10% 8%;
     --info-subtle: 212 40% 18%;
     --destructive: 0 70% 66%;
-    --destructive-foreground: 40 8% 11%;
+    --destructive-foreground: 225 10% 8%;
     --destructive-subtle: 0 40% 18%;
 
     /* The same eight hues re-stepped for the dark surface — a selected dark

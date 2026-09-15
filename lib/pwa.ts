@@ -25,7 +25,7 @@ import { isValidHsl, hslToHex, rampFor, type FundTheme } from '@/lib/theme'
  * duplication cannot rot quietly.
  */
 export const SURFACE_LIGHT_HSL = '40 20% 99%'
-export const SURFACE_DARK_HSL = '40 6% 11%'
+export const SURFACE_DARK_HSL = '225 10% 8%'
 
 export const SURFACE_LIGHT_HEX = hslToHex(SURFACE_LIGHT_HSL)!
 export const SURFACE_DARK_HEX = hslToHex(SURFACE_DARK_HSL)!
