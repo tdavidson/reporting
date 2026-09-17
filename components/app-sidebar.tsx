@@ -1,22 +1,13 @@
 'use client'
 
-import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Building2, ClipboardCheck, ListChecks, Mail, Upload, Send, Settings, LifeBuoy, PanelLeftClose, PanelLeftOpen, Monitor, Sun, Moon, BarChart3, TrendingUp, Lock, Users, Handshake, ArrowDownCircle, FileText, Crown, ShieldCheck, Lightbulb, Microscope, BookOpen, Sparkles } from 'lucide-react'
+import { Building2, ClipboardCheck, ListChecks, Mail, Settings, LifeBuoy, Users, Crown, Lightbulb, Microscope, BookOpen, Sparkles } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
-import { useState, useEffect } from 'react'
-import { useTheme } from 'next-themes'
-import { useSidebar } from '@/components/sidebar-context'
 import { ACCOUNTING_SECTIONS, sectionsForKind } from '@/lib/accounting/nav'
-import { useVehicle, FUND_SUBPAGE_SLUGS } from '@/components/accounting-vehicle'
-import type { FeatureKey, FeatureVisibilityMap } from '@/lib/types/features'
+import { FUND_SUBPAGE_SLUGS } from '@/components/fund-subpages'
+import type { FeatureKey } from '@/lib/types/features'
 import { domainForFeature, type Domain } from '@/lib/access/domains'
-import { useAccess } from '@/components/access-context'
 import type { AccessLevel } from '@/lib/access/effective'
-
-const THEME_CYCLE = ['system', 'light', 'dark'] as const
-const THEME_ICONS = { system: Monitor, light: Sun, dark: Moon }
-const THEME_LABELS = { system: 'System', light: 'Light', dark: 'Dark' }
 
 interface NavChild {
   href: string
@@ -37,6 +28,8 @@ interface NavChild {
 interface NavItem {
   href: string
   label: string
+  /** The rail's label, where the full one does not fit under a 64px icon. Defaults to `label`. */
+  railLabel?: string
   icon: LucideIcon
   badgeKey?: 'review' | 'settings' | 'notes' | 'pendingActions'
   adminOnly?: boolean
@@ -79,7 +72,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: '/review', label: 'Review', icon: ClipboardCheck, badgeKey: 'review', domain: 'portfolio' },
   // Admin-only, and — like Review — only shown when there's something waiting (badgeKey hides it
   // at zero). The list still filters rows by per-domain access; members reach theirs via the API/URL.
-  { href: '/pending-actions', label: 'Pending Actions', icon: ListChecks, domain: 'portfolio', adminOnly: true, badgeKey: 'pendingActions' },
+  { href: '/pending-actions', label: 'Pending Actions', railLabel: 'Pending', icon: ListChecks, domain: 'portfolio', adminOnly: true, badgeKey: 'pendingActions' },
   // Portfolio, not dealflow — the mailbox is where portfolio updates arrive and where the review
   // queue's emails live, so gating it on the Deals product hid the only page that can reprocess an
   // email from every fund running Portfolio Reporting alone. Deal-specific actions inside it gate
@@ -296,216 +289,36 @@ export function useFundSeg(): string | null {
   return fundSegFromPath(usePathname())
 }
 
+/**
+ * The section `pathname` is in, for the rail's highlight and the panel's contents — the first
+ * visible section whose own path or any child's path contains it. Null off every section (a
+ * company page, say), and then there is no panel: the rail alone is the nav.
+ *
+ * Same looseness as the phone's tab bar, and for the same reason: the question is "which part
+ * of the app am I in", and the panel answers "which row" underneath it.
+ */
+export function currentSectionFor(pathname: string, sections: NavItem[]): NavItem | null {
+  return sections.find(item => navItemMatches(item, pathname)) ?? null
+}
+
+/**
+ * Where the entity switcher goes: the same accounting page, on another entity — or on none.
+ *
+ *   /funds/<a>/journal   + seg <b>  → /funds/<b>/journal
+ *   /funds/journal       + seg <b>  → /funds/<b>/journal
+ *   /funds/<a>/journal   + null     → /funds/journal        (the firm-wide landing)
+ *   /funds/<a>           + seg <b>  → /funds/<b>
+ *
+ * Only the section (the first subpage segment) survives the jump: a deeper param like an LP id
+ * belongs to the entity being left. Off the Entities section entirely, it is the entity's overview.
+ */
+export function vehicleTargetPath(pathname: string, seg: string | null): string {
+  const parts = pathname.split('/').filter(Boolean)
+  if (parts[0] !== 'funds') return seg ? `/funds/${seg}` : '/funds'
+  const inEntity = !!parts[1] && !FUND_SUBPAGE_SLUGS.has(parts[1])
+  const section = inEntity ? parts[2] : parts[1]
+  const base = seg ? `/funds/${seg}` : '/funds'
+  return section ? `${base}/${section}` : base
+}
+
 export type { NavItem, NavChild }
-
-interface AppSidebarProps {
-  reviewBadge: number
-  settingsBadge?: number
-  notesBadge?: number
-  pendingActionsBadge?: number
-  isAdmin?: boolean
-  updateAvailable?: boolean
-  featureVisibility?: FeatureVisibilityMap
-  /** Derived, not a setting: true when the fund holds at least one fund. */
-  fofActive?: boolean
-  /**
-   * Rendered inside the phone's drawer rather than as the desktop aside.
-   *
-   * It forces `collapsed` off. Collapsing is a DESKTOP preference — it trades labels
-   * for horizontal room in a 224px column — but it was read straight from context
-   * here, and `showChildren` is gated on it. So a user who had collapsed the sidebar
-   * at their desk opened the app on a phone, where there is no aside and nothing to
-   * collapse, and found every sub-page missing from the menu: no Investments, no
-   * Capital accounts, no ledger. The drawer is 288px of a screen with nothing beside
-   * it, so there is nothing for collapsing to buy here.
-   */
-  mobile?: boolean
-  onNavigate?: () => void
-}
-
-export function AppSidebar({ reviewBadge, settingsBadge, notesBadge, pendingActionsBadge, isAdmin, updateAvailable, featureVisibility, fofActive, mobile, onNavigate }: AppSidebarProps) {
-  const pathname = usePathname()
-  const access = useAccess()
-  const { collapsed: collapsedPref, toggle } = useSidebar()
-  const collapsed = collapsedPref && !mobile
-  const { theme, setTheme } = useTheme()
-  const [mounted, setMounted] = useState(false)
-  useEffect(() => setMounted(true), [])
-
-  // The Funds subnav is fund-first inside a fund and firm-wide elsewhere — see useFundSeg /
-  // fundsChildrenFor above. Inside a fund it shows the pages that vehicle's KIND has a use for
-  // (lib/accounting/nav.ts hideFor); the kind comes from the context the fund pages pin to
-  // their URL, and fundsChildrenFor ignores it whenever there is no fund in the URL.
-  const fundSeg = useFundSeg()
-  const { kind: vehicleKind } = useVehicle()
-
-  const currentTheme = (THEME_CYCLE.includes(theme as typeof THEME_CYCLE[number]) ? theme : 'system') as typeof THEME_CYCLE[number]
-  const ThemeIcon = mounted ? THEME_ICONS[currentTheme] : Monitor
-  const themeLabel = mounted ? THEME_LABELS[currentTheme] : 'System'
-
-  function cycleTheme() {
-    const idx = THEME_CYCLE.indexOf(currentTheme)
-    setTheme(THEME_CYCLE[(idx + 1) % THEME_CYCLE.length])
-  }
-
-  return (
-    <div className="flex flex-col flex-1">
-      <nav className={`flex-1 p-2 space-y-0.5 ${collapsed ? 'md:px-1' : ''}`}>
-        {navSectionsFor(!!isAdmin, access, { review: reviewBadge, pendingActions: pendingActionsBadge }).map((item) => {
-          const { href, label, icon: Icon, badgeKey, adminOnly, featureKey, beta } = item
-          // The parent row is highlighted ONLY when it is the exact current page — never
-          // merely because a child is open. Otherwise the highlight was inconsistent: Funds
-          // (/funds) and Diligence (/diligence) nest their children under their own path, so a
-          // prefix match lit the parent AND the child (two "you are here" pills at once),
-          // while Portfolio — whose children live at unrelated paths like /investments — never
-          // lit the parent. Exact-match makes every section behave the same: one pill, on the
-          // page you're actually on, with section context coming from the expanded children.
-          const isActive = pathname === href
-          const badgeCount = badgeKey === 'review' ? reviewBadge
-            : badgeKey === 'pendingActions' ? (pendingActionsBadge ?? 0)
-            : badgeKey === 'settings' ? (settingsBadge ?? 0)
-            : badgeKey === 'notes' ? (notesBadge ?? 0)
-            : 0
-          const showLock = adminOnly || (featureKey && featureVisibility?.[featureKey] === 'admin')
-
-          // Children visibility — the shared resolver drops what the user can't access
-          // (admin gate, per-feature visibility) and the fund-of-funds pages that only
-          // exist once the fund holds a fund. Shown only when the parent or any visible
-          // child route is active.
-          const visibleChildren = visibleChildrenFor(item, !!isAdmin, access, { fofActive, fundSeg, kind: vehicleKind })
-          const childActive = visibleChildren.some(c => pathname === c.href || pathname.startsWith(c.href + '/'))
-          // Also keep the section open on any page UNDER its own path (e.g. /funds/allocation-terms,
-          // a Funds page that isn't a listed child) — it's still this section, just not in the nav.
-          const underSection = pathname.startsWith(href + '/')
-          const showChildren = !collapsed && visibleChildren.length > 0 && (isActive || childActive || underSection)
-
-          return (
-            <div key={href}>
-              <Link
-                href={href}
-                onClick={onNavigate}
-                title={collapsed ? label : undefined}
-                className={`relative flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors ${ collapsed ? 'md:justify-center md:px-0' : '' } ${ isActive ? 'bg-accent text-foreground font-medium' : 'text-muted-foreground hover:text-foreground hover:bg-accent' }`}
-              >
-                <Icon className="h-5 w-5 shrink-0" />
-                <span className={`${collapsed ? 'md:hidden' : ''}`}>{label}</span>
-                {badgeCount > 0 && (
-                  collapsed ? (
-                    <span className="hidden md:block absolute top-1 right-1 h-2 w-2 rounded-full bg-warning" />
-                  ) : (
-                    <span className="rounded-full bg-warning text-white text-[10px] font-semibold leading-none px-1.5 py-0.5 min-w-[18px] text-center">
-                      {badgeCount > 99 ? '99+' : badgeCount}
-                    </span>
-                  )
-                )}
-                {beta && !showLock && (
-                  collapsed ? (
-                    <span className="hidden md:block absolute top-1 right-1 h-2 w-2 rounded-full bg-info" />
-                  ) : (
-                    <span className="text-[9px] font-medium text-info bg-info/10 rounded px-1 py-0.5 leading-none uppercase tracking-wider self-center">beta</span>
-                  )
-                )}
-                {showLock && !beta && !collapsed && (
-                  <Lock className="h-3 w-3 text-warning shrink-0 md:block hidden" />
-                )}
-                {showLock && !beta && collapsed && (
-                  <span className="hidden md:block absolute top-1 right-1">
-                    <Lock className="h-2.5 w-2.5 text-warning" />
-                  </span>
-                )}
-                {beta && showLock && !collapsed && (
-                  <>
-                    <span className="text-[9px] font-medium text-info bg-info/10 rounded px-1 py-0.5 leading-none uppercase tracking-wider self-center hidden md:inline">beta</span>
-                    <Lock className="h-3 w-3 text-warning shrink-0 md:block hidden" />
-                  </>
-                )}
-                {beta && showLock && collapsed && (
-                  <span className="hidden md:block absolute top-1 right-1">
-                    <Lock className="h-2.5 w-2.5 text-info" />
-                  </span>
-                )}
-              </Link>
-
-              {showChildren && (
-                <div className="ml-5 border-l border-border pl-2 mt-0.5 space-y-0.5">
-                  {visibleChildren.map(child => {
-                    const childIsActive = child.exact
-                      ? pathname === child.href
-                      : pathname === child.href || pathname.startsWith(child.href + '/')
-                    const childShowLock = child.adminOnly || (child.featureKey && featureVisibility?.[child.featureKey] === 'admin')
-                    return (
-                      <Link
-                        key={child.href}
-                        href={child.href}
-                        onClick={onNavigate}
-                        className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm transition-colors ${ childIsActive ? 'bg-accent text-foreground font-medium' : 'text-muted-foreground hover:text-foreground hover:bg-accent' }`}
-                      >
-                        <span>{child.label}</span>
-                        {childShowLock && <Lock className="h-3 w-3 text-warning shrink-0" />}
-                        {child.badgeKey === 'notes' && (notesBadge ?? 0) > 0 && (
-                          <span className="ml-auto text-[10px] font-medium rounded-full bg-muted-foreground/15 px-1.5 py-0.5 tabular-nums">
-                            {notesBadge}
-                          </span>
-                        )}
-                      </Link>
-                    )
-                  })}
-                </div>
-              )}
-            </div>
-          )
-        })}
-
-        {/* Update available, admin only */}
-        {isAdmin && updateAvailable && (() => {
-          const isActive = pathname === '/updates' || pathname.startsWith('/updates/')
-          return (
-            <Link
-              href="/updates"
-              onClick={onNavigate}
-              title={collapsed ? 'Updates' : undefined}
-              className={`relative flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors ${ collapsed ? 'md:justify-center md:px-0' : '' } ${ isActive ? 'bg-accent text-foreground font-medium' : 'text-warning dark:text-warning hover:text-foreground hover:bg-accent' }`}
-            >
-              <ArrowDownCircle className="h-5 w-5 shrink-0" />
-              <span className={`${collapsed ? 'md:hidden' : ''}`}>Updates</span>
-              {collapsed ? (
-                <span className="hidden md:block absolute top-1 right-1 h-2 w-2 rounded-full bg-warning" />
-              ) : (
-                <span className="h-2 w-2 rounded-full bg-warning shrink-0" />
-              )}
-            </Link>
-          )
-        })()}
-
-        {/* Theme toggle */}
-        <button
-          onClick={cycleTheme}
-          title={collapsed ? themeLabel : undefined}
-          className={`flex w-full items-center gap-3 px-3 py-2 rounded-md text-xs transition-colors text-muted-foreground/60 hover:text-muted-foreground hover:bg-accent ${ collapsed ? 'md:justify-center md:px-0' : '' }`}
-        >
-          <ThemeIcon className="h-5 w-5 shrink-0" />
-          <span className={`flex-1 text-left ${collapsed ? 'md:hidden' : ''}`}>
-            {themeLabel}
-          </span>
-        </button>
-
-        {/* Hide Sidebar toggle, only shown on desktop */}
-        <button
-          onClick={toggle}
-          title={collapsed ? 'Show Sidebar' : 'Hide Sidebar'}
-          className={`hidden md:flex w-full items-center gap-3 px-3 py-2 rounded-md text-xs transition-colors text-muted-foreground/60 hover:text-muted-foreground hover:bg-accent ${ collapsed ? 'md:justify-center md:px-0' : '' }`}
-        >
-          {collapsed ? (
-            <PanelLeftOpen className="h-5 w-5 shrink-0" />
-          ) : (
-            <PanelLeftClose className="h-5 w-5 shrink-0" />
-          )}
-          <span className={`flex-1 text-left ${collapsed ? 'md:hidden' : ''}`}>
-            {collapsed ? 'Show Sidebar' : 'Hide Sidebar'}
-          </span>
-        </button>
-      </nav>
-    </div>
-  )
-}
-

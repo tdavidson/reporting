@@ -3,7 +3,6 @@
 import { LogOut, Building2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { LpPortalSwitchLink } from '@/components/lp-portal-switch-link'
-import { useSidebar } from '@/components/sidebar-context'
 import { CommandPaletteTrigger } from '@/components/command-palette'
 
 interface AppHeaderProps {
@@ -22,8 +21,6 @@ interface AppHeaderProps {
 // not a menu: it is the way in for someone who knows the name of what they want, and
 // the header is where every surface, phone included, has it in the same place.
 export function AppHeader({ fundName, fundLogo, userEmail }: AppHeaderProps) {
-  const { collapsed } = useSidebar()
-
   return (
     <header className="relative flex items-center justify-between px-4 py-3 shrink-0">
       {/* Left: logo + fund name */}
@@ -39,20 +36,8 @@ export function AppHeader({ fundName, fundLogo, userEmail }: AppHeaderProps) {
             <Building2 className="h-4 w-4 text-muted-foreground" />
           </div>
         )}
-        {!collapsed && (
-          <span className="font-medium text-sm text-muted-foreground tracking-tight truncate">{fundName}</span>
-        )}
+        <span className="font-medium text-sm text-muted-foreground tracking-tight truncate">{fundName}</span>
       </div>
-
-      {/* Fund name aligned above page content when sidebar collapsed.
-          left-28 (112px) is the page content's left edge, and has to be kept in step with it:
-          64 (the collapsed aside's w-16) + 16 (main's md:pl-4) + 32 (the section layout's
-          md:pl-8, e.g. app/(app)/funds/layout.tsx). */}
-      {collapsed && (
-        <span className="hidden md:block absolute left-28 top-1/2 -translate-y-1/2 text-sm font-medium text-muted-foreground/70 tracking-tight">
-          {fundName}
-        </span>
-      )}
 
       {/* Right: user + sign out */}
       <div className="flex items-center gap-3">

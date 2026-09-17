@@ -3,6 +3,8 @@
 import { createContext, useCallback, useContext, useEffect, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { ChevronsUpDown } from 'lucide-react'
+import { useSidebar } from '@/components/sidebar-context'
+import { vehicleTargetPath } from '@/components/app-sidebar'
 
 /** One selectable vehicle: its name (the portfolio_group the ledger keys on) and its
  *  stable registry id. `id` is null for legacy vehicles that exist only as a name. */
@@ -16,13 +18,16 @@ interface VehicleCtx {
   /** The selected vehicle's kind (fund, spv, individual, …), or null until known / for a legacy
    *  vehicle. Read from the vehicle index; the nav hides pages a kind has no use for. */
   kind: string | null
+  /** Every vehicle the caller may switch to, as the index lists them. Empty until loaded, and
+   *  for a member without the accounting grant. Shared so the switchers don't each fetch it. */
+  vehicles: VehicleOption[]
   /** Set both name and id — used by the URL-scoped fund pages and the switcher. */
   setVehicle: (name: string, id: string | null) => void
   /** Set the name only, leaving the id untouched — back-compat for name-only callers. */
   setGroup: (name: string) => void
 }
 const VehicleContext = createContext<VehicleCtx>({
-  group: null, vehicleId: null, kind: null, setVehicle: () => {}, setGroup: () => {},
+  group: null, vehicleId: null, kind: null, vehicles: [], setVehicle: () => {}, setGroup: () => {},
 })
 
 const NAME_KEY = 'acct_vehicle'
@@ -85,7 +90,7 @@ export function VehicleProvider({ children }: { children: React.ReactNode }) {
   const kind = index.find(v => (vehicleId && v.id === vehicleId) || (!vehicleId && v.name === group))?.kind ?? null
 
   return (
-    <VehicleContext.Provider value={{ group, vehicleId, kind, setVehicle, setGroup }}>
+    <VehicleContext.Provider value={{ group, vehicleId, kind, vehicles: index, setVehicle, setGroup }}>
       {children}
     </VehicleContext.Provider>
   )
@@ -145,19 +150,16 @@ export function useLedgerFetch() {
  * The fund switcher — a compact select that JUMPS to the same page of another fund by
  * swapping the `[id]` segment of the current path. Styled to sit beside the Analyst button.
  * Hidden when there's nothing to switch to (one vehicle or none).
+ *
+ * On desktop the Entities panel carries the same switcher, so this one steps aside there and
+ * shows only when the panel is hidden — on a phone it is the only switcher, since the tab bar
+ * and the More sheet have none.
  */
 export function FundSwitcher() {
   const pathname = usePathname()
   const router = useRouter()
-  const { group, setVehicle } = useVehicle()
-  const [vehicles, setVehicles] = useState<VehicleOption[]>([])
-
-  useEffect(() => {
-    fetch('/api/accounting/vehicle-index')
-      .then(r => (r.ok ? r.json() : []))
-      .then(v => setVehicles(Array.isArray(v) ? v : []))
-      .catch(() => setVehicles([]))
-  }, [])
+  const { group, vehicles, setVehicle } = useVehicle()
+  const { panelHidden } = useSidebar()
 
   if (vehicles.length <= 1) return null
 
@@ -165,15 +167,11 @@ export function FundSwitcher() {
     const opt = vehicles.find(v => v.name === e.target.value)
     if (!opt) return
     setVehicle(opt.name, opt.id ?? null)
-    const target = opt.id ?? encodeURIComponent(opt.name)
-    // Keep only the section (first subpage segment) — a deeper param like an LP id belongs
-    // to the fund we're leaving, so jumping funds lands on that section's root.
-    const section = pathname.split('/').filter(Boolean)[2]
-    router.push(`/funds/${target}${section ? '/' + section : ''}`)
+    router.push(vehicleTargetPath(pathname, opt.id ?? encodeURIComponent(opt.name)))
   }
 
   return (
-    <div className="relative inline-flex">
+    <div className={`relative inline-flex ${panelHidden ? '' : 'md:hidden'}`}>
       <select
         value={group ?? ''}
         onChange={onChange}

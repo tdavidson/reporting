@@ -1,12 +1,12 @@
 'use client'
 
 import { usePathname } from 'next/navigation'
-import { SidebarProvider, useSidebar } from '@/components/sidebar-context'
+import { SidebarProvider } from '@/components/sidebar-context'
 import { CurrencyProvider } from '@/components/currency-context'
 import { AnalystProvider } from '@/components/analyst-context'
 import { VehicleProvider } from '@/components/accounting-vehicle'
 import { AppHeader } from '@/components/app-header'
-import { AppSidebar } from '@/components/app-sidebar'
+import { AppRail, AppPanel, useDesktopNav } from '@/components/app-nav'
 import { AppFooter } from '@/components/app-footer'
 import { MobileNav, MOBILE_TAB_BAR_SPACER } from '@/components/mobile-nav'
 import { CommandPaletteProvider } from '@/components/command-palette'
@@ -85,8 +85,9 @@ export function AppShell({ fundName, fundLogo, userEmail, reviewBadge, settingsB
 }
 
 function AppShellInner({ fundName, fundLogo, userEmail, reviewBadge, settingsBadge, notesBadge, pendingActionsBadge, isAdmin, updateAvailable, featureVisibility, fofActive, children }: AppShellProps) {
-  const { collapsed } = useSidebar()
   const pathname = usePathname()
+  const navProps = { reviewBadge, settingsBadge, notesBadge, pendingActionsBadge, isAdmin, updateAvailable, featureVisibility, fofActive }
+  const nav = useDesktopNav(navProps)
 
   // The LP-portal preview renders full-screen (no GP header/sidebar) so it looks
   // like the real /portal an LP logs into.
@@ -103,12 +104,16 @@ function AppShellInner({ fundName, fundLogo, userEmail, reviewBadge, settingsBad
       />
 
       <div className="flex flex-1">
-        {/* Desktop sidebar, always rendered, width varies */}
-        <aside
-          className={`hidden md:flex flex-col shrink-0 pt-6 transition-all duration-200 ${ collapsed ? 'w-16' : 'w-56' }`}
-        >
-          <AppSidebar reviewBadge={reviewBadge} settingsBadge={settingsBadge} notesBadge={notesBadge} pendingActionsBadge={pendingActionsBadge} isAdmin={isAdmin} updateAvailable={updateAvailable} featureVisibility={featureVisibility} fofActive={fofActive} />
+        {/* Desktop nav: the rail is always its 64px; the panel (208px) is there only for a
+            section with sub-pages, and only while the user hasn't hidden it. See app-nav.tsx. */}
+        <aside className="hidden md:flex w-16 shrink-0 flex-col border-r border-border">
+          <AppRail {...navProps} sections={nav.sections} hasPanel={nav.hasPanel} />
         </aside>
+        {nav.panelVisible && nav.section && (
+          <aside className="hidden md:flex w-52 shrink-0 flex-col border-r border-border">
+            <AppPanel section={nav.section} childItems={nav.children} notesBadge={notesBadge} featureVisibility={featureVisibility} />
+          </aside>
+        )}
 
         {/* Page content. The width cap lives one level up, on the wrapper in
             app/(app)/layout.tsx — capping again here would be inert.
@@ -116,7 +121,7 @@ function AppShellInner({ fundName, fundLogo, userEmail, reviewBadge, settingsBad
             The bottom padding clears the phone's tab bar, which is fixed: without it
             the footer and the last row of any page sit underneath it. The measurement
             lives with the bar, so the two cannot drift. */}
-        <main className={`flex-1 min-w-0 flex flex-col ${MOBILE_TAB_BAR_SPACER} ${collapsed ? 'md:pl-4' : ''}`}>
+        <main className={`flex-1 min-w-0 flex flex-col ${MOBILE_TAB_BAR_SPACER} ${nav.panelVisible ? '' : 'md:pl-4'}`}>
           <div className="flex-1">
             {children}
           </div>
