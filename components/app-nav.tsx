@@ -95,7 +95,7 @@ export function AppRail({ sections, hasPanel, reviewBadge, settingsBadge, pendin
   const cycleTheme = () => setTheme(THEME_CYCLE[(THEME_CYCLE.indexOf(currentTheme) + 1) % THEME_CYCLE.length])
 
   return (
-    <nav aria-label="Sections" className="flex flex-col items-center gap-0.5 px-1.5 py-2">
+    <nav aria-label="Sections" className="flex flex-1 flex-col items-center gap-0.5 px-1.5 py-2">
       {sections.map(item => {
         const { href, label, railLabel, icon: Icon, badgeKey, adminOnly, featureKey } = item
         // Looser than the old sidebar's exact match, on purpose: the rail answers "which part of
