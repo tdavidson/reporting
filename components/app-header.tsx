@@ -4,6 +4,7 @@ import { LogOut, Building2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { LpPortalSwitchLink } from '@/components/lp-portal-switch-link'
 import { useSidebar } from '@/components/sidebar-context'
+import { CommandPaletteTrigger } from '@/components/command-palette'
 
 interface AppHeaderProps {
   fundName: string
@@ -16,6 +17,10 @@ interface AppHeaderProps {
 // with the sidebar behind "More". The hamburger this used to carry was in the corner
 // of the screen furthest from a thumb, and opened a menu a third of which could not be
 // scrolled to.
+//
+// The one navigation control that IS here is the command palette's button (⌘K). It is
+// not a menu: it is the way in for someone who knows the name of what they want, and
+// the header is where every surface, phone included, has it in the same place.
 export function AppHeader({ fundName, fundLogo, userEmail }: AppHeaderProps) {
   const { collapsed } = useSidebar()
 
@@ -51,6 +56,7 @@ export function AppHeader({ fundName, fundLogo, userEmail }: AppHeaderProps) {
 
       {/* Right: user + sign out */}
       <div className="flex items-center gap-3">
+        <CommandPaletteTrigger />
         <LpPortalSwitchLink />
         <span className="text-xs text-muted-foreground truncate hidden sm:block max-w-[200px]">
           {userEmail}

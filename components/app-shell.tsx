@@ -9,6 +9,7 @@ import { AppHeader } from '@/components/app-header'
 import { AppSidebar } from '@/components/app-sidebar'
 import { AppFooter } from '@/components/app-footer'
 import { MobileNav, MOBILE_TAB_BAR_SPACER } from '@/components/mobile-nav'
+import { CommandPaletteProvider } from '@/components/command-palette'
 import { FeatureVisibilityProvider } from '@/components/feature-visibility-context'
 import { AccessProvider, type ClientAccess } from '@/components/access-context'
 import { DEFAULT_FEATURE_VISIBILITY } from '@/lib/types/features'
@@ -51,6 +52,9 @@ export function AppShell({ fundName, fundLogo, userEmail, reviewBadge, settingsB
           {/* The selected fund lives here, above the sidebar, so the Funds subnav can build
               fund-first hrefs (/funds/<id>/...) from the current vehicle's id. */}
           <VehicleProvider>
+          {/* The palette sits above the shell so the header's button and any page can open it,
+              and below the vehicle context so an entity-scoped jump can pin the entity. */}
+          <CommandPaletteProvider reviewBadge={reviewBadge} pendingActionsBadge={pendingActionsBadge} fofActive={fofActive}>
             {/* fofActive was being dropped here, which is why "Underlying funds" and the
                 fund-of-funds ledger pages never appeared in the nav on any surface: the
                 layout resolves it, AppShell takes it, and AppShellInner was never handed
@@ -70,6 +74,7 @@ export function AppShell({ fundName, fundLogo, userEmail, reviewBadge, settingsB
             >
               {children}
             </AppShellInner>
+          </CommandPaletteProvider>
           </VehicleProvider>
         </AnalystProvider>
       </SidebarProvider>
