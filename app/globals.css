@@ -6,8 +6,10 @@
   * {
     @apply border-border;
   }
+  /* Grayscale smoothing, same as hemrock.com and nevermodel. macOS's default
+     renders Inter noticeably heavier. */
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground antialiased;
   }
 
   /* Native <select> arrows.
