@@ -92,16 +92,16 @@ describe('parseSiteContent', () => {
 })
 
 describe('site font', () => {
-  it('defaults to geist when the JSON sets no font', () => {
+  it('defaults to inter when the JSON sets no font', () => {
     const { font: _omit, ...noFont } = valid
-    expect(parseSiteContent(noFont)?.font).toBe('geist')
+    expect(parseSiteContent(noFont)?.font).toBe('inter')
     expect(siteFontCssVars('geist')).toBe('--font-sans:var(--font-geist);--font-display:var(--font-geist)')
   })
 
   it('accepts any UI font key and rejects unknown ones back to the default', () => {
     expect(parseSiteContent({ ...valid, font: 'inter-tight' })?.font).toBe('inter-tight')
-    expect(parseSiteContent({ ...valid, font: 'comic-sans' })?.font).toBe('geist')
-    expect(parseSiteContent({ ...valid, font: 42 })?.font).toBe('geist')
+    expect(parseSiteContent({ ...valid, font: 'comic-sans' })?.font).toBe('inter')
+    expect(parseSiteContent({ ...valid, font: 42 })?.font).toBe('inter')
   })
 
   it('emits no override for the app default (inter / system) so it inherits globals.css', () => {

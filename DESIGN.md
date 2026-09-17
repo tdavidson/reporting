@@ -176,7 +176,7 @@ align in it; the picker says so next to the option. They load with
 server-rendered PDFs, which stay on embedded Inter whatever the fund chose.
 
 The public marketing page is not a tenant surface, so it has its own font
-(`site_content.font`, chosen in Settings → Marketing), **Geist** by default.
+(`site_content.font`, chosen in Settings → Marketing), **Inter** by default, matching hemrock.com.
 `app/(public)/layout.tsx` sets `--font-sans` *and* `--font-display` on a
 wrapper — the page has no separate report face, so headings follow the body —
 and the fund theme never applies out there.

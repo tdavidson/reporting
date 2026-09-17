@@ -24,7 +24,7 @@ const inter = Inter({ subsets: ['latin'], variable: '--font-inter', display: 'sw
 // preload:false on every optional face — only one fund in a deployment uses any
 // given one, so preloading them all would make every page pay for fonts it will
 // never reference. They are fetched on demand when a theme points at them. The
-// marketing page's font (site_content.font, default Geist) resolves through the
+// marketing page's font (site_content.font, default Inter) resolves through the
 // same variables, so it needs no loads of its own.
 const geist = Geist({ subsets: ['latin'], variable: '--font-geist', display: 'swap', preload: false })
 const dmSans = DM_Sans({ subsets: ['latin'], variable: '--font-dm-sans', display: 'swap', preload: false })

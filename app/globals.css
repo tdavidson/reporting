@@ -58,7 +58,7 @@
     /* Font stacks. --font-sans is Inter (the Hemrock brand guide's UI face, and
        what hemrock.com ships); the per-fund theme may override it to opt into a
        different loaded webfont (FONT_OPTIONS in lib/theme.ts). The public
-       marketing page sets both variables itself from site_content.font — Geist
+       marketing page sets both variables itself from site_content.font — Inter
        by default — on its own wrapper (app/(public)/layout.tsx), so that choice
        never reaches the app.
 

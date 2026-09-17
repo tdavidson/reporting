@@ -3,10 +3,10 @@ import type { LucideIcon } from 'lucide-react'
 import { orderedProducts, type ProductKey } from '@/lib/access/products'
 import { FONT_OPTIONS } from '@/lib/theme'
 
-/** The marketing page's own typeface, independent of any fund's theme. Geist
- *  by default — the public page is Hemrock's, not a tenant's, so it does not
- *  inherit the app's Inter default; it is set from Settings → Marketing. */
-export const SITE_FONT_DEFAULT = 'geist'
+/** The marketing page's own typeface, independent of any fund's theme. Inter
+ *  by default, matching hemrock.com; the public page is Hemrock's, not a
+ *  tenant's, so it is set from Settings → Marketing rather than a fund theme. */
+export const SITE_FONT_DEFAULT = 'inter'
 
 
 export interface SiteFeature { title: string; text: string; screenshot?: string; icon?: string }
