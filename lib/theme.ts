@@ -17,6 +17,7 @@ export interface FundTheme {
 }
 
 export const ACCENT_PRESETS: Array<{ key: string; label: string; hsl: string; fg: string }> = [
+  { key: 'yellow', label: 'Hemrock yellow', hsl: '49 97% 60%', fg: '40 8% 10%' },
   { key: 'neutral', label: 'Neutral', hsl: '0 0% 9%', fg: '0 0% 98%' },
   { key: 'indigo', label: 'Indigo', hsl: '243 75% 59%', fg: '0 0% 100%' },
   { key: 'blue', label: 'Blue', hsl: '217 91% 60%', fg: '0 0% 100%' },
@@ -81,8 +82,8 @@ export const RADIUS_OPTIONS: Array<{ key: string; label: string; rem: number }> 
 /**
  * The saturation/lightness curve behind the brand ramp: [stop, saturation
  * multiplier, lightness]. Hue and base saturation come from the accent, so any
- * accent generates a ramp with the same internal relationships as Hemrock's
- * evergreen. Verified against WCAG at hue 164 — 700 takes white text at 7.05:1,
+ * accent generates a ramp with the same internal relationships as the old
+ * evergreen default. Verified against WCAG at hue 164 — 700 takes white text at 7.05:1,
  * 500 clears 5.14:1 on the dark surface (plans/plan-design-system.md §8).
  */
 const RAMP_STOPS: Array<[number, number, number]> = [

@@ -26,7 +26,7 @@ function HeroCtas({ links }: { links: SiteLinks }) {
   return (
     <div className="mt-9 flex flex-wrap justify-center gap-3">
       {links.demo && (
-        <Button asChild size="lg" className="bg-brand text-brand-foreground hover:bg-brand-800 gap-2">
+        <Button asChild size="lg" className="bg-brand text-brand-foreground hover:bg-brand/90 gap-2">
           <a href={links.demo}><Play className="h-4 w-4" />Try the demo</a>
         </Button>
       )}
@@ -80,7 +80,7 @@ function TierCta({ tier, featured }: { tier: SiteTier; featured?: boolean }) {
     return <SubscriptionInquiryButton variant="outline" size="sm" className="w-full"><Send className="h-3.5 w-3.5 mr-1.5" />{tier.cta.label}</SubscriptionInquiryButton>
   }
   return (
-    <Button size="sm" asChild className={`w-full ${featured ? 'bg-brand text-brand-foreground hover:bg-brand-800' : ''}`}>
+    <Button size="sm" asChild className={`w-full ${featured ? 'bg-brand text-brand-foreground hover:bg-brand/90' : ''}`}>
       <a href={tier.cta.href} className="gap-2"><Github className="h-4 w-4" />{tier.cta.label}</a>
     </Button>
   )
@@ -187,7 +187,7 @@ export default async function HomePage() {
             {content.pricing.tiers.map(tier => (
               <div
                 key={tier.name}
-                className={`rounded-card p-7 flex flex-col relative bg-card ${tier.badge ? 'border-2 border-brand-700 dark:border-brand-500' : 'border'}`}
+                className={`rounded-card p-7 flex flex-col relative bg-card ${tier.badge ? 'border-2 border-foreground' : 'border'}`}
               >
                 {tier.badge && (
                   <span className="absolute -top-3 left-6 bg-brand text-brand-foreground text-eyebrow uppercase px-2.5 py-1 rounded-full">

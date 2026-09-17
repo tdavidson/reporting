@@ -77,7 +77,7 @@ function PublicShell({ children }: { children: React.ReactNode }) {
               <span className="hidden sm:inline">Sign in</span>
             </Link>
           </Button>
-          <Button size="sm" asChild className="gap-2 bg-brand text-brand-foreground hover:bg-brand-800 ml-1">
+          <Button size="sm" asChild className="gap-2 bg-brand text-brand-foreground hover:bg-brand/90 ml-1">
             <a href="https://portfolio.hemrock.com/demo" target="_blank" rel="noopener noreferrer">
               <Play className="h-4 w-4" />
               Try the demo

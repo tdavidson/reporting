@@ -337,13 +337,15 @@ export function CommandPaletteTrigger({ className }: { className?: string }) {
       onClick={open}
       aria-label="Jump to a page"
       className={cn(
-        'inline-flex h-8 items-center gap-2 rounded-md border bg-transparent px-2.5 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground',
+        // Dressed as the Sign out button beside it (outline, sm) so the header reads as one row of
+        // controls; the wider min-width is what says "search field" rather than "button".
+        'inline-flex h-8 items-center gap-2 rounded-md border border-input bg-background px-3 text-xs text-muted-foreground shadow-sm transition-colors hover:bg-accent hover:text-accent-foreground sm:min-w-44',
         className,
       )}
     >
       <Search className="h-3.5 w-3.5" />
       <span className="hidden sm:inline">Jump to…</span>
-      <kbd className="hidden sm:inline rounded border px-1 py-px text-[10px]">{shortcut}</kbd>
+      <kbd className="ml-auto hidden sm:inline rounded-sm bg-muted px-1.5 py-px font-sans text-[10px] font-medium text-muted-foreground">{shortcut}</kbd>
     </button>
   )
 }

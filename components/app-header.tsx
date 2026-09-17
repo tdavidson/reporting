@@ -54,19 +54,18 @@ export function AppHeader({ fundName, fundLogo, userEmail }: AppHeaderProps) {
         </span>
       )}
 
-      {/* Right: user + sign out */}
+      {/* Right: palette + sign out. The signed-in address is the sign-out button's tooltip rather
+          than a line of header text: it is only ever looked for when deciding whether to sign out. */}
       <div className="flex items-center gap-3">
         <CommandPaletteTrigger />
         <LpPortalSwitchLink />
-        <span className="text-xs text-muted-foreground truncate hidden sm:block max-w-[200px]">
-          {userEmail}
-        </span>
         <form action="/api/auth/logout" method="POST">
           <Button
             type="submit"
             variant="outline"
             size="sm"
             className="text-muted-foreground gap-2"
+            title={`Signed in as ${userEmail}`}
           >
             <LogOut className="h-4 w-4" />
             <span className="hidden sm:inline">Sign out</span>

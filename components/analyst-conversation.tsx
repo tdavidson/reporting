@@ -390,7 +390,7 @@ export function AnalystConversation({
   // question is scannable at a glance. The ANSWER stays at the reading measure inside it, so the
   // gap between the two shapes is real rather than a few pixels of inset. The panel is narrower
   // than either, so it caps nothing.
-  const threadColumn = isPage ? 'w-full max-w-3xl' : ''
+  const threadColumn = isPage ? 'w-full max-w-4xl' : ''
   const answerColumn = isPage ? 'max-w-readable' : ''
   // The page opens on an empty thread and is meant to look like an invitation rather than an empty
   // transcript: hero, composer, shortcuts, vertically centred. The moment there is a thread it

@@ -40,26 +40,29 @@ main thing separating this from a default shadcn install.
 `--accent` keeps its shadcn meaning because renaming it would touch every
 `hover:bg-accent` in the app. The brand accent is `--brand`.
 
-### Brand accent — evergreen
+### Brand accent — yellow
 
-Hue 164. Eleven stops, `--brand-50` … `--brand-950`, generated from a fixed
-saturation/lightness curve (`RAMP_STOPS` in `lib/theme.ts`). Every stop is
-contrast-verified; `lib/theme.test.ts` pins the ramp against the values
-hardcoded here so the two cannot drift.
+Hue 48, the same highlighter yellow as hemrock.com and nevermodel-site
+(switched from evergreen in Sept 2026). `--brand` is `#fcd535` in light and
+`#fde68a` in dark, over eleven stops `--brand-50` … `--brand-950`. The ramp is
+hand-tuned, not generated — `RAMP_STOPS` in `lib/theme.ts` would grey a yellow
+out — and `lib/theme.test.ts` pins it against `globals.css`.
 
-| Role | Stop | Contrast |
+| Role | Token | Contrast |
 | --- | --- | --- |
-| Primary CTA fill (light) | `brand-700` `#276353` | white text at 7.05:1 |
-| CTA hover / pressed | `brand-800` | |
-| Link + accent text on paper | `brand-700` | 6.91:1 |
-| Focus ring | `brand-600` | |
-| **Dark-mode accent text** | `brand-400` / `brand-500` | 7.06 / 5.14:1 on the dark surface |
-| Tinted surfaces | `brand-50` / `brand-100` | |
-| Borders on tinted surfaces | `brand-200` | |
+| CTA fill | `bg-brand text-brand-foreground` | ink on yellow, 12.4:1 |
+| CTA hover | `hover:bg-brand/90` | |
+| Accent text on paper | `brand-700` `#80680a` | 5.27:1 |
+| **Dark-mode accent text** | `brand-400` | 12.45:1 on the dark surface |
+| Focus ring | `ring-ring` (ink) | |
+| Tinted surfaces | `brand-50` / `brand-100` (dark: `brand-950` / `brand-900`) | |
+| Borders on tinted surfaces | `brand-200` (dark: `brand-800`) | |
 
-Light mode uses 700 for accent text; **dark mode must use 400 or 500** — 700 on
-the dark surface is 2.40:1 and fails. Write it as
-`text-brand-700 dark:text-brand-400`.
+**Yellow is a fill, not a text colour.** The fill is 1.4:1 on paper, so
+`text-brand`, `border-brand` and `ring-brand` are unreadable. Text on the fill
+is always ink. Accent text, when genuinely needed, is the pair
+`text-brand-700 dark:text-brand-400` — 700 alone is 3.47:1 on the dark surface.
+Never put a dark stop (`brand-700`/`800`) behind the fill's ink text.
 
 ### `--primary` vs `--brand`
 
@@ -68,11 +71,11 @@ Two different jobs, and the distinction is load-bearing:
 - **`--primary`** is *this deployment's* action colour. Neutral by default; the
   per-fund theme overrides it. A fund's buttons should be the fund's colour.
 - **`--brand`** is *Hemrock's* colour. The marketing site is not under a fund
-  theme, so it always renders evergreen.
+  theme, so it always renders the yellow default.
 
 Inside the app, `themeCssVars()` regenerates the whole `--brand-*` ramp from the
 fund's accent hue, so tints and hairlines follow the fund rather than falling
-back to evergreen. The fund's chosen value stays the fill — it is **not**
+back to the yellow default. The fund's chosen value stays the fill — it is **not**
 relocated onto stop 700, because amber pushed to 700 is brown.
 
 ### Status
@@ -315,6 +318,6 @@ describe what actually ships:
    `#0A0A0A`. The guide's values are the untinted originals.
 4. **"Monochrome by design"** needs amending. The *mark* stays monochrome — those
    logo rules are good and unchanged. The *product* now has one accent
-   (evergreen) plus a defined status set.
+   (the highlighter yellow) plus a defined status set.
 5. **Everything under Typography, Status, Radius, Elevation and Motion above** is
    absent from the guide entirely. That is why nobody used it.

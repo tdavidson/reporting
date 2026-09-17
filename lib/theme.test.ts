@@ -1,11 +1,13 @@
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { describe, it, expect } from 'vitest'
 import { rampFor, themeCssVars, foregroundFor, isValidHsl, FONT_OPTIONS } from './theme'
 
-/** The evergreen seed. globals.css hardcodes the ramp this produces. */
+/** The old evergreen default. RAMP_STOPS was calibrated on it, so it stays the reference seed. */
 const EVERGREEN = '164 72% 50%'
 
-/** Verbatim from app/globals.css — if these drift apart, one of them is wrong. */
-const GLOBALS_CSS_RAMP: Record<number, string> = {
+/** The ramp RAMP_STOPS produces for EVERGREEN — the curve's WCAG-verified baseline. */
+const EVERGREEN_RAMP: Record<number, string> = {
   50: '164 21.6% 97%',
   100: '164 25.2% 93%',
   200: '164 28.8% 85%',
@@ -19,9 +21,44 @@ const GLOBALS_CSS_RAMP: Record<number, string> = {
   950: '164 32.4% 10%',
 }
 
+/**
+ * The default (unthemed) yellow ramp in app/globals.css. Hand-tuned rather than rampFor()
+ * output — RAMP_STOPS' saturation multipliers grey a yellow out — and shared verbatim with
+ * the content and nevermodel-site repos.
+ */
+const GLOBALS_CSS_RAMP: Record<number, string> = {
+  50: '48 100% 97%',
+  100: '48 96% 93%',
+  200: '48 92% 85%',
+  300: '48 94% 72%',
+  400: '48 96% 56%',
+  500: '48 90% 44%',
+  600: '48 88% 35%',
+  700: '48 86% 27%',
+  800: '48 80% 21%',
+  900: '48 70% 16%',
+  950: '48 60% 10%',
+}
+const GLOBALS_CSS = readFileSync(join(__dirname, '../app/globals.css'), 'utf8')
+
+describe('the default yellow ramp', () => {
+  it('matches what globals.css declares', () => {
+    for (const [stop, value] of Object.entries(GLOBALS_CSS_RAMP)) {
+      expect(GLOBALS_CSS).toContain(`--brand-${stop}: ${value};`)
+    }
+  })
+
+  it('carries ink, not white, on the fill in both themes', () => {
+    expect(GLOBALS_CSS).toContain('--brand: 49 97% 60%;')
+    expect(GLOBALS_CSS).toContain('--brand: 48 96% 77%;')
+    expect(foregroundFor('49 97% 60%')).toBe('0 0% 9%')
+    expect(foregroundFor('48 96% 77%')).toBe('0 0% 9%')
+  })
+})
+
 describe('rampFor', () => {
-  it('reproduces the evergreen ramp hardcoded in globals.css', () => {
-    expect(Object.fromEntries(rampFor(EVERGREEN)!)).toEqual(GLOBALS_CSS_RAMP)
+  it('reproduces the calibrated evergreen ramp', () => {
+    expect(Object.fromEntries(rampFor(EVERGREEN)!)).toEqual(EVERGREEN_RAMP)
   })
 
   it('returns all eleven stops', () => {
@@ -50,9 +87,9 @@ describe('rampFor', () => {
   })
 })
 
-describe('the evergreen CTA stop', () => {
-  it('takes white text — the 700 stop is the primary fill', () => {
-    expect(foregroundFor(GLOBALS_CSS_RAMP[700])).toBe('0 0% 100%')
+describe('the generated 700 stop', () => {
+  it('takes white text — the curve is calibrated so a themed 700 can be a fill', () => {
+    expect(foregroundFor(EVERGREEN_RAMP[700])).toBe('0 0% 100%')
   })
 })
 
