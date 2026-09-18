@@ -2,11 +2,32 @@
 // stay pure and testable over fixtures.
 
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { fetchAllRows } from '@/lib/accounting/load'
 import { lastEndedQuarter, metricQuarter, responseKey } from '@/lib/requests/response-status'
 import type { FundReminderData } from './collect'
 import type { ComplianceItemRow } from './sources/compliance'
 import { fromHeader } from './settings'
+
+type QueryResult<T> = { data: T | null; error: { message: string } | null }
+
+/** A read's rows, or a throw naming the table. A failed read must not become an empty list:
+ *  that is a wrong digest whose keys then get logged as delivered. */
+function rowsOf<T = any>(table: string, res: QueryResult<unknown>): T | null {
+  if (res.error) throw new Error(`reminders: ${table} load failed: ${res.error.message}`)
+  return res.data as T | null
+}
+
+const PAGE = 1000
+
+/** Every row of a read past PostgREST's 1000-row cap, throwing on a failed page (unlike
+ *  lib/accounting/load's fetchAllRows). `page` must apply a stable, unique order. */
+async function allRows<T>(table: string, page: (from: number, to: number) => PromiseLike<QueryResult<T[]>>): Promise<T[]> {
+  const out: T[] = []
+  for (let from = 0; ; from += PAGE) {
+    const rows = rowsOf<T[]>(table, await page(from, from + PAGE - 1)) ?? []
+    out.push(...rows)
+    if (rows.length < PAGE) return out
+  }
+}
 
 export interface ReminderSettings {
   enabled: boolean
@@ -18,13 +39,15 @@ export interface ReminderSettings {
 }
 
 export async function loadReminderSettings(admin: SupabaseClient, fundId: string): Promise<ReminderSettings> {
-  const [{ data: s }, { data: fund }] = await Promise.all([
+  const [settingsRes, fundRes] = await Promise.all([
     (admin as any).from('fund_settings')
       .select('reminders_enabled, reminder_recipients, asks_send_offset_days, system_email_from_name, system_email_from_address')
       .eq('fund_id', fundId).maybeSingle(),
     admin.from('funds').select('name').eq('id', fundId).maybeSingle(),
   ])
-  const name = (fund as { name?: string } | null)?.name ?? null
+  const s = rowsOf('fund_settings', settingsRes)
+  const fund = rowsOf<{ name?: string }>('funds', fundRes)
+  const name = fund?.name ?? null
   return {
     enabled: !!s?.reminders_enabled,
     recipients: (s?.reminder_recipients as string[] | null) ?? [],
@@ -44,30 +67,40 @@ export async function loadFundReminderData(
   const rq = lastEndedQuarter(today)
   const db = admin as any
 
-  const [items, profile, settings, closed, vehicles, closes, requests, companies, metrics, overrides] = await Promise.all([
+  const [itemsRes, profileRes, settingsRes, closed, vehiclesRes, closes, requestsRes, companiesRes, metrics, overridesRes] = await Promise.all([
     db.from('compliance_items')
       .select('id, name, short_name, frequency, scope, deadline_month, deadline_day, rolling_days')
       .order('sort_order'),
     db.from('fund_compliance_profile').select('*').eq('fund_id', fundId).maybeSingle(),
     db.from('compliance_fund_settings').select('compliance_item_id, portfolio_group, applies, dismissed').eq('fund_id', fundId),
-    db.from('compliance_deadlines').select('compliance_item_id, portfolio_group, quarter, year')
-      .eq('fund_id', fundId).in('status', ['filed', 'not_applicable']).gte('year', y - 1),
+    allRows<{ compliance_item_id: string; portfolio_group: string; quarter: number; year: number }>('compliance_deadlines', (from, to) =>
+      db.from('compliance_deadlines').select('compliance_item_id, portfolio_group, quarter, year')
+        .eq('fund_id', fundId).in('status', ['filed', 'not_applicable']).gte('year', y - 1)
+        .order('id').range(from, to)),
     db.from('fund_vehicles').select('name').eq('fund_id', fundId),
-    fetchAllRows<{ portfolio_group: string; flow_date: string }>((from, to) =>
+    allRows<{ portfolio_group: string; flow_date: string }>('fund_cash_flows', (from, to) =>
       db.from('fund_cash_flows').select('portfolio_group, flow_date')
         .eq('fund_id', fundId).eq('flow_type', 'commitment')
         .gte('flow_date', `${y - 1}-01-01`).lte('flow_date', `${y + 1}-12-31`)
-        .order('flow_date').range(from, to)),
+        .order('flow_date').order('id').range(from, to)),
     db.from('email_requests').select('quarter, year, due_date, status')
       .eq('fund_id', fundId).not('quarter', 'is', null).gte('year', rq.year - 1),
     db.from('companies').select('id, name')
       .eq('fund_id', fundId).eq('holding_type', 'company').eq('status', 'active').order('name'),
-    fetchAllRows<{ company_id: string; period_year: number; period_quarter: number | null; period_month: number | null }>((from, to) =>
+    allRows<{ company_id: string; period_year: number; period_quarter: number | null; period_month: number | null }>('metric_values', (from, to) =>
       db.from('metric_values').select('company_id, period_year, period_quarter, period_month')
-        .eq('fund_id', fundId).eq('period_year', rq.year).range(from, to)),
+        .eq('fund_id', fundId).eq('period_year', rq.year)
+        .order('id').range(from, to)),
     db.from('ask_response_overrides').select('company_id, status')
       .eq('fund_id', fundId).eq('year', rq.year).eq('quarter', rq.quarter),
   ])
+  const items = rowsOf('compliance_items', itemsRes) ?? []
+  const profile = rowsOf('fund_compliance_profile', profileRes)
+  const settings = rowsOf('compliance_fund_settings', settingsRes) ?? []
+  const vehicles = rowsOf('fund_vehicles', vehiclesRes) ?? []
+  const requests = rowsOf('email_requests', requestsRes) ?? []
+  const companies = rowsOf('companies', companiesRes) ?? []
+  const overrides = rowsOf('ask_response_overrides', overridesRes) ?? []
 
   const closeDates: Record<string, string[]> = {}
   for (const c of closes) (closeDates[c.portfolio_group] ??= []).push(c.flow_date.slice(0, 10))
@@ -78,23 +111,23 @@ export async function loadFundReminderData(
   }
 
   const overrideMap = new Map<string, string>()
-  for (const o of (overrides.data ?? []) as { company_id: string; status: string }[]) {
+  for (const o of overrides as { company_id: string; status: string }[]) {
     overrideMap.set(responseKey(o.company_id, rq.year, rq.quarter), o.status)
   }
 
   return {
     compliance: {
-      items: (items.data ?? []) as ComplianceItemRow[],
-      profile: profile.data ?? null,
-      settings: settings.data ?? [],
-      closed: closed.data ?? [],
-      portfolioGroups: ((vehicles.data ?? []) as { name: string }[]).map(v => v.name).sort(),
+      items: items as ComplianceItemRow[],
+      profile: profile ?? null,
+      settings,
+      closed,
+      portfolioGroups: (vehicles as { name: string }[]).map(v => v.name).sort(),
       closeDates,
     },
     asks: {
       sendOffsetDays: asksSendOffsetDays,
-      requests: requests.data ?? [],
-      companies: companies.data ?? [],
+      requests,
+      companies,
       hasData,
       overrides: overrideMap,
     },

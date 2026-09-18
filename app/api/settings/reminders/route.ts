@@ -16,10 +16,15 @@ export async function GET() {
   const gate = await assertAdminAccess(admin, user.id)
   if (gate instanceof NextResponse) return gate
 
-  const [s, adminEmails] = await Promise.all([
-    loadReminderSettings(admin, gate.fundId),
-    fundAdminEmails(admin, gate.fundId),
-  ])
+  let s: Awaited<ReturnType<typeof loadReminderSettings>>, adminEmails: string[]
+  try {
+    ;[s, adminEmails] = await Promise.all([
+      loadReminderSettings(admin, gate.fundId),
+      fundAdminEmails(admin, gate.fundId),
+    ])
+  } catch (err) {
+    return dbError(err as Error, 'reminders-settings')
+  }
   return NextResponse.json({
     enabled: s.enabled,
     recipients: s.recipients,

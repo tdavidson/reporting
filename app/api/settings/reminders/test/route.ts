@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { assertAdminAccess } from '@/lib/api-helpers'
 import { rateLimit } from '@/lib/rate-limit'
 import { runFundReminders } from '@/lib/reminders/run'
+import { dbError } from '@/lib/api-error'
 
 /** Send today's digest now, ignoring the delivery log and logging nothing. */
 export async function POST() {
@@ -18,5 +19,10 @@ export async function POST() {
   const gate = await assertAdminAccess(admin, user.id)
   if (gate instanceof NextResponse) return gate
 
-  return NextResponse.json(await runFundReminders(admin, gate.fundId, { test: true }))
+  // The loaders throw rather than send a digest built from a failed read.
+  try {
+    return NextResponse.json(await runFundReminders(admin, gate.fundId, { test: true }))
+  } catch (err) {
+    return dbError(err as Error, 'reminders-test')
+  }
 }
