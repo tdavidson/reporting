@@ -5,6 +5,7 @@ import { assertWriteAccess } from '@/lib/api-helpers'
 import { resolveLpRecipients } from '@/lib/lp-recipients'
 import { getOutboundConfig, sendOutboundEmail, type EmailAttachment } from '@/lib/email'
 import { generateInvestorReportPdf, generateLetterPdf } from '@/lib/lp-report-pdf'
+import { logDelivery } from '@/lib/lp-deliveries'
 
 export const maxDuration = 300
 
@@ -270,7 +271,7 @@ export async function POST(req: NextRequest) {
           return
         }
       }
-      await sendOutboundEmail(config, {
+      const sent = await sendOutboundEmail(config, {
         to: g.primaryEmail,
         cc: g.ccEmails.length ? g.ccEmails.join(', ') : undefined,
         subject,
@@ -278,9 +279,22 @@ export async function POST(req: NextRequest) {
         attachments: attachments.length ? attachments : undefined,
       })
       summary.sent += 1
+      // One log row per investor on the email, so a per-investor query finds it either way.
+      for (const investorId of g.investorIds) {
+        await logDelivery(admin, {
+          fundId, kind, itemId: id, lpInvestorId: investorId, toEmail: g.primaryEmail, ccEmails: g.ccEmails,
+          subject, provider: config.provider, providerMessageId: sent.id ?? null, sentBy: user.id,
+        })
+      }
     } catch (e) {
       summary.failures.push(g.primaryEmail)
       console.error(`[lps/send] failed for ${g.primaryEmail}:`, (e as Error)?.message)
+      for (const investorId of g.investorIds) {
+        await logDelivery(admin, {
+          fundId, kind, itemId: id, lpInvestorId: investorId, toEmail: g.primaryEmail, ccEmails: g.ccEmails,
+          subject, provider: config.provider, status: 'failed', error: (e as Error)?.message ?? 'send failed', sentBy: user.id,
+        })
+      }
     }
   })
 

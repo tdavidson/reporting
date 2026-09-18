@@ -220,6 +220,8 @@ export const ROUTE_DOMAINS: Record<string, RouteAccess> = {
   'api/lps/invites': { domain: 'lp_relations', feature: 'lp_portal' },
   'api/lps/invites/bulk': { domain: 'lp_relations', feature: 'lp_portal' },
   'api/lps/messages': { domain: 'lp_relations', feature: 'lp_portal' },
+  // The delivery log: which LP was emailed which notice, statement, letter or document.
+  'api/lps/deliveries': { domain: 'lp_relations', feature: 'lp_portal' },
   'api/lps/send': { domain: 'lp_relations', feature: 'lp_portal' },
   // "View as LP" renders a NAMED investor's own capital position — commitment, paid-in,
   // distributions, NAV — and the statement PDF renders the whole thing. That is lp_capital data
