@@ -82,4 +82,14 @@ describe('complianceReminders', () => {
     const items = complianceReminders(data({ items: [item], settings, portfolioGroups: ['Fund II'] }), '2026-09-20')
     expect(items.map(i => i.detail)).toEqual(['Fund II · Q3'])
   })
+
+  // Keys embed the due date, so a deadline that moves re-arms its reminders instead of being
+  // treated as already delivered.
+  it('moved due date produces new keys', () => {
+    const [before] = complianceReminders(data(), '2027-03-17')
+    const [after] = complianceReminders(data({ items: [{ ...adv, deadline_day: 30 }] }), '2027-03-17')
+    expect(after.dueDate).toBe('2027-03-30')
+    expect(after.keys).toEqual(['c:form-adv::2027-03-30:t30', 'c:form-adv::2027-03-30:t14'])
+    expect(after.keys.some(k => before.keys.includes(k))).toBe(false)
+  })
 })
