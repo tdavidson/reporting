@@ -24,6 +24,7 @@ import { accountIdByCode, ensureCapitalAccounts, persistEntry } from './persist'
 import { DISTRIBUTION_PAYABLE_CODE } from './chart'
 import { buildDistributionDeclarationEntry } from './entries'
 import { loadPostedLedger, loadEntityNames } from './load'
+import { loadCapitalPostings, loadCapitalSource } from './capital-source'
 import { computeCapitalAccounts, bucketForSourceType } from './capital-account'
 import { vehicleIdByName } from './vehicle-id'
 import { loadCarryTerms, type DatedContribution } from './carry'
@@ -113,8 +114,9 @@ export async function previewDistribution(
   asOf: string,
   method: 'waterfall' | 'pro_rata' = 'waterfall',
 ): Promise<DistributionPreview> {
-  const [{ capitalPostings }, terms, names] = await Promise.all([
-    loadPostedLedger(admin, fundId, group),
+  // From whichever producer the vehicle uses: the ledger, or a tracking vehicle's positions.
+  const [{ postings: capitalPostings }, terms, names] = await Promise.all([
+    loadCapitalPostings(admin, fundId, group),
     loadCarryTerms(admin, fundId, group),
     loadEntityNames(admin, fundId, group),
   ])
@@ -222,37 +224,48 @@ export async function declareDistribution(
   const splitMethod: SplitMethod = input.splitMethod === 'waterfall' || input.splitMethod === 'pro_rata' ? input.splitMethod : 'manual'
   const tiers = splitMethod === 'waterfall' && input.tiers ? input.tiers : null
 
-  const codes = await accountIdByCode(admin, fundId, group)
-  const payableId = codes.get(DISTRIBUTION_PAYABLE_CODE)
-  if (!payableId) {
-    return { error: `Seed the chart of accounts first (missing ${DISTRIBUTION_PAYABLE_CODE} Distributions payable) — use Sync accounts on the vehicle's Setup page` }
-  }
-
-  const capMap = await ensureCapitalAccounts(admin, fundId, group, [...Array.from(perLp.keys()), ...Array.from(perRecipient.keys())])
-  const base = { fundId, entryDate: input.distributionDate }
-
-  // Posted, like a call issuance: declaring is the event. The SETTLEMENT is what arrives as a
-  // draft later, from the bank.
   let entryId: string | null = null
-  if (perLp.size > 0) {
-    const entry = buildDistributionDeclarationEntry({ ...base, memo: input.description || 'Distribution' }, perLp, capMap, payableId)
-    const result = await persistEntry(admin, fundId, group, userId, entry, 'posted')
-    if ('error' in result) return { error: result.error }
-    entryId = result.entryId
-  }
-
   let carryEntryId: string | null = null
-  if (perRecipient.size > 0) {
-    const entry = buildDistributionDeclarationEntry(
-      { ...base, memo: `${input.description || 'Distribution'} — carried interest` },
-      perRecipient, capMap, payableId,
-    )
-    entry.sourceType = 'carry_distribution'
-    const result = await persistEntry(admin, fundId, group, userId, entry, 'posted')
-    if ('error' in result) {
-      return { error: `${result.error}${entryId ? ` (the LP distribution entry ${entryId} was posted — void it before retrying)` : ''}` }
+  const source = await loadCapitalSource(admin, fundId, group)
+  if (source === 'ledger') {
+    const codes = await accountIdByCode(admin, fundId, group)
+    const payableId = codes.get(DISTRIBUTION_PAYABLE_CODE)
+    if (!payableId) {
+      return { error: `Seed the chart of accounts first (missing ${DISTRIBUTION_PAYABLE_CODE} Distributions payable) — use Sync accounts on the vehicle's Setup page` }
     }
-    carryEntryId = result.entryId
+
+    const capMap = await ensureCapitalAccounts(admin, fundId, group, [...Array.from(perLp.keys()), ...Array.from(perRecipient.keys())])
+    const base = { fundId, entryDate: input.distributionDate }
+
+    // Posted, like a call issuance: declaring is the event. The SETTLEMENT is what arrives as a
+    // draft later, from the bank.
+    if (perLp.size > 0) {
+      const entry = buildDistributionDeclarationEntry({ ...base, memo: input.description || 'Distribution' }, perLp, capMap, payableId)
+      const result = await persistEntry(admin, fundId, group, userId, entry, 'posted')
+      if ('error' in result) return { error: result.error }
+      entryId = result.entryId
+    }
+
+    if (perRecipient.size > 0) {
+      const entry = buildDistributionDeclarationEntry(
+        { ...base, memo: `${input.description || 'Distribution'} — carried interest` },
+        perRecipient, capMap, payableId,
+      )
+      entry.sourceType = 'carry_distribution'
+      const result = await persistEntry(admin, fundId, group, userId, entry, 'posted')
+      if ('error' in result) {
+        return { error: `${result.error}${entryId ? ` (the LP distribution entry ${entryId} was posted — void it before retrying)` : ''}` }
+      }
+      carryEntryId = result.entryId
+    }
+  } else {
+    // A tracking vehicle: the register row is the declaration; payment is recorded on the line
+    // by hand (settleRegisterLine). The partners must exist in this fund.
+    const ids = [...Array.from(perLp.keys()), ...Array.from(perRecipient.keys())]
+    const { data: ents } = await admin.from('lp_entities' as any).select('id').eq('fund_id', fundId).in('id', ids)
+    const known = new Set(((ents as any[]) ?? []).map(e => e.id as string))
+    const foreign = ids.filter(id => !known.has(id))
+    if (foreign.length > 0) return { error: `Unknown LP for this fund: ${foreign.join(', ')}` }
   }
 
   // The register, written in the same shape as issueCapitalCall's.

@@ -107,6 +107,52 @@ export function CapitalAccountsView() {
   const [edited, setEdited] = useState(false)
   const [issuing, setIssuing] = useState(false)
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
+  // Capital-tracking vehicles record a funding or a payment on the line by hand. Ledger vehicles
+  // never see this: the bank feed settles them.
+  const [settling, setSettling] = useState<{ kind: 'capital_call' | 'distribution'; lineId: string; amount: string; date: string } | null>(null)
+  const [settleBusy, setSettleBusy] = useState(false)
+  const [settleErr, setSettleErr] = useState<string | null>(null)
+
+  async function saveSettlement() {
+    if (!settling) return
+    setSettleBusy(true); setSettleErr(null)
+    try {
+      const res = await lf(settling.kind === 'capital_call' ? '/api/accounting/capital-calls' : '/api/accounting/distributions', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'settle', lineId: settling.lineId, amount: Number(settling.amount), date: settling.date }),
+      })
+      const d = await res.json().catch(() => ({}))
+      if (!res.ok) { setSettleErr(d.error ?? 'Could not record it'); return }
+      setSettling(null)
+      load()
+    } finally {
+      setSettleBusy(false)
+    }
+  }
+
+  function SettleInline({ kind, line }: { kind: 'capital_call' | 'distribution'; line: CallLine }) {
+    if (!isEvents) return null
+    const verb = kind === 'capital_call' ? 'funded' : 'paid'
+    if (settling?.lineId !== line.id) {
+      return (
+        <button
+          onClick={() => setSettling({ kind, lineId: line.id, amount: String(line.amount), date: new Date().toISOString().slice(0, 10) })}
+          className="ml-1 text-[11px] text-primary hover:underline"
+        >
+          {line.status === 'settled' ? 'edit' : `mark ${verb}`}
+        </button>
+      )
+    }
+    return (
+      <span className="ml-1 inline-flex flex-wrap items-center gap-1">
+        <input value={settling.amount} onChange={e => setSettling(s => s && { ...s, amount: e.target.value })} inputMode="decimal" className="w-24 border border-input rounded px-1.5 py-0.5 text-xs tabular-nums bg-transparent text-right" />
+        <input type="date" value={settling.date} onChange={e => setSettling(s => s && { ...s, date: e.target.value })} className="border border-input rounded px-1.5 py-0.5 text-xs bg-transparent" />
+        <button onClick={saveSettlement} disabled={settleBusy} className="text-[11px] text-primary hover:underline">{settleBusy ? 'Saving…' : 'Save'}</button>
+        <button onClick={() => setSettling(null)} disabled={settleBusy} className="text-[11px] text-muted-foreground hover:underline">Cancel</button>
+        {settleErr && <span className="text-sm text-warning">{settleErr}</span>}
+      </span>
+    )
+  }
 
   const load = useCallback(() => {
     setLoading(true)
@@ -217,7 +263,9 @@ export function CapitalAccountsView() {
     const data = await res.json()
     setIssuing(false)
     if (!res.ok) { setMsg({ ok: false, text: data.error ?? (isDist ? 'Could not declare distribution' : 'Could not issue call') }); return }
-    setMsg({ ok: true, text: isDist ? 'Distribution declared. The wire that pays it will match automatically.' : 'Call issued.' })
+    setMsg({ ok: true, text: isDist
+      ? (isEvents ? 'Distribution declared. Mark each partner paid as the wires go out.' : 'Distribution declared. The wire that pays it will match automatically.')
+      : (isEvents ? 'Call issued. Mark each partner funded as the wires arrive.' : 'Call issued.') })
     setAmounts({}); setCarryAmounts({}); setPreview(null); setEdited(false); setCallTotal(''); setDescription('')
     load()
   }
@@ -292,16 +340,14 @@ export function CapitalAccountsView() {
             </button>
           )}
         </div>
-        {!isEvents && (
-          <>
-            <Button size="sm" variant="outline" className="text-muted-foreground" onClick={() => { setKind('call'); setShowCall(v => !(v && !isDist)) }} disabled={rows.length === 0}>
-              <Landmark className="h-4 w-4 mr-1" />Issue a capital call
-            </Button>
-            <Button size="sm" variant="outline" className="text-muted-foreground" onClick={() => { setKind('distribution'); setShowCall(v => !(v && isDist)) }} disabled={rows.length === 0}>
-              <Landmark className="h-4 w-4 mr-1" />Declare a distribution
-            </Button>
-          </>
-        )}
+        {/* Offered on a capital-tracking vehicle too: there the register row is the call and the
+            notice is rendered from it; funding is recorded on the line by hand. */}
+        <Button size="sm" variant="outline" className="text-muted-foreground" onClick={() => { setKind('call'); setShowCall(v => !(v && !isDist)) }} disabled={rows.length === 0}>
+          <Landmark className="h-4 w-4 mr-1" />Issue a capital call
+        </Button>
+        <Button size="sm" variant="outline" className="text-muted-foreground" onClick={() => { setKind('distribution'); setShowCall(v => !(v && isDist)) }} disabled={rows.length === 0}>
+          <Landmark className="h-4 w-4 mr-1" />Declare a distribution
+        </Button>
         {/* Same "Share with LPs" action as the LPs report page: pick which LPs, publish to the
             portal, no email. Only offered when the portal is on — publishing statements nobody
             can open is a no-op that looks like success. */}
@@ -384,10 +430,8 @@ export function CapitalAccountsView() {
         </DialogContent>
       </Dialog>
 
-      {/* Issue a call — folded in from the old Capital calls page. Gated on `!isEvents` as
-          well as `showCall`: switching vehicle while the panel is open would otherwise leave
-          it showing on a vehicle that has no receivable to call against. */}
-      {showCall && !isEvents && rows.length > 0 && (
+      {/* Issue a call — folded in from the old Capital calls page. */}
+      {showCall && rows.length > 0 && (
         <div className="border rounded-card p-4 space-y-3">
           <p className="text-sm font-medium">{isDist ? 'Declare a distribution' : 'Issue a capital call'}</p>
           <div className="flex flex-wrap items-end gap-3">
@@ -574,6 +618,7 @@ export function CapitalAccountsView() {
                     <span key={l.lpEntityId} className={l.status === 'settled' ? 'text-muted-foreground/70' : ''}>
                       {l.name}: <span className="tabular-nums">{fmt(l.amount)}</span>
                       {lineNote(l, 'funded') && <span className="ml-1 text-[11px]">({lineNote(l, 'funded')})</span>}
+                      <SettleInline kind="capital_call" line={l} />
                     </span>
                   ))}
                 </div>
@@ -616,6 +661,7 @@ export function CapitalAccountsView() {
                     <span key={l.lpEntityId} className={l.status === 'settled' ? 'text-muted-foreground/70' : ''}>
                       {l.name}{l.role === 'carry' ? ' (carry)' : ''}: <span className="tabular-nums">{fmt(l.amount)}</span>
                       {lineNote(l, 'paid') && <span className="ml-1 text-[11px]">({lineNote(l, 'paid')})</span>}
+                      <SettleInline kind="distribution" line={l} />
                     </span>
                   ))}
                 </div>

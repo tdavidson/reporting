@@ -6,6 +6,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { assertWriteAccess, assertReadAccess } from '@/lib/api-helpers'
 import { resolveGroupOr400 } from '@/lib/accounting/http-vehicle'
 import { previewDistribution, declareDistribution, listDistributions } from '@/lib/accounting/distributions'
+import { settleRegisterLine } from '@/lib/accounting/capital-calls'
 
 // GET — declared distributions for the vehicle, newest first.
 export async function GET(req: NextRequest) {
@@ -84,5 +85,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(result)
   }
 
-  return NextResponse.json({ error: "action must be 'preview' or 'declare'" }, { status: 400 })
+  // settle: { lineId, amount, date } → capital-tracking vehicles only: record a payment by hand
+  if (body?.action === 'settle') {
+    const result = await settleRegisterLine(admin, gate.fundId, group, 'distribution', String(body?.lineId ?? ''), {
+      amount: Number(body?.amount), date: String(body?.date ?? ''),
+    })
+    if ('error' in result) return NextResponse.json({ error: result.error }, { status: 400 })
+    return NextResponse.json(result)
+  }
+
+  return NextResponse.json({ error: "action must be 'preview', 'declare' or 'settle'" }, { status: 400 })
 }
