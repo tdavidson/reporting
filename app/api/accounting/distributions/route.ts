@@ -5,7 +5,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 // exactly like capital calls, its inbound mirror.
 import { assertWriteAccess, assertReadAccess } from '@/lib/api-helpers'
 import { resolveGroupOr400 } from '@/lib/accounting/http-vehicle'
-import { proRataDistribution, declareDistribution, listDistributions } from '@/lib/accounting/distributions'
+import { previewDistribution, declareDistribution, listDistributions } from '@/lib/accounting/distributions'
 
 // GET — declared distributions for the vehicle, newest first.
 export async function GET(req: NextRequest) {
@@ -21,9 +21,11 @@ export async function GET(req: NextRequest) {
 }
 
 // POST — { action: 'preview' | 'declare', … }
-//   preview: { total }  → the pro-rata split by capital balance, writing nothing
-//   declare: { distributionDate, description?, lines: [{ lpEntityId, amount }] }
-//            → Dr each partner's capital, Cr 2300 Distributions payable
+//   preview: { total, asOf?, method?: 'waterfall' | 'pro_rata' }
+//            → the split, writing nothing. Through the waterfall when the vehicle has carry
+//              terms (LP lines + carry lines + the tier breakdown), else pro-rata by capital.
+//   declare: { distributionDate, description?, lines, carryLines?, splitMethod?, tiers?, kind?, character? }
+//            → Dr each partner's capital, Cr 2300 Distributions payable; carry as its own entry
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
   const admin = createAdminClient()
@@ -39,7 +41,11 @@ export async function POST(req: NextRequest) {
   if (body?.action === 'preview') {
     const total = Number(body?.total)
     if (!Number.isFinite(total) || total <= 0) return NextResponse.json({ error: 'A positive total is required' }, { status: 400 })
-    return NextResponse.json({ lines: await proRataDistribution(admin, gate.fundId, group, total) })
+    const asOf = typeof body?.asOf === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(body.asOf)
+      ? body.asOf
+      : new Date().toISOString().slice(0, 10)
+    const method = body?.method === 'pro_rata' ? 'pro_rata' : 'waterfall'
+    return NextResponse.json(await previewDistribution(admin, gate.fundId, group, total, asOf, method))
   }
 
   if (body?.action === 'declare') {
@@ -47,10 +53,24 @@ export async function POST(req: NextRequest) {
     // legitimate state and the one every pre-existing row is in. Supplying a partial split is
     // not — declareDistribution refuses anything that doesn't sum to the declared total.
     const c = body?.character
+    const t = body?.tiers
     const result = await declareDistribution(admin, gate.fundId, group, user.id, {
       distributionDate: String(body?.distributionDate ?? ''),
       description: body?.description ?? null,
       lines: Array.isArray(body?.lines) ? body.lines : [],
+      carryLines: Array.isArray(body?.carryLines) ? body.carryLines : [],
+      splitMethod: body?.splitMethod,
+      tiers: t && typeof t === 'object'
+        ? {
+            returnOfCapital: Number(t.returnOfCapital ?? 0),
+            preferred: Number(t.preferred ?? 0),
+            catchUp: Number(t.catchUp ?? 0),
+            carry: Number(t.carry ?? 0),
+            profitToLP: Number(t.profitToLP ?? 0),
+            toLP: Number(t.toLP ?? 0),
+            toGP: Number(t.toGP ?? 0),
+          }
+        : null,
       kind: body?.kind,
       character: c
         ? {

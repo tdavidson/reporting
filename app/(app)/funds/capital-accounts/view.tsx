@@ -22,7 +22,22 @@ import { EmptyState } from '@/components/ui/empty-state'
 
 interface CallLine { lpEntityId: string; name: string; amount: number }
 interface CallRow { id: string; callDate: string; description: string | null; scope: string; total: number; lines: CallLine[] }
-interface DistRow { distributionId: string; date: string; description: string | null; total: number; lines: CallLine[] }
+interface Tiers { returnOfCapital: number; preferred: number; catchUp: number; carry: number; profitToLP: number; toLP: number; toGP: number }
+interface DistLine extends CallLine { role: 'lp' | 'carry' }
+interface DistRow {
+  distributionId: string; date: string; description: string | null; total: number; lpTotal: number; carryTotal: number
+  splitMethod: 'waterfall' | 'pro_rata' | 'manual'; tiers: Tiers | null; lines: DistLine[]
+}
+interface DistPreview {
+  method: 'waterfall' | 'pro_rata' | 'manual'
+  lines: { lpEntityId: string; amount: number }[]
+  carryLines: { lpEntityId: string; amount: number }[]
+  tiers: Tiers
+  warnings: string[]
+  names: Record<string, string>
+  suggestedCharacter: { returnOfCapital: number; realizedGain: number; income: number }
+  terms: { kind: string; carryRate: number; prefRate: number; recipients: string[] }
+}
 interface Period { preset: PeriodPreset; start: string | null; end: string | null; label: string }
 
 export function CapitalAccountsView() {
@@ -80,6 +95,13 @@ export function CapitalAccountsView() {
   // Calls only: a notice is a demand with a deadline, and the deadline is recorded at issue.
   const [dueDate, setDueDate] = useState('')
   const [amounts, setAmounts] = useState<Record<string, string>>({})
+  // Distributions only. The split runs THROUGH THE WATERFALL when the vehicle has carry terms:
+  // the preview carries the LP lines, the GP's carry lines and the tier breakdown. Editing any
+  // amount after a preview makes the declaration 'manual' — the tiers no longer describe it.
+  const [splitMethod, setSplitMethod] = useState<'waterfall' | 'pro_rata'>('waterfall')
+  const [preview, setPreview] = useState<DistPreview | null>(null)
+  const [carryAmounts, setCarryAmounts] = useState<Record<string, string>>({})
+  const [edited, setEdited] = useState(false)
   const [issuing, setIssuing] = useState(false)
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
 
@@ -135,19 +157,33 @@ export function CapitalAccountsView() {
   }
 
   const enteredTotal = rows.reduce((s, r) => s + (Number(amounts[r.lpEntityId]) || 0), 0)
+  const enteredCarry = Object.values(carryAmounts).reduce((s, v) => s + (Number(v) || 0), 0)
+  const carryRecipients = preview?.carryLines.map(l => l.lpEntityId) ?? []
 
   async function splitProRata() {
     const t = Number(callTotal)
     if (!Number.isFinite(t) || t <= 0) { setMsg({ ok: false, text: 'Enter a positive total to split' }); return }
     const res = await lf(isDist ? '/api/accounting/distributions' : '/api/accounting/capital-calls', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'preview', total: t }),
+      body: JSON.stringify(isDist
+        ? { action: 'preview', total: t, asOf: callDate || undefined, method: splitMethod }
+        : { action: 'preview', total: t }),
     })
     const data = await res.json()
     if (!res.ok) { setMsg({ ok: false, text: data.error ?? 'Could not split' }); return }
     const next: Record<string, string> = {}
     for (const l of (data.lines ?? [])) next[l.lpEntityId] = String(l.amount)
     setAmounts(next); setMsg(null)
+    if (isDist) {
+      const carry: Record<string, string> = {}
+      for (const l of (data.carryLines ?? [])) carry[l.lpEntityId] = String(l.amount)
+      setCarryAmounts(carry); setPreview(data as DistPreview); setEdited(false)
+    }
+  }
+
+  function editAmount(lpEntityId: string, value: string) {
+    setAmounts(a => ({ ...a, [lpEntityId]: value }))
+    if (isDist) setEdited(true)
   }
 
   async function issue() {
@@ -158,17 +194,28 @@ export function CapitalAccountsView() {
     if (lines.length === 0) { setMsg({ ok: false, text: 'Enter at least one LP amount' }); return }
     if (!callDate) { setMsg({ ok: false, text: isDist ? 'Pick a distribution date' : 'Pick a call date' }); return }
     setIssuing(true)
+    // A previewed, untouched split is declared as what it is — waterfall or pro-rata, with the
+    // tiers and the character the waterfall suggested. Anything edited is declared as manual.
+    const fromPreview = isDist && preview && !edited
+    const carryLines = carryRecipients
+      .map(id => ({ lpEntityId: id, amount: Number(carryAmounts[id]) || 0 }))
+      .filter(l => l.amount > 0)
     const res = await lf(isDist ? '/api/accounting/distributions' : '/api/accounting/capital-calls', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: isDist
-        ? JSON.stringify({ action: 'declare', distributionDate: callDate, description: description || null, lines })
+        ? JSON.stringify({
+            action: 'declare', distributionDate: callDate, description: description || null, lines, carryLines,
+            splitMethod: fromPreview ? preview.method : 'manual',
+            tiers: fromPreview && preview.method === 'waterfall' ? preview.tiers : null,
+            character: fromPreview && preview.method === 'waterfall' ? preview.suggestedCharacter : undefined,
+          })
         : JSON.stringify({ action: 'issue', callDate, dueDate: dueDate || null, description: description || null, scope: mode, lines }),
     })
     const data = await res.json()
     setIssuing(false)
     if (!res.ok) { setMsg({ ok: false, text: data.error ?? (isDist ? 'Could not declare distribution' : 'Could not issue call') }); return }
     setMsg({ ok: true, text: isDist ? 'Distribution declared. The wire that pays it will match automatically.' : 'Call issued.' })
-    setAmounts({}); setCallTotal(''); setDescription('')
+    setAmounts({}); setCarryAmounts({}); setPreview(null); setEdited(false); setCallTotal(''); setDescription('')
     load()
   }
 
@@ -351,9 +398,48 @@ export function CapitalAccountsView() {
               <label className="text-xs text-muted-foreground">{isDist ? 'Total to distribute' : 'Total to call'}
                 <input value={callTotal} onChange={e => setCallTotal(e.target.value)} inputMode="decimal" placeholder="0.00" className="block mt-1 border border-input rounded px-2 py-1.5 text-sm font-mono bg-transparent w-40" />
               </label>
-              <Button size="sm" variant="outline" onClick={splitProRata}>Split pro-rata</Button>
-              <span className="text-xs text-muted-foreground pb-2">{isDist ? 'Fills each partner by capital balance — edit any row below.' : 'Fills each LP by commitment — edit any row below.'}</span>
+              {isDist && (
+                <div className="text-xs text-muted-foreground">
+                  <span className="block mb-1">Split</span>
+                  <div className="inline-flex rounded border border-input overflow-hidden">
+                    <button type="button" onClick={() => setSplitMethod('waterfall')} className={`px-2.5 py-1.5 text-xs ${splitMethod === 'waterfall' ? 'bg-accent text-foreground' : 'text-muted-foreground'}`}>Waterfall</button>
+                    <button type="button" onClick={() => setSplitMethod('pro_rata')} className={`px-2.5 py-1.5 text-xs border-l border-input ${splitMethod === 'pro_rata' ? 'bg-accent text-foreground' : 'text-muted-foreground'}`}>Pro-rata</button>
+                  </div>
+                </div>
+              )}
+              <Button size="sm" variant="outline" onClick={splitProRata}>{isDist ? 'Split' : 'Split pro-rata'}</Button>
+              <span className="text-xs text-muted-foreground pb-2">
+                {isDist
+                  ? (splitMethod === 'waterfall'
+                      ? 'Runs the vehicle\u2019s waterfall: capital back to LPs, then the hurdle, then carry \u2014 edit any row below.'
+                      : 'Fills each partner by capital balance, no carry \u2014 edit any row below.')
+                  : 'Fills each LP by commitment \u2014 edit any row below.'}
+              </span>
             </div>
+          )}
+
+          {/* What the waterfall did with the total. Shown for the split it produced; once a row
+              is edited the tiers no longer describe the lines, and the declaration goes out as
+              manual, so the box says so rather than keep asserting numbers that are now false. */}
+          {isDist && preview && preview.method === 'waterfall' && (
+            <div className={`rounded-lg border px-3 py-2.5 text-xs ${edited ? 'opacity-60' : ''}`}>
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+                <span className="font-medium text-sm">Waterfall</span>
+                <span className="text-muted-foreground">{preview.terms.kind} · {(preview.terms.carryRate * 100).toFixed(0)}% carry{preview.terms.prefRate > 0 ? ` · ${(preview.terms.prefRate * 100).toFixed(0)}% pref` : ''}{preview.terms.recipients.length ? ` · to ${preview.terms.recipients.join(', ')}` : ''}</span>
+                {edited && <span className="text-warning">Edited &mdash; will be declared as a manual split.</span>}
+              </div>
+              <div className="mt-1.5 flex flex-wrap gap-x-5 gap-y-0.5 text-muted-foreground">
+                <span>Return of capital <span className="tabular-nums text-foreground">{fmt(preview.tiers.returnOfCapital)}</span></span>
+                {preview.tiers.preferred > 0 && <span>Preferred return <span className="tabular-nums text-foreground">{fmt(preview.tiers.preferred)}</span></span>}
+                {preview.tiers.catchUp > 0 && <span>GP catch-up <span className="tabular-nums text-foreground">{fmt(preview.tiers.catchUp)}</span></span>}
+                <span>Profit to LPs <span className="tabular-nums text-foreground">{fmt(preview.tiers.profitToLP)}</span></span>
+                <span>Carry <span className="tabular-nums text-foreground">{fmt(preview.tiers.carry)}</span></span>
+              </div>
+              {preview.warnings.map((w, i) => <p key={i} className="mt-1 text-warning">{w}</p>)}
+            </div>
+          )}
+          {isDist && preview && preview.method !== 'waterfall' && preview.warnings.length > 0 && (
+            <div className="rounded-lg border px-3 py-2 text-xs text-warning">{preview.warnings.map((w, i) => <p key={i}>{w}</p>)}</div>
           )}
 
           <div className="border rounded-lg overflow-x-auto">
@@ -375,7 +461,7 @@ export function CapitalAccountsView() {
                     <td className="px-3 py-2 text-right">
                       <input
                         value={amounts[r.lpEntityId] ?? ''}
-                        onChange={e => setAmounts(a => ({ ...a, [r.lpEntityId]: e.target.value }))}
+                        onChange={e => editAmount(r.lpEntityId, e.target.value)}
                         inputMode="decimal"
                         placeholder="0.00"
                         className="border border-input rounded px-2 py-1 text-sm tabular-nums bg-transparent w-32 text-right"
@@ -384,17 +470,36 @@ export function CapitalAccountsView() {
                   </tr>
                 ))}
               </tbody>
+              {isDist && carryRecipients.length > 0 && (
+                <tbody className="border-t">
+                  {carryRecipients.map(id => (
+                    <tr key={`carry-${id}`} className="border-b last:border-b-0 bg-muted/20">
+                      <td className="px-3 py-2 max-w-[200px]"><div className="truncate" title={preview?.names[id] ?? id}>{preview?.names[id] ?? id} <span className="text-xs text-muted-foreground">&middot; carried interest</span></div></td>
+                      <td className="px-3 py-2" colSpan={2} />
+                      <td className="px-3 py-2 text-right">
+                        <input
+                          value={carryAmounts[id] ?? ''}
+                          onChange={e => { setCarryAmounts(a => ({ ...a, [id]: e.target.value })); setEdited(true) }}
+                          inputMode="decimal"
+                          placeholder="0.00"
+                          className="border border-input rounded px-2 py-1 text-sm tabular-nums bg-transparent w-32 text-right"
+                        />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              )}
               <tfoot>
                 <tr className="border-t bg-muted/30 font-semibold">
                   <td className="px-3 py-2" colSpan={3}>{isDist ? 'Distribution total' : 'Call total'}</td>
-                  <td className="px-3 py-2 text-right tabular-nums">{fmt(enteredTotal)}</td>
+                  <td className="px-3 py-2 text-right tabular-nums">{fmt(enteredTotal + (isDist ? enteredCarry : 0))}</td>
                 </tr>
               </tfoot>
             </table>
           </div>
 
           <div className="flex items-center gap-2">
-            <Button size="sm" onClick={issue} disabled={issuing || enteredTotal <= 0}>
+            <Button size="sm" onClick={issue} disabled={issuing || enteredTotal + (isDist ? enteredCarry : 0) <= 0}>
               {issuing && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}{isDist ? 'Declare distribution' : 'Issue call'}
             </Button>
             <Button size="sm" variant="outline" onClick={() => setShowCall(false)} disabled={issuing}>Cancel</Button>
@@ -460,10 +565,22 @@ export function CapitalAccountsView() {
               <div key={d.distributionId} className="border rounded-card p-3">
                 <div className="flex items-center justify-between text-sm">
                   <span className="font-medium">{d.date} · {fmt(d.total)}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {d.splitMethod === 'waterfall' ? 'Waterfall' : d.splitMethod === 'pro_rata' ? 'Pro-rata by capital' : 'Manual split'}
+                    {d.carryTotal > 0 ? ` · carry ${fmt(d.carryTotal)}` : ''}
+                  </span>
                 </div>
                 {d.description && <p className="text-xs text-muted-foreground mt-0.5">{d.description}</p>}
+                {d.tiers && (
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Return of capital {fmt(d.tiers.returnOfCapital)}
+                    {d.tiers.preferred > 0 ? ` · preferred ${fmt(d.tiers.preferred)}` : ''}
+                    {d.tiers.catchUp > 0 ? ` · catch-up ${fmt(d.tiers.catchUp)}` : ''}
+                    {` · profit to LPs ${fmt(d.tiers.profitToLP)} · carry ${fmt(d.tiers.carry)}`}
+                  </p>
+                )}
                 <div className="mt-2 text-xs text-muted-foreground flex flex-wrap gap-x-4 gap-y-0.5">
-                  {d.lines.map(l => <span key={l.lpEntityId}>{l.name}: <span className="tabular-nums">{fmt(l.amount)}</span></span>)}
+                  {d.lines.map(l => <span key={l.lpEntityId}>{l.name}{l.role === 'carry' ? ' (carry)' : ''}: <span className="tabular-nums">{fmt(l.amount)}</span></span>)}
                 </div>
                 <NoticeAction kind="distribution" id={d.distributionId} />
               </div>
