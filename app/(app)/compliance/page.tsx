@@ -9,6 +9,8 @@ import { AnalystToggleButton } from '@/components/analyst-button'
 import { AnalystPanel } from '@/components/analyst-panel'
 import { PortfolioNotesProvider, PortfolioNotesButton, PortfolioNotesPanel } from '@/components/portfolio-notes'
 import { evaluateAll, type ComplianceProfile, type Applicability } from '@/lib/compliance/applicability'
+import { expandInstances } from '@/lib/compliance/schedule'
+import { resolveStatus } from '@/lib/compliance/status'
 import { ComplianceNav, type ComplianceTab } from './compliance-nav'
 
 interface ComplianceItem {
@@ -21,6 +23,7 @@ interface ComplianceItem {
   deadline_description: string
   deadline_month: number | null
   deadline_day: number | null
+  rolling_days: number | null
   applicability_text: string
   filing_system: string
   filing_portal_url: string | null
@@ -310,12 +313,7 @@ export default function CompliancePage() {
 
   // Get effective status for an item (optionally scoped to a portfolio group)
   const getStatus = useCallback((itemId: string, group?: string): Applicability => {
-    const setting = getSetting(itemId, group)
-    if (setting?.completed) return 'completed'
-    if (setting?.dismissed) return 'not_applicable'
-    if (setting?.applies === 'yes') return 'applies'
-    if (setting?.applies === 'no') return 'not_applicable'
-    return applicability[itemId]?.result ?? 'needs_review'
+    return resolveStatus(getSetting(itemId, group), applicability[itemId]?.result)
   }, [getSetting, applicability])
 
   // Count answered questions
@@ -429,71 +427,14 @@ export default function CompliancePage() {
     return true
   }, [statusFilter])
 
-  // Calendar items grouped by month
+  // Calendar items grouped by month. Placement lives in lib/compliance/schedule.ts, shared
+  // with the ops-reminders cron.
   const calendarData = useMemo(() => {
     const months: Record<number, CalendarEntry[]> = {}
     for (let m = 1; m <= 12; m++) months[m] = []
-    function addToMonths(entry: CalendarEntry, monthList: number[]) {
-      for (const m of monthList) months[m].push(entry)
-    }
-
-    const QUARTERLY_MONTHS: Record<string, number[]> = {
-      'valuations-soi': [3, 6, 9, 12],
-      'partnership-expenses': [3, 6, 9, 12],
-      'quarterly-financial-reporting': [3, 5, 8, 11],
-    }
-    const DEFAULT_QUARTERLY = [1, 4, 7, 10]
-    const QUARTER_LABELS: Record<number, string> = { 1: 'Q1', 2: 'Q1', 3: 'Q1', 4: 'Q2', 5: 'Q2', 6: 'Q2', 7: 'Q3', 8: 'Q3', 9: 'Q3', 10: 'Q4', 11: 'Q4', 12: 'Q4' }
-
-    function placeItem(item: ComplianceItem, group?: string) {
-      if (item.deadline_month) {
-        const status = getStatus(item.id, group)
-        if (!passesFilter(status)) return
-        months[item.deadline_month].push({ item, group })
-      } else if (item.frequency === 'Quarterly') {
-        const qMonths = QUARTERLY_MONTHS[item.id] ?? DEFAULT_QUARTERLY
-        for (const m of qMonths) {
-          const qLabel = QUARTER_LABELS[m]
-          const qGroup = group ? `${group}::${qLabel}` : qLabel
-          const status = getStatus(item.id, qGroup)
-          if (!passesFilter(status)) continue
-          months[m].push({ item, group: qGroup })
-        }
-      } else {
-        // Event-driven items (Form D, Blue Sky) — only show for funds
-        // with a current-year vintage (new fund/SPV this year)
-      }
-    }
-
-    // Portfolio groups that had closes (commitment entries) this year
-    const groupsWithCloses = Object.keys(closeMonths).filter(pg => closeMonths[pg].length > 0)
-
-    for (const item of items) {
-      if (item.frequency === 'Event-driven') {
-        for (const pg of groupsWithCloses) {
-          const status = getStatus(item.id, pg)
-          if (!passesFilter(status)) continue
-          addToMonths({ item, group: pg }, closeMonths[pg])
-        }
-      } else if (item.scope === 'vehicle') {
-        for (const pg of portfolioGroups) {
-          if (item.frequency === 'Quarterly') {
-            placeItem(item, pg)
-          } else {
-            const status = getStatus(item.id, pg)
-            if (!passesFilter(status)) continue
-            placeItem(item, pg)
-          }
-        }
-      } else {
-        if (item.frequency === 'Quarterly') {
-          placeItem(item)
-        } else {
-          const status = getStatus(item.id)
-          if (!passesFilter(status)) continue
-          placeItem(item)
-        }
-      }
+    for (const inst of expandInstances(items, portfolioGroups, closeMonths)) {
+      if (!passesFilter(getStatus(inst.item.id, inst.group))) continue
+      for (const m of inst.months) months[m].push({ item: inst.item, group: inst.group })
     }
     return { months }
   }, [items, getStatus, passesFilter, portfolioGroups, closeMonths])
@@ -844,12 +785,10 @@ function ItemsView({
   closeMonths: Record<string, number[]>
 }) {
   const CATEGORY_ORDER = ['SEC Filings', 'Securities Offerings', 'Tax Filings', 'Fund Reporting', 'Internal Compliance', 'State Compliance', 'CFTC', 'AML / FinCEN']
-  const QUARTER_LABELS = ['Q1', 'Q2', 'Q3', 'Q4']
 
   // Build instances: expand vehicle-scoped items per fund, quarterly items per quarter
   const categoryInstances = useMemo(() => {
     const groups: Record<string, ItemInstance[]> = {}
-    const groupsWithCloses = Object.keys(closeMonths).filter(pg => closeMonths[pg].length > 0)
 
     function passesFilter(status: Applicability) {
       if (statusFilter === 'all') return true
@@ -866,35 +805,8 @@ function ItemsView({
       groups[item.category].push({ item, group })
     }
 
-    for (const item of items) {
-      if (item.frequency === 'Event-driven') {
-        // One instance per fund that had closes this year
-        for (const pg of groupsWithCloses) {
-          addInstance(item, pg)
-        }
-      } else if (item.frequency === 'Quarterly') {
-        if (item.scope === 'vehicle') {
-          // Per fund × per quarter
-          for (const pg of portfolioGroups) {
-            for (const qLabel of QUARTER_LABELS) {
-              addInstance(item, `${pg}::${qLabel}`)
-            }
-          }
-        } else {
-          // Firm-level quarterly: one per quarter
-          for (const qLabel of QUARTER_LABELS) {
-            addInstance(item, qLabel)
-          }
-        }
-      } else if (item.scope === 'vehicle') {
-        // Annual vehicle-scoped: one per fund
-        for (const pg of portfolioGroups) {
-          addInstance(item, pg)
-        }
-      } else {
-        // Firm-level annual: single instance
-        addInstance(item)
-      }
+    for (const inst of expandInstances(items, portfolioGroups, closeMonths)) {
+      addInstance(inst.item, inst.group)
     }
     return groups
   }, [items, getStatus, statusFilter, portfolioGroups, closeMonths])
