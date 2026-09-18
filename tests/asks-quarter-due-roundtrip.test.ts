@@ -14,6 +14,16 @@ describe('Asks quarter + due date round-trip', () => {
     expect(route).toMatch(/due_date:\s*dueDate/)
   })
 
+  it('the send route validates the date by round-trip and reports a failed record instead of dropping it', () => {
+    const route = read('app', 'api', 'requests', 'send', 'route.ts')
+    expect(route).toMatch(/const dueDate = parseDueDate\(due_date\)/)
+    expect(route).toMatch(/const \{ error: recordError \} = await admin\.from\('email_requests'\)\.insert/)
+    expect(route).toMatch(/recordError \? \{ warning:/)
+    const page = read('app', '(app)', 'requests', 'page.tsx')
+    expect(page).toMatch(/warning: data\.warning/)
+    expect(page).toMatch(/results\.warning &&/)
+  })
+
   it('the composer sends them on a real send but not on a test send', () => {
     const page = read('app', '(app)', 'requests', 'page.tsx')
     const handleSend = page.slice(page.indexOf('const handleSend'))

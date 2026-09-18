@@ -6,6 +6,7 @@ import { sanitizeHtml } from '@/lib/sanitize-html'
 import { getOutboundConfig, parseAddressList, sendOutboundEmail } from '@/lib/email'
 import { rateLimit } from '@/lib/rate-limit'
 import { logActivity } from '@/lib/activity'
+import { parseDueDate } from '@/lib/requests/response-status'
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
@@ -51,7 +52,7 @@ export async function POST(req: NextRequest) {
   if ((quarter != null || year != null) && !period) {
     return NextResponse.json({ error: 'Invalid quarter' }, { status: 400 })
   }
-  const dueDate = typeof due_date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(due_date) ? due_date : null
+  const dueDate = parseDueDate(due_date)
   if (due_date && !dueDate) {
     return NextResponse.json({ error: 'Invalid responses-due date' }, { status: 400 })
   }
@@ -96,7 +97,7 @@ export async function POST(req: NextRequest) {
   const sent = results.filter(r => r.success).length
   const failed = results.filter(r => !r.success).length
 
-  await admin.from('email_requests').insert({
+  const { error: recordError } = await admin.from('email_requests').insert({
     fund_id: membership.fund_id,
     subject: subject.trim(),
     body_html: sanitizeHtml((body_text ?? body_html).trim()),
@@ -113,7 +114,16 @@ export async function POST(req: NextRequest) {
     send_results: { sent, failed, details: results },
   })
 
+  // The mail has already gone out, so this stays a 200 — but say so: without the row the
+  // ops-reminders follow-up for this quarter never fires.
+  if (recordError) console.error('[requests-send] email_requests insert failed', recordError)
+
   logActivity(admin, membership.fund_id, user.id, 'requests.send', { recipientCount: recipients.length })
 
-  return NextResponse.json({ sent, failed, results })
+  return NextResponse.json({
+    sent,
+    failed,
+    results,
+    ...(recordError ? { warning: 'Emails were sent, but the request could not be recorded — reminders for this quarter will not work.' } : {}),
+  })
 }

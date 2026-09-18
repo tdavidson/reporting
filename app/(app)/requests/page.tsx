@@ -114,7 +114,7 @@ export default function RequestsPage() {
   const [testResult, setTestResult] = useState<{ success: boolean; error?: string } | null>(null)
 
   const [sending, setSending] = useState(false)
-  const [results, setResults] = useState<{ sent: number; failed: number; details: SendResult[] } | null>(null)
+  const [results, setResults] = useState<{ sent: number; failed: number; details: SendResult[]; warning?: string } | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   const load = useCallback(async () => {
@@ -282,7 +282,7 @@ export default function RequestsPage() {
     }
 
     const data = await res.json()
-    setResults({ sent: data.sent, failed: data.failed, details: data.results })
+    setResults({ sent: data.sent, failed: data.failed, details: data.results, warning: data.warning })
   }
 
   if (loading) {
@@ -602,8 +602,13 @@ export default function RequestsPage() {
       {results && (
         <div className="rounded-card border bg-card p-5 space-y-3">
           <h2 className="text-base font-medium">
-            Results: {results.sent} sent, {results.failed} failed
+            Results: <span className="tabular-nums">{results.sent}</span> sent, <span className="tabular-nums">{results.failed}</span> failed
           </h2>
+          {results.warning && (
+            <p className="text-sm text-warning flex items-center gap-2">
+              <AlertCircle className="h-4 w-4 shrink-0" /> {results.warning}
+            </p>
+          )}
           <div className="border rounded-lg divide-y max-h-[300px] overflow-y-auto">
             {results.details.map((r, i) => (
               <div key={i} className="flex items-center justify-between px-3 py-2">

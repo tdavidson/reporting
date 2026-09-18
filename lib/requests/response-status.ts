@@ -1,7 +1,7 @@
 // Whether a portfolio company has answered the data request for a quarter. One definition for
 // the response tracker (app/api/requests/responses) and the ops-reminders follow-up source.
 
-import { monthEnd, ymd } from '@/lib/reminders/dates'
+import { isoDate, monthEnd, ymd } from '@/lib/reminders/dates'
 
 export type ResponseStatus = 'yes' | 'no' | 'na' | 'waived'
 export const RESPONSE_STATUSES: ResponseStatus[] = ['yes', 'no', 'na', 'waived']
@@ -39,4 +39,13 @@ export function lastEndedQuarter(today: string): { year: number; quarter: number
   const quarter = current === 1 ? 4 : current - 1
   const year = current === 1 ? y - 1 : y
   return { year, quarter, endDate: ymd(year, quarter * 3, monthEnd(year, quarter * 3)) }
+}
+
+/** A responses-due date as `YYYY-MM-DD`, or null. Round-trips through Date so an impossible day
+ *  (2026-02-30, which Date rolls into March and Postgres rejects) is refused before any email
+ *  goes out, rather than failing the email_requests insert afterwards. */
+export function parseDueDate(v: unknown): string | null {
+  if (typeof v !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(v)) return null
+  const d = new Date(`${v}T00:00:00Z`)
+  return !Number.isNaN(d.getTime()) && isoDate(d) === v ? v : null
 }

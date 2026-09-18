@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { isOutstanding, lastEndedQuarter, metricQuarter, resolveResponseStatus } from './response-status'
+import { isOutstanding, lastEndedQuarter, metricQuarter, parseDueDate, resolveResponseStatus } from './response-status'
 
 describe('resolveResponseStatus', () => {
   it('auto-detects from data when there is no override', () => {
@@ -42,5 +42,26 @@ describe('lastEndedQuarter', () => {
     expect(lastEndedQuarter('2026-09-30')).toEqual({ year: 2026, quarter: 2, endDate: '2026-06-30' })
     expect(lastEndedQuarter('2026-10-01')).toEqual({ year: 2026, quarter: 3, endDate: '2026-09-30' })
     expect(lastEndedQuarter('2026-01-05')).toEqual({ year: 2025, quarter: 4, endDate: '2025-12-31' })
+  })
+})
+
+// Postgres rejects an impossible date, so the regex alone let 2026-02-30 through to an insert that
+// failed after the emails had gone out — no row, and no reminders for the quarter.
+describe('parseDueDate', () => {
+  it('accepts a real calendar date', () => {
+    expect(parseDueDate('2026-02-28')).toBe('2026-02-28')
+    expect(parseDueDate('2028-02-29')).toBe('2028-02-29')
+  })
+  it('rejects a date that does not exist', () => {
+    expect(parseDueDate('2026-02-30')).toBeNull()
+    expect(parseDueDate('2026-02-29')).toBeNull()
+    expect(parseDueDate('2026-04-31')).toBeNull()
+    expect(parseDueDate('2026-02-32')).toBeNull()
+    expect(parseDueDate('2026-13-01')).toBeNull()
+  })
+  it('rejects empty, malformed and non-string input', () => {
+    for (const v of ['', '2026-2-3', '2026/02/03', '2026-02-03T00:00:00Z', ' 2026-02-03', 'soon', null, undefined, 20260203]) {
+      expect(parseDueDate(v)).toBeNull()
+    }
   })
 })
