@@ -433,6 +433,8 @@ export const ROUTE_DOMAINS: Record<string, RouteAccess> = {
   // Personal preferences, not fund data.
   'api/settings/theme': { domain: 'portfolio', level: 'any' },
   'api/settings/notifications': { domain: 'portfolio', level: 'any' },
+  'api/settings/reminders': { domain: 'admin' },
+  'api/settings/reminders/test': { domain: 'admin' },
   'api/auth/activity': { domain: 'portfolio', level: 'any' },
   // Affinity issues ONE KEY PER USER, scoped to that user's own permissions, so each member
   // connects their own. It lives under /settings but it is not administration.

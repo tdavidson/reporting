@@ -24,6 +24,7 @@ import { InboundEmailSection } from './_sections/platform/inbound-email-section'
 import { StorageSection } from './_sections/platform/storage-section'
 import { MarketingSection } from './_sections/platform/marketing-section'
 import { OutboundEmailSection } from './_sections/platform/outbound-email-section'
+import { RemindersSection } from './_sections/platform/reminders-section'
 import { SendersSection } from './_sections/platform/senders-section'
 import { AiSummaryPromptSection, AiSummaryPromptReadOnly } from './_sections/products/portfolio/ai-summary-prompt-section'
 import { DealScreeningSection } from './_sections/products/investment/deal-screening-section'
@@ -203,6 +204,7 @@ export default function SettingsPage() {
               googleClientId={settings.googleClientId}
               onSaved={load}
             />
+            <RemindersSection />
             <StorageSection
               fundId={settings.fundId}
               fileStorageProvider={settings.fileStorageProvider}
