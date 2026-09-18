@@ -8,6 +8,9 @@ import { LogOut } from 'lucide-react'
 
 const TABS: { href: string; label: string; match?: string[] }[] = [
   { href: '/portal/overview', label: 'Overview' },
+  // Calls to fund and distributions coming: each with its notice, its status, and a way to say
+  // "we've wired".
+  { href: '/portal/notices', label: 'Notices' },
   // "Library" is the combined reports + letters + documents page at /portal/snapshots.
   { href: '/portal/snapshots', label: 'Library', match: ['/portal/snapshots', '/portal/letters', '/portal/documents'] },
   { href: '/portal/settings', label: 'Settings' },

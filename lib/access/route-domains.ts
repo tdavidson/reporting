@@ -541,6 +541,8 @@ export const UNGATED_ROUTES: Record<string, string> = {
   'api/portal/letters/[id]': 'LP portal: resolveLpAccess.',
   'api/portal/letters/[id]/pdf': 'LP portal: resolveLpAccess.',
   'api/portal/me': 'LP portal: resolveLpAccess.',
+  'api/portal/notices': 'LP portal: resolveLpAccess.',
+  'api/portal/notices/ack': 'LP portal: resolveLpAccess.',
   'api/portal/overview': 'LP portal: resolveLpAccess.',
   'api/portal/snapshots': 'LP portal: resolveLpAccess.',
   'api/portal/snapshots/[id]': 'LP portal: resolveLpAccess.',

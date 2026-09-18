@@ -210,6 +210,8 @@ export interface CapitalCallLineRow {
   lastSettlementOn: string | null
   /** The notice PDF published for this line, if any. */
   noticeDocumentId: string | null
+  /** The partner's own word, from their portal: "we wired on this date, with this reference". */
+  ack: { at: string; wiredOn: string | null; reference: string | null; note: string | null } | null
 }
 
 export interface CapitalCallRow extends RegisterStatus {
@@ -256,7 +258,7 @@ export async function listCapitalCalls(
   const [{ data: calls }, names, settlements] = await Promise.all([
     admin
       .from('capital_calls' as any)
-      .select('id, call_date, due_date, call_number, description, scope, capital_call_lines(id, lp_entity_id, amount, notice_document_id, settled_amount, settled_on)')
+      .select('id, call_date, due_date, call_number, description, scope, capital_call_lines(id, lp_entity_id, amount, notice_document_id, settled_amount, settled_on, ack_at, ack_wired_on, ack_reference, ack_note)')
       .eq('fund_id', fundId)
       .eq('vehicle_id', vehicleId)
       .order('call_date', { ascending: false }),
@@ -290,6 +292,7 @@ export async function listCapitalCalls(
         settledOn: s?.settledOn ?? null,
         lastSettlementOn: s?.lastSettlementOn ?? null,
         noticeDocumentId: l.notice_document_id ?? null,
+        ack: l.ack_at ? { at: l.ack_at, wiredOn: l.ack_wired_on ?? null, reference: l.ack_reference ?? null, note: l.ack_note ?? null } : null,
       }
     })
     return {

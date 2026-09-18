@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { matchTransaction, descriptionNamesPartner, type OpenBalance } from './bank-auto-match'
+import { matchTransaction, descriptionNamesPartner, descriptionCarriesReference, type OpenBalance } from './bank-auto-match'
 
 const bal = (lpEntityId: string, name: string, amount: number): OpenBalance => ({ lpEntityId, name, amount })
 
@@ -75,5 +75,29 @@ describe('matchTransaction', () => {
     const open = [bal('a', 'Amy Segal', 17_250)]
     expect(matchTransaction(-17_250.004, null, open).kind).toBe('matched')
     expect(matchTransaction(-17_251, null, open).kind).toBe('none')
+  })
+})
+
+describe('the acknowledged wire reference as a tiebreak', () => {
+  it('resolves an amount tie when the description quotes a reference one partner gave', () => {
+    const open: OpenBalance[] = [
+      { ...bal('a', 'Alpha Holdings', 100_000), references: ['ALPHA-CALL4'] },
+      { ...bal('b', 'Beta Trust', 100_000), references: [] },
+    ]
+    const m = matchTransaction(100_000, 'INCOMING WIRE REF ALPHA-CALL4 FROM ACCT 1234', open)
+    expect(m).toMatchObject({ kind: 'matched', lpEntityId: 'a', by: 'amount+reference' })
+  })
+
+  it('stays ambiguous when no reference is quoted', () => {
+    const open: OpenBalance[] = [
+      { ...bal('a', 'Alpha Holdings', 100_000), references: ['ALPHA-CALL4'] },
+      { ...bal('b', 'Beta Trust', 100_000), references: ['BETA-4'] },
+    ]
+    expect(matchTransaction(100_000, 'INCOMING WIRE', open).kind).toBe('ambiguous')
+  })
+
+  it('ignores references too short to be distinctive', () => {
+    expect(descriptionCarriesReference('INCOMING WIRE 4', ['4'])).toBe(false)
+    expect(descriptionCarriesReference('INCOMING WIRE CALL4', ['call4'])).toBe(true)
   })
 })

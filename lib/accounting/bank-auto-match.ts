@@ -24,10 +24,16 @@ export interface OpenBalance {
   name: string
   /** Always positive: what is still owed, in either direction. */
   amount: number
+  /**
+   * The wire references the partner gave when acknowledging their notices in the portal. A
+   * third signal, for the tie the name cannot break: two partners with the same amount and a
+   * description that names neither, but quotes the reference one of them told us to expect.
+   */
+  references?: string[]
 }
 
 export type AutoMatch =
-  | { kind: 'matched'; lpEntityId: string; name: string; by: 'amount' | 'amount+name' }
+  | { kind: 'matched'; lpEntityId: string; name: string; by: 'amount' | 'amount+name' | 'amount+reference' }
   /** Several partners fit the amount and the description didn't separate them. */
   | { kind: 'ambiguous'; candidates: OpenBalance[] }
   | { kind: 'none' }
@@ -88,5 +94,23 @@ export function matchTransaction(
   if (named.length === 1) {
     return { kind: 'matched', lpEntityId: named[0].lpEntityId, name: named[0].name, by: 'amount+name' }
   }
+  // Then the reference a partner said their wire would carry.
+  const referenced = byAmount.filter(o => description && descriptionCarriesReference(description, o.references ?? []))
+  if (referenced.length === 1) {
+    return { kind: 'matched', lpEntityId: referenced[0].lpEntityId, name: referenced[0].name, by: 'amount+reference' }
+  }
   return { kind: 'ambiguous', candidates: byAmount }
+}
+
+/**
+ * Does `description` quote one of the partner's wire references? Compared with the same
+ * normalisation as names, and only for references long enough to be distinctive — a
+ * three-character reference would match half the bank's descriptions.
+ */
+export function descriptionCarriesReference(description: string, references: string[]): boolean {
+  const hay = normalizeName(description)
+  return references.some(r => {
+    const ref = normalizeName(r)
+    return ref.length >= 4 && hay.includes(ref)
+  })
 }

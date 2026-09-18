@@ -22,7 +22,7 @@ import { CapitalRollforwardTable, type Row } from '@/components/accounting/capit
 import { EmptyState } from '@/components/ui/empty-state'
 
 type LineStatus = 'open' | 'partial' | 'settled'
-interface CallLine { id: string; lpEntityId: string; name: string; amount: number; settled: number; outstanding: number; status: LineStatus; settledOn: string | null }
+interface CallLine { id: string; lpEntityId: string; name: string; amount: number; settled: number; outstanding: number; status: LineStatus; settledOn: string | null; ack?: { at: string; wiredOn: string | null; reference: string | null } | null }
 interface RegisterStatus { status: LineStatus; settled: number; outstanding: number; overdue: boolean }
 interface CallRow extends RegisterStatus { id: string; callDate: string; dueDate: string | null; description: string | null; scope: string; total: number; lines: CallLine[] }
 interface Tiers { returnOfCapital: number; preferred: number; catchUp: number; carry: number; profitToLP: number; toLP: number; toGP: number }
@@ -257,6 +257,7 @@ export function CapitalAccountsView() {
   const lineNote = (l: CallLine, verb: 'funded' | 'paid') =>
     l.status === 'settled' ? `${verb}${l.settledOn ? ` ${l.settledOn}` : ''}`
     : l.status === 'partial' ? `${fmt(l.settled)} ${verb}, ${fmt(l.outstanding)} outstanding`
+    : l.ack ? `LP says wired${l.ack.wiredOn ? ` ${l.ack.wiredOn}` : ''}${l.ack.reference ? `, ref ${l.ack.reference}` : ''}`
     : null
 
   return (

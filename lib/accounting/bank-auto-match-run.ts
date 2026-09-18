@@ -55,18 +55,27 @@ export async function autoMatchOpenCapital(
   const { data: txns, error } = await q
   if (error) return { error: error.message }
 
-  const [receivables, payables, names] = await Promise.all([
+  const [receivables, payables, names, ackRows] = await Promise.all([
     lpReceivableBalances(admin, fundId, group),
     lpPayableBalances(admin, fundId, group),
     loadEntityNames(admin, fundId, group),
+    // The wire references partners gave when acknowledging their call notices in the portal —
+    // the tiebreak for two partners owing the same amount.
+    (admin as any).from('capital_call_lines').select('lp_entity_id, ack_reference')
+      .eq('fund_id', fundId).eq('vehicle_id', vehicleId).not('ack_reference', 'is', null),
   ])
+  const referencesByLp = new Map<string, string[]>()
+  for (const r of (((ackRows as any).data as any[]) ?? [])) {
+    if (!r.ack_reference) continue
+    referencesByLp.set(r.lp_entity_id, [...(referencesByLp.get(r.lp_entity_id) ?? []), String(r.ack_reference)])
+  }
 
   // Running balances: each settlement consumes the partner's open amount, so two identical
   // wires against ONE open call can't both claim it.
   const openOf = (m: Map<string, number>): OpenBalance[] =>
     Array.from(m.entries())
       .filter(([, amt]) => amt > CENT)
-      .map(([lpEntityId, amount]) => ({ lpEntityId, name: names.get(lpEntityId) ?? lpEntityId, amount }))
+      .map(([lpEntityId, amount]) => ({ lpEntityId, name: names.get(lpEntityId) ?? lpEntityId, amount, references: referencesByLp.get(lpEntityId) ?? [] }))
 
   const out: AutoMatchOutcome = { matched: [], ambiguous: [], unmatched: 0 }
 
