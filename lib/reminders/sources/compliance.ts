@@ -51,7 +51,7 @@ export function complianceReminders(data: ComplianceData, today: string): Remind
         detail: detailFor(occ),
         dueDate: occ.dueDate,
         state: stateFor(occ.dueDate, today),
-        href: '/compliance',
+        href: `/compliance?year=${occ.year}`,
       })
     }
   }

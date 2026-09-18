@@ -60,3 +60,11 @@ export function overlayCompletion<S extends SettingLike>(settings: S[], deadline
   }
   return out
 }
+
+/** The compliance year a request is about: an integer in 2000–2100 (number or numeric string),
+ *  else the current UTC year. Shared by GET ?year= and the settings PATCH body so a completion
+ *  is written to the same year the page is showing. */
+export function parseYear(v: unknown): number {
+  const n = typeof v === 'number' ? v : typeof v === 'string' && v.trim() !== '' ? Number(v) : NaN
+  return Number.isInteger(n) && n >= 2000 && n <= 2100 ? n : new Date().getUTCFullYear()
+}

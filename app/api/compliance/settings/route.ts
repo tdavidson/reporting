@@ -5,7 +5,7 @@ import { assertWriteAccess } from '@/lib/api-helpers'
 import { rateLimit } from '@/lib/rate-limit'
 import { dbError } from '@/lib/api-error'
 import { parseGroupKey } from '@/lib/compliance/schedule'
-import { overlayCompletion, type DeadlineRow } from '@/lib/compliance/completion'
+import { overlayCompletion, parseYear, type DeadlineRow } from '@/lib/compliance/completion'
 
 // Bulk upsert applicability settings
 export async function POST(req: NextRequest) {
@@ -76,7 +76,8 @@ export async function PATCH(req: NextRequest) {
 
   const VALID_APPLIES = ['yes', 'no', 'unsure']
   const now = new Date().toISOString()
-  const year = Number.isInteger(body.year) ? Number(body.year) : new Date().getUTCFullYear()
+  // The year the page is showing — clamped exactly like GET ?year=.
+  const year = parseYear(body.year)
   const pgKey = portfolio_group ? String(portfolio_group).slice(0, 200) : ''
   const clip = (v: unknown) => (v ? String(v).slice(0, 2000) : null)
 

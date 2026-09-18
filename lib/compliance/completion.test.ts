@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { overlayCompletion, type DeadlineRow } from './completion'
+import { overlayCompletion, parseYear, type DeadlineRow } from './completion'
 
 const filed = (o: Partial<DeadlineRow> & { compliance_item_id: string }): DeadlineRow => ({
   portfolio_group: '', quarter: 0, year: 2026, status: 'filed', notes: null, filing_reference_url: null,
@@ -48,5 +48,20 @@ describe('overlayCompletion', () => {
   it('synthesizes a setting row for a filed occurrence with no setting', () => {
     const rows = overlayCompletion([], [filed({ compliance_item_id: 'x', quarter: 2 })])
     expect(rows).toEqual([expect.objectContaining({ compliance_item_id: 'x', portfolio_group: 'Q2', completed: true })])
+  })
+})
+
+describe('parseYear', () => {
+  const current = new Date().getUTCFullYear()
+  it('accepts an integer year in 2000–2100, as a number or a numeric string', () => {
+    expect(parseYear(2026)).toBe(2026)
+    expect(parseYear('2025')).toBe(2025)
+    expect(parseYear(2000)).toBe(2000)
+    expect(parseYear(2100)).toBe(2100)
+  })
+  it('falls back to the current UTC year when missing, out of range or not an integer', () => {
+    for (const v of [undefined, null, '', 'abc', 1999, 2101, 2026.5, NaN, {}, []]) {
+      expect(parseYear(v)).toBe(current)
+    }
   })
 })

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { overlayCompletion, type DeadlineRow } from '@/lib/compliance/completion'
+import { overlayCompletion, parseYear, type DeadlineRow } from '@/lib/compliance/completion'
 
 export async function GET(req: NextRequest) {
   const supabase = await createClient()
@@ -18,10 +18,7 @@ export async function GET(req: NextRequest) {
   if (!membership) return NextResponse.json({ error: 'No fund' }, { status: 403 })
 
   // Completion is per year: ?year= picks which occurrences to overlay (default: this UTC year).
-  const yearParam = Number(req.nextUrl.searchParams.get('year'))
-  const year = Number.isInteger(yearParam) && yearParam >= 2000 && yearParam <= 2100
-    ? yearParam
-    : new Date().getUTCFullYear()
+  const year = parseYear(req.nextUrl.searchParams.get('year'))
 
   const [itemsRes, profileRes, settingsRes, deadlinesRes, groupsRes, commitmentsRes] = await Promise.all([
     admin.from('compliance_items').select('*').order('sort_order'),

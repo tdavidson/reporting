@@ -29,7 +29,7 @@ describe('complianceReminders', () => {
       detail: undefined,
       dueDate: '2027-03-31',
       state: 'upcoming',
-      href: '/compliance',
+      href: '/compliance?year=2027',
     }])
   })
 
@@ -71,7 +71,8 @@ describe('complianceReminders', () => {
     const settings = [{ compliance_item_id: 'valuations-soi', portfolio_group: 'Q4', applies: 'yes', dismissed: false }]
     const items = complianceReminders(data({ items: [soi], settings }), '2027-01-05')
     expect(items).toHaveLength(1)
-    expect(items[0]).toMatchObject({ dueDate: '2026-12-31', detail: 'Q4', state: 'overdue' })
+    // The link opens the year the occurrence belongs to, so marking it complete files 2026 Q4.
+    expect(items[0]).toMatchObject({ dueDate: '2026-12-31', detail: 'Q4', state: 'overdue', href: '/compliance?year=2026' })
     expect(items[0].keys[0]).toBe('c:valuations-soi:Q4:2026-12-31:t30')
   })
 

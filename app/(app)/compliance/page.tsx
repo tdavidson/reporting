@@ -1,16 +1,17 @@
 'use client'
 
-import { useState, useEffect, useMemo, useCallback } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import { ChevronRight, Check, AlertTriangle, X, ExternalLink, Clock, Loader2, Link as LinkIcon } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Check, AlertTriangle, X, ExternalLink, Clock, Loader2, Link as LinkIcon } from 'lucide-react'
 import { AnalystToggleButton } from '@/components/analyst-button'
 import { AnalystPanel } from '@/components/analyst-panel'
 import { PortfolioNotesProvider, PortfolioNotesButton, PortfolioNotesPanel } from '@/components/portfolio-notes'
 import { evaluateAll, type ComplianceProfile, type Applicability } from '@/lib/compliance/applicability'
 import { expandInstances } from '@/lib/compliance/schedule'
 import { resolveStatus } from '@/lib/compliance/status'
+import { parseYear } from '@/lib/compliance/completion'
 import { ComplianceNav, type ComplianceTab } from './compliance-nav'
 
 interface ComplianceItem {
@@ -253,6 +254,20 @@ function entryKey(e: CalendarEntry) {
 
 export default function CompliancePage() {
   const searchParams = useSearchParams()
+  const router = useRouter()
+  const pathname = usePathname()
+  // Completion is per year: the page shows, and writes completions to, ?year= (default this UTC
+  // year). A reminder for last year's Q4 links here with ?year= set, so marking it complete files
+  // the occurrence it was about rather than this year's.
+  const currentYear = new Date().getUTCFullYear()
+  const year = parseYear(searchParams.get('year'))
+  const setYear = useCallback((y: number) => {
+    const params = new URLSearchParams(searchParams.toString())
+    if (y === currentYear) params.delete('year')
+    else params.set('year', String(y))
+    const qs = params.toString()
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false })
+  }, [searchParams, router, pathname, currentYear])
   const initialView = (['calendar', 'items', 'setup'].includes(searchParams.get('view') ?? '') ? searchParams.get('view') as View : 'calendar')
   const [loading, setLoading] = useState(true)
   const [items, setItems] = useState<ComplianceItem[]>([])
@@ -269,16 +284,24 @@ export default function CompliancePage() {
   // Intake state
   const [answers, setAnswers] = useState<Record<string, string | string[]>>({})
 
+  // Refetches when the year changes; links, the profile answers and the initial view are set on
+  // the first load only, so stepping the year doesn't bounce the user back to the calendar.
+  const firstLoad = useRef(true)
   useEffect(() => {
+    let cancelled = false
+    const isFirst = firstLoad.current
     Promise.all([
-      fetch('/api/compliance').then(r => r.json()),
-      fetch('/api/compliance/links').then(r => r.json()),
+      fetch(`/api/compliance?year=${year}`).then(r => r.json()),
+      isFirst ? fetch('/api/compliance/links').then(r => r.json()) : Promise.resolve(null),
     ])
       .then(([d, linksData]) => {
+        if (cancelled) return
         setItems(d.items ?? [])
         setFundSettings(d.settings ?? [])
         setPortfolioGroups(d.portfolioGroups ?? [])
         setCloseMonths(d.closeMonths ?? {})
+        if (!isFirst) return
+        firstLoad.current = false
         setLinks(Array.isArray(linksData) ? linksData : [])
         if (d.profile) {
           setProfile(d.profile)
@@ -296,8 +319,11 @@ export default function CompliancePage() {
         }
         setLoading(false)
       })
-      .catch(() => setLoading(false))
-  }, [])
+      .catch(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
+    // searchParams is read for the initial view only; the fetch depends on the year alone.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [year])
 
   // Compute applicability from profile
   const applicability = useMemo(() => {
@@ -377,6 +403,7 @@ export default function CompliancePage() {
       body: JSON.stringify({
         compliance_item_id: itemId,
         portfolio_group: pg,
+        year,
         dismissed: dismiss,
         dismissed_reason: reason,
         applies: dismiss ? 'no' : 'unsure',
@@ -402,6 +429,7 @@ export default function CompliancePage() {
       body: JSON.stringify({
         compliance_item_id: itemId,
         portfolio_group: pg,
+        year,
         completed,
         completed_note: note || null,
         completed_link: link || null,
@@ -464,19 +492,38 @@ export default function CompliancePage() {
           <div className="flex items-center justify-between flex-wrap gap-2 pt-2">
             <ComplianceNav active={view} onSelect={(tab) => setView(tab)} />
             {(view === 'calendar' || view === 'items') && (
-              <div className="flex items-center rounded-md border text-xs">
-                {(['active', 'completed', 'dismissed', 'all'] as const).map((f, i, arr) => (
-                  <button
-                    key={f}
-                    onClick={() => setStatusFilter(f)}
-                    className={`px-3 py-1 capitalize transition-colors ${ i === 0 ? 'rounded-l-md' : i === arr.length - 1 ? 'rounded-r-md' : '' } ${ statusFilter === f ? 'bg-foreground text-background' : 'text-muted-foreground hover:text-foreground' }`}
-                  >
-                    {f}
-                  </button>
-                ))}
+              <div className="flex items-center gap-2">
+                <div className="flex items-center">
+                  <Button variant="ghost" size="sm" className="px-2" onClick={() => setYear(year - 1)} disabled={year <= 2000} aria-label="Previous year">
+                    <ChevronLeft />
+                  </Button>
+                  <span className="min-w-[3rem] text-center text-xs font-medium tabular-nums">{year}</span>
+                  <Button variant="ghost" size="sm" className="px-2" onClick={() => setYear(year + 1)} disabled={year >= 2100} aria-label="Next year">
+                    <ChevronRight />
+                  </Button>
+                </div>
+                <div className="flex items-center rounded-md border text-xs">
+                  {(['active', 'completed', 'dismissed', 'all'] as const).map((f, i, arr) => (
+                    <button
+                      key={f}
+                      onClick={() => setStatusFilter(f)}
+                      className={`px-3 py-1 capitalize transition-colors ${ i === 0 ? 'rounded-l-md' : i === arr.length - 1 ? 'rounded-r-md' : '' } ${ statusFilter === f ? 'bg-foreground text-background' : 'text-muted-foreground hover:text-foreground' }`}
+                    >
+                      {f}
+                    </button>
+                  ))}
+                </div>
               </div>
             )}
           </div>
+        )}
+        {profile && (view === 'calendar' || view === 'items') && year !== currentYear && (
+          <p className="text-xs text-muted-foreground">
+            Viewing <span className="tabular-nums">{year}</span> ·{' '}
+            <button type="button" onClick={() => setYear(currentYear)} className="underline underline-offset-4 hover:text-foreground">
+              Back to <span className="tabular-nums">{currentYear}</span>
+            </button>
+          </p>
         )}
       </div>
 
