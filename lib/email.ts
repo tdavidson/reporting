@@ -39,6 +39,8 @@ async function sendViaResend(apiKey: string, params: EmailParams) {
     html: params.html,
     attachments: params.attachments?.map(a => ({ filename: a.filename, content: a.content })),
   })
+  // The Resend SDK reports failures as { data: null, error } rather than throwing.
+  if (result.error) throw new Error(result.error.message)
   return { id: result.data?.id }
 }
 
@@ -59,6 +61,8 @@ async function sendViaPostmark(serverToken: string, params: EmailParams) {
       ContentID: null as unknown as string,
     })),
   })
+  // Non-2xx responses reject (axios); a resolved response still carries ErrorCode, 0 on success.
+  if (result.ErrorCode) throw new Error(result.Message || `Postmark error ${result.ErrorCode}`)
   return { id: result.MessageID }
 }
 

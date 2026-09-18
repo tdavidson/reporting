@@ -70,7 +70,12 @@ export async function runFundReminders(
   })
 
   try {
-    await sendOutboundEmail(config, { to: recipients.join(', '), subject: opts.test ? `[Test] ${subject}` : subject, html })
+    await sendOutboundEmail(config, {
+      to: recipients.join(', '),
+      from: settings.from,
+      subject: opts.test ? `[Test] ${subject}` : subject,
+      html,
+    })
   } catch (err) {
     return { ...result, error: err instanceof Error ? err.message : 'send failed' }
   }

@@ -10,3 +10,13 @@ export function parseRecipients(input: string | null | undefined): { value: stri
   if (value.length > MAX_RECIPIENTS) return { invalid: `more than ${MAX_RECIPIENTS} recipients` }
   return { value }
 }
+
+/** The digest's From header, formatted as lib/notes/notify.ts does for system email: the fund's
+ *  system from-name (else the fund name) around its system from-address. Undefined without an
+ *  address, so the provider's own default applies. */
+export function fromHeader(system: { name: string | null; address: string | null }, fundName: string | null): string | undefined {
+  const address = system.address?.trim()
+  if (!address) return undefined
+  const name = system.name?.trim() || fundName?.trim()
+  return name ? `${name} <${address}>` : address
+}

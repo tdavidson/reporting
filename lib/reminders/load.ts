@@ -6,26 +6,31 @@ import { fetchAllRows } from '@/lib/accounting/load'
 import { lastEndedQuarter, metricQuarter, responseKey } from '@/lib/requests/response-status'
 import type { FundReminderData } from './collect'
 import type { ComplianceItemRow } from './sources/compliance'
+import { fromHeader } from './settings'
 
 export interface ReminderSettings {
   enabled: boolean
   recipients: string[]
   asksSendOffsetDays: number
   fundName: string
+  /** The digest's From header, from the fund's system email identity (undefined: provider default). */
+  from?: string
 }
 
 export async function loadReminderSettings(admin: SupabaseClient, fundId: string): Promise<ReminderSettings> {
   const [{ data: s }, { data: fund }] = await Promise.all([
     (admin as any).from('fund_settings')
-      .select('reminders_enabled, reminder_recipients, asks_send_offset_days')
+      .select('reminders_enabled, reminder_recipients, asks_send_offset_days, system_email_from_name, system_email_from_address')
       .eq('fund_id', fundId).maybeSingle(),
     admin.from('funds').select('name').eq('id', fundId).maybeSingle(),
   ])
+  const name = (fund as { name?: string } | null)?.name ?? null
   return {
     enabled: !!s?.reminders_enabled,
     recipients: (s?.reminder_recipients as string[] | null) ?? [],
     asksSendOffsetDays: (s?.asks_send_offset_days as number | null) ?? 0,
-    fundName: (fund as { name?: string } | null)?.name ?? 'Your fund',
+    fundName: name ?? 'Your fund',
+    from: fromHeader({ name: s?.system_email_from_name ?? null, address: s?.system_email_from_address ?? null }, name),
   }
 }
 

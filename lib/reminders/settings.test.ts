@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseRecipients } from './settings'
+import { fromHeader, parseRecipients } from './settings'
 
 describe('parseRecipients', () => {
   it('splits and trims a comma/semicolon list', () => {
@@ -15,5 +15,19 @@ describe('parseRecipients', () => {
   it('caps the list', () => {
     const many = Array.from({ length: 21 }, (_, i) => `u${i}@x.com`).join(',')
     expect(parseRecipients(many)).toEqual({ invalid: 'more than 20 recipients' })
+  })
+})
+
+describe('fromHeader', () => {
+  it('uses the system from-name, else the fund name, around the system address', () => {
+    expect(fromHeader({ name: 'Acme Ops', address: 'ops@acme.vc' }, 'Acme Fund I')).toBe('Acme Ops <ops@acme.vc>')
+    expect(fromHeader({ name: null, address: 'ops@acme.vc' }, 'Acme Fund I')).toBe('Acme Fund I <ops@acme.vc>')
+  })
+  it('is the bare address when there is no name at all', () => {
+    expect(fromHeader({ name: '', address: 'ops@acme.vc' }, null)).toBe('ops@acme.vc')
+  })
+  it('is undefined without a system address, so the provider default applies', () => {
+    expect(fromHeader({ name: 'Acme Ops', address: null }, 'Acme Fund I')).toBeUndefined()
+    expect(fromHeader({ name: null, address: '  ' }, 'Acme Fund I')).toBeUndefined()
   })
 })
