@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { assertWriteAccess } from '@/lib/api-helpers'
 import { dbError } from '@/lib/api-error'
+import { metricQuarter, resolveResponseStatus, responseKey, RESPONSE_STATUSES } from '@/lib/requests/response-status'
 
 function getRecentQuarters(now: Date) {
   const month = now.getMonth()
@@ -77,28 +78,22 @@ export async function GET() {
   // Build a set for fast lookup: "companyId:year:quarter"
   const valueSet = new Set<string>()
   for (const mv of metricValues ?? []) {
-    const q = mv.period_quarter ?? (mv.period_month ? Math.ceil(mv.period_month / 3) : null)
-    if (q != null) {
-      valueSet.add(`${mv.company_id}:${mv.period_year}:${q}`)
-    }
+    const q = metricQuarter(mv)
+    if (q != null) valueSet.add(responseKey(mv.company_id, mv.period_year, q))
   }
 
   // Build override map: "companyId:year:quarter" -> status
   const overrideMap = new Map<string, string>()
   for (const o of ((overrides ?? []) as unknown as { company_id: string; year: number; quarter: number; status: string }[])) {
-    overrideMap.set(`${o.company_id}:${o.year}:${o.quarter}`, o.status)
+    overrideMap.set(responseKey(o.company_id, o.year, o.quarter), o.status)
   }
 
   const data = companies.map((c) => ({
     companyId: c.id,
     companyName: c.name,
     quarters: quarters.map((q) => {
-      const key = `${c.id}:${q.year}:${q.quarter}`
-      const override = overrideMap.get(key)
-      if (override) {
-        return { status: override as 'yes' | 'no' | 'na' }
-      }
-      return { status: valueSet.has(key) ? 'yes' as const : 'no' as const }
+      const key = responseKey(c.id, q.year, q.quarter)
+      return { status: resolveResponseStatus(valueSet.has(key), overrideMap.get(key)) }
     }),
   }))
 
@@ -126,9 +121,8 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: 'company_id, quarter, year, and status required' }, { status: 400 })
   }
 
-  const VALID_STATUSES = ['yes', 'no', 'na']
-  if (!VALID_STATUSES.includes(status)) {
-    return NextResponse.json({ error: 'status must be yes, no, or na' }, { status: 400 })
+  if (!(RESPONSE_STATUSES as string[]).includes(status)) {
+    return NextResponse.json({ error: 'status must be yes, no, na, or waived' }, { status: 400 })
   }
 
   // If setting back to auto-detected value, remove the override

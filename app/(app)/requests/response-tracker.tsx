@@ -10,6 +10,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import type { ResponseStatus } from '@/lib/requests/response-status'
 
 interface QuarterInfo {
   label: string
@@ -18,7 +19,7 @@ interface QuarterInfo {
 }
 
 interface ResponseCell {
-  status: 'yes' | 'no' | 'na'
+  status: ResponseStatus
 }
 
 interface CompanyResponse {
@@ -30,25 +31,35 @@ interface CompanyResponse {
 interface Props {
   quarters: QuarterInfo[]
   data: CompanyResponse[]
-  onStatusChange?: (companyId: string, quarter: number, year: number, status: 'yes' | 'no' | 'na') => void
+  onStatusChange?: (companyId: string, quarter: number, year: number, status: ResponseStatus) => void
 }
 
-const STATUS_CYCLE: Record<string, 'yes' | 'no' | 'na'> = {
+const STATUS_CYCLE: Record<ResponseStatus, ResponseStatus> = {
   yes: 'no',
   no: 'na',
-  na: 'yes',
+  na: 'waived',
+  waived: 'yes',
 }
 
-const STATUS_STYLES = {
+const STATUS_STYLES: Record<ResponseStatus, string> = {
   yes: 'bg-success-subtle text-success dark:bg-success-subtle/30',
   no: 'bg-destructive-subtle text-destructive dark:bg-destructive-subtle/30',
   na: 'bg-muted text-muted-foreground',
+  waived: 'bg-muted text-muted-foreground italic',
 }
 
-const STATUS_LABELS = {
+const STATUS_LABELS: Record<ResponseStatus, string> = {
   yes: 'Yes',
   no: 'No',
   na: 'N/A',
+  waived: 'Stopped',
+}
+
+const STATUS_HINTS: Record<ResponseStatus, string> = {
+  yes: 'Responded',
+  no: 'No response yet — follow-up reminders include this company',
+  na: 'Not expected to report',
+  waived: 'Stopped chasing — follow-up reminders skip this company',
 }
 
 export function ResponseTracker({ quarters, data, onStatusChange }: Props) {
@@ -87,7 +98,7 @@ export function ResponseTracker({ quarters, data, onStatusChange }: Props) {
                           onStatusChange?.(row.companyId, q.quarter, q.year, next)
                         }}
                         className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium cursor-pointer hover:opacity-80 transition-opacity ${STATUS_STYLES[cell.status]}`}
-                        title={`Click to change (${cell.status} → ${STATUS_CYCLE[cell.status]})`}
+                        title={`${STATUS_HINTS[cell.status]}. Click to change to ${STATUS_LABELS[STATUS_CYCLE[cell.status]]}.`}
                       >
                         {STATUS_LABELS[cell.status]}
                       </button>

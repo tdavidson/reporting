@@ -10,6 +10,7 @@ import { AnalystToggleButton } from '@/components/analyst-button'
 import { AnalystPanel } from '@/components/analyst-panel'
 import { PortfolioNotesProvider, PortfolioNotesButton, PortfolioNotesPanel } from '@/components/portfolio-notes'
 import { useFeatureVisibility } from '@/components/feature-visibility-context'
+import type { ResponseStatus } from '@/lib/requests/response-status'
 
 interface Company {
   id: string
@@ -32,7 +33,7 @@ interface QuarterInfo {
 interface CompanyResponse {
   companyId: string
   companyName: string
-  quarters: { status: 'yes' | 'no' | 'na' }[]
+  quarters: { status: ResponseStatus }[]
 }
 
 interface SendResult {
@@ -152,7 +153,7 @@ export default function RequestsPage() {
 
   useEffect(() => { load() }, [load])
 
-  const handleResponseStatusChange = useCallback(async (companyId: string, quarter: number, year: number, status: 'yes' | 'no' | 'na') => {
+  const handleResponseStatusChange = useCallback(async (companyId: string, quarter: number, year: number, status: ResponseStatus) => {
     // Optimistic update
     setTrackerData(prev => prev.map(row => {
       if (row.companyId !== companyId) return row
