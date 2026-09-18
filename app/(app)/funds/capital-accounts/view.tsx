@@ -20,11 +20,13 @@ import { useCanRead } from '@/components/access-context'
 import { CapitalRollforwardTable, type Row } from '@/components/accounting/capital-rollforward-table'
 import { EmptyState } from '@/components/ui/empty-state'
 
-interface CallLine { lpEntityId: string; name: string; amount: number }
-interface CallRow { id: string; callDate: string; description: string | null; scope: string; total: number; lines: CallLine[] }
+type LineStatus = 'open' | 'partial' | 'settled'
+interface CallLine { id: string; lpEntityId: string; name: string; amount: number; settled: number; outstanding: number; status: LineStatus; settledOn: string | null }
+interface RegisterStatus { status: LineStatus; settled: number; outstanding: number; overdue: boolean }
+interface CallRow extends RegisterStatus { id: string; callDate: string; dueDate: string | null; description: string | null; scope: string; total: number; lines: CallLine[] }
 interface Tiers { returnOfCapital: number; preferred: number; catchUp: number; carry: number; profitToLP: number; toLP: number; toGP: number }
 interface DistLine extends CallLine { role: 'lp' | 'carry' }
-interface DistRow {
+interface DistRow extends RegisterStatus {
   distributionId: string; date: string; description: string | null; total: number; lpTotal: number; carryTotal: number
   splitMethod: 'waterfall' | 'pro_rata' | 'manual'; tiers: Tiers | null; lines: DistLine[]
 }
@@ -240,6 +242,22 @@ export function CapitalAccountsView() {
     }
   }
 
+  // The one word a call or distribution card leads with. Derived at read time from the ledger
+  // (lib/accounting/settlement.ts), so it is never stale and never needs a button to advance it.
+  function StatusBadge({ r, verb }: { r: RegisterStatus; verb: 'funded' | 'paid' }) {
+    const label = r.status === 'settled' ? (verb === 'funded' ? 'Funded' : 'Paid')
+      : r.status === 'partial' ? (verb === 'funded' ? 'Partly funded' : 'Partly paid')
+      : r.overdue ? 'Overdue' : 'Open'
+    const tone = r.status === 'settled' ? 'bg-success text-success-foreground'
+      : r.overdue ? 'bg-destructive text-destructive-foreground'
+      : r.status === 'partial' ? 'bg-warning text-warning-foreground' : 'bg-muted text-muted-foreground'
+    return <span className={`inline-flex items-center rounded-sm px-1.5 py-0.5 text-[11px] font-medium ${tone}`}>{label}</span>
+  }
+  const lineNote = (l: CallLine, verb: 'funded' | 'paid') =>
+    l.status === 'settled' ? `${verb}${l.settledOn ? ` ${l.settledOn}` : ''}`
+    : l.status === 'partial' ? `${fmt(l.settled)} ${verb}, ${fmt(l.outstanding)} outstanding`
+    : null
+
   return (
     <div className="space-y-3">
       {stranded?.stranded && (
@@ -435,11 +453,11 @@ export function CapitalAccountsView() {
                 <span>Profit to LPs <span className="tabular-nums text-foreground">{fmt(preview.tiers.profitToLP)}</span></span>
                 <span>Carry <span className="tabular-nums text-foreground">{fmt(preview.tiers.carry)}</span></span>
               </div>
-              {preview.warnings.map((w, i) => <p key={i} className="mt-1 text-warning">{w}</p>)}
+              {preview.warnings.map((w, i) => <p key={i} className="mt-1 text-sm text-warning">{w}</p>)}
             </div>
           )}
           {isDist && preview && preview.method !== 'waterfall' && preview.warnings.length > 0 && (
-            <div className="rounded-lg border px-3 py-2 text-xs text-warning">{preview.warnings.map((w, i) => <p key={i}>{w}</p>)}</div>
+            <div className="rounded-lg border px-3 py-2 text-sm text-warning">{preview.warnings.map((w, i) => <p key={i}>{w}</p>)}</div>
           )}
 
           <div className="border rounded-lg overflow-x-auto">
@@ -541,13 +559,21 @@ export function CapitalAccountsView() {
           <div className="space-y-2">
             {calls.map(c => (
               <div key={c.id} className="border rounded-card p-3">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="font-medium">{c.callDate} · {fmt(c.total)}</span>
-                  <span className="text-xs text-muted-foreground">{c.scope === 'fund_wide' ? 'Fund-wide' : 'Per-LP'}</span>
+                <div className="flex items-center justify-between gap-2 text-sm">
+                  <span className="font-medium flex items-center gap-2">{c.callDate} · {fmt(c.total)} <StatusBadge r={c} verb="funded" /></span>
+                  <span className="text-xs text-muted-foreground">
+                    {c.scope === 'fund_wide' ? 'Fund-wide' : 'Per-LP'}{c.dueDate ? ` · due ${c.dueDate}` : ''}
+                    {c.status !== 'settled' ? ` · ${fmt(c.outstanding)} outstanding` : ''}
+                  </span>
                 </div>
                 {c.description && <p className="text-xs text-muted-foreground mt-0.5">{c.description}</p>}
                 <div className="mt-2 text-xs text-muted-foreground flex flex-wrap gap-x-4 gap-y-0.5">
-                  {c.lines.map(l => <span key={l.lpEntityId}>{l.name}: <span className="tabular-nums">{fmt(l.amount)}</span></span>)}
+                  {c.lines.map(l => (
+                    <span key={l.lpEntityId} className={l.status === 'settled' ? 'text-muted-foreground/70' : ''}>
+                      {l.name}: <span className="tabular-nums">{fmt(l.amount)}</span>
+                      {lineNote(l, 'funded') && <span className="ml-1 text-[11px]">({lineNote(l, 'funded')})</span>}
+                    </span>
+                  ))}
                 </div>
                 <NoticeAction kind="capital_call" id={c.id} />
               </div>
@@ -563,11 +589,12 @@ export function CapitalAccountsView() {
           <div className="space-y-2">
             {dists.map(d => (
               <div key={d.distributionId} className="border rounded-card p-3">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="font-medium">{d.date} · {fmt(d.total)}</span>
+                <div className="flex items-center justify-between gap-2 text-sm">
+                  <span className="font-medium flex items-center gap-2">{d.date} · {fmt(d.total)} <StatusBadge r={d} verb="paid" /></span>
                   <span className="text-xs text-muted-foreground">
                     {d.splitMethod === 'waterfall' ? 'Waterfall' : d.splitMethod === 'pro_rata' ? 'Pro-rata by capital' : 'Manual split'}
                     {d.carryTotal > 0 ? ` · carry ${fmt(d.carryTotal)}` : ''}
+                    {d.status !== 'settled' ? ` · ${fmt(d.outstanding)} unpaid` : ''}
                   </span>
                 </div>
                 {d.description && <p className="text-xs text-muted-foreground mt-0.5">{d.description}</p>}
@@ -580,7 +607,12 @@ export function CapitalAccountsView() {
                   </p>
                 )}
                 <div className="mt-2 text-xs text-muted-foreground flex flex-wrap gap-x-4 gap-y-0.5">
-                  {d.lines.map(l => <span key={l.lpEntityId}>{l.name}{l.role === 'carry' ? ' (carry)' : ''}: <span className="tabular-nums">{fmt(l.amount)}</span></span>)}
+                  {d.lines.map(l => (
+                    <span key={l.lpEntityId} className={l.status === 'settled' ? 'text-muted-foreground/70' : ''}>
+                      {l.name}{l.role === 'carry' ? ' (carry)' : ''}: <span className="tabular-nums">{fmt(l.amount)}</span>
+                      {lineNote(l, 'paid') && <span className="ml-1 text-[11px]">({lineNote(l, 'paid')})</span>}
+                    </span>
+                  ))}
                 </div>
                 <NoticeAction kind="distribution" id={d.distributionId} />
               </div>

@@ -27,6 +27,8 @@ import { loadPostedLedger, loadEntityNames } from './load'
 import { computeCapitalAccounts, bucketForSourceType } from './capital-account'
 import { vehicleIdByName } from './vehicle-id'
 import { loadCarryTerms, type DatedContribution } from './carry'
+import { applySettlements, registerStatus, type LineStatus, type RegisterStatus, type Settlement } from './settlement'
+import { loadSettlements } from './capital-calls'
 import {
   splitDistribution,
   suggestedCharacter,
@@ -302,15 +304,23 @@ export async function declareDistribution(
 }
 
 export interface DeclaredDistributionLine {
+  /** The register line's id — what a notice hangs off. */
+  id: string
   lpEntityId: string
   name: string
   amount: number
   /** 'lp' — a share of the LP tiers; 'carry' — the GP's take. */
   role: 'lp' | 'carry'
   character: DistributionCharacter
+  /** What has been paid against THIS line, oldest declaration first (lib/accounting/settlement.ts). */
+  settled: number
+  outstanding: number
+  status: LineStatus
+  settledOn: string | null
+  noticeDocumentId: string | null
 }
 
-export interface DeclaredDistribution {
+export interface DeclaredDistribution extends RegisterStatus {
   distributionId: string
   entryId: string | null
   carryEntryId: string | null
@@ -347,27 +357,48 @@ export async function listDistributions(
   admin: SupabaseClient,
   fundId: string,
   group: string,
+  today: string = new Date().toISOString().slice(0, 10),
 ): Promise<DeclaredDistribution[]> {
   const vehicleId = await vehicleIdByName(admin, fundId, group)
-  const [{ data: rows }, names] = await Promise.all([
+  const [{ data: rows }, names, settlements] = await Promise.all([
     (admin as any)
       .from('distributions')
-      .select('id, distribution_date, description, status, journal_entry_id, carry_journal_entry_id, split_method, wf_return_of_capital, wf_preferred, wf_catch_up, wf_carry, kind, char_return_of_capital, char_realized_gain, char_income, distribution_lines(id, lp_entity_id, amount, role)')
+      .select('id, distribution_date, description, status, journal_entry_id, carry_journal_entry_id, split_method, wf_return_of_capital, wf_preferred, wf_catch_up, wf_carry, kind, char_return_of_capital, char_realized_gain, char_income, distribution_lines(id, lp_entity_id, amount, role, notice_document_id, settled_amount, settled_on)')
       .eq('fund_id', fundId)
       .eq('vehicle_id', vehicleId)
       .order('distribution_date', { ascending: false })
       .limit(200),
     loadEntityNames(admin, fundId, group),
+    loadSettlements(admin, fundId, group, 'payable'),
   ])
+  const all = ((rows as any[]) ?? [])
 
-  return ((rows as any[]) ?? []).map(d => {
+  // One FIFO pass over every line — see listCapitalCalls.
+  const registerLines = all.flatMap(d => ((d.distribution_lines as any[]) ?? []).map(l => ({
+    id: l.id as string, lpEntityId: l.lp_entity_id as string, date: d.distribution_date as string, amount: Number(l.amount),
+  })))
+  const manual: Settlement[] = all.flatMap(d => ((d.distribution_lines as any[]) ?? [])
+    .filter(l => Number(l.settled_amount) > 0)
+    .map(l => ({ lpEntityId: l.lp_entity_id as string, date: (l.settled_on ?? d.distribution_date) as string, amount: Number(l.settled_amount) })))
+  const settledByLine = applySettlements(registerLines, settlements.length > 0 ? settlements : manual)
+
+  return all.map(d => {
     const character = characterFromRow(d)
-    const rawLines = (d.distribution_lines ?? []).map((l: any) => ({
-      lpEntityId: l.lp_entity_id as string,
-      name: names.get(l.lp_entity_id) ?? l.lp_entity_id,
-      amount: roundCents(Number(l.amount)),
-      role: (l.role === 'carry' ? 'carry' : 'lp') as 'lp' | 'carry',
-    }))
+    const rawLines = (d.distribution_lines ?? []).map((l: any) => {
+      const s = settledByLine.get(l.id)
+      return {
+        id: l.id as string,
+        lpEntityId: l.lp_entity_id as string,
+        name: names.get(l.lp_entity_id) ?? l.lp_entity_id,
+        amount: roundCents(Number(l.amount)),
+        role: (l.role === 'carry' ? 'carry' : 'lp') as 'lp' | 'carry',
+        settled: s?.settled ?? 0,
+        outstanding: s?.outstanding ?? roundCents(Number(l.amount)),
+        status: (s?.status ?? 'open') as LineStatus,
+        settledOn: s?.settledOn ?? null,
+        noticeDocumentId: (l.notice_document_id ?? null) as string | null,
+      }
+    })
     const total = roundCents(rawLines.reduce((s: number, l: any) => s + l.amount, 0))
     const carryTotal = roundCents(rawLines.filter((l: any) => l.role === 'carry').reduce((s: number, l: any) => s + l.amount, 0))
     const splitMethod: SplitMethod = d.split_method === 'waterfall' || d.split_method === 'pro_rata' ? d.split_method : 'manual'
@@ -398,6 +429,7 @@ export async function listDistributions(
       character,
       characterised: !isUncharacterised(character),
       lines: rawLines.map((l: any) => ({ ...l, character: characterForLine(character, l.amount, total) })),
+      ...registerStatus(rawLines, null, today),
     }
   })
 }

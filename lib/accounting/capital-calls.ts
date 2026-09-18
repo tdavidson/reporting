@@ -37,6 +37,8 @@ import { vehicleIdByName } from './vehicle-id'
 import { roundCents } from './ledger'
 import { RECEIVABLE_CODE, DISTRIBUTION_PAYABLE_CODE } from './chart'
 import { ACTUAL_BOOK } from './books'
+import { applySettlements, registerStatus, settlementsFromPostings, type LineStatus, type RegisterStatus, type Settlement } from './settlement'
+import { loadCapitalSource } from './capital-source'
 
 // Re-exported for the callers that have always imported it from here.
 export { RECEIVABLE_CODE }
@@ -193,44 +195,110 @@ export async function lpCalledTotals(
   return out
 }
 
-export interface CapitalCallRow {
+export interface CapitalCallLineRow {
+  /** The register line's id — what a notice, a receipt and an acknowledgment hang off. */
+  id: string
+  lpEntityId: string
+  name: string
+  amount: number
+  /** What has arrived against THIS line, oldest call first (lib/accounting/settlement.ts). */
+  settled: number
+  outstanding: number
+  status: LineStatus
+  settledOn: string | null
+  /** The notice PDF published for this line, if any. */
+  noticeDocumentId: string | null
+}
+
+export interface CapitalCallRow extends RegisterStatus {
   id: string
   callDate: string
+  dueDate: string | null
+  callNumber: number | null
   description: string | null
   scope: string
   total: number
-  lines: { lpEntityId: string; name: string; amount: number }[]
+  lines: CapitalCallLineRow[]
 }
 
-/** Issued calls (most recent first) with their per-LP lines. */
+/**
+ * The money that has moved against a vehicle's calls or distributions, by partner and date.
+ *
+ * Ledger vehicles read it off the receivable (fundings) or the payable (payments). A
+ * capital-tracking vehicle has neither — its calls settle by hand, recorded on the line
+ * itself — so the caller supplies those and this returns nothing.
+ */
+export async function loadSettlements(
+  admin: SupabaseClient,
+  fundId: string,
+  group: string,
+  direction: 'receivable' | 'payable',
+): Promise<Settlement[]> {
+  const source = await loadCapitalSource(admin, fundId, group)
+  if (source !== 'ledger') return []
+  const { accounts, postings } = await loadPostedLedger(admin, fundId, group)
+  const code = direction === 'receivable' ? RECEIVABLE_CODE : DISTRIBUTION_PAYABLE_CODE
+  const account = accounts.find(a => a.code === code)
+  if (!account) return []
+  return settlementsFromPostings(postings, account.id, direction)
+}
+
+/** Issued calls (most recent first) with their per-LP lines and what has been funded against each. */
 export async function listCapitalCalls(
   admin: SupabaseClient,
   fundId: string,
-  group: string
+  group: string,
+  today: string = new Date().toISOString().slice(0, 10),
 ): Promise<CapitalCallRow[]> {
   const vehicleId = await vehicleIdByName(admin, fundId, group)
-  const [{ data: calls }, names] = await Promise.all([
+  const [{ data: calls }, names, settlements] = await Promise.all([
     admin
       .from('capital_calls' as any)
-      .select('id, call_date, description, scope, capital_call_lines(lp_entity_id, amount)')
+      .select('id, call_date, due_date, call_number, description, scope, capital_call_lines(id, lp_entity_id, amount, notice_document_id, settled_amount, settled_on)')
       .eq('fund_id', fundId)
       .eq('vehicle_id', vehicleId)
       .order('call_date', { ascending: false }),
     loadEntityNames(admin, fundId, group),
+    loadSettlements(admin, fundId, group, 'receivable'),
   ])
-  return ((calls as any[]) ?? []).map(c => {
-    const lines = ((c.capital_call_lines as any[]) ?? []).map(l => ({
-      lpEntityId: l.lp_entity_id,
-      name: names.get(l.lp_entity_id) ?? l.lp_entity_id,
-      amount: Number(l.amount),
-    }))
+  const rows = ((calls as any[]) ?? [])
+
+  // Every line of every call goes through ONE FIFO pass, so a wire that covers two calls is
+  // applied to both in order rather than counted against each.
+  const registerLines = rows.flatMap(c => ((c.capital_call_lines as any[]) ?? []).map(l => ({
+    id: l.id as string, lpEntityId: l.lp_entity_id as string, date: c.call_date as string, amount: Number(l.amount),
+  })))
+  // A tracking vehicle's lines settle by hand: the recorded amount stands in for the ledger.
+  const manual: Settlement[] = rows.flatMap(c => ((c.capital_call_lines as any[]) ?? [])
+    .filter(l => Number(l.settled_amount) > 0)
+    .map(l => ({ lpEntityId: l.lp_entity_id as string, date: (l.settled_on ?? c.call_date) as string, amount: Number(l.settled_amount) })))
+  const settledByLine = applySettlements(registerLines, settlements.length > 0 ? settlements : manual)
+
+  return rows.map(c => {
+    const lines: CapitalCallLineRow[] = ((c.capital_call_lines as any[]) ?? []).map(l => {
+      const s = settledByLine.get(l.id)
+      return {
+        id: l.id,
+        lpEntityId: l.lp_entity_id,
+        name: names.get(l.lp_entity_id) ?? l.lp_entity_id,
+        amount: Number(l.amount),
+        settled: s?.settled ?? 0,
+        outstanding: s?.outstanding ?? Number(l.amount),
+        status: s?.status ?? 'open',
+        settledOn: s?.settledOn ?? null,
+        noticeDocumentId: l.notice_document_id ?? null,
+      }
+    })
     return {
       id: c.id,
       callDate: c.call_date,
+      dueDate: c.due_date ?? null,
+      callNumber: c.call_number ?? null,
       description: c.description ?? null,
       scope: c.scope,
       total: roundCents(lines.reduce((s, l) => s + l.amount, 0)),
       lines,
+      ...registerStatus(lines, c.due_date ?? null, today),
     }
   })
 }
