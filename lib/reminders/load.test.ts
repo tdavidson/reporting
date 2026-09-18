@@ -51,6 +51,7 @@ describe('loadFundReminderData', () => {
   const tables = [
     'compliance_items', 'fund_compliance_profile', 'compliance_fund_settings', 'compliance_deadlines',
     'fund_vehicles', 'fund_cash_flows', 'email_requests', 'companies', 'metric_values', 'ask_response_overrides',
+    'capital_calls',
   ]
 
   it.each(tables)('throws when %s fails to load', async table => {

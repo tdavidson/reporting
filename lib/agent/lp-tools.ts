@@ -319,10 +319,15 @@ export const LP_HANDLERS: Record<string, AgentToolHandler> = {
       calls: calls.map(c => ({
         id: c.id,
         date: c.callDate,
+        due_date: c.dueDate,
         description: c.description,
         scope: c.scope,
         total: c.total,
-        lines: c.lines.map(l => ({ lp: l.name, amount: l.amount })),
+        status: c.status,          // open | partial | settled, from the ledger (oldest call first)
+        overdue: c.overdue,
+        funded: c.settled,
+        outstanding: c.outstanding,
+        lines: c.lines.map(l => ({ lp: l.name, amount: l.amount, funded: l.settled, outstanding: l.outstanding, status: l.status, funded_on: l.settledOn })),
       })),
     }
   },

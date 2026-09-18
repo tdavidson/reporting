@@ -524,6 +524,8 @@ Cash out to LPs; each LP's capital decreases. Line: **distributions**.
 | 3100-`<id>` each LP capital | Dr their distribution |
 | 1000 Cash | Cr total |
 
+Declaring from the Capital accounts page posts the same debit against **2300 Distributions payable** instead of cash; the wire that follows settles the payable (`source: distribution_settlement`), which is what lets a bank row match back to the declaration. A fund-wide declaration is split **through the vehicle's waterfall** (`lib/accounting/distribution-waterfall.ts`): prior distributions are replayed through the tiers to find where return of capital, the preferred return and the GP's catch-up stand, and only then is this one split. The GP's take posts as a **second entry** with `source: carry_distribution` — Dr the recipient's capital, Cr 2300 — which the roll-forward files on the **carried interest** line against the accrual, so a paid carry reads as carry paid rather than as a return of the GP's own capital. Both entry ids sit on the `distributions` register row with the tier amounts and the split method.
+
 ```text
 2023-03-15 * "Distribution"
   source: "distribution"

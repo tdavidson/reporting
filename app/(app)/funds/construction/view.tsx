@@ -15,6 +15,7 @@ import { Metric } from '@/components/ui/metric'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { SortTh, compareVals, nextSort, type SortState } from '@/components/sortable-th'
 import { CapitalUsageChart, ValueSourcesChart, ReturnRangeChart } from './charts'
+import { ForecastSection } from './forecast-section'
 import { cn } from '@/lib/utils'
 import {
   constructionModel, parseAssumptions, DEFAULT_ASSUMPTIONS, blankStage,
@@ -331,9 +332,14 @@ export function ConstructionView({ vehicle, vehicleId }: { vehicle: string; vehi
             </tbody></table></div>
           </section>
         </div>
+
+        {/* The forward half: WHEN the plan happens (pacing) and how sure we are (Monte Carlo).
+            Both read the model above and add only what they ask for. */}
+        <ForecastSection model={model} actuals={actuals} a={a} setA={setA} vehicle={vehicle} fmt={fmt} fmtFull={fmtFull} multiple={multiple} />
         {(editingPosition || editingStage) && <ForecastEditorDialog
           position={editingPosition}
           stage={editingStage}
+          a={a}
           fmt={fmt}
           multiple={multiple}
           onClose={() => setForecastEditor(null)}
@@ -351,9 +357,10 @@ export function ConstructionView({ vehicle, vehicleId }: { vehicle: string; vehi
 }
 
 function ForecastEditorDialog({
-  position, stage, fmt, multiple, onClose, onPositionChange, onStageChange, onRemoveStage,
+  position, stage, a, fmt, multiple, onClose, onPositionChange, onStageChange, onRemoveStage,
 }: {
   position: PositionReturn | null; stage: StageReturn | null
+  a: ConstructionAssumptions
   fmt: (v: number | null) => string; multiple: (v: number | null) => string
   onClose: () => void; onPositionChange: (patch: Partial<ConstructionPositionForecast>) => void
   onStageChange: (patch: Partial<ConstructionStage>) => void; onRemoveStage?: () => void
@@ -376,6 +383,12 @@ function ForecastEditorDialog({
   const setAdditionalDilution = (value: number) => position
     ? onPositionChange({ additionalDilution: Math.min(1, value) })
     : onStageChange({ additionalDilution: Math.min(1, value) })
+  // Per-deal timing and simulation overrides. Empty = the fund-wide setting, shown as the placeholder.
+  const timing = position?.forecast ?? stage
+  const pacingPlaceholder = (v: number) => (v > 0 ? String(v) : 'fund')
+  const setDeal = (patch: Partial<ConstructionPositionForecast> & Partial<ConstructionStage>) => position
+    ? onPositionChange(patch as Partial<ConstructionPositionForecast>)
+    : onStageChange(patch as Partial<ConstructionStage>)
   return <Dialog open onOpenChange={open => { if (!open) onClose() }}>
     <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
       <DialogHeader>
@@ -427,6 +440,24 @@ function ForecastEditorDialog({
         </div>
       </div>
 
+      <div className="space-y-3 rounded-md border p-4">
+        <div><h3 className="text-base font-medium">Timing</h3><p className="mt-0.5 text-xs text-muted-foreground">When this deal happens on the forecast calendar. Leave a field empty to use the fund-wide pacing.</p></div>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          {stage && <OptionalNumberField label="Invest in" hint="Years from today" value={stage.investInYears} placeholder={a.pacing.deploymentYears > 0 ? `0–${a.pacing.deploymentYears}` : 'fund'} suffix="yrs" step="0.5" onChange={v => onStageChange({ investInYears: v })} />}
+          <OptionalNumberField label={position ? 'Exit in' : 'Exit after check'} hint={position ? 'Years from today' : 'Years after the initial check'} value={timing?.exitInYears} placeholder={pacingPlaceholder(position ? a.pacing.existingHoldYears : a.pacing.holdYears)} suffix="yrs" step="0.5" onChange={v => setDeal({ exitInYears: v })} />
+          <OptionalNumberField label={position ? 'Follow-on in' : 'Follow-on after check'} hint={position ? 'Years from today' : 'Years after the initial check'} value={timing?.followOnInYears} placeholder={pacingPlaceholder(a.pacing.followOnLagYears)} suffix="yrs" step="0.5" onChange={v => setDeal({ followOnInYears: v })} />
+        </div>
+      </div>
+
+      <div className="space-y-3 rounded-md border p-4">
+        <div><h3 className="text-base font-medium">Simulation</h3><p className="mt-0.5 text-xs text-muted-foreground">How the Monte Carlo varies this deal&rsquo;s return and timing. Leave a field empty to use the fund-wide setting.</p></div>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <OptionalNumberField label="Loss rate" hint="Chance of a full write-off" value={timing?.simLossRate == null ? timing?.simLossRate : Number((timing.simLossRate * 100).toFixed(4))} placeholder={a.simulation.lossRate > 0 ? String(Number((a.simulation.lossRate * 100).toFixed(2))) : 'fund'} suffix="%" step="1" onChange={v => setDeal({ simLossRate: v == null ? null : Math.min(99, v) / 100 })} />
+          <OptionalNumberField label="Dispersion" hint="Log-normal sigma; 1 is wide" value={timing?.simDispersion} placeholder={a.simulation.dispersion > 0 ? String(a.simulation.dispersion) : 'fund'} step="0.1" onChange={v => setDeal({ simDispersion: v })} />
+          <OptionalNumberField label="Exit spread" hint="± years around the exit" value={timing?.simExitSpreadYears} placeholder={a.simulation.holdSpreadYears > 0 ? String(a.simulation.holdSpreadYears) : 'fund'} suffix="yrs" step="0.5" onChange={v => setDeal({ simExitSpreadYears: v })} />
+        </div>
+      </div>
+
       <DialogFooter className="sm:justify-between">
         {onRemoveStage ? <Button type="button" variant="outline" onClick={onRemoveStage} className="text-destructive hover:text-destructive"><X className="h-4 w-4" />Remove forecast</Button> : <span />}
         <Button type="button" onClick={onClose}>Done</Button>
@@ -468,6 +499,12 @@ function MoneyCell({ children, full }: { children: ReactNode; full: string }) { 
 const NO_NUMBER_SPINNERS = '[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none'
 function NumberField({ label, value, onChange, step = 'any', suffix, hideLabel = false }: { label: string; value: number; onChange: (v: number) => void; step?: string; suffix?: string; hideLabel?: boolean }) {
   return <label className="text-xs text-muted-foreground"><span className={hideLabel ? 'sr-only' : undefined}>{label}</span><div className={cn('relative', !hideLabel && 'mt-1')}><Input type="number" min="0" step={step} value={value || ''} onChange={e => onChange(Math.max(0, Number(e.target.value)))} className={cn('h-9 tabular-nums', NO_NUMBER_SPINNERS, suffix && 'pr-7')} />{suffix && <span className="pointer-events-none absolute right-2.5 top-2 text-xs">{suffix}</span>}</div></label>
+}
+/** A number the deal may state or leave to the fund: empty is null, never zero, so the fund-wide value applies. */
+function OptionalNumberField({ label, hint, value, placeholder, onChange, step = 'any', suffix }: {
+  label: string; hint?: string; value: number | null | undefined; placeholder?: string; onChange: (v: number | null) => void; step?: string; suffix?: string
+}) {
+  return <label className="text-xs text-muted-foreground"><span>{label}</span>{hint && <span className="ml-1 text-muted-foreground/70">· {hint}</span>}<div className="relative mt-1"><Input type="number" min="0" step={step} value={value ?? ''} placeholder={placeholder} onChange={e => onChange(e.target.value === '' ? null : Math.max(0, Number(e.target.value)))} className={cn('h-9 tabular-nums', NO_NUMBER_SPINNERS, suffix && 'pr-7')} />{suffix && <span className="pointer-events-none absolute right-2.5 top-2 text-xs">{suffix}</span>}</div></label>
 }
 function PercentField({ label, value, onChange, hideLabel = false }: { label: string; value: number; onChange: (v: number) => void; hideLabel?: boolean }) {
   return <label className="text-xs text-muted-foreground"><span className={hideLabel ? 'sr-only' : undefined}>{label}</span><div className={cn('relative', !hideLabel && 'mt-1')}><Input type="number" min="0" step="0.1" value={value ? Number((value * 100).toFixed(4)) : ''} onChange={e => onChange(Math.max(0, Number(e.target.value)) / 100)} className={cn('h-9 pr-7 tabular-nums', NO_NUMBER_SPINNERS)} /><span className="pointer-events-none absolute right-2.5 top-2 text-xs">%</span></div></label>

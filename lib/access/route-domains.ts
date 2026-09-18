@@ -212,6 +212,8 @@ export const ROUTE_DOMAINS: Record<string, RouteAccess> = {
   'api/accounting/lp-statement/publish': { domain: 'lp_relations', feature: 'lp_portal' },
   // Call and distribution notices go OUT to partners, same as a published statement.
   'api/accounting/notices/publish': { domain: 'lp_relations', feature: 'lp_portal' },
+  // A receipt for a funded call line goes out the same way a notice does.
+  'api/accounting/notices/receipt': { domain: 'lp_relations', feature: 'lp_portal' },
   'api/lps/live-report/share': { domain: 'lp_relations', feature: 'lp_portal' },
   'api/lps/snapshots/[id]/share': { domain: 'lp_relations', feature: 'lp_portal' },
   'api/lps/authorized-users': { domain: 'lp_relations', feature: 'lp_portal' },
@@ -220,6 +222,10 @@ export const ROUTE_DOMAINS: Record<string, RouteAccess> = {
   'api/lps/invites': { domain: 'lp_relations', feature: 'lp_portal' },
   'api/lps/invites/bulk': { domain: 'lp_relations', feature: 'lp_portal' },
   'api/lps/messages': { domain: 'lp_relations', feature: 'lp_portal' },
+  // The delivery log: which LP was emailed which notice, statement, letter or document.
+  'api/lps/deliveries': { domain: 'lp_relations', feature: 'lp_portal' },
+  // A plain message to chosen LPs, with nothing attached: the same send path as a document.
+  'api/lps/announce': { domain: 'lp_relations', feature: 'lp_portal' },
   'api/lps/send': { domain: 'lp_relations', feature: 'lp_portal' },
   // "View as LP" renders a NAMED investor's own capital position — commitment, paid-in,
   // distributions, NAV — and the statement PDF renders the whole thing. That is lp_capital data
@@ -537,6 +543,9 @@ export const UNGATED_ROUTES: Record<string, string> = {
   'api/portal/letters/[id]': 'LP portal: resolveLpAccess.',
   'api/portal/letters/[id]/pdf': 'LP portal: resolveLpAccess.',
   'api/portal/me': 'LP portal: resolveLpAccess.',
+  'api/portal/messages': 'LP portal: resolveLpAccess.',
+  'api/portal/notices': 'LP portal: resolveLpAccess.',
+  'api/portal/notices/ack': 'LP portal: resolveLpAccess.',
   'api/portal/overview': 'LP portal: resolveLpAccess.',
   'api/portal/snapshots': 'LP portal: resolveLpAccess.',
   'api/portal/snapshots/[id]': 'LP portal: resolveLpAccess.',

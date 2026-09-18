@@ -37,6 +37,8 @@ import { vehicleIdByName } from './vehicle-id'
 import { roundCents } from './ledger'
 import { RECEIVABLE_CODE, DISTRIBUTION_PAYABLE_CODE } from './chart'
 import { ACTUAL_BOOK } from './books'
+import { applySettlements, registerStatus, settlementsFromPostings, type LineStatus, type RegisterStatus, type Settlement } from './settlement'
+import { loadCapitalSource } from './capital-source'
 
 // Re-exported for the callers that have always imported it from here.
 export { RECEIVABLE_CODE }
@@ -72,6 +74,11 @@ export interface IssueCallInput {
 /**
  * Issue a capital call: post the receivable/capital entry (Dr 1300 / Cr each LP's
  * capital) and record the call + its per-LP lines in the register.
+ *
+ * On a CAPITAL-TRACKING vehicle there is no ledger to post to: the register row alone is the
+ * call, the notice is rendered from it, and funding is recorded on the line by hand (see
+ * `settleRegisterLine`). The vehicle's capital stays whatever its positions say — the register
+ * is the record of what was asked and what arrived, not a second producer of capital.
  */
 export async function issueCapitalCall(
   admin: SupabaseClient,
@@ -79,27 +86,38 @@ export async function issueCapitalCall(
   group: string,
   userId: string | null,
   input: IssueCallInput
-): Promise<{ callId: string; entryId: string } | { error: string }> {
+): Promise<{ callId: string; entryId: string | null } | { error: string }> {
   const lines = (input.lines ?? []).filter(l => l.lpEntityId && Number(l.amount) > 0)
   if (lines.length === 0) return { error: 'A call needs at least one LP with a positive amount' }
   if (!input.callDate) return { error: 'A call date is required' }
 
-  const codes = await accountIdByCode(admin, fundId, group)
-  const receivableId = codes.get(RECEIVABLE_CODE)
-  if (!receivableId) return { error: `Seed the chart of accounts first (missing ${RECEIVABLE_CODE} Due from LPs)` }
-
-  const capMap = await ensureCapitalAccounts(admin, fundId, group, lines.map(l => l.lpEntityId))
   const perLp = new Map<string, number>()
   for (const l of lines) perLp.set(l.lpEntityId, roundCents((perLp.get(l.lpEntityId) ?? 0) + Number(l.amount)))
 
-  const entry = buildCapitalCallIssuanceEntry(
-    { fundId, entryDate: input.callDate, memo: input.description || 'Capital call' },
-    perLp,
-    capMap,
-    receivableId
-  )
-  const result = await persistEntry(admin, fundId, group, userId, entry, 'posted')
-  if ('error' in result) return { error: result.error }
+  const source = await loadCapitalSource(admin, fundId, group)
+  let entryId: string | null = null
+  if (source === 'ledger') {
+    const codes = await accountIdByCode(admin, fundId, group)
+    const receivableId = codes.get(RECEIVABLE_CODE)
+    if (!receivableId) return { error: `Seed the chart of accounts first (missing ${RECEIVABLE_CODE} Due from LPs)` }
+
+    const capMap = await ensureCapitalAccounts(admin, fundId, group, lines.map(l => l.lpEntityId))
+    const entry = buildCapitalCallIssuanceEntry(
+      { fundId, entryDate: input.callDate, memo: input.description || 'Capital call' },
+      perLp,
+      capMap,
+      receivableId
+    )
+    const result = await persistEntry(admin, fundId, group, userId, entry, 'posted')
+    if ('error' in result) return { error: result.error }
+    entryId = result.entryId
+  } else {
+    // The partners must at least exist in this fund — the same check ensureCapitalAccounts makes.
+    const { data: ents } = await admin.from('lp_entities' as any).select('id').eq('fund_id', fundId).in('id', Array.from(perLp.keys()))
+    const known = new Set(((ents as any[]) ?? []).map(e => e.id as string))
+    const foreign = Array.from(perLp.keys()).filter(id => !known.has(id))
+    if (foreign.length > 0) return { error: `Unknown LP for this fund: ${foreign.join(', ')}` }
+  }
 
   const vehicleId = await vehicleIdByName(admin, fundId, group)
   const { data: call, error: callErr } = await admin
@@ -112,7 +130,7 @@ export async function issueCapitalCall(
       description: input.description ?? null,
       scope: input.scope,
       status: 'issued',
-      journal_entry_id: result.entryId,
+      journal_entry_id: entryId,
       created_by: userId,
     })
     .select('id')
@@ -131,7 +149,42 @@ export async function issueCapitalCall(
   )
   if (lineErr) return { error: lineErr.message }
 
-  return { callId, entryId: result.entryId }
+  return { callId, entryId }
+}
+
+/**
+ * Record a funding (or a payment) on a register line BY HAND — capital-tracking vehicles only.
+ *
+ * A ledger vehicle settles through the bank feed: the funding entry credits the receivable and
+ * lib/accounting/settlement.ts applies it. There is no receivable on a tracking vehicle, so the
+ * line carries the figure itself. Refused on a ledger vehicle: a second source of settlement
+ * would disagree with the first the moment a wire was reversed.
+ */
+export async function settleRegisterLine(
+  admin: SupabaseClient,
+  fundId: string,
+  group: string,
+  kind: 'capital_call' | 'distribution',
+  lineId: string,
+  input: { amount: number; date: string },
+): Promise<{ ok: true } | { error: string }> {
+  const source = await loadCapitalSource(admin, fundId, group)
+  if (source === 'ledger') return { error: 'This vehicle keeps books: match the wire on the Bank page and post it, and the line settles from the ledger.' }
+  const amount = roundCents(Number(input.amount))
+  if (!Number.isFinite(amount) || amount < 0) return { error: 'A settled amount must be zero or more' }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(input.date)) return { error: 'A settlement date is required' }
+
+  const vehicleId = await vehicleIdByName(admin, fundId, group)
+  const table = kind === 'capital_call' ? 'capital_call_lines' : 'distribution_lines'
+  const { data: line } = await admin.from(table as any).select('id, amount').eq('id', lineId).eq('fund_id', fundId).eq('vehicle_id', vehicleId).maybeSingle()
+  if (!line) return { error: 'Line not found on this vehicle' }
+  if (amount > roundCents(Number((line as any).amount)) + 0.005) return { error: 'Settled more than the line: record the overpayment on the positions instead' }
+
+  const { error } = await admin.from(table as any)
+    .update({ settled_amount: amount > 0 ? amount : null, settled_on: amount > 0 ? input.date : null })
+    .eq('id', lineId).eq('fund_id', fundId)
+  if (error) return { error: error.message }
+  return { ok: true }
 }
 
 /** The receivable (1300) balance per LP from the posted ledger. */
@@ -193,44 +246,116 @@ export async function lpCalledTotals(
   return out
 }
 
-export interface CapitalCallRow {
+export interface CapitalCallLineRow {
+  /** The register line's id — what a notice, a receipt and an acknowledgment hang off. */
+  id: string
+  lpEntityId: string
+  name: string
+  amount: number
+  /** What has arrived against THIS line, oldest call first (lib/accounting/settlement.ts). */
+  settled: number
+  outstanding: number
+  status: LineStatus
+  settledOn: string | null
+  /** The most recent funding applied to the line, complete or not — what a receipt acknowledges. */
+  lastSettlementOn: string | null
+  /** The notice PDF published for this line, if any. */
+  noticeDocumentId: string | null
+  /** The partner's own word, from their portal: "we wired on this date, with this reference". */
+  ack: { at: string; wiredOn: string | null; reference: string | null; note: string | null } | null
+}
+
+export interface CapitalCallRow extends RegisterStatus {
   id: string
   callDate: string
+  dueDate: string | null
+  callNumber: number | null
   description: string | null
   scope: string
   total: number
-  lines: { lpEntityId: string; name: string; amount: number }[]
+  lines: CapitalCallLineRow[]
 }
 
-/** Issued calls (most recent first) with their per-LP lines. */
+/**
+ * The money that has moved against a vehicle's calls or distributions, by partner and date.
+ *
+ * Ledger vehicles read it off the receivable (fundings) or the payable (payments). A
+ * capital-tracking vehicle has neither — its calls settle by hand, recorded on the line
+ * itself — so the caller supplies those and this returns nothing.
+ */
+export async function loadSettlements(
+  admin: SupabaseClient,
+  fundId: string,
+  group: string,
+  direction: 'receivable' | 'payable',
+): Promise<Settlement[]> {
+  const source = await loadCapitalSource(admin, fundId, group)
+  if (source !== 'ledger') return []
+  const { accounts, postings } = await loadPostedLedger(admin, fundId, group)
+  const code = direction === 'receivable' ? RECEIVABLE_CODE : DISTRIBUTION_PAYABLE_CODE
+  const account = accounts.find(a => a.code === code)
+  if (!account) return []
+  return settlementsFromPostings(postings, account.id, direction)
+}
+
+/** Issued calls (most recent first) with their per-LP lines and what has been funded against each. */
 export async function listCapitalCalls(
   admin: SupabaseClient,
   fundId: string,
-  group: string
+  group: string,
+  today: string = new Date().toISOString().slice(0, 10),
 ): Promise<CapitalCallRow[]> {
   const vehicleId = await vehicleIdByName(admin, fundId, group)
-  const [{ data: calls }, names] = await Promise.all([
+  const [{ data: calls }, names, settlements] = await Promise.all([
     admin
       .from('capital_calls' as any)
-      .select('id, call_date, description, scope, capital_call_lines(lp_entity_id, amount)')
+      .select('id, call_date, due_date, call_number, description, scope, capital_call_lines(id, lp_entity_id, amount, notice_document_id, settled_amount, settled_on, ack_at, ack_wired_on, ack_reference, ack_note)')
       .eq('fund_id', fundId)
       .eq('vehicle_id', vehicleId)
       .order('call_date', { ascending: false }),
     loadEntityNames(admin, fundId, group),
+    loadSettlements(admin, fundId, group, 'receivable'),
   ])
-  return ((calls as any[]) ?? []).map(c => {
-    const lines = ((c.capital_call_lines as any[]) ?? []).map(l => ({
-      lpEntityId: l.lp_entity_id,
-      name: names.get(l.lp_entity_id) ?? l.lp_entity_id,
-      amount: Number(l.amount),
-    }))
+  const rows = ((calls as any[]) ?? [])
+
+  // Every line of every call goes through ONE FIFO pass, so a wire that covers two calls is
+  // applied to both in order rather than counted against each.
+  const registerLines = rows.flatMap(c => ((c.capital_call_lines as any[]) ?? []).map(l => ({
+    id: l.id as string, lpEntityId: l.lp_entity_id as string, date: c.call_date as string, amount: Number(l.amount),
+  })))
+  // A tracking vehicle's lines settle by hand: the recorded amount stands in for the ledger.
+  const manual: Settlement[] = rows.flatMap(c => ((c.capital_call_lines as any[]) ?? [])
+    .filter(l => Number(l.settled_amount) > 0)
+    .map(l => ({ lpEntityId: l.lp_entity_id as string, date: (l.settled_on ?? c.call_date) as string, amount: Number(l.settled_amount) })))
+  const settledByLine = applySettlements(registerLines, settlements.length > 0 ? settlements : manual)
+
+  return rows.map(c => {
+    const lines: CapitalCallLineRow[] = ((c.capital_call_lines as any[]) ?? []).map(l => {
+      const s = settledByLine.get(l.id)
+      return {
+        id: l.id,
+        lpEntityId: l.lp_entity_id,
+        name: names.get(l.lp_entity_id) ?? l.lp_entity_id,
+        amount: Number(l.amount),
+        settled: s?.settled ?? 0,
+        outstanding: s?.outstanding ?? Number(l.amount),
+        status: s?.status ?? 'open',
+        settledOn: s?.settledOn ?? null,
+        lastSettlementOn: s?.lastSettlementOn ?? null,
+        noticeDocumentId: l.notice_document_id ?? null,
+        ack: l.ack_at ? { at: l.ack_at, wiredOn: l.ack_wired_on ?? null, reference: l.ack_reference ?? null, note: l.ack_note ?? null } : null,
+      }
+    })
     return {
       id: c.id,
       callDate: c.call_date,
+      dueDate: c.due_date ?? null,
+      callNumber: c.call_number ?? null,
       description: c.description ?? null,
       scope: c.scope,
       total: roundCents(lines.reduce((s, l) => s + l.amount, 0)),
       lines,
+      ...registerStatus(lines, c.due_date ?? null, today),
     }
   })
 }

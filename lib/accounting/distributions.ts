@@ -9,6 +9,13 @@
 // payable is CLEARED as wires go out, so once a distribution is paid the ledger no longer says
 // what was declared. A notice states an amount a partner was told they would receive, and that
 // figure has to survive its own payment. `distribution_lines.amount` is that frozen figure.
+//
+// THE SPLIT. A fund-wide distribution is split THROUGH THE WATERFALL when the vehicle has carry
+// terms (lib/accounting/distribution-waterfall.ts): capital back to the LPs first, then the
+// hurdle, then the GP's catch-up and carry. The GP's take posts as its own entry, tagged
+// `carry_distribution`, so it files against the accrued carry on the roll-forward rather than
+// reading as a return of the GP's capital. A vehicle with no carry terms splits by capital
+// balance, as before.
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { roundCents } from './ledger'
@@ -17,8 +24,21 @@ import { accountIdByCode, ensureCapitalAccounts, persistEntry } from './persist'
 import { DISTRIBUTION_PAYABLE_CODE } from './chart'
 import { buildDistributionDeclarationEntry } from './entries'
 import { loadPostedLedger, loadEntityNames } from './load'
-import { computeCapitalAccounts } from './capital-account'
+import { loadCapitalPostings, loadCapitalSource } from './capital-source'
+import { computeCapitalAccounts, bucketForSourceType } from './capital-account'
 import { vehicleIdByName } from './vehicle-id'
+import { loadCarryTerms, type DatedContribution } from './carry'
+import { applySettlements, registerStatus, type LineStatus, type RegisterStatus, type Settlement } from './settlement'
+import { loadSettlements } from './capital-calls'
+import {
+  splitDistribution,
+  suggestedCharacter,
+  ZERO_TIERS,
+  type DistributionSplit,
+  type PriorDistribution,
+  type SplitMethod,
+  type WaterfallTiers,
+} from './distribution-waterfall'
 import {
   UNCHARACTERISED,
   characterForLine,
@@ -36,7 +56,14 @@ export interface DeclareDistributionInput {
   distributionDate: string
   description?: string | null
   scope?: 'fund_wide' | 'per_lp'
+  /** The LP lines. */
   lines: DistributionLineInput[]
+  /** The GP's carry, per recipient. Posts as `carry_distribution`. */
+  carryLines?: DistributionLineInput[]
+  /** How the lines were produced. Defaults to manual — the honest answer for typed lines. */
+  splitMethod?: SplitMethod
+  /** The tier breakdown the waterfall produced, when it did. Stored for the notice and the K-1. */
+  tiers?: WaterfallTiers | null
   /** K-1 box 19 form. Defaults to cash, which is every distribution this app can yet produce. */
   kind?: DistributionKind
   /** Return of capital / realized gain / income. Omitted or all-zero leaves it uncharacterised. */
@@ -46,9 +73,9 @@ export interface DeclareDistributionInput {
 /**
  * Split a total across partners by ENDING CAPITAL BALANCE.
  *
- * Not by commitment — you distribute what a partner owns, not what they promised. A partner
- * who funded 10% of the capital but committed 20% is owed a share of the proceeds
- * proportional to the former. (A capital call is the mirror and correctly uses commitment.)
+ * The no-carry-terms split, kept for callers that ask for it by name. `previewDistribution` is
+ * what the declare flow uses: it runs the waterfall when the vehicle has terms and falls back to
+ * this when it does not.
  */
 export async function proRataDistribution(
   admin: SupabaseClient,
@@ -64,48 +91,182 @@ export async function proRataDistribution(
   return Array.from(allocateAmount(total, basis).entries()).map(([lpEntityId, amount]) => ({ lpEntityId, amount }))
 }
 
-/** Declare a distribution: Dr each partner's capital, Cr Distributions payable. */
+export interface DistributionPreview extends DistributionSplit {
+  /** Names for the UI, so it need not join. */
+  names: Record<string, string>
+  /** What the waterfall suggests for the K-1 character. Editable before declaring. */
+  suggestedCharacter: DistributionCharacter
+  /** The carry terms in force, so the UI can say what it applied. */
+  terms: { kind: string; carryRate: number; prefRate: number; recipients: string[] }
+}
+
+/**
+ * How a fund-wide distribution of `total` would be split on `asOf`, writing nothing.
+ *
+ * `method` 'pro_rata' forces the capital-balance split even when carry terms exist — the escape
+ * hatch for a distribution the LPA treats specially. Default: the waterfall when terms exist.
+ */
+export async function previewDistribution(
+  admin: SupabaseClient,
+  fundId: string,
+  group: string,
+  total: number,
+  asOf: string,
+  method: 'waterfall' | 'pro_rata' = 'waterfall',
+): Promise<DistributionPreview> {
+  // From whichever producer the vehicle uses: the ledger, or a tracking vehicle's positions.
+  const [{ postings: capitalPostings }, terms, names] = await Promise.all([
+    loadCapitalPostings(admin, fundId, group),
+    loadCarryTerms(admin, fundId, group),
+    loadEntityNames(admin, fundId, group),
+  ])
+  const effectiveTerms = method === 'pro_rata' ? { ...terms, kind: 'none' as const } : terms
+  const recipientIds = new Set(terms.recipients.map(r => r.lpEntityId))
+
+  const accounts = computeCapitalAccounts(capitalPostings, { end: asOf })
+  const partners = Array.from(accounts.entries()).map(([lpEntityId, a]) => ({
+    lpEntityId,
+    contributed: roundCents(a.contributions),
+    distributed: roundCents(-a.distributions),
+    ending: roundCents(a.ending),
+  }))
+
+  // Dated LP contributions for the hurdle — recipients excluded, as the close excludes them.
+  const contributions: DatedContribution[] = capitalPostings
+    .filter(p => p.lpEntityId && !recipientIds.has(p.lpEntityId) && bucketForSourceType(p.sourceType) === 'contributions')
+    .map(p => ({ date: p.entryDate ?? asOf, amount: roundCents(-p.amount) }))
+    .filter(c => c.amount > 0)
+
+  // Every prior distribution, as a fund-wide total per date: LP distributions and carry paid
+  // both left the fund, and the waterfall is defined over what left.
+  const priorByDate = new Map<string, number>()
+  let carryPaidToDate = 0
+  for (const p of capitalPostings) {
+    if (!p.lpEntityId || p.amount <= 0) continue
+    const isDist = bucketForSourceType(p.sourceType) === 'distributions'
+    const isCarry = p.sourceType === 'carry_distribution'
+    if (!isDist && !isCarry) continue
+    const date = p.entryDate ?? asOf
+    if (date > asOf) continue
+    priorByDate.set(date, roundCents((priorByDate.get(date) ?? 0) + p.amount))
+    if (isCarry && recipientIds.has(p.lpEntityId)) carryPaidToDate = roundCents(carryPaidToDate + p.amount)
+  }
+  const priors: PriorDistribution[] = Array.from(priorByDate.entries()).map(([date, amount]) => ({ date, amount }))
+
+  const split = splitDistribution({
+    total,
+    terms: effectiveTerms,
+    partners,
+    contributions,
+    priors,
+    asOf,
+    carryPaidToDate: recipientIds.size > 0 ? carryPaidToDate : undefined,
+  })
+
+  const nameOf = (id: string) => names.get(id) ?? id
+  return {
+    ...split,
+    // Warnings name entity ids; say the partner's name instead.
+    warnings: split.warnings.map(w => Array.from(names.entries()).reduce((s, [id, n]) => s.split(id).join(n), w)),
+    names: Object.fromEntries([...split.lines, ...split.carryLines].map(l => [l.lpEntityId, nameOf(l.lpEntityId)])),
+    suggestedCharacter: suggestedCharacter(split.tiers, roundCents(total)),
+    terms: {
+      kind: effectiveTerms.kind,
+      carryRate: effectiveTerms.carryRate,
+      prefRate: effectiveTerms.prefRate,
+      recipients: effectiveTerms.recipients.map(r => nameOf(r.lpEntityId)),
+    },
+  }
+}
+
+function cleanLines(lines: DistributionLineInput[] | undefined): Map<string, number> {
+  const perLp = new Map<string, number>()
+  for (const l of lines ?? []) {
+    if (!l.lpEntityId || !(Number(l.amount) > 0)) continue
+    perLp.set(l.lpEntityId, roundCents((perLp.get(l.lpEntityId) ?? 0) + Number(l.amount)))
+  }
+  return perLp
+}
+
+/**
+ * Declare a distribution: Dr each partner's capital, Cr Distributions payable.
+ *
+ * Two entries when there is carry: the LP lines post as `distribution`, the carry lines as
+ * `carry_distribution` — one source type per entry, so each files into the right roll-forward
+ * bucket. The register row keeps both ids.
+ */
 export async function declareDistribution(
   admin: SupabaseClient,
   fundId: string,
   group: string,
   userId: string | null,
   input: DeclareDistributionInput,
-): Promise<{ entryId: string; distributionId: string } | { error: string }> {
-  const lines = (input.lines ?? []).filter(l => l.lpEntityId && Number(l.amount) > 0)
-  if (lines.length === 0) return { error: 'A distribution needs at least one partner with a positive amount' }
+): Promise<{ entryId: string; carryEntryId: string | null; distributionId: string } | { error: string }> {
+  const perLp = cleanLines(input.lines)
+  const perRecipient = cleanLines(input.carryLines)
+  if (perLp.size === 0 && perRecipient.size === 0) return { error: 'A distribution needs at least one partner with a positive amount' }
   if (!input.distributionDate) return { error: 'A distribution date is required' }
+  for (const id of Array.from(perRecipient.keys())) {
+    if (perLp.has(id)) return { error: 'A partner cannot appear as both an LP line and a carry line' }
+  }
 
   // Validate the character BEFORE anything is posted: a split that disagrees with what the
   // partners are being told they will receive is two claims about one wire, and the cheap moment
   // to refuse is before the journal entry exists.
   const character = input.character ?? UNCHARACTERISED
-  const declaredTotal = roundCents(lines.reduce((s, l) => s + Number(l.amount), 0))
+  const lpTotal = roundCents(Array.from(perLp.values()).reduce((s, v) => s + v, 0))
+  const carryTotal = roundCents(Array.from(perRecipient.values()).reduce((s, v) => s + v, 0))
+  const declaredTotal = roundCents(lpTotal + carryTotal)
   const characterProblem = validateCharacter(character, declaredTotal)
   if (characterProblem) return { error: characterProblem.error }
 
   const kind: DistributionKind = isDistributionKind(input.kind) ? input.kind : 'cash'
+  const splitMethod: SplitMethod = input.splitMethod === 'waterfall' || input.splitMethod === 'pro_rata' ? input.splitMethod : 'manual'
+  const tiers = splitMethod === 'waterfall' && input.tiers ? input.tiers : null
 
-  const codes = await accountIdByCode(admin, fundId, group)
-  const payableId = codes.get(DISTRIBUTION_PAYABLE_CODE)
-  if (!payableId) {
-    return { error: `Seed the chart of accounts first (missing ${DISTRIBUTION_PAYABLE_CODE} Distributions payable) — use Sync accounts on the vehicle's Setup page` }
+  let entryId: string | null = null
+  let carryEntryId: string | null = null
+  const source = await loadCapitalSource(admin, fundId, group)
+  if (source === 'ledger') {
+    const codes = await accountIdByCode(admin, fundId, group)
+    const payableId = codes.get(DISTRIBUTION_PAYABLE_CODE)
+    if (!payableId) {
+      return { error: `Seed the chart of accounts first (missing ${DISTRIBUTION_PAYABLE_CODE} Distributions payable) — use Sync accounts on the vehicle's Setup page` }
+    }
+
+    const capMap = await ensureCapitalAccounts(admin, fundId, group, [...Array.from(perLp.keys()), ...Array.from(perRecipient.keys())])
+    const base = { fundId, entryDate: input.distributionDate }
+
+    // Posted, like a call issuance: declaring is the event. The SETTLEMENT is what arrives as a
+    // draft later, from the bank.
+    if (perLp.size > 0) {
+      const entry = buildDistributionDeclarationEntry({ ...base, memo: input.description || 'Distribution' }, perLp, capMap, payableId)
+      const result = await persistEntry(admin, fundId, group, userId, entry, 'posted')
+      if ('error' in result) return { error: result.error }
+      entryId = result.entryId
+    }
+
+    if (perRecipient.size > 0) {
+      const entry = buildDistributionDeclarationEntry(
+        { ...base, memo: `${input.description || 'Distribution'} — carried interest` },
+        perRecipient, capMap, payableId,
+      )
+      entry.sourceType = 'carry_distribution'
+      const result = await persistEntry(admin, fundId, group, userId, entry, 'posted')
+      if ('error' in result) {
+        return { error: `${result.error}${entryId ? ` (the LP distribution entry ${entryId} was posted — void it before retrying)` : ''}` }
+      }
+      carryEntryId = result.entryId
+    }
+  } else {
+    // A tracking vehicle: the register row is the declaration; payment is recorded on the line
+    // by hand (settleRegisterLine). The partners must exist in this fund.
+    const ids = [...Array.from(perLp.keys()), ...Array.from(perRecipient.keys())]
+    const { data: ents } = await admin.from('lp_entities' as any).select('id').eq('fund_id', fundId).in('id', ids)
+    const known = new Set(((ents as any[]) ?? []).map(e => e.id as string))
+    const foreign = ids.filter(id => !known.has(id))
+    if (foreign.length > 0) return { error: `Unknown LP for this fund: ${foreign.join(', ')}` }
   }
-
-  const capMap = await ensureCapitalAccounts(admin, fundId, group, lines.map(l => l.lpEntityId))
-  const perLp = new Map<string, number>()
-  for (const l of lines) perLp.set(l.lpEntityId, roundCents((perLp.get(l.lpEntityId) ?? 0) + Number(l.amount)))
-
-  const entry = buildDistributionDeclarationEntry(
-    { fundId, entryDate: input.distributionDate, memo: input.description || 'Distribution' },
-    perLp,
-    capMap,
-    payableId,
-  )
-  // Posted, like a call issuance: declaring is the event. The SETTLEMENT is what arrives as a
-  // draft later, from the bank.
-  const result = await persistEntry(admin, fundId, group, userId, entry, 'posted')
-  if ('error' in result) return { error: result.error }
 
   // The register, written in the same shape as issueCapitalCall's.
   const vehicleId = await vehicleIdByName(admin, fundId, group)
@@ -118,7 +279,13 @@ export async function declareDistribution(
       description: input.description ?? null,
       scope: input.scope === 'per_lp' ? 'per_lp' : 'fund_wide',
       status: 'declared',
-      journal_entry_id: result.entryId,
+      journal_entry_id: entryId ?? carryEntryId,
+      carry_journal_entry_id: carryEntryId,
+      split_method: splitMethod,
+      wf_return_of_capital: tiers?.returnOfCapital ?? null,
+      wf_preferred: tiers?.preferred ?? null,
+      wf_catch_up: tiers?.catchUp ?? null,
+      wf_carry: tiers?.carry ?? null,
       kind,
       char_return_of_capital: character.returnOfCapital,
       char_realized_gain: character.realizedGain,
@@ -130,26 +297,55 @@ export async function declareDistribution(
   if (regErr) return { error: regErr.message }
   const distributionId = (row as any).id
 
+  const lineRows = [
+    ...Array.from(perLp.entries()).map(([lpEntityId, amount]) => ({ lpEntityId, amount, role: 'lp' })),
+    ...Array.from(perRecipient.entries()).map(([lpEntityId, amount]) => ({ lpEntityId, amount, role: 'carry' })),
+  ]
   const { error: lineErr } = await (admin as any).from('distribution_lines').insert(
-    Array.from(perLp.entries()).map(([lpEntityId, amount]) => ({
+    lineRows.map(l => ({
       distribution_id: distributionId,
       fund_id: fundId,
       vehicle_id: vehicleId,
-      lp_entity_id: lpEntityId,
-      amount,
+      lp_entity_id: l.lpEntityId,
+      amount: l.amount,
+      role: l.role,
     }))
   )
   if (lineErr) return { error: lineErr.message }
 
-  return { entryId: result.entryId, distributionId }
+  return { entryId: entryId ?? carryEntryId ?? '', carryEntryId, distributionId }
 }
 
-export interface DeclaredDistribution {
+export interface DeclaredDistributionLine {
+  /** The register line's id — what a notice hangs off. */
+  id: string
+  lpEntityId: string
+  name: string
+  amount: number
+  /** 'lp' — a share of the LP tiers; 'carry' — the GP's take. */
+  role: 'lp' | 'carry'
+  character: DistributionCharacter
+  /** What has been paid against THIS line, oldest declaration first (lib/accounting/settlement.ts). */
+  settled: number
+  outstanding: number
+  status: LineStatus
+  settledOn: string | null
+  noticeDocumentId: string | null
+}
+
+export interface DeclaredDistribution extends RegisterStatus {
   distributionId: string
   entryId: string | null
+  carryEntryId: string | null
   date: string
   description: string | null
+  /** Everything declared — LP lines and carry lines. */
   total: number
+  lpTotal: number
+  carryTotal: number
+  splitMethod: SplitMethod
+  /** The waterfall tiers, when the split was one. Null for pro-rata and hand-typed lines. */
+  tiers: WaterfallTiers | null
   /** K-1 box 19 form. */
   kind: DistributionKind
   /** The three buckets as declared. All zero = never characterised, which is not the same as nil. */
@@ -160,7 +356,7 @@ export interface DeclaredDistribution {
    * What each partner was DECLARED, frozen at declaration, with their share of each character
    * bucket derived from it — never stored, so the two cannot disagree.
    */
-  lines: { lpEntityId: string; name: string; amount: number; character: DistributionCharacter }[]
+  lines: DeclaredDistributionLine[]
 }
 
 /**
@@ -174,37 +370,79 @@ export async function listDistributions(
   admin: SupabaseClient,
   fundId: string,
   group: string,
+  today: string = new Date().toISOString().slice(0, 10),
 ): Promise<DeclaredDistribution[]> {
   const vehicleId = await vehicleIdByName(admin, fundId, group)
-  const [{ data: rows }, names] = await Promise.all([
+  const [{ data: rows }, names, settlements] = await Promise.all([
     (admin as any)
       .from('distributions')
-      .select('id, distribution_date, description, status, journal_entry_id, kind, char_return_of_capital, char_realized_gain, char_income, distribution_lines(lp_entity_id, amount)')
+      .select('id, distribution_date, description, status, journal_entry_id, carry_journal_entry_id, split_method, wf_return_of_capital, wf_preferred, wf_catch_up, wf_carry, kind, char_return_of_capital, char_realized_gain, char_income, distribution_lines(id, lp_entity_id, amount, role, notice_document_id, settled_amount, settled_on)')
       .eq('fund_id', fundId)
       .eq('vehicle_id', vehicleId)
       .order('distribution_date', { ascending: false })
       .limit(200),
     loadEntityNames(admin, fundId, group),
+    loadSettlements(admin, fundId, group, 'payable'),
   ])
+  const all = ((rows as any[]) ?? [])
 
-  return ((rows as any[]) ?? []).map(d => {
+  // One FIFO pass over every line — see listCapitalCalls.
+  const registerLines = all.flatMap(d => ((d.distribution_lines as any[]) ?? []).map(l => ({
+    id: l.id as string, lpEntityId: l.lp_entity_id as string, date: d.distribution_date as string, amount: Number(l.amount),
+  })))
+  const manual: Settlement[] = all.flatMap(d => ((d.distribution_lines as any[]) ?? [])
+    .filter(l => Number(l.settled_amount) > 0)
+    .map(l => ({ lpEntityId: l.lp_entity_id as string, date: (l.settled_on ?? d.distribution_date) as string, amount: Number(l.settled_amount) })))
+  const settledByLine = applySettlements(registerLines, settlements.length > 0 ? settlements : manual)
+
+  return all.map(d => {
     const character = characterFromRow(d)
-    const rawLines = (d.distribution_lines ?? []).map((l: any) => ({
-      lpEntityId: l.lp_entity_id,
-      name: names.get(l.lp_entity_id) ?? l.lp_entity_id,
-      amount: roundCents(Number(l.amount)),
-    }))
+    const rawLines = (d.distribution_lines ?? []).map((l: any) => {
+      const s = settledByLine.get(l.id)
+      return {
+        id: l.id as string,
+        lpEntityId: l.lp_entity_id as string,
+        name: names.get(l.lp_entity_id) ?? l.lp_entity_id,
+        amount: roundCents(Number(l.amount)),
+        role: (l.role === 'carry' ? 'carry' : 'lp') as 'lp' | 'carry',
+        settled: s?.settled ?? 0,
+        outstanding: s?.outstanding ?? roundCents(Number(l.amount)),
+        status: (s?.status ?? 'open') as LineStatus,
+        settledOn: s?.settledOn ?? null,
+        noticeDocumentId: (l.notice_document_id ?? null) as string | null,
+      }
+    })
     const total = roundCents(rawLines.reduce((s: number, l: any) => s + l.amount, 0))
+    const carryTotal = roundCents(rawLines.filter((l: any) => l.role === 'carry').reduce((s: number, l: any) => s + l.amount, 0))
+    const splitMethod: SplitMethod = d.split_method === 'waterfall' || d.split_method === 'pro_rata' ? d.split_method : 'manual'
+    const tiers: WaterfallTiers | null = splitMethod === 'waterfall' && d.wf_return_of_capital != null
+      ? {
+          ...ZERO_TIERS,
+          returnOfCapital: Number(d.wf_return_of_capital ?? 0),
+          preferred: Number(d.wf_preferred ?? 0),
+          catchUp: Number(d.wf_catch_up ?? 0),
+          carry: Number(d.wf_carry ?? 0),
+          profitToLP: roundCents(total - carryTotal - Number(d.wf_return_of_capital ?? 0) - Number(d.wf_preferred ?? 0)),
+          toLP: roundCents(total - carryTotal),
+          toGP: carryTotal,
+        }
+      : null
     return {
       distributionId: d.id,
       entryId: d.journal_entry_id,
+      carryEntryId: d.carry_journal_entry_id ?? null,
       date: d.distribution_date,
       description: d.description ?? null,
       total,
+      lpTotal: roundCents(total - carryTotal),
+      carryTotal,
+      splitMethod,
+      tiers,
       kind: isDistributionKind(d.kind) ? d.kind : 'cash',
       character,
       characterised: !isUncharacterised(character),
       lines: rawLines.map((l: any) => ({ ...l, character: characterForLine(character, l.amount, total) })),
+      ...registerStatus(rawLines, null, today),
     }
   })
 }

@@ -202,6 +202,8 @@ export const TABLE_RULES: Record<string, TableRule> = {
   lp_snapshot_shares: { scope: 'fund', domain: 'lp_relations', feature: 'lp_portal' },
   lp_live_report_shares: { scope: 'fund', domain: 'lp_relations', feature: 'lp_portal' },
   lp_messages: { scope: 'fund', domain: 'lp_relations', feature: 'lp_portal' },
+  // Who was emailed what: a notice, a statement, a letter, a document, a reply. One row per send.
+  lp_deliveries: { scope: 'fund', domain: 'lp_relations', feature: 'lp_portal' },
   lp_access_events: { scope: 'fund', domain: 'lp_relations', feature: 'lp_activity' },
 
   // ---- Compliance --------------------------------------------------------------------------

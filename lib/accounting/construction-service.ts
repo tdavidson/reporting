@@ -17,6 +17,8 @@ import {
   type ConstructionResult,
   type ConstructionStage,
 } from './construction'
+import { forecastSchedule, type ForecastSchedule, type ForecastBaseline } from './construction-forecast'
+import { simulateFund, type SimulationResult } from './construction-simulation'
 import type { Account } from './types'
 import type { InvestmentTransaction } from '@/lib/types/database'
 
@@ -38,6 +40,8 @@ export interface ConstructionAssumptionsRow {
   remaining_org_costs?: unknown
   stages?: unknown
   position_forecasts?: unknown
+  pacing?: unknown
+  simulation?: unknown
 }
 
 /** The canonical camelCase result shared by tools and future versioned APIs. */
@@ -52,6 +56,10 @@ export interface ConstructionModelResponse {
   positions: ConstructionResult['returns']['positions']
   warnings: string[]
   asOf: string
+  /** The plan on the calendar, once pacing is stated (construction-forecast.ts). Null until then. */
+  timeline: ForecastSchedule | null
+  /** The Monte Carlo over that schedule, once loss or dispersion is stated. Null until then. */
+  simulation: SimulationResult | null
 }
 
 /** Database snake_case to the application model accepted by parseAssumptions. */
@@ -70,6 +78,8 @@ export function mapConstructionAssumptionsRow(row: ConstructionAssumptionsRow): 
     targetFundMultiple: 0,
     stages: row.stages,
     positionForecasts: row.position_forecasts,
+    pacing: row.pacing,
+    simulation: row.simulation,
   }
 }
 
@@ -103,6 +113,19 @@ function validateStage(value: unknown, index: number): asserts value is Construc
   if (value.returnMethod != null && value.returnMethod !== 'ownership' && value.returnMethod !== 'moic') {
     invalid(`stages[${index}].returnMethod must be ownership or moic`)
   }
+  validateDealOverrides(value, `stages[${index}]`, ['investInYears', 'exitInYears', 'followOnInYears'])
+}
+
+/** The per-deal timing and simulation overrides: each null (use the fund-wide value) or a non-negative number. */
+function validateDealOverrides(value: Record<string, unknown>, where: string, timingFields: string[]): void {
+  for (const field of [...timingFields, 'simDispersion', 'simExitSpreadYears']) {
+    if (value[field] != null && (!finite(value[field]) || (value[field] as number) < 0)) {
+      invalid(`${where}.${field} must be null or a non-negative finite number`)
+    }
+  }
+  if (value.simLossRate != null && (!finite(value.simLossRate) || value.simLossRate < 0 || value.simLossRate > 1)) {
+    invalid(`${where}.simLossRate must be null or between 0 and 1`)
+  }
 }
 
 function validatePositionForecast(
@@ -125,6 +148,7 @@ function validatePositionForecast(
   if (value.returnMethod != null && value.returnMethod !== 'ownership' && value.returnMethod !== 'moic') {
     invalid(`positionForecasts[${index}].returnMethod must be ownership or moic`)
   }
+  validateDealOverrides(value, `positionForecasts[${index}]`, ['exitInYears', 'followOnInYears'])
 }
 
 /** Strict write boundary. The tolerant parser remains appropriate for old stored rows. */
@@ -136,7 +160,7 @@ export function validateConstructionAssumptions(
   const allowed = new Set([
     'feeAnnualRate', 'feeBasis', 'feeTermYears', 'feeStartDate', 'feeStepDownYear',
     'feeStepDownRate', 'annualPartnershipExpense', 'remainingOrgCosts', 'targetPortfolioSize',
-    'targetFundMultiple', 'stages', 'positionForecasts',
+    'targetFundMultiple', 'stages', 'positionForecasts', 'pacing', 'simulation',
   ])
   const unknown = Object.keys(raw).filter(field => !allowed.has(field))
   if (unknown.length > 0) invalid(`unknown fields: ${unknown.join(', ')}`)
@@ -166,6 +190,29 @@ export function validateConstructionAssumptions(
   if ('positionForecasts' in raw) {
     if (!Array.isArray(raw.positionForecasts)) invalid('positionForecasts must be an array')
     raw.positionForecasts.forEach(validatePositionForecast)
+  }
+  if ('pacing' in raw) {
+    if (!plainObject(raw.pacing)) invalid('pacing must be an object')
+    const p = raw.pacing
+    for (const field of ['deploymentYears', 'followOnLagYears', 'holdYears', 'existingHoldYears', 'horizonYears'] as const) {
+      if (field in p && (!finite(p[field]) || (p[field] as number) < 0 || (p[field] as number) > 50)) {
+        invalid(`pacing.${field} must be a number of years between 0 and 50`)
+      }
+    }
+    if ('accretion' in p && p.accretion !== 'none' && p.accretion !== 'linear') invalid('pacing.accretion must be none or linear')
+    const unknownPacing = Object.keys(p).filter(f => !['deploymentYears', 'followOnLagYears', 'holdYears', 'existingHoldYears', 'horizonYears', 'accretion'].includes(f))
+    if (unknownPacing.length > 0) invalid(`pacing has unknown fields: ${unknownPacing.join(', ')}`)
+  }
+  if ('simulation' in raw) {
+    if (!plainObject(raw.simulation)) invalid('simulation must be an object')
+    const m = raw.simulation
+    for (const field of ['runs', 'seed', 'lossRate', 'dispersion', 'holdSpreadYears', 'maxMoic', 'targetMultiple'] as const) {
+      if (field in m && (!finite(m[field]) || (m[field] as number) < 0)) invalid(`simulation.${field} must be a non-negative finite number`)
+    }
+    if ('runs' in m && (m.runs as number) > 20_000) invalid('simulation.runs must be at most 20000')
+    if ('lossRate' in m && (m.lossRate as number) > 1) invalid('simulation.lossRate must be between 0 and 1')
+    const unknownSim = Object.keys(m).filter(f => !['runs', 'seed', 'lossRate', 'dispersion', 'holdSpreadYears', 'maxMoic', 'targetMultiple'].includes(f))
+    if (unknownSim.length > 0) invalid(`simulation has unknown fields: ${unknownSim.join(', ')}`)
   }
   return parseAssumptions(raw, vintageYear)
 }
@@ -291,6 +338,20 @@ function constructionResponse(args: {
 }): ConstructionModelResponse {
   const now = new Date()
   const forecast = constructionModel(args.actuals, args.assumptions, now)
+  // The baseline the schedule starts from. The page swaps in the dated fund series when it has
+  // it; here (the agent, the route) the capital accounts stand in, with the past as one lump.
+  const baseline: ForecastBaseline = {
+    asOf: now.toISOString().slice(0, 10),
+    calledCapital: args.actuals.calledCapital ?? 0,
+    distributed: forecast.returns.positions.reduce((s, p) => s + p.actual.distributions, 0),
+    nav: args.actuals.nav,
+  }
+  const schedule = forecastSchedule(forecast, args.assumptions, args.assumptions.pacing, baseline)
+  const timeline = schedule.stated ? schedule : null
+  // The agent's copy runs fewer paths than the page's: the summary it needs is stable at 500.
+  const simulation = timeline && (args.assumptions.simulation.lossRate > 0 || args.assumptions.simulation.dispersion > 0 || args.assumptions.simulation.holdSpreadYears > 0)
+    ? simulateFund(forecast, args.assumptions, args.assumptions.pacing, { ...args.assumptions.simulation, runs: Math.min(500, args.assumptions.simulation.runs) }, baseline)
+    : null
   return {
     vehicle: args.vehicle,
     vehicleId: args.vehicleId,
@@ -300,8 +361,10 @@ function constructionResponse(args: {
     assumptions: args.assumptions,
     forecast,
     positions: forecast.returns.positions,
-    warnings: forecast.warnings,
+    warnings: [...forecast.warnings, ...(timeline?.warnings ?? [])],
     asOf: now.toISOString(),
+    timeline,
+    simulation,
   }
 }
 
@@ -342,6 +405,8 @@ export async function updateConstructionAssumptions(
     target_fund_multiple: 0,
     stages: assumptions.stages,
     position_forecasts: assumptions.positionForecasts,
+    pacing: assumptions.pacing,
+    simulation: assumptions.simulation,
     updated_at: new Date().toISOString(),
   }, { onConflict: 'fund_id,vehicle_id' })
   if (error) throw new Error(error.message)
