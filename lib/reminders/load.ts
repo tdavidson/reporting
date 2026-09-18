@@ -5,7 +5,9 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { lastEndedQuarter, metricQuarter, responseKey } from '@/lib/requests/response-status'
 import type { FundReminderData } from './collect'
 import type { ComplianceItemRow } from './sources/compliance'
+import type { OpenCall } from './sources/calls'
 import { fromHeader } from './settings'
+import { listCapitalCalls } from '@/lib/accounting/capital-calls'
 
 type QueryResult<T> = { data: T | null; error: { message: string } | null }
 
@@ -67,7 +69,7 @@ export async function loadFundReminderData(
   const rq = lastEndedQuarter(today)
   const db = admin as any
 
-  const [itemsRes, profileRes, settingsRes, closed, vehiclesRes, closes, requestsRes, companiesRes, metrics, overridesRes] = await Promise.all([
+  const [itemsRes, profileRes, settingsRes, closed, vehiclesRes, closes, requestsRes, companiesRes, metrics, overridesRes, dueCallsRes, currencyRes] = await Promise.all([
     db.from('compliance_items')
       .select('id, name, short_name, frequency, scope, deadline_month, deadline_day, rolling_days')
       .order('sort_order'),
@@ -93,6 +95,10 @@ export async function loadFundReminderData(
         .order('id').range(from, to)),
     db.from('ask_response_overrides').select('company_id, status')
       .eq('fund_id', fundId).eq('year', rq.year).eq('quarter', rq.quarter),
+    // Calls with a due date: the register rows, so the vehicles that need a settlement pass are
+    // known before the (heavier) per-vehicle ledger read below.
+    db.from('capital_calls').select('id, vehicle_id').eq('fund_id', fundId).not('due_date', 'is', null),
+    db.from('fund_settings').select('currency').eq('fund_id', fundId).maybeSingle(),
   ])
   const items = rowsOf('compliance_items', itemsRes) ?? []
   const profile = rowsOf('fund_compliance_profile', profileRes)
@@ -101,6 +107,8 @@ export async function loadFundReminderData(
   const requests = rowsOf('email_requests', requestsRes) ?? []
   const companies = rowsOf('companies', companiesRes) ?? []
   const overrides = rowsOf('ask_response_overrides', overridesRes) ?? []
+  const dueCalls = rowsOf<{ id: string; vehicle_id: string | null }[]>('capital_calls', dueCallsRes) ?? []
+  const currency = (rowsOf<{ currency?: string }>('fund_settings', currencyRes)?.currency as string | undefined) ?? 'USD'
 
   const closeDates: Record<string, string[]> = {}
   for (const c of closes) (closeDates[c.portfolio_group] ??= []).push(c.flow_date.slice(0, 10))
@@ -115,7 +123,29 @@ export async function loadFundReminderData(
     overrideMap.set(responseKey(o.company_id, rq.year, rq.quarter), o.status)
   }
 
+  // Open calls: one settlement pass per vehicle that has a dated call, through the same list the
+  // capital-accounts page reads, so the digest and the page agree on what is outstanding.
+  const openCalls: OpenCall[] = []
+  const vehicleById = new Map<string, string>()
+  const { data: vehicleRows } = await db.from('fund_vehicles').select('id, name').eq('fund_id', fundId)
+  for (const v of ((vehicleRows ?? []) as { id: string; name: string }[])) vehicleById.set(v.id, v.name)
+  const vehicleIds = Array.from(new Set(dueCalls.map(c => c.vehicle_id).filter(Boolean) as string[]))
+  for (const vehicleId of vehicleIds) {
+    const name = vehicleById.get(vehicleId)
+    if (!name) continue
+    const calls = await listCapitalCalls(admin, fundId, name, today)
+    for (const c of calls) {
+      if (!c.dueDate || c.outstanding <= 0.005) continue
+      openCalls.push({
+        id: c.id, vehicleId, vehicle: name, callDate: c.callDate, dueDate: c.dueDate, callNumber: c.callNumber,
+        description: c.description, outstanding: c.outstanding,
+        unfunded: c.lines.filter(l => l.outstanding > 0.005).map(l => l.name), currency,
+      })
+    }
+  }
+
   return {
+    calls: { openCalls },
     compliance: {
       items: items as ComplianceItemRow[],
       profile: profile ?? null,
