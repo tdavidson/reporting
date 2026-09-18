@@ -15,6 +15,7 @@ import { Metric } from '@/components/ui/metric'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { SortTh, compareVals, nextSort, type SortState } from '@/components/sortable-th'
 import { CapitalUsageChart, ValueSourcesChart, ReturnRangeChart } from './charts'
+import { ForecastSection } from './forecast-section'
 import { cn } from '@/lib/utils'
 import {
   constructionModel, parseAssumptions, DEFAULT_ASSUMPTIONS, blankStage,
@@ -331,6 +332,10 @@ export function ConstructionView({ vehicle, vehicleId }: { vehicle: string; vehi
             </tbody></table></div>
           </section>
         </div>
+
+        {/* The forward half: WHEN the plan happens (pacing) and how sure we are (Monte Carlo).
+            Both read the model above and add only what they ask for. */}
+        <ForecastSection model={model} actuals={actuals} a={a} setA={setA} vehicle={vehicle} fmt={fmt} fmtFull={fmtFull} multiple={multiple} />
         {(editingPosition || editingStage) && <ForecastEditorDialog
           position={editingPosition}
           stage={editingStage}

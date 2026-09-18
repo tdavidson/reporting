@@ -97,6 +97,8 @@ A vehicle gets its capital one of two ways, and both land in the same accounts. 
 
 ![Funds](public/screenshots/funds.png)
 
+**Portfolio construction.** A per-vehicle plan of what happens next: investable capital after fees and expenses, the deals still to do and what each costs, and what exit the portfolio has to reach. Forecast proceeds are stated per company and per planned deal, by ownership at exit or by multiple, and the model reports gross and net MOIC with an ownership sensitivity. **Pacing** lays that plan on the calendar — how many years the remaining checks are written over, the follow-on lag, the hold periods, the horizon — and the page shows the J-curve (DPI and TVPI by year, the fund's actual history solid and the forecast dashed), forecast cash flows by year, and a since-inception net IRR. **Monte Carlo** spreads the outcomes: a write-off rate and a dispersion around each deal's forecast, sized so the mean still equals the forecast, exits sliding within a window, a seeded generator so the bands reproduce. It returns percentile bands over time, a histogram of final TVPI, and the probability of reaching a target multiple, of losing capital, and of one deal returning the fund. Nothing is defaulted: pacing and dispersion are questions the page asks, and until they are answered it shows the deterministic plan alone.
+
 ## Letters
 
 Letters helps you generate quarterly update letters for your limited partners. Using AI and your portfolio data — reported metrics, company summaries, investment performance, and team notes — the system drafts professional LP communications scoped to a specific vehicle and reporting period.
