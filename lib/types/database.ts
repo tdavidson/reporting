@@ -998,8 +998,10 @@ export type Database = {
           body_html: string
           cc: string | null
           created_at: string
+          due_date: string | null
           fund_id: string
           id: string
+          quarter: number | null
           quarter_label: string | null
           recipients: Json
           send_results: Json | null
@@ -1008,14 +1010,17 @@ export type Database = {
           status: string
           subject: string
           updated_at: string
+          year: number | null
         }
         Insert: {
           bcc?: string | null
           body_html: string
           cc?: string | null
           created_at?: string
+          due_date?: string | null
           fund_id: string
           id?: string
+          quarter?: number | null
           quarter_label?: string | null
           recipients?: Json
           send_results?: Json | null
@@ -1024,14 +1029,17 @@ export type Database = {
           status?: string
           subject: string
           updated_at?: string
+          year?: number | null
         }
         Update: {
           bcc?: string | null
           body_html?: string
           cc?: string | null
           created_at?: string
+          due_date?: string | null
           fund_id?: string
           id?: string
+          quarter?: number | null
           quarter_label?: string | null
           recipients?: Json
           send_results?: Json | null
@@ -1040,6 +1048,7 @@ export type Database = {
           status?: string
           subject?: string
           updated_at?: string
+          year?: number | null
         }
         Relationships: [
           {

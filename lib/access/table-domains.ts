@@ -272,7 +272,7 @@ export const TABLE_RULES: Record<string, TableRule> = {
   received_k1s: { scope: 'service', note: 'K-1s received from underlying funds, gating the close.' },
   k1_deliveries: { scope: 'service', note: 'Electronic K-1 delivery records.' },
   k1_delivery_consents: { scope: 'service', note: 'A partner’s consent to electronic delivery — a legal fact, never manufacturable from a browser.' },
-
+  reminder_deliveries: { scope: 'service', note: 'Which reminder thresholds were emailed; the ops-reminders cron is the only reader and writer.' },
   // ---- Deliberately public -------------------------------------------------------------------
   site_content: { scope: 'public', note: 'The marketing page renders it unauthenticated. Admin-written.' },
 

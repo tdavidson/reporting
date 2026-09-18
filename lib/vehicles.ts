@@ -7,7 +7,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 // portfolio, and compliance tables remain string-keyed until they're cut too.
 export const VEHICLE_SCALAR_TABLES = [
   'lp_investments', 'fund_cash_flows', 'fund_group_config', 'investment_transactions',
-  'lp_letters', 'compliance_fund_settings',
+  'lp_letters', 'compliance_fund_settings', 'compliance_deadlines',
 ]
 
 /**
