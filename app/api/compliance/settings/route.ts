@@ -4,6 +4,8 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { assertWriteAccess } from '@/lib/api-helpers'
 import { rateLimit } from '@/lib/rate-limit'
 import { dbError } from '@/lib/api-error'
+import { parseGroupKey } from '@/lib/compliance/schedule'
+import { overlayCompletion, type DeadlineRow } from '@/lib/compliance/completion'
 
 // Bulk upsert applicability settings
 export async function POST(req: NextRequest) {
@@ -73,61 +75,70 @@ export async function PATCH(req: NextRequest) {
   }
 
   const VALID_APPLIES = ['yes', 'no', 'unsure']
+  const now = new Date().toISOString()
+  const year = Number.isInteger(body.year) ? Number(body.year) : new Date().getUTCFullYear()
+  const pgKey = portfolio_group ? String(portfolio_group).slice(0, 200) : ''
+  const clip = (v: unknown) => (v ? String(v).slice(0, 2000) : null)
 
-  const updates: Record<string, unknown> = { updated_at: new Date().toISOString() }
+  // Applicability and dismissal are not per-period: they stay on compliance_fund_settings.
+  const updates: Record<string, unknown> = { updated_at: now }
   if (applies !== undefined) {
     updates.applies = VALID_APPLIES.includes(applies) ? applies : 'unsure'
   }
   if (dismissed !== undefined) {
     updates.dismissed = !!dismissed
     updates.dismissed_by = dismissed ? user.id : null
-    updates.dismissed_at = dismissed ? new Date().toISOString() : null
+    updates.dismissed_at = dismissed ? now : null
     updates.dismissed_reason = dismissed_reason ? String(dismissed_reason).slice(0, 500) : null
-    // Clear completed when dismissing
-    if (dismissed) {
-      updates.completed = false
-      updates.completed_at = null
-      updates.completed_by = null
-      updates.completed_note = null
-      updates.completed_link = null
-    }
   }
-  if (completed !== undefined) {
-    updates.completed = !!completed
-    updates.completed_by = completed ? user.id : null
-    updates.completed_at = completed ? new Date().toISOString() : null
-    updates.completed_note = completed_note ? String(completed_note).slice(0, 2000) : null
-    updates.completed_link = completed_link ? String(completed_link).slice(0, 2000) : null
-    // Clear dismissed when completing
-    if (completed) {
-      updates.dismissed = false
-      updates.dismissed_by = null
-      updates.dismissed_at = null
-      updates.dismissed_reason = null
-    }
-  }
-  // Allow updating completed_note/link without toggling completed status
-  if (completed_note !== undefined && completed === undefined) {
-    updates.completed_note = completed_note ? String(completed_note).slice(0, 2000) : null
-  }
-  if (completed_link !== undefined && completed === undefined) {
-    updates.completed_link = completed_link ? String(completed_link).slice(0, 2000) : null
+  if (completed === true) {
+    // Completing an item un-dismisses it, as before.
+    updates.dismissed = false
+    updates.dismissed_by = null
+    updates.dismissed_at = null
+    updates.dismissed_reason = null
   }
   if (notes !== undefined) {
-    updates.notes = notes ? String(notes).slice(0, 2000) : null
+    updates.notes = clip(notes)
   }
 
-  const { data, error } = await admin
+  const { data: setting, error } = await admin
     .from('compliance_fund_settings')
-    .upsert({
-      fund_id: fundId,
-      compliance_item_id,
-      portfolio_group: portfolio_group ? String(portfolio_group).slice(0, 200) : '',
-      ...updates,
-    }, { onConflict: 'fund_id,compliance_item_id,portfolio_group' })
+    .upsert({ fund_id: fundId, compliance_item_id, portfolio_group: pgKey, ...updates }, { onConflict: 'fund_id,compliance_item_id,portfolio_group' })
     .select()
     .single()
-
   if (error) return dbError(error, 'compliance-settings')
-  return NextResponse.json(data)
+
+  // Completion is per occurrence (item × vehicle × year × quarter), so it resets each cycle.
+  const { portfolioGroup, quarter } = parseGroupKey(pgKey)
+  const occurrence = { fund_id: fundId, compliance_item_id, portfolio_group: portfolioGroup, year, quarter }
+  const deadlines = () => admin.from('compliance_deadlines' as any)
+
+  let occError: unknown = null
+  if (completed === true) {
+    ;({ error: occError } = await deadlines().upsert({
+      ...occurrence,
+      status: 'filed',
+      filed_date: now.slice(0, 10),
+      filed_by: user.id,
+      notes: clip(completed_note),
+      filing_reference_url: clip(completed_link),
+      updated_at: now,
+    }, { onConflict: 'fund_id,compliance_item_id,portfolio_group,year,quarter' }))
+  } else if (completed === false || dismissed === true) {
+    ;({ error: occError } = await deadlines().delete().match(occurrence))
+  } else if (completed_note !== undefined || completed_link !== undefined) {
+    const patch: Record<string, unknown> = { updated_at: now }
+    if (completed_note !== undefined) patch.notes = clip(completed_note)
+    if (completed_link !== undefined) patch.filing_reference_url = clip(completed_link)
+    ;({ error: occError } = await deadlines().update(patch).match(occurrence))
+  }
+  if (occError) return dbError(occError as any, 'compliance-settings')
+
+  const { data: row } = await deadlines()
+    .select('compliance_item_id, portfolio_group, quarter, year, status, notes, filing_reference_url, created_at')
+    .match(occurrence)
+    .maybeSingle()
+
+  return NextResponse.json(overlayCompletion([setting as unknown as { compliance_item_id: string; portfolio_group: string | null }], row ? [row as unknown as DeadlineRow] : [])[0])
 }

@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { overlayCompletion, type DeadlineRow } from '@/lib/compliance/completion'
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -16,11 +17,17 @@ export async function GET() {
 
   if (!membership) return NextResponse.json({ error: 'No fund' }, { status: 403 })
 
+  // Completion is per year: ?year= picks which occurrences to overlay (default: this UTC year).
+  const yearParam = Number(req.nextUrl.searchParams.get('year'))
+  const year = Number.isInteger(yearParam) && yearParam >= 2000 && yearParam <= 2100
+    ? yearParam
+    : new Date().getUTCFullYear()
+
   const [itemsRes, profileRes, settingsRes, deadlinesRes, groupsRes, commitmentsRes] = await Promise.all([
     admin.from('compliance_items').select('*').order('sort_order'),
     admin.from('fund_compliance_profile').select('*').eq('fund_id', membership.fund_id).maybeSingle(),
     admin.from('compliance_fund_settings').select('*').eq('fund_id', membership.fund_id),
-    admin.from('compliance_deadlines').select('*').eq('fund_id', membership.fund_id).order('due_date'),
+    admin.from('compliance_deadlines' as any).select('*').eq('fund_id', membership.fund_id).eq('year', year) as unknown as Promise<{ data: DeadlineRow[] | null; error: any }>,
     // Vintage comes from the VEHICLE now, not fund_group_config — that table was keyed by the
     // free-text group name and also carried carry_rate / gp_commit_pct, both obsolete. Reading
     // vintage from two places is how the two start disagreeing.
@@ -30,8 +37,8 @@ export async function GET() {
       .select('portfolio_group, flow_date')
       .eq('fund_id', membership.fund_id)
       .eq('flow_type', 'commitment')
-      .gte('flow_date', `${new Date().getFullYear()}-01-01`)
-      .lte('flow_date', `${new Date().getFullYear()}-12-31`)
+      .gte('flow_date', `${year}-01-01`)
+      .lte('flow_date', `${year}-12-31`)
       .order('flow_date'),
   ])
 
@@ -51,7 +58,7 @@ export async function GET() {
   return NextResponse.json({
     items: itemsRes.data ?? [],
     profile: profileRes.data ?? null,
-    settings: settingsRes.data ?? [],
+    settings: overlayCompletion((settingsRes.data ?? []) as unknown as { compliance_item_id: string; portfolio_group: string | null }[], deadlinesRes.data ?? []),
     deadlines: deadlinesRes.data ?? [],
     portfolioGroups: groups.map(g => g.portfolio_group).sort(),
     closeMonths,
