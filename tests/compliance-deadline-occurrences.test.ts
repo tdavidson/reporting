@@ -33,4 +33,15 @@ describe('compliance_deadlines per-occurrence refactor', () => {
   it('adds the occurrence_key constraint with quarter', () => {
     expect(sql).toMatch(/add constraint compliance_deadlines_occurrence_key\s+unique\s*\(\s*fund_id,\s*compliance_item_id,\s*portfolio_group,\s*year,\s*quarter\s*\)/i)
   })
+
+  // A completion only carries into the current year if it happened on/after the start of the
+  // period it would mark — a Q4 valuation completed in January (for last year's Q4) must not
+  // become "this year's Q4 filed" and suppress the first real reminder cycle.
+  it('backfills a completion only when completed_at falls in the period it would mark', () => {
+    const backfill = migrations.find(m => m.name.startsWith('20260918000001'))!.sql
+    const where = backfill.slice(backfill.indexOf('from public.compliance_fund_settings s'))
+    expect(where).toMatch(/s\.completed_at is null/)
+    expect(where).toMatch(/make_date\(extract\(year from now\(\)\)::int, 3 \* [^,]+ - 2, 1\)/)
+    expect(where).toContain("date_trunc('year', now())")
+  })
 })
