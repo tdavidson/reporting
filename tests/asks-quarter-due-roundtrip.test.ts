@@ -32,4 +32,10 @@ describe('Asks quarter + due date round-trip', () => {
     const handleTest = page.slice(page.indexOf('const handleTestSend'), page.indexOf('const handleSend'))
     expect(handleTest).not.toMatch(/due_date/)
   })
+
+  it('the quarter backfill cannot abort on a non-array recipients value', () => {
+    const migration = read('supabase', 'migrations', '20260918000002_email_requests_quarter_due.sql')
+    expect(migration).toMatch(/case when jsonb_typeof\(recipients\) = 'array'\s+then jsonb_array_length\(recipients\)/)
+    expect(migration).not.toMatch(/not \(jsonb_array_length/)
+  })
 })
