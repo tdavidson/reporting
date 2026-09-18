@@ -2,9 +2,10 @@
 --
 -- It used to live on compliance_fund_settings.completed, which has no year — so marking Form ADV
 -- filed in 2026 also marked the 2027 one filed, and the ops-reminders cron could never tell a
--- filed occurrence from next year's unfiled one. compliance_deadlines already had the year; it
--- lacked the vehicle and quarter dimensions the page keys items by ("Fund II", "Q3",
--- "Fund II::Q3"), so its uniqueness could not hold one row per occurrence.
+-- filed occurrence from next year's unfiled one. compliance_deadlines already had the year and
+-- portfolio_group (since 20260312100004); it lacked the quarter dimension the page keys items by
+-- ("Fund II", "Q3", "Fund II::Q3"), so its old uniqueness (fund_id, compliance_item_id, year,
+-- portfolio_group) could not hold one row per quarter.
 
 alter table public.compliance_deadlines
   add column if not exists portfolio_group text not null default '',
@@ -16,6 +17,7 @@ alter table public.compliance_deadlines
 
 alter table public.compliance_deadlines
   drop constraint if exists compliance_deadlines_fund_id_compliance_item_id_year_key;
+alter table public.compliance_deadlines drop constraint if exists compliance_deadlines_fund_item_year_group_uniq;
 alter table public.compliance_deadlines drop constraint if exists compliance_deadlines_occurrence_key;
 alter table public.compliance_deadlines
   add constraint compliance_deadlines_occurrence_key
