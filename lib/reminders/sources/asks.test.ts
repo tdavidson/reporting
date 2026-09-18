@@ -50,6 +50,20 @@ describe('asksSendReminders', () => {
   it('is silent with no active companies', () => {
     expect(asksSendReminders(asks({ companies: [] }), '2026-07-10')).toEqual([])
   })
+
+  // The quarter's last day is not a day to have sent it already: offset 0 still opens the day after.
+  it('with offset 0, opens the day after quarter end as due, not overdue', () => {
+    const [item] = asksSendReminders(asks({ sendOffsetDays: 0 }), '2026-07-01')
+    expect(item).toMatchObject({ dueDate: '2026-07-01', state: 'due_soon', keys: ['as:2026Q2:2026-07-01:t0'] })
+  })
+
+  it('next quarter end supersedes the nudge', () => {
+    // Q2 was never sent; once Q3 has ended (and its offset passed) the nudge is about Q3.
+    const [item] = asksSendReminders(asks(), '2026-10-10')
+    expect(item.title).toBe('Send the Q3 2026 portfolio data request')
+    expect(item.keys.every(key => key.startsWith('as:2026Q3:'))).toBe(true)
+    expect(item.dueDate).toBe('2026-10-05')
+  })
 })
 
 describe('asksFollowupReminders', () => {

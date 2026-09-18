@@ -1,6 +1,6 @@
-// "Time to send this quarter's portfolio data request": from quarter end + the fund's offset,
-// weekly, until a request for that quarter has been sent. When the next quarter ends the
-// reporting quarter moves on and the old nudge disappears on its own.
+// "Time to send this quarter's portfolio data request": from quarter end + the fund's offset
+// (at least a day), weekly, until a request for that quarter has been sent. When the next
+// quarter ends the reporting quarter moves on and the old nudge disappears on its own.
 
 import { lastEndedQuarter } from '@/lib/requests/response-status'
 import { addDays, daysBetween } from '../dates'
@@ -18,7 +18,9 @@ export interface AsksData {
 export function asksSendReminders(data: AsksData, today: string): ReminderItem[] {
   if (data.companies.length === 0) return []
   const rq = lastEndedQuarter(today)
-  const nudge = addDays(rq.endDate, data.sendOffsetDays)
+  // At least one day after quarter end: the default offset 0 would otherwise make the nudge due
+  // ON the quarter's last day, opening as "1 day overdue" the morning after.
+  const nudge = addDays(rq.endDate, Math.max(1, data.sendOffsetDays))
   if (daysBetween(nudge, today) < 0) return []
   const sent = data.requests.some(r => r.status === 'sent' && r.quarter === rq.quarter && r.year === rq.year)
   if (sent) return []
