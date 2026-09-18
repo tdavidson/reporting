@@ -41,6 +41,8 @@ export interface SettledLine {
   status: LineStatus
   /** The date of the settlement that completed the line, once it is complete. */
   settledOn: string | null
+  /** The date of the most recent settlement applied to the line, complete or not. */
+  lastSettlementOn: string | null
 }
 
 const CENT = 0.005
@@ -73,10 +75,12 @@ export function applySettlements(lines: RegisterLine[], settlements: Settlement[
       const amount = roundCents(line.amount)
       let settled = 0
       let settledOn: string | null = null
+      let lastSettlementOn: string | null = null
       while (settled + CENT < amount && poolIndex < pool.length) {
         const take = roundCents(Math.min(amount - settled, poolRemaining))
         settled = roundCents(settled + take)
         poolRemaining = roundCents(poolRemaining - take)
+        if (take > 0) lastSettlementOn = pool[poolIndex].date
         if (settled + CENT >= amount) settledOn = pool[poolIndex].date
         if (poolRemaining <= CENT) {
           poolIndex++
@@ -85,7 +89,7 @@ export function applySettlements(lines: RegisterLine[], settlements: Settlement[
       }
       const outstanding = roundCents(Math.max(0, amount - settled))
       const status: LineStatus = outstanding <= CENT ? 'settled' : settled > CENT ? 'partial' : 'open'
-      out.set(line.id, { id: line.id, amount, settled, outstanding, status, settledOn: status === 'settled' ? settledOn : null })
+      out.set(line.id, { id: line.id, amount, settled, outstanding, status, settledOn: status === 'settled' ? settledOn : null, lastSettlementOn })
     }
   }
   return out

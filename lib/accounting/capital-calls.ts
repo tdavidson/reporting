@@ -206,6 +206,8 @@ export interface CapitalCallLineRow {
   outstanding: number
   status: LineStatus
   settledOn: string | null
+  /** The most recent funding applied to the line, complete or not — what a receipt acknowledges. */
+  lastSettlementOn: string | null
   /** The notice PDF published for this line, if any. */
   noticeDocumentId: string | null
 }
@@ -286,6 +288,7 @@ export async function listCapitalCalls(
         outstanding: s?.outstanding ?? Number(l.amount),
         status: s?.status ?? 'open',
         settledOn: s?.settledOn ?? null,
+        lastSettlementOn: s?.lastSettlementOn ?? null,
         noticeDocumentId: l.notice_document_id ?? null,
       }
     })

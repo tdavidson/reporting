@@ -20,7 +20,7 @@ describe('applySettlements', () => {
     )
     expect(out.get('c1')).toMatchObject({ status: 'settled', settledOn: '2026-02-05' })
     expect(out.get('c2')).toMatchObject({ status: 'settled', settled: 100, settledOn: '2026-03-05' })
-    expect(out.get('c3')).toMatchObject({ status: 'partial', settled: 25, outstanding: 75 })
+    expect(out.get('c3')).toMatchObject({ status: 'partial', settled: 25, outstanding: 75, settledOn: null, lastSettlementOn: '2026-03-05' })
   })
 
   it('never crosses partners', () => {

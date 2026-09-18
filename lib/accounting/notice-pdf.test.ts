@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildNoticeHtml, type NoticeData } from './notice-pdf'
+import { buildNoticeHtml, buildReceiptHtml, type NoticeData } from './notice-pdf'
 
 const base: NoticeData = {
   kind: 'capital_call',
@@ -88,5 +88,33 @@ describe('buildNoticeHtml — shared', () => {
   it('numbers the notice when the register carries a sequence', () => {
     expect(buildNoticeHtml({ ...base, number: 3 })).toContain('Capital Call Notice No. 3')
     expect(buildNoticeHtml(base)).not.toContain('No. ')
+  })
+})
+
+describe('buildReceiptHtml', () => {
+  const receipt = {
+    fundName: 'Example Fund', fundLogo: null, fundAddress: null, currency: 'USD', vehicle: 'Acme SPV LP',
+    partnerName: 'Jane Partner', amountReceived: 15_000, receivedOn: '2026-03-12',
+    call: { date: '2026-03-01', number: 3, description: null, amount: 25_000, outstanding: 10_000 },
+  }
+
+  it('acknowledges what arrived, when, and against which call', () => {
+    const html = buildReceiptHtml(receipt)
+    expect(html).toContain('Receipt of Capital Contribution')
+    expect(html).toContain('Amount received')
+    expect(html).toContain('$15,000.00')
+    expect(html).toContain('2026-03-12')
+    expect(html).toContain('Capital Call No. 3 dated 2026-03-01')
+  })
+
+  it('says what is still outstanding on a partly funded notice', () => {
+    const html = buildReceiptHtml(receipt)
+    expect(html).toContain('Still outstanding on this notice')
+    expect(html).toContain('$10,000.00')
+  })
+
+  it('escapes the partner name', () => {
+    const html = buildReceiptHtml({ ...receipt, partnerName: 'Smith & Sons <Trust>' })
+    expect(html).toContain('Smith &amp; Sons &lt;Trust&gt;')
   })
 })

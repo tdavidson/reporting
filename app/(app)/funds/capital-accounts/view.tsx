@@ -13,6 +13,7 @@ import { useLedgerFetch, useFundSeg } from '@/components/accounting-vehicle'
 import { type PeriodPreset } from '@/lib/accounting/statement-period'
 import { PeriodPicker } from '@/components/accounting/period-picker'
 import { NoticeAction } from '@/components/accounting/notice-action'
+import { ReceiptAction } from '@/components/accounting/receipt-action'
 import { ReconciliationPanel } from './reconciliation-panel'
 import { type CapitalSource } from '@/lib/accounting/capital-source'
 import { GpPanel } from './gp-panel'
@@ -575,7 +576,10 @@ export function CapitalAccountsView() {
                     </span>
                   ))}
                 </div>
-                <NoticeAction kind="capital_call" id={c.id} lines={c.lines} fmt={fmt} />
+                <div className="flex flex-wrap items-center gap-2">
+                  <NoticeAction kind="capital_call" id={c.id} lines={c.lines} fmt={fmt} />
+                  {c.settled > 0 && <div className="mt-2"><ReceiptAction callId={c.id} fmt={fmt} /></div>}
+                </div>
               </div>
             ))}
           </div>

@@ -212,6 +212,8 @@ export const ROUTE_DOMAINS: Record<string, RouteAccess> = {
   'api/accounting/lp-statement/publish': { domain: 'lp_relations', feature: 'lp_portal' },
   // Call and distribution notices go OUT to partners, same as a published statement.
   'api/accounting/notices/publish': { domain: 'lp_relations', feature: 'lp_portal' },
+  // A receipt for a funded call line goes out the same way a notice does.
+  'api/accounting/notices/receipt': { domain: 'lp_relations', feature: 'lp_portal' },
   'api/lps/live-report/share': { domain: 'lp_relations', feature: 'lp_portal' },
   'api/lps/snapshots/[id]/share': { domain: 'lp_relations', feature: 'lp_portal' },
   'api/lps/authorized-users': { domain: 'lp_relations', feature: 'lp_portal' },
