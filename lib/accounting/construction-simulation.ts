@@ -1,0 +1,205 @@
+// Monte Carlo over the construction plan: the same deals, the same pacing, thousands of outcomes.
+//
+// The deterministic forecast says what the fund returns IF every deal does what its forecast says.
+// Venture portfolios do not work like that: most deals return little, a few return the fund, and
+// which is which is unknowable today. This samples that. Each deal's forecast proceeds become the
+// EXPECTED value of a skewed distribution — a probability of a write-off, and a log-normal spread
+// around the survivors sized so the mean still equals the forecast — and each exit slides within a
+// stated window. Every run then goes through the SAME schedule as the deterministic forecast
+// (forecastSchedule, with the sampled proceeds overriding the stated ones), so fees, pacing and
+// capital calls can never disagree between the two views.
+//
+// PURE and SEEDED. The generator is a small deterministic PRNG, so the same assumptions give the
+// same bands on every load and on the server and in the browser alike; changing the seed is a
+// deliberate act. Nothing here is a strategy default: a loss rate and a dispersion of zero collapse
+// the simulation onto the forecast, and the page asks for them.
+
+import type { ConstructionAssumptions, ConstructionResult, PacingAssumptions, SimulationAssumptions } from './construction'
+import { DEFAULT_SIMULATION } from './construction'
+import { forecastSchedule, dealTimelines, type ForecastBaseline } from './construction-forecast'
+
+export { DEFAULT_SIMULATION }
+export type { SimulationAssumptions }
+
+export interface Percentiles { p10: number; p25: number; p50: number; p75: number; p90: number; mean: number }
+
+export interface SimulationYear {
+  year: number
+  calendarYear: number
+  tvpi: Percentiles
+  dpi: Percentiles
+}
+
+export interface SimulationResult {
+  runs: number
+  horizonYears: number
+  years: SimulationYear[]
+  final: { tvpi: Percentiles; dpi: Percentiles; netIrr: Percentiles | null }
+  /** Final TVPI, binned. */
+  histogram: { from: number; to: number; count: number }[]
+  probabilities: {
+    /** P(final TVPI ≥ targetMultiple). Null without a target. */
+    atOrAboveTarget: number | null
+    /** P(final TVPI < 1). */
+    belowCost: number
+    /** P(at least one deal alone returns the committed capital). */
+    fundReturner: number
+  }
+  /** True when the assumptions say something beyond the deterministic forecast. */
+  stated: boolean
+}
+
+/** mulberry32 — small, fast, good enough for sampling bands, and identical everywhere. */
+export function makeRng(seed: number): () => number {
+  let a = (seed >>> 0) || 1
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0
+    let t = a
+    t = Math.imul(t ^ (t >>> 15), t | 1)
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  }
+}
+
+/** A standard normal from two uniforms (Box–Muller). */
+function normal(rng: () => number): number {
+  let u = 0
+  while (u === 0) u = rng()
+  const v = rng()
+  return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v)
+}
+
+export function percentiles(values: number[]): Percentiles {
+  const sorted = [...values].sort((x, y) => x - y)
+  const at = (p: number) => {
+    if (sorted.length === 0) return 0
+    const idx = (sorted.length - 1) * p
+    const lo = Math.floor(idx)
+    const hi = Math.ceil(idx)
+    return sorted[lo] + (sorted[hi] - sorted[lo]) * (idx - lo)
+  }
+  const mean = sorted.length ? sorted.reduce((s, v) => s + v, 0) / sorted.length : 0
+  return { p10: at(0.1), p25: at(0.25), p50: at(0.5), p75: at(0.75), p90: at(0.9), mean }
+}
+
+/**
+ * Sample one deal's outcome.
+ *
+ * With probability `lossRate` the deal returns nothing. Otherwise its proceeds are log-normal with
+ * mean `expected / (1 − lossRate)`, so the EXPECTATION across both branches equals the forecast:
+ * the simulation spreads the forecast, it does not quietly haircut or inflate it. The cap, when
+ * set, truncates the tail — and therefore lowers the mean a little; that is the trade the cap makes.
+ */
+export function sampleOutcome(
+  rng: () => number,
+  expected: number,
+  cost: number,
+  sim: SimulationAssumptions,
+): number {
+  if (expected <= 0) return 0
+  const p = Math.min(0.999, Math.max(0, sim.lossRate))
+  if (p > 0 && rng() < p) return 0
+  const mean = expected / (1 - p)
+  const sigma = Math.max(0, sim.dispersion)
+  let value = mean
+  if (sigma > 0) {
+    const mu = Math.log(mean) - (sigma * sigma) / 2
+    value = Math.exp(mu + sigma * normal(rng))
+  }
+  if (sim.maxMoic > 0 && cost > 0) value = Math.min(value, sim.maxMoic * cost)
+  return value
+}
+
+/** Run the simulation. */
+export function simulateFund(
+  model: ConstructionResult,
+  a: ConstructionAssumptions,
+  pacing: PacingAssumptions,
+  sim: SimulationAssumptions,
+  baseline: ForecastBaseline,
+): SimulationResult {
+  const runs = Math.max(1, Math.min(20_000, Math.floor(sim.runs) || 1))
+  const rng = makeRng(sim.seed)
+  const deals = dealTimelines(model, pacing)
+  const stated = sim.lossRate > 0 || sim.dispersion > 0 || sim.holdSpreadYears > 0
+  const committed = model.capital.committedCapital
+
+  // The horizon comes from the deterministic schedule so every run is measured on the same grid
+  // even when a sampled exit slides past the last scheduled one.
+  const base = forecastSchedule(model, a, pacing, baseline, undefined, 'none')
+  const horizonYears = Math.max(base.horizonYears, Math.ceil(deals.reduce((m, d) => Math.max(m, d.exitAt), 0) + Math.max(0, sim.holdSpreadYears)))
+  const wide = { ...pacing, horizonYears }
+
+  const tvpiByYear: number[][] = Array.from({ length: horizonYears + 1 }, () => [])
+  const dpiByYear: number[][] = Array.from({ length: horizonYears + 1 }, () => [])
+  const finalTvpi: number[] = []
+  const finalDpi: number[] = []
+  const finalIrr: number[] = []
+  let fundReturners = 0
+
+  for (let run = 0; run < runs; run++) {
+    const override = new Map<string, { proceeds: number; exitAt: number }>()
+    let returner = false
+    for (const d of deals) {
+      if (d.proceeds == null) continue
+      const cost = d.currentValue + d.initialCheck + d.followOn
+      const proceeds = sampleOutcome(rng, d.proceeds, cost, sim)
+      const spread = Math.max(0, sim.holdSpreadYears)
+      const earliest = d.kind === 'planned' ? d.initialAt + 0.25 : 0.25
+      const exitAt = spread > 0 ? Math.max(earliest, d.exitAt + (rng() * 2 - 1) * spread) : d.exitAt
+      override.set(d.key, { proceeds, exitAt })
+      if (committed > 0 && proceeds >= committed) returner = true
+    }
+    if (returner) fundReturners++
+    const s = forecastSchedule(model, a, wide, baseline, override, 'final')
+    for (const y of s.years) {
+      tvpiByYear[y.year].push(y.tvpi ?? 0)
+      dpiByYear[y.year].push(y.dpi ?? 0)
+    }
+    const last = s.years[s.years.length - 1]
+    finalTvpi.push(last.tvpi ?? 0)
+    finalDpi.push(last.dpi ?? 0)
+    if (last.netIrr != null) finalIrr.push(last.netIrr)
+  }
+
+  const years: SimulationYear[] = base.years.map(y => ({
+    year: y.year,
+    calendarYear: y.calendarYear,
+    tvpi: percentiles(tvpiByYear[y.year]),
+    dpi: percentiles(dpiByYear[y.year]),
+  }))
+  // The wide grid may extend past the base schedule's years.
+  for (let t = base.years.length; t <= horizonYears; t++) {
+    years.push({ year: t, calendarYear: base.years[0].calendarYear + t, tvpi: percentiles(tvpiByYear[t]), dpi: percentiles(dpiByYear[t]) })
+  }
+
+  // Histogram of final TVPI: bins of 0.5x up to the 99th percentile, one open bin above.
+  const sortedFinal = [...finalTvpi].sort((x, y) => x - y)
+  const top = sortedFinal.length ? sortedFinal[Math.floor((sortedFinal.length - 1) * 0.99)] : 0
+  const step = 0.5
+  const binCount = Math.max(1, Math.min(40, Math.ceil(top / step) + 1))
+  const histogram = Array.from({ length: binCount }, (_, i) => ({ from: i * step, to: (i + 1) * step, count: 0 }))
+  for (const v of finalTvpi) {
+    const i = Math.min(binCount - 1, Math.max(0, Math.floor(v / step)))
+    histogram[i].count++
+  }
+
+  const target = sim.targetMultiple > 0 ? sim.targetMultiple : 0
+  return {
+    runs,
+    horizonYears,
+    years,
+    final: {
+      tvpi: percentiles(finalTvpi),
+      dpi: percentiles(finalDpi),
+      netIrr: finalIrr.length > 0 ? percentiles(finalIrr) : null,
+    },
+    histogram,
+    probabilities: {
+      atOrAboveTarget: target > 0 ? finalTvpi.filter(v => v >= target).length / runs : null,
+      belowCost: finalTvpi.filter(v => v < 1).length / runs,
+      fundReturner: fundReturners / runs,
+    },
+    stated,
+  }
+}

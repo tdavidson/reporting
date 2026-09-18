@@ -55,6 +55,24 @@ export interface ConstructionSummaryBlock {
     returnMethod: string
   }>
   warnings: string[]
+  /** The plan on the calendar, once pacing is stated. */
+  timeline?: {
+    horizonYears: number
+    finalYear: number
+    dpi: number | null
+    tvpi: number | null
+    netIrr: number | null
+  } | null
+  /** The Monte Carlo over that schedule, once loss or dispersion is stated. */
+  simulation?: {
+    runs: number
+    tvpi: { p10: number; p50: number; p90: number }
+    dpi: { p10: number; p50: number; p90: number }
+    netIrr: { p10: number; p50: number; p90: number } | null
+    probabilityAtOrAboveTarget: number | null
+    probabilityBelowCost: number
+    probabilityFundReturner: number
+  } | null
 }
 
 export interface PendingActionBlock {
@@ -117,6 +135,23 @@ export function constructionSummaryBlock(value: unknown): AnalystPresentationBlo
         returnMethod: position.returnMethod,
       })),
       warnings: value.warnings,
+      ...(value.timeline ? {
+        timeline: (() => {
+          const last = value.timeline.years[value.timeline.years.length - 1]
+          return { horizonYears: value.timeline.horizonYears, finalYear: last.calendarYear, dpi: last.dpi, tvpi: last.tvpi, netIrr: last.netIrr }
+        })(),
+      } : {}),
+      ...(value.simulation ? {
+        simulation: {
+          runs: value.simulation.runs,
+          tvpi: { p10: value.simulation.final.tvpi.p10, p50: value.simulation.final.tvpi.p50, p90: value.simulation.final.tvpi.p90 },
+          dpi: { p10: value.simulation.final.dpi.p10, p50: value.simulation.final.dpi.p50, p90: value.simulation.final.dpi.p90 },
+          netIrr: value.simulation.final.netIrr ? { p10: value.simulation.final.netIrr.p10, p50: value.simulation.final.netIrr.p50, p90: value.simulation.final.netIrr.p90 } : null,
+          probabilityAtOrAboveTarget: value.simulation.probabilities.atOrAboveTarget,
+          probabilityBelowCost: value.simulation.probabilities.belowCost,
+          probabilityFundReturner: value.simulation.probabilities.fundReturner,
+        },
+      } : {}),
     },
   }
 }

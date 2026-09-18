@@ -69,6 +69,62 @@ export interface ConstructionPositionForecast {
   returnMethod?: ReturnForecastMethod
 }
 
+/**
+ * How the plan lands on the calendar (lib/accounting/construction-forecast.ts). Every field is
+ * stated by the GP; nothing is defaulted — zero pacing is "not answered yet".
+ */
+export interface PacingAssumptions {
+  /** Years from today over which the remaining planned initial checks are written. 0 = all now. */
+  deploymentYears: number
+  /** Years after an initial check that its follow-on reserve is drawn. */
+  followOnLagYears: number
+  /** Years from a planned deal's initial check to its exit. */
+  holdYears: number
+  /** Years from today to the exit of the companies the fund already holds. */
+  existingHoldYears: number
+  /** Years to project. 0 = far enough to see every planned exit. */
+  horizonYears: number
+  /** How unrealized value moves toward the forecast: flat at carrying value, or straight-line. */
+  accretion: 'none' | 'linear'
+}
+
+export const DEFAULT_PACING: PacingAssumptions = {
+  deploymentYears: 0,
+  followOnLagYears: 0,
+  holdYears: 0,
+  existingHoldYears: 0,
+  horizonYears: 0,
+  accretion: 'linear',
+}
+
+/** The Monte Carlo settings (lib/accounting/construction-simulation.ts). */
+export interface SimulationAssumptions {
+  /** Runs per simulation. An engine setting, not a strategy one. */
+  runs: number
+  /** PRNG seed. The same seed and assumptions reproduce the same bands. */
+  seed: number
+  /** Probability a deal is written off entirely. 0–1. */
+  lossRate: number
+  /** Spread of surviving outcomes around the forecast: the log-normal sigma. 0 = no spread. */
+  dispersion: number
+  /** Each exit lands uniformly within ± this many years of its scheduled year. */
+  holdSpreadYears: number
+  /** Cap on any single deal's multiple of cost. 0 = no cap. */
+  maxMoic: number
+  /** The net multiple the fund is underwriting to, for the probability of reaching it. 0 = unset. */
+  targetMultiple: number
+}
+
+export const DEFAULT_SIMULATION: SimulationAssumptions = {
+  runs: 2000,
+  seed: 1,
+  lossRate: 0,
+  dispersion: 0,
+  holdSpreadYears: 0,
+  maxMoic: 0,
+  targetMultiple: 0,
+}
+
 export interface ConstructionAssumptions {
   feeAnnualRate: number
   feeBasis: FeeBasis
@@ -84,6 +140,10 @@ export interface ConstructionAssumptions {
   targetFundMultiple: number
   stages: ConstructionStage[]
   positionForecasts: ConstructionPositionForecast[]
+  /** When the plan happens. Layered on the model by construction-forecast.ts; the model ignores it. */
+  pacing: PacingAssumptions
+  /** How the outcomes are spread. Used by construction-simulation.ts; the model ignores it. */
+  simulation: SimulationAssumptions
 }
 
 /** One existing portfolio company, derived from the tracker and never accepted from the client. */
@@ -157,6 +217,8 @@ export const DEFAULT_ASSUMPTIONS: ConstructionAssumptions = {
   targetFundMultiple: 0,
   stages: [],
   positionForecasts: [],
+  pacing: DEFAULT_PACING,
+  simulation: DEFAULT_SIMULATION,
 }
 
 /** A new, empty deal row for the page's "Add forecast row" control. Named, and nothing else. */
@@ -250,6 +312,26 @@ export function parseAssumptions(raw: unknown, _vintageYear: number | null): Con
       returnMethod: f.returnMethod === 'moic' ? 'moic' : 'ownership',
     }))
 
+  const p = (o.pacing ?? {}) as Record<string, unknown>
+  const pacing: PacingAssumptions = {
+    deploymentYears: Math.max(0, num(p.deploymentYears, 0)),
+    followOnLagYears: Math.max(0, num(p.followOnLagYears, 0)),
+    holdYears: Math.max(0, num(p.holdYears, 0)),
+    existingHoldYears: Math.max(0, num(p.existingHoldYears, 0)),
+    horizonYears: Math.max(0, num(p.horizonYears, 0)),
+    accretion: p.accretion === 'none' ? 'none' : 'linear',
+  }
+  const m = (o.simulation ?? {}) as Record<string, unknown>
+  const simulation: SimulationAssumptions = {
+    runs: Math.max(1, Math.min(20_000, Math.floor(num(m.runs, DEFAULT_SIMULATION.runs)))),
+    seed: Math.max(0, Math.floor(num(m.seed, DEFAULT_SIMULATION.seed))),
+    lossRate: Math.min(0.99, Math.max(0, num(m.lossRate, 0))),
+    dispersion: Math.max(0, num(m.dispersion, 0)),
+    holdSpreadYears: Math.max(0, num(m.holdSpreadYears, 0)),
+    maxMoic: Math.max(0, num(m.maxMoic, 0)),
+    targetMultiple: Math.max(0, num(m.targetMultiple, 0)),
+  }
+
   return {
     feeAnnualRate: num(o.feeAnnualRate, DEFAULT_ASSUMPTIONS.feeAnnualRate),
     feeBasis: basis,
@@ -267,6 +349,8 @@ export function parseAssumptions(raw: unknown, _vintageYear: number | null): Con
     targetFundMultiple: num(o.targetFundMultiple, DEFAULT_ASSUMPTIONS.targetFundMultiple),
     stages,
     positionForecasts,
+    pacing,
+    simulation,
   }
 }
 
@@ -291,6 +375,24 @@ export function projectRemainingFees(
   _today: Date = new Date(),
 ): number {
   return projectFeesFromFundYear(a, committedCapital, deployedTotal, nav, 0)
+}
+
+/**
+ * The fee charged in ONE forward year (1-based) of the term — what the pacing schedule books in
+ * each year. Sums to `projectRemainingFees` over the term, step-down included.
+ */
+export function projectFeesForYear(
+  a: ConstructionAssumptions,
+  committedCapital: number,
+  deployedTotal: number,
+  nav: number,
+  year: number,
+): number {
+  if (year < 1 || year > Math.ceil(a.feeTermYears)) return 0
+  return r(
+    projectFeesFromFundYear(a, committedCapital, deployedTotal, nav, year - 1)
+    - projectFeesFromFundYear(a, committedCapital, deployedTotal, nav, Math.min(year, a.feeTermYears)),
+  )
 }
 
 /** Project fees from a stated fund year through the end of the term. */
