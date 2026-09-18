@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
   if (membership.role !== 'admin') return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
 
   const body = await req.json()
-  const { subject, body_html, body_text, recipients, quarter_label, cc, bcc, from_name, from_address } = body
+  const { subject, body_html, body_text, recipients, quarter_label, cc, bcc, from_name, from_address, quarter, year, due_date } = body
 
   if (!subject?.trim()) return NextResponse.json({ error: 'Subject is required' }, { status: 400 })
   if (!body_html?.trim() && !body_text?.trim()) return NextResponse.json({ error: 'Body is required' }, { status: 400 })
@@ -42,6 +42,19 @@ export async function POST(req: NextRequest) {
   if (ccList.invalid) return NextResponse.json({ error: `Invalid CC address: ${ccList.invalid}` }, { status: 400 })
   const bccList = parseAddressList(bcc)
   if (bccList.invalid) return NextResponse.json({ error: `Invalid BCC address: ${bccList.invalid}` }, { status: 400 })
+
+  // Which quarter this request asks about and when responses are due — the ops-reminders
+  // follow-up keys off both. Optional: a test send omits them and is never counted as sent.
+  const period = Number.isInteger(quarter) && quarter >= 1 && quarter <= 4 && Number.isInteger(year) && year >= 2000 && year <= 2100
+    ? { quarter: Number(quarter), year: Number(year) }
+    : null
+  if ((quarter != null || year != null) && !period) {
+    return NextResponse.json({ error: 'Invalid quarter' }, { status: 400 })
+  }
+  const dueDate = typeof due_date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(due_date) ? due_date : null
+  if (due_date && !dueDate) {
+    return NextResponse.json({ error: 'Invalid responses-due date' }, { status: 400 })
+  }
 
   // Get the fund's outbound email config
   const config = await getOutboundConfig(admin, membership.fund_id, 'asks')
@@ -88,7 +101,10 @@ export async function POST(req: NextRequest) {
     subject: subject.trim(),
     body_html: sanitizeHtml((body_text ?? body_html).trim()),
     recipients,
-    quarter_label: quarter_label?.trim() || null,
+    quarter_label: quarter_label?.trim() || (period ? `Q${period.quarter} ${period.year}` : null),
+    quarter: period?.quarter ?? null,
+    year: period?.year ?? null,
+    due_date: dueDate,
     sent_by: user.id,
     status: 'sent',
     sent_at: new Date().toISOString(),

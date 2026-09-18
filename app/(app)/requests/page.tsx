@@ -11,6 +11,8 @@ import { AnalystPanel } from '@/components/analyst-panel'
 import { PortfolioNotesProvider, PortfolioNotesButton, PortfolioNotesPanel } from '@/components/portfolio-notes'
 import { useFeatureVisibility } from '@/components/feature-visibility-context'
 import type { ResponseStatus } from '@/lib/requests/response-status'
+import { lastEndedQuarter } from '@/lib/requests/response-status'
+import { isoDate } from '@/lib/reminders/dates'
 
 interface Company {
   id: string
@@ -75,6 +77,17 @@ function plainTextToHtml(text: string): string {
     .join('<br>\n')
 }
 
+/** The four most recently ended quarters, newest first — the ones a request can ask about. */
+function recentEndedQuarters(): { year: number; quarter: number; label: string }[] {
+  const out: { year: number; quarter: number; label: string }[] = []
+  let q = lastEndedQuarter(isoDate(new Date()))
+  for (let i = 0; i < 4; i++) {
+    out.push({ year: q.year, quarter: q.quarter, label: `Q${q.quarter} ${q.year}` })
+    q = lastEndedQuarter(q.endDate.slice(0, 8) + '01')
+  }
+  return out
+}
+
 export default function RequestsPage() {
   const fv = useFeatureVisibility()
   const [settings, setSettings] = useState<Settings | null>(null)
@@ -89,6 +102,10 @@ export default function RequestsPage() {
   const [bodyText, setBodyText] = useState(DEFAULT_BODY)
   const [cc, setCc] = useState('')
   const [bcc, setBcc] = useState('')
+  const [periodOptions] = useState(recentEndedQuarters)
+  const [periodIdx, setPeriodIdx] = useState(0)
+  const [dueDate, setDueDate] = useState('')
+  const period = periodOptions[periodIdx]
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [confirmSend, setConfirmSend] = useState(false)
 
@@ -249,6 +266,10 @@ export default function RequestsPage() {
         from_name: fromName.trim() || undefined,
         from_address: fromAddress.trim() || undefined,
         recipients,
+        quarter: period.quarter,
+        year: period.year,
+        quarter_label: period.label,
+        due_date: dueDate || undefined,
       }),
     })
 
@@ -384,6 +405,29 @@ export default function RequestsPage() {
             </div>
           </div>
         )}
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <Label htmlFor="request-period">Reporting period</Label>
+            <select
+              id="request-period"
+              className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              value={periodIdx}
+              onChange={(e) => setPeriodIdx(Number(e.target.value))}
+            >
+              {periodOptions.map((p, i) => (
+                <option key={p.label} value={i}>{p.label}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <Label htmlFor="request-due">Responses due</Label>
+            <Input id="request-due" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+            <p className="text-xs text-muted-foreground mt-1">
+              Optional. With a date set, operational reminders chase companies that haven&apos;t responded.
+            </p>
+          </div>
+        </div>
 
         <div>
           <Label>Subject</Label>
