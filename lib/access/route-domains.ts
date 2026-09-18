@@ -513,6 +513,7 @@ export const UNGATED_ROUTES: Record<string, string> = {
   'api/cron/memo-agent-worker': 'Cron: CRON_SECRET.',
   'api/cron/company-updates-ocr': 'Cron: CRON_SECRET.',
   'api/cron/company-updates-backfill': 'Cron: CRON_SECRET.',
+  'api/cron/ops-reminders': 'Cron: CRON_SECRET.',
 
   // Inbound from third parties, authenticated by a token in the path or a provider signature.
   'api/webhooks/transcription/[token]': 'Inbound webhook: per-job single-use callback token in the path (SEC-010).',
