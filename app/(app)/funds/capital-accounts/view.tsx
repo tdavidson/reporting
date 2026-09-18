@@ -575,7 +575,7 @@ export function CapitalAccountsView() {
                     </span>
                   ))}
                 </div>
-                <NoticeAction kind="capital_call" id={c.id} />
+                <NoticeAction kind="capital_call" id={c.id} lines={c.lines} fmt={fmt} />
               </div>
             ))}
           </div>
@@ -614,7 +614,7 @@ export function CapitalAccountsView() {
                     </span>
                   ))}
                 </div>
-                <NoticeAction kind="distribution" id={d.distributionId} />
+                <NoticeAction kind="distribution" id={d.distributionId} lines={d.lines} fmt={fmt} />
               </div>
             ))}
           </div>

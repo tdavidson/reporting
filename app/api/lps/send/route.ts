@@ -6,6 +6,7 @@ import { resolveLpRecipients } from '@/lib/lp-recipients'
 import { getOutboundConfig, sendOutboundEmail, type EmailAttachment } from '@/lib/email'
 import { generateInvestorReportPdf, generateLetterPdf } from '@/lib/lp-report-pdf'
 import { logDelivery } from '@/lib/lp-deliveries'
+import { buildLpEmailHtml } from '@/lib/lp-email'
 
 export const maxDuration = 300
 
@@ -15,43 +16,6 @@ type Delivery = 'link' | 'attachment' | 'both'
 // Each snapshot attachment spins up its own headless Chrome, so keep this low to
 // avoid exhausting serverless memory; link-only sends are just API calls.
 const SEND_CONCURRENCY = 3
-
-function esc(s: string): string {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
-}
-
-function buildHtml(opts: { fundName: string; message: string; link: string | null; itemTitle: string }): string {
-  const { fundName, message, link, itemTitle } = opts
-  const body = esc(message).replace(/\r?\n/g, '<br>')
-  const button = link
-    ? `<table cellpadding="0" cellspacing="0" style="margin:0 0 24px 0;"><tr><td style="background-color:#111827;border-radius:6px;padding:12px 24px;">
-        <a href="${esc(link)}" style="color:#ffffff;font-size:14px;font-weight:500;text-decoration:none;display:inline-block;">View in your portal</a>
-      </td></tr></table>
-      <p style="margin:0 0 24px 0;font-size:12px;color:#6b7280;word-break:break-all;">Or copy this link: ${esc(link)}</p>`
-    : ''
-  return `<!DOCTYPE html>
-<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
-<body style="margin:0;padding:0;background-color:#f9fafb;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f9fafb;padding:40px 20px;">
-    <tr><td align="center">
-      <table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background-color:#ffffff;border-radius:8px;border:1px solid #e5e7eb;overflow:hidden;">
-        <tr><td style="padding:32px 32px 0 32px;">
-          <p style="margin:0;font-size:13px;color:#6b7280;">${esc(fundName)}</p>
-        </td></tr>
-        <tr><td style="padding:20px 32px 32px 32px;">
-          <h1 style="margin:0 0 16px 0;font-size:20px;font-weight:600;color:#111827;">${esc(itemTitle)}</h1>
-          <div style="margin:0 0 24px 0;font-size:14px;line-height:1.6;color:#374151;">${body}</div>
-          ${button}
-          <p style="margin:0;font-size:12px;color:#9ca3af;">If you weren't expecting this email, you can safely ignore it.</p>
-        </td></tr>
-        <tr><td style="padding:20px 32px;border-top:1px solid #f3f4f6;">
-          <p style="margin:0;font-size:11px;color:#9ca3af;">Sent by ${esc(fundName)} via their reporting portal.</p>
-        </td></tr>
-      </table>
-    </td></tr>
-  </table>
-</body></html>`
-}
 
 async function runPool<T>(items: T[], concurrency: number, worker: (item: T) => Promise<void>) {
   let cursor = 0
@@ -210,7 +174,7 @@ export async function POST(req: NextRequest) {
       subject,
       itemTitle,
       fromName: fundName,
-      html: buildHtml({ fundName, message, link: emailLink, itemTitle }),
+      html: buildLpEmailHtml({ fundName, message, link: emailLink, itemTitle }),
       attachment: wantsAttachment,
       recipients: groups.map(g => ({
         to: g.primaryEmail,
@@ -275,7 +239,7 @@ export async function POST(req: NextRequest) {
         to: g.primaryEmail,
         cc: g.ccEmails.length ? g.ccEmails.join(', ') : undefined,
         subject,
-        html: buildHtml({ fundName, message, link: emailLink, itemTitle }),
+        html: buildLpEmailHtml({ fundName, message, link: emailLink, itemTitle }),
         attachments: attachments.length ? attachments : undefined,
       })
       summary.sent += 1
