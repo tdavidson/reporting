@@ -113,6 +113,19 @@ function validateStage(value: unknown, index: number): asserts value is Construc
   if (value.returnMethod != null && value.returnMethod !== 'ownership' && value.returnMethod !== 'moic') {
     invalid(`stages[${index}].returnMethod must be ownership or moic`)
   }
+  validateDealOverrides(value, `stages[${index}]`, ['investInYears', 'exitInYears', 'followOnInYears'])
+}
+
+/** The per-deal timing and simulation overrides: each null (use the fund-wide value) or a non-negative number. */
+function validateDealOverrides(value: Record<string, unknown>, where: string, timingFields: string[]): void {
+  for (const field of [...timingFields, 'simDispersion', 'simExitSpreadYears']) {
+    if (value[field] != null && (!finite(value[field]) || (value[field] as number) < 0)) {
+      invalid(`${where}.${field} must be null or a non-negative finite number`)
+    }
+  }
+  if (value.simLossRate != null && (!finite(value.simLossRate) || value.simLossRate < 0 || value.simLossRate > 1)) {
+    invalid(`${where}.simLossRate must be null or between 0 and 1`)
+  }
 }
 
 function validatePositionForecast(
@@ -135,6 +148,7 @@ function validatePositionForecast(
   if (value.returnMethod != null && value.returnMethod !== 'ownership' && value.returnMethod !== 'moic') {
     invalid(`positionForecasts[${index}].returnMethod must be ownership or moic`)
   }
+  validateDealOverrides(value, `positionForecasts[${index}]`, ['exitInYears', 'followOnInYears'])
 }
 
 /** Strict write boundary. The tolerant parser remains appropriate for old stored rows. */

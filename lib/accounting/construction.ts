@@ -48,6 +48,17 @@ export interface ConstructionStage {
   forecastMoic?: number
   /** How this deal's proceeds are forecast. */
   returnMethod?: ReturnForecastMethod
+  // ── Timing, stated per deal. Absent = the fund-wide pacing (construction-forecast.ts). ──
+  /** Years from today the initial check is written. */
+  investInYears?: number | null
+  /** Years from the initial check to the exit. */
+  exitInYears?: number | null
+  /** Years from the initial check to the follow-on. */
+  followOnInYears?: number | null
+  // ── How the simulation varies THIS deal. Absent = the fund-wide setting. ──
+  simLossRate?: number | null
+  simDispersion?: number | null
+  simExitSpreadYears?: number | null
 }
 
 export type ReturnForecastMethod = 'ownership' | 'moic'
@@ -67,6 +78,15 @@ export interface ConstructionPositionForecast {
   forecastMoic?: number
   /** How this deal's proceeds are forecast. */
   returnMethod?: ReturnForecastMethod
+  // ── Timing, stated per company. Absent = the fund-wide pacing (construction-forecast.ts). ──
+  /** Years from today to the exit. */
+  exitInYears?: number | null
+  /** Years from today the planned follow-on is drawn. */
+  followOnInYears?: number | null
+  // ── How the simulation varies THIS company. Absent = the fund-wide setting. ──
+  simLossRate?: number | null
+  simDispersion?: number | null
+  simExitSpreadYears?: number | null
 }
 
 /**
@@ -247,6 +267,15 @@ const num = (v: unknown, fallback: number): number =>
 const nullableNum = (v: unknown): number | null =>
   typeof v === 'number' && Number.isFinite(v) ? v : null
 
+/** An optional per-deal number: absent or malformed reads as "not stated", never as zero. */
+const optionalNonNeg = (v: unknown, max = Infinity): number | undefined =>
+  typeof v === 'number' && Number.isFinite(v) ? Math.min(max, Math.max(0, v)) : undefined
+const dealOverrides = (o: Record<string, unknown>) => ({
+  simLossRate: optionalNonNeg(o.simLossRate, 0.99),
+  simDispersion: optionalNonNeg(o.simDispersion),
+  simExitSpreadYears: optionalNonNeg(o.simExitSpreadYears, 50),
+})
+
 /**
  * Read a stored row (or nothing) into a complete, valid assumptions object.
  *
@@ -292,6 +321,10 @@ export function parseAssumptions(raw: unknown, _vintageYear: number | null): Con
             expectedExitValue: num(s.expectedExitValue, 0),
             forecastMoic: Math.max(0, num(s.forecastMoic, 0)),
             returnMethod: s.returnMethod === 'moic' ? 'moic' : 'ownership',
+            investInYears: optionalNonNeg(s.investInYears, 50),
+            exitInYears: optionalNonNeg(s.exitInYears, 50),
+            followOnInYears: optionalNonNeg(s.followOnInYears, 50),
+            ...dealOverrides(s),
           }))
         })
     : []
@@ -310,6 +343,9 @@ export function parseAssumptions(raw: unknown, _vintageYear: number | null): Con
       expectedExitValue: Math.max(0, num(f.expectedExitValue, 0)),
       forecastMoic: Math.max(0, num(f.forecastMoic, 0)),
       returnMethod: f.returnMethod === 'moic' ? 'moic' : 'ownership',
+      exitInYears: optionalNonNeg(f.exitInYears, 50),
+      followOnInYears: optionalNonNeg(f.followOnInYears, 50),
+      ...dealOverrides(f),
     }))
 
   const p = (o.pacing ?? {}) as Record<string, unknown>

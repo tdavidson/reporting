@@ -152,3 +152,49 @@ describe('irrOf', () => {
     expect(dated.years[7].netIrr!).toBeLessThan(lump.years[7].netIrr!)
   })
 })
+
+describe('per-deal timing', () => {
+  it('a company’s own exit year and follow-on timing win over the fund-wide pacing', () => {
+    const model = constructionModel(actuals(), assumptions({
+      positionForecasts: [
+        { companyId: 'c1', plannedFollowOn: 500_000, ownershipAtExit: 0.1, expectedExitValue: 50_000_000, returnMethod: 'ownership', exitInYears: 2, followOnInYears: 0.5 },
+        { companyId: 'c2', plannedFollowOn: 0, ownershipAtExit: 0, forecastMoic: 0, expectedExitValue: 0, returnMethod: 'moic' },
+      ],
+    }))
+    const deals = dealTimelines(model, pacing())
+    const alpha = deals.find(d => d.key === 'c1')!
+    const beta = deals.find(d => d.key === 'c2')!
+    expect(alpha).toMatchObject({ exitAt: 2, followOnAt: 0.5, timing: 'stated' })
+    expect(beta).toMatchObject({ exitAt: 4, timing: 'pacing' })
+    const s = forecastSchedule(model, assumptions(), pacing(), baseline)
+    expect(s.years[2].distributed).toBe(5_000_000)
+    expect(s.years[4].distributed).toBe(1_000_000)
+  })
+
+  it('a planned deal’s own investment year and hold win over the spread', () => {
+    const model = constructionModel(actuals(), assumptions({
+      stages: [
+        { key: 's1', label: 'Deal A', initialCheck: 1_000_000, initialPostMoney: 10_000_000, followOnMultiple: 0, followOnCheck: 500_000, dilutionFactor: 0.5, forecastMoic: 3, returnMethod: 'moic', investInYears: 3, exitInYears: 2, followOnInYears: 1 },
+      ],
+    }))
+    const [deal] = dealTimelines(model, pacing()).filter(d => d.kind === 'planned')
+    expect(deal).toMatchObject({ initialAt: 3, followOnAt: 4, exitAt: 5, timing: 'stated' })
+  })
+
+  it('a stated per-deal exit makes the schedule stated even with no fund-wide pacing', () => {
+    const model = constructionModel(actuals(), assumptions({
+      positionForecasts: [{ companyId: 'c1', plannedFollowOn: 0, ownershipAtExit: 0.1, expectedExitValue: 50_000_000, returnMethod: 'ownership', exitInYears: 3 }],
+    }))
+    expect(forecastSchedule(model, assumptions(), DEFAULT_PACING, baseline).stated).toBe(true)
+  })
+
+  it('carries per-deal simulation overrides onto the timeline', () => {
+    const model = constructionModel(actuals(), assumptions({
+      positionForecasts: [{ companyId: 'c1', plannedFollowOn: 0, ownershipAtExit: 0.1, expectedExitValue: 50_000_000, returnMethod: 'ownership', simLossRate: 0.1, simDispersion: 0.5, simExitSpreadYears: 1 }],
+    }))
+    const alpha = dealTimelines(model, pacing()).find(d => d.key === 'c1')!
+    expect(alpha).toMatchObject({ lossRate: 0.1, dispersion: 0.5, exitSpreadYears: 1 })
+    const beta = dealTimelines(model, pacing()).find(d => d.key === 'c2')!
+    expect(beta.lossRate).toBeUndefined()
+  })
+})

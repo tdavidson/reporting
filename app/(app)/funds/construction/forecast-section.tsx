@@ -37,6 +37,7 @@ export function ForecastSection({ model, actuals, a, setA, vehicle, fmt, fmtFull
 }) {
   const [points, setPoints] = useState<FundTimeseriesPoint[] | null>(null)
   const [yearsOpen, setYearsOpen] = useState(false)
+  const [dealsOpen, setDealsOpen] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -92,14 +93,17 @@ export function ForecastSection({ model, actuals, a, setA, vehicle, fmt, fmtFull
   const deferredA = useDeferredValue(a)
   const simulation = useMemo(() => {
     const s = deferredA.simulation
-    if (!schedule.stated || !(s.lossRate > 0 || s.dispersion > 0 || s.holdSpreadYears > 0)) return null
+    const fundWide = s.lossRate > 0 || s.dispersion > 0 || s.holdSpreadYears > 0
+    const perDeal = schedule.deals.some(d => (d.lossRate ?? 0) > 0 || (d.dispersion ?? 0) > 0 || (d.exitSpreadYears ?? 0) > 0)
+    if (!schedule.stated || !(fundWide || perDeal)) return null
     return simulateFund(model, deferredA, deferredA.pacing, s, baseline)
-  }, [model, deferredA, schedule.stated, baseline])
+  }, [model, deferredA, schedule.stated, schedule.deals, baseline])
 
   const setPacing = (patch: Partial<PacingAssumptions>) => setA(prev => ({ ...prev, pacing: { ...prev.pacing, ...patch } }))
   const setSim = (patch: Partial<SimulationAssumptions>) => setA(prev => ({ ...prev, simulation: { ...prev.simulation, ...patch } }))
 
   const last = schedule.years[schedule.years.length - 1]
+  const yearOf = (offset: number) => (offset <= 0 ? 'now' : String(Math.round(todayYear + offset)))
   const pctOf = (v: number | null | undefined) => (v == null ? '—' : `${(v * 100).toFixed(1)}%`)
   const prob = (v: number | null | undefined) => (v == null ? '—' : `${Math.round(v * 100)}%`)
 
@@ -146,6 +150,41 @@ export function ForecastSection({ model, actuals, a, setA, vehicle, fmt, fmtFull
               <JCurveChart actual={actual} schedule={schedule} simulation={simulation} multiple={multiple} />
               <CashFlowChart schedule={schedule} fmt={fmt} fmtFull={fmtFull} />
             </div>
+            <button type="button" onClick={() => setDealsOpen(o => !o)} className="mt-4 flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+              {dealsOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />} Deal timeline
+            </button>
+            {dealsOpen && (
+              <div className="mt-2 overflow-x-auto">
+                <p className="mb-2 text-xs text-muted-foreground">A deal&rsquo;s own timing, set in its forecast dialog, wins over the fund-wide pacing. Per-deal simulation settings show where they differ from the fund.</p>
+                <table className="w-full whitespace-nowrap text-sm">
+                  <thead><tr className="border-b bg-muted/50">
+                    {['Deal', 'Invest', 'Follow-on', 'Exit', 'Proceeds', 'Timing', 'Simulation'].map((h, i) => (
+                      <th key={h} className={cn('px-3 py-2 font-medium', i === 0 || i >= 5 ? 'text-left' : 'text-right')}>{h}</th>
+                    ))}
+                  </tr></thead>
+                  <tbody>
+                    {schedule.deals.map(d => {
+                      const own = [
+                        d.lossRate != null ? `${Math.round(d.lossRate * 100)}% loss` : null,
+                        d.dispersion != null ? `σ ${d.dispersion}` : null,
+                        d.exitSpreadYears != null ? `±${d.exitSpreadYears} yrs` : null,
+                      ].filter(Boolean)
+                      return (
+                        <tr key={d.key} className="border-b last:border-b-0">
+                          <td className="px-3 py-1.5">{d.name}<span className="ml-1 text-xs text-muted-foreground">{d.kind === 'planned' ? 'planned' : 'held'}</span></td>
+                          <td className="px-3 py-1.5 text-right tabular-nums">{d.initialCheck > 0 ? `${yearOf(d.initialAt)} · ${fmt(d.initialCheck)}` : d.investedToDate > 0 ? `${fmt(d.investedToDate)} to date` : '—'}</td>
+                          <td className="px-3 py-1.5 text-right tabular-nums">{d.followOn > 0 ? `${yearOf(d.followOnAt)} · ${fmt(d.followOn)}` : '—'}</td>
+                          <td className="px-3 py-1.5 text-right tabular-nums">{d.proceeds == null ? '—' : yearOf(d.exitAt)}</td>
+                          <td className="px-3 py-1.5 text-right tabular-nums" title={d.proceeds == null ? undefined : fmtFull(d.proceeds)}>{d.proceeds == null ? 'exited' : fmt(d.proceeds)}</td>
+                          <td className="px-3 py-1.5 text-muted-foreground">{d.timing === 'stated' ? 'Stated' : 'Fund pacing'}</td>
+                          <td className="px-3 py-1.5 text-muted-foreground">{own.length ? own.join(' · ') : 'Fund-wide'}</td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
             <button type="button" onClick={() => setYearsOpen(o => !o)} className="mt-4 flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
               {yearsOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />} Year by year
             </button>
@@ -202,7 +241,7 @@ export function ForecastSection({ model, actuals, a, setA, vehicle, fmt, fmtFull
           <p className="mt-4 text-sm text-muted-foreground">The simulation runs over the pacing schedule above. State the pacing first.</p>
         ) : !simulation ? (
           <p className="mt-4 text-sm text-muted-foreground">
-            Enter a loss rate or a dispersion to spread the outcomes. With both at zero every run is the forecast. Early-stage portfolios commonly see a third to a half of deals written off and a dispersion near 1; a later-stage book is tighter.
+            Enter a loss rate or a dispersion here, or on a single deal in its forecast dialog, to spread the outcomes. With both at zero every run is the forecast. Early-stage portfolios commonly see a third to a half of deals written off and a dispersion near 1; a later-stage book is tighter.
           </p>
         ) : (
           <>

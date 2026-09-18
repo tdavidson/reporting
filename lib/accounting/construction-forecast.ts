@@ -60,6 +60,12 @@ export interface DealTimeline {
   /** Forecast proceeds and when they arrive. Null when the model has no forecast (an exited deal). */
   proceeds: number | null
   exitAt: number
+  /** Whether the exit timing was stated for this deal or came from the fund-wide pacing. */
+  timing: 'stated' | 'pacing'
+  /** Per-deal simulation overrides, when stated. The simulation falls back to the fund-wide values. */
+  lossRate?: number
+  dispersion?: number
+  exitSpreadYears?: number
 }
 
 export interface ForecastYear {
@@ -99,15 +105,24 @@ export interface ForecastSchedule {
 /**
  * Lay the model's deals on the calendar.
  *
- * Planned deals are spread evenly over the deployment period in the order entered; a deployment
- * period of zero writes every remaining check now. Existing companies exit together at the stated
- * remaining hold — one number for the book, because the model has no per-company exit dates and
- * inventing them would be a guess dressed as a schedule.
+ * A deal's own timing wins when it is stated on the forecast: an existing company's years to exit,
+ * a planned deal's year of investment and years to exit, and either one's follow-on timing.
+ * Otherwise the fund-wide pacing applies: planned deals spread evenly over the deployment period
+ * in the order entered (a period of zero writes every remaining check now), and the existing book
+ * exits together at the stated remaining hold.
  */
 export function dealTimelines(model: ConstructionResult, pacing: PacingAssumptions): DealTimeline[] {
+  const stated = (v: number | null | undefined): v is number => typeof v === 'number' && Number.isFinite(v)
+  const overrides = (f: { simLossRate?: number | null; simDispersion?: number | null; simExitSpreadYears?: number | null }) => ({
+    ...(stated(f.simLossRate) ? { lossRate: f.simLossRate } : {}),
+    ...(stated(f.simDispersion) ? { dispersion: f.simDispersion } : {}),
+    ...(stated(f.simExitSpreadYears) ? { exitSpreadYears: f.simExitSpreadYears } : {}),
+  })
   const out: DealTimeline[] = []
   for (const p of model.returns.positions) {
-    const exitAt = Math.max(0, pacing.existingHoldYears)
+    const f = p.forecast
+    const exitAt = Math.max(0, stated(f.exitInYears) ? f.exitInYears : pacing.existingHoldYears)
+    const followOnAt = Math.max(0, stated(f.followOnInYears) ? f.followOnInYears : pacing.followOnLagYears)
     out.push({
       key: p.actual.companyId,
       name: p.actual.name,
@@ -116,17 +131,21 @@ export function dealTimelines(model: ConstructionResult, pacing: PacingAssumptio
       currentValue: p.currentValue,
       initialCheck: 0,
       initialAt: 0,
-      followOn: p.forecast.plannedFollowOn,
-      followOnAt: Math.min(exitAt, Math.max(0, pacing.followOnLagYears)),
+      followOn: f.plannedFollowOn,
+      followOnAt: Math.min(exitAt, followOnAt),
       proceeds: p.isForecasted ? p.estimatedReturn : null,
       exitAt,
+      timing: stated(f.exitInYears) ? 'stated' : 'pacing',
+      ...overrides(f),
     })
   }
   const n = model.returns.stages.length
   model.returns.stages.forEach((st, i) => {
     // The i-th of n deals lands at the centre of its slice of the deployment period.
-    const initialAt = n > 0 && pacing.deploymentYears > 0 ? ((i + 0.5) / n) * pacing.deploymentYears : 0
-    const exitAt = initialAt + Math.max(0, pacing.holdYears)
+    const spread = n > 0 && pacing.deploymentYears > 0 ? ((i + 0.5) / n) * pacing.deploymentYears : 0
+    const initialAt = Math.max(0, stated(st.investInYears) ? st.investInYears : spread)
+    const exitAt = initialAt + Math.max(0, stated(st.exitInYears) ? st.exitInYears : pacing.holdYears)
+    const followOnLag = Math.max(0, stated(st.followOnInYears) ? st.followOnInYears : pacing.followOnLagYears)
     out.push({
       key: st.key,
       name: st.label || 'New investment',
@@ -136,9 +155,11 @@ export function dealTimelines(model: ConstructionResult, pacing: PacingAssumptio
       initialCheck: st.plannedInitial,
       initialAt,
       followOn: st.plannedFollowOn,
-      followOnAt: Math.min(exitAt, initialAt + Math.max(0, pacing.followOnLagYears)),
+      followOnAt: Math.min(exitAt, initialAt + followOnLag),
       proceeds: st.estimatedReturn,
       exitAt,
+      timing: stated(st.exitInYears) || stated(st.investInYears) ? 'stated' : 'pacing',
+      ...overrides(st),
     })
   })
   return out
@@ -199,7 +220,9 @@ export function forecastSchedule(
     const o = proceedsOverride?.get(d.key)
     return o && d.proceeds != null ? { ...d, proceeds: o.proceeds, exitAt: o.exitAt } : d
   })
+  // Stated once the fund-wide pacing says anything, or any deal carries its own exit.
   const stated = pacing.holdYears > 0 || pacing.existingHoldYears > 0 || pacing.deploymentYears > 0
+    || deals.some(d => d.timing === 'stated' && d.exitAt > 0)
 
   const lastExit = deals.reduce((m, d) => Math.max(m, d.exitAt, d.followOnAt, d.initialAt), 0)
   const horizonYears = Math.max(1, Math.ceil(pacing.horizonYears > 0 ? pacing.horizonYears : Math.max(lastExit, a.feeTermYears)))

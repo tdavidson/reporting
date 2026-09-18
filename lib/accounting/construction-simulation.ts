@@ -121,13 +121,21 @@ export function simulateFund(
   const runs = Math.max(1, Math.min(20_000, Math.floor(sim.runs) || 1))
   const rng = makeRng(sim.seed)
   const deals = dealTimelines(model, pacing)
+  // Each deal varies by its own settings where stated, the fund-wide ones otherwise.
+  const settingsFor = (d: { lossRate?: number; dispersion?: number; exitSpreadYears?: number }): SimulationAssumptions => ({
+    ...sim,
+    lossRate: d.lossRate ?? sim.lossRate,
+    dispersion: d.dispersion ?? sim.dispersion,
+    holdSpreadYears: d.exitSpreadYears ?? sim.holdSpreadYears,
+  })
   const stated = sim.lossRate > 0 || sim.dispersion > 0 || sim.holdSpreadYears > 0
+    || deals.some(d => { const s = settingsFor(d); return s.lossRate > 0 || s.dispersion > 0 || s.holdSpreadYears > 0 })
   const committed = model.capital.committedCapital
 
   // The horizon comes from the deterministic schedule so every run is measured on the same grid
   // even when a sampled exit slides past the last scheduled one.
   const base = forecastSchedule(model, a, pacing, baseline, undefined, 'none')
-  const horizonYears = Math.max(base.horizonYears, Math.ceil(deals.reduce((m, d) => Math.max(m, d.exitAt), 0) + Math.max(0, sim.holdSpreadYears)))
+  const horizonYears = Math.max(base.horizonYears, Math.ceil(deals.reduce((m, d) => Math.max(m, d.exitAt + Math.max(0, settingsFor(d).holdSpreadYears)), 0)))
   const wide = { ...pacing, horizonYears }
 
   const tvpiByYear: number[][] = Array.from({ length: horizonYears + 1 }, () => [])
@@ -143,8 +151,9 @@ export function simulateFund(
     for (const d of deals) {
       if (d.proceeds == null) continue
       const cost = d.currentValue + d.initialCheck + d.followOn
-      const proceeds = sampleOutcome(rng, d.proceeds, cost, sim)
-      const spread = Math.max(0, sim.holdSpreadYears)
+      const own = settingsFor(d)
+      const proceeds = sampleOutcome(rng, d.proceeds, cost, own)
+      const spread = Math.max(0, own.holdSpreadYears)
       const earliest = d.kind === 'planned' ? d.initialAt + 0.25 : 0.25
       const exitAt = spread > 0 ? Math.max(earliest, d.exitAt + (rng() * 2 - 1) * spread) : d.exitAt
       override.set(d.key, { proceeds, exitAt })

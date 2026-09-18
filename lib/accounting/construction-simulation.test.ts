@@ -121,3 +121,37 @@ describe('simulateFund', () => {
     expect(s.probabilities.fundReturner).toBeGreaterThan(0)
   })
 })
+
+describe('per-deal simulation overrides', () => {
+  it('a deal with its own loss rate and dispersion varies while the rest hold the forecast', () => {
+    const withOverride: ConstructionAssumptions = {
+      ...a,
+      positionForecasts: [
+        { companyId: 'c1', plannedFollowOn: 0, ownershipAtExit: 0, forecastMoic: 3, expectedExitValue: 0, returnMethod: 'moic', simLossRate: 0.5, simDispersion: 1 },
+        { companyId: 'c2', plannedFollowOn: 0, ownershipAtExit: 0, forecastMoic: 3, expectedExitValue: 0, returnMethod: 'moic' },
+      ],
+    }
+    const model = constructionModel(actuals, withOverride)
+    const s = simulateFund(model, withOverride, pacing, sim(), baseline)
+    // Fund-wide settings say nothing, yet the simulation is stated and Alpha's spread shows.
+    expect(s.stated).toBe(true)
+    expect(s.final.tvpi.p10).toBeLessThan(s.final.tvpi.p90)
+    // Only Alpha (3m expected) varies: the spread is bounded by its share of the fund.
+    const det = forecastSchedule(model, withOverride, pacing, baseline)
+    const detFinal = det.years[det.years.length - 1].tvpi!
+    expect(s.final.tvpi.p90 - s.final.tvpi.p10).toBeLessThan(detFinal)
+  })
+
+  it('a per-deal exit spread widens the grid for that deal alone', () => {
+    const withSpread: ConstructionAssumptions = {
+      ...a,
+      positionForecasts: [
+        { companyId: 'c1', plannedFollowOn: 0, ownershipAtExit: 0, forecastMoic: 3, expectedExitValue: 0, returnMethod: 'moic', simExitSpreadYears: 3 },
+        { companyId: 'c2', plannedFollowOn: 0, ownershipAtExit: 0, forecastMoic: 3, expectedExitValue: 0, returnMethod: 'moic' },
+      ],
+    }
+    const model = constructionModel(actuals, withSpread)
+    const s = simulateFund(model, withSpread, pacing, sim(), baseline)
+    expect(s.horizonYears).toBeGreaterThanOrEqual(7) // Alpha may exit as late as year 4 + 3
+  })
+})

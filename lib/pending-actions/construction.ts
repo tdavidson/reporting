@@ -101,6 +101,8 @@ function applyPatch(
       const allowed = new Set([
         'plannedFollowOn', 'ownershipAtExit', 'additionalDilution', 'expectedExitValue',
         'forecastMoic', 'returnMethod',
+        // Per-company timing and simulation overrides; null returns a field to the fund-wide value.
+        'exitInYears', 'followOnInYears', 'simLossRate', 'simDispersion', 'simExitSpreadYears',
       ])
       const unknownForecastFields = Object.keys(patch).filter(field => !allowed.has(field))
       if (unknownForecastFields.length > 0) {
