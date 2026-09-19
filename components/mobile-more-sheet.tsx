@@ -35,9 +35,12 @@ import type { FeatureVisibilityMap } from '@/lib/types/features'
  *   1. The sections NOT already in the tab bar, as a two-column grid. A grid fits ten
  *      destinations in the height a stacked list gives four, which is the difference
  *      between a menu you read and a menu you scroll.
- *   2. The current section's sub-pages, as chips. This is the part the tab bar cannot
- *      do at all: the bar gets you to Portfolio, and this is how you get from there to
- *      Investments or Notes without a second trip through the menu.
+ *   2. The current section's sub-pages, in the same two-column grid of tiles, shorter
+ *      because they carry no icon. This is the part the tab bar cannot do at all: the bar
+ *      gets you to Portfolio, and this is how you get from there to Investments or Notes
+ *      without a second trip through the menu. They were wrapped chips once, and a fund's
+ *      thirteen sections of uneven length wrapped into a ragged five-row cloud with no
+ *      column to run a thumb down; a grid reads top to bottom like the group above it.
  *   3. Appearance, at the bottom, because it is the one row nobody is aiming for.
  *
  * The desktop sidebar still exists and is still the desktop nav — it is simply no
@@ -194,7 +197,7 @@ export function MobileMoreSheet({
               <h2 className="text-base font-medium pt-5 pb-2">
                 In {current.label}
               </h2>
-              <div className="flex flex-wrap gap-2">
+              <div className="grid grid-cols-2 gap-2">
                 {currentChildren.map(child => {
                   const childActive = child.exact
                     ? pathname === child.href
@@ -206,19 +209,22 @@ export function MobileMoreSheet({
                       href={child.href}
                       onClick={close}
                       aria-current={childActive ? 'page' : undefined}
-                      className={`flex min-h-[2.5rem] items-center gap-1.5 rounded-lg border px-3 py-2 text-sm transition-colors ${
+                      // Same tile as "Go to", without the icon: the label wraps rather
+                      // than truncating ("Schedule of investments" is two lines at half a
+                      // phone's width), and the badge or lock keeps to the right edge.
+                      className={`flex min-h-[2.75rem] items-center gap-2 rounded-card border px-3 py-2 text-sm transition-colors ${
                         childActive
                           ? 'border-transparent bg-accent text-foreground font-medium'
                           : 'border-border text-muted-foreground'
                       }`}
                     >
-                      <span>{child.label}</span>
+                      <span className="min-w-0 leading-tight">{child.label}</span>
                       {child.badgeKey === 'notes' && (notesBadge ?? 0) > 0 && (
-                        <span className="rounded-full bg-warning text-white text-[10px] font-semibold leading-none px-1.5 py-0.5 min-w-[18px] text-center tabular-nums">
+                        <span className="ml-auto shrink-0 rounded-full bg-warning text-white text-[10px] font-semibold leading-none px-1.5 py-0.5 min-w-[18px] text-center tabular-nums">
                           {(notesBadge ?? 0) > 99 ? '99+' : notesBadge}
                         </span>
                       )}
-                      {childLocked && <Lock className="h-3 w-3 shrink-0 text-warning" />}
+                      {childLocked && <Lock className="ml-auto h-3 w-3 shrink-0 text-warning" />}
                     </Link>
                   )
                 })}
