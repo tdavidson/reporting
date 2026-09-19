@@ -178,7 +178,7 @@ export function FundSwitcher() {
         value={group ?? ''}
         onChange={onChange}
         aria-label="Jump to fund"
-        className="h-8 appearance-none rounded-md border bg-transparent pl-3 pr-8 text-sm text-muted-foreground hover:text-foreground hover:bg-accent transition-colors max-w-[16rem] truncate"
+        className="h-8 max-w-[9rem] appearance-none truncate rounded-md border bg-transparent pl-3 pr-8 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground sm:max-w-[16rem]"
       >
         {vehicles.map(v => <option key={v.name} value={v.name}>{v.name}</option>)}
       </select>

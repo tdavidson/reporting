@@ -193,11 +193,8 @@ export function FofQuarterView() {
   return (
     <div className="space-y-6">
       <div className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight">Quarterly close — underlying funds</h1>
-        <p className="text-sm text-muted-foreground">
-          Paste the quarter&rsquo;s figures, confirm the notices, then book the period-end marks.
-        </p>
-        <div className="flex items-center gap-2 pt-3">
+        {/* The title and description come from the page's FundSubpageChrome. */}
+        <div className="flex flex-wrap items-center gap-2">
           <span className="text-sm text-muted-foreground">Period end</span>
           <input type="date" value={asOf} onChange={e => setAsOf(e.target.value)}
                  className="border rounded-lg px-2 py-1 text-sm" />
