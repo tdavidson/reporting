@@ -178,6 +178,8 @@ export interface ConstructionPositionActual {
   investedInitial: number
   investedFollowOn: number
   investedTotal: number
+  /** Earliest dated investment transaction for this company, when the tracker has one. */
+  firstInvestmentDate?: string | null
   /** Residual fair value plus any realized proceeds. */
   currentValue: number
   currentMoic: number | null

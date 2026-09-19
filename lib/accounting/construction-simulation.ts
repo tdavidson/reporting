@@ -11,8 +11,8 @@
 //
 // PURE and SEEDED. The generator is a small deterministic PRNG, so the same assumptions give the
 // same bands on every load and on the server and in the browser alike; changing the seed is a
-// deliberate act. Nothing here is a strategy default: a loss rate and a dispersion of zero collapse
-// the simulation onto the forecast, and the page asks for them.
+// deliberate act. Industry-informed engine defaults keep those implementation details out of the
+// form, while fund and per-deal assumptions still determine the forecast.
 
 import type { ConstructionAssumptions, ConstructionResult, PacingAssumptions, SimulationAssumptions } from './construction'
 import { DEFAULT_SIMULATION } from './construction'
@@ -120,7 +120,7 @@ export function simulateFund(
 ): SimulationResult {
   const runs = Math.max(1, Math.min(20_000, Math.floor(sim.runs) || 1))
   const rng = makeRng(sim.seed)
-  const deals = dealTimelines(model, pacing)
+  const deals = dealTimelines(model, pacing, baseline.asOf)
   // Each deal varies by its own settings where stated, the fund-wide ones otherwise.
   const settingsFor = (d: { lossRate?: number; dispersion?: number; exitSpreadYears?: number }): SimulationAssumptions => ({
     ...sim,

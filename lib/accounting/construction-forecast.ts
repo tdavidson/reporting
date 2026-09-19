@@ -49,6 +49,8 @@ export interface DealTimeline {
   kind: 'existing' | 'planned'
   /** Cost already deployed — sits in the past. */
   investedToDate: number
+  /** Earliest known investment date for an existing company. */
+  investmentDate?: string
   /** Carrying value today (existing) or 0 (planned). */
   currentValue: number
   /** Initial check still to write, and when. Zero for an existing company. */
@@ -111,7 +113,7 @@ export interface ForecastSchedule {
  * in the order entered (a period of zero writes every remaining check now), and the existing book
  * exits together at the stated remaining hold.
  */
-export function dealTimelines(model: ConstructionResult, pacing: PacingAssumptions): DealTimeline[] {
+export function dealTimelines(model: ConstructionResult, pacing: PacingAssumptions, asOf?: string): DealTimeline[] {
   const stated = (v: number | null | undefined): v is number => typeof v === 'number' && Number.isFinite(v)
   const overrides = (f: { simLossRate?: number | null; simDispersion?: number | null; simExitSpreadYears?: number | null }) => ({
     ...(stated(f.simLossRate) ? { lossRate: f.simLossRate } : {}),
@@ -121,16 +123,26 @@ export function dealTimelines(model: ConstructionResult, pacing: PacingAssumptio
   const out: DealTimeline[] = []
   for (const p of model.returns.positions) {
     const f = p.forecast
-    const exitAt = Math.max(0, stated(f.exitInYears) ? f.exitInYears : pacing.existingHoldYears)
+    const investmentDate = p.actual.firstInvestmentDate && /^\d{4}-\d{2}-\d{2}$/.test(p.actual.firstInvestmentDate)
+      ? p.actual.firstInvestmentDate
+      : undefined
+    const investedAt = investmentDate && asOf ? yearsBetween(asOf, investmentDate) : 0
+    // A known investment date anchors the expected exit to investment date + hold period. An
+    // undated position retains the conservative "hold from today" fallback.
+    const pacedExit = investmentDate && asOf
+      ? Math.max(0.25, investedAt + pacing.holdYears)
+      : pacing.existingHoldYears
+    const exitAt = Math.max(0, stated(f.exitInYears) ? f.exitInYears : pacedExit)
     const followOnAt = Math.max(0, stated(f.followOnInYears) ? f.followOnInYears : pacing.followOnLagYears)
     out.push({
       key: p.actual.companyId,
       name: p.actual.name,
       kind: 'existing',
       investedToDate: p.actual.investedTotal,
+      ...(investmentDate ? { investmentDate } : {}),
       currentValue: p.currentValue,
       initialCheck: 0,
-      initialAt: 0,
+      initialAt: investedAt,
       followOn: f.plannedFollowOn,
       followOnAt: Math.min(exitAt, followOnAt),
       proceeds: p.isForecasted ? p.estimatedReturn : null,
@@ -167,6 +179,14 @@ export function dealTimelines(model: ConstructionResult, pacing: PacingAssumptio
 
 /** The year (1-based bucket) a fractional time-from-today falls in; time 0 is year 0. */
 const yearOf = (t: number) => (t <= 0 ? 0 : Math.ceil(t - 1e-9))
+
+/** Fractional years from the as-of date to an investment date; past dates are negative. */
+function yearsBetween(asOf: string, date: string): number {
+  const end = Date.parse(`${asOf}T00:00:00Z`)
+  const start = Date.parse(`${date}T00:00:00Z`)
+  if (!Number.isFinite(end) || !Number.isFinite(start)) return 0
+  return (start - end) / (365.2425 * 24 * 60 * 60 * 1000)
+}
 
 /** A dated flow for the IRR: `t` in years (fractional, negative for the past). */
 export interface TimedFlow { t: number; amount: number }
@@ -216,7 +236,7 @@ export function forecastSchedule(
   irr: 'all' | 'final' | 'none' = 'all',
 ): ForecastSchedule {
   const warnings: string[] = []
-  const deals = dealTimelines(model, pacing).map(d => {
+  const deals = dealTimelines(model, pacing, baseline.asOf).map(d => {
     const o = proceedsOverride?.get(d.key)
     return o && d.proceeds != null ? { ...d, proceeds: o.proceeds, exitAt: o.exitAt } : d
   })

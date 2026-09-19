@@ -62,6 +62,20 @@ describe('dealTimelines', () => {
     const planned = dealTimelines(model, pacing({ deploymentYears: 0 })).filter(d => d.kind === 'planned')
     expect(planned.every(d => d.initialAt === 0)).toBe(true)
   })
+
+  it('anchors each existing deal to its known investment date and uses the hold period', () => {
+    const positions = actuals().positions!.map((position, index) => ({
+      ...position,
+      firstInvestmentDate: index === 0 ? '2022-09-18' : '2024-09-18',
+    }))
+    const model = constructionModel(actuals({ positions }), assumptions())
+    const existing = dealTimelines(model, pacing({ holdYears: 6, existingHoldYears: 6 }), baseline.asOf)
+      .filter(d => d.kind === 'existing')
+    expect(existing[0].initialAt).toBeCloseTo(-4, 2)
+    expect(existing[0].exitAt).toBeCloseTo(2, 2)
+    expect(existing[1].initialAt).toBeCloseTo(-2, 2)
+    expect(existing[1].exitAt).toBeCloseTo(4, 2)
+  })
 })
 
 describe('forecastSchedule', () => {

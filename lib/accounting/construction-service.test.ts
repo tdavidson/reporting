@@ -139,6 +139,7 @@ describe('construction service', () => {
     })
     expect(model.actuals.positions?.map(position => position.status).sort()).toEqual(['active', 'exited'])
     expect(model.actuals.positions?.find(position => position.companyId === activeId)?.currentPostMoney).toBe(12_000_000)
+    expect(model.actuals.positions?.find(position => position.companyId === activeId)?.firstInvestmentDate).toBe('2024-01-01')
     expect(model.actuals.positions?.find(position => position.companyId === exitedId)?.currentValue).toBe(0)
   })
 

@@ -284,6 +284,7 @@ async function loadConstructionActuals(
       investedInitial: position.investedNew,
       investedFollowOn: position.investedFollowOn,
       investedTotal: position.invested,
+      firstInvestmentDate: firstInvestment?.transaction_date ?? null,
       currentValue: position.status === 'exited' ? 0 : position.totalValue,
       currentMoic: position.moic,
       currentOwnership,

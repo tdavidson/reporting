@@ -76,7 +76,6 @@ export function ConstructionView({ vehicle, vehicleId }: { vehicle: string; vehi
   const [sort, setSort] = useState<SortState | null>(null)
   const [forecastEditor, setForecastEditor] = useState<ForecastEditor | null>(null)
   const [expenseInputsOpen, setExpenseInputsOpen] = useState(false)
-  const [sectionsOpen, setSectionsOpen] = useState({ investments: true, capital: true, returns: true })
   const [capitalGroupsOpen, setCapitalGroupsOpen] = useState({
     committed: false,
     incurred: false,
@@ -170,13 +169,11 @@ export function ConstructionView({ vehicle, vehicleId }: { vehicle: string; vehi
 
         {model.warnings.map((w, i) => <div key={i} className="flex items-start gap-2 rounded-card border border-warning/40 bg-warning-subtle p-3 text-sm text-warning"><AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />{w}</div>)}
 
-        <PlanSection
-          title="Investments"
-          description="Current positions and planned investments."
-          open={sectionsOpen.investments}
-          onToggle={() => setSectionsOpen(s => ({ ...s, investments: !s.investments }))}
-        >
         <section className="overflow-hidden rounded-card border bg-card shadow-sm dark:shadow-none dark:border">
+          <div className="p-4">
+            <h2 className="text-base font-medium">Investments</h2>
+            <p className="mt-1 text-sm text-muted-foreground">Current positions and planned investments.</p>
+          </div>
           <div className="overflow-x-auto">
             <table className="w-full whitespace-nowrap text-sm">
               <thead><tr className="border-b bg-muted/50">
@@ -223,16 +220,12 @@ export function ConstructionView({ vehicle, vehicleId }: { vehicle: string; vehi
           </div>
           <div className="flex items-center justify-between gap-3 border-t p-3"><Button size="sm" variant="outline" onClick={addStage}><Plus className="h-3.5 w-3.5 mr-1" />Add forecast row</Button><SaveIndicator state={saveState} error={saveError} /></div>
         </section>
-        </PlanSection>
 
-        <PlanSection
-          title="Capital planning"
-          description="Capital calls, expenses, investments, and reserves."
-          open={sectionsOpen.capital}
-          onToggle={() => setSectionsOpen(s => ({ ...s, capital: !s.capital }))}
-        >
-        <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(20rem,0.85fr)]">
-          <section className="min-w-0 p-4">
+        <section className="rounded-card border bg-card p-4 shadow-sm dark:shadow-none dark:border">
+          <h2 className="text-base font-medium">Capital planning</h2>
+          <p className="mt-1 text-sm text-muted-foreground">Capital calls, expenses, investments, and reserves.</p>
+          <div className="mt-4 grid items-start gap-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(20rem,0.85fr)]">
+          <div className="min-w-0">
             <table className="mt-3 w-full text-sm">
               <thead><tr className="border-b bg-muted/50"><th className="px-3 py-2 text-left font-medium">Capital</th><th className="px-3 py-2 text-right font-medium">Amount</th><th className="w-32 whitespace-nowrap px-3 py-2 text-right font-medium">% committed</th></tr></thead>
               <tbody>
@@ -329,22 +322,19 @@ export function ConstructionView({ vehicle, vehicleId }: { vehicle: string; vehi
                 </div>
               </div>}
             </div>
-          </section>
-          <CapitalUsageChart model={model} fmt={fmt} fmtFull={fmtFull} />
-        </div>
-        </PlanSection>
-
-        <PlanSection
-          title="Returns"
-          description="Industry-based assumptions, forecast returns, and Monte Carlo outcomes."
-          open={sectionsOpen.returns}
-          onToggle={() => setSectionsOpen(s => ({ ...s, returns: !s.returns }))}
-        >
-          <div className="flex flex-col gap-6">
-            <div className="max-w-xl"><ValueSourcesChart model={model} fmt={fmt} fmtFull={fmtFull} /></div>
-            <ForecastSection model={model} actuals={actuals} a={a} setA={setA} vehicle={vehicle} fmt={fmt} fmtFull={fmtFull} multiple={multiple} />
           </div>
-        </PlanSection>
+          <div className="flex flex-col gap-6">
+            <CapitalUsageChart model={model} fmt={fmt} fmtFull={fmtFull} />
+            <ValueSourcesChart model={model} fmt={fmt} fmtFull={fmtFull} />
+          </div>
+          </div>
+        </section>
+
+        <section>
+          <h2 className="text-lg font-semibold">Returns</h2>
+          <p className="mt-1 text-sm text-muted-foreground">Industry-based assumptions, forecast returns, and Monte Carlo outcomes.</p>
+          <div className="mt-4"><ForecastSection model={model} actuals={actuals} a={a} setA={setA} vehicle={vehicle} fmt={fmt} fmtFull={fmtFull} multiple={multiple} /></div>
+        </section>
         {(editingPosition || editingStage) && <ForecastEditorDialog
           position={editingPosition}
           stage={editingStage}
@@ -363,32 +353,6 @@ export function ConstructionView({ vehicle, vehicleId }: { vehicle: string; vehi
     <AccountingPageHeader title="Portfolio construction" actions={<FundSwitcher />}><span className="block truncate" title={vehicle}>{vehicle} · Plan capital and return expectations</span></AccountingPageHeader>
     <AccountingBody>{body}</AccountingBody>
   </div>
-}
-
-function PlanSection({ title, description, open, onToggle, children }: {
-  title: string
-  description: string
-  open: boolean
-  onToggle: () => void
-  children: ReactNode
-}) {
-  return (
-    <section className="overflow-hidden rounded-card border bg-card shadow-sm dark:border dark:shadow-none">
-      <button
-        type="button"
-        className="flex w-full items-center justify-between gap-4 p-4 text-left"
-        aria-expanded={open}
-        onClick={onToggle}
-      >
-        <span className="min-w-0">
-          <span className="block text-base font-medium">{title}</span>
-          <span className="mt-1 block text-sm text-muted-foreground">{description}</span>
-        </span>
-        <ChevronDown className={cn('shrink-0 transition-transform', !open && '-rotate-90')} />
-      </button>
-      {open && <div className="border-t p-4">{children}</div>}
-    </section>
-  )
 }
 
 function ForecastEditorDialog({

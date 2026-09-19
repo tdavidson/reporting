@@ -4,6 +4,7 @@ import { useDeferredValue, useEffect, useMemo, useState } from 'react'
 import { AlertTriangle, ChevronDown, ChevronRight } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Metric } from '@/components/ui/metric'
+import { Separator } from '@/components/ui/separator'
 import { cn } from '@/lib/utils'
 import type { ConstructionActuals, ConstructionAssumptions, ConstructionResult, PacingAssumptions, SimulationAssumptions } from '@/lib/accounting/construction'
 import { forecastSchedule, type ForecastBaseline } from '@/lib/accounting/construction-forecast'
@@ -168,7 +169,7 @@ export function ForecastSection({ model, actuals, a, setA, vehicle, fmt, fmtFull
                       return (
                         <tr key={d.key} className="border-b last:border-b-0">
                           <td className="px-3 py-1.5">{d.name}<span className="ml-1 text-xs text-muted-foreground">{d.kind === 'planned' ? 'planned' : 'held'}</span></td>
-                          <td className="px-3 py-1.5 text-right tabular-nums">{d.initialCheck > 0 ? `${yearOf(d.initialAt)} · ${fmt(d.initialCheck)}` : d.investedToDate > 0 ? `${fmt(d.investedToDate)} to date` : '—'}</td>
+                          <td className="px-3 py-1.5 text-right tabular-nums">{d.initialCheck > 0 ? `${yearOf(d.initialAt)} · ${fmt(d.initialCheck)}` : d.investedToDate > 0 ? `${d.investmentDate ? d.investmentDate.slice(0, 4) : 'date unknown'} · ${fmt(d.investedToDate)}` : '—'}</td>
                           <td className="px-3 py-1.5 text-right tabular-nums">{d.followOn > 0 ? `${yearOf(d.followOnAt)} · ${fmt(d.followOn)}` : '—'}</td>
                           <td className="px-3 py-1.5 text-right tabular-nums">{d.proceeds == null ? '—' : yearOf(d.exitAt)}</td>
                           <td className="px-3 py-1.5 text-right tabular-nums" title={d.proceeds == null ? undefined : fmtFull(d.proceeds)}>{d.proceeds == null ? 'exited' : fmt(d.proceeds)}</td>
@@ -212,15 +213,10 @@ export function ForecastSection({ model, actuals, a, setA, vehicle, fmt, fmtFull
             )}
           </>
         )}
-      </section>
-
-      {/* ── Simulated return range ────────────────────────────────────────── */}
-      <section className="rounded-card border bg-card p-4 shadow-sm dark:shadow-none dark:border">
+        <Separator className="my-6" />
         <div>
-          <h2 className="text-base font-medium">Return forecast</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            The pacing forecast and Monte Carlo range from the assumptions above. Each deal&rsquo;s forecast is the expected value of a skewed venture outcome.
-          </p>
+          <h3 className="text-base font-medium">Monte Carlo outcomes</h3>
+          <p className="mt-1 text-sm text-muted-foreground">The forecast and simulated range use the same deals, dates, and return assumptions.</p>
         </div>
 
         {!schedule.stated ? (
