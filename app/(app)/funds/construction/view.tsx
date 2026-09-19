@@ -6,8 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { AlertTriangle, Check, ChevronDown, ChevronRight, Loader2, Pencil, Plus, X } from 'lucide-react'
 import { useCurrency, formatCurrency, formatCurrencyFull } from '@/components/currency-context'
 import { useVehicle, FundSwitcher } from '@/components/accounting-vehicle'
-import { AnalystToggleButton } from '@/components/analyst-button'
-import { AccountingBody } from '@/components/accounting-chrome'
+import { AccountingBody, AccountingPageHeader } from '@/components/accounting-chrome'
 import { Input } from '@/components/ui/input'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Button } from '@/components/ui/button'
@@ -351,7 +350,7 @@ export function ConstructionView({ vehicle, vehicleId }: { vehicle: string; vehi
     )
 
   return <div className="pt-4 md:pt-8 pb-8 w-full">
-    <div className="mb-6 flex items-end justify-between gap-3"><div className="min-w-0 flex-1"><h1 className="text-2xl font-semibold tracking-tight">Portfolio construction</h1><p className="mt-1 truncate text-sm text-muted-foreground" title={vehicle}>{vehicle} · Plan capital and return expectations</p></div><div className="flex shrink-0 items-center gap-2"><FundSwitcher /><AnalystToggleButton /></div></div>
+    <AccountingPageHeader title="Portfolio construction" actions={<FundSwitcher />}><span className="block truncate" title={vehicle}>{vehicle} · Plan capital and return expectations</span></AccountingPageHeader>
     <AccountingBody>{body}</AccountingBody>
   </div>
 }

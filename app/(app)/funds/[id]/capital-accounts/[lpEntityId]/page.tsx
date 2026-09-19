@@ -4,8 +4,7 @@ import { ArrowLeft } from 'lucide-react'
 import { requireVehicleAccess } from '../../../guard'
 import { FundScopeSync } from '@/components/fund-subpage-chrome'
 import { FundSwitcher } from '@/components/accounting-vehicle'
-import { AnalystToggleButton } from '@/components/analyst-button'
-import { AccountingBody } from '@/components/accounting-chrome'
+import { AccountingBody, AccountingPageHeader } from '@/components/accounting-chrome'
 import { LpStatementView } from '../../../capital-accounts/[lpEntityId]/view'
 
 export const metadata: Metadata = { title: 'LP capital statement' }
@@ -30,13 +29,7 @@ export default async function LpStatementPage(
       <Link href={backHref} className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground mb-4">
         <ArrowLeft className="h-3.5 w-3.5" />{backLabel}
       </Link>
-      <div className="flex flex-wrap items-end justify-between gap-3 mb-6">
-        <h1 className="text-2xl font-semibold tracking-tight">LP capital statement</h1>
-        <div className="flex items-center gap-2">
-          <FundSwitcher />
-          <AnalystToggleButton />
-        </div>
-      </div>
+      <AccountingPageHeader title="LP capital statement" actions={<FundSwitcher />} />
       <AccountingBody>
         <LpStatementView lpEntityId={params.lpEntityId} />
       </AccountingBody>

@@ -8,8 +8,7 @@ import {
 import { Loader2 } from 'lucide-react'
 import { useCurrency, formatCurrency, formatCurrencyFull } from '@/components/currency-context'
 import { useVehicle, FundSwitcher } from '@/components/accounting-vehicle'
-import { AccountingBody } from '@/components/accounting-chrome'
-import { AnalystToggleButton } from '@/components/analyst-button'
+import { AccountingBody, AccountingPageHeader } from '@/components/accounting-chrome'
 import { Card, CardContent } from '@/components/ui/card'
 import { Metric as MetricBox } from '@/components/ui/metric'
 import { ChartCard, EmptyPlot, AXIS, tooltipStyle, HUE } from '@/components/fund-chart-kit'
@@ -101,26 +100,16 @@ export function MancoDetailView({
 
   return (
     <>
-      <div className="flex items-end justify-between gap-3 mb-6">
-        <div className="space-y-1 min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-semibold tracking-tight truncate">{vehicle}</h1>
-            {!active && (
-              <span className="rounded-md bg-muted px-1.5 py-0.5 text-caption text-muted-foreground">
-                Inactive
-              </span>
-            )}
-          </div>
-          <p className="text-sm text-muted-foreground">
-            Management company &mdash; cash, the quarterly fee cycle, operating costs, and
-            intercompany balances with the funds.
-          </p>
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <FundSwitcher />
-          <AnalystToggleButton />
-        </div>
-      </div>
+      <AccountingPageHeader
+        title={<span className="flex min-w-0 items-center gap-2"><span className="truncate">{vehicle}</span>{!active && (
+          <span className="shrink-0 rounded-md bg-muted px-1.5 py-0.5 text-caption font-normal text-muted-foreground">Inactive</span>
+        )}</span>}
+        titleAttr={vehicle}
+        actions={<FundSwitcher />}
+      >
+        Management company &mdash; cash, the quarterly fee cycle, operating costs, and
+        intercompany balances with the funds.
+      </AccountingPageHeader>
 
       <AccountingBody>
         {loading && !data ? (

@@ -10,8 +10,7 @@ import {
 import { Loader2, ArrowRight } from 'lucide-react'
 import { useCurrency, formatCurrency, formatCurrencyFull } from '@/components/currency-context'
 import { useVehicle, FundSwitcher } from '@/components/accounting-vehicle'
-import { AnalystToggleButton } from '@/components/analyst-button'
-import { AccountingBody } from '@/components/accounting-chrome'
+import { AccountingBody, AccountingPageHeader } from '@/components/accounting-chrome'
 import { Card, CardContent } from '@/components/ui/card'
 import { Metric as MetricBox } from '@/components/ui/metric'
 import {
@@ -60,6 +59,23 @@ interface TsPoint {
 interface Timeseries { points: TsPoint[]; hasGross: boolean }
 
 type Lens = 'lp' | 'fund'
+
+function LensToggle({ lens, setLens }: { lens: Lens; setLens: (l: Lens) => void }) {
+  return (
+    <div className="inline-flex rounded-md border p-0.5 text-xs">
+      {(['lp', 'fund'] as Lens[]).map(l => (
+        <button
+          key={l}
+          type="button"
+          onClick={() => setLens(l)}
+          className={`px-2 py-1 rounded ${lens === l ? 'bg-muted font-medium' : 'text-muted-foreground'}`}
+        >
+          {l === 'lp' ? 'Net to LP' : 'Whole fund'}
+        </button>
+      ))}
+    </div>
+  )
+}
 
 const moic = (v: number | null | undefined) => (v == null ? '—' : `${v.toFixed(2)}x`)
 const irrPct = (v: number | null | undefined) => {
@@ -223,36 +239,22 @@ export function FundDetailView({ vehicle, vehicleId }: { vehicle: string; vehicl
   return (
     <>
       {/* Header — full width, ABOVE the body/panel row, so the Analyst panel slides in
-          underneath it. The action group is lowered (items-end) to sit near the boxes, and
-          the fund switcher + lens toggle are styled to sit beside the Analyst button. */}
-      <div className="flex items-end justify-between gap-3 mb-6">
-        <div className="space-y-1 min-w-0 flex-1">
-          <h1 className="text-2xl font-semibold tracking-tight truncate" title={vehicle}>{vehicle}</h1>
-          {econ && (
-            <p className="text-sm text-muted-foreground">
-              {econ.vintageYear ? <>Vintage {econ.vintageYear} · </> : null}
-              {econ.source === 'ledger' ? 'Fund accounting' : 'LP capital tracking'} · {econ.lpCount} {econ.lpCount === 1 ? 'partner' : 'partners'}
-            </p>
-          )}
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          {hasGpSplit && (
-            <div className="inline-flex rounded-md border p-0.5 text-xs">
-              {(['lp', 'fund'] as Lens[]).map(l => (
-                <button
-                  key={l}
-                  onClick={() => setLens(l)}
-                  className={`px-2 py-1 rounded ${lens === l ? 'bg-muted font-medium' : 'text-muted-foreground'}`}
-                >
-                  {l === 'lp' ? 'Net to LP' : 'Whole fund'}
-                </button>
-              ))}
-            </div>
-          )}
+          underneath it. The lens toggle and the switcher are the page's actions: beside the
+          description from `sm` up, on their own row under it on a phone. */}
+      <AccountingPageHeader
+        title={vehicle}
+        titleAttr={vehicle}
+        truncateTitle
+        actions={<>
+          {hasGpSplit && <LensToggle lens={lens} setLens={setLens} />}
           <FundSwitcher />
-          <AnalystToggleButton />
-        </div>
-      </div>
+        </>}
+      >
+        {econ && <>
+          {econ.vintageYear ? <>Vintage {econ.vintageYear} · </> : null}
+          {econ.source === 'ledger' ? 'Fund accounting' : 'LP capital tracking'} · {econ.lpCount} {econ.lpCount === 1 ? 'partner' : 'partners'}
+        </>}
+      </AccountingPageHeader>
       <AccountingBody>{body}</AccountingBody>
     </>
   )

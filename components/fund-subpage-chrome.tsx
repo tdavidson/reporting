@@ -2,8 +2,7 @@
 
 import { useEffect } from 'react'
 import { useVehicle, FundSwitcher } from '@/components/accounting-vehicle'
-import { AnalystToggleButton } from '@/components/analyst-button'
-import { AccountingBody } from '@/components/accounting-chrome'
+import { AccountingBody, AccountingPageHeader } from '@/components/accounting-chrome'
 
 /**
  * Pins the section's vehicle context to the URL and renders nothing. The fund pages route
@@ -20,8 +19,8 @@ export function FundScopeSync({ vehicle, vehicleId }: { vehicle: string; vehicle
  * The shared chrome for a fund subpage (/funds/[id]/journal, …). It:
  *  - pins the section's vehicle context to the URL (so the views, which read the vehicle
  *    from context, and the Analyst scope to the fund the URL names),
- *  - renders the full-width header — title/description on the left, the fund switcher and
- *    Analyst toggle in a lowered group on the right (matching the fund detail page),
+ *  - renders the shared accounting header (AccountingPageHeader) with the fund switcher in
+ *    its action group, so it lays out on a phone the way every other page does,
  *  - wraps the page body in <AccountingBody>, so the Analyst panel slides in UNDERNEATH the
  *    header rather than squeezing it.
  */
@@ -37,19 +36,7 @@ export function FundSubpageChrome({
   return (
     <>
       <FundScopeSync vehicle={vehicle} vehicleId={vehicleId} />
-      {/* items-end lowers the action group to sit near the subtitle. The left column takes
-          flex-1 + min-w-0 so a long description wraps INSIDE its column, and the action group
-          is shrink-0 so it never drops to a new row. */}
-      <div className="flex items-end justify-between gap-3 mb-6">
-        <div className="space-y-1 min-w-0 flex-1">
-          <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
-          {description && <p className="text-sm text-muted-foreground">{description}</p>}
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <FundSwitcher />
-          <AnalystToggleButton />
-        </div>
-      </div>
+      <AccountingPageHeader title={title} actions={<FundSwitcher />}>{description}</AccountingPageHeader>
       <AccountingBody>{children}</AccountingBody>
     </>
   )
