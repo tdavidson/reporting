@@ -342,10 +342,10 @@ export function CapitalAccountsView() {
         </div>
         {/* Offered on a capital-tracking vehicle too: there the register row is the call and the
             notice is rendered from it; funding is recorded on the line by hand. */}
-        <Button size="sm" variant="outline" className="text-muted-foreground" onClick={() => { setKind('call'); setShowCall(v => !(v && !isDist)) }} disabled={rows.length === 0}>
+        <Button size="sm" variant="outline" className="hidden text-muted-foreground sm:inline-flex" onClick={() => { setKind('call'); setShowCall(v => !(v && !isDist)) }} disabled={rows.length === 0}>
           <Landmark className="h-4 w-4 mr-1" />Issue a capital call
         </Button>
-        <Button size="sm" variant="outline" className="text-muted-foreground" onClick={() => { setKind('distribution'); setShowCall(v => !(v && isDist)) }} disabled={rows.length === 0}>
+        <Button size="sm" variant="outline" className="hidden text-muted-foreground sm:inline-flex" onClick={() => { setKind('distribution'); setShowCall(v => !(v && isDist)) }} disabled={rows.length === 0}>
           <Landmark className="h-4 w-4 mr-1" />Declare a distribution
         </Button>
         {/* Same "Share with LPs" action as the LPs report page: pick which LPs, publish to the

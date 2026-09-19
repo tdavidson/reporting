@@ -2,7 +2,16 @@
 
 import { createContext, useCallback, useContext, useEffect, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
-import { ChevronsUpDown } from 'lucide-react'
+import { Check, ChevronsUpDown } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog'
 
 /** One selectable vehicle: its name (the portfolio_group the ledger keys on) and its
  *  stable registry id. `id` is null for legacy vehicles that exist only as a name. */
@@ -151,6 +160,7 @@ export function FundSwitcher() {
   const router = useRouter()
   const { group, setVehicle } = useVehicle()
   const [vehicles, setVehicles] = useState<VehicleOption[]>([])
+  const [open, setOpen] = useState(false)
 
   useEffect(() => {
     fetch('/api/accounting/vehicle-index')
@@ -161,9 +171,8 @@ export function FundSwitcher() {
 
   if (vehicles.length <= 1) return null
 
-  const onChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const opt = vehicles.find(v => v.name === e.target.value)
-    if (!opt) return
+  const chooseVehicle = (opt: VehicleOption) => {
+    setOpen(false)
     setVehicle(opt.name, opt.id ?? null)
     const target = opt.id ?? encodeURIComponent(opt.name)
     // Keep only the section (first subpage segment) — a deeper param like an LP id belongs
@@ -172,17 +181,57 @@ export function FundSwitcher() {
     router.push(`/funds/${target}${section ? '/' + section : ''}`)
   }
 
+  const onChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const opt = vehicles.find(v => v.name === e.target.value)
+    if (opt) chooseVehicle(opt)
+  }
+
   return (
-    <div className="relative inline-flex">
-      <select
-        value={group ?? ''}
-        onChange={onChange}
-        aria-label="Jump to fund"
-        className="h-8 max-w-[9rem] appearance-none truncate rounded-md border bg-transparent pl-3 pr-8 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground sm:max-w-[16rem]"
-      >
-        {vehicles.map(v => <option key={v.name} value={v.name}>{v.name}</option>)}
-      </select>
-      <ChevronsUpDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-    </div>
+    <>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogTrigger asChild>
+          <Button variant="outline" size="sm" className="min-w-0 flex-1 justify-between text-muted-foreground sm:hidden">
+            <span className="truncate">{group ?? 'Switch entity'}</span>
+            <ChevronsUpDown data-icon="inline-end" />
+          </Button>
+        </DialogTrigger>
+        <DialogContent className="max-h-[calc(100dvh-2rem)] grid-rows-[auto_minmax(0,1fr)]">
+          <DialogHeader>
+            <DialogTitle>Switch entity</DialogTitle>
+            <DialogDescription>Choose the entity you want to view.</DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-2 overflow-y-auto">
+            {vehicles.map(vehicle => {
+              const selected = vehicle.name === group
+              return (
+                <Button
+                  key={vehicle.id ?? vehicle.name}
+                  type="button"
+                  variant={selected ? 'secondary' : 'outline'}
+                  className="h-auto min-h-10 justify-between whitespace-normal px-3 py-2 text-left"
+                  aria-current={selected ? 'page' : undefined}
+                  onClick={() => chooseVehicle(vehicle)}
+                >
+                  <span>{vehicle.name}</span>
+                  {selected && <Check data-icon="inline-end" />}
+                </Button>
+              )
+            })}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <div className="relative hidden sm:inline-flex">
+        <select
+          value={group ?? ''}
+          onChange={onChange}
+          aria-label="Jump to fund"
+          className="h-8 max-w-[16rem] appearance-none truncate rounded-md border bg-transparent pl-3 pr-8 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+        >
+          {vehicles.map(v => <option key={v.id ?? v.name} value={v.name}>{v.name}</option>)}
+        </select>
+        <ChevronsUpDown className="pointer-events-none absolute right-2 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+      </div>
+    </>
   )
 }
