@@ -29,11 +29,11 @@ const assumptions = (over: Partial<ConstructionAssumptions> = {}): ConstructionA
   annualPartnershipExpense: 20_000,
   positionForecasts: [
     { companyId: 'c1', plannedFollowOn: 500_000, ownershipAtExit: 0.1, expectedExitValue: 50_000_000, returnMethod: 'ownership' }, // 5m
-    { companyId: 'c2', plannedFollowOn: 0, ownershipAtExit: 0, forecastMoic: 0, expectedExitValue: 0, returnMethod: 'moic' }, // defaults to current value 1m
+    { companyId: 'c2', plannedFollowOn: 0, ownershipAtExit: 0, forecastMoic: 0, expectedExitValue: 0, returnMethod: 'moic' }, // defaults to the fund-wide 3x
   ],
   stages: [
     { key: 's1', label: 'Deal A', initialCheck: 1_000_000, initialPostMoney: 10_000_000, followOnMultiple: 0, followOnCheck: 500_000, dilutionFactor: 0.5, forecastMoic: 3, returnMethod: 'moic' }, // 4.5m
-    { key: 's2', label: 'Deal B', initialCheck: 1_000_000, initialPostMoney: 10_000_000, followOnMultiple: 0, followOnCheck: 0, dilutionFactor: 0.5, forecastMoic: 0, returnMethod: 'moic' }, // 1m
+    { key: 's2', label: 'Deal B', initialCheck: 1_000_000, initialPostMoney: 10_000_000, followOnMultiple: 0, followOnCheck: 0, dilutionFactor: 0.5, forecastMoic: 0, returnMethod: 'moic' }, // fund-wide 3x = 3m
   ],
   ...over,
 })
@@ -77,13 +77,13 @@ describe('forecastSchedule', () => {
     expect(y1.fees).toBe(200_000)
     expect(y1.expenses).toBe(20_000)
     expect(y1.called).toBe(1_720_000 - 100_000) // baseline cash of 100k (nav 3.1m over 3.0m carrying) is spent first
-    // Year 4: the existing book exits — Alpha 5m, Beta at its current value 1m.
-    expect(s.years[4].distributed).toBe(6_000_000)
-    // Year 6: Deal A exits at 3× its 1.5m; year 7: Deal B at cost.
+    // Year 4: the existing book exits — Alpha 5m, Beta at the fund-wide 3x default.
+    expect(s.years[4].distributed).toBe(8_000_000)
+    // Year 6: Deal A exits at 3× its 1.5m; year 7: Deal B at the 3x default.
     expect(s.years[6].distributed).toBe(4_500_000)
-    expect(s.years[7].distributed).toBe(1_000_000)
+    expect(s.years[7].distributed).toBe(3_000_000)
     expect(s.years[7].nav).toBe(0)
-    expect(s.years[7].dpi).toBeCloseTo(11_500_000 / s.years[7].cumCalled, 6)
+    expect(s.years[7].dpi).toBeCloseTo(15_500_000 / s.years[7].cumCalled, 6)
     expect(s.years[7].tvpi).toBe(s.years[7].dpi)
     expect(s.years[7].netIrr).toBeGreaterThan(0)
     expect(s.warnings).toEqual([])
@@ -130,9 +130,10 @@ describe('forecastSchedule', () => {
     expect(s.years[1].invested).toBe(1_500_000) // the check is still written
   })
 
-  it('is not stated until a pacing number is entered', () => {
+  it('can still represent a deliberately unstated pacing plan', () => {
     const model = constructionModel(actuals(), assumptions())
-    expect(forecastSchedule(model, assumptions(), DEFAULT_PACING, baseline).stated).toBe(false)
+    const empty = { ...DEFAULT_PACING, deploymentYears: 0, followOnLagYears: 0, holdYears: 0, existingHoldYears: 0 }
+    expect(forecastSchedule(model, assumptions(), empty, baseline).stated).toBe(false)
   })
 })
 
@@ -168,7 +169,7 @@ describe('per-deal timing', () => {
     expect(beta).toMatchObject({ exitAt: 4, timing: 'pacing' })
     const s = forecastSchedule(model, assumptions(), pacing(), baseline)
     expect(s.years[2].distributed).toBe(5_000_000)
-    expect(s.years[4].distributed).toBe(1_000_000)
+    expect(s.years[4].distributed).toBe(3_000_000)
   })
 
   it('a planned deal’s own investment year and hold win over the spread', () => {

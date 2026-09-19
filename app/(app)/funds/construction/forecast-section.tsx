@@ -14,13 +14,14 @@ import { JCurveChart, CashFlowChart, OutcomeHistogram, type ActualPoint } from '
 type Fmt = (v: number | null) => string
 
 /**
- * The forward half of the construction page: WHEN the plan happens, and how sure we are.
+ * The forward half of the construction page: one set of understandable return assumptions,
+ * followed by the deterministic forecast and its simulated range.
  *
  * Both sections read the same model the rest of the page computes and add only what they ask for:
  * pacing turns the plan into a yearly schedule (lib/accounting/construction-forecast.ts); the
  * simulation spreads that schedule's outcomes (lib/accounting/construction-simulation.ts). Every
- * input is stated, none defaulted — an empty pacing block is an empty chart with a question, not
- * a fund that exits today.
+ * Technical engine settings (seed, run count and log-normal dispersion) use documented industry
+ * defaults rather than asking a GP to tune simulation internals.
  *
  * The baseline the schedule starts from is the fund's actual growth series when the vehicle has
  * one (dated, so the IRR is since inception); the capital accounts otherwise.
@@ -109,29 +110,24 @@ export function ForecastSection({ model, actuals, a, setA, vehicle, fmt, fmtFull
 
   return (
     <div className="space-y-6">
-      {/* ── Pacing & forecast ─────────────────────────────────────────────── */}
+      {/* ── Return assumptions and deterministic forecast ───────────────── */}
       <section className="rounded-card border bg-card p-4 shadow-sm dark:shadow-none dark:border">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h2 className="text-base font-medium">Pacing and forecast</h2>
-            <p className="mt-1 text-sm text-muted-foreground">When the plan happens: the checks, the exits, and the J-curve that follows.</p>
+            <h2 className="text-base font-medium">Return assumptions</h2>
+            <p className="mt-1 text-sm text-muted-foreground">Pacing and return assumptions used by both the forecast and Monte Carlo range.</p>
           </div>
         </div>
 
         <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
           <YearsField label="Deployment period" hint="Years to write the remaining checks" value={a.pacing.deploymentYears} onChange={v => setPacing({ deploymentYears: v })} />
           <YearsField label="Follow-on lag" hint="Years after each initial check" value={a.pacing.followOnLagYears} onChange={v => setPacing({ followOnLagYears: v })} />
-          <YearsField label="Hold, new deals" hint="Years from check to exit" value={a.pacing.holdYears} onChange={v => setPacing({ holdYears: v })} />
-          <YearsField label="Hold, current book" hint="Years from today to exit" value={a.pacing.existingHoldYears} onChange={v => setPacing({ existingHoldYears: v })} />
-          <YearsField label="Horizon" hint="0 = through the last exit" value={a.pacing.horizonYears} onChange={v => setPacing({ horizonYears: v })} />
-          <label className="text-xs text-muted-foreground">
-            <span>Unrealized value</span>
-            <div className="mt-1 inline-flex h-9 rounded border border-input overflow-hidden text-xs">
-              <button type="button" onClick={() => setPacing({ accretion: 'linear' })} className={cn('px-2.5', a.pacing.accretion === 'linear' ? 'bg-accent text-foreground' : 'text-muted-foreground')}>Accretes</button>
-              <button type="button" onClick={() => setPacing({ accretion: 'none' })} className={cn('px-2.5 border-l border-input', a.pacing.accretion === 'none' ? 'bg-accent text-foreground' : 'text-muted-foreground')}>At cost</button>
-            </div>
-          </label>
+          <YearsField label="Hold period" hint="Years from investment to exit" value={a.pacing.holdYears} onChange={v => setPacing({ holdYears: v, existingHoldYears: v })} />
+          <NumField label="Default exit multiple" hint="Used when a company has no override" value={a.simulation.defaultExitMultiple} onChange={v => setSim({ defaultExitMultiple: v })} suffix="x" step="0.1" />
+          <NumField label="Write-off rate" hint="Share of deals returning zero" value={a.simulation.lossRate * 100} onChange={v => setSim({ lossRate: Math.min(99, v) / 100 })} suffix="%" step="1" />
+          <NumField label="Exit timing range" hint="Years either side of the expected exit" value={a.simulation.holdSpreadYears} onChange={v => setSim({ holdSpreadYears: v })} suffix="yrs" step="0.5" />
         </div>
+        <p className="mt-3 text-xs text-muted-foreground">Starts from venture base rates: a three-year deployment period, six-year hold, 50% write-off rate, and a power-law outcome spread. Adjust the assumptions that are specific to this fund; simulation runs, seed, and statistical dispersion are managed automatically.</p>
 
         {!schedule.stated ? (
           <p className="mt-4 text-sm text-muted-foreground">Enter a hold period, or a deployment period, to lay the plan on the calendar. Nothing is assumed until you do.</p>
@@ -218,30 +214,20 @@ export function ForecastSection({ model, actuals, a, setA, vehicle, fmt, fmtFull
         )}
       </section>
 
-      {/* ── Monte Carlo ───────────────────────────────────────────────────── */}
+      {/* ── Simulated return range ────────────────────────────────────────── */}
       <section className="rounded-card border bg-card p-4 shadow-sm dark:shadow-none dark:border">
         <div>
-          <h2 className="text-base font-medium">Monte Carlo</h2>
+          <h2 className="text-base font-medium">Return forecast</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            How sure the forecast is. Each deal&rsquo;s proceeds become the expected value of a skewed outcome; every run goes through the same schedule as the forecast above.
+            The pacing forecast and Monte Carlo range from the assumptions above. Each deal&rsquo;s forecast is the expected value of a skewed venture outcome.
           </p>
-        </div>
-
-        <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-7">
-          <NumField label="Loss rate" hint="Share of deals written off" value={a.simulation.lossRate * 100} onChange={v => setSim({ lossRate: Math.min(99, v) / 100 })} suffix="%" step="1" />
-          <NumField label="Dispersion" hint="Log-normal sigma; 1 is wide" value={a.simulation.dispersion} onChange={v => setSim({ dispersion: v })} step="0.1" />
-          <NumField label="Exit spread" hint="± years around each exit" value={a.simulation.holdSpreadYears} onChange={v => setSim({ holdSpreadYears: v })} suffix="yrs" step="0.5" />
-          <NumField label="Max multiple" hint="Cap on one deal; 0 = none" value={a.simulation.maxMoic} onChange={v => setSim({ maxMoic: v })} suffix="x" step="1" />
-          <NumField label="Target TVPI" hint="For the probability of reaching it" value={a.simulation.targetMultiple} onChange={v => setSim({ targetMultiple: v })} suffix="x" step="0.5" />
-          <NumField label="Runs" hint="More is smoother, slower" value={a.simulation.runs} onChange={v => setSim({ runs: Math.max(1, Math.min(20_000, Math.round(v))) })} step="500" />
-          <NumField label="Seed" hint="Same seed, same bands" value={a.simulation.seed} onChange={v => setSim({ seed: Math.round(v) })} step="1" />
         </div>
 
         {!schedule.stated ? (
           <p className="mt-4 text-sm text-muted-foreground">The simulation runs over the pacing schedule above. State the pacing first.</p>
         ) : !simulation ? (
           <p className="mt-4 text-sm text-muted-foreground">
-            Enter a loss rate or a dispersion here, or on a single deal in its forecast dialog, to spread the outcomes. With both at zero every run is the forecast. Early-stage portfolios commonly see a third to a half of deals written off and a dispersion near 1; a later-stage book is tighter.
+            Add investments with forecast value to calculate the return forecast and its range of outcomes.
           </p>
         ) : (
           <>
@@ -276,7 +262,7 @@ export function ForecastSection({ model, actuals, a, setA, vehicle, fmt, fmtFull
                   </tbody>
                 </table>
                 <p className="mt-3 text-xs text-muted-foreground">
-                  {simulation.runs.toLocaleString('en-US')} runs, seed {a.simulation.seed}. The mean outcome equals the forecast by construction; the spread is what the loss rate and dispersion say about it.
+                  The simulation uses {simulation.runs.toLocaleString('en-US')} reproducible runs. Its mean equals the forecast by construction; the range reflects venture write-offs, power-law outcomes, and exit timing.
                 </p>
               </div>
             </div>

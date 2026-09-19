@@ -13,13 +13,13 @@ import { Button } from '@/components/ui/button'
 import { Metric } from '@/components/ui/metric'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { SortTh, compareVals, nextSort, type SortState } from '@/components/sortable-th'
-import { CapitalUsageChart, ValueSourcesChart, ReturnRangeChart } from './charts'
+import { CapitalUsageChart, ValueSourcesChart } from './charts'
 import { ForecastSection } from './forecast-section'
 import { cn } from '@/lib/utils'
 import {
   constructionModel, parseAssumptions, DEFAULT_ASSUMPTIONS, blankStage,
   type ConstructionActuals, type ConstructionAssumptions, type ConstructionPositionForecast,
-  type ConstructionStage, type PositionReturn, type ReturnForecastMethod, type StageReturn,
+  type ConstructionStage, type PositionReturn, type StageReturn,
 } from '@/lib/accounting/construction'
 
 type SaveState = 'idle' | 'saving' | 'saved' | 'error'
@@ -70,11 +70,13 @@ export function ConstructionView({ vehicle, vehicleId }: { vehicle: string; vehi
   const [a, setA] = useState<ConstructionAssumptions>(DEFAULT_ASSUMPTIONS)
   const [persisted, setPersisted] = useState('')
   const [saveState, setSaveState] = useState<SaveState>('idle')
+  const [saveError, setSaveError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [sort, setSort] = useState<SortState | null>(null)
   const [forecastEditor, setForecastEditor] = useState<ForecastEditor | null>(null)
   const [expenseInputsOpen, setExpenseInputsOpen] = useState(false)
+  const [sectionsOpen, setSectionsOpen] = useState({ investments: true, capital: true, returns: true })
   const [capitalGroupsOpen, setCapitalGroupsOpen] = useState({
     committed: false,
     incurred: false,
@@ -96,7 +98,7 @@ export function ConstructionView({ vehicle, vehicleId }: { vehicle: string; vehi
       .then(d => {
         if (cancelled) return
         const assumptions = parseAssumptions(d.assumptions, null)
-        setActuals(d.actuals); setA(assumptions); setPersisted(JSON.stringify(assumptions)); setSaveState('idle')
+        setActuals(d.actuals); setA(assumptions); setPersisted(JSON.stringify(assumptions)); setSaveState('idle'); setSaveError(null)
       })
       .catch(e => { if (!cancelled) setLoadError(e instanceof Error ? e.message : 'Could not load the construction model.') })
       .finally(() => { if (!cancelled) setLoading(false) })
@@ -108,14 +110,17 @@ export function ConstructionView({ vehicle, vehicleId }: { vehicle: string; vehi
     const serialized = JSON.stringify(a)
     if (serialized === persisted) return
     const t = setTimeout(() => {
-      setSaveState('saving')
+      setSaveState('saving'); setSaveError(null)
       fetch(`/api/accounting/construction?${g}`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: serialized,
       }).then(async r => {
         const d = await r.json().catch(() => null)
         if (!r.ok) throw new Error(d?.error || 'Could not save the construction model.')
-        setPersisted(JSON.stringify(parseAssumptions(d.assumptions, null))); setSaveState('saved')
-      }).catch(() => setSaveState('error'))
+        setPersisted(JSON.stringify(parseAssumptions(d.assumptions, null))); setSaveState('saved'); setSaveError(null)
+      }).catch(error => {
+        setSaveState('error')
+        setSaveError(error instanceof Error ? error.message : 'Could not save changes.')
+      })
     }, 600)
     return () => clearTimeout(t)
   }, [a, actuals, g, loading, persisted])
@@ -137,7 +142,7 @@ export function ConstructionView({ vehicle, vehicleId }: { vehicle: string; vehi
       const actual = actuals?.positions?.find(p => p.companyId === companyId)
       const current = prev.positionForecasts.find(f => f.companyId === companyId) ?? {
         companyId, plannedFollowOn: 0, ownershipAtExit: actual?.currentOwnership ?? 0,
-        additionalDilution: 0, expectedExitValue: 0, forecastMoic: 0, returnMethod: 'ownership' as const,
+        additionalDilution: 0, expectedExitValue: 0, forecastMoic: 0, returnMethod: 'moic' as const,
       }
       return { ...prev, positionForecasts: [...prev.positionForecasts.filter(f => f.companyId !== companyId), { ...current, ...patch }] }
     })
@@ -165,6 +170,12 @@ export function ConstructionView({ vehicle, vehicleId }: { vehicle: string; vehi
 
         {model.warnings.map((w, i) => <div key={i} className="flex items-start gap-2 rounded-card border border-warning/40 bg-warning-subtle p-3 text-sm text-warning"><AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />{w}</div>)}
 
+        <PlanSection
+          title="Investments"
+          description="Current positions and planned investments."
+          open={sectionsOpen.investments}
+          onToggle={() => setSectionsOpen(s => ({ ...s, investments: !s.investments }))}
+        >
         <section className="overflow-hidden rounded-card border bg-card shadow-sm dark:shadow-none dark:border">
           <div className="overflow-x-auto">
             <table className="w-full whitespace-nowrap text-sm">
@@ -210,21 +221,18 @@ export function ConstructionView({ vehicle, vehicleId }: { vehicle: string; vehi
               </tr></tfoot>
             </table>
           </div>
-          <div className="flex items-center justify-between gap-3 border-t p-3"><Button size="sm" variant="outline" onClick={addStage}><Plus className="h-3.5 w-3.5 mr-1" />Add forecast row</Button><SaveIndicator state={saveState} /></div>
+          <div className="flex items-center justify-between gap-3 border-t p-3"><Button size="sm" variant="outline" onClick={addStage}><Plus className="h-3.5 w-3.5 mr-1" />Add forecast row</Button><SaveIndicator state={saveState} error={saveError} /></div>
         </section>
+        </PlanSection>
 
-        {/* The plan in pictures, between the deal table it summarises and the two tables that
-            state it in numbers. All three are compositions or scenarios: the model carries no
-            pacing assumption, so nothing here can honestly have a date axis. */}
-        <div className="grid gap-6 lg:grid-cols-2 xl:grid-cols-3">
-          <CapitalUsageChart model={model} fmt={fmt} fmtFull={fmtFull} />
-          <ValueSourcesChart model={model} fmt={fmt} fmtFull={fmtFull} />
-          <ReturnRangeChart model={model} fmt={fmt} multiple={multiple} />
-        </div>
-
-        <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
-          <section className="rounded-card border bg-card p-4 shadow-sm dark:shadow-none dark:border">
-            <h2 className="text-base font-medium">Capital planning</h2><p className="mt-1 text-sm text-muted-foreground">Capital calls, expenses, investments, and reserves.</p>
+        <PlanSection
+          title="Capital planning"
+          description="Capital calls, expenses, investments, and reserves."
+          open={sectionsOpen.capital}
+          onToggle={() => setSectionsOpen(s => ({ ...s, capital: !s.capital }))}
+        >
+        <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(20rem,0.85fr)]">
+          <section className="min-w-0 p-4">
             <table className="mt-3 w-full text-sm">
               <thead><tr className="border-b bg-muted/50"><th className="px-3 py-2 text-left font-medium">Capital</th><th className="px-3 py-2 text-right font-medium">Amount</th><th className="w-32 whitespace-nowrap px-3 py-2 text-right font-medium">% committed</th></tr></thead>
               <tbody>
@@ -295,7 +303,7 @@ export function ConstructionView({ vehicle, vehicleId }: { vehicle: string; vehi
                 <Button size="sm" variant="outline" onClick={() => setExpenseInputsOpen(open => !open)}>
                   <Pencil className="mr-1 h-3.5 w-3.5" />{expenseInputsOpen ? 'Close expense plan' : 'Edit expense plan'}
                 </Button>
-                <SaveIndicator state={saveState} />
+                <SaveIndicator state={saveState} error={saveError} />
               </div>
               {expenseInputsOpen && <div className="mt-3 rounded-lg border bg-muted/30 px-3">
                 <div className="grid gap-3 border-b py-3 sm:grid-cols-[minmax(0,1fr)_10rem] sm:items-center">
@@ -322,19 +330,21 @@ export function ConstructionView({ vehicle, vehicleId }: { vehicle: string; vehi
               </div>}
             </div>
           </section>
-
-          <section className="rounded-card border bg-card p-4 shadow-sm dark:shadow-none dark:border">
-            <h2 className="text-base font-medium">Return analysis</h2><p className="mt-1 text-sm text-muted-foreground">Fund outcomes across ownership-at-exit scenarios.</p>
-            <div className="mt-4 overflow-x-auto"><table className="w-full text-sm"><thead><tr className="border-b bg-muted/50"><th className="px-3 py-2 text-left font-medium">Ownership at exit</th><th className="px-3 py-2 text-right font-medium">Exit to return fund</th><th className="px-3 py-2 text-right font-medium">Net MOIC</th></tr></thead><tbody>
-              {model.returns.sensitivity.map((row, i) => <tr key={i} className={cn('border-b last:border-b-0', row.isWeightedAverage && 'font-medium')}><td className="px-2 py-2 tabular-nums">{pct(row.ownershipAtExit)}{row.isWeightedAverage && <span className="ml-2 text-xs font-normal text-muted-foreground">from portfolio plan</span>}</td><td className="px-2 py-2 text-right tabular-nums">{fmt(row.exitToReturnFund)}</td><td className="px-2 py-2 text-right tabular-nums">{multiple(row.netMoic)}</td></tr>)}
-              {model.returns.sensitivity.length === 0 && <tr><td colSpan={3} className="px-2 py-8 text-center text-muted-foreground">Add ownership forecasts to see return scenarios.</td></tr>}
-            </tbody></table></div>
-          </section>
+          <CapitalUsageChart model={model} fmt={fmt} fmtFull={fmtFull} />
         </div>
+        </PlanSection>
 
-        {/* The forward half: WHEN the plan happens (pacing) and how sure we are (Monte Carlo).
-            Both read the model above and add only what they ask for. */}
-        <ForecastSection model={model} actuals={actuals} a={a} setA={setA} vehicle={vehicle} fmt={fmt} fmtFull={fmtFull} multiple={multiple} />
+        <PlanSection
+          title="Returns"
+          description="Industry-based assumptions, forecast returns, and Monte Carlo outcomes."
+          open={sectionsOpen.returns}
+          onToggle={() => setSectionsOpen(s => ({ ...s, returns: !s.returns }))}
+        >
+          <div className="flex flex-col gap-6">
+            <div className="max-w-xl"><ValueSourcesChart model={model} fmt={fmt} fmtFull={fmtFull} /></div>
+            <ForecastSection model={model} actuals={actuals} a={a} setA={setA} vehicle={vehicle} fmt={fmt} fmtFull={fmtFull} multiple={multiple} />
+          </div>
+        </PlanSection>
         {(editingPosition || editingStage) && <ForecastEditorDialog
           position={editingPosition}
           stage={editingStage}
@@ -355,6 +365,32 @@ export function ConstructionView({ vehicle, vehicleId }: { vehicle: string; vehi
   </div>
 }
 
+function PlanSection({ title, description, open, onToggle, children }: {
+  title: string
+  description: string
+  open: boolean
+  onToggle: () => void
+  children: ReactNode
+}) {
+  return (
+    <section className="overflow-hidden rounded-card border bg-card shadow-sm dark:border dark:shadow-none">
+      <button
+        type="button"
+        className="flex w-full items-center justify-between gap-4 p-4 text-left"
+        aria-expanded={open}
+        onClick={onToggle}
+      >
+        <span className="min-w-0">
+          <span className="block text-base font-medium">{title}</span>
+          <span className="mt-1 block text-sm text-muted-foreground">{description}</span>
+        </span>
+        <ChevronDown className={cn('shrink-0 transition-transform', !open && '-rotate-90')} />
+      </button>
+      {open && <div className="border-t p-4">{children}</div>}
+    </section>
+  )
+}
+
 function ForecastEditorDialog({
   position, stage, a, fmt, multiple, onClose, onPositionChange, onStageChange, onRemoveStage,
 }: {
@@ -366,23 +402,12 @@ function ForecastEditorDialog({
 }) {
   const name = position?.actual.name ?? stage?.label ?? 'Investment forecast'
   const forecast = position?.forecast
-  const method: ReturnForecastMethod = position?.returnMethod ?? stage?.returnMethod ?? 'ownership'
   const postMoney = position?.actual.currentPostMoney ?? stage?.initialPostMoney ?? null
   const currentOwnership = position?.actual.currentOwnership ?? stage?.initialOwnership ?? null
-  const additionalDilution = forecast?.additionalDilution ?? stage?.additionalDilution ?? 0
-  const forecastOwnership = forecast?.ownershipAtExit ?? stage?.ownershipAtExit ?? null
-  const exitValue = position?.forecastExitValue ?? stage?.forecastExitValue ?? 0
-  const exitToReturnFund = position?.exitToReturnFund ?? (stage && stage.exitToReturnFund > 0 ? stage.exitToReturnFund : null)
   const currentMoic = position?.currentMoic ?? stage?.currentMoic ?? null
   const forecastedProceeds = position?.estimatedReturn ?? stage?.estimatedReturn ?? null
   const forecastedMoic = position?.estimatedMoic ?? stage?.estimatedMoic ?? null
-  const setMethod = (next: ReturnForecastMethod) => position
-    ? onPositionChange({ returnMethod: next })
-    : onStageChange({ returnMethod: next })
-  const setAdditionalDilution = (value: number) => position
-    ? onPositionChange({ additionalDilution: Math.min(1, value) })
-    : onStageChange({ additionalDilution: Math.min(1, value) })
-  // Per-deal timing and simulation overrides. Empty = the fund-wide setting, shown as the placeholder.
+  // Per-deal timing overrides. Empty = the fund-wide setting, shown as the placeholder.
   const timing = position?.forecast ?? stage
   const pacingPlaceholder = (v: number) => (v > 0 ? String(v) : 'fund')
   const setDeal = (patch: Partial<ConstructionPositionForecast> & Partial<ConstructionStage>) => position
@@ -419,21 +444,20 @@ function ForecastEditorDialog({
       </div>
 
       <div className="space-y-3 rounded-md border p-4">
-        <div><h3 className="text-base font-medium">Return forecast</h3><p className="mt-0.5 text-xs text-muted-foreground">Choose how this deal forecasts proceeds. The method applies only to this company.</p></div>
-        <div role="group" aria-label="Forecast proceeds method" className="inline-flex rounded-md border bg-muted/30 p-0.5">
-          <Button type="button" size="sm" variant={method === 'ownership' ? 'secondary' : 'ghost'} className="h-7 text-xs" aria-pressed={method === 'ownership'} onClick={() => setMethod('ownership')}>Ownership × exit</Button>
-          <Button type="button" size="sm" variant={method === 'moic' ? 'secondary' : 'ghost'} className="h-7 text-xs" aria-pressed={method === 'moic'} onClick={() => setMethod('moic')}>Forecasted MOIC</Button>
-        </div>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <PercentField label="Additional dilution" value={additionalDilution} onChange={setAdditionalDilution} />
-          <div className="rounded-md bg-muted/40 px-3 py-2"><p className="text-xs text-muted-foreground">Forecasted ownership</p><p className="mt-1 font-medium tabular-nums">{forecastOwnership == null ? '—' : `${(forecastOwnership * 100).toFixed(2)}%`}</p></div>
-          {method === 'ownership'
-            ? <NumberField label="Exit value" value={exitValue} onChange={v => position ? onPositionChange({ expectedExitValue: v }) : onStageChange({ expectedExitValue: v })} />
-            : <NumberField label="Gross MOIC" value={forecast?.forecastMoic || stage?.forecastMoic || forecastedMoic || 0} step="0.1" suffix="x" onChange={v => position ? onPositionChange({ forecastMoic: v }) : onStageChange({ forecastMoic: v })} />}
-        </div>
-        <div className="grid grid-cols-2 gap-3 border-t pt-3 sm:grid-cols-4">
+        <div><h3 className="text-base font-medium">Return forecast</h3><p className="mt-0.5 text-xs text-muted-foreground">Override the fund-wide default only when this company has a more specific underwriting case.</p></div>
+        <OptionalNumberField
+          label="Gross MOIC override"
+          hint={`Fund default ${a.simulation.defaultExitMultiple.toFixed(1)}x`}
+          value={(forecast?.forecastMoic ?? stage?.forecastMoic ?? 0) > 0 ? forecast?.forecastMoic ?? stage?.forecastMoic : null}
+          placeholder={String(a.simulation.defaultExitMultiple)}
+          suffix="x"
+          step="0.1"
+          onChange={v => position
+            ? onPositionChange({ forecastMoic: v ?? 0, returnMethod: 'moic' })
+            : onStageChange({ forecastMoic: v ?? 0, returnMethod: 'moic' })}
+        />
+        <div className="grid grid-cols-2 gap-3 border-t pt-3 sm:grid-cols-3">
           <ForecastStat label="Forecasted proceeds at exit" value={fmt(forecastedProceeds)} emphasis />
-          <ForecastStat label="Exit value to return fund" value={fmt(exitToReturnFund)} />
           <ForecastStat label="Current MOIC" value={multiple(currentMoic)} />
           <ForecastStat label="Forecasted MOIC" value={multiple(forecastedMoic)} emphasis />
         </div>
@@ -443,17 +467,8 @@ function ForecastEditorDialog({
         <div><h3 className="text-base font-medium">Timing</h3><p className="mt-0.5 text-xs text-muted-foreground">When this deal happens on the forecast calendar. Leave a field empty to use the fund-wide pacing.</p></div>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           {stage && <OptionalNumberField label="Invest in" hint="Years from today" value={stage.investInYears} placeholder={a.pacing.deploymentYears > 0 ? `0–${a.pacing.deploymentYears}` : 'fund'} suffix="yrs" step="0.5" onChange={v => onStageChange({ investInYears: v })} />}
-          <OptionalNumberField label={position ? 'Exit in' : 'Exit after check'} hint={position ? 'Years from today' : 'Years after the initial check'} value={timing?.exitInYears} placeholder={pacingPlaceholder(position ? a.pacing.existingHoldYears : a.pacing.holdYears)} suffix="yrs" step="0.5" onChange={v => setDeal({ exitInYears: v })} />
+          <OptionalNumberField label={position ? 'Exit in' : 'Exit after check'} hint={position ? 'Years from today' : 'Years after the initial check'} value={timing?.exitInYears} placeholder={pacingPlaceholder(a.pacing.holdYears)} suffix="yrs" step="0.5" onChange={v => setDeal({ exitInYears: v })} />
           <OptionalNumberField label={position ? 'Follow-on in' : 'Follow-on after check'} hint={position ? 'Years from today' : 'Years after the initial check'} value={timing?.followOnInYears} placeholder={pacingPlaceholder(a.pacing.followOnLagYears)} suffix="yrs" step="0.5" onChange={v => setDeal({ followOnInYears: v })} />
-        </div>
-      </div>
-
-      <div className="space-y-3 rounded-md border p-4">
-        <div><h3 className="text-base font-medium">Simulation</h3><p className="mt-0.5 text-xs text-muted-foreground">How the Monte Carlo varies this deal&rsquo;s return and timing. Leave a field empty to use the fund-wide setting.</p></div>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <OptionalNumberField label="Loss rate" hint="Chance of a full write-off" value={timing?.simLossRate == null ? timing?.simLossRate : Number((timing.simLossRate * 100).toFixed(4))} placeholder={a.simulation.lossRate > 0 ? String(Number((a.simulation.lossRate * 100).toFixed(2))) : 'fund'} suffix="%" step="1" onChange={v => setDeal({ simLossRate: v == null ? null : Math.min(99, v) / 100 })} />
-          <OptionalNumberField label="Dispersion" hint="Log-normal sigma; 1 is wide" value={timing?.simDispersion} placeholder={a.simulation.dispersion > 0 ? String(a.simulation.dispersion) : 'fund'} step="0.1" onChange={v => setDeal({ simDispersion: v })} />
-          <OptionalNumberField label="Exit spread" hint="± years around the exit" value={timing?.simExitSpreadYears} placeholder={a.simulation.holdSpreadYears > 0 ? String(a.simulation.holdSpreadYears) : 'fund'} suffix="yrs" step="0.5" onChange={v => setDeal({ simExitSpreadYears: v })} />
         </div>
       </div>
 
@@ -508,9 +523,9 @@ function OptionalNumberField({ label, hint, value, placeholder, onChange, step =
 function PercentField({ label, value, onChange, hideLabel = false }: { label: string; value: number; onChange: (v: number) => void; hideLabel?: boolean }) {
   return <label className="text-xs text-muted-foreground"><span className={hideLabel ? 'sr-only' : undefined}>{label}</span><div className={cn('relative', !hideLabel && 'mt-1')}><Input type="number" min="0" step="0.1" value={value ? Number((value * 100).toFixed(4)) : ''} onChange={e => onChange(Math.max(0, Number(e.target.value)) / 100)} className={cn('h-9 pr-7 tabular-nums', NO_NUMBER_SPINNERS)} /><span className="pointer-events-none absolute right-2.5 top-2 text-xs">%</span></div></label>
 }
-function SaveIndicator({ state }: { state: SaveState }) {
+function SaveIndicator({ state, error }: { state: SaveState; error?: string | null }) {
   if (state === 'saving') return <span className="flex items-center gap-1.5 text-xs text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" />Saving…</span>
   if (state === 'saved') return <span className="flex items-center gap-1.5 text-xs text-success"><Check className="h-3.5 w-3.5" />Saved</span>
-  if (state === 'error') return <span className="text-sm text-destructive">Could not save changes.</span>
+  if (state === 'error') return <span className="max-w-sm text-right text-sm text-destructive">{error || 'Could not save changes.'}</span>
   return <span className="text-xs text-muted-foreground">Changes save automatically</span>
 }

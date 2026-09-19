@@ -53,11 +53,8 @@ describe('projectRemainingFees', () => {
 })
 
 describe('parseAssumptions', () => {
-  // NO STRATEGY DEFAULTS. An unplanned vehicle states nothing about its own strategy — no stage
-  // mix, no portfolio target, no target multiple, no fee terms. The first version shipped one
-  // firm's parameters here, which read as neutral and would have been silently wrong for anyone
-  // else.
-  it('states nothing about strategy for an absent row', () => {
+  // Fund-specific plans remain blank while return forecasting gets documented industry baselines.
+  it('keeps the fund plan blank and supplies return baselines for an absent row', () => {
     const a = parseAssumptions(null, 2020)
     expect(a.feeStartDate).toBe('')
     expect(a.stages).toEqual([])
@@ -65,6 +62,9 @@ describe('parseAssumptions', () => {
     expect(a.targetFundMultiple).toBe(0)
     expect(a.feeAnnualRate).toBe(0)
     expect(a.feeTermYears).toBe(0)
+    expect(a.pacing.holdYears).toBe(6)
+    expect(a.simulation.defaultExitMultiple).toBe(3)
+    expect(a.simulation.lossRate).toBe(0.5)
   })
 
   it('does not infer a hidden fee clock from vintage', () => {
@@ -368,11 +368,11 @@ describe('inline portfolio forecast', () => {
     expect(m.returns.estimatedNetMoic).toBeCloseTo(5_400_000 / 18_500_000, 8)
   })
 
-  it('defaults forecasted proceeds to current value without requiring an input', () => {
+  it('uses the fund-wide exit multiple without requiring a company input', () => {
     const m = constructionModel(ACT({ positions: [position] }), A({ ...RUN_OUT }), NOW)
     const result = m.returns.positions[0]
-    expect(result.estimatedReturn).toBe(900_000)
-    expect(result.estimatedMoic).toBe(1.5)
+    expect(result.estimatedReturn).toBe(1_800_000)
+    expect(result.estimatedMoic).toBe(3)
     expect(result.forecastExitValue).toBe(30_000_000)
     expect(result.forecast.ownershipAtExit).toBe(0.03)
     expect(result.forecast.additionalDilution).toBe(0)
@@ -581,7 +581,13 @@ describe('valueSources', () => {
   // clamps for display; the model does not lie about the direction.
   it('reports a negative gain when the forecast is below cost', () => {
     const underwater = { ...position, currentValue: 200_000 }
-    const m = constructionModel(ACT({ positions: [underwater] }), A(RUN_OUT), NOW)
+    const m = constructionModel(ACT({ positions: [underwater] }), A({
+      ...RUN_OUT,
+      positionForecasts: [{
+        companyId: 'company-1', plannedFollowOn: 0, ownershipAtExit: 0,
+        expectedExitValue: 0, forecastMoic: 0.2, returnMethod: 'moic',
+      }],
+    }), NOW)
     const v = valueSources(m)
 
     expect(v.investedAtWork).toBe(600_000)

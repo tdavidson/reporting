@@ -206,12 +206,12 @@ export function validateConstructionAssumptions(
   if ('simulation' in raw) {
     if (!plainObject(raw.simulation)) invalid('simulation must be an object')
     const m = raw.simulation
-    for (const field of ['runs', 'seed', 'lossRate', 'dispersion', 'holdSpreadYears', 'maxMoic', 'targetMultiple'] as const) {
+    for (const field of ['runs', 'seed', 'lossRate', 'dispersion', 'holdSpreadYears', 'maxMoic', 'targetMultiple', 'defaultExitMultiple'] as const) {
       if (field in m && (!finite(m[field]) || (m[field] as number) < 0)) invalid(`simulation.${field} must be a non-negative finite number`)
     }
     if ('runs' in m && (m.runs as number) > 20_000) invalid('simulation.runs must be at most 20000')
     if ('lossRate' in m && (m.lossRate as number) > 1) invalid('simulation.lossRate must be between 0 and 1')
-    const unknownSim = Object.keys(m).filter(f => !['runs', 'seed', 'lossRate', 'dispersion', 'holdSpreadYears', 'maxMoic', 'targetMultiple'].includes(f))
+    const unknownSim = Object.keys(m).filter(f => !['runs', 'seed', 'lossRate', 'dispersion', 'holdSpreadYears', 'maxMoic', 'targetMultiple', 'defaultExitMultiple'].includes(f))
     if (unknownSim.length > 0) invalid(`simulation has unknown fields: ${unknownSim.join(', ')}`)
   }
   return parseAssumptions(raw, vintageYear)

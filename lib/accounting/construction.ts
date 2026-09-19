@@ -91,7 +91,7 @@ export interface ConstructionPositionForecast {
 
 /**
  * How the plan lands on the calendar (lib/accounting/construction-forecast.ts). Every field is
- * stated by the GP; nothing is defaulted — zero pacing is "not answered yet".
+ * starts from venture-industry base rates and can be adjusted for the fund.
  */
 export interface PacingAssumptions {
   /** Years from today over which the remaining planned initial checks are written. 0 = all now. */
@@ -109,10 +109,10 @@ export interface PacingAssumptions {
 }
 
 export const DEFAULT_PACING: PacingAssumptions = {
-  deploymentYears: 0,
-  followOnLagYears: 0,
-  holdYears: 0,
-  existingHoldYears: 0,
+  deploymentYears: 3,
+  followOnLagYears: 1.5,
+  holdYears: 6,
+  existingHoldYears: 6,
   horizonYears: 0,
   accretion: 'linear',
 }
@@ -133,16 +133,19 @@ export interface SimulationAssumptions {
   maxMoic: number
   /** The net multiple the fund is underwriting to, for the probability of reaching it. 0 = unset. */
   targetMultiple: number
+  /** Gross deal MOIC used when a company has no explicit return forecast. */
+  defaultExitMultiple: number
 }
 
 export const DEFAULT_SIMULATION: SimulationAssumptions = {
   runs: 2000,
   seed: 1,
-  lossRate: 0,
-  dispersion: 0,
-  holdSpreadYears: 0,
-  maxMoic: 0,
-  targetMultiple: 0,
+  lossRate: 0.5,
+  dispersion: 1.25,
+  holdSpreadYears: 2,
+  maxMoic: 50,
+  targetMultiple: 3,
+  defaultExitMultiple: 3,
 }
 
 export interface ConstructionAssumptions {
@@ -211,18 +214,19 @@ export interface ConstructionActuals {
 }
 
 /**
- * NO STRATEGY DEFAULTS.
+ * FUND-SPECIFIC PLANS START BLANK; RETURN FORECASTS START WITH INDUSTRY BASELINES.
  *
  * Every field describing what THIS fund intends — the planned deals, how many companies it is
- * building toward, what multiple it is underwriting to, its fee terms — starts empty. The first
+ * building toward, its portfolio target, and its fee terms — starts empty. The first
  * version of this shipped a pre-seed/seed/post-seed mix at $500k checks into $7M post-money and
  * a 20-company target, which were one firm's parameters lifted from the workbook this model
  * replaces. Presented as a default they read as neutral, and a fund with a different strategy
  * would have had to notice the numbers were wrong before they could correct them. A blank field
  * asks a question; a wrong default answers one nobody asked.
  *
- * Ownership sensitivity is derived from the live portfolio plan rather than stored as a
- * separate strategy assumption.
+ * Pacing and outcome-shape fields are different: they need usable initial values to produce a
+ * forecast, so those begin with documented venture-industry baselines and remain editable where
+ * the choice is legible to a fund manager.
  */
 export const DEFAULT_ASSUMPTIONS: ConstructionAssumptions = {
   feeAnnualRate: 0,
@@ -255,7 +259,7 @@ export function blankStage(label = ''): ConstructionStage {
     additionalDilution: 0,
     expectedExitValue: 0,
     forecastMoic: 0,
-    returnMethod: 'ownership',
+    returnMethod: 'moic',
   }
 }
 
@@ -350,22 +354,23 @@ export function parseAssumptions(raw: unknown, _vintageYear: number | null): Con
 
   const p = (o.pacing ?? {}) as Record<string, unknown>
   const pacing: PacingAssumptions = {
-    deploymentYears: Math.max(0, num(p.deploymentYears, 0)),
-    followOnLagYears: Math.max(0, num(p.followOnLagYears, 0)),
-    holdYears: Math.max(0, num(p.holdYears, 0)),
-    existingHoldYears: Math.max(0, num(p.existingHoldYears, 0)),
-    horizonYears: Math.max(0, num(p.horizonYears, 0)),
+    deploymentYears: Math.max(0, num(p.deploymentYears, DEFAULT_PACING.deploymentYears)),
+    followOnLagYears: Math.max(0, num(p.followOnLagYears, DEFAULT_PACING.followOnLagYears)),
+    holdYears: Math.max(0, num(p.holdYears, DEFAULT_PACING.holdYears)),
+    existingHoldYears: Math.max(0, num(p.existingHoldYears, DEFAULT_PACING.existingHoldYears)),
+    horizonYears: Math.max(0, num(p.horizonYears, DEFAULT_PACING.horizonYears)),
     accretion: p.accretion === 'none' ? 'none' : 'linear',
   }
   const m = (o.simulation ?? {}) as Record<string, unknown>
   const simulation: SimulationAssumptions = {
     runs: Math.max(1, Math.min(20_000, Math.floor(num(m.runs, DEFAULT_SIMULATION.runs)))),
     seed: Math.max(0, Math.floor(num(m.seed, DEFAULT_SIMULATION.seed))),
-    lossRate: Math.min(0.99, Math.max(0, num(m.lossRate, 0))),
-    dispersion: Math.max(0, num(m.dispersion, 0)),
-    holdSpreadYears: Math.max(0, num(m.holdSpreadYears, 0)),
-    maxMoic: Math.max(0, num(m.maxMoic, 0)),
-    targetMultiple: Math.max(0, num(m.targetMultiple, 0)),
+    lossRate: Math.min(0.99, Math.max(0, num(m.lossRate, DEFAULT_SIMULATION.lossRate))),
+    dispersion: Math.max(0, num(m.dispersion, DEFAULT_SIMULATION.dispersion)),
+    holdSpreadYears: Math.max(0, num(m.holdSpreadYears, DEFAULT_SIMULATION.holdSpreadYears)),
+    maxMoic: Math.max(0, num(m.maxMoic, DEFAULT_SIMULATION.maxMoic)),
+    targetMultiple: Math.max(0, num(m.targetMultiple, DEFAULT_SIMULATION.targetMultiple)),
+    defaultExitMultiple: Math.max(0, num(m.defaultExitMultiple, DEFAULT_SIMULATION.defaultExitMultiple)),
   }
 
   return {
@@ -691,7 +696,7 @@ export function constructionModel(
     const forecastExitValue = (st.expectedExitValue ?? 0) > 0
       ? st.expectedExitValue ?? 0
       : initialOwnership > 0 ? allocation / initialOwnership : 0
-    const defaultMoic = allocation > 0 ? 1 : 0
+    const defaultMoic = allocation > 0 ? a.simulation.defaultExitMultiple : 0
     const forecastMoic = (st.forecastMoic ?? 0) > 0 ? st.forecastMoic ?? 0 : defaultMoic
     const estimatedReturn = returnMethod === 'moic'
       ? allocation > 0 ? r(allocation * forecastMoic) : null
@@ -726,7 +731,7 @@ export function constructionModel(
       additionalDilution: 0,
       expectedExitValue: 0,
       forecastMoic: 0,
-      returnMethod: 'ownership' as const,
+      returnMethod: 'moic' as const,
     }
     const isExited = actual.status === 'exited'
     const currentValue = r(isExited ? 0 : actual.currentValue)
@@ -751,7 +756,7 @@ export function constructionModel(
     const forecastExitValue = storedForecast.expectedExitValue > 0
       ? storedForecast.expectedExitValue
       : currentOwnership > 0 ? currentValue / currentOwnership : 0
-    const defaultMoic = invested > 0 ? currentValue / invested : 0
+    const defaultMoic = invested > 0 ? a.simulation.defaultExitMultiple : 0
     const forecastMoic = (storedForecast.forecastMoic ?? 0) > 0 ? storedForecast.forecastMoic ?? 0 : defaultMoic
     const estimatedReturn = isExited
       ? null

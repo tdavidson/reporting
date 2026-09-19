@@ -9,9 +9,9 @@
 -- schedule.
 --
 -- Two jsonb columns rather than a dozen numeric ones: each is a small object edited as a unit and
--- validated at the write boundary (validateConstructionAssumptions). EVERY STRATEGY FIELD DEFAULTS
--- TO ZERO, as the rest of this table does: a zero hold period is a question the page asks, not a
--- fund that exits today. The engine settings (runs, seed) carry their own defaults in code.
+-- validated at the write boundary (validateConstructionAssumptions). The JSON columns stay empty
+-- in Postgres; parseAssumptions supplies the documented venture-industry starting assumptions in
+-- code, so those defaults can evolve without a data rewrite. User edits persist into these objects.
 alter table public.fund_construction_models
   add column if not exists pacing jsonb not null default '{}'::jsonb,
   add column if not exists simulation jsonb not null default '{}'::jsonb;
@@ -20,5 +20,5 @@ comment on column public.fund_construction_models.pacing is
   '{ deploymentYears, followOnLagYears, holdYears, existingHoldYears, horizonYears, accretion } — '
   'parsed by parseAssumptions() in lib/accounting/construction.ts.';
 comment on column public.fund_construction_models.simulation is
-  '{ runs, seed, lossRate, dispersion, holdSpreadYears, maxMoic, targetMultiple } — parsed by '
+  '{ runs, seed, lossRate, dispersion, holdSpreadYears, maxMoic, targetMultiple, defaultExitMultiple } — parsed by '
   'parseAssumptions() in lib/accounting/construction.ts.';

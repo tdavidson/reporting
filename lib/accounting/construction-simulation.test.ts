@@ -24,7 +24,14 @@ const a: ConstructionAssumptions = {
 }
 const pacing: PacingAssumptions = { ...DEFAULT_PACING, deploymentYears: 2, holdYears: 5, existingHoldYears: 4, accretion: 'none' }
 const baseline: ForecastBaseline = { asOf: '2026-09-18', calledCapital: 2_000_000, distributed: 0, nav: 2_000_000 }
-const sim = (over: Partial<SimulationAssumptions> = {}): SimulationAssumptions => ({ ...DEFAULT_SIMULATION, runs: 400, ...over })
+const sim = (over: Partial<SimulationAssumptions> = {}): SimulationAssumptions => ({
+  ...DEFAULT_SIMULATION,
+  runs: 400,
+  lossRate: 0,
+  dispersion: 0,
+  holdSpreadYears: 0,
+  ...over,
+})
 
 describe('makeRng', () => {
   it('is deterministic for a seed and uniform on [0, 1)', () => {
