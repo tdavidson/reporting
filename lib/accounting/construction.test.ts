@@ -595,6 +595,20 @@ describe('valueSources', () => {
     expect(v.realizedProceeds + v.investedAtWork + v.forecastGain).toBeCloseTo(v.total, 6)
   })
 
+  it('keeps an explicit 0x override instead of replacing it with the fund default', () => {
+    const m = constructionModel(ACT({ positions: [position] }), A({
+      ...RUN_OUT,
+      positionForecasts: [{
+        companyId: 'company-1', plannedFollowOn: 0, ownershipAtExit: 0,
+        expectedExitValue: 0, forecastMoic: 0, forecastMoicOverride: true, returnMethod: 'moic',
+      }],
+    }), NOW)
+
+    expect(m.returns.positions[0].forecast.forecastMoic).toBe(0)
+    expect(m.returns.positions[0].estimatedReturn).toBe(0)
+    expect(m.returns.positions[0].estimatedMoic).toBe(0)
+  })
+
   it('is all zeroes for an unplanned vehicle', () => {
     const m = constructionModel(ACT({ positions: [] }), A(RUN_OUT), NOW)
     expect(valueSources(m)).toEqual({ realizedProceeds: 0, investedAtWork: 0, forecastGain: 0, total: 0 })

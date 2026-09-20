@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { apportionCents, allocateAmount, ownershipFractions } from './allocation'
+import { apportionCents, allocateAmount, allocateAmountCumulatively, ownershipFractions } from './allocation'
 import { computeCapitalAccounts, totalNav, bucketForSourceType } from './capital-account'
 import { reconcileCapital } from './reconcile'
 import { trialBalance, balanceSheet, incomeStatement, scheduleOfInvestments, changesInPartnersCapital, statementOfCashFlows, postingsInPeriod, postingsAsOf, openingCashBalance, type CashPosting } from './statements'
@@ -54,6 +54,39 @@ describe('allocateAmount', () => {
     const alloc = allocateAmount(100.0, owners)
     const sum = Array.from(alloc.values()).reduce((x, y) => x + y, 0)
     expect(sum).toBe(100.0)
+  })
+})
+
+describe('allocateAmountCumulatively', () => {
+  it('pays back the prior rounding cent instead of repeatedly favoring the same owner', () => {
+    const owners = [
+      { lpEntityId: 'a', commitment: 1 },
+      { lpEntityId: 'b', commitment: 1 },
+      { lpEntityId: 'c', commitment: 1 },
+    ]
+    const first = allocateAmountCumulatively(0.01, owners, new Map())
+    expect(first.map(line => line.amount)).toEqual([0.01, 0, 0])
+    const residual = new Map(first.map(line => [line.lpEntityId, line.exactAmount - line.amount]))
+    const second = allocateAmountCumulatively(0.01, owners, residual)
+    expect(second.map(line => line.amount)).toEqual([0, 0.01, 0])
+    const secondResidual = new Map(second.map(line => [
+      line.lpEntityId,
+      (residual.get(line.lpEntityId) ?? 0) + line.exactAmount - line.amount,
+    ]))
+    const third = allocateAmountCumulatively(0.01, owners, secondResidual)
+    expect(third.map(line => line.amount)).toEqual([0, 0, 0.01])
+    for (const allocation of [first, second, third]) {
+      expect(allocation.reduce((sum, line) => sum + line.amount, 0)).toBeCloseTo(0.01, 8)
+    }
+  })
+
+  it('handles negative allocations and still ties exactly to the cent', () => {
+    const owners = [
+      { lpEntityId: 'a', commitment: 2 },
+      { lpEntityId: 'b', commitment: 1 },
+    ]
+    const allocation = allocateAmountCumulatively(-0.01, owners, new Map([['a', 0.003], ['b', -0.003]]))
+    expect(allocation.reduce((sum, line) => sum + line.amount, 0)).toBeCloseTo(-0.01, 8)
   })
 })
 

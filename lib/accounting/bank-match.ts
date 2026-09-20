@@ -18,6 +18,7 @@ import { roundCents } from './ledger'
 import { closedPeriodRanges, dateInAnyClosedPeriod } from './periods'
 import type { JournalEntry } from './types'
 import { ACTUAL_BOOK } from './books'
+import { postExistingEntryWithAllocation } from './continuous-allocation'
 
 async function getTxn(admin: SupabaseClient, fundId: string, group: string, txnId: string) {
   const vehicleId = await vehicleIdByName(admin, fundId, group)
@@ -288,7 +289,8 @@ export async function linkInflowToEntry(
   fundId: string,
   group: string,
   txnId: string,
-  entryId: string
+  entryId: string,
+  userId: string | null = null,
 ): Promise<{ ok: true } | { error: string }> {
   const txn = await getTxn(admin, fundId, group, txnId)
   if (!txn) return { error: 'Transaction not found' }
@@ -332,7 +334,10 @@ export async function linkInflowToEntry(
     const retired = await retireEntry(admin, fundId, oldEntryId)
     if ('error' in retired) return { error: retired.error }
   }
-  await admin.from('journal_entries' as any).update({ status: 'posted', posted_at: new Date().toISOString() }).eq('id', entryId).eq('fund_id', fundId)
+  if (status === 'draft') {
+    const posted = await postExistingEntryWithAllocation(admin, fundId, group, userId, entryId)
+    if ('error' in posted) return posted
+  }
   await admin.from('bank_transactions' as any).update({ journal_entry_id: entryId, status: 'reconciled' }).eq('id', txnId).eq('fund_id', fundId)
   return { ok: true }
 }

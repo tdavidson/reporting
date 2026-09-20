@@ -16,6 +16,7 @@ import type { JournalEntry, Posting } from '@/lib/accounting/types'
 import { vendorInFund } from '@/lib/accounting/vendors'
 import { ACTUAL_BOOK, isLedgerBook, type LedgerBook } from '@/lib/accounting/books'
 import { reversalOf, reversalDateError } from '@/lib/accounting/reversal'
+import { postExistingEntryWithAllocation, setGeneratedAllocationStatus } from '@/lib/accounting/continuous-allocation'
 
 // GET — the vehicle's journal entries with postings, or a single entry via ?id=.
 export async function GET(req: NextRequest) {
@@ -280,17 +281,19 @@ export async function PATCH(req: NextRequest) {
   }
 
   if (action === 'post') {
-    const { error } = await admin
-      .from('journal_entries' as any)
-      .update({ status: 'posted', posted_at: new Date().toISOString() })
-      .eq('id', id).eq('fund_id', gate.fundId)
-    if (error) return dbError(error, 'journal-post')
+    const allocated = await postExistingEntryWithAllocation(admin, gate.fundId, group, user.id, id)
+    if ('error' in allocated) {
+      await admin.from('journal_entries' as any).update({ status: 'draft', posted_at: null }).eq('id', id).eq('fund_id', gate.fundId)
+      return NextResponse.json({ error: `Entry was not posted because its partner allocation failed: ${allocated.error}` }, { status: 400 })
+    }
     // Keep any bank transaction that points at this entry in step.
     await admin.from('bank_transactions' as any).update({ status: 'reconciled' }).eq('journal_entry_id', id).eq('fund_id', gate.fundId)
     return NextResponse.json({ ok: true, status: 'posted' })
   }
 
   if (action === 'unpost') {
+    const linked = await setGeneratedAllocationStatus(admin, gate.fundId, id, 'draft')
+    if (linked.error) return NextResponse.json({ error: linked.error }, { status: 400 })
     const { error } = await admin.from('journal_entries' as any).update({ status: 'draft', posted_at: null }).eq('id', id).eq('fund_id', gate.fundId)
     if (error) return dbError(error, 'journal-unpost')
     // Keep any bank transaction that points at this entry in step.
@@ -300,6 +303,8 @@ export async function PATCH(req: NextRequest) {
 
   // `posted_at: null` matches what the bank page's Ignore writes, so an entry voided from
   // either surface looks identical afterwards.
+  const linked = await setGeneratedAllocationStatus(admin, gate.fundId, id, 'void')
+  if (linked.error) return NextResponse.json({ error: linked.error }, { status: 400 })
   const { error } = await admin.from('journal_entries' as any).update({ status: 'void', posted_at: null }).eq('id', id).eq('fund_id', gate.fundId)
   if (error) return dbError(error, 'journal-void')
   await admin.from('bank_transactions' as any).update({ status: 'ignored' }).eq('journal_entry_id', id).eq('fund_id', gate.fundId)

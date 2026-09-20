@@ -3,11 +3,14 @@
 import { Fragment, useCallback, useEffect, useState } from 'react'
 import { Loader2, Lock, Unlock, AlertTriangle, ChevronRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { useCurrency, formatCurrencyPrice } from '@/components/currency-context'
 import { useLedgerFetch } from '@/components/accounting-vehicle'
 import { NoBooksState, useChartExists } from '@/components/accounting/no-books'
 
-interface Period { id: string; period_start: string; period_end: string; label: string | null; status: string; closed_at: string | null }
+interface CloseCheck { check_key: string; section: string; label: string; status: string; detail: string | null; sort_order: number }
+interface CloseReview { id: string; status: string; approved_at: string | null; attestation: string | null; close_review_checks: CloseCheck[] }
+interface Period { id: string; period_start: string; period_end: string; label: string | null; status: string; closed_at: string | null; close_review?: CloseReview | null }
 interface CloseEntryLine { accountCode: string; accountName: string; lpName: string | null; amount: number }
 interface CloseEntry { id: string; entryDate: string; memo: string | null; sourceType: string | null; lines: CloseEntryLine[] }
 interface CloseLine { lpEntityId: string; name: string; amount: number }
@@ -31,6 +34,7 @@ interface Readiness {
   blockers: string[]
   warnings: string[]
 }
+interface SuggestedEntry { id: string; basis: 'schedule' | 'recurring_pattern'; title: string; detail: string; entryDate: string; required: boolean; postings: { amount: number }[] }
 interface Preview {
   start: string
   end: string
@@ -41,6 +45,7 @@ interface Preview {
   mode?: 'partners' | 'owner'
   readiness: Readiness
   warnings: string[]
+  suggestedEntries: SuggestedEntry[]
 }
 
 const iso = (d: Date) => d.toISOString().slice(0, 10)
@@ -77,6 +82,8 @@ export function PeriodsView() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [preview, setPreview] = useState<Preview | null>(null)
+  const [allocationDetail, setAllocationDetail] = useState<{ month: MonthPreview; category: CloseCategory } | null>(null)
+  const [selectedSuggestions, setSelectedSuggestions] = useState<Set<string>>(new Set())
   // Which closed period's allocated transactions are expanded, and their (cached) entries.
   const [openId, setOpenId] = useState<string | null>(null)
   const [entriesById, setEntriesById] = useState<Record<string, CloseEntry[] | 'loading'>>({})
@@ -99,11 +106,22 @@ export function PeriodsView() {
   }
 
   async function previewThrough(through: string) {
-    setBusy(true); setError(null); setPreview(null)
+    setBusy(true); setError(null); setPreview(null); setAllocationDetail(null)
     const { ok, data } = await post({ action: 'preview', endDate: through })
     setBusy(false)
     if (!ok) { setError(data.error ?? 'Could not preview'); return }
     setPreview(data)
+    setSelectedSuggestions(new Set((data.suggestedEntries ?? []).map((item: SuggestedEntry) => item.id)))
+  }
+
+  async function createDrafts() {
+    if (!preview || selectedSuggestions.size === 0) return
+    setBusy(true); setError(null)
+    const through = preview.end
+    const { ok, data } = await post({ action: 'createSuggestedDrafts', endDate: through, ids: Array.from(selectedSuggestions) })
+    setBusy(false)
+    if (!ok) { setError(data.error ?? 'Could not create drafts'); return }
+    await previewThrough(through)
   }
 
   async function confirmClose() {
@@ -151,7 +169,7 @@ export function PeriodsView() {
     ...periods,
     ...openMonths(nextStart)
       .filter(m => !periods.some(p => p.period_start <= m.period_end && p.period_end >= m.period_start))
-      .map(m => ({ id: `open:${m.period_start}`, ...m, label: null, status: 'open', closed_at: null })),
+      .map(m => ({ id: `open:${m.period_start}`, ...m, label: null, status: 'open', closed_at: null, close_review: null })),
   ].sort((a, b) => (a.period_end < b.period_end ? 1 : -1))
 
   // A close allocates the ledger's income to partners; with no chart there is no ledger to close.
@@ -164,8 +182,8 @@ export function PeriodsView() {
       <div className="space-y-1">
         <p className="text-sm font-medium">Periods</p>
         <p className="text-xs text-muted-foreground">
-          Each month is closed in order and locked: preview a month to see what its close would allocate, then confirm.
-          Reopening a month reverses its allocation and reopens every month after it.
+          Posted activity updates partner capital continuously. Closing reviews the books, preserves the evidence,
+          and locks the period; reopening also reopens every later period.
         </p>
         {error && <p className="text-sm text-destructive">{error}</p>}
       </div>
@@ -175,14 +193,11 @@ export function PeriodsView() {
         <div className="border rounded-lg overflow-hidden">
           <div className="px-4 py-3 border-b bg-muted/30">
             <p className="text-sm font-medium">
-              Closing {preview.start} → {preview.end} will allocate {fmt(preview.totalNetIncome)} of net income
-              across {preview.months.length} month{preview.months.length === 1 ? '' : 's'}
+              Review and close {preview.start} → {preview.end}
             </p>
             <p className="text-xs text-muted-foreground mt-0.5">
-              {preview.mode === 'owner'
-                ? 'Rolled into the owner’s capital account — no partners, nothing to split.'
-                : `Split pro-rata by ${preview.basis === 'capital_balance' ? 'capital-account balance' : 'commitment'} as of each month end.`}
-              {' '}Nothing is posted until you confirm.
+              Automated checks cover ledger completeness, bank activity, valuation exceptions, and partner allocations.
+              {' '}Confirming preserves the review record, snapshot, and approval before locking the books.
             </p>
           </div>
 
@@ -200,6 +215,33 @@ export function PeriodsView() {
             </p>
           ))}
 
+          {preview.suggestedEntries?.length > 0 && (
+            <div className="border-b">
+              <div className="px-4 py-2.5 bg-muted/20">
+                <p className="text-sm font-medium">Suggested closing entries</p>
+                <p className="text-[11px] text-muted-foreground">Create drafts, review and post them in the journal, then preview the close again. Nothing posts automatically.</p>
+              </div>
+              {preview.suggestedEntries.map(item => {
+                const amount = item.postings.filter(line => line.amount > 0).reduce((sum, line) => sum + line.amount, 0)
+                return (
+                  <label key={item.id} className="px-4 py-2.5 border-t flex items-start gap-2 cursor-pointer hover:bg-muted/20">
+                    <input type="checkbox" className="mt-0.5" checked={selectedSuggestions.has(item.id)} onChange={event => setSelectedSuggestions(current => {
+                      const next = new Set(current); event.target.checked ? next.add(item.id) : next.delete(item.id); return next
+                    })} />
+                    <span className="min-w-0 flex-1">
+                      <span className="flex items-center justify-between gap-3 text-xs font-medium"><span>{item.title}</span><span className="tabular-nums">{fmt(amount)}</span></span>
+                      <span className="block text-[11px] text-muted-foreground">{item.entryDate} · {item.basis === 'schedule' ? 'Scheduled' : 'Detected recurring pattern'}{item.required ? ' · required' : ''}</span>
+                      <span className="block text-[11px] text-muted-foreground">{item.detail}</span>
+                    </span>
+                  </label>
+                )
+              })}
+              <div className="px-4 py-2.5 border-t">
+                <Button size="sm" variant="outline" onClick={createDrafts} disabled={busy || selectedSuggestions.size === 0}>Create selected drafts</Button>
+              </div>
+            </div>
+          )}
+
           {preview.months.map(m => (
             <div key={m.periodStart} className="border-b last:border-b-0">
               <div className="px-4 py-2 flex items-center justify-between bg-muted/20">
@@ -211,15 +253,22 @@ export function PeriodsView() {
               </div>
 
               {m.categories.map(cat => (
-                <div key={cat.sourceType} className="px-4 py-2 border-t">
+                <button
+                  key={cat.sourceType}
+                  type="button"
+                  onClick={() => preview.mode === 'partners' && setAllocationDetail({ month: m, category: cat })}
+                  disabled={preview.mode !== 'partners'}
+                  className="block w-full px-4 py-2 border-t text-left transition-colors enabled:hover:bg-muted/30 enabled:focus-visible:outline-none enabled:focus-visible:ring-2 enabled:focus-visible:ring-inset enabled:focus-visible:ring-ring"
+                >
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-medium">{cat.label}</span>
                     <span className="tabular-nums text-xs">{fmt(cat.capitalEffect)}</span>
                   </div>
                   <p className="text-[11px] text-muted-foreground mt-0.5">
                     {cat.accounts.map(a => `${a.code} ${a.name}`).join(', ')} · {preview.mode === 'owner' ? 'to the owner’s capital' : `${cat.lines.filter(l => l.amount !== 0).length} partners`}
+                    {preview.mode === 'partners' && <span className="ml-1 font-medium text-foreground/70">· View allocation</span>}
                   </p>
-                </div>
+                </button>
               ))}
             </div>
           ))}
@@ -235,6 +284,53 @@ export function PeriodsView() {
           </div>
         </div>
       )}
+
+      <Dialog open={!!allocationDetail} onOpenChange={open => { if (!open) setAllocationDetail(null) }}>
+        <DialogContent className="sm:max-w-3xl p-5 gap-4 overflow-hidden">
+          {allocationDetail && (() => {
+            const { month, category } = allocationDetail
+            const lines = category.lines.filter(line => line.amount !== 0)
+            const total = category.capitalEffect
+            return <>
+              <DialogHeader className="pr-8">
+                <DialogTitle>{category.label}</DialogTitle>
+                <DialogDescription>
+                  {month.periodStart} → {month.periodEnd} · Allocated by {preview?.basis === 'capital_balance' ? 'capital-account balance' : 'commitment'} as of {month.periodEnd}
+                </DialogDescription>
+              </DialogHeader>
+              <div className="max-h-[60vh] overflow-auto rounded-md border">
+                <table className="w-full text-sm">
+                  <thead className="sticky top-0 bg-muted/95 backdrop-blur">
+                    <tr className="border-b">
+                      <th className="px-5 py-2 text-left font-medium">Partner</th>
+                      <th className="px-3 py-2 text-right font-medium">Allocation</th>
+                      <th className="px-5 py-2 text-right font-medium">Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {lines.map(line => (
+                      <tr key={line.lpEntityId} className="border-b last:border-b-0">
+                        <td className="px-5 py-2">{line.name}</td>
+                        <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">
+                          {total === 0 ? '—' : `${((line.amount / total) * 100).toFixed(2)}%`}
+                        </td>
+                        <td className="px-5 py-2 text-right tabular-nums">{fmt(line.amount)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr className="border-t bg-muted/30 font-medium">
+                      <td className="px-5 py-2">Total</td>
+                      <td className="px-3 py-2 text-right tabular-nums">100.00%</td>
+                      <td className="px-5 py-2 text-right tabular-nums">{fmt(total)}</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            </>
+          })()}
+        </DialogContent>
+      </Dialog>
 
       {loading ? (
         <div className="flex items-center gap-2 text-muted-foreground text-sm"><Loader2 className="h-4 w-4 animate-spin" />Loading…</div>
@@ -335,13 +431,29 @@ export function PeriodsView() {
                     {isClosed && open && (
                       <tr className="border-b last:border-b-0 bg-muted/10">
                         <td colSpan={4} className="px-3 py-2.5">
+                          {p.close_review && (
+                            <div className="mb-3 rounded border bg-background overflow-hidden">
+                              <div className="px-3 py-2 border-b bg-muted/30">
+                                <p className="text-xs font-medium">Close review approved {p.close_review.approved_at ? new Date(p.close_review.approved_at).toLocaleString() : ''}</p>
+                                {p.close_review.attestation && <p className="text-[11px] text-muted-foreground mt-0.5">{p.close_review.attestation}</p>}
+                              </div>
+                              <div className="divide-y">
+                                {[...p.close_review.close_review_checks].sort((a, b) => a.sort_order - b.sort_order).map(check => (
+                                  <div key={check.check_key} className="px-3 py-2 flex items-start justify-between gap-4">
+                                    <div><p className="text-xs font-medium">{check.label}</p><p className="text-[11px] text-muted-foreground">{check.detail}</p></div>
+                                    <span className={`shrink-0 text-[10px] uppercase tracking-wide ${check.status === 'passed' ? 'text-success' : check.status === 'blocked' ? 'text-destructive' : 'text-warning'}`}>{check.status.replace('_', ' ')}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
                           {entries === undefined || entries === 'loading' ? (
                             <div className="flex items-center gap-2 text-xs text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" />Loading transactions…</div>
                           ) : entries.length === 0 ? (
-                            <p className="text-xs text-muted-foreground">No allocation transactions were posted for this period (nothing to allocate).</p>
+                            <p className="text-xs text-muted-foreground">No period-end adjusting transactions were posted by this close.</p>
                           ) : (
                             <div className="space-y-2">
-                              <p className="text-[11px] text-muted-foreground">The transactions this close posted — the same allocation the preview showed, read back from the ledger.</p>
+                              <p className="text-[11px] text-muted-foreground">Period-end accruals and adjusting transactions generated during close.</p>
                               {entries.map(en => (
                                 <div key={en.id} className="rounded border bg-background overflow-hidden">
                                   <div className="flex items-center justify-between px-2.5 py-1.5 border-b bg-muted/30">

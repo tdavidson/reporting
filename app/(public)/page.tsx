@@ -55,10 +55,7 @@ function HeroCtas({ links }: { links: SiteLinks }) {
  */
 function CfoCallout({ callout, className = '', centredBadge = false }: { callout: SiteCallout; className?: string; centredBadge?: boolean }) {
   return (
-    <a
-      href={callout.href}
-      target="_blank"
-      rel="noopener noreferrer"
+    <div
       className={`relative rounded-card border border-brand-200 bg-brand-50 dark:border-brand-800 dark:bg-brand-950 p-7 flex flex-col transition-colors duration-200 ease-out-soft hover:bg-brand-100 dark:hover:bg-brand-900 ${className}`}
     >
       {callout.badge && (
@@ -66,9 +63,20 @@ function CfoCallout({ callout, className = '', centredBadge = false }: { callout
           {callout.badge}
         </span>
       )}
-      {callout.title && <h3 className="text-base font-medium mb-2">{callout.title}</h3>}
+      {callout.title && (
+        <h3 className="text-base font-medium mb-2">
+          <a href={callout.href} target="_blank" rel="noopener noreferrer" className="hover:underline">
+            {callout.title}
+          </a>
+        </h3>
+      )}
       <p className="text-sm text-muted-foreground">{renderInlineMarkdown(callout.text)}</p>
-    </a>
+      {!callout.title && !callout.text.includes('](') && (
+        <a href={callout.href} target="_blank" rel="noopener noreferrer" className="mt-3 text-sm font-medium underline">
+          Learn more
+        </a>
+      )}
+    </div>
   )
 }
 

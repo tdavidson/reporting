@@ -6,6 +6,8 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { fundEconomics } from './fund-economics'
 import { loadPostedLedger } from './load'
 import { accountBalances, normalBalance } from './ledger'
+import { bucketForSourceType } from './capital-account'
+import { loadCarryTerms } from './carry'
 import { buildSoiPositions, txnsForVehicle, type SoiCompany } from './soi'
 import { resolveVehicle } from './vehicle-resolver'
 import {
@@ -113,6 +115,9 @@ function validateStage(value: unknown, index: number): asserts value is Construc
   if (value.returnMethod != null && value.returnMethod !== 'ownership' && value.returnMethod !== 'moic') {
     invalid(`stages[${index}].returnMethod must be ownership or moic`)
   }
+  if (value.forecastMoicOverride != null && typeof value.forecastMoicOverride !== 'boolean') {
+    invalid(`stages[${index}].forecastMoicOverride must be a boolean`)
+  }
   validateDealOverrides(value, `stages[${index}]`, ['investInYears', 'exitInYears', 'followOnInYears'])
 }
 
@@ -147,6 +152,9 @@ function validatePositionForecast(
   }
   if (value.returnMethod != null && value.returnMethod !== 'ownership' && value.returnMethod !== 'moic') {
     invalid(`positionForecasts[${index}].returnMethod must be ownership or moic`)
+  }
+  if (value.forecastMoicOverride != null && typeof value.forecastMoicOverride !== 'boolean') {
+    invalid(`positionForecasts[${index}].forecastMoicOverride must be a boolean`)
   }
   validateDealOverrides(value, `positionForecasts[${index}]`, ['exitInYears', 'followOnInYears'])
 }
@@ -229,25 +237,40 @@ async function loadConstructionActuals(
   fundId: string,
   vehicle: string,
 ): Promise<{ actuals: ConstructionActuals; vintageYear: number | null; vehicleId: string | null }> {
-  const [vehicles, ledger, transactionResult, companyResult] = await Promise.all([
+  const [vehicles, ledger, transactionResult, companyResult, carryTerms] = await Promise.all([
     fundEconomics(admin, fundId),
     loadPostedLedger(admin, fundId, vehicle).catch(() => null),
     (admin as any).from('investment_transactions').select('*').eq('fund_id', fundId),
     (admin as any).from('companies')
       .select('id, name, holding_type, status, industry, stage, country, portfolio_group')
       .eq('fund_id', fundId),
+    loadCarryTerms(admin, fundId, vehicle),
   ])
 
   const economics = vehicles.find(item => item.vehicle === vehicle) ?? null
+  const lpEconomics = economics ? (economics.lp ?? economics.fund) : null
+  const recipientIds = new Set(carryTerms.recipients.map(recipient => recipient.lpEntityId))
+  const lpContributions = (ledger?.capitalPostings ?? [])
+    .filter(posting => !recipientIds.has(posting.lpEntityId ?? '') && bucketForSourceType(posting.sourceType) === 'contributions')
+    .map(posting => ({ date: posting.entryDate ?? new Date().toISOString().slice(0, 10), amount: Math.max(0, -posting.amount) }))
+    .filter(contribution => contribution.amount > 0)
+  const lpDistributions = (ledger?.capitalPostings ?? [])
+    .filter(posting => !recipientIds.has(posting.lpEntityId ?? '') && bucketForSourceType(posting.sourceType) === 'distributions')
+    .map(posting => ({ date: posting.entryDate ?? new Date().toISOString().slice(0, 10), amount: Math.max(0, posting.amount) }))
+    .filter(distribution => distribution.amount > 0)
   const ledgerAvailable = !!ledger && ledger.accounts.length > 0
   let managementFeesIncurred = 0
   let orgCostsIncurred = 0
   let partnershipExpensesIncurred = 0
+  let cashBalance: number | undefined
   if (ledger && ledgerAvailable) {
     const balances = accountBalances(ledger.postings)
     managementFeesIncurred = expenseTotal(ledger.accounts, balances, 'management_fee')
     orgCostsIncurred = expenseTotal(ledger.accounts, balances, 'organizational_expense')
     partnershipExpensesIncurred = expenseTotal(ledger.accounts, balances, 'partnership_expense')
+    cashBalance = ledger.accounts
+      .filter(account => account.type === 'asset' && account.subtype === 'cash')
+      .reduce((sum, account) => sum + normalBalance(account, balances.get(account.id) ?? 0), 0)
   }
 
   const allTransactions = (transactionResult.data ?? []) as InvestmentTransaction[]
@@ -285,7 +308,7 @@ async function loadConstructionActuals(
       investedFollowOn: position.investedFollowOn,
       investedTotal: position.invested,
       firstInvestmentDate: firstInvestment?.transaction_date ?? null,
-      currentValue: position.status === 'exited' ? 0 : position.totalValue,
+      currentValue: position.status === 'exited' ? 0 : position.fairValue,
       currentMoic: position.moic,
       currentOwnership,
       currentPostMoney,
@@ -300,6 +323,22 @@ async function loadConstructionActuals(
       committedCapital: economics?.fund.committed ?? 0,
       calledCapital: economics?.fund.paidIn ?? 0,
       uncalledCapital: economics?.fund.uncalled ?? 0,
+      distributedCapital: economics?.fund.distributions ?? 0,
+      waterfall: economics ? {
+        asOf: new Date().toISOString().slice(0, 10),
+        kind: carryTerms.kind,
+        carryRate: carryTerms.carryRate,
+        prefRate: carryTerms.prefRate,
+        catchupRate: carryTerms.catchupRate,
+        prefCompounds: carryTerms.prefCompounds,
+        lpCommitmentShare: economics.fund.committed > 0 ? (lpEconomics?.committed ?? economics.fund.committed) / economics.fund.committed : 1,
+        lpCalledCapital: lpEconomics?.paidIn ?? economics.fund.paidIn,
+        lpDistributedCapital: lpEconomics?.distributions ?? economics.fund.distributions,
+        fundDistributedCapital: economics.fund.distributions,
+        lpNav: lpEconomics?.nav ?? economics.fund.nav,
+        contributions: lpContributions,
+        distributions: lpDistributions,
+      } : undefined,
       managementFeesIncurred,
       orgCostsIncurred,
       partnershipExpensesIncurred,
@@ -309,6 +348,7 @@ async function loadConstructionActuals(
       companyCount: positions.length,
       currentValue: constructionPositions.reduce((sum, position) => sum + position.currentValue, 0),
       nav: economics?.fund.nav ?? 0,
+      cashBalance,
       positions: constructionPositions,
     },
   }

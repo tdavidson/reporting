@@ -46,6 +46,8 @@ export interface ConstructionStage {
   expectedExitValue?: number
   /** Direct return multiple used when the fund forecasts every company by MOIC. */
   forecastMoic?: number
+  /** Distinguishes an explicit 0x write-off from an unset override that uses the fund default. */
+  forecastMoicOverride?: boolean
   /** How this deal's proceeds are forecast. */
   returnMethod?: ReturnForecastMethod
   // ── Timing, stated per deal. Absent = the fund-wide pacing (construction-forecast.ts). ──
@@ -76,6 +78,8 @@ export interface ConstructionPositionForecast {
   expectedExitValue: number
   /** Direct return multiple used when the fund forecasts every company by MOIC. */
   forecastMoic?: number
+  /** Distinguishes an explicit 0x write-off from an unset override that uses the fund default. */
+  forecastMoicOverride?: boolean
   /** How this deal's proceeds are forecast. */
   returnMethod?: ReturnForecastMethod
   // ── Timing, stated per company. Absent = the fund-wide pacing (construction-forecast.ts). ──
@@ -109,8 +113,8 @@ export interface PacingAssumptions {
 }
 
 export const DEFAULT_PACING: PacingAssumptions = {
-  deploymentYears: 3,
-  followOnLagYears: 1.5,
+  deploymentYears: 0,
+  followOnLagYears: 0,
   holdYears: 6,
   existingHoldYears: 6,
   horizonYears: 0,
@@ -196,6 +200,10 @@ export interface ConstructionActuals {
   calledCapital?: number
   /** From capital accounts. Optional for backwards-compatible pure-model callers. */
   uncalledCapital?: number
+  /** Capital returned to partners to date. */
+  distributedCapital?: number
+  /** LP-only baseline and the vehicle waterfall used to present net forecast returns. */
+  waterfall?: ConstructionWaterfallProjection
   /**
    * Ledger-only, all three. On an LP-tracking vehicle they come back as 0, which would overstate
    * investable capital — so `ledgerAvailable` says so, and the model warns rather than implying
@@ -211,8 +219,26 @@ export interface ConstructionActuals {
   companyCount: number
   currentValue: number
   nav: number
+  /** Posted ledger cash available to fund future investments and expenses. */
+  cashBalance?: number
   /** Optional for backwards-compatible callers; the API always supplies it. */
   positions?: ConstructionPositionActual[]
+}
+
+export interface ConstructionWaterfallProjection {
+  asOf: string
+  kind: 'none' | 'straight' | 'american' | 'european'
+  carryRate: number
+  prefRate: number
+  catchupRate: number
+  prefCompounds: boolean
+  lpCommitmentShare: number
+  lpCalledCapital: number
+  lpDistributedCapital: number
+  fundDistributedCapital: number
+  lpNav: number
+  contributions: { date: string; amount: number }[]
+  distributions?: { date: string; amount: number }[]
 }
 
 /**
@@ -326,6 +352,7 @@ export function parseAssumptions(raw: unknown, _vintageYear: number | null): Con
               : undefined,
             expectedExitValue: num(s.expectedExitValue, 0),
             forecastMoic: Math.max(0, num(s.forecastMoic, 0)),
+            forecastMoicOverride: s.forecastMoicOverride === true,
             returnMethod: s.returnMethod === 'moic' ? 'moic' : 'ownership',
             investInYears: optionalNonNeg(s.investInYears, 50),
             exitInYears: optionalNonNeg(s.exitInYears, 50),
@@ -348,6 +375,7 @@ export function parseAssumptions(raw: unknown, _vintageYear: number | null): Con
         : undefined,
       expectedExitValue: Math.max(0, num(f.expectedExitValue, 0)),
       forecastMoic: Math.max(0, num(f.forecastMoic, 0)),
+      forecastMoicOverride: f.forecastMoicOverride === true,
       returnMethod: f.returnMethod === 'moic' ? 'moic' : 'ownership',
       exitInYears: optionalNonNeg(f.exitInYears, 50),
       followOnInYears: optionalNonNeg(f.followOnInYears, 50),
@@ -588,6 +616,10 @@ export interface ReturnsBlock {
   estimatedPortfolioValue: number
   /** Realized proceeds plus all active-company and planned-deal forecast proceeds. */
   forecastedTotalValue: number
+  /** Current portfolio value plus realized investment proceeds, divided by deployed capital. */
+  actualGrossMoic: number | null
+  /** Fund NAV plus LP distributions, divided by called capital. */
+  actualNetMoic: number | null
   estimatedGrossMoic: number | null
   /** Forecasted total value divided by committed capital. */
   estimatedNetMoic: number | null
@@ -699,7 +731,8 @@ export function constructionModel(
       ? st.expectedExitValue ?? 0
       : initialOwnership > 0 ? allocation / initialOwnership : 0
     const defaultMoic = allocation > 0 ? a.simulation.defaultExitMultiple : 0
-    const forecastMoic = (st.forecastMoic ?? 0) > 0 ? st.forecastMoic ?? 0 : defaultMoic
+    const hasForecastMoicOverride = st.forecastMoicOverride === true || (st.forecastMoic ?? 0) > 0
+    const forecastMoic = hasForecastMoicOverride ? st.forecastMoic ?? 0 : defaultMoic
     const estimatedReturn = returnMethod === 'moic'
       ? allocation > 0 ? r(allocation * forecastMoic) : null
       : forecastExitValue > 0 && ownershipAtExit > 0
@@ -759,7 +792,14 @@ export function constructionModel(
       ? storedForecast.expectedExitValue
       : currentOwnership > 0 ? currentValue / currentOwnership : 0
     const defaultMoic = invested > 0 ? a.simulation.defaultExitMultiple : 0
-    const forecastMoic = (storedForecast.forecastMoic ?? 0) > 0 ? storedForecast.forecastMoic ?? 0 : defaultMoic
+    const hasForecastMoicOverride = storedForecast.forecastMoicOverride === true || (storedForecast.forecastMoic ?? 0) > 0
+    const enteredForecastMoic = hasForecastMoicOverride ? storedForecast.forecastMoic ?? 0 : defaultMoic
+    // Do not make the default forecast imply that the current carrying-value multiple disappears.
+    // A GP can still model uncertainty through the simulation, while the deterministic case starts
+    // no lower than the position's current result.
+    const forecastMoic = hasForecastMoicOverride
+      ? enteredForecastMoic
+      : Math.max(currentMoic ?? 0, enteredForecastMoic)
     const estimatedReturn = isExited
       ? null
       : returnMethod === 'moic'
@@ -867,6 +907,10 @@ export function constructionModel(
     estimatedFutureValue,
     estimatedPortfolioValue,
     forecastedTotalValue,
+    actualGrossMoic: deployedTotal > 0 ? (realizedPortfolioValue + positionReturns.reduce((s, p) => s + p.currentValue, 0)) / deployedTotal : null,
+    actualNetMoic: (actuals.calledCapital ?? 0) > 0
+      ? (actuals.nav + (actuals.distributedCapital ?? 0)) / (actuals.calledCapital ?? 0)
+      : null,
     estimatedGrossMoic: projectedInvested > 0 ? forecastedTotalValue / projectedInvested : null,
     estimatedNetMoic: actuals.committedCapital > 0 ? forecastedTotalValue / actuals.committedCapital : null,
     targetGap: requiredPortfolioValue == null ? null : r(forecastedTotalValue - requiredPortfolioValue),

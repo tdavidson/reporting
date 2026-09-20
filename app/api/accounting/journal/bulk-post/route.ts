@@ -34,6 +34,7 @@ export async function POST(req: NextRequest) {
     group,
     action: 'post',
     scope: readBulkScope(body),
+    userId: user.id,
   })
   if (!result.ok) return dbError(result.error as any, 'journal-bulk-post')
 

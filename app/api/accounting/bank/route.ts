@@ -12,6 +12,7 @@ import { loadEntityNames } from '@/lib/accounting/load'
 import { closedPeriodRanges, dateInAnyClosedPeriod } from '@/lib/accounting/periods'
 import { dbError } from '@/lib/api-error'
 import { ACTUAL_BOOK } from '@/lib/accounting/books'
+import { postExistingEntryWithAllocation, setGeneratedAllocationStatus } from '@/lib/accounting/continuous-allocation'
 
 // GET — list a vehicle's staged bank transactions.
 export async function GET(req: NextRequest) {
@@ -172,8 +173,10 @@ export async function POST(req: NextRequest) {
     if (problem) return NextResponse.json({ error: problem }, { status: 400 })
 
     if (entryIds.length) {
-      const { error } = await admin.from('journal_entries' as any).update({ status: 'posted', posted_at: new Date().toISOString() }).in('id', entryIds).eq('fund_id', gate.fundId)
-      if (error) return dbError(error, 'bank-post-many')
+      for (const entryId of entryIds) {
+        const result = await postExistingEntryWithAllocation(admin, gate.fundId, group, user.id, entryId)
+        if ('error' in result) return NextResponse.json({ error: result.error }, { status: 400 })
+      }
     }
     if (txnIds.length) await admin.from('bank_transactions' as any).update({ status: 'reconciled' }).in('id', txnIds).eq('fund_id', gate.fundId)
     return NextResponse.json({ ok: true, posted: txnIds.length })
@@ -241,8 +244,8 @@ export async function POST(req: NextRequest) {
       const problem = await guardEntry([entryId], ['draft'])
       if (problem) return NextResponse.json({ error: problem }, { status: 400 })
 
-      const { error } = await admin.from('journal_entries' as any).update({ status: 'posted', posted_at: new Date().toISOString() }).eq('id', entryId).eq('fund_id', gate.fundId)
-      if (error) return dbError(error, 'bank-post-entry')
+      const result = await postExistingEntryWithAllocation(admin, gate.fundId, group, user.id, entryId)
+      if ('error' in result) return NextResponse.json({ error: result.error }, { status: 400 })
     }
     await admin.from('bank_transactions' as any).update({ status: 'reconciled' }).eq('id', id).eq('fund_id', gate.fundId)
     return NextResponse.json({ ok: true, status: 'reconciled' })
@@ -259,6 +262,8 @@ export async function POST(req: NextRequest) {
         const closed = await closedPeriodRanges(admin, gate.fundId, group)
         if (dateInAnyClosedPeriod(closed, date)) return NextResponse.json({ error: 'That entry is in a closed period — reopen it to edit.' }, { status: 400 })
       }
+      const linked = await setGeneratedAllocationStatus(admin, gate.fundId, entryId, 'draft')
+      if (linked.error) return NextResponse.json({ error: linked.error }, { status: 400 })
       const { error } = await admin.from('journal_entries' as any).update({ status: 'draft', posted_at: null }).eq('id', entryId).eq('fund_id', gate.fundId)
       if (error) return dbError(error, 'bank-unpost-entry')
     }
@@ -295,6 +300,8 @@ export async function POST(req: NextRequest) {
     const problem = await guardEntry([entryId], ['draft', 'posted'])
     if (problem) return NextResponse.json({ error: problem }, { status: 400 })
 
+    const linked = await setGeneratedAllocationStatus(admin, gate.fundId, entryId, 'void')
+    if (linked.error) return NextResponse.json({ error: linked.error }, { status: 400 })
     const { error } = await admin.from('journal_entries' as any).update({ status: 'void', posted_at: null }).eq('id', entryId).eq('fund_id', gate.fundId)
     if (error) return dbError(error, 'bank-ignore-entry')
   }

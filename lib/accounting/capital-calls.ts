@@ -75,10 +75,7 @@ export interface IssueCallInput {
  * Issue a capital call: post the receivable/capital entry (Dr 1300 / Cr each LP's
  * capital) and record the call + its per-LP lines in the register.
  *
- * On a CAPITAL-TRACKING vehicle there is no ledger to post to: the register row alone is the
- * call, the notice is rendered from it, and funding is recorded on the line by hand (see
- * `settleRegisterLine`). The vehicle's capital stays whatever its positions say — the register
- * is the record of what was asked and what arrived, not a second producer of capital.
+ * Capital-tracking vehicles record dated paid-in facts instead; they cannot issue calls.
  */
 export async function issueCapitalCall(
   admin: SupabaseClient,
@@ -95,6 +92,7 @@ export async function issueCapitalCall(
   for (const l of lines) perLp.set(l.lpEntityId, roundCents((perLp.get(l.lpEntityId) ?? 0) + Number(l.amount)))
 
   const source = await loadCapitalSource(admin, fundId, group)
+  if (source !== 'ledger') return { error: 'Capital calls require accounting for this vehicle.' }
   let entryId: string | null = null
   if (source === 'ledger') {
     const codes = await accountIdByCode(admin, fundId, group)
@@ -150,41 +148,6 @@ export async function issueCapitalCall(
   if (lineErr) return { error: lineErr.message }
 
   return { callId, entryId }
-}
-
-/**
- * Record a funding (or a payment) on a register line BY HAND — capital-tracking vehicles only.
- *
- * A ledger vehicle settles through the bank feed: the funding entry credits the receivable and
- * lib/accounting/settlement.ts applies it. There is no receivable on a tracking vehicle, so the
- * line carries the figure itself. Refused on a ledger vehicle: a second source of settlement
- * would disagree with the first the moment a wire was reversed.
- */
-export async function settleRegisterLine(
-  admin: SupabaseClient,
-  fundId: string,
-  group: string,
-  kind: 'capital_call' | 'distribution',
-  lineId: string,
-  input: { amount: number; date: string },
-): Promise<{ ok: true } | { error: string }> {
-  const source = await loadCapitalSource(admin, fundId, group)
-  if (source === 'ledger') return { error: 'This vehicle keeps books: match the wire on the Bank page and post it, and the line settles from the ledger.' }
-  const amount = roundCents(Number(input.amount))
-  if (!Number.isFinite(amount) || amount < 0) return { error: 'A settled amount must be zero or more' }
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(input.date)) return { error: 'A settlement date is required' }
-
-  const vehicleId = await vehicleIdByName(admin, fundId, group)
-  const table = kind === 'capital_call' ? 'capital_call_lines' : 'distribution_lines'
-  const { data: line } = await admin.from(table as any).select('id, amount').eq('id', lineId).eq('fund_id', fundId).eq('vehicle_id', vehicleId).maybeSingle()
-  if (!line) return { error: 'Line not found on this vehicle' }
-  if (amount > roundCents(Number((line as any).amount)) + 0.005) return { error: 'Settled more than the line: record the overpayment on the positions instead' }
-
-  const { error } = await admin.from(table as any)
-    .update({ settled_amount: amount > 0 ? amount : null, settled_on: amount > 0 ? input.date : null })
-    .eq('id', lineId).eq('fund_id', fundId)
-  if (error) return { error: error.message }
-  return { ok: true }
 }
 
 /** The receivable (1300) balance per LP from the posted ledger. */

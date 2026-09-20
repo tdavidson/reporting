@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Script from 'next/script'
 import { createBrowserClient } from '@supabase/ssr'
 import Link from 'next/link'
 import { Github, LogIn, Play, Star } from 'lucide-react'
@@ -130,7 +131,11 @@ export function PublicLayoutClient({ children }: { children: React.ReactNode }) 
         <PublicShell>{children}</PublicShell>
       </div>
       {fathomSiteId && (
-        <script src="https://cdn.usefathom.com/script.js" data-site={fathomSiteId} defer />
+        <Script
+          src="https://cdn.usefathom.com/script.js"
+          data-site={fathomSiteId}
+          strategy="afterInteractive"
+        />
       )}
     </div>
   )

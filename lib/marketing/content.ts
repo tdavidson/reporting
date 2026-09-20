@@ -27,7 +27,7 @@ export interface SiteAbout { name: string; photo?: string; bio: string; links: A
 /** `features` points at the marketing site's product page (hemrock.com/reporting);
  *  the others are the repo and the read-only demo. All three feed the hero CTA row. */
 export interface SiteLinks { github?: string; x?: string; demo?: string; features?: string }
-/** A highlighted "hire me" card: an anchor with an optional badge and heading. */
+/** A highlighted "hire me" card with an optional badge and linked heading. */
 export interface SiteCallout { badge?: string; title?: string; text: string; href: string }
 
 export interface SiteContent {

@@ -63,6 +63,63 @@ export function allocateAmount(total: number, owners: LpOwnership[]): Map<string
   return out
 }
 
+export interface CumulativeAllocationLine {
+  lpEntityId: string
+  /** This allocation's exact pro-rata entitlement, before cent rounding. */
+  exactAmount: number
+  /** The cent-denominated amount to post after applying prior rounding residuals. */
+  amount: number
+}
+
+/**
+ * Allocate one amount while carrying each owner's cumulative sub-cent residual forward.
+ *
+ * `residualByOwner` is cumulative exact entitlement less cumulative posted amount from CLOSED
+ * prior periods. The current exact share is added to it before cents are apportioned. A recipient
+ * set can change between periods (terms or eligibility); normalize the residuals of the current
+ * set back to zero so an old residual belonging to a now-excluded owner cannot create or destroy
+ * a cent in this allocation.
+ */
+export function allocateAmountCumulatively(
+  total: number,
+  owners: LpOwnership[],
+  residualByOwner: Map<string, number>,
+): CumulativeAllocationLine[] {
+  if (owners.length === 0) return []
+  const roundedTotal = roundCents(total)
+  const weights = owners.map(owner => Math.max(0, owner.commitment))
+  const weightTotal = weights.reduce((sum, weight) => sum + weight, 0)
+  const effectiveWeights = weightTotal === 0 ? weights.map(() => 1) : weights
+  const effectiveTotal = weightTotal === 0 ? owners.length : weightTotal
+  const exact = effectiveWeights.map(weight => (roundedTotal * weight) / effectiveTotal)
+  const residuals = owners.map(owner => residualByOwner.get(owner.lpEntityId) ?? 0)
+  const residualDrift = residuals.reduce((sum, residual) => sum + residual, 0)
+  const adjustedExactCents = exact.map((amount, index) => (
+    amount + residuals[index] - residualDrift * (effectiveWeights[index] / effectiveTotal)
+  ) * 100)
+
+  const floors = adjustedExactCents.map(Math.floor)
+  let remainder = Math.round(roundedTotal * 100) - floors.reduce((sum, amount) => sum + amount, 0)
+  const order = adjustedExactCents
+    .map((amount, index) => ({ index, fraction: amount - Math.floor(amount) }))
+    .sort((left, right) => (right.fraction - left.fraction) || (left.index - right.index))
+  const cents = floors.slice()
+  for (let index = 0; index < order.length && remainder > 0; index += 1) {
+    cents[order[index].index] += 1
+    remainder -= 1
+  }
+  for (let index = 0; index < order.length && remainder < 0; index += 1) {
+    cents[order[index].index] -= 1
+    remainder += 1
+  }
+
+  return owners.map((owner, index) => ({
+    lpEntityId: owner.lpEntityId,
+    exactAmount: exact[index],
+    amount: cents[index] / 100,
+  }))
+}
+
 /** Ownership fraction (0..1) per entity by commitment; sums to 1 (or 0 if no basis). */
 export function ownershipFractions(owners: LpOwnership[]): Map<string, number> {
   const sum = owners.reduce((a, o) => a + Math.max(0, o.commitment), 0)

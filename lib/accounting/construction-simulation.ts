@@ -14,9 +14,9 @@
 // deliberate act. Industry-informed engine defaults keep those implementation details out of the
 // form, while fund and per-deal assumptions still determine the forecast.
 
-import type { ConstructionAssumptions, ConstructionResult, PacingAssumptions, SimulationAssumptions } from './construction'
+import type { ConstructionAssumptions, ConstructionResult, ConstructionWaterfallProjection, PacingAssumptions, SimulationAssumptions } from './construction'
 import { DEFAULT_SIMULATION } from './construction'
-import { forecastSchedule, dealTimelines, type ForecastBaseline } from './construction-forecast'
+import { applyLpWaterfall, forecastSchedule, dealTimelines, type ForecastBaseline } from './construction-forecast'
 
 export { DEFAULT_SIMULATION }
 export type { SimulationAssumptions }
@@ -28,6 +28,10 @@ export interface SimulationYear {
   calendarYear: number
   tvpi: Percentiles
   dpi: Percentiles
+  /** Gross proceeds distributed by the portfolio in this year. */
+  distributed: Percentiles
+  /** GP carried interest allocated by the waterfall in this year. */
+  carriedInterest: Percentiles
 }
 
 export interface SimulationResult {
@@ -117,6 +121,7 @@ export function simulateFund(
   pacing: PacingAssumptions,
   sim: SimulationAssumptions,
   baseline: ForecastBaseline,
+  waterfall?: ConstructionWaterfallProjection,
 ): SimulationResult {
   const runs = Math.max(1, Math.min(20_000, Math.floor(sim.runs) || 1))
   const rng = makeRng(sim.seed)
@@ -134,12 +139,14 @@ export function simulateFund(
 
   // The horizon comes from the deterministic schedule so every run is measured on the same grid
   // even when a sampled exit slides past the last scheduled one.
-  const base = forecastSchedule(model, a, pacing, baseline, undefined, 'none')
+  const base = applyLpWaterfall(forecastSchedule(model, a, pacing, baseline, undefined, 'none'), waterfall)
   const horizonYears = Math.max(base.horizonYears, Math.ceil(deals.reduce((m, d) => Math.max(m, d.exitAt + Math.max(0, settingsFor(d).holdSpreadYears)), 0)))
   const wide = { ...pacing, horizonYears }
 
   const tvpiByYear: number[][] = Array.from({ length: horizonYears + 1 }, () => [])
   const dpiByYear: number[][] = Array.from({ length: horizonYears + 1 }, () => [])
+  const distributedByYear: number[][] = Array.from({ length: horizonYears + 1 }, () => [])
+  const carriedInterestByYear: number[][] = Array.from({ length: horizonYears + 1 }, () => [])
   const finalTvpi: number[] = []
   const finalDpi: number[] = []
   const finalIrr: number[] = []
@@ -160,10 +167,12 @@ export function simulateFund(
       if (committed > 0 && proceeds >= committed) returner = true
     }
     if (returner) fundReturners++
-    const s = forecastSchedule(model, a, wide, baseline, override, 'final')
+    const s = applyLpWaterfall(forecastSchedule(model, a, wide, baseline, override, 'final'), waterfall)
     for (const y of s.years) {
       tvpiByYear[y.year].push(y.tvpi ?? 0)
       dpiByYear[y.year].push(y.dpi ?? 0)
+      distributedByYear[y.year].push(y.distributed)
+      carriedInterestByYear[y.year].push(y.carriedInterest ?? 0)
     }
     const last = s.years[s.years.length - 1]
     finalTvpi.push(last.tvpi ?? 0)
@@ -176,10 +185,19 @@ export function simulateFund(
     calendarYear: y.calendarYear,
     tvpi: percentiles(tvpiByYear[y.year]),
     dpi: percentiles(dpiByYear[y.year]),
+    distributed: percentiles(distributedByYear[y.year]),
+    carriedInterest: percentiles(carriedInterestByYear[y.year]),
   }))
   // The wide grid may extend past the base schedule's years.
   for (let t = base.years.length; t <= horizonYears; t++) {
-    years.push({ year: t, calendarYear: base.years[0].calendarYear + t, tvpi: percentiles(tvpiByYear[t]), dpi: percentiles(dpiByYear[t]) })
+    years.push({
+      year: t,
+      calendarYear: base.years[0].calendarYear + t,
+      tvpi: percentiles(tvpiByYear[t]),
+      dpi: percentiles(dpiByYear[t]),
+      distributed: percentiles(distributedByYear[t]),
+      carriedInterest: percentiles(carriedInterestByYear[t]),
+    })
   }
 
   // Histogram of final TVPI: bins of 0.5x up to the 99th percentile, one open bin above.

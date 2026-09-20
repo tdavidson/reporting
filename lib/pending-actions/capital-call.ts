@@ -2,6 +2,7 @@ import type { ActionDeps, PreviewResult } from './types'
 import { proRataCall, issueCapitalCall } from '@/lib/accounting/capital-calls'
 import { loadOwnership, loadEntityNames } from '@/lib/accounting/load'
 import { resolveVehicle } from '@/lib/accounting/agent-tools'
+import { loadCapitalSource } from '@/lib/accounting/capital-source'
 
 export interface IssueCapitalCallInput {
   vehicle?: string
@@ -18,6 +19,9 @@ export interface IssueCapitalCallInput {
  */
 export async function previewIssueCapitalCall(deps: ActionDeps, input: IssueCapitalCallInput): Promise<PreviewResult> {
   const group = await resolveVehicle(deps.admin, deps.fundId, input.vehicle)
+  if (await loadCapitalSource(deps.admin, deps.fundId, group) !== 'ledger') {
+    throw new Error('Capital calls require accounting for this vehicle.')
+  }
   const [lines, owners, names] = await Promise.all([
     proRataCall(deps.admin, deps.fundId, group, input.total),
     loadOwnership(deps.admin, deps.fundId, group),

@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { closedPeriodRanges, dateInAnyClosedPeriod } from './periods'
 import { ACTUAL_BOOK } from './books'
+import { postExistingEntryWithAllocation } from './continuous-allocation'
 
 // Shared machinery behind the journal's two bulk actions — post many drafts, void many
 // drafts. Both page the same way, scope the same way and guard the same way; only the
@@ -60,9 +61,10 @@ export async function runBulkDraftAction(
     group: string
     action: BulkAction
     scope: BulkScope
+    userId?: string | null
   },
 ): Promise<{ ok: true; outcome: BulkOutcome } | { ok: false; error: unknown }> {
-  const { fundId, vehicleId, group, action, scope } = opts
+  const { fundId, vehicleId, group, action, scope, userId } = opts
 
   // Candidate drafts — scoped to the vehicle, ordered by id for a stable keyset, with
   // postings for the balance check.
@@ -112,28 +114,37 @@ export async function runBulkDraftAction(
   }
 
   if (target.length > 0) {
-    const patch = action === 'post'
-      ? { status: 'posted', posted_at: new Date().toISOString() }
-      : { status: 'void', posted_at: null }
-    const { error: upErr } = await (admin as any)
-      .from('journal_entries')
-      .update(patch)
-      .in('id', target)
-      .eq('fund_id', fundId)
-      .eq('status', 'draft') // defence-in-depth: no-op any row a concurrent write already moved
-    if (upErr) return { ok: false, error: upErr }
+    if (action === 'post' && userId !== undefined) {
+      for (const id of target) {
+        const posted = await postExistingEntryWithAllocation(admin, fundId, group, userId, id)
+        if ('error' in posted) {
+          skipped.push({ id, reason: posted.error })
+        }
+      }
+    } else {
+      const patch = action === 'post'
+        ? { status: 'posted', posted_at: new Date().toISOString() }
+        : { status: 'void', posted_at: null }
+      const { error: upErr } = await (admin as any)
+        .from('journal_entries').update(patch).in('id', target).eq('fund_id', fundId).eq('status', 'draft')
+      if (upErr) return { ok: false, error: upErr }
+    }
     // Keep any bank transactions that point at these entries in step — the same two states
     // the single-entry bank actions use.
-    await (admin as any).from('bank_transactions')
-      .update({ status: action === 'post' ? 'reconciled' : 'ignored' })
-      .in('journal_entry_id', target)
-      .eq('fund_id', fundId)
+    const failed = new Set(skipped.map(item => item.id))
+    const changedIds = target.filter(id => !failed.has(id))
+    if (changedIds.length > 0) {
+      await (admin as any).from('bank_transactions')
+        .update({ status: action === 'post' ? 'reconciled' : 'ignored' })
+        .in('journal_entry_id', changedIds)
+        .eq('fund_id', fundId)
+    }
   }
 
   return {
     ok: true,
     outcome: {
-      changed: target.length,
+      changed: target.length - skipped.filter(item => target.includes(item.id)).length,
       skipped,
       hasMore,
       cursor: batch.length ? batch[batch.length - 1].id : null,

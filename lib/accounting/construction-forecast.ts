@@ -18,8 +18,10 @@
 // to the forecast proceeds — the accreting view is the more familiar picture, the flat one the more
 // honest one, and the page offers both.
 
-import type { ConstructionAssumptions, ConstructionResult, PacingAssumptions } from './construction'
+import type { ConstructionAssumptions, ConstructionResult, ConstructionWaterfallProjection, PacingAssumptions } from './construction'
 import { projectFeesForYear, DEFAULT_PACING } from './construction'
+import { preferredTarget } from './carry'
+import { runWaterfall, type WaterfallState } from './waterfall'
 
 export { DEFAULT_PACING }
 export type { PacingAssumptions }
@@ -34,6 +36,8 @@ export interface ForecastBaseline {
   /** Capital returned to partners to date (positive). */
   distributed: number
   nav: number
+  /** Actual posted cash, when the vehicle keeps books. */
+  cashBalance?: number
   /**
    * The dated history behind `calledCapital` and `distributed`, as partner-side flows in years
    * from today (negative = the past): called capital negative, distributions positive. With it the
@@ -81,6 +85,8 @@ export interface ForecastYear {
   expenses: number
   called: number
   distributed: number
+  /** GP carry allocated by the waterfall in this year. */
+  carriedInterest?: number
   // Cumulative at the year end
   cumCalled: number
   cumInvested: number
@@ -97,8 +103,6 @@ export interface ForecastSchedule {
   years: ForecastYear[]
   deals: DealTimeline[]
   horizonYears: number
-  /** Committed capital the plan needs beyond what is uncalled, if any. */
-  shortfall: number
   warnings: string[]
   /** True when the pacing assumptions say enough to place a single exit. */
   stated: boolean
@@ -109,9 +113,8 @@ export interface ForecastSchedule {
  *
  * A deal's own timing wins when it is stated on the forecast: an existing company's years to exit,
  * a planned deal's year of investment and years to exit, and either one's follow-on timing.
- * Otherwise the fund-wide pacing applies: planned deals spread evenly over the deployment period
- * in the order entered (a period of zero writes every remaining check now), and the existing book
- * exits together at the stated remaining hold.
+ * Planned deals without their own investment timing are deliberately omitted: the timeline never
+ * invents when a check will be written. Fund-wide pacing still supplies follow-on and hold periods.
  */
 export function dealTimelines(model: ConstructionResult, pacing: PacingAssumptions, asOf?: string): DealTimeline[] {
   const stated = (v: number | null | undefined): v is number => typeof v === 'number' && Number.isFinite(v)
@@ -132,8 +135,11 @@ export function dealTimelines(model: ConstructionResult, pacing: PacingAssumptio
     const pacedExit = investmentDate && asOf
       ? Math.max(0.25, investedAt + pacing.holdYears)
       : pacing.existingHoldYears
-    const exitAt = Math.max(0, stated(f.exitInYears) ? f.exitInYears : pacedExit)
-    const followOnAt = Math.max(0, stated(f.followOnInYears) ? f.followOnInYears : pacing.followOnLagYears)
+    const exitAt = Math.max(0, stated(f.exitInYears)
+      ? (investmentDate ? investedAt + f.exitInYears : f.exitInYears)
+      : pacedExit)
+    const hasFollowOnTiming = stated(f.followOnInYears)
+    const followOnAt = hasFollowOnTiming ? Math.max(0, f.followOnInYears ?? 0) : 0
     out.push({
       key: p.actual.companyId,
       name: p.actual.name,
@@ -143,7 +149,7 @@ export function dealTimelines(model: ConstructionResult, pacing: PacingAssumptio
       currentValue: p.currentValue,
       initialCheck: 0,
       initialAt: investedAt,
-      followOn: f.plannedFollowOn,
+      followOn: hasFollowOnTiming ? f.plannedFollowOn : 0,
       followOnAt: Math.min(exitAt, followOnAt),
       proceeds: p.isForecasted ? p.estimatedReturn : null,
       exitAt,
@@ -151,13 +157,12 @@ export function dealTimelines(model: ConstructionResult, pacing: PacingAssumptio
       ...overrides(f),
     })
   }
-  const n = model.returns.stages.length
-  model.returns.stages.forEach((st, i) => {
-    // The i-th of n deals lands at the centre of its slice of the deployment period.
-    const spread = n > 0 && pacing.deploymentYears > 0 ? ((i + 0.5) / n) * pacing.deploymentYears : 0
-    const initialAt = Math.max(0, stated(st.investInYears) ? st.investInYears : spread)
+  model.returns.stages.forEach(st => {
+    if (!stated(st.investInYears)) return
+    const initialAt = Math.max(0, st.investInYears)
     const exitAt = initialAt + Math.max(0, stated(st.exitInYears) ? st.exitInYears : pacing.holdYears)
-    const followOnLag = Math.max(0, stated(st.followOnInYears) ? st.followOnInYears : pacing.followOnLagYears)
+    const hasFollowOnTiming = stated(st.followOnInYears)
+    const followOnLag = hasFollowOnTiming ? Math.max(0, st.followOnInYears ?? 0) : 0
     out.push({
       key: st.key,
       name: st.label || 'New investment',
@@ -166,7 +171,7 @@ export function dealTimelines(model: ConstructionResult, pacing: PacingAssumptio
       currentValue: 0,
       initialCheck: st.plannedInitial,
       initialAt,
-      followOn: st.plannedFollowOn,
+      followOn: hasFollowOnTiming ? st.plannedFollowOn : 0,
       followOnAt: Math.min(exitAt, initialAt + followOnLag),
       proceeds: st.estimatedReturn,
       exitAt,
@@ -241,11 +246,26 @@ export function forecastSchedule(
     return o && d.proceeds != null ? { ...d, proceeds: o.proceeds, exitAt: o.exitAt } : d
   })
   // Stated once the fund-wide pacing says anything, or any deal carries its own exit.
-  const stated = pacing.holdYears > 0 || pacing.existingHoldYears > 0 || pacing.deploymentYears > 0
+  const stated = pacing.holdYears > 0 || pacing.existingHoldYears > 0
     || deals.some(d => d.timing === 'stated' && d.exitAt > 0)
 
+  const undatedPlannedDeals = model.returns.stages.length - deals.filter(d => d.kind === 'planned').length
+  if (undatedPlannedDeals > 0) {
+    warnings.push(`${undatedPlannedDeals} planned investment${undatedPlannedDeals === 1 ? '' : 's'} need${undatedPlannedDeals === 1 ? 's' : ''} investment timing before being included in the return forecast.`)
+  }
+  const untimedFollowOns = model.returns.positions.filter(p => p.forecast.plannedFollowOn > 0 && !Number.isFinite(p.forecast.followOnInYears)).length
+    + model.returns.stages.filter(st => st.plannedFollowOn > 0 && !Number.isFinite(st.followOnInYears)).length
+  if (untimedFollowOns > 0) {
+    warnings.push(`${untimedFollowOns} follow-on reserve${untimedFollowOns === 1 ? '' : 's'} need${untimedFollowOns === 1 ? 's' : ''} timing before being included in the return forecast.`)
+  }
+
   const lastExit = deals.reduce((m, d) => Math.max(m, d.exitAt, d.followOnAt, d.initialAt), 0)
-  const horizonYears = Math.max(1, Math.ceil(pacing.horizonYears > 0 ? pacing.horizonYears : Math.max(lastExit, a.feeTermYears)))
+  // An explicitly selected horizon can extend the display, but the fee term must not keep an
+  // otherwise-liquidated fund alive. Once every modeled position has exited there is nothing left
+  // to manage and therefore no recurring fee or expense base.
+  const horizonYears = Math.max(1, Math.ceil(pacing.horizonYears > 0 ? pacing.horizonYears : lastExit))
+  const modeledExitYears = deals.filter(d => d.proceeds != null).map(d => yearOf(d.exitAt))
+  const finalExitYear = modeledExitYears.length > 0 ? Math.max(...modeledExitYears) : null
 
   const baseYear = Number(baseline.asOf.slice(0, 4)) || new Date().getFullYear()
   const committed = model.capital.committedCapital
@@ -265,10 +285,12 @@ export function forecastSchedule(
   let cumCalled = baseline.calledCapital
   let cumInvested = deployedTotal
   let cumDistributed = baseline.distributed
-  let uncalled = Math.max(0, committed - baseline.calledCapital)
-  let shortfall = 0
-  // Cash the fund holds beyond what it has invested and spent (called ahead of need at the baseline).
-  let cash = Math.max(0, baseline.nav - deals.reduce((s, d) => s + d.currentValue, 0))
+  // Use the same capital reconciliation as the summary above: capital already called, less
+  // deployed capital and incurred expenses. NAV contains investment marks, so NAV minus portfolio
+  // value is not a reliable cash balance and made the timeline disagree with Capital planning.
+  let cash = Math.max(0, model.capital.ledgerAvailable && baseline.cashBalance != null
+    ? baseline.cashBalance
+    : model.capital.calledCapital - deployedTotal - model.capital.incurredExpenses)
   // The past, for the IRR: dated when the caller has the dates, one lump at today otherwise.
   const history: TimedFlow[] = baseline.historyFlows && baseline.historyFlows.length > 0
     ? baseline.historyFlows
@@ -299,22 +321,31 @@ export function forecastSchedule(
   }
 
   for (let t = 0; t <= horizonYears; t++) {
-    const fees = t === 0 ? 0 : projectFeesForYear(a, committed, deployedTotal, baseline.nav, t)
-    const expenses = t === 0 ? 0 : (t <= a.feeTermYears ? a.annualPartnershipExpense : 0) + (t === 1 ? a.remainingOrgCosts : 0)
+    const fundIsOperating = t > 0 && (finalExitYear == null || t <= finalExitYear)
+    const fees = fundIsOperating ? projectFeesForYear(a, committed, deployedTotal, baseline.nav, t) : 0
+    const expenses = fundIsOperating ? (t <= a.feeTermYears ? a.annualPartnershipExpense : 0) + (t === 1 ? a.remainingOrgCosts : 0) : 0
     const inv = t === 0 ? 0 : invested[t]
-    const dist = t === 0 ? 0 : proceeds[t]
+    const grossProceeds = t === 0 ? 0 : proceeds[t]
+    let dist = grossProceeds
 
-    // Call what the year needs, from cash on hand first, then from uncalled commitments.
+    // Call what the dated plan needs after using cash on hand. Whether the investment plan fits
+    // the fund is decided once by constructionModel; this timeline only places that plan in time.
     let called = 0
     if (t > 0) {
-      const need = inv + fees + expenses
-      const fromCash = Math.min(cash, need)
-      cash -= fromCash
-      const draw = Math.min(uncalled, need - fromCash)
-      called = draw
-      uncalled -= draw
-      const unmet = need - fromCash - draw
-      if (unmet > 0.005) shortfall += unmet
+      // Spend existing cash on scheduled investments first, then operating costs. Exit proceeds
+      // are not recycled into investments, but they can cover same-year fees and wind-down costs.
+      const investmentFromCash = Math.min(cash, inv)
+      cash -= investmentFromCash
+      const investmentCall = inv - investmentFromCash
+      const operatingNeed = fees + expenses
+      const operatingFromCash = Math.min(cash, operatingNeed)
+      cash -= operatingFromCash
+      const remainingOperatingNeed = operatingNeed - operatingFromCash
+      // Exit proceeds pay same-year operating and wind-down costs before cash is distributed.
+      // That prevents a final capital call merely to pay expenses while proceeds leave the fund.
+      const fromProceeds = Math.min(grossProceeds, remainingOperatingNeed)
+      dist = grossProceeds - fromProceeds
+      called = investmentCall + remainingOperatingNeed - fromProceeds
       cumCalled += called
       cumInvested += inv
       // Proceeds go straight back out: the fund does not recycle.
@@ -345,13 +376,81 @@ export function forecastSchedule(
     })
   }
 
-  if (shortfall > 0.005) {
-    warnings.push(`The plan needs ${r(shortfall).toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })} more than the fund can still call.`)
-  }
   const unexited = deals.filter(d => d.proceeds != null && d.exitAt > horizonYears + 1e-9).length
   if (unexited > 0) {
     warnings.push(`${unexited} deal${unexited === 1 ? '' : 's'} exit${unexited === 1 ? 's' : ''} after the ${horizonYears}-year horizon and still sit${unexited === 1 ? 's' : ''} in NAV at the end.`)
   }
 
-  return { years, deals, horizonYears, shortfall: r(shortfall), warnings, stated }
+  return { years, deals, horizonYears, warnings, stated }
+}
+
+/**
+ * Apply the vehicle's waterfall to a gross fund schedule and return the LP-only view. Carry is an
+ * internal transfer at whole-fund level, so LP DPI/TVPI are the meaningful net-of-carry metrics.
+ */
+export function applyLpWaterfall(schedule: ForecastSchedule, projection?: ConstructionWaterfallProjection): ForecastSchedule {
+  if (!projection) return schedule
+  const share = Math.min(1, Math.max(0, projection.lpCommitmentShare))
+  const terms = { carryRate: projection.carryRate, catchUpRate: projection.kind === 'straight' ? 1 : projection.catchupRate }
+  const contributions = [...projection.contributions]
+  const history: TimedFlow[] = [
+    ...projection.contributions.map(flow => ({ t: yearsBetween(projection.asOf, flow.date), amount: -flow.amount })),
+    ...(projection.distributions ?? []).map(flow => ({ t: yearsBetween(projection.asOf, flow.date), amount: flow.amount })),
+  ]
+  const forward: TimedFlow[] = []
+  let called = projection.lpCalledCapital
+  let distributed = projection.lpDistributedCapital
+  const initialPref = projection.kind === 'straight' ? 0 : preferredTarget(contributions, projection.asOf, projection.prefRate, projection.prefCompounds)
+  let state: WaterfallState = {
+    contributedCapital: called,
+    returnedCapital: Math.min(called, distributed),
+    preferredPaid: Math.min(initialPref, Math.max(0, distributed - called)),
+    preferredTarget: initialPref,
+    gpCarryPaid: Math.max(0, projection.fundDistributedCapital - projection.lpDistributedCapital),
+  }
+  const years = schedule.years.map((year, index) => {
+    if (index === 0) {
+      return {
+        ...year,
+        cumCalled: called,
+        cumDistributed: distributed,
+        carriedInterest: Math.max(0, projection.fundDistributedCapital - projection.lpDistributedCapital),
+        nav: projection.lpNav,
+        dpi: called > 0 ? distributed / called : null,
+        rvpi: called > 0 ? projection.lpNav / called : null,
+        tvpi: called > 0 ? (distributed + projection.lpNav) / called : null,
+        netIrr: irrOf([...history, { t: 0, amount: projection.lpNav }]),
+      }
+    }
+    const lpCall = year.called * share
+    called += lpCall
+    if (lpCall > 0) contributions.push({ date: `${year.calendarYear}-12-31`, amount: lpCall })
+    state = {
+      ...state,
+      contributedCapital: called,
+      preferredTarget: projection.kind === 'straight' ? 0 : preferredTarget(contributions, `${year.calendarYear}-12-31`, projection.prefRate, projection.prefCompounds),
+    }
+    const split = runWaterfall(year.distributed, terms, state)
+    state = split.state
+    distributed += split.toLP
+    // Hypothetical liquidation of remaining NAV at this year end, without mutating the state.
+    const netNav = runWaterfall(year.nav, terms, state).toLP
+    if (lpCall > 0) forward.push({ t: year.year, amount: -lpCall })
+    if (split.toLP > 0) forward.push({ t: year.year, amount: split.toLP })
+    const netIrr = irrOf([...history, ...forward, { t: year.year, amount: netNav }])
+    return {
+      ...year,
+      called: lpCall,
+      distributed: split.toLP,
+      carriedInterest: split.toGP,
+      cumCalled: called,
+      cumDistributed: distributed,
+      nav: netNav,
+      dpi: called > 0 ? distributed / called : null,
+      rvpi: called > 0 ? netNav / called : null,
+      tvpi: called > 0 ? (distributed + netNav) / called : null,
+      netIrr,
+    }
+  })
+  return { ...schedule, years }
 }

@@ -20,6 +20,7 @@ const a: ConstructionAssumptions = {
   ],
   stages: Array.from({ length: 6 }, (_, i) => ({
     key: `s${i}`, label: `Deal ${i}`, initialCheck: 1_000_000, initialPostMoney: 10_000_000, followOnMultiple: 0, followOnCheck: 0, dilutionFactor: 1, forecastMoic: 3, returnMethod: 'moic' as const,
+    investInYears: 0.25 + (i / 6) * 2,
   })),
 }
 const pacing: PacingAssumptions = { ...DEFAULT_PACING, deploymentYears: 2, holdYears: 5, existingHoldYears: 4, accretion: 'none' }
@@ -99,6 +100,7 @@ describe('simulateFund', () => {
     expect(s.final.tvpi.p90).toBeGreaterThan(detFinal)
     expect(s.final.tvpi.mean).toBeGreaterThan(detFinal * 0.8)
     expect(s.final.tvpi.mean).toBeLessThan(detFinal * 1.2)
+    expect(s.years.some(year => year.distributed.p90 > year.distributed.p10)).toBe(true)
     expect(s.probabilities.atOrAboveTarget).toBeGreaterThan(0)
     expect(s.probabilities.atOrAboveTarget).toBeLessThan(1)
     expect(s.probabilities.belowCost).toBeGreaterThanOrEqual(0)

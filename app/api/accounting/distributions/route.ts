@@ -6,7 +6,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { assertWriteAccess, assertReadAccess } from '@/lib/api-helpers'
 import { resolveGroupOr400 } from '@/lib/accounting/http-vehicle'
 import { previewDistribution, declareDistribution, listDistributions } from '@/lib/accounting/distributions'
-import { settleRegisterLine } from '@/lib/accounting/capital-calls'
+import { loadCapitalSource } from '@/lib/accounting/capital-source'
 
 // GET — declared distributions for the vehicle, newest first.
 export async function GET(req: NextRequest) {
@@ -38,6 +38,11 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}))
   const group = await resolveGroupOr400(admin, gate, body?.group ?? req.nextUrl.searchParams.get('group'))
   if (group instanceof NextResponse) return group
+  if (await loadCapitalSource(admin, gate.fundId, group) !== 'ledger') {
+    return NextResponse.json({
+      error: 'Distributions require accounting. This vehicle uses capital tracking; record dated distributions or proceeds on the LP capital accounts instead.',
+    }, { status: 409 })
+  }
 
   if (body?.action === 'preview') {
     const total = Number(body?.total)
@@ -85,14 +90,5 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(result)
   }
 
-  // settle: { lineId, amount, date } → capital-tracking vehicles only: record a payment by hand
-  if (body?.action === 'settle') {
-    const result = await settleRegisterLine(admin, gate.fundId, group, 'distribution', String(body?.lineId ?? ''), {
-      amount: Number(body?.amount), date: String(body?.date ?? ''),
-    })
-    if ('error' in result) return NextResponse.json({ error: result.error }, { status: 400 })
-    return NextResponse.json(result)
-  }
-
-  return NextResponse.json({ error: "action must be 'preview', 'declare' or 'settle'" }, { status: 400 })
+  return NextResponse.json({ error: "action must be 'preview' or 'declare'" }, { status: 400 })
 }

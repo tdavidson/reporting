@@ -49,6 +49,10 @@ export const DEFAULT_CHART: ChartAccountSeed[] = [
   // account would lose the one fact that decides whether the balance ever unwinds.
   { code: '1400', name: 'Deferred organizational costs (tax)', type: 'asset', subtype: 'deferred_org_costs' },
   { code: '1450', name: 'Capitalized syndication costs (tax)', type: 'asset', subtype: 'capitalized_syndication' },
+  // A management fee paid before the related services are received. Unlike the tax-only 1400
+  // and 1450 accounts above, this is an actual-book asset released to 5000 over the contractual
+  // service period; a refundable unused balance remains an asset until repaid.
+  { code: '1500', name: 'Prepaid management fees', type: 'asset', subtype: 'prepaid_management_fee' },
 
   // Liabilities
   { code: '2000', name: 'Accrued expenses', type: 'liability', subtype: 'accrued' },

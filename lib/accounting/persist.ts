@@ -91,6 +91,8 @@ export async function persistEntry(
    * is the boundary and this is the friendlier error.
    */
   book: LedgerBook = ACTUAL_BOOK,
+  /** Generated allocation entries pass false to prevent recursive allocation. */
+  allocate: boolean = true,
 ): Promise<{ entryId: string } | { error: string }> {
   // DENOMINATE THE ENTRY IN THE FUND'S CURRENCY, here, at the one place everything is written.
   //
@@ -208,6 +210,20 @@ export async function persistEntry(
   if (postErr) {
     await admin.from('journal_entries' as any).delete().eq('id', entryId).eq('fund_id', fundId)
     return { error: postErr.message }
+  }
+
+  if (status === 'posted' && book === ACTUAL_BOOK && allocate) {
+    // Dynamic import avoids a module-initialization cycle: continuous-allocation uses this
+    // function to persist the generated balance-sheet entry with `allocate=false`.
+    const { allocatePostedEntry, rollbackGeneratedAllocations } = await import('./continuous-allocation')
+    const allocated = await allocatePostedEntry(admin, fundId, group, userId, entryId, entry)
+    if ('error' in allocated) {
+      // Compensating rollback. persistEntry predates a transactional RPC; never leave the source
+      // posted without the capital allocation that posting promised.
+      await rollbackGeneratedAllocations(admin, fundId, entryId)
+      await admin.from('journal_entries' as any).delete().eq('id', entryId).eq('fund_id', fundId)
+      return { error: `Entry was not posted because its partner allocation failed: ${allocated.error}` }
+    }
   }
 
   return { entryId }

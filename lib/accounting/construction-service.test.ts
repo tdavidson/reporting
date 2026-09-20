@@ -5,11 +5,16 @@ const mocks = vi.hoisted(() => ({
   resolveVehicle: vi.fn(),
   fundEconomics: vi.fn(),
   loadPostedLedger: vi.fn(),
+  loadCarryTerms: vi.fn(),
 }))
 
 vi.mock('./vehicle-resolver', () => ({ resolveVehicle: mocks.resolveVehicle }))
 vi.mock('./fund-economics', () => ({ fundEconomics: mocks.fundEconomics }))
 vi.mock('./load', () => ({ loadPostedLedger: mocks.loadPostedLedger }))
+vi.mock('./carry', async importOriginal => {
+  const actual = await importOriginal<typeof import('./carry')>()
+  return { ...actual, loadCarryTerms: mocks.loadCarryTerms }
+})
 
 import {
   getConstructionModel,
@@ -61,6 +66,7 @@ describe('construction service', () => {
     vi.clearAllMocks()
     mocks.resolveVehicle.mockResolvedValue('Fund II')
     mocks.fundEconomics.mockResolvedValue([economics])
+    mocks.loadCarryTerms.mockResolvedValue({ kind: 'none', carryRate: 0, prefRate: 0, catchupRate: 1, prefCompounds: true, gpEntityId: null, recipients: [] })
   })
 
   it('maps stored snake_case assumptions to the canonical camelCase shape', () => {

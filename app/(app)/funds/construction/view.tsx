@@ -57,6 +57,29 @@ function sortedRows<T>(rows: T[], sort: SortState | null, value: (row: T, key: P
   ).map(({ row }) => row)
 }
 
+/** Expense forecasts run through the latest modeled portfolio exit, never beyond ten years. */
+function returnForecastYears(actuals: ConstructionActuals, assumptions: ConstructionAssumptions): number {
+  const now = Date.now()
+  const yearMs = 365.2425 * 24 * 60 * 60 * 1000
+  const forecasts = new Map(assumptions.positionForecasts.map(forecast => [forecast.companyId, forecast]))
+  let latestExit = 0
+  for (const position of actuals.positions ?? []) {
+    if (position.status === 'exited') continue
+    const forecast = forecasts.get(position.companyId)
+    const hold = forecast?.exitInYears ?? assumptions.pacing.holdYears
+    const investmentTime = position.firstInvestmentDate
+      ? (Date.parse(`${position.firstInvestmentDate}T00:00:00Z`) - now) / yearMs
+      : 0
+    latestExit = Math.max(latestExit, investmentTime + Math.max(0, hold))
+  }
+  for (const stage of assumptions.stages) {
+    if (stage.investInYears == null || !Number.isFinite(stage.investInYears)) continue
+    latestExit = Math.max(latestExit, Math.max(0, stage.investInYears) + Math.max(0, stage.exitInYears ?? assumptions.pacing.holdYears))
+  }
+  const fallback = assumptions.pacing.holdYears > 0 ? assumptions.pacing.holdYears : 1
+  return Math.min(10, Math.max(1, Math.ceil(latestExit || fallback)))
+}
+
 export function ConstructionView({ vehicle, vehicleId }: { vehicle: string; vehicleId: string | null }) {
   const currency = useCurrency()
   const fmt = (v: number | null) => (v == null ? '—' : formatCurrency(v, currency))
@@ -77,10 +100,10 @@ export function ConstructionView({ vehicle, vehicleId }: { vehicle: string; vehi
   const [forecastEditor, setForecastEditor] = useState<ForecastEditor | null>(null)
   const [expenseInputsOpen, setExpenseInputsOpen] = useState(false)
   const [capitalGroupsOpen, setCapitalGroupsOpen] = useState({
-    committed: false,
+    committed: true,
     incurred: false,
     projected: false,
-    total: false,
+    total: true,
     invested: false,
   })
   const g = `group=${encodeURIComponent(vehicle)}`
@@ -124,7 +147,14 @@ export function ConstructionView({ vehicle, vehicleId }: { vehicle: string; vehi
     return () => clearTimeout(t)
   }, [a, actuals, g, loading, persisted])
 
-  const model = useMemo(() => (actuals ? constructionModel(actuals, a) : null), [actuals, a])
+  useEffect(() => {
+    if (saveState !== 'saved') return
+    const timeout = window.setTimeout(() => setSaveState('idle'), 2500)
+    return () => window.clearTimeout(timeout)
+  }, [saveState])
+
+  const modeledA = useMemo(() => actuals ? { ...a, feeTermYears: returnForecastYears(actuals, a) } : a, [actuals, a])
+  const model = useMemo(() => (actuals ? constructionModel(actuals, modeledA) : null), [actuals, modeledA])
   const sortedPositions = useMemo(() => sortedRows(model?.returns.positions ?? [], sort, positionSortValue), [model, sort])
   const sortedStages = useMemo(() => sortedRows(model?.returns.stages ?? [], sort, stageSortValue), [model, sort])
   const setStage = useCallback((key: string, patch: Partial<ConstructionStage>) => {
@@ -161,19 +191,20 @@ export function ConstructionView({ vehicle, vehicleId }: { vehicle: string; vehi
       <div className="space-y-6">
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-5">
           <Metric label="Invested capital" value={fmt(model.capital.deployedTotal)} sub={`${pct(model.capital.deployedTotal / model.capital.committedCapital)} of committed capital`} />
-          <Metric label="Available after plan" value={fmt(model.capital.gap ?? model.capital.remaining)} sub={`${fmt(model.capital.plannedCost)} already in plan`} />
-          <Metric label="Portfolio" value={`${model.capital.companyCount + a.stages.length}`} sub={`${model.capital.companyCount} current · ${a.stages.length} planned`} />
-          <Metric label="Gross MOIC" value={multiple(model.returns.estimatedGrossMoic)} sub="Invested and forecasted capital" />
-          <Metric label="Net MOIC" value={multiple(model.returns.estimatedNetMoic)} sub="Invested and forecasted capital" />
+          <Metric label="Uncalled capital" value={fmt(model.capital.uncalledCapital)} sub={`${pct(model.capital.uncalledCapital / model.capital.committedCapital)} of committed capital`} />
+          <Metric label="Portfolio" value={`${model.capital.companyCount}`} sub="Current investments" />
+          <Metric label="Gross MOIC" value={multiple(model.returns.actualGrossMoic)} sub="Current value and realized proceeds" />
+          <Metric label="Net MOIC" value={multiple(model.returns.actualNetMoic)} sub="Fund TVPI on called capital" />
         </div>
 
-        {model.warnings.map((w, i) => <div key={i} className="flex items-start gap-2 rounded-card border border-warning/40 bg-warning-subtle p-3 text-sm text-warning"><AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />{w}</div>)}
+        {model.warnings.filter(w => !w.startsWith('Fees and expenses are not on the ledger')).map((w, i) => <div key={i} className="flex items-start gap-2 rounded-card border border-warning/40 bg-warning-subtle p-3 text-sm text-warning"><AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />{w}</div>)}
 
-        <section className="overflow-hidden rounded-card border bg-card shadow-sm dark:shadow-none dark:border">
-          <div className="p-4">
-            <h2 className="text-base font-medium">Investments</h2>
-            <p className="mt-1 text-sm text-muted-foreground">Current positions and planned investments.</p>
+        <section>
+          <div className="flex items-end justify-between gap-4">
+            <div><h2 className="text-lg font-semibold">Investments</h2><p className="mt-1 text-sm text-muted-foreground">Current positions and planned investments</p></div>
+            <Button size="sm" variant="outline" onClick={addStage}><Plus className="mr-1 h-3.5 w-3.5" />Add Forecasted Investment</Button>
           </div>
+          <div className="mt-4 overflow-hidden rounded-card border bg-card shadow-sm dark:shadow-none dark:border">
           <div className="overflow-x-auto">
             <table className="w-full whitespace-nowrap text-sm">
               <thead><tr className="border-b bg-muted/50">
@@ -218,15 +249,37 @@ export function ConstructionView({ vehicle, vehicleId }: { vehicle: string; vehi
               </tr></tfoot>
             </table>
           </div>
-          <div className="flex items-center justify-between gap-3 border-t p-3"><Button size="sm" variant="outline" onClick={addStage}><Plus className="h-3.5 w-3.5 mr-1" />Add forecast row</Button><SaveIndicator state={saveState} error={saveError} /></div>
+          </div>
         </section>
 
-        <section className="rounded-card border bg-card p-4 shadow-sm dark:shadow-none dark:border">
-          <h2 className="text-base font-medium">Capital planning</h2>
-          <p className="mt-1 text-sm text-muted-foreground">Capital calls, expenses, investments, and reserves.</p>
+        <section>
+          <div className="flex items-end justify-between gap-4">
+            <div><h2 className="text-lg font-semibold">Capital planning</h2><p className="mt-1 text-sm text-muted-foreground">Capital calls, expenses, investments, and reserves</p></div>
+            <Button size="sm" variant="outline" onClick={() => setExpenseInputsOpen(open => !open)}>
+              <Pencil className="mr-1 h-3.5 w-3.5" />{expenseInputsOpen ? 'Close expense forecast' : 'Edit expense forecast'}
+            </Button>
+          </div>
+          {expenseInputsOpen && <div className="mt-4 rounded-card border bg-muted/30 px-3">
+            <div className="grid gap-3 border-b py-3 sm:grid-cols-[minmax(0,1fr)_10rem] sm:items-center">
+              <div><p className="text-sm">Organizational expenses</p><p className="mt-0.5 text-xs text-muted-foreground">One-time costs</p></div>
+              <NumberField label="Projected one-time costs" hideLabel value={a.remainingOrgCosts} onChange={v => setA({ ...a, remainingOrgCosts: v })} />
+            </div>
+            <div className="grid gap-3 border-b py-3 sm:grid-cols-[minmax(0,1fr)_10rem] sm:items-center">
+              <div><p className="text-sm">Partnership expenses</p><p className="mt-0.5 text-xs text-muted-foreground">Annual expenses through the final modeled exit, up to 10 years</p></div>
+              <NumberField label="Annual expenses, for term below" hideLabel value={a.annualPartnershipExpense} onChange={v => setA({ ...a, annualPartnershipExpense: v })} />
+            </div>
+            <div className="py-3">
+              <p className="text-sm">Management fees</p>
+              <div className="mt-2 space-y-2">
+                <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_10rem] sm:items-center"><p className="text-xs text-muted-foreground">Annual rate</p><PercentField label="Annual rate" hideLabel value={a.feeAnnualRate} onChange={v => setA({ ...a, feeAnnualRate: v })} /></div>
+                <p className="text-xs text-muted-foreground">Forecast through the final modeled exit ({modeledA.feeTermYears} {modeledA.feeTermYears === 1 ? 'year' : 'years'}), capped at 10 years.</p>
+              </div>
+            </div>
+          </div>}
           <div className="mt-4 grid items-start gap-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(20rem,0.85fr)]">
           <div className="min-w-0">
-            <table className="mt-3 w-full text-sm">
+          <div className="overflow-hidden rounded-card border bg-card shadow-sm dark:shadow-none dark:border">
+            <table className="w-full text-sm">
               <thead><tr className="border-b bg-muted/50"><th className="px-3 py-2 text-left font-medium">Capital</th><th className="px-3 py-2 text-right font-medium">Amount</th><th className="w-32 whitespace-nowrap px-3 py-2 text-right font-medium">% committed</th></tr></thead>
               <tbody>
                 <CapitalPlanningGroup
@@ -291,37 +344,10 @@ export function ConstructionView({ vehicle, vehicleId }: { vehicle: string; vehi
                 {model.capital.plannedCost > 0 && <CapitalPlanningRow label="Forecasted investment" value={model.capital.plannedCost} committed={model.capital.committedCapital} fmt={fmt} fmtFull={fmtFull} indent />}
               </tbody>
             </table>
-            <div className="mt-4 border-t pt-3">
-              <div className="flex items-center justify-between gap-3">
-                <Button size="sm" variant="outline" onClick={() => setExpenseInputsOpen(open => !open)}>
-                  <Pencil className="mr-1 h-3.5 w-3.5" />{expenseInputsOpen ? 'Close expense plan' : 'Edit expense plan'}
-                </Button>
-                <SaveIndicator state={saveState} error={saveError} />
-              </div>
-              {expenseInputsOpen && <div className="mt-3 rounded-lg border bg-muted/30 px-3">
-                <div className="grid gap-3 border-b py-3 sm:grid-cols-[minmax(0,1fr)_10rem] sm:items-center">
-                  <div><p className="text-sm">Organizational expenses</p><p className="mt-0.5 text-xs text-muted-foreground">Projected one-time costs</p></div>
-                  <NumberField label="Projected one-time costs" hideLabel value={a.remainingOrgCosts} onChange={v => setA({ ...a, remainingOrgCosts: v })} />
-                </div>
-                <div className="grid gap-3 border-b py-3 sm:grid-cols-[minmax(0,1fr)_10rem] sm:items-center">
-                  <div><p className="text-sm">Partnership expenses</p><p className="mt-0.5 text-xs text-muted-foreground">Annual expenses, for term below</p></div>
-                  <NumberField label="Annual expenses, for term below" hideLabel value={a.annualPartnershipExpense} onChange={v => setA({ ...a, annualPartnershipExpense: v })} />
-                </div>
-                <div className="py-3">
-                  <p className="text-sm">Management fees</p>
-                  <div className="mt-2 space-y-2">
-                    <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_10rem] sm:items-center">
-                      <p className="text-xs text-muted-foreground">Annual rate</p>
-                      <PercentField label="Annual rate" hideLabel value={a.feeAnnualRate} onChange={v => setA({ ...a, feeAnnualRate: v })} />
-                    </div>
-                    <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_10rem] sm:items-center">
-                      <p className="text-xs text-muted-foreground">Forecast years remaining</p>
-                      <NumberField label="Forecast years remaining" hideLabel value={a.feeTermYears} step="0.5" onChange={v => setA({ ...a, feeTermYears: v })} />
-                    </div>
-                  </div>
-                </div>
-              </div>}
-            </div>
+          </div>
+          {model.warnings.filter(w => w.startsWith('Fees and expenses are not on the ledger')).map(w => (
+            <div key={w} className="mt-3 flex items-start gap-2 rounded-card border border-warning/40 bg-warning-subtle p-3 text-sm text-warning"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />{w}</div>
+          ))}
           </div>
           <div className="flex flex-col gap-6">
             <CapitalUsageChart model={model} fmt={fmt} fmtFull={fmtFull} />
@@ -330,11 +356,8 @@ export function ConstructionView({ vehicle, vehicleId }: { vehicle: string; vehi
           </div>
         </section>
 
-        <section>
-          <h2 className="text-lg font-semibold">Returns</h2>
-          <p className="mt-1 text-sm text-muted-foreground">Industry-based assumptions, forecast returns, and Monte Carlo outcomes.</p>
-          <div className="mt-4"><ForecastSection model={model} actuals={actuals} a={a} setA={setA} vehicle={vehicle} fmt={fmt} fmtFull={fmtFull} multiple={multiple} /></div>
-        </section>
+        <ForecastSection model={model} actuals={actuals} a={modeledA} setA={setA} vehicle={vehicle} fmt={fmt} fmtFull={fmtFull} multiple={multiple} />
+        <div className="flex min-h-5 justify-end"><SaveIndicator state={saveState} error={saveError} /></div>
         {(editingPosition || editingStage) && <ForecastEditorDialog
           position={editingPosition}
           stage={editingStage}
@@ -412,13 +435,13 @@ function ForecastEditorDialog({
         <OptionalNumberField
           label="Gross MOIC override"
           hint={`Fund default ${a.simulation.defaultExitMultiple.toFixed(1)}x`}
-          value={(forecast?.forecastMoic ?? stage?.forecastMoic ?? 0) > 0 ? forecast?.forecastMoic ?? stage?.forecastMoic : null}
+          value={(forecast?.forecastMoicOverride === true || stage?.forecastMoicOverride === true || (forecast?.forecastMoic ?? stage?.forecastMoic ?? 0) > 0) ? forecast?.forecastMoic ?? stage?.forecastMoic ?? 0 : null}
           placeholder={String(a.simulation.defaultExitMultiple)}
           suffix="x"
           step="0.1"
           onChange={v => position
-            ? onPositionChange({ forecastMoic: v ?? 0, returnMethod: 'moic' })
-            : onStageChange({ forecastMoic: v ?? 0, returnMethod: 'moic' })}
+            ? onPositionChange({ forecastMoic: v ?? 0, forecastMoicOverride: v != null, returnMethod: 'moic' })
+            : onStageChange({ forecastMoic: v ?? 0, forecastMoicOverride: v != null, returnMethod: 'moic' })}
         />
         <div className="grid grid-cols-2 gap-3 border-t pt-3 sm:grid-cols-3">
           <ForecastStat label="Forecasted proceeds at exit" value={fmt(forecastedProceeds)} emphasis />
@@ -428,11 +451,11 @@ function ForecastEditorDialog({
       </div>
 
       <div className="space-y-3 rounded-md border p-4">
-        <div><h3 className="text-base font-medium">Timing</h3><p className="mt-0.5 text-xs text-muted-foreground">When this deal happens on the forecast calendar. Leave a field empty to use the fund-wide pacing.</p></div>
+        <div><h3 className="text-base font-medium">Investment timing and hold period</h3><p className="mt-0.5 text-xs text-muted-foreground">Investment and reserved follow-on timing are entered per deal. Hold period can use the fund-wide assumption.</p></div>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          {stage && <OptionalNumberField label="Invest in" hint="Years from today" value={stage.investInYears} placeholder={a.pacing.deploymentYears > 0 ? `0–${a.pacing.deploymentYears}` : 'fund'} suffix="yrs" step="0.5" onChange={v => onStageChange({ investInYears: v })} />}
-          <OptionalNumberField label={position ? 'Exit in' : 'Exit after check'} hint={position ? 'Years from today' : 'Years after the initial check'} value={timing?.exitInYears} placeholder={pacingPlaceholder(a.pacing.holdYears)} suffix="yrs" step="0.5" onChange={v => setDeal({ exitInYears: v })} />
-          <OptionalNumberField label={position ? 'Follow-on in' : 'Follow-on after check'} hint={position ? 'Years from today' : 'Years after the initial check'} value={timing?.followOnInYears} placeholder={pacingPlaceholder(a.pacing.followOnLagYears)} suffix="yrs" step="0.5" onChange={v => setDeal({ followOnInYears: v })} />
+          {stage && <OptionalNumberField label="Invest in" hint="Years from today" value={stage.investInYears} placeholder="Required" suffix="yrs" step="0.5" onChange={v => onStageChange({ investInYears: v })} />}
+          <OptionalNumberField label="Hold period" hint="Years from investment to exit" value={timing?.exitInYears} placeholder={pacingPlaceholder(a.pacing.holdYears)} suffix="yrs" step="0.5" onChange={v => setDeal({ exitInYears: v })} />
+          {(forecast?.plannedFollowOn ?? stage?.plannedFollowOn ?? 0) > 0 && <OptionalNumberField label={position ? 'Follow-on in' : 'Follow-on after check'} hint={position ? 'Years from today' : 'Years after the initial check'} value={timing?.followOnInYears} placeholder="Required" suffix="yrs" step="0.5" onChange={v => setDeal({ followOnInYears: v })} />}
         </div>
       </div>
 
@@ -453,9 +476,9 @@ function CapitalPlanningRow({
   indent?: boolean
 }) {
   return <tr className="border-b last:border-b-0">
-    <td className={cn('py-2', indent && 'pl-7 text-muted-foreground')}>{label}</td>
-    <td className="py-2 text-right tabular-nums" title={fmtFull(value)}>{fmt(value)}</td>
-    <td className="w-24 py-2 text-right tabular-nums text-muted-foreground">{committed > 0 ? `${((value / committed) * 100).toFixed(2)}%` : '—'}</td>
+    <td className={cn('px-3 py-2', indent && 'pl-7 text-muted-foreground')}>{label}</td>
+    <td className="px-3 py-2 text-right tabular-nums" title={fmtFull(value)}>{fmt(value)}</td>
+    <td className="w-24 px-3 py-2 text-right tabular-nums text-muted-foreground">{committed > 0 ? `${((value / committed) * 100).toFixed(2)}%` : '—'}</td>
   </tr>
 }
 function CapitalPlanningGroup({
@@ -466,9 +489,9 @@ function CapitalPlanningGroup({
 }) {
   return <>
     <tr className="border-b">
-      <td className="py-2"><button type="button" aria-expanded={open} onClick={onToggle} className="flex items-center gap-1 rounded-sm hover:text-foreground text-left">{open ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}{label}</button></td>
-      <td className="py-2 text-right tabular-nums" title={fmtFull(value)}>{fmt(value)}</td>
-      <td className="w-24 py-2 text-right tabular-nums text-muted-foreground">{committed > 0 ? `${((value / committed) * 100).toFixed(2)}%` : '—'}</td>
+      <td className="px-3 py-2"><button type="button" aria-expanded={open} onClick={onToggle} className="flex items-center gap-1 rounded-sm hover:text-foreground text-left">{open ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}{label}</button></td>
+      <td className="px-3 py-2 text-right tabular-nums" title={fmtFull(value)}>{fmt(value)}</td>
+      <td className="w-24 px-3 py-2 text-right tabular-nums text-muted-foreground">{committed > 0 ? `${((value / committed) * 100).toFixed(2)}%` : '—'}</td>
     </tr>
     {open && items.map(([itemLabel, itemValue]) => <CapitalPlanningRow key={itemLabel} label={itemLabel} value={itemValue} committed={committed} fmt={fmt} fmtFull={fmtFull} indent />)}
   </>
@@ -476,20 +499,20 @@ function CapitalPlanningGroup({
 function MoneyCell({ children, full }: { children: ReactNode; full: string }) { return <td className="px-3 py-2 text-right tabular-nums" title={full}>{children}</td> }
 const NO_NUMBER_SPINNERS = '[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none'
 function NumberField({ label, value, onChange, step = 'any', suffix, hideLabel = false }: { label: string; value: number; onChange: (v: number) => void; step?: string; suffix?: string; hideLabel?: boolean }) {
-  return <label className="text-xs text-muted-foreground"><span className={hideLabel ? 'sr-only' : undefined}>{label}</span><div className={cn('relative', !hideLabel && 'mt-1')}><Input type="number" min="0" step={step} value={value || ''} onChange={e => onChange(Math.max(0, Number(e.target.value)))} className={cn('h-9 tabular-nums', NO_NUMBER_SPINNERS, suffix && 'pr-7')} />{suffix && <span className="pointer-events-none absolute right-2.5 top-2 text-xs">{suffix}</span>}</div></label>
+  return <label className="text-xs text-muted-foreground"><span className={hideLabel ? 'sr-only' : undefined}>{label}</span><div className={cn('relative', !hideLabel && 'mt-1')}><Input type="number" min="0" step={step} value={value || ''} onChange={e => onChange(Math.max(0, Number(e.target.value)))} className={cn('h-9 tabular-nums', NO_NUMBER_SPINNERS, suffix && 'pr-7')} />{suffix && <span className="pointer-events-none absolute inset-y-0 right-2.5 flex items-center text-xs">{suffix}</span>}</div></label>
 }
 /** A number the deal may state or leave to the fund: empty is null, never zero, so the fund-wide value applies. */
 function OptionalNumberField({ label, hint, value, placeholder, onChange, step = 'any', suffix }: {
   label: string; hint?: string; value: number | null | undefined; placeholder?: string; onChange: (v: number | null) => void; step?: string; suffix?: string
 }) {
-  return <label className="text-xs text-muted-foreground"><span>{label}</span>{hint && <span className="ml-1 text-muted-foreground/70">· {hint}</span>}<div className="relative mt-1"><Input type="number" min="0" step={step} value={value ?? ''} placeholder={placeholder} onChange={e => onChange(e.target.value === '' ? null : Math.max(0, Number(e.target.value)))} className={cn('h-9 tabular-nums', NO_NUMBER_SPINNERS, suffix && 'pr-7')} />{suffix && <span className="pointer-events-none absolute right-2.5 top-2 text-xs">{suffix}</span>}</div></label>
+  return <label className="text-xs text-muted-foreground"><span>{label}</span>{hint && <span className="ml-1 text-muted-foreground/70">· {hint}</span>}<div className="relative mt-1"><Input type="number" min="0" step={step} value={value ?? ''} placeholder={placeholder} onChange={e => onChange(e.target.value === '' ? null : Math.max(0, Number(e.target.value)))} className={cn('h-9 tabular-nums', NO_NUMBER_SPINNERS, suffix && 'pr-7')} />{suffix && <span className="pointer-events-none absolute inset-y-0 right-2.5 flex items-center text-xs">{suffix}</span>}</div></label>
 }
 function PercentField({ label, value, onChange, hideLabel = false }: { label: string; value: number; onChange: (v: number) => void; hideLabel?: boolean }) {
-  return <label className="text-xs text-muted-foreground"><span className={hideLabel ? 'sr-only' : undefined}>{label}</span><div className={cn('relative', !hideLabel && 'mt-1')}><Input type="number" min="0" step="0.1" value={value ? Number((value * 100).toFixed(4)) : ''} onChange={e => onChange(Math.max(0, Number(e.target.value)) / 100)} className={cn('h-9 pr-7 tabular-nums', NO_NUMBER_SPINNERS)} /><span className="pointer-events-none absolute right-2.5 top-2 text-xs">%</span></div></label>
+  return <label className="text-xs text-muted-foreground"><span className={hideLabel ? 'sr-only' : undefined}>{label}</span><div className={cn('relative', !hideLabel && 'mt-1')}><Input type="number" min="0" step="0.1" value={value ? Number((value * 100).toFixed(4)) : ''} onChange={e => onChange(Math.max(0, Number(e.target.value)) / 100)} className={cn('h-9 pr-7 tabular-nums', NO_NUMBER_SPINNERS)} /><span className="pointer-events-none absolute inset-y-0 right-2.5 flex items-center text-xs">%</span></div></label>
 }
 function SaveIndicator({ state, error }: { state: SaveState; error?: string | null }) {
   if (state === 'saving') return <span className="flex items-center gap-1.5 text-xs text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" />Saving…</span>
   if (state === 'saved') return <span className="flex items-center gap-1.5 text-xs text-success"><Check className="h-3.5 w-3.5" />Saved</span>
   if (state === 'error') return <span className="max-w-sm text-right text-sm text-destructive">{error || 'Could not save changes.'}</span>
-  return <span className="text-xs text-muted-foreground">Changes save automatically</span>
+  return null
 }

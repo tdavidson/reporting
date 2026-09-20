@@ -45,7 +45,7 @@ export async function POST(req: NextRequest) {
 
   if (mode === 'link') {
     if (!entryId) return NextResponse.json({ error: 'entryId is required to link' }, { status: 400 })
-    const result = await linkInflowToEntry(admin, gate.fundId, group, id, entryId)
+    const result = await linkInflowToEntry(admin, gate.fundId, group, id, entryId, user.id)
     if ('error' in result) return NextResponse.json({ error: result.error }, { status: 400 })
     return NextResponse.json(result)
   }

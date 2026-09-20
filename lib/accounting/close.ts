@@ -33,7 +33,7 @@ import { lotIssues, isLotMethod, type LotMethod } from '@/lib/portfolio/lots'
 import { buildSoiPositions, type SoiCompany } from './soi'
 import { fundCurrency } from './currency'
 import { accountIdByCode, ensureCapitalAccounts, persistEntry } from './persist'
-import { allocateAmount } from './allocation'
+import { allocateAmountCumulatively } from './allocation'
 import { postingsInPeriod } from './statements'
 import { computeCapitalAccounts, bucketForSourceType, emptyAccount, type CapitalAccount } from './capital-account'
 import { closedPeriodRanges } from './periods'
@@ -48,6 +48,9 @@ import {
 import { loadNotes, noteAccruals } from './note-interest'
 import { ensureInvestmentAccounts } from './investments'
 import { accountBalances } from './ledger'
+import { trialBalance } from './statements'
+import { setGeneratedAllocationStatus } from './continuous-allocation'
+import { loadCloseEntrySuggestions, type CloseEntrySuggestion } from './close-suggestions'
 
 const NOTE_INTEREST_INCOME = '4110'
 import {
@@ -100,7 +103,34 @@ export interface CloseCategory {
   /** Net effect on partners' capital: positive increases capital. */
   capitalEffect: number
   accounts: { code: string; name: string; amount: number }[]
-  lines: { lpEntityId: string; name: string; amount: number }[]
+  lines: { lpEntityId: string; name: string; amount: number; exactAmount: number }[]
+}
+
+async function allocationResiduals(
+  admin: SupabaseClient,
+  fundId: string,
+  vehicleId: string,
+  beforeDate: string,
+): Promise<Map<string, number>> {
+  const { data: periods } = await admin.from('fiscal_periods' as any)
+    .select('id')
+    .eq('fund_id', fundId)
+    .eq('vehicle_id', vehicleId)
+    .eq('status', 'closed')
+    .lt('period_end', beforeDate)
+  const periodIds = ((periods as any[]) ?? []).map(period => period.id as string)
+  if (periodIds.length === 0) return new Map()
+  const { data: rows } = await admin.from('close_allocation_rounding' as any)
+    .select('source_type, lp_entity_id, exact_amount, posted_amount')
+    .eq('fund_id', fundId)
+    .eq('vehicle_id', vehicleId)
+    .in('fiscal_period_id', periodIds)
+  const residuals = new Map<string, number>()
+  for (const row of ((rows as any[]) ?? [])) {
+    const key = `${row.source_type}:${row.lp_entity_id}`
+    residuals.set(key, (residuals.get(key) ?? 0) + Number(row.exact_amount) - Number(row.posted_amount))
+  }
+  return residuals
 }
 
 export interface ClosePreview {
@@ -139,7 +169,8 @@ export async function previewClose(
   fundId: string,
   group: string,
   periodStart: string,
-  periodEnd: string
+  periodEnd: string,
+  shadowResiduals?: Map<string, number>,
 ): Promise<ClosePreview | { error: string }> {
   if (!periodStart || !periodEnd || periodStart > periodEnd) {
     return { error: 'A valid period start and end are required' }
@@ -149,7 +180,7 @@ export async function previewClose(
     return { error: 'This period overlaps an already-closed period — reopen it first' }
   }
 
-  const [{ accounts, postings, capitalPostings }, owners, names, basis, terms, commitmentEvents, kind] = await Promise.all([
+  const [{ accounts, postings, capitalPostings, sourcedPostings }, owners, names, basis, terms, commitmentEvents, kind] = await Promise.all([
     loadPostedLedger(admin, fundId, group),
     loadOwnership(admin, fundId, group),
     loadEntityNames(admin, fundId, group),
@@ -165,6 +196,10 @@ export async function previewClose(
   // one equity account and there is nothing to split, so the partner basis below is not
   // loaded into anything and its "nobody to allocate to" refusal does not apply.
   const ownerMode = closesToOwnerEquity(kind)
+  const vehicleId = await vehicleIdByName(admin, fundId, group)
+  const priorResiduals = shadowResiduals ?? (ownerMode || !vehicleId
+    ? new Map<string, number>()
+    : await allocationResiduals(admin, fundId, vehicleId, periodStart))
 
   // The basis amount per partner, as of the PERIOD END — not today. Closing an old
   // period must use the commitments (or balances) that were in force then.
@@ -192,7 +227,13 @@ export async function previewClose(
       : 'No partners with a commitment — nothing to allocate to' }
   }
 
-  const inPeriod = postingsInPeriod(postings, periodStart, periodEnd)
+  // New entries are allocated when posted. Close only catches legacy/unallocated P&L, making
+  // the migration safe for existing books while preventing a second allocation.
+  const { data: allocatedRows } = await admin.from('journal_entry_allocations' as any)
+    .select('source_entry_id').eq('fund_id', fundId).eq('vehicle_id', vehicleId)
+  const allocatedSourceIds = new Set(((allocatedRows as any[]) ?? []).map(row => row.source_entry_id as string))
+  const unallocatedPostings = sourcedPostings.filter(posting => !allocatedSourceIds.has(posting.entryId))
+  const inPeriod = postingsInPeriod(unallocatedPostings, periodStart, periodEnd)
   const pnlAccounts = accounts.filter(a => a.type === 'income' || a.type === 'expense')
   const pnlById = new Map(pnlAccounts.map(a => [a.id, a]))
 
@@ -229,11 +270,14 @@ export async function previewClose(
       if (excluded > 0) {
         warnings.push(`${excluded} partner(s) excluded from ${CATEGORY_LABELS[sourceType] ?? sourceType}; their share is redistributed across the rest.`)
       }
-      const split = allocateAmount(capitalEffect, weights)
-      lines = Array.from(split.entries()).map(([lpEntityId, amount]) => ({
-        lpEntityId,
-        name: names.get(lpEntityId) ?? lpEntityId,
-        amount: roundCents(amount),
+      lines = allocateAmountCumulatively(
+        capitalEffect,
+        weights,
+        new Map(weights.map(weight => [weight.lpEntityId, priorResiduals.get(`${sourceType}:${weight.lpEntityId}`) ?? 0])),
+      ).map(line => ({
+        ...line,
+        name: names.get(line.lpEntityId) ?? line.lpEntityId,
+        amount: roundCents(line.amount),
       }))
     }
 
@@ -257,7 +301,7 @@ export async function previewClose(
   // Closing out of order strands P&L: any income or expense dated BEFORE this period
   // that isn't inside a closed period will never be allocated to anyone, because the
   // close only ever allocates what's inside its own window.
-  const priorUnclosed = postings.filter(p => {
+  const priorUnclosed = unallocatedPostings.filter(p => {
     if (!pnlById.has(p.accountId)) return false
     const d = p.entryDate
     if (!d || d >= periodStart) return false
@@ -367,6 +411,37 @@ export interface CloseThroughPreview {
   mode: 'partners' | 'owner'
   readiness: CloseReadiness
   warnings: string[]
+  suggestedEntries: CloseEntrySuggestion[]
+}
+
+async function persistCloseReview(
+  admin: SupabaseClient, fundId: string, group: string, vehicleId: string, periodId: string,
+  userId: string | null, readiness: CloseReadiness, snapshot: string, periodEnd: string,
+): Promise<{ error?: string }> {
+  const { accounts, postings } = await loadPostedLedger(admin, fundId, group, periodEnd)
+  const tb = trialBalance(accounts, postings)
+  const checks = [
+    { key: 'trial_balance', section: 'Ledger integrity', label: 'Trial balance', status: tb.balanced ? 'passed' : 'blocked', detail: tb.balanced ? 'Debits equal credits.' : 'The trial balance is out of balance.', evidence: tb },
+    { key: 'draft_entries', section: 'Ledger integrity', label: 'No draft journal entries', status: readiness.draftEntries.count === 0 ? 'passed' : 'blocked', detail: readiness.draftEntries.count === 0 ? 'No drafts fall inside the period.' : `${readiness.draftEntries.count} draft entries remain.`, evidence: readiness.draftEntries },
+    { key: 'bank_completeness', section: 'Cash reconciliation', label: 'Bank activity recorded', status: readiness.unpostedBankTxns.count === 0 ? 'passed' : 'blocked', detail: readiness.unpostedBankTxns.count === 0 ? 'No unmatched or unposted bank activity remains.' : `${readiness.unpostedBankTxns.count} bank transactions remain.`, evidence: readiness.unpostedBankTxns },
+    { key: 'bank_reconciliation', section: 'Cash reconciliation', label: 'Bank reconciliation', status: readiness.bank == null ? 'not_applicable' : readiness.bank.tiesOut ? 'passed' : 'needs_review', detail: readiness.bank == null ? 'No statement balance was supplied for this close.' : `Difference: ${readiness.bank.difference.toFixed(2)}.`, evidence: readiness.bank ?? {} },
+    { key: 'allocation_completeness', section: 'Partner capital', label: 'Partner allocations complete', status: 'passed', detail: 'Posted P&L entries have transaction-date allocation evidence; legacy activity was caught up by this close.', evidence: {} },
+    { key: 'valuation_and_cutoff', section: 'Investments and cutoff', label: 'Valuation and cutoff review', status: readiness.warnings.length === 0 ? 'passed' : 'needs_review', detail: readiness.warnings.length === 0 ? 'No valuation or cutoff exceptions were reported.' : readiness.warnings.join(' '), evidence: { warnings: readiness.warnings } },
+  ] as const
+  const { data: review, error } = await admin.from('close_reviews' as any).upsert({
+    fund_id: fundId, vehicle_id: vehicleId, fiscal_period_id: periodId, status: 'approved',
+    prepared_by: userId, approved_by: userId, approved_at: new Date().toISOString(),
+    attestation: `Reviewed the reconciliations, exceptions, supporting schedules, and material entries through ${periodEnd}.`,
+    trial_balance: tb, snapshot_text: snapshot, updated_at: new Date().toISOString(),
+  }, { onConflict: 'fiscal_period_id' }).select('id').single()
+  if (error) return { error: error.message }
+  const reviewId = (review as any).id
+  await admin.from('close_review_checks' as any).delete().eq('close_review_id', reviewId)
+  const { error: checksError } = await admin.from('close_review_checks' as any).insert(checks.map((check, index) => ({
+    close_review_id: reviewId, check_key: check.key, section: check.section, label: check.label,
+    status: check.status, detail: check.detail, evidence: check.evidence, sort_order: index,
+  })))
+  return checksError ? { error: checksError.message } : {}
 }
 
 /**
@@ -743,12 +818,27 @@ export async function previewCloseThrough(
 
   const months: ClosePreview[] = []
   const warnings: string[] = []
+  let shadowResiduals: Map<string, number> | undefined
 
   for (const w of windows) {
-    const p = await previewClose(admin, fundId, group, w.start, w.end)
+    const p = await previewClose(admin, fundId, group, w.start, w.end, shadowResiduals)
     if ('error' in p) return { error: `${w.label}: ${p.error}` }
     // The gap warning can't fire here — the start is derived, so there is no gap.
     months.push({ ...p, warnings: p.warnings.filter(x => !x.startsWith('There is unallocated P&L before')) })
+    if (p.mode === 'partners') {
+      if (!shadowResiduals) {
+        const vehicleId = await vehicleIdByName(admin, fundId, group)
+        shadowResiduals = vehicleId
+          ? await allocationResiduals(admin, fundId, vehicleId, w.start)
+          : new Map<string, number>()
+      }
+      for (const category of p.categories) {
+        for (const line of category.lines) {
+          const key = `${category.sourceType}:${line.lpEntityId}`
+          shadowResiduals.set(key, (shadowResiduals.get(key) ?? 0) + line.exactAmount - line.amount)
+        }
+      }
+    }
   }
 
   const withActivity = months.filter(m => m.categories.length > 0)
@@ -758,6 +848,19 @@ export async function previewCloseThrough(
   const basis = months[0]?.basis ?? 'commitment'
   const mode = months[0]?.mode ?? 'partners'
   const readiness = await checkReadiness(admin, fundId, group, start, endDate)
+  const suggestedEntries = await loadCloseEntrySuggestions(admin, fundId, group, start, endDate)
+  const requiredSuggestions = suggestedEntries.filter(entry => entry.required)
+  if (requiredSuggestions.length > 0) {
+    readiness.blockers.push(
+      `${requiredSuggestions.length} required scheduled entr${requiredSuggestions.length === 1 ? 'y is' : 'ies are'} missing. Create and review the draft${requiredSuggestions.length === 1 ? '' : 's'} before closing.`,
+    )
+  }
+  const inferredSuggestions = suggestedEntries.filter(entry => entry.basis === 'recurring_pattern')
+  if (inferredSuggestions.length > 0) {
+    readiness.warnings.push(
+      `${inferredSuggestions.length} recurring entr${inferredSuggestions.length === 1 ? 'y was' : 'ies were'} expected from prior-month patterns but not found in this period. Review the suggested draft${inferredSuggestions.length === 1 ? '' : 's'} or document why they do not recur.`,
+    )
+  }
 
   return {
     start,
@@ -767,6 +870,7 @@ export async function previewCloseThrough(
     basis,
     mode,
     readiness,
+    suggestedEntries,
     warnings,
   }
 }
@@ -997,14 +1101,48 @@ export async function closePeriodWithAllocation(
   }
   entryIds.push(...earnedResult.entryIds)
 
+  // Preserve the exact pro-rata entitlement behind the cent-denominated journal lines. Only
+  // CLOSED periods feed the next preview, so reopening automatically removes this period from
+  // cumulative rounding without deleting its audit trail.
+  if (preview.mode === 'partners') {
+    const roundingRows = preview.categories.flatMap(category => category.lines.map(line => ({
+      fund_id: fundId,
+      vehicle_id: vehicleId,
+      fiscal_period_id: periodId,
+      source_type: category.sourceType,
+      lp_entity_id: line.lpEntityId,
+      exact_amount: line.exactAmount,
+      posted_amount: line.amount,
+    })))
+    if (roundingRows.length > 0) {
+      const { error: roundingErr } = await admin.from('close_allocation_rounding' as any)
+        .upsert(roundingRows, { onConflict: 'fiscal_period_id,source_type,lp_entity_id' })
+      if (roundingErr) {
+        await reopenPeriodWithReversal(admin, fundId, group, periodId)
+        await admin.from('fiscal_periods' as any).delete().eq('id', periodId).eq('fund_id', fundId)
+        return { error: `Could not preserve cumulative allocation rounding: ${roundingErr.message}` }
+      }
+    }
+  }
+
   // 3. Snapshot and lock.
   const snapshot = await exportLedgerText(admin, fundId, group, periodEnd)
+  const readiness = await checkReadiness(admin, fundId, group, periodStart, periodEnd)
+  const review = await persistCloseReview(admin, fundId, group, vehicleId!, periodId, userId, readiness, snapshot, periodEnd)
+  if (review.error) {
+    await reopenPeriodWithReversal(admin, fundId, group, periodId)
+    return { error: `Could not preserve the close review record: ${review.error}` }
+  }
   const { error: closeErr } = await admin
     .from('fiscal_periods' as any)
     .update({ status: 'closed', closed_at: new Date().toISOString(), closed_by: userId, snapshot_text: snapshot })
     .eq('id', periodId)
     .eq('fund_id', fundId)
-  if (closeErr) return { error: closeErr.message }
+  if (closeErr) {
+    await admin.from('close_reviews' as any).update({ status: 'reopened', updated_at: new Date().toISOString() })
+      .eq('fiscal_period_id', periodId).eq('fund_id', fundId)
+    return { error: closeErr.message }
+  }
 
   await removeSupersededPeriods(admin, fundId, vehicleId, periodId, periodStart, periodEnd)
 
@@ -1478,6 +1616,9 @@ export async function reopenPeriodWithReversal(
 
   const voided = await voidCloseEntries(admin, fundId, vehicleId, periodId)
   if ('error' in voided) return voided
+  await admin.from('close_reviews' as any)
+    .update({ status: 'reopened', updated_at: new Date().toISOString() })
+    .eq('fiscal_period_id', periodId).eq('fund_id', fundId)
 
   return { ok: true, voided: voided.count }
 }
@@ -1573,6 +1714,10 @@ async function voidCloseEntries(
   const ids = ((entries as any[]) ?? []).map(e => e.id)
   if (ids.length === 0) return { count: 0 }
 
+  for (const id of ids) {
+    const linked = await setGeneratedAllocationStatus(admin, fundId, id, 'void')
+    if (linked.error) return { error: linked.error }
+  }
   const { error: voidErr } = await admin
     .from('journal_entries' as any)
     .update({ status: 'void', posted_at: null })

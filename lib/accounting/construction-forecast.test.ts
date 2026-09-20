@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { constructionModel, DEFAULT_ASSUMPTIONS, type ConstructionActuals, type ConstructionAssumptions } from './construction'
-import { forecastSchedule, dealTimelines, irrOf, DEFAULT_PACING, type PacingAssumptions, type ForecastBaseline } from './construction-forecast'
+import { applyLpWaterfall, forecastSchedule, dealTimelines, irrOf, DEFAULT_PACING, type PacingAssumptions, type ForecastBaseline } from './construction-forecast'
 
 const actuals = (over: Partial<ConstructionActuals> = {}): ConstructionActuals => ({
   committedCapital: 10_000_000,
@@ -28,12 +28,12 @@ const assumptions = (over: Partial<ConstructionAssumptions> = {}): ConstructionA
   feeTermYears: 5,
   annualPartnershipExpense: 20_000,
   positionForecasts: [
-    { companyId: 'c1', plannedFollowOn: 500_000, ownershipAtExit: 0.1, expectedExitValue: 50_000_000, returnMethod: 'ownership' }, // 5m
+    { companyId: 'c1', plannedFollowOn: 500_000, ownershipAtExit: 0.1, expectedExitValue: 50_000_000, returnMethod: 'ownership', followOnInYears: 1 }, // 5m
     { companyId: 'c2', plannedFollowOn: 0, ownershipAtExit: 0, forecastMoic: 0, expectedExitValue: 0, returnMethod: 'moic' }, // defaults to the fund-wide 3x
   ],
   stages: [
-    { key: 's1', label: 'Deal A', initialCheck: 1_000_000, initialPostMoney: 10_000_000, followOnMultiple: 0, followOnCheck: 500_000, dilutionFactor: 0.5, forecastMoic: 3, returnMethod: 'moic' }, // 4.5m
-    { key: 's2', label: 'Deal B', initialCheck: 1_000_000, initialPostMoney: 10_000_000, followOnMultiple: 0, followOnCheck: 0, dilutionFactor: 0.5, forecastMoic: 0, returnMethod: 'moic' }, // fund-wide 3x = 3m
+    { key: 's1', label: 'Deal A', initialCheck: 1_000_000, initialPostMoney: 10_000_000, followOnMultiple: 0, followOnCheck: 500_000, dilutionFactor: 0.5, forecastMoic: 3, returnMethod: 'moic', investInYears: 0.5, followOnInYears: 1 }, // 4.5m
+    { key: 's2', label: 'Deal B', initialCheck: 1_000_000, initialPostMoney: 10_000_000, followOnMultiple: 0, followOnCheck: 0, dilutionFactor: 0.5, forecastMoic: 0, returnMethod: 'moic', investInYears: 1.5 }, // fund-wide 3x = 3m
   ],
   ...over,
 })
@@ -45,7 +45,7 @@ const pacing = (over: Partial<PacingAssumptions> = {}): PacingAssumptions => ({
 const baseline: ForecastBaseline = { asOf: '2026-09-18', calledCapital: 3_000_000, distributed: 0, nav: 3_100_000 }
 
 describe('dealTimelines', () => {
-  it('spreads planned deals over the deployment period and holds them for the stated years', () => {
+  it('uses each planned deal’s own timing and holds it for the stated years', () => {
     const model = constructionModel(actuals(), assumptions())
     const deals = dealTimelines(model, pacing())
     const planned = deals.filter(d => d.kind === 'planned')
@@ -57,10 +57,10 @@ describe('dealTimelines', () => {
     expect(existing[0].followOnAt).toBe(1)
   })
 
-  it('writes every remaining check now with a zero deployment period', () => {
-    const model = constructionModel(actuals(), assumptions())
-    const planned = dealTimelines(model, pacing({ deploymentYears: 0 })).filter(d => d.kind === 'planned')
-    expect(planned.every(d => d.initialAt === 0)).toBe(true)
+  it('omits a planned deal without individual investment timing', () => {
+    const model = constructionModel(actuals(), assumptions({ stages: [{ ...assumptions().stages[0], investInYears: undefined }] }))
+    expect(dealTimelines(model, pacing()).filter(d => d.kind === 'planned')).toEqual([])
+    expect(forecastSchedule(model, assumptions({ stages: [{ ...assumptions().stages[0], investInYears: undefined }] }), pacing(), baseline).warnings.join(' ')).toMatch(/need.*investment timing/i)
   })
 
   it('anchors each existing deal to its known investment date and uses the hold period', () => {
@@ -76,6 +76,29 @@ describe('dealTimelines', () => {
     expect(existing[1].initialAt).toBeCloseTo(-2, 2)
     expect(existing[1].exitAt).toBeCloseTo(4, 2)
   })
+
+  it('treats a company exit override as its hold period when its investment date is known', () => {
+    const positions = actuals().positions!.map(position => ({ ...position, firstInvestmentDate: '2022-09-18' }))
+    const configured = assumptions({
+      positionForecasts: assumptions().positionForecasts.map(forecast => forecast.companyId === 'c1' ? { ...forecast, exitInYears: 6 } : forecast),
+    })
+    const model = constructionModel(actuals({ positions }), configured)
+    const alpha = dealTimelines(model, pacing(), baseline.asOf).find(deal => deal.key === 'c1')!
+    expect(alpha.exitAt).toBeCloseTo(2, 2)
+  })
+
+  it('keeps an explicit zero-year hold instead of replacing it with the fund default', () => {
+    const configured = assumptions({
+      stages: assumptions().stages.map(stage => stage.key === 's1' ? { ...stage, exitInYears: 0 } : stage),
+      positionForecasts: assumptions().positionForecasts.map(forecast => forecast.companyId === 'c1' ? { ...forecast, exitInYears: 0 } : forecast),
+    })
+    const model = constructionModel(actuals(), configured)
+    const deals = dealTimelines(model, pacing(), baseline.asOf)
+
+    expect(deals.find(deal => deal.key === 's1')?.exitAt).toBe(0.5)
+    expect(deals.find(deal => deal.key === 'c1')?.exitAt).toBe(0)
+    expect(deals.find(deal => deal.key === 'c1')?.timing).toBe('stated')
+  })
 })
 
 describe('forecastSchedule', () => {
@@ -90,14 +113,17 @@ describe('forecastSchedule', () => {
     expect(y1.invested).toBe(1_500_000)
     expect(y1.fees).toBe(200_000)
     expect(y1.expenses).toBe(20_000)
-    expect(y1.called).toBe(1_720_000 - 100_000) // baseline cash of 100k (nav 3.1m over 3.0m carrying) is spent first
+    // Called capital less deployed capital and incurred expenses leaves 500k of cash to spend first.
+    expect(y1.called).toBe(1_720_000 - 500_000)
     // Year 4: the existing book exits — Alpha 5m, Beta at the fund-wide 3x default.
-    expect(s.years[4].distributed).toBe(8_000_000)
+    // Same-year fees and expenses are paid from exit proceeds, rather than requiring a call.
+    expect(s.years[4].distributed).toBe(7_780_000)
+    expect(s.years[4].called).toBe(0)
     // Year 6: Deal A exits at 3× its 1.5m; year 7: Deal B at the 3x default.
     expect(s.years[6].distributed).toBe(4_500_000)
     expect(s.years[7].distributed).toBe(3_000_000)
     expect(s.years[7].nav).toBe(0)
-    expect(s.years[7].dpi).toBeCloseTo(15_500_000 / s.years[7].cumCalled, 6)
+    expect(s.years[7].dpi).toBeCloseTo(15_280_000 / s.years[7].cumCalled, 6)
     expect(s.years[7].tvpi).toBe(s.years[7].dpi)
     expect(s.years[7].netIrr).toBeGreaterThan(0)
     expect(s.warnings).toEqual([])
@@ -111,11 +137,39 @@ describe('forecastSchedule', () => {
     expect(s.years[6].expenses).toBe(0)
   })
 
-  it('warns when the plan calls more than the commitments can cover', () => {
+  it('ends recurring costs at liquidation and pays final wind-down costs from proceeds', () => {
+    const longFeeTerm = assumptions({ feeTermYears: 12 })
+    const model = constructionModel(actuals(), longFeeTerm)
+    const s = forecastSchedule(model, longFeeTerm, pacing({ horizonYears: 10 }), baseline)
+    expect(s.years[7].fees).toBe(200_000)
+    expect(s.years[7].expenses).toBe(20_000)
+    expect(s.years[7].distributed).toBe(2_780_000)
+    expect(s.years[7].called).toBe(0)
+    expect(s.years[8].fees).toBe(0)
+    expect(s.years[8].expenses).toBe(0)
+    expect(s.years[8].called).toBe(0)
+  })
+
+  it('leaves capital sufficiency to the investment plan instead of adding a timeline warning', () => {
     const model = constructionModel(actuals({ committedCapital: 4_000_000, uncalledCapital: 1_000_000 }), assumptions())
     const s = forecastSchedule(model, assumptions(), pacing(), baseline)
-    expect(s.shortfall).toBeGreaterThan(0)
-    expect(s.warnings.some(w => w.includes('more than the fund can still call'))).toBe(true)
+    expect(model.warnings.some(w => w.includes('more capital than remains'))).toBe(true)
+    expect(s.warnings.some(w => w.includes('more than the fund can still call'))).toBe(false)
+  })
+
+  it('reports LP-only DPI and TVPI after applying the vehicle waterfall', () => {
+    const model = constructionModel(actuals(), assumptions())
+    const gross = forecastSchedule(model, assumptions(), pacing(), baseline)
+    const net = applyLpWaterfall(gross, {
+      asOf: baseline.asOf,
+      kind: 'straight', carryRate: 0.2, prefRate: 0, catchupRate: 1, prefCompounds: true,
+      lpCommitmentShare: 1, lpCalledCapital: baseline.calledCapital, lpDistributedCapital: 0,
+      fundDistributedCapital: 0, lpNav: baseline.nav, contributions: [{ date: '2024-01-01', amount: baseline.calledCapital }],
+    })
+    expect(net.years.at(-1)!.dpi!).toBeLessThan(gross.years.at(-1)!.dpi!)
+    expect(net.years.at(-1)!.tvpi).toBe(net.years.at(-1)!.dpi)
+    expect(net.years.some(year => (year.carriedInterest ?? 0) > 0)).toBe(true)
+    expect(net.years.at(-1)!.netIrr).toBeGreaterThan(0)
   })
 
   it('a horizon shorter than the last exit leaves deals in NAV and says so', () => {
@@ -145,9 +199,10 @@ describe('forecastSchedule', () => {
   })
 
   it('can still represent a deliberately unstated pacing plan', () => {
-    const model = constructionModel(actuals(), assumptions())
+    const unstated = assumptions({ stages: [] })
+    const model = constructionModel(actuals(), unstated)
     const empty = { ...DEFAULT_PACING, deploymentYears: 0, followOnLagYears: 0, holdYears: 0, existingHoldYears: 0 }
-    expect(forecastSchedule(model, assumptions(), empty, baseline).stated).toBe(false)
+    expect(forecastSchedule(model, unstated, empty, baseline).stated).toBe(false)
   })
 })
 
@@ -182,8 +237,8 @@ describe('per-deal timing', () => {
     expect(alpha).toMatchObject({ exitAt: 2, followOnAt: 0.5, timing: 'stated' })
     expect(beta).toMatchObject({ exitAt: 4, timing: 'pacing' })
     const s = forecastSchedule(model, assumptions(), pacing(), baseline)
-    expect(s.years[2].distributed).toBe(5_000_000)
-    expect(s.years[4].distributed).toBe(3_000_000)
+    expect(s.years[2].distributed).toBe(4_780_000)
+    expect(s.years[4].distributed).toBe(2_780_000)
   })
 
   it('a planned deal’s own investment year and hold win over the spread', () => {

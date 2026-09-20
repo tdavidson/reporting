@@ -156,12 +156,10 @@ export function buildDistributionSettlementEntry(
 /**
  * The two accounts a P&L entry touches.
  *
- * NOTE — these entries deliberately do NOT allocate to LP capital accounts.
- * Allocation happens in ONE place: the period close (`lib/accounting/close.ts`),
- * which pushes the period's P&L into each partner's capital account through the
- * undistributed-earnings bridge. Allocating at booking time as well would
- * double-count, and would make every unpost/edit of a bank entry have to reverse
- * fifteen capital postings correctly.
+ * These source entries deliberately contain no LP-capital lines. Once posted,
+ * `continuous-allocation.ts` writes a linked balance-sheet allocation through the
+ * undistributed-earnings bridge. Drafts have no capital effect; unposting or voiding
+ * keeps the generated allocation in step.
  */
 export interface PnlAccounts {
   /** The income/expense account for the income statement. */
@@ -173,7 +171,7 @@ export interface PnlAccounts {
 /**
  * Management fee:
  *   Dr Management fee expense     Cr Due to GP / Cash
- * The income statement shows the expense; the period close allocates it to capital.
+ * The income statement shows the expense; posting allocates it to capital immediately.
  */
 export function buildManagementFeeEntry(
   base: Base,

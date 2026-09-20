@@ -5,7 +5,8 @@ import { createAdminClient } from '@/lib/supabase/admin'
 // grant for this route + method; these resolve identity and keep the demo out of writes.
 import { assertWriteAccess, assertReadAccess } from '@/lib/api-helpers'
 import { resolveGroupOr400 } from '@/lib/accounting/http-vehicle'
-import { issueCapitalCall, proRataCall, lpCapitalSummary, listCapitalCalls, settleRegisterLine } from '@/lib/accounting/capital-calls'
+import { issueCapitalCall, proRataCall, lpCapitalSummary, listCapitalCalls } from '@/lib/accounting/capital-calls'
+import { loadCapitalSource } from '@/lib/accounting/capital-source'
 
 // GET — the per-LP capital summary (commitment/called/funded/outstanding) plus
 // the issued-call history for the vehicle.
@@ -26,10 +27,9 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({ summary, calls })
 }
 
-// POST — { action: 'preview' | 'issue' | 'settle', ... }
+// POST — { action: 'preview' | 'issue', ... }
 //   preview: { total } → per-LP pro-rata split by commitment (to edit before issuing)
 //   issue:   { callDate, description, scope, lines: [{ lpEntityId, amount }] }
-//   settle:  { lineId, amount, date } → capital-tracking vehicles only: record a funding by hand
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
   const admin = createAdminClient()
@@ -41,6 +41,11 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}))
   const group = await resolveGroupOr400(admin, gate, body?.group ?? req.nextUrl.searchParams.get('group'))
   if (group instanceof NextResponse) return group
+  if (await loadCapitalSource(admin, gate.fundId, group) !== 'ledger') {
+    return NextResponse.json({
+      error: 'Capital calls require accounting. This vehicle uses capital tracking; record its dated paid-in capital on the LP capital accounts instead.',
+    }, { status: 409 })
+  }
 
   if (body?.action === 'preview') {
     const total = Number(body?.total)
@@ -60,13 +65,5 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(result)
   }
 
-  if (body?.action === 'settle') {
-    const result = await settleRegisterLine(admin, gate.fundId, group, 'capital_call', String(body?.lineId ?? ''), {
-      amount: Number(body?.amount), date: String(body?.date ?? ''),
-    })
-    if ('error' in result) return NextResponse.json({ error: result.error }, { status: 400 })
-    return NextResponse.json(result)
-  }
-
-  return NextResponse.json({ error: "action must be 'preview', 'issue' or 'settle'" }, { status: 400 })
+  return NextResponse.json({ error: "action must be 'preview' or 'issue'" }, { status: 400 })
 }

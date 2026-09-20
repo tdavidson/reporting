@@ -202,6 +202,9 @@ export async function declareDistribution(
   userId: string | null,
   input: DeclareDistributionInput,
 ): Promise<{ entryId: string; carryEntryId: string | null; distributionId: string } | { error: string }> {
+  if (await loadCapitalSource(admin, fundId, group) !== 'ledger') {
+    return { error: 'Distributions require accounting for this vehicle.' }
+  }
   const perLp = cleanLines(input.lines)
   const perRecipient = cleanLines(input.carryLines)
   if (perLp.size === 0 && perRecipient.size === 0) return { error: 'A distribution needs at least one partner with a positive amount' }

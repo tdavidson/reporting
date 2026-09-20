@@ -2,8 +2,8 @@
 
 import { useMemo } from 'react'
 import {
-  ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
-  PieChart, Pie, Cell, ReferenceLine, LabelList,
+  ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
+  Cell, ReferenceLine, LabelList,
 } from 'recharts'
 import {
   ChartCard, EmptyPlot, AXIS, tooltipStyle, HUE, sliceFill,
@@ -100,8 +100,8 @@ export function CapitalUsageChart({ model, fmt, fmtFull }: { model: Construction
 
 // ── Sources of total value ───────────────────────────────────────────────────
 //
-// A donut, so it uses the ALL-PAIRS slice palette (see fund-chart-kit): three slices sitting
-// against each other in every combination.
+// A horizontal composition bar, matching committed capital usage above. Length makes the source
+// amounts easier to compare than donut angles and keeps the visual language consistent.
 
 export function ValueSourcesChart({ model, fmt, fmtFull }: { model: ConstructionResult; fmt: Fmt; fmtFull: Fmt }) {
   const sources = useMemo(() => valueSources(model), [model])
@@ -113,13 +113,15 @@ export function ValueSourcesChart({ model, fmt, fmtFull }: { model: Construction
     const gain = sources.forecastGain
     const invested = gain >= 0 ? sources.investedAtWork : Math.max(0, sources.investedAtWork + gain)
     return [
-      { name: 'Realized proceeds', value: Math.max(0, sources.realizedProceeds), color: sliceFill(0) },
-      { name: 'Invested capital at work', value: invested, color: sliceFill(1) },
-      { name: 'Unrealized gains', value: Math.max(0, gain), color: sliceFill(2) },
+      { key: 'realized', name: 'Realized proceeds', value: Math.max(0, sources.realizedProceeds), color: sliceFill(0) },
+      { key: 'invested', name: 'Invested capital at work', value: invested, color: sliceFill(1) },
+      { key: 'gain', name: 'Unrealized gains', value: Math.max(0, gain), color: sliceFill(2) },
     ].filter(d => d.value > 0.5)
   }, [sources])
 
   const total = data.reduce((s, d) => s + d.value, 0)
+  const row = useMemo(() => Object.fromEntries([['label', 'Total value'], ...data.map(source => [source.key, source.value])]), [data])
+  const pctOf = (value: number) => total > 0 ? `${Math.round((value / total) * 100)}%` : '—'
 
   return (
     <ChartCard title="Sources of total value">
@@ -127,13 +129,14 @@ export function ValueSourcesChart({ model, fmt, fmtFull }: { model: Construction
         <EmptyPlot label="No proceeds or forecast yet." />
       ) : (
         <>
-          <ResponsiveContainer width="100%" height={150}>
-            <PieChart>
-              <Pie data={data} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={40} outerRadius={68} paddingAngle={2} stroke={HUE.surface} strokeWidth={2}>
-                {data.map((d, i) => <Cell key={i} fill={d.color} />)}
-              </Pie>
-              <Tooltip contentStyle={tooltipStyle} formatter={(v: any, n: any) => [fmtFull(v as number), n]} />
-            </PieChart>
+          <ResponsiveContainer width="100%" height={110}>
+            <BarChart data={[row]} layout="vertical" margin={{ top: 4, right: 8, bottom: 0, left: 8 }}>
+              <CartesianGrid strokeDasharray="3 3" horizontal={false} className="stroke-border" />
+              <XAxis type="number" domain={[0, total]} tick={AXIS} tickLine={false} axisLine={false} tickFormatter={value => fmt(value as number)} className="text-muted-foreground" />
+              <YAxis type="category" dataKey="label" hide />
+              <Tooltip cursor={{ fill: 'hsl(var(--muted) / 0.4)' }} contentStyle={tooltipStyle} formatter={(value: any, name: any) => [`${fmtFull(value as number)} · ${pctOf(value as number)}`, name]} />
+              {data.map(source => <Bar key={source.key} dataKey={source.key} name={source.name} stackId="value" fill={source.color} stroke={HUE.surface} strokeWidth={2} />)}
+            </BarChart>
           </ResponsiveContainer>
           <ul className="mt-1 space-y-1.5 text-xs">
             {data.map(d => (
@@ -142,7 +145,7 @@ export function ValueSourcesChart({ model, fmt, fmtFull }: { model: Construction
                 <span className="min-w-0 flex-1 truncate">{d.name}</span>
                 <span className="shrink-0 tabular-nums text-muted-foreground">{fmt(d.value)}</span>
                 <span className="w-10 shrink-0 text-right tabular-nums text-muted-foreground/70">
-                  {total ? `${Math.round((d.value / total) * 100)}%` : '—'}
+                  {pctOf(d.value)}
                 </span>
               </li>
             ))}
