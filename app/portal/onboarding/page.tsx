@@ -24,6 +24,7 @@ interface Entity {
   fundName: string
   outstanding: number
   complete: boolean
+  closing: { name: string; closeDate: string; phrase: string; daysToClose: number | null } | null
   items: Item[]
 }
 
@@ -121,7 +122,15 @@ export default function PortalOnboardingPage() {
               <div className="px-4 py-3 border-b flex items-center gap-2">
                 <div className="min-w-0 flex-1">
                   <h2 className="text-base font-semibold truncate">{e.name}</h2>
-                  <div className="text-xs text-muted-foreground">{e.fundName}</div>
+                  <div className="text-xs text-muted-foreground">
+                    {e.fundName}
+                    {e.closing && !e.complete && (
+                      <span className={e.closing.daysToClose !== null && e.closing.daysToClose >= 0 && e.closing.daysToClose <= 14 ? ' text-destructive' : ''}>
+                        {' · '}Needed {e.closing.phrase}
+                      </span>
+                    )}
+                    {e.closing && e.complete && <span>{' · '}Admitted at {e.closing.name}</span>}
+                  </div>
                 </div>
                 <span className={`text-xs tabular-nums ${e.complete ? 'text-success' : 'text-muted-foreground'}`}>
                   {e.complete ? 'Complete' : `${e.outstanding} needed`}

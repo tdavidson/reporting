@@ -106,11 +106,20 @@ export interface OnboardingItemRow {
   note: string | null
 }
 
+/** The closing an entity was admitted at (its earliest, when it sits in several vehicles). */
+export interface ClosingRef {
+  id: string
+  name: string
+  closeDate: string
+  vehicle: string
+}
+
 export interface OnboardingEntity {
   id: string
   name: string
   investorId: string
   investorName: string
+  closing?: ClosingRef | null
 }
 
 export interface OnboardingCell {
@@ -129,6 +138,8 @@ export interface OnboardingCell {
 
 export interface OnboardingEntityRow extends OnboardingEntity {
   items: OnboardingCell[]
+  /** Days until the entity's closing; negative once it has passed; null with no closing. */
+  daysToClose: number | null
   /** Required kinds not yet verified or waived (an expired verification counts). */
   outstanding: number
   /** Uploads waiting for the fund to look at them. */
@@ -183,8 +194,38 @@ export function buildOnboardingMatrix(
     const requiredCells = cells.filter(c => required.has(c.kind))
     const outstanding = requiredCells.filter(c => !(c.status === 'verified' && !c.expired) && c.status !== 'waived').length
     const awaitingReview = cells.filter(c => c.status === 'submitted').length
-    return { ...e, items: cells, outstanding, awaitingReview, complete: outstanding === 0 }
+    const daysToClose = e.closing ? daysBetween(today, e.closing.closeDate) : null
+    return { ...e, items: cells, outstanding, awaitingReview, complete: outstanding === 0, daysToClose }
   })
+}
+
+/** Whole days from one ISO date to another; negative when `to` is earlier. */
+export function daysBetween(from: string, to: string): number {
+  const a = Date.UTC(+from.slice(0, 4), +from.slice(5, 7) - 1, +from.slice(8, 10))
+  const b = Date.UTC(+to.slice(0, 4), +to.slice(5, 7) - 1, +to.slice(8, 10))
+  return Math.round((b - a) / 86_400_000)
+}
+
+/**
+ * Order entities for the fund's review: nearest closing first, incomplete before complete within
+ * a closing, entities with no closing last. What the fund needs to look at is what closes soonest.
+ */
+export function sortByClosing<T extends { daysToClose: number | null; complete: boolean; name: string }>(rows: T[]): T[] {
+  return [...rows].sort((a, b) => {
+    if (a.daysToClose === null && b.daysToClose !== null) return 1
+    if (b.daysToClose === null && a.daysToClose !== null) return -1
+    if (a.daysToClose !== null && b.daysToClose !== null && a.daysToClose !== b.daysToClose) return a.daysToClose - b.daysToClose
+    if (a.complete !== b.complete) return a.complete ? 1 : -1
+    return a.name.localeCompare(b.name)
+  })
+}
+
+/** "before Second Close on Jun 30" / "Second Close was Jun 30" — one phrase for emails and the portal. */
+export function closingPhrase(c: ClosingRef, daysToClose: number | null): string {
+  const d = new Date(`${c.closeDate}T00:00:00Z`)
+  const date = isNaN(d.getTime()) ? c.closeDate : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })
+  if (daysToClose !== null && daysToClose < 0) return `${c.name} was ${date}`
+  return `before ${c.name} on ${date}`
 }
 
 /** Where an entity's onboarding uploads live in the lp-documents bucket. The server owns this. */
@@ -207,3 +248,26 @@ export const ONBOARDING_ALLOWED_MIME = new Set([
   'application/msword',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
 ])
+
+/**
+ * Entity → the closing it was admitted at. An entity in several vehicles is admitted at a close of
+ * each; the earliest is the one the checklist is due by. Reads through whatever client is given
+ * (the routes pass the service-role client and scope by entity id).
+ */
+export async function loadClosingsByEntity(admin: any, entityIds: string[]): Promise<Map<string, ClosingRef>> {
+  const out = new Map<string, ClosingRef>()
+  if (entityIds.length === 0) return out
+  const { data } = await admin
+    .from('vehicle_closing_members')
+    .select('lp_entity_id, vehicle_closings(id, name, close_date, fund_vehicles(name))')
+    .in('lp_entity_id', entityIds)
+  for (const m of (data ?? []) as any[]) {
+    const c = Array.isArray(m.vehicle_closings) ? m.vehicle_closings[0] : m.vehicle_closings
+    if (!c) continue
+    const veh = Array.isArray(c.fund_vehicles) ? c.fund_vehicles[0] : c.fund_vehicles
+    const ref: ClosingRef = { id: c.id, name: c.name, closeDate: c.close_date, vehicle: veh?.name ?? '' }
+    const prev = out.get(m.lp_entity_id)
+    if (!prev || ref.closeDate < prev.closeDate) out.set(m.lp_entity_id, ref)
+  }
+  return out
+}

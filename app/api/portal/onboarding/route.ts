@@ -5,7 +5,7 @@ import { resolveLpAccess } from '@/lib/api-helpers'
 import { dbError } from '@/lib/api-error'
 import { rateLimit } from '@/lib/rate-limit'
 import {
-  buildOnboardingMatrix, normalizeKinds, isOnboardingKind, onboardingStoragePrefix,
+  buildOnboardingMatrix, normalizeKinds, isOnboardingKind, onboardingStoragePrefix, loadClosingsByEntity, closingPhrase,
   DEFAULT_ONBOARDING_KINDS, ONBOARDING_KIND_LABEL, ONBOARDING_KIND_HELP, ONBOARDING_MAX_UPLOAD_BYTES, ONBOARDING_ALLOWED_MIME,
   type OnboardingEntity, type OnboardingItemRow,
 } from '@/lib/lp-onboarding'
@@ -71,6 +71,8 @@ export async function GET(): Promise<NextResponse> {
     .select('id, lp_entity_id, kind, status, document_id, submitted_at, reviewed_at, expires_on, note')
     .in('lp_entity_id', entities.map(e => e.id))
 
+  const closings = await loadClosingsByEntity(admin, entities.map(e => e.id))
+
   // Fund names, for an LP in more than one.
   const fundIds = Array.from(new Set(entities.map(e => e.fund_id as string)))
   const { data: funds } = await admin.from('funds').select('id, name').in('id', fundIds)
@@ -81,11 +83,13 @@ export async function GET(): Promise<NextResponse> {
   for (const fundId of fundIds) {
     const list: OnboardingEntity[] = entities.filter(e => e.fund_id === fundId).map(e => ({
       id: e.id, name: e.entity_name, investorId: e.investor_id, investorName: e.lp_investors?.name ?? '',
+      closing: closings.get(e.id) ?? null,
     }))
     const rows = buildOnboardingMatrix(list, kindsByFund.get(fundId) as any, (items ?? []) as OnboardingItemRow[])
     for (const r of rows) {
       out.push({
         id: r.id, name: r.name, fundName: fundName.get(fundId) ?? '', outstanding: r.outstanding, complete: r.complete,
+        closing: r.closing ? { name: r.closing.name, closeDate: r.closing.closeDate, phrase: closingPhrase(r.closing, r.daysToClose), daysToClose: r.daysToClose } : null,
         items: r.items.map(i => ({
           kind: i.kind, label: i.label, help: ONBOARDING_KIND_HELP[i.kind], status: i.status, expired: i.expired,
           documentId: i.documentId, submittedAt: i.submittedAt, reviewedAt: i.reviewedAt, expiresOn: i.expiresOn,

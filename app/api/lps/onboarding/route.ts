@@ -6,7 +6,7 @@ import { assertReadAccess, assertWriteAccess } from '@/lib/api-helpers'
 import { dbError } from '@/lib/api-error'
 import {
   buildOnboardingMatrix, normalizeKinds, isOnboardingKind, isOnboardingStatus, REVIEW_STATUSES,
-  DEFAULT_ONBOARDING_KINDS, ONBOARDING_KINDS, ONBOARDING_KIND_LABEL,
+  DEFAULT_ONBOARDING_KINDS, ONBOARDING_KINDS, ONBOARDING_KIND_LABEL, loadClosingsByEntity, sortByClosing,
   type OnboardingEntity, type OnboardingItemRow,
 } from '@/lib/lp-onboarding'
 
@@ -44,10 +44,12 @@ export async function GET(): Promise<NextResponse> {
   if (entErr) return dbError(entErr, 'lps-onboarding')
 
   const kinds = fs?.lp_onboarding_kinds == null ? DEFAULT_ONBOARDING_KINDS : normalizeKinds(fs.lp_onboarding_kinds)
+  const closings = await loadClosingsByEntity(a, ((entities ?? []) as any[]).map(e => e.id))
   const list: OnboardingEntity[] = ((entities ?? []) as any[]).map(e => ({
     id: e.id, name: e.entity_name, investorId: e.investor_id, investorName: e.lp_investors?.name ?? '',
+    closing: closings.get(e.id) ?? null,
   }))
-  const rows = buildOnboardingMatrix(list, kinds, (items ?? []) as OnboardingItemRow[])
+  const rows = sortByClosing(buildOnboardingMatrix(list, kinds, (items ?? []) as OnboardingItemRow[]))
 
   // Which investors can actually be asked: one with an account that is invited or active.
   const accountByInvestor = new Map<string, string>()

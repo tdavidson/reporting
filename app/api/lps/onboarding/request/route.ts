@@ -9,7 +9,7 @@ import { buildLpEmailHtml, siteUrl } from '@/lib/lp-email'
 import { logDelivery } from '@/lib/lp-deliveries'
 import { runPool } from '@/lib/lp-report-pdf'
 import {
-  buildOnboardingMatrix, normalizeKinds, DEFAULT_ONBOARDING_KINDS, ONBOARDING_STATUS_LABEL,
+  buildOnboardingMatrix, normalizeKinds, DEFAULT_ONBOARDING_KINDS, ONBOARDING_STATUS_LABEL, loadClosingsByEntity, closingPhrase,
   type OnboardingEntity, type OnboardingItemRow,
 } from '@/lib/lp-onboarding'
 
@@ -45,8 +45,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   if (!fs?.lp_portal_enabled) return NextResponse.json({ error: 'Turn on the LP portal before requesting documents — LPs upload through it.' }, { status: 400 })
 
   const kinds = fs?.lp_onboarding_kinds == null ? DEFAULT_ONBOARDING_KINDS : normalizeKinds(fs.lp_onboarding_kinds)
+  const closings = await loadClosingsByEntity(admin, ((entities ?? []) as any[]).map(e => e.id))
   let list: OnboardingEntity[] = ((entities ?? []) as any[]).map(e => ({
     id: e.id, name: e.entity_name, investorId: e.investor_id, investorName: e.lp_investors?.name ?? '',
+    closing: closings.get(e.id) ?? null,
   }))
   if (Array.isArray(body.lp_entity_ids)) {
     const wanted = new Set(body.lp_entity_ids.filter((x: unknown): x is string => typeof x === 'string'))
@@ -74,10 +76,13 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   // The body per recipient: their entities and what each still owes.
   function bodyFor(investorIdsOfGroup: string[]): { text: string; facts: { label: string; value: string }[] } {
     const mine = rows.filter(r => investorIdsOfGroup.includes(r.investorId))
-    const facts = mine.flatMap(r => r.items.map(i => ({
-      label: r.name,
-      value: i.status === 'rejected' ? `${i.label} — sent back${i.note ? `: ${i.note}` : ''}` : i.expired ? `${i.label} — expired, please send a current one` : i.label,
-    })))
+    const facts = mine.flatMap(r => [
+      ...(r.closing ? [{ label: r.name, value: `Needed ${closingPhrase(r.closing, r.daysToClose)}` }] : []),
+      ...r.items.map(i => ({
+        label: r.name,
+        value: i.status === 'rejected' ? `${i.label} — sent back${i.note ? `: ${i.note}` : ''}` : i.expired ? `${i.label} — expired, please send a current one` : i.label,
+      })),
+    ])
     const intro = message || `To complete your onboarding with ${fundName}, please upload the following through your investor portal. Each item can be uploaded as a PDF or a photo.`
     return { text: intro, facts }
   }

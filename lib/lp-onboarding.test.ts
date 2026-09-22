@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   buildOnboardingMatrix, normalizeKinds, DEFAULT_ONBOARDING_KINDS, ONBOARDING_KINDS,
-  onboardingStoragePrefix, safeFileName, type OnboardingItemRow,
+  onboardingStoragePrefix, safeFileName, daysBetween, sortByClosing, closingPhrase, type OnboardingItemRow,
 } from './lp-onboarding'
 
 const entities = [
@@ -98,5 +98,40 @@ describe('storage paths', () => {
   it('strips path separators and traversal from a file name', () => {
     expect(safeFileName('../../etc/passwd')).toBe('____etc_passwd')
     expect(safeFileName('W-9: signed.pdf')).toBe('W-9_ signed.pdf')
+  })
+})
+
+describe('closings', () => {
+  const close = { id: 'c1', name: 'Second Close', closeDate: '2026-10-15', vehicle: 'Fund I' }
+
+  it('counts whole days to a closing, negative once it has passed', () => {
+    expect(daysBetween('2026-09-22', '2026-10-15')).toBe(23)
+    expect(daysBetween('2026-10-15', '2026-10-15')).toBe(0)
+    expect(daysBetween('2026-10-20', '2026-10-15')).toBe(-5)
+  })
+
+  it('gives each entity its days to close, and null with no closing', () => {
+    const rows = buildOnboardingMatrix([
+      { id: 'e1', name: 'Acme', investorId: 'i1', investorName: 'Acme', closing: close },
+      { id: 'e2', name: 'Beta', investorId: 'i2', investorName: 'Beta', closing: null },
+    ], ['tax_form'], [], '2026-09-22')
+    expect(rows[0].daysToClose).toBe(23)
+    expect(rows[1].daysToClose).toBeNull()
+  })
+
+  it('orders the review: soonest closing first, incomplete before complete, no closing last', () => {
+    const sorted = sortByClosing([
+      { name: 'No close', daysToClose: null, complete: false },
+      { name: 'Late complete', daysToClose: 40, complete: true },
+      { name: 'Soon complete', daysToClose: 5, complete: true },
+      { name: 'Soon incomplete', daysToClose: 5, complete: false },
+      { name: 'Past', daysToClose: -3, complete: false },
+    ])
+    expect(sorted.map(r => r.name)).toEqual(['Past', 'Soon incomplete', 'Soon complete', 'Late complete', 'No close'])
+  })
+
+  it('phrases an upcoming close as a deadline and a past one as a fact', () => {
+    expect(closingPhrase(close, 23)).toBe('before Second Close on Oct 15, 2026')
+    expect(closingPhrase(close, -3)).toBe('Second Close was Oct 15, 2026')
   })
 })

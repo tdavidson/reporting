@@ -185,6 +185,8 @@ export const TABLE_RULES: Record<string, TableRule> = {
   distributions: { scope: 'fund', domain: 'lp_capital' },
   distribution_lines: { scope: 'fund', domain: 'lp_capital' },
   commitment_events: { scope: 'fund', domain: 'lp_capital' },
+  vehicle_closings: { scope: 'fund', domain: 'lp_capital' },
+  vehicle_closing_members: { scope: 'fund', domain: 'lp_capital' },
   partner_allocation_terms: { scope: 'fund', domain: 'lp_capital' },
 
   // ---- GP economics (carry is NOT structurally part of the ledger — see DOMAIN_META) --------

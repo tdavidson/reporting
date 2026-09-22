@@ -251,7 +251,9 @@ The LP portal is off until an admin turns on **LPs → LP portal** in Settings �
 
 A document uploaded this way is scoped to that investor alone: it shows in their portal's Onboarding and Documents tabs and nobody else's. It is not text-indexed for the portal Analyst, on purpose. Tax forms are the one item with facts to record beyond the file: once a W-9 or W-8 is verified, record its type, classification, and the last four digits of the TIN on the vehicle's **Tax** page, which is what gates K-1 issuance. The full taxpayer identification number is never stored outside the signed form.
 
-**What the platform still does not do.** It does not run KYC or AML screening against a provider, does not generate or send subscription documents for signature, and has no closing or admission date — commitments are entered on the accounting Commitments page or from a pasted position. Those are the next things to add if you need them.
+**5. Closings.** On a vehicle's **Allocation terms** page, under **Closings**, name each close and date it (First Close, Second Close, Final Close), then admit partners at it — from the closing's own row, or by choosing *Admitted at* when you add a partner. Admission is a record, not a commitment: it changes no amounts. What it does is give the onboarding checklist a deadline. The Onboarding section lists every upcoming closing with how many of its entities are not yet complete, sorts entities by their close, and the LP sees *Needed before Second Close on Oct 15* on their checklist; the request email says the same. An entity in more than one vehicle is due by its earliest close. The closing date is also the fact a management-fee commencement date or a late-closer equalisation would read — neither is built yet, and both should read this rather than a date typed on a commitment event.
+
+**What the platform still does not do.** It does not run KYC or AML screening against a provider, does not generate or send subscription documents for signature, and does not compute late-closer equalisation. Those are the next things to add if you need them.
 
 ### Install as an app (PWA)
 

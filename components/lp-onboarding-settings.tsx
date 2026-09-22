@@ -28,6 +28,8 @@ interface EntityRow {
   investorId: string
   investorName: string
   accountStatus: string | null
+  closing: { id: string; name: string; closeDate: string; vehicle: string } | null
+  daysToClose: number | null
   items: Item[]
   outstanding: number
   awaitingReview: number
@@ -110,6 +112,19 @@ export function LpOnboardingSettings() {
       awaiting: all.reduce((n, e) => n + e.awaitingReview, 0),
       outstanding: all.reduce((n, e) => n + e.outstanding, 0),
     }
+  }, [data])
+
+  // Upcoming closings and how many of their entities are not yet complete — the deadline view.
+  const upcoming = useMemo(() => {
+    const byClosing = new Map<string, { name: string; closeDate: string; vehicle: string; days: number; total: number; incomplete: number }>()
+    for (const e of data?.entities ?? []) {
+      if (!e.closing || e.daysToClose === null || e.daysToClose < 0) continue
+      const c = byClosing.get(e.closing.id) ?? { name: e.closing.name, closeDate: e.closing.closeDate, vehicle: e.closing.vehicle, days: e.daysToClose, total: 0, incomplete: 0 }
+      c.total += 1
+      if (!e.complete) c.incomplete += 1
+      byClosing.set(e.closing.id, c)
+    }
+    return Array.from(byClosing.values()).sort((a, b) => a.days - b.days)
   }, [data])
 
   async function toggleKind(kind: OnboardingKind) {
@@ -231,6 +246,21 @@ export function LpOnboardingSettings() {
       </div>
       {requestResult && <div className="text-xs text-success">{requestResult}</div>}
 
+      {upcoming.length > 0 && (
+        <div className="rounded-md border bg-muted/20 px-3 py-2 text-xs space-y-1">
+          {upcoming.map(c => (
+            <div key={`${c.vehicle}-${c.name}`} className="flex flex-wrap items-center gap-x-2">
+              <span className="font-medium">{c.name}</span>
+              <span className="text-muted-foreground">{c.vehicle} · {fmtDate(c.closeDate)} · {c.days === 0 ? 'today' : `in ${c.days} day${c.days === 1 ? '' : 's'}`}</span>
+              <span className={`tabular-nums ${c.incomplete > 0 ? 'text-destructive' : 'text-success'}`}>
+                {c.incomplete > 0 ? `${c.incomplete} of ${c.total} not complete` : `all ${c.total} complete`}
+              </span>
+            </div>
+          ))}
+          <div className="text-muted-foreground">Closings and who is admitted at each are set on the vehicle&apos;s Allocation terms page.</div>
+        </div>
+      )}
+
       {/* Entities */}
       {rows.length === 0 ? (
         <div className="text-xs text-muted-foreground">{data.entities.length === 0 ? 'No LP entities yet. Entities come from LP capital tracking or the ledger.' : 'Nothing matches this filter.'}</div>
@@ -248,6 +278,12 @@ export function LpOnboardingSettings() {
                     <div className="text-[11px] text-muted-foreground truncate">
                       {e.investorName && e.investorName !== e.name ? `${e.investorName} · ` : ''}
                       {e.accountStatus === 'active' ? 'Portal active' : e.accountStatus === 'invited' ? 'Invited, not yet activated' : 'No portal account'}
+                      {e.closing && (
+                        <span className={e.daysToClose !== null && e.daysToClose >= 0 && !e.complete && e.daysToClose <= 14 ? ' text-destructive' : ''}>
+                          {' · '}{e.closing.name} {fmtDate(e.closing.closeDate)}
+                          {e.daysToClose !== null && (e.daysToClose < 0 ? ' (closed)' : e.daysToClose === 0 ? ' (today)' : ` (in ${e.daysToClose}d)`)}
+                        </span>
+                      )}
                     </div>
                   </div>
                   <div className="hidden sm:flex flex-wrap gap-1 justify-end max-w-[55%]">

@@ -151,6 +151,7 @@ export const ROUTE_DOMAINS: Record<string, RouteAccess> = {
   // The outbound mirror of capital-calls, and the same per-partner capital data.
   'api/accounting/distributions': { domain: 'lp_capital' },
   'api/accounting/commitments': { domain: 'lp_capital' },
+  'api/accounting/closings': { domain: 'lp_capital' },
   // Book-to-tax adjustments. `accounting` rather than `lp_capital`: the payload is fund-level
   // difference amounts and the entries they produce, not per-partner figures — the per-partner
   // split arrives with the K-1 allocation. Gated on `tax_reporting` so a fund keeping books but
