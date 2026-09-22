@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { dbError } from '@/lib/api-error'
+import { logLpAccessEvent } from '@/lib/lp-access-log'
 
 /**
  * Bind + activate the signed-in user's LP account (called at the end of portal
@@ -61,6 +62,18 @@ export async function POST() {
     .update({ auth_user_id: user.id, status: 'active', updated_at: new Date().toISOString() })
     .eq('id', account.id)
   if (error) return dbError(error, 'portal-activate')
+
+  // The first sign-in is the activation itself, and it does not pass through the portal layout's
+  // throttled visit logger before the welcome page redirects — so record it here, per fund the
+  // account is linked to, as the login it is.
+  const { data: links } = await (admin as any).from('lp_account_links').select('fund_id').eq('lp_account_id', account.id)
+  const fundIds = Array.from(new Set(((links ?? []) as { fund_id: string }[]).map(l => l.fund_id)))
+  for (const fundId of fundIds) {
+    await logLpAccessEvent(admin, {
+      fundId, lpAccountId: account.id, authUserId: user.id,
+      eventType: 'login', targetType: 'portal', metadata: { activation: true },
+    })
+  }
 
   return NextResponse.json({ ok: true })
 }

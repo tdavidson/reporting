@@ -1,0 +1,173 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
+import { resolveLpAccess } from '@/lib/api-helpers'
+import { dbError } from '@/lib/api-error'
+import { rateLimit } from '@/lib/rate-limit'
+import {
+  buildOnboardingMatrix, normalizeKinds, isOnboardingKind, onboardingStoragePrefix,
+  DEFAULT_ONBOARDING_KINDS, ONBOARDING_KIND_LABEL, ONBOARDING_KIND_HELP, ONBOARDING_MAX_UPLOAD_BYTES, ONBOARDING_ALLOWED_MIME,
+  type OnboardingEntity, type OnboardingItemRow,
+} from '@/lib/lp-onboarding'
+
+/**
+ * LP portal — the LP's own onboarding checklist, and the one write an LP makes to the platform.
+ *
+ *   GET  → their entities, each with the fund's required items: status, the fund's note when
+ *          something was sent back, and the document they uploaded (viewable through the usual
+ *          /api/portal/documents/[id], which already checks the share).
+ *   POST { lp_entity_id, kind, storage_path, file_name, mime_type?, size_bytes? }
+ *        → record an upload the browser just made to the signed URL from ./upload-url. The
+ *          entity must be one of the LP's; the path must be inside that entity's onboarding
+ *          folder (the server issued it, so anything else is a forged body); the file becomes an
+ *          lp_documents row scoped to that investor alone, and the item goes to 'submitted'.
+ *
+ * What this deliberately does NOT do: extract the file's text. Every other LP document is
+ * text-indexed for the portal Analyst. A W-9 or a passport scan is not a document to make
+ * searchable — the tax-forms table refuses to hold a full TIN for the same reason.
+ */
+
+type LpCtx =
+  | { error: NextResponse; admin?: undefined; user?: undefined; lpAccountId?: undefined; investorIds?: undefined }
+  | { error?: undefined; admin: any; user: { id: string; email?: string }; lpAccountId: string; investorIds: string[] }
+
+async function ctx(): Promise<LpCtx> {
+  const supabase = await createClient()
+  const admin = createAdminClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) }
+  const access = await resolveLpAccess(admin, user.id)
+  if (access instanceof NextResponse) return { error: access }
+  return { admin: admin as any, user, ...access }
+}
+
+/** The LP's entities in funds whose portal is on, with the fund's requirement set. */
+async function loadEntities(admin: any, investorIds: string[]) {
+  if (investorIds.length === 0) return { entities: [] as any[], kindsByFund: new Map<string, string[]>() }
+  const { data: ents } = await admin
+    .from('lp_entities').select('id, fund_id, entity_name, investor_id, lp_investors(name)')
+    .in('investor_id', investorIds).order('entity_name')
+  const fundIds = Array.from(new Set(((ents ?? []) as any[]).map(e => e.fund_id as string)))
+  if (fundIds.length === 0) return { entities: [] as any[], kindsByFund: new Map<string, string[]>() }
+  const { data: settings } = await admin.from('fund_settings').select('fund_id, lp_portal_enabled, lp_onboarding_kinds').in('fund_id', fundIds)
+  const kindsByFund = new Map<string, string[]>()
+  for (const s of (settings ?? []) as any[]) {
+    if (!s.lp_portal_enabled) continue
+    kindsByFund.set(s.fund_id, s.lp_onboarding_kinds == null ? DEFAULT_ONBOARDING_KINDS : normalizeKinds(s.lp_onboarding_kinds))
+  }
+  return { entities: ((ents ?? []) as any[]).filter(e => kindsByFund.has(e.fund_id)), kindsByFund }
+}
+
+export async function GET(): Promise<NextResponse> {
+  const c = await ctx()
+  if (c.error) return c.error
+  const { admin, investorIds } = c
+
+  const { entities, kindsByFund } = await loadEntities(admin, investorIds)
+  if (entities.length === 0) return NextResponse.json({ entities: [] })
+
+  const { data: items } = await admin
+    .from('lp_onboarding_items')
+    .select('id, lp_entity_id, kind, status, document_id, submitted_at, reviewed_at, expires_on, note')
+    .in('lp_entity_id', entities.map(e => e.id))
+
+  // Fund names, for an LP in more than one.
+  const fundIds = Array.from(new Set(entities.map(e => e.fund_id as string)))
+  const { data: funds } = await admin.from('funds').select('id, name').in('id', fundIds)
+  const fundName = new Map<string, string>(((funds ?? []) as any[]).map(f => [f.id, f.name]))
+
+  // One matrix per fund, since each fund has its own requirement set.
+  const out: any[] = []
+  for (const fundId of fundIds) {
+    const list: OnboardingEntity[] = entities.filter(e => e.fund_id === fundId).map(e => ({
+      id: e.id, name: e.entity_name, investorId: e.investor_id, investorName: e.lp_investors?.name ?? '',
+    }))
+    const rows = buildOnboardingMatrix(list, kindsByFund.get(fundId) as any, (items ?? []) as OnboardingItemRow[])
+    for (const r of rows) {
+      out.push({
+        id: r.id, name: r.name, fundName: fundName.get(fundId) ?? '', outstanding: r.outstanding, complete: r.complete,
+        items: r.items.map(i => ({
+          kind: i.kind, label: i.label, help: ONBOARDING_KIND_HELP[i.kind], status: i.status, expired: i.expired,
+          documentId: i.documentId, submittedAt: i.submittedAt, reviewedAt: i.reviewedAt, expiresOn: i.expiresOn,
+          // The fund's note is for the LP only when the item was sent back or waived.
+          note: i.status === 'rejected' || i.status === 'waived' ? i.note : null,
+        })),
+      })
+    }
+  }
+  return NextResponse.json({ entities: out, maxBytes: ONBOARDING_MAX_UPLOAD_BYTES })
+}
+
+export async function POST(req: NextRequest): Promise<NextResponse> {
+  const c = await ctx()
+  if (c.error) return c.error
+  const { admin, user, investorIds, lpAccountId } = c
+
+  const limited = await rateLimit({ key: `lp-onboarding:${user.id}`, limit: 30, windowSeconds: 600 })
+  if (limited) return limited
+
+  const body = await req.json().catch(() => ({}))
+  const entityId = typeof body.lp_entity_id === 'string' ? body.lp_entity_id : ''
+  const kind = body.kind
+  const storagePath = typeof body.storage_path === 'string' ? body.storage_path : ''
+  const fileName = typeof body.file_name === 'string' ? body.file_name.trim().slice(0, 200) : ''
+  const mimeType = typeof body.mime_type === 'string' ? body.mime_type : null
+  const sizeBytes = typeof body.size_bytes === 'number' && Number.isFinite(body.size_bytes) ? Math.max(0, Math.floor(body.size_bytes)) : null
+  if (!entityId) return NextResponse.json({ error: 'lp_entity_id is required' }, { status: 400 })
+  if (!isOnboardingKind(kind)) return NextResponse.json({ error: 'Unknown document kind' }, { status: 400 })
+  if (!storagePath || !fileName) return NextResponse.json({ error: 'storage_path and file_name are required' }, { status: 400 })
+  if (mimeType && !ONBOARDING_ALLOWED_MIME.has(mimeType)) return NextResponse.json({ error: 'Upload a PDF, an image, or a Word document.' }, { status: 400 })
+  if (sizeBytes != null && sizeBytes > ONBOARDING_MAX_UPLOAD_BYTES) return NextResponse.json({ error: 'That file is too large (25 MB max).' }, { status: 400 })
+
+  // The entity must be one of the LP's own, in a fund whose portal is on.
+  const { entities, kindsByFund } = await loadEntities(admin, investorIds)
+  const entity = entities.find(e => e.id === entityId)
+  if (!entity) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  const fundId = entity.fund_id as string
+
+  // The server issued the path (./upload-url) inside this entity's folder. A body naming any
+  // other path is not an upload we made a URL for.
+  const prefix = onboardingStoragePrefix(fundId, entityId)
+  if (!storagePath.startsWith(prefix) || storagePath.includes('..')) return NextResponse.json({ error: 'Invalid storage path' }, { status: 400 })
+
+  // It has to be there: recording a path nothing was uploaded to would show the fund a file it
+  // cannot open.
+  const { data: listing } = await admin.storage.from('lp-documents').list(prefix.slice(0, -1), { search: storagePath.slice(prefix.length) })
+  const present = ((listing ?? []) as any[]).some(o => `${prefix}${o.name}` === storagePath)
+  if (!present) return NextResponse.json({ error: 'The upload did not complete. Try again.' }, { status: 400 })
+
+  const kinds = kindsByFund.get(fundId) ?? []
+  const title = `${ONBOARDING_KIND_LABEL[kind]} — ${entity.entity_name}`
+  const now = new Date().toISOString()
+
+  const { data: doc, error: docErr } = await admin
+    .from('lp_documents')
+    .insert({
+      fund_id: fundId, title, file_name: fileName, storage_path: storagePath, mime_type: mimeType, size_bytes: sizeBytes,
+      scope: 'investor', category: 'Onboarding', doc_date: now.slice(0, 10), uploaded_by: user.id,
+    })
+    .select('id').single()
+  if (docErr || !doc) return dbError(docErr ?? { message: 'Insert failed' }, 'portal-onboarding')
+  await admin.from('lp_document_shares').insert({ document_id: doc.id, lp_investor_id: entity.investor_id, fund_id: fundId })
+
+  // A fresh upload replaces whatever review state was there: sent back → submitted again.
+  const { data: item, error: itemErr } = await admin
+    .from('lp_onboarding_items')
+    .upsert({
+      fund_id: fundId, lp_entity_id: entityId, kind, status: 'submitted', document_id: doc.id,
+      submitted_by_account: lpAccountId, submitted_at: now, reviewed_by: null, reviewed_at: null, expires_on: null, note: null, updated_at: now,
+    }, { onConflict: 'fund_id,lp_entity_id,kind' })
+    .select('id, status').single()
+  if (itemErr) return dbError(itemErr, 'portal-onboarding')
+
+  // Tell the fund the way the portal already tells it things: a message in the LP inbox.
+  const { data: acct } = await admin.from('lp_accounts').select('email').eq('id', lpAccountId).maybeSingle()
+  await admin.from('lp_messages').insert({
+    fund_id: fundId, lp_account_id: lpAccountId, lp_investor_id: entity.investor_id, from_email: acct?.email ?? user.email ?? null,
+    subject: `Onboarding upload: ${ONBOARDING_KIND_LABEL[kind]}`,
+    body: `${entity.entity_name} uploaded "${fileName}" for ${ONBOARDING_KIND_LABEL[kind]}${kinds.includes(kind) ? '' : ' (not in your current requirement set)'}. Review it under LP Portal → Onboarding.`,
+    direction: 'inbound', status: 'open',
+  })
+
+  return NextResponse.json({ ok: true, documentId: doc.id, item })
+}

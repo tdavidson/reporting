@@ -9,7 +9,7 @@ import { extractFromBuffer } from '@/lib/parsing/extractAttachmentText'
  * Admin-only LP document management (gap 2).
  *
  *   GET  → the fund's documents (with their per-investor assignments).
- *   POST { title, file_name, storage_path, mime_type?, size_bytes?, scope, lp_investor_ids?, vehicle? }
+ *   POST { title, file_name, storage_path, mime_type?, size_bytes?, scope, lp_investor_ids?, vehicle?, index? }
  *        → record an uploaded file. scope 'fund' = all LPs; 'investor' = the
  *          listed investors only (verified to belong to this fund); 'vehicle' =
  *          every investor in the named investment vehicle (portfolio_group),
@@ -103,6 +103,9 @@ export async function POST(req: NextRequest) {
 
   // Best-effort: cache extracted text so the LP-portal analyst can read this
   // document. Failure never blocks the upload — the analyst just skips it.
+  // `index: false` opts out: an onboarding document (a W-9, a passport scan) is
+  // not one to make searchable, and its identifiers stay in the file alone.
+  if (body.index === false) return NextResponse.json({ ok: true, id: doc.id })
   try {
     const { data: file } = await admin.storage.from('lp-documents').download(storagePath)
     if (file) {

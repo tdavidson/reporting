@@ -221,6 +221,9 @@ export const ROUTE_DOMAINS: Record<string, RouteAccess> = {
   'api/lps/documents/upload-url': { domain: 'lp_relations', feature: 'lp_portal' },
   'api/lps/invites': { domain: 'lp_relations', feature: 'lp_portal' },
   'api/lps/invites/bulk': { domain: 'lp_relations', feature: 'lp_portal' },
+  'api/lps/invites/resend': { domain: 'lp_relations', feature: 'lp_portal' },
+  'api/lps/onboarding': { domain: 'lp_relations', feature: 'lp_portal' },
+  'api/lps/onboarding/request': { domain: 'lp_relations', feature: 'lp_portal' },
   'api/lps/messages': { domain: 'lp_relations', feature: 'lp_portal' },
   // The delivery log: which LP was emailed which notice, statement, letter or document.
   'api/lps/deliveries': { domain: 'lp_relations', feature: 'lp_portal' },
@@ -546,6 +549,8 @@ export const UNGATED_ROUTES: Record<string, string> = {
   'api/portal/messages': 'LP portal: resolveLpAccess.',
   'api/portal/notices': 'LP portal: resolveLpAccess.',
   'api/portal/notices/ack': 'LP portal: resolveLpAccess.',
+  'api/portal/onboarding': 'LP portal: resolveLpAccess.',
+  'api/portal/onboarding/upload-url': 'LP portal: resolveLpAccess.',
   'api/portal/overview': 'LP portal: resolveLpAccess.',
   'api/portal/snapshots': 'LP portal: resolveLpAccess.',
   'api/portal/snapshots/[id]': 'LP portal: resolveLpAccess.',

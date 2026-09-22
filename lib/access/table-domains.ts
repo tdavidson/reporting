@@ -199,6 +199,7 @@ export const TABLE_RULES: Record<string, TableRule> = {
   lp_letter_shares: { scope: 'fund', domain: 'lp_relations', feature: 'lp_letters' },
   lp_documents: { scope: 'fund', domain: 'lp_relations', feature: 'lp_portal' },
   lp_document_shares: { scope: 'fund', domain: 'lp_relations', feature: 'lp_portal' },
+  lp_onboarding_items: { scope: 'fund', domain: 'lp_relations', feature: 'lp_portal' },
   lp_snapshot_shares: { scope: 'fund', domain: 'lp_relations', feature: 'lp_portal' },
   lp_live_report_shares: { scope: 'fund', domain: 'lp_relations', feature: 'lp_portal' },
   lp_messages: { scope: 'fund', domain: 'lp_relations', feature: 'lp_portal' },

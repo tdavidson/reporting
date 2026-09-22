@@ -104,8 +104,9 @@ Now that you have your deployed URL, go back to the Supabase dashboard:
 1. **Authentication > URL Configuration**:
    - Set **Site URL** to your deployed URL (e.g. `https://reporting.yourfund.com` or your Netlify or Vercel deployment URLs)
    - Add `https://reporting.yourfund.com/**` to **Redirect URLs** (the `/**` wildcard is important)
-2. **Authentication > Email Templates** (optional): Supabase sends auth emails (confirmations, password resets, magic links) using a built-in email service. For production, configure a custom SMTP provider in **Project Settings > Auth > SMTP Settings** so emails come from your domain instead of Supabase's default.
-3. **Authentication > Hooks**: Enable the **Before User Created** hook to enforce the signup whitelist at the database level. Select **Postgres Function** and choose `hook_before_user_created`. This prevents direct signups that bypass the API whitelist check.
+2. **Authentication > Email Templates**: Supabase sends auth emails (confirmations, password resets, magic links, LP invites) using a built-in email service. Copy the templates from `supabase/templates/` into the dashboard — the **Invite user** template is required if you will use the LP portal, because it is what points an invited LP at `/portal/welcome`; Supabase's default template does not. For production, configure a custom SMTP provider in **Project Settings > Auth > SMTP Settings** so emails come from your domain instead of Supabase's default. The built-in mailer allows only a handful of emails an hour, which is not enough to invite a fund's LPs.
+3. **Authentication > Providers > Email**: leave **Confirm email** on. LP portal activation binds a login to an invited account by email address, and that is only safe once the address has been confirmed (see `app/api/portal/activate/route.ts`).
+4. **Authentication > Hooks**: Enable the **Before User Created** hook to enforce the signup whitelist at the database level. Select **Postgres Function** and choose `hook_before_user_created`. This prevents direct signups that bypass the API whitelist check.
 
 ### Step 6: Allow your first user to sign up
 
@@ -231,6 +232,26 @@ Admins and team members can enable TOTP-based two-factor authentication from the
 ### Optional: Invite team members
 
 In **Settings > Team**, your team members can sign up (if their email matches the whitelist or your fund's email domain) and request to join. Admins approve requests and can assign admin or member roles.
+
+### Onboarding LPs to the portal
+
+The LP portal is off until an admin turns on **LPs → LP portal** in Settings → Feature visibility, and an LP can only get in by invitation. The whole flow, from the fund's side:
+
+**Prerequisites.** The invite email template and email confirmation from Step 5, and an outbound email provider (Settings → Email) — Supabase's own mailer refuses to re-invite an address it already knows and is rate-limited to a few sends an hour, so the platform falls back to your provider for resends, for LPs who already have a login, and for bulk invites.
+
+**1. Invite.** On **LP Portal → Access**, invite one LP (pick the investor, enter the email) or paste a sheet with investor name, email, and optionally authorized-user emails. Investors are matched by name and created when new; the preview shows exactly what will be sent before anything goes out. Each invite is one email with a link that does not expire. The result says whether the email actually went out; a send that failed is listed with the reason.
+
+**2. The LP activates.** The link opens `/portal/welcome`, where the LP confirms their email, receives a six-digit code, enters it, and chooses a password. From then on they sign in at `/auth` like anyone else and are routed to the portal. An LP who lost the email can ask for a new code from the welcome page; you can also **Resend** from the accounts list.
+
+**3. The accounts list** on the same page shows every account linked to your investors: invited, active or disabled, when they last signed in, and whether the last invite was delivered. **Disable** an LP who has left — they and their authorized users lose the portal at their next request and stop receiving LP emails; **Re-enable** puts an activated account back, or a never-activated one back to invited. Removing the link detaches the account from that investor without touching the account itself.
+
+**Authorized users** — an LP's advisor or accountant — are invited the same way, against a specific investor, and get read-only access to that investor's data. The LP sees and can revoke them from their own portal Settings; the fund can from Access. They are Cc'd on every email to their LP.
+
+**4. Onboarding documents.** Signing happens outside the platform. What the platform keeps is the record: on **LP Portal → Onboarding**, tick the documents your fund requires of every LP entity (subscription agreement, LPA signature page, W-9 / W-8, identity and entity KYC, beneficial ownership, accreditation, wire instructions, side letter). Every entity then shows where it stands on each: outstanding, awaiting review, verified, sent back, or waived. LPs upload executed copies from the **Onboarding** tab of their portal (PDF, image or Word, 25 MB max); each upload lands in your LP inbox and here as *awaiting review*. Review it, then **Verify** (optionally with an expiry date — a W-8 lapses after three calendar years, and an expired item counts as outstanding again), **Send back** with a note the LP sees, or **Waive** it for that entity. You can also upload on an LP's behalf, which marks the item verified. **Request outstanding** emails each LP a list of what their entities still owe, with a link to upload, after a preview of every address.
+
+A document uploaded this way is scoped to that investor alone: it shows in their portal's Onboarding and Documents tabs and nobody else's. It is not text-indexed for the portal Analyst, on purpose. Tax forms are the one item with facts to record beyond the file: once a W-9 or W-8 is verified, record its type, classification, and the last four digits of the TIN on the vehicle's **Tax** page, which is what gates K-1 issuance. The full taxpayer identification number is never stored outside the signed form.
+
+**What the platform still does not do.** It does not run KYC or AML screening against a provider, does not generate or send subscription documents for signature, and has no closing or admission date — commitments are entered on the accounting Commitments page or from a pasted position. Those are the next things to add if you need them.
 
 ### Install as an app (PWA)
 

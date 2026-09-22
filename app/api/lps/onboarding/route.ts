@@ -1,0 +1,156 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
+// lp_relations domain (lib/access/route-domains.ts). The middleware has already checked the grant.
+import { assertReadAccess, assertWriteAccess } from '@/lib/api-helpers'
+import { dbError } from '@/lib/api-error'
+import {
+  buildOnboardingMatrix, normalizeKinds, isOnboardingKind, isOnboardingStatus, REVIEW_STATUSES,
+  DEFAULT_ONBOARDING_KINDS, ONBOARDING_KINDS, ONBOARDING_KIND_LABEL,
+  type OnboardingEntity, type OnboardingItemRow,
+} from '@/lib/lp-onboarding'
+
+/**
+ * The fund's side of LP onboarding.
+ *
+ *   GET   → the checklist: every entity in the fund against the fund's required kinds, with each
+ *           item's status, document and note; plus the requirement set and whether each entity's
+ *           investor has a portal account (an entity with nobody to email cannot upload).
+ *   PUT   { kinds: OnboardingKind[] } → set the fund's requirement set.
+ *   PATCH { lp_entity_id, kind, status, note?, expires_on?, document_id? }
+ *         → review an item: verify, reject (with a note the LP sees), waive, or put it back to
+ *           outstanding. `document_id` attaches a file the fund uploaded on the LP's behalf
+ *           (through /api/lps/documents, scoped to that investor) — it must belong to this fund.
+ *
+ * Reads through the service-role client with manual fund scoping, like every LP route.
+ */
+
+export async function GET(): Promise<NextResponse> {
+  const supabase = await createClient()
+  const admin = createAdminClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const gate = await assertReadAccess(admin, user.id)
+  if (gate instanceof NextResponse) return gate
+  const fundId = gate.fundId
+  const a = admin as any
+
+  const [{ data: fs }, { data: entities, error: entErr }, { data: items }, { data: links }] = await Promise.all([
+    a.from('fund_settings').select('lp_onboarding_kinds, lp_portal_enabled').eq('fund_id', fundId).maybeSingle(),
+    a.from('lp_entities').select('id, entity_name, investor_id, lp_investors(name)').eq('fund_id', fundId).order('entity_name'),
+    a.from('lp_onboarding_items').select('id, lp_entity_id, kind, status, document_id, submitted_at, reviewed_at, expires_on, note').eq('fund_id', fundId),
+    a.from('lp_account_links').select('lp_investor_id, lp_accounts(status)').eq('fund_id', fundId),
+  ])
+  if (entErr) return dbError(entErr, 'lps-onboarding')
+
+  const kinds = fs?.lp_onboarding_kinds == null ? DEFAULT_ONBOARDING_KINDS : normalizeKinds(fs.lp_onboarding_kinds)
+  const list: OnboardingEntity[] = ((entities ?? []) as any[]).map(e => ({
+    id: e.id, name: e.entity_name, investorId: e.investor_id, investorName: e.lp_investors?.name ?? '',
+  }))
+  const rows = buildOnboardingMatrix(list, kinds, (items ?? []) as OnboardingItemRow[])
+
+  // Which investors can actually be asked: one with an account that is invited or active.
+  const accountByInvestor = new Map<string, string>()
+  for (const l of (links ?? []) as any[]) {
+    const st = l.lp_accounts?.status as string | undefined
+    if (!st || st === 'disabled') continue
+    const prev = accountByInvestor.get(l.lp_investor_id)
+    if (prev !== 'active') accountByInvestor.set(l.lp_investor_id, st)
+  }
+
+  // Titles for the attached documents, for the review list.
+  const docIds = rows.flatMap(r => r.items.map(i => i.documentId)).filter((x): x is string => !!x)
+  const titles = new Map<string, { title: string; file_name: string; mime_type: string | null }>()
+  if (docIds.length) {
+    const { data: docs } = await a.from('lp_documents').select('id, title, file_name, mime_type').in('id', docIds)
+    for (const d of (docs ?? []) as any[]) titles.set(d.id, { title: d.title, file_name: d.file_name, mime_type: d.mime_type })
+  }
+
+  return NextResponse.json({
+    portalEnabled: !!fs?.lp_portal_enabled,
+    kinds,
+    allKinds: ONBOARDING_KINDS.map(k => ({ kind: k, label: ONBOARDING_KIND_LABEL[k] })),
+    entities: rows.map(r => ({
+      ...r,
+      accountStatus: accountByInvestor.get(r.investorId) ?? null,
+      items: r.items.map(i => ({ ...i, document: i.documentId ? (titles.get(i.documentId) ?? null) : null })),
+    })),
+  })
+}
+
+export async function PUT(req: NextRequest): Promise<NextResponse> {
+  const supabase = await createClient()
+  const admin = createAdminClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const gate = await assertWriteAccess(admin, user.id)
+  if (gate instanceof NextResponse) return gate
+
+  const body = await req.json().catch(() => ({}))
+  if (!Array.isArray(body.kinds)) return NextResponse.json({ error: 'kinds must be a list' }, { status: 400 })
+  const bad = body.kinds.filter((k: unknown) => !isOnboardingKind(k))
+  if (bad.length) return NextResponse.json({ error: `Unknown kind: ${String(bad[0])}` }, { status: 400 })
+  const kinds = normalizeKinds(body.kinds)
+
+  const { error } = await (admin as any)
+    .from('fund_settings')
+    .upsert({ fund_id: gate.fundId, lp_onboarding_kinds: kinds }, { onConflict: 'fund_id' })
+  if (error) return dbError(error, 'lps-onboarding')
+  return NextResponse.json({ ok: true, kinds })
+}
+
+export async function PATCH(req: NextRequest): Promise<NextResponse> {
+  const supabase = await createClient()
+  const admin = createAdminClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const gate = await assertWriteAccess(admin, user.id)
+  if (gate instanceof NextResponse) return gate
+  const fundId = gate.fundId
+  const a = admin as any
+
+  const body = await req.json().catch(() => ({}))
+  const entityId = typeof body.lp_entity_id === 'string' ? body.lp_entity_id : ''
+  const kind = body.kind
+  const status = body.status
+  if (!entityId) return NextResponse.json({ error: 'lp_entity_id is required' }, { status: 400 })
+  if (!isOnboardingKind(kind)) return NextResponse.json({ error: 'Unknown kind' }, { status: 400 })
+  if (!isOnboardingStatus(status) || !REVIEW_STATUSES.includes(status)) {
+    return NextResponse.json({ error: `status must be one of ${REVIEW_STATUSES.join(', ')}` }, { status: 400 })
+  }
+  const note = typeof body.note === 'string' ? body.note.trim().slice(0, 2000) : null
+  const expiresOn = typeof body.expires_on === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(body.expires_on) ? body.expires_on : null
+  if (status === 'rejected' && !note) return NextResponse.json({ error: 'Say why it was sent back — the LP sees the note.' }, { status: 400 })
+
+  // The entity must be this fund's. Never trust the body's scope.
+  const { data: entity } = await a.from('lp_entities').select('id').eq('id', entityId).eq('fund_id', fundId).maybeSingle()
+  if (!entity) return NextResponse.json({ error: 'Entity not found in your fund' }, { status: 404 })
+
+  // A document attached here was uploaded through /api/lps/documents; it must be this fund's too,
+  // or an id from another fund would be filed against this partner.
+  let documentId: string | null | undefined = undefined
+  if (body.document_id === null) documentId = null
+  else if (typeof body.document_id === 'string' && body.document_id) {
+    const { data: doc } = await a.from('lp_documents').select('id').eq('id', body.document_id).eq('fund_id', fundId).maybeSingle()
+    if (!doc) return NextResponse.json({ error: 'Document not found in your fund' }, { status: 404 })
+    documentId = doc.id
+  }
+
+  const now = new Date().toISOString()
+  const row: Record<string, unknown> = {
+    fund_id: fundId, lp_entity_id: entityId, kind, status,
+    note, expires_on: expiresOn,
+    reviewed_by: user.id, reviewed_at: now, updated_at: now,
+  }
+  if (documentId !== undefined) row.document_id = documentId
+  // Back to outstanding clears the review, not the file: the LP can see what they sent.
+  if (status === 'outstanding') { row.reviewed_by = null; row.reviewed_at = null; row.expires_on = null }
+
+  const { data: saved, error } = await a
+    .from('lp_onboarding_items')
+    .upsert(row, { onConflict: 'fund_id,lp_entity_id,kind' })
+    .select('id, status, document_id, note, expires_on, reviewed_at')
+    .single()
+  if (error) return dbError(error, 'lps-onboarding')
+  return NextResponse.json({ ok: true, item: saved })
+}
