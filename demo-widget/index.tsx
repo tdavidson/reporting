@@ -36,6 +36,8 @@ export interface MountOptions {
   onMiss?: (key: string) => void
   /** `card` (default): a bordered frame of fixed height. `page`: fills the mount element. */
   chrome?: 'card' | 'page'
+  /** Fires once the first page is in the DOM: a host showing prerendered HTML swaps it out here. */
+  onReady?: () => void
 }
 
 export function mount(el: HTMLElement, opts: MountOptions): { unmount: () => void; navigate: (href: string) => void } {
@@ -59,6 +61,7 @@ export function mount(el: HTMLElement, opts: MountOptions): { unmount: () => voi
       onNavigate={opts.onNavigate}
       exposeNavigate={fn => { navigateTo = fn }}
       chrome={opts.chrome}
+      onReady={opts.onReady}
     />,
   )
   // The other sections, while the visitor reads the first page.

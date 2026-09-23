@@ -120,6 +120,17 @@ fs.rmSync(path.join(dist, 'tw.css'))
 for (const f of ['snapshot.json', 'answers.json', 'pages.json', 'api.json']) fs.copyFileSync(path.join(here, 'data', f), path.join(dist, f))
 const chunks = fs.readdirSync(dist).filter(f => /^chunk-[A-Z0-9]+\.js$/i.test(f)).sort()
 const snapshot = JSON.parse(fs.readFileSync(path.join(dist, 'snapshot.json'), 'utf8'))
+
+// Every URL the widget serves for this data, for the site's build to prerender and the scripts
+// to walk. The table is data (route-table.ts), so it runs in Node without a browser.
+const tableBuild = await build({
+  entryPoints: [path.join(here, 'route-table.ts')], write: false, bundle: true, format: 'esm', platform: 'node', target: ['node20'],
+  tsconfig: path.join(root, 'tsconfig.json'), logLevel: 'warning',
+})
+const tableUrl = `data:text/javascript;base64,${Buffer.from(tableBuild.outputFiles[0].text).toString('base64')}`
+const { allHrefs } = await import(tableUrl)
+const routes = allHrefs(snapshot, JSON.parse(fs.readFileSync(path.join(dist, 'pages.json'), 'utf8')))
+fs.writeFileSync(path.join(dist, 'routes.json'), JSON.stringify(routes, null, 1) + '\n')
 const answers = JSON.parse(fs.readFileSync(path.join(dist, 'answers.json'), 'utf8'))
 const manifest = {
   name: 'otheradmin-demo-widget',
@@ -129,7 +140,7 @@ const manifest = {
   answersSchemaVersion: answers.schemaVersion,
   answersGeneratedBy: answers.generatedBy,
   global: 'OtherAdminDemo',
-  files: ['widget.js', ...chunks, 'widget.css', 'snapshot.json', 'answers.json', 'pages.json', 'api.json'],
+  files: ['widget.js', ...chunks, 'widget.css', 'snapshot.json', 'answers.json', 'pages.json', 'api.json', 'routes.json'],
 }
 fs.writeFileSync(path.join(dist, 'manifest.json'), JSON.stringify(manifest, null, 2))
 fs.rmSync(path.join(dist, 'content-files.json'))

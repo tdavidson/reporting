@@ -3,15 +3,15 @@ import { readdirSync, statSync, existsSync } from 'node:fs'
 import path from 'node:path'
 import { PAGE_LOADERS, matchPattern } from '@/lib/pages/registry'
 
+import { ROUTES } from './route-table'
+
 /**
- * The demo's route table against the app, as text: this file never imports demo-widget/routes.tsx
- * (that pulls in every page component, which vitest's node environment cannot render) — it reads
- * the pattern strings out of it, so a page added to the app without a demo route, or a loader
- * without a route to show its data, fails here rather than silently rendering "not in the demo".
+ * The demo's route table against the app. route-table.ts is data — no page component is
+ * imported — so a page added to the app without a demo route, or a loader without a route to
+ * show its data, fails here rather than silently rendering "not in the demo".
  */
 const APP_DIR = path.resolve(__dirname, '..', 'app', '(app)')
-const source = require('node:fs').readFileSync(path.join(__dirname, 'routes.tsx'), 'utf8')
-const patterns = [...source.matchAll(/pattern: '([^']+)'/g)].map(m => m[1])
+const patterns = ROUTES.map(r => r.pattern)
 
 /** Pages the demo deliberately leaves out: admin-only, redirects, or flows that need a signed-in user. */
 const NOT_IN_DEMO: Record<string, string> = {

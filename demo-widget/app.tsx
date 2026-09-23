@@ -43,6 +43,8 @@ export interface DemoAppProps {
   onNavigate?: (href: string) => void
   /** Hands the host the widget's `navigate`, for `mount().navigate`. */
   exposeNavigate?: (navigate: (href: string) => void) => void
+  /** Fires once the first page has been committed to the DOM. */
+  onReady?: () => void
   /**
    * `card`: a bordered, fixed-height frame to sit inside a page of prose. `page`: fills the
    * element it is mounted in, no border — the host gives it the viewport and the demo is the page.
@@ -50,7 +52,7 @@ export interface DemoAppProps {
   chrome?: 'card' | 'page'
 }
 
-export function DemoApp({ data, fetch, initialPath = '/dashboard', onNavigate, exposeNavigate, chrome = 'card' }: DemoAppProps) {
+export function DemoApp({ data, fetch, initialPath = '/dashboard', onNavigate, exposeNavigate, onReady, chrome = 'card' }: DemoAppProps) {
   const [loc, setLoc] = useState<Location>(() => parse(initialPath))
   const frame = useRef<HTMLDivElement>(null)
 
@@ -65,6 +67,7 @@ export function DemoApp({ data, fetch, initialPath = '/dashboard', onNavigate, e
   }, [onNavigate])
 
   useEffect(() => { exposeNavigate?.(navigate) }, [navigate, exposeNavigate])
+  useEffect(() => { onReady?.() }, [onReady])
 
   // The first location, before any effect in a page reads it.
   useMemo(() => {
@@ -97,7 +100,7 @@ export function DemoApp({ data, fetch, initialPath = '/dashboard', onNavigate, e
     <RouteScreen
       ctx={{
         pathname: loc.pathname,
-        href: loc.pathname,
+        href: loc.pathname === '/' ? '/dashboard' : loc.pathname,
         pattern: match?.route.pattern ?? '',
         params: match?.params ?? {},
         query: new URLSearchParams(loc.search),
