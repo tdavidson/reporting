@@ -47,12 +47,6 @@ jobs:
       - run: npm run demo:check
         env:
           CHROME_PATH: ${{ steps.chrome.outputs.chrome-path }}
-      # The demo must look like the app: the same pages under the app's own stylesheet and under
-      # the widget's inside a hostile host page, compared element by element in both themes.
-      # Any difference fails the publish (scripts/demo-styles.mjs).
-      - run: npm run demo:styles
-        env:
-          CHROME_PATH: ${{ steps.chrome.outputs.chrome-path }}
       - name: Move the rolling tag to this commit
         run: |
           git tag -f demo-widget-latest

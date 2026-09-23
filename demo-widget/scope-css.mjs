@@ -64,6 +64,7 @@ const px = n => `${+(parseFloat(n) * 16).toFixed(4)}px`
 
 export function scopeCss(css) {
   const ast = postcss.parse(css)
+  const inserted = []
   ast.walkDecls(d => { if (d.value.includes('rem') && !d.value.includes('url(')) d.value = d.value.replace(REM, (_m, n) => px(n)) })
   ast.walkRules(rule => {
     if (rule.parent?.type === 'atrule' && /keyframes$/i.test(rule.parent.name)) return
@@ -78,11 +79,13 @@ export function scopeCss(css) {
         if (FRAME_ONLY.test(d.prop)) { frameDecls.push(d.clone()); d.remove() }
         else if (d.prop === 'line-height' && d.value === 'inherit') d.remove()
       })
-      if (frameDecls.length) rule.after(postcss.rule({ selector: `.${FRAME}`, nodes: frameDecls }))
+      // Inserted after the walk, so the walk does not visit (and scope) the rule it just made.
+      if (frameDecls.length) inserted.push([rule, postcss.rule({ selector: `.${FRAME}`, nodes: frameDecls })])
     }
     rule.selectors = [...new Set(selectors.map(scopeSelector))]
-    if (rule.nodes.length === 0) rule.remove()
   })
+  for (const [after, frame] of inserted) after.after(frame)
+  ast.walkRules(rule => { if (rule.nodes.length === 0) rule.remove() })
   return ast.toString()
 }
 

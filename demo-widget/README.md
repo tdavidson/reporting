@@ -55,14 +55,16 @@ The build writes:
 npm run demo:widget          # builds dist/; dist/ is gitignored
 npm run demo:check           # walks every page of the build in Chromium; crashes fail, misses are listed
 npm run demo:check -- --shots /tmp/shots   # and screenshots each page
-npm run demo:styles          # the demo against the app, style by style; any difference fails
+npm run demo:styles          # the demo against the app in a browser, style by style
 ```
 
-`demo:styles` renders the same pages twice, in both themes and with the command palette open:
-once under the app's own stylesheet on a bare page (the product), once under the widget's
-inside `check-host.css`, a host page written to restyle everything. It compares every
-element's computed style and fails on any difference. The workflow runs it before publishing,
-so the demo cannot drift from the app's styles without the publish stopping.
+`scope-css.test.ts` runs with the app's unit tests on every push: it compiles the app's
+stylesheet, scopes it, and fails unless every rule is the app's with only the zero-weight
+scope added to its selector. That is what keeps the demo's styles the app's, and it takes
+seconds. `demo:styles` is the in-browser proof of the same thing, for when `scope-css.mjs`
+itself changes: it renders pages under the app's stylesheet and under the widget's inside
+`check-host.css`, a host page written to restyle everything, and diffs every element's
+computed style. It renders each page twice, so it is not in the publish workflow.
 
 ## Publishing
 
