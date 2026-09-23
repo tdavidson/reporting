@@ -91,5 +91,27 @@ export async function resolveLpRecipients(
       if (g.investorIds.every(id => entry.ids.has(id))) g.ccEmails.push(entry.email)
     }
   }
+
+  // The notice email on an entity's profile — a fund administrator's inbox, a family office's
+  // operations address — is Cc'd on every send to its investor. It is not a login and sees no
+  // more than the investor's own email does.
+  const { data: noticeRows } = await (admin as any)
+    .from('lp_entities').select('investor_id, notice_email').in('investor_id', investorIds).not('notice_email', 'is', null)
+  const noticeByInvestor = new Map<string, string[]>()
+  for (const r of (noticeRows ?? []) as { investor_id: string; notice_email: string | null }[]) {
+    const e = (r.notice_email ?? '').trim().toLowerCase()
+    if (!e) continue
+    const list = noticeByInvestor.get(r.investor_id) ?? []
+    if (!list.includes(e)) list.push(e)
+    noticeByInvestor.set(r.investor_id, list)
+  }
+  for (const g of Array.from(groups.values())) {
+    for (const id of g.investorIds) {
+      for (const e of noticeByInvestor.get(id) ?? []) {
+        if (e === g.primaryEmail.toLowerCase() || g.ccEmails.includes(e)) continue
+        g.ccEmails.push(e)
+      }
+    }
+  }
   return Array.from(groups.values())
 }

@@ -53,6 +53,7 @@ export interface ItemDocument {
   uploaded_by: string | null
   /** True when the portal account was an authorized user acting for the LP. */
   uploaded_by_advisor: boolean
+  added_by_account: string | null
 }
 
 /** Every document on each of the given items, newest first, keyed by item id. */
@@ -61,7 +62,7 @@ export async function loadItemDocuments(admin: SupabaseClient, itemIds: string[]
   if (itemIds.length === 0) return out
   const { data } = await (admin as any)
     .from('lp_onboarding_item_documents')
-    .select('item_id, added_at, lp_documents(id, title, file_name, mime_type), lp_accounts(email, kind)')
+    .select('item_id, added_at, added_by_account, lp_documents(id, title, file_name, mime_type), lp_accounts(email, kind)')
     .in('item_id', itemIds)
     .order('added_at', { ascending: false })
   for (const r of (data ?? []) as any[]) {
@@ -69,7 +70,7 @@ export async function loadItemDocuments(admin: SupabaseClient, itemIds: string[]
     if (!d) continue
     const acct = Array.isArray(r.lp_accounts) ? r.lp_accounts[0] : r.lp_accounts
     const list = out.get(r.item_id) ?? []
-    list.push({ id: d.id, title: d.title, file_name: d.file_name, mime_type: d.mime_type ?? null, added_at: r.added_at, uploaded_by: acct?.email ?? null, uploaded_by_advisor: acct?.kind === 'authorized_user' })
+    list.push({ id: d.id, title: d.title, file_name: d.file_name, mime_type: d.mime_type ?? null, added_at: r.added_at, uploaded_by: acct?.email ?? null, uploaded_by_advisor: acct?.kind === 'authorized_user', added_by_account: r.added_by_account ?? null })
     out.set(r.item_id, list)
   }
   return out

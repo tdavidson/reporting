@@ -65,7 +65,7 @@ async function loadEntities(admin: any, investorIds: string[]) {
 export async function GET(): Promise<NextResponse> {
   const c = await ctx()
   if (c.error) return c.error
-  const { admin, investorIds } = c
+  const { admin, investorIds, lpAccountId } = c
 
   const { entities, kindsByFund } = await loadEntities(admin, investorIds)
   if (entities.length === 0) return NextResponse.json({ entities: [] })
@@ -98,7 +98,7 @@ export async function GET(): Promise<NextResponse> {
         items: r.items.map(i => ({
           kind: i.kind, label: i.label, help: ONBOARDING_KIND_HELP[i.kind], status: i.status, expired: i.expired,
           documentId: i.documentId, submittedAt: i.submittedAt, reviewedAt: i.reviewedAt, expiresOn: i.expiresOn,
-          documents: (i.itemId ? docsByItem.get(i.itemId) ?? [] : []).map(d => ({ id: d.id, fileName: d.file_name, addedAt: d.added_at })),
+          documents: (i.itemId ? docsByItem.get(i.itemId) ?? [] : []).map(d => ({ id: d.id, fileName: d.file_name, addedAt: d.added_at, mine: d.added_by_account === lpAccountId })),
           // The fund's note is for the LP only when the item was sent back or waived.
           note: i.status === 'rejected' || i.status === 'waived' ? i.note : null,
         })),
@@ -228,4 +228,54 @@ export async function PATCH(req: NextRequest): Promise<NextResponse> {
     subject: 'Entity renamed', body: `"${entity.entity_name}" is now "${name}", per the LP. Check it against the executed subscription document.`, direction: 'inbound', status: 'open',
   })
   return NextResponse.json({ ok: true, entity_name: name })
+}
+
+/**
+ * DELETE { document_id } → the LP withdraws a file they uploaded, while the fund has not yet
+ * looked at it. The wrong file, a draft, a duplicate. Only their own upload, only while the item
+ * is still awaiting review; after that the fund's decision stands and a new upload is the way to
+ * replace it. The file is removed from storage, the document and its share deleted, and the
+ * item put back to what it was before the upload if nothing else remains on it.
+ */
+export async function DELETE(req: NextRequest): Promise<NextResponse> {
+  const c = await ctx()
+  if ('error' in c && c.error) return c.error
+  const { admin, lpAccountId } = c as Extract<LpCtx, { error?: undefined }>
+
+  const body = await req.json().catch(() => ({}))
+  const documentId = typeof body.document_id === 'string' ? body.document_id : ''
+  if (!documentId) return NextResponse.json({ error: 'document_id is required' }, { status: 400 })
+
+  // Their own upload: the item-document row names the account that added it.
+  const { data: link } = await admin
+    .from('lp_onboarding_item_documents')
+    .select('id, item_id, fund_id, lp_onboarding_items(id, lp_entity_id, kind, status, document_id, submitted_at)')
+    .eq('document_id', documentId).eq('added_by_account', lpAccountId).maybeSingle()
+  const item = link ? (Array.isArray(link.lp_onboarding_items) ? link.lp_onboarding_items[0] : link.lp_onboarding_items) : null
+  if (!link || !item) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  if (item.status !== 'submitted') return NextResponse.json({ error: 'The fund has already reviewed this item. Upload a new file to replace it.' }, { status: 409 })
+
+  const { data: doc } = await admin.from('lp_documents').select('id, storage_path, file_name').eq('id', documentId).eq('fund_id', link.fund_id).maybeSingle()
+  if (!doc) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+  await admin.storage.from('lp-documents').remove([doc.storage_path])
+  await admin.from('lp_onboarding_item_documents').delete().eq('id', link.id)
+  await admin.from('lp_document_shares').delete().eq('document_id', documentId)
+  await admin.from('lp_documents').delete().eq('id', documentId)
+
+  // What is left on the item decides its state: the latest remaining file, or nothing.
+  const { data: remaining } = await admin
+    .from('lp_onboarding_item_documents').select('document_id, added_at').eq('item_id', item.id).order('added_at', { ascending: false }).limit(1)
+  const next = Array.isArray(remaining) && remaining[0] ? remaining[0] : null
+  const now = new Date().toISOString()
+  if (next) {
+    await admin.from('lp_onboarding_items').update({ document_id: next.document_id, updated_at: now }).eq('id', item.id)
+  } else {
+    await admin.from('lp_onboarding_items').update({ status: 'outstanding', document_id: null, submitted_by_account: null, submitted_at: null, updated_at: now }).eq('id', item.id)
+  }
+  await logOnboardingEvent(admin, {
+    fundId: link.fund_id, itemId: item.id, lpEntityId: item.lp_entity_id, kind: item.kind, action: 'withdrawn',
+    fromStatus: 'submitted', toStatus: next ? 'submitted' : 'outstanding', note: doc.file_name, actorAccountId: lpAccountId,
+  })
+  return NextResponse.json({ ok: true, status: next ? 'submitted' : 'outstanding' })
 }

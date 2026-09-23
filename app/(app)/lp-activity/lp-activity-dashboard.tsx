@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import { Loader2, LogIn, Eye, ArrowDownCircle, Search } from 'lucide-react'
+import { Loader2, LogIn, Eye, ArrowDownCircle, Search, Upload } from 'lucide-react'
 import { AnalystToggleButton } from '@/components/analyst-button'
 import { AnalystPanel } from '@/components/analyst-panel'
 
@@ -70,6 +70,7 @@ const EVENT_META: Record<string, { label: string; icon: typeof Eye; className: s
   login: { label: 'Login', icon: LogIn, className: 'text-muted-foreground' },
   view: { label: 'View', icon: Eye, className: 'text-muted-foreground' },
   download: { label: 'Download', icon: ArrowDownCircle, className: 'text-muted-foreground' },
+  upload: { label: 'Upload', icon: Upload, className: 'text-info' },
 }
 
 const TARGET_LABELS: Record<string, string> = {

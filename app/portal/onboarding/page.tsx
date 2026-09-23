@@ -17,7 +17,7 @@ interface Item {
   reviewedAt: string | null
   expiresOn: string | null
   note: string | null
-  documents: { id: string; fileName: string; addedAt: string }[]
+  documents: { id: string; fileName: string; addedAt: string; mine: boolean }[]
 }
 interface Entity {
   id: string
@@ -60,6 +60,14 @@ export default function PortalOnboardingPage() {
   const [uploading, setUploading] = useState<string | null>(null) // `${entityId}:${kind}`
   const [viewerDoc, setViewerDoc] = useState<ViewerDoc | null>(null)
   const [renaming, setRenaming] = useState<{ id: string; name: string } | null>(null)
+
+  async function withdraw(documentId: string) {
+    setError(null)
+    const res = await fetch('/api/portal/onboarding', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ document_id: documentId }) })
+    const b = await res.json().catch(() => ({}))
+    if (!res.ok) { setError(b.error ?? 'Could not remove the file'); return }
+    load()
+  }
 
   async function rename() {
     if (!renaming) return
@@ -176,6 +184,9 @@ export default function PortalOnboardingPage() {
                               <li key={d.id}>
                                 <button type="button" className="underline hover:text-foreground" onClick={() => setViewerDoc({ id: d.id, title: d.fileName, file_name: d.fileName, mime_type: null })}>{d.fileName}</button>
                                 <span> · {fmtDate(d.addedAt)}</span>
+                                {d.mine && it.status === 'submitted' && (
+                                  <button type="button" onClick={() => withdraw(d.id)} className="ml-2 text-muted-foreground hover:text-destructive underline">Remove</button>
+                                )}
                               </li>
                             ))}
                           </ul>
