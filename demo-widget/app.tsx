@@ -43,9 +43,14 @@ export interface DemoAppProps {
   onNavigate?: (href: string) => void
   /** Hands the host the widget's `navigate`, for `mount().navigate`. */
   exposeNavigate?: (navigate: (href: string) => void) => void
+  /**
+   * `card`: a bordered, fixed-height frame to sit inside a page of prose. `page`: fills the
+   * element it is mounted in, no border — the host gives it the viewport and the demo is the page.
+   */
+  chrome?: 'card' | 'page'
 }
 
-export function DemoApp({ data, fetch, initialPath = '/dashboard', onNavigate, exposeNavigate }: DemoAppProps) {
+export function DemoApp({ data, fetch, initialPath = '/dashboard', onNavigate, exposeNavigate, chrome = 'card' }: DemoAppProps) {
   const [loc, setLoc] = useState<Location>(() => parse(initialPath))
   const frame = useRef<HTMLDivElement>(null)
 
@@ -96,7 +101,10 @@ export function DemoApp({ data, fetch, initialPath = '/dashboard', onNavigate, e
     <AppRuntimeProvider fetch={fetch} navigate={navigate}>
       {/* A transformed ancestor is the containing block for `position: fixed` descendants, which
           keeps the app's phone tab bar and drawers inside the frame instead of over the site. */}
-      <div ref={frame} className="oa-demo relative flex h-[820px] max-h-[85vh] flex-col overflow-auto rounded-card border bg-background text-foreground [transform:translateZ(0)]">
+      <div
+        ref={frame}
+        className={`oa-demo relative flex flex-col overflow-auto bg-background text-foreground [transform:translateZ(0)] ${chrome === 'page' ? 'h-full' : 'h-[820px] max-h-[85vh] rounded-card border'}`}
+      >
         {/* The root layout's providers (app/layout.tsx), minus the theme: the host owns that. */}
         <ConfirmProvider>
         <div className="w-full max-w-page mx-auto flex flex-col flex-1 min-h-full">

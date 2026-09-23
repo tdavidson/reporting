@@ -9,7 +9,7 @@ import type { AppFetch } from '@/components/app-runtime'
  * The public demo widget's entry point. Built by demo-widget/build.mjs into a self-contained
  * script (global `OtherAdminDemo`) plus a stylesheet, and mounted by the marketing site:
  *
- *   const demo = OtherAdminDemo.mount(el, { snapshot, answers, pages, api })
+ *   const demo = OtherAdminDemo.mount(el, { snapshot, answers, pages, api, chrome: 'page' })
  *   demo.navigate('/deals')
  *   demo.unmount()
  *
@@ -32,6 +32,8 @@ export interface MountOptions {
   fetch?: AppFetch
   /** A request nothing could answer; the check script collects these. */
   onMiss?: (key: string) => void
+  /** `card` (default): a bordered frame of fixed height. `page`: fills the mount element. */
+  chrome?: 'card' | 'page'
 }
 
 export function mount(el: HTMLElement, opts: MountOptions): { unmount: () => void; navigate: (href: string) => void } {
@@ -54,6 +56,7 @@ export function mount(el: HTMLElement, opts: MountOptions): { unmount: () => voi
       initialPath={opts.initialPath}
       onNavigate={opts.onNavigate}
       exposeNavigate={fn => { navigateTo = fn }}
+      chrome={opts.chrome}
     />,
   )
   return {

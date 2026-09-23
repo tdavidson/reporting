@@ -6,15 +6,22 @@ import type { DemoSnapshot } from './types'
  * export (no review counts, no email history), but a page rather than a notice, and enough for
  * the palette and the Analyst to land somewhere. scripts/demo-snapshot.ts replaces all of it.
  */
+/** The snapshot's date as a timestamp, for rows that carry one; today when it has none. */
+function stamp(snapshot: DemoSnapshot): string {
+  const t = Date.parse(snapshot.generatedAt)
+  return new Date(Number.isNaN(t) ? Date.now() : t).toISOString()
+}
+
 export function fallbackPageData(pattern: string, params: Record<string, string>, snapshot: DemoSnapshot): unknown | null {
+  const at = stamp(snapshot)
   switch (pattern) {
     case '/dashboard': return dashboard(snapshot)
     case '/companies/:id': return company(snapshot, params.id)
     case '/company-updates': return { companies: snapshot.companies.map(c => ({ id: c.id, name: c.name })) }
-    case '/deals': return { initialDeals: snapshot.deals.map(d => ({ ...d, email_id: null, company_url: null, company_domain: null, founder_email: null, referrer_name: null, prior_deal_id: null, created_at: snapshot.generatedAt })) }
+    case '/deals': return { initialDeals: snapshot.deals.map(d => ({ ...d, email_id: null, company_url: null, company_domain: null, founder_email: null, referrer_name: null, prior_deal_id: null, created_at: at })) }
     case '/deals/:id': {
       const d = snapshot.deals.find(x => x.id === params.id)
-      return d ? { deal: { ...d, email_id: null, created_at: snapshot.generatedAt }, email: null, priorDeal: null } : null
+      return d ? { deal: { ...d, email_id: null, created_at: at }, email: null, priorDeal: null } : null
     }
     case '/interactions': return {
       interactions: snapshot.interactions.map((i, n) => ({
@@ -63,7 +70,7 @@ function company(snapshot: DemoSnapshot, id: string) {
   if (!c) return null
   const metrics = c.metrics.map(m => ({
     id: m.id, company_id: m.company_id, fund_id: 'demo', name: m.name, slug: m.slug, unit: m.unit, unit_position: m.unit_position,
-    value_type: m.value_type, currency: null, reporting_cadence: m.cadence, display_order: m.display_order, is_active: true, created_at: snapshot.generatedAt,
+    value_type: m.value_type, currency: null, reporting_cadence: m.cadence, display_order: m.display_order, is_active: true, created_at: stamp(snapshot),
   }))
   const highlight = (pick: (m: typeof metrics[number]) => boolean) => {
     const m = metrics.find(pick)
@@ -75,7 +82,7 @@ function company(snapshot: DemoSnapshot, id: string) {
     company: {
       id: c.id, fund_id: 'demo', name: c.name, aliases: c.aliases, industry: c.industry, stage: c.stage, status: c.status, tags: [],
       overview: c.overview, founders: c.founders, why_invested: c.why_invested, portfolio_group: c.portfolio_group,
-      contact_email: [], current_update: null, holding_type: 'company', created_at: snapshot.generatedAt,
+      contact_email: [], current_update: null, holding_type: 'company', created_at: stamp(snapshot),
     },
     userId: 'demo-viewer', isAdmin: false, fundCurrency: snapshot.fund.currency,
     hasClaudeKey: true, hasOpenAIKey: false, defaultAIProvider: 'anthropic', storageProvider: null, googleDriveFolderId: null,

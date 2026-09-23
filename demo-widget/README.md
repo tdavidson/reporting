@@ -36,7 +36,7 @@ re-scoped the same way, and writes:
 
 | File | What |
 | --- | --- |
-| `dist/widget.js` | IIFE exposing `OtherAdminDemo.mount(el, { snapshot, answers, pages, api })` and `OtherAdminDemo.routes(snapshot, pages)` |
+| `dist/widget.js` | IIFE exposing `OtherAdminDemo.mount(el, { snapshot, answers, pages, api, chrome: 'page' \| 'card', initialPath, onNavigate })` and `OtherAdminDemo.routes(snapshot, pages)` |
 | `dist/widget.css` | tokens + scoped utilities; put `oa-demo-page` on `<body>`, `dark` on `<html>` for dark mode |
 | `dist/snapshot.json` | the sample fund (`types.ts` is the contract; `schemaVersion` guards it) |
 | `dist/pages.json` | every server page's loaded data, keyed by URL |
