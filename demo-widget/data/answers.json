@@ -1,0 +1,153 @@
+{
+  "schemaVersion": 1,
+  "generatedBy": "authored",
+  "note": "Stored Analyst replies for the public demo. Written against snapshot.json by hand; run scripts/demo-answers.ts to replace them with the real Analyst's output (generatedBy becomes 'analyst' and each reply records the model that wrote it).",
+  "fallback": "In the product this question would go to the fund's own model with the fund's data behind it. The demo answers from a fixed set of questions instead, so it never spends anyone's API key. Try one of the suggestions, or ask about runway, growth, retention, the pipeline, or a specific company.",
+  "suggestions": {
+    "portfolio": [
+      "Which companies have less than 12 months of runway?",
+      "What's the total unrealized gain across both funds?",
+      "Which company grew fastest last year?",
+      "Which deals in the pipeline fit our thesis?",
+      "What should I follow up on with founders this month?"
+    ],
+    "company": {
+      "a67954cb-474b-404b-858b-49c240c22027": ["How is NovaTech doing?", "What's NovaTech's runway?", "Draft a two-sentence NovaTech update for the LP letter"],
+      "b4870bad-ddd4-42d1-a300-7111899cf154": ["Is RouteWise ready for a Series C?", "How has RouteWise's margin changed?"],
+      "2231479f-1bf3-4646-9173-abc5d31fd515": ["Why did TapFin's GMV drop in January?", "What is TapFin's take rate?"],
+      "8b396e22-1612-4737-8d09-5dbf593bb08f": ["What are the risks with Lattis?", "How long until Lattis needs to raise?"],
+      "35dea40d-dd6f-4916-b566-deb40872d579": ["How does the DOE grant change Verdant's runway?"],
+      "d1263d61-e648-4906-b991-f831fb74a186": ["Compare Benchline and NovaTech on retention", "Summarize Benchline's last year"],
+      "d08a27bc-39e4-4fb1-a624-7a286d83e929": ["Is AdVantage's churn improving?"],
+      "d4fef540-f26b-426f-9aef-96144a6579ce": ["Where is GreenLeaf Bio on the regulatory path?"]
+    }
+  },
+  "answers": [
+    {
+      "scope": "portfolio",
+      "question": "Which companies have less than 12 months of runway?",
+      "aliases": ["runway", "who is running out of cash", "which companies need to raise soon", "cash runway across the portfolio"],
+      "reply": "Runway here is the latest cash balance divided by the latest monthly burn, both from Q4 2025 reporting. Only four companies report burn, so the others are noted rather than ranked.\n\n**Under 12 months**\n\n- **Lattis**: $520K cash against $48K/month burn is about **11 months**. Burn has risen every quarter this year ($38K to $48K) while cash fell from $900K. The pre-seed money is running down; this is the one to talk to first.\n\n**Close to the line**\n\n- **Verdant**: $1.1M against $85K/month is about **13 months**. Grant revenue ($200K in Q4) is lumpy and not in the burn figure, and a $500K DOE decision is expected in Q2, which would add roughly six months if it lands.\n\n**Comfortable**\n\n- **NovaTech**: $2.4M against $95K/month is about **25 months**, and MRR is still compounding.\n\n**Not enough data**\n\n- GreenLeaf Bio reports cash ($1.5M, down $300K a quarter, implying roughly 15 months) but no burn metric.\n- TapFin and Benchline report cash but no burn; both are revenue-generating and well capitalized ($3.2M and $14M).\n- RouteWise and AdVantage report neither.\n\nIf you want this to be reliable, ask the four companies without a burn metric to add one to their update template."
+    },
+    {
+      "scope": "portfolio",
+      "question": "What's the total unrealized gain across both funds?",
+      "aliases": ["unrealized gains", "how are the funds marked", "portfolio value", "total value of the portfolio", "fund performance marks"],
+      "reply": "From the Q4 2025 marks in the investment records:\n\n**Fund I** (cost $8.15M)\n\n| Company | Cost | Unrealized gain | Value |\n|---|---|---|---|\n| RouteWise | $3.40M | +$6.80M | $10.20M |\n| NovaTech | $2.00M | +$2.50M | $4.50M |\n| AdVantage | $2.00M | +$1.20M | $3.20M |\n| GreenLeaf Bio | $0.75M | +$0.25M | $1.00M |\n\nFund I unrealized gain: **+$10.75M**, value $18.9M, about 2.3x cost.\n\n**Fund II** (cost $6.70M)\n\n| Company | Cost | Unrealized gain | Value |\n|---|---|---|---|\n| Benchline | $4.00M | +$9.50M | $13.50M |\n| TapFin | $1.85M | +$2.10M | $3.95M |\n| Verdant | $0.60M | held at cost | $0.60M |\n| Lattis | $0.25M | held at cost | $0.25M |\n\nFund II unrealized gain: **+$11.60M**, value $18.3M, about 2.7x cost.\n\n**Both funds: +$22.35M unrealized on $14.85M invested.** Two positions carry most of it: Benchline (the $10M ARR mark at $18.82 a share) and RouteWise (the Q4 409A at $12.50). Nothing has been realized yet, so DPI is zero in both funds."
+    },
+    {
+      "scope": "portfolio",
+      "question": "Which company grew fastest last year?",
+      "aliases": ["fastest growing company", "growth across the portfolio", "who grew the most in 2025", "revenue growth by company"],
+      "reply": "Measured on each company's headline revenue metric over the periods reported in 2025:\n\n1. **NovaTech**: MRR $120K in January to $258K in December, **+115%**. Net revenue retention climbed from 112% to 121% over the same year, so most of that growth came from existing accounts expanding.\n2. **TapFin**: GMV $12.0M in July to $19.5M in December, **+63% in six months**, with revenue $180K to $292K. January dipped to $18.2M, which looks seasonal rather than a trend (see the company page).\n3. **RouteWise**: ARR $4.2M to $5.5M across 2025, **+31%**, and $6.1M by Q1 2026 (+45% year on year). Customers went from 42 to 74 and gross margin from 62% to 68%, so it is the highest-quality growth in the book.\n4. **Benchline**: ARR $7.8M to $10.1M, **+29%**, at the largest base in the portfolio, with net dollar retention holding at 127%.\n5. **AdVantage**: MRR $280K to $340K from July to December, **+21% in six months**, while logo churn improved from 3.5% to 2.8%.\n\nThe seed and pre-seed companies (GreenLeaf Bio, Lattis, Verdant) do not report a revenue metric yet; Verdant's grant revenue is not comparable."
+    },
+    {
+      "scope": "portfolio",
+      "question": "Which deals in the pipeline fit our thesis?",
+      "aliases": ["pipeline", "inbound deals", "deal flow summary", "which deals should we look at", "what's in the deals queue"],
+      "reply": "Five inbound deals are in the pipeline. Two score **strong** against the thesis, and they are the two to spend time on.\n\n**Advance**\n\n- **Stellate** (Series A, $5M at $45M post, *reviewing*): developer infrastructure that caches database queries at the edge to cut cloud bills 30 to 40%. $1.2M ARR at a claimed 25% MoM, 138% NRR, 47 paying customers including Notion and Linear. The round is led by a top-tier fund, so this would be filling out the round. Verify the growth against Stripe data and ask why existing investors are not taking the whole round.\n- **Lattice** (Seed, $3M, *advancing*): vertical SaaS for agricultural co-operatives in Latin America. $480K ARR across 14 co-ops, 18% MoM. Founder-market fit is unusual (ex-McKinsey, grew up on a coffee farm). Check concentration in the top three co-ops and FX exposure on USD pricing.\n\n**Watch**\n\n- **Haptiq** (Pre-seed, $2.5M, *new*): moderate fit. Right product shape, but pre-revenue with design partners only and a solo founder. Too early for the usual $500K ARR entry point.\n\n**Passed**\n\n- **Finch** (weak fit): B2C mental-health app with clean unit economics but App Store dependency. Out of thesis.\n- **NorthPole Energy** (out of thesis): grid-scale flow batteries. Strong team, hardware capex and a three-to-five-year path to revenue."
+    },
+    {
+      "scope": "portfolio",
+      "question": "What should I follow up on with founders this month?",
+      "aliases": ["follow ups", "open items with founders", "what's outstanding", "action items", "what did I promise founders"],
+      "reply": "Pulled from notes and logged interactions, most recent first:\n\n- **RouteWise**: James wants to open Series C conversations in Q3 2026 at a $30 to 40M raise. The open question from the last call was whether to hire a CFO before the process. Worth a decision before he starts taking meetings.\n- **Benchline**: three enterprise prospects were in late-stage trials in June, with pricing above $200K a year under discussion. Ask whether any closed and whether the multi-year discount was needed.\n- **NovaTech**: Sarah asked for feedback on the ARR bridge slide for the board deck, and the VP Sales timing (now, or after Series A+) is still open. The Salesforce partnership from the March note has no follow-up logged.\n- **TapFin**: Kemi flagged Naira volatility in USD-reported metrics. The hedging and USD treasury discussion has no recorded outcome.\n- **Verdant**: the DOE grant decision ($500K) was expected in Q2. Nothing logged since.\n- **GreenLeaf Bio**: the FDA clearance filing was targeted for Q2 2026. Confirm it went in.\n- **Lattis**: Elena's NeurIPS talk was the visibility event for the enterprise pipeline. Ask what came of it, and raise the runway question (about 11 months).\n\nFund-level: the LP advisory group asked for more detail on Fund I realized returns at the next meeting, and the Q4 portfolio review needed updated financials from every company."
+    },
+    {
+      "scope": "portfolio",
+      "question": "Who are our LPs?",
+      "aliases": ["list the LPs", "limited partners", "investors in the fund"],
+      "reply": "Seven LP investors are on record across the two funds:\n\n- Coastal University Endowment\n- Greenfield Pension\n- Hemrock Founders Capital LP\n- Northstar Family Office\n- Pinecrest Foundation\n- Various Angels Fund I\n- Various Angels Fund II\n\nThe two \"Various Angels\" entries are the aggregated angel commitments for each fund. Commitments, paid-in capital and each LP's capital account are on the LPs page and in each vehicle's capital accounts; the demo snapshot carries the investor list only."
+    },
+    {
+      "scope": "portfolio",
+      "question": "Compare Benchline and NovaTech on retention",
+      "aliases": ["retention comparison", "net revenue retention", "NRR vs NDR", "which company has the best retention"],
+      "reply": "Both report a net retention metric quarterly, under slightly different names:\n\n| | Q1 2025 | Q2 | Q3 | Q4 |\n|---|---|---|---|---|\n| **Benchline** net dollar retention | 125% | 128% | 130% | 127% |\n| **NovaTech** net revenue retention | 112% | 115% | 118% | 121% |\n\n**Benchline** retains more, and has for the whole year: existing customers grew their spend by more than a quarter. The Q4 dip from 130% to 127% is small and coincides with the headcount build (45 to 62), so it may be a mix shift toward newer, smaller accounts rather than a leak.\n\n**NovaTech** retains less but is improving every quarter, nine points over the year. At $258K MRR that trajectory matters more than the level: 121% NRR means the company would grow about 20% a year with no new logos at all.\n\nOne caution on comparing them: Benchline is a Series B company at $10.8M ARR and NovaTech a Series A at roughly $3.1M ARR. Retention usually softens as a customer base broadens, so NovaTech's number is the one to watch as it scales."
+    },
+    {
+      "scope": "portfolio",
+      "question": "Summarize the portfolio",
+      "aliases": ["portfolio summary", "how is the portfolio doing", "give me an overview", "state of the portfolio", "portfolio overview"],
+      "reply": "Eight active companies across two funds, all held, none realized.\n\n**Fund I** (four companies, $8.15M invested, marked at $18.9M): RouteWise is the anchor, $6.1M ARR growing 45% a year at 68% gross margin and a Series C planned for Q3 2026. NovaTech is compounding (MRR up 115% in 2025, NRR 121%). AdVantage is steady at $348K MRR with churn improving. GreenLeaf Bio is pre-revenue biotech with an FDA filing targeted for Q2 2026.\n\n**Fund II** (four companies, $6.70M invested, marked at $18.3M): Benchline is the largest position and the largest gain, $10.8M ARR with 127% net dollar retention. TapFin processes $18M a month in GMV at a 1.5% take rate and is exposed to Naira volatility. Verdant (climate compliance software) and Lattis (open-source embeddings) are seed-stage and burning; Lattis has about 11 months of runway.\n\n**What needs attention**: Lattis's runway, Verdant's grant decision, and the four companies that do not report a burn metric. The pipeline has two strong-fit deals (Stellate and Lattice) in review."
+    },
+    {
+      "scope": "company:a67954cb-474b-404b-858b-49c240c22027",
+      "question": "How is NovaTech doing?",
+      "aliases": ["NovaTech summary", "NovaTech update", "tell me about NovaTech", "NovaTech performance"],
+      "reply": "**NovaTech** (Series A, Fund I) is the fastest-growing company in the portfolio on a percentage basis.\n\n**Revenue**: MRR rose every month of 2025, from $120K in January to $258K in December, up 115%. That is about $3.1M ARR exiting the year.\n\n**Retention**: net revenue retention improved each quarter, 112% to 121%. Existing customers are expanding, which is the mechanism behind most of the MRR growth.\n\n**Burn and cash**: burn is $95K a month against $2.4M cash at Q4, roughly 25 months of runway. Burn has been flat-to-slightly-up all year while revenue more than doubled, so efficiency is improving.\n\n**Position**: $2.0M invested across the seed and Series A, marked at $4.5M on the Series A+ term sheet ($3.60 a share).\n\n**Open items**: the Salesforce partnership Sarah mentioned in March, the VP Sales hire timing, and feedback on the ARR bridge slide for the board deck."
+    },
+    {
+      "scope": "company:a67954cb-474b-404b-858b-49c240c22027",
+      "question": "What's NovaTech's runway?",
+      "aliases": ["NovaTech cash", "NovaTech burn", "how long can NovaTech last", "months of runway NovaTech"],
+      "reply": "About **25 months** at the current burn.\n\n- Cash on hand: **$2.4M** at Q4 2025 (down from $3.2M in Q1).\n- Burn rate: **$95K a month** in Q4 (range across 2025: $85K to $95K).\n\nThe cash decline is about $250K to $300K a quarter, consistent with the reported burn, so the two metrics agree. With MRR at $258K and growing, net burn should fall through 2026 unless the hiring plan (VP Sales, Q1 hires discussed in June) accelerates spend. The Series A+ term sheet the Q4 mark is based on would extend this materially if it closes."
+    },
+    {
+      "scope": "company:a67954cb-474b-404b-858b-49c240c22027",
+      "question": "Draft a two-sentence NovaTech update for the LP letter",
+      "aliases": ["LP letter NovaTech", "write an update on NovaTech", "NovaTech paragraph for the quarterly letter"],
+      "reply": "NovaTech, our Fund I customer-success platform, more than doubled monthly recurring revenue in 2025 (from $120K to $258K) while net revenue retention rose to 121%, driven by expansion within existing accounts. The company holds about 25 months of runway at its current burn and is preparing a Series A+ round, on which we have marked the position to 2.3x cost.\n\n*Two sentences as asked. If the letter has room, the next sentence would name the Salesforce partnership discussion, once it is confirmed.*"
+    },
+    {
+      "scope": "company:b4870bad-ddd4-42d1-a300-7111899cf154",
+      "question": "Is RouteWise ready for a Series C?",
+      "aliases": ["RouteWise Series C", "should RouteWise raise", "RouteWise fundraising", "RouteWise readiness"],
+      "reply": "On the numbers, yes, and the timing James has proposed (Q3 2026) fits the trajectory.\n\n**The case**\n\n- ARR $6.1M at Q1 2026, up 45% year on year, and every quarter has been up.\n- Gross margin has expanded from 62% to 68% over five quarters, so growth is not being bought with margin.\n- Customer count went from 42 to 74; the average account is roughly $82K a year, in line with an enterprise motion.\n- The Q4 409A marks the company at $12.50 a share, 1.8x the Series B price paid 14 months earlier.\n\n**What is missing**\n\n- RouteWise does not report cash or burn, so runway and capital efficiency cannot be checked from the data here. Ask for both before the process starts.\n- The board note targets a $50M+ valuation and the June call discussed a $30 to 40M raise. That is a large round for $6M ARR; the growth rate supports it, but the CFO question (hire before or after) affects how the numbers are presented.\n\n**Recommendation**: support the Q3 timeline, hire the CFO first, and add cash and burn to the reporting template now so the data room has six months of history."
+    },
+    {
+      "scope": "company:b4870bad-ddd4-42d1-a300-7111899cf154",
+      "question": "How has RouteWise's margin changed?",
+      "aliases": ["RouteWise gross margin", "RouteWise unit economics", "RouteWise margins"],
+      "reply": "Gross margin has improved every quarter on record:\n\n| Q1 2025 | Q2 | Q3 | Q4 | Q1 2026 |\n|---|---|---|---|---|\n| 62% | 64% | 65% | 67% | 68% |\n\nSix points over five quarters while ARR grew from $4.2M to $6.1M. For a logistics platform with routing compute in cost of revenue, the direction suggests the infrastructure cost per delivery is falling as volume rises, or pricing has moved up on renewals. Either way it strengthens the Series C story: growth and margin moving together is what a growth investor wants to see."
+    },
+    {
+      "scope": "company:2231479f-1bf3-4646-9173-abc5d31fd515",
+      "question": "Why did TapFin's GMV drop in January?",
+      "aliases": ["TapFin GMV", "TapFin January", "TapFin decline", "is TapFin slowing down"],
+      "reply": "GMV fell from **$19.5M in December to $18.2M in January**, about 7%, and revenue fell with it ($292K to $273K). The data supports a seasonal explanation rather than a loss of merchants:\n\n- December was the strongest month in the series by a wide margin (+14% over November), consistent with holiday retail volume through TapFin's merchants.\n- January is still **52% above July**, and every month from July to December was up. One down month after a peak is the shape of seasonality, not churn.\n- Take rate held at 1.5% through Q3 and Q4, so pricing did not change.\n\nTwo things to check with Kemi: first, February GMV, which would settle the question; second, the FX point she raised in June. TapFin reports in USD and the Naira weakened over the period, so part of any USD decline can be currency rather than volume. A hedging or USD-treasury decision is still open."
+    },
+    {
+      "scope": "company:2231479f-1bf3-4646-9173-abc5d31fd515",
+      "question": "What is TapFin's take rate?",
+      "aliases": ["TapFin revenue model", "TapFin pricing", "how does TapFin make money"],
+      "reply": "**1.5%** of gross merchandise volume, reported quarterly and unchanged between Q3 and Q4 2025.\n\nIt reconciles with the monthly figures: December GMV of $19.5M at 1.5% is $292K, which is exactly the revenue reported for December. That makes the take rate a reliable way to forecast revenue from GMV for this company."
+    },
+    {
+      "scope": "company:8b396e22-1612-4737-8d09-5dbf593bb08f",
+      "question": "What are the risks with Lattis?",
+      "aliases": ["Lattis risk", "Lattis concerns", "problems with Lattis", "Lattis status"],
+      "reply": "**Lattis** (pre-seed, Fund II, $250K angel round) is the earliest company in the portfolio and the one with the least room.\n\n1. **Runway**: $520K cash against $48K a month is about 11 months, and both numbers are moving the wrong way: cash down from $900K over the year, burn up from $38K. Without a change, the company needs to raise in the first half of 2026.\n2. **No revenue metric**: the reporting template has cash and burn only. Open-source traction (GitHub stars past 5,000) is real but is not revenue. Before a seed round the company needs a commercial signal: design partners, paid pilots, or hosted usage.\n3. **Single founder**: Elena Vasquez is the only founder on record. Not disqualifying at pre-seed, but it concentrates the key-person risk that a seed investor will price.\n4. **Category**: embeddings and retrieval infrastructure is crowded and moving quickly; an open-source framework's moat is adoption speed.\n\n**Mitigants**: the ApexData design partnership introduction in June, and the NeurIPS talk for enterprise visibility. Ask what each produced, and whether a bridge from existing investors is preferable to a seed process on eleven months of cash."
+    },
+    {
+      "scope": "company:8b396e22-1612-4737-8d09-5dbf593bb08f",
+      "question": "How long until Lattis needs to raise?",
+      "aliases": ["Lattis runway", "Lattis cash", "when does Lattis run out of money"],
+      "reply": "About **11 months** from Q4 2025 at the reported burn ($520K cash, $48K a month), so roughly the end of 2026. A seed process normally takes three to four months and should start with at least six months of cash, which puts the decision point in the **first half of 2026**.\n\nThe trend makes it tighter than the headline: burn has grown about $3K a month each quarter. If that continues, runway is closer to ten months. A small bridge from existing investors would be cheaper than a rushed seed, and the fund's Fund II reserves are the natural source."
+    },
+    {
+      "scope": "company:35dea40d-dd6f-4916-b566-deb40872d579",
+      "question": "How does the DOE grant change Verdant's runway?",
+      "aliases": ["Verdant runway", "Verdant grant", "Verdant cash", "Verdant DOE"],
+      "reply": "**Without the grant**: $1.1M cash against $85K a month is about **13 months** from Q4 2025.\n\n**With the grant**: a $500K award at $85K a month adds roughly **six months**, taking runway to about 19 months, into mid-2027. The decision was expected in Q2 2026.\n\nTwo caveats. First, grant revenue has been lumpy ($150K in Q2, $200K in Q4, nothing in between), and the burn figure is gross of it, so the true net burn is already somewhat lower than $85K. Second, Anna also discussed a sales hire to target CSRD-affected European companies; that would raise burn by a meaningful fraction and eat part of the extension.\n\nThe sensible plan is to treat the grant as extending runway to a seed round on commercial traction, not as a substitute for one."
+    },
+    {
+      "scope": "company:d1263d61-e648-4906-b991-f831fb74a186",
+      "question": "Summarize Benchline's last year",
+      "aliases": ["Benchline summary", "how is Benchline doing", "Benchline update", "Benchline performance"],
+      "reply": "**Benchline** (Series B, Fund II) is the largest position and the largest gain in the portfolio.\n\n- **ARR**: $7.8M in Q1 2025 to $10.1M in Q4, and $10.8M by Q1 2026, up 38% year on year. The $10M milestone is what the Q4 mark ($18.82 a share) is based on.\n- **Retention**: net dollar retention of 125% to 130% through 2025, ending at 127%. Expansion within the installed base is doing most of the work.\n- **Team**: headcount 45 to 62 over the year, so the company is investing ahead of growth.\n- **Cash**: $14.0M at Q4, down from $18.0M, roughly $1.3M a quarter of net burn. At that rate there are more than ten quarters of runway, and the pace is deliberate.\n- **Pipeline**: three enterprise prospects in late-stage trials in June, with annual contracts above $200K under discussion.\n\n**Position**: $4.0M invested across seed, Series A and a Series B we led at $85M pre; marked at $13.5M, 3.4x cost."
+    },
+    {
+      "scope": "company:d08a27bc-39e4-4fb1-a624-7a286d83e929",
+      "question": "Is AdVantage's churn improving?",
+      "aliases": ["AdVantage churn", "AdVantage retention", "AdVantage logo churn", "how is AdVantage doing"],
+      "reply": "Yes, steadily. Logo churn has fallen each quarter it has been reported: **3.5%** in Q2 2025, **3.2%** in Q3, **2.8%** in Q4.\n\nRead alongside MRR, which rose from $280K in July to $348K in January (+24% in seven months), the picture is a product that is both adding customers and keeping more of them. A 2.8% monthly logo churn is still on the high side for a mid-market SaaS product, so the trend matters more than the level.\n\nThe GrowthStack integration and co-marketing introduction from June is the one open item; an SMB channel partner would help both acquisition and retention if it lands."
+    },
+    {
+      "scope": "company:d4fef540-f26b-426f-9aef-96144a6579ce",
+      "question": "Where is GreenLeaf Bio on the regulatory path?",
+      "aliases": ["GreenLeaf FDA", "GreenLeaf regulatory", "GreenLeaf Bio status", "GreenLeaf update"],
+      "reply": "The FDA pre-submission meeting went well, according to both the March note and the June call with Priya: the regulatory pathway looked clearer than the team expected, and they set **Q2 2026** as the target for filing for clearance. Nothing has been logged since, so the first question is whether the filing went in.\n\nOn the financial side, cash has fallen from $2.4M to $1.5M over 2025, about $300K a quarter, and headcount has grown from 8 to 14. There is no burn metric in the template, but the cash trend implies roughly 15 months of runway at Q4. The position is marked up modestly ($1.33 a share, from $1.00) on grant milestones."
+    }
+  ]
+}

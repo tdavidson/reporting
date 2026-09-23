@@ -327,7 +327,7 @@ Then set the tunnel URL as your inbound webhook (e.g. `https://your-tunnel.ngrok
 
 ### Demo mode
 
-**[Try the demo](https://demo.otheradmin.com/demo)** — explore the platform with sample data, no signup required.
+**[Try the demo](https://www.otheradmin.com/demo/)** — explore the platform with sample data, no signup required.
 
 ### AI Providers
 

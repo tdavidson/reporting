@@ -1,0 +1,1666 @@
+{
+ "schemaVersion": 1,
+ "generatedAt": "2026-09-23",
+ "source": "Hemrock Ventures (demo fund)",
+ "fund": {
+  "name": "OtherAdmin Demo",
+  "currency": "USD"
+ },
+ "vehicles": [
+  {
+   "id": "061ee98b-cea1-465e-a73c-d597df4afaba",
+   "name": "Fund I",
+   "kind": "fund"
+  },
+  {
+   "id": "d73f3df5-5a2f-4c34-b431-e6c8d71fd4e9",
+   "name": "Fund II",
+   "kind": "fund"
+  }
+ ],
+ "companies": [
+  {
+   "id": "d08a27bc-39e4-4fb1-a624-7a286d83e929",
+   "name": "AdVantage",
+   "aliases": null,
+   "industry": [
+    "AdTech"
+   ],
+   "stage": "Series A",
+   "status": "active",
+   "overview": "Multivariate creative testing platform that automates ad creative optimization at scale.",
+   "founders": "Jamie Lin, Alex Torres",
+   "why_invested": "Unique creative-first approach to ad optimization with rapid adoption among performance marketers.",
+   "portfolio_group": [
+    "Fund I"
+   ],
+   "metrics": [
+    {
+     "id": "70de331d-9a0f-4056-834e-06cb613b7409",
+     "company_id": "d08a27bc-39e4-4fb1-a624-7a286d83e929",
+     "name": "Monthly Recurring Revenue",
+     "slug": "mrr",
+     "unit": "$",
+     "unit_position": "prefix",
+     "value_type": "currency",
+     "cadence": "monthly",
+     "display_order": 0,
+     "values": [
+      {
+       "period_label": "Jul 2025",
+       "year": 2025,
+       "quarter": 3,
+       "month": 7,
+       "number": 280000
+      },
+      {
+       "period_label": "Aug 2025",
+       "year": 2025,
+       "quarter": 3,
+       "month": 8,
+       "number": 295000
+      },
+      {
+       "period_label": "Sep 2025",
+       "year": 2025,
+       "quarter": 3,
+       "month": 9,
+       "number": 305000
+      },
+      {
+       "period_label": "Oct 2025",
+       "year": 2025,
+       "quarter": 4,
+       "month": 10,
+       "number": 310000
+      },
+      {
+       "period_label": "Nov 2025",
+       "year": 2025,
+       "quarter": 4,
+       "month": 11,
+       "number": 325000
+      },
+      {
+       "period_label": "Dec 2025",
+       "year": 2025,
+       "quarter": 4,
+       "month": 12,
+       "number": 340000
+      },
+      {
+       "period_label": "Jan 2026",
+       "year": 2026,
+       "quarter": 1,
+       "month": 1,
+       "number": 348000
+      }
+     ]
+    },
+    {
+     "id": "01ccbf1a-b970-41d6-91a2-50525cba6745",
+     "company_id": "d08a27bc-39e4-4fb1-a624-7a286d83e929",
+     "name": "Logo Churn",
+     "slug": "churn",
+     "unit": "%",
+     "unit_position": "suffix",
+     "value_type": "percentage",
+     "cadence": "quarterly",
+     "display_order": 1,
+     "values": [
+      {
+       "period_label": "Q2 2025",
+       "year": 2025,
+       "quarter": 2,
+       "month": null,
+       "number": 3.5
+      },
+      {
+       "period_label": "Q3 2025",
+       "year": 2025,
+       "quarter": 3,
+       "month": null,
+       "number": 3.2
+      },
+      {
+       "period_label": "Q4 2025",
+       "year": 2025,
+       "quarter": 4,
+       "month": null,
+       "number": 2.8
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "d1263d61-e648-4906-b991-f831fb74a186",
+   "name": "Benchline",
+   "aliases": null,
+   "industry": [
+    "Data Analytics"
+   ],
+   "stage": "Series B",
+   "status": "active",
+   "overview": "Real-time operational benchmarking platform for SaaS companies comparing against anonymized peer data.",
+   "founders": "Emily Zhang, Tom Hartley",
+   "why_invested": "Network effects compound as more companies join, creating a unique data moat.",
+   "portfolio_group": [
+    "Fund II"
+   ],
+   "metrics": [
+    {
+     "id": "eef2323e-3374-4a17-9017-0df8dc10f898",
+     "company_id": "d1263d61-e648-4906-b991-f831fb74a186",
+     "name": "Annual Recurring Revenue",
+     "slug": "arr",
+     "unit": "$",
+     "unit_position": "prefix",
+     "value_type": "currency",
+     "cadence": "quarterly",
+     "display_order": 0,
+     "values": [
+      {
+       "period_label": "Q1 2025",
+       "year": 2025,
+       "quarter": 1,
+       "month": null,
+       "number": 7800000
+      },
+      {
+       "period_label": "Q2 2025",
+       "year": 2025,
+       "quarter": 2,
+       "month": null,
+       "number": 8500000
+      },
+      {
+       "period_label": "Q3 2025",
+       "year": 2025,
+       "quarter": 3,
+       "month": null,
+       "number": 9200000
+      },
+      {
+       "period_label": "Q4 2025",
+       "year": 2025,
+       "quarter": 4,
+       "month": null,
+       "number": 10100000
+      },
+      {
+       "period_label": "Q1 2026",
+       "year": 2026,
+       "quarter": 1,
+       "month": null,
+       "number": 10800000
+      }
+     ]
+    },
+    {
+     "id": "7202c8ed-060b-439e-8f11-53b46a1b7de3",
+     "company_id": "d1263d61-e648-4906-b991-f831fb74a186",
+     "name": "Net Dollar Retention",
+     "slug": "ndr",
+     "unit": "%",
+     "unit_position": "suffix",
+     "value_type": "percentage",
+     "cadence": "quarterly",
+     "display_order": 1,
+     "values": [
+      {
+       "period_label": "Q1 2025",
+       "year": 2025,
+       "quarter": 1,
+       "month": null,
+       "number": 125
+      },
+      {
+       "period_label": "Q2 2025",
+       "year": 2025,
+       "quarter": 2,
+       "month": null,
+       "number": 128
+      },
+      {
+       "period_label": "Q3 2025",
+       "year": 2025,
+       "quarter": 3,
+       "month": null,
+       "number": 130
+      },
+      {
+       "period_label": "Q4 2025",
+       "year": 2025,
+       "quarter": 4,
+       "month": null,
+       "number": 127
+      }
+     ]
+    },
+    {
+     "id": "21f641a6-23e2-42be-af21-744899d210f8",
+     "company_id": "d1263d61-e648-4906-b991-f831fb74a186",
+     "name": "Headcount",
+     "slug": "headcount",
+     "unit": null,
+     "unit_position": "suffix",
+     "value_type": "number",
+     "cadence": "quarterly",
+     "display_order": 2,
+     "values": [
+      {
+       "period_label": "Q1 2025",
+       "year": 2025,
+       "quarter": 1,
+       "month": null,
+       "number": 45
+      },
+      {
+       "period_label": "Q2 2025",
+       "year": 2025,
+       "quarter": 2,
+       "month": null,
+       "number": 52
+      },
+      {
+       "period_label": "Q3 2025",
+       "year": 2025,
+       "quarter": 3,
+       "month": null,
+       "number": 58
+      },
+      {
+       "period_label": "Q4 2025",
+       "year": 2025,
+       "quarter": 4,
+       "month": null,
+       "number": 62
+      }
+     ]
+    },
+    {
+     "id": "d36210a6-ca19-41dd-80d9-86d6493185c9",
+     "company_id": "d1263d61-e648-4906-b991-f831fb74a186",
+     "name": "Cash on Hand",
+     "slug": "cash",
+     "unit": "$",
+     "unit_position": "prefix",
+     "value_type": "currency",
+     "cadence": "quarterly",
+     "display_order": 3,
+     "values": [
+      {
+       "period_label": "Q1 2025",
+       "year": 2025,
+       "quarter": 1,
+       "month": null,
+       "number": 18000000
+      },
+      {
+       "period_label": "Q2 2025",
+       "year": 2025,
+       "quarter": 2,
+       "month": null,
+       "number": 16500000
+      },
+      {
+       "period_label": "Q3 2025",
+       "year": 2025,
+       "quarter": 3,
+       "month": null,
+       "number": 15200000
+      },
+      {
+       "period_label": "Q4 2025",
+       "year": 2025,
+       "quarter": 4,
+       "month": null,
+       "number": 14000000
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "d4fef540-f26b-426f-9aef-96144a6579ce",
+   "name": "GreenLeaf Bio",
+   "aliases": null,
+   "industry": [
+    "Biotech"
+   ],
+   "stage": "Seed",
+   "status": "active",
+   "overview": "Developing sustainable bio-based alternatives to petroleum-derived packaging materials.",
+   "founders": "Dr. Priya Patel",
+   "why_invested": "Breakthrough polymer technology with strong IP moat and massive market opportunity.",
+   "portfolio_group": [
+    "Fund I"
+   ],
+   "metrics": [
+    {
+     "id": "9b9b877d-70dd-4a43-a213-3d2c6c169a68",
+     "company_id": "d4fef540-f26b-426f-9aef-96144a6579ce",
+     "name": "Cash on Hand",
+     "slug": "cash",
+     "unit": "$",
+     "unit_position": "prefix",
+     "value_type": "currency",
+     "cadence": "quarterly",
+     "display_order": 0,
+     "values": [
+      {
+       "period_label": "Q1 2025",
+       "year": 2025,
+       "quarter": 1,
+       "month": null,
+       "number": 2400000
+      },
+      {
+       "period_label": "Q2 2025",
+       "year": 2025,
+       "quarter": 2,
+       "month": null,
+       "number": 2100000
+      },
+      {
+       "period_label": "Q3 2025",
+       "year": 2025,
+       "quarter": 3,
+       "month": null,
+       "number": 1800000
+      },
+      {
+       "period_label": "Q4 2025",
+       "year": 2025,
+       "quarter": 4,
+       "month": null,
+       "number": 1500000
+      }
+     ]
+    },
+    {
+     "id": "cbc581d4-295c-4b83-867e-bdc62e45f4ff",
+     "company_id": "d4fef540-f26b-426f-9aef-96144a6579ce",
+     "name": "Headcount",
+     "slug": "headcount",
+     "unit": null,
+     "unit_position": "suffix",
+     "value_type": "number",
+     "cadence": "quarterly",
+     "display_order": 1,
+     "values": [
+      {
+       "period_label": "Q1 2025",
+       "year": 2025,
+       "quarter": 1,
+       "month": null,
+       "number": 8
+      },
+      {
+       "period_label": "Q2 2025",
+       "year": 2025,
+       "quarter": 2,
+       "month": null,
+       "number": 10
+      },
+      {
+       "period_label": "Q3 2025",
+       "year": 2025,
+       "quarter": 3,
+       "month": null,
+       "number": 12
+      },
+      {
+       "period_label": "Q4 2025",
+       "year": 2025,
+       "quarter": 4,
+       "month": null,
+       "number": 14
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "8b396e22-1612-4737-8d09-5dbf593bb08f",
+   "name": "Lattis",
+   "aliases": null,
+   "industry": [
+    "AI / ML"
+   ],
+   "stage": "Pre-Seed",
+   "status": "active",
+   "overview": "Open-source vector embedding framework for multimodal retrieval-augmented generation pipelines.",
+   "founders": "Elena Vasquez",
+   "why_invested": "Strong open-source traction and early enterprise adoption for AI search infrastructure.",
+   "portfolio_group": [
+    "Fund II"
+   ],
+   "metrics": [
+    {
+     "id": "d5f9be47-dac2-407f-b1b3-1e1ae0da9c3e",
+     "company_id": "8b396e22-1612-4737-8d09-5dbf593bb08f",
+     "name": "Cash on Hand",
+     "slug": "cash",
+     "unit": "$",
+     "unit_position": "prefix",
+     "value_type": "currency",
+     "cadence": "quarterly",
+     "display_order": 0,
+     "values": [
+      {
+       "period_label": "Q1 2025",
+       "year": 2025,
+       "quarter": 1,
+       "month": null,
+       "number": 900000
+      },
+      {
+       "period_label": "Q2 2025",
+       "year": 2025,
+       "quarter": 2,
+       "month": null,
+       "number": 780000
+      },
+      {
+       "period_label": "Q3 2025",
+       "year": 2025,
+       "quarter": 3,
+       "month": null,
+       "number": 650000
+      },
+      {
+       "period_label": "Q4 2025",
+       "year": 2025,
+       "quarter": 4,
+       "month": null,
+       "number": 520000
+      }
+     ]
+    },
+    {
+     "id": "4991f311-515d-4573-936f-c630fa4baecd",
+     "company_id": "8b396e22-1612-4737-8d09-5dbf593bb08f",
+     "name": "Monthly Burn",
+     "slug": "burn",
+     "unit": "$",
+     "unit_position": "prefix",
+     "value_type": "currency",
+     "cadence": "quarterly",
+     "display_order": 1,
+     "values": [
+      {
+       "period_label": "Q1 2025",
+       "year": 2025,
+       "quarter": 1,
+       "month": null,
+       "number": 38000
+      },
+      {
+       "period_label": "Q2 2025",
+       "year": 2025,
+       "quarter": 2,
+       "month": null,
+       "number": 42000
+      },
+      {
+       "period_label": "Q3 2025",
+       "year": 2025,
+       "quarter": 3,
+       "month": null,
+       "number": 45000
+      },
+      {
+       "period_label": "Q4 2025",
+       "year": 2025,
+       "quarter": 4,
+       "month": null,
+       "number": 48000
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "a67954cb-474b-404b-858b-49c240c22027",
+   "name": "NovaTech",
+   "aliases": null,
+   "industry": [
+    "SaaS"
+   ],
+   "stage": "Series A",
+   "status": "active",
+   "overview": "AI-powered customer success platform helping B2B SaaS companies reduce churn and expand accounts.",
+   "founders": "Sarah Chen, Marcus Rivera",
+   "why_invested": "Strong product-market fit in a growing category with exceptional net retention metrics.",
+   "portfolio_group": [
+    "Fund I"
+   ],
+   "metrics": [
+    {
+     "id": "b5c80d5e-699a-44d9-b299-9a685efd6dd6",
+     "company_id": "a67954cb-474b-404b-858b-49c240c22027",
+     "name": "Monthly Recurring Revenue",
+     "slug": "mrr",
+     "unit": "$",
+     "unit_position": "prefix",
+     "value_type": "currency",
+     "cadence": "monthly",
+     "display_order": 0,
+     "values": [
+      {
+       "period_label": "Jan 2025",
+       "year": 2025,
+       "quarter": 1,
+       "month": 1,
+       "number": 120000
+      },
+      {
+       "period_label": "Feb 2025",
+       "year": 2025,
+       "quarter": 1,
+       "month": 2,
+       "number": 132000
+      },
+      {
+       "period_label": "Mar 2025",
+       "year": 2025,
+       "quarter": 1,
+       "month": 3,
+       "number": 145000
+      },
+      {
+       "period_label": "Apr 2025",
+       "year": 2025,
+       "quarter": 2,
+       "month": 4,
+       "number": 156000
+      },
+      {
+       "period_label": "May 2025",
+       "year": 2025,
+       "quarter": 2,
+       "month": 5,
+       "number": 168000
+      },
+      {
+       "period_label": "Jun 2025",
+       "year": 2025,
+       "quarter": 2,
+       "month": 6,
+       "number": 179000
+      },
+      {
+       "period_label": "Jul 2025",
+       "year": 2025,
+       "quarter": 3,
+       "month": 7,
+       "number": 192000
+      },
+      {
+       "period_label": "Aug 2025",
+       "year": 2025,
+       "quarter": 3,
+       "month": 8,
+       "number": 201000
+      },
+      {
+       "period_label": "Sep 2025",
+       "year": 2025,
+       "quarter": 3,
+       "month": 9,
+       "number": 215000
+      },
+      {
+       "period_label": "Oct 2025",
+       "year": 2025,
+       "quarter": 4,
+       "month": 10,
+       "number": 228000
+      },
+      {
+       "period_label": "Nov 2025",
+       "year": 2025,
+       "quarter": 4,
+       "month": 11,
+       "number": 240000
+      },
+      {
+       "period_label": "Dec 2025",
+       "year": 2025,
+       "quarter": 4,
+       "month": 12,
+       "number": 258000
+      }
+     ]
+    },
+    {
+     "id": "acd546b6-43da-410e-8ccb-76b6eaa7e1af",
+     "company_id": "a67954cb-474b-404b-858b-49c240c22027",
+     "name": "Burn Rate",
+     "slug": "burn",
+     "unit": "$",
+     "unit_position": "prefix",
+     "value_type": "currency",
+     "cadence": "quarterly",
+     "display_order": 1,
+     "values": [
+      {
+       "period_label": "Q1 2025",
+       "year": 2025,
+       "quarter": 1,
+       "month": null,
+       "number": 85000
+      },
+      {
+       "period_label": "Q2 2025",
+       "year": 2025,
+       "quarter": 2,
+       "month": null,
+       "number": 92000
+      },
+      {
+       "period_label": "Q3 2025",
+       "year": 2025,
+       "quarter": 3,
+       "month": null,
+       "number": 88000
+      },
+      {
+       "period_label": "Q4 2025",
+       "year": 2025,
+       "quarter": 4,
+       "month": null,
+       "number": 95000
+      }
+     ]
+    },
+    {
+     "id": "c78dbad1-2eb6-48b2-9b69-fc4ac1922bef",
+     "company_id": "a67954cb-474b-404b-858b-49c240c22027",
+     "name": "Net Revenue Retention",
+     "slug": "nrr",
+     "unit": "%",
+     "unit_position": "suffix",
+     "value_type": "percentage",
+     "cadence": "quarterly",
+     "display_order": 2,
+     "values": [
+      {
+       "period_label": "Q1 2025",
+       "year": 2025,
+       "quarter": 1,
+       "month": null,
+       "number": 112
+      },
+      {
+       "period_label": "Q2 2025",
+       "year": 2025,
+       "quarter": 2,
+       "month": null,
+       "number": 115
+      },
+      {
+       "period_label": "Q3 2025",
+       "year": 2025,
+       "quarter": 3,
+       "month": null,
+       "number": 118
+      },
+      {
+       "period_label": "Q4 2025",
+       "year": 2025,
+       "quarter": 4,
+       "month": null,
+       "number": 121
+      }
+     ]
+    },
+    {
+     "id": "11a8a6a4-657f-42e2-9bfe-192adac70fa4",
+     "company_id": "a67954cb-474b-404b-858b-49c240c22027",
+     "name": "Cash on Hand",
+     "slug": "cash",
+     "unit": "$",
+     "unit_position": "prefix",
+     "value_type": "currency",
+     "cadence": "quarterly",
+     "display_order": 3,
+     "values": [
+      {
+       "period_label": "Q1 2025",
+       "year": 2025,
+       "quarter": 1,
+       "month": null,
+       "number": 3200000
+      },
+      {
+       "period_label": "Q2 2025",
+       "year": 2025,
+       "quarter": 2,
+       "month": null,
+       "number": 2900000
+      },
+      {
+       "period_label": "Q3 2025",
+       "year": 2025,
+       "quarter": 3,
+       "month": null,
+       "number": 2600000
+      },
+      {
+       "period_label": "Q4 2025",
+       "year": 2025,
+       "quarter": 4,
+       "month": null,
+       "number": 2400000
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "b4870bad-ddd4-42d1-a300-7111899cf154",
+   "name": "RouteWise",
+   "aliases": null,
+   "industry": [
+    "Logistics",
+    "SaaS"
+   ],
+   "stage": "Series B",
+   "status": "active",
+   "overview": "Last-mile delivery optimization platform used by enterprise retailers and logistics providers.",
+   "founders": "James Okafor, Lin Wei",
+   "why_invested": "Category leader in a $40B TAM with sticky enterprise contracts and strong unit economics.",
+   "portfolio_group": [
+    "Fund I"
+   ],
+   "metrics": [
+    {
+     "id": "e6e9c340-1975-4a89-8905-891e6a6dbca1",
+     "company_id": "b4870bad-ddd4-42d1-a300-7111899cf154",
+     "name": "Annual Recurring Revenue",
+     "slug": "arr",
+     "unit": "$",
+     "unit_position": "prefix",
+     "value_type": "currency",
+     "cadence": "quarterly",
+     "display_order": 0,
+     "values": [
+      {
+       "period_label": "Q1 2025",
+       "year": 2025,
+       "quarter": 1,
+       "month": null,
+       "number": 4200000
+      },
+      {
+       "period_label": "Q2 2025",
+       "year": 2025,
+       "quarter": 2,
+       "month": null,
+       "number": 4800000
+      },
+      {
+       "period_label": "Q3 2025",
+       "year": 2025,
+       "quarter": 3,
+       "month": null,
+       "number": 5100000
+      },
+      {
+       "period_label": "Q4 2025",
+       "year": 2025,
+       "quarter": 4,
+       "month": null,
+       "number": 5500000
+      },
+      {
+       "period_label": "Q1 2026",
+       "year": 2026,
+       "quarter": 1,
+       "month": null,
+       "number": 6100000
+      }
+     ]
+    },
+    {
+     "id": "0c3488a9-cf46-4b72-8701-7b8e931d3e9a",
+     "company_id": "b4870bad-ddd4-42d1-a300-7111899cf154",
+     "name": "Gross Margin",
+     "slug": "gross-margin",
+     "unit": "%",
+     "unit_position": "suffix",
+     "value_type": "percentage",
+     "cadence": "quarterly",
+     "display_order": 1,
+     "values": [
+      {
+       "period_label": "Q1 2025",
+       "year": 2025,
+       "quarter": 1,
+       "month": null,
+       "number": 62
+      },
+      {
+       "period_label": "Q2 2025",
+       "year": 2025,
+       "quarter": 2,
+       "month": null,
+       "number": 64
+      },
+      {
+       "period_label": "Q3 2025",
+       "year": 2025,
+       "quarter": 3,
+       "month": null,
+       "number": 65
+      },
+      {
+       "period_label": "Q4 2025",
+       "year": 2025,
+       "quarter": 4,
+       "month": null,
+       "number": 67
+      },
+      {
+       "period_label": "Q1 2026",
+       "year": 2026,
+       "quarter": 1,
+       "month": null,
+       "number": 68
+      }
+     ]
+    },
+    {
+     "id": "d70800bd-c2cc-4882-a455-fa8c635c3b38",
+     "company_id": "b4870bad-ddd4-42d1-a300-7111899cf154",
+     "name": "Customer Count",
+     "slug": "customers",
+     "unit": null,
+     "unit_position": "suffix",
+     "value_type": "number",
+     "cadence": "quarterly",
+     "display_order": 2,
+     "values": [
+      {
+       "period_label": "Q1 2025",
+       "year": 2025,
+       "quarter": 1,
+       "month": null,
+       "number": 42
+      },
+      {
+       "period_label": "Q2 2025",
+       "year": 2025,
+       "quarter": 2,
+       "month": null,
+       "number": 51
+      },
+      {
+       "period_label": "Q3 2025",
+       "year": 2025,
+       "quarter": 3,
+       "month": null,
+       "number": 58
+      },
+      {
+       "period_label": "Q4 2025",
+       "year": 2025,
+       "quarter": 4,
+       "month": null,
+       "number": 67
+      },
+      {
+       "period_label": "Q1 2026",
+       "year": 2026,
+       "quarter": 1,
+       "month": null,
+       "number": 74
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "2231479f-1bf3-4646-9173-abc5d31fd515",
+   "name": "TapFin",
+   "aliases": null,
+   "industry": [
+    "Fintech"
+   ],
+   "stage": "Series A",
+   "status": "active",
+   "overview": "Embedded payments infrastructure for African merchants, processing card, mobile money, and bank transfers.",
+   "founders": "Kemi Adeyemi, Tobi Mensah",
+   "why_invested": "First-mover in a rapidly digitizing payments market with 50M+ potential merchants.",
+   "portfolio_group": [
+    "Fund II"
+   ],
+   "metrics": [
+    {
+     "id": "63cba462-17f1-456e-8fd6-ca18bb3b0a4a",
+     "company_id": "2231479f-1bf3-4646-9173-abc5d31fd515",
+     "name": "Gross Merchandise Volume",
+     "slug": "gmv",
+     "unit": "$",
+     "unit_position": "prefix",
+     "value_type": "currency",
+     "cadence": "monthly",
+     "display_order": 0,
+     "values": [
+      {
+       "period_label": "Jul 2025",
+       "year": 2025,
+       "quarter": 3,
+       "month": 7,
+       "number": 12000000
+      },
+      {
+       "period_label": "Aug 2025",
+       "year": 2025,
+       "quarter": 3,
+       "month": 8,
+       "number": 13500000
+      },
+      {
+       "period_label": "Sep 2025",
+       "year": 2025,
+       "quarter": 3,
+       "month": 9,
+       "number": 14200000
+      },
+      {
+       "period_label": "Oct 2025",
+       "year": 2025,
+       "quarter": 4,
+       "month": 10,
+       "number": 15800000
+      },
+      {
+       "period_label": "Nov 2025",
+       "year": 2025,
+       "quarter": 4,
+       "month": 11,
+       "number": 17100000
+      },
+      {
+       "period_label": "Dec 2025",
+       "year": 2025,
+       "quarter": 4,
+       "month": 12,
+       "number": 19500000
+      },
+      {
+       "period_label": "Jan 2026",
+       "year": 2026,
+       "quarter": 1,
+       "month": 1,
+       "number": 18200000
+      }
+     ]
+    },
+    {
+     "id": "65345f9f-15e7-4199-8d45-ce44af7bf54f",
+     "company_id": "2231479f-1bf3-4646-9173-abc5d31fd515",
+     "name": "Revenue",
+     "slug": "revenue",
+     "unit": "$",
+     "unit_position": "prefix",
+     "value_type": "currency",
+     "cadence": "monthly",
+     "display_order": 1,
+     "values": [
+      {
+       "period_label": "Jul 2025",
+       "year": 2025,
+       "quarter": 3,
+       "month": 7,
+       "number": 180000
+      },
+      {
+       "period_label": "Aug 2025",
+       "year": 2025,
+       "quarter": 3,
+       "month": 8,
+       "number": 202000
+      },
+      {
+       "period_label": "Sep 2025",
+       "year": 2025,
+       "quarter": 3,
+       "month": 9,
+       "number": 213000
+      },
+      {
+       "period_label": "Oct 2025",
+       "year": 2025,
+       "quarter": 4,
+       "month": 10,
+       "number": 237000
+      },
+      {
+       "period_label": "Nov 2025",
+       "year": 2025,
+       "quarter": 4,
+       "month": 11,
+       "number": 256000
+      },
+      {
+       "period_label": "Dec 2025",
+       "year": 2025,
+       "quarter": 4,
+       "month": 12,
+       "number": 292000
+      },
+      {
+       "period_label": "Jan 2026",
+       "year": 2026,
+       "quarter": 1,
+       "month": 1,
+       "number": 273000
+      }
+     ]
+    },
+    {
+     "id": "cdf766ee-c094-42d2-9061-67f9356fb68c",
+     "company_id": "2231479f-1bf3-4646-9173-abc5d31fd515",
+     "name": "Take Rate",
+     "slug": "take-rate",
+     "unit": "%",
+     "unit_position": "suffix",
+     "value_type": "percentage",
+     "cadence": "quarterly",
+     "display_order": 2,
+     "values": [
+      {
+       "period_label": "Q3 2025",
+       "year": 2025,
+       "quarter": 3,
+       "month": null,
+       "number": 1.5
+      },
+      {
+       "period_label": "Q4 2025",
+       "year": 2025,
+       "quarter": 4,
+       "month": null,
+       "number": 1.5
+      }
+     ]
+    },
+    {
+     "id": "5cb4ee19-b309-4c58-a811-f6028597850b",
+     "company_id": "2231479f-1bf3-4646-9173-abc5d31fd515",
+     "name": "Cash on Hand",
+     "slug": "cash",
+     "unit": "$",
+     "unit_position": "prefix",
+     "value_type": "currency",
+     "cadence": "quarterly",
+     "display_order": 3,
+     "values": [
+      {
+       "period_label": "Q1 2025",
+       "year": 2025,
+       "quarter": 1,
+       "month": null,
+       "number": 4100000
+      },
+      {
+       "period_label": "Q2 2025",
+       "year": 2025,
+       "quarter": 2,
+       "month": null,
+       "number": 3700000
+      },
+      {
+       "period_label": "Q3 2025",
+       "year": 2025,
+       "quarter": 3,
+       "month": null,
+       "number": 3400000
+      },
+      {
+       "period_label": "Q4 2025",
+       "year": 2025,
+       "quarter": 4,
+       "month": null,
+       "number": 3200000
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "35dea40d-dd6f-4916-b566-deb40872d579",
+   "name": "Verdant",
+   "aliases": null,
+   "industry": [
+    "Climate Tech"
+   ],
+   "stage": "Seed",
+   "status": "active",
+   "overview": "Carbon accounting and offset management platform for mid-market enterprises.",
+   "founders": "Anna Kowalski, Raj Mehta",
+   "why_invested": "Regulatory tailwinds (CSRD, SEC climate rules) create strong demand pull for compliance tooling.",
+   "portfolio_group": [
+    "Fund II"
+   ],
+   "metrics": [
+    {
+     "id": "8596acff-4ef3-4c97-97f7-2424d73d5ec7",
+     "company_id": "35dea40d-dd6f-4916-b566-deb40872d579",
+     "name": "Cash on Hand",
+     "slug": "cash",
+     "unit": "$",
+     "unit_position": "prefix",
+     "value_type": "currency",
+     "cadence": "quarterly",
+     "display_order": 0,
+     "values": [
+      {
+       "period_label": "Q1 2025",
+       "year": 2025,
+       "quarter": 1,
+       "month": null,
+       "number": 1800000
+      },
+      {
+       "period_label": "Q2 2025",
+       "year": 2025,
+       "quarter": 2,
+       "month": null,
+       "number": 1550000
+      },
+      {
+       "period_label": "Q3 2025",
+       "year": 2025,
+       "quarter": 3,
+       "month": null,
+       "number": 1300000
+      },
+      {
+       "period_label": "Q4 2025",
+       "year": 2025,
+       "quarter": 4,
+       "month": null,
+       "number": 1100000
+      }
+     ]
+    },
+    {
+     "id": "6aca3122-f86b-4374-b3b8-7f9c80daf173",
+     "company_id": "35dea40d-dd6f-4916-b566-deb40872d579",
+     "name": "Monthly Burn",
+     "slug": "burn",
+     "unit": "$",
+     "unit_position": "prefix",
+     "value_type": "currency",
+     "cadence": "quarterly",
+     "display_order": 1,
+     "values": [
+      {
+       "period_label": "Q1 2025",
+       "year": 2025,
+       "quarter": 1,
+       "month": null,
+       "number": 72000
+      },
+      {
+       "period_label": "Q2 2025",
+       "year": 2025,
+       "quarter": 2,
+       "month": null,
+       "number": 80000
+      },
+      {
+       "period_label": "Q3 2025",
+       "year": 2025,
+       "quarter": 3,
+       "month": null,
+       "number": 78000
+      },
+      {
+       "period_label": "Q4 2025",
+       "year": 2025,
+       "quarter": 4,
+       "month": null,
+       "number": 85000
+      }
+     ]
+    },
+    {
+     "id": "78d59428-5128-4861-8e2f-f9e9d1aabc7b",
+     "company_id": "35dea40d-dd6f-4916-b566-deb40872d579",
+     "name": "Grant Revenue",
+     "slug": "grants",
+     "unit": "$",
+     "unit_position": "prefix",
+     "value_type": "currency",
+     "cadence": "quarterly",
+     "display_order": 2,
+     "values": [
+      {
+       "period_label": "Q2 2025",
+       "year": 2025,
+       "quarter": 2,
+       "month": null,
+       "number": 150000
+      },
+      {
+       "period_label": "Q4 2025",
+       "year": 2025,
+       "quarter": 4,
+       "month": null,
+       "number": 200000
+      }
+     ]
+    }
+   ]
+  }
+ ],
+ "lps": [
+  {
+   "id": "ad03d815-5fc8-4b16-abf4-89d3e302e8b9",
+   "name": "Coastal University Endowment"
+  },
+  {
+   "id": "95c7ce90-5193-4f7f-b4ec-510d6c6760d5",
+   "name": "Greenfield Pension"
+  },
+  {
+   "id": "38771be0-9d97-485c-a925-cba8005744af",
+   "name": "Hemrock Founders Capital LP"
+  },
+  {
+   "id": "0c458157-e6b4-4b60-8742-5403da230ba7",
+   "name": "Northstar Family Office"
+  },
+  {
+   "id": "a5d014b1-6724-4c40-a2c6-15ae95ce08ab",
+   "name": "Pinecrest Foundation"
+  },
+  {
+   "id": "11c02811-11ad-42c8-a298-4dc11c8c82f9",
+   "name": "Various Angels Fund I"
+  },
+  {
+   "id": "7355af33-8b62-4adc-8d11-c0c918f8e52c",
+   "name": "Various Angels Fund II"
+  }
+ ],
+ "deals": [
+  {
+   "id": "24729968-7f2b-4159-948b-7f68411d7231",
+   "company_name": "Haptiq",
+   "founder_name": "Kai Tanaka",
+   "status": "new",
+   "stage": "Pre-seed",
+   "industry": "Fintech infrastructure",
+   "raise_amount": "$2.5M pre-seed",
+   "intro_source": "cold",
+   "thesis_fit_score": "moderate",
+   "company_summary": "Haptiq is a pre-revenue developer infrastructure company with a multimodal feedback SDK for fintech apps. 3 design-partner contracts (Mercury, Brex, undisclosed bank) but no recognized revenue yet. Solo founder spinning out of a stealth incubator. Raising $2.5M pre-seed.",
+   "thesis_fit_analysis": "Pre-revenue, single-founder, design-partner-only. Too early for our typical entry point. Developer infrastructure is aligned in product shape; traction is weak because design partners are not paying customers; capital efficiency is unclear. Disqualifiers: stage (we typically wait for $500K+ ARR), single founder for an infra play."
+  },
+  {
+   "id": "1fed0c45-46e2-4f04-8c88-7940b7933b03",
+   "company_name": "Finch",
+   "founder_name": "Jordan Bell",
+   "status": "passed",
+   "stage": "Seed extension",
+   "industry": "Consumer / Mental health",
+   "raise_amount": "$4M seed extension",
+   "intro_source": "cold",
+   "thesis_fit_score": "weak",
+   "company_summary": "Finch is a B2C mobile mental-health app with a gamified daily check-in and a virtual pet retention loop. $200K MRR, 14 months in, 8% MoM growth from App Store organic. Single-founder company. Raising a $4M seed extension.",
+   "thesis_fit_analysis": "B2C consumer is out of our default thesis but the unit economics look unusually clean. 8% MoM organic is real but App Store concentration is a single point of failure. Disqualifiers: consumer subscription churn dynamics, App Store dependency, single founder."
+  },
+  {
+   "id": "41bd7a9a-2d35-400a-a650-f70aa9cec24d",
+   "company_name": "Lattice",
+   "founder_name": "Marisol Vega",
+   "status": "advancing",
+   "stage": "Seed",
+   "industry": "Vertical SaaS / Agriculture",
+   "raise_amount": "$3M Seed",
+   "intro_source": "event",
+   "thesis_fit_score": "strong",
+   "company_summary": "Lattice is a vertical SaaS for agricultural co-operatives in Latin America. $480K ARR across 14 co-ops in Mexico and Colombia, growing 18% MoM. Founder Marisol Vega is ex-McKinsey with grew-up-on-a-coffee-farm context; co-founder Tom\u00e1s Aguirre is ex-Globant.",
+   "thesis_fit_analysis": "Vertical SaaS in an emerging market, squarely on thesis if traction and unit economics hold up. Co-ops are an underserved buyer with consolidated decision-making and high switching costs. $480K ARR is early but 18% MoM is fast. Founder-market fit is strong. Open questions: customer concentration in the top 3 co-ops, differentiation from existing co-op software, unit economics on the freemium tier."
+  },
+  {
+   "id": "31a2419a-4ba7-4a1f-93a2-5fee2538d9ee",
+   "company_name": "NorthPole Energy",
+   "founder_name": "Grace Okonkwo",
+   "status": "passed",
+   "stage": "Series A",
+   "industry": "Climate / Energy storage",
+   "raise_amount": "$20M Series A",
+   "intro_source": "warm_intro",
+   "thesis_fit_score": "out_of_thesis",
+   "company_summary": "NorthPole Energy builds modular zinc-bromine flow batteries for utility-scale grid storage. One pilot deployment underway with a Texas utility. Existing $4M seed led by Energy Impact Partners. Raising $20M Series A to scale.",
+   "thesis_fit_analysis": "Climate hardware sits outside our software-only thesis. Grid deployments take 3 to 5 years to revenue and the next round will likely be $50M+. Nothing wrong with the company, just not for us."
+  },
+  {
+   "id": "323ba75b-04f8-474f-adfd-7ae039d7aa88",
+   "company_name": "Stellate",
+   "founder_name": "Alex Chen",
+   "status": "reviewing",
+   "stage": "Series A",
+   "industry": "Developer infrastructure",
+   "raise_amount": "$5M @ $45M post",
+   "intro_source": "cold",
+   "thesis_fit_score": "strong",
+   "company_summary": "Stellate is a developer-infrastructure SaaS that caches database query results at edge POPs to cut SaaS application cloud bills by 30-40%. The team is 9 FTEs, all ex-Vercel/Cloudflare. They claim $1.2M ARR with 25% MoM growth, 138% NRR, and 47 paying customers including Notion and Linear. Burning $400K/mo with 18 months of runway pre-raise.",
+   "thesis_fit_analysis": "Aligns strongly with two of three thesis pillars (developer tools, instrumentation-heavy products with measurable cost savings). 25% MoM growth at $1.2M ARR is unusual; verify against Stripe data. Series A is led by a top-tier co-investor, so we would be filling out the round. Open questions: revenue concentration in the top 10 customers, retention as they pass $5M ARR, why existing investors are not taking the full round."
+  }
+ ],
+ "notes": [
+  {
+   "id": "14e3d783-45dd-4775-80f2-4f996ad8b4e7",
+   "company_id": "8b396e22-1612-4737-8d09-5dbf593bb08f",
+   "content": "GitHub stars passed 5K. Elena is presenting at NeurIPS next month, great visibility for the enterprise pipeline.",
+   "created_at": "2026-03-08"
+  },
+  {
+   "id": "3895cf36-93a9-41da-8393-ec19d72e7de6",
+   "company_id": null,
+   "content": "LP update call next Thursday. Prepare portfolio summary with highlights from Benchline and RouteWise.",
+   "created_at": "2026-03-08"
+  },
+  {
+   "id": "2d08ab56-a4c8-4f8a-a66a-ab16c32e8042",
+   "company_id": "d4fef540-f26b-426f-9aef-96144a6579ce",
+   "content": "FDA pre-submission meeting went well. Team expects to file for regulatory clearance in Q2 2026.",
+   "created_at": "2026-03-08"
+  },
+  {
+   "id": "679ff9b4-0608-4e48-b893-1ebc0dc0a737",
+   "company_id": "b4870bad-ddd4-42d1-a300-7111899cf154",
+   "content": "Board meeting recap: team presented Series C readiness plan. Targeting Q3 2026 raise at $50M+ valuation.",
+   "created_at": "2026-03-08"
+  },
+  {
+   "id": "52974a9b-4c82-44a6-9dcc-21ac30b46a93",
+   "company_id": "a67954cb-474b-404b-858b-49c240c22027",
+   "content": "Sarah mentioned they are exploring a strategic partnership with Salesforce. Follow up in next 1:1.",
+   "created_at": "2026-03-08"
+  },
+  {
+   "id": "8dfff174-1675-4691-b659-c8aa7bd20586",
+   "company_id": null,
+   "content": "Q4 portfolio review scheduled for March 15. Need updated financials from all companies by March 1.",
+   "created_at": "2026-03-08"
+  }
+ ],
+ "interactions": [
+  {
+   "company_id": "b4870bad-ddd4-42d1-a300-7111899cf154",
+   "subject": "Series C timing discussion",
+   "summary": "James wants to start Series C conversations in Q3 2026. Discussed target raise ($30-40M), potential leads, and whether to hire a CFO before the process.",
+   "date": "2026-06-23"
+  },
+  {
+   "company_id": "d1263d61-e648-4906-b991-f831fb74a186",
+   "subject": "Re: Customer expansion update",
+   "summary": "Emily shared that three large enterprise prospects are in late-stage trials. Discussed pricing strategy for annual contracts above $200K and whether to offer multi-year discounts.",
+   "date": "2026-06-20"
+  },
+  {
+   "company_id": "a67954cb-474b-404b-858b-49c240c22027",
+   "subject": "Re: Q4 board prep",
+   "summary": "Sarah shared the draft board deck and asked for feedback on the ARR bridge slide. Discussed the hiring plan for Q1 and whether to bring on a VP Sales now or wait until Series A+ closes.",
+   "date": "2026-06-16"
+  },
+  {
+   "company_id": "2231479f-1bf3-4646-9173-abc5d31fd515",
+   "subject": "FX hedging strategy",
+   "summary": "Kemi flagged Naira volatility impacting USD-reported metrics. Discussed hedging options and whether to open a USD treasury account for operational reserves.",
+   "date": "2026-06-13"
+  },
+  {
+   "company_id": "d4fef540-f26b-426f-9aef-96144a6579ce",
+   "subject": "FDA pre-submission feedback",
+   "summary": "Priya shared positive feedback from the FDA pre-submission meeting. Regulatory pathway looks clearer than expected. Team targeting Q2 2026 for clearance filing.",
+   "date": "2026-06-11"
+  },
+  {
+   "company_id": "a67954cb-474b-404b-858b-49c240c22027",
+   "subject": "Intro: Sarah Chen <> David Park (VP Sales, AcmeCorp)",
+   "summary": "Introduction to discuss enterprise sales motion and the playbook for scaling from $3M to $10M ARR.",
+   "date": "2026-06-09"
+  },
+  {
+   "company_id": "35dea40d-dd6f-4916-b566-deb40872d579",
+   "subject": "Grant application update",
+   "summary": "Anna confirmed the DOE grant application was submitted. $500K grant decision expected Q2. Also discussed adding a sales hire to target CSRD-affected European companies.",
+   "date": "2026-06-06"
+  },
+  {
+   "company_id": "d08a27bc-39e4-4fb1-a624-7a286d83e929",
+   "subject": "Intro: Jamie Lin <> Sam Patel (Head of Growth, GrowthStack)",
+   "summary": "Connected Jamie with Sam Patel at GrowthStack to discuss an integration partnership and co-marketing for ad creative optimization in the SMB segment.",
+   "date": "2026-06-03"
+  },
+  {
+   "company_id": "8b396e22-1612-4737-8d09-5dbf593bb08f",
+   "subject": "Intro: Elena Vasquez <> Chris Nguyen (CTO, ApexData)",
+   "summary": "Introduction to discuss a potential design partnership on multimodal embeddings for enterprise RAG use cases.",
+   "date": "2026-06-01"
+  },
+  {
+   "company_id": "b4870bad-ddd4-42d1-a300-7111899cf154",
+   "subject": "Intro: James Okafor <> Maria Santos (COO, GlobalFreight)",
+   "summary": "Introduction to explore a partnership for last-mile delivery optimization.",
+   "date": "2026-05-27"
+  },
+  {
+   "company_id": "2231479f-1bf3-4646-9173-abc5d31fd515",
+   "subject": "Intro: Kemi Adeyemi <> Rachel Kim (PayBridge)",
+   "summary": "Connected Kemi with Rachel Kim from PayBridge to discuss cross-border payment infrastructure and integration for TapFin's merchant onboarding flow.",
+   "date": "2026-05-22"
+  },
+  {
+   "company_id": null,
+   "subject": "LP meeting follow-up: portfolio allocation discussion",
+   "summary": "Follow-up from the LP advisory meeting covering Fund II deployment pace, reserve strategy, and initial Fund III timeline. LPs want more detail on Fund I realized returns at the next meeting.",
+   "date": "2026-05-17"
+  }
+ ],
+ "investments": [
+  {
+   "company_id": "a67954cb-474b-404b-858b-49c240c22027",
+   "vehicle": "Fund I",
+   "type": "investment",
+   "date": "2023-06-15",
+   "round": "Seed",
+   "cost": 500000,
+   "share_price": 1,
+   "note": "Led seed round"
+  },
+  {
+   "company_id": "a67954cb-474b-404b-858b-49c240c22027",
+   "vehicle": "Fund I",
+   "type": "investment",
+   "date": "2024-09-01",
+   "round": "Series A",
+   "cost": 1500000,
+   "share_price": 2,
+   "note": "Pro-rata follow-on"
+  },
+  {
+   "company_id": "a67954cb-474b-404b-858b-49c240c22027",
+   "vehicle": "Fund I",
+   "type": "unrealized_gain_change",
+   "date": "2025-12-31",
+   "unrealized_change": 2500000,
+   "mark_share_price": 3.6,
+   "note": "Q4 2025 mark based on Series A+ term sheet"
+  },
+  {
+   "company_id": "d4fef540-f26b-426f-9aef-96144a6579ce",
+   "vehicle": "Fund I",
+   "type": "investment",
+   "date": "2024-01-10",
+   "round": "Seed",
+   "cost": 750000,
+   "share_price": 1,
+   "note": "Co-led seed with BioFund Partners"
+  },
+  {
+   "company_id": "d4fef540-f26b-426f-9aef-96144a6579ce",
+   "vehicle": "Fund I",
+   "type": "unrealized_gain_change",
+   "date": "2025-12-31",
+   "unrealized_change": 250000,
+   "mark_share_price": 1.33,
+   "note": "Modest mark-up based on grant milestones"
+  },
+  {
+   "company_id": "b4870bad-ddd4-42d1-a300-7111899cf154",
+   "vehicle": "Fund I",
+   "type": "investment",
+   "date": "2022-03-20",
+   "round": "Seed",
+   "cost": 400000,
+   "share_price": 1
+  },
+  {
+   "company_id": "b4870bad-ddd4-42d1-a300-7111899cf154",
+   "vehicle": "Fund I",
+   "type": "investment",
+   "date": "2023-07-15",
+   "round": "Series A",
+   "cost": 1000000,
+   "share_price": 3,
+   "note": "Full pro-rata"
+  },
+  {
+   "company_id": "b4870bad-ddd4-42d1-a300-7111899cf154",
+   "vehicle": "Fund I",
+   "type": "investment",
+   "date": "2024-11-01",
+   "round": "Series B",
+   "cost": 2000000,
+   "share_price": 7,
+   "note": "Led Series B"
+  },
+  {
+   "company_id": "b4870bad-ddd4-42d1-a300-7111899cf154",
+   "vehicle": "Fund I",
+   "type": "unrealized_gain_change",
+   "date": "2025-12-31",
+   "unrealized_change": 6800000,
+   "mark_share_price": 12.5,
+   "note": "Q4 2025 409A valuation"
+  },
+  {
+   "company_id": "d08a27bc-39e4-4fb1-a624-7a286d83e929",
+   "vehicle": "Fund I",
+   "type": "investment",
+   "date": "2024-06-01",
+   "round": "Series A",
+   "cost": 2000000,
+   "share_price": 2.5,
+   "note": "Co-invested with Growth Capital"
+  },
+  {
+   "company_id": "d08a27bc-39e4-4fb1-a624-7a286d83e929",
+   "vehicle": "Fund I",
+   "type": "unrealized_gain_change",
+   "date": "2025-12-31",
+   "unrealized_change": 1200000,
+   "mark_share_price": 4,
+   "note": "Based on latest revenue multiple"
+  },
+  {
+   "company_id": "35dea40d-dd6f-4916-b566-deb40872d579",
+   "vehicle": "Fund II",
+   "type": "investment",
+   "date": "2024-04-15",
+   "round": "Seed",
+   "cost": 600000,
+   "share_price": 1,
+   "note": "Led seed round"
+  },
+  {
+   "company_id": "2231479f-1bf3-4646-9173-abc5d31fd515",
+   "vehicle": "Fund II",
+   "type": "investment",
+   "date": "2023-09-01",
+   "round": "Seed",
+   "cost": 350000,
+   "share_price": 1
+  },
+  {
+   "company_id": "2231479f-1bf3-4646-9173-abc5d31fd515",
+   "vehicle": "Fund II",
+   "type": "investment",
+   "date": "2024-12-01",
+   "round": "Series A",
+   "cost": 1500000,
+   "share_price": 3,
+   "note": "Co-led with Fintech Africa"
+  },
+  {
+   "company_id": "2231479f-1bf3-4646-9173-abc5d31fd515",
+   "vehicle": "Fund II",
+   "type": "unrealized_gain_change",
+   "date": "2025-12-31",
+   "unrealized_change": 2100000,
+   "mark_share_price": 5.65,
+   "note": "Mark based on GMV growth trajectory"
+  },
+  {
+   "company_id": "d1263d61-e648-4906-b991-f831fb74a186",
+   "vehicle": "Fund II",
+   "type": "investment",
+   "date": "2022-01-15",
+   "round": "Seed",
+   "cost": 300000,
+   "share_price": 1
+  },
+  {
+   "company_id": "d1263d61-e648-4906-b991-f831fb74a186",
+   "vehicle": "Fund II",
+   "type": "investment",
+   "date": "2023-04-01",
+   "round": "Series A",
+   "cost": 1200000,
+   "share_price": 4,
+   "note": "Full pro-rata"
+  },
+  {
+   "company_id": "d1263d61-e648-4906-b991-f831fb74a186",
+   "vehicle": "Fund II",
+   "type": "investment",
+   "date": "2024-08-01",
+   "round": "Series B",
+   "cost": 2500000,
+   "share_price": 10,
+   "note": "Led Series B at $85M pre"
+  },
+  {
+   "company_id": "d1263d61-e648-4906-b991-f831fb74a186",
+   "vehicle": "Fund II",
+   "type": "unrealized_gain_change",
+   "date": "2025-12-31",
+   "unrealized_change": 9500000,
+   "mark_share_price": 18.82,
+   "note": "Q4 2025 mark based on $10M ARR milestone"
+  },
+  {
+   "company_id": "8b396e22-1612-4737-8d09-5dbf593bb08f",
+   "vehicle": "Fund II",
+   "type": "investment",
+   "date": "2024-08-15",
+   "round": "Pre-Seed",
+   "cost": 250000,
+   "share_price": 1,
+   "note": "Angel round"
+  }
+ ]
+}

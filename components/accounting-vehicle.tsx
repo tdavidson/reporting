@@ -4,6 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useState } from 'rea
 import { usePathname, useRouter } from 'next/navigation'
 import { Check, ChevronsUpDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { useAppFetch } from '@/components/app-runtime'
 import {
   Dialog,
   DialogContent,
@@ -52,6 +53,7 @@ export function VehicleProvider({ children }: { children: React.ReactNode }) {
   const [vehicleId, setVehicleIdState] = useState<string | null>(null)
   // The fund's vehicles with their kinds, loaded once; the current kind is looked up from it.
   const [index, setIndex] = useState<VehicleOption[]>([])
+  const appFetch = useAppFetch()
 
   const setVehicle = useCallback((name: string, id: string | null) => {
     setGroupState(name)
@@ -80,7 +82,7 @@ export function VehicleProvider({ children }: { children: React.ReactNode }) {
     } catch { /* ignore */ }
     if (name) { setGroupState(name); setVehicleIdState(id) }
     // Always fetched, even when a vehicle is saved: the kind of the saved one comes from here.
-    fetch('/api/accounting/vehicle-index')
+    appFetch('/api/accounting/vehicle-index')
       .then(r => (r.ok ? r.json() : []))
       .then((vs: VehicleOption[]) => {
         if (!Array.isArray(vs)) return
@@ -89,7 +91,7 @@ export function VehicleProvider({ children }: { children: React.ReactNode }) {
         if (!name && first) setVehicle(first.name, first.id ?? null)
       })
       .catch(() => { /* non-accounting user or no vehicles — leave unset */ })
-  }, [setVehicle])
+  }, [setVehicle, appFetch])
 
   const kind = index.find(v => (vehicleId && v.id === vehicleId) || (!vehicleId && v.name === group))?.kind ?? null
 

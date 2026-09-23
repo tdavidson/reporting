@@ -1,10 +1,10 @@
 'use client'
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
-import { useRouter } from 'next/navigation'
 import * as DialogPrimitive from '@radix-ui/react-dialog'
 import { Search, CornerDownLeft, Building2, Crown, Lightbulb, BookOpen, FileText } from 'lucide-react'
 import { useAccess } from '@/components/access-context'
+import { useAppFetch, useAppNavigate, type AppFetch } from '@/components/app-runtime'
 import { useIsAdmin } from '@/components/feature-visibility-context'
 import { useVehicle } from '@/components/accounting-vehicle'
 import {
@@ -92,9 +92,9 @@ interface Records {
 }
 const EMPTY_RECORDS: Records = { vehicles: [], companies: [], lps: [], deals: [] }
 
-async function getJson<T>(url: string): Promise<T | null> {
+async function getJson<T>(appFetch: AppFetch, url: string): Promise<T | null> {
   try {
-    const r = await fetch(url)
+    const r = await appFetch(url)
     if (!r.ok) return null
     return (await r.json()) as T
   } catch {
@@ -104,6 +104,7 @@ async function getJson<T>(url: string): Promise<T | null> {
 
 function useRecords(open: boolean): Records {
   const access = useAccess()
+  const appFetch = useAppFetch()
   const [records, setRecords] = useState<Records>(EMPTY_RECORDS)
   const loaded = useRef(false)
 
@@ -120,11 +121,11 @@ function useRecords(open: boolean): Records {
     // gate (the route is the gate) but so a member without LPs doesn't pay for a 403 every open.
     const jobs: Promise<Partial<Records>>[] = []
     if (canRead('accounting')) {
-      jobs.push(getJson<PaletteVehicle[]>('/api/accounting/vehicle-index')
+      jobs.push(getJson<PaletteVehicle[]>(appFetch, '/api/accounting/vehicle-index')
         .then(v => ({ vehicles: Array.isArray(v) ? v : [] })))
     }
     if (canRead('portfolio')) {
-      jobs.push(getJson<{ id: string; name: string; aliases: string[] | null }[]>('/api/companies')
+      jobs.push(getJson<{ id: string; name: string; aliases: string[] | null }[]>(appFetch, '/api/companies')
         .then(rows => ({
           companies: (Array.isArray(rows) ? rows : []).map(c => ({
             id: `company:${c.id}`, label: c.name, href: `/companies/${c.id}`, group: 'companies' as PaletteGroup,
@@ -133,7 +134,7 @@ function useRecords(open: boolean): Records {
         })))
     }
     if (canRead('lp_capital', 'lps')) {
-      jobs.push(getJson<{ id: string; name: string; lp_entities?: { entity_name: string }[] }[]>('/api/lps/investors')
+      jobs.push(getJson<{ id: string; name: string; lp_entities?: { entity_name: string }[] }[]>(appFetch, '/api/lps/investors')
         .then(rows => ({
           lps: (Array.isArray(rows) ? rows : []).map(inv => ({
             id: `lp:${inv.id}`, label: inv.name, href: `/lps/cards/${inv.id}`, group: 'lps' as PaletteGroup,
@@ -142,7 +143,7 @@ function useRecords(open: boolean): Records {
         })))
     }
     if (canRead('dealflow', 'deals')) {
-      jobs.push(getJson<{ id: string; company_name: string | null; founder_name: string | null; status: string }[]>('/api/deals?limit=200')
+      jobs.push(getJson<{ id: string; company_name: string | null; founder_name: string | null; status: string }[]>(appFetch, '/api/deals?limit=200')
         .then(rows => ({
           deals: (Array.isArray(rows) ? rows : []).map(d => ({
             id: `deal:${d.id}`, label: d.company_name ?? d.founder_name ?? 'Untitled deal', hint: d.status?.replace(/_/g, ' '),
@@ -155,7 +156,7 @@ function useRecords(open: boolean): Records {
     Promise.all(jobs).then(parts => {
       setRecords(parts.reduce<Records>((acc, p) => ({ ...acc, ...p }), EMPTY_RECORDS))
     })
-  }, [open, access])
+  }, [open, access, appFetch])
 
   return records
 }
@@ -181,7 +182,7 @@ interface CommandPaletteDialogProps {
 }
 
 function CommandPaletteDialog({ open, onOpenChange, reviewBadge, pendingActionsBadge, fofActive }: CommandPaletteDialogProps) {
-  const router = useRouter()
+  const navigate = useAppNavigate()
   const access = useAccess()
   const isAdmin = useIsAdmin()
   const { setVehicle } = useVehicle()
@@ -208,8 +209,8 @@ function CommandPaletteDialog({ open, onOpenChange, reviewBadge, pendingActionsB
       const v = records.vehicles.find(x => x.id === m[1] || x.name === seg)
       if (v) setVehicle(v.name, v.id ?? null)
     }
-    router.push(entry.href)
-  }, [onOpenChange, records.vehicles, router, setVehicle])
+    navigate(entry.href)
+  }, [onOpenChange, records.vehicles, navigate, setVehicle])
 
   return (
     <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>

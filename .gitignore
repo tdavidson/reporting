@@ -63,3 +63,6 @@ supabase/.temp
 
 # local-only operational data — a vehicle registry names the firm, its funds and its SPVs
 scripts/*.local.json
+
+# The public demo widget is built by `npm run demo:widget` (and by CI, which publishes it).
+/demo-widget/dist/

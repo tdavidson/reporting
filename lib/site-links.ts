@@ -18,7 +18,7 @@ export const PRODUCT_REPO = 'https://github.com/tdavidson/otheradmin'
 export const PRODUCT_LICENSE = `${PRODUCT_REPO}/blob/main/LICENSE.md`
 export const PRODUCT_RELEASES = `${PRODUCT_REPO}/releases`
 export const PRODUCT_ISSUES = `${PRODUCT_REPO}/issues`
-export const PRODUCT_DEMO = 'https://demo.otheradmin.com/demo'
+export const PRODUCT_DEMO = 'https://www.otheradmin.com/demo/'
 
 export const COMPANY_NAME = 'Hemrock'
 export const COMPANY_SITE = 'https://www.hemrock.com'

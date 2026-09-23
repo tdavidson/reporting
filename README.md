@@ -49,7 +49,7 @@ Built by Taylor Davidson at [Hemrock](https://www.hemrock.com). Built by a fund 
 
 ## Get started
 
-Free and open source under the Apache 2.0 license — use it, modify it, and deploy it on your own infrastructure and domain, for your own fund or commercially. [Try the demo](https://demo.otheradmin.com/demo) with sample data, no signup required.
+Free and open source under the Apache 2.0 license — use it, modify it, and deploy it on your own infrastructure and domain, for your own fund or commercially. [Try the demo](https://www.otheradmin.com/demo/) with sample data, no signup required.
 
 Prefer not to run it yourself? Taylor offers paid **setup & support** (deployed on your own infrastructure and accounts) and a **hosted subscription**. [Contact Taylor](https://www.hemrock.com/contact) to discuss.
 

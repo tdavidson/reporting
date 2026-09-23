@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { useAnalystContext, type AnalystDomain } from '@/components/analyst-context'
+import { useAppFetch } from '@/components/app-runtime'
 import { AnalystProposals, type Proposal } from '@/components/analyst-proposals'
 import { AnalystPendingActions, type StagedAction } from '@/components/analyst-pending-actions'
 
@@ -105,6 +106,7 @@ export function AnalystConversation({
     setShowHistory,
     ensureModels,
   } = useAnalystContext()
+  const appFetch = useAppFetch()
 
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
@@ -263,7 +265,7 @@ export function AnalystConversation({
     }
 
     try {
-      const res = await fetch('/api/analyst', {
+      const res = await appFetch('/api/analyst', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         signal: controller.signal,
@@ -339,7 +341,7 @@ export function AnalystConversation({
     if (!msg || msg.role !== 'assistant' || !companyId) return
     setSavingIdx(idx)
     try {
-      const res = await fetch(`/api/companies/${companyId}/summary`, {
+      const res = await appFetch(`/api/companies/${companyId}/summary`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ summary_text: msg.content }),
