@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { Loader2, Plus, ArrowLeftRight, Pencil, Trash2, SlidersHorizontal, Banknote, History } from 'lucide-react'
+import { Loader2, Plus, ArrowLeftRight, Pencil, Trash2, SlidersHorizontal, Banknote, History, CalendarCheck } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useCurrency, formatCurrencyPrice } from '@/components/currency-context'
@@ -12,6 +12,7 @@ type Category = 'management_fee' | 'partnership_expense' | 'organizational_expen
 
 interface Term { lpEntityId: string; category: Category; participates: boolean; weightOverride: number | null; rateOverride: number | null }
 interface Partner { lpEntityId: string; name: string; partnerClass: string; commitment: number; terms: Term[] }
+interface Closing { id: string; name: string; closeDate: string; notes: string | null; members: { lpEntityId: string; name: string }[] }
 interface CommitmentEvent { id: string; lpEntityId: string; name: string; effectiveDate: string; amount: number; kind: string; transferId?: string | null; memo?: string | null }
 
 // The categories worth setting per partner. Gains/income are almost always pro-rata
@@ -51,16 +52,25 @@ export function AllocationTermsView() {
   const [addName, setAddName] = useState('')
   const [addCommitment, setAddCommitment] = useState('')
   const [addPartnerClass, setAddPartnerClass] = useState('lp')
+  const [addClosing, setAddClosing] = useState('')
   const [adding, setAdding] = useState(false)
+
+  const [closings, setClosings] = useState<Closing[]>([])
+  const [unassigned, setUnassigned] = useState<{ lpEntityId: string; name: string }[]>([])
+  const [showClosings, setShowClosings] = useState(false)
+  const [newClosingName, setNewClosingName] = useState('')
+  const [newClosingDate, setNewClosingDate] = useState('')
 
   const load = useCallback(async () => {
     setLoading(true)
-    const [t, c] = await Promise.all([
+    const [t, c, cl] = await Promise.all([
       lf('/api/accounting/allocation-terms').then(r => (r.ok ? r.json() : null)),
       lf('/api/accounting/commitments').then(r => (r.ok ? r.json() : null)),
+      lf('/api/accounting/closings').then(r => (r.ok ? r.json() : null)),
     ])
     if (t) { setBasis(t.basis); setPartners(t.partners ?? []) }
     if (c) setEvents(c.events ?? [])
+    if (cl) { setClosings(cl.closings ?? []); setUnassigned(cl.unassigned ?? []) }
     setLoading(false)
   }, [lf])
   useEffect(() => { load() }, [load])
@@ -91,9 +101,34 @@ export function AllocationTermsView() {
     setAdding(true)
     const ok = await post('/api/accounting/lps', {
       name: addName.trim(), commitment: Number(addCommitment) || 0, partnerClass: addPartnerClass,
+      closingId: addClosing || null,
     })
     setAdding(false)
-    if (ok) { setAddName(''); setAddCommitment(''); setAddPartnerClass('lp'); setShowAdd(false) }
+    if (ok) { setAddName(''); setAddCommitment(''); setAddPartnerClass('lp'); setAddClosing(''); setShowAdd(false) }
+  }
+
+  async function addClosing_() {
+    if (!newClosingName.trim() || !newClosingDate) { setError('A closing needs a name and a date'); return }
+    const ok = await post('/api/accounting/closings', { name: newClosingName.trim(), closeDate: newClosingDate })
+    if (ok) { setNewClosingName(''); setNewClosingDate('') }
+  }
+
+  async function admitAt(closingId: string, lpEntityId: string) {
+    const c = closings.find(x => x.id === closingId)
+    if (!c) return
+    await post('/api/accounting/closings', { id: closingId, members: [...c.members.map(m => m.lpEntityId), lpEntityId] }, 'PATCH')
+  }
+
+  async function admitAllUnassigned(closingId: string) {
+    const c = closings.find(x => x.id === closingId)
+    if (!c || unassigned.length === 0) return
+    await post('/api/accounting/closings', { id: closingId, members: [...c.members.map(m => m.lpEntityId), ...unassigned.map(u => u.lpEntityId)] }, 'PATCH')
+  }
+
+  async function removeFromClosing(closingId: string, lpEntityId: string) {
+    const c = closings.find(x => x.id === closingId)
+    if (!c) return
+    await post('/api/accounting/closings', { id: closingId, members: c.members.map(m => m.lpEntityId).filter(id => id !== lpEntityId) }, 'PATCH')
   }
 
   async function toggle(p: Partner, c: Category, participates: boolean) {
@@ -220,6 +255,14 @@ export function AllocationTermsView() {
                 <option value="gp">GP</option>
               </select>
             </label>
+            {closings.length > 0 && (
+              <label className="text-xs text-muted-foreground">Admitted at
+                <select value={addClosing} onChange={e => setAddClosing(e.target.value)} className="mt-1 block h-9 px-3 rounded-md border border-input bg-background text-sm">
+                  <option value="">—</option>
+                  {closings.map(c => <option key={c.id} value={c.id}>{c.name} ({c.closeDate})</option>)}
+                </select>
+              </label>
+            )}
             <Button size="sm" onClick={addLp} disabled={adding}>{adding && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}Add</Button>
             <Button
               size="sm"
@@ -336,6 +379,74 @@ export function AllocationTermsView() {
             </tfoot>
           </table>
         </div>
+      </div>
+
+      {/* 2b. Closings ------------------------------------------------------ */}
+      <div>
+        <Button size="sm" variant="outline" className="text-muted-foreground" onClick={() => setShowClosings(v => !v)}>
+          <CalendarCheck className="h-3.5 w-3.5 mr-1" />{showClosings ? 'Hide closings' : `Closings${closings.length ? ` (${closings.length})` : ''}`}
+        </Button>
+
+        {showClosings && (
+          <div className="mt-2 space-y-3">
+            <p className="text-xs text-muted-foreground">
+              When this vehicle admitted its partners. A closing is a name and a date; admitting a partner at it records
+              when they came in — the onboarding checklist is due by that date, and it is what a fee commencement date
+              or a late-closer equalisation would read. It does not create or change a commitment.
+            </p>
+            <div className="flex flex-wrap items-end gap-3">
+              <label className="text-xs text-muted-foreground">Name
+                <Input value={newClosingName} onChange={e => setNewClosingName(e.target.value)} placeholder="First Close" className="mt-1 h-9 w-44" />
+              </label>
+              <label className="text-xs text-muted-foreground">Date
+                <Input type="date" value={newClosingDate} onChange={e => setNewClosingDate(e.target.value)} className="mt-1 h-9 w-40" />
+              </label>
+              <Button size="sm" onClick={addClosing_} disabled={busy}><Plus className="h-3.5 w-3.5 mr-1" />Add closing</Button>
+            </div>
+            {closings.length > 0 && (
+              <div className="border rounded-lg divide-y">
+                {closings.map(c => (
+                  <div key={c.id} className="px-3 py-2 text-sm">
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium">{c.name}</span>
+                      <span className="text-xs text-muted-foreground tabular-nums">{c.closeDate}</span>
+                      <span className="text-xs text-muted-foreground">· {c.members.length} partner{c.members.length === 1 ? '' : 's'}</span>
+                      <span className="flex-1" />
+                      {unassigned.length > 0 && (
+                        <>
+                          <select value="" disabled={busy} onChange={e => { if (e.target.value) admitAt(c.id, e.target.value) }} className="h-7 px-2 rounded-md border border-input bg-background text-xs">
+                            <option value="">Admit a partner…</option>
+                            {unassigned.map(u => <option key={u.lpEntityId} value={u.lpEntityId}>{u.name}</option>)}
+                          </select>
+                          <Button size="sm" variant="outline" className="h-7 px-2 text-xs" disabled={busy} onClick={() => admitAllUnassigned(c.id)} title="Admit every partner not yet admitted at a closing">
+                            Admit all {unassigned.length}
+                          </Button>
+                        </>
+                      )}
+                      <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive hover:text-destructive" disabled={busy} title="Delete closing"
+                        onClick={() => post('/api/accounting/closings', { id: c.id }, 'DELETE')}>
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                    {c.members.length > 0 && (
+                      <div className="mt-1 flex flex-wrap gap-1">
+                        {c.members.map(m => (
+                          <span key={m.lpEntityId} className="inline-flex items-center gap-1 rounded bg-muted px-1.5 py-0.5 text-xs">
+                            {m.name}
+                            <button type="button" disabled={busy} onClick={() => removeFromClosing(c.id, m.lpEntityId)} className="text-muted-foreground hover:text-destructive" aria-label={`Remove ${m.name} from ${c.name}`}>×</button>
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+            {closings.length > 0 && unassigned.length > 0 && (
+              <p className="text-xs text-muted-foreground">Not yet admitted at a closing: {unassigned.map(u => u.name).join(', ')}.</p>
+            )}
+          </div>
+        )}
       </div>
 
       {/* 3. Commitment history --------------------------------------------- */}

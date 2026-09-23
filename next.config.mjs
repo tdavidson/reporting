@@ -8,7 +8,7 @@ const nextConfig = {
   turbopack: { root: import.meta.dirname },
   // Both were `experimental.*` on Next 14 and are top-level on 16. `serverComponentsExternalPackages`
   // was also renamed to `serverExternalPackages`.
-  serverExternalPackages: ['@sparticuz/chromium', 'puppeteer-core'],
+  serverExternalPackages: ['@sparticuz/chromium', 'puppeteer-core', 'unpdf', 'tesseract.js', '@napi-rs/canvas'],
   // Include the memo-agent default schema files in the serverless function
   // bundle. Without this, `fs.readFile` calls inside `ensureDefaults` silently
   // return null in production (the YAML/MD files aren't traced), so a fresh

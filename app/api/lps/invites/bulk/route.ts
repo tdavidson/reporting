@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { assertWriteAccess } from '@/lib/api-helpers'
+import { sendLpInvite, ensureLpAccount, bindAuthUser, ensureEntityForInvestor } from '@/lib/lp-invites'
 
 /**
  * Admin-only bulk LP onboarding (gap 3). Paste a sheet of investors + emails
@@ -13,8 +14,12 @@ import { assertWriteAccess } from '@/lib/api-helpers'
  *   - commit:true  → create investors/accounts/links + send invites, batched.
  *
  * Sending is concurrency-limited so a few hundred invites don't fire all at
- * once (Supabase still enforces its own email rate limit; failures are captured
- * per-row in the response so they can be re-pasted/resent).
+ * once. Every send goes through sendLpInvite (Supabase invite, then the fund's
+ * outbound email as the fallback) and is logged; an address that could not be
+ * emailed is listed in `failed` with the reason, and can be resent from the
+ * accounts table on the LP Portal page. Supabase's built-in mailer allows only
+ * a handful of emails an hour, so a fund without custom SMTP or an outbound
+ * provider will see most of a large sheet land here.
  */
 
 interface Row { name?: string; email?: string; display_name?: string; authorized_emails?: string[] }
@@ -102,41 +107,33 @@ export async function POST(req: NextRequest) {
   }
 
   // ── Phase 2b: invite + account + link + authorized users, concurrency-limited ─
-  async function sendInvite(email: string): Promise<string | null> {
-    try {
-      const { data, error } = await admin.auth.admin.inviteUserByEmail(email, { data: { fund_name: fundName } })
-      return error ? null : (data?.user?.id ?? null)
-    } catch { return null }
-  }
-  async function ensureAccount(email: string, kind: 'lp' | 'authorized_user', displayName: string | null, authId: string | null): Promise<string | null> {
-    const { data: existing } = await (admin as any).from('lp_accounts').select('id, auth_user_id').eq('email', email).maybeSingle()
-    if (existing) {
-      if (!existing.auth_user_id && authId) {
-        await (admin as any).from('lp_accounts').update({ auth_user_id: authId, updated_at: new Date().toISOString() }).eq('id', existing.id)
-      }
-      return existing.id
+  async function invite(email: string, lpAccountId: string, investorId: string, currentAuth: string | null, rowNum: number) {
+    const r = await sendLpInvite(admin, { fundId, fundName, email, lpAccountId, lpInvestorId: investorId, sentBy: user!.id })
+    await bindAuthUser(admin, lpAccountId, r.authUserId, currentAuth)
+    if (r.method === null) {
+      summary.failed.push(email)
+      summary.errors.push({ row: rowNum, message: `Could not email ${email}: ${r.error ?? 'send failed'}` })
     }
-    const { data: created, error } = await (admin as any)
-      .from('lp_accounts').insert({ auth_user_id: authId, kind, email, display_name: displayName, status: 'invited' }).select('id').single()
-    return error ? null : created.id
   }
 
   await runPool(tasks.filter(t => t.investorId), INVITE_CONCURRENCY, async (t) => {
     // Create the lp_account first (the LP-access whitelist the hook checks), then invite.
-    const lpAccountId = await ensureAccount(t.email, 'lp', t.displayName, null)
-    if (!lpAccountId) { summary.errors.push({ row: t.rowNum, message: `Could not set up ${t.email}` }); summary.failed.push(t.email); return }
-    await sendInvite(t.email)
+    const account = await ensureLpAccount(admin, t.email, 'lp', t.displayName)
+    if (!account) { summary.errors.push({ row: t.rowNum, message: `Could not set up ${t.email}` }); summary.failed.push(t.email); return }
     const { error: linkErr } = await (admin as any)
-      .from('lp_account_links').insert({ lp_account_id: lpAccountId, fund_id: fundId, lp_investor_id: t.investorId, created_by: user.id })
+      .from('lp_account_links').insert({ lp_account_id: account.id, fund_id: fundId, lp_investor_id: t.investorId, created_by: user.id })
     if (linkErr && linkErr.code !== '23505') summary.errors.push({ row: t.rowNum, message: `Link failed for ${t.email}` })
+    await ensureEntityForInvestor(admin, fundId, t.investorId!, t.name)
+    // An LP who already activated (a second investor for the same person) needs no new invite.
+    if (account.status !== 'active') await invite(t.email, account.id, t.investorId!, account.auth_user_id, t.rowNum)
 
     for (const ae of t.authorizedEmails) {
-      const aAccountId = await ensureAccount(ae, 'authorized_user', null, null)
-      if (!aAccountId) { summary.errors.push({ row: t.rowNum, message: `Could not set up authorized user ${ae}` }); summary.failed.push(ae); continue }
-      await sendInvite(ae)
+      const aAccount = await ensureLpAccount(admin, ae, 'authorized_user', null)
+      if (!aAccount) { summary.errors.push({ row: t.rowNum, message: `Could not set up authorized user ${ae}` }); summary.failed.push(ae); continue }
       const { error: auErr } = await (admin as any)
-        .from('lp_authorized_users').insert({ authorized_user_account_id: aAccountId, principal_lp_account_id: lpAccountId, lp_investor_id: t.investorId, created_by: user.id })
+        .from('lp_authorized_users').insert({ authorized_user_account_id: aAccount.id, principal_lp_account_id: account.id, lp_investor_id: t.investorId, created_by: user.id })
       if (auErr && auErr.code !== '23505') summary.errors.push({ row: t.rowNum, message: `Delegation failed for ${ae}` })
+      if (aAccount.status !== 'active') await invite(ae, aAccount.id, t.investorId!, aAccount.auth_user_id, t.rowNum)
     }
   })
 

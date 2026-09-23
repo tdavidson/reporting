@@ -185,6 +185,8 @@ export const TABLE_RULES: Record<string, TableRule> = {
   distributions: { scope: 'fund', domain: 'lp_capital' },
   distribution_lines: { scope: 'fund', domain: 'lp_capital' },
   commitment_events: { scope: 'fund', domain: 'lp_capital' },
+  vehicle_closings: { scope: 'fund', domain: 'lp_capital' },
+  vehicle_closing_members: { scope: 'fund', domain: 'lp_capital' },
   partner_allocation_terms: { scope: 'fund', domain: 'lp_capital' },
 
   // ---- GP economics (carry is NOT structurally part of the ledger — see DOMAIN_META) --------
@@ -199,6 +201,9 @@ export const TABLE_RULES: Record<string, TableRule> = {
   lp_letter_shares: { scope: 'fund', domain: 'lp_relations', feature: 'lp_letters' },
   lp_documents: { scope: 'fund', domain: 'lp_relations', feature: 'lp_portal' },
   lp_document_shares: { scope: 'fund', domain: 'lp_relations', feature: 'lp_portal' },
+  lp_onboarding_items: { scope: 'fund', domain: 'lp_relations', feature: 'lp_portal' },
+  lp_onboarding_item_documents: { scope: 'fund', domain: 'lp_relations', feature: 'lp_portal' },
+  lp_onboarding_events: { scope: 'fund', domain: 'lp_relations', feature: 'lp_portal' },
   lp_snapshot_shares: { scope: 'fund', domain: 'lp_relations', feature: 'lp_portal' },
   lp_live_report_shares: { scope: 'fund', domain: 'lp_relations', feature: 'lp_portal' },
   lp_messages: { scope: 'fund', domain: 'lp_relations', feature: 'lp_portal' },

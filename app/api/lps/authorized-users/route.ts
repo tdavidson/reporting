@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { assertWriteAccess } from '@/lib/api-helpers'
 import { dbError } from '@/lib/api-error'
+import { sendLpInvite, ensureLpAccount, bindAuthUser } from '@/lib/lp-invites'
 
 /**
  * Admin-only authorized-user management (Phase 4 of LP reporting).
@@ -78,36 +79,9 @@ export async function POST(req: NextRequest) {
   // must exist BEFORE we invite. Find or create it first (reuses an existing
   // account for this email — the same login may be an LP for some investors and
   // an authorized user for others; the delegation row is what grants access).
-  const { data: existing } = await (admin as any)
-    .from('lp_accounts')
-    .select('id, auth_user_id')
-    .eq('email', email)
-    .maybeSingle()
-
-  let accountId: string
-  if (existing) {
-    accountId = existing.id
-  } else {
-    const { data: created, error: createErr } = await (admin as any)
-      .from('lp_accounts')
-      .insert({ kind: 'authorized_user', email, display_name: displayName || null, status: 'invited' })
-      .select('id')
-      .single()
-    if (createErr) return dbError(createErr, 'lps-authorized-users')
-    accountId = created.id
-  }
-
-  // Email the OTP invite — the hook now recognizes this email as an invited LP user.
-  const { data: fund } = await admin.from('funds').select('name').eq('id', fundId).maybeSingle()
-  try {
-    const { data: invited, error: inviteErr } = await admin.auth.admin.inviteUserByEmail(email, { data: { fund_name: fund?.name ?? null } })
-    if (inviteErr) console.warn('[authorized-user invite] inviteUserByEmail:', inviteErr.message)
-    else if (invited?.user?.id && !existing?.auth_user_id) {
-      await (admin as any).from('lp_accounts').update({ auth_user_id: invited.user.id, updated_at: new Date().toISOString() }).eq('id', accountId)
-    }
-  } catch (e) {
-    console.warn('[authorized-user invite] threw:', e instanceof Error ? e.message : e)
-  }
+  const account = await ensureLpAccount(admin, email, 'authorized_user', displayName || null)
+  if (!account) return NextResponse.json({ error: 'Could not create the account' }, { status: 500 })
+  const accountId = account.id
 
   const { error: linkErr } = await (admin as any)
     .from('lp_authorized_users')
@@ -121,7 +95,17 @@ export async function POST(req: NextRequest) {
     return dbError(linkErr, 'lps-authorized-users')
   }
 
-  return NextResponse.json({ ok: true })
+  // Someone who already has portal access (an LP elsewhere, an advisor to a second investor)
+  // needs no invite; the delegation row alone grants the access.
+  if (account.status === 'active') return NextResponse.json({ ok: true, emailed: false, already_active: true })
+
+  const { data: fund } = await admin.from('funds').select('name').eq('id', fundId).maybeSingle()
+  const result = await sendLpInvite(admin, {
+    fundId, fundName: fund?.name ?? null, email, lpAccountId: accountId, lpInvestorId, sentBy: user.id,
+  })
+  await bindAuthUser(admin, accountId, result.authUserId, account.auth_user_id)
+
+  return NextResponse.json({ ok: true, emailed: result.method !== null, method: result.method, warning: result.error })
 }
 
 export async function DELETE(req: NextRequest) {

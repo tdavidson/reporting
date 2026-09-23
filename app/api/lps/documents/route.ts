@@ -4,12 +4,13 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { assertWriteAccess, assertReadAccess } from '@/lib/api-helpers'
 import { dbError } from '@/lib/api-error'
 import { extractFromBuffer } from '@/lib/parsing/extractAttachmentText'
+import { scanFile } from '@/lib/security/scan-file'
 
 /**
  * Admin-only LP document management (gap 2).
  *
  *   GET  → the fund's documents (with their per-investor assignments).
- *   POST { title, file_name, storage_path, mime_type?, size_bytes?, scope, lp_investor_ids?, vehicle? }
+ *   POST { title, file_name, storage_path, mime_type?, size_bytes?, scope, lp_investor_ids?, vehicle?, index? }
  *        → record an uploaded file. scope 'fund' = all LPs; 'investor' = the
  *          listed investors only (verified to belong to this fund); 'vehicle' =
  *          every investor in the named investment vehicle (portfolio_group),
@@ -90,6 +91,18 @@ export async function POST(req: NextRequest) {
     if (investorIds.length === 0) return NextResponse.json({ error: 'No investors are in that vehicle' }, { status: 400 })
   }
 
+  // Scanned before it is recorded, like every other inbound file; a hit is deleted.
+  {
+    const { data: uploaded } = await admin.storage.from('lp-documents').download(storagePath)
+    if (uploaded) {
+      const scan = scanFile(Buffer.from(await uploaded.arrayBuffer()), fileName, typeof body.mime_type === 'string' ? body.mime_type : '')
+      if (!scan.safe) {
+        await admin.storage.from('lp-documents').remove([storagePath])
+        return NextResponse.json({ error: `That file was rejected: ${scan.reason ?? 'it did not pass the safety check'}.` }, { status: 400 })
+      }
+    }
+  }
+
   const { data: doc, error } = await (admin as any)
     .from('lp_documents')
     .insert({ fund_id: fundId, title, file_name: fileName, storage_path: storagePath, mime_type: body.mime_type ?? null, size_bytes: body.size_bytes ?? null, scope, vehicle, category: (typeof body.category === 'string' && body.category.trim()) ? body.category.trim() : null, doc_date: body.doc_date || null, uploaded_by: user.id })
@@ -103,6 +116,9 @@ export async function POST(req: NextRequest) {
 
   // Best-effort: cache extracted text so the LP-portal analyst can read this
   // document. Failure never blocks the upload — the analyst just skips it.
+  // `index: false` opts out: an onboarding document (a W-9, a passport scan) is
+  // not one to make searchable, and its identifiers stay in the file alone.
+  if (body.index === false) return NextResponse.json({ ok: true, id: doc.id })
   try {
     const { data: file } = await admin.storage.from('lp-documents').download(storagePath)
     if (file) {

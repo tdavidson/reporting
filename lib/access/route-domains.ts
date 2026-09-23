@@ -151,6 +151,7 @@ export const ROUTE_DOMAINS: Record<string, RouteAccess> = {
   // The outbound mirror of capital-calls, and the same per-partner capital data.
   'api/accounting/distributions': { domain: 'lp_capital' },
   'api/accounting/commitments': { domain: 'lp_capital' },
+  'api/accounting/closings': { domain: 'lp_capital' },
   // Book-to-tax adjustments. `accounting` rather than `lp_capital`: the payload is fund-level
   // difference amounts and the entries they produce, not per-partner figures — the per-partner
   // split arrives with the K-1 allocation. Gated on `tax_reporting` so a fund keeping books but
@@ -193,6 +194,7 @@ export const ROUTE_DOMAINS: Record<string, RouteAccess> = {
   'api/accounting/positions': { domain: 'lp_capital', feature: 'lp_tracking' },
   'api/accounting/positions/import': { domain: 'lp_capital', feature: 'lp_tracking' },
   'api/lps/entities': { domain: 'lp_capital' },
+  'api/lps/entities/profile': { domain: 'lp_capital' },
   'api/lps/export/excel': { domain: 'lp_capital' },
   'api/lps/export/pdf': { domain: 'lp_capital' },
   'api/lps/import': { domain: 'lp_capital' },
@@ -221,6 +223,13 @@ export const ROUTE_DOMAINS: Record<string, RouteAccess> = {
   'api/lps/documents/upload-url': { domain: 'lp_relations', feature: 'lp_portal' },
   'api/lps/invites': { domain: 'lp_relations', feature: 'lp_portal' },
   'api/lps/invites/bulk': { domain: 'lp_relations', feature: 'lp_portal' },
+  'api/lps/invites/resend': { domain: 'lp_relations', feature: 'lp_portal' },
+  'api/lps/onboarding': { domain: 'lp_relations', feature: 'lp_portal' },
+  'api/lps/onboarding/request': { domain: 'lp_relations', feature: 'lp_portal' },
+  'api/lps/onboarding/sort': { domain: 'lp_relations', feature: 'lp_portal' },
+  'api/lps/onboarding/sort/confirm': { domain: 'lp_relations', feature: 'lp_portal' },
+  'api/lps/onboarding/facts': { domain: 'lp_relations', feature: 'lp_portal' },
+  'api/lps/onboarding/history': { domain: 'lp_relations', feature: 'lp_portal' },
   'api/lps/messages': { domain: 'lp_relations', feature: 'lp_portal' },
   // The delivery log: which LP was emailed which notice, statement, letter or document.
   'api/lps/deliveries': { domain: 'lp_relations', feature: 'lp_portal' },
@@ -546,6 +555,9 @@ export const UNGATED_ROUTES: Record<string, string> = {
   'api/portal/messages': 'LP portal: resolveLpAccess.',
   'api/portal/notices': 'LP portal: resolveLpAccess.',
   'api/portal/notices/ack': 'LP portal: resolveLpAccess.',
+  'api/portal/onboarding': 'LP portal: resolveLpAccess.',
+  'api/portal/onboarding/upload-url': 'LP portal: resolveLpAccess.',
+  'api/portal/onboarding/consent': 'LP portal: resolveLpAccess.',
   'api/portal/overview': 'LP portal: resolveLpAccess.',
   'api/portal/snapshots': 'LP portal: resolveLpAccess.',
   'api/portal/snapshots/[id]': 'LP portal: resolveLpAccess.',

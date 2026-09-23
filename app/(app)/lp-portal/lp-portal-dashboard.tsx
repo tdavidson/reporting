@@ -2,6 +2,7 @@
 
 import { LpAccessSettings } from '@/components/lp-access-settings'
 import { LpDocumentsSettings } from '@/components/lp-documents-settings'
+import { LpOnboardingSettings } from '@/components/lp-onboarding-settings'
 import { LpMessagesSection } from '@/components/lp-messages-section'
 import { AnalystToggleButton } from '@/components/analyst-button'
 import { AnalystPanel } from '@/components/analyst-panel'
@@ -32,6 +33,9 @@ export function LpPortalDashboard() {
       <div className="space-y-10">
         <Section title="Access" description="Invite LPs and their authorized users, in bulk from a pasted sheet, or one at a time. Investors are matched by name; new ones are created.">
           <LpAccessSettings />
+        </Section>
+        <Section title="Onboarding" description="What each LP entity owes before, and after, admission: executed subscription documents, tax forms, KYC. LPs upload through their portal; you review here.">
+          <LpOnboardingSettings />
         </Section>
         <Section title="Documents">
           <LpDocumentsSettings />

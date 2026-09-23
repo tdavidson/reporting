@@ -8,6 +8,7 @@ import { assertWriteAccess } from '@/lib/api-helpers'
 import { resolveGroupOr400 } from '@/lib/accounting/http-vehicle'
 import { loadCommitmentEvents, recordCommitmentChange, savePartnerTerm, loadPartnerTerms } from '@/lib/accounting/terms'
 import { ensureCapitalAccounts } from '@/lib/accounting/persist'
+import { vehicleIdByName } from '@/lib/accounting/vehicle-id'
 
 // A GP entity does not bear the management fee or carried interest; an LP entity bears both.
 // Sets BOTH directions (not just gp->disable) so a gp->lp class switch re-enables participation —
@@ -71,7 +72,7 @@ export async function POST(req: NextRequest) {
     await admin.from('lp_entities' as any).update({ partner_class: partnerClass }).eq('id', entityId)
   } else {
     const { data: ent, error } = await admin.from('lp_entities' as any)
-      .insert({ fund_id: gate.fundId, investor_id: investorId, entity_name: name, partner_class: partnerClass })
+      .insert({ fund_id: gate.fundId, investor_id: investorId, entity_name: name, partner_class: partnerClass, onboarding_excluded: partnerClass === 'gp' })
       .select('id').single()
     if (error) return dbError(error, 'accounting-lps')
     entityId = (ent as any).id
@@ -133,6 +134,18 @@ export async function POST(req: NextRequest) {
   // seeded ONCE, by migration, for the GPs that existed then — so any GP added afterwards was
   // silently charged both at the next close unless somebody remembered the terms page.
   await applyPartnerClassTerms(admin, gate.fundId, group, entityId, partnerClass)
+
+  // Admission: which closing this partner came in at. Optional, and only a closing of THIS
+  // vehicle in THIS fund — the closing id arrives in the body and proves nothing by itself.
+  if (typeof body?.closingId === 'string' && body.closingId) {
+    const vehicleId = await vehicleIdByName(admin, gate.fundId, group)
+    const { data: closing } = await admin.from('vehicle_closings' as any).select('id')
+      .eq('id', body.closingId).eq('fund_id', gate.fundId).eq('vehicle_id', vehicleId).maybeSingle()
+    if (!closing) return NextResponse.json({ error: 'Closing not found for this vehicle' }, { status: 400 })
+    const { error: memErr } = await admin.from('vehicle_closing_members' as any)
+      .insert({ fund_id: gate.fundId, closing_id: body.closingId, lp_entity_id: entityId })
+    if (memErr && memErr.code !== '23505') return dbError(memErr, 'accounting-lps')
+  }
 
   return NextResponse.json({ ok: true, entityId, partnerClass })
 }

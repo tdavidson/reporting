@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { runFundReminders, type FundRunResult } from '@/lib/reminders/run'
+import { sweepOrphanedUploads } from '@/lib/lp-onboarding-sweep'
 
 /**
  * Daily operational reminders (compliance filings, the quarterly data request, data-request
@@ -29,6 +30,8 @@ export async function GET(req: NextRequest) {
   for (const { fund_id } of funds ?? []) {
     try {
       results.push(await runFundReminders(admin, fund_id))
+      // Uploads nobody finished with — abandoned sorter batches, LP uploads that never recorded.
+      await sweepOrphanedUploads(admin, fund_id)
     } catch (err) {
       // One fund failing must not stop the others.
       results.push({ fundId: fund_id, items: 0, newKeys: 0, sent: false, error: err instanceof Error ? err.message : 'failed' })
