@@ -119,6 +119,12 @@ export function AllocationTermsView() {
     await post('/api/accounting/closings', { id: closingId, members: [...c.members.map(m => m.lpEntityId), lpEntityId] }, 'PATCH')
   }
 
+  async function admitAllUnassigned(closingId: string) {
+    const c = closings.find(x => x.id === closingId)
+    if (!c || unassigned.length === 0) return
+    await post('/api/accounting/closings', { id: closingId, members: [...c.members.map(m => m.lpEntityId), ...unassigned.map(u => u.lpEntityId)] }, 'PATCH')
+  }
+
   async function removeFromClosing(closingId: string, lpEntityId: string) {
     const c = closings.find(x => x.id === closingId)
     if (!c) return
@@ -407,10 +413,15 @@ export function AllocationTermsView() {
                       <span className="text-xs text-muted-foreground">· {c.members.length} partner{c.members.length === 1 ? '' : 's'}</span>
                       <span className="flex-1" />
                       {unassigned.length > 0 && (
-                        <select value="" disabled={busy} onChange={e => { if (e.target.value) admitAt(c.id, e.target.value) }} className="h-7 px-2 rounded-md border border-input bg-background text-xs">
-                          <option value="">Admit a partner…</option>
-                          {unassigned.map(u => <option key={u.lpEntityId} value={u.lpEntityId}>{u.name}</option>)}
-                        </select>
+                        <>
+                          <select value="" disabled={busy} onChange={e => { if (e.target.value) admitAt(c.id, e.target.value) }} className="h-7 px-2 rounded-md border border-input bg-background text-xs">
+                            <option value="">Admit a partner…</option>
+                            {unassigned.map(u => <option key={u.lpEntityId} value={u.lpEntityId}>{u.name}</option>)}
+                          </select>
+                          <Button size="sm" variant="outline" className="h-7 px-2 text-xs" disabled={busy} onClick={() => admitAllUnassigned(c.id)} title="Admit every partner not yet admitted at a closing">
+                            Admit all {unassigned.length}
+                          </Button>
+                        </>
                       )}
                       <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive hover:text-destructive" disabled={busy} title="Delete closing"
                         onClick={() => post('/api/accounting/closings', { id: c.id }, 'DELETE')}>

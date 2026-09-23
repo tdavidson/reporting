@@ -194,6 +194,7 @@ export const ROUTE_DOMAINS: Record<string, RouteAccess> = {
   'api/accounting/positions': { domain: 'lp_capital', feature: 'lp_tracking' },
   'api/accounting/positions/import': { domain: 'lp_capital', feature: 'lp_tracking' },
   'api/lps/entities': { domain: 'lp_capital' },
+  'api/lps/entities/profile': { domain: 'lp_capital' },
   'api/lps/export/excel': { domain: 'lp_capital' },
   'api/lps/export/pdf': { domain: 'lp_capital' },
   'api/lps/import': { domain: 'lp_capital' },

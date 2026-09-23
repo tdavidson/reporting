@@ -6,10 +6,12 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Loader2, Check, X, MinusCircle, RotateCcw, Upload, Send, ChevronDown, ChevronRight, History } from 'lucide-react'
+import { Loader2, Check, X, MinusCircle, RotateCcw, Upload, Send, ChevronDown, ChevronRight, History, UserSquare } from 'lucide-react'
 import { ONBOARDING_STATUS_LABEL, type OnboardingKind, type OnboardingStatus } from '@/lib/lp-onboarding'
 import { LpOnboardingSort } from '@/components/lp-onboarding-sort'
 import { TaxFormFields, taxFieldsFromFacts, taxFieldsToBody, EMPTY_TAX_FIELDS, type TaxFormFieldsValue } from '@/components/lp-tax-form-fields'
+import { LpEntityProfile, type EntityProfileData, type InvestorContactData } from '@/components/lp-entity-profile'
+import { profileGaps } from '@/lib/lp-profile'
 
 interface Item {
   kind: OnboardingKind
@@ -31,6 +33,7 @@ interface EntityRow {
   investorId: string
   investorName: string
   accountStatus: string | null
+  profile: { entity: EntityProfileData; investor: InvestorContactData } | null
   closing: { id: string; name: string; closeDate: string; vehicle: string } | null
   daysToClose: number | null
   items: Item[]
@@ -87,6 +90,7 @@ export function LpOnboardingSettings() {
   const [expiresOn, setExpiresOn] = useState('')
   const [busy, setBusy] = useState(false)
   const [history, setHistory] = useState<Record<string, { loading: boolean; events: any[] } | undefined>>({})
+  const [profileOpen, setProfileOpen] = useState<Set<string>>(new Set())
   const [tax, setTax] = useState<TaxFormFieldsValue>(EMPTY_TAX_FIELDS)
 
   function toggleHistory(entityId: string) {
@@ -386,10 +390,19 @@ export function LpOnboardingSettings() {
                         </div>
                       </div>
                     ))}
-                    <div className="px-3 py-2 text-xs">
-                      <button type="button" onClick={() => toggleHistory(e.id)} className="inline-flex items-center gap-1 text-muted-foreground hover:text-foreground">
-                        <History className="h-3.5 w-3.5" /> {history[e.id] ? 'Hide history' : 'History'}
-                      </button>
+                    <div className="px-3 py-2 text-xs space-y-2">
+                      <div className="flex flex-wrap items-center gap-3">
+                        <button type="button" onClick={() => setProfileOpen(p => { const n = new Set(p); n.has(e.id) ? n.delete(e.id) : n.add(e.id); return n })} className="inline-flex items-center gap-1 text-muted-foreground hover:text-foreground">
+                          <UserSquare className="h-3.5 w-3.5" /> {profileOpen.has(e.id) ? 'Hide profile' : 'Profile'}
+                          {e.profile && profileGaps(e.profile.entity, e.profile.investor).length > 0 && <span className="rounded px-1.5 py-0.5 text-[10px] bg-warning-subtle text-foreground">{profileGaps(e.profile.entity, e.profile.investor).length} gap{profileGaps(e.profile.entity, e.profile.investor).length === 1 ? '' : 's'}</span>}
+                        </button>
+                        <button type="button" onClick={() => toggleHistory(e.id)} className="inline-flex items-center gap-1 text-muted-foreground hover:text-foreground">
+                          <History className="h-3.5 w-3.5" /> {history[e.id] ? 'Hide history' : 'History'}
+                        </button>
+                      </div>
+                      {profileOpen.has(e.id) && e.profile && (
+                        <LpEntityProfile key={`${e.id}-${e.profile.entity.profile_updated_at ?? ''}`} entityId={e.id} entityName={e.name} investorName={e.investorName || e.name} entity={e.profile.entity} investor={e.profile.investor} onSaved={() => { void load() }} />
+                      )}
                       {history[e.id] && (
                         history[e.id]!.loading ? <div className="text-muted-foreground mt-1">Loading…</div> : (
                           history[e.id]!.events.length === 0 ? <div className="text-muted-foreground mt-1">Nothing yet.</div> : (

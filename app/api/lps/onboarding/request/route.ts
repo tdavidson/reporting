@@ -64,9 +64,14 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const investorIds = Array.from(new Set(rows.map(r => r.investorId)))
   const groups = await resolveLpRecipients(admin, fundId, investorIds)
   const reachable = new Set(groups.flatMap(g => g.investorIds))
+  // An investor with no portal account can still be asked, at the relationship contact on their
+  // record — no Cc, and the email says the portal is where to upload once they have access.
+  const { data: contacts } = await admin.from('lp_investors').select('id, name, contact_email').eq('fund_id', fundId).in('id', investorIds.filter(id => !reachable.has(id)))
+  const fallback = ((contacts ?? []) as { id: string; name: string; contact_email: string | null }[]).filter(c => !!c.contact_email)
+  for (const c of fallback) reachable.add(c.id)
   const unreachable = rows.filter(r => !reachable.has(r.investorId)).map(r => `${r.investorName || r.name}`)
-  if (groups.length === 0) {
-    return NextResponse.json({ error: 'None of these LPs have portal accounts yet. Invite them from LP Portal → Access.' }, { status: 400 })
+  if (groups.length === 0 && fallback.length === 0) {
+    return NextResponse.json({ error: 'None of these LPs have portal accounts or a contact email yet. Invite them from LP Portal → Access, or add a contact on the entity profile.' }, { status: 400 })
   }
 
   const fundName = (fund?.name as string | undefined) || 'Your fund'
@@ -90,10 +95,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   if (body.preview === true) {
     return NextResponse.json({
       preview: true, subject,
-      recipients: groups.map(g => ({
-        to: g.primaryEmail, name: g.primaryName, cc: g.ccEmails,
-        items: bodyFor(g.investorIds).facts.map(f => `${f.label}: ${f.value}`),
-      })),
+      recipients: [
+        ...groups.map(g => ({ to: g.primaryEmail, name: g.primaryName, cc: g.ccEmails, items: bodyFor(g.investorIds).facts.map(f => `${f.label}: ${f.value}`), viaContact: false })),
+        ...fallback.map(c => ({ to: c.contact_email!, name: c.name, cc: [] as string[], items: bodyFor([c.id]).facts.map(f => `${f.label}: ${f.value}`), viaContact: true })),
+      ],
       unreachable,
     })
   }
@@ -117,5 +122,20 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     }
   })
 
-  return NextResponse.json({ ok: true, ...summary, statusLabels: ONBOARDING_STATUS_LABEL })
+  // The contacts without a portal account, one email each, logged against their investor.
+  await runPool(fallback, 3, async c => {
+    const { text, facts } = bodyFor([c.id])
+    const html = buildLpEmailHtml({ fundName, itemTitle: 'Documents needed', message: `${text}\n\nYou will be invited to the investor portal to upload these; if you already have access, use the link below.`, facts, link, linkLabel: 'Open the investor portal' })
+    const common = { fundId, kind: 'onboarding_request' as const, lpInvestorId: c.id, toEmail: c.contact_email!, subject, provider: config.provider, sentBy: user.id }
+    try {
+      const sent = await sendOutboundEmail(config, { to: c.contact_email!, subject, html })
+      summary.sent += 1
+      await logDelivery(admin, { ...common, providerMessageId: sent?.id ?? null })
+    } catch (e) {
+      summary.failures.push(c.contact_email!)
+      await logDelivery(admin, { ...common, status: 'failed', error: (e as Error)?.message ?? 'send failed' })
+    }
+  })
+
+  return NextResponse.json({ ok: true, ...summary, viaContact: fallback.length, statusLabels: ONBOARDING_STATUS_LABEL })
 }

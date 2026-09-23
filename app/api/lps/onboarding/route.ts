@@ -42,11 +42,22 @@ export async function GET(): Promise<NextResponse> {
 
   const [{ data: fs }, { data: entities, error: entErr }, { data: items }, { data: links }] = await Promise.all([
     a.from('fund_settings').select('lp_onboarding_kinds, lp_portal_enabled').eq('fund_id', fundId).maybeSingle(),
-    a.from('lp_entities').select('id, entity_name, investor_id, lp_investors(name)').eq('fund_id', fundId).order('entity_name'),
+    a.from('lp_entities').select('id, entity_name, investor_id, entity_type, formation_jurisdiction, address_line1, address_line2, city, region, postal_code, country, notice_email, signatories, profile_notes, profile_updated_at, lp_investors(name, contact_name, contact_email, contact_phone)').eq('fund_id', fundId).order('entity_name'),
     a.from('lp_onboarding_items').select('id, lp_entity_id, kind, status, document_id, submitted_at, reviewed_at, expires_on, note').eq('fund_id', fundId),
     a.from('lp_account_links').select('lp_investor_id, lp_accounts(status)').eq('fund_id', fundId),
   ])
   if (entErr) return dbError(entErr, 'lps-onboarding')
+  const profileById = new Map<string, { entity: Record<string, unknown>; investor: Record<string, unknown> }>()
+  for (const e of (entities ?? []) as any[]) {
+    profileById.set(e.id, {
+      entity: {
+        entity_type: e.entity_type ?? null, formation_jurisdiction: e.formation_jurisdiction ?? null, address_line1: e.address_line1 ?? null, address_line2: e.address_line2 ?? null,
+        city: e.city ?? null, region: e.region ?? null, postal_code: e.postal_code ?? null, country: e.country ?? null, notice_email: e.notice_email ?? null,
+        signatories: Array.isArray(e.signatories) ? e.signatories : [], profile_notes: e.profile_notes ?? null, profile_updated_at: e.profile_updated_at ?? null,
+      },
+      investor: { contact_name: e.lp_investors?.contact_name ?? null, contact_email: e.lp_investors?.contact_email ?? null, contact_phone: e.lp_investors?.contact_phone ?? null },
+    })
+  }
 
   const kinds = fs?.lp_onboarding_kinds == null ? DEFAULT_ONBOARDING_KINDS : normalizeKinds(fs.lp_onboarding_kinds)
   const closings = await loadClosingsByEntity(a, ((entities ?? []) as any[]).map(e => e.id))
@@ -84,6 +95,7 @@ export async function GET(): Promise<NextResponse> {
     entities: rows.map(r => ({
       ...r,
       accountStatus: accountByInvestor.get(r.investorId) ?? null,
+      profile: profileById.get(r.id) ?? null,
       items: r.items.map(i => ({
         ...i,
         document: i.documentId ? (titles.get(i.documentId) ?? null) : null,
