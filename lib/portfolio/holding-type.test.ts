@@ -24,13 +24,14 @@ const ALLOWLIST = new Map<string, string>([
   ['app/api/companies/[id]/summary/route.ts', 'scoped to one holding by id'],
   ['app/api/companies/[id]/default-metrics/route.ts', 'scoped to one holding by id'],
   ['app/api/companies/[id]/default-metrics/[defaultId]/route.ts', 'scoped to one holding by id'],
-  ['app/(app)/companies/[id]/page.tsx', 'scoped to one holding by id'],
-  ['app/(app)/emails/[id]/page.tsx', 'resolves one holding by the email\'s company_id'],
+  ['app/(app)/companies/[id]/page.tsx', 'scoped to one holding by id (the title)'],
+  ['app/(app)/companies/[id]/load.ts', 'scoped to one holding by id'],
+  ['app/(app)/emails/[id]/load.ts', 'resolves one holding by the email\'s company_id'],
   ['app/api/analyst/conversations/route.ts', 'resolves fund_id from one holding id'],
   ['app/api/emails/[id]/route.ts', 'resolves one holding by the email\'s company_id'],
   // Name resolution for a set of ids already gathered elsewhere. The ids came from rows that
   // reference a holding, so re-filtering by type would blank the name rather than exclude it.
-  ['app/(app)/interactions/page.tsx', 'resolves names for an id set already gathered from interactions'],
+  ['app/(app)/interactions/load.ts', 'resolves names for an id set already gathered from interactions'],
   ['app/api/interactions/route.ts', 'resolves names for an id set already gathered from interactions'],
   ['app/api/notes/route.ts', 'resolves names for an id set already gathered from notes'],
   ['app/api/review/route.ts', 'resolves names for an id set already gathered from emails'],

@@ -1,9 +1,10 @@
 import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { getUser } from '@/lib/supabase/server'
+import { createClient, getUser } from '@/lib/supabase/server'
 import { resolvePageAccess, canViewPage } from '@/lib/access/page-gate'
-import { UpdatesSearch } from './updates-search'
+import { loadCompanyUpdatesPage } from './load'
+import { CompanyUpdatesPageView } from './page-view'
 
 export const metadata: Metadata = { title: 'Company updates' }
 
@@ -13,6 +14,7 @@ export const metadata: Metadata = { title: 'Company updates' }
  * /api/company-updates/search, which the middleware gates the same way.
  */
 export default async function CompanyUpdatesPage() {
+  const supabase = await createClient()
   const user = await getUser()
   if (!user) redirect('/auth')
 
@@ -20,22 +22,6 @@ export default async function CompanyUpdatesPage() {
   if (!page || !canViewPage(page, 'portfolio')) redirect('/dashboard')
 
   const admin = createAdminClient()
-  const { data: companies } = await admin
-    .from('companies')
-    .select('id, name')
-    .eq('fund_id', page.fundId)
-    .eq('holding_type', 'company')
-    .order('name') as { data: Array<{ id: string; name: string }> | null }
-
-  return (
-    <div className="p-4 md:p-8">
-      <div className="mb-6 max-w-page">
-        <h1 className="text-2xl font-semibold tracking-tight">Company updates</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Search what portfolio companies have reported — the message, its attachments, and where each passage came from.
-        </p>
-      </div>
-      <UpdatesSearch companies={companies ?? []} />
-    </div>
-  )
+  const data = await loadCompanyUpdatesPage({ supabase, admin, user, page })
+  return <CompanyUpdatesPageView {...data} />
 }

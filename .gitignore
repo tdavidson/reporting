@@ -66,3 +66,4 @@ scripts/*.local.json
 
 # The public demo widget is built by `npm run demo:widget` (and by CI, which publishes it).
 /demo-widget/dist/
+/demo-widget/check-report.json

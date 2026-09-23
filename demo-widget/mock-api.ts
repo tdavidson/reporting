@@ -1,53 +1,113 @@
 import type { AppFetch } from '@/components/app-runtime'
-import type { DemoAnswer, DemoAnswers, DemoScope, DemoSnapshot } from './types'
+import type { DemoAnswer, DemoAnswers, DemoApi, DemoScope, DemoSnapshot } from './types'
 
 /**
- * The app's API, answered from the snapshot.
+ * The app's API, answered without a server.
  *
- * Only the routes the palette and the Analyst call are here, with the response shapes those
- * components read (see the `getJson<...>` generics in components/command-palette.tsx and the
- * handler in components/analyst-conversation.tsx). Anything else is a 404, which every caller
- * already treats as "empty". Writes are refused with the message the real read-only demo uses.
+ * Three layers, in order:
+ *   1. Recorded responses (data/api.json): what the real API returned to the demo fund's viewer
+ *      for exactly this request, keyed by method, path and query. Exact match first, then the
+ *      same path with any query.
+ *   2. The structured snapshot (data/snapshot.json): the routes the command palette and the
+ *      Analyst call, answered from the fund's records, plus the Analyst's stored replies.
+ *   3. 404, reported through `onMiss` so scripts/demo-check.mjs can list what the recorder has
+ *      not covered. Every caller already treats 404 as "empty".
+ *
+ * Writes are refused with the message the real read-only demo uses, except the Analyst POST.
  */
-export function createDemoFetch(snapshot: DemoSnapshot, answers: DemoAnswers): AppFetch {
+export interface DemoFetchOptions {
+  snapshot: DemoSnapshot
+  answers: DemoAnswers
+  api?: DemoApi
+  onMiss?: (key: string) => void
+}
+
+export function createDemoFetch({ snapshot, answers, api, onMiss }: DemoFetchOptions): AppFetch {
   const index = buildAnswerIndex(answers)
+  const recorded = api?.responses ?? {}
+  // The same path with a different query: the recorder walked the pages with their default
+  // filters, and a visitor changing one still deserves rows rather than a blank table.
+  const byPath = new Map<string, string>()
+  for (const key of Object.keys(recorded)) {
+    const bare = key.split('?')[0]
+    if (!byPath.has(bare)) byPath.set(bare, key)
+  }
 
   return async (input, init) => {
     const url = new URL(input, 'https://demo.invalid')
     const method = (init?.method ?? 'GET').toUpperCase()
     const path = url.pathname
 
-    if (method !== 'GET' && !(method === 'POST' && path === '/api/analyst')) {
-      return json({ error: 'This is a read-only demo. Changes are not allowed.' }, 403)
-    }
+    if (method === 'POST' && path === '/api/analyst') return analyst(await readBody(init), init?.signal, index, answers)
+    if (method !== 'GET') return json({ error: 'This is a read-only demo. Changes are not allowed.' }, 403)
 
-    switch (path) {
-      case '/api/companies':
-        return json(snapshot.companies.map(c => ({ id: c.id, name: c.name, aliases: c.aliases })))
-      case '/api/lps/investors':
-        return json(snapshot.lps.map(lp => ({ id: lp.id, name: lp.name, lp_entities: [] })))
-      case '/api/deals':
-        return json(snapshot.deals.map(d => ({
-          id: d.id, company_name: d.company_name, founder_name: d.founder_name, status: d.status,
-        })))
-      case '/api/accounting/vehicle-index':
-        return json(snapshot.vehicles.map(v => ({ name: v.name, id: v.id, kind: v.kind })))
-      case '/api/claude-models':
-        // One entry so the picker has something to show; the "model" is the stored reply set.
-        return json({ models: [{ id: DEMO_MODEL.id, name: DEMO_MODEL.name }] })
-      case '/api/openai-models':
-        return json({ models: [] })
-      case '/api/analyst/conversations':
-        return json({ conversations: [] })
-      case '/api/analyst':
-        return analyst(await readBody(init), init?.signal, index, answers)
-      default:
-        return json({ error: 'Not found' }, 404)
-    }
+    const key = requestKey(method, url)
+    const hit = recorded[key] ?? recorded[byPath.get(`${method} ${path}`) ?? '']
+    if (hit) return json(hit.body, hit.status)
+
+    const generic = fromSnapshot(path, snapshot)
+    if (generic) return generic
+
+    onMiss?.(key)
+    return json({ error: 'Not found' }, 404)
   }
 }
 
+/** `GET /api/companies?limit=5&sort=name`: method, path, and the query with its keys sorted. */
+export function requestKey(method: string, url: URL): string {
+  const params = [...url.searchParams.entries()].sort(([a], [b]) => a.localeCompare(b))
+  const query = params.length ? `?${new URLSearchParams(params).toString()}` : ''
+  return `${method.toUpperCase()} ${url.pathname}${query}`
+}
+
+/**
+ * Route every `/api/*` request the page makes through `demoFetch`, whoever makes it. The seam
+ * in components/app-runtime.tsx covers the components that take `fetch` from context; the rest
+ * of the app calls the global, and on the marketing site nothing else asks for `/api/`, so the
+ * prefix is the whole test. Returns the function that puts the original back.
+ */
+export function interceptApiFetch(demoFetch: AppFetch): () => void {
+  const original = window.fetch
+  window.fetch = function demoAwareFetch(input: RequestInfo | URL, init?: RequestInit) {
+    const href = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+    if (/^(\/api\/|https?:\/\/[^/]+\/api\/)/.test(href)) {
+      const merged: RequestInit = input instanceof Request && !init
+        ? { method: input.method, headers: input.headers, signal: input.signal }
+        : (init ?? {})
+      return demoFetch(href, merged)
+    }
+    return original.call(window, input, init)
+  } as typeof window.fetch
+  return () => { window.fetch = original }
+}
+
 export const DEMO_MODEL = { id: 'demo-stored-replies', name: 'Stored replies (demo)', provider: 'anthropic' }
+
+// ---------------------------------------------------------------------------
+// Layer 2: the structured snapshot
+// ---------------------------------------------------------------------------
+
+function fromSnapshot(path: string, snapshot: DemoSnapshot): Response | null {
+  switch (path) {
+    case '/api/companies':
+      return json(snapshot.companies.map(c => ({ id: c.id, name: c.name, aliases: c.aliases, stage: c.stage, status: c.status, industry: c.industry, portfolio_group: c.portfolio_group })))
+    case '/api/lps/investors':
+      return json(snapshot.lps.map(lp => ({ id: lp.id, name: lp.name, lp_entities: [] })))
+    case '/api/deals':
+      return json(snapshot.deals.map(d => ({ id: d.id, company_name: d.company_name, founder_name: d.founder_name, status: d.status })))
+    case '/api/accounting/vehicle-index':
+      return json(snapshot.vehicles.map(v => ({ name: v.name, id: v.id, kind: v.kind })))
+    case '/api/claude-models':
+      // One entry so the picker has something to show; the "model" is the stored reply set.
+      return json({ models: [{ id: DEMO_MODEL.id, name: DEMO_MODEL.name }] })
+    case '/api/openai-models':
+      return json({ models: [] })
+    case '/api/analyst/conversations':
+      return json({ conversations: [] })
+    default:
+      return null
+  }
+}
 
 // ---------------------------------------------------------------------------
 // The Analyst

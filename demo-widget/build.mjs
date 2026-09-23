@@ -45,6 +45,8 @@ const result = await build({
     'next/link': path.join(here, 'stubs', 'next-link.tsx'),
     'next/navigation': path.join(here, 'stubs', 'next-navigation.ts'),
     'next-themes': path.join(here, 'stubs', 'next-themes.ts'),
+    'next/script': path.join(here, 'stubs', 'next-script.tsx'),
+    '@/lib/supabase/client': path.join(here, 'stubs', 'supabase-client.ts'),
   },
   metafile: true,
   logLevel: 'warning',
@@ -109,7 +111,7 @@ fs.writeFileSync(path.join(dist, 'widget.css'), `${tokens}\n${tw}`)
 fs.rmSync(path.join(dist, 'tw.css'))
 
 // 4. Data + manifest -------------------------------------------------------------------------
-for (const f of ['snapshot.json', 'answers.json']) fs.copyFileSync(path.join(here, 'data', f), path.join(dist, f))
+for (const f of ['snapshot.json', 'answers.json', 'pages.json', 'api.json']) fs.copyFileSync(path.join(here, 'data', f), path.join(dist, f))
 const snapshot = JSON.parse(fs.readFileSync(path.join(dist, 'snapshot.json'), 'utf8'))
 const answers = JSON.parse(fs.readFileSync(path.join(dist, 'answers.json'), 'utf8'))
 const manifest = {
@@ -120,7 +122,7 @@ const manifest = {
   answersSchemaVersion: answers.schemaVersion,
   answersGeneratedBy: answers.generatedBy,
   global: 'OtherAdminDemo',
-  files: ['widget.js', 'widget.css', 'snapshot.json', 'answers.json'],
+  files: ['widget.js', 'widget.css', 'snapshot.json', 'answers.json', 'pages.json', 'api.json'],
 }
 fs.writeFileSync(path.join(dist, 'manifest.json'), JSON.stringify(manifest, null, 2))
 fs.rmSync(path.join(dist, 'content-files.json'))

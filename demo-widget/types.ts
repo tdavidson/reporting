@@ -8,7 +8,7 @@
  * a field the snapshot lacks, add it here and to the exporter; the site's build checks
  * `schemaVersion` against what the widget was built for.
  */
-export const DEMO_SCHEMA_VERSION = 1
+export const DEMO_SCHEMA_VERSION = 2
 
 export interface DemoMetricValue {
   period_label: string
@@ -109,3 +109,36 @@ export interface DemoAnswers {
   suggestions: { portfolio: string[]; company: Record<string, string[]> }
   answers: DemoAnswer[]
 }
+
+/**
+ * What the server pages loaded, keyed by the URL they serve: the output of every loader in
+ * lib/pages/registry.ts, run as the demo fund's viewer by scripts/demo-snapshot.ts. The widget
+ * mounts each page's view with the entry for its URL.
+ */
+export interface DemoPages {
+  schemaVersion: number
+  generatedAt: string
+  pages: Record<string, unknown>
+}
+
+/**
+ * The app's API as the demo fund's viewer saw it: every JSON response the widget's pages
+ * requested while scripts/demo-record.mjs walked them, keyed by method, path and sorted query.
+ * The mock fetch answers from here first, then from the structured snapshot, then 404.
+ */
+export interface DemoApi {
+  schemaVersion: number
+  recordedAt: string
+  responses: Record<string, { status: number; body: unknown }>
+}
+
+/** Everything the widget mounts with. */
+export interface DemoData {
+  snapshot: DemoSnapshot
+  answers: DemoAnswers
+  pages: DemoPages
+  api: DemoApi
+}
+
+export const EMPTY_PAGES: DemoPages = { schemaVersion: DEMO_SCHEMA_VERSION, generatedAt: '', pages: {} }
+export const EMPTY_API: DemoApi = { schemaVersion: DEMO_SCHEMA_VERSION, recordedAt: '', responses: {} }

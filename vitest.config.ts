@@ -9,6 +9,7 @@ export default defineConfig({
       'lib/**/*.{test,spec}.{ts,tsx}',
       'tests/**/*.{test,spec}.{ts,tsx}',
       'app/**/*.{test,spec}.{ts,tsx}',
+      'demo-widget/**/*.{test,spec}.{ts,tsx}',
     ],
     globals: false,
     environment: 'node',

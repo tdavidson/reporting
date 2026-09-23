@@ -9,6 +9,7 @@ on:
   push:
     branches: [main]
     paths:
+      - 'app/**'
       - 'components/**'
       - 'lib/**'
       - 'demo-widget/**'
@@ -37,6 +38,15 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run demo:widget
+      - uses: browser-actions/setup-chrome@v1
+        id: chrome
+      # Every page of the widget, rendered on the snapshot in a real browser: a component that
+      # no longer renders on this data stops the publish here rather than breaking the site.
+      # Unanswered API requests are listed but do not fail the build; scripts/demo-record.mjs
+      # (run locally, with the demo viewer's sign-in) is what answers them.
+      - run: npm run demo:check
+        env:
+          CHROME_PATH: ${{ steps.chrome.outputs.chrome-path }}
       - name: Move the rolling tag to this commit
         run: |
           git tag -f demo-widget-latest

@@ -1,138 +1,142 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AppRuntimeProvider } from '@/components/app-runtime'
-import { AccessProvider, useAccess, type ClientAccess } from '@/components/access-context'
-import { FeatureVisibilityProvider } from '@/components/feature-visibility-context'
-import { CurrencyProvider } from '@/components/currency-context'
-import { AnalystProvider, useAnalystContext } from '@/components/analyst-context'
-import { AnalystConversation } from '@/components/analyst-conversation'
-import { AnalystToggleButton } from '@/components/analyst-button'
-import { MobileDrawerPanel } from '@/components/mobile-drawer-panel'
-import { VehicleProvider } from '@/components/accounting-vehicle'
-import { CommandPaletteProvider, CommandPaletteTrigger } from '@/components/command-palette'
-import { navSectionsFor } from '@/components/app-sidebar'
+import { AppShell } from '@/components/app-shell'
+import { ConfirmProvider } from '@/components/confirm-dialog'
+import { Toaster } from '@/components/toaster'
+import type { ClientAccess } from '@/components/access-context'
 import { DEFAULT_FEATURE_VISIBILITY, type FeatureVisibilityMap } from '@/lib/types/features'
-import { Building2 } from 'lucide-react'
-import { createDemoFetch } from './mock-api'
-import { setDemoPathname } from './stubs/next-navigation'
-import { CompanyScreen, DealsScreen, LpsScreen, NotesScreen, PlaceholderScreen, PortfolioScreen } from './screens'
-import type { DemoAnswers, DemoSnapshot } from './types'
+import type { AppFetch } from '@/components/app-runtime'
+import { setDemoLocation } from './stubs/next-navigation'
+import { matchRoute } from './routes'
+import type { DemoData } from './types'
 
 /**
- * The demo: the product's command palette and Analyst, mounted around a small rendering of the
- * snapshot. Everything under here is the app's own component tree with two substitutions made
- * through AppRuntimeProvider: `fetch` answers from the snapshot and `navigate` switches screens.
+ * The demo: the app's own shell (header, sidebar, palette, Analyst, phone tab bar) around the
+ * app's own pages, on the snapshot. Two substitutions make it run without a server —
+ * `fetch` (installed on the window by index.tsx before the first render, and answered by
+ * mock-api.ts) and `navigate` (this component, which swaps the page instead of the URL) — and
+ * everything else is the component tree the product renders.
  */
 
 // Every product area on, so the palette lists the pages and the sidebar shows the sections. The
 // viewer role keeps it all read-only, exactly as the hosted demo account is.
-const FEATURES: FeatureVisibilityMap = {
+export const FEATURES: FeatureVisibilityMap = {
   ...DEFAULT_FEATURE_VISIBILITY,
   interactions: 'everyone', notes: 'everyone', lp_letters: 'everyone', asks: 'everyone', lps: 'everyone',
   lp_tracking: 'everyone', lp_portal: 'everyone', lp_activity: 'everyone', compliance: 'everyone',
-  deals: 'everyone', diligence: 'everyone', accounting: 'everyone',
+  deals: 'everyone', diligence: 'everyone', accounting: 'everyone', imports: 'everyone', investments: 'everyone',
 }
-const ACCESS: ClientAccess = { role: 'viewer', features: FEATURES, grants: {}, defaults: {} }
+export const ACCESS: ClientAccess = { role: 'viewer', features: FEATURES, grants: {}, defaults: {} }
 
-export function DemoApp({ snapshot, answers }: { snapshot: DemoSnapshot; answers: DemoAnswers }) {
-  const [href, setHref] = useState('/dashboard')
-  const navigate = useCallback((next: string) => {
-    setHref(next)
-    setDemoPathname(next)
+interface Location { pathname: string; search: string }
+
+function parse(href: string): Location {
+  const u = new URL(href, 'https://demo.invalid')
+  return { pathname: u.pathname.replace(/\/+$/, '') || '/', search: u.search }
+}
+
+export interface DemoAppProps {
+  data: DemoData
+  fetch: AppFetch
+  initialPath?: string
+  /** Called after every navigation with the new path; the host may mirror it into its URL. */
+  onNavigate?: (href: string) => void
+  /** Hands the host the widget's `navigate`, for `mount().navigate`. */
+  exposeNavigate?: (navigate: (href: string) => void) => void
+}
+
+export function DemoApp({ data, fetch, initialPath = '/dashboard', onNavigate, exposeNavigate }: DemoAppProps) {
+  const [loc, setLoc] = useState<Location>(() => parse(initialPath))
+  const frame = useRef<HTMLDivElement>(null)
+
+  const navigate = useCallback((href: string) => {
+    if (/^(https?:)?\/\//.test(href) || href.startsWith('mailto:')) { window.open(href, '_blank', 'noopener'); return }
+    const next = parse(href)
+    const match = matchRoute(next.pathname)
+    setDemoLocation({ pathname: next.pathname, search: next.search, params: match?.params ?? {} })
+    setLoc(next)
+    frame.current?.scrollTo({ top: 0 })
+    onNavigate?.(next.pathname + next.search)
+  }, [onNavigate])
+
+  useEffect(() => { exposeNavigate?.(navigate) }, [navigate, exposeNavigate])
+
+  // The first location, before any effect in a page reads it.
+  useMemo(() => {
+    const match = matchRoute(loc.pathname)
+    setDemoLocation({ pathname: loc.pathname, search: loc.search, params: match?.params ?? {} })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
-  const demoFetch = useMemo(() => createDemoFetch(snapshot, answers), [snapshot, answers])
+
+  // Links inside the pages are <a href> (next/link's stub); a click on one navigates here rather
+  // than leaving the marketing site. Anchors with a target, hash-only anchors and downloads pass.
+  useEffect(() => {
+    const el = frame.current
+    if (!el) return
+    const onClick = (e: MouseEvent) => {
+      if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return
+      const a = (e.target as Element | null)?.closest('a[href]') as HTMLAnchorElement | null
+      if (!a || a.target || a.hasAttribute('download')) return
+      const href = a.getAttribute('href') ?? ''
+      if (href.startsWith('#') || href.startsWith('mailto:') || href.startsWith('tel:')) return
+      if (/^https?:\/\//.test(href)) { if (!href.startsWith(window.location.origin + '/api')) return }
+      e.preventDefault()
+      navigate(href)
+    }
+    el.addEventListener('click', onClick)
+    return () => el.removeEventListener('click', onClick)
+  }, [navigate])
+
+  const match = useMemo(() => matchRoute(loc.pathname), [loc.pathname])
+  const screen = match
+    ? match.route.render({ href: loc.pathname, params: match.params, query: new URLSearchParams(loc.search), snapshot: data.snapshot, pages: data.pages })
+    : <NotServed href={loc.pathname} />
 
   return (
-    <AppRuntimeProvider fetch={demoFetch} navigate={navigate}>
-      <FeatureVisibilityProvider value={FEATURES} isAdmin={false} lpPortalEnabled>
-        <AccessProvider value={ACCESS}>
-          <CurrencyProvider currency={snapshot.fund.currency}>
-            <AnalystProvider hasAIKey configuredProviders={['anthropic']} defaultAIProvider="anthropic" fundName={snapshot.fund.name}>
-              <VehicleProvider>
-                <CommandPaletteProvider>
-                  <Frame snapshot={snapshot} answers={answers} href={href} onNavigate={navigate} />
-                </CommandPaletteProvider>
-              </VehicleProvider>
-            </AnalystProvider>
-          </CurrencyProvider>
-        </AccessProvider>
-      </FeatureVisibilityProvider>
+    <AppRuntimeProvider fetch={fetch} navigate={navigate}>
+      {/* A transformed ancestor is the containing block for `position: fixed` descendants, which
+          keeps the app's phone tab bar and drawers inside the frame instead of over the site. */}
+      <div ref={frame} className="oa-demo relative flex h-[820px] max-h-[85vh] flex-col overflow-auto rounded-card border bg-background text-foreground [transform:translateZ(0)]">
+        {/* The root layout's providers (app/layout.tsx), minus the theme: the host owns that. */}
+        <ConfirmProvider>
+        <div className="w-full max-w-page mx-auto flex flex-col flex-1 min-h-full">
+          <AppShell
+            fundName={data.snapshot.fund.name}
+            fundLogo={null}
+            userEmail="viewer@otheradmin.demo"
+            reviewBadge={0}
+            notesBadge={0}
+            pendingActionsBadge={0}
+            isAdmin={false}
+            currency={data.snapshot.fund.currency}
+            hasAIKey
+            configuredProviders={['anthropic']}
+            defaultAIProvider="anthropic"
+            updateAvailable={false}
+            featureVisibility={FEATURES}
+            domainAccess={ACCESS}
+            lpPortalEnabled
+            fofActive={false}
+          >
+            <div key={loc.pathname} className="flex-1">{screen}</div>
+          </AppShell>
+        </div>
+        </ConfirmProvider>
+        <Toaster />
+      </div>
     </AppRuntimeProvider>
   )
 }
 
-function companyIdFrom(href: string): string | null {
-  const m = href.match(/^\/companies\/([^/?#]+)/)
-  return m ? decodeURIComponent(m[1]) : null
-}
-
-function Frame({ snapshot, answers, href, onNavigate }: { snapshot: DemoSnapshot; answers: DemoAnswers; href: string; onNavigate: (href: string) => void }) {
-  const access = useAccess()
-  const { open, toggleOpen, setCompanyId, close } = useAnalystContext()
-  const companyId = companyIdFrom(href)
-  const company = companyId ? snapshot.companies.find(c => c.id === companyId) ?? null : null
-
-  // The Analyst follows the screen, as it does in the product: a company page scopes it to that
-  // company, everything else is the portfolio.
-  useEffect(() => { setCompanyId(company?.id ?? null) }, [company?.id, setCompanyId])
-
-  // Open on arrival where there is room for it, so the point of the demo is on screen.
-  useEffect(() => {
-    if (!open && window.matchMedia('(min-width: 1024px)').matches) toggleOpen()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
-  const suggestions = company
-    ? [...(answers.suggestions.company[company.id] ?? []), ...answers.suggestions.portfolio.slice(0, 2)]
-    : answers.suggestions.portfolio
-
-  const sections = navSectionsFor(false, access)
-
-  let screen: React.ReactNode
-  if (company) screen = <CompanyScreen snapshot={snapshot} company={company} />
-  else if (href === '/dashboard' || href === '/' || href === '/start') screen = <PortfolioScreen snapshot={snapshot} onOpen={onNavigate} />
-  else if (href.startsWith('/lps')) screen = <LpsScreen snapshot={snapshot} />
-  else if (href.startsWith('/deals')) screen = <DealsScreen snapshot={snapshot} />
-  else if (href.startsWith('/notes')) screen = <NotesScreen snapshot={snapshot} />
-  else screen = <PlaceholderScreen href={href} />
-
+function NotServed({ href }: { href: string }) {
   return (
-    <div className="oa-demo flex min-h-[640px] flex-col overflow-hidden rounded-card border bg-background text-foreground">
-      <header className="flex items-center justify-between gap-3 border-b px-4 py-2.5">
-        <button type="button" onClick={() => onNavigate('/dashboard')} className="flex items-center gap-2 text-sm font-medium">
-          <span className="flex h-7 w-7 items-center justify-center rounded-md bg-muted"><Building2 className="h-4 w-4" /></span>
-          {snapshot.fund.name}
-        </button>
-        <div className="flex items-center gap-1.5">
-          <CommandPaletteTrigger />
-          <AnalystToggleButton />
-        </div>
-      </header>
-
-      <div className="flex flex-1">
-        <nav className="hidden w-44 shrink-0 border-r p-2 md:block" aria-label="Sections">
-          {sections.map(item => {
-            const Icon = item.icon
-            const active = href === item.href || (item.href !== '/dashboard' && href.startsWith(item.href))
-            return (
-              <button
-                key={item.href}
-                type="button"
-                onClick={() => onNavigate(item.href)}
-                className={`flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-sm ${active ? 'bg-accent font-medium' : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground'}`}
-              >
-                <Icon className="h-4 w-4 shrink-0" />
-                <span className="truncate">{item.label}</span>
-              </button>
-            )
-          })}
-        </nav>
-
-        <div className="flex min-w-0 flex-1 gap-4 p-4">
-          <main className="min-w-0 flex-1">{screen}</main>
-          <MobileDrawerPanel open={open} onOpenChange={isOpen => { if (!isOpen) close() }}>
-            <AnalystConversation variant="panel" onClose={close} autoFocus={false} suggestions={suggestions} />
-          </MobileDrawerPanel>
-        </div>
+    <div className="p-4 md:p-8">
+      <div className="rounded-card border border-dashed p-8 text-center">
+        <h1 className="text-base font-medium">Not in the demo</h1>
+        <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">
+          <span className="font-mono text-xs">{href}</span> is an administrator&rsquo;s page or a flow that needs a signed-in
+          user. The demo is a read-only viewer of a sample fund.
+        </p>
       </div>
     </div>
   )

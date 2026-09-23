@@ -11,7 +11,11 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "generate:types": "node scripts/generate-memo-agent-types.mjs",
-    "demo:widget": "node demo-widget/build.mjs"
+    "demo:widget": "node demo-widget/build.mjs",
+    "demo:check": "node scripts/demo-check.mjs",
+    "demo:record": "node scripts/demo-record.mjs",
+    "demo:snapshot": "npx tsx --env-file=.env.local scripts/demo-snapshot.ts",
+    "demo:answers": "npx tsx --env-file=.env.local scripts/demo-answers.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.78.0",
