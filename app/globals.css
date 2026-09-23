@@ -90,7 +90,7 @@
     --popover-foreground: 40 8% 10%;
     /* Actions. --primary is the *deployment's* action colour and stays neutral
        by default; the per-fund theme overrides it (a fund's buttons should be
-       the fund's colour, not Hemrock's). */
+       the fund's colour, not OtherAdmin's). */
     --primary: 40 8% 10%;
     --primary-foreground: 40 20% 99%;
     --secondary: 40 12% 96%;

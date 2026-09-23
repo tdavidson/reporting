@@ -21,7 +21,7 @@ export function VersionSection({ appVersion, updateAvailable }: { appVersion: st
         <p className="text-xs text-muted-foreground">
           You are running <span className="font-mono font-medium text-foreground">v{appVersion}</span> and are up to date.{' '}
           <a
-            href="https://github.com/tdavidson/reporting/releases"
+            href="https://github.com/tdavidson/otheradmin/releases"
             target="_blank"
             rel="noopener noreferrer"
             className="underline underline-offset-4 hover:text-foreground"

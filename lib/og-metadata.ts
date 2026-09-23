@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
+import { PRODUCT_NAME, siteOrigin } from '@/lib/site-links'
 
-const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://portfolio.hemrock.com'
+const BASE_URL = siteOrigin()
 
 export function ogMetadata(opts: {
   title: string
@@ -26,7 +27,7 @@ export function ogMetadata(opts: {
       description: opts.description,
       images: [{ url: ogUrl.toString(), width: 1200, height: 630, alt: opts.title }],
       type: 'website',
-      siteName: 'Analyst by Hemrock',
+      siteName: PRODUCT_NAME,
     },
     twitter: {
       card: 'summary_large_image',

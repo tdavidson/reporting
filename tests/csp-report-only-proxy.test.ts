@@ -39,8 +39,6 @@ beforeEach(() => {
   vi.clearAllMocks()
   // Signed out on a public page: the proxy forwards rather than redirects.
   getUser.mockResolvedValue({ data: { user: null } })
-  process.env.NEXT_PUBLIC_MARKETING_SITE = 'true'
-  process.env.MARKETING_SITE = 'true'
 })
 
 describe('report-only CSP on page responses', () => {

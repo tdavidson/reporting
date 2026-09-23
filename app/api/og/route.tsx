@@ -1,11 +1,12 @@
 import { ImageResponse } from 'next/og'
 import { NextRequest } from 'next/server'
+import { PRODUCT_NAME, siteHost } from '@/lib/site-links'
 
 export const runtime = 'edge'
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
-  const title = searchParams.get('title') || 'Portfolio Reporting'
+  const title = searchParams.get('title') || PRODUCT_NAME
   const subtitle = searchParams.get('subtitle') || ''
 
   return new ImageResponse(
@@ -38,7 +39,7 @@ export async function GET(req: NextRequest) {
               letterSpacing: '-0.01em',
             }}
           >
-            Analyst by Hemrock
+            {PRODUCT_NAME}
           </div>
           <div
             style={{
@@ -77,7 +78,7 @@ export async function GET(req: NextRequest) {
           }}
         >
           <div style={{ fontSize: 18, color: '#71717a' }}>
-            portfolio.hemrock.com
+            {siteHost()}
           </div>
           <div
             style={{

@@ -22,8 +22,8 @@ import { createAdminClient } from '../lib/supabase/admin'
 import { DOMAINS, DOMAIN_META } from '../lib/access/domains'
 
 // Not imported from lib/demo/seed: the demo fixtures are leaving this repo and this script isn't.
-const DEMO_FUND_NAME = process.env.DEMO_FUND_NAME ?? 'Hemrock Ventures'
-const AGENT_EMAIL = process.env.DEMO_AGENT_EMAIL ?? 'demo-agent@hemrock.invalid'
+const DEMO_FUND_NAME = process.env.DEMO_FUND_NAME ?? 'OtherAdmin Demo'
+const AGENT_EMAIL = process.env.DEMO_AGENT_EMAIL ?? 'demo-agent@otheradmin.invalid'
 
 /** Long and random. Printed once; rerun to roll it. */
 function newPassword(): string {

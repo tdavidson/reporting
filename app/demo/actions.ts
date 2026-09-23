@@ -52,13 +52,9 @@ function countryCode(value: string | null): string | null {
 export async function startDemo(): Promise<StartDemoResult> {
   // 1. Is there a demo at all? Cheapest check, and it runs before anything with a side effect
   //    so a deployment with the demo switched off does no work and touches no database.
+  //    proxy.ts lets /demo through on the same two variables, so the two ends agree.
   const email = process.env.DEMO_USER_EMAIL
   const password = process.env.DEMO_USER_PASSWORD
-  const marketingEnabled =
-    process.env.NEXT_PUBLIC_ENABLE_MARKETING_SITE === 'true' &&
-    !!process.env.MARKETING_DEPLOYMENT_KEY
-
-  if (!marketingEnabled) return { ok: false, error: 'Demo is not available.' }
   if (!email || !password) return { ok: false, error: 'Demo is not configured.' }
 
   const requestHeaders = await headers()

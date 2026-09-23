@@ -69,8 +69,6 @@ beforeEach(() => {
   vi.clearAllMocks()
   logged = []
   demoRole = 'viewer'
-  vi.stubEnv('NEXT_PUBLIC_ENABLE_MARKETING_SITE', 'true')
-  vi.stubEnv('MARKETING_DEPLOYMENT_KEY', 'deploy-key')
   vi.stubEnv('DEMO_USER_EMAIL', 'demo@example.com')
   vi.stubEnv('DEMO_USER_PASSWORD', 'demo-password')
   signInWithPassword.mockResolvedValue({ data: { user: { id: 'demo-user' } }, error: null })
@@ -132,12 +130,6 @@ describe('startDemo — minting', () => {
 })
 
 describe('startDemo — refusals before any sign-in', () => {
-  it('refuses when the marketing site is switched off', async () => {
-    vi.stubEnv('NEXT_PUBLIC_ENABLE_MARKETING_SITE', 'false')
-    expect((await startDemo()).ok).toBe(false)
-    expect(signInWithPassword).not.toHaveBeenCalled()
-  })
-
   it('refuses when the demo credentials are not configured', async () => {
     vi.stubEnv('DEMO_USER_PASSWORD', '')
     expect((await startDemo()).ok).toBe(false)

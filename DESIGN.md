@@ -70,7 +70,7 @@ Two different jobs, and the distinction is load-bearing:
 
 - **`--primary`** is *this deployment's* action colour. Neutral by default; the
   per-fund theme overrides it. A fund's buttons should be the fund's colour.
-- **`--brand`** is *Hemrock's* colour. The marketing site is not under a fund
+- **`--brand`** is *OtherAdmin's* colour (shared with hemrock.com and nevermodel). The marketing site is not under a fund
   theme, so it always renders the yellow default.
 
 Inside the app, `themeCssVars()` regenerates the whole `--brand-*` ramp from the

@@ -42,7 +42,7 @@ describe('script-src', () => {
   })
 
   it('names the same third parties the enforcing policy does, so a report is a new fact', () => {
-    for (const host of ['cdn.usefathom.com', 'googletagmanager.com', 'google-analytics.com', 'assets.calendly.com']) {
+    for (const host of ['cdn.usefathom.com', 'googletagmanager.com', 'google-analytics.com']) {
       expect(script).toContain(host)
     }
   })

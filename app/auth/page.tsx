@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { safeNextPath } from '@/lib/safe-redirect'
+import { PRIVACY_URL, PRODUCT_LICENSE, TERMS_URL } from '@/lib/site-links'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -26,12 +27,6 @@ function AuthForm() {
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [isHemrock, setIsHemrock] = useState(false)
-
-  useEffect(() => {
-    const host = window.location.hostname
-    setIsHemrock(host === 'hemrock.com' || host.endsWith('.hemrock.com') || host === 'localhost')
-  }, [])
   const router = useRouter()
   const searchParams = useSearchParams()
   const urlError = searchParams.get('error')
@@ -110,20 +105,18 @@ function AuthForm() {
     <AuthShell
       footer={
         <>
-          <p className="text-center text-sm text-muted-foreground">
-            <Link href="/" className="hover:text-foreground underline underline-offset-4">
-              ← Back to home
-            </Link>
-          </p>
-
           <p className="text-center text-xs text-muted-foreground">
-            <a href="https://github.com/tdavidson/reporting/blob/main/LICENSE.md" target="_blank" rel="noopener noreferrer" className="hover:text-foreground underline underline-offset-4">License</a>
-            {isHemrock && (
+            <a href={PRODUCT_LICENSE} target="_blank" rel="noopener noreferrer" className="hover:text-foreground underline underline-offset-4">License</a>
+            {TERMS_URL && (
               <>
                 {' · '}
-                <a href="https://www.hemrock.com/terms" target="_blank" rel="noopener noreferrer" className="hover:text-foreground underline underline-offset-4">Terms</a>
+                <a href={TERMS_URL} target="_blank" rel="noopener noreferrer" className="hover:text-foreground underline underline-offset-4">Terms</a>
+              </>
+            )}
+            {PRIVACY_URL && (
+              <>
                 {' · '}
-                <a href="https://www.hemrock.com/privacy" target="_blank" rel="noopener noreferrer" className="hover:text-foreground underline underline-offset-4">Privacy</a>
+                <a href={PRIVACY_URL} target="_blank" rel="noopener noreferrer" className="hover:text-foreground underline underline-offset-4">Privacy</a>
               </>
             )}
           </p>

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { AuthShell } from '@/components/auth-shell'
@@ -10,6 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { createClient } from '@/lib/supabase/client'
 import { OtpCodeForm } from '@/components/auth/otp-code-form'
+import { COMPANY_CONTACT, PRIVACY_URL, PRODUCT_LICENSE, TERMS_URL } from '@/lib/site-links'
 
 export default function SignUpPage() {
   const [email, setEmail] = useState('')
@@ -20,7 +21,6 @@ export default function SignUpPage() {
   const [sent, setSent] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [info, setInfo] = useState<string | null>(null)
-  const [isHemrock, setIsHemrock] = useState(false)
 
   async function handleVerify(code: string) {
     setError(null)
@@ -44,11 +44,6 @@ export default function SignUpPage() {
     const supabase = createClient()
     await supabase.auth.resend({ type: 'signup', email: email.trim().toLowerCase() })
   }
-
-  useEffect(() => {
-    const host = window.location.hostname
-    setIsHemrock(host === 'hemrock.com' || host.endsWith('.hemrock.com') || host.endsWith('.netlify.app') || host.endsWith('.vercel.app') || host === 'localhost')
-  }, [])
 
   async function signUp() {
     if (!email.trim()) {
@@ -154,13 +149,7 @@ export default function SignUpPage() {
   }
 
   return (
-    <AuthShell
-      above={isHemrock && (
-        <div className="rounded-card border bg-card p-4 text-sm text-center">
-          <p>👋 Want to try it out first? <a href="/demo" className="text-primary underline underline-offset-4 hover:text-primary/80 font-medium">Launch the demo</a></p>
-        </div>
-      )}
-    >
+    <AuthShell>
 
         <Card>
           <CardHeader className="pb-4">
@@ -189,9 +178,9 @@ export default function SignUpPage() {
                   <p>This email is not authorized for the hosted platform.</p>
                   <p>
                     This software is available to download and install on your own servers, subject to the{' '}
-                    <a href="https://github.com/tdavidson/reporting/blob/main/LICENSE.md" target="_blank" rel="noopener noreferrer" className="text-primary underline underline-offset-4 hover:text-primary/80">license</a>.
+                    <a href={PRODUCT_LICENSE} target="_blank" rel="noopener noreferrer" className="text-primary underline underline-offset-4 hover:text-primary/80">license</a>.
                     If you are interested in the hosted solution, contact{' '}
-                    <a href="https://www.hemrock.com/contact" target="_blank" rel="noopener noreferrer" className="text-primary underline underline-offset-4 hover:text-primary/80">Taylor</a>.
+                    <a href={COMPANY_CONTACT} target="_blank" rel="noopener noreferrer" className="text-primary underline underline-offset-4 hover:text-primary/80">Taylor</a>.
                   </p>
                 </AlertDescription>
               </Alert>
@@ -238,17 +227,21 @@ export default function SignUpPage() {
               />
               <label htmlFor="accept-license" className="text-xs text-muted-foreground leading-relaxed">
                 I agree to the{' '}
-                <a href="https://github.com/tdavidson/reporting/blob/main/LICENSE.md" target="_blank" rel="noopener noreferrer" className="text-primary underline underline-offset-4 hover:text-primary/80">
+                <a href={PRODUCT_LICENSE} target="_blank" rel="noopener noreferrer" className="text-primary underline underline-offset-4 hover:text-primary/80">
                   License Agreement
                 </a>
-                {isHemrock && (
+                {TERMS_URL && (
                   <>
-                    ,{' '}
-                    <a href="https://www.hemrock.com/terms" target="_blank" rel="noopener noreferrer" className="text-primary underline underline-offset-4 hover:text-primary/80">
+                    {PRIVACY_URL ? ',' : ' and'}{' '}
+                    <a href={TERMS_URL} target="_blank" rel="noopener noreferrer" className="text-primary underline underline-offset-4 hover:text-primary/80">
                       Terms of Service
                     </a>
-                    , and{' '}
-                    <a href="https://www.hemrock.com/privacy" target="_blank" rel="noopener noreferrer" className="text-primary underline underline-offset-4 hover:text-primary/80">
+                  </>
+                )}
+                {PRIVACY_URL && (
+                  <>
+                    {TERMS_URL ? ', and' : ' and'}{' '}
+                    <a href={PRIVACY_URL} target="_blank" rel="noopener noreferrer" className="text-primary underline underline-offset-4 hover:text-primary/80">
                       Privacy Policy
                     </a>
                   </>

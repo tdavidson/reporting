@@ -17,7 +17,7 @@ export interface FundTheme {
 }
 
 export const ACCENT_PRESETS: Array<{ key: string; label: string; hsl: string; fg: string }> = [
-  { key: 'yellow', label: 'Hemrock yellow', hsl: '49 97% 60%', fg: '40 8% 10%' },
+  { key: 'yellow', label: 'OtherAdmin yellow', hsl: '49 97% 60%', fg: '40 8% 10%' },
   { key: 'neutral', label: 'Neutral', hsl: '0 0% 9%', fg: '0 0% 98%' },
   { key: 'indigo', label: 'Indigo', hsl: '243 75% 59%', fg: '0 0% 100%' },
   { key: 'blue', label: 'Blue', hsl: '217 91% 60%', fg: '0 0% 100%' },

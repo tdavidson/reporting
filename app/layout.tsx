@@ -1,3 +1,4 @@
+import { PRODUCT_NAME, siteOrigin } from '@/lib/site-links'
 import type { Metadata, Viewport } from 'next'
 import Script from 'next/script'
 import { headers } from 'next/headers'
@@ -14,8 +15,8 @@ import { APP_VERSION } from '@/lib/version'
 import { SURFACE_DARK_HEX, SURFACE_LIGHT_HEX, appleTouchIcons } from '@/lib/pwa'
 import './globals.css'
 
-// Inter is the default UI face — the Hemrock brand guide's typeface, and what
-// hemrock.com ships. globals.css points --font-sans at it.
+// Inter is the default UI face — the brand guide's typeface, and what hemrock.com
+// and www.otheradmin.com ship. globals.css points --font-sans at it.
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter', display: 'swap' })
 
 // Curated per-fund UI font options. Loaded as CSS variables so the per-fund theme
@@ -41,7 +42,7 @@ const sourceSerif = Source_Serif_4({ subsets: ['latin'], variable: '--font-sourc
 const newsreader = Newsreader({ subsets: ['latin'], variable: '--font-newsreader', display: 'swap', preload: false })
 const libreCaslon = Libre_Caslon_Display({ subsets: ['latin'], weight: '400', variable: '--font-libre-caslon', display: 'swap', preload: false })
 
-const ogImageUrl = `${process.env.NEXT_PUBLIC_SITE_URL || 'https://portfolio.hemrock.com'}/api/og?title=Portfolio+Reporting`
+const ogImageUrl = `${siteOrigin()}/api/og?title=${encodeURIComponent(PRODUCT_NAME)}`
 
 // Interpolated into an inline <script> below, so it is stripped to the characters a
 // version can legitimately contain rather than trusted for being ours.
@@ -49,20 +50,20 @@ const SW_VERSION = APP_VERSION.replace(/[^\w.-]/g, '') || 'dev'
 
 export const metadata: Metadata = {
   title: {
-    template: '%s | Powered by Hemrock',
-    default: 'Portfolio Reporting | Powered by Hemrock',
+    template: `%s | ${PRODUCT_NAME}`,
+    default: PRODUCT_NAME,
   },
   description: 'Open source fund operations for venture capital firms, accelerators, and angel investors.',
   openGraph: {
-    title: 'Portfolio Reporting | Analyst by Hemrock',
+    title: PRODUCT_NAME,
     description: 'Open source fund operations for venture capital firms, accelerators, and angel investors.',
     images: [{ url: ogImageUrl, width: 1200, height: 630 }],
     type: 'website',
-    siteName: 'Analyst by Hemrock',
+    siteName: PRODUCT_NAME,
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Portfolio Reporting | Analyst by Hemrock',
+    title: PRODUCT_NAME,
     description: 'Open source fund operations for venture capital firms, accelerators, and angel investors.',
     images: [ogImageUrl],
   },

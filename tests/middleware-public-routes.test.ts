@@ -44,8 +44,8 @@ const redirectedToAuth = (res: Response) =>
 
 beforeEach(() => {
   vi.clearAllMocks()
-  vi.stubEnv('NEXT_PUBLIC_ENABLE_MARKETING_SITE', 'true')
-  vi.stubEnv('MARKETING_DEPLOYMENT_KEY', 'deploy-key')
+  vi.stubEnv('DEMO_USER_EMAIL', 'demo@example.com')
+  vi.stubEnv('DEMO_USER_PASSWORD', 'demo-password')
   getUser.mockResolvedValue({ data: { user: null } })
   getAuthenticatorAssuranceLevel.mockResolvedValue({ data: null })
 })
@@ -62,8 +62,8 @@ describe('middleware — anonymous access to the public surfaces', () => {
     expect(redirectedToAuth(await middleware(req('/demo')))).toBe(false)
   })
 
-  it('lets a signed-out visitor reach the marketing page', async () => {
-    expect(redirectedToAuth(await middleware(req('/')))).toBe(false)
+  it('bounces a signed-out visitor off / — the marketing page lives on www.otheradmin.com now', async () => {
+    expect(redirectedToAuth(await middleware(req('/')))).toBe(true)
   })
 
   it('bounces a signed-out visitor off an app route', async () => {
@@ -72,15 +72,15 @@ describe('middleware — anonymous access to the public surfaces', () => {
     expect(new URL(res.headers.get('location')!).searchParams.get('next')).toBe('/dashboard')
   })
 
-  it('bounces /demo when the marketing site is switched off — there is no demo to load', async () => {
-    // getDemoCredentials refuses under the same condition, so an open page would only 500 its way
-    // to an error state. Keep the two ends agreeing.
-    vi.stubEnv('NEXT_PUBLIC_ENABLE_MARKETING_SITE', 'false')
+  it('bounces /demo when no demo account is configured — there is no demo to load', async () => {
+    // startDemo refuses under the same condition, so an open page would only reach an error
+    // state. Keep the two ends agreeing.
+    vi.stubEnv('DEMO_USER_EMAIL', '')
     expect(redirectedToAuth(await middleware(req('/demo')))).toBe(true)
   })
 
-  it('bounces /demo when the deployment key is missing', async () => {
-    vi.stubEnv('MARKETING_DEPLOYMENT_KEY', '')
+  it('bounces /demo when the demo password is missing', async () => {
+    vi.stubEnv('DEMO_USER_PASSWORD', '')
     expect(redirectedToAuth(await middleware(req('/demo')))).toBe(true)
   })
 })
@@ -163,11 +163,9 @@ describe('middleware — the PWA shell answers without a session', () => {
 /**
  * Where a signed-in member of the fund actually begins.
  *
- * `/` is the post-login destination — both auth callbacks default `next` to it — and it renders
- * the marketing page. That was right when the only signed-in entry point was a nav click, and
- * wrong once /start existed: a GP with a session has no use for the pricing tiers, and with the
- * marketing site switched off the page redirects to /auth, which is a signed-in user being sent
- * to a login form.
+ * `/` is the post-login destination — both auth callbacks default `next` to it — and since the
+ * marketing page moved to www.otheradmin.com it has no page of its own: a GP with a session
+ * belongs on /start, not on a redirect chain through app/page.tsx.
  *
  * The redirect lives here rather than in the auth routes because those are not the only way in:
  * a bookmark, the PWA start_url and the browser's own address bar all arrive at `/` with a
@@ -198,19 +196,12 @@ describe('middleware — a signed-in GP lands on /start', () => {
     expect(location(res)).toBe('/start')
   })
 
-  it('still serves the marketing page to a signed-out visitor', async () => {
-    // The whole point of the redirect is that it keys on the session, not on the route.
+  it('sends a signed-out visitor to /auth, not /start', async () => {
+    // The redirect keys on the session: no session, no membership lookup, and the ordinary
+    // signed-out bounce applies, carrying `/` as the place to resume.
     const res = await middleware(req('/'))
-    expect(res.status).not.toBe(307)
-  })
-
-  it('redirects a GP even when the marketing site is switched off', async () => {
-    // Without this the (public) page finds no site_content and redirects to /auth — a signed-in
-    // user sent to a login form.
-    vi.stubEnv('NEXT_PUBLIC_ENABLE_MARKETING_SITE', 'false')
-    getUser.mockResolvedValue({ data: { user: { id: 'gp1' } } })
-    identity(true, null)
-    expect(location(await middleware(req('/')))).toBe('/start')
+    expect(res.status).toBe(307)
+    expect(location(res)).toBe('/auth')
   })
 
   it('does not redirect /start itself', async () => {
@@ -221,13 +212,12 @@ describe('middleware — a signed-in GP lands on /start', () => {
     expect(res.status).not.toBe(307)
   })
 
-  it('leaves an LP-only user on the marketing page', async () => {
+  it('sends an LP-only user on / to their portal, never to /start', async () => {
     // LPs are not members of the fund and /start is a GP surface. Their own routing is the
     // LP/GP split, which owns /portal — this block must not reach past GPs.
     getUser.mockResolvedValue({ data: { user: { id: 'lp1' } } })
     identity(false, 'active')
-    const res = await middleware(req('/'))
-    expect(res.status).not.toBe(307)
+    expect(location(await middleware(req('/')))).toBe('/portal/overview')
   })
 
   it('sends a GP bounced off the portal to /start, not through / a second time', async () => {

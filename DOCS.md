@@ -1,4 +1,4 @@
-# Portfolio, by Hemrock — Documentation and deployment
+# OtherAdmin — Documentation and deployment
 
 - Project overview at [README](./README.md)
 - Detailed feature descriptions at [FEATURES](./FEATURES.md)
@@ -37,8 +37,8 @@ Follow these steps in order. Each step builds on the previous one.
 Download the source code from Github, or clone to copy it to your own Github account:
 
 ```bash
-git clone https://github.com/tdavidson/reporting.git
-cd reporting
+git clone https://github.com/tdavidson/otheradmin.git
+cd otheradmin
 npm install
 ```
 
@@ -76,11 +76,11 @@ Next is to deploy the app to your chosen hosting provider. Netlify and Vercel ar
 
 **Option A: Netlify**
 
-[![Deploy to Netlify](https://www.netlify.com/img/deploy/button.svg)](https://app.netlify.com/start/deploy?repository=https://github.com/tdavidson/reporting)
+[![Deploy to Netlify](https://www.netlify.com/img/deploy/button.svg)](https://app.netlify.com/start/deploy?repository=https://github.com/tdavidson/otheradmin)
 
 **Option B: Vercel**
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Ftdavidson%2Freporting&env=NEXT_PUBLIC_SUPABASE_URL,NEXT_PUBLIC_SUPABASE_ANON_KEY,SUPABASE_SERVICE_ROLE_KEY,ENCRYPTION_KEY,NEXT_PUBLIC_APP_URL&envDescription=Required%20environment%20variables%20for%20Portfolio%20Reporting&project-name=portfolio-reporting)
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Ftdavidson%2Fotheradmin&env=NEXT_PUBLIC_SUPABASE_URL,NEXT_PUBLIC_SUPABASE_ANON_KEY,SUPABASE_SERVICE_ROLE_KEY,ENCRYPTION_KEY,NEXT_PUBLIC_APP_URL&envDescription=Required%20environment%20variables%20for%20Portfolio%20Reporting&project-name=portfolio-reporting)
 
 After deploying, add these environment variables in your hosting platform's settings:
 
@@ -90,12 +90,13 @@ NEXT_PUBLIC_SUPABASE_URL=         # From Step 2
 NEXT_PUBLIC_SUPABASE_ANON_KEY=    # From Step 2
 SUPABASE_SERVICE_ROLE_KEY=        # From Step 2
 ENCRYPTION_KEY=                   # From Step 3
-NEXT_PUBLIC_APP_URL=              # Your deployed URL (e.g. https://reporting.yourfund.com)
+NEXT_PUBLIC_SITE_URL=             # Your deployed URL (e.g. https://reporting.yourfund.com)
+NEXT_PUBLIC_APP_URL=              # The same value; the older name, still honoured
 ```
 
 Trigger a redeploy after adding the variables. `NEXT_PUBLIC_*` variables are baked into the build, so they require a rebuild to take effect.
 
-If you're using a custom domain, configure it in your hosting platform's domain settings and update `NEXT_PUBLIC_APP_URL` to match.
+If you're using a custom domain, configure it in your hosting platform's domain settings and update `NEXT_PUBLIC_SITE_URL` (and `NEXT_PUBLIC_APP_URL`) to match. Optionally set `NEXT_PUBLIC_TERMS_URL` and `NEXT_PUBLIC_PRIVACY_URL` to link your own legal pages from the footer and sign-in pages; unset, no link renders.
 
 ### Step 5: Configure Supabase authentication
 
@@ -326,7 +327,7 @@ Then set the tunnel URL as your inbound webhook (e.g. `https://your-tunnel.ngrok
 
 ### Demo mode
 
-**[Try the demo](https://portfolio.hemrock.com/demo)** — explore the platform with sample data, no signup required.
+**[Try the demo](https://demo.otheradmin.com/demo)** — explore the platform with sample data, no signup required.
 
 ### AI Providers
 
@@ -377,7 +378,7 @@ The features that can be configured are: **Interactions** (CRM-style email loggi
 
 ### Updates
 
-The app includes a built-in update checker. It periodically compares your installed version against the latest [GitHub release](https://github.com/tdavidson/reporting/releases). When a newer version is available, admins will see an **Updates** link in the sidebar. Click it to see the current version, the latest version, release notes, and a link to the GitHub release.
+The app includes a built-in update checker. It periodically compares your installed version against the latest [GitHub release](https://github.com/tdavidson/otheradmin/releases). When a newer version is available, admins will see an **Updates** link in the sidebar. Click it to see the current version, the latest version, release notes, and a link to the GitHub release.
 
 Non-admin users do not see the update indicator. The check runs against the public GitHub Releases API (no authentication required) and is cached for one hour.
 
@@ -389,4 +390,4 @@ Built by Taylor Davidson at [Hemrock](https://www.hemrock.com).
 
 For setup assistance, hosted deployments, or questions: [hemrock.com/contact](https://www.hemrock.com/contact).
 
-For bug reports and feature requests: [GitHub Issues](https://github.com/tdavidson/reporting/issues).
+For bug reports and feature requests: [GitHub Issues](https://github.com/tdavidson/otheradmin/issues).

@@ -13,7 +13,7 @@
  *
  * `/demo` is the demo's server action, which posts to the page route rather than to /api.
  *
- * `/api/demo/seed` stays: the route is gitignored (.gitignore — Hemrock-specific fixtures) so it
+ * `/api/demo/seed` stays: the route is gitignored (.gitignore — install-specific fixtures) so it
  * is absent from a clone, but it exists on this deployment and provisions the demo fund.
  *
  * NOTE: of these, only `/demo` is actually enforced — `checkBotId()` is called in
