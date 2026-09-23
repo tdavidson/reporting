@@ -5,13 +5,15 @@ import { logDelivery } from '@/lib/lp-deliveries'
 
 // One way to invite an LP, used by every route that does it.
 //
-// Supabase's invite email is the first choice: it creates the auth user, and the invite template
-// (supabase/templates/invite.html) links to /portal/welcome. It refuses an email that already
-// has a confirmed auth user — an LP re-invited after a mistake, a person who is an authorized
-// user elsewhere — and before this helper that refusal was logged to the console and reported to
-// the admin as "Invited". The fallback is the fund's own outbound email carrying the same durable
-// welcome link, which works for anyone: the welcome page requests a fresh code for any existing
-// user. Every attempt is written to lp_deliveries, so "was this LP ever emailed" has an answer.
+// The fund's own outbound email is the first choice. Supabase's invite email is one template for
+// the whole project, shared with anything else that might ever invite a user, and it refuses an
+// address it already has a confirmed user for — an LP re-invited after a mistake, a person who is
+// an authorized user elsewhere. So when the fund has an outbound provider, the auth user is
+// created silently and the invite goes out from the fund's address with the fund's template,
+// carrying the durable welcome link (the welcome page requests a fresh code for any existing
+// user). Supabase's invite is the fallback for a fund with no provider configured, in which case
+// its project template must link to /portal/welcome (supabase/templates/invite.html). Every
+// attempt is written to lp_deliveries, so "was this LP ever emailed" has an answer.
 
 export interface InviteTarget {
   fundId: string
@@ -20,8 +22,6 @@ export interface InviteTarget {
   lpAccountId: string
   lpInvestorId?: string | null
   sentBy?: string | null
-  /** Skip the Supabase invite and go straight to the fund's own email (a resend). */
-  preferOutbound?: boolean
 }
 
 export interface InviteResult {
@@ -52,52 +52,52 @@ export function buildInviteEmail(fundName: string | null, email: string): { subj
 
 export async function sendLpInvite(admin: SupabaseClient, t: InviteTarget): Promise<InviteResult> {
   const a = admin as any
-  let supabaseError: string | null = null
+  const base = { fundId: t.fundId, kind: 'invite' as const, itemId: t.lpAccountId, lpInvestorId: t.lpInvestorId ?? null, toEmail: t.email, sentBy: t.sentBy ?? null }
 
-  if (!t.preferOutbound) {
+  const config = await getOutboundConfig(a, t.fundId)
+  if (config) {
+    // The auth user has to exist for the welcome page's code request to work. Create it without
+    // an email; "already registered" just means it does.
+    let authUserId: string | null = null
     try {
-      const { data, error } = await admin.auth.admin.inviteUserByEmail(t.email, { data: { fund_name: t.fundName } })
-      if (!error) {
-        const authUserId = data?.user?.id ?? null
-        await logDelivery(a, {
-          fundId: t.fundId, kind: 'invite', itemId: t.lpAccountId, lpInvestorId: t.lpInvestorId ?? null,
-          toEmail: t.email, subject: 'Invite (Supabase)', provider: 'supabase', sentBy: t.sentBy ?? null,
-        })
-        return { method: 'supabase', authUserId, error: null }
+      const { data, error } = await admin.auth.admin.createUser({ email: t.email, email_confirm: false, user_metadata: { fund_name: t.fundName } })
+      if (!error) authUserId = data?.user?.id ?? null
+      else if (!/already|exists/i.test(error.message)) {
+        await logDelivery(a, { ...base, subject: 'Invite', status: 'failed', error: error.message })
+        return { method: null, authUserId: null, error: error.message }
       }
-      supabaseError = error.message
     } catch (e) {
-      supabaseError = e instanceof Error ? e.message : String(e)
+      const error = e instanceof Error ? e.message : String(e)
+      await logDelivery(a, { ...base, subject: 'Invite', status: 'failed', error })
+      return { method: null, authUserId: null, error }
+    }
+
+    const { subject, html } = buildInviteEmail(t.fundName, t.email)
+    try {
+      const sent = await sendOutboundEmail(config, { to: t.email, subject, html })
+      await logDelivery(a, { ...base, subject, provider: config.provider, providerMessageId: sent?.id ?? null })
+      return { method: 'outbound', authUserId, error: null }
+    } catch (e) {
+      const error = e instanceof Error ? e.message : 'send failed'
+      await logDelivery(a, { ...base, subject, provider: config.provider, status: 'failed', error })
+      return { method: null, authUserId, error }
     }
   }
 
-  // Fallback (or a resend): the fund's outbound provider with the durable welcome link.
-  const config = await getOutboundConfig(a, t.fundId)
-  if (!config) {
-    const error = supabaseError
-      ? `${supabaseError}. No outbound email provider is configured to send the welcome link instead.`
-      : 'No outbound email provider is configured for this fund.'
-    await logDelivery(a, {
-      fundId: t.fundId, kind: 'invite', itemId: t.lpAccountId, lpInvestorId: t.lpInvestorId ?? null,
-      toEmail: t.email, subject: 'Invite', status: 'failed', error, sentBy: t.sentBy ?? null,
-    })
-    return { method: null, authUserId: null, error }
-  }
-
-  const { subject, html } = buildInviteEmail(t.fundName, t.email)
+  // No outbound provider: Supabase's own invite, which creates the user and emails the project's
+  // invite template. It cannot re-invite an address it already knows.
   try {
-    const sent = await sendOutboundEmail(config, { to: t.email, subject, html })
-    await logDelivery(a, {
-      fundId: t.fundId, kind: 'invite', itemId: t.lpAccountId, lpInvestorId: t.lpInvestorId ?? null,
-      toEmail: t.email, subject, provider: config.provider, providerMessageId: sent?.id ?? null, sentBy: t.sentBy ?? null,
-    })
-    return { method: 'outbound', authUserId: null, error: null }
+    const { data, error } = await admin.auth.admin.inviteUserByEmail(t.email, { data: { fund_name: t.fundName } })
+    if (!error) {
+      await logDelivery(a, { ...base, subject: 'Invite (Supabase)', provider: 'supabase' })
+      return { method: 'supabase', authUserId: data?.user?.id ?? null, error: null }
+    }
+    const msg = `${error.message}. Configure an outbound email provider in Settings to send invites from the fund's own address.`
+    await logDelivery(a, { ...base, subject: 'Invite (Supabase)', provider: 'supabase', status: 'failed', error: msg })
+    return { method: null, authUserId: null, error: msg }
   } catch (e) {
-    const error = e instanceof Error ? e.message : 'send failed'
-    await logDelivery(a, {
-      fundId: t.fundId, kind: 'invite', itemId: t.lpAccountId, lpInvestorId: t.lpInvestorId ?? null,
-      toEmail: t.email, subject, provider: config.provider, status: 'failed', error, sentBy: t.sentBy ?? null,
-    })
+    const error = e instanceof Error ? e.message : String(e)
+    await logDelivery(a, { ...base, subject: 'Invite (Supabase)', provider: 'supabase', status: 'failed', error })
     return { method: null, authUserId: null, error }
   }
 }

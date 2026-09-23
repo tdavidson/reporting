@@ -3,17 +3,19 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 /**
  * Inviting an LP used to report "Invited" whether or not an email went out: Supabase's refusal
  * to invite an address it already knows was logged to the console and swallowed. The route now
- * says what happened, falls back to the fund's own email, and records every attempt.
+ * sends from the fund's own email when a provider is configured (Supabase's project-wide invite
+ * template is the fallback), says what happened, and records every attempt.
  */
 
 const getUser = vi.hoisted(() => vi.fn())
 const from = vi.hoisted(() => vi.fn())
 const inviteUserByEmail = vi.hoisted(() => vi.fn())
+const createUser = vi.hoisted(() => vi.fn())
 const getOutboundConfig = vi.hoisted(() => vi.fn())
 const sendOutboundEmail = vi.hoisted(() => vi.fn())
 
 vi.mock('@/lib/supabase/server', () => ({ createClient: () => ({ auth: { getUser } }) }))
-vi.mock('@/lib/supabase/admin', () => ({ createAdminClient: () => ({ from, auth: { admin: { inviteUserByEmail } } }) }))
+vi.mock('@/lib/supabase/admin', () => ({ createAdminClient: () => ({ from, auth: { admin: { inviteUserByEmail, createUser } } }) }))
 vi.mock('@/lib/email', () => ({ getOutboundConfig, sendOutboundEmail }))
 
 import { POST, PATCH } from '@/app/api/lps/invites/route'
@@ -73,33 +75,46 @@ beforeEach(() => {
 })
 
 describe('POST /api/lps/invites', () => {
-  it('reports the email as sent when Supabase invites the user, and binds the auth user', async () => {
-    inviteUserByEmail.mockResolvedValue({ data: { user: { id: 'auth-9' } }, error: null })
+  it('sends from the fund\'s own email when a provider is configured, creating the auth user silently', async () => {
+    getOutboundConfig.mockResolvedValue({ provider: 'resend', apiKey: 'k' })
+    createUser.mockResolvedValue({ data: { user: { id: 'auth-9' } }, error: null })
+    sendOutboundEmail.mockResolvedValue({ id: 'msg-1' })
     const res = await POST(req({ lp_investor_id: 'inv-1', email: 'LP@Example.com' }))
     const body = await res.json()
     expect(res.status).toBe(200)
-    expect(body).toMatchObject({ ok: true, emailed: true, method: 'supabase' })
+    expect(body).toMatchObject({ ok: true, emailed: true, method: 'outbound' })
+    expect(inviteUserByEmail).not.toHaveBeenCalled()
+    expect(createUser).toHaveBeenCalledWith(expect.objectContaining({ email: 'lp@example.com', email_confirm: false }))
     expect(links).toEqual([expect.objectContaining({ lp_account_id: 'acct-new', fund_id: 'fund-1', lp_investor_id: 'inv-1' })])
     expect(accountUpdates).toEqual([expect.objectContaining({ id: 'acct-new', auth_user_id: 'auth-9' })])
-    expect(deliveries).toEqual([expect.objectContaining({ kind: 'invite', to_email: 'lp@example.com', status: 'sent', provider: 'supabase' })])
-  })
-
-  it('falls back to the fund\'s outbound email when Supabase refuses, and says so', async () => {
-    inviteUserByEmail.mockResolvedValue({ data: null, error: { message: 'A user with this email address has already been registered' } })
-    getOutboundConfig.mockResolvedValue({ provider: 'resend', apiKey: 'k' })
-    sendOutboundEmail.mockResolvedValue({ id: 'msg-1' })
-    const res = await POST(req({ lp_investor_id: 'inv-1', email: 'lp@example.com' }))
-    const body = await res.json()
-    expect(body).toMatchObject({ ok: true, emailed: true, method: 'outbound' })
-    expect(sendOutboundEmail).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ to: 'lp@example.com' }))
     const html = sendOutboundEmail.mock.calls[0][1].html as string
     expect(html).toContain('/portal/welcome?email=lp%40example.com')
-    expect(deliveries).toEqual([expect.objectContaining({ kind: 'invite', status: 'sent', provider: 'resend', provider_message_id: 'msg-1' })])
+    expect(deliveries).toEqual([expect.objectContaining({ kind: 'invite', to_email: 'lp@example.com', status: 'sent', provider: 'resend', provider_message_id: 'msg-1' })])
+  })
+
+  it('still sends when the auth user already exists (a re-invite, or an advisor elsewhere)', async () => {
+    getOutboundConfig.mockResolvedValue({ provider: 'resend', apiKey: 'k' })
+    createUser.mockResolvedValue({ data: null, error: { message: 'A user with this email address has already been registered' } })
+    sendOutboundEmail.mockResolvedValue({ id: 'msg-2' })
+    const res = await POST(req({ lp_investor_id: 'inv-1', email: 'lp@example.com' }))
+    expect(await res.json()).toMatchObject({ ok: true, emailed: true, method: 'outbound' })
+    expect(sendOutboundEmail).toHaveBeenCalled()
+    expect(accountUpdates).toHaveLength(0)
+  })
+
+  it('falls back to Supabase\'s invite when no provider is configured, and binds the auth user', async () => {
+    getOutboundConfig.mockResolvedValue(null)
+    inviteUserByEmail.mockResolvedValue({ data: { user: { id: 'auth-9' } }, error: null })
+    const res = await POST(req({ lp_investor_id: 'inv-1', email: 'lp@example.com' }))
+    expect(await res.json()).toMatchObject({ ok: true, emailed: true, method: 'supabase' })
+    expect(createUser).not.toHaveBeenCalled()
+    expect(accountUpdates).toEqual([expect.objectContaining({ id: 'acct-new', auth_user_id: 'auth-9' })])
+    expect(deliveries).toEqual([expect.objectContaining({ kind: 'invite', status: 'sent', provider: 'supabase' })])
   })
 
   it('does not claim success when nothing could be emailed', async () => {
-    inviteUserByEmail.mockResolvedValue({ data: null, error: { message: 'email rate limit exceeded' } })
     getOutboundConfig.mockResolvedValue(null)
+    inviteUserByEmail.mockResolvedValue({ data: null, error: { message: 'email rate limit exceeded' } })
     const res = await POST(req({ lp_investor_id: 'inv-1', email: 'lp@example.com' }))
     const body = await res.json()
     expect(res.status).toBe(200)
@@ -116,6 +131,7 @@ describe('POST /api/lps/invites', () => {
     const body = await res.json()
     expect(body).toMatchObject({ ok: true, emailed: false, already_active: true })
     expect(inviteUserByEmail).not.toHaveBeenCalled()
+    expect(sendOutboundEmail).not.toHaveBeenCalled()
     expect(links).toHaveLength(1)
   })
 

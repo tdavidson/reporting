@@ -8,9 +8,9 @@ import { sendLpInvite, bindAuthUser } from '@/lib/lp-invites'
  * Admin-only: re-send an LP's invite.
  *
  *   POST { lp_account_id } → email the welcome link again to an invited (not yet active) account
- *   linked to this fund. Goes through the fund's own outbound provider when one is configured,
- *   since Supabase refuses to re-invite an email it already knows; falls back to Supabase for a
- *   fund with no outbound email. Logged to lp_deliveries either way.
+ *   linked to this fund, through the same helper as the first invite. With an outbound provider
+ *   configured that is the fund's own email; without one, Supabase's invite, which cannot re-send
+ *   to an address it already knows and says so. Logged to lp_deliveries either way.
  */
 export async function POST(req: NextRequest): Promise<NextResponse> {
   const supabase = await createClient()
@@ -37,12 +37,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   if (account.status === 'disabled') return NextResponse.json({ error: 'This account is disabled. Re-enable it first.' }, { status: 409 })
 
   const { data: fund } = await admin.from('funds').select('name').eq('id', fundId).maybeSingle()
-  const { getOutboundConfig } = await import('@/lib/email')
-  const hasOutbound = !!(await getOutboundConfig(a, fundId))
-
   const result = await sendLpInvite(admin, {
     fundId, fundName: fund?.name ?? null, email: account.email, lpAccountId: account.id,
-    lpInvestorId: link.lp_investor_id, sentBy: user.id, preferOutbound: hasOutbound,
+    lpInvestorId: link.lp_investor_id, sentBy: user.id,
   })
   await bindAuthUser(admin, account.id, result.authUserId, account.auth_user_id)
 
