@@ -1,0 +1,86 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
+// lp_relations domain (lib/access/route-domains.ts). The middleware has already checked the grant.
+import { assertWriteAccess } from '@/lib/api-helpers'
+import { dbError } from '@/lib/api-error'
+import { isOnboardingKind, ONBOARDING_KIND_LABEL } from '@/lib/lp-onboarding'
+
+/**
+ * File what the reviewer confirmed from a sorted batch, and throw away what they discarded.
+ *
+ *   POST { rows: [{ storage_path, file_name, mime_type?, size_bytes?, lp_entity_id, kind, doc_date? }],
+ *          discard: [storage_path] }
+ *        → each row becomes an investor-scoped document (never text-indexed) and a verified
+ *          onboarding item for that entity and kind, reviewed by the caller. Discarded uploads are
+ *          deleted from storage. Nothing here trusts the body's scope: paths must be in this fund's
+ *          folder and entities must be this fund's.
+ */
+export async function POST(req: NextRequest): Promise<NextResponse> {
+  const supabase = await createClient()
+  const admin = createAdminClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const gate = await assertWriteAccess(admin, user.id)
+  if (gate instanceof NextResponse) return gate
+  const fundId = gate.fundId
+  const a = admin as any
+
+  const body = await req.json().catch(() => ({}))
+  const rows: any[] = Array.isArray(body.rows) ? body.rows : []
+  const discard: string[] = Array.isArray(body.discard) ? body.discard.filter((p: unknown): p is string => typeof p === 'string') : []
+  if (rows.length === 0 && discard.length === 0) return NextResponse.json({ error: 'Nothing to do' }, { status: 400 })
+
+  const inFund = (p: unknown): p is string => typeof p === 'string' && p.startsWith(`${fundId}/`) && !p.includes('..')
+  for (const p of discard) if (!inFund(p)) return NextResponse.json({ error: 'Invalid storage path' }, { status: 400 })
+  for (const r of rows) {
+    if (!inFund(r?.storage_path) || typeof r?.file_name !== 'string' || !r.file_name) return NextResponse.json({ error: 'Invalid storage path' }, { status: 400 })
+    if (typeof r?.lp_entity_id !== 'string' || !r.lp_entity_id) return NextResponse.json({ error: `Pick an entity for ${r.file_name}` }, { status: 400 })
+    if (!isOnboardingKind(r?.kind)) return NextResponse.json({ error: `Pick a document kind for ${r.file_name}` }, { status: 400 })
+  }
+
+  // Entities must be this fund's, and each row's entity needs its investor for the share.
+  const entityIds = Array.from(new Set(rows.map(r => r.lp_entity_id as string)))
+  const investorByEntity = new Map<string, { investorId: string; name: string }>()
+  if (entityIds.length) {
+    const { data: ents } = await a.from('lp_entities').select('id, investor_id, entity_name').eq('fund_id', fundId).in('id', entityIds)
+    for (const e of (ents ?? []) as any[]) investorByEntity.set(e.id, { investorId: e.investor_id, name: e.entity_name })
+    if (investorByEntity.size !== entityIds.length) return NextResponse.json({ error: 'One or more entities are not in this fund' }, { status: 400 })
+  }
+
+  const now = new Date().toISOString()
+  const filed: { storage_path: string; documentId: string; itemId: string }[] = []
+  for (const r of rows) {
+    const ent = investorByEntity.get(r.lp_entity_id)!
+    const title = `${ONBOARDING_KIND_LABEL[r.kind as keyof typeof ONBOARDING_KIND_LABEL]} — ${ent.name}`
+    const docDate = typeof r.doc_date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(r.doc_date) ? r.doc_date : null
+    const { data: doc, error: docErr } = await a
+      .from('lp_documents')
+      .insert({
+        fund_id: fundId, title, file_name: String(r.file_name).slice(0, 200), storage_path: r.storage_path,
+        mime_type: typeof r.mime_type === 'string' ? r.mime_type : null, size_bytes: typeof r.size_bytes === 'number' ? r.size_bytes : null,
+        scope: 'investor', category: 'Onboarding', doc_date: docDate, uploaded_by: user.id,
+      })
+      .select('id').single()
+    if (docErr || !doc) return dbError(docErr ?? { message: 'Insert failed' }, 'onboarding-sort-confirm')
+    await a.from('lp_document_shares').insert({ document_id: doc.id, lp_investor_id: ent.investorId, fund_id: fundId })
+
+    // The fund filed it, so the fund has seen it: verified, by the caller, now.
+    const { data: item, error: itemErr } = await a
+      .from('lp_onboarding_items')
+      .upsert({
+        fund_id: fundId, lp_entity_id: r.lp_entity_id, kind: r.kind, status: 'verified', document_id: doc.id,
+        submitted_by_account: null, submitted_at: now, reviewed_by: user.id, reviewed_at: now, note: null, updated_at: now,
+      }, { onConflict: 'fund_id,lp_entity_id,kind' })
+      .select('id').single()
+    if (itemErr) return dbError(itemErr, 'onboarding-sort-confirm')
+    filed.push({ storage_path: r.storage_path, documentId: doc.id, itemId: item.id })
+  }
+
+  if (discard.length) {
+    const { error } = await admin.storage.from('lp-documents').remove(discard)
+    if (error) console.warn('[onboarding-sort-confirm] discard failed:', error.message)
+  }
+
+  return NextResponse.json({ ok: true, filed, discarded: discard.length })
+}

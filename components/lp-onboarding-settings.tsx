@@ -8,6 +8,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Loader2, Check, X, MinusCircle, RotateCcw, Upload, ExternalLink, Send, ChevronDown, ChevronRight } from 'lucide-react'
 import { ONBOARDING_STATUS_LABEL, type OnboardingKind, type OnboardingStatus } from '@/lib/lp-onboarding'
+import { LpOnboardingSort } from '@/components/lp-onboarding-sort'
 
 interface Item {
   kind: OnboardingKind
@@ -260,6 +261,9 @@ export function LpOnboardingSettings() {
           <div className="text-muted-foreground">Closings and who is admitted at each are set on the vehicle&apos;s Allocation terms page.</div>
         </div>
       )}
+
+      {/* Sort a batch */}
+      <LpOnboardingSort onFiled={() => { void load() }} />
 
       {/* Entities */}
       {rows.length === 0 ? (
