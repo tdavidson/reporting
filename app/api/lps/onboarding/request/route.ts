@@ -38,7 +38,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   const [{ data: fs }, { data: entities }, { data: items }, { data: fund }] = await Promise.all([
     admin.from('fund_settings').select('lp_onboarding_kinds, lp_portal_enabled').eq('fund_id', fundId).maybeSingle(),
-    admin.from('lp_entities').select('id, entity_name, investor_id, lp_investors(name)').eq('fund_id', fundId).order('entity_name'),
+    admin.from('lp_entities').select('id, entity_name, investor_id, lp_investors(name)').eq('fund_id', fundId).eq('onboarding_excluded', false).order('entity_name'),
     admin.from('lp_onboarding_items').select('id, lp_entity_id, kind, status, document_id, submitted_at, reviewed_at, expires_on, note').eq('fund_id', fundId),
     admin.from('funds').select('name').eq('id', fundId).maybeSingle(),
   ])

@@ -27,6 +27,8 @@ export interface EntityProfilePatch {
   notice_email?: string | null
   signatories?: Signatory[]
   profile_notes?: string | null
+  /** Off the checklist, requests and reminders. */
+  onboarding_excluded?: boolean
 }
 
 export interface InvestorContactPatch {
@@ -74,6 +76,7 @@ export function parseEntityProfile(raw: unknown): { patch: EntityProfilePatch } 
     if ('error' in r) return r
     if (r.value !== undefined) patch.notice_email = r.value
   }
+  if (b.onboarding_excluded !== undefined) patch.onboarding_excluded = !!b.onboarding_excluded
   if (b.signatories !== undefined) {
     if (!Array.isArray(b.signatories)) return { error: 'signatories must be a list' }
     if (b.signatories.length > MAX_SIGNATORIES) return { error: `At most ${MAX_SIGNATORIES} signatories` }

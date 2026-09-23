@@ -14,7 +14,7 @@ export async function loadOnboardingReminderData(admin: SupabaseClient, fundId: 
   const kinds = fs.lp_onboarding_kinds == null ? DEFAULT_ONBOARDING_KINDS : normalizeKinds(fs.lp_onboarding_kinds)
 
   const [{ data: ents }, { data: items }, { data: closings }] = await Promise.all([
-    db.from('lp_entities').select('id, entity_name, investor_id, lp_investors(name)').eq('fund_id', fundId),
+    db.from('lp_entities').select('id, entity_name, investor_id, lp_investors(name)').eq('fund_id', fundId).eq('onboarding_excluded', false),
     db.from('lp_onboarding_items').select('id, lp_entity_id, kind, status, document_id, submitted_at, reviewed_at, expires_on, note').eq('fund_id', fundId),
     db.from('vehicle_closings').select('id, name, close_date, fund_vehicles(name), vehicle_closing_members(lp_entity_id)').eq('fund_id', fundId),
   ])

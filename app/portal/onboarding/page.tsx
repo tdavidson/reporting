@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Loader2, Upload, Check, Clock, AlertCircle, MinusCircle } from 'lucide-react'
+import { Loader2, Upload, Check, Clock, AlertCircle, MinusCircle, Pencil } from 'lucide-react'
 import { DocumentViewer, type ViewerDoc } from '@/components/portal/document-viewer'
 import type { OnboardingKind, OnboardingStatus } from '@/lib/lp-onboarding'
 
@@ -59,6 +59,17 @@ export default function PortalOnboardingPage() {
   const [error, setError] = useState<string | null>(null)
   const [uploading, setUploading] = useState<string | null>(null) // `${entityId}:${kind}`
   const [viewerDoc, setViewerDoc] = useState<ViewerDoc | null>(null)
+  const [renaming, setRenaming] = useState<{ id: string; name: string } | null>(null)
+
+  async function rename() {
+    if (!renaming) return
+    setError(null)
+    const res = await fetch('/api/portal/onboarding', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lp_entity_id: renaming.id, entity_name: renaming.name }) })
+    const b = await res.json().catch(() => ({}))
+    if (!res.ok) { setError(b.error ?? 'Could not rename'); return }
+    setRenaming(null)
+    load()
+  }
 
   const load = useCallback(() => {
     fetch('/api/portal/onboarding')
@@ -122,7 +133,18 @@ export default function PortalOnboardingPage() {
             <section key={e.id} className="rounded-card border bg-card">
               <div className="px-4 py-3 border-b flex items-center gap-2">
                 <div className="min-w-0 flex-1">
-                  <h2 className="text-base font-semibold truncate">{e.name}</h2>
+                  {renaming?.id === e.id ? (
+                    <form className="flex flex-wrap items-center gap-1.5" onSubmit={ev => { ev.preventDefault(); void rename() }}>
+                      <input value={renaming.name} onChange={ev => setRenaming({ id: e.id, name: ev.target.value })} autoFocus className="h-8 rounded-md border border-input bg-background px-2 text-sm w-64" placeholder="Legal name of the entity" />
+                      <button type="submit" className="h-8 px-2.5 rounded-md bg-primary text-primary-foreground text-xs">Save</button>
+                      <button type="button" onClick={() => setRenaming(null)} className="h-8 px-2 text-xs text-muted-foreground">Cancel</button>
+                    </form>
+                  ) : (
+                    <h2 className="text-base font-semibold truncate inline-flex items-center gap-1.5">
+                      {e.name}
+                      <button type="button" onClick={() => setRenaming({ id: e.id, name: e.name })} className="text-muted-foreground hover:text-foreground" title="Rename — the legal name as it appears on your subscription document" aria-label="Rename entity"><Pencil className="h-3.5 w-3.5" /></button>
+                    </h2>
+                  )}
                   <div className="text-xs text-muted-foreground">
                     {e.fundName}
                     {e.closing && !e.complete && (

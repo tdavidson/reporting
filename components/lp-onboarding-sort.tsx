@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Loader2, FolderInput, Check, Trash2, AlertTriangle, ChevronDown, ChevronRight } from 'lucide-react'
-import { ONBOARDING_KINDS, ONBOARDING_KIND_LABEL, type OnboardingKind } from '@/lib/lp-onboarding'
+import { DOCUMENT_KINDS, ONBOARDING_KIND_LABEL, type OnboardingKind } from '@/lib/lp-onboarding'
 import { TAX_FORM_LABEL, type TaxFormType } from '@/lib/tax/forms'
 import { TaxFormFields, taxFieldsFromFacts, taxFieldsToBody, EMPTY_TAX_FIELDS, type TaxFormFieldsValue } from '@/components/lp-tax-form-fields'
 
@@ -86,13 +86,22 @@ export function LpOnboardingSort({ onFiled }: { onFiled: () => void }) {
         if (upErr) throw new Error(`${f.name}: ${upErr.message}`)
         uploaded.push({ storage_path, file_name: f.name, mime_type: f.type || null, size_bytes: f.size })
       }
-      setStage('sorting'); setProgress(`Reading ${uploaded.length} file${uploaded.length === 1 ? '' : 's'} on the server…`)
-      const res = await fetch('/api/lps/onboarding/sort', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ files: uploaded }) })
-      const b = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(b.error ?? 'Sorting failed')
-      setEntities(b.entities ?? [])
-      setCanRecordTax(!!b.canRecordTax)
-      setRows((b.files as any[]).map(f => {
+      // Read in chunks: OCR on a scan can take most of a minute, and a server request has a window.
+      setStage('sorting')
+      const CHUNK = 6
+      const allFiles: any[] = []
+      let b: any = null
+      for (let i = 0; i < uploaded.length; i += CHUNK) {
+        const chunk = uploaded.slice(i, i + CHUNK)
+        setProgress(`Reading ${Math.min(i + CHUNK, uploaded.length)} of ${uploaded.length} on the server…`)
+        const res = await fetch('/api/lps/onboarding/sort', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ files: chunk }) })
+        b = await res.json().catch(() => ({}))
+        if (!res.ok) throw new Error(b.error ?? 'Sorting failed')
+        allFiles.push(...(b.files ?? []))
+      }
+      setEntities(b?.entities ?? [])
+      setCanRecordTax(!!b?.canRecordTax)
+      setRows(allFiles.map(f => {
         const facts = f.proposal?.facts
         const signed = facts?.dateCandidates?.[0] ?? ''
         return {
@@ -216,7 +225,7 @@ export function LpOnboardingSort({ onFiled }: { onFiled: () => void }) {
                           <label className="text-muted-foreground">Kind <Conf level={p?.kindConfidence ?? null} />
                             <select value={r.kind} onChange={e => update(i, { kind: e.target.value as OnboardingKind | '' })} className="mt-1 block h-8 rounded-md border border-input bg-background px-2 text-xs">
                               <option value="">Select…</option>
-                              {ONBOARDING_KINDS.map(k => <option key={k} value={k}>{ONBOARDING_KIND_LABEL[k]}</option>)}
+                              {DOCUMENT_KINDS.map(k => <option key={k} value={k}>{ONBOARDING_KIND_LABEL[k]}</option>)}
                             </select>
                           </label>
                           <label className="text-muted-foreground">Signed

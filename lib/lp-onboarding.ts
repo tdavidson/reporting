@@ -21,6 +21,7 @@ export const ONBOARDING_KINDS = [
   'accreditation',
   'side_letter',
   'wire_instructions',
+  'k1_econsent',
   'other',
 ] as const
 
@@ -36,6 +37,7 @@ export const ONBOARDING_KIND_LABEL: Record<OnboardingKind, string> = {
   accreditation: 'Accreditation / qualified purchaser',
   side_letter: 'Side letter',
   wire_instructions: 'Wire instructions',
+  k1_econsent: 'Electronic K-1 delivery consent',
   other: 'Other',
 }
 
@@ -50,8 +52,12 @@ export const ONBOARDING_KIND_HELP: Record<OnboardingKind, string> = {
   accreditation: 'Your accredited investor or qualified purchaser questionnaire, or a third-party verification letter.',
   side_letter: 'The executed side letter, if one applies to this entity.',
   wire_instructions: 'Instructions for distributions, on letterhead or a bank-verified form.',
+  k1_econsent: 'Your consent to receive Schedule K-1s and related tax documents through this portal instead of on paper. Nothing to upload — read the disclosure and consent.',
   other: 'Any other document your fund has asked for.',
 }
+
+/** Kinds that are a document. The rest are answered in the portal, not uploaded. */
+export const DOCUMENT_KINDS: OnboardingKind[] = ONBOARDING_KINDS.filter(k => k !== 'k1_econsent')
 
 /** The requirement set a fund starts with. Side letters and "other" are opt-in. */
 export const DEFAULT_ONBOARDING_KINDS: OnboardingKind[] = [
@@ -63,6 +69,7 @@ export const DEFAULT_ONBOARDING_KINDS: OnboardingKind[] = [
   'beneficial_ownership',
   'accreditation',
   'wire_instructions',
+  'k1_econsent',
 ]
 
 export function isOnboardingKind(v: unknown): v is OnboardingKind {
@@ -120,6 +127,7 @@ export interface OnboardingEntity {
   investorId: string
   investorName: string
   closing?: ClosingRef | null
+  partnerClass?: string | null
 }
 
 export interface OnboardingCell {

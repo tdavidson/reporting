@@ -72,7 +72,7 @@ export async function POST(req: NextRequest) {
     await admin.from('lp_entities' as any).update({ partner_class: partnerClass }).eq('id', entityId)
   } else {
     const { data: ent, error } = await admin.from('lp_entities' as any)
-      .insert({ fund_id: gate.fundId, investor_id: investorId, entity_name: name, partner_class: partnerClass })
+      .insert({ fund_id: gate.fundId, investor_id: investorId, entity_name: name, partner_class: partnerClass, onboarding_excluded: partnerClass === 'gp' })
       .select('id').single()
     if (error) return dbError(error, 'accounting-lps')
     entityId = (ent as any).id

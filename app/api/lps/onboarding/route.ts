@@ -42,7 +42,7 @@ export async function GET(): Promise<NextResponse> {
 
   const [{ data: fs }, { data: entities, error: entErr }, { data: items }, { data: links }] = await Promise.all([
     a.from('fund_settings').select('lp_onboarding_kinds, lp_portal_enabled').eq('fund_id', fundId).maybeSingle(),
-    a.from('lp_entities').select('id, entity_name, investor_id, entity_type, formation_jurisdiction, address_line1, address_line2, city, region, postal_code, country, notice_email, signatories, profile_notes, profile_updated_at, lp_investors(name, contact_name, contact_email, contact_phone)').eq('fund_id', fundId).order('entity_name'),
+    a.from('lp_entities').select('id, entity_name, investor_id, partner_class, onboarding_excluded, entity_type, formation_jurisdiction, address_line1, address_line2, city, region, postal_code, country, notice_email, signatories, profile_notes, profile_updated_at, lp_investors(name, contact_name, contact_email, contact_phone)').eq('fund_id', fundId).order('entity_name'),
     a.from('lp_onboarding_items').select('id, lp_entity_id, kind, status, document_id, submitted_at, reviewed_at, expires_on, note').eq('fund_id', fundId),
     a.from('lp_account_links').select('lp_investor_id, lp_accounts(status)').eq('fund_id', fundId),
   ])
@@ -61,9 +61,12 @@ export async function GET(): Promise<NextResponse> {
 
   const kinds = fs?.lp_onboarding_kinds == null ? DEFAULT_ONBOARDING_KINDS : normalizeKinds(fs.lp_onboarding_kinds)
   const closings = await loadClosingsByEntity(a, ((entities ?? []) as any[]).map(e => e.id))
-  const list: OnboardingEntity[] = ((entities ?? []) as any[]).map(e => ({
+  const excludedEntities = ((entities ?? []) as any[]).filter(e => e.onboarding_excluded).map(e => ({
+    id: e.id, name: e.entity_name, investorName: e.lp_investors?.name ?? '', partnerClass: e.partner_class ?? 'lp',
+  }))
+  const list: OnboardingEntity[] = ((entities ?? []) as any[]).filter(e => !e.onboarding_excluded).map(e => ({
     id: e.id, name: e.entity_name, investorId: e.investor_id, investorName: e.lp_investors?.name ?? '',
-    closing: closings.get(e.id) ?? null,
+    closing: closings.get(e.id) ?? null, partnerClass: e.partner_class ?? 'lp',
   }))
   const rows = sortByClosing(buildOnboardingMatrix(list, kinds, (items ?? []) as OnboardingItemRow[]))
 
@@ -90,6 +93,7 @@ export async function GET(): Promise<NextResponse> {
   return NextResponse.json({
     portalEnabled: !!fs?.lp_portal_enabled,
     canRecordTax,
+    excluded: excludedEntities,
     kinds,
     allKinds: ONBOARDING_KINDS.map(k => ({ kind: k, label: ONBOARDING_KIND_LABEL[k] })),
     entities: rows.map(r => ({

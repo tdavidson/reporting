@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { assertWriteAccess } from '@/lib/api-helpers'
-import { sendLpInvite, ensureLpAccount, bindAuthUser } from '@/lib/lp-invites'
+import { sendLpInvite, ensureLpAccount, bindAuthUser, ensureEntityForInvestor } from '@/lib/lp-invites'
 
 /**
  * Admin-only bulk LP onboarding (gap 3). Paste a sheet of investors + emails
@@ -123,6 +123,7 @@ export async function POST(req: NextRequest) {
     const { error: linkErr } = await (admin as any)
       .from('lp_account_links').insert({ lp_account_id: account.id, fund_id: fundId, lp_investor_id: t.investorId, created_by: user.id })
     if (linkErr && linkErr.code !== '23505') summary.errors.push({ row: t.rowNum, message: `Link failed for ${t.email}` })
+    await ensureEntityForInvestor(admin, fundId, t.investorId!, t.name)
     // An LP who already activated (a second investor for the same person) needs no new invite.
     if (account.status !== 'active') await invite(t.email, account.id, t.investorId!, account.auth_user_id, t.rowNum)
 

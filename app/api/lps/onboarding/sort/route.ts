@@ -26,7 +26,8 @@ export const maxDuration = 120
  * confirm route does that, after the reviewer has looked.
  */
 
-const MAX_FILES = 60
+// Per request. The client sends a batch in chunks of this size so OCR on scans fits the window.
+const MAX_FILES = 12
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
   const supabase = await createClient()

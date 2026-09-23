@@ -5,7 +5,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 
-export type OnboardingAction = 'submitted' | 'filed' | 'verified' | 'rejected' | 'waived' | 'reset' | 'requested'
+export type OnboardingAction = 'submitted' | 'filed' | 'verified' | 'rejected' | 'waived' | 'reset' | 'requested' | 'renamed' | 'withdrawn' | 'consented' | 'excluded' | 'included'
 
 export async function logOnboardingEvent(admin: SupabaseClient, e: {
   fundId: string

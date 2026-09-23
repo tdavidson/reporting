@@ -4,7 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 // lp_relations domain (lib/access/route-domains.ts). The middleware has already checked the grant.
 import { assertWriteAccess } from '@/lib/api-helpers'
 import { dbError } from '@/lib/api-error'
-import { isOnboardingKind, ONBOARDING_KIND_LABEL } from '@/lib/lp-onboarding'
+import { isOnboardingKind, ONBOARDING_KIND_LABEL, DOCUMENT_KINDS } from '@/lib/lp-onboarding'
 import { canRecordTaxForms, parseTaxFormInput, recordTaxForm, type TaxFormInput } from '@/lib/lp-onboarding-tax'
 import { scanFile } from '@/lib/security/scan-file'
 import { logOnboardingEvent, attachItemDocument } from '@/lib/lp-onboarding-audit'
@@ -42,7 +42,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   for (const r of rows) {
     if (!inFund(r?.storage_path) || typeof r?.file_name !== 'string' || !r.file_name) return NextResponse.json({ error: 'Invalid storage path' }, { status: 400 })
     if (typeof r?.lp_entity_id !== 'string' || !r.lp_entity_id) return NextResponse.json({ error: `Pick an entity for ${r.file_name}` }, { status: 400 })
-    if (!isOnboardingKind(r?.kind)) return NextResponse.json({ error: `Pick a document kind for ${r.file_name}` }, { status: 400 })
+    if (!isOnboardingKind(r?.kind) || !DOCUMENT_KINDS.includes(r.kind)) return NextResponse.json({ error: `Pick a document kind for ${r.file_name}` }, { status: 400 })
   }
 
   // Tax facts are validated up front so a bad row (a full TIN) fails the batch before anything is filed.

@@ -49,8 +49,8 @@ async function ctx(): Promise<LpCtx> {
 async function loadEntities(admin: any, investorIds: string[]) {
   if (investorIds.length === 0) return { entities: [] as any[], kindsByFund: new Map<string, string[]>() }
   const { data: ents } = await admin
-    .from('lp_entities').select('id, fund_id, entity_name, investor_id, lp_investors(name)')
-    .in('investor_id', investorIds).order('entity_name')
+    .from('lp_entities').select('id, fund_id, entity_name, investor_id, onboarding_excluded, lp_investors(name)')
+    .in('investor_id', investorIds).eq('onboarding_excluded', false).order('entity_name')
   const fundIds = Array.from(new Set(((ents ?? []) as any[]).map(e => e.fund_id as string)))
   if (fundIds.length === 0) return { entities: [] as any[], kindsByFund: new Map<string, string[]>() }
   const { data: settings } = await admin.from('fund_settings').select('fund_id, lp_portal_enabled, lp_onboarding_kinds').in('fund_id', fundIds)
@@ -192,4 +192,40 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   })
 
   return NextResponse.json({ ok: true, documentId: doc.id, item })
+}
+
+/**
+ * PATCH { lp_entity_id, entity_name } → the LP renames their own entity. The fund named it after
+ * the investor when it invited them; the legal name on the subscription document is the LP's to
+ * say. Unique per fund, so a clash is a 409 rather than a silent overwrite; the fund hears about
+ * the change in its inbox and the audit trail.
+ */
+export async function PATCH(req: NextRequest): Promise<NextResponse> {
+  const c = await ctx()
+  if ('error' in c && c.error) return c.error
+  const { admin, user, investorIds, lpAccountId } = c as Extract<LpCtx, { error?: undefined }>
+
+  const body = await req.json().catch(() => ({}))
+  const entityId = typeof body.lp_entity_id === 'string' ? body.lp_entity_id : ''
+  const name = typeof body.entity_name === 'string' ? body.entity_name.trim().replace(/\s+/g, ' ').slice(0, 200) : ''
+  if (!entityId) return NextResponse.json({ error: 'lp_entity_id is required' }, { status: 400 })
+  if (name.length < 2) return NextResponse.json({ error: 'Enter the entity\'s legal name' }, { status: 400 })
+
+  const { entities } = await loadEntities(admin, investorIds)
+  const entity = entities.find(e => e.id === entityId)
+  if (!entity) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  if (entity.entity_name === name) return NextResponse.json({ ok: true, entity_name: name })
+
+  const { error } = await admin.from('lp_entities').update({ entity_name: name }).eq('id', entityId).eq('fund_id', entity.fund_id)
+  if (error) {
+    if (error.code === '23505') return NextResponse.json({ error: 'Another entity in this fund already has that name. If it is yours, ask the fund to merge them.' }, { status: 409 })
+    return dbError(error, 'portal-onboarding-rename')
+  }
+  await logOnboardingEvent(admin, { fundId: entity.fund_id, itemId: null, lpEntityId: entityId, kind: 'all', action: 'renamed', note: `${entity.entity_name} → ${name}`, actorAccountId: lpAccountId })
+  const { data: acct } = await admin.from('lp_accounts').select('email').eq('id', lpAccountId).maybeSingle()
+  await admin.from('lp_messages').insert({
+    fund_id: entity.fund_id, lp_account_id: lpAccountId, lp_investor_id: entity.investor_id, from_email: acct?.email ?? user.email ?? null,
+    subject: 'Entity renamed', body: `"${entity.entity_name}" is now "${name}", per the LP. Check it against the executed subscription document.`, direction: 'inbound', status: 'open',
+  })
+  return NextResponse.json({ ok: true, entity_name: name })
 }

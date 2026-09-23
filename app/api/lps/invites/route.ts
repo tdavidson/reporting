@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { assertWriteAccess } from '@/lib/api-helpers'
 import { dbError } from '@/lib/api-error'
-import { sendLpInvite, ensureLpAccount, bindAuthUser } from '@/lib/lp-invites'
+import { sendLpInvite, ensureLpAccount, bindAuthUser, ensureEntityForInvestor } from '@/lib/lp-invites'
 
 /**
  * Admin-only LP invites and portal accounts.
@@ -98,8 +98,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   if (!lpInvestorId) return NextResponse.json({ error: 'lp_investor_id is required' }, { status: 400 })
 
   // The investor must belong to the admin's fund — never trust the body's scope.
-  const { data: investor } = await a.from('lp_investors').select('id').eq('id', lpInvestorId).eq('fund_id', fundId).maybeSingle()
+  const { data: investor } = await a.from('lp_investors').select('id, name').eq('id', lpInvestorId).eq('fund_id', fundId).maybeSingle()
   if (!investor) return NextResponse.json({ error: 'Investor not found in your fund' }, { status: 404 })
+  await ensureEntityForInvestor(admin, fundId, investor.id, investor.name)
 
   // lp_accounts is the LP-access whitelist the before-user-created auth hook checks, so the
   // account must exist BEFORE we invite.

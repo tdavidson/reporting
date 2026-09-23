@@ -23,6 +23,7 @@ import { POST, PATCH } from '@/app/api/lps/invites/route'
 let deliveries: Record<string, unknown>[] = []
 let accountUpdates: Record<string, unknown>[] = []
 let links: Record<string, unknown>[] = []
+let entitiesCreated: Record<string, unknown>[] = []
 let existingAccount: { id: string; auth_user_id: string | null; status: string } | null = null
 /** lp_account_links rows that exist for the PATCH lookup, keyed by lp_account_id. */
 let linkedAccounts: Record<string, { id: string; status: string; auth_user_id: string | null }> = {}
@@ -38,7 +39,7 @@ function stub() {
       limit: () => chain,
       maybeSingle: async () => {
         if (table === 'fund_members') return { data: { fund_id: 'fund-1', role: 'admin' }, error: null }
-        if (table === 'lp_investors') return { data: filters.id === 'inv-1' && filters.fund_id === 'fund-1' ? { id: 'inv-1' } : null, error: null }
+        if (table === 'lp_investors') return { data: filters.id === 'inv-1' && filters.fund_id === 'fund-1' ? { id: 'inv-1', name: 'Acme Capital' } : null, error: null }
         if (table === 'funds') return { data: { name: 'Test Fund' }, error: null }
         if (table === 'lp_accounts') return { data: existingAccount, error: null }
         if (table === 'lp_account_links') {
@@ -49,10 +50,13 @@ function stub() {
         return { data: null, error: null }
       },
       single: async () => ({ data: { id: 'acct-new', auth_user_id: null, status: 'invited' }, error: null }),
+      // Awaiting the chain itself: the entity lookup, which finds none until one is created.
+      then: (resolve: (v: unknown) => void) => resolve({ data: table === 'lp_entities' ? entitiesCreated.filter(e => e.investor_id === filters.investor_id).map(e => ({ id: 'ent-new' })) : [], error: null }),
       insert: (row: Record<string, unknown>) => {
         if (table === 'lp_deliveries') { deliveries.push(row); return Promise.resolve({ error: null }) }
         if (table === 'lp_account_links') { links.push(row); return Promise.resolve({ error: null }) }
         if (table === 'lp_accounts') return { select: () => ({ single: chain.single }) }
+        if (table === 'lp_entities') { entitiesCreated.push(row); return { select: () => ({ single: async () => ({ data: { id: 'ent-new' }, error: null }) }) } }
         return Promise.resolve({ error: null })
       },
       update: (patch: Record<string, unknown>) => ({
@@ -67,7 +71,7 @@ const req = (body: Record<string, unknown>) => ({ json: async () => body, url: '
 
 beforeEach(() => {
   vi.clearAllMocks()
-  deliveries = []; accountUpdates = []; links = []
+  deliveries = []; accountUpdates = []; links = []; entitiesCreated = []
   existingAccount = null
   linkedAccounts = {}
   getUser.mockResolvedValue({ data: { user: { id: 'admin-1', email: 'gp@example.com' } } })
@@ -87,6 +91,8 @@ describe('POST /api/lps/invites', () => {
     expect(createUser).toHaveBeenCalledWith(expect.objectContaining({ email: 'lp@example.com', email_confirm: false }))
     expect(links).toEqual([expect.objectContaining({ lp_account_id: 'acct-new', fund_id: 'fund-1', lp_investor_id: 'inv-1' })])
     expect(accountUpdates).toEqual([expect.objectContaining({ id: 'acct-new', auth_user_id: 'auth-9' })])
+    // The investor gets an entity named after it, so the checklist can see them.
+    expect(entitiesCreated).toEqual([expect.objectContaining({ fund_id: 'fund-1', investor_id: 'inv-1', entity_name: 'Acme Capital', partner_class: 'lp', onboarding_excluded: false })])
     const html = sendOutboundEmail.mock.calls[0][1].html as string
     expect(html).toContain('/portal/welcome?email=lp%40example.com')
     expect(deliveries).toEqual([expect.objectContaining({ kind: 'invite', to_email: 'lp@example.com', status: 'sent', provider: 'resend', provider_message_id: 'msg-1' })])

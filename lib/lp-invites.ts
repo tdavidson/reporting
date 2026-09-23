@@ -123,6 +123,26 @@ export async function ensureLpAccount(
   return error ? null : created
 }
 
+/**
+ * Every invited investor has an entity, because the onboarding checklist hangs off entities and an
+ * investor with none is invisible to it. Named after the investor; the LP can rename it from their
+ * checklist. A name clash with another investor's entity gets a suffix rather than a failure.
+ */
+export async function ensureEntityForInvestor(admin: SupabaseClient, fundId: string, investorId: string, investorName: string): Promise<string | null> {
+  const a = admin as any
+  const { data: existing } = await a.from('lp_entities').select('id').eq('fund_id', fundId).eq('investor_id', investorId).limit(1)
+  if (Array.isArray(existing) && existing.length > 0) return existing[0].id as string
+  for (const name of [investorName, `${investorName} (LP)`, `${investorName} (${investorId.slice(0, 8)})`]) {
+    const { data, error } = await a
+      .from('lp_entities')
+      .insert({ fund_id: fundId, investor_id: investorId, entity_name: name, partner_class: 'lp', onboarding_excluded: false })
+      .select('id').single()
+    if (!error && data) return data.id as string
+    if (error?.code !== '23505') { console.error('[lp invite] entity create failed:', error?.message); return null }
+  }
+  return null
+}
+
 /** Bind the auth user Supabase just created, when the account had none. */
 export async function bindAuthUser(admin: SupabaseClient, lpAccountId: string, authUserId: string | null, current: string | null): Promise<void> {
   if (!authUserId || current) return

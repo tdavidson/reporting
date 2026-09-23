@@ -44,6 +44,7 @@ interface EntityRow {
 interface Payload {
   portalEnabled: boolean
   canRecordTax: boolean
+  excluded: { id: string; name: string; investorName: string; partnerClass: string }[]
   kinds: OnboardingKind[]
   allKinds: { kind: OnboardingKind; label: string }[]
   entities: EntityRow[]
@@ -91,6 +92,15 @@ export function LpOnboardingSettings() {
   const [busy, setBusy] = useState(false)
   const [history, setHistory] = useState<Record<string, { loading: boolean; events: any[] } | undefined>>({})
   const [profileOpen, setProfileOpen] = useState<Set<string>>(new Set())
+  const [showExcluded, setShowExcluded] = useState(false)
+
+  async function setExcluded(entityId: string, excluded: boolean) {
+    setBusy(true)
+    const res = await fetch('/api/lps/entities/profile', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lp_entity_id: entityId, entity: { onboarding_excluded: excluded } }) })
+    setBusy(false)
+    if (!res.ok) { const b = await res.json().catch(() => ({})); setError(b.error ?? 'Could not update'); return }
+    load()
+  }
   const [tax, setTax] = useState<TaxFormFieldsValue>(EMPTY_TAX_FIELDS)
 
   function toggleHistory(entityId: string) {
@@ -399,6 +409,9 @@ export function LpOnboardingSettings() {
                         <button type="button" onClick={() => toggleHistory(e.id)} className="inline-flex items-center gap-1 text-muted-foreground hover:text-foreground">
                           <History className="h-3.5 w-3.5" /> {history[e.id] ? 'Hide history' : 'History'}
                         </button>
+                        <button type="button" disabled={busy} onClick={() => setExcluded(e.id, true)} className="inline-flex items-center gap-1 text-muted-foreground hover:text-foreground" title="Take this entity off the checklist, requests and reminders">
+                          <MinusCircle className="h-3.5 w-3.5" /> Exclude from onboarding
+                        </button>
                       </div>
                       {profileOpen.has(e.id) && e.profile && (
                         <LpEntityProfile key={`${e.id}-${e.profile.entity.profile_updated_at ?? ''}`} entityId={e.id} entityName={e.name} investorName={e.investorName || e.name} entity={e.profile.entity} investor={e.profile.investor} onSaved={() => { void load() }} />
@@ -422,6 +435,25 @@ export function LpOnboardingSettings() {
               </div>
             )
           })}
+        </div>
+      )}
+
+      {/* Excluded entities */}
+      {data.excluded.length > 0 && (
+        <div className="text-xs">
+          <button type="button" onClick={() => setShowExcluded(v => !v)} className="text-muted-foreground hover:text-foreground">
+            {showExcluded ? 'Hide' : 'Show'} {data.excluded.length} excluded entit{data.excluded.length === 1 ? 'y' : 'ies'} (off the checklist, requests and reminders; GP entities start here)
+          </button>
+          {showExcluded && (
+            <div className="mt-1 rounded-md border divide-y">
+              {data.excluded.map(x => (
+                <div key={x.id} className="flex items-center gap-2 px-3 py-1.5">
+                  <span className="flex-1 truncate">{x.name}{x.investorName && x.investorName !== x.name ? <span className="text-muted-foreground"> · {x.investorName}</span> : null}{x.partnerClass === 'gp' ? <span className="text-muted-foreground"> · GP</span> : null}</span>
+                  <Button size="sm" variant="ghost" className="h-7 px-2" disabled={busy} onClick={() => setExcluded(x.id, false)}>Include</Button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
