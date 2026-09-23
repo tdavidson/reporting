@@ -9,6 +9,7 @@ import {
   DEFAULT_ONBOARDING_KINDS, ONBOARDING_KINDS, ONBOARDING_KIND_LABEL, loadClosingsByEntity, sortByClosing,
   type OnboardingEntity, type OnboardingItemRow,
 } from '@/lib/lp-onboarding'
+import { canRecordTaxForms, parseTaxFormInput, recordTaxForm } from '@/lib/lp-onboarding-tax'
 
 /**
  * The fund's side of LP onboarding.
@@ -17,10 +18,12 @@ import {
  *           item's status, document and note; plus the requirement set and whether each entity's
  *           investor has a portal account (an entity with nobody to email cannot upload).
  *   PUT   { kinds: OnboardingKind[] } → set the fund's requirement set.
- *   PATCH { lp_entity_id, kind, status, note?, expires_on?, document_id? }
+ *   PATCH { lp_entity_id, kind, status, note?, expires_on?, document_id?, tax? }
  *         → review an item: verify, reject (with a note the LP sees), waive, or put it back to
  *           outstanding. `document_id` attaches a file the fund uploaded on the LP's behalf
  *           (through /api/lps/documents, scoped to that investor) — it must belong to this fund.
+ *           Verifying a tax form with `tax` records the partner's tax form in the same step, when
+ *           the caller holds tax-reporting write; otherwise the response says it was not recorded.
  *
  * Reads through the service-role client with manual fund scoping, like every LP route.
  */
@@ -68,8 +71,11 @@ export async function GET(): Promise<NextResponse> {
     for (const d of (docs ?? []) as any[]) titles.set(d.id, { title: d.title, file_name: d.file_name, mime_type: d.mime_type })
   }
 
+  const { can: canRecordTax } = await canRecordTaxForms(admin, fundId, user.id, gate.role)
+
   return NextResponse.json({
     portalEnabled: !!fs?.lp_portal_enabled,
+    canRecordTax,
     kinds,
     allKinds: ONBOARDING_KINDS.map(k => ({ kind: k, label: ONBOARDING_KIND_LABEL[k] })),
     entities: rows.map(r => ({
@@ -148,11 +154,27 @@ export async function PATCH(req: NextRequest): Promise<NextResponse> {
   // Back to outstanding clears the review, not the file: the LP can see what they sent.
   if (status === 'outstanding') { row.reviewed_by = null; row.reviewed_at = null; row.expires_on = null }
 
+  // A tax form's facts, validated before anything is written.
+  const parsedTax = kind === 'tax_form' && status === 'verified' ? parseTaxFormInput(body.tax) : null
+  if (parsedTax && 'error' in parsedTax) return NextResponse.json({ error: parsedTax.error }, { status: 400 })
+
   const { data: saved, error } = await a
     .from('lp_onboarding_items')
     .upsert(row, { onConflict: 'fund_id,lp_entity_id,kind' })
     .select('id, status, document_id, note, expires_on, reviewed_at')
     .single()
   if (error) return dbError(error, 'lps-onboarding')
-  return NextResponse.json({ ok: true, item: saved })
+
+  let taxFormId: string | null = null
+  let taxSkipped = false
+  if (parsedTax && 'input' in parsedTax) {
+    const { can } = await canRecordTaxForms(admin, fundId, user.id, gate.role)
+    if (!can) taxSkipped = true
+    else {
+      const rec = await recordTaxForm(admin, { fundId, lpEntityId: entityId, documentId: saved.document_id ?? null, userId: user.id, input: parsedTax.input })
+      if ('error' in rec) return NextResponse.json({ error: rec.error }, { status: 500 })
+      taxFormId = rec.id
+    }
+  }
+  return NextResponse.json({ ok: true, item: saved, taxFormId, taxSkipped })
 }

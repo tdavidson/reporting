@@ -6,6 +6,7 @@ import { assertWriteAccess } from '@/lib/api-helpers'
 import { extractDocumentText } from '@/lib/lp-onboarding-extract'
 import { proposeSort, type MatchableEntity } from '@/lib/lp-onboarding-classify'
 import { runPool } from '@/lib/lp-report-pdf'
+import { canRecordTaxForms } from '@/lib/lp-onboarding-tax'
 
 export const maxDuration = 120
 
@@ -93,5 +94,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     }
   })
 
-  return NextResponse.json({ files: results, entities: entities.map(e => ({ id: e.id, name: e.name, investorName: e.investorName })) })
+  const { can: canRecordTax } = await canRecordTaxForms(admin, fundId, user.id, gate.role)
+  return NextResponse.json({ files: results, canRecordTax, entities: entities.map(e => ({ id: e.id, name: e.name, investorName: e.investorName })) })
 }

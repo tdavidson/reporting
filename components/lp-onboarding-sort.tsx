@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Loader2, FolderInput, Check, Trash2, AlertTriangle, ChevronDown, ChevronRight } from 'lucide-react'
 import { ONBOARDING_KINDS, ONBOARDING_KIND_LABEL, type OnboardingKind } from '@/lib/lp-onboarding'
 import { TAX_FORM_LABEL, type TaxFormType } from '@/lib/tax/forms'
+import { TaxFormFields, taxFieldsFromFacts, taxFieldsToBody, EMPTY_TAX_FIELDS, type TaxFormFieldsValue } from '@/components/lp-tax-form-fields'
 
 interface Entity { id: string; name: string; investorName: string }
 interface Proposal {
@@ -37,6 +38,7 @@ interface Row {
   kind: OnboardingKind | ''
   docDate: string
   discard: boolean
+  tax: TaxFormFieldsValue
 }
 
 type Stage = 'idle' | 'uploading' | 'sorting' | 'review' | 'filing' | 'done'
@@ -63,6 +65,7 @@ export function LpOnboardingSort({ onFiled }: { onFiled: () => void }) {
   const [error, setError] = useState<string | null>(null)
   const [progress, setProgress] = useState<string | null>(null)
   const [result, setResult] = useState<string | null>(null)
+  const [canRecordTax, setCanRecordTax] = useState(false)
   const [dragging, setDragging] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -71,7 +74,7 @@ export function LpOnboardingSort({ onFiled }: { onFiled: () => void }) {
     if (files.length === 0) return
     if (files.length > 60) { setError('Sort at most 60 files at a time.'); return }
     setError(null); setResult(null); setStage('uploading')
-    const uploaded: Omit<Row, 'proposal' | 'entityId' | 'kind' | 'docDate' | 'discard'>[] = []
+    const uploaded: Omit<Row, 'proposal' | 'entityId' | 'kind' | 'docDate' | 'discard' | 'tax'>[] = []
     try {
       for (let i = 0; i < files.length; i++) {
         const f = files[i]
@@ -88,18 +91,26 @@ export function LpOnboardingSort({ onFiled }: { onFiled: () => void }) {
       const b = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(b.error ?? 'Sorting failed')
       setEntities(b.entities ?? [])
-      setRows((b.files as any[]).map(f => ({
-        ...f,
-        entityId: f.proposal?.entityId ?? '',
-        kind: f.proposal?.kind ?? '',
-        docDate: f.proposal?.facts?.dateCandidates?.[0] ?? '',
-        discard: false,
-      })))
+      setCanRecordTax(!!b.canRecordTax)
+      setRows((b.files as any[]).map(f => {
+        const facts = f.proposal?.facts
+        const signed = facts?.dateCandidates?.[0] ?? ''
+        return {
+          ...f,
+          entityId: f.proposal?.entityId ?? '',
+          kind: f.proposal?.kind ?? '',
+          docDate: signed,
+          discard: false,
+          tax: f.proposal?.kind === 'tax_form'
+            ? taxFieldsFromFacts({ formType: f.proposal?.taxFormType, legalName: facts?.nameCandidates?.[0], tinType: facts?.tin?.type, tinLast4: facts?.tin?.last4, country: facts?.country, signedDate: signed })
+            : EMPTY_TAX_FIELDS,
+        }
+      }))
       setStage('review')
     } catch (e: any) {
       setError(e?.message ?? 'Something went wrong')
       setStage(uploaded.length ? 'review' : 'idle')
-      if (uploaded.length) setRows(uploaded.map(f => ({ ...f, proposal: null, entityId: '', kind: '', docDate: '', discard: false })))
+      if (uploaded.length) setRows(uploaded.map(f => ({ ...f, proposal: null, entityId: '', kind: '', docDate: '', discard: false, tax: EMPTY_TAX_FIELDS })))
     } finally {
       setProgress(null)
     }
@@ -118,13 +129,17 @@ export function LpOnboardingSort({ onFiled }: { onFiled: () => void }) {
     const res = await fetch('/api/lps/onboarding/sort/confirm', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        rows: ready.map(r => ({ storage_path: r.storage_path, file_name: r.file_name, mime_type: r.mime_type, size_bytes: r.size_bytes, lp_entity_id: r.entityId, kind: r.kind, doc_date: r.docDate || null })),
+        rows: ready.map(r => ({
+          storage_path: r.storage_path, file_name: r.file_name, mime_type: r.mime_type, size_bytes: r.size_bytes,
+          lp_entity_id: r.entityId, kind: r.kind, doc_date: r.docDate || null,
+          tax: r.kind === 'tax_form' && canRecordTax ? taxFieldsToBody(r.tax) : null,
+        })),
         discard: rows.filter(r => r.discard).map(r => r.storage_path),
       }),
     })
     const b = await res.json().catch(() => ({}))
     if (!res.ok) { setError(b.error ?? 'Could not file the documents'); setStage('review'); return }
-    setResult(`Filed ${b.filed?.length ?? 0} document${b.filed?.length === 1 ? '' : 's'} as verified${b.discarded ? `, discarded ${b.discarded}` : ''}.`)
+    setResult(`Filed ${b.filed?.length ?? 0} document${b.filed?.length === 1 ? '' : 's'} as verified${b.taxRecorded ? `, recorded ${b.taxRecorded} tax form${b.taxRecorded === 1 ? '' : 's'}` : ''}${b.discarded ? `, discarded ${b.discarded}` : ''}.${b.taxSkipped?.length ? ` Tax facts for ${b.taxSkipped.join(', ')} were not recorded — that needs tax-reporting access.` : ''}`)
     setRows([]); setStage('done')
     onFiled()
   }
@@ -213,9 +228,7 @@ export function LpOnboardingSort({ onFiled }: { onFiled: () => void }) {
                         <div className="text-muted-foreground space-x-2">
                           {p.entityMatchedOn && <span>Matched on “{p.entityMatchedOn}”.</span>}
                           {p.kindMatchedOn.length > 0 && <span>Kind from: {p.kindMatchedOn.slice(0, 3).join(', ')}.</span>}
-                          {p.taxFormType && <span>Form: {TAX_FORM_LABEL[p.taxFormType]}.</span>}
-                          {p.facts.tin && <span>TIN ({p.facts.tin.type ?? '?'}) ending {p.facts.tin.last4} — record on the Tax page.</span>}
-                          {p.facts.country && <span>Country: {p.facts.country}.</span>}
+                          {r.kind !== 'tax_form' && p.taxFormType && <span>Looks like {TAX_FORM_LABEL[p.taxFormType]}.</span>}
                           {p.facts.statedCommitment !== null && (
                             <span className={p.commitmentMismatch ? 'text-destructive' : ''}>
                               States {money(p.facts.statedCommitment)}{p.commitmentOnFile !== null ? ` · on file ${money(p.commitmentOnFile)}` : ''}{p.commitmentMismatch ? ' — disagrees' : ''}.
@@ -223,6 +236,16 @@ export function LpOnboardingSort({ onFiled }: { onFiled: () => void }) {
                           )}
                           {!p.entityId && p.alternatives.length > 0 && <span>Closest: {p.alternatives.map(al => entityLabel(al.entityId)).join(', ')}.</span>}
                           {!p.entityId && p.facts.nameCandidates.length > 0 && <span>Names found: {p.facts.nameCandidates.slice(0, 3).join('; ')}.</span>}
+                        </div>
+                      )}
+                      {!r.discard && r.kind === 'tax_form' && (
+                        <div className="rounded-md border bg-muted/20 p-2 space-y-1.5">
+                          <div className="text-muted-foreground">
+                            {canRecordTax
+                              ? 'Tax form facts, as read from the form — confirming files the document and records the form for the K-1.'
+                              : 'Tax form facts as read from the form. Recording them needs tax-reporting access; the document will still be filed.'}
+                          </div>
+                          <TaxFormFields value={r.tax} onChange={tax => update(i, { tax })} disabled={!canRecordTax} />
                         </div>
                       )}
                     </div>

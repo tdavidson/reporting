@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Loader2, Check, X, MinusCircle, RotateCcw, Upload, ExternalLink, Send, ChevronDown, ChevronRight } from 'lucide-react'
 import { ONBOARDING_STATUS_LABEL, type OnboardingKind, type OnboardingStatus } from '@/lib/lp-onboarding'
 import { LpOnboardingSort } from '@/components/lp-onboarding-sort'
+import { TaxFormFields, taxFieldsFromFacts, taxFieldsToBody, EMPTY_TAX_FIELDS, type TaxFormFieldsValue } from '@/components/lp-tax-form-fields'
 
 interface Item {
   kind: OnboardingKind
@@ -38,6 +39,7 @@ interface EntityRow {
 }
 interface Payload {
   portalEnabled: boolean
+  canRecordTax: boolean
   kinds: OnboardingKind[]
   allKinds: { kind: OnboardingKind; label: string }[]
   entities: EntityRow[]
@@ -83,6 +85,22 @@ export function LpOnboardingSettings() {
   const [note, setNote] = useState('')
   const [expiresOn, setExpiresOn] = useState('')
   const [busy, setBusy] = useState(false)
+  const [tax, setTax] = useState<TaxFormFieldsValue>(EMPTY_TAX_FIELDS)
+  const [taxReading, setTaxReading] = useState(false)
+  const [taxNote, setTaxNote] = useState<string | null>(null)
+
+  // Verifying a tax form: read the uploaded file for a head start on the record.
+  function openReview(entity: EntityRow, item: Item, action: 'rejected' | 'verified' | 'waived') {
+    setReview({ entity, item, action }); setNote(''); setExpiresOn(''); setTax(EMPTY_TAX_FIELDS); setTaxNote(null)
+    if (action === 'verified' && item.kind === 'tax_form' && item.documentId) {
+      setTaxReading(true)
+      fetch(`/api/lps/onboarding/facts?document_id=${item.documentId}`)
+        .then(r => (r.ok ? r.json() : null))
+        .then(b => { if (b?.facts) { setTax(taxFieldsFromFacts(b.facts)); if (b.facts.expiresOn) setExpiresOn(b.facts.expiresOn) } if (b?.note) setTaxNote(b.note) })
+        .catch(() => {})
+        .finally(() => setTaxReading(false))
+    }
+  }
 
   // Request dialog
   const [request, setRequest] = useState<{ preview: any } | null>(null)
@@ -151,8 +169,13 @@ export function LpOnboardingSettings() {
 
   async function submitReview() {
     if (!review) return
-    const ok = await patch(review.entity, review.item, review.action, { note: note || null, expires_on: expiresOn || null })
-    if (ok) { setReview(null); setNote(''); setExpiresOn('') }
+    const isTax = review.action === 'verified' && review.item.kind === 'tax_form'
+    const ok = await patch(review.entity, review.item, review.action, {
+      note: note || null,
+      expires_on: (isTax && tax.expiresOn) ? tax.expiresOn : (expiresOn || null),
+      tax: isTax && data?.canRecordTax ? taxFieldsToBody(tax) : null,
+    })
+    if (ok) { setReview(null); setNote(''); setExpiresOn(''); setTax(EMPTY_TAX_FIELDS) }
   }
 
   async function uploadFor(entity: EntityRow, item: Item, file: File) {
@@ -320,17 +343,17 @@ export function LpOnboardingSettings() {
                             </Button>
                           )}
                           {it.status !== 'verified' || it.expired ? (
-                            <Button size="sm" variant="ghost" className="h-7 px-2 text-success" disabled={busy} onClick={() => { setReview({ entity: e, item: it, action: 'verified' }); setNote(''); setExpiresOn('') }}>
+                            <Button size="sm" variant="ghost" className="h-7 px-2 text-success" disabled={busy} onClick={() => openReview(e, it, 'verified')}>
                               <Check className="h-3.5 w-3.5 mr-1" /> Verify
                             </Button>
                           ) : null}
                           {(it.status === 'submitted' || it.status === 'verified') && (
-                            <Button size="sm" variant="ghost" className="h-7 px-2 text-destructive" disabled={busy} onClick={() => { setReview({ entity: e, item: it, action: 'rejected' }); setNote(''); setExpiresOn('') }}>
+                            <Button size="sm" variant="ghost" className="h-7 px-2 text-destructive" disabled={busy} onClick={() => openReview(e, it, 'rejected')}>
                               <X className="h-3.5 w-3.5 mr-1" /> Send back
                             </Button>
                           )}
                           {it.status !== 'waived' && it.status !== 'verified' && (
-                            <Button size="sm" variant="ghost" className="h-7 px-2" disabled={busy} onClick={() => { setReview({ entity: e, item: it, action: 'waived' }); setNote(''); setExpiresOn('') }}>
+                            <Button size="sm" variant="ghost" className="h-7 px-2" disabled={busy} onClick={() => openReview(e, it, 'waived')}>
                               <MinusCircle className="h-3.5 w-3.5 mr-1" /> Waive
                             </Button>
                           )}
@@ -365,7 +388,18 @@ export function LpOnboardingSettings() {
             <DialogDescription>{review?.entity.name}</DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
-            {review?.action === 'verified' && (
+            {review?.action === 'verified' && review.item.kind === 'tax_form' && (
+              <div className="space-y-1.5">
+                <div className="text-xs text-muted-foreground">
+                  {taxReading ? 'Reading the uploaded form…' : data?.canRecordTax
+                    ? 'The form\'s facts, as read from the upload. Verifying records the form for the K-1 in the same step.'
+                    : 'The form\'s facts, as read from the upload. Recording them needs tax-reporting access; verifying still files the document.'}
+                  {taxNote && !taxReading ? ` ${taxNote}` : ''}
+                </div>
+                <TaxFormFields value={tax} onChange={setTax} disabled={taxReading || !data?.canRecordTax} />
+              </div>
+            )}
+            {review?.action === 'verified' && review.item.kind !== 'tax_form' && (
               <div className="space-y-1">
                 <label className="text-xs font-medium" htmlFor="ob-expires">Expires on (optional)</label>
                 <Input id="ob-expires" type="date" value={expiresOn} onChange={e => setExpiresOn(e.target.value)} className="h-8 text-sm w-48" />
