@@ -7,7 +7,7 @@ import type { ClientAccess } from '@/components/access-context'
 import { DEFAULT_FEATURE_VISIBILITY, type FeatureVisibilityMap } from '@/lib/types/features'
 import type { AppFetch } from '@/components/app-runtime'
 import { setDemoLocation } from './stubs/next-navigation'
-import { matchRoute } from './routes'
+import { matchRoute, RouteScreen } from './routes'
 import type { DemoData } from './types'
 
 /**
@@ -93,9 +93,19 @@ export function DemoApp({ data, fetch, initialPath = '/dashboard', onNavigate, e
   }, [navigate])
 
   const match = useMemo(() => matchRoute(loc.pathname), [loc.pathname])
-  const screen = match
-    ? match.route.render({ href: loc.pathname, params: match.params, query: new URLSearchParams(loc.search), snapshot: data.snapshot, pages: data.pages })
-    : <NotServed href={loc.pathname} />
+  const screen = (
+    <RouteScreen
+      ctx={{
+        pathname: loc.pathname,
+        href: loc.pathname,
+        pattern: match?.route.pattern ?? '',
+        params: match?.params ?? {},
+        query: new URLSearchParams(loc.search),
+        snapshot: data.snapshot,
+        pages: data.pages,
+      }}
+    />
+  )
 
   return (
     <AppRuntimeProvider fetch={fetch} navigate={navigate}>
@@ -133,19 +143,5 @@ export function DemoApp({ data, fetch, initialPath = '/dashboard', onNavigate, e
         <Toaster />
       </div>
     </AppRuntimeProvider>
-  )
-}
-
-function NotServed({ href }: { href: string }) {
-  return (
-    <div className="p-4 md:p-8">
-      <div className="rounded-card border border-dashed p-8 text-center">
-        <h1 className="text-base font-medium">Not in the demo</h1>
-        <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">
-          <span className="font-mono text-xs">{href}</span> is an administrator&rsquo;s page or a flow that needs a signed-in
-          user. The demo is a read-only viewer of a sample fund.
-        </p>
-      </div>
-    </div>
   )
 }

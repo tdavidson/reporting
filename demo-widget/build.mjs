@@ -6,7 +6,9 @@
  *   npm run demo:widget
  *
  * 1. esbuild bundles demo-widget/index.tsx with the app's own components (React included, so
- *    the host page needs nothing) and the Next.js modules swapped for the stubs in ./stubs.
+ *    the host page needs nothing) and the Next.js modules swapped for the stubs in ./stubs, as
+ *    an ES module split at the dynamic imports in routes.tsx: widget.js is the shell and the
+ *    dashboard, and each section of the app is a chunk fetched on first use.
  * 2. Tailwind compiles only the files that bundle pulled in, scoped under `.oa-demo-page`.
  * 3. The app's design tokens (:root and .dark in app/globals.css) are re-scoped and prepended,
  *    with the few base rules the components rely on and the host's preflight does not give.
@@ -29,11 +31,13 @@ fs.mkdirSync(dist, { recursive: true })
 // 1. Script -------------------------------------------------------------------------------
 const result = await build({
   entryPoints: [path.join(here, 'index.tsx')],
-  outfile: path.join(dist, 'widget.js'),
+  outdir: dist,
+  entryNames: 'widget',
+  chunkNames: 'chunk-[hash]',
   bundle: true,
   minify: true,
-  format: 'iife',
-  globalName: 'OtherAdminDemo',
+  format: 'esm',
+  splitting: true,
   platform: 'browser',
   target: ['es2020'],
   jsx: 'automatic',
@@ -47,6 +51,8 @@ const result = await build({
     'next-themes': path.join(here, 'stubs', 'next-themes.ts'),
     'next/script': path.join(here, 'stubs', 'next-script.tsx'),
     '@/lib/supabase/client': path.join(here, 'stubs', 'supabase-client.ts'),
+    // The bank page's spreadsheet parser, half a megabyte the read-only demo never runs.
+    'xlsx': path.join(here, 'stubs', 'xlsx.ts'),
   },
   metafile: true,
   logLevel: 'warning',
@@ -112,6 +118,7 @@ fs.rmSync(path.join(dist, 'tw.css'))
 
 // 4. Data + manifest -------------------------------------------------------------------------
 for (const f of ['snapshot.json', 'answers.json', 'pages.json', 'api.json']) fs.copyFileSync(path.join(here, 'data', f), path.join(dist, f))
+const chunks = fs.readdirSync(dist).filter(f => /^chunk-[A-Z0-9]+\.js$/i.test(f)).sort()
 const snapshot = JSON.parse(fs.readFileSync(path.join(dist, 'snapshot.json'), 'utf8'))
 const answers = JSON.parse(fs.readFileSync(path.join(dist, 'answers.json'), 'utf8'))
 const manifest = {
@@ -122,12 +129,12 @@ const manifest = {
   answersSchemaVersion: answers.schemaVersion,
   answersGeneratedBy: answers.generatedBy,
   global: 'OtherAdminDemo',
-  files: ['widget.js', 'widget.css', 'snapshot.json', 'answers.json', 'pages.json', 'api.json'],
+  files: ['widget.js', ...chunks, 'widget.css', 'snapshot.json', 'answers.json', 'pages.json', 'api.json'],
 }
 fs.writeFileSync(path.join(dist, 'manifest.json'), JSON.stringify(manifest, null, 2))
 fs.rmSync(path.join(dist, 'content-files.json'))
 
 for (const f of manifest.files) {
   const size = fs.statSync(path.join(dist, f)).size
-  console.log(`${f.padEnd(14)} ${(size / 1024).toFixed(0).padStart(6)} KB`)
+  console.log(`${f.padEnd(22)} ${(size / 1024).toFixed(0).padStart(6)} KB`)
 }

@@ -1,13 +1,15 @@
 import { createRoot, type Root } from 'react-dom/client'
 import { DemoApp } from './app'
 import { createDemoFetch, interceptApiFetch } from './mock-api'
-import { allHrefs } from './routes'
+import { allHrefs, prefetchSections } from './routes'
 import { DEMO_SCHEMA_VERSION, EMPTY_API, EMPTY_PAGES, type DemoAnswers, type DemoApi, type DemoPages, type DemoSnapshot } from './types'
 import type { AppFetch } from '@/components/app-runtime'
 
 /**
- * The public demo widget's entry point. Built by demo-widget/build.mjs into a self-contained
- * script (global `OtherAdminDemo`) plus a stylesheet, and mounted by the marketing site:
+ * The public demo widget's entry point. Built by demo-widget/build.mjs into an ES module
+ * (`widget.js`, loaded with `<script type="module">`) that sets the global `OtherAdminDemo` and
+ * pulls each section of the app from its own chunk on first use, plus a stylesheet. The
+ * marketing site mounts it:
  *
  *   const demo = OtherAdminDemo.mount(el, { snapshot, answers, pages, api, chrome: 'page' })
  *   demo.navigate('/deals')
@@ -59,6 +61,8 @@ export function mount(el: HTMLElement, opts: MountOptions): { unmount: () => voi
       chrome={opts.chrome}
     />,
   )
+  // The other sections, while the visitor reads the first page.
+  prefetchSections()
   return {
     navigate: href => navigateTo(href),
     unmount: () => {
@@ -73,3 +77,11 @@ export function mount(el: HTMLElement, opts: MountOptions): { unmount: () => voi
 export function routes(snapshot: DemoSnapshot, pages?: DemoPages): string[] {
   return allHrefs(snapshot, pages ?? EMPTY_PAGES)
 }
+
+declare global {
+  interface Window { OtherAdminDemo?: { mount: typeof mount; routes: typeof routes; schemaVersion: number } }
+}
+
+// The host reaches the widget through the global, not through the module's exports: a static
+// site can add a <script type="module"> but not import from it at build time.
+if (typeof window !== 'undefined') window.OtherAdminDemo = { mount, routes, schemaVersion }

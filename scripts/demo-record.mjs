@@ -87,8 +87,8 @@ async function proxy(href, init) {
 
 const HOST = `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>demo record</title>
 <link rel="stylesheet" href="/widget.css"><style>body{margin:0;padding:24px;font-family:Inter,system-ui,sans-serif}</style></head>
-<body><div id="demo"></div><script src="/widget.js"></script>
-<script>
+<body><div id="demo"></div><script type="module" src="/widget.js"></script>
+<script type="module">
 window.__pending = 0;
 const proxied = async (href, init) => {
   window.__pending++;

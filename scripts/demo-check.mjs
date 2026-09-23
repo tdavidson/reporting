@@ -36,8 +36,8 @@ if (!fs.existsSync(path.join(dist, 'widget.js'))) {
 const HOST = `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>demo check</title>
 <link rel="stylesheet" href="/widget.css">
 <style>:root{--font-sans-face:Inter,system-ui,sans-serif}body{margin:0;padding:24px;font-family:Inter,system-ui,sans-serif;background:#fff;color:#111}.dark body{background:#121316;color:#f2f2f4}</style>
-</head><body><div id="demo"></div><script src="/widget.js"></script>
-<script>
+</head><body><div id="demo"></div><script type="module" src="/widget.js"></script>
+<script type="module">
 window.__misses = []; window.__pending = 0;
 Promise.all(['snapshot','answers','pages','api'].map(f => fetch('/' + f + '.json').then(r => r.json()))).then(([snapshot, answers, pages, api]) => {
   const orig = window.fetch;
