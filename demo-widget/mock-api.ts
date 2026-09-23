@@ -93,8 +93,14 @@ function fromSnapshot(path: string, snapshot: DemoSnapshot): Response | null {
       return json(snapshot.companies.map(c => ({ id: c.id, name: c.name, aliases: c.aliases, stage: c.stage, status: c.status, industry: c.industry, portfolio_group: c.portfolio_group })))
     case '/api/lps/investors':
       return json(snapshot.lps.map(lp => ({ id: lp.id, name: lp.name, lp_entities: [] })))
-    case '/api/deals':
-      return json(snapshot.deals.map(d => ({ id: d.id, company_name: d.company_name, founder_name: d.founder_name, status: d.status })))
+    case '/api/deals': {
+      // The list the deals page refetches on mount: every field the snapshot has, dated at the
+      // snapshot so the table has a date to show, and the columns the snapshot lacks left empty.
+      const created_at = new Date(Number.isNaN(Date.parse(snapshot.generatedAt)) ? Date.now() : Date.parse(snapshot.generatedAt)).toISOString()
+      return json(snapshot.deals.map(d => ({
+        ...d, email_id: null, company_url: null, company_domain: null, founder_email: null, referrer_name: null, prior_deal_id: null, created_at,
+      })))
+    }
     case '/api/accounting/vehicle-index':
       return json(snapshot.vehicles.map(v => ({ name: v.name, id: v.id, kind: v.kind })))
     case '/api/claude-models':
