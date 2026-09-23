@@ -6,6 +6,7 @@ import { lastEndedQuarter, metricQuarter, responseKey } from '@/lib/requests/res
 import type { FundReminderData } from './collect'
 import type { ComplianceItemRow } from './sources/compliance'
 import type { OpenCall } from './sources/calls'
+import { loadOnboardingReminderData } from './sources/onboarding-load'
 import { fromHeader } from './settings'
 import { listCapitalCalls } from '@/lib/accounting/capital-calls'
 
@@ -144,8 +145,11 @@ export async function loadFundReminderData(
     }
   }
 
+  const onboarding = await loadOnboardingReminderData(admin, fundId, today)
+
   return {
     calls: { openCalls },
+    onboarding,
     compliance: {
       items: items as ComplianceItemRow[],
       profile: profile ?? null,
