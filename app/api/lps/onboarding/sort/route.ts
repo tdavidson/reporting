@@ -7,6 +7,7 @@ import { extractDocumentText } from '@/lib/lp-onboarding-extract'
 import { proposeSort, type MatchableEntity } from '@/lib/lp-onboarding-classify'
 import { runPool } from '@/lib/lp-report-pdf'
 import { canRecordTaxForms } from '@/lib/lp-onboarding-tax'
+import { scanFile } from '@/lib/security/scan-file'
 
 export const maxDuration = 120
 
@@ -71,6 +72,13 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       return
     }
     const buffer = Buffer.from(await blob.arrayBuffer())
+    // Scanned before it is read: a hit is deleted and reported, never proposed.
+    const scan = scanFile(buffer, f.file_name, f.mime_type ?? '')
+    if (!scan.safe) {
+      await admin.storage.from('lp-documents').remove([f.storage_path])
+      results[i] = { ...f, proposal: null, rejected: true, error: `Rejected: ${scan.reason ?? 'did not pass the safety check'}. The file has been removed.` }
+      return
+    }
     const extracted = await extractDocumentText(buffer, f.file_name, f.mime_type)
     const proposal = proposeSort(extracted.text, f.file_name, entities, commitmentByEntity)
     results[i] = {

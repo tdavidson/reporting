@@ -16,6 +16,8 @@ const hasAccess = vi.hoisted(() => vi.fn())
 vi.mock('@/lib/supabase/server', () => ({ createClient: () => ({ auth: { getUser } }) }))
 vi.mock('@/lib/supabase/admin', () => ({ createAdminClient: () => ({ from }) }))
 vi.mock('@/lib/access/effective', () => ({ loadAccessContext, hasAccess }))
+const emailLpReview = vi.hoisted(() => vi.fn(async () => ({ sent: true })))
+vi.mock('@/lib/lp-onboarding-notify', () => ({ emailLpReview }))
 
 import { PATCH } from '@/app/api/lps/onboarding/route'
 import { parseTaxFormInput } from '@/lib/lp-onboarding-tax'
@@ -31,7 +33,7 @@ function stub() {
       eq: (c: string, v: unknown) => { filters[c] = v; return chain },
       maybeSingle: async () => {
         if (table === 'fund_members') return { data: { fund_id: 'fund-1', role: 'admin' }, error: null }
-        if (table === 'lp_entities') return { data: filters.id === 'ent-1' && filters.fund_id === 'fund-1' ? { id: 'ent-1' } : null, error: null }
+        if (table === 'lp_entities') return { data: filters.id === 'ent-1' && filters.fund_id === 'fund-1' ? { id: 'ent-1', entity_name: 'Acme', investor_id: 'inv-1' } : null, error: null }
         return { data: null, error: null }
       },
       insert: (row: Record<string, unknown>) => {
@@ -39,7 +41,8 @@ function stub() {
         return { select: () => ({ single: async () => ({ data: { id: 'tax-1' }, error: null }) }) }
       },
       upsert: (row: Record<string, unknown>) => {
-        upserted.push(row)
+        if (table === 'lp_onboarding_items') upserted.push(row)
+        else (inserted[table] ??= []).push(row)
         return { select: () => ({ single: async () => ({ data: { id: 'item-1', status: row.status, document_id: 'doc-7' }, error: null }) }) }
       },
     }
@@ -87,6 +90,15 @@ describe('PATCH /api/lps/onboarding verifying a tax form', () => {
     expect(res.status).toBe(400)
     expect(upserted).toHaveLength(0)
     expect(inserted.lp_tax_forms).toBeUndefined()
+  })
+
+  it('emails the LP when an item is sent back, and writes the audit trail', async () => {
+    hasAccess.mockReturnValue(true)
+    const res = await PATCH(req({ lp_entity_id: 'ent-1', kind: 'lpa_signature', status: 'rejected', note: 'Second signatory missing' }))
+    expect(res.status).toBe(200)
+    expect(emailLpReview).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ fundId: 'fund-1', lpInvestorId: 'inv-1', lpEntityId: 'ent-1', kind: 'lpa_signature', note: 'Second signatory missing', sentBy: 'admin-1' }))
+    expect(inserted.lp_onboarding_events).toEqual([expect.objectContaining({ action: 'rejected', to_status: 'rejected', note: 'Second signatory missing', actor_user_id: 'admin-1' })])
+    expect(await res.json()).toMatchObject({ ok: true, lpEmailed: true })
   })
 
   it('ignores tax facts on anything but a verified tax form', async () => {

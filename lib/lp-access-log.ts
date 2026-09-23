@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 
-export type LpEventType = 'login' | 'view' | 'download'
+export type LpEventType = 'login' | 'view' | 'download' | 'upload'
 export type LpTargetType = 'portal' | 'snapshot' | 'letter' | 'document'
 
 export interface LpAccessEventInput {

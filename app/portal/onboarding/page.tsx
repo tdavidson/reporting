@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Loader2, Upload, Check, Clock, AlertCircle, MinusCircle, FileText } from 'lucide-react'
+import { Loader2, Upload, Check, Clock, AlertCircle, MinusCircle } from 'lucide-react'
 import { DocumentViewer, type ViewerDoc } from '@/components/portal/document-viewer'
 import type { OnboardingKind, OnboardingStatus } from '@/lib/lp-onboarding'
 
@@ -17,6 +17,7 @@ interface Item {
   reviewedAt: string | null
   expiresOn: string | null
   note: string | null
+  documents: { id: string; fileName: string; addedAt: string }[]
 }
 interface Entity {
   id: string
@@ -147,18 +148,23 @@ export default function PortalOnboardingPage() {
                         <div className="text-sm font-medium">{it.label}</div>
                         <div className="text-xs text-muted-foreground mt-0.5">{it.help}</div>
                         <div className="text-xs mt-1.5"><StatusLine it={it} /></div>
+                        {it.documents.length > 0 && (
+                          <ul className="mt-1.5 space-y-0.5 text-xs text-muted-foreground">
+                            {it.documents.map(d => (
+                              <li key={d.id}>
+                                <button type="button" className="underline hover:text-foreground" onClick={() => setViewerDoc({ id: d.id, title: d.fileName, file_name: d.fileName, mime_type: null })}>{d.fileName}</button>
+                                <span> · {fmtDate(d.addedAt)}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
                       </div>
                       <div className="flex items-center gap-1.5 shrink-0">
-                        {it.documentId && (
-                          <button type="button" onClick={() => setViewerDoc({ id: it.documentId!, title: it.label, file_name: it.label, mime_type: null })}
-                            className="inline-flex items-center h-8 px-2.5 rounded-md border text-xs hover:bg-muted">
-                            <FileText className="h-3.5 w-3.5 mr-1" /> View
-                          </button>
-                        )}
+
                         {canUpload && (
                           <label className={`inline-flex items-center h-8 px-2.5 rounded-md text-xs cursor-pointer ${actionable ? 'bg-primary text-primary-foreground hover:bg-primary/90' : 'border hover:bg-muted'}`}>
                             {uploading === key ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Upload className="h-3.5 w-3.5 mr-1" />}
-                            {it.documentId ? 'Replace' : 'Upload'}
+                            {it.documents.length > 0 ? 'Add another' : 'Upload'}
                             <input type="file" className="sr-only" accept=".pdf,.jpg,.jpeg,.png,.heic,.doc,.docx" disabled={!!uploading}
                               onChange={ev => { const f = ev.target.files?.[0]; if (f) upload(e, it, f); ev.target.value = '' }} />
                           </label>

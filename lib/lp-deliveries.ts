@@ -6,7 +6,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 
-export type DeliveryKind = 'notice' | 'receipt' | 'statement' | 'letter' | 'snapshot' | 'document' | 'announcement' | 'reply' | 'invite' | 'onboarding_request'
+export type DeliveryKind = 'notice' | 'receipt' | 'statement' | 'letter' | 'snapshot' | 'document' | 'announcement' | 'reply' | 'invite' | 'onboarding_request' | 'onboarding_review'
 
 export interface DeliveryInput {
   fundId: string

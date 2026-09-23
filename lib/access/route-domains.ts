@@ -228,6 +228,7 @@ export const ROUTE_DOMAINS: Record<string, RouteAccess> = {
   'api/lps/onboarding/sort': { domain: 'lp_relations', feature: 'lp_portal' },
   'api/lps/onboarding/sort/confirm': { domain: 'lp_relations', feature: 'lp_portal' },
   'api/lps/onboarding/facts': { domain: 'lp_relations', feature: 'lp_portal' },
+  'api/lps/onboarding/history': { domain: 'lp_relations', feature: 'lp_portal' },
   'api/lps/messages': { domain: 'lp_relations', feature: 'lp_portal' },
   // The delivery log: which LP was emailed which notice, statement, letter or document.
   'api/lps/deliveries': { domain: 'lp_relations', feature: 'lp_portal' },

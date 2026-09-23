@@ -4,6 +4,10 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { resolveLpAccess } from '@/lib/api-helpers'
 import { dbError } from '@/lib/api-error'
 import { rateLimit } from '@/lib/rate-limit'
+import { scanFile } from '@/lib/security/scan-file'
+import { logLpAccessEvent } from '@/lib/lp-access-log'
+import { logOnboardingEvent, attachItemDocument, loadItemDocuments } from '@/lib/lp-onboarding-audit'
+import { notifyFundOfUpload } from '@/lib/lp-onboarding-notify'
 import {
   buildOnboardingMatrix, normalizeKinds, isOnboardingKind, onboardingStoragePrefix, loadClosingsByEntity, closingPhrase,
   DEFAULT_ONBOARDING_KINDS, ONBOARDING_KIND_LABEL, ONBOARDING_KIND_HELP, ONBOARDING_MAX_UPLOAD_BYTES, ONBOARDING_ALLOWED_MIME,
@@ -70,6 +74,7 @@ export async function GET(): Promise<NextResponse> {
     .from('lp_onboarding_items')
     .select('id, lp_entity_id, kind, status, document_id, submitted_at, reviewed_at, expires_on, note')
     .in('lp_entity_id', entities.map(e => e.id))
+  const docsByItem = await loadItemDocuments(admin, ((items ?? []) as any[]).map(i => i.id))
 
   const closings = await loadClosingsByEntity(admin, entities.map(e => e.id))
 
@@ -93,6 +98,7 @@ export async function GET(): Promise<NextResponse> {
         items: r.items.map(i => ({
           kind: i.kind, label: i.label, help: ONBOARDING_KIND_HELP[i.kind], status: i.status, expired: i.expired,
           documentId: i.documentId, submittedAt: i.submittedAt, reviewedAt: i.reviewedAt, expiresOn: i.expiresOn,
+          documents: (i.itemId ? docsByItem.get(i.itemId) ?? [] : []).map(d => ({ id: d.id, fileName: d.file_name, addedAt: d.added_at })),
           // The fund's note is for the LP only when the item was sent back or waived.
           note: i.status === 'rejected' || i.status === 'waived' ? i.note : null,
         })),
@@ -134,11 +140,16 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const prefix = onboardingStoragePrefix(fundId, entityId)
   if (!storagePath.startsWith(prefix) || storagePath.includes('..')) return NextResponse.json({ error: 'Invalid storage path' }, { status: 400 })
 
-  // It has to be there: recording a path nothing was uploaded to would show the fund a file it
-  // cannot open.
-  const { data: listing } = await admin.storage.from('lp-documents').list(prefix.slice(0, -1), { search: storagePath.slice(prefix.length) })
-  const present = ((listing ?? []) as any[]).some(o => `${prefix}${o.name}` === storagePath)
-  if (!present) return NextResponse.json({ error: 'The upload did not complete. Try again.' }, { status: 400 })
+  // It has to be there, and it has to be clean. This is the one path an external user pushes a
+  // file into the platform, so it gets the same scan every other inbound file gets; a hit is
+  // deleted from storage before anything is recorded.
+  const { data: blob, error: dlErr } = await admin.storage.from('lp-documents').download(storagePath)
+  if (dlErr || !blob) return NextResponse.json({ error: 'The upload did not complete. Try again.' }, { status: 400 })
+  const scan = scanFile(Buffer.from(await blob.arrayBuffer()), fileName, mimeType ?? '')
+  if (!scan.safe) {
+    await admin.storage.from('lp-documents').remove([storagePath])
+    return NextResponse.json({ error: `That file was rejected: ${scan.reason ?? 'it did not pass the safety check'}.` }, { status: 400 })
+  }
 
   const kinds = kindsByFund.get(fundId) ?? []
   const title = `${ONBOARDING_KIND_LABEL[kind]} — ${entity.entity_name}`
@@ -154,7 +165,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   if (docErr || !doc) return dbError(docErr ?? { message: 'Insert failed' }, 'portal-onboarding')
   await admin.from('lp_document_shares').insert({ document_id: doc.id, lp_investor_id: entity.investor_id, fund_id: fundId })
 
-  // A fresh upload replaces whatever review state was there: sent back → submitted again.
+  // A fresh upload puts the item back under review: sent back → submitted again. The latest
+  // file becomes document_id; every file stays in the item's set.
+  const { data: prev } = await admin.from('lp_onboarding_items').select('id, status').eq('fund_id', fundId).eq('lp_entity_id', entityId).eq('kind', kind).maybeSingle()
   const { data: item, error: itemErr } = await admin
     .from('lp_onboarding_items')
     .upsert({
@@ -163,9 +176,13 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     }, { onConflict: 'fund_id,lp_entity_id,kind' })
     .select('id, status').single()
   if (itemErr) return dbError(itemErr, 'portal-onboarding')
+  await attachItemDocument(admin, { fundId, itemId: item.id, documentId: doc.id, addedByAccount: lpAccountId })
+  await logOnboardingEvent(admin, { fundId, itemId: item.id, lpEntityId: entityId, kind, action: 'submitted', fromStatus: prev?.status ?? 'outstanding', toStatus: 'submitted', documentId: doc.id, actorAccountId: lpAccountId })
+  await logLpAccessEvent(admin, { fundId, lpAccountId, authUserId: user.id, lpInvestorId: entity.investor_id, eventType: 'upload', targetType: 'document', targetId: doc.id, targetTitle: title, metadata: { kind, lp_entity_id: entityId } })
 
-  // Tell the fund the way the portal already tells it things: a message in the LP inbox.
+  // Tell the fund: a message in the LP inbox, and an email to the admins like the Contact form.
   const { data: acct } = await admin.from('lp_accounts').select('email').eq('id', lpAccountId).maybeSingle()
+  await notifyFundOfUpload(admin, { fundId, entityName: entity.entity_name, kind, fileName, fromEmail: acct?.email ?? user.email ?? null })
   await admin.from('lp_messages').insert({
     fund_id: fundId, lp_account_id: lpAccountId, lp_investor_id: entity.investor_id, from_email: acct?.email ?? user.email ?? null,
     subject: `Onboarding upload: ${ONBOARDING_KIND_LABEL[kind]}`,

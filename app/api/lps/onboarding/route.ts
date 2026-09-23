@@ -10,6 +10,8 @@ import {
   type OnboardingEntity, type OnboardingItemRow,
 } from '@/lib/lp-onboarding'
 import { canRecordTaxForms, parseTaxFormInput, recordTaxForm } from '@/lib/lp-onboarding-tax'
+import { logOnboardingEvent, attachItemDocument, loadItemDocuments } from '@/lib/lp-onboarding-audit'
+import { emailLpReview } from '@/lib/lp-onboarding-notify'
 
 /**
  * The fund's side of LP onboarding.
@@ -63,13 +65,14 @@ export async function GET(): Promise<NextResponse> {
     if (prev !== 'active') accountByInvestor.set(l.lp_investor_id, st)
   }
 
-  // Titles for the attached documents, for the review list.
+  // Titles for the attached documents, for the review list, and every file on each item.
   const docIds = rows.flatMap(r => r.items.map(i => i.documentId)).filter((x): x is string => !!x)
   const titles = new Map<string, { title: string; file_name: string; mime_type: string | null }>()
   if (docIds.length) {
     const { data: docs } = await a.from('lp_documents').select('id, title, file_name, mime_type').in('id', docIds)
     for (const d of (docs ?? []) as any[]) titles.set(d.id, { title: d.title, file_name: d.file_name, mime_type: d.mime_type })
   }
+  const docsByItem = await loadItemDocuments(admin, rows.flatMap(r => r.items.map(i => i.itemId)).filter((x): x is string => !!x))
 
   const { can: canRecordTax } = await canRecordTaxForms(admin, fundId, user.id, gate.role)
 
@@ -81,7 +84,11 @@ export async function GET(): Promise<NextResponse> {
     entities: rows.map(r => ({
       ...r,
       accountStatus: accountByInvestor.get(r.investorId) ?? null,
-      items: r.items.map(i => ({ ...i, document: i.documentId ? (titles.get(i.documentId) ?? null) : null })),
+      items: r.items.map(i => ({
+        ...i,
+        document: i.documentId ? (titles.get(i.documentId) ?? null) : null,
+        documents: i.itemId ? (docsByItem.get(i.itemId) ?? []) : [],
+      })),
     })),
   })
 }
@@ -131,8 +138,9 @@ export async function PATCH(req: NextRequest): Promise<NextResponse> {
   if (status === 'rejected' && !note) return NextResponse.json({ error: 'Say why it was sent back — the LP sees the note.' }, { status: 400 })
 
   // The entity must be this fund's. Never trust the body's scope.
-  const { data: entity } = await a.from('lp_entities').select('id').eq('id', entityId).eq('fund_id', fundId).maybeSingle()
+  const { data: entity } = await a.from('lp_entities').select('id, entity_name, investor_id').eq('id', entityId).eq('fund_id', fundId).maybeSingle()
   if (!entity) return NextResponse.json({ error: 'Entity not found in your fund' }, { status: 404 })
+  const { data: prev } = await a.from('lp_onboarding_items').select('id, status').eq('fund_id', fundId).eq('lp_entity_id', entityId).eq('kind', kind).maybeSingle()
 
   // A document attached here was uploaded through /api/lps/documents; it must be this fund's too,
   // or an id from another fund would be filed against this partner.
@@ -165,6 +173,19 @@ export async function PATCH(req: NextRequest): Promise<NextResponse> {
     .single()
   if (error) return dbError(error, 'lps-onboarding')
 
+  if (documentId) await attachItemDocument(admin, { fundId, itemId: saved.id, documentId, addedByUser: user.id })
+  await logOnboardingEvent(admin, {
+    fundId, itemId: saved.id, lpEntityId: entityId, kind,
+    action: status === 'outstanding' ? 'reset' : status, fromStatus: prev?.status ?? 'outstanding', toStatus: status,
+    note, documentId: documentId ?? null, actorUserId: user.id,
+  })
+  // A send-back is told to the LP, not left for them to discover.
+  let lpEmailed: boolean | null = null
+  if (status === 'rejected') {
+    const r = await emailLpReview(admin, { fundId, lpInvestorId: entity.investor_id, lpEntityId: entityId, entityName: entity.entity_name, kind, note, sentBy: user.id })
+    lpEmailed = r.sent
+  }
+
   let taxFormId: string | null = null
   let taxSkipped = false
   if (parsedTax && 'input' in parsedTax) {
@@ -176,5 +197,5 @@ export async function PATCH(req: NextRequest): Promise<NextResponse> {
       taxFormId = rec.id
     }
   }
-  return NextResponse.json({ ok: true, item: saved, taxFormId, taxSkipped })
+  return NextResponse.json({ ok: true, item: saved, taxFormId, taxSkipped, lpEmailed })
 }

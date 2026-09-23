@@ -6,6 +6,8 @@ import { assertWriteAccess } from '@/lib/api-helpers'
 import { dbError } from '@/lib/api-error'
 import { isOnboardingKind, ONBOARDING_KIND_LABEL } from '@/lib/lp-onboarding'
 import { canRecordTaxForms, parseTaxFormInput, recordTaxForm, type TaxFormInput } from '@/lib/lp-onboarding-tax'
+import { scanFile } from '@/lib/security/scan-file'
+import { logOnboardingEvent, attachItemDocument } from '@/lib/lp-onboarding-audit'
 
 /**
  * File what the reviewer confirmed from a sorted batch, and throw away what they discarded.
@@ -68,6 +70,15 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   for (const r of rows) {
     const ent = investorByEntity.get(r.lp_entity_id)!
     const title = `${ONBOARDING_KIND_LABEL[r.kind as keyof typeof ONBOARDING_KIND_LABEL]} — ${ent.name}`
+    // The file is read once more here, because this is the write: a file that fails the scan is
+    // deleted and the batch stops with its name.
+    const { data: blob, error: dlErr } = await admin.storage.from('lp-documents').download(r.storage_path)
+    if (dlErr || !blob) return NextResponse.json({ error: `${r.file_name}: the upload did not complete.` }, { status: 400 })
+    const scan = scanFile(Buffer.from(await blob.arrayBuffer()), String(r.file_name), typeof r.mime_type === 'string' ? r.mime_type : '')
+    if (!scan.safe) {
+      await admin.storage.from('lp-documents').remove([r.storage_path])
+      return NextResponse.json({ error: `${r.file_name} was rejected: ${scan.reason ?? 'it did not pass the safety check'}. It has been removed; the rest of the batch was not filed.` }, { status: 400 })
+    }
     const docDate = typeof r.doc_date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(r.doc_date) ? r.doc_date : null
     const { data: doc, error: docErr } = await a
       .from('lp_documents')
@@ -89,6 +100,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       }, { onConflict: 'fund_id,lp_entity_id,kind' })
       .select('id').single()
     if (itemErr) return dbError(itemErr, 'onboarding-sort-confirm')
+    await attachItemDocument(admin, { fundId, itemId: item.id, documentId: doc.id, addedByUser: user.id })
+    await logOnboardingEvent(admin, { fundId, itemId: item.id, lpEntityId: r.lp_entity_id, kind: r.kind, action: 'filed', toStatus: 'verified', documentId: doc.id, actorUserId: user.id })
 
     const tax = taxByPath.get(r.storage_path)
     let taxFormId: string | undefined

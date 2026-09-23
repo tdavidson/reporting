@@ -10,10 +10,11 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 const getUser = vi.hoisted(() => vi.fn())
 const from = vi.hoisted(() => vi.fn())
 const storageRemove = vi.hoisted(() => vi.fn(async () => ({ error: null })))
+const storageDownload = vi.hoisted(() => vi.fn())
 
 vi.mock('@/lib/supabase/server', () => ({ createClient: () => ({ auth: { getUser } }) }))
 vi.mock('@/lib/supabase/admin', () => ({
-  createAdminClient: () => ({ from, storage: { from: () => ({ remove: storageRemove }) } }),
+  createAdminClient: () => ({ from, storage: { from: () => ({ remove: storageRemove, download: storageDownload }) } }),
 }))
 
 import { POST } from '@/app/api/lps/onboarding/sort/confirm/route'
@@ -46,7 +47,8 @@ function stub() {
         return p
       },
       upsert: (row: Record<string, unknown>) => {
-        upserted.push(row)
+        if (table === 'lp_onboarding_items') upserted.push(row)
+        else (inserted[table] ??= []).push(row)
         return { select: () => ({ single: async () => ({ data: { id: `item-${upserted.length}` }, error: null }) }) }
       },
     }
@@ -66,6 +68,7 @@ beforeEach(() => {
   fundEntities = [{ id: 'ent-1', investor_id: 'inv-1', entity_name: 'Acme Capital LP' }]
   getUser.mockResolvedValue({ data: { user: { id: 'admin-1' } } })
   storageRemove.mockResolvedValue({ error: null })
+  storageDownload.mockResolvedValue({ data: { arrayBuffer: async () => new TextEncoder().encode('%PDF-1.4 executed').buffer }, error: null })
   stub()
 })
 
@@ -83,6 +86,16 @@ describe('POST /api/lps/onboarding/sort/confirm', () => {
     })])
     expect(storageRemove).toHaveBeenCalledWith(['fund-1/456_junk.jpg'])
     expect(await res.json()).toMatchObject({ ok: true, discarded: 1 })
+    expect(inserted.lp_onboarding_item_documents).toEqual([expect.objectContaining({ item_id: 'item-1', document_id: 'doc-1', added_by_user: 'admin-1' })])
+    expect(inserted.lp_onboarding_events).toEqual([expect.objectContaining({ action: 'filed', to_status: 'verified', actor_user_id: 'admin-1' })])
+  })
+
+  it('rejects a row that fails the safety scan, deletes it, and files nothing', async () => {
+    storageDownload.mockResolvedValue({ data: { arrayBuffer: async () => new TextEncoder().encode('X5O!P%@AP[4\\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*').buffer }, error: null })
+    const res = await POST(req({ rows: [row()] }))
+    expect(res.status).toBe(400)
+    expect(storageRemove).toHaveBeenCalledWith(['fund-1/123_sub.pdf'])
+    expect(inserted.lp_documents).toBeUndefined()
   })
 
   it('refuses a path outside the fund\'s folder, for a row or a discard', async () => {

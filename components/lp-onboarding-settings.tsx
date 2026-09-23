@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Loader2, Check, X, MinusCircle, RotateCcw, Upload, ExternalLink, Send, ChevronDown, ChevronRight } from 'lucide-react'
+import { Loader2, Check, X, MinusCircle, RotateCcw, Upload, Send, ChevronDown, ChevronRight, History } from 'lucide-react'
 import { ONBOARDING_STATUS_LABEL, type OnboardingKind, type OnboardingStatus } from '@/lib/lp-onboarding'
 import { LpOnboardingSort } from '@/components/lp-onboarding-sort'
 import { TaxFormFields, taxFieldsFromFacts, taxFieldsToBody, EMPTY_TAX_FIELDS, type TaxFormFieldsValue } from '@/components/lp-tax-form-fields'
@@ -19,6 +19,7 @@ interface Item {
   itemId: string | null
   documentId: string | null
   document: { title: string; file_name: string; mime_type: string | null } | null
+  documents: { id: string; title: string; file_name: string; mime_type: string | null; added_at: string; uploaded_by: string | null }[]
   submittedAt: string | null
   reviewedAt: string | null
   expiresOn: string | null
@@ -85,7 +86,17 @@ export function LpOnboardingSettings() {
   const [note, setNote] = useState('')
   const [expiresOn, setExpiresOn] = useState('')
   const [busy, setBusy] = useState(false)
+  const [history, setHistory] = useState<Record<string, { loading: boolean; events: any[] } | undefined>>({})
   const [tax, setTax] = useState<TaxFormFieldsValue>(EMPTY_TAX_FIELDS)
+
+  function toggleHistory(entityId: string) {
+    if (history[entityId]) { setHistory(h => ({ ...h, [entityId]: undefined })); return }
+    setHistory(h => ({ ...h, [entityId]: { loading: true, events: [] } }))
+    fetch(`/api/lps/onboarding/history?lp_entity_id=${entityId}`)
+      .then(r => (r.ok ? r.json() : { events: [] }))
+      .then(b => setHistory(h => ({ ...h, [entityId]: { loading: false, events: b.events ?? [] } })))
+      .catch(() => setHistory(h => ({ ...h, [entityId]: { loading: false, events: [] } })))
+  }
   const [taxReading, setTaxReading] = useState(false)
   const [taxNote, setTaxNote] = useState<string | null>(null)
 
@@ -335,13 +346,18 @@ export function LpOnboardingSettings() {
                             {it.expiresOn && <span className="ml-2">expires {fmtDate(it.expiresOn)}</span>}
                           </div>
                           {it.note && <div className="text-muted-foreground mt-0.5">Note: {it.note}</div>}
+                          {it.documents.length > 0 && (
+                            <ul className="mt-1 space-y-0.5 text-muted-foreground">
+                              {it.documents.map(d => (
+                                <li key={d.id}>
+                                  <button type="button" className="underline hover:text-foreground" onClick={() => openDocument(d.id)}>{d.file_name}</button>
+                                  <span> · {fmtDate(d.added_at)}{d.uploaded_by ? ` · uploaded by ${d.uploaded_by}` : ' · filed by the fund'}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          )}
                         </div>
                         <div className="flex flex-wrap items-center gap-1">
-                          {it.documentId && (
-                            <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => openDocument(it.documentId!)} title={it.document?.file_name ?? 'Open'}>
-                              <ExternalLink className="h-3.5 w-3.5 mr-1" /> Open
-                            </Button>
-                          )}
                           {it.status !== 'verified' || it.expired ? (
                             <Button size="sm" variant="ghost" className="h-7 px-2 text-success" disabled={busy} onClick={() => openReview(e, it, 'verified')}>
                               <Check className="h-3.5 w-3.5 mr-1" /> Verify
@@ -363,13 +379,31 @@ export function LpOnboardingSettings() {
                             </Button>
                           )}
                           <label className="inline-flex items-center h-7 px-2 rounded-md text-xs cursor-pointer hover:bg-muted">
-                            <Upload className="h-3.5 w-3.5 mr-1" /> {it.documentId ? 'Replace file' : 'Upload for them'}
+                            <Upload className="h-3.5 w-3.5 mr-1" /> {it.documents.length > 0 ? 'Add a file' : 'Upload for them'}
                             <input type="file" className="sr-only" accept=".pdf,.jpg,.jpeg,.png,.heic,.doc,.docx" disabled={busy}
                               onChange={ev => { const f = ev.target.files?.[0]; if (f) uploadFor(e, it, f); ev.target.value = '' }} />
                           </label>
                         </div>
                       </div>
                     ))}
+                    <div className="px-3 py-2 text-xs">
+                      <button type="button" onClick={() => toggleHistory(e.id)} className="inline-flex items-center gap-1 text-muted-foreground hover:text-foreground">
+                        <History className="h-3.5 w-3.5" /> {history[e.id] ? 'Hide history' : 'History'}
+                      </button>
+                      {history[e.id] && (
+                        history[e.id]!.loading ? <div className="text-muted-foreground mt-1">Loading…</div> : (
+                          history[e.id]!.events.length === 0 ? <div className="text-muted-foreground mt-1">Nothing yet.</div> : (
+                            <ul className="mt-1 space-y-0.5 text-muted-foreground">
+                              {history[e.id]!.events.map((ev: any) => (
+                                <li key={ev.id}>
+                                  <span className="tabular-nums">{fmtDate(ev.at)}</span> · {ev.kindLabel} {ev.action}{ev.fileName ? ` (${ev.fileName})` : ''}{ev.actor ? ` — ${ev.actor}` : ''}{ev.note ? `: ${ev.note}` : ''}
+                                </li>
+                              ))}
+                            </ul>
+                          )
+                        )
+                      )}
+                    </div>
                   </div>
                 )}
               </div>

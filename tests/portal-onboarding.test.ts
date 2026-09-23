@@ -8,22 +8,28 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 const getUser = vi.hoisted(() => vi.fn())
 const from = vi.hoisted(() => vi.fn())
-const storageList = vi.hoisted(() => vi.fn())
+const storageDownload = vi.hoisted(() => vi.fn())
+const storageRemove = vi.hoisted(() => vi.fn(async () => ({ error: null })))
 const resolveLpAccess = vi.hoisted(() => vi.fn())
 const rateLimit = vi.hoisted(() => vi.fn(async () => null))
+const notifyFundOfUpload = vi.hoisted(() => vi.fn(async () => 1))
+const logLpAccessEvent = vi.hoisted(() => vi.fn(async () => {}))
 
 vi.mock('@/lib/supabase/server', () => ({ createClient: () => ({ auth: { getUser } }) }))
 vi.mock('@/lib/supabase/admin', () => ({
-  createAdminClient: () => ({ from, storage: { from: () => ({ list: storageList }) } }),
+  createAdminClient: () => ({ from, storage: { from: () => ({ download: storageDownload, remove: storageRemove }) } }),
 }))
 vi.mock('@/lib/api-helpers', () => ({ resolveLpAccess }))
 vi.mock('@/lib/rate-limit', () => ({ rateLimit }))
+vi.mock('@/lib/lp-onboarding-notify', () => ({ notifyFundOfUpload }))
+vi.mock('@/lib/lp-access-log', () => ({ logLpAccessEvent }))
 
 import { POST } from '@/app/api/portal/onboarding/route'
 
 let inserted: Record<string, Record<string, unknown>[]> = {}
 let upserted: Record<string, unknown>[] = []
-let objects: string[] = []
+/** What is in storage, keyed by path. Absent = the upload never completed. */
+let objects: Record<string, string> = {}
 
 function stub() {
   from.mockImplementation((table: string) => {
@@ -49,23 +55,25 @@ function stub() {
         return p
       },
       upsert: (row: Record<string, unknown>) => {
-        upserted.push(row)
+        if (table === 'lp_onboarding_items') upserted.push(row)
+        else (inserted[table] ??= []).push(row)
         return { select: () => ({ single: async () => ({ data: { id: 'item-1', status: row.status }, error: null }) }) }
       },
     }
     return chain
   })
-  storageList.mockImplementation(async (prefix: string, opts: { search: string }) => ({
-    data: objects.filter(o => o.startsWith(`${prefix}/`) && o.endsWith(opts.search)).map(o => ({ name: o.slice(prefix.length + 1) })),
-    error: null,
-  }))
+  storageDownload.mockImplementation(async (path: string) => {
+    const content = objects[path]
+    if (content === undefined) return { data: null, error: { message: 'not found' } }
+    return { data: { arrayBuffer: async () => new TextEncoder().encode(content).buffer }, error: null }
+  })
 }
 
 const req = (body: Record<string, unknown>) => ({ json: async () => body }) as any
 
 beforeEach(() => {
   vi.clearAllMocks()
-  inserted = {}; upserted = []; objects = []
+  inserted = {}; upserted = []; objects = {}
   getUser.mockResolvedValue({ data: { user: { id: 'u1', email: 'lp@example.com' } } })
   resolveLpAccess.mockResolvedValue({ lpAccountId: 'acct-1', investorIds: ['inv-1'] })
   rateLimit.mockResolvedValue(null)
@@ -76,7 +84,7 @@ describe('POST /api/portal/onboarding', () => {
   const good = { lp_entity_id: 'ent-1', kind: 'subscription_agreement', storage_path: 'fund-1/onboarding/ent-1/123_sub.pdf', file_name: 'sub.pdf', mime_type: 'application/pdf', size_bytes: 1000 }
 
   it('records the upload as an investor-scoped document and a submitted item, and tells the fund', async () => {
-    objects = ['fund-1/onboarding/ent-1/123_sub.pdf']
+    objects = { 'fund-1/onboarding/ent-1/123_sub.pdf': '%PDF-1.4 signed subscription agreement' }
     const res = await POST(req(good))
     expect(res.status).toBe(200)
     expect(inserted.lp_documents).toEqual([expect.objectContaining({
@@ -90,31 +98,46 @@ describe('POST /api/portal/onboarding', () => {
       reviewed_by: null, note: null,
     })])
     expect(inserted.lp_messages).toEqual([expect.objectContaining({ fund_id: 'fund-1', lp_investor_id: 'inv-1', direction: 'inbound' })])
+    // The set, the audit trail, the access log, and the fund's email.
+    expect(inserted.lp_onboarding_item_documents).toEqual([expect.objectContaining({ item_id: 'item-1', document_id: 'doc-1', added_by_account: 'acct-1' })])
+    expect(inserted.lp_onboarding_events).toEqual([expect.objectContaining({ action: 'submitted', to_status: 'submitted', actor_account_id: 'acct-1', document_id: 'doc-1' })])
+    expect(logLpAccessEvent).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ eventType: 'upload', targetType: 'document', targetId: 'doc-1', lpAccountId: 'acct-1' }))
+    expect(notifyFundOfUpload).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ fundId: 'fund-1', entityName: 'Acme Capital LP', kind: 'subscription_agreement' }))
+  })
+
+  it('rejects a file that fails the safety scan, and deletes it', async () => {
+    objects = { 'fund-1/onboarding/ent-1/123_sub.pdf': 'X5O!P%@AP[4\\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*' }
+    const res = await POST(req(good))
+    expect(res.status).toBe(400)
+    expect((await res.json()).error).toMatch(/rejected/)
+    expect(storageRemove).toHaveBeenCalledWith(['fund-1/onboarding/ent-1/123_sub.pdf'])
+    expect(inserted.lp_documents).toBeUndefined()
+    expect(upserted).toHaveLength(0)
   })
 
   it('refuses an entity that is not the LP\'s', async () => {
-    objects = ['fund-1/onboarding/ent-2/123_sub.pdf']
+    objects = { 'fund-1/onboarding/ent-2/123_sub.pdf': '%PDF-1.4' }
     const res = await POST(req({ ...good, lp_entity_id: 'ent-2', storage_path: 'fund-1/onboarding/ent-2/123_sub.pdf' }))
     expect(res.status).toBe(404)
     expect(inserted.lp_documents).toBeUndefined()
   })
 
   it('refuses a path outside the entity\'s onboarding folder, even a real one', async () => {
-    objects = ['fund-1/123_statement.pdf']
+    objects = { 'fund-1/123_statement.pdf': '%PDF-1.4' }
     const res = await POST(req({ ...good, storage_path: 'fund-1/123_statement.pdf' }))
     expect(res.status).toBe(400)
     expect(inserted.lp_documents).toBeUndefined()
   })
 
   it('refuses a path nothing was uploaded to', async () => {
-    objects = []
+    objects = {}
     const res = await POST(req(good))
     expect(res.status).toBe(400)
     expect(upserted).toHaveLength(0)
   })
 
   it('refuses an unknown kind and a disallowed file type', async () => {
-    objects = ['fund-1/onboarding/ent-1/123_sub.pdf']
+    objects = { 'fund-1/onboarding/ent-1/123_sub.pdf': '%PDF-1.4' }
     expect((await POST(req({ ...good, kind: 'bank_statement' }))).status).toBe(400)
     expect((await POST(req({ ...good, mime_type: 'application/x-msdownload' }))).status).toBe(400)
     expect(inserted.lp_documents).toBeUndefined()

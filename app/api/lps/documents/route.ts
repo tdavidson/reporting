@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { assertWriteAccess, assertReadAccess } from '@/lib/api-helpers'
 import { dbError } from '@/lib/api-error'
 import { extractFromBuffer } from '@/lib/parsing/extractAttachmentText'
+import { scanFile } from '@/lib/security/scan-file'
 
 /**
  * Admin-only LP document management (gap 2).
@@ -88,6 +89,18 @@ export async function POST(req: NextRequest) {
       ((rows ?? []) as any[]).map(r => r.lp_entities?.investor_id as string | undefined).filter((x): x is string => !!x)
     ))
     if (investorIds.length === 0) return NextResponse.json({ error: 'No investors are in that vehicle' }, { status: 400 })
+  }
+
+  // Scanned before it is recorded, like every other inbound file; a hit is deleted.
+  {
+    const { data: uploaded } = await admin.storage.from('lp-documents').download(storagePath)
+    if (uploaded) {
+      const scan = scanFile(Buffer.from(await uploaded.arrayBuffer()), fileName, typeof body.mime_type === 'string' ? body.mime_type : '')
+      if (!scan.safe) {
+        await admin.storage.from('lp-documents').remove([storagePath])
+        return NextResponse.json({ error: `That file was rejected: ${scan.reason ?? 'it did not pass the safety check'}.` }, { status: 400 })
+      }
+    }
   }
 
   const { data: doc, error } = await (admin as any)
