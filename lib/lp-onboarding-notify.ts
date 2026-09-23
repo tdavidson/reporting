@@ -48,6 +48,22 @@ export async function notifyFundOfUpload(admin: SupabaseClient, args: { fundId: 
 }
 
 /**
+ * Replaced wire instructions the fund had already verified. This is the one upload a fund pays
+ * money against, and a changed bank account is the shape of every wire-fraud attempt, so it is
+ * said loudly and separately: not "an upload", but "the instructions you verified have changed
+ * — call back before you pay against them".
+ */
+export async function notifyFundOfWireChange(admin: SupabaseClient, args: { fundId: string; entityName: string; fileName: string; fromEmail: string | null; byAdvisor?: boolean }): Promise<number> {
+  const who = args.fromEmail ? (args.byAdvisor ? `${esc(args.fromEmail)}, an authorized user acting for the LP,` : esc(args.fromEmail)) : 'The LP'
+  const html =
+    `<p><strong>Wire instructions you had verified for ${esc(args.entityName)} have been replaced.</strong></p>` +
+    `<p>${who} uploaded a new file (${esc(args.fileName)}). The item is back to awaiting review and the previous verification no longer stands.</p>` +
+    `<p>Do not pay against the new instructions until you have confirmed them by calling a number you already hold for this investor — not one printed on the new file.</p>` +
+    `<p><a href="${esc(siteUrl())}/lp-portal">Review it under LP Portal → Onboarding</a>.</p>`
+  return notifyFundAdmins(admin, args.fundId, `Wire instructions changed — ${args.entityName} — verify by callback`, html)
+}
+
+/**
  * Tell the LP an item was sent back, with the fund's note, and log the send. Silent when the
  * fund has no outbound provider or the investor has no portal account — the note still shows on
  * their checklist, which is where the email points.

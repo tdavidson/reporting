@@ -60,6 +60,16 @@ export default function PortalOnboardingPage() {
   const [uploading, setUploading] = useState<string | null>(null) // `${entityId}:${kind}`
   const [viewerDoc, setViewerDoc] = useState<ViewerDoc | null>(null)
   const [renaming, setRenaming] = useState<{ id: string; name: string } | null>(null)
+  const [consent, setConsent] = useState<{ disclosure: string; canConsent: boolean }>({ disclosure: '', canConsent: false })
+  const [consenting, setConsenting] = useState<string | null>(null)
+
+  async function giveConsent(entityId: string) {
+    setError(null); setConsenting(entityId)
+    const res = await fetch('/api/portal/onboarding/consent', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lp_entity_id: entityId }) })
+    setConsenting(null)
+    if (!res.ok) { const b = await res.json().catch(() => ({})); setError(b.error ?? 'Could not record your consent'); return }
+    load()
+  }
 
   async function withdraw(documentId: string) {
     setError(null)
@@ -82,7 +92,7 @@ export default function PortalOnboardingPage() {
   const load = useCallback(() => {
     fetch('/api/portal/onboarding')
       .then(r => (r.ok ? r.json() : { entities: [] }))
-      .then(b => { setEntities(b.entities ?? []); if (b.maxBytes) setMaxBytes(b.maxBytes) })
+      .then(b => { setEntities(b.entities ?? []); if (b.maxBytes) setMaxBytes(b.maxBytes); setConsent({ disclosure: b.disclosure ?? '', canConsent: !!b.canConsent }) })
       .catch(() => setError('Could not load your checklist.'))
       .finally(() => setLoading(false))
   }, [])
@@ -170,7 +180,8 @@ export default function PortalOnboardingPage() {
               <div className="divide-y">
                 {e.items.map(it => {
                   const key = `${e.id}:${it.kind}`
-                  const canUpload = it.status !== 'waived'
+                  const isConsent = it.kind === 'k1_econsent'
+                  const canUpload = it.status !== 'waived' && !isConsent
                   const actionable = it.status === 'outstanding' || it.status === 'rejected' || it.expired
                   return (
                     <div key={it.kind} className="px-4 py-3 flex flex-wrap items-start gap-3">
@@ -178,6 +189,20 @@ export default function PortalOnboardingPage() {
                         <div className="text-sm font-medium">{it.label}</div>
                         <div className="text-xs text-muted-foreground mt-0.5">{it.help}</div>
                         <div className="text-xs mt-1.5"><StatusLine it={it} /></div>
+                        {isConsent && actionable && (
+                          <div className="mt-2 rounded-md border bg-muted/40 p-2.5 space-y-2">
+                            <p className="text-xs text-muted-foreground whitespace-pre-line">{consent.disclosure}</p>
+                            {consent.canConsent ? (
+                              <button type="button" onClick={() => giveConsent(e.id)} disabled={consenting === e.id}
+                                className="inline-flex items-center h-8 px-2.5 rounded-md text-xs bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50">
+                                {consenting === e.id ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Check className="h-3.5 w-3.5 mr-1" />}
+                                I consent to electronic delivery
+                              </button>
+                            ) : (
+                              <p className="text-xs text-muted-foreground">Only the investor can give this consent — it is their own election, not something an authorized user does for them.</p>
+                            )}
+                          </div>
+                        )}
                         {it.documents.length > 0 && (
                           <ul className="mt-1.5 space-y-0.5 text-xs text-muted-foreground">
                             {it.documents.map(d => (

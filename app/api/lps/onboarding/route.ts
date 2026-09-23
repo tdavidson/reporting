@@ -149,7 +149,19 @@ export async function PATCH(req: NextRequest): Promise<NextResponse> {
   if (!isOnboardingStatus(status) || !REVIEW_STATUSES.includes(status)) {
     return NextResponse.json({ error: `status must be one of ${REVIEW_STATUSES.join(', ')}` }, { status: 400 })
   }
-  const note = typeof body.note === 'string' ? body.note.trim().slice(0, 2000) : null
+  let note = typeof body.note === 'string' ? body.note.trim().slice(0, 2000) : null
+  // Wire instructions are paid against, so verifying them is a callback to a number the fund
+  // already holds, not a look at the file. The callback is required and written into the note.
+  if (kind === 'wire_instructions' && status === 'verified') {
+    const cb = body.callback && typeof body.callback === 'object' ? body.callback as Record<string, unknown> : {}
+    const contact = typeof cb.contact === 'string' ? cb.contact.trim().slice(0, 200) : ''
+    const phone = typeof cb.phone === 'string' ? cb.phone.trim().slice(0, 60) : ''
+    const spokeOn = typeof cb.spoke_on === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(cb.spoke_on) ? cb.spoke_on : ''
+    if (!contact || !phone || !spokeOn) {
+      return NextResponse.json({ error: 'Verifying wire instructions needs the callback: who you spoke to, the number you called, and the date.' }, { status: 400 })
+    }
+    note = `Callback verified: spoke with ${contact} at ${phone} on ${spokeOn}.${note ? ` ${note}` : ''}`.slice(0, 2000)
+  }
   const expiresOn = typeof body.expires_on === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(body.expires_on) ? body.expires_on : null
   if (status === 'rejected' && !note) return NextResponse.json({ error: 'Say why it was sent back — the LP sees the note.' }, { status: 400 })
 

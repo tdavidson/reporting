@@ -88,6 +88,7 @@ export function LpOnboardingSettings() {
   // Review dialog
   const [review, setReview] = useState<{ entity: EntityRow; item: Item; action: 'rejected' | 'verified' | 'waived' } | null>(null)
   const [note, setNote] = useState('')
+  const [callback, setCallback] = useState({ contact: '', phone: '', spokeOn: '' })
   const [expiresOn, setExpiresOn] = useState('')
   const [busy, setBusy] = useState(false)
   const [history, setHistory] = useState<Record<string, { loading: boolean; events: any[] } | undefined>>({})
@@ -116,7 +117,7 @@ export function LpOnboardingSettings() {
 
   // Verifying a tax form: read the uploaded file for a head start on the record.
   function openReview(entity: EntityRow, item: Item, action: 'rejected' | 'verified' | 'waived') {
-    setReview({ entity, item, action }); setNote(''); setExpiresOn(''); setTax(EMPTY_TAX_FIELDS); setTaxNote(null)
+    setReview({ entity, item, action }); setNote(''); setExpiresOn(''); setTax(EMPTY_TAX_FIELDS); setTaxNote(null); setCallback({ contact: '', phone: '', spokeOn: '' })
     if (action === 'verified' && item.kind === 'tax_form' && item.documentId) {
       setTaxReading(true)
       fetch(`/api/lps/onboarding/facts?document_id=${item.documentId}`)
@@ -195,8 +196,10 @@ export function LpOnboardingSettings() {
   async function submitReview() {
     if (!review) return
     const isTax = review.action === 'verified' && review.item.kind === 'tax_form'
+    const isWire = review.action === 'verified' && review.item.kind === 'wire_instructions'
     const ok = await patch(review.entity, review.item, review.action, {
       note: note || null,
+      callback: isWire ? { contact: callback.contact, phone: callback.phone, spoke_on: callback.spokeOn } : undefined,
       expires_on: (isTax && tax.expiresOn) ? tax.expiresOn : (expiresOn || null),
       tax: isTax && data?.canRecordTax ? taxFieldsToBody(tax) : null,
     })
@@ -392,11 +395,13 @@ export function LpOnboardingSettings() {
                               <RotateCcw className="h-3.5 w-3.5 mr-1" /> Reset
                             </Button>
                           )}
-                          <label className="inline-flex items-center h-7 px-2 rounded-md text-xs cursor-pointer hover:bg-muted">
-                            <Upload className="h-3.5 w-3.5 mr-1" /> {it.documents.length > 0 ? 'Add a file' : 'Upload for them'}
-                            <input type="file" className="sr-only" accept=".pdf,.jpg,.jpeg,.png,.heic,.doc,.docx" disabled={busy}
-                              onChange={ev => { const f = ev.target.files?.[0]; if (f) uploadFor(e, it, f); ev.target.value = '' }} />
-                          </label>
+                          {it.kind !== 'k1_econsent' && (
+                            <label className="inline-flex items-center h-7 px-2 rounded-md text-xs cursor-pointer hover:bg-muted">
+                              <Upload className="h-3.5 w-3.5 mr-1" /> {it.documents.length > 0 ? 'Add a file' : 'Upload for them'}
+                              <input type="file" className="sr-only" accept=".pdf,.jpg,.jpeg,.png,.heic,.doc,.docx" disabled={busy}
+                                onChange={ev => { const f = ev.target.files?.[0]; if (f) uploadFor(e, it, f); ev.target.value = '' }} />
+                            </label>
+                          )}
                         </div>
                       </div>
                     ))}
@@ -478,6 +483,20 @@ export function LpOnboardingSettings() {
                 <TaxFormFields value={tax} onChange={setTax} disabled={taxReading || !data?.canRecordTax} />
               </div>
             )}
+            {review?.action === 'verified' && review.item.kind === 'wire_instructions' && (
+              <div className="space-y-1.5 rounded-md border border-warning/40 bg-warning-subtle p-2.5">
+                <div className="text-xs font-medium">Callback</div>
+                <p className="text-xs text-muted-foreground">Confirm the instructions by phone on a number you already hold for this investor — not one printed on the file. Verifying records who you spoke to.</p>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <Input aria-label="Spoke with" placeholder="Spoke with" value={callback.contact} onChange={e => setCallback(c => ({ ...c, contact: e.target.value }))} className="h-8 text-sm" />
+                  <Input aria-label="Number called" placeholder="Number called" value={callback.phone} onChange={e => setCallback(c => ({ ...c, phone: e.target.value }))} className="h-8 text-sm" />
+                  <Input aria-label="Date of call" type="date" value={callback.spokeOn} onChange={e => setCallback(c => ({ ...c, spokeOn: e.target.value }))} className="h-8 text-sm" />
+                </div>
+              </div>
+            )}
+            {review?.action === 'verified' && review.item.kind === 'k1_econsent' && (
+              <p className="text-xs text-muted-foreground">The investor consents from their own checklist, which records the election with the disclosure they read. Verify here only for a consent you hold on paper, and say so in the note; the consent itself is recorded on the vehicle&apos;s Tax page.</p>
+            )}
             {review?.action === 'verified' && review.item.kind !== 'tax_form' && (
               <div className="space-y-1">
                 <label className="text-xs font-medium" htmlFor="ob-expires">Expires on (optional)</label>
@@ -495,7 +514,7 @@ export function LpOnboardingSettings() {
           </div>
           <DialogFooter>
             <Button variant="outline" size="sm" onClick={() => setReview(null)}>Cancel</Button>
-            <Button size="sm" onClick={submitReview} disabled={busy || (review?.action === 'rejected' && !note.trim())}>
+            <Button size="sm" onClick={submitReview} disabled={busy || (review?.action === 'rejected' && !note.trim()) || (review?.action === 'verified' && review.item.kind === 'wire_instructions' && !(callback.contact.trim() && callback.phone.trim() && callback.spokeOn))}>
               {busy && <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />}
               {review?.action === 'verified' ? 'Mark verified' : review?.action === 'rejected' ? 'Send back' : 'Waive'}
             </Button>

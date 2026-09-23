@@ -91,17 +91,19 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     if (docErr || !doc) return dbError(docErr ?? { message: 'Insert failed' }, 'onboarding-sort-confirm')
     await a.from('lp_document_shares').insert({ document_id: doc.id, lp_investor_id: ent.investorId, fund_id: fundId })
 
-    // The fund filed it, so the fund has seen it: verified, by the caller, now.
+    // The fund filed it, so the fund has seen it: verified, by the caller, now. Except wire
+    // instructions, which are verified by a callback, not by filing: those land as submitted.
+    const filedStatus = r.kind === 'wire_instructions' ? 'submitted' : 'verified'
     const { data: item, error: itemErr } = await a
       .from('lp_onboarding_items')
       .upsert({
-        fund_id: fundId, lp_entity_id: r.lp_entity_id, kind: r.kind, status: 'verified', document_id: doc.id,
-        submitted_by_account: null, submitted_at: now, reviewed_by: user.id, reviewed_at: now, note: null, updated_at: now,
+        fund_id: fundId, lp_entity_id: r.lp_entity_id, kind: r.kind, status: filedStatus, document_id: doc.id,
+        submitted_by_account: null, submitted_at: now, reviewed_by: filedStatus === 'verified' ? user.id : null, reviewed_at: filedStatus === 'verified' ? now : null, note: null, updated_at: now,
       }, { onConflict: 'fund_id,lp_entity_id,kind' })
       .select('id').single()
     if (itemErr) return dbError(itemErr, 'onboarding-sort-confirm')
     await attachItemDocument(admin, { fundId, itemId: item.id, documentId: doc.id, addedByUser: user.id })
-    await logOnboardingEvent(admin, { fundId, itemId: item.id, lpEntityId: r.lp_entity_id, kind: r.kind, action: 'filed', toStatus: 'verified', documentId: doc.id, actorUserId: user.id })
+    await logOnboardingEvent(admin, { fundId, itemId: item.id, lpEntityId: r.lp_entity_id, kind: r.kind, action: 'filed', toStatus: filedStatus, documentId: doc.id, actorUserId: user.id })
 
     const tax = taxByPath.get(r.storage_path)
     let taxFormId: string | undefined

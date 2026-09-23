@@ -557,6 +557,7 @@ export const UNGATED_ROUTES: Record<string, string> = {
   'api/portal/notices/ack': 'LP portal: resolveLpAccess.',
   'api/portal/onboarding': 'LP portal: resolveLpAccess.',
   'api/portal/onboarding/upload-url': 'LP portal: resolveLpAccess.',
+  'api/portal/onboarding/consent': 'LP portal: resolveLpAccess.',
   'api/portal/overview': 'LP portal: resolveLpAccess.',
   'api/portal/snapshots': 'LP portal: resolveLpAccess.',
   'api/portal/snapshots/[id]': 'LP portal: resolveLpAccess.',

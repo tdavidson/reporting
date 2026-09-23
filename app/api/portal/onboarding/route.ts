@@ -7,7 +7,8 @@ import { rateLimit } from '@/lib/rate-limit'
 import { scanFile } from '@/lib/security/scan-file'
 import { logLpAccessEvent } from '@/lib/lp-access-log'
 import { logOnboardingEvent, attachItemDocument, loadItemDocuments } from '@/lib/lp-onboarding-audit'
-import { notifyFundOfUpload } from '@/lib/lp-onboarding-notify'
+import { notifyFundOfUpload, notifyFundOfWireChange } from '@/lib/lp-onboarding-notify'
+import { DEFAULT_CONSENT_DISCLOSURE } from '@/lib/tax/delivery'
 import {
   buildOnboardingMatrix, normalizeKinds, isOnboardingKind, onboardingStoragePrefix, loadClosingsByEntity, closingPhrase,
   DEFAULT_ONBOARDING_KINDS, ONBOARDING_KIND_LABEL, ONBOARDING_KIND_HELP, ONBOARDING_MAX_UPLOAD_BYTES, ONBOARDING_ALLOWED_MIME,
@@ -77,6 +78,9 @@ export async function GET(): Promise<NextResponse> {
   const docsByItem = await loadItemDocuments(admin, ((items ?? []) as any[]).map(i => i.id))
 
   const closings = await loadClosingsByEntity(admin, entities.map(e => e.id))
+  // Electronic K-1 consent is the investor's own election: the principal account gives it.
+  const { data: me } = await admin.from('lp_accounts').select('kind').eq('id', lpAccountId).maybeSingle()
+  const canConsent = (me as { kind?: string } | null)?.kind === 'lp'
 
   // Fund names, for an LP in more than one.
   const fundIds = Array.from(new Set(entities.map(e => e.fund_id as string)))
@@ -105,7 +109,7 @@ export async function GET(): Promise<NextResponse> {
       })
     }
   }
-  return NextResponse.json({ entities: out, maxBytes: ONBOARDING_MAX_UPLOAD_BYTES })
+  return NextResponse.json({ entities: out, maxBytes: ONBOARDING_MAX_UPLOAD_BYTES, canConsent, disclosure: DEFAULT_CONSENT_DISCLOSURE })
 }
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
@@ -125,6 +129,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const sizeBytes = typeof body.size_bytes === 'number' && Number.isFinite(body.size_bytes) ? Math.max(0, Math.floor(body.size_bytes)) : null
   if (!entityId) return NextResponse.json({ error: 'lp_entity_id is required' }, { status: 400 })
   if (!isOnboardingKind(kind)) return NextResponse.json({ error: 'Unknown document kind' }, { status: 400 })
+  if (kind === 'k1_econsent') return NextResponse.json({ error: 'Electronic delivery consent is given from the checklist, not uploaded.' }, { status: 400 })
   if (!storagePath || !fileName) return NextResponse.json({ error: 'storage_path and file_name are required' }, { status: 400 })
   if (mimeType && !ONBOARDING_ALLOWED_MIME.has(mimeType)) return NextResponse.json({ error: 'Upload a PDF, an image, or a Word document.' }, { status: 400 })
   if (sizeBytes != null && sizeBytes > ONBOARDING_MAX_UPLOAD_BYTES) return NextResponse.json({ error: 'That file is too large (25 MB max).' }, { status: 400 })
@@ -183,11 +188,18 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   // Tell the fund: a message in the LP inbox, and an email to the admins like the Contact form.
   const { data: acct } = await admin.from('lp_accounts').select('email, kind').eq('id', lpAccountId).maybeSingle()
   const byAdvisor = acct?.kind === 'authorized_user'
-  await notifyFundOfUpload(admin, { fundId, entityName: entity.entity_name, kind, fileName, fromEmail: acct?.email ?? user.email ?? null, byAdvisor })
+  const fromEmail = acct?.email ?? user.email ?? null
+  // Replaced wire instructions the fund had verified: the loud version, not the routine one.
+  const wireChanged = kind === 'wire_instructions' && prev?.status === 'verified'
+  if (wireChanged) await notifyFundOfWireChange(admin, { fundId, entityName: entity.entity_name, fileName, fromEmail, byAdvisor })
+  else await notifyFundOfUpload(admin, { fundId, entityName: entity.entity_name, kind, fileName, fromEmail, byAdvisor })
+  const uploader = byAdvisor ? `${acct?.email ?? 'An authorized user'}, acting for ${entity.entity_name},` : entity.entity_name
   await admin.from('lp_messages').insert({
-    fund_id: fundId, lp_account_id: lpAccountId, lp_investor_id: entity.investor_id, from_email: acct?.email ?? user.email ?? null,
-    subject: `Onboarding upload: ${ONBOARDING_KIND_LABEL[kind]}`,
-    body: `${byAdvisor ? `${acct?.email ?? 'An authorized user'}, acting for ${entity.entity_name},` : entity.entity_name} uploaded "${fileName}" for ${ONBOARDING_KIND_LABEL[kind]}${kinds.includes(kind) ? '' : ' (not in your current requirement set)'}. Review it under LP Portal → Onboarding.`,
+    fund_id: fundId, lp_account_id: lpAccountId, lp_investor_id: entity.investor_id, from_email: fromEmail,
+    subject: wireChanged ? 'Wire instructions changed — verify by callback' : `Onboarding upload: ${ONBOARDING_KIND_LABEL[kind]}`,
+    body: wireChanged
+      ? `${uploader} replaced wire instructions you had verified with "${fileName}". The previous verification no longer stands. Confirm the new instructions by calling a number you already hold for this investor before paying against them, then verify again under LP Portal → Onboarding.`
+      : `${uploader} uploaded "${fileName}" for ${ONBOARDING_KIND_LABEL[kind]}${kinds.includes(kind) ? '' : ' (not in your current requirement set)'}. Review it under LP Portal → Onboarding.`,
     direction: 'inbound', status: 'open',
   })
 
