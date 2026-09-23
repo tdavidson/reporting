@@ -29,15 +29,22 @@ snapshot until that has been recorded. `lib/pages/registry.ts` lists the loaders
 enumerate their URLs for a fund. `routes.test.ts` fails when a page exists in the app
 without a demo route or a reason.
 
-`build.mjs` bundles `index.tsx` with esbuild (React included; `next/*`, `next-themes` and the
-browser Supabase client swapped for `stubs/`), compiles Tailwind for exactly the files in that
-bundle scoped under `.oa-demo-page`, prepends the app's design tokens from `app/globals.css`
-re-scoped the same way, and writes:
+`build.mjs` bundles `index.tsx` with esbuild (React included; `next/*`, `next-themes`, `xlsx`
+and the browser Supabase client swapped for `stubs/`) as an ES module split by section. The
+stylesheet is the app's own: `app/globals.css` compiled with the app's Tailwind config for
+exactly the files in the bundle, then scoped by `scope-css.mjs`, which rewrites only the
+selectors so each rule matches inside the widget and nowhere else, at the same specificity
+it has in the app. The widget's frame and every portal it opens carry `oa-demo-root`; a short
+reset in front puts their elements back to browser defaults, so the host page's stylesheet
+never reaches them and the app's rules apply exactly as they do in the app. Rem sizes are
+compiled to the pixels the app renders at, so a host's root font size cannot scale the demo.
+
+The build writes:
 
 | File | What |
 | --- | --- |
 | `dist/widget.js` | IIFE exposing `OtherAdminDemo.mount(el, { snapshot, answers, pages, api, chrome: 'page' \| 'card', initialPath, onNavigate })` and `OtherAdminDemo.routes(snapshot, pages)` |
-| `dist/widget.css` | tokens + scoped utilities; put `oa-demo-page` on `<body>`, `dark` on `<html>` for dark mode |
+| `dist/widget.css` | the app's stylesheet, scoped; `dark` on `<html>` switches the theme |
 | `dist/snapshot.json` | the sample fund (`types.ts` is the contract; `schemaVersion` guards it) |
 | `dist/pages.json` | every server page's loaded data, keyed by URL |
 | `dist/api.json` | every recorded API response, keyed by method, path and query |
@@ -48,7 +55,14 @@ re-scoped the same way, and writes:
 npm run demo:widget          # builds dist/; dist/ is gitignored
 npm run demo:check           # walks every page of the build in Chromium; crashes fail, misses are listed
 npm run demo:check -- --shots /tmp/shots   # and screenshots each page
+npm run demo:styles          # the demo against the app, style by style; any difference fails
 ```
+
+`demo:styles` renders the same pages twice, in both themes and with the command palette open:
+once under the app's own stylesheet on a bare page (the product), once under the widget's
+inside `check-host.css`, a host page written to restyle everything. It compares every
+element's computed style and fails on any difference. The workflow runs it before publishing,
+so the demo cannot drift from the app's styles without the publish stopping.
 
 ## Publishing
 

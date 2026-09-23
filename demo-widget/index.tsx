@@ -15,8 +15,9 @@ import type { AppFetch } from '@/components/app-runtime'
  *   demo.navigate('/deals')
  *   demo.unmount()
  *
- * The host page must carry the `oa-demo-page` class on <body> (the stylesheet scopes every rule
- * under it, portals included) and the `dark` class on <html> for dark mode. While mounted, every
+ * The stylesheet is the app's own, scoped to elements carrying `oa-demo-root`: the widget's frame,
+ * and every portal (dialog, popover, select menu) it renders under <body>, which markPortalRoots
+ * tags as it appears. The `dark` class on <html> switches the theme. While mounted, every
  * `/api/*` request on the page is answered by the widget (mock-api.ts).
  */
 export const schemaVersion = DEMO_SCHEMA_VERSION
@@ -49,7 +50,7 @@ export function mount(el: HTMLElement, opts: MountOptions): { unmount: () => voi
   // Before the first render: a page's own effects fetch on mount, and they run before any effect
   // of the component that would otherwise install this.
   const restore = interceptApiFetch(demoFetch)
-  document.body.classList.add('oa-demo-page')
+  const stopMarking = markPortalRoots()
 
   let navigateTo: (href: string) => void = () => {}
   const root: Root = createRoot(el)
@@ -71,9 +72,22 @@ export function mount(el: HTMLElement, opts: MountOptions): { unmount: () => voi
     unmount: () => {
       root.unmount()
       restore()
-      document.body.classList.remove('oa-demo-page')
+      stopMarking()
     },
   }
+}
+
+/**
+ * Radix renders dialogs, popovers and menus into <body>, outside the frame. Anything the page
+ * adds to <body> while the widget is mounted is the widget's, so it gets the root class and the
+ * app's styles; what was there before (the host's own markup) is left alone.
+ */
+function markPortalRoots(): () => void {
+  const before = new Set(Array.from(document.body.children))
+  const mark = (n: Node) => { if (n instanceof HTMLElement && !before.has(n) && n.tagName !== 'SCRIPT') n.classList.add('oa-demo-root') }
+  const observer = new MutationObserver(records => { for (const r of records) r.addedNodes.forEach(mark) })
+  observer.observe(document.body, { childList: true })
+  return () => observer.disconnect()
 }
 
 /** Every URL the widget serves for this data; what scripts/demo-record.mjs and demo-check.mjs walk. */

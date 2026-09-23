@@ -1,4 +1,0 @@
-/* Tailwind for the widget bundle. No preflight: the host page has its own. The design tokens
-   (:root and .dark from app/globals.css, re-scoped) are prepended by build.mjs. */
-@tailwind components;
-@tailwind utilities;

@@ -116,7 +116,7 @@ export function DemoApp({ data, fetch, initialPath = '/dashboard', onNavigate, e
           keeps the app's phone tab bar and drawers inside the frame instead of over the site. */}
       <div
         ref={frame}
-        className={`oa-demo relative flex flex-col overflow-auto bg-background text-foreground [transform:translateZ(0)] ${chrome === 'page' ? 'h-full' : 'h-[820px] max-h-[85vh] rounded-card border'}`}
+        className={`oa-demo oa-demo-root oa-demo-frame relative flex flex-col overflow-auto bg-background text-foreground [transform:translateZ(0)] ${chrome === 'page' ? 'h-full' : 'h-[820px] max-h-[85vh] rounded-card border'}`}
       >
         {/* The root layout's providers (app/layout.tsx), minus the theme: the host owns that. */}
         <ConfirmProvider>
