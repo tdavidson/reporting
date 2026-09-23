@@ -21,7 +21,7 @@ interface Item {
   itemId: string | null
   documentId: string | null
   document: { title: string; file_name: string; mime_type: string | null } | null
-  documents: { id: string; title: string; file_name: string; mime_type: string | null; added_at: string; uploaded_by: string | null }[]
+  documents: { id: string; title: string; file_name: string; mime_type: string | null; added_at: string; uploaded_by: string | null; uploaded_by_advisor: boolean }[]
   submittedAt: string | null
   reviewedAt: string | null
   expiresOn: string | null
@@ -355,7 +355,7 @@ export function LpOnboardingSettings() {
                               {it.documents.map(d => (
                                 <li key={d.id}>
                                   <button type="button" className="underline hover:text-foreground" onClick={() => openDocument(d.id)}>{d.file_name}</button>
-                                  <span> · {fmtDate(d.added_at)}{d.uploaded_by ? ` · uploaded by ${d.uploaded_by}` : ' · filed by the fund'}</span>
+                                  <span> · {fmtDate(d.added_at)}{d.uploaded_by ? ` · uploaded by ${d.uploaded_by}${d.uploaded_by_advisor ? ' (authorized user)' : ''}` : ' · filed by the fund'}</span>
                                 </li>
                               ))}
                             </ul>

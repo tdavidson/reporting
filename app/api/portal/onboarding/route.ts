@@ -181,12 +181,13 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   await logLpAccessEvent(admin, { fundId, lpAccountId, authUserId: user.id, lpInvestorId: entity.investor_id, eventType: 'upload', targetType: 'document', targetId: doc.id, targetTitle: title, metadata: { kind, lp_entity_id: entityId } })
 
   // Tell the fund: a message in the LP inbox, and an email to the admins like the Contact form.
-  const { data: acct } = await admin.from('lp_accounts').select('email').eq('id', lpAccountId).maybeSingle()
-  await notifyFundOfUpload(admin, { fundId, entityName: entity.entity_name, kind, fileName, fromEmail: acct?.email ?? user.email ?? null })
+  const { data: acct } = await admin.from('lp_accounts').select('email, kind').eq('id', lpAccountId).maybeSingle()
+  const byAdvisor = acct?.kind === 'authorized_user'
+  await notifyFundOfUpload(admin, { fundId, entityName: entity.entity_name, kind, fileName, fromEmail: acct?.email ?? user.email ?? null, byAdvisor })
   await admin.from('lp_messages').insert({
     fund_id: fundId, lp_account_id: lpAccountId, lp_investor_id: entity.investor_id, from_email: acct?.email ?? user.email ?? null,
     subject: `Onboarding upload: ${ONBOARDING_KIND_LABEL[kind]}`,
-    body: `${entity.entity_name} uploaded "${fileName}" for ${ONBOARDING_KIND_LABEL[kind]}${kinds.includes(kind) ? '' : ' (not in your current requirement set)'}. Review it under LP Portal → Onboarding.`,
+    body: `${byAdvisor ? `${acct?.email ?? 'An authorized user'}, acting for ${entity.entity_name},` : entity.entity_name} uploaded "${fileName}" for ${ONBOARDING_KIND_LABEL[kind]}${kinds.includes(kind) ? '' : ' (not in your current requirement set)'}. Review it under LP Portal → Onboarding.`,
     direction: 'inbound', status: 'open',
   })
 

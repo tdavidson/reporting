@@ -37,10 +37,11 @@ export async function notifyFundAdmins(admin: SupabaseClient, fundId: string, su
 }
 
 /** "Acme Capital LP uploaded a subscription agreement" — to the fund's admins. */
-export async function notifyFundOfUpload(admin: SupabaseClient, args: { fundId: string; entityName: string; kind: OnboardingKind; fileName: string; fromEmail: string | null }): Promise<number> {
+export async function notifyFundOfUpload(admin: SupabaseClient, args: { fundId: string; entityName: string; kind: OnboardingKind; fileName: string; fromEmail: string | null; byAdvisor?: boolean }): Promise<number> {
   const label = ONBOARDING_KIND_LABEL[args.kind]
+  const who = args.fromEmail ? (args.byAdvisor ? `${esc(args.fromEmail)}, an authorized user acting for the LP,` : esc(args.fromEmail)) : 'The LP'
   const html =
-    `<p><strong>${esc(args.entityName)}</strong> uploaded <strong>${esc(label)}</strong> to their onboarding checklist${args.fromEmail ? ` (${esc(args.fromEmail)})` : ''}.</p>` +
+    `<p>${who} uploaded <strong>${esc(label)}</strong> to the onboarding checklist for <strong>${esc(args.entityName)}</strong>.</p>` +
     `<p>File: ${esc(args.fileName)}</p>` +
     `<p><a href="${esc(siteUrl())}/lp-portal">Review it under LP Portal → Onboarding</a>.</p>`
   return notifyFundAdmins(admin, args.fundId, `Onboarding upload: ${label} — ${args.entityName}`, html)

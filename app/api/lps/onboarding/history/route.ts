@@ -27,7 +27,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
   const { data, error } = await a
     .from('lp_onboarding_events')
-    .select('id, kind, action, from_status, to_status, note, document_id, actor_user_id, created_at, lp_accounts(email), lp_documents(file_name)')
+    .select('id, kind, action, from_status, to_status, note, document_id, actor_user_id, created_at, lp_accounts(email, kind), lp_documents(file_name)')
     .eq('fund_id', gate.fundId).eq('lp_entity_id', entityId)
     .order('created_at', { ascending: false }).limit(200)
   if (error) return dbError(error, 'onboarding-history')
@@ -54,8 +54,8 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       toStatus: r.to_status,
       note: r.note,
       fileName: doc?.file_name ?? null,
-      actor: r.actor_user_id ? (emailByUser.get(r.actor_user_id) ?? 'fund user') : (acct?.email ?? null),
-      actorSide: r.actor_user_id ? 'fund' : 'lp',
+      actor: r.actor_user_id ? (emailByUser.get(r.actor_user_id) ?? 'fund user') : (acct?.email ? `${acct.email}${acct.kind === 'authorized_user' ? ' (authorized user)' : ''}` : null),
+      actorSide: r.actor_user_id ? 'fund' : acct?.kind === 'authorized_user' ? 'advisor' : 'lp',
       at: r.created_at,
     }
   })
