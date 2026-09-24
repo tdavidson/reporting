@@ -162,8 +162,10 @@ export async function setGeneratedAllocationStatus(
 export async function rollbackGeneratedAllocations(
   admin: SupabaseClient, fundId: string, sourceEntryId: string,
 ): Promise<void> {
+  // Allocations are only ever posted to the actual book (allocatePostedEntry), so that is the
+  // only book to clear; a tax-book entry is never one of them.
   const { data } = await admin.from('journal_entries' as any).select('id')
-    .eq('fund_id', fundId).like('source_ref', `allocation:${sourceEntryId}:%`)
+    .eq('book', ACTUAL_BOOK).eq('fund_id', fundId).like('source_ref', `allocation:${sourceEntryId}:%`)
   const ids = ((data as any[]) ?? []).map(row => row.id as string)
   if (ids.length > 0) await admin.from('journal_entries' as any).delete().eq('fund_id', fundId).in('id', ids)
   await admin.from('journal_entry_allocations' as any).delete().eq('fund_id', fundId).eq('source_entry_id', sourceEntryId)
