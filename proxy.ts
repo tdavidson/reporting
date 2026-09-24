@@ -76,14 +76,6 @@ export async function proxy(request: NextRequest) {
   // signed-in redirect below decides where a member begins.
   const isRootRoute = pathname === '/'
 
-  // /demo signs ITSELF in: app/demo/page.tsx calls the startDemo action from a useEffect. So the
-  // page has to render to a visitor with no session — redirect the request here and the effect
-  // never runs, leaving them on a login form for an account they don't have. Gated on the same
-  // condition startDemo refuses without: a configured demo account. Server-only env, read here
-  // because the proxy runs in the Node runtime.
-  const demoConfigured = !!process.env.DEMO_USER_EMAIL && !!process.env.DEMO_USER_PASSWORD
-  const isDemoRoute = demoConfigured && pathname === '/demo'
-
   // Token-gated public surfaces — always reachable regardless of the marketing
   // site flag. The token in the URL is the auth: a fund admin generates it
   // in Settings and shares the resulting link with founders. The page itself
@@ -124,7 +116,7 @@ export async function proxy(request: NextRequest) {
     pathname === '/offline'
 
   // Unauthenticated users can only access /auth, API, the demo (if configured), the token-gated public submit form, and setup routes.
-  if (!user && !isAuthRoute && !isApiRoute && !isDemoRoute && !isPublicTokenRoute && !isSetupRoute && !isPortalWelcome && !isOAuthDiscovery && !isPwaShell) {
+  if (!user && !isAuthRoute && !isApiRoute && !isPublicTokenRoute && !isSetupRoute && !isPortalWelcome && !isOAuthDiscovery && !isPwaShell) {
     const url = request.nextUrl.clone()
     url.pathname = '/auth'
     // Carry where they were headed, so signing in RESUMES it.

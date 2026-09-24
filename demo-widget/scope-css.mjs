@@ -106,11 +106,15 @@ export function scopeCss(css) {
  * outweighs the app's `:where()`-scoped equivalent on source order alone; scripts/demo-styles.mjs
  * would show it. www.otheradmin.com has none.
  */
-// SVG is left out: its presentation attributes (a rect's width, a path's stroke) are author-level
-// styles that `all: revert` would discard, collapsing every icon. Nothing in a host's stylesheet
-// is aimed at the inside of an icon anyway.
-const HTML_SCOPE = `:where(.${ROOT}:not(svg,svg *),.${ROOT} :not(svg,svg *))`
+// Left out: anything whose own markup styles it. SVG presentation attributes (a rect's width, a
+// path's stroke) and the width/height attributes of images and other embedded media are
+// author-level styles that `all: revert` would discard, collapsing icons and images; the app's
+// own reset covers what a host's does for media (display, max-width, height). Table cells get
+// their 1px default padding the same way, from the table, so it is restored explicitly below.
+const NOT_SELF_STYLED = ':not(svg,svg *,img,video,canvas,iframe,embed,object,picture,audio)'
+const HTML_SCOPE = `:where(.${ROOT}${NOT_SELF_STYLED},.${ROOT} ${NOT_SELF_STYLED})`
 export const ROOT_RESET = `
 ${HTML_SCOPE},${HTML_SCOPE}::before,${HTML_SCOPE}::after,${HTML_SCOPE}::placeholder,${HTML_SCOPE}::selection,${HTML_SCOPE}::marker,${HTML_SCOPE}::file-selector-button{all:revert}
+:where(td,th):where(.${ROOT} *){padding:1px}
 .${ROOT}{--font-inter:var(--font-sans-face,Inter);font-size:16px;font-weight:400;font-style:normal;font-variant:normal;font-stretch:normal;letter-spacing:normal;word-spacing:normal;text-transform:none;text-indent:0;text-align:start;text-shadow:none;white-space:normal;cursor:auto;-webkit-font-smoothing:auto}
 `.trim()

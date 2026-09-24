@@ -1,7 +1,7 @@
 {
  "schemaVersion": 2,
- "generatedAt": "2026-09-23",
- "source": "Hemrock Ventures (demo fund)",
+ "generatedAt": "2026-09-24",
+ "source": "the demo fund",
  "fund": {
   "name": "OtherAdmin Demo",
   "currency": "USD"
@@ -1303,7 +1303,7 @@
    "intro_source": "cold",
    "thesis_fit_score": "moderate",
    "company_summary": "Haptiq is a pre-revenue developer infrastructure company with a multimodal feedback SDK for fintech apps. 3 design-partner contracts (Mercury, Brex, undisclosed bank) but no recognized revenue yet. Solo founder spinning out of a stealth incubator. Raising $2.5M pre-seed.",
-   "thesis_fit_analysis": "Pre-revenue, single-founder, design-partner-only. Too early for our typical entry point. Developer infrastructure is aligned in product shape; traction is weak because design partners are not paying customers; capital efficiency is unclear. Disqualifiers: stage (we typically wait for $500K+ ARR), single founder for an infra play."
+   "thesis_fit_analysis": "Pre-revenue, single-founder, design-partner-only — too early for our typical entry point.\n\nPillar 1 — Developer infrastructure: Aligned in product shape.\nPillar 2 — Verifiable traction: Weak. Design partners are not paying customers; conversion to paid is the real question.\nPillar 3 — Capital efficiency: Unclear. $2.5M for a pre-seed with three large enterprise design partners is plausible, but the implied runway is short for an enterprise sales motion.\n\nDisqualifiers: stage (we typically wait for $500K+ ARR), single-founder for an infra play.\n\nOpen questions: founder background, why solo, design-partner contract terms (purchase commitment vs. evaluation), competitive landscape (does anyone else ship this primitive?)."
   },
   {
    "id": "1fed0c45-46e2-4f04-8c88-7940b7933b03",
@@ -1316,7 +1316,7 @@
    "intro_source": "cold",
    "thesis_fit_score": "weak",
    "company_summary": "Finch is a B2C mobile mental-health app with a gamified daily check-in and a virtual pet retention loop. $200K MRR, 14 months in, 8% MoM growth from App Store organic. Single-founder company. Raising a $4M seed extension.",
-   "thesis_fit_analysis": "B2C consumer is out of our default thesis but the unit economics look unusually clean. 8% MoM organic is real but App Store concentration is a single point of failure. Disqualifiers: consumer subscription churn dynamics, App Store dependency, single founder."
+   "thesis_fit_analysis": "B2C consumer is out of our default thesis but the unit economics here look unusually clean for a category that usually flames out post-launch.\n\nPillar 1 — B2B/SaaS: Out of thesis (B2C subscription).\nPillar 2 — Growth quality: Moderate. 8% MoM organic is real but App Store organic concentration is a single point of failure.\nPillar 3 — Defensibility: Weak. The \"virtual pet retention loop\" is interesting but not durable IP.\n\nDisqualifiers: consumer subscription churn dynamics, App Store dependency, single-founder for a Series A trajectory.\n\nOpen questions: Day-30 / Day-90 retention by cohort, paid-vs-organic mix, founder's plan for the second hire."
   },
   {
    "id": "41bd7a9a-2d35-400a-a650-f70aa9cec24d",
@@ -1328,8 +1328,8 @@
    "raise_amount": "$3M Seed",
    "intro_source": "event",
    "thesis_fit_score": "strong",
-   "company_summary": "Lattice is a vertical SaaS for agricultural co-operatives in Latin America. $480K ARR across 14 co-ops in Mexico and Colombia, growing 18% MoM. Founder Marisol Vega is ex-McKinsey with grew-up-on-a-coffee-farm context; co-founder Tom\u00e1s Aguirre is ex-Globant.",
-   "thesis_fit_analysis": "Vertical SaaS in an emerging market, squarely on thesis if traction and unit economics hold up. Co-ops are an underserved buyer with consolidated decision-making and high switching costs. $480K ARR is early but 18% MoM is fast. Founder-market fit is strong. Open questions: customer concentration in the top 3 co-ops, differentiation from existing co-op software, unit economics on the freemium tier."
+   "company_summary": "Lattice is a vertical SaaS for agricultural co-operatives in Latin America. $480K ARR across 14 co-ops in Mexico and Colombia, growing 18% MoM. Founder Marisol Vega is ex-McKinsey with grew-up-on-a-coffee-farm context; co-founder Tomás Aguirre is ex-Globant.",
+   "thesis_fit_analysis": "Vertical SaaS in an emerging market — squarely on thesis if traction and unit economics hold up.\n\nPillar 1 — Vertical SaaS: Strong. Co-ops are an underserved buyer with consolidated decision-making and high switching costs.\nPillar 2 — Verifiable traction: Moderate. $480K ARR is early but 18% MoM is fast; need to verify GMV through co-op concentration.\nPillar 3 — Founder-market fit: Strong. Marisol has the rare combination of operator background and lived domain context.\n\nDisqualifiers: LatAm market means USD-revenue concentration risk and FX exposure; need to understand how they price.\n\nOpen questions: customer concentration in top 3 co-ops, how Lattice differentiates from existing co-op management software (e.g. Cropsifter), unit economics on the freemium tier."
   },
   {
    "id": "31a2419a-4ba7-4a1f-93a2-5fee2538d9ee",
@@ -1341,8 +1341,8 @@
    "raise_amount": "$20M Series A",
    "intro_source": "warm_intro",
    "thesis_fit_score": "out_of_thesis",
-   "company_summary": "NorthPole Energy builds modular zinc-bromine flow batteries for utility-scale grid storage. One pilot deployment underway with a Texas utility. Existing $4M seed led by Energy Impact Partners. Raising $20M Series A to scale.",
-   "thesis_fit_analysis": "Climate hardware sits outside our software-only thesis. Grid deployments take 3 to 5 years to revenue and the next round will likely be $50M+. Nothing wrong with the company, just not for us."
+   "company_summary": "NorthPole Energy builds modular zinc-bromine flow batteries for utility-scale grid storage. 18 months into operation. One pilot deployment underway with a Texas utility. Existing $4M seed led by Energy Impact Partners. Raising $20M Series A to scale.",
+   "thesis_fit_analysis": "Climate hardware sits outside our software-only thesis. The team and credentials look strong from the email alone, but the capital efficiency and time-to-revenue profile of a grid-scale hardware company is fundamentally different from what we underwrite.\n\nPillar 1 — Software-first: Out of thesis. Hardware capex.\nPillar 2 — 12-18 month time to revenue: Out of thesis. Grid deployments take 3-5 years.\nPillar 3 — Capital efficient: Out of thesis. $20M Series A on a single pilot is a structural commitment; the next round will likely be $50M+.\n\nDisqualifiers: capital intensity, hardware risk, regulatory dependency. Nothing wrong with the company, just not for us."
   },
   {
    "id": "323ba75b-04f8-474f-adfd-7ae039d7aa88",
@@ -1355,14 +1355,14 @@
    "intro_source": "cold",
    "thesis_fit_score": "strong",
    "company_summary": "Stellate is a developer-infrastructure SaaS that caches database query results at edge POPs to cut SaaS application cloud bills by 30-40%. The team is 9 FTEs, all ex-Vercel/Cloudflare. They claim $1.2M ARR with 25% MoM growth, 138% NRR, and 47 paying customers including Notion and Linear. Burning $400K/mo with 18 months of runway pre-raise.",
-   "thesis_fit_analysis": "Aligns strongly with two of three thesis pillars (developer tools, instrumentation-heavy products with measurable cost savings). 25% MoM growth at $1.2M ARR is unusual; verify against Stripe data. Series A is led by a top-tier co-investor, so we would be filling out the round. Open questions: revenue concentration in the top 10 customers, retention as they pass $5M ARR, why existing investors are not taking the full round."
+   "thesis_fit_analysis": "Aligns strongly with two of the three thesis pillars (developer-tools focus and instrumentation-heavy products with measurable cost savings); the third pillar (vertical SaaS) is not a fit and the team is candid about that.\n\nPillar 1 — Developer infrastructure: Strong. Founders are well-credentialed (ex-Vercel, ex-Cloudflare). Product addresses a clearly-quantified pain point (cloud bills). Customer logos suggest the buyer persona is engineering leadership at high-growth SaaS, which matches our typical comparable companies (e.g. PlanetScale, Upstash).\n\nPillar 2 — Verifiable traction: Strong. 25% MoM revenue growth at $1.2M ARR is unusual; if true it implies $4M+ ARR exit by next year. NRR of 138% is high. We should verify against Stripe data (open question for diligence).\n\nPillar 3 — Vertical SaaS: Out of thesis as a horizontal infra play, but the founder mentions explicit vertical packaging in retail and fintech. Worth probing in Q&A.\n\nDisqualifiers: None visible from the email alone. Series A round is led by a top-tier co-investor (Sequoia), so we'd be filling out the round rather than leading.\n\nOpen questions: revenue concentration in top 10 customers, retention of those NRR numbers when they hit $5M+ ARR, churn cohort behavior, why the existing investors aren't taking the full round."
   }
  ],
  "notes": [
   {
    "id": "14e3d783-45dd-4775-80f2-4f996ad8b4e7",
    "company_id": "8b396e22-1612-4737-8d09-5dbf593bb08f",
-   "content": "GitHub stars passed 5K. Elena is presenting at NeurIPS next month, great visibility for the enterprise pipeline.",
+   "content": "GitHub stars passed 5K. Elena is presenting at NeurIPS next month — great visibility for enterprise pipeline.",
    "created_at": "2026-03-08"
   },
   {
@@ -1400,7 +1400,7 @@
   {
    "company_id": "b4870bad-ddd4-42d1-a300-7111899cf154",
    "subject": "Series C timing discussion",
-   "summary": "James wants to start Series C conversations in Q3 2026. Discussed target raise ($30-40M), potential leads, and whether to hire a CFO before the process.",
+   "summary": "James wants to start Series C conversations in Q3 2026. Discussed target raise ($30-40M), potential leads (a]6z, Coatue), and whether to hire a CFO before the process.",
    "date": "2026-06-23"
   },
   {
@@ -1412,7 +1412,7 @@
   {
    "company_id": "a67954cb-474b-404b-858b-49c240c22027",
    "subject": "Re: Q4 board prep",
-   "summary": "Sarah shared the draft board deck and asked for feedback on the ARR bridge slide. Discussed the hiring plan for Q1 and whether to bring on a VP Sales now or wait until Series A+ closes.",
+   "summary": "Sarah shared draft board deck and asked for feedback on the ARR bridge slide. Discussed hiring plan for Q1 and whether to bring on a VP Sales now or wait until Series A+ closes.",
    "date": "2026-06-16"
   },
   {
@@ -1424,100 +1424,61 @@
   {
    "company_id": "d4fef540-f26b-426f-9aef-96144a6579ce",
    "subject": "FDA pre-submission feedback",
-   "summary": "Priya shared positive feedback from the FDA pre-submission meeting. Regulatory pathway looks clearer than expected. Team targeting Q2 2026 for clearance filing.",
+   "summary": "Priya shared positive feedback from FDA pre-submission meeting. Regulatory pathway looks clearer than expected. Team targeting Q2 2026 for clearance filing.",
    "date": "2026-06-11"
   },
   {
    "company_id": "a67954cb-474b-404b-858b-49c240c22027",
    "subject": "Intro: Sarah Chen <> David Park (VP Sales, AcmeCorp)",
-   "summary": "Introduction to discuss enterprise sales motion and the playbook for scaling from $3M to $10M ARR.",
+   "summary": "Introduction between Sarah Chen (NovaTech CEO) and David Park (VP Sales at AcmeCorp) to discuss enterprise sales motion and playbook for scaling from $3M to $10M ARR.",
    "date": "2026-06-09"
   },
   {
    "company_id": "35dea40d-dd6f-4916-b566-deb40872d579",
    "subject": "Grant application update",
-   "summary": "Anna confirmed the DOE grant application was submitted. $500K grant decision expected Q2. Also discussed adding a sales hire to target CSRD-affected European companies.",
+   "summary": "Anna confirmed DOE grant application submitted. $500K grant decision expected Q2. Also discussed adding a sales hire to target CSRD-affected European companies.",
    "date": "2026-06-06"
   },
   {
    "company_id": "d08a27bc-39e4-4fb1-a624-7a286d83e929",
    "subject": "Intro: Jamie Lin <> Sam Patel (Head of Growth, GrowthStack)",
-   "summary": "Connected Jamie with Sam Patel at GrowthStack to discuss an integration partnership and co-marketing for ad creative optimization in the SMB segment.",
+   "summary": "Connected Jamie with Sam Patel at GrowthStack to discuss potential integration partnership and co-marketing for ad creative optimization in the SMB segment.",
    "date": "2026-06-03"
   },
   {
    "company_id": "8b396e22-1612-4737-8d09-5dbf593bb08f",
    "subject": "Intro: Elena Vasquez <> Chris Nguyen (CTO, ApexData)",
-   "summary": "Introduction to discuss a potential design partnership on multimodal embeddings for enterprise RAG use cases.",
+   "summary": "Introduction between Elena Vasquez (Lattis founder) and Chris Nguyen (CTO at ApexData) to discuss potential design partnership on multimodal embeddings for enterprise RAG use cases.",
    "date": "2026-06-01"
   },
   {
    "company_id": "b4870bad-ddd4-42d1-a300-7111899cf154",
    "subject": "Intro: James Okafor <> Maria Santos (COO, GlobalFreight)",
-   "summary": "Introduction to explore a partnership for last-mile delivery optimization.",
+   "summary": "Introduction between James Okafor (RouteWise CEO) and Maria Santos (COO at GlobalFreight) to explore potential partnership for last-mile delivery optimization.",
    "date": "2026-05-27"
   },
   {
    "company_id": "2231479f-1bf3-4646-9173-abc5d31fd515",
    "subject": "Intro: Kemi Adeyemi <> Rachel Kim (PayBridge)",
-   "summary": "Connected Kemi with Rachel Kim from PayBridge to discuss cross-border payment infrastructure and integration for TapFin's merchant onboarding flow.",
+   "summary": "Connected Kemi with Rachel Kim from PayBridge to discuss cross-border payment infrastructure and potential integration for TapFin's merchant onboarding flow.",
    "date": "2026-05-22"
   },
   {
    "company_id": null,
-   "subject": "LP meeting follow-up: portfolio allocation discussion",
-   "summary": "Follow-up from the LP advisory meeting covering Fund II deployment pace, reserve strategy, and initial Fund III timeline. LPs want more detail on Fund I realized returns at the next meeting.",
+   "subject": "LP meeting follow-up — portfolio allocation discussion",
+   "summary": "Follow-up from LP advisory meeting covering Fund II deployment pace, reserve strategy, and initial Fund III timeline. LPs want to see more detail on Fund I realized returns at next meeting.",
    "date": "2026-05-17"
   }
  ],
  "investments": [
   {
-   "company_id": "a67954cb-474b-404b-858b-49c240c22027",
-   "vehicle": "Fund I",
+   "company_id": "d1263d61-e648-4906-b991-f831fb74a186",
+   "vehicle": "Fund II",
    "type": "investment",
-   "date": "2023-06-15",
+   "date": "2022-01-15",
    "round": "Seed",
-   "cost": 500000,
-   "share_price": 1,
-   "note": "Led seed round"
-  },
-  {
-   "company_id": "a67954cb-474b-404b-858b-49c240c22027",
-   "vehicle": "Fund I",
-   "type": "investment",
-   "date": "2024-09-01",
-   "round": "Series A",
-   "cost": 1500000,
-   "share_price": 2,
-   "note": "Pro-rata follow-on"
-  },
-  {
-   "company_id": "a67954cb-474b-404b-858b-49c240c22027",
-   "vehicle": "Fund I",
-   "type": "unrealized_gain_change",
-   "date": "2025-12-31",
-   "unrealized_change": 2500000,
-   "mark_share_price": 3.6,
-   "note": "Q4 2025 mark based on Series A+ term sheet"
-  },
-  {
-   "company_id": "d4fef540-f26b-426f-9aef-96144a6579ce",
-   "vehicle": "Fund I",
-   "type": "investment",
-   "date": "2024-01-10",
-   "round": "Seed",
-   "cost": 750000,
-   "share_price": 1,
-   "note": "Co-led seed with BioFund Partners"
-  },
-  {
-   "company_id": "d4fef540-f26b-426f-9aef-96144a6579ce",
-   "vehicle": "Fund I",
-   "type": "unrealized_gain_change",
-   "date": "2025-12-31",
-   "unrealized_change": 250000,
-   "mark_share_price": 1.33,
-   "note": "Modest mark-up based on grant milestones"
+   "cost": 300000,
+   "share_price": 1
   },
   {
    "company_id": "b4870bad-ddd4-42d1-a300-7111899cf154",
@@ -1526,101 +1487,6 @@
    "date": "2022-03-20",
    "round": "Seed",
    "cost": 400000,
-   "share_price": 1
-  },
-  {
-   "company_id": "b4870bad-ddd4-42d1-a300-7111899cf154",
-   "vehicle": "Fund I",
-   "type": "investment",
-   "date": "2023-07-15",
-   "round": "Series A",
-   "cost": 1000000,
-   "share_price": 3,
-   "note": "Full pro-rata"
-  },
-  {
-   "company_id": "b4870bad-ddd4-42d1-a300-7111899cf154",
-   "vehicle": "Fund I",
-   "type": "investment",
-   "date": "2024-11-01",
-   "round": "Series B",
-   "cost": 2000000,
-   "share_price": 7,
-   "note": "Led Series B"
-  },
-  {
-   "company_id": "b4870bad-ddd4-42d1-a300-7111899cf154",
-   "vehicle": "Fund I",
-   "type": "unrealized_gain_change",
-   "date": "2025-12-31",
-   "unrealized_change": 6800000,
-   "mark_share_price": 12.5,
-   "note": "Q4 2025 409A valuation"
-  },
-  {
-   "company_id": "d08a27bc-39e4-4fb1-a624-7a286d83e929",
-   "vehicle": "Fund I",
-   "type": "investment",
-   "date": "2024-06-01",
-   "round": "Series A",
-   "cost": 2000000,
-   "share_price": 2.5,
-   "note": "Co-invested with Growth Capital"
-  },
-  {
-   "company_id": "d08a27bc-39e4-4fb1-a624-7a286d83e929",
-   "vehicle": "Fund I",
-   "type": "unrealized_gain_change",
-   "date": "2025-12-31",
-   "unrealized_change": 1200000,
-   "mark_share_price": 4,
-   "note": "Based on latest revenue multiple"
-  },
-  {
-   "company_id": "35dea40d-dd6f-4916-b566-deb40872d579",
-   "vehicle": "Fund II",
-   "type": "investment",
-   "date": "2024-04-15",
-   "round": "Seed",
-   "cost": 600000,
-   "share_price": 1,
-   "note": "Led seed round"
-  },
-  {
-   "company_id": "2231479f-1bf3-4646-9173-abc5d31fd515",
-   "vehicle": "Fund II",
-   "type": "investment",
-   "date": "2023-09-01",
-   "round": "Seed",
-   "cost": 350000,
-   "share_price": 1
-  },
-  {
-   "company_id": "2231479f-1bf3-4646-9173-abc5d31fd515",
-   "vehicle": "Fund II",
-   "type": "investment",
-   "date": "2024-12-01",
-   "round": "Series A",
-   "cost": 1500000,
-   "share_price": 3,
-   "note": "Co-led with Fintech Africa"
-  },
-  {
-   "company_id": "2231479f-1bf3-4646-9173-abc5d31fd515",
-   "vehicle": "Fund II",
-   "type": "unrealized_gain_change",
-   "date": "2025-12-31",
-   "unrealized_change": 2100000,
-   "mark_share_price": 5.65,
-   "note": "Mark based on GMV growth trajectory"
-  },
-  {
-   "company_id": "d1263d61-e648-4906-b991-f831fb74a186",
-   "vehicle": "Fund II",
-   "type": "investment",
-   "date": "2022-01-15",
-   "round": "Seed",
-   "cost": 300000,
    "share_price": 1
   },
   {
@@ -1634,6 +1500,65 @@
    "note": "Full pro-rata"
   },
   {
+   "company_id": "a67954cb-474b-404b-858b-49c240c22027",
+   "vehicle": "Fund I",
+   "type": "investment",
+   "date": "2023-06-15",
+   "round": "Seed",
+   "cost": 500000,
+   "share_price": 1,
+   "note": "Led seed round"
+  },
+  {
+   "company_id": "b4870bad-ddd4-42d1-a300-7111899cf154",
+   "vehicle": "Fund I",
+   "type": "investment",
+   "date": "2023-07-15",
+   "round": "Series A",
+   "cost": 1000000,
+   "share_price": 3,
+   "note": "Full pro-rata"
+  },
+  {
+   "company_id": "2231479f-1bf3-4646-9173-abc5d31fd515",
+   "vehicle": "Fund II",
+   "type": "investment",
+   "date": "2023-09-01",
+   "round": "Seed",
+   "cost": 350000,
+   "share_price": 1
+  },
+  {
+   "company_id": "d4fef540-f26b-426f-9aef-96144a6579ce",
+   "vehicle": "Fund I",
+   "type": "investment",
+   "date": "2024-01-10",
+   "round": "Seed",
+   "cost": 750000,
+   "share_price": 1,
+   "note": "Co-led seed with BioFund Partners"
+  },
+  {
+   "company_id": "35dea40d-dd6f-4916-b566-deb40872d579",
+   "vehicle": "Fund II",
+   "type": "investment",
+   "date": "2024-04-15",
+   "round": "Seed",
+   "cost": 600000,
+   "share_price": 1,
+   "note": "Led seed round"
+  },
+  {
+   "company_id": "d08a27bc-39e4-4fb1-a624-7a286d83e929",
+   "vehicle": "Fund I",
+   "type": "investment",
+   "date": "2024-06-01",
+   "round": "Series A",
+   "cost": 2000000,
+   "share_price": 2.5,
+   "note": "Co-invested with Growth Capital"
+  },
+  {
    "company_id": "d1263d61-e648-4906-b991-f831fb74a186",
    "vehicle": "Fund II",
    "type": "investment",
@@ -1642,6 +1567,73 @@
    "cost": 2500000,
    "share_price": 10,
    "note": "Led Series B at $85M pre"
+  },
+  {
+   "company_id": "8b396e22-1612-4737-8d09-5dbf593bb08f",
+   "vehicle": "Fund II",
+   "type": "investment",
+   "date": "2024-08-15",
+   "round": "Pre-Seed",
+   "cost": 250000,
+   "share_price": 1,
+   "note": "Angel round"
+  },
+  {
+   "company_id": "a67954cb-474b-404b-858b-49c240c22027",
+   "vehicle": "Fund I",
+   "type": "investment",
+   "date": "2024-09-01",
+   "round": "Series A",
+   "cost": 1500000,
+   "share_price": 2,
+   "note": "Pro-rata follow-on"
+  },
+  {
+   "company_id": "b4870bad-ddd4-42d1-a300-7111899cf154",
+   "vehicle": "Fund I",
+   "type": "investment",
+   "date": "2024-11-01",
+   "round": "Series B",
+   "cost": 2000000,
+   "share_price": 7,
+   "note": "Led Series B"
+  },
+  {
+   "company_id": "2231479f-1bf3-4646-9173-abc5d31fd515",
+   "vehicle": "Fund II",
+   "type": "investment",
+   "date": "2024-12-01",
+   "round": "Series A",
+   "cost": 1500000,
+   "share_price": 3,
+   "note": "Co-led with Fintech Africa"
+  },
+  {
+   "company_id": "d08a27bc-39e4-4fb1-a624-7a286d83e929",
+   "vehicle": "Fund I",
+   "type": "unrealized_gain_change",
+   "date": "2025-12-31",
+   "unrealized_change": 1200000,
+   "mark_share_price": 4,
+   "note": "Based on latest revenue multiple"
+  },
+  {
+   "company_id": "a67954cb-474b-404b-858b-49c240c22027",
+   "vehicle": "Fund I",
+   "type": "unrealized_gain_change",
+   "date": "2025-12-31",
+   "unrealized_change": 2500000,
+   "mark_share_price": 3.6,
+   "note": "Q4 2025 mark based on Series A+ term sheet"
+  },
+  {
+   "company_id": "b4870bad-ddd4-42d1-a300-7111899cf154",
+   "vehicle": "Fund I",
+   "type": "unrealized_gain_change",
+   "date": "2025-12-31",
+   "unrealized_change": 6800000,
+   "mark_share_price": 12.5,
+   "note": "Q4 2025 409A valuation"
   },
   {
    "company_id": "d1263d61-e648-4906-b991-f831fb74a186",
@@ -1653,14 +1645,22 @@
    "note": "Q4 2025 mark based on $10M ARR milestone"
   },
   {
-   "company_id": "8b396e22-1612-4737-8d09-5dbf593bb08f",
+   "company_id": "d4fef540-f26b-426f-9aef-96144a6579ce",
+   "vehicle": "Fund I",
+   "type": "unrealized_gain_change",
+   "date": "2025-12-31",
+   "unrealized_change": 250000,
+   "mark_share_price": 1.33,
+   "note": "Modest mark-up based on grant milestones"
+  },
+  {
+   "company_id": "2231479f-1bf3-4646-9173-abc5d31fd515",
    "vehicle": "Fund II",
-   "type": "investment",
-   "date": "2024-08-15",
-   "round": "Pre-Seed",
-   "cost": 250000,
-   "share_price": 1,
-   "note": "Angel round"
+   "type": "unrealized_gain_change",
+   "date": "2025-12-31",
+   "unrealized_change": 2100000,
+   "mark_share_price": 5.65,
+   "note": "Mark based on GMV growth trajectory"
   }
  ]
 }

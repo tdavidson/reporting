@@ -15,9 +15,12 @@ Two substitutions make the app's component tree run inside a static page:
   Analyst call, then 404, which every component already treats as "empty". Writes get the
   read-only demo's 403. The components that take `fetch` from `components/app-runtime.tsx`
   get it there; the rest call the global, which `index.tsx` wraps before the first render.
-- **`navigate`.** `app.tsx` keeps the current path and swaps the page instead of the URL.
-  `stubs/next-navigation.ts` answers `usePathname`, `useParams` and `useSearchParams` from it,
+- **`navigate`.** `app.tsx` keeps the current path in state and swaps the page instead of the
+  URL. `stubs/next-navigation.ts` answers `usePathname`, `useParams` and `useSearchParams` from
+  it through React context, so a page never sees the URL of the page replacing it (as in Next),
   and `stubs/next-link.tsx` renders the app's links as anchors the frame intercepts.
+- **No session.** The header's sign-out is "Exit demo", a link back to the host (`exitHref`),
+  through the runtime's `exit`. Every refused change raises one "Read-only demo" notice.
 
 `routes.tsx` is the table: each of the app's URL patterns and the component the app renders
 for it. A client page (`'use client'` under `app/(app)`) is mounted as is. A server page —
@@ -79,14 +82,20 @@ secret to a Vercel deploy hook and the workflow triggers that deploy itself.
 
 Three files, three scripts, all run locally against the demo fund and committed:
 
-1. `npm run demo:snapshot` (needs `.env.local`: the service role, and `DEMO_USER_EMAIL` /
-   `DEMO_USER_PASSWORD` for a viewer in the demo fund; `DEMO_FUND_NAME` picks the fund,
-   `DEMO_FUND_LABEL` the name shown) re-exports `data/snapshot.json` and runs every loader in
-   `lib/pages/registry.ts` as that viewer into `data/pages.json`.
+1. `npm run demo:snapshot` (`DEMO_USER_EMAIL` / `DEMO_USER_PASSWORD` for a viewer in the demo
+   fund, `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY`; `DEMO_FUND_NAME` picks
+   the fund, `DEMO_FUND_LABEL` the name shown) re-exports `data/snapshot.json` and runs every
+   loader in `lib/pages/registry.ts` as that viewer into `data/pages.json`. Without the service
+   role key it runs entirely as the viewer, so RLS bounds everything it can export.
 2. `npm run demo:widget && DEMO_ORIGIN=https://<the app> DEMO_EMAIL=… DEMO_PASSWORD=… npm run demo:record`
    signs in to a running instance as the viewer, mounts the build with `/api` proxied to it,
    walks every page and every tab, and records the responses into `data/api.json`. The
-   middleware and RLS are in the path, so it can only record what the viewer sees.
+   middleware and RLS are in the path, so it can only record what the viewer sees, and only
+   GET requests reach the instance: anything else the pages send is refused, so recording
+   never writes or starts a paid Analyst call. With `DEMO_SUPABASE_URL` and
+   `DEMO_SUPABASE_KEY` (the publishable key) it signs in through Supabase directly rather
+   than the app's bot-checked `/auth`; set `DEMO_FUND_NAME` so the fund's real name is
+   relabelled. Behind an HTTPS proxy, run it with `NODE_USE_ENV_PROXY=1`.
 3. `DEMO_USER_ID=… npm run demo:answers` asks the real Analyst every question in
    `data/answers.json` and stores the replies with the model that wrote them. It spends the
    fund's API key, so run it when the snapshot or the question list changes, not routinely.

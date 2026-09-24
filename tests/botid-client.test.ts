@@ -1,3 +1,4 @@
+import { execSync } from 'node:child_process'
 import { describe, it, expect } from 'vitest'
 import { readFileSync, existsSync } from 'fs'
 import { join } from 'path'
@@ -78,11 +79,12 @@ describe('BotId client-side protection', () => {
   })
 
   it('protects every path that calls checkBotId() server-side', () => {
-    // `startDemo` is a server action on /demo, so the POST goes to the page route.
-    expect(read('app/demo/actions.ts')).toContain('checkBotId')
-
-    const routes = read('lib/botid-routes.ts')
-    expect(routes).toContain("path: '/demo'")
-    expect(routes).toContain("method: 'POST'")
+    // A path checked on the server but missing from the list fails every request, because no
+    // browser ever attached a challenge. The only caller today would be under the listed paths.
+    const callers = execSync("grep -rl 'checkBotId(' app lib --include=*.ts --include=*.tsx || true", { encoding: 'utf8' })
+      .split('\n').filter(Boolean).filter(f => !f.endsWith('.test.ts') && f !== 'lib/botid-routes.ts')
+    const listed = ['app/api/auth/', 'app/api/demo/seed/']
+    expect(callers.filter(f => !listed.some(prefix => f.startsWith(prefix)))).toEqual([])
+    expect(read('lib/botid-routes.ts')).toContain("method: 'POST'")
   })
 })

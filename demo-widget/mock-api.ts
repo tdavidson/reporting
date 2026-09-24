@@ -13,16 +13,18 @@ import type { DemoAnswer, DemoAnswers, DemoApi, DemoScope, DemoSnapshot } from '
  *   3. 404, reported through `onMiss` so scripts/demo-check.mjs can list what the recorder has
  *      not covered. Every caller already treats 404 as "empty".
  *
- * Writes are refused with the message the real read-only demo uses, except the Analyst POST.
+ * Writes are refused with READ_ONLY and reported through `onWrite`, except the Analyst POST.
  */
 export interface DemoFetchOptions {
   snapshot: DemoSnapshot
   answers: DemoAnswers
   api?: DemoApi
   onMiss?: (key: string) => void
+  /** A change was attempted and refused: the widget tells the visitor so. */
+  onWrite?: (method: string, path: string) => void
 }
 
-export function createDemoFetch({ snapshot, answers, api, onMiss }: DemoFetchOptions): AppFetch {
+export function createDemoFetch({ snapshot, answers, api, onMiss, onWrite }: DemoFetchOptions): AppFetch {
   const index = buildAnswerIndex(answers)
   const recorded = api?.responses ?? {}
   // The same path with a different query: the recorder walked the pages with their default
@@ -39,7 +41,10 @@ export function createDemoFetch({ snapshot, answers, api, onMiss }: DemoFetchOpt
     const path = url.pathname
 
     if (method === 'POST' && path === '/api/analyst') return analyst(await readBody(init), init?.signal, index, answers)
-    if (method !== 'GET') return json({ error: 'This is a read-only demo. Changes are not allowed.' }, 403)
+    if (method !== 'GET') {
+      onWrite?.(method, path)
+      return json({ error: READ_ONLY }, 403)
+    }
 
     const key = requestKey(method, url)
     const hit = recorded[key] ?? recorded[byPath.get(`${method} ${path}`) ?? '']
@@ -80,6 +85,9 @@ export function interceptApiFetch(demoFetch: AppFetch): () => void {
   } as typeof window.fetch
   return () => { window.fetch = original }
 }
+
+/** What every refused change says, inline wherever a component shows the error. */
+export const READ_ONLY = 'This is a read-only demo, so changes are not saved.'
 
 export const DEMO_MODEL = { id: 'demo-stored-replies', name: 'Stored replies (demo)', provider: 'anthropic' }
 

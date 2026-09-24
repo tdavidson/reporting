@@ -73,7 +73,8 @@ describe('the demo widget stylesheet', () => {
 
   it('resets every HTML element of the widget before the app rules, and leaves SVG alone', () => {
     expect(ROOT_RESET).toContain('all:revert')
-    expect(ROOT_RESET).toContain(':not(svg,svg *)')
+    expect(ROOT_RESET).toContain(':not(svg,svg *,img,')
+    expect(ROOT_RESET).toContain(':where(td,th)')
     expect(ROOT_RESET).toMatch(new RegExp(`\\.${ROOT}\\{[^}]*font-size:16px[^}]*letter-spacing:normal`))
   })
 })

@@ -1,5 +1,6 @@
 'use client'
 
+import { useMemo } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { AppRuntimeProvider } from '@/components/app-runtime'
 import { SidebarProvider, useSidebar } from '@/components/sidebar-context'
@@ -45,9 +46,13 @@ interface AppShellProps {
 
 export function AppShell({ fundName, fundLogo, userEmail, reviewBadge, settingsBadge, notesBadge, pendingActionsBadge, isAdmin, currency, hasAIKey, configuredProviders, defaultAIProvider, updateAvailable, featureVisibility, domainAccess, lpPortalEnabled, fofActive, children }: AppShellProps) {
   const router = useRouter()
+  const navigate = useMemo(
+    () => (href: string, opts?: { replace?: boolean }) => (opts?.replace ? router.replace(href) : router.push(href)),
+    [router],
+  )
   return (
     // The router is the app's `navigate` (components/app-runtime.tsx); the demo widget swaps it.
-    <AppRuntimeProvider navigate={router.push}>
+    <AppRuntimeProvider navigate={navigate}>
     <FeatureVisibilityProvider value={featureVisibility ?? DEFAULT_FEATURE_VISIBILITY} isAdmin={isAdmin} lpPortalEnabled={lpPortalEnabled ?? false}>
     <AccessProvider value={domainAccess ?? EMPTY_ACCESS}>
     <CurrencyProvider currency={currency ?? 'USD'}>

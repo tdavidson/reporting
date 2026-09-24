@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+Removed
+- **The shared-account demo.** `/demo` no longer signs visitors into a demo account: the public demo is www.otheradmin.com/demo, a static build of the app's own pages on a recorded snapshot, with no session and no database. Gone with it: the `startDemo` action, the middleware exception for `/demo`, `DEMO_USER_EMAIL` / `DEMO_USER_PASSWORD`, the viewer's "Viewing demo" banner and the guard that signed viewers out when a tab closed — which, with the demo gone, would only have signed out real read-only members. The `demo_sessions` table is left in place; nothing writes to it.
+
 Changed
 - **The product is OtherAdmin.** Repository renamed to `tdavidson/otheradmin` (GitHub redirects the old name); every in-app link, the update checker, the package name, the page titles and the OG card follow. The company behind it is still Hemrock, and the footer says so. The marketing page that lived at `/` moved to www.otheradmin.com (its own repository); with it went Settings → Marketing, the `site_content` editor and API, the GitHub star counter, and the Calendly loader. `/` is now only the post-login destination (a signed-out visitor is sent to /auth). The demo no longer needs `NEXT_PUBLIC_ENABLE_MARKETING_SITE` or `MARKETING_DEPLOYMENT_KEY`: `DEMO_USER_EMAIL` and `DEMO_USER_PASSWORD` are the whole switch, in the proxy and in `startDemo` alike
 - **Legal links are the deployment's own.** Terms and Privacy render in the footer and on the sign-in pages only when `NEXT_PUBLIC_TERMS_URL` / `NEXT_PUBLIC_PRIVACY_URL` are set, instead of pointing every install at hemrock.com and showing them only on Hemrock-hosted origins. Default OG/robots URLs derive from `NEXT_PUBLIC_SITE_URL` (or `NEXT_PUBLIC_APP_URL`, or the host's production URL), never a hardcoded domain

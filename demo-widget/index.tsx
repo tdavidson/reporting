@@ -1,5 +1,6 @@
 import { createRoot, type Root } from 'react-dom/client'
 import { DemoApp } from './app'
+import { toast } from 'sonner'
 import { createDemoFetch, interceptApiFetch } from './mock-api'
 import { allHrefs, prefetchSections } from './routes'
 import { DEMO_SCHEMA_VERSION, EMPTY_API, EMPTY_PAGES, type DemoAnswers, type DemoApi, type DemoPages, type DemoSnapshot } from './types'
@@ -29,8 +30,9 @@ export interface MountOptions {
   api?: DemoApi
   /** The page to open first. */
   initialPath?: string
-  /** Fires after each navigation; the host may mirror the path into its own URL. */
-  onNavigate?: (href: string) => void
+  /** Fires after each navigation; the host may mirror the path into its own URL (`replace`
+   *  when the app replaced its history entry rather than adding one). */
+  onNavigate?: (href: string, opts: { replace: boolean }) => void
   /** Replaces the mock for `/api/*` (the recorder proxies to a live app through this). */
   fetch?: AppFetch
   /** A request nothing could answer; the check script collects these. */
@@ -39,6 +41,8 @@ export interface MountOptions {
   chrome?: 'card' | 'page'
   /** Fires once the first page is in the DOM: a host showing prerendered HTML swaps it out here. */
   onReady?: () => void
+  /** Where the header's "Exit demo" goes (the app's sign-out, in the demo). Default: the host's `/`. */
+  exitHref?: string
 }
 
 export function mount(el: HTMLElement, opts: MountOptions): { unmount: () => void; navigate: (href: string) => void } {
@@ -46,13 +50,17 @@ export function mount(el: HTMLElement, opts: MountOptions): { unmount: () => voi
     throw new Error(`Snapshot schema ${opts.snapshot.schemaVersion} does not match widget schema ${DEMO_SCHEMA_VERSION}`)
   }
   const data = { snapshot: opts.snapshot, answers: opts.answers, pages: opts.pages ?? EMPTY_PAGES, api: opts.api ?? EMPTY_API }
-  const demoFetch = opts.fetch ?? createDemoFetch({ snapshot: data.snapshot, answers: data.answers, api: data.api, onMiss: opts.onMiss })
+  // One notice however many requests a click sends, and it says what the visitor needs to know:
+  // the button worked, the demo just does not keep changes. Components that show the error
+  // inline show mock-api.ts's READ_ONLY sentence.
+  const onWrite = () => toast('Read-only demo', { id: 'oa-demo-read-only', description: 'Nothing you change here is saved. In your own installation it would be.' })
+  const demoFetch = opts.fetch ?? createDemoFetch({ snapshot: data.snapshot, answers: data.answers, api: data.api, onMiss: opts.onMiss, onWrite })
   // Before the first render: a page's own effects fetch on mount, and they run before any effect
   // of the component that would otherwise install this.
   const restore = interceptApiFetch(demoFetch)
   const stopMarking = markPortalRoots()
 
-  let navigateTo: (href: string) => void = () => {}
+  let navigateTo: (href: string, opts?: { replace?: boolean }) => void = () => {}
   const root: Root = createRoot(el)
   root.render(
     <DemoApp
@@ -63,6 +71,7 @@ export function mount(el: HTMLElement, opts: MountOptions): { unmount: () => voi
       exposeNavigate={fn => { navigateTo = fn }}
       chrome={opts.chrome}
       onReady={opts.onReady}
+      exit={{ href: opts.exitHref ?? '/', label: 'Exit demo' }}
     />,
   )
   // The other sections, while the visitor reads the first page.
@@ -78,16 +87,32 @@ export function mount(el: HTMLElement, opts: MountOptions): { unmount: () => voi
 }
 
 /**
- * Radix renders dialogs, popovers and menus into <body>, outside the frame. Anything the page
- * adds to <body> while the widget is mounted is the widget's, so it gets the root class and the
- * app's styles; what was there before (the host's own markup) is left alone.
+ * Radix renders dialogs, popovers and menus into <body>, outside the frame, and Recharts appends
+ * a hidden element there to measure text. Anything the page adds to <body> while the widget is
+ * mounted is the widget's, so it gets the root class and the app's styles; what was there before
+ * (the host's own markup) is left alone.
+ *
+ * The class goes on AS the element is inserted, not after: Recharts measures the moment its
+ * element is in the document, and a measurement taken in the host's font sizes the chart's
+ * ticks wrongly for the life of the page. So body's insertion methods are wrapped for the
+ * duration of the mount; the observer catches anything inserted another way.
  */
 function markPortalRoots(): () => void {
-  const before = new Set(Array.from(document.body.children))
-  const mark = (n: Node) => { if (n instanceof HTMLElement && !before.has(n) && n.tagName !== 'SCRIPT') n.classList.add('oa-demo-root') }
+  const body = document.body
+  const before = new Set(Array.from(body.children))
+  const mark = (n: unknown) => { if (n instanceof HTMLElement && !before.has(n) && n.tagName !== 'SCRIPT') n.classList.add('oa-demo-root') }
+  const originals = { appendChild: body.appendChild, insertBefore: body.insertBefore, append: body.append, prepend: body.prepend }
+  body.appendChild = function <T extends Node>(node: T): T { mark(node); return originals.appendChild.call(this, node) as T }
+  body.insertBefore = function <T extends Node>(node: T, ref: Node | null): T { mark(node); return originals.insertBefore.call(this, node, ref) as T }
+  body.append = function (...nodes: (Node | string)[]) { nodes.forEach(mark); return originals.append.apply(this, nodes) }
+  body.prepend = function (...nodes: (Node | string)[]) { nodes.forEach(mark); return originals.prepend.apply(this, nodes) }
   const observer = new MutationObserver(records => { for (const r of records) r.addedNodes.forEach(mark) })
-  observer.observe(document.body, { childList: true })
-  return () => observer.disconnect()
+  observer.observe(body, { childList: true })
+  return () => {
+    observer.disconnect()
+    Object.assign(body, originals)
+    for (const k of Object.keys(originals) as (keyof typeof originals)[]) delete (body as any)[k]
+  }
 }
 
 /** Every URL the widget serves for this data; what scripts/demo-record.mjs and demo-check.mjs walk. */

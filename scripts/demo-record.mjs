@@ -5,6 +5,15 @@
  *   npm run demo:widget
  *   DEMO_ORIGIN=https://<the app> DEMO_EMAIL=<demo viewer> DEMO_PASSWORD=… node scripts/demo-record.mjs
  *
+ * With DEMO_SUPABASE_URL and DEMO_SUPABASE_KEY (the project's publishable key) it signs in
+ * through Supabase's own client instead of the app's /auth page, whose endpoints sit behind a
+ * bot check that refuses automated browsers; the session cookie is the one @supabase/ssr sets,
+ * so the app reads it exactly as it reads its own. Node's fetch needs NODE_USE_ENV_PROXY=1 to
+ * go through an HTTPS proxy.
+ *
+ * Only GET requests reach the app. Anything else the pages send while being walked is refused
+ * here, so recording can never write to the instance or start a paid Analyst call.
+ *
  * Signs in to a running instance of the app as the demo fund's viewer, mounts the widget built
  * in demo-widget/dist with its `/api` requests proxied to that instance under that session, walks
  * every page the route table serves (and every tab on each), and stores each JSON response under
@@ -45,6 +54,17 @@ if (!fs.existsSync(path.join(dist, 'widget.js'))) {
 
 // 1. A session -------------------------------------------------------------------------------
 const browser = await puppeteer.launch({ executablePath: chrome, args: ['--no-sandbox', '--disable-dev-shm-usage'] })
+let cookieHeader
+if (process.env.DEMO_SUPABASE_URL && process.env.DEMO_SUPABASE_KEY) {
+  const { createServerClient } = await import('@supabase/ssr')
+  const jar = new Map()
+  const client = createServerClient(process.env.DEMO_SUPABASE_URL, process.env.DEMO_SUPABASE_KEY, {
+    cookies: { getAll: () => [...jar].map(([name, value]) => ({ name, value })), setAll: list => { for (const c of list) jar.set(c.name, c.value) } },
+  })
+  const { error } = await client.auth.signInWithPassword({ email: EMAIL, password: PASSWORD })
+  if (error) { console.error(`demo-record: sign-in failed: ${error.message}`); await browser.close(); process.exit(1) }
+  cookieHeader = [...jar].map(([name, value]) => `${name}=${value}`).join('; ')
+} else {
 const login = await browser.newPage()
 await login.goto(`${ORIGIN}/auth`, { waitUntil: 'networkidle2', timeout: 90000 })
 await login.type('#email', EMAIL, { delay: 10 })
@@ -59,14 +79,21 @@ if (login.url().includes('/auth')) {
   await browser.close()
   process.exit(1)
 }
-const cookieHeader = (await login.cookies(ORIGIN)).map(c => `${c.name}=${c.value}`).join('; ')
+cookieHeader = (await login.cookies(ORIGIN)).map(c => `${c.name}=${c.value}`).join('; ')
 await login.close()
+}
 
 // 2. The widget, with /api proxied to that session --------------------------------------------
 const responses = {}
 let requests = 0
+let refused = 0
 async function proxy(href, init) {
   const url = new URL(href, ORIGIN)
+  const method = (init?.method ?? 'GET').toUpperCase()
+  if (method !== 'GET') {
+    refused++
+    return { status: 403, contentType: 'application/json', text: JSON.stringify({ error: 'This is a read-only demo. Changes are not allowed.' }) }
+  }
   const res = await fetch(`${ORIGIN}${url.pathname}${url.search}`, {
     method: init?.method ?? 'GET',
     headers: { cookie: cookieHeader, accept: 'application/json, text/plain, */*', ...(init?.headers ?? {}) },
@@ -76,8 +103,7 @@ async function proxy(href, init) {
   requests++
   const contentType = res.headers.get('content-type') ?? ''
   const text = await res.text()
-  const method = (init?.method ?? 'GET').toUpperCase()
-  if (method === 'GET' && contentType.includes('application/json')) {
+  if (contentType.includes('application/json')) {
     const params = [...url.searchParams.entries()].sort(([a], [b]) => a.localeCompare(b))
     const key = `GET ${url.pathname}${params.length ? `?${new URLSearchParams(params)}` : ''}`
     try { responses[key] = { status: res.status, body: JSON.parse(text) } } catch { /* not JSON after all */ }
@@ -148,6 +174,16 @@ for (const href of routes) {
 await browser.close()
 server.close()
 
+// The demo shows the fund as DEMO_FUND_LABEL and the viewer as a demo address, as the snapshot
+// does, so whatever the install calls them never reaches the public page.
+const FUND_NAME = process.env.DEMO_FUND_NAME, FUND_LABEL = process.env.DEMO_FUND_LABEL ?? 'OtherAdmin Demo'
+const relabel = body => {
+  let t = JSON.stringify(body)
+  if (FUND_NAME) t = t.split(JSON.stringify(FUND_NAME).slice(1, -1)).join(FUND_LABEL)
+  t = t.split(EMAIL).join('viewer@otheradmin.demo')
+  return JSON.parse(t)
+}
+for (const v of Object.values(responses)) v.body = relabel(v.body)
 const file = { schemaVersion: 2, recordedAt: new Date().toISOString(), origin: new URL(ORIGIN).hostname, responses: Object.fromEntries(Object.entries(responses).sort()) }
 fs.writeFileSync(out, JSON.stringify(file, null, 1) + '\n')
-console.log(`\nRecorded ${Object.keys(responses).length} responses from ${routes.length} pages into ${path.relative(root, out)}.`)
+console.log(`\nRecorded ${Object.keys(responses).length} responses from ${routes.length} pages into ${path.relative(root, out)}; refused ${refused} non-GET requests.`)

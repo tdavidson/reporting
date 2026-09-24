@@ -71,11 +71,8 @@ const nextConfig = {
         source: '/((?!_next/static).*)',
         headers: securityHeaders,
       },
-      // Prevent caching on auth and demo routes. /demo matters most: it is a client component
-      // with no dynamic server API, so nothing else stops it being prerendered and served
-      // stale — and a stale demo page is one that never runs its sign-in.
+      // Prevent caching on the auth routes.
       { source: '/auth/:path*', headers: noCacheHeaders },
-      { source: '/demo', headers: noCacheHeaders },
       { source: '/api/auth/:path*', headers: noCacheHeaders },
       { source: '/api/demo/:path*', headers: noCacheHeaders },
     ]

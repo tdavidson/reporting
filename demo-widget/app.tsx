@@ -5,8 +5,8 @@ import { ConfirmProvider } from '@/components/confirm-dialog'
 import { Toaster } from '@/components/toaster'
 import type { ClientAccess } from '@/components/access-context'
 import { DEFAULT_FEATURE_VISIBILITY, type FeatureVisibilityMap } from '@/lib/types/features'
-import type { AppFetch } from '@/components/app-runtime'
-import { setDemoLocation } from './stubs/next-navigation'
+import type { AppExit, AppFetch } from '@/components/app-runtime'
+import { DemoLocationProvider } from './stubs/next-navigation'
 import { matchRoute, RouteScreen } from './routes'
 import type { DemoData } from './types'
 
@@ -40,11 +40,13 @@ export interface DemoAppProps {
   fetch: AppFetch
   initialPath?: string
   /** Called after every navigation with the new path; the host may mirror it into its URL. */
-  onNavigate?: (href: string) => void
+  onNavigate?: (href: string, opts: { replace: boolean }) => void
   /** Hands the host the widget's `navigate`, for `mount().navigate`. */
-  exposeNavigate?: (navigate: (href: string) => void) => void
+  exposeNavigate?: (navigate: (href: string, opts?: { replace?: boolean }) => void) => void
   /** Fires once the first page has been committed to the DOM. */
   onReady?: () => void
+  /** The header's "Exit demo" link, in place of the app's sign-out. */
+  exit?: AppExit
   /**
    * `card`: a bordered, fixed-height frame to sit inside a page of prose. `page`: fills the
    * element it is mounted in, no border — the host gives it the viewport and the demo is the page.
@@ -52,29 +54,33 @@ export interface DemoAppProps {
   chrome?: 'card' | 'page'
 }
 
-export function DemoApp({ data, fetch, initialPath = '/dashboard', onNavigate, exposeNavigate, onReady, chrome = 'card' }: DemoAppProps) {
+export function DemoApp({ data, fetch, initialPath = '/dashboard', onNavigate, exposeNavigate, onReady, exit, chrome = 'card' }: DemoAppProps) {
   const [loc, setLoc] = useState<Location>(() => parse(initialPath))
   const frame = useRef<HTMLDivElement>(null)
 
-  const navigate = useCallback((href: string) => {
+  // Where the widget is now, for the no-op check below; written when navigating, never in render.
+  const current = useRef(loc)
+  const navigate = useCallback((href: string, opts?: { replace?: boolean }) => {
     if (/^(https?:)?\/\//.test(href) || href.startsWith('mailto:')) { window.open(href, '_blank', 'noopener'); return }
     const next = parse(href)
-    const match = matchRoute(next.pathname)
-    setDemoLocation({ pathname: next.pathname, search: next.search, params: match?.params ?? {} })
+    // Already there: nothing to do. A page that syncs its state into the URL asks for the URL it
+    // is on, and must not cause a render that asks again.
+    if (next.pathname === current.current.pathname && next.search === current.current.search) return
+    const samePage = next.pathname === current.current.pathname
+    current.current = next
     setLoc(next)
-    frame.current?.scrollTo({ top: 0 })
-    onNavigate?.(next.pathname + next.search)
+    if (!samePage) frame.current?.scrollTo({ top: 0 })
+    onNavigate?.(next.pathname + next.search, { replace: !!opts?.replace })
   }, [onNavigate])
 
   useEffect(() => { exposeNavigate?.(navigate) }, [navigate, exposeNavigate])
   useEffect(() => { onReady?.() }, [onReady])
 
-  // The first location, before any effect in a page reads it.
-  useMemo(() => {
-    const match = matchRoute(loc.pathname)
-    setDemoLocation({ pathname: loc.pathname, search: loc.search, params: match?.params ?? {} })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  const match = useMemo(() => matchRoute(loc.pathname), [loc.pathname])
+  const location = useMemo(
+    () => ({ pathname: loc.pathname, search: loc.search, params: match?.params ?? {} }),
+    [loc.pathname, loc.search, match],
+  )
 
   // Links inside the pages are <a href> (next/link's stub); a click on one navigates here rather
   // than leaving the marketing site. Anchors with a target, hash-only anchors and downloads pass.
@@ -95,7 +101,6 @@ export function DemoApp({ data, fetch, initialPath = '/dashboard', onNavigate, e
     return () => el.removeEventListener('click', onClick)
   }, [navigate])
 
-  const match = useMemo(() => matchRoute(loc.pathname), [loc.pathname])
   const screen = (
     <RouteScreen
       ctx={{
@@ -111,7 +116,8 @@ export function DemoApp({ data, fetch, initialPath = '/dashboard', onNavigate, e
   )
 
   return (
-    <AppRuntimeProvider fetch={fetch} navigate={navigate}>
+    <DemoLocationProvider value={location}>
+    <AppRuntimeProvider fetch={fetch} navigate={navigate} exit={exit}>
       {/* A transformed ancestor is the containing block for `position: fixed` descendants, which
           keeps the app's phone tab bar and drawers inside the frame instead of over the site. */}
       <div
@@ -146,5 +152,6 @@ export function DemoApp({ data, fetch, initialPath = '/dashboard', onNavigate, e
         <Toaster />
       </div>
     </AppRuntimeProvider>
+    </DemoLocationProvider>
   )
 }

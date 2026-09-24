@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { LpPortalSwitchLink } from '@/components/lp-portal-switch-link'
 import { useSidebar } from '@/components/sidebar-context'
 import { CommandPaletteTrigger } from '@/components/command-palette'
+import { useAppExit } from '@/components/app-runtime'
 
 interface AppHeaderProps {
   fundName: string
@@ -22,6 +23,7 @@ interface AppHeaderProps {
 // not a menu: it is the way in for someone who knows the name of what they want, and
 // the header is where every surface, phone included, has it in the same place.
 export function AppHeader({ fundName, fundLogo, userEmail }: AppHeaderProps) {
+  const exit = useAppExit()
   const { collapsed } = useSidebar()
 
   return (
@@ -59,18 +61,29 @@ export function AppHeader({ fundName, fundLogo, userEmail }: AppHeaderProps) {
       <div className="flex items-center gap-3">
         <CommandPaletteTrigger />
         <LpPortalSwitchLink />
-        <form action="/api/auth/logout" method="POST">
-          <Button
-            type="submit"
-            variant="outline"
-            size="sm"
-            className="text-muted-foreground gap-2"
-            title={`Signed in as ${userEmail}`}
-          >
-            <LogOut className="h-4 w-4" />
-            <span className="hidden sm:inline">Sign out</span>
+        {exit ? (
+          // The public demo has no session: the button leaves it instead. `target` keeps the
+          // demo's own link handling from treating it as a page inside the demo.
+          <Button asChild variant="outline" size="sm" className="text-muted-foreground gap-2">
+            <a href={exit.href} target="_self">
+              <LogOut className="h-4 w-4" />
+              <span className="hidden sm:inline">{exit.label}</span>
+            </a>
           </Button>
-        </form>
+        ) : (
+          <form action="/api/auth/logout" method="POST">
+            <Button
+              type="submit"
+              variant="outline"
+              size="sm"
+              className="text-muted-foreground gap-2"
+              title={`Signed in as ${userEmail}`}
+            >
+              <LogOut className="h-4 w-4" />
+              <span className="hidden sm:inline">Sign out</span>
+            </Button>
+          </form>
+        )}
       </div>
     </header>
   )

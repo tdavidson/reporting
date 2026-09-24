@@ -1,61 +1,54 @@
-import { useSyncExternalStore } from 'react'
+import { createContext, createElement, useContext, useMemo, type ReactNode } from 'react'
 import { useAppNavigate } from '@/components/app-runtime'
 
 /**
- * `next/navigation` for the widget bundle. There is no router: the widget keeps the current
- * location in a tiny store that DemoApp writes on every navigation, and `useRouter().push` is
- * the runtime's `navigate`. Route params come from the route table's match, so `useParams()`
- * answers the way it does under app/(app)/letters/[id].
+ * `next/navigation` for the widget bundle. There is no router: DemoApp keeps the current
+ * location in state and provides it here through context, and `useRouter().push` is the
+ * runtime's `navigate`.
+ *
+ * Context, not a store outside React, and that is the point: in Next a page never sees the URL
+ * of the page replacing it, because the new route tree replaces it in the same commit. A store
+ * updated before the render told the outgoing page first, and a page that writes its state into
+ * the URL (the general ledger does) answered by navigating straight back to itself.
  */
-interface DemoLocation { pathname: string; search: string; params: Record<string, string> }
+export interface DemoLocation { pathname: string; search: string; params: Record<string, string> }
 
-let location: DemoLocation = { pathname: '/dashboard', search: '', params: {} }
-const listeners = new Set<() => void>()
+const DemoLocationContext = createContext<DemoLocation>({ pathname: '/dashboard', search: '', params: {} })
 
-export function setDemoLocation(next: DemoLocation) {
-  if (next.pathname === location.pathname && next.search === location.search) return
-  location = next
-  for (const l of listeners) l()
+export function DemoLocationProvider({ value, children }: { value: DemoLocation; children: ReactNode }) {
+  return createElement(DemoLocationContext.Provider, { value }, children)
 }
-
-export function getDemoLocation(): DemoLocation {
-  return location
-}
-
-function subscribe(l: () => void) {
-  listeners.add(l)
-  return () => { listeners.delete(l) }
-}
-
-const useLocation = () => useSyncExternalStore(subscribe, () => location, () => location)
 
 export function usePathname(): string {
-  return useLocation().pathname
+  return useContext(DemoLocationContext).pathname
 }
 
 export function useRouter() {
   const navigate = useAppNavigate()
-  return {
-    push: navigate,
-    replace: navigate,
-    back: () => {},
-    forward: () => {},
+  return useMemo(() => ({
+    push: (href: string) => navigate(href),
+    // `replace` swaps the current history entry instead of adding one, as Next's does.
+    replace: (href: string) => navigate(href, { replace: true }),
+    back: () => { history.back() },
+    forward: () => { history.forward() },
     refresh: () => {},
     prefetch: () => {},
-  }
+  }), [navigate])
 }
 
 export function useSearchParams(): URLSearchParams {
-  const { search } = useLocation()
-  return new URLSearchParams(search)
+  const { search } = useContext(DemoLocationContext)
+  // One object per distinct query, so an effect that depends on it runs when the query changes
+  // and not on every render.
+  return useMemo(() => new URLSearchParams(search), [search])
 }
 
 export function useParams<T extends Record<string, string> = Record<string, string>>(): T {
-  return useLocation().params as T
+  return useContext(DemoLocationContext).params as T
 }
 
 export function useSelectedLayoutSegment(): string | null {
-  const segments = useLocation().pathname.split('/').filter(Boolean)
+  const segments = useContext(DemoLocationContext).pathname.split('/').filter(Boolean)
   return segments[0] ?? null
 }
 

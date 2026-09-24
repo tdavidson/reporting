@@ -120,7 +120,15 @@ const seen = new Map()
 for (const c of cases) {
   const route = `${c.route}${c.theme === 'dark' ? ' (dark)' : ''}${c.palette ? ' + palette' : ''}`
   const a = await render('A', c.route, c), b = await render('B', c.route, c)
-  if (a.length !== b.length) { console.log(`✗ ${route}: ${a.length} elements in the app, ${b.length} in the demo`); failures++; continue }
+  if (a.length !== b.length) {
+    // Say where the two trees part: that element is what renders differently.
+    let i = 0
+    while (i < Math.min(a.length, b.length) && a[i].tag === b[i].tag && a[i].cls === b[i].cls) i++
+    const at = x => x ? `<${x.tag} class="${x.cls}">${x.text}` : '(end)'
+    console.log(`✗ ${route}: ${a.length} elements in the app, ${b.length} in the demo; first difference at #${i}:\n    app  ${at(a[i])}\n    demo ${at(b[i])}\n    after ${at(a[i - 1])}`)
+    failures++
+    continue
+  }
   let diffs = 0
   for (let i = 0; i < a.length; i++) {
     for (const p of PROPS) {

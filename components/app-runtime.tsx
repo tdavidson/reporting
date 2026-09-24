@@ -18,16 +18,20 @@ import { createContext, useContext, useMemo, type ReactNode } from 'react'
  * works; AppShell supplies the router so in-app jumps stay client-side.
  */
 export type AppFetch = (input: string, init?: RequestInit) => Promise<Response>
-export type AppNavigate = (href: string) => void
+export type AppNavigate = (href: string, opts?: { replace?: boolean }) => void
+/** Where "leave" goes when the app is not a signed-in session (the public demo). */
+export interface AppExit { href: string; label: string }
 
 interface AppRuntime {
   fetch: AppFetch
   navigate: AppNavigate
+  exit: AppExit | null
 }
 
 const defaultRuntime: AppRuntime = {
   fetch: (input, init) => globalThis.fetch(input, init),
   navigate: href => { window.location.assign(href) },
+  exit: null,
 }
 
 const AppRuntimeContext = createContext<AppRuntime>(defaultRuntime)
@@ -35,16 +39,22 @@ const AppRuntimeContext = createContext<AppRuntime>(defaultRuntime)
 export function AppRuntimeProvider({
   fetch,
   navigate,
+  exit,
   children,
 }: {
   fetch?: AppFetch
   navigate?: AppNavigate
+  exit?: AppExit | null
   children: ReactNode
 }) {
+  // A nested provider overrides only what it names and inherits the rest: the app shell sets
+  // its own `navigate`, and must not wipe the `fetch` and `exit` the demo widget set above it.
+  const parent = useContext(AppRuntimeContext)
   const value = useMemo<AppRuntime>(() => ({
-    fetch: fetch ?? defaultRuntime.fetch,
-    navigate: navigate ?? defaultRuntime.navigate,
-  }), [fetch, navigate])
+    fetch: fetch ?? parent.fetch,
+    navigate: navigate ?? parent.navigate,
+    exit: exit === undefined ? parent.exit : exit,
+  }), [fetch, navigate, exit, parent])
   return <AppRuntimeContext.Provider value={value}>{children}</AppRuntimeContext.Provider>
 }
 
@@ -56,4 +66,9 @@ export function useAppFetch(): AppFetch {
 /** Client-side navigation, or a full load where no router is provided. */
 export function useAppNavigate(): AppNavigate {
   return useContext(AppRuntimeContext).navigate
+}
+
+/** Set only in the public demo, where there is no session to sign out of. */
+export function useAppExit(): AppExit | null {
+  return useContext(AppRuntimeContext).exit
 }

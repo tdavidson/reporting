@@ -11,13 +11,12 @@
  * agree: a path checked server-side but missing here fails EVERY request, because no browser
  * ever attached a challenge.
  *
- * `/demo` is the demo's server action, which posts to the page route rather than to /api.
- *
  * `/api/demo/seed` stays: the route is gitignored (.gitignore — install-specific fixtures) so it
  * is absent from a clone, but it exists on this deployment and provisions the demo fund.
  *
- * NOTE: of these, only `/demo` is actually enforced — `checkBotId()` is called in
- * app/demo/actions.ts and nowhere else yet. The other two are declarations waiting for their
+ * NOTE: neither is enforced yet — no server code calls `checkBotId()`. The only caller was the
+ * shared-account demo sign-in (app/demo), retired when the public demo moved to
+ * www.otheradmin.com/demo as a static widget. These are declarations waiting for their
  * server-side call, deliberately left for their own change.
  */
 /**
@@ -33,5 +32,4 @@ export const BOTID_PATH_PREFIX = '149e9513-01fa-4fb0-aad4-566afd725d1b'
 export const BOTID_PROTECTED_ROUTES = [
   { path: '/api/auth/*', method: 'POST' },
   { path: '/api/demo/seed', method: 'POST' },
-  { path: '/demo', method: 'POST' },
 ]

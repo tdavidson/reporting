@@ -44,8 +44,6 @@ const redirectedToAuth = (res: Response) =>
 
 beforeEach(() => {
   vi.clearAllMocks()
-  vi.stubEnv('DEMO_USER_EMAIL', 'demo@example.com')
-  vi.stubEnv('DEMO_USER_PASSWORD', 'demo-password')
   getUser.mockResolvedValue({ data: { user: null } })
   getAuthenticatorAssuranceLevel.mockResolvedValue({ data: null })
 })
@@ -55,11 +53,13 @@ afterEach(() => {
 })
 
 describe('middleware — anonymous access to the public surfaces', () => {
-  it('lets a signed-out visitor reach /demo, so the page can sign itself in', async () => {
-    // app/demo/page.tsx calls signInWithPassword in a useEffect. Bounce the request here and that
-    // effect never runs — the visitor lands on /auth?next=/demo and has to find credentials they
-    // do not have. Every "try the demo" link in the app and the footer points at this path.
-    expect(redirectedToAuth(await middleware(req('/demo')))).toBe(false)
+  it('bounces a signed-out visitor off /demo — the public demo is www.otheradmin.com/demo now', async () => {
+    // The shared-account sign-in that lived here is retired: the demo is a static widget on the
+    // marketing site with no session at all. Even with the old variables still set, /demo is
+    // an ordinary signed-in path.
+    vi.stubEnv('DEMO_USER_EMAIL', 'demo@example.com')
+    vi.stubEnv('DEMO_USER_PASSWORD', 'demo-password')
+    expect(redirectedToAuth(await middleware(req('/demo')))).toBe(true)
   })
 
   it('bounces a signed-out visitor off / — the marketing page lives on www.otheradmin.com now', async () => {
@@ -70,18 +70,6 @@ describe('middleware — anonymous access to the public surfaces', () => {
     const res = await middleware(req('/dashboard'))
     expect(redirectedToAuth(res)).toBe(true)
     expect(new URL(res.headers.get('location')!).searchParams.get('next')).toBe('/dashboard')
-  })
-
-  it('bounces /demo when no demo account is configured — there is no demo to load', async () => {
-    // startDemo refuses under the same condition, so an open page would only reach an error
-    // state. Keep the two ends agreeing.
-    vi.stubEnv('DEMO_USER_EMAIL', '')
-    expect(redirectedToAuth(await middleware(req('/demo')))).toBe(true)
-  })
-
-  it('bounces /demo when the demo password is missing', async () => {
-    vi.stubEnv('DEMO_USER_PASSWORD', '')
-    expect(redirectedToAuth(await middleware(req('/demo')))).toBe(true)
   })
 })
 

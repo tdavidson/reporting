@@ -13,13 +13,19 @@
  * the public widget never carries whatever the install happens to call it.
  *
  * Without DEMO_USER_EMAIL/DEMO_USER_PASSWORD only the snapshot is written.
+ *
+ * Without the service role (no SUPABASE_SERVICE_ROLE_KEY), everything runs as the viewer: one
+ * signed-in client stands in for both, so RLS scopes every read to what the demo account can
+ * see, which is the most the public demo should ever carry. NEXT_PUBLIC_SUPABASE_URL and
+ * NEXT_PUBLIC_SUPABASE_ANON_KEY (a publishable key) are then all the configuration it needs.
  */
 import { writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import type { Database } from '@/lib/types/database'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { resolvePageAccess } from '@/lib/access/page-gate'
+import { resolvePageAccess, type PageAccess } from '@/lib/access/page-gate'
+import { loadAccessContext } from '@/lib/access/effective'
 import { PAGE_LOADERS, matchPattern } from '@/lib/pages/registry'
 import type { PageContext } from '@/lib/pages/context'
 import { DEMO_SCHEMA_VERSION, type DemoPages, type DemoSnapshot } from '@/demo-widget/types'
@@ -29,8 +35,27 @@ const FUND_LABEL = process.env.DEMO_FUND_LABEL ?? 'OtherAdmin Demo'
 const OUT = path.join(process.cwd(), 'demo-widget', 'data', 'snapshot.json')
 const PAGES_OUT = path.join(process.cwd(), 'demo-widget', 'data', 'pages.json')
 
+/** Signed in as the demo viewer with the publishable key: RLS applies to everything it reads. */
+async function signInViewer() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  const email = process.env.DEMO_USER_EMAIL
+  const password = process.env.DEMO_USER_PASSWORD
+  if (!url || !anonKey || !email || !password) {
+    throw new Error('Set NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY, DEMO_USER_EMAIL and DEMO_USER_PASSWORD (or SUPABASE_SERVICE_ROLE_KEY).')
+  }
+  const client = createSupabaseClient<Database>(url, anonKey, { auth: { persistSession: false, autoRefreshToken: false } })
+  const { data, error } = await client.auth.signInWithPassword({ email, password })
+  if (error || !data.user) throw new Error(`Could not sign in as ${email}: ${error?.message ?? 'no user'}`)
+  return { client, user: data.user }
+}
+
+const asViewer = !process.env.SUPABASE_SERVICE_ROLE_KEY
+let viewer: Awaited<ReturnType<typeof signInViewer>> | null = null
+
 async function main() {
-  const admin = createAdminClient()
+  if (asViewer) viewer = await signInViewer()
+  const admin = (viewer ? viewer.client : createAdminClient()) as unknown as ReturnType<typeof createAdminClient>
   const { data: fund, error } = await admin.from('funds').select('id, name, currency').eq('name', FUND_NAME).maybeSingle()
   if (error) throw error
   if (!fund) throw new Error(`No fund named ${JSON.stringify(FUND_NAME)}. Set DEMO_FUND_NAME.`)
@@ -61,7 +86,7 @@ async function main() {
   const snapshot: DemoSnapshot = {
     schemaVersion: DEMO_SCHEMA_VERSION,
     generatedAt: new Date().toISOString().slice(0, 10),
-    source: `${fund.name} (demo fund)`,
+    source: 'the demo fund',
     fund: { name: FUND_LABEL, currency: fund.currency ?? 'USD' },
     vehicles: (vehicles.data ?? []).map(v => ({ id: v.id, name: v.name, kind: v.kind ?? null })),
     companies: (companies.data ?? []).map(c => ({
@@ -94,6 +119,14 @@ async function main() {
   await exportPages(admin, fundId)
 }
 
+/** resolvePageAccess, with the viewer's own client instead of the service role. */
+async function viewerPageAccess(client: any, userId: string): Promise<PageAccess | null> {
+  const { data: membership } = await client.from('fund_members').select('fund_id, role').eq('user_id', userId).maybeSingle()
+  if (!membership) return null
+  const access = await loadAccessContext(client, membership.fund_id, userId, membership.role)
+  return { fundId: membership.fund_id, role: membership.role, isAdmin: membership.role === 'admin', access }
+}
+
 /**
  * Every server page, loaded as the demo viewer. The user-context client is a real sign-in with
  * the anon key, so RLS scopes what the loaders read exactly as it does for the hosted demo; the
@@ -106,13 +139,9 @@ async function exportPages(admin: ReturnType<typeof createAdminClient>, fundId: 
     console.log('DEMO_USER_EMAIL/DEMO_USER_PASSWORD not set: pages.json left as is.')
     return
   }
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  if (!url || !anonKey) throw new Error('NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY are required to sign in as the demo viewer.')
-  const supabase = createSupabaseClient<Database>(url, anonKey, { auth: { persistSession: false, autoRefreshToken: false } })
-  const { data: auth, error } = await supabase.auth.signInWithPassword({ email, password })
-  if (error || !auth.user) throw new Error(`Could not sign in as ${email}: ${error?.message ?? 'no user'}`)
-  const page = await resolvePageAccess(auth.user.id)
+  const { client: supabase, user } = viewer ?? await signInViewer()
+  const auth = { user }
+  const page = asViewer ? await viewerPageAccess(supabase, user.id) : await resolvePageAccess(user.id)
   if (!page) throw new Error(`${email} is not a member of any fund.`)
   if (page.fundId !== fundId) throw new Error(`${email} belongs to fund ${page.fundId}, not to ${JSON.stringify(FUND_NAME)} (${fundId}).`)
   // The ssr and js clients differ in a type parameter only; both are the same client at runtime.
