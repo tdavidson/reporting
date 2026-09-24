@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { AccessContext } from '@/lib/access/effective'
-import type { ChatMessage, TokenUsage, AIEffort } from '@/lib/ai/types'
+import type { AIProvider, ChatMessage, TokenUsage, AIEffort } from '@/lib/ai/types'
 import type { AssistantProposal } from '@/lib/accounting/assistant'
 import type { StagedActionRecord } from '@/lib/ai/analyst-tools'
 import type { AnalystPresentationBlock } from './response'
@@ -123,6 +123,17 @@ export interface AnalystDependencies {
   admin: SupabaseClient
   /** Transport-neutral adapter: true means this bucket is over its limit. */
   isRateLimited: (spec: AnalystRateLimitSpec) => Promise<boolean>
+  /**
+   * A model to run on in place of the fund's stored key. Routes leave it unset; it exists for
+   * offline tooling (scripts/demo-answers.ts) that brings its own key and signs in as a viewer who
+   * could not read the fund's key anyway.
+   */
+  provider?: { provider: AIProvider; model: string; providerType: string }
+  /**
+   * Leave no trace: no conversation memory read, nothing persisted, no usage row. For a batch of
+   * independent questions, where one run's summary must not leak into the next one's prompt.
+   */
+  ephemeral?: boolean
 }
 
 export class AnalystRequestError extends Error {

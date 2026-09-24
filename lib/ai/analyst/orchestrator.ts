@@ -1,6 +1,6 @@
 import { createFundAIProviderWithOverride } from '@/lib/ai'
 import { withTopicalGuardrail } from '@/lib/ai/topical-guard'
-import type { ChatMessage } from '@/lib/ai/types'
+import type { AIProvider, ChatMessage } from '@/lib/ai/types'
 import { logAIUsage } from '@/lib/ai/usage'
 import { buildCompanyContext, buildPortfolioContext, buildDealContext } from '@/lib/ai/context-builder'
 import {
@@ -327,7 +327,7 @@ export async function runAnalyst(
     dealId: scopeInput.dealId ?? null,
     scope: conversationScope,
   }
-  const memory = await loadConversationMemory(
+  const memory = deps.ephemeral ? '' : await loadConversationMemory(
     deps.admin,
     principal,
     coordinates,
@@ -337,9 +337,9 @@ export async function runAnalyst(
     systemPrompt += `\n\n=== PREVIOUS CONVERSATION MEMORY ===\nRecent discussions with this user (for context continuity):\n${memory}`
   }
 
-  let providerResult: Awaited<ReturnType<typeof createFundAIProviderWithOverride>>
+  let providerResult: { provider: AIProvider; model: string; providerType: string }
   try {
-    providerResult = await createFundAIProviderWithOverride(
+    providerResult = deps.provider ?? await createFundAIProviderWithOverride(
       deps.admin,
       principal.fundId,
       request.model?.provider,
@@ -409,7 +409,7 @@ export async function runAnalyst(
 
     request.signal?.throwIfAborted()
 
-    await logAIUsage(deps.admin, {
+    if (!deps.ephemeral) await logAIUsage(deps.admin, {
       fundId: principal.fundId,
       userId: principal.userId,
       provider: providerType,
@@ -422,7 +422,7 @@ export async function runAnalyst(
       ? extractProposals(text)
       : { reply: text, proposals: [] as AssistantProposal[] }
     request.signal?.throwIfAborted()
-    const conversationId = await persistConversation({
+    const conversationId = deps.ephemeral ? null : await persistConversation({
       admin: deps.admin,
       principal,
       coordinates,

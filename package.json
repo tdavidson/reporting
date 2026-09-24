@@ -15,7 +15,7 @@
     "demo:check": "node scripts/demo-check.mjs",
     "demo:record": "node scripts/demo-record.mjs",
     "demo:snapshot": "npx tsx --env-file=.env.local scripts/demo-snapshot.ts",
-    "demo:answers": "npx tsx --env-file=.env.local scripts/demo-answers.ts",
+    "demo:answers": "npx tsx --env-file-if-exists=.env.local scripts/demo-answers.ts",
     "demo:styles": "node scripts/demo-styles.mjs"
   },
   "dependencies": {

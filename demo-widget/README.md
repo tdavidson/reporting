@@ -96,9 +96,12 @@ Three files, three scripts, all run locally against the demo fund and committed:
    `DEMO_SUPABASE_KEY` (the publishable key) it signs in through Supabase directly rather
    than the app's bot-checked `/auth`; set `DEMO_FUND_NAME` so the fund's real name is
    relabelled. Behind an HTTPS proxy, run it with `NODE_USE_ENV_PROXY=1`.
-3. `DEMO_USER_ID=… npm run demo:answers` asks the real Analyst every question in
-   `data/answers.json` and stores the replies with the model that wrote them. It spends the
-   fund's API key, so run it when the snapshot or the question list changes, not routinely.
+3. `ANTHROPIC_API_KEY=… DEMO_SUPABASE_URL=… DEMO_SUPABASE_KEY=… DEMO_PASSWORD=… npm run demo:answers`
+   asks the real Analyst every question in `data/answers.json`, signed in as the demo viewer
+   (`DEMO_EMAIL`, default hello@hemrock.com) so RLS and the grants apply, and stores the replies
+   with the model that wrote them (`DEMO_MODEL`, default claude-sonnet-5). It spends the key in
+   the environment, not the fund's, so run it when the snapshot or the question list changes,
+   not routinely. Behind an HTTPS proxy, run it with `NODE_USE_ENV_PROXY=1`.
    Until it has been run, `generatedBy` is `authored`: the replies were written by hand
    against the snapshot and read as the Analyst would, but no model produced them.
 
