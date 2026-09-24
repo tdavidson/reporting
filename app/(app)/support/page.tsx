@@ -187,8 +187,7 @@ export default function SupportPage() {
             >
               contact him for details
             </a>
-            . A hosted solution is also available to a select number of funds; reach out to Taylor
-            if that&apos;s of interest.
+            .
           </p>
         </div>
 

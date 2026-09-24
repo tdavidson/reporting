@@ -7,7 +7,7 @@
 
 ## Setup & Deployment
 
-Designed as a single-tenant deployment per fund. You control your own data, your own API keys, your own domain, and your own infrastructure. [Taylor Davidson](https://www.hemrock.com) of Hemrock is available to manage the setup, onboard you and your portfolio data, and provide ongoing support, [contact him for details](https://www.hemrock.com/contact). A hosted solution is also available for early access for a limited number of funds.
+Designed as a single-tenant deployment per fund. You control your own data, your own API keys, your own domain, and your own infrastructure. [Taylor Davidson](https://www.hemrock.com) of Hemrock is available to manage the setup, onboard you and your portfolio data, and provide ongoing support, [contact him for details](https://www.hemrock.com/contact).
 
 ### Required services
 
@@ -388,6 +388,6 @@ Each installation has a unique **Installation ID** — a UUID automatically gene
 
 Built by Taylor Davidson at [Hemrock](https://www.hemrock.com).
 
-For setup assistance, hosted deployments, or questions: [hemrock.com/contact](https://www.hemrock.com/contact).
+For setup assistance, support, or questions: [hemrock.com/contact](https://www.hemrock.com/contact).
 
 For bug reports and feature requests: [GitHub Issues](https://github.com/tdavidson/otheradmin/issues).

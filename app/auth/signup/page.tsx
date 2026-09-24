@@ -175,11 +175,11 @@ export default function SignUpPage() {
             {error === 'not_whitelisted' && (
               <Alert className="!border-warning/50 !bg-warning-subtle dark:!bg-warning-subtle/30 !text-warning">
                 <AlertDescription className="text-sm space-y-2">
-                  <p>This email is not authorized for the hosted platform.</p>
+                  <p>This email is not authorized to sign up on this deployment. Ask its administrator to add it.</p>
                   <p>
                     This software is available to download and install on your own servers, subject to the{' '}
                     <a href={PRODUCT_LICENSE} target="_blank" rel="noopener noreferrer" className="text-primary underline underline-offset-4 hover:text-primary/80">license</a>.
-                    If you are interested in the hosted solution, contact{' '}
+                    For help setting up your own, contact{' '}
                     <a href={COMPANY_CONTACT} target="_blank" rel="noopener noreferrer" className="text-primary underline underline-offset-4 hover:text-primary/80">Taylor</a>.
                   </p>
                 </AlertDescription>

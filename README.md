@@ -51,7 +51,7 @@ Built by Taylor Davidson at [Hemrock](https://www.hemrock.com). Built by a fund 
 
 Free and open source under the Apache 2.0 license — use it, modify it, and deploy it on your own infrastructure and domain, for your own fund or commercially. [Try the demo](https://www.otheradmin.com/demo/) with sample data, no signup required.
 
-Prefer not to run it yourself? Taylor offers paid **setup & support** (deployed on your own infrastructure and accounts) and a **hosted subscription**. [Contact Taylor](https://www.hemrock.com/contact) to discuss.
+Prefer not to run it yourself? Taylor offers paid **setup & support**: deployed on your own infrastructure and accounts, with onboarding and ongoing support. [Contact Taylor](https://www.hemrock.com/contact) to discuss.
 
 See [LICENSE](./LICENSE.md) for full terms.
 
@@ -66,4 +66,4 @@ See [LICENSE](./LICENSE.md) for full terms.
 
 Full deployment guide with detailed steps, optional services, and local development setup: [DOCS](./DOCS.md)
 
-For setup assistance or hosted deployments: [hemrock.com/contact](https://www.hemrock.com/contact). For bug reports and feature requests: [GitHub Issues](https://github.com/tdavidson/otheradmin/issues).
+For setup assistance and support: [hemrock.com/contact](https://www.hemrock.com/contact). For bug reports and feature requests: [GitHub Issues](https://github.com/tdavidson/otheradmin/issues).
