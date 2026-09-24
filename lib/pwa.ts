@@ -31,13 +31,14 @@ export const SURFACE_LIGHT_HEX = hslToHex(SURFACE_LIGHT_HSL)!
 export const SURFACE_DARK_HEX = hslToHex(SURFACE_DARK_HSL)!
 
 /**
- * Stroke colour of the default mark, matching app/icon.tsx.
+ * Colour of the default mark: the app's ink (`--foreground` in globals.css), matching
+ * app/icon.svg.
  *
  * An unthemed deployment gets the same mark in the browser tab and on the home
  * screen, so the two read as one product. A fund that sets an accent gets the mark
  * in its own colour instead.
  */
-export const DEFAULT_MARK_HEX = '#52525b'
+export const DEFAULT_MARK_HEX = '#1c1a17'
 
 export const DEFAULT_APP_NAME = 'Portfolio Reporting'
 export const DEFAULT_SHORT_NAME = 'Portfolio'
@@ -64,113 +65,49 @@ export function isIconSize(n: number): n is IconSize {
 export const APPLE_TOUCH_SIZES = [152, 167, 180] as const
 
 /**
- * The mark, as the path data both renderers draw.
- *
- * Shared rather than copied so app/icon.tsx (the 32px favicon) and the icon route
- * cannot drift into two different drawings — they were previously kept in step by a
- * comment. Every coordinate is a WHOLE unit of the 24-unit viewBox, which is what
- * makes the snapping in markGeometry below work.
+ * The mark, as the path data the icon route fills: a disc cut by a diagonal, the two
+ * pieces drawn as arcs. public/brand/otheradmin-mark.svg is the source, and app/icon.svg
+ * and public/favicon.ico are generated from it (scripts/generate-favicons.mjs); these
+ * paths are the same drawing, written out because the icon route renders JSX, not a file.
  */
 export const MARK_PATHS = [
-  'M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z',
-  'M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2',
-  'M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2',
-  'M10 6h4',
-  'M10 10h4',
-  'M10 14h4',
-  'M10 18h4',
+  'M353.61 54.39A224 224 0 0 0 54.39 353.61Z',
+  'M404.08 87.92A224 224 0 1 1 87.92 404.08Z',
 ] as const
 
-/** The mark's coordinate space. Every path coordinate above is a whole unit of it. */
-export const MARK_VIEWBOX = 24
+/** The mark's coordinate space. */
+export const MARK_VIEWBOX = 512
 
 /**
- * Stroke weight, as a fraction of the mark's width.
+ * Fraction of the canvas the mark's viewBox takes. The disc itself is 7/8 of that box.
  *
- * The mark is drawn from a Lucide glyph, whose 2-in-24 stroke (8.3%) is a weight
- * chosen to stay legible at 16px in a toolbar. A home-screen icon is not a toolbar
- * glyph: at 180px, let alone 512, that weight closes up the window slots and the gap
- * between the tower and its wings, and the whole thing reads as a blob rather than a
- * drawing. Roughly 1.25-in-24 keeps the drawing open at icon sizes.
- *
- * Not applied to the 32px favicon, which lands on the floor below and keeps its 2px
- * stroke — the same reason a typeface has a display cut and a text cut. The two are
- * never seen together.
- */
-const MARK_STROKE_RATIO = 1.25 / MARK_VIEWBOX
-
-/** Thinnest stroke that survives being drawn at all. Two, because of the rule below. */
-const MIN_STROKE_PX = 2
-
-/**
- * Fraction of the canvas the mark aims for.
- *
- * Android crops a maskable icon to whatever shape the launcher uses — circle,
- * squircle, teardrop — and only the middle 80% of the width is guaranteed to
- * survive. Half of that is the mark, which leaves the corners of the background to be
- * eaten without touching the drawing.
+ * Android crops a maskable icon to whatever shape the launcher uses (circle, squircle,
+ * teardrop) and only the middle 80% of the width is guaranteed to survive. Half of
+ * that is the mark, which leaves the corners of the background to be eaten without
+ * touching the drawing.
  */
 const MARK_FRACTION = { any: 0.66, maskable: 0.5 } as const
 
 export interface MarkGeometry {
-  /** Rendered width/height of the mark, in device pixels. */
+  /** Rendered width/height of the mark's viewBox, in device pixels. */
   markPx: number
   /** Distance from the canvas edge to the mark. Whole pixels, deliberately. */
   padTop: number
   padLeft: number
-  /** markPx / MARK_VIEWBOX. A whole number, which is the point. */
-  scale: number
-  /** Rendered stroke width in device pixels. An EVEN number, which is also the point. */
-  strokePx: number
-  /** The same stroke expressed in viewBox units, which is what the SVG wants. */
-  strokeUnits: number
 }
 
 /**
- * Where to draw the mark on a canvas of `size`, so that its strokes land on the pixel
- * grid instead of straddling it.
+ * Where to draw the mark on a canvas of `size`.
  *
- * This is the fix for "the icon is blurry". The mark is a 2-unit stroke on a 24-unit
- * grid with whole-unit coordinates, so it rasterises cleanly at any WHOLE-NUMBER
- * scale and smears at every other one: at the old 32px favicon the mark was drawn
- * 21px wide (scale 0.875, a 1.75px stroke) and centred by flexbox at an offset of
- * 30.5px, so more than half the ink in the icon was a half-covered grey pixel.
- *
- * Three rules, all about integers:
- *
- *   - The scale is a whole number, so every path coordinate lands on a pixel boundary.
- *     The mark's share of the canvas then varies a little across the ladder (62–72%
- *     for the `any` sizes) instead of being exactly 66% and soft everywhere.
- *   - The padding is a whole number too, computed here rather than left to flexbox
- *     centring — which lands on a half pixel whenever the canvas and the mark disagree
- *     about parity, and does so for a third of the sizes above. An odd canvas leaves
- *     the spare pixel on the right and bottom; one pixel off centre is invisible, one
- *     pixel of smear across every stroke is not.
- *   - The stroke is an EVEN number of pixels. A stroke is centred on its path, so it
- *     reaches half its width either side: an odd width puts both edges on a half pixel
- *     even when the path itself is exactly on the grid. This is measurable rather than
- *     theoretical — scanning the rendered PNG, a 120px mark stroked at 6px shows 6 half
- *     covered pixels and the same mark at 7px shows 55.
- *
- * Nudging the whole mark by half a pixel to compensate does NOT work, in case it looks
- * like it should: the renderer does not honour a fractional offset, and the measurement
- * comes back unchanged. Even widths only.
+ * The padding is a whole number, computed here rather than left to flexbox centring,
+ * which lands on a half pixel whenever the canvas and the mark disagree about parity
+ * and softens every edge of the disc. So the mark takes the canvas's parity instead:
+ * size minus twice a whole-pixel pad, which is centred exactly.
  */
 export function markGeometry(size: number, maskable = false): MarkGeometry {
-  const target = size * MARK_FRACTION[maskable ? 'maskable' : 'any']
-  // At least 1: below ~36px there is no whole scale that also leaves a margin, and a
-  // mark that fills its canvas beats one rounded away to nothing.
-  const scale = Math.max(1, Math.round(target / MARK_VIEWBOX))
-  const markPx = scale * MARK_VIEWBOX
-  const pad = Math.max(0, Math.floor((size - markPx) / 2))
-
-  // Nearest even, floored at 2. The floor is what keeps the 32px favicon on the
-  // toolbar-weight stroke it needs while the icons above it thin out; it also means the
-  // realised weight drifts a little heavier on the smallest canvases, which is the
-  // direction legibility wants anyway.
-  const strokePx = Math.max(MIN_STROKE_PX, 2 * Math.round((markPx * MARK_STROKE_RATIO) / 2))
-
-  return { markPx, padTop: pad, padLeft: pad, scale, strokePx, strokeUnits: strokePx / scale }
+  const fraction = MARK_FRACTION[maskable ? 'maskable' : 'any']
+  const pad = Math.round((size * (1 - fraction)) / 2)
+  return { markPx: size - 2 * pad, padTop: pad, padLeft: pad }
 }
 
 /**
@@ -180,11 +117,10 @@ export function markGeometry(size: number, maskable = false): MarkGeometry {
  * — the tile filled, the mark knocked out in the surface colour.
  *
  * The inversion is the whole differentiator, and it is doing more work than a second
- * mark would. Solid-versus-hollow survives being shrunk to 60px and cropped to a
- * circle, which two line drawings do not: at home-screen size a document and a
- * building are both a vertical rectangle with lines in it. It also says the right
- * thing — these are two doors into one product, not two products, so they keep one
- * mark between them.
+ * mark would. A dark tile against a light one survives being shrunk to 60px and cropped
+ * to a circle, where two different small drawings would blur into the same shape. It
+ * also says the right thing: these are two doors into one product, not two products,
+ * so they keep one mark between them.
  */
 export const ICON_VARIANTS = ['app', 'portal'] as const
 export type IconVariant = (typeof ICON_VARIANTS)[number]

@@ -274,7 +274,7 @@ The web app is installable, so partners can keep it on a phone or tablet home sc
 
 The installed app is branded per fund: the name under the icon is your fund's name, and the mark takes the accent colour from **Settings > Appearance**. Home-screen labels are clipped near twelve characters on both platforms, so a longer fund name is shortened by whole words — "Evergreen Capital Partners" installs as "Evergreen".
 
-The icon is rendered on demand at every size a platform asks for — 152, 167 and 180 for iOS, 192 and 512 for Android, 384 for the Android splash, and 1024 for a desktop dock — so nothing is ever resized to fit. iOS is given one `apple-touch-icon` link per size rather than a single one to scale. The mark is drawn at a lighter weight than the browser-tab favicon: a stroke that keeps a 16px toolbar glyph legible reads as a blob at 180px, and the home-screen icon is sized for the home screen.
+The icon is rendered on demand at every size a platform asks for — 152, 167 and 180 for iOS, 192 and 512 for Android, 384 for the Android splash, and 1024 for a desktop dock — so nothing is ever resized to fit. iOS is given one `apple-touch-icon` link per size rather than a single one to scale.
 
 **Navigating on a phone.** Below the tablet breakpoint the sidebar is replaced by a tab bar that floats above the bottom of the screen: the four sections you can see, plus **More**. The four are chosen from the same access rules as the sidebar, so the bar never offers a page your account cannot open, and it fills itself from whatever you do have if some features are off. A dot on **More** means something is waiting behind it — a review queue, a settings item, an available update.
 
@@ -290,7 +290,7 @@ So an installed app opened with no connection shows the offline page, not a stal
 
 The portal app is scoped to `/portal`: a link out of it opens in the browser rather than inside the installed app, so it can't wander onto the manager surface in a window with no address bar.
 
-The two are told apart on a home screen by the icon: the manager app is the mark on a light tile, the portal is the same mark inverted — knocked out of a filled tile in the fund's colour. One mark between them, because these are two doors into one product rather than two products. Solid-versus-hollow is what survives being shrunk to 60px and cropped to a circle; two different drawings would not. The fill is taken from the brand ramp's 700 stop rather than the accent itself, so the knockout stays legible whichever accent a fund picks — several accents are far too light to carry white directly.
+The two are told apart on a home screen by the icon: the manager app is the mark on a light tile, the portal is the same mark inverted — knocked out of a filled tile in the fund's colour. One mark between them, because these are two doors into one product rather than two products. A dark tile against a light one is what survives being shrunk to 60px and cropped to a circle; two different drawings would not. The fill is taken from the brand ramp's 700 stop rather than the accent itself, so the knockout stays legible whichever accent a fund picks — several accents are far too light to carry white directly.
 
 **Known gaps.** For a named fund both apps carry the same home-screen *label* (the fund's name); only the icon distinguishes them. The full names differ and install prompts show those. Web push notifications are not wired up on any platform.
 

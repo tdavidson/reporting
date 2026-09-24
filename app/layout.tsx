@@ -72,7 +72,7 @@ export const metadata: Metadata = {
   // portal unable to link its own. app/manifest.webmanifest/route.ts explains it in
   // full; app/portal/layout.tsx is the override this enables.
   manifest: '/manifest.webmanifest',
-  // The home-screen icon. app/icon.tsx stays the 32px favicon; this is the same mark
+  // The home-screen icon. app/icon.svg is the tab icon; this is the same mark
   // drawn large and in the fund's accent. iOS prefers this over the manifest's icons,
   // so app/portal/layout.tsx overrides it with the inverted variant — without that,
   // an LP's home screen would show the manager icon whatever the manifest said.
