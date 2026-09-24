@@ -82,7 +82,8 @@ async function open() {
   await page.waitForFunction('window.__ready === true', { timeout: 30000 })
 }
 await open()
-const routes = (await page.evaluate('window.__routes')).filter(h => !only || h.startsWith(only))
+// `--only` with a query (`/funds/<id>/ledger?account=1000&preset=ytd`) visits exactly that URL.
+const routes = only?.includes('?') ? [only] : (await page.evaluate('window.__routes')).filter(h => !only || h.startsWith(only))
 
 async function settle() {
   const start = Date.now()

@@ -81,7 +81,11 @@ fs.writeFileSync(path.join(dist, 'widget.css'), `${banner}\n${ROOT_RESET}\n${sco
 fs.rmSync(path.join(dist, 'tw.css'))
 
 // 4. Data + manifest -------------------------------------------------------------------------
-for (const f of ['snapshot.json', 'answers.json', 'pages.json', 'api.json']) fs.copyFileSync(path.join(here, 'data', f), path.join(dist, f))
+// Minified on the way out: the files in data/ are indented so a re-record diffs by line, and
+// visitors should not download the indentation.
+for (const f of ['snapshot.json', 'answers.json', 'pages.json', 'api.json']) {
+  fs.writeFileSync(path.join(dist, f), JSON.stringify(JSON.parse(fs.readFileSync(path.join(here, 'data', f), 'utf8'))))
+}
 const chunks = fs.readdirSync(dist).filter(f => /^chunk-[A-Z0-9]+\.js$/i.test(f)).sort()
 const snapshot = JSON.parse(fs.readFileSync(path.join(dist, 'snapshot.json'), 'utf8'))
 

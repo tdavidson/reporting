@@ -28,11 +28,16 @@ export function createDemoFetch({ snapshot, answers, api, onMiss, onWrite }: Dem
   const index = buildAnswerIndex(answers)
   const recorded = api?.responses ?? {}
   // The same path with a different query: the recorder walked the pages with their default
-  // filters, and a visitor changing one still deserves rows rather than a blank table.
+  // filters, and a visitor changing one still deserves rows rather than a blank table. The
+  // plainest recorded query stands in (the page's default), not whichever sorts first — the
+  // ledger also has a register per account, and a bare period change must not open one.
   const byPath = new Map<string, string>()
+  const plainness = (key: string) => [(key.split('?')[1] ?? '').split('&').filter(Boolean).length, key.length]
   for (const key of Object.keys(recorded)) {
     const bare = key.split('?')[0]
-    if (!byPath.has(bare)) byPath.set(bare, key)
+    const held = byPath.get(bare)
+    const [n, len] = plainness(key)
+    if (!held || n < plainness(held)[0] || (n === plainness(held)[0] && len < plainness(held)[1])) byPath.set(bare, key)
   }
 
   return async (input, init) => {
@@ -48,7 +53,7 @@ export function createDemoFetch({ snapshot, answers, api, onMiss, onWrite }: Dem
 
     const key = requestKey(method, url)
     const hit = recorded[key] ?? recorded[byPath.get(`${method} ${path}`) ?? '']
-    if (hit) return json(hit.body, hit.status)
+    if (hit) return json(expand(hit.body, recorded), hit.status)
 
     const generic = fromSnapshot(path, snapshot)
     if (generic) return generic
@@ -56,6 +61,25 @@ export function createDemoFetch({ snapshot, answers, api, onMiss, onWrite }: Dem
     onMiss?.(key)
     return json({ error: 'Not found' }, 404)
   }
+}
+
+/**
+ * The recorder stores a large top-level field once and points later copies at it —
+ * `{ "$same": "<request key>#<field>" }` — because the ledger's per-account registers each
+ * repeat the whole chart of accounts. Put the field back before the page sees it.
+ */
+export function expand(body: unknown, recorded: Record<string, { body: unknown }>): unknown {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return body
+  let out: Record<string, unknown> | null = null
+  for (const [field, value] of Object.entries(body as Record<string, unknown>)) {
+    const ref = value && typeof value === 'object' && !Array.isArray(value) ? (value as { $same?: unknown }).$same : undefined
+    if (typeof ref !== 'string') continue
+    const at = ref.lastIndexOf('#')
+    const source = recorded[ref.slice(0, at)]?.body as Record<string, unknown> | undefined
+    out ??= { ...(body as Record<string, unknown>) }
+    out[field] = source?.[ref.slice(at + 1)]
+  }
+  return out ?? body
 }
 
 /** `GET /api/companies?limit=5&sort=name`: method, path, and the query with its keys sorted. */

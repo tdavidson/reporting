@@ -171,6 +171,23 @@ for (const href of routes) {
   console.log(`${href}  ${requests - before} requests${tabs.length ? `, ${tabs.length} tabs` : ''}`)
 }
 
+// 4. Ledger registers. The ledger opens empty until an account is picked, and the statements and
+//    journal link every line to `ledger?account=<code>&preset=<ytd|itd>` — so record each
+//    account's register over both windows, or those clicks land on "Could not load".
+for (const key of Object.keys(responses)) {
+  const m = key.match(/^GET \/api\/accounting\/ledger\?group=([^&]+)&preset=ytd$/)
+  if (!m) continue
+  const group = new URLSearchParams(`g=${m[1]}`).get('g')
+  const before = requests
+  for (const account of responses[key].body?.accounts ?? []) {
+    for (const preset of ['ytd', 'itd']) {
+      const qs = new URLSearchParams({ account: account.code, group, preset })
+      await proxy(`/api/accounting/ledger?${qs}`)
+    }
+  }
+  console.log(`ledger registers (${group})  ${requests - before} requests`)
+}
+
 await browser.close()
 server.close()
 
@@ -184,6 +201,22 @@ const relabel = body => {
   return JSON.parse(t)
 }
 for (const v of Object.values(responses)) v.body = relabel(v.body)
-const file = { schemaVersion: 2, recordedAt: new Date().toISOString(), origin: new URL(ORIGIN).hostname, responses: Object.fromEntries(Object.entries(responses).sort()) }
+const sorted = Object.fromEntries(Object.entries(responses).sort())
+
+// Store a large top-level field once. Each ledger register repeats the whole chart of accounts,
+// which would triple the file every visitor downloads; demo-widget/mock-api.ts `expand` puts
+// the copies back. Only top-level fields, and only a field whose source is itself literal.
+const firstSeen = new Map()
+for (const [key, v] of Object.entries(sorted)) {
+  if (!v.body || typeof v.body !== 'object' || Array.isArray(v.body)) continue
+  for (const [field, value] of Object.entries(v.body)) {
+    const text = JSON.stringify(value)
+    if (!text || text.length < 1000) continue
+    const source = firstSeen.get(text)
+    if (source) v.body[field] = { $same: source }
+    else firstSeen.set(text, `${key}#${field}`)
+  }
+}
+const file = { schemaVersion: 2, recordedAt: new Date().toISOString(), origin: new URL(ORIGIN).hostname, responses: sorted }
 fs.writeFileSync(out, JSON.stringify(file, null, 1) + '\n')
 console.log(`\nRecorded ${Object.keys(responses).length} responses from ${routes.length} pages into ${path.relative(root, out)}; refused ${refused} non-GET requests.`)
