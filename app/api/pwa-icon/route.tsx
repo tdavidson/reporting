@@ -12,7 +12,7 @@ import {
   type IconVariant,
 } from '@/lib/pwa'
 
-// Home-screen and install icons, in the fund's accent. The same mark app/icon.svg
+// Home-screen and install icons, in the fund's accent. The same mark public/icon.svg
 // shows in the browser tab, rendered large.
 //
 // Node rather than edge (app/api/og uses edge): this reads the fund's theme through

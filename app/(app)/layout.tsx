@@ -21,6 +21,7 @@ import { accessContextFrom, hasAccess } from '@/lib/access/effective'
 import { DEFAULT_FEATURE_VISIBILITY } from '@/lib/types/features'
 import type { FeatureVisibilityMap } from '@/lib/types/features'
 import { themeCssVars, type FundTheme } from '@/lib/theme'
+import { PRODUCT_NAME } from '@/lib/site-links'
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const nonce = (await headers()).get(NONCE_HEADER) ?? undefined
@@ -93,7 +94,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const fathomSiteId = fundSettings?.analytics_fathom_site_id ?? null
   const rawGaId = fundSettings?.analytics_ga_measurement_id ?? null
   const gaMeasurementId = rawGaId && /^[A-Z0-9-]+$/i.test(rawGaId) ? rawGaId : null
-  const fundName = fundData?.name ?? 'Portfolio Reporting'
+  const fundName = fundData?.name ?? PRODUCT_NAME
   const fundLogo = fundData?.logo_url ?? null
   // Per-fund branding: override CSS variables app-wide. Empty when no theme set.
   const themeVars = themeCssVars((fundSettings?.theme as FundTheme | null) ?? null)

@@ -12,7 +12,7 @@ import { ThemeProvider } from '@/components/theme-provider'
 import { Toaster } from '@/components/toaster'
 import { ConfirmProvider } from '@/components/confirm-dialog'
 import { APP_VERSION } from '@/lib/version'
-import { SURFACE_DARK_HEX, SURFACE_LIGHT_HEX, appleTouchIcons } from '@/lib/pwa'
+import { SURFACE_DARK_HEX, SURFACE_LIGHT_HEX, TAB_ICONS, appleTouchIcons } from '@/lib/pwa'
 import './globals.css'
 
 // Inter is the default UI face — the brand guide's typeface, and what hemrock.com
@@ -72,7 +72,7 @@ export const metadata: Metadata = {
   // portal unable to link its own. app/manifest.webmanifest/route.ts explains it in
   // full; app/portal/layout.tsx is the override this enables.
   manifest: '/manifest.webmanifest',
-  // The home-screen icon. app/icon.svg is the tab icon; this is the same mark
+  // The tab icons (TAB_ICONS), and the home-screen icon: the same mark
   // drawn large and in the fund's accent. iOS prefers this over the manifest's icons,
   // so app/portal/layout.tsx overrides it with the inverted variant — without that,
   // an LP's home screen would show the manager icon whatever the manifest said.
@@ -80,7 +80,7 @@ export const metadata: Metadata = {
   // One link PER SIZE rather than a single 180. iOS does not resample an icon well,
   // and 180 is only right for an iPhone: an iPad wants 152 or 167 and was scaling the
   // one it was given, which is a large part of why the installed icon looked soft.
-  icons: { apple: appleTouchIcons('app') },
+  icons: { icon: TAB_ICONS, apple: appleTouchIcons('app') },
   appleWebApp: {
     // Older iOS needs this to launch without Safari chrome; iOS 17+ reads
     // `display: standalone` off the manifest instead. Both are cheap to keep.

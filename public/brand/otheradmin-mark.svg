@@ -1,7 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
   <!-- The OtherAdmin mark: a disc cut by a diagonal, off-centre toward the top left. The
-       source for app/icon.svg and public/favicon.ico (scripts/generate-favicons.mjs) and
-       for MARK_PATHS in lib/pwa.ts, which draws the home-screen icons. -->
+       source for public/icon.svg and public/favicon.ico (scripts/generate-favicons.mjs) and
+       for MARK_PATHS in lib/brand-mark.ts, which draws the home-screen icons and the
+       sign-in screen's mark. -->
   <path d="M353.61 54.39A224 224 0 0 0 54.39 353.61Z"/>
   <path d="M404.08 87.92A224 224 0 1 1 87.92 404.08Z"/>
 </svg>

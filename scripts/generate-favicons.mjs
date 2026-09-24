@@ -4,15 +4,15 @@
  *
  *   node scripts/generate-favicons.mjs
  *
- * Writes:
- *   app/icon.svg        the tab icon for every browser that takes an SVG one. Ink on a
+ * Both are linked from TAB_ICONS in lib/pwa.ts. Writes:
+ *   public/icon.svg     the tab icon for every browser that takes an SVG one. Ink on a
  *                       light tab bar, and the light ink on a dark one, through a
  *                       prefers-color-scheme rule inside the file.
  *   public/favicon.ico  16, 32 and 48px, for browsers that ask for /favicon.ico instead
  *                       (Safari, and anything reading the site without its HTML). In ink.
  *
  * The home-screen and install icons are not files: app/api/pwa-icon draws them from
- * MARK_PATHS in lib/pwa.ts, in the fund's accent. Re-run this and update MARK_PATHS
+ * MARK_PATHS in lib/brand-mark.ts, in the fund's accent. Re-run this and update MARK_PATHS
  * together when the mark changes. Commit the output.
  */
 import fs from 'node:fs'
@@ -30,13 +30,13 @@ const INK = '#1c1a17'
 const INK_DARK = '#f1f1f3'
 
 const icon = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${viewBox}"><style>path{fill:${INK}}@media (prefers-color-scheme:dark){path{fill:${INK_DARK}}}</style>${paths}</svg>\n`
-fs.writeFileSync(path.join(root, 'app', 'icon.svg'), icon)
+fs.writeFileSync(path.join(root, 'public', 'icon.svg'), icon)
 
 const inked = Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="${viewBox}" fill="${INK}">${paths}</svg>`)
 const sizes = [16, 32, 48]
 const pngs = await Promise.all(sizes.map(size => sharp(inked, { density: 300 }).resize(size, size).png().toBuffer()))
 fs.writeFileSync(path.join(root, 'public', 'favicon.ico'), ico(sizes, pngs))
-console.log('wrote app/icon.svg and public/favicon.ico (16, 32, 48)')
+console.log('wrote public/icon.svg and public/favicon.ico (16, 32, 48)')
 
 /** An .ico holding PNG images: a 6-byte header, a 16-byte entry per image, then the images. */
 function ico(sizes, images) {

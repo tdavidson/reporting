@@ -16,6 +16,7 @@ import { NextResponse } from 'next/server'
 import type { MetadataRoute } from 'next'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { isValidHsl, hslToHex, rampFor, type FundTheme } from '@/lib/theme'
+import { PRODUCT_NAME } from '@/lib/site-links'
 
 /**
  * The app surface, as `--background` in app/globals.css `:root` and `.dark`.
@@ -32,7 +33,7 @@ export const SURFACE_DARK_HEX = hslToHex(SURFACE_DARK_HSL)!
 
 /**
  * Colour of the default mark: the app's ink (`--foreground` in globals.css), matching
- * app/icon.svg.
+ * public/icon.svg.
  *
  * An unthemed deployment gets the same mark in the browser tab and on the home
  * screen, so the two read as one product. A fund that sets an accent gets the mark
@@ -40,8 +41,8 @@ export const SURFACE_DARK_HEX = hslToHex(SURFACE_DARK_HSL)!
  */
 export const DEFAULT_MARK_HEX = '#1c1a17'
 
-export const DEFAULT_APP_NAME = 'Portfolio Reporting'
-export const DEFAULT_SHORT_NAME = 'Portfolio'
+export const DEFAULT_APP_NAME = PRODUCT_NAME
+export const DEFAULT_SHORT_NAME = PRODUCT_NAME
 export const DEFAULT_PORTAL_NAME = 'Investor Portal'
 
 /**
@@ -64,19 +65,9 @@ export function isIconSize(n: number): n is IconSize {
 /** The sizes iOS picks between for a home-screen icon. Ordered small to large. */
 export const APPLE_TOUCH_SIZES = [152, 167, 180] as const
 
-/**
- * The mark, as the path data the icon route fills: a disc cut by a diagonal, the two
- * pieces drawn as arcs. public/brand/otheradmin-mark.svg is the source, and app/icon.svg
- * and public/favicon.ico are generated from it (scripts/generate-favicons.mjs); these
- * paths are the same drawing, written out because the icon route renders JSX, not a file.
- */
-export const MARK_PATHS = [
-  'M353.61 54.39A224 224 0 0 0 54.39 353.61Z',
-  'M404.08 87.92A224 224 0 1 1 87.92 404.08Z',
-] as const
-
-/** The mark's coordinate space. */
-export const MARK_VIEWBOX = 512
+// The mark's paths live in lib/brand-mark.ts, which the auth screen can import without
+// pulling in this module's database client.
+export { MARK_PATHS, MARK_VIEWBOX } from '@/lib/brand-mark'
 
 /**
  * Fraction of the canvas the mark's viewBox takes. The disc itself is 7/8 of that box.
@@ -268,6 +259,20 @@ function iconEntry(size: IconSize, maskable: boolean, variant: IconVariant) {
 }
 
 /**
+ * The browser-tab icons, both generated from public/brand/otheradmin-mark.svg by
+ * scripts/generate-favicons.mjs. The .ico first and the SVG after it: a browser that reads
+ * SVG takes the later link, and one that doesn't has the .ico.
+ *
+ * Linked explicitly, not through Next's app/icon file convention, because the layouts set
+ * `icons.apple`, and an `icons` field replaces the file-based icon links rather than
+ * adding to them. Every layout that sets `icons` must spread these in.
+ */
+export const TAB_ICONS = [
+  { url: '/favicon.ico', sizes: '48x48' },
+  { url: '/icon.svg', type: 'image/svg+xml' },
+]
+
+/**
  * The apple-touch-icon links for one variant, largest first.
  *
  * iOS reads these ahead of the manifest's icons, and it does NOT resize well: given a
@@ -335,8 +340,8 @@ export function buildManifest(brand: PwaBrand): MetadataRoute.Manifest {
 /**
  * What an LP sees in an install prompt.
  *
- * An unbranded deployment would otherwise offer "Portfolio Reporting Investor
- * Portal", which reads as two products stapled together.
+ * An unbranded deployment would otherwise offer "OtherAdmin Investor Portal",
+ * which reads as two products stapled together.
  */
 export function portalNameFor(name: string): string {
   const clean = name.trim()
