@@ -22,5 +22,20 @@
   summary, label[for], button:not(:disabled) { cursor: pointer; }
 }
 @layer components { .card, .mark, .display, .figure { color: red; font-family: Georgia, serif; } }
+/* A Tailwind v4 host's utilities under the app's class names. v4 transforms with the individual
+   `translate` / `rotate` / `scale` properties where v3 uses `transform`, so on an element carrying
+   both, an unguarded host shifts or turns it a second time. */
+@layer utilities {
+  .-translate-y-1\/2 { --tw-translate-y: -50%; translate: 0 var(--tw-translate-y); }
+  .-translate-x-1\/2 { translate: -50% 0; }
+  .translate-x-1\/2 { translate: 50% 0; }
+  .rotate-180 { rotate: 180deg; }
+  .rotate-90 { rotate: 90deg; }
+  .scale-95 { scale: .95; }
+  .top-1\/2 { top: 40%; }
+  .absolute { position: absolute; z-index: 5; }
+  .shrink-0 { flex-shrink: 0; margin: 3px; }
+  .size-4, .h-4, .w-4 { width: 20px; height: 20px; }
+}
 html { background: #fffbe8; color: #5c1010; font-size: 18px; }
 body { font-family: Georgia, serif; font-size: 19px; line-height: 2; letter-spacing: 0.05em; word-spacing: 0.1em; font-feature-settings: "tnum", "ss01"; font-weight: 300; text-transform: lowercase; text-align: center; -webkit-font-smoothing: auto; }

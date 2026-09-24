@@ -1,38 +1,59 @@
 import { useSyncExternalStore } from 'react'
 
 /**
- * `next-themes` for the widget bundle. The marketing site owns the theme (a `dark` class on
- * <html>, kept by its own next-themes); the widget reads that class and, when the app's own
- * theme control is used, toggles it — the host's provider is not consulted, so the site's
- * remembered choice is untouched and the page follows it again on reload.
+ * `next-themes` for the widget bundle: the same System / Light / Dark setting the app keeps,
+ * applied the same way (a `light` or `dark` class and `color-scheme` on <html>) and saved under
+ * the host's storage key (mount's `themeStorageKey`), so the marketing site's own next-themes
+ * reads the visitor's choice on the next page load. `system` follows prefers-color-scheme live.
  */
+type Theme = 'system' | 'light' | 'dark'
+
+let storageKey = 'theme'
+let theme: Theme = 'system'
 const listeners = new Set<() => void>()
-let observer: MutationObserver | null = null
+const media = typeof window !== 'undefined' ? window.matchMedia('(prefers-color-scheme: dark)') : null
 
-function current(): 'light' | 'dark' {
-  return typeof document !== 'undefined' && document.documentElement.classList.contains('dark') ? 'dark' : 'light'
+const resolve = (t: Theme): 'light' | 'dark' => (t === 'system' ? (media?.matches ? 'dark' : 'light') : t)
+
+function apply() {
+  const resolved = resolve(theme)
+  const root = document.documentElement
+  root.classList.remove('light', 'dark')
+  root.classList.add(resolved)
+  root.style.colorScheme = resolved
+  for (const l of listeners) l()
 }
 
-function subscribe(l: () => void) {
-  listeners.add(l)
-  if (!observer && typeof MutationObserver !== 'undefined') {
-    observer = new MutationObserver(() => { for (const fn of listeners) fn() })
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] })
-  }
-  return () => { listeners.delete(l) }
+/** Called once by mount(): adopt the host's saved setting and follow the OS while on `system`. */
+export function initDemoTheme(key: string | undefined) {
+  if (key) storageKey = key
+  try {
+    const saved = localStorage.getItem(storageKey)
+    if (saved === 'light' || saved === 'dark' || saved === 'system') theme = saved
+  } catch { /* storage unavailable: start on system */ }
+  media?.addEventListener('change', () => { if (theme === 'system') apply() })
+  apply()
 }
+
+function setTheme(next: string) {
+  if (next !== 'light' && next !== 'dark' && next !== 'system') return
+  theme = next
+  try { localStorage.setItem(storageKey, next) } catch { /* not persisted */ }
+  apply()
+}
+
+const subscribe = (l: () => void) => { listeners.add(l); return () => { listeners.delete(l) } }
+const snapshot = () => `${theme}:${resolve(theme)}`
 
 export function useTheme() {
-  const theme = useSyncExternalStore(subscribe, current, () => 'light' as const)
+  useSyncExternalStore(subscribe, snapshot, () => 'system:light')
+  const resolved = resolve(theme)
   return {
     theme,
-    resolvedTheme: theme,
-    systemTheme: theme,
-    themes: ['light', 'dark'],
-    setTheme: (next: string) => {
-      const dark = next === 'dark' || (next === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)
-      document.documentElement.classList.toggle('dark', dark)
-    },
+    resolvedTheme: resolved,
+    systemTheme: (media?.matches ? 'dark' : 'light') as 'light' | 'dark',
+    themes: ['light', 'dark', 'system'],
+    setTheme,
   }
 }
 

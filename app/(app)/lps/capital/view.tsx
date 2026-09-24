@@ -10,6 +10,7 @@ import { CapitalRollforwardTable, type Row, type CapitalEdit } from '@/component
 import { PeriodPicker } from '@/components/accounting/period-picker'
 import { type PeriodPreset } from '@/lib/accounting/statement-period'
 import { AnalystToggleButton } from '@/components/analyst-button'
+import { AnalystPanel } from '@/components/analyst-panel'
 
 // The capital-accounts API returns the full per-LP Row for BOTH producers (ledger and pasted
 // positions), so this surface renders the same table as /funds/[id]/capital-accounts.
@@ -129,7 +130,10 @@ export function LpCapitalView({ isAdmin }: { isAdmin: boolean }) {
   }, [acct, confirm, fmt, load])
 
   return (
-    <div className="space-y-4">
+    // The panel the header's Analyst button opens, beside the page at lg. It was never rendered
+    // here, so the button did nothing on this page.
+    <div className="flex flex-col lg:flex-row gap-6 items-start">
+    <div className="space-y-4 flex-1 min-w-0 w-full">
       {/* Header — title on the left, the vehicle switcher + Analyst on the right, matching
           /funds/[id]/capital-accounts (FundSubpageChrome). */}
       <div className="flex items-end justify-between gap-3">
@@ -250,6 +254,8 @@ export function LpCapitalView({ isAdmin }: { isAdmin: boolean }) {
           )}
         </>
       )}
+    </div>
+    <AnalystPanel />
     </div>
   )
 }

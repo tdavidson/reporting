@@ -113,8 +113,22 @@ export function scopeCss(css) {
 // their 1px default padding the same way, from the table, so it is restored explicitly below.
 const NOT_SELF_STYLED = ':not(svg,svg *,img,video,canvas,iframe,embed,object,picture,audio)'
 const HTML_SCOPE = `:where(.${ROOT}${NOT_SELF_STYLED},.${ROOT} ${NOT_SELF_STYLED})`
+
+// SVG can't take `all: revert`, but a host's utility classes still match the app's class names
+// on icons: a Tailwind v4 host's `-translate-y-1/2` sets the `translate` property, the app's v3
+// sets `transform`, and the icon moves twice. So on SVG, every property a host rule might set
+// that is NOT one of SVG's presentation attributes (those carry the icon's own geometry and
+// paint) is reverted by name.
+const SVG_REVERT = [
+  'translate', 'rotate', 'scale', 'position', 'inset', 'z-index', 'float', 'margin', 'padding',
+  'border', 'border-radius', 'box-shadow', 'background', 'outline', 'box-sizing', 'flex', 'order',
+  'align-self', 'justify-self', 'place-self', 'grid-area', 'min-width', 'max-width', 'min-height',
+  'max-height', 'vertical-align', 'animation', 'transition', 'object-fit', 'object-position',
+  'aspect-ratio', 'content-visibility', 'contain', 'will-change', 'backdrop-filter',
+].map(prop => `${prop}:revert`).join(';')
 export const ROOT_RESET = `
 ${HTML_SCOPE},${HTML_SCOPE}::before,${HTML_SCOPE}::after,${HTML_SCOPE}::placeholder,${HTML_SCOPE}::selection,${HTML_SCOPE}::marker,${HTML_SCOPE}::file-selector-button{all:revert}
 :where(td,th):where(.${ROOT} *){padding:1px}
+:where(svg,svg *):where(.${ROOT},.${ROOT} *){${SVG_REVERT}}
 .${ROOT}{--font-inter:var(--font-sans-face,Inter);font-size:16px;font-weight:400;font-style:normal;font-variant:normal;font-stretch:normal;letter-spacing:normal;word-spacing:normal;text-transform:none;text-indent:0;text-align:start;text-shadow:none;white-space:normal;cursor:auto;-webkit-font-smoothing:auto}
 `.trim()

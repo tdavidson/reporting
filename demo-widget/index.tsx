@@ -3,6 +3,7 @@ import { DemoApp } from './app'
 import { toast } from 'sonner'
 import { createDemoFetch, interceptApiFetch } from './mock-api'
 import { allHrefs, prefetchSections } from './routes'
+import { initDemoTheme } from './stubs/next-themes'
 import { DEMO_SCHEMA_VERSION, EMPTY_API, EMPTY_PAGES, type DemoAnswers, type DemoApi, type DemoPages, type DemoSnapshot } from './types'
 import type { AppFetch } from '@/components/app-runtime'
 
@@ -43,6 +44,9 @@ export interface MountOptions {
   onReady?: () => void
   /** Where the header's "Exit demo" goes (the app's sign-out, in the demo). Default: the host's `/`. */
   exitHref?: string
+  /** The host's theme storage key (next-themes' `storageKey`), so the demo's System / Light /
+   *  Dark control and the host read and write one setting. */
+  themeStorageKey?: string
 }
 
 export function mount(el: HTMLElement, opts: MountOptions): { unmount: () => void; navigate: (href: string) => void } {
@@ -58,6 +62,7 @@ export function mount(el: HTMLElement, opts: MountOptions): { unmount: () => voi
   // Before the first render: a page's own effects fetch on mount, and they run before any effect
   // of the component that would otherwise install this.
   const restore = interceptApiFetch(demoFetch)
+  initDemoTheme(opts.themeStorageKey)
   const stopMarking = markPortalRoots()
 
   let navigateTo: (href: string, opts?: { replace?: boolean }) => void = () => {}

@@ -68,16 +68,22 @@ const origin = `http://127.0.0.1:${server.address().port}`
 const PROPS = ['fill', 'stroke', 'stroke-width', 'font-family', 'font-size', 'font-weight', 'font-style', 'font-feature-settings', 'letter-spacing', 'word-spacing', 'line-height',
   'text-transform', 'text-align', 'color', 'background-color', 'background-image', 'border-top-width', 'border-top-style', 'border-top-color',
   'border-left-color', 'border-top-left-radius', 'padding-top', 'padding-right', 'padding-left', 'margin-top', 'margin-left', 'display',
-  'vertical-align', 'appearance', 'cursor', 'box-shadow', 'opacity', 'width', 'height']
+  'vertical-align', 'appearance', 'cursor', 'box-shadow', 'opacity', 'width', 'height',
+  'position', 'top', 'left', 'transform', 'translate', 'rotate', 'scale', 'z-index']
 
 function collect(props) {
   // The frame, and every portal the widget rendered under <body> (the palette, dialogs, menus).
-  const roots = [...document.querySelectorAll('.oa-demo-root')].filter(r => !r.parentElement?.closest('.oa-demo-root'))
+  // (Radix's focus guards are left out: invisible, fixed, and their unused position follows the
+  // host's text alignment.)
+  const roots = [...document.querySelectorAll('.oa-demo-root')].filter(r => !r.parentElement?.closest('.oa-demo-root') && !r.hasAttribute('data-radix-focus-guard'))
   const out = []
   for (const r of roots) for (const el of [r, ...r.querySelectorAll('*')]) {
     const cs = getComputedStyle(el)
     const v = {}
     for (const p of props) v[p] = cs.getPropertyValue(p)
+    // Where it lands, relative to its root: catches a shift no single property explains.
+    const box = el.getBoundingClientRect(), rb = r.getBoundingClientRect()
+    v.x = `${(box.left - rb.left).toFixed(1)}px`; v.y = `${(box.top - rb.top).toFixed(1)}px`
     const own = el.childNodes[0]?.nodeType === 3 ? el.childNodes[0].textContent.trim().slice(0, 30) : ''
     out.push({ tag: el.tagName.toLowerCase(), cls: (el.getAttribute('class') ?? '').slice(0, 70), text: own, v })
   }
@@ -86,7 +92,9 @@ function collect(props) {
 
 const routes = process.argv.slice(2).filter(a => a.startsWith('/'))
 const walk = routes.length ? routes : ['/dashboard', '/deals', '/companies/' + JSON.parse(fs.readFileSync(path.join(dist, 'snapshot.json'), 'utf8')).companies[0].id,
-  '/funds', '/lps', '/compliance', '/settings', '/diligence', '/support']
+  '/funds', '/lps', '/compliance', '/settings', '/diligence', '/support',
+  // An entity page: the fund switcher and the capital accounts search, icons placed with transforms.
+  ...(() => { const v = JSON.parse(fs.readFileSync(path.join(dist, 'snapshot.json'), 'utf8')).vehicles[0]; return v ? [`/funds/${v.id}/capital-accounts`] : [] })()]
 
 const browser = await puppeteer.launch({ executablePath: chrome, args: ['--no-sandbox', '--disable-dev-shm-usage'] })
 async function render(host, route, { theme, palette }) {
@@ -131,11 +139,11 @@ for (const c of cases) {
   }
   let diffs = 0
   for (let i = 0; i < a.length; i++) {
-    for (const p of PROPS) {
+    for (const p of [...PROPS, 'x', 'y']) {
       const x = a[i].v[p], y = b[i].v[p]
       if (x === y) continue
       // Sub-pixel layout rounding is not a style difference.
-      if ((p === 'width' || p === 'height') && Math.abs(parseFloat(x) - parseFloat(y)) <= 0.5) continue
+      if (['width', 'height', 'x', 'y'].includes(p) && Math.abs(parseFloat(x) - parseFloat(y)) <= 0.5) continue
       diffs++
       const key = `${p}: app ${x.slice(0, 50)} | demo ${y.slice(0, 50)}`
       if (!seen.has(key)) seen.set(key, { n: 0, at: `${route} <${a[i].tag} class="${a[i].cls}">${a[i].text}` })
