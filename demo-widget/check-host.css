@@ -1,0 +1,41 @@
+/*
+ * A hostile host page for scripts/demo-styles.mjs: what a real marketing site puts around the
+ * widget, exaggerated so a leak cannot hide. The layered half is a Tailwind v4 site's base (the
+ * shape of www.otheradmin.com's); the unlayered half is inherited text styling on <body> and
+ * <html>, which reaches the widget through inheritance whatever the widget's specificity.
+ */
+@layer base {
+  *, ::before, ::after { box-sizing: border-box; margin: 0; padding: 0; border: 0 solid; border-color: red; }
+  html { line-height: 1.8; -webkit-text-size-adjust: 100%; font-family: Georgia, serif; }
+  h1, h2, h3, h4, h5, h6 { font-size: inherit; font-weight: inherit; }
+  a { color: inherit; text-decoration: inherit; }
+  b, strong { font-weight: bolder; }
+  img, svg, video, canvas { display: block; vertical-align: middle; }
+  img, video { max-width: 100%; height: auto; }
+  button, input, select, optgroup, textarea, ::file-selector-button { font: inherit; letter-spacing: inherit; color: inherit; border-radius: 0; background-color: transparent; opacity: 1; }
+  ::placeholder { opacity: 1; color: color-mix(in oklab, currentColor 50%, transparent); }
+  textarea { resize: vertical; }
+  ol, ul, menu { list-style: none; }
+  em, i, cite, var { font-style: normal; }
+  ::selection { background: yellow; color: black; }
+  :focus-visible { outline: 3px solid red; outline-offset: 4px; border-radius: 9px; }
+  summary, label[for], button:not(:disabled) { cursor: pointer; }
+}
+@layer components { .card, .mark, .display, .figure { color: red; font-family: Georgia, serif; } }
+/* A Tailwind v4 host's utilities under the app's class names. v4 transforms with the individual
+   `translate` / `rotate` / `scale` properties where v3 uses `transform`, so on an element carrying
+   both, an unguarded host shifts or turns it a second time. */
+@layer utilities {
+  .-translate-y-1\/2 { --tw-translate-y: -50%; translate: 0 var(--tw-translate-y); }
+  .-translate-x-1\/2 { translate: -50% 0; }
+  .translate-x-1\/2 { translate: 50% 0; }
+  .rotate-180 { rotate: 180deg; }
+  .rotate-90 { rotate: 90deg; }
+  .scale-95 { scale: .95; }
+  .top-1\/2 { top: 40%; }
+  .absolute { position: absolute; z-index: 5; }
+  .shrink-0 { flex-shrink: 0; margin: 3px; }
+  .size-4, .h-4, .w-4 { width: 20px; height: 20px; }
+}
+html { background: #fffbe8; color: #5c1010; font-size: 18px; }
+body { font-family: Georgia, serif; font-size: 19px; line-height: 2; letter-spacing: 0.05em; word-spacing: 0.1em; font-feature-settings: "tnum", "ss01"; font-weight: 300; text-transform: lowercase; text-align: center; -webkit-font-smoothing: auto; }

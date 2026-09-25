@@ -71,20 +71,10 @@ export async function proxy(request: NextRequest) {
 
   const isAuthRoute = pathname.startsWith('/auth')
 
-  // Marketing site routes require both env vars to be set
-  const marketingEnabled =
-    process.env.NEXT_PUBLIC_ENABLE_MARKETING_SITE === 'true' &&
-    !!process.env.MARKETING_DEPLOYMENT_KEY
-
-  // Only the single marketing page remains; legal/pricing/contact live on hemrock.com.
-  const isMarketingRoute = pathname === '/'
-  const isPublicMarketingRoute = marketingEnabled && isMarketingRoute
-
-  // /demo signs ITSELF in: app/demo/page.tsx calls signInWithPassword from a useEffect. So the
-  // page has to render to a visitor with no session — redirect the request here and the effect
-  // never runs, leaving them on a login form for an account they don't have. Gated on the same
-  // flag as getDemoCredentials, which refuses without it.
-  const isDemoRoute = marketingEnabled && pathname === '/demo'
+  // The marketing page is not here any more (www.otheradmin.com serves it), so `/` is only the
+  // post-login destination: a signed-out visitor is bounced to /auth like any app route, and the
+  // signed-in redirect below decides where a member begins.
+  const isRootRoute = pathname === '/'
 
   // Token-gated public surfaces — always reachable regardless of the marketing
   // site flag. The token in the URL is the auth: a fund admin generates it
@@ -125,9 +115,8 @@ export async function proxy(request: NextRequest) {
     pathname === '/sw.js' ||
     pathname === '/offline'
 
-  // Unauthenticated users can only access /auth, API, marketing pages (if
-  // enabled), the demo, the token-gated public submit form, and setup routes.
-  if (!user && !isAuthRoute && !isApiRoute && !isPublicMarketingRoute && !isDemoRoute && !isPublicTokenRoute && !isSetupRoute && !isPortalWelcome && !isOAuthDiscovery && !isPwaShell) {
+  // Unauthenticated users can only access /auth, API, the demo (if configured), the token-gated public submit form, and setup routes.
+  if (!user && !isAuthRoute && !isApiRoute && !isPublicTokenRoute && !isSetupRoute && !isPortalWelcome && !isOAuthDiscovery && !isPwaShell) {
     const url = request.nextUrl.clone()
     url.pathname = '/auth'
     // Carry where they were headed, so signing in RESUMES it.
@@ -152,7 +141,7 @@ export async function proxy(request: NextRequest) {
   // still needs the worker script to load as JavaScript, and bouncing /sw.js to the
   // verify page breaks it in exactly the way described above. None of these three
   // paths reveal anything AAL2 is protecting.
-  if (user && !isAuthRoute && !isPublicMarketingRoute && !isPublicTokenRoute && !isOAuthDiscovery && !isPwaShell) {
+  if (user && !isAuthRoute && !isPublicTokenRoute && !isOAuthDiscovery && !isPwaShell) {
     const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel()
     if (aal && aal.nextLevel === 'aal2' && aal.currentLevel !== 'aal2') {
       if (isApiRoute) {
@@ -166,18 +155,16 @@ export async function proxy(request: NextRequest) {
 
   // ── Where a signed-in GP begins ──────────────────────────────────────────
   //
-  // `/` is the post-login destination — both auth callbacks default `next` to it — and it renders
-  // the marketing page. Fine when the only signed-in way in was a nav click; wrong once /start
-  // existed. A member with a session has no use for the pricing tiers, and with the marketing site
-  // switched off the page finds no site_content and redirects to /auth, which is a signed-in user
-  // being sent to a login form.
+  // `/` is the post-login destination — both auth callbacks default `next` to it — and it has no
+  // page of its own since the marketing page moved out (app/page.tsx is a redirect to /start).
+  // The redirect is decided here so a GP never renders that page at all.
   //
   // It belongs here and not in the auth routes because those are not the only way in: a bookmark,
   // the PWA start_url and the address bar all arrive at `/` with the session already set. The
   // extra membership read costs one query on one path.
   //
   // GPs only. An LP is not a fund member; the LP/GP split below owns where they go.
-  if (user && isMarketingRoute) {
+  if (user && isRootRoute) {
     const { data: startMembership } = await supabase
       .from('fund_members').select('fund_id').eq('user_id', user.id).maybeSingle()
     if (startMembership) {
@@ -214,7 +201,7 @@ export async function proxy(request: NextRequest) {
   // page are the same bytes for every caller, so there is no LP/GP question to ask —
   // and asking it would redirect an LP-only user's /sw.js to /portal/overview, which
   // the worker rejects on MIME type. It also saves two queries per shell fetch.
-  if (user && !isApiRoute && !isAuthRoute && !isPublicMarketingRoute && !isPublicTokenRoute && !isSetupRoute && !isOAuthDiscovery && !isPwaShell) {
+  if (user && !isApiRoute && !isAuthRoute && !isPublicTokenRoute && !isSetupRoute && !isOAuthDiscovery && !isPwaShell) {
     const [{ data: membership }, { data: lpAccount }] = await Promise.all([
       supabase.from('fund_members').select('fund_id').eq('user_id', user.id).maybeSingle(),
       supabase.from('lp_accounts').select('status').eq('auth_user_id', user.id).maybeSingle(),

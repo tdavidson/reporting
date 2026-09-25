@@ -1,6 +1,16 @@
-import { Github, Scale, Play } from 'lucide-react'
-import { FooterThemeToggle } from '@/components/footer-theme-toggle'
+import { Github, Scale } from 'lucide-react'
+import {
+  COMPANY_NAME,
+  COMPANY_SITE,
+  PRIVACY_URL,
+  PRODUCT_LICENSE,
+  PRODUCT_NAME,
+  PRODUCT_REPO,
+  PRODUCT_SITE,
+  TERMS_URL,
+} from '@/lib/site-links'
 
+// The Hemrock mark (monochrome via currentColor): the company behind the product.
 function HemrockIcon({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 24 24" fill="none" className={className}>
@@ -9,36 +19,39 @@ function HemrockIcon({ className }: { className?: string }) {
   )
 }
 
-// X mark, same glyph as the hemrock.com footer (monochrome via currentColor).
-function XIcon({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden>
-      <path d="m21.742 21.75-7.563-11.179 7.056-8.321h-2.456l-5.691 6.714-4.54-6.714h-6.189l7.29 10.776-7.399 8.724h2.456l6.035-7.118 4.818 7.118h6.191zm-14.003-17.932 11.071 16.364h-2.447l-11.073-16.364h2.447z" />
-    </svg>
-  )
-}
-
-// `social` adds the X link + theme toggle on the right (hemrock-style). On for the
-// marketing page; off for the in-app footer, which already has theme controls elsewhere.
-export function AppFooter({ social = false }: { social?: boolean }) {
+/**
+ * The in-app footer: the product, the company, the source, the licence, and the legal
+ * pages when the deployment names them (NEXT_PUBLIC_TERMS_URL / NEXT_PUBLIC_PRIVACY_URL;
+ * lib/site-links.ts). The marketing page that used to add social links and a demo
+ * button to this footer lives at www.otheradmin.com now.
+ */
+export function AppFooter() {
   return (
     <footer className="px-4 md:px-8 pt-2 pb-8 shrink-0">
       <ul className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-9 text-sm text-muted-foreground border-t pt-3">
         <li className="flex items-center gap-1.5">
-          Made by{' '}
           <a
-            href="https://hemrock.com"
+            href={PRODUCT_SITE}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:text-foreground transition-colors"
+          >
+            {PRODUCT_NAME}
+          </a>
+          {' '}by{' '}
+          <a
+            href={COMPANY_SITE}
             target="_blank"
             rel="noopener noreferrer"
             className="flex items-center gap-1 hover:text-foreground transition-colors"
           >
             <HemrockIcon className="h-3.5 w-3.5" />
-            Hemrock
+            {COMPANY_NAME}
           </a>
         </li>
         <li>
           <a
-            href="https://github.com/tdavidson/reporting"
+            href={PRODUCT_REPO}
             target="_blank"
             rel="noopener noreferrer"
             className="flex items-center gap-1.5 hover:text-foreground transition-colors"
@@ -49,7 +62,7 @@ export function AppFooter({ social = false }: { social?: boolean }) {
         </li>
         <li>
           <a
-            href="https://github.com/tdavidson/reporting/blob/main/LICENSE.md"
+            href={PRODUCT_LICENSE}
             target="_blank"
             rel="noopener noreferrer"
             className="flex items-center gap-1.5 hover:text-foreground transition-colors"
@@ -58,52 +71,18 @@ export function AppFooter({ social = false }: { social?: boolean }) {
             License
           </a>
         </li>
-        <li>
-          <a
-            href="https://www.hemrock.com/terms"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="hover:text-foreground transition-colors"
-          >
-            Terms
-          </a>
-        </li>
-        <li>
-          <a
-            href="https://www.hemrock.com/privacy"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="hover:text-foreground transition-colors"
-          >
-            Privacy
-          </a>
-        </li>
-        {social && (
-          <li className="sm:hidden">
-            <a
-              href="https://portfolio.hemrock.com/demo"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-1.5 hover:text-foreground transition-colors"
-            >
-              <Play className="h-3.5 w-3.5" />
-              Try the Demo
+        {TERMS_URL && (
+          <li>
+            <a href={TERMS_URL} target="_blank" rel="noopener noreferrer" className="hover:text-foreground transition-colors">
+              Terms
             </a>
           </li>
         )}
-        {social && (
-          <li className="flex flex-col gap-3 sm:flex-row sm:items-center sm:ml-auto sm:gap-6">
-            <a
-              href="https://x.com/tdavidson"
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label="tdavidson on X"
-              className="flex items-center gap-2 hover:text-foreground transition-colors"
-            >
-              <XIcon className="h-3.5 w-3.5" />
-              <span className="sm:hidden">X / Twitter</span>
+        {PRIVACY_URL && (
+          <li>
+            <a href={PRIVACY_URL} target="_blank" rel="noopener noreferrer" className="hover:text-foreground transition-colors">
+              Privacy
             </a>
-            <FooterThemeToggle />
           </li>
         )}
       </ul>

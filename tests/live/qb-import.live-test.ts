@@ -71,7 +71,7 @@ describe('QuickBooks migration — live database', { timeout: 60_000 }, () => {
     // `limit(1)` picking whichever fund sorts first is luck, not a safety property — this
     // installation has two funds and only one of them is disposable.
     const { data: funds } = await admin.from('funds').select('id, name')
-    const demo = (funds ?? []).find((f: any) => /hemrock/i.test(f.name)) ?? (funds ?? [])[0]
+    const demo = (funds ?? []).find((f: any) => new RegExp(process.env.DEMO_FUND_NAME ?? 'demo', 'i').test(f.name)) ?? (funds ?? [])[0]
     expect(demo, 'no fund found to test against').toBeTruthy()
     fundId = demo.id
     console.log(`[safety] running against fund "${demo.name}"`)

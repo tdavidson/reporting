@@ -35,7 +35,7 @@ export async function checkForUpdate(
     }
 
     const res = await fetch(
-      'https://api.github.com/repos/tdavidson/reporting/releases/latest',
+      'https://api.github.com/repos/tdavidson/otheradmin/releases/latest',
       { headers, next: { revalidate: 3600 } }
     )
     if (!res.ok) return null

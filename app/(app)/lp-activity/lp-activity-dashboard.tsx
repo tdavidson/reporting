@@ -144,6 +144,10 @@ export function LpActivityDashboard() {
         Logins, views, and downloads by your LPs and their authorized users in the investor portal.
       </p>
 
+      {/* Content and the Analyst side by side at lg, as on every other page with the panel. */}
+      <div className="flex flex-col lg:flex-row gap-6 items-start">
+      <div className="flex-1 min-w-0 w-full">
+
       {loading && (
         <div className="flex items-center gap-2 text-muted-foreground text-sm py-12">
           <Loader2 className="h-4 w-4 animate-spin" /> Loading activity…
@@ -296,7 +300,9 @@ export function LpActivityDashboard() {
         </>
       )}
 
+      </div>
       <AnalystPanel />
+      </div>
     </div>
   )
 }

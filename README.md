@@ -1,16 +1,16 @@
-![Next.js](https://img.shields.io/badge/Next.js-14-black?logo=next.js) ![Supabase](https://img.shields.io/badge/Supabase-PostgreSQL-3ECF8E?logo=supabase&logoColor=white) ![TypeScript](https://img.shields.io/badge/TypeScript-97.6%25-3178C6?logo=typescript&logoColor=white) ![GitHub Stars](https://img.shields.io/github/stars/tdavidson/reporting?style=flat) ![License](https://img.shields.io/badge/license-Apache_2.0-blue)
+![Next.js](https://img.shields.io/badge/Next.js-14-black?logo=next.js) ![Supabase](https://img.shields.io/badge/Supabase-PostgreSQL-3ECF8E?logo=supabase&logoColor=white) ![TypeScript](https://img.shields.io/badge/TypeScript-97.6%25-3178C6?logo=typescript&logoColor=white) ![GitHub Stars](https://img.shields.io/github/stars/tdavidson/otheradmin?style=flat) ![License](https://img.shields.io/badge/license-Apache_2.0-blue)
 
-# Portfolio, by Hemrock
+# OtherAdmin
 
 Manage deal flow, portfolio reporting, fund operations, LPs, and accounting, without stitching together spreadsheets and point tools.
 
-Portfolio is an open-source operating platform for venture capital firms. Take a company from inbound screening and diligence through investment, portfolio monitoring, fund accounting, and LP reporting—all in one system. Turn on only the workflows you need, deploy on your own infrastructure, and use your own AI providers.
+OtherAdmin is an open-source operating platform for venture capital firms. Take a company from inbound screening and diligence through investment, portfolio monitoring, fund accounting, and LP reporting—all in one system. Turn on only the workflows you need, deploy on your own infrastructure, and use your own AI providers.
 
-![Public Home Page](public/screenshots/homepage.png)
+![Portfolio Dashboard](public/screenshots/dashboard.png)
 
 ## What it does
 
-Portfolio gives your team one source of truth from the first look at a deal through the life of the investment. Forward founder updates, import existing data, and let AI extract the metrics, investments, and cash flows that keep portfolio dashboards and reports current.
+OtherAdmin gives your team one source of truth from the first look at a deal through the life of the investment. Forward founder updates, import existing data, and let AI extract the metrics, investments, and cash flows that keep portfolio dashboards and reports current.
 
 The investment workflow classifies and fit-scores inbound opportunities, runs your diligence checklist against the data room, verifies claims with sourced external research, and drafts investment memos in your firm's structure and voice.
 
@@ -45,19 +45,19 @@ Most portfolio reporting platforms lock your data in their database, process it 
 
 This is a complete investment-firm operations platform you deploy on your own infrastructure — your database, your AI keys, your domain. It's open source under the Apache 2.0 license: free to use, modify, and run forever, for your own fund or commercially. No per-seat fees. No black-box AI training on your portfolio. No vendor lock-in.
 
-Built by Taylor Davidson at [Hemrock](https://www.hemrock.com). Built by a fund manager, for fund managers.
+Built by Taylor Davidson at [Hemrock](https://www.hemrock.com). Built by a fund manager, for fund managers. Product site and documentation: [www.otheradmin.com](https://www.otheradmin.com).
 
 ## Get started
 
-Free and open source under the Apache 2.0 license — use it, modify it, and deploy it on your own infrastructure and domain, for your own fund or commercially. [Try the demo](https://portfolio.hemrock.com/demo) with sample data, no signup required.
+Free and open source under the Apache 2.0 license — use it, modify it, and deploy it on your own infrastructure and domain, for your own fund or commercially. [Try the demo](https://www.otheradmin.com/demo/) with sample data, no signup required.
 
-Prefer not to run it yourself? Taylor offers paid **setup & support** (deployed on your own infrastructure and accounts) and a **hosted subscription**. [Contact Taylor](https://www.hemrock.com/contact) to discuss.
+Prefer not to run it yourself? Taylor offers paid **setup & support**: deployed on your own infrastructure and accounts, with onboarding and ongoing support. [Contact Taylor](https://www.hemrock.com/contact) to discuss.
 
 See [LICENSE](./LICENSE.md) for full terms.
 
 ## Quick start
 
-- **Clone the repo** — git clone https://github.com/tdavidson/reporting.git && npm install
+- **Clone the repo** — git clone https://github.com/tdavidson/otheradmin.git && cd otheradmin && npm install
 - **Create a Supabase project** — Copy your project URL, anon key, and service role key
 - **Generate an encryption key** — openssl rand -hex 32
 - **Deploy to Netlify or Vercel** — One-click deploy buttons available in the full guide
@@ -66,4 +66,4 @@ See [LICENSE](./LICENSE.md) for full terms.
 
 Full deployment guide with detailed steps, optional services, and local development setup: [DOCS](./DOCS.md)
 
-For setup assistance or hosted deployments: [hemrock.com/contact](https://www.hemrock.com/contact). For bug reports and feature requests: [GitHub Issues](https://github.com/tdavidson/reporting/issues).
+For setup assistance and support: [hemrock.com/contact](https://www.hemrock.com/contact). For bug reports and feature requests: [GitHub Issues](https://github.com/tdavidson/otheradmin/issues).

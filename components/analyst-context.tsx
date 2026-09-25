@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useState, useEffect, useCallback, useRef, type ReactNode } from 'react'
 import { latestPerFamily } from '@/lib/ai/model-families'
+import { useAppFetch } from '@/components/app-runtime'
 import type { AIEffort } from '@/lib/ai/types'
 
 /** Domains the Analyst can be scoped to that have no id of their own (unlike a company or deal). */
@@ -90,6 +91,7 @@ export function AnalystProvider({
   const [conversationId, setConversationId] = useState<string | null>(null)
   const [conversations, setConversations] = useState<ConversationListItem[]>([])
   const [showHistory, setShowHistory] = useState(false)
+  const appFetch = useAppFetch()
 
   const toggleOpen = useCallback(() => setOpen(prev => !prev), [])
   const close = useCallback(() => setOpen(false), [])
@@ -164,7 +166,7 @@ export function AnalystProvider({
       if (scope) params.set('scope', scope)
     }
     try {
-      const res = await fetch(`/api/analyst/conversations?${params}`)
+      const res = await appFetch(`/api/analyst/conversations?${params}`)
       if (res.ok) {
         const data = await res.json()
         setConversations(data.conversations ?? [])
@@ -172,11 +174,11 @@ export function AnalystProvider({
     } catch {
       // Silently fail
     }
-  }, [companyId, dealId, vehicle, domain])
+  }, [companyId, dealId, vehicle, domain, appFetch])
 
   const loadConversation = useCallback(async (id: string) => {
     try {
-      const res = await fetch(`/api/analyst/conversations/${id}`)
+      const res = await appFetch(`/api/analyst/conversations/${id}`)
       if (res.ok) {
         const data = await res.json()
         const conv = data.conversation
@@ -187,7 +189,7 @@ export function AnalystProvider({
     } catch {
       // Silently fail
     }
-  }, [])
+  }, [appFetch])
 
   const startNewConversation = useCallback(() => {
     setMessages([])
@@ -197,7 +199,7 @@ export function AnalystProvider({
 
   const deleteConversation = useCallback(async (id: string) => {
     try {
-      const res = await fetch(`/api/analyst/conversations/${id}`, { method: 'DELETE' })
+      const res = await appFetch(`/api/analyst/conversations/${id}`, { method: 'DELETE' })
       if (res.ok) {
         setConversations(prev => prev.filter(c => c.id !== id))
         if (conversationId === id) {
@@ -208,7 +210,7 @@ export function AnalystProvider({
     } catch {
       // Silently fail
     }
-  }, [conversationId])
+  }, [conversationId, appFetch])
 
   // Models are fetched lazily, but "lazily" used to mean "when the side panel opens" — which is
   // why the model picker was missing on /start: that page never opens the panel, so the list
@@ -227,7 +229,7 @@ export function AnalystProvider({
     ].filter(p => configuredProviders.includes(p.provider))
 
     const results = await Promise.allSettled(
-      providerEndpoints.map(p => fetch(p.url).then(r => r.json()))
+      providerEndpoints.map(p => appFetch(p.url).then(r => r.json()))
     )
 
     const models: AnalystModel[] = []
@@ -245,7 +247,7 @@ export function AnalystProvider({
     // snapshot and superseded version the provider still serves.
     setAvailableModels(latestPerFamily(models))
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasAIKey, configuredProviders.join(',')])
+  }, [hasAIKey, configuredProviders.join(','), appFetch])
 
   useEffect(() => {
     if (open) void ensureModels()

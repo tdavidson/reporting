@@ -417,7 +417,6 @@ export const ROUTE_DOMAINS: Record<string, RouteAccess> = {
   'api/auth/google/callback': { domain: 'admin' },
   'api/settings/senders': { domain: 'admin' },
   'api/settings/senders/[id]': { domain: 'admin' },
-  'api/settings/site-content': { domain: 'admin' },
   // The control panel for who can see what: reading it maps the fund's data.
   'api/settings/access': { domain: 'admin' },
   'api/settings/whitelist': { domain: 'admin' },
@@ -473,7 +472,7 @@ export const ROUTE_DOMAINS: Record<string, RouteAccess> = {
  * Keep this tiny. A route that is merely unused should be deleted, not listed here.
  */
 export const OPTIONAL_ROUTES = new Set<string>([
-  // The demo fixtures are Hemrock-specific marketing content, not product — they live outside git.
+  // The demo fixtures are this install's marketing content, not product — they live outside git.
   'api/demo/seed',
 ])
 
@@ -567,7 +566,6 @@ export const UNGATED_ROUTES: Record<string, string> = {
   // No fund data: these list what models a configured provider offers, for the model picker.
   'api/claude-models': 'Model list; no fund data.',
   'api/openai-models': 'Model list; no fund data.',
-  'api/github-stars': 'Public repo star count.',
   'api/og': 'Renders an OG card from its own query params; reads nothing.',
   'api/pwa-icon':
     "Home-screen icon PNG. Must answer a browser that has no session — a manifest's icons are " +

@@ -44,13 +44,13 @@ supabase/.temp
 /docs
 # Demo fixtures — local only, not part of the product.
 #
-# "Hemrock Ventures" is this install's marketing demo, not something another fund wants when they
+# The demo fund is this install's marketing demo, not something another fund wants when they
 # install this app. The generator lives on the machine that runs it; the demo fund's rows live in
 # the database, which is the source of truth. `api/demo/seed` is listed in OPTIONAL_ROUTES
 # (lib/access/route-domains.ts) so the route-coverage test doesn't call its registry entry stale
 # when the file isn't here.
 #
-# NOTE: the demo SIGN-IN is not ignored and never should be — it's generic, with no Hemrock in it.
+# NOTE: the demo SIGN-IN is not ignored and never should be — it's generic, with no install-specific content in it.
 # It now lives in the `startDemo` server action (app/demo/actions.ts), which replaced the old
 # /api/demo/credentials route. Nor is scripts/demo-agent-account.ts ignored, which is deliberately
 # decoupled from these fixtures.
@@ -63,3 +63,7 @@ supabase/.temp
 
 # local-only operational data — a vehicle registry names the firm, its funds and its SPVs
 scripts/*.local.json
+
+# The public demo widget is built by `npm run demo:widget` (and by CI, which publishes it).
+/demo-widget/dist/
+/demo-widget/check-report.json

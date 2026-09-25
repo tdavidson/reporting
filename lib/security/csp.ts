@@ -48,7 +48,6 @@ const SCRIPT_HOSTS = [
   'https://cdn.usefathom.com',
   'https://www.googletagmanager.com',
   'https://www.google-analytics.com',
-  'https://assets.calendly.com',
 ]
 
 export function buildReportOnlyCsp(nonce: string, options: { development?: boolean } = {}): string {
@@ -65,11 +64,11 @@ export function buildReportOnlyCsp(nonce: string, options: { development?: boole
   return [
     "default-src 'self'",
     `script-src ${scriptSrc}`,
-    "style-src 'self' 'unsafe-inline' https://assets.calendly.com",
+    "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: blob: https:",
     "font-src 'self'",
-    "connect-src 'self' https://*.supabase.co https://*.supabase.in wss://*.supabase.co https://cdn.usefathom.com https://www.google-analytics.com https://api.github.com https://calendly.com",
-    "frame-src https://calendly.com https://*.supabase.co https://*.supabase.in",
+    "connect-src 'self' https://*.supabase.co https://*.supabase.in wss://*.supabase.co https://cdn.usefathom.com https://www.google-analytics.com https://api.github.com",
+    "frame-src https://*.supabase.co https://*.supabase.in",
     "object-src 'none'",
     "base-uri 'self'",
     "form-action 'self'",

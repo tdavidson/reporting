@@ -4,7 +4,6 @@ import { headers } from 'next/headers'
 import { NONCE_HEADER } from '@/lib/security/csp'
 import { createClient, getUser } from '@/lib/supabase/server'
 import { AppShell } from '@/components/app-shell'
-import { DemoSessionGuard } from '@/components/demo-session-guard'
 import {
   getReviewBadge,
   getNotesBadge,
@@ -22,6 +21,7 @@ import { accessContextFrom, hasAccess } from '@/lib/access/effective'
 import { DEFAULT_FEATURE_VISIBILITY } from '@/lib/types/features'
 import type { FeatureVisibilityMap } from '@/lib/types/features'
 import { themeCssVars, type FundTheme } from '@/lib/theme'
+import { PRODUCT_NAME } from '@/lib/site-links'
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const nonce = (await headers()).get(NONCE_HEADER) ?? undefined
@@ -46,7 +46,6 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   ])
 
   const isAdmin = membership?.role === 'admin'
-  const isViewer = membership?.role === 'viewer'
   const [pendingRequestCount, updateAvailable, pendingActionCounts] = await Promise.all([
     isAdmin ? getPendingRequests(fund.id) : Promise.resolve(0),
     isAdmin ? getUpdateAvailable() : Promise.resolve(false),
@@ -95,7 +94,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const fathomSiteId = fundSettings?.analytics_fathom_site_id ?? null
   const rawGaId = fundSettings?.analytics_ga_measurement_id ?? null
   const gaMeasurementId = rawGaId && /^[A-Z0-9-]+$/i.test(rawGaId) ? rawGaId : null
-  const fundName = fundData?.name ?? 'Portfolio Reporting'
+  const fundName = fundData?.name ?? PRODUCT_NAME
   const fundLogo = fundData?.logo_url ?? null
   // Per-fund branding: override CSS variables app-wide. Empty when no theme set.
   const themeVars = themeCssVars((fundSettings?.theme as FundTheme | null) ?? null)
@@ -103,23 +102,6 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   return (
     <div className="min-h-screen flex flex-col bg-background">
       {themeVars && <style dangerouslySetInnerHTML={{ __html: `:root{${themeVars}}` }} />}
-      {isViewer && (
-        <>
-          <DemoSessionGuard />
-          <div className="bg-info text-white text-center text-xs py-1.5 px-4 shrink-0 flex items-center justify-center gap-3">
-            <span>Viewing demo &mdash; read only</span>
-            {/* POST, not a link: /api/auth/logout exports only POST, so a GET falls through to
-                Next's 405 handler — a body-less response with no Content-Type, which Chrome
-                cannot render and turns into a download named "logout". The session also
-                survived, because a download never unloads the page and DemoSessionGuard's
-                beforeunload beacon never fired. */}
-            <form action="/api/auth/logout" method="POST">
-              <button type="submit" className="underline underline-offset-2 hover:text-white/80">Exit demo</button>
-            </form>
-          </div>
-        </>
-      )}
-
       <div className="w-full max-w-page mx-auto flex flex-col flex-1">
         <AppShell
           lpPortalEnabled={!!fundSettings?.lp_portal_enabled}

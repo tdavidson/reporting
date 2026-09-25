@@ -30,7 +30,9 @@ export function LpPortalDashboard() {
         Manage everything your investors see in their portal.
       </p>
 
-      <div className="space-y-10">
+      {/* Content and the Analyst side by side at lg, as on every other page with the panel. */}
+      <div className="flex flex-col lg:flex-row gap-6 items-start">
+      <div className="space-y-10 flex-1 min-w-0 w-full">
         <Section title="Access" description="Invite LPs and their authorized users, in bulk from a pasted sheet, or one at a time. Investors are matched by name; new ones are created.">
           <LpAccessSettings />
         </Section>
@@ -44,6 +46,7 @@ export function LpPortalDashboard() {
       </div>
 
       <AnalystPanel />
+      </div>
     </div>
   )
 }

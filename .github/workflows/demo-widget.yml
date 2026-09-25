@@ -1,0 +1,69 @@
+# Builds the public demo widget on every change to main that can affect it and publishes the
+# result as the assets of one rolling GitHub release, `demo-widget-latest`. The marketing site
+# (tdavidson/otheradmin-site) downloads those assets at build time, so a change to the command
+# palette or the Analyst reaches www.otheradmin.com/demo on the site's next deploy with no copy
+# step in between. See demo-widget/README.md.
+name: demo-widget
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'app/**'
+      - 'components/**'
+      - 'lib/**'
+      - 'demo-widget/**'
+      - 'app/globals.css'
+      - 'tailwind.config.ts'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/demo-widget.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: demo-widget
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run demo:widget
+      - uses: browser-actions/setup-chrome@v1
+        id: chrome
+      # Every page of the widget, rendered on the snapshot in a real browser: a component that
+      # no longer renders on this data stops the publish here rather than breaking the site.
+      # Unanswered API requests are listed but do not fail the build; scripts/demo-record.mjs
+      # (run locally, with the demo viewer's sign-in) is what answers them.
+      - run: npm run demo:check
+        env:
+          CHROME_PATH: ${{ steps.chrome.outputs.chrome-path }}
+      - name: Move the rolling tag to this commit
+        run: |
+          git tag -f demo-widget-latest
+          git push -f origin demo-widget-latest
+      - name: Publish the assets
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: demo-widget-latest
+          name: Demo widget (latest)
+          prerelease: true
+          body: |
+            The public demo widget, rebuilt from `main` on every relevant change. Consumed by the
+            marketing site's build; not a release of the application.
+          files: demo-widget/dist/*
+      - name: Rebuild the marketing site
+        # Only when the Vercel deploy hook for tdavidson/otheradmin-site is set as a repo secret.
+        if: ${{ secrets.OTHERADMIN_SITE_DEPLOY_HOOK != '' }}
+        env:
+          SITE_DEPLOY_HOOK: ${{ secrets.OTHERADMIN_SITE_DEPLOY_HOOK }}
+        run: curl -fsS -X POST "$SITE_DEPLOY_HOOK" > /dev/null

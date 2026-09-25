@@ -156,6 +156,14 @@ export const TABLE_RULES: Record<string, TableRule> = {
   crypto_wallet_balances: { scope: 'fund', domain: 'accounting' },
   price_feeds: { scope: 'fund', domain: 'accounting' },
   price_observations: { scope: 'fund', domain: 'accounting' },
+  // The quarterly close (20260920*). Rounding carry-forward is read under the same accounting
+  // gate as the ledger; the rest are written by the close and read through its routes only.
+  close_allocation_rounding: { scope: 'fund', domain: 'accounting' },
+  journal_entry_allocations: { scope: 'service', note: 'Links a source entry to the allocation entries the close posted for it; written by the close, read through accounting routes.' },
+  close_reviews: { scope: 'service', note: 'Close review runs; written by the close and served by the accounting close routes.' },
+  close_review_checks: { scope: 'service', note: 'Per-check results of a close review; worker-written, served with their review.' },
+  accounting_schedules: { scope: 'service', note: 'Recurring accruals and amortization schedules the close posts; managed through accounting routes.' },
+  accounting_schedule_lines: { scope: 'service', note: 'Posting lines of an accounting schedule; managed with their schedule.' },
 
   // ---- Management company --------------------------------------------------------------------
   // NOTE the tables that are NOT here. A management company's ledger lives in the same
@@ -281,7 +289,7 @@ export const TABLE_RULES: Record<string, TableRule> = {
   k1_delivery_consents: { scope: 'service', note: 'A partner’s consent to electronic delivery — a legal fact, never manufacturable from a browser.' },
   reminder_deliveries: { scope: 'service', note: 'Which reminder thresholds were emailed; the ops-reminders cron is the only reader and writer.' },
   // ---- Deliberately public -------------------------------------------------------------------
-  site_content: { scope: 'public', note: 'The marketing page renders it unauthenticated. Admin-written.' },
+  site_content: { scope: 'public', note: 'Legacy: the in-app marketing page that read it moved to otheradmin-site. Table kept; nothing reads or writes it.' },
 
   // ---- Left alone, with reasons ---------------------------------------------------------------
   funds: { scope: 'keep', note: 'Membership defines the tenant; its policy is the root of get_my_fund_ids and predates domains.' },

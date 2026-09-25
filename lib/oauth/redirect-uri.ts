@@ -11,7 +11,7 @@
  * custom scheme the app claims. The plan requires supporting that without "broadly accepting
  * arbitrary URI schemes", so the rule is a SHAPE rather than a list:
  *
- *   a custom scheme must be reverse-DNS — at least one dot, e.g. `com.hemrock.reporting:`
+ *   a custom scheme must be reverse-DNS — at least one dot, e.g. `com.otheradmin.app:`
  *
  * That single requirement does the work an explicit denylist would. Every scheme that makes a
  * redirect dangerous is a bare word: `javascript:`, `data:`, `file:`, `blob:`, `vbscript:`,

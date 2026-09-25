@@ -60,7 +60,7 @@ export function AddVehicleButton({ onCreated }: { onCreated?: () => void }) {
         <div className="space-y-3">
           <div className="space-y-1">
             <label className="text-xs text-muted-foreground">Name</label>
-            <Input value={name} onChange={e => setName(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') create() }} placeholder="e.g. Fund IV, SPV — Acme, Hemrock Management LLC" autoFocus />
+            <Input value={name} onChange={e => setName(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') create() }} placeholder="e.g. Fund IV, SPV — Acme, Acme Management LLC" autoFocus />
           </div>
           <div className="space-y-1">
             <label className="text-xs text-muted-foreground">Type</label>

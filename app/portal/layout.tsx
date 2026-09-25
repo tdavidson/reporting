@@ -1,5 +1,5 @@
 import { getPortalFund } from '@/lib/portal-fund'
-import { appleTouchIcons } from '@/lib/pwa'
+import { TAB_ICONS, appleTouchIcons } from '@/lib/pwa'
 import { themeCssVars } from '@/lib/theme'
 import { PortalChrome } from '@/components/portal-chrome'
 import { createClient, getUser } from '@/lib/supabase/server'
@@ -20,7 +20,7 @@ export const metadata = {
   // iOS reads apple-touch-icon ahead of the manifest's icons, so overriding the
   // manifest alone would still have put the manager icon on an LP's home screen.
   // One link per size, for the same reason as the manager app — see app/layout.tsx.
-  icons: { apple: appleTouchIcons('portal') },
+  icons: { icon: TAB_ICONS, apple: appleTouchIcons('portal') },
 }
 
 export default async function PortalLayout({ children }: { children: React.ReactNode }) {

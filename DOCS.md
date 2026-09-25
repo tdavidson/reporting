@@ -1,4 +1,4 @@
-# Portfolio, by Hemrock — Documentation and deployment
+# OtherAdmin — Documentation and deployment
 
 - Project overview at [README](./README.md)
 - Detailed feature descriptions at [FEATURES](./FEATURES.md)
@@ -7,7 +7,7 @@
 
 ## Setup & Deployment
 
-Designed as a single-tenant deployment per fund. You control your own data, your own API keys, your own domain, and your own infrastructure. [Taylor Davidson](https://www.hemrock.com) of Hemrock is available to manage the setup, onboard you and your portfolio data, and provide ongoing support, [contact him for details](https://www.hemrock.com/contact). A hosted solution is also available for early access for a limited number of funds.
+Designed as a single-tenant deployment per fund. You control your own data, your own API keys, your own domain, and your own infrastructure. [Taylor Davidson](https://www.hemrock.com) of Hemrock is available to manage the setup, onboard you and your portfolio data, and provide ongoing support, [contact him for details](https://www.hemrock.com/contact).
 
 ### Required services
 
@@ -37,8 +37,8 @@ Follow these steps in order. Each step builds on the previous one.
 Download the source code from Github, or clone to copy it to your own Github account:
 
 ```bash
-git clone https://github.com/tdavidson/reporting.git
-cd reporting
+git clone https://github.com/tdavidson/otheradmin.git
+cd otheradmin
 npm install
 ```
 
@@ -76,11 +76,11 @@ Next is to deploy the app to your chosen hosting provider. Netlify and Vercel ar
 
 **Option A: Netlify**
 
-[![Deploy to Netlify](https://www.netlify.com/img/deploy/button.svg)](https://app.netlify.com/start/deploy?repository=https://github.com/tdavidson/reporting)
+[![Deploy to Netlify](https://www.netlify.com/img/deploy/button.svg)](https://app.netlify.com/start/deploy?repository=https://github.com/tdavidson/otheradmin)
 
 **Option B: Vercel**
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Ftdavidson%2Freporting&env=NEXT_PUBLIC_SUPABASE_URL,NEXT_PUBLIC_SUPABASE_ANON_KEY,SUPABASE_SERVICE_ROLE_KEY,ENCRYPTION_KEY,NEXT_PUBLIC_APP_URL&envDescription=Required%20environment%20variables%20for%20Portfolio%20Reporting&project-name=portfolio-reporting)
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Ftdavidson%2Fotheradmin&env=NEXT_PUBLIC_SUPABASE_URL,NEXT_PUBLIC_SUPABASE_ANON_KEY,SUPABASE_SERVICE_ROLE_KEY,ENCRYPTION_KEY,NEXT_PUBLIC_APP_URL&envDescription=Required%20environment%20variables%20for%20Portfolio%20Reporting&project-name=portfolio-reporting)
 
 After deploying, add these environment variables in your hosting platform's settings:
 
@@ -90,12 +90,13 @@ NEXT_PUBLIC_SUPABASE_URL=         # From Step 2
 NEXT_PUBLIC_SUPABASE_ANON_KEY=    # From Step 2
 SUPABASE_SERVICE_ROLE_KEY=        # From Step 2
 ENCRYPTION_KEY=                   # From Step 3
-NEXT_PUBLIC_APP_URL=              # Your deployed URL (e.g. https://reporting.yourfund.com)
+NEXT_PUBLIC_SITE_URL=             # Your deployed URL (e.g. https://reporting.yourfund.com)
+NEXT_PUBLIC_APP_URL=              # The same value; the older name, still honoured
 ```
 
 Trigger a redeploy after adding the variables. `NEXT_PUBLIC_*` variables are baked into the build, so they require a rebuild to take effect.
 
-If you're using a custom domain, configure it in your hosting platform's domain settings and update `NEXT_PUBLIC_APP_URL` to match.
+If you're using a custom domain, configure it in your hosting platform's domain settings and update `NEXT_PUBLIC_SITE_URL` (and `NEXT_PUBLIC_APP_URL`) to match. Optionally set `NEXT_PUBLIC_TERMS_URL` and `NEXT_PUBLIC_PRIVACY_URL` to link your own legal pages from the footer and sign-in pages; unset, no link renders.
 
 ### Step 5: Configure Supabase authentication
 
@@ -273,7 +274,7 @@ The web app is installable, so partners can keep it on a phone or tablet home sc
 
 The installed app is branded per fund: the name under the icon is your fund's name, and the mark takes the accent colour from **Settings > Appearance**. Home-screen labels are clipped near twelve characters on both platforms, so a longer fund name is shortened by whole words — "Evergreen Capital Partners" installs as "Evergreen".
 
-The icon is rendered on demand at every size a platform asks for — 152, 167 and 180 for iOS, 192 and 512 for Android, 384 for the Android splash, and 1024 for a desktop dock — so nothing is ever resized to fit. iOS is given one `apple-touch-icon` link per size rather than a single one to scale. The mark is drawn at a lighter weight than the browser-tab favicon: a stroke that keeps a 16px toolbar glyph legible reads as a blob at 180px, and the home-screen icon is sized for the home screen.
+The icon is rendered on demand at every size a platform asks for — 152, 167 and 180 for iOS, 192 and 512 for Android, 384 for the Android splash, and 1024 for a desktop dock — so nothing is ever resized to fit. iOS is given one `apple-touch-icon` link per size rather than a single one to scale.
 
 **Navigating on a phone.** Below the tablet breakpoint the sidebar is replaced by a tab bar that floats above the bottom of the screen: the four sections you can see, plus **More**. The four are chosen from the same access rules as the sidebar, so the bar never offers a page your account cannot open, and it fills itself from whatever you do have if some features are off. A dot on **More** means something is waiting behind it — a review queue, a settings item, an available update.
 
@@ -289,7 +290,7 @@ So an installed app opened with no connection shows the offline page, not a stal
 
 The portal app is scoped to `/portal`: a link out of it opens in the browser rather than inside the installed app, so it can't wander onto the manager surface in a window with no address bar.
 
-The two are told apart on a home screen by the icon: the manager app is the mark on a light tile, the portal is the same mark inverted — knocked out of a filled tile in the fund's colour. One mark between them, because these are two doors into one product rather than two products. Solid-versus-hollow is what survives being shrunk to 60px and cropped to a circle; two different drawings would not. The fill is taken from the brand ramp's 700 stop rather than the accent itself, so the knockout stays legible whichever accent a fund picks — several accents are far too light to carry white directly.
+The two are told apart on a home screen by the icon: the manager app is the mark on a light tile, the portal is the same mark inverted — knocked out of a filled tile in the fund's colour. One mark between them, because these are two doors into one product rather than two products. A dark tile against a light one is what survives being shrunk to 60px and cropped to a circle; two different drawings would not. The fill is taken from the brand ramp's 700 stop rather than the accent itself, so the knockout stays legible whichever accent a fund picks — several accents are far too light to carry white directly.
 
 **Known gaps.** For a named fund both apps carry the same home-screen *label* (the fund's name); only the icon distinguishes them. The full names differ and install prompts show those. Web push notifications are not wired up on any platform.
 
@@ -326,7 +327,7 @@ Then set the tunnel URL as your inbound webhook (e.g. `https://your-tunnel.ngrok
 
 ### Demo mode
 
-**[Try the demo](https://portfolio.hemrock.com/demo)** — explore the platform with sample data, no signup required.
+**[Try the demo](https://www.otheradmin.com/demo/)** — explore the platform with sample data, no signup required.
 
 ### AI Providers
 
@@ -377,7 +378,7 @@ The features that can be configured are: **Interactions** (CRM-style email loggi
 
 ### Updates
 
-The app includes a built-in update checker. It periodically compares your installed version against the latest [GitHub release](https://github.com/tdavidson/reporting/releases). When a newer version is available, admins will see an **Updates** link in the sidebar. Click it to see the current version, the latest version, release notes, and a link to the GitHub release.
+The app includes a built-in update checker. It periodically compares your installed version against the latest [GitHub release](https://github.com/tdavidson/otheradmin/releases). When a newer version is available, admins will see an **Updates** link in the sidebar. Click it to see the current version, the latest version, release notes, and a link to the GitHub release.
 
 Non-admin users do not see the update indicator. The check runs against the public GitHub Releases API (no authentication required) and is cached for one hour.
 
@@ -387,6 +388,6 @@ Each installation has a unique **Installation ID** — a UUID automatically gene
 
 Built by Taylor Davidson at [Hemrock](https://www.hemrock.com).
 
-For setup assistance, hosted deployments, or questions: [hemrock.com/contact](https://www.hemrock.com/contact).
+For setup assistance, support, or questions: [hemrock.com/contact](https://www.hemrock.com/contact).
 
-For bug reports and feature requests: [GitHub Issues](https://github.com/tdavidson/reporting/issues).
+For bug reports and feature requests: [GitHub Issues](https://github.com/tdavidson/otheradmin/issues).

@@ -120,11 +120,11 @@ export async function POST(req: NextRequest, props: { params: Promise<{ token: s
     pitch,
   ].filter(Boolean).join('\n')
 
-  const messageId = `<public-submit-${crypto.randomUUID()}@hemrock.local>`
+  const messageId = `<public-submit-${crypto.randomUUID()}@otheradmin.local>`
 
   const payload: PostmarkPayload & { From: string; To: string; FromFull: { Email: string; Name: string }; Subject: string; MessageID: string } = {
     From: founderEmail,
-    To: 'public-submit@hemrock.local',
+    To: 'public-submit@otheradmin.local',
     FromFull: { Email: founderEmail, Name: founderName },
     Subject: subject,
     TextBody: composedBody,

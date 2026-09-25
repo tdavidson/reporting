@@ -22,7 +22,6 @@ import { UsageTrackingSection } from './_sections/fund/usage-tracking-section'
 import { AIProvidersSection } from './_sections/platform/ai-providers-section'
 import { InboundEmailSection } from './_sections/platform/inbound-email-section'
 import { StorageSection } from './_sections/platform/storage-section'
-import { MarketingSection } from './_sections/platform/marketing-section'
 import { OutboundEmailSection } from './_sections/platform/outbound-email-section'
 import { RemindersSection } from './_sections/platform/reminders-section'
 import { SendersSection } from './_sections/platform/senders-section'
@@ -215,7 +214,6 @@ export default function SettingsPage() {
               googleClientId={settings.googleClientId}
               onChanged={load}
             />
-            <MarketingSection />
             <Section title="Agent access">
               <LedgerAgentAccess isAdmin={settings.isAdmin} section="toggle" />
             </Section>
